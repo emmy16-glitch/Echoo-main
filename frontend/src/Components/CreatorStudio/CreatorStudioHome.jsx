@@ -15,10 +15,12 @@ import batch2Service from '../../services/batch2Service';
 import EchoAvatar from '../EchooSystem/EchoAvatar';
 import EchoSignal from '../EchooSystem/EchoSignal';
 import './CreatorStudioHomeFinal.css';
+import './CreatorPremium2026.css';
 
 const formatNumber = (value) =>
-  new Intl.NumberFormat('en-US', { notation: Number(value) >= 10000 ? 'compact' : 'standard' })
-    .format(Number(value) || 0);
+  new Intl.NumberFormat('en-US', {
+    notation: Number(value) >= 10000 ? 'compact' : 'standard',
+  }).format(Number(value) || 0);
 
 const formatDateTime = (value) => {
   if (!value) return '';
@@ -107,61 +109,119 @@ const CreatorStudioHome = ({
         <div className="ehome-hero-copy">
           <span className="ehome-eyebrow">CREATOR STUDIO</span>
           <h1>Your voice, <em>ready</em> when you are.</h1>
-          <p>Create a station, connect with your audience, and share audio that matters.</p>
+          <p>
+            {liveBroadcast
+              ? 'Your broadcast is on air. Keep the studio close and your next session ready.'
+              : 'Create a station, prepare your broadcast and connect with listeners when you are ready.'}
+          </p>
 
           <div className="ehome-hero-actions">
-            <button type="button" className="primary" onClick={() => onNavigate?.('Stations')}>
-              <FaBroadcastTower /> Create station
-            </button>
-            <button
-              type="button"
-              className="primary dark"
-              disabled={!stations.length && !liveBroadcast}
-              title={!stations.length ? 'Create a station first.' : ''}
-              onClick={() => openBroadcast('now')}
-            >
-              <FaMicrophone /> {liveBroadcast ? 'Open live studio' : 'Start broadcast'}
-            </button>
-            <button type="button" onClick={onUpload}>
-              <FaCloudUploadAlt /> Upload audio
-            </button>
+            {liveBroadcast ? (
+              <>
+                <button type="button" className="primary dark" onClick={() => openBroadcast('now')}>
+                  <FaMicrophone /> Open live studio
+                </button>
+                <button type="button" onClick={() => openBroadcast('later')}>
+                  <FaCalendarAlt /> Schedule next
+                </button>
+                <button type="button" onClick={onUpload}>
+                  <FaCloudUploadAlt /> Upload audio
+                </button>
+              </>
+            ) : (
+              <>
+                <button type="button" className="primary" onClick={() => onNavigate?.('Stations')}>
+                  <FaBroadcastTower /> {stations.length ? 'Manage stations' : 'Create station'}
+                </button>
+                <button
+                  type="button"
+                  className="primary dark"
+                  disabled={!stations.length}
+                  title={!stations.length ? 'Create a station first.' : ''}
+                  onClick={() => openBroadcast('now')}
+                >
+                  <FaMicrophone /> Start broadcast
+                </button>
+                <button type="button" onClick={onUpload}>
+                  <FaCloudUploadAlt /> Upload audio
+                </button>
+              </>
+            )}
           </div>
         </div>
 
         <div className={`ehome-signal ${liveBroadcast ? 'live' : ''}`}>
-          <EchoSignal size="xl" state={liveBroadcast ? 'live' : 'active'} activeNodes={liveBroadcast ? 3 : 2}>
-            <EchoAvatar image={profileImage} name={studioName} size="lg" state={liveBroadcast ? 'speaking' : 'idle'} />
+          <EchoSignal
+            size="xl"
+            state={liveBroadcast ? 'live' : 'active'}
+            activeNodes={liveBroadcast ? 3 : 2}
+          >
+            <EchoAvatar
+              image={profileImage}
+              name={studioName}
+              size="lg"
+              state={liveBroadcast ? 'speaking' : 'idle'}
+            />
           </EchoSignal>
           <span>{liveBroadcast ? 'ON AIR' : 'READY'}</span>
           <small>{studioName} · {studioType}</small>
         </div>
       </section>
 
-      <section className="ehome-flow-card">
-        <div className="ehome-flow-intro">
-          <strong>Your creator flow</strong>
-          <span>Three steps from setup to broadcast.</span>
-        </div>
-        <div className="ehome-flow-step">
-          <b>1</b><i><FaBroadcastTower /></i>
-          <div><strong>Create station</strong><span>Your permanent home on Echoo.</span></div>
-        </div>
-        <div className="ehome-flow-step">
-          <b>2</b><i><FaCalendarAlt /></i>
-          <div><strong>Start or schedule</strong><span>Broadcast now or choose a future time.</span></div>
-        </div>
-        <div className="ehome-flow-step">
-          <b>3</b><i><FaMicrophone /></i>
-          <div><strong>Go on air</strong><span>Enter the studio and connect with listeners.</span></div>
-        </div>
-      </section>
+      {liveBroadcast && (
+        <section className="ehome-live-takeover" aria-label="Current live broadcast">
+          <div className="ehome-live-copy">
+            <span className="ehome-live-label">LIVE NOW</span>
+            <h2>{liveBroadcast.title || 'Live broadcast'}</h2>
+            <p>
+              {liveBroadcast.station?.name || liveBroadcast.stationName || 'Your station'} ·{' '}
+              {formatNumber(liveBroadcast.listenerCount ?? stats.listeners)} listening now
+              {Number(liveBroadcast.peakListeners) > 0
+                ? ` · ${formatNumber(liveBroadcast.peakListeners)} peak`
+                : ''}
+            </p>
+          </div>
+          <div className="ehome-live-actions">
+            <button type="button" className="primary" onClick={() => openBroadcast('now')}>
+              <FaMicrophone /> Open studio
+            </button>
+            <button type="button" onClick={() => openBroadcast('later')}>
+              <FaCalendarAlt /> Schedule another
+            </button>
+          </div>
+        </section>
+      )}
+
+      {!liveBroadcast && (
+        <section className="ehome-flow-card">
+          <div className="ehome-flow-intro">
+            <strong>Your creator flow</strong>
+            <span>Three steps from setup to broadcast.</span>
+          </div>
+          <div className="ehome-flow-step">
+            <b>1</b><i><FaBroadcastTower /></i>
+            <div><strong>Create station</strong><span>Your permanent home on Echoo.</span></div>
+          </div>
+          <div className="ehome-flow-step">
+            <b>2</b><i><FaCalendarAlt /></i>
+            <div><strong>Start or schedule</strong><span>Broadcast now or choose a future time.</span></div>
+          </div>
+          <div className="ehome-flow-step">
+            <b>3</b><i><FaMicrophone /></i>
+            <div><strong>Go on air</strong><span>Enter the studio and connect with listeners.</span></div>
+          </div>
+        </section>
+      )}
 
       {error && <div className="ehome-alert">{error}</div>}
 
       <div className="ehome-dashboard-grid">
         <section className="ehome-panel">
           <div className="ehome-panel-head">
-            <div><h2>Your stations</h2><p>{stations.length ? `${stations.length} owned by this account` : 'Create your first station to begin.'}</p></div>
+            <div>
+              <h2>Your stations</h2>
+              <p>{stations.length ? `${stations.length} owned by this account` : 'Create your first station to begin.'}</p>
+            </div>
             <button type="button" onClick={() => onNavigate?.('Stations')}>View all <FaArrowRight /></button>
           </div>
 
@@ -174,7 +234,7 @@ const CreatorStudioHome = ({
                   type="button"
                   className="ehome-station-mini"
                   key={station.id}
-                  onClick={() => openBroadcast(station.isLive ? 'now' : 'now', station.id)}
+                  onClick={() => openBroadcast('now', station.id)}
                 >
                   <div className="ehome-station-art">
                     {station.coverArt ? <img src={station.coverArt} alt="" /> : <FaBroadcastTower />}
@@ -189,7 +249,10 @@ const CreatorStudioHome = ({
           ) : (
             <div className="ehome-empty compact">
               <FaBroadcastTower />
-              <div><strong>No stations yet</strong><span>Create a station once, then use it for every broadcast.</span></div>
+              <div>
+                <strong>No stations yet</strong>
+                <span>Create a station once, then use it for every broadcast.</span>
+              </div>
               <button type="button" onClick={() => onNavigate?.('Stations')}>Create station</button>
             </div>
           )}
@@ -202,34 +265,40 @@ const CreatorStudioHome = ({
           </div>
 
           <div className="ehome-upcoming-list">
-            {liveBroadcast && (
-              <button type="button" className="ehome-upcoming live" onClick={() => openBroadcast('now')}>
-                <span className="live">LIVE</span>
-                <div><strong>{liveBroadcast.title}</strong><small>Live now · {formatNumber(liveBroadcast.listenerCount)} listening</small></div>
-                <b>Open studio</b>
-              </button>
-            )}
-            {upcomingSchedule.slice(0, liveBroadcast ? 2 : 3).map((broadcast) => (
-              <button type="button" className="ehome-upcoming" key={broadcast.id || broadcast._id} onClick={() => enterScheduled(broadcast)}>
+            {upcomingSchedule.slice(0, 3).map((broadcast) => (
+              <button
+                type="button"
+                className="ehome-upcoming"
+                key={broadcast.id || broadcast._id}
+                onClick={() => enterScheduled(broadcast)}
+              >
                 <span>SCHEDULED</span>
-                <div><strong>{broadcast.title}</strong><small>{broadcast.station?.name || 'Station'} · {formatDateTime(broadcast.startTime)}</small></div>
+                <div>
+                  <strong>{broadcast.title}</strong>
+                  <small>{broadcast.station?.name || 'Station'} · {formatDateTime(broadcast.startTime)}</small>
+                </div>
                 <b>Enter studio</b>
               </button>
             ))}
-            {!liveBroadcast && !upcomingSchedule.length && !loading && (
-              <div className="ehome-empty compact"><FaCalendarAlt /><div><strong>Nothing planned yet</strong><span>Schedule a broadcast whenever you are ready.</span></div></div>
+            {!upcomingSchedule.length && !loading && (
+              <div className="ehome-empty compact">
+                <FaCalendarAlt />
+                <div><strong>Nothing planned yet</strong><span>Schedule a broadcast whenever you are ready.</span></div>
+              </div>
             )}
           </div>
         </section>
 
         <section className="ehome-panel">
           <div className="ehome-panel-head">
-            <div><h2>Performance snapshot</h2><p>Real activity from your Echoo account.</p></div>
+            <div><h2>Performance snapshot</h2><p>Activity from your Echoo account.</p></div>
             <button type="button" onClick={() => onNavigate?.('Analytics')}>Analytics <FaArrowRight /></button>
           </div>
           <div className="ehome-metrics">
             {metrics.map((metric) => (
-              <article key={metric.label}><i>{metric.icon}</i><span>{metric.label}</span><strong>{metric.value}</strong></article>
+              <article key={metric.label}>
+                <i>{metric.icon}</i><span>{metric.label}</span><strong>{metric.value}</strong>
+              </article>
             ))}
           </div>
         </section>
@@ -245,21 +314,33 @@ const CreatorStudioHome = ({
               {recentContent.slice(0, 3).map((track) => (
                 <article key={track.id}>
                   <div>{track.coverArt ? <img src={track.coverArt} alt="" /> : <FaPlay />}</div>
-                  <span><strong>{track.title}</strong><small>{track.genre || 'Audio'} · {formatNumber(track.plays)} plays</small></span>
+                  <span>
+                    <strong>{track.title}</strong>
+                    <small>{track.genre || 'Audio'} · {formatNumber(track.plays)} plays</small>
+                  </span>
                   <em>{track.isPublic ? 'Public' : 'Private'}</em>
                 </article>
               ))}
             </div>
           ) : (
-            <div className="ehome-empty"><FaHeadphones /><div><strong>No audio yet</strong><span>Your uploaded recordings will appear here.</span></div><button type="button" onClick={onUpload}>Upload audio</button></div>
+            <div className="ehome-empty">
+              <FaHeadphones />
+              <div><strong>No audio yet</strong><span>Your uploaded recordings will appear here.</span></div>
+              <button type="button" onClick={onUpload}>Upload audio</button>
+            </div>
           )}
         </section>
       </div>
 
       <section className="ehome-station-note">
         <i><FaBroadcastTower /></i>
-        <div><strong>Stations are the home for your broadcasts</strong><span>Create a station once, then choose it whenever you start or schedule a broadcast.</span></div>
-        <button type="button" onClick={() => onNavigate?.('Stations')}>Manage stations <FaArrowRight /></button>
+        <div>
+          <strong>Stations are the home for your broadcasts</strong>
+          <span>Create a station once, then choose it whenever you start or schedule a broadcast.</span>
+        </div>
+        <button type="button" onClick={() => onNavigate?.('Stations')}>
+          Manage stations <FaArrowRight />
+        </button>
       </section>
     </div>
   );
