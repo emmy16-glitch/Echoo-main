@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   FaBroadcastTower,
+  FaCalendarAlt,
   FaEdit,
+  FaMicrophone,
   FaPlus,
   FaSave,
   FaTrash,
@@ -36,7 +38,7 @@ const EMPTY_FORM = {
   isPublic: true,
 };
 
-const CreatorStationsWorkspace = ({ studioName = 'Creator' }) => {
+const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
   const [stations, setStations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
@@ -117,10 +119,7 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator' }) => {
       name: form.name.trim(),
       category: form.category,
       description: form.description.trim(),
-      tags: form.tags
-        .split(',')
-        .map((tag) => tag.trim())
-        .filter(Boolean),
+      tags: form.tags.split(',').map((tag) => tag.trim()).filter(Boolean),
       coverArt: form.coverArt.trim() || null,
       isPublic: form.isPublic,
     };
@@ -145,20 +144,14 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator' }) => {
 
         if (exists) {
           return current.map((station) =>
-            String(station.id) === String(response.data.id)
-              ? response.data
-              : station
+            String(station.id) === String(response.data.id) ? response.data : station
           );
         }
 
         return [response.data, ...current];
       });
 
-      setMessage(
-        editingId
-          ? `${response.data.name} was updated.`
-          : `${response.data.name} is now an Echoo station.`
-      );
+      setMessage(editingId ? 'Station updated.' : 'Station created.');
       setFormOpen(false);
       setEditingId('');
       setForm(EMPTY_FORM);
@@ -172,9 +165,7 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator' }) => {
   const removeStation = async (station) => {
     if (!station?.id || deletingId) return;
 
-    const confirmed = window.confirm(
-      `Delete “${station.name}”? This removes the station from your Creator Studio.`
-    );
+    const confirmed = window.confirm(`Delete “${station.name}”?`);
     if (!confirmed) return;
 
     try {
@@ -185,7 +176,7 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator' }) => {
       setStations((current) =>
         current.filter((item) => String(item.id) !== String(station.id))
       );
-      setMessage(`${station.name} was deleted.`);
+      setMessage('Station deleted.');
     } catch (deleteError) {
       setError(deleteError?.message || 'Could not delete the station.');
     } finally {
@@ -200,10 +191,9 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator' }) => {
       <header className="creator-b2-header">
         <div>
           <span className="creator-b2-kicker">STATIONS</span>
-          <h1>Your Echoo stations.</h1>
+          <h1>Your stations.</h1>
           <p>
-            This is the one place where {studioName} creates and manages stations.
-            Live and Schedule only select stations that already exist here.
+            A station is the home for your live broadcasts. Create it once, then choose it when you go live or schedule a broadcast.
           </p>
         </div>
 
@@ -218,17 +208,11 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator' }) => {
 
       <div className="creator-b2-toolbar">
         <div>
-          <strong>
-            {stations.length} {stations.length === 1 ? 'station' : 'stations'}
-          </strong>
-          <span>Synced with the Echoo backend</span>
+          <strong>{stations.length} {stations.length === 1 ? 'station' : 'stations'}</strong>
+          <span>{studioName}</span>
         </div>
 
-        <button
-          type="button"
-          className="creator-b2-primary"
-          onClick={openCreate}
-        >
+        <button type="button" className="creator-b2-primary" onClick={openCreate}>
           <FaPlus /> New station
         </button>
       </div>
@@ -240,12 +224,8 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator' }) => {
         <form className="creator-b2-form" onSubmit={submitStation}>
           <div className="creator-b2-form-heading">
             <div>
-              <h2>{editingId ? 'Edit station' : 'Create a station'}</h2>
-              <p>
-                {editingId
-                  ? 'Update the public identity of this station.'
-                  : 'Create one real station. You will select it later when going live or scheduling.'}
-              </p>
+              <h2>{editingId ? 'Edit station' : 'New station'}</h2>
+              <p>{editingId ? 'Update this station.' : 'Set up the station you will use for broadcasts.'}</p>
             </div>
           </div>
 
@@ -255,7 +235,7 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator' }) => {
               <input
                 value={form.name}
                 maxLength={100}
-                placeholder="e.g. Faith Talk Radio"
+                placeholder="e.g. Layers of Truth"
                 onChange={(event) => updateField('name', event.target.value)}
                 required
               />
@@ -267,9 +247,7 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator' }) => {
                 value={form.category}
                 onChange={(event) => updateField('category', event.target.value)}
               >
-                {CATEGORIES.map((item) => (
-                  <option key={item} value={item}>{item}</option>
-                ))}
+                {CATEGORIES.map((item) => <option key={item} value={item}>{item}</option>)}
               </select>
             </label>
 
@@ -278,7 +256,7 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator' }) => {
               <textarea
                 value={form.description}
                 maxLength={2000}
-                placeholder="What should listeners know about this station?"
+                placeholder="What is this station about?"
                 onChange={(event) => updateField('description', event.target.value)}
               />
             </label>
@@ -313,9 +291,7 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator' }) => {
           </div>
 
           <div className="creator-b2-form-actions">
-            <button type="button" onClick={closeForm} disabled={saving}>
-              Cancel
-            </button>
+            <button type="button" onClick={closeForm} disabled={saving}>Cancel</button>
             <button
               type="submit"
               className="creator-b2-primary"
@@ -330,27 +306,20 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator' }) => {
       {loading ? (
         <div className="creator-b2-state">
           <EchoSignal size="md" state="active" activeNodes={2} />
-          <strong>Loading your stations...</strong>
+          <strong>Loading stations...</strong>
         </div>
       ) : sorted.length === 0 ? (
         <div className="creator-b2-state">
           <FaBroadcastTower />
           <strong>No stations yet</strong>
-          <p>Create your first station here before using Live or Schedule.</p>
-          <button type="button" className="creator-b2-primary" onClick={openCreate}>
-            <FaPlus /> Create station
-          </button>
+          <p>Use the New station button above to create your first station.</p>
         </div>
       ) : (
         <div className="creator-b2-grid">
           {sorted.map((station) => (
             <article className="creator-b2-card" key={station.id}>
               <div className="creator-b2-art">
-                {station.coverArt ? (
-                  <img src={station.coverArt} alt="" />
-                ) : (
-                  <FaBroadcastTower />
-                )}
+                {station.coverArt ? <img src={station.coverArt} alt="" /> : <FaBroadcastTower />}
                 {station.isLive && <span className="creator-b2-live">LIVE</span>}
               </div>
 
@@ -365,6 +334,12 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator' }) => {
                 </div>
 
                 <div className="creator-b2-card-actions">
+                  <button type="button" onClick={() => onNavigate?.('Live')}>
+                    <FaMicrophone /> Go live
+                  </button>
+                  <button type="button" onClick={() => onNavigate?.('Schedule')}>
+                    <FaCalendarAlt /> Schedule
+                  </button>
                   <button type="button" onClick={() => openEdit(station)}>
                     <FaEdit /> Edit
                   </button>
