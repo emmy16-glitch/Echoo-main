@@ -2,12 +2,10 @@ import { apiRequest, buildMediaUrl } from './api.js';
 
 const queryString = (values = {}) => {
   const params = new URLSearchParams();
-
   Object.entries(values).forEach(([key, value]) => {
     if (value === undefined || value === null || value === '') return;
     params.set(key, String(value));
   });
-
   const result = params.toString();
   return result ? `?${result}` : '';
 };
@@ -22,7 +20,6 @@ const normalizeOwner = (owner) => {
   if (!owner) {
     return { id: null, username: '', displayName: '', avatar: null };
   }
-
   if (typeof owner === 'string') {
     return { id: owner, username: '', displayName: '', avatar: null };
   }
@@ -31,8 +28,7 @@ const normalizeOwner = (owner) => {
     ...owner,
     id: owner.id || owner._id || null,
     username: owner.username || '',
-    displayName:
-      owner.displayName || owner.fullname || owner.username || '',
+    displayName: owner.displayName || owner.fullname || owner.username || '',
     avatar: buildMediaUrl(owner.avatar || owner.profileImage || null),
   };
 };
@@ -40,7 +36,6 @@ const normalizeOwner = (owner) => {
 export const normalizeStation = (station) => {
   if (!station) return null;
 
-  const id = station.id || station._id || null;
   const owner = normalizeOwner(station.owner);
   const coverArt = buildMediaUrl(
     station.coverArt || station.artwork || station.image || null
@@ -48,7 +43,7 @@ export const normalizeStation = (station) => {
 
   return {
     ...station,
-    id,
+    id: station.id || station._id || null,
     _id: station._id || station.id || null,
     owner,
     ownerId: owner.id,
@@ -69,22 +64,18 @@ export const normalizeStation = (station) => {
     followers: Number(station.followerCount) || 0,
     isPublic: station.isPublic !== false,
     tags: Array.isArray(station.tags) ? station.tags : [],
-    schedule: Array.isArray(station.schedule) ? station.schedule : [],
   };
 };
 
 export const normalizeBroadcast = (broadcast) => {
   if (!broadcast) return null;
 
-  const id = broadcast.id || broadcast._id || null;
   const stationObject =
     typeof broadcast.station === 'object' ? broadcast.station : null;
   const creatorObject =
     typeof broadcast.creator === 'object' ? broadcast.creator : null;
-  const stationId =
-    normalizeId(broadcast.station) || broadcast.stationId || null;
-  const creatorId =
-    normalizeId(broadcast.creator) || broadcast.creatorId || null;
+  const stationId = normalizeId(broadcast.station) || broadcast.stationId || null;
+  const creatorId = normalizeId(broadcast.creator) || broadcast.creatorId || null;
   const coverArt = buildMediaUrl(
     broadcast.coverArt || stationObject?.coverArt || null
   );
@@ -92,14 +83,13 @@ export const normalizeBroadcast = (broadcast) => {
 
   return {
     ...broadcast,
-    id,
+    id: broadcast.id || broadcast._id || null,
     _id: broadcast._id || broadcast.id || null,
     title: broadcast.title || 'Untitled Broadcast',
     description: broadcast.description || '',
     station: stationObject ? normalizeStation(stationObject) : broadcast.station,
     stationId,
-    stationName:
-      stationObject?.name || broadcast.stationName || 'Echoo Station',
+    stationName: stationObject?.name || broadcast.stationName || 'Echoo Station',
     stationSlug: stationObject?.slug || null,
     creatorId,
     creatorName:
@@ -157,31 +147,23 @@ const batch2Service = {
         search: options.search,
         featured: options.featured,
         live: options.live,
-      })}`
+      })}`,
+      { skipAuth: true, skipRefresh: true }
     );
-
-    return {
-      ...response,
-      data: normalizeStationList(response),
-    };
+    return { ...response, data: normalizeStationList(response) };
   },
 
   getMyStations: async () => {
     const response = await apiRequest('/stations/mine/all');
-    return {
-      ...response,
-      data: normalizeStationList(response),
-    };
+    return { ...response, data: normalizeStationList(response) };
   },
 
   getStation: async (stationId) => {
     const response = await apiRequest(
-      `/stations/${encodeURIComponent(stationId)}`
+      `/stations/${encodeURIComponent(stationId)}`,
+      { skipAuth: true, skipRefresh: true }
     );
-    return {
-      ...response,
-      data: normalizeStation(response?.data),
-    };
+    return { ...response, data: normalizeStation(response?.data) };
   },
 
   createStation: async (payload) => {
@@ -196,11 +178,7 @@ const batch2Service = {
         coverArt: payload.coverArt || null,
       }),
     });
-
-    return {
-      ...response,
-      data: normalizeStation(response?.data),
-    };
+    return { ...response, data: normalizeStation(response?.data) };
   },
 
   updateStation: async (stationId, payload) => {
@@ -211,29 +189,13 @@ const batch2Service = {
         body: JSON.stringify(payload),
       }
     );
-
-    return {
-      ...response,
-      data: normalizeStation(response?.data),
-    };
+    return { ...response, data: normalizeStation(response?.data) };
   },
 
-  deleteStation: async (stationId) => {
-    return apiRequest(`/stations/${encodeURIComponent(stationId)}`, {
+  deleteStation: async (stationId) =>
+    apiRequest(`/stations/${encodeURIComponent(stationId)}`, {
       method: 'DELETE',
-    });
-  },
-
-  getStationSchedule: async (stationId) => {
-    return apiRequest(`/stations/${encodeURIComponent(stationId)}/schedule`);
-  },
-
-  updateStationSchedule: async (stationId, schedule) => {
-    return apiRequest(`/stations/${encodeURIComponent(stationId)}/schedule`, {
-      method: 'PATCH',
-      body: JSON.stringify({ schedule }),
-    });
-  },
+    }),
 
   listBroadcasts: async (options = {}) => {
     const response = await apiRequest(
@@ -248,24 +210,14 @@ const batch2Service = {
         type: options.type,
         isRecurring: options.isRecurring,
       })}`,
-      {
-        skipAuth: true,
-        skipRefresh: true,
-      }
+      { skipAuth: true, skipRefresh: true }
     );
-
-    return {
-      ...response,
-      data: normalizeBroadcastList(response),
-    };
+    return { ...response, data: normalizeBroadcastList(response) };
   },
 
   getCreatorBroadcasts: async () => {
     const response = await apiRequest('/broadcasts/mine/all');
-    return {
-      ...response,
-      data: normalizeBroadcastList(response),
-    };
+    return { ...response, data: normalizeBroadcastList(response) };
   },
 
   createBroadcast: async (payload) => {
@@ -273,10 +225,7 @@ const batch2Service = {
       method: 'POST',
       body: JSON.stringify(payload),
     });
-    return {
-      ...response,
-      data: normalizeBroadcast(response?.data),
-    };
+    return { ...response, data: normalizeBroadcast(response?.data) };
   },
 
   updateBroadcast: async (broadcastId, payload) => {
@@ -287,10 +236,7 @@ const batch2Service = {
         body: JSON.stringify(payload),
       }
     );
-    return {
-      ...response,
-      data: normalizeBroadcast(response?.data),
-    };
+    return { ...response, data: normalizeBroadcast(response?.data) };
   },
 
   cancelBroadcast: async (broadcastId) => {
@@ -298,44 +244,28 @@ const batch2Service = {
       `/broadcasts/${encodeURIComponent(broadcastId)}/cancel`,
       { method: 'POST' }
     );
-    return {
-      ...response,
-      data: normalizeBroadcast(response?.data),
-    };
+    return { ...response, data: normalizeBroadcast(response?.data) };
   },
 
-  deleteBroadcast: async (broadcastId) => {
-    return apiRequest(`/broadcasts/${encodeURIComponent(broadcastId)}`, {
+  deleteBroadcast: async (broadcastId) =>
+    apiRequest(`/broadcasts/${encodeURIComponent(broadcastId)}`, {
       method: 'DELETE',
-    });
-  },
+    }),
 
   getUpcomingBroadcasts: async (stationId) => {
     const response = await apiRequest(
       `/broadcasts/station/${encodeURIComponent(stationId)}/upcoming`,
-      {
-        skipAuth: true,
-        skipRefresh: true,
-      }
+      { skipAuth: true, skipRefresh: true }
     );
-    return {
-      ...response,
-      data: normalizeBroadcastList(response),
-    };
+    return { ...response, data: normalizeBroadcastList(response) };
   },
 
   getLiveBroadcast: async (stationId) => {
     const response = await apiRequest(
       `/broadcasts/station/${encodeURIComponent(stationId)}/live`,
-      {
-        skipAuth: true,
-        skipRefresh: true,
-      }
+      { skipAuth: true, skipRefresh: true }
     );
-    return {
-      ...response,
-      data: normalizeBroadcast(response?.data),
-    };
+    return { ...response, data: normalizeBroadcast(response?.data) };
   },
 };
 
