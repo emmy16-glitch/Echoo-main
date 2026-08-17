@@ -1,76 +1,76 @@
+import mongoose from 'mongoose';
 import User from '../models/User.js';
 import Audio from '../models/Audio.js';
 import Playlist from '../models/Playlist.js';
 
-// Save a track to library
+function validId(value) {
+  return mongoose.isValidObjectId(value);
+}
+
+function invalidTrackId(res) {
+  return res.status(400).json({
+    error: { code: 'INVALID_TRACK_ID', message: 'Invalid track ID' },
+  });
+}
+
 export async function saveTrack(req, res, next) {
   try {
     const { trackId } = req.params;
-    const userId = req.userId;
+    if (!validId(trackId)) return invalidTrackId(res);
 
-    // Check if track exists
-    const track = await Audio.findById(trackId);
+    const track = await Audio.findOne({
+      _id: trackId,
+      isDeleted: false,
+      isPublic: true,
+    }).select('_id');
+
     if (!track) {
       return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Track not found' }
+        error: { code: 'NOT_FOUND', message: 'Public track not found' },
       });
     }
 
-    const user = await User.findById(userId);
-    if (!user) {
+    const result = await User.findByIdAndUpdate(
+      req.userId,
+      { $addToSet: { savedAudio: track._id } },
+      { new: true }
+    ).select('_id savedAudio');
+
+    if (!result) {
       return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'User not found' }
+        error: { code: 'NOT_FOUND', message: 'User not found' },
       });
     }
-
-    // Check if already saved
-    if (user.savedAudio.includes(trackId)) {
-      return res.status(400).json({
-        error: { code: 'ALREADY_SAVED', message: 'Track already saved' }
-      });
-    }
-
-    user.savedAudio.push(trackId);
-    await user.save();
 
     return res.status(200).json({
       data: {
         message: 'Track saved successfully',
-        trackId,
+        trackId: String(track._id),
         saved: true,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('Save track error:', error);
     next(error);
   }
 }
 
-// Remove a track from library
 export async function unsaveTrack(req, res, next) {
   try {
     const { trackId } = req.params;
-    const userId = req.userId;
+    if (!validId(trackId)) return invalidTrackId(res);
 
-    const user = await User.findById(userId);
-    if (!user) {
+    const result = await User.findByIdAndUpdate(
+      req.userId,
+      { $pull: { savedAudio: trackId } },
+      { new: true }
+    ).select('_id');
+
+    if (!result) {
       return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'User not found' }
+        error: { code: 'NOT_FOUND', message: 'User not found' },
       });
     }
-
-    // Check if saved
-    if (!user.savedAudio.includes(trackId)) {
-      return res.status(400).json({
-        error: { code: 'NOT_SAVED', message: 'Track not saved' }
-      });
-    }
-
-    user.savedAudio = user.savedAudio.filter(
-      id => id.toString() !== trackId
-    );
-    await user.save();
 
     return res.status(200).json({
       data: {
@@ -78,135 +78,120 @@ export async function unsaveTrack(req, res, next) {
         trackId,
         saved: false,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('Unsave track error:', error);
     next(error);
   }
 }
 
-// Get saved tracks
 export async function getSavedTracks(req, res, next) {
   try {
-    const userId = req.userId;
-    const { page = 1, limit = 20 } = req.query;
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 20));
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-
-    const user = await User.findById(userId)
-      .populate({
-        path: 'savedAudio',
-        populate: {
-          path: 'artist',
-          select: 'username displayName avatar',
-        },
-        options: {
-          sort: { createdAt: -1 },
-          skip: skip,
-          limit: parseInt(limit),
-        },
-      });
-
+    const user = await User.findById(req.userId).select('savedAudio');
     if (!user) {
       return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'User not found' }
+        error: { code: 'NOT_FOUND', message: 'User not found' },
       });
     }
 
-    const total = user.savedAudio.length;
+    const savedIds = Array.isArray(user.savedAudio) ? user.savedAudio : [];
+    const total = await Audio.countDocuments({
+      _id: { $in: savedIds },
+      isDeleted: false,
+      isPublic: true,
+    });
+
+    const tracks = await Audio.find({
+      _id: { $in: savedIds },
+      isDeleted: false,
+      isPublic: true,
+    })
+      .populate('artist', 'username displayName avatar')
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .select(
+        'title description duration genre fileUrl coverArt playCount likeCount artist createdAt'
+      );
 
     return res.status(200).json({
       data: {
-        tracks: user.savedAudio.map(track => ({
-          id: track._id,
-          title: track.title,
-          description: track.description,
-          duration: track.duration,
-          genre: track.genre,
-          fileUrl: track.fileUrl,
-          playCount: track.playCount,
-          likeCount: track.likeCount,
-          artist: track.artist ? {
-            id: track.artist._id,
-            username: track.artist.username,
-            displayName: track.artist.displayName,
-            avatar: track.artist.avatar,
-          } : null,
-          createdAt: track.createdAt,
-        })),
+        tracks,
         pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
+          page,
+          limit,
           total,
-          totalPages: Math.ceil(total / parseInt(limit)),
+          totalPages: Math.ceil(total / limit),
         },
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('Get saved tracks error:', error);
     next(error);
   }
 }
 
-// Check if track is saved
 export async function checkSaved(req, res, next) {
   try {
     const { trackId } = req.params;
-    const userId = req.userId;
+    if (!validId(trackId)) return invalidTrackId(res);
 
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'User not found' }
-      });
-    }
-
-    const isSaved = user.savedAudio.includes(trackId);
+    const user = await User.findOne({
+      _id: req.userId,
+      savedAudio: trackId,
+    }).select('_id');
 
     return res.status(200).json({
       data: {
-        saved: isSaved,
+        saved: Boolean(user),
         trackId,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('Check saved error:', error);
     next(error);
   }
 }
 
-// Get library stats
 export async function getLibraryStats(req, res, next) {
   try {
-    const userId = req.userId;
+    const user = await User.findById(req.userId).select(
+      'savedAudio listeningHistory'
+    );
 
-    const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'User not found' }
+        error: { code: 'NOT_FOUND', message: 'User not found' },
       });
     }
 
-    // Get playlists count using the imported Playlist model
-    const playlistCount = await Playlist.countDocuments({
-      owner: userId,
-      isDeleted: false,
-    });
+    const [savedTracks, playlists] = await Promise.all([
+      Audio.countDocuments({
+        _id: { $in: user.savedAudio || [] },
+        isDeleted: false,
+        isPublic: true,
+      }),
+      Playlist.countDocuments({
+        owner: req.userId,
+        isDeleted: false,
+      }),
+    ]);
 
     return res.status(200).json({
       data: {
-        savedTracks: user.savedAudio.length,
-        playlists: playlistCount,
-        totalSaved: user.savedAudio.length + playlistCount,
-        listeningHistory: user.listeningHistory.length,
+        savedTracks,
+        playlists,
+        totalSaved: savedTracks + playlists,
+        listeningHistory: Array.isArray(user.listeningHistory)
+          ? user.listeningHistory.length
+          : 0,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('Get library stats error:', error);
     next(error);
   }
 }
