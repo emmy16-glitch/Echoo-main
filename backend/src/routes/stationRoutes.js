@@ -25,7 +25,6 @@ router.post('/', authenticate, createStation);
 router.patch('/:stationId', authenticate, updateStation);
 router.delete('/:stationId', authenticate, deleteStation);
 
-// There is intentionally no station toggle-live or station schedule endpoint.
-// Broadcast lifecycle is the single authority for live/scheduled state.
+// Broadcasts are the only authority for live state and future broadcast timing.
 
 export default router;
