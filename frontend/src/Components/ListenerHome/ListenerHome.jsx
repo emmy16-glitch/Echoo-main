@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import {
   FaArrowRight,
@@ -10,10 +10,13 @@ import {
 
 import listenerService from '../../services/listenerService';
 import audioService from '../../services/audioService';
+import batch3Service from '../../services/batch3Service';
 import { buildMediaUrl } from '../../services/api';
 import EchoAmbient from '../EchooSystem/EchoAmbient';
 import HorizontalDragRail from '../FigmaUI/HorizontalDragRail';
 import './ListenerHome.css';
+
+const HOME_SYNC_INTERVAL_MS = 15000;
 
 const normalizeAudioResponse = (response) => {
   if (Array.isArray(response?.data)) return response.data;
@@ -38,10 +41,12 @@ const artistName = (item) => {
 
 const artworkOf = (item) =>
   buildMediaUrl(
-    item?.coverArt ||
+    item?.brandCover ||
+      item?.coverArt ||
       item?.artwork ||
       item?.image ||
       item?.thumbnail ||
+      item?.station?.brandCover ||
       item?.station?.coverArt ||
       item?.creator?.avatar ||
       null
@@ -87,7 +92,12 @@ const normalizeLive = (item) => {
     creatorId: creator?.id || creator?._id || item.creatorId || item.creator || null,
     creatorName:
       creator?.displayName || creator?.username || item.creatorName || 'Echoo Creator',
-    coverArt: item.coverArt || station?.coverArt || null,
+    coverArt:
+      station?.brandCover ||
+      item.brandCover ||
+      item.coverArt ||
+      station?.coverArt ||
+      null,
     listenerCount: Number(item.listenerCount) || 0,
   };
 };
@@ -119,57 +129,80 @@ const normalizeStation = (item) => {
 
 const ListenerHome = () => {
   const navigate = useNavigate();
-  const { playTrack, currentTrack, isPlaying, togglePlay } = useOutletContext();
+  const {
+    playTrack,
+    playTrackAt,
+    currentTrack,
+    isPlaying,
+    togglePlay,
+  } = useOutletContext();
 
   const [dashboard, setDashboard] = useState(null);
   const [audioTracks, setAudioTracks] = useState([]);
+  const [discovery, setDiscovery] = useState({ live: [], stations: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    let mounted = true;
+  const load = useCallback(async ({ silent = false } = {}) => {
+    try {
+      if (!silent) setLoading(true);
+      if (!silent) setError('');
 
-    const load = async () => {
-      try {
-        setLoading(true);
-        setError('');
+      const [dashboardResult, audioResult, discoveryResult] = await Promise.allSettled([
+        listenerService.getDashboard(),
+        audioService.getAll({ public: true, page: 1, limit: 50 }),
+        batch3Service.getDiscovery(),
+      ]);
 
-        const [dashboardResult, audioResult] = await Promise.allSettled([
-          listenerService.getDashboard(),
-          audioService.getAll({ public: true, page: 1, limit: 50 }),
-        ]);
-
-        if (!mounted) return;
-
-        if (dashboardResult.status === 'fulfilled') {
-          setDashboard(dashboardResult.value?.data || null);
-        } else {
-          setError(
-            dashboardResult.reason?.message || 'Could not load your Echoo home feed.'
-          );
-        }
-
-        if (audioResult.status === 'fulfilled') {
-          setAudioTracks(normalizeAudioResponse(audioResult.value));
-        }
-      } finally {
-        if (mounted) setLoading(false);
+      if (dashboardResult.status === 'fulfilled') {
+        setDashboard(dashboardResult.value?.data || null);
+      } else if (!silent) {
+        setError(
+          dashboardResult.reason?.message || 'Could not load your Echoo home feed.'
+        );
       }
-    };
 
-    load();
-    return () => {
-      mounted = false;
-    };
+      if (audioResult.status === 'fulfilled') {
+        setAudioTracks(normalizeAudioResponse(audioResult.value));
+      }
+
+      if (discoveryResult.status === 'fulfilled') {
+        setDiscovery({
+          live: Array.isArray(discoveryResult.value?.live)
+            ? discoveryResult.value.live
+            : [],
+          stations: Array.isArray(discoveryResult.value?.stations)
+            ? discoveryResult.value.stations
+            : [],
+        });
+      }
+    } finally {
+      if (!silent) setLoading(false);
+    }
   }, []);
 
-  const liveItems = useMemo(
-    () =>
-      (Array.isArray(dashboard?.liveNow) ? dashboard.liveNow : [])
-        .map(normalizeLive)
-        .filter((item) => item?.id),
-    [dashboard]
-  );
+  useEffect(() => {
+    load();
+
+    const sync = () => load({ silent: true });
+    const interval = window.setInterval(sync, HOME_SYNC_INTERVAL_MS);
+    window.addEventListener('focus', sync);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', sync);
+    };
+  }, [load]);
+
+  const liveItems = useMemo(() => {
+    const source = discovery.live.length
+      ? discovery.live
+      : Array.isArray(dashboard?.liveNow)
+        ? dashboard.liveNow
+        : [];
+
+    return source.map(normalizeLive).filter((item) => item?.id);
+  }, [dashboard, discovery.live]);
 
   const continueItems = useMemo(() => {
     const backend = Array.isArray(dashboard?.continueListening)
@@ -198,10 +231,13 @@ const ListenerHome = () => {
         route: `/listen/creator/${creator.id}`,
       }));
 
-    const stations = (Array.isArray(dashboard?.discoverStations)
-      ? dashboard.discoverStations
-      : []
-    )
+    const stationSource = discovery.stations.length
+      ? discovery.stations
+      : Array.isArray(dashboard?.discoverStations)
+        ? dashboard.discoverStations
+        : [];
+
+    const stations = stationSource
       .map(normalizeStation)
       .filter((item) => item?.id)
       .map((station) => ({
@@ -211,7 +247,7 @@ const ListenerHome = () => {
       }));
 
     return [...creators, ...stations].slice(0, 12);
-  }, [dashboard]);
+  }, [dashboard, discovery.stations]);
 
   const play = (item, queue) => {
     const id = idOf(item);
@@ -221,18 +257,25 @@ const ListenerHome = () => {
       return;
     }
 
-    playTrack(
-      {
-        ...item,
-        id,
-        title: item.title || 'Untitled Audio',
-        subtitle: artistName(item),
-        coverArt: artworkOf(item),
-        fileUrl: buildMediaUrl(item.fileUrl || null),
-        genre: item.genre || 'Audio',
-      },
-      queue
-    );
+    const track = {
+      ...item,
+      id,
+      title: item.title || 'Untitled Audio',
+      subtitle: artistName(item),
+      coverArt: artworkOf(item),
+      fileUrl: buildMediaUrl(item.fileUrl || null),
+      duration: Number(item.duration) || 0,
+      genre: item.genre || 'Audio',
+    };
+
+    const progress = Math.max(0, Math.min(100, Number(item.progress) || 0));
+    const resumeAt = track.duration > 0 ? (track.duration * progress) / 100 : 0;
+
+    if (resumeAt > 0 && playTrackAt) {
+      playTrackAt(track, resumeAt, queue);
+    } else {
+      playTrack(track, queue);
+    }
   };
 
   const playing = (item) => {
@@ -443,7 +486,11 @@ const ListenerHome = () => {
               <article className="identity-audio-item" key={idOf(item) || index}>
                 <div className={`identity-audio-art art-${(index % 4) + 1}`}>
                   <IdentityImage item={item} name={item.title} />
-                  <button type="button" onClick={() => play(item, recommended)}>
+                  <button
+                    type="button"
+                    aria-label={playing(item) ? `Pause ${item.title}` : `Play ${item.title}`}
+                    onClick={() => play(item, recommended)}
+                  >
                     {playing(item) ? <FaPause /> : <FaPlay />}
                   </button>
                 </div>
