@@ -27,14 +27,16 @@ const forbidFile = (relative) => {
 };
 
 [
+  'frontend/src/Components/CreatorStudio/CreatorStudio.jsx',
+  'frontend/src/Components/CreatorStudio/CreatorStudioHome.jsx',
   'frontend/src/Components/CreatorStudio/CreatorLiveConnectedWorkspace.jsx',
-  'frontend/src/Components/CreatorStudio/CreatorScheduleWorkspace.jsx',
   'frontend/src/Components/CreatorStudio/CreatorStationsWorkspace.jsx',
   'frontend/src/Components/ListenerLiveExperience/ListenerRealLiveRoom.jsx',
   'frontend/src/Components/ListenerLiveExperience/LiveKitListenerPlayer.jsx',
   'frontend/src/services/realtimeService.js',
   'backend/src/controllers/broadcastController.js',
   'backend/src/providers/livekit.js',
+  'backend/src/middleware/enforceSingleLiveCreator.js',
   'backend/src/models/StationFollow.js',
   'ARCHITECTURE.md',
 ].forEach(requireFile);
@@ -43,6 +45,7 @@ const forbidFile = (relative) => {
   'backend/src/routes/scheduleRoutes.js',
   'backend/src/controllers/scheduleController.js',
   'backend/src/routes/listenerLivekitRoutes.js',
+  'frontend/src/Components/CreatorStudio/CreatorScheduleWorkspace.jsx',
   'frontend/src/Components/CreatorStudio/CreatorLiveWorkspace.jsx',
   'frontend/src/Components/ListenerLiveExperience/ListenerLiveExperience.jsx',
   'frontend/src/Components/ListenerLive/ListenerLive.jsx',
@@ -52,27 +55,28 @@ const forbidFile = (relative) => {
   'frontend/src/services/momentService.js',
 ].forEach(forbidFile);
 
-const componentFiles = walk('frontend/src/Components').filter((file) =>
-  /\.(jsx|js)$/.test(file)
-);
+const componentFiles = walk('frontend/src/Components').filter((file) => /\.(jsx|js)$/.test(file));
+const createStationCallers = componentFiles.filter((file) => /\.createStation\s*\(/.test(read(file)));
+const allowedStationCreator = 'frontend/src/Components/CreatorStudio/CreatorStationsWorkspace.jsx';
 
-const createStationCallers = componentFiles.filter((file) => {
-  const source = read(file);
-  return /\.createStation\s*\(/.test(source);
-});
-
-const allowedStationCreator =
-  'frontend/src/Components/CreatorStudio/CreatorStationsWorkspace.jsx';
-
-if (
-  createStationCallers.length !== 1 ||
-  createStationCallers[0] !== allowedStationCreator
-) {
+if (createStationCallers.length !== 1 || createStationCallers[0] !== allowedStationCreator) {
   failures.push(
     `Station creation must exist in exactly one UI (${allowedStationCreator}). Found: ${
       createStationCallers.length ? createStationCallers.join(', ') : 'none'
     }`
   );
+}
+
+const creatorStudio = read('frontend/src/Components/CreatorStudio/CreatorStudio.jsx');
+for (const obsoleteNav of ["name: 'Live'", "name: 'Schedule'"]) {
+  if (creatorStudio.includes(obsoleteNav)) {
+    failures.push(`Creator Studio reintroduced a duplicate sidebar destination: ${obsoleteNav}`);
+  }
+}
+for (const requiredNav of ["name: 'Home'", "name: 'Stations'", "name: 'Broadcast'", "name: 'Audio'"]) {
+  if (!creatorStudio.includes(requiredNav)) {
+    failures.push(`Creator Studio navigation is missing: ${requiredNav}`);
+  }
 }
 
 const frontendFiles = walk('frontend/src').filter((file) => /\.(jsx|js|css)$/.test(file));
@@ -90,24 +94,18 @@ const forbiddenRuntimeTokens = [
 for (const file of frontendFiles) {
   const source = read(file);
   for (const token of forbiddenRuntimeTokens) {
-    if (source.includes(token)) {
-      failures.push(`Forbidden production mock token "${token}" found in ${file}`);
-    }
+    if (source.includes(token)) failures.push(`Forbidden production mock token "${token}" found in ${file}`);
   }
 }
 
 const routeIndex = read('backend/src/routes/index.js');
 for (const obsoleteImport of ['scheduleRoutes', 'listenerLivekitRoutes']) {
-  if (routeIndex.includes(obsoleteImport)) {
-    failures.push(`Duplicate backend route still mounted: ${obsoleteImport}`);
-  }
+  if (routeIndex.includes(obsoleteImport)) failures.push(`Duplicate backend route still mounted: ${obsoleteImport}`);
 }
 
 const stationRoutes = read('backend/src/routes/stationRoutes.js');
 for (const obsoleteStationRoute of ['toggle-live', '/schedule']) {
-  if (stationRoutes.includes(obsoleteStationRoute)) {
-    failures.push(`Station routes still contain duplicate runtime authority: ${obsoleteStationRoute}`);
-  }
+  if (stationRoutes.includes(obsoleteStationRoute)) failures.push(`Station routes still contain duplicate runtime authority: ${obsoleteStationRoute}`);
 }
 
 const stationModel = read('backend/src/models/Station.js');
@@ -117,21 +115,12 @@ if (stationModel.includes('schedule: [{') || stationModel.includes('toggleLive')
 
 const batch2Service = read('frontend/src/services/batch2Service.js');
 for (const obsoleteClientMethod of ['getStationSchedule', 'updateStationSchedule']) {
-  if (batch2Service.includes(obsoleteClientMethod)) {
-    failures.push(`Frontend Station service reintroduced obsolete method: ${obsoleteClientMethod}`);
-  }
+  if (batch2Service.includes(obsoleteClientMethod)) failures.push(`Frontend Station service reintroduced obsolete method: ${obsoleteClientMethod}`);
 }
 
 const analyticsController = read('backend/src/controllers/analyticsController.js');
-for (const syntheticToken of [
-  'Math.random()',
-  'Mock change percentage',
-  "city: 'Lagos'",
-  "name: 'Chill & Relax'",
-]) {
-  if (analyticsController.includes(syntheticToken)) {
-    failures.push(`Synthetic analytics token returned: ${syntheticToken}`);
-  }
+for (const syntheticToken of ['Math.random()', 'Mock change percentage', "city: 'Lagos'", "name: 'Chill & Relax'"]) {
+  if (analyticsController.includes(syntheticToken)) failures.push(`Synthetic analytics token returned: ${syntheticToken}`);
 }
 
 const searchController = read('backend/src/controllers/searchController.js');
@@ -139,16 +128,15 @@ for (const syntheticSearchToken of [
   "term: 'Faith & Spirituality', type: 'category', count: 1250",
   "term: 'Faith Talk', type: 'track', trend: 45",
 ]) {
-  if (searchController.includes(syntheticSearchToken)) {
-    failures.push(`Synthetic search data returned: ${syntheticSearchToken}`);
-  }
+  if (searchController.includes(syntheticSearchToken)) failures.push(`Synthetic search data returned: ${syntheticSearchToken}`);
 }
 
 const broadcastRoutes = read('backend/src/routes/broadcastRoutes.js');
 for (const canonicalRoute of ['/start', '/confirm-live', '/end', '/cancel', '/listener-token']) {
-  if (!broadcastRoutes.includes(canonicalRoute)) {
-    failures.push(`Broadcast lifecycle route missing: ${canonicalRoute}`);
-  }
+  if (!broadcastRoutes.includes(canonicalRoute)) failures.push(`Broadcast lifecycle route missing: ${canonicalRoute}`);
+}
+if (!broadcastRoutes.includes('enforceSingleLiveCreator')) {
+  failures.push('Broadcast start route is missing the one-active-live creator guard.');
 }
 
 if (failures.length) {
@@ -159,6 +147,8 @@ if (failures.length) {
 
 console.log('Echoo architecture check passed.');
 console.log(`Station creation UI: ${allowedStationCreator}`);
-console.log('Scheduling authority: Broadcast');
+console.log('Creator navigation: Home -> Stations -> Broadcast -> Audio -> Audience -> Analytics -> Settings');
+console.log('Scheduling authority: unified Broadcast Studio');
+console.log('Live concurrency: one active broadcast per creator account');
 console.log('Live media path: Creator -> LiveKit -> Listener');
 console.log('Synthetic analytics/search data guard: active');
