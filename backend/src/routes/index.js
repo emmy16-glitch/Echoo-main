@@ -31,7 +31,7 @@ router.get('/health', (req, res) => {
   res.status(200).json({
     status: 'ok',
     service: 'echoo-api',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 });
 
@@ -48,7 +48,6 @@ router.use('/follows', followRoutes);
 router.use('/search', searchRoutes);
 router.use('/library', libraryRoutes);
 router.use('/stations', stationRoutes);
-router.use("/broadcasts", listenerLivekitRoutes);
 router.use('/broadcasts', broadcastRoutes);
 router.use('/analytics', analyticsRoutes);
 router.use('/chat', chatRoutes);
@@ -62,12 +61,4 @@ router.use('/live-studio', liveStudioRoutes);
 router.use('/player', advancedPlayerRoutes);
 router.use('/notifications', notificationRoutes);
 
-
 export default router;
-import scheduleRoutes from './scheduleRoutes.js';
-
-import listenerLivekitRoutes from "./listenerLivekitRoutes.js";
-// Add to router
-router.use('/schedule', scheduleRoutes);
-
-// Add to router
