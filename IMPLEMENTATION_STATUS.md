@@ -8,7 +8,7 @@ This branch remains separate from `main` until the end-to-end local LiveKit smok
 
 ### One station creation flow
 - Creator Studio → Stations is the only station creation UI.
-- Stations now creates, edits and deletes real backend Station records.
+- Stations creates, edits and deletes real backend Station records.
 - Live selects an existing station only.
 - Schedule selects an existing station only.
 - Station API no longer exposes a second schedule or manual live toggle.
@@ -30,8 +30,8 @@ This branch remains separate from `main` until the end-to-end local LiveKit smok
 - Schedule → Enter Studio converges on the same Live workspace.
 - Microphone test remains local until Start.
 - Creator microphone publishes directly to LiveKit.
-- Creator Studio was reduced to one shell plus dedicated workspaces; duplicate inline Home/Content/Audience/Analytics implementations were removed from the shell.
-- Creator notifications now have a real backend-connected workspace.
+- Creator Studio is one shell plus dedicated workspaces; duplicate inline Home/Content/Audience/Analytics implementations were removed from the shell.
+- Creator notifications have a real backend-connected workspace.
 
 ### Listener live experience
 - Real public live discovery only.
@@ -87,9 +87,9 @@ This branch remains separate from `main` until the end-to-end local LiveKit smok
 - `scripts/architecture-check.mjs` guards against duplicate station creation and removed mock architecture returning.
 - Archived backup directories are excluded from production lint checks.
 
-## Current automated validation
+## Automated validation
 
-For the current integration branch, GitHub Actions is expected to gate:
+The current branch has passed GitHub Actions for:
 - frontend `npm ci`
 - frontend `npm run lint`
 - frontend `npm run build`
@@ -97,7 +97,7 @@ For the current integration branch, GitHub Actions is expected to gate:
 - backend syntax checks
 - Echoo architecture guard
 
-The local test output that previously failed because deleted mock services were still imported has been repaired on this branch.
+The local output that previously failed because deleted mock services were still imported has been repaired on this branch. Automated checks are green; local infrastructure/runtime behavior is the remaining merge gate.
 
 ## Preserved for later, not required by the MVP
 - LiveKit Egress support
