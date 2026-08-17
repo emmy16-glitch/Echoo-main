@@ -52,9 +52,16 @@ followSchema.post('save', async function notifyFollowedUser(doc) {
   if (!doc.$locals.notifyNewFollower) return;
 
   try {
-    const follower = await User.findById(doc.follower).select(
-      'username displayName'
-    );
+    const [follower, recipient] = await Promise.all([
+      User.findById(doc.follower).select('username displayName'),
+      User.findById(doc.following).select(
+        'isActive preferences.notifications.newFollowers'
+      ),
+    ]);
+
+    if (!recipient?.isActive || recipient.preferences?.notifications?.newFollowers === false) {
+      return;
+    }
 
     await Notification.create({
       userId: doc.following,
