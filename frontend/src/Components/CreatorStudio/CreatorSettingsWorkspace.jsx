@@ -1,16 +1,25 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   FaBell,
+  FaCamera,
   FaEnvelope,
   FaLock,
   FaSave,
+  FaShieldAlt,
   FaUser,
 } from 'react-icons/fa';
 
 import settingsService from '../../services/settingsService';
 import './CreatorSettingsConnected.css';
 
+const TABS = [
+  { id: 'profile', label: 'Profile', icon: <FaUser /> },
+  { id: 'notifications', label: 'Notifications', icon: <FaBell /> },
+  { id: 'security', label: 'Account & Security', icon: <FaShieldAlt /> },
+];
+
 const CreatorSettingsWorkspace = () => {
+  const [activeTab, setActiveTab] = useState('profile');
   const [profile, setProfile] = useState({
     displayName: '',
     bio: '',
@@ -32,6 +41,7 @@ const CreatorSettingsWorkspace = () => {
   const [busy, setBusy] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const avatarInputRef = useRef(null);
 
   useEffect(() => {
     let active = true;
@@ -109,7 +119,7 @@ const CreatorSettingsWorkspace = () => {
     await run(
       'notifications',
       () => settingsService.updateNotifications(notifications),
-      'Notifications updated.'
+      'Notification preferences updated.'
     );
   };
 
@@ -146,133 +156,196 @@ const CreatorSettingsWorkspace = () => {
     }
   };
 
+  const handleAvatarFile = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setError('Choose a valid image file.');
+      return;
+    }
+
+    if (file.size > 3 * 1024 * 1024) {
+      setError('Profile images must be 3 MB or smaller.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setProfile((current) => ({ ...current, avatar: String(reader.result || '') }));
+      setError('');
+    };
+    reader.onerror = () => setError('Could not read that image.');
+    reader.readAsDataURL(file);
+  };
+
   if (loading) {
     return <div className="creator-settings-real-message">Loading settings...</div>;
   }
+
+  const initial = String(profile.displayName || 'E').trim().charAt(0).toUpperCase() || 'E';
 
   return (
     <section className="creator-settings-real">
       <header className="creator-settings-real-header">
         <span>SETTINGS</span>
         <h2>Your account.</h2>
-        <p>Manage your profile, notifications and account security.</p>
+        <p>Manage how you appear on Echoo, what reaches you, and how your account is protected.</p>
       </header>
+
+      <nav className="creator-settings-tabs" aria-label="Settings sections">
+        {TABS.map((tab) => (
+          <button
+            type="button"
+            key={tab.id}
+            className={activeTab === tab.id ? 'active' : ''}
+            aria-current={activeTab === tab.id ? 'page' : undefined}
+            onClick={() => {
+              setActiveTab(tab.id);
+              setError('');
+              setMessage('');
+            }}
+          >
+            {tab.icon} {tab.label}
+          </button>
+        ))}
+      </nav>
 
       {message && <div className="creator-settings-real-message success">{message}</div>}
       {error && <div className="creator-settings-real-message error">{error}</div>}
 
-      <div className="creator-settings-real-grid">
-        <form className="creator-settings-real-card" onSubmit={saveProfile}>
-          <h3><FaUser /> Profile</h3>
-          <p>Update how you appear on Echoo.</p>
+      {activeTab === 'profile' && (
+        <div className="creator-settings-section">
+          <form className="creator-settings-real-card" onSubmit={saveProfile}>
+            <h3><FaUser /> Profile</h3>
+            <p>Control the identity listeners see across your stations and broadcasts.</p>
 
-          <label>
-            <span>Display name</span>
-            <input
-              value={profile.displayName}
-              maxLength={100}
-              onChange={(event) =>
-                setProfile((current) => ({ ...current, displayName: event.target.value }))
-              }
-            />
-          </label>
+            <div className="creator-settings-avatar-row">
+              <div className="creator-settings-avatar">
+                {profile.avatar ? <img src={profile.avatar} alt="Profile preview" /> : initial}
+              </div>
+              <div className="creator-settings-avatar-actions">
+                <strong>Profile photo</strong>
+                <span>JPG, PNG or WebP · up to 3 MB</span>
+                <input
+                  ref={avatarInputRef}
+                  type="file"
+                  accept="image/*"
+                  hidden
+                  onChange={handleAvatarFile}
+                />
+                <button type="button" onClick={() => avatarInputRef.current?.click()}>
+                  <FaCamera /> Change photo
+                </button>
+              </div>
+            </div>
 
-          <label>
-            <span>Bio</span>
-            <textarea
-              value={profile.bio}
-              maxLength={500}
-              onChange={(event) =>
-                setProfile((current) => ({ ...current, bio: event.target.value }))
-              }
-            />
-          </label>
-
-          <label>
-            <span>Profile image URL</span>
-            <input
-              value={profile.avatar}
-              placeholder="https://..."
-              onChange={(event) =>
-                setProfile((current) => ({ ...current, avatar: event.target.value }))
-              }
-            />
-          </label>
-
-          <button type="submit" disabled={busy === 'profile'}>
-            <FaSave /> {busy === 'profile' ? 'Saving...' : 'Save profile'}
-          </button>
-        </form>
-
-        <form className="creator-settings-real-card" onSubmit={saveNotifications}>
-          <h3><FaBell /> Notifications</h3>
-          <p>Choose the updates you want to receive.</p>
-
-          {[
-            ['push', 'Push notifications'],
-            ['email', 'Email notifications'],
-            ['newFollowers', 'New followers'],
-            ['newReleases', 'Broadcast and release updates'],
-          ].map(([key, label]) => (
-            <label className="creator-settings-real-toggle" key={key}>
-              <span>{label}</span>
+            <label>
+              <span>Display name</span>
               <input
-                type="checkbox"
-                checked={Boolean(notifications[key])}
+                value={profile.displayName}
+                maxLength={100}
                 onChange={(event) =>
-                  setNotifications((current) => ({
-                    ...current,
-                    [key]: event.target.checked,
-                  }))
+                  setProfile((current) => ({ ...current, displayName: event.target.value }))
                 }
               />
             </label>
-          ))}
 
-          <button type="submit" disabled={busy === 'notifications'}>
-            <FaSave /> {busy === 'notifications' ? 'Saving...' : 'Save notifications'}
-          </button>
-        </form>
+            <label>
+              <span>Bio</span>
+              <textarea
+                value={profile.bio}
+                maxLength={500}
+                placeholder="Tell listeners what you create."
+                onChange={(event) =>
+                  setProfile((current) => ({ ...current, bio: event.target.value }))
+                }
+              />
+            </label>
 
-        <form className="creator-settings-real-card" onSubmit={saveEmail}>
-          <h3><FaEnvelope /> Email</h3>
-          <p>Confirm your current password to change your email.</p>
-          <label>
-            <span>Email</span>
-            <input
-              type="email"
-              required
-              value={emailForm.email}
-              onChange={(event) =>
-                setEmailForm((current) => ({ ...current, email: event.target.value }))
-              }
-            />
-          </label>
-          <label>
-            <span>Current password</span>
-            <input
-              type="password"
-              required
-              value={emailForm.password}
-              onChange={(event) =>
-                setEmailForm((current) => ({ ...current, password: event.target.value }))
-              }
-            />
-          </label>
-          <button type="submit" disabled={busy === 'email'}>
-            <FaSave /> {busy === 'email' ? 'Saving...' : 'Update email'}
-          </button>
-        </form>
+            <button type="submit" disabled={busy === 'profile'}>
+              <FaSave /> {busy === 'profile' ? 'Saving...' : 'Save profile'}
+            </button>
+          </form>
+        </div>
+      )}
 
-        <form className="creator-settings-real-card wide" onSubmit={savePassword}>
-          <h3><FaLock /> Password</h3>
-          <p>Change the password used to sign in to Echoo.</p>
-          <div className="creator-settings-real-grid">
+      {activeTab === 'notifications' && (
+        <div className="creator-settings-section">
+          <form className="creator-settings-real-card" onSubmit={saveNotifications}>
+            <h3><FaBell /> Notifications</h3>
+            <p>Choose the creator and account updates you want Echoo to send you.</p>
+
+            {[
+              ['push', 'Push notifications', 'Account and broadcast alerts in supported clients.'],
+              ['email', 'Email notifications', 'Important updates sent to your account email.'],
+              ['newFollowers', 'New followers', 'Know when somebody starts following you.'],
+              ['newReleases', 'Broadcast and release updates', 'Updates related to your live and published content.'],
+            ].map(([key, label, description]) => (
+              <label className="creator-settings-real-toggle" key={key}>
+                <span><strong>{label}</strong><small>{description}</small></span>
+                <input
+                  type="checkbox"
+                  checked={Boolean(notifications[key])}
+                  onChange={(event) =>
+                    setNotifications((current) => ({
+                      ...current,
+                      [key]: event.target.checked,
+                    }))
+                  }
+                />
+              </label>
+            ))}
+
+            <button type="submit" disabled={busy === 'notifications'}>
+              <FaSave /> {busy === 'notifications' ? 'Saving...' : 'Save preferences'}
+            </button>
+          </form>
+        </div>
+      )}
+
+      {activeTab === 'security' && (
+        <div className="creator-settings-section creator-settings-security-grid">
+          <form className="creator-settings-real-card" onSubmit={saveEmail}>
+            <h3><FaEnvelope /> Email</h3>
+            <p>Confirm your current password before changing your sign-in email.</p>
+            <label>
+              <span>Email</span>
+              <input
+                type="email"
+                required
+                value={emailForm.email}
+                onChange={(event) =>
+                  setEmailForm((current) => ({ ...current, email: event.target.value }))
+                }
+              />
+            </label>
             <label>
               <span>Current password</span>
               <input
                 type="password"
                 required
+                autoComplete="current-password"
+                value={emailForm.password}
+                onChange={(event) =>
+                  setEmailForm((current) => ({ ...current, password: event.target.value }))
+                }
+              />
+            </label>
+            <button type="submit" disabled={busy === 'email'}>
+              <FaSave /> {busy === 'email' ? 'Saving...' : 'Update email'}
+            </button>
+          </form>
+
+          <form className="creator-settings-real-card" onSubmit={savePassword}>
+            <h3><FaLock /> Password</h3>
+            <p>Use a password you do not use on another service.</p>
+            <label>
+              <span>Current password</span>
+              <input
+                type="password"
+                required
+                autoComplete="current-password"
                 value={passwordForm.currentPassword}
                 onChange={(event) =>
                   setPasswordForm((current) => ({ ...current, currentPassword: event.target.value }))
@@ -285,6 +358,7 @@ const CreatorSettingsWorkspace = () => {
                 type="password"
                 required
                 minLength={6}
+                autoComplete="new-password"
                 value={passwordForm.newPassword}
                 onChange={(event) =>
                   setPasswordForm((current) => ({ ...current, newPassword: event.target.value }))
@@ -297,18 +371,19 @@ const CreatorSettingsWorkspace = () => {
                 type="password"
                 required
                 minLength={6}
+                autoComplete="new-password"
                 value={passwordForm.confirmPassword}
                 onChange={(event) =>
                   setPasswordForm((current) => ({ ...current, confirmPassword: event.target.value }))
                 }
               />
             </label>
-          </div>
-          <button type="submit" disabled={busy === 'password'}>
-            <FaLock /> {busy === 'password' ? 'Updating...' : 'Update password'}
-          </button>
-        </form>
-      </div>
+            <button type="submit" disabled={busy === 'password'}>
+              <FaLock /> {busy === 'password' ? 'Updating...' : 'Update password'}
+            </button>
+          </form>
+        </div>
+      )}
     </section>
   );
 };
