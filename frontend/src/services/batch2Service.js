@@ -33,13 +33,24 @@ const normalizeOwner = (owner) => {
   };
 };
 
+const versionManagedStationLogo = (url, updatedAt) => {
+  if (!url || !updatedAt) return url;
+  if (!String(url).includes('/uploads/stations/')) return url;
+
+  const version = new Date(updatedAt).getTime();
+  if (!Number.isFinite(version)) return url;
+
+  return `${url}${String(url).includes('?') ? '&' : '?'}v=${version}`;
+};
+
 export const normalizeStation = (station) => {
   if (!station) return null;
 
   const owner = normalizeOwner(station.owner);
-  const logo = buildMediaUrl(
+  const rawLogo = buildMediaUrl(
     station.logo || station.coverArt || station.artwork || station.image || null
   );
+  const logo = versionManagedStationLogo(rawLogo, station.updatedAt);
 
   return {
     ...station,
@@ -77,10 +88,10 @@ export const normalizeBroadcast = (broadcast) => {
     typeof broadcast.creator === 'object' ? broadcast.creator : null;
   const stationId = normalizeId(broadcast.station) || broadcast.stationId || null;
   const creatorId = normalizeId(broadcast.creator) || broadcast.creatorId || null;
-  const coverArt = buildMediaUrl(
-    // The Station is the current brand authority. Existing broadcast snapshots are fallback only.
-    stationObject?.logo || stationObject?.coverArt || broadcast.coverArt || null
-  );
+  const normalizedStation = stationObject ? normalizeStation(stationObject) : null;
+  const coverArt =
+    normalizedStation?.logo ||
+    buildMediaUrl(broadcast.coverArt || null);
   const status = broadcast.status || 'scheduled';
 
   return {
@@ -89,7 +100,7 @@ export const normalizeBroadcast = (broadcast) => {
     _id: broadcast._id || broadcast.id || null,
     title: broadcast.title || 'Untitled Broadcast',
     description: broadcast.description || '',
-    station: stationObject ? normalizeStation(stationObject) : broadcast.station,
+    station: normalizedStation || broadcast.station,
     stationId,
     stationName: stationObject?.name || broadcast.stationName || 'Echoo Station',
     stationSlug: stationObject?.slug || null,
@@ -150,9 +161,42 @@ const stationFormData = (payload = {}) => {
   }
   if (payload.isPublic !== undefined) form.append('isPublic', String(payload.isPublic !== false));
   if (payload.removeLogo !== undefined) form.append('removeLogo', String(Boolean(payload.removeLogo)));
-  if (payload.logoFile instanceof File) form.append('logo', payload.logoFile);
+
+  const logoFile = payload.logoFile;
+  if (logoFile && typeof logoFile === 'object' && typeof logoFile.name === 'string') {
+    form.append('logo', logoFile, logoFile.name);
+  }
 
   return form;
+};
+
+const refreshWrittenStation = async (writtenResponse, payload = {}) => {
+  const written = normalizeStation(writtenResponse?.data);
+  if (!written?.id) {
+    throw new Error('Echoo did not return the saved station.');
+  }
+
+  const refreshedResponse = await apiRequest('/stations/mine/all');
+  const refreshedStations = normalizeStationList(refreshedResponse);
+  const canonical = refreshedStations.find(
+    (station) => String(station.id) === String(written.id)
+  );
+
+  if (!canonical) {
+    throw new Error('The station saved, but Echoo could not reload it from the backend.');
+  }
+
+  if (payload.logoFile && !canonical.logo) {
+    throw new Error(
+      'The station details saved, but the logo was not stored. Restart the Echoo backend and try the logo upload again.'
+    );
+  }
+
+  if (payload.removeLogo && canonical.logo) {
+    throw new Error('Echoo could not remove the station logo. Please try again.');
+  }
+
+  return canonical;
 };
 
 const batch2Service = {
@@ -190,7 +234,8 @@ const batch2Service = {
       body: stationFormData(payload),
       isFormData: true,
     });
-    return { ...response, data: normalizeStation(response?.data) };
+    const canonical = await refreshWrittenStation(response, payload);
+    return { ...response, data: canonical };
   },
 
   updateStation: async (stationId, payload) => {
@@ -202,7 +247,8 @@ const batch2Service = {
         isFormData: true,
       }
     );
-    return { ...response, data: normalizeStation(response?.data) };
+    const canonical = await refreshWrittenStation(response, payload);
+    return { ...response, data: canonical };
   },
 
   deleteStation: async (stationId) =>
