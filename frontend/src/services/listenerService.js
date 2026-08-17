@@ -180,7 +180,7 @@ const listenerService = {
                   const track =
                     entry?.track &&
                     typeof entry.track ===
-                      "object"
+                      'object'
                       ? entry.track
                       : null;
 
@@ -190,32 +190,24 @@ const listenerService = {
 
                   return normalizeTrack({
                     ...track,
-
                     playedAt:
                       entry.playedAt,
-
                     progress:
                       entry.progress,
-
                     completed:
                       entry.completed,
-
                     duration:
                       track.duration ||
                       entry.duration ||
                       0,
-
                     historyId:
                       entry.id,
-
                     id:
                       track.id ||
                       track._id,
-
                     trackId:
                       track.id ||
                       track._id,
-
                     track,
                   });
                 }
@@ -240,26 +232,25 @@ const listenerService = {
       duration,
       completed = false,
     }) => {
+      const elapsedSeconds = Math.max(0, Number(progress) || 0);
+      const totalSeconds = Math.max(0, Number(duration) || 0);
+      const progressPercent = completed
+        ? 100
+        : totalSeconds > 0
+          ? Math.max(0, Math.min(100, (elapsedSeconds / totalSeconds) * 100))
+          : 0;
+
       return apiRequest(
         '/player/progress',
         {
           method: 'POST',
-
           body:
             JSON.stringify({
               trackId,
-              progress:
-                Number(
-                  progress
-                ) || 0,
-              duration:
-                Number(
-                  duration
-                ) || 0,
+              progress: progressPercent,
+              duration: totalSeconds,
               completed:
-                Boolean(
-                  completed
-                ),
+                Boolean(completed),
             }),
         }
       );
@@ -271,7 +262,6 @@ const listenerService = {
         '/player/continue-listening',
         {
           method: 'POST',
-
           body:
             JSON.stringify({
               trackId,
@@ -298,7 +288,6 @@ const listenerService = {
         '/player/preferences',
         {
           method: 'PATCH',
-
           body:
             JSON.stringify(
               preferences
