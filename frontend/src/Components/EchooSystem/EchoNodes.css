@@ -1,0 +1,130 @@
+.echoo-nodes {
+  position: absolute;
+
+  inset: 0;
+
+  pointer-events: none;
+}
+
+.echoo-node {
+  position: absolute;
+
+  left: 50%;
+  top: 50%;
+
+  width: 4px;
+  height: 4px;
+
+  margin:
+    -2px
+    0
+    0
+    -2px;
+
+  border-radius: 50%;
+
+  background:
+    var(
+      --echoo-node,
+      #EAECF0
+    );
+
+  transform:
+    rotate(
+      var(--node-angle)
+    )
+    translateY(
+      calc(
+        var(--node-radius) *
+        -1
+      )
+    );
+
+  transform-origin:
+    center;
+
+  transition:
+    background
+    180ms
+    ease,
+    opacity
+    180ms
+    ease;
+}
+
+.echoo-node.is-active {
+  width: 5px;
+  height: 5px;
+
+  margin:
+    -2.5px
+    0
+    0
+    -2.5px;
+
+  background:
+    var(
+      --echoo-primary,
+      #265DFF
+    );
+}
+
+.echoo-nodes.is-animated
+.echoo-node {
+  animation:
+    echooNodeBreathing
+    2.8s
+    ease-in-out
+    infinite;
+
+  animation-delay:
+    var(
+      --node-delay
+    );
+}
+
+.echoo-nodes.is-animated
+.echoo-node.is-active {
+  animation:
+    echooActiveNode
+    1.8s
+    ease-in-out
+    infinite;
+
+  animation-delay:
+    var(
+      --node-delay
+    );
+}
+
+@keyframes echooNodeBreathing {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+
+  50% {
+    opacity: 0.9;
+  }
+}
+
+@keyframes echooActiveNode {
+  0%,
+  100% {
+    opacity: 0.75;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (
+  prefers-reduced-motion:
+  reduce
+) {
+  .echoo-node {
+    animation:
+      none !important;
+  }
+}

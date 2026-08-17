@@ -1,0 +1,214 @@
+@import "./styles/echoo-final-cleanup.css";
+@import "./Components/Register/phone-viewport-safety.css";
+:root {
+  --text: #5F6F85;
+  --text-h: #101828;
+  --text-soft: #7D8B9E;
+  --text-muted: #98A2B3;
+
+  --bg: #F5F8FC;
+  --surface: #FFFFFF;
+
+  --border: #E3EAF2;
+  --border-strong: #D3DEEA;
+
+  --accent: #1769D3;
+  --accent-hover: #125FBE;
+  --accent-bg: rgba(23, 105, 211, 0.08);
+  --accent-border: rgba(23, 105, 211, 0.28);
+
+  --input-bg: #F3F6FA;
+  --input-hover: #EEF3F8;
+
+  --shadow:
+    rgba(23, 47, 78, 0.055) 0 12px 35px,
+    rgba(23, 47, 78, 0.025) 0 2px 8px;
+
+  --sans:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    Helvetica,
+    Arial,
+    sans-serif;
+
+  --heading:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    Helvetica,
+    Arial,
+    sans-serif;
+
+  --mono:
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
+
+  --echoo-text: var(--text);
+  --echoo-text-h: var(--text-h);
+  --echoo-text-soft: var(--text-soft);
+  --echoo-text-muted: var(--text-muted);
+
+  --echoo-bg: var(--bg);
+  --echoo-bg-soft: #f8fbff;
+  --echoo-surface: var(--surface);
+
+  --echoo-border: var(--border);
+  --echoo-border-strong: var(--border-strong);
+
+  --echoo-input: var(--input-bg);
+  --echoo-input-focus: #ffffff;
+
+  --echoo-blue: var(--accent);
+  --echoo-blue-hover: var(--accent-hover);
+  --echoo-blue-soft: #edf5ff;
+  --echoo-blue-border: var(--accent-border);
+
+  --echoo-shadow: var(--shadow);
+
+  --echoo-sans: var(--sans);
+  --echoo-mono: var(--mono);
+
+  font-family: var(--sans);
+
+  font-size: 16px;
+  line-height: 1.45;
+
+  letter-spacing: 0.12px;
+
+  color: var(--text);
+  background: var(--bg);
+
+  color-scheme: light;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  width: 100%;
+  min-height: 100%;
+
+  margin: 0;
+  padding: 0;
+
+  background: var(--bg);
+}
+
+body {
+  width: 100%;
+  min-width: 320px;
+  min-height: 100vh;
+
+  margin: 0;
+  padding: 0;
+
+  font-family: var(--sans);
+
+  font-size: 16px;
+  line-height: 1.45;
+
+  letter-spacing: 0.12px;
+
+  color: var(--text);
+
+  background: var(--bg);
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
+
+  margin: 0;
+  padding: 0;
+}
+
+button,
+input,
+textarea,
+select {
+  font-family: var(--sans);
+}
+
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+input,
+textarea,
+select {
+  color: var(--text-h);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--heading);
+
+  color: var(--text-h);
+
+  font-weight: 550;
+
+  letter-spacing: -0.025em;
+}
+
+p {
+  margin: 0;
+}
+
+img {
+  max-width: 100%;
+}
+
+a {
+  color: inherit;
+}
+
+code,
+pre {
+  font-family: var(--mono);
+}
+
+::selection {
+  color: var(--text-h);
+
+  background:
+    rgba(
+      23,
+      105,
+      211,
+      0.14
+    );
+}
+
+@media (max-width: 1024px) {
+  :root {
+    font-size: 15px;
+  }
+}
+
+@media (max-width: 520px) {
+  body {
+    font-size: 14px;
+  }
+}

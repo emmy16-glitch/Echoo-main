@@ -1,0 +1,406 @@
+/* Responsive alignment pass for the first Echoo onboarding phase. */
+
+@media (min-width: 1121px) {
+  .echoo-onboarding-redesign {
+    grid-template-columns: minmax(0, 1.04fr) minmax(560px, 0.96fr);
+    min-height: 100dvh;
+  }
+
+  .eor-hero {
+    min-height: 100dvh;
+    padding: clamp(34px, 3.8vw, 58px);
+  }
+
+  .eor-hero-copy {
+    max-width: 590px;
+    margin-top: clamp(48px, 7vh, 78px);
+  }
+
+  .eor-hero-copy h1 {
+    font-size: clamp(54px, 5vw, 74px);
+  }
+
+  .eor-hero-copy p {
+    max-width: 510px;
+    margin-top: 20px;
+  }
+
+  .eor-audio-card,
+  .eor-profile-hero-card {
+    width: min(620px, 100%);
+    margin-top: clamp(30px, 4vh, 44px);
+  }
+
+  .eor-form-side {
+    min-height: 100dvh;
+    align-items: safe center;
+    padding: clamp(28px, 4vh, 46px) clamp(28px, 3vw, 48px);
+  }
+
+  .eor-panel {
+    width: min(600px, 100%);
+    padding: clamp(34px, 3vw, 44px);
+  }
+
+  .eor-form-header h1 {
+    font-size: clamp(30px, 2.35vw, 36px);
+  }
+
+  .eor-input-shell input,
+  .eor-textarea-shell textarea {
+    font-size: 13px;
+  }
+}
+
+@media (min-width: 1121px) and (max-height: 820px) {
+  .eor-hero {
+    padding-top: 28px;
+    padding-bottom: 28px;
+  }
+
+  .eor-brand img {
+    width: 33px;
+    height: 33px;
+  }
+
+  .eor-brand span {
+    font-size: 25px;
+  }
+
+  .eor-hero-copy {
+    margin-top: 34px;
+  }
+
+  .eor-hero-copy h1 {
+    font-size: clamp(48px, 4.5vw, 64px);
+  }
+
+  .eor-hero-copy p {
+    margin-top: 14px;
+    font-size: 14px;
+  }
+
+  .eor-audio-card,
+  .eor-profile-hero-card {
+    margin-top: 24px;
+  }
+
+  .eor-audio-card {
+    min-height: 240px;
+  }
+
+  .eor-wave-row {
+    height: 122px;
+  }
+
+  .eor-profile-hero-card {
+    min-height: 230px;
+  }
+
+  .eor-form-side {
+    padding-top: 24px;
+    padding-bottom: 24px;
+  }
+
+  .eor-panel {
+    padding-top: 28px;
+    padding-bottom: 28px;
+  }
+
+  .eor-stepper {
+    margin-bottom: 22px;
+  }
+
+  .eor-form-header {
+    margin-bottom: 18px;
+  }
+
+  .eor-form-grid {
+    gap: 10px;
+  }
+
+  .eor-input-shell,
+  .eor-primary {
+    min-height: 44px;
+  }
+
+  .eor-input-shell input {
+    height: 42px;
+  }
+
+  .eor-divider {
+    margin-top: 15px;
+    margin-bottom: 12px;
+  }
+
+  .eor-legal {
+    margin-top: 12px;
+  }
+}
+
+@media (min-width: 1121px) and (max-height: 680px) {
+  .eor-form-side {
+    align-items: flex-start;
+  }
+
+  .eor-hero-copy {
+    margin-top: 24px;
+  }
+
+  .eor-hero-copy h1 {
+    font-size: 48px;
+  }
+
+  .eor-audio-card {
+    min-height: 210px;
+  }
+
+  .eor-wave-row {
+    height: 96px;
+  }
+
+  .eor-mic-caption {
+    margin-top: 4px;
+  }
+}
+
+@media (min-width: 761px) and (max-width: 1120px) {
+  .echoo-onboarding-redesign {
+    display: block;
+  }
+
+  .eor-hero {
+    min-height: auto;
+    padding: 30px clamp(28px, 6vw, 62px) 36px;
+    text-align: center;
+  }
+
+  .eor-brand {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .eor-hero-copy {
+    max-width: 700px;
+    margin: 30px auto 0;
+  }
+
+  .eor-hero-copy h1 {
+    font-size: clamp(46px, 6.6vw, 62px);
+  }
+
+  .eor-hero-copy p {
+    max-width: 540px;
+    margin: 14px auto 0;
+    font-size: 14px;
+  }
+
+  .eor-audio-card,
+  .eor-profile-hero-card {
+    width: min(720px, 100%);
+    margin: 24px auto 0;
+  }
+
+  .eor-form-side {
+    min-height: auto;
+    padding: 30px clamp(24px, 6vw, 58px) 48px;
+  }
+
+  .eor-panel {
+    width: min(720px, 100%);
+    padding: 38px clamp(34px, 6vw, 54px);
+  }
+
+  .eor-form-header h1 {
+    font-size: 34px;
+  }
+
+  .eor-form-header p {
+    font-size: 13px;
+  }
+
+  .eor-input-shell {
+    min-height: 52px;
+  }
+
+  .eor-input-shell input {
+    height: 50px;
+    font-size: 13.5px;
+  }
+
+  .eor-primary {
+    min-height: 50px;
+  }
+}
+
+@media (max-width: 760px) {
+  .echoo-onboarding-redesign {
+    width: 100%;
+    overflow-x: clip;
+  }
+
+  .eor-hero {
+    min-height: auto;
+    padding: 18px 16px 22px;
+  }
+
+  .eor-brand {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .eor-hero-copy {
+    max-width: 460px;
+    margin: 18px auto 0;
+    text-align: center;
+  }
+
+  .eor-hero-copy h1 {
+    font-size: clamp(38px, 10.7vw, 46px);
+    line-height: 0.99;
+  }
+
+  .eor-hero-copy p {
+    max-width: 410px;
+    margin: 10px auto 0;
+    font-size: 11.5px;
+    line-height: 1.45;
+  }
+
+  .eor-audio-card,
+  .eor-profile-hero-card {
+    width: min(560px, 100%);
+    margin: 17px auto 0;
+  }
+
+  .eor-form-side {
+    width: 100%;
+    padding: 14px 10px 30px;
+  }
+
+  .eor-panel {
+    width: min(660px, 100%);
+    padding: 22px 18px 22px;
+  }
+
+  .eor-mobile-brand {
+    margin-bottom: 20px;
+  }
+
+  .eor-mobile-logo img {
+    width: 27px;
+    height: 27px;
+  }
+
+  .eor-mobile-logo strong {
+    font-size: 19px;
+  }
+
+  .eor-mobile-brand > span {
+    font-size: 10px;
+    letter-spacing: 0.01em;
+  }
+
+  .eor-stepper {
+    margin-bottom: 20px;
+  }
+
+  .eor-form-header {
+    margin-bottom: 18px;
+  }
+
+  .eor-form-header h1 {
+    font-size: clamp(27px, 7.4vw, 31px);
+  }
+
+  .eor-form-header p {
+    max-width: 430px;
+    margin-left: auto;
+    margin-right: auto;
+    font-size: 11.5px;
+  }
+
+  .eor-field label {
+    font-size: 11.5px;
+  }
+
+  .eor-input-shell {
+    min-height: 51px;
+    border-radius: 11px;
+  }
+
+  .eor-input-shell input {
+    height: 49px;
+    font-size: 12.5px;
+  }
+
+  .eor-primary {
+    min-height: 49px;
+    border-radius: 11px;
+    font-size: 12.5px;
+  }
+
+  .eor-social {
+    min-height: 46px;
+    font-size: 11.5px;
+  }
+
+  .eor-auth-switch {
+    margin-top: 16px;
+    font-size: 11px;
+  }
+
+  .eor-legal {
+    margin-top: 16px;
+    font-size: 9.7px;
+  }
+
+  .eor-role-card {
+    padding: 17px;
+  }
+
+  .eor-role-card h2 {
+    font-size: 18px;
+  }
+
+  .eor-role-card p,
+  .eor-role-list li {
+    font-size: 10.5px;
+  }
+
+  .eor-back-only {
+    width: 100%;
+  }
+}
+
+@media (pointer: coarse) and (min-width: 761px) and (max-width: 1100px) {
+  .eor-panel {
+    width: min(760px, calc(100% - 24px));
+  }
+
+  .eor-form-header h1 {
+    font-size: 36px;
+  }
+
+  .eor-form-header p {
+    font-size: 14px;
+  }
+
+  .eor-field label {
+    font-size: 12px;
+  }
+
+  .eor-input-shell {
+    min-height: 54px;
+  }
+
+  .eor-input-shell input {
+    height: 52px;
+    font-size: 14px;
+  }
+
+  .eor-primary,
+  .eor-social {
+    min-height: 52px;
+  }
+}

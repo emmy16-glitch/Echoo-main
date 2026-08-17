@@ -1,0 +1,1200 @@
+/* ==========================================================
+   ECHOO HOME — FINAL FILLED COMPOSITION
+========================================================== */
+
+
+/* ==========================================================
+   HERO
+========================================================== */
+
+#root .echoo-home-filled-hero {
+  position: relative;
+
+  width: 100%;
+
+  min-height: 0 !important;
+
+  display: grid !important;
+
+  grid-template-columns:
+    minmax(
+      360px,
+      0.82fr
+    )
+    minmax(
+      520px,
+      1.18fr
+    ) !important;
+
+  align-items: center !important;
+
+  gap:
+    clamp(
+      38px,
+      5vw,
+      74px
+    ) !important;
+
+  padding:
+    42px
+    0
+    46px !important;
+
+  overflow:
+    hidden !important;
+
+  background:
+    transparent !important;
+}
+
+
+#root
+.echoo-home-filled-hero
+.identity-home-ambient {
+  position: absolute !important;
+
+  z-index: 0 !important;
+
+  top:
+    -60px !important;
+
+  left:
+    -80px !important;
+
+  width:
+    520px !important;
+
+  height:
+    420px !important;
+
+  opacity:
+    0.28 !important;
+
+  pointer-events:
+    none !important;
+}
+
+
+#root .echoo-home-hero-copy {
+  position: relative;
+
+  z-index: 2;
+
+  max-width:
+    610px;
+}
+
+
+#root
+.echoo-home-hero-copy
+.identity-kicker {
+  display:
+    inline-flex;
+
+  align-items:
+    center;
+
+  margin-bottom:
+    14px;
+
+  color:
+    #265DFF !important;
+
+  font-size:
+    11px !important;
+
+  font-weight:
+    800 !important;
+
+  letter-spacing:
+    0.13em !important;
+}
+
+
+#root
+.echoo-home-hero-copy h1 {
+  max-width:
+    650px;
+
+  margin:
+    0 !important;
+
+  color:
+    #101828 !important;
+
+  font-size:
+    clamp(
+      45px,
+      4.2vw,
+      64px
+    ) !important;
+
+  line-height:
+    0.98 !important;
+
+  font-weight:
+    650 !important;
+
+  letter-spacing:
+    -0.06em !important;
+}
+
+
+#root
+.echoo-home-hero-copy > p {
+  max-width:
+    540px;
+
+  margin:
+    18px
+    0
+    0 !important;
+
+  color:
+    #667085 !important;
+
+  font-size:
+    15px !important;
+
+  line-height:
+    1.65 !important;
+}
+
+
+#root .echoo-home-hero-buttons {
+  display: flex;
+
+  align-items: center;
+
+  flex-wrap: wrap;
+
+  gap:
+    9px;
+
+  margin-top:
+    26px;
+}
+
+
+#root
+.echoo-home-hero-primary,
+#root
+.echoo-home-hero-secondary {
+  min-height:
+    43px;
+
+  display:
+    inline-flex;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  gap:
+    9px;
+
+  padding:
+    0
+    15px;
+
+  border-radius:
+    8px;
+
+  cursor:
+    pointer;
+
+  font-size:
+    12px;
+
+  font-weight:
+    650;
+}
+
+
+#root
+.echoo-home-hero-primary {
+  border:
+    1px solid
+    #265DFF;
+
+  background:
+    #265DFF;
+
+  color:
+    #FFFFFF;
+}
+
+
+#root
+.echoo-home-hero-secondary {
+  border:
+    1px solid
+    #D0D5DD;
+
+  background:
+    #FFFFFF;
+
+  color:
+    #344054;
+}
+
+
+/* ==========================================================
+   FEATURED LIVE CARD
+========================================================== */
+
+#root .echoo-home-featured-card {
+  position: relative;
+
+  z-index: 2;
+
+  min-width: 0;
+
+  overflow: hidden;
+
+  border:
+    1px solid
+    #EAECF0;
+
+  border-radius:
+    14px;
+
+  background:
+    #FFFFFF;
+
+  box-shadow:
+    0
+    18px
+    48px
+    rgba(
+      16,
+      24,
+      40,
+      0.075
+    );
+}
+
+
+#root .echoo-home-featured-image {
+  position: relative;
+
+  width: 100%;
+
+  aspect-ratio:
+    16 / 8.4;
+
+  display: block;
+
+  overflow: hidden;
+
+  padding: 0;
+
+  border: 0;
+
+  background:
+    #F2F4F7;
+
+  cursor:
+    pointer;
+}
+
+
+#root
+.echoo-home-featured-image img {
+  position: absolute;
+
+  inset: 0;
+
+  width: 100%;
+  height: 100%;
+
+  display: block;
+
+  object-fit:
+    cover;
+
+  object-position:
+    center;
+}
+
+
+#root .echoo-home-featured-overlay {
+  position: absolute;
+
+  z-index: 1;
+
+  inset: 0;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(
+        16,
+        24,
+        40,
+        0.02
+      )
+      35%,
+      rgba(
+        16,
+        24,
+        40,
+        0.62
+      )
+      100%
+    );
+}
+
+
+#root .echoo-home-live-pill {
+  position: absolute;
+
+  z-index: 3;
+
+  top:
+    14px;
+
+  left:
+    14px;
+
+  min-height:
+    27px;
+
+  display:
+    inline-flex;
+
+  align-items:
+    center;
+
+  gap:
+    6px;
+
+  padding:
+    0
+    9px;
+
+  border-radius:
+    999px;
+
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.95
+    );
+
+  color:
+    #E5484D;
+
+  font-size:
+    9px;
+
+  font-weight:
+    800;
+
+  letter-spacing:
+    0.075em;
+}
+
+
+#root
+.echoo-home-live-pill i {
+  width:
+    6px;
+
+  height:
+    6px;
+
+  border-radius:
+    50%;
+
+  background:
+    #E5484D;
+}
+
+
+#root .echoo-home-featured-count {
+  position: absolute;
+
+  z-index: 3;
+
+  right:
+    15px;
+
+  bottom:
+    14px;
+
+  color:
+    #FFFFFF;
+
+  font-size:
+    11px;
+
+  font-weight:
+    650;
+}
+
+
+#root .echoo-home-featured-bottom {
+  min-width: 0;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content:
+    space-between;
+
+  gap:
+    20px;
+
+  padding:
+    17px
+    18px;
+}
+
+
+#root
+.echoo-home-featured-bottom
+> div {
+  min-width: 0;
+}
+
+
+#root
+.echoo-home-featured-bottom small {
+  color:
+    #667085;
+
+  font-size:
+    9px;
+
+  font-weight:
+    700;
+
+  letter-spacing:
+    0.09em;
+
+  text-transform:
+    uppercase;
+}
+
+
+#root
+.echoo-home-featured-bottom h2 {
+  margin:
+    5px
+    0
+    0 !important;
+
+  color:
+    #101828 !important;
+
+  font-size:
+    19px !important;
+
+  line-height:
+    1.2 !important;
+
+  letter-spacing:
+    -0.025em;
+}
+
+
+#root
+.echoo-home-featured-bottom p {
+  margin:
+    5px
+    0
+    0 !important;
+
+  color:
+    #667085 !important;
+
+  font-size:
+    11px !important;
+}
+
+
+#root
+.echoo-home-featured-bottom
+> button {
+  width:
+    42px;
+
+  height:
+    42px;
+
+  flex:
+    0
+    0
+    42px;
+
+  display: grid;
+
+  place-items:
+    center;
+
+  padding: 0;
+
+  border:
+    0;
+
+  border-radius:
+    50%;
+
+  background:
+    #265DFF;
+
+  color:
+    #FFFFFF;
+
+  cursor:
+    pointer;
+
+  box-shadow:
+    0
+    7px
+    18px
+    rgba(
+      38,
+      93,
+      255,
+      0.2
+    );
+}
+
+
+/* ==========================================================
+   LIVE AROUND YOU
+========================================================== */
+
+#root .echoo-home-live-around {
+  margin-top:
+    10px !important;
+
+  margin-bottom:
+    54px !important;
+}
+
+
+#root .echoo-home-live-heading {
+  margin-bottom:
+    18px !important;
+}
+
+
+#root .echoo-home-live-cards {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      3,
+      minmax(
+        0,
+        1fr
+      )
+    );
+
+  gap:
+    18px;
+}
+
+
+#root .echoo-home-live-card {
+  min-width: 0;
+
+  overflow: hidden;
+
+  border:
+    1px solid
+    #EAECF0;
+
+  border-radius:
+    12px;
+
+  background:
+    #FFFFFF;
+
+  transition:
+    transform
+    180ms
+    ease,
+    box-shadow
+    180ms
+    ease;
+}
+
+
+#root .echoo-home-live-card-image {
+  position: relative;
+
+  width: 100%;
+
+  aspect-ratio:
+    16 / 9;
+
+  display: block;
+
+  overflow: hidden;
+
+  padding: 0;
+
+  border: 0;
+
+  background:
+    #F2F4F7;
+
+  cursor:
+    pointer;
+}
+
+
+#root
+.echoo-home-live-card-image img {
+  position: absolute;
+
+  inset: 0;
+
+  width: 100%;
+  height: 100%;
+
+  display: block;
+
+  object-fit:
+    cover;
+
+  object-position:
+    center;
+}
+
+
+#root .echoo-home-live-card-overlay {
+  position: absolute;
+
+  z-index: 1;
+
+  inset: 0;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(
+        16,
+        24,
+        40,
+        0.015
+      )
+      35%,
+      rgba(
+        16,
+        24,
+        40,
+        0.5
+      )
+      100%
+    );
+}
+
+
+#root
+.echoo-home-live-card
+.echoo-home-live-pill {
+  top:
+    11px;
+
+  left:
+    11px;
+
+  min-height:
+    24px;
+
+  padding:
+    0
+    8px;
+
+  font-size:
+    8px;
+}
+
+
+#root .echoo-home-live-card-count {
+  position: absolute;
+
+  z-index: 3;
+
+  right:
+    11px;
+
+  bottom:
+    10px;
+
+  color:
+    #FFFFFF;
+
+  font-size:
+    10px;
+
+  font-weight:
+    600;
+}
+
+
+#root .echoo-home-live-card-body {
+  min-width: 0;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content:
+    space-between;
+
+  gap:
+    14px;
+
+  padding:
+    14px
+    15px
+    15px;
+}
+
+
+#root
+.echoo-home-live-card-body
+> div {
+  min-width: 0;
+}
+
+
+#root
+.echoo-home-live-card-body h3 {
+  margin: 0;
+
+  overflow: hidden;
+
+  color:
+    #101828;
+
+  font-size:
+    14px;
+
+  line-height:
+    1.25;
+
+  font-weight:
+    650;
+
+  text-overflow:
+    ellipsis;
+
+  white-space:
+    nowrap;
+}
+
+
+#root
+.echoo-home-live-card-body p {
+  margin:
+    5px
+    0
+    0;
+
+  overflow: hidden;
+
+  color:
+    #667085;
+
+  font-size:
+    11px;
+
+  text-overflow:
+    ellipsis;
+
+  white-space:
+    nowrap;
+}
+
+
+#root .echoo-home-live-card-open {
+  width:
+    35px;
+
+  height:
+    35px;
+
+  flex:
+    0
+    0
+    35px;
+
+  display: grid;
+
+  place-items:
+    center;
+
+  padding: 0;
+
+  border:
+    1px solid
+    #D0D5DD;
+
+  border-radius:
+    50%;
+
+  background:
+    #FFFFFF;
+
+  color:
+    #265DFF;
+
+  cursor:
+    pointer;
+}
+
+
+/* ==========================================================
+   REDUCE EXCESSIVE HOME GAPS
+========================================================== */
+
+#root
+.identity-home
+.identity-section {
+  margin-top:
+    54px !important;
+}
+
+
+#root
+.identity-home
+.echoo-home-live-around {
+  margin-top:
+    12px !important;
+}
+
+
+#root
+.echoo-home-live-around
++ .identity-section {
+  margin-top:
+    0 !important;
+}
+
+
+#root
+.identity-home
+.identity-section-heading {
+  margin-bottom:
+    17px !important;
+}
+
+
+/* ==========================================================
+   MAKE CONTINUE LISTENING USE AVAILABLE WIDTH
+========================================================== */
+
+#root .identity-continue-list {
+  width:
+    min(
+      100%,
+      1220px
+    );
+}
+
+
+#root .identity-continue-row {
+  min-height:
+    78px !important;
+}
+
+
+/* ==========================================================
+   FOR YOU — BETTER SCALE
+========================================================== */
+
+#root .identity-audio-rail {
+  padding-bottom:
+    4px;
+}
+
+
+#root .identity-audio-item {
+  width:
+    230px !important;
+
+  min-width:
+    230px !important;
+}
+
+
+#root .identity-audio-art {
+  width:
+    230px !important;
+
+  height:
+    230px !important;
+
+  overflow:
+    hidden;
+}
+
+
+#root
+.identity-audio-art img {
+  width: 100%;
+
+  height: 100%;
+
+  object-fit:
+    cover;
+
+  object-position:
+    center;
+}
+
+
+/* ==========================================================
+   VOICES TO KNOW
+========================================================== */
+
+#root .identity-channel-avatar {
+  overflow:
+    hidden;
+}
+
+
+#root
+.identity-channel-avatar img {
+  width: 100%;
+
+  height: 100%;
+
+  object-fit:
+    cover;
+
+  object-position:
+    center;
+}
+
+
+/* ==========================================================
+   HOVER
+========================================================== */
+
+@media (
+  hover: hover
+) and (
+  pointer: fine
+) {
+  #root .echoo-home-live-card:hover {
+    transform:
+      translateY(
+        -2px
+      );
+
+    box-shadow:
+      0
+      12px
+      30px
+      rgba(
+        16,
+        24,
+        40,
+        0.055
+      );
+  }
+
+
+  #root
+  .echoo-home-featured-image img,
+  #root
+  .echoo-home-live-card-image img {
+    transition:
+      transform
+      220ms
+      ease;
+  }
+
+
+  #root
+  .echoo-home-featured-card:hover
+  .echoo-home-featured-image img,
+  #root
+  .echoo-home-live-card:hover
+  .echoo-home-live-card-image img {
+    transform:
+      scale(
+        1.02
+      );
+  }
+}
+
+
+/* ==========================================================
+   TABLET
+========================================================== */
+
+@media (
+  max-width: 1050px
+) {
+  #root .echoo-home-filled-hero {
+    grid-template-columns:
+      1fr !important;
+
+    gap:
+      30px !important;
+  }
+
+
+  #root .echoo-home-hero-copy {
+    max-width:
+      680px;
+  }
+
+
+  #root .echoo-home-featured-card {
+    max-width:
+      780px;
+  }
+
+
+  #root .echoo-home-live-cards {
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(
+          0,
+          1fr
+        )
+      );
+  }
+
+
+  #root
+  .echoo-home-live-card:last-child {
+    grid-column:
+      1 / -1;
+
+    max-width:
+      620px;
+  }
+}
+
+
+/* ==========================================================
+   MOBILE
+========================================================== */
+
+@media (
+  max-width: 620px
+) {
+  #root .echoo-home-filled-hero {
+    display: block !important;
+
+    padding:
+      25px
+      0
+      35px !important;
+  }
+
+
+  #root
+  .echoo-home-hero-copy h1 {
+    font-size:
+      39px !important;
+  }
+
+
+  #root
+  .echoo-home-hero-copy > p {
+    font-size:
+      14px !important;
+  }
+
+
+  #root
+  .echoo-home-hero-buttons {
+    margin-bottom:
+      26px;
+  }
+
+
+  #root
+  .echoo-home-hero-primary,
+  #root
+  .echoo-home-hero-secondary {
+    width: 100%;
+  }
+
+
+  #root .echoo-home-featured-card {
+    margin-top:
+      26px;
+  }
+
+
+  #root
+  .echoo-home-featured-image {
+    aspect-ratio:
+      16 / 10;
+  }
+
+
+  #root .echoo-home-live-cards {
+    grid-template-columns:
+      1fr;
+  }
+
+
+  #root
+  .echoo-home-live-card:last-child {
+    grid-column:
+      auto;
+
+    max-width:
+      none;
+  }
+
+
+  #root .identity-audio-item {
+    width:
+      185px !important;
+
+    min-width:
+      185px !important;
+  }
+
+
+  #root .identity-audio-art {
+    width:
+      185px !important;
+
+    height:
+      185px !important;
+  }
+}
+
+
+/* ==========================================================
+   REDUCED MOTION
+========================================================== */
+
+@media (
+  prefers-reduced-motion:
+  reduce
+) {
+  #root .echoo-home-live-card,
+  #root
+  .echoo-home-featured-image img,
+  #root
+  .echoo-home-live-card-image img {
+    transition:
+      none !important;
+
+    transform:
+      none !important;
+  }
+}

@@ -1,0 +1,275 @@
+.echoo-moment {
+  width: 100%;
+
+  padding:
+    27px
+    0;
+
+  border-top:
+    1px solid
+    var(
+      --echoo-border,
+      #EAECF0
+    );
+
+  border-bottom:
+    1px solid
+    var(
+      --echoo-border,
+      #EAECF0
+    );
+
+  background:
+    transparent;
+
+  color:
+    var(
+      --echoo-text,
+      #101828
+    );
+
+  transition:
+    background
+    170ms
+    ease;
+}
+
+.echoo-moment.is-highlighted {
+  background:
+    linear-gradient(
+      90deg,
+      rgba(
+        38,
+        93,
+        255,
+        0.035
+      ),
+      transparent
+    );
+}
+
+.echoo-moment header {
+  display: flex;
+
+  align-items: center;
+
+  justify-content:
+    space-between;
+}
+
+.echoo-moment header
+>
+span {
+  color:
+    var(
+      --echoo-primary,
+      #265DFF
+    );
+
+  font-size: 10px;
+
+  font-weight: 700;
+
+  letter-spacing:
+    0.14em;
+}
+
+.echoo-moment blockquote {
+  max-width: 620px;
+
+  margin:
+    27px
+    0
+    0;
+
+  color:
+    var(
+      --echoo-text,
+      #101828
+    );
+
+  font-size:
+    clamp(
+      22px,
+      2.7vw,
+      31px
+    );
+
+  line-height: 1.24;
+
+  font-weight: 570;
+
+  letter-spacing:
+    -0.035em;
+}
+
+.echoo-moment-wave {
+  display: flex;
+
+  align-items: center;
+
+  gap: 15px;
+
+  margin-top: 25px;
+}
+
+.echoo-moment-times {
+  display: flex;
+
+  flex-direction:
+    column;
+
+  gap: 3px;
+
+  flex:
+    0
+    0
+    auto;
+}
+
+.echoo-moment-times
+span {
+  color:
+    var(
+      --echoo-text-secondary,
+      #667085
+    );
+
+  font-size: 10px;
+}
+
+.echoo-moment-times
+time {
+  color:
+    var(
+      --echoo-text,
+      #101828
+    );
+
+  font-size: 11px;
+
+  font-weight: 600;
+}
+
+.echoo-moment footer {
+  display: flex;
+
+  align-items:
+    flex-end;
+
+  justify-content:
+    space-between;
+
+  gap: 18px;
+
+  margin-top: 25px;
+}
+
+.echoo-moment footer
+strong,
+.echoo-moment footer
+span {
+  display: block;
+}
+
+.echoo-moment footer
+strong {
+  color:
+    var(
+      --echoo-text,
+      #101828
+    );
+
+  font-size: 12px;
+}
+
+.echoo-moment footer
+span {
+  margin-top: 4px;
+
+  color:
+    var(
+      --echoo-text-secondary,
+      #667085
+    );
+
+  font-size: 11px;
+}
+
+.echoo-moment-actions {
+  display: flex;
+
+  align-items: center;
+
+  gap: 5px;
+}
+
+.echoo-moment-actions
+button {
+  min-height: 33px;
+
+  display: inline-flex;
+
+  align-items: center;
+
+  gap: 6px;
+
+  padding:
+    0
+    8px;
+
+  border: 0;
+
+  border-radius: 6px;
+
+  background:
+    transparent;
+
+  color:
+    var(
+      --echoo-primary,
+      #265DFF
+    );
+
+  cursor: pointer;
+
+  font-size: 11px;
+
+  font-weight: 600;
+}
+
+.echoo-moment-actions
+button:hover {
+  background:
+    #F2F4F7;
+}
+
+.echoo-moment-actions
+button.delete {
+  width: 33px;
+
+  justify-content: center;
+
+  color:
+    #A94A52;
+}
+
+@media (
+  max-width: 600px
+) {
+  .echoo-moment footer {
+    align-items:
+      flex-start;
+
+    flex-direction:
+      column;
+  }
+
+  .echoo-moment-wave {
+    align-items:
+      flex-start;
+
+    flex-direction:
+      column;
+  }
+}

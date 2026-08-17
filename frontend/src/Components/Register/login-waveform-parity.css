@@ -1,0 +1,183 @@
+.echoo-audio-preview-stage {
+  height: 176px;
+}
+
+.echoo-login-wave-bars {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 2px;
+  pointer-events: none;
+}
+
+.echoo-login-wave-bars > span {
+  flex: 1 1 auto;
+  min-width: 3px;
+  height: var(--bar);
+  max-height: 78%;
+  border-radius: 999px;
+  background: linear-gradient(
+    180deg,
+    rgba(103, 164, 244, 0.82),
+    rgba(19, 107, 213, 0.52)
+  );
+  transform-origin: center;
+  will-change: transform, opacity;
+  box-shadow: 0 0 10px rgba(19, 107, 213, 0.025);
+}
+
+.echoo-audio-preview.is-active .echoo-login-wave-bars > span {
+  background: linear-gradient(
+    180deg,
+    rgba(91, 157, 244, 0.96),
+    rgba(19, 107, 213, 0.72)
+  );
+}
+
+.echoo-mic-preview-button {
+  width: 92px;
+  height: 92px;
+  font-size: 30px;
+}
+
+.echoo-audio-preview {
+  min-height: 318px;
+}
+
+.echoo-audio-preview-meter span {
+  opacity: 0.82;
+  animation: none !important;
+  transform-origin: center bottom;
+  will-change: transform;
+}
+
+.echoo-audio-preview-status {
+  font-size: 10px;
+}
+
+.echoo-broadcast-copy h1 {
+  font-size: clamp(54px, 5vw, 76px);
+  line-height: 0.96;
+}
+
+.echoo-broadcast-copy p {
+  max-width: 560px;
+  font-size: clamp(14px, 1.05vw, 16px);
+}
+
+@media (max-width: 1120px), (pointer: coarse) and (max-width: 1400px) {
+  .echoo-broadcast-copy h1 {
+    font-size: clamp(48px, 7vw, 64px);
+  }
+
+  .echoo-audio-preview {
+    width: min(680px, 100%);
+    min-height: 280px;
+  }
+
+  .echoo-audio-preview-stage {
+    height: 150px;
+  }
+
+  .echoo-login-wave-bars {
+    gap: 3px;
+  }
+}
+
+@media (max-width: 640px), (pointer: coarse) and (max-width: 760px) {
+  .echoo-broadcast-copy h1 {
+    font-size: clamp(39px, 11vw, 48px);
+    line-height: 0.97;
+  }
+
+  .echoo-broadcast-copy p {
+    font-size: 11.5px;
+    line-height: 1.5;
+  }
+
+  .echoo-audio-preview {
+    min-height: 206px;
+    padding: 12px 12px 10px;
+    border-radius: 18px;
+  }
+
+  .echoo-audio-preview-stage {
+    height: 104px;
+  }
+
+  .echoo-login-wave-bars {
+    gap: 2px;
+    padding: 0;
+  }
+
+  .echoo-login-wave-bars > span {
+    min-width: 2px;
+    max-height: 82%;
+  }
+
+  .echoo-mic-preview-button {
+    width: 62px;
+    height: 62px;
+    font-size: 21px;
+  }
+
+  .echoo-mic-preview-ring {
+    inset: -8px;
+  }
+
+  .echoo-audio-preview-controls {
+    max-width: 190px;
+    gap: 10px;
+  }
+
+  .echoo-audio-preview-control {
+    width: 31px;
+    height: 31px;
+    font-size: 10px;
+  }
+
+  .echoo-audio-preview-control.echoo-broadcast-center-control {
+    width: 38px;
+    height: 38px;
+    font-size: 12px;
+  }
+
+  .echoo-mic-preview-message {
+    margin-top: 5px;
+    font-size: 9px;
+  }
+
+  .echoo-audio-preview-status {
+    padding: 4px 7px;
+    font-size: 8px;
+  }
+
+  .echoo-audio-preview-meter {
+    transform: scale(0.86);
+    transform-origin: right center;
+  }
+}
+
+@media (max-width: 380px) {
+  .echoo-broadcast-copy h1 {
+    font-size: 37px;
+  }
+
+  .echoo-audio-preview-stage {
+    height: 96px;
+  }
+
+  .echoo-mic-preview-button {
+    width: 58px;
+    height: 58px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .echoo-login-wave-bars > span,
+  .echoo-audio-preview-meter span {
+    transition: none !important;
+  }
+}

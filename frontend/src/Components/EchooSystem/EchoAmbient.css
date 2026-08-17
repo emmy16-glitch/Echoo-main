@@ -1,0 +1,178 @@
+.echoo-ambient {
+  position: absolute;
+
+  inset: 0;
+
+  overflow: hidden;
+
+  pointer-events: none;
+
+  opacity: 0.82;
+}
+
+.echoo-ambient-ring {
+  position: absolute;
+
+  border:
+    1px solid
+    var(
+      --echoo-ring-1,
+      #F2F4F7
+    );
+
+  border-radius: 50%;
+}
+
+.echoo-ambient-ring.ring-a {
+  width: 430px;
+  height: 430px;
+
+  right: -210px;
+  top: -230px;
+}
+
+.echoo-ambient-ring.ring-b {
+  width: 330px;
+  height: 330px;
+
+  right: -160px;
+  top: -180px;
+
+  border-color:
+    var(
+      --echoo-ring-2,
+      #EAECF0
+    );
+}
+
+.echoo-ambient-ring.ring-c {
+  width: 245px;
+  height: 245px;
+
+  right: -115px;
+  top: -135px;
+
+  border-color:
+    var(
+      --echoo-ring-3,
+      #DCE4F5
+    );
+}
+
+.echoo-ambient-node {
+  position: absolute;
+
+  width: 4px;
+  height: 4px;
+
+  border-radius: 50%;
+
+  background:
+    var(
+      --echoo-node,
+      #EAECF0
+    );
+}
+
+.echoo-ambient-node.node-a {
+  right: 16%;
+  top: 18%;
+}
+
+.echoo-ambient-node.node-b {
+  right: 30%;
+  top: 43%;
+}
+
+.echoo-ambient-node.node-c {
+  right: 9%;
+  bottom: 18%;
+
+  background:
+    var(
+      --echoo-primary,
+      #265DFF
+    );
+}
+
+.echoo-ambient-wave {
+  position: absolute;
+
+  right: 7%;
+  bottom: 12%;
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 7px;
+
+  height: 37px;
+
+  opacity: 0.42;
+}
+
+.echoo-ambient-wave
+span {
+  width: 1px;
+
+  border-radius:
+    999px;
+
+  background:
+    #D0D5DD;
+}
+
+.echoo-ambient-wave
+span:nth-child(1) {
+  height: 10px;
+}
+
+.echoo-ambient-wave
+span:nth-child(2) {
+  height: 18px;
+}
+
+.echoo-ambient-wave
+span:nth-child(3) {
+  height: 28px;
+}
+
+.echoo-ambient-wave
+span:nth-child(4) {
+  height: 17px;
+}
+
+.echoo-ambient-wave
+span:nth-child(5) {
+  height: 31px;
+}
+
+.echoo-ambient-wave
+span:nth-child(6) {
+  height: 23px;
+}
+
+.echoo-ambient-wave
+span:nth-child(7) {
+  height: 14px;
+}
+
+.echoo-ambient-wave
+span:nth-child(8) {
+  height: 7px;
+}
+
+.echoo-ambient-medium {
+  opacity: 1;
+}
+
+.echoo-ambient-high {
+  opacity: 1;
+}
+
+.echoo-ambient-high
+.echoo-ambient-node {
+  width: 5px;
+  height: 5px;
+}

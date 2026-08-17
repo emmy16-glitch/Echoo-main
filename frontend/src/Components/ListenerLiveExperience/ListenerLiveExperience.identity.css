@@ -1,0 +1,504 @@
+@import "../../styles/echoo-figma-tokens.css";
+
+/* ==========================================================
+   LIVE ROOM IS A PLACE,
+   NOT THE HOMEPAGE WITH CHAT ATTACHED
+========================================================== */
+
+#root .elx-page {
+  width: 100% !important;
+
+  padding:
+    32px
+    38px
+    70px !important;
+
+  background:
+    #F5F6F8 !important;
+
+  color:
+    var(--echoo-text) !important;
+}
+
+#root .elx-topbar {
+  margin-bottom: 18px !important;
+}
+
+#root .elx-back {
+  color:
+    var(--echoo-text-secondary) !important;
+
+  font-size: 13px !important;
+}
+
+#root .elx-live-grid {
+  display: grid !important;
+
+  grid-template-columns:
+    minmax(
+      0,
+      1fr
+    )
+    360px !important;
+
+  align-items:
+    stretch !important;
+
+  gap: 18px !important;
+}
+
+/* ==========================================================
+   STAGE
+========================================================== */
+
+#root .elx-player {
+  min-height: 560px !important;
+
+  overflow: hidden !important;
+
+  border:
+    1px solid
+    var(--echoo-border) !important;
+
+  border-radius: 14px !important;
+
+  background:
+    var(--echoo-surface) !important;
+
+  color:
+    var(--echoo-text) !important;
+
+  box-shadow:
+    none !important;
+}
+
+#root .elx-player.variant-2,
+#root .elx-player.variant-3 {
+  background:
+    var(--echoo-surface) !important;
+}
+
+#root .elx-player::before {
+  display: none !important;
+}
+
+#root .elx-player-header {
+  min-height: 62px !important;
+
+  padding:
+    16px
+    20px !important;
+
+  border-bottom:
+    1px solid
+    var(--echoo-border) !important;
+}
+
+#root .elx-live-badge {
+  min-height: 26px !important;
+
+  padding:
+    0
+    9px !important;
+
+  border-radius: 6px !important;
+
+  background:
+    rgba(
+      229,
+      72,
+      77,
+      0.08
+    ) !important;
+
+  color:
+    var(--echoo-live) !important;
+
+  font-size: 11px !important;
+}
+
+#root .elx-connection {
+  background:
+    #F2F4F7 !important;
+
+  color:
+    var(--echoo-text-secondary) !important;
+
+  font-size: 11px !important;
+}
+
+#root .elx-player-center {
+  padding:
+    48px
+    42px !important;
+}
+
+#root .elx-room-signal {
+  margin-bottom: 24px !important;
+}
+
+#root .elx-mic {
+  width: 44px !important;
+  height: 44px !important;
+
+  margin: 0 !important;
+
+  border: 0 !important;
+
+  background:
+    var(--echoo-primary) !important;
+
+  color:
+    var(--echoo-white) !important;
+
+  font-size: 16px !important;
+}
+
+#root .elx-waveform {
+  width:
+    min(
+      520px,
+      78%
+    ) !important;
+
+  height: 54px !important;
+
+  margin:
+    10px
+    0
+    22px !important;
+}
+
+#root .elx-waveform span {
+  width: 3px !important;
+
+  background:
+    var(--echoo-primary) !important;
+
+  opacity: 0.72 !important;
+}
+
+#root .elx-player-center
+h1 {
+  max-width: 760px !important;
+
+  color:
+    var(--echoo-text) !important;
+
+  font-size:
+    clamp(
+      30px,
+      4vw,
+      48px
+    ) !important;
+
+  line-height:
+    1.05 !important;
+
+  letter-spacing:
+    -0.045em !important;
+}
+
+#root .elx-player-center
+>
+p {
+  margin-top: 12px !important;
+
+  color:
+    var(--echoo-text-secondary) !important;
+
+  font-size: 15px !important;
+}
+
+#root .elx-player-meta
+span {
+  color:
+    var(--echoo-text-secondary) !important;
+
+  font-size: 13px !important;
+}
+
+/* LISTEN BAR */
+
+#root .elx-listen-bar {
+  min-height: 76px !important;
+
+  border-top:
+    1px solid
+    var(--echoo-border) !important;
+
+  background:
+    #FCFCFD !important;
+}
+
+#root .elx-listen {
+  min-height: 42px !important;
+
+  border: 0 !important;
+
+  background:
+    var(--echoo-primary) !important;
+
+  color:
+    var(--echoo-white) !important;
+
+  font-size: 13px !important;
+
+  font-weight: 600 !important;
+}
+
+#root .elx-listen.active {
+  background:
+    var(--echoo-primary-deep) !important;
+}
+
+#root .elx-volume {
+  color:
+    var(--echoo-text-secondary) !important;
+}
+
+#root .elx-volume
+>
+div {
+  background:
+    #D0D5DD !important;
+}
+
+#root .elx-volume
+>
+div
+span {
+  background:
+    var(--echoo-primary) !important;
+}
+
+/* ==========================================================
+   CHAT
+========================================================== */
+
+#root .elx-chat {
+  position: sticky !important;
+
+  top: 16px !important;
+
+  min-height: 560px !important;
+
+  height:
+    min(
+      680px,
+      calc(
+        100vh -
+        var(--echoo-topbar-height) -
+        var(--echoo-player-height) -
+        48px
+      )
+    ) !important;
+
+  border:
+    1px solid
+    var(--echoo-border) !important;
+
+  border-radius: 14px !important;
+
+  background:
+    var(--echoo-surface) !important;
+
+  box-shadow: none !important;
+}
+
+#root .elx-chat-header {
+  min-height: 62px !important;
+
+  padding:
+    0
+    16px !important;
+
+  border-bottom:
+    1px solid
+    var(--echoo-border) !important;
+}
+
+#root .elx-chat-header
+h2 {
+  font-size: 16px !important;
+}
+
+#root .elx-chat-header
+span {
+  font-size: 12px !important;
+}
+
+#root .elx-pinned {
+  margin:
+    12px
+    12px
+    7px !important;
+
+  padding: 12px !important;
+
+  border-color:
+    rgba(
+      38,
+      93,
+      255,
+      0.14
+    ) !important;
+
+  border-radius: 8px !important;
+
+  background:
+    var(--echoo-primary-pale) !important;
+}
+
+#root .elx-pinned
+strong {
+  font-size: 13px !important;
+}
+
+#root .elx-pinned
+p {
+  font-size: 13px !important;
+}
+
+#root .elx-message {
+  grid-template-columns:
+    36px
+    minmax(
+      0,
+      1fr
+    ) !important;
+
+  padding:
+    10px
+    5px !important;
+}
+
+#root .elx-message-avatar {
+  width: 34px !important;
+  height: 34px !important;
+
+  font-size: 11px !important;
+}
+
+#root .elx-message-meta
+strong {
+  font-size: 13px !important;
+}
+
+#root .elx-message-meta
+span {
+  font-size: 11px !important;
+}
+
+#root .elx-message
+p {
+  font-size: 13px !important;
+
+  line-height:
+    1.5 !important;
+}
+
+#root .elx-message-actions
+button {
+  font-size: 11px !important;
+}
+
+#root .elx-composer
+input {
+  height: 42px !important;
+
+  border-color:
+    var(--echoo-border) !important;
+
+  background:
+    #F9FAFB !important;
+
+  font-size: 13px !important;
+}
+
+#root .elx-send {
+  width: 40px !important;
+  height: 40px !important;
+
+  background:
+    var(--echoo-primary) !important;
+}
+
+/* ==========================================================
+   BELOW THE ROOM
+
+   Quieter editorial blocks.
+========================================================== */
+
+#root :is(
+  .elx-host-card,
+  .elx-info-card,
+  .elx-station-card
+) {
+  border-color:
+    var(--echoo-border) !important;
+
+  border-radius: 10px !important;
+
+  background:
+    var(--echoo-surface) !important;
+
+  box-shadow: none !important;
+}
+
+#root .elx-info-card
+h2 {
+  font-size: 16px !important;
+}
+
+#root .elx-info-card
+p {
+  font-size: 13px !important;
+}
+
+#root .elx-host-main
+strong,
+#root .elx-station-main
+strong {
+  font-size: 13px !important;
+}
+
+#root .elx-host-main
+small,
+#root .elx-host-main
+em,
+#root .elx-station-main
+small,
+#root .elx-station-main
+em {
+  font-size: 12px !important;
+}
+
+/* STATE OVERLAYS */
+
+#root .elx-state {
+  background:
+    rgba(
+      16,
+      24,
+      40,
+      0.82
+    ) !important;
+}
+
+@media (
+  max-width: 980px
+) {
+  #root .elx-live-grid {
+    grid-template-columns:
+      1fr !important;
+  }
+
+  #root .elx-chat {
+    position: relative !important;
+
+    top: 0 !important;
+
+    height: 600px !important;
+  }
+}

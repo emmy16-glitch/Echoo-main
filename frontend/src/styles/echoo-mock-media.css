@@ -1,0 +1,531 @@
+/* ==========================================================
+   ECHOO MOCK MEDIA
+   Real media still takes priority in JavaScript.
+========================================================== */
+
+
+/* ----------------------------------------------------------
+   UNIVERSAL IMAGE BEHAVIOUR
+---------------------------------------------------------- */
+
+.echoo-station-art-image,
+.echoo-station-preview-image,
+.echoo-live-cover-image,
+.echoo-home-audio-cover,
+.echoo-home-live-cover,
+.echoo-creator-avatar-image,
+.elx-stage-artwork {
+  display: block;
+
+  width: 100%;
+  height: 100%;
+
+  object-fit: cover;
+
+  object-position: center;
+
+  user-select: none;
+
+  -webkit-user-drag: none;
+}
+
+
+/* ----------------------------------------------------------
+   STATION ARTWORK
+---------------------------------------------------------- */
+
+#root .lb-station-art {
+  position: relative !important;
+
+  overflow: hidden !important;
+
+  isolation: isolate;
+
+  background:
+    #F2F4F7 !important;
+}
+
+#root
+.lb-station-art
+.echoo-station-art-image {
+  position: absolute;
+
+  z-index: 1;
+
+  inset: 0;
+
+  border-radius:
+    inherit;
+}
+
+
+/* Remove old decorative initials/icon when real/mock artwork exists */
+
+#root
+.lb-station-art:has(
+  .echoo-station-art-image
+)::after,
+#root
+.lb-station-art:has(
+  .echoo-station-art-image
+)::before {
+  opacity: 0 !important;
+}
+
+
+/* ----------------------------------------------------------
+   THE SMALL BLUE CIRCLE REALLY IS THE PLAY BUTTON.
+   Keep it, but stop it looking cut off.
+---------------------------------------------------------- */
+
+#root .lb-station-play {
+  position: absolute !important;
+
+  z-index: 6 !important;
+
+  right:
+    12px !important;
+
+  bottom:
+    12px !important;
+
+  width:
+    42px !important;
+
+  height:
+    42px !important;
+
+  min-width:
+    42px !important;
+
+  min-height:
+    42px !important;
+
+  display: grid !important;
+
+  place-items:
+    center !important;
+
+  padding:
+    0 !important;
+
+  overflow:
+    visible !important;
+
+  border:
+    3px solid
+    rgba(
+      255,
+      255,
+      255,
+      0.96
+    ) !important;
+
+  border-radius:
+    50% !important;
+
+  background:
+    #265DFF !important;
+
+  color:
+    #FFFFFF !important;
+
+  box-shadow:
+    0
+    7px
+    20px
+    rgba(
+      16,
+      24,
+      40,
+      0.16
+    ) !important;
+
+  transform:
+    none !important;
+}
+
+#root
+.lb-station-play svg {
+  position: static !important;
+
+  width:
+    13px !important;
+
+  height:
+    13px !important;
+
+  margin-left:
+    2px;
+
+  color:
+    currentColor !important;
+}
+
+
+/* circular station presentation */
+
+#root
+.lb-station-art:has(
+  .echoo-station-art-image
+) {
+  background:
+    #F2F4F7 !important;
+}
+
+
+/* ----------------------------------------------------------
+   STATION PREVIEW
+---------------------------------------------------------- */
+
+#root .lb-station-preview-art {
+  position: relative;
+
+  overflow: hidden;
+}
+
+#root
+.lb-station-preview-art
+.echoo-station-preview-image {
+  position: absolute;
+
+  inset: 0;
+}
+
+
+/* ----------------------------------------------------------
+   LIVE DISCOVERY
+---------------------------------------------------------- */
+
+#root .lb-live-art {
+  position: relative;
+
+  overflow: hidden;
+
+  isolation: isolate;
+}
+
+#root
+.lb-live-art
+.echoo-live-cover-image {
+  position: absolute;
+
+  z-index: 0;
+
+  inset: 0;
+}
+
+#root
+.lb-live-art::after {
+  content: "";
+
+  position: absolute;
+
+  z-index: 1;
+
+  inset: 0;
+
+  pointer-events: none;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(
+        16,
+        24,
+        40,
+        0.04
+      )
+      20%,
+      rgba(
+        16,
+        24,
+        40,
+        0.4
+      )
+      100%
+    );
+}
+
+#root .lb-live-label,
+#root .lb-live-mic,
+#root .lb-live-wave {
+  z-index: 3;
+}
+
+
+/* ----------------------------------------------------------
+   HOME AUDIO
+---------------------------------------------------------- */
+
+#root .recommendation-cover {
+  position: relative;
+
+  overflow: hidden;
+}
+
+#root
+.recommendation-cover
+.echoo-home-audio-cover {
+  position: absolute;
+
+  z-index: 0;
+
+  inset: 0;
+}
+
+#root
+.recommendation-cover
+.media-type-chip,
+#root
+.recommendation-cover
+.recommendation-hover-actions,
+#root
+.recommendation-cover
+.recommendation-main-play {
+  position: relative;
+
+  z-index: 3;
+}
+
+
+/* ----------------------------------------------------------
+   HOME LIVE
+---------------------------------------------------------- */
+
+#root .home-live-cover {
+  position: relative;
+
+  overflow: hidden !important;
+
+  isolation: isolate;
+}
+
+#root
+.home-live-cover
+.echoo-home-live-cover {
+  position: absolute;
+
+  z-index: 0;
+
+  inset: 0;
+
+  border-radius:
+    inherit;
+}
+
+#root .home-live-cover .live-pulse {
+  position: relative;
+
+  z-index: 4;
+}
+
+
+/* ----------------------------------------------------------
+   CREATOR / FOLLOWING AVATARS
+---------------------------------------------------------- */
+
+#root :is(
+  .elx-avatar,
+  .elx-profile-avatar,
+  .elx-big-avatar
+) {
+  overflow: hidden !important;
+
+  padding: 0 !important;
+}
+
+#root
+:is(
+  .elx-avatar,
+  .elx-profile-avatar,
+  .elx-big-avatar
+)
+.echoo-creator-avatar-image {
+  width: 100%;
+
+  height: 100%;
+
+  object-fit: cover;
+
+  object-position: center;
+
+  border-radius:
+    inherit;
+}
+
+
+/* ----------------------------------------------------------
+   LIVE ROOM STAGE
+---------------------------------------------------------- */
+
+#root .elx-player {
+  position: relative;
+
+  overflow: hidden;
+
+  isolation: isolate;
+}
+
+#root
+.elx-player
+.elx-stage-artwork {
+  position: absolute;
+
+  z-index: 0;
+
+  inset: 0;
+
+  opacity: 0.34;
+
+  object-fit: cover;
+
+  object-position:
+    center;
+
+  filter:
+    saturate(
+      0.82
+    )
+    contrast(
+      0.95
+    );
+}
+
+#root .elx-player::after {
+  content: "";
+
+  position: absolute;
+
+  z-index: 1;
+
+  inset: 0;
+
+  pointer-events: none;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(
+        245,
+        246,
+        248,
+        0.78
+      ),
+      rgba(
+        245,
+        246,
+        248,
+        0.88
+      )
+    );
+}
+
+#root
+.elx-player
+> *:not(
+  .elx-stage-artwork
+) {
+  position: relative;
+
+  z-index: 2;
+}
+
+
+/* ----------------------------------------------------------
+   BEAUTIFUL CROPPING
+---------------------------------------------------------- */
+
+#root :is(
+  .echoo-station-art-image,
+  .echoo-station-preview-image,
+  .echoo-live-cover-image,
+  .echoo-home-audio-cover,
+  .echoo-home-live-cover,
+  .echoo-creator-avatar-image,
+  .elx-stage-artwork
+) {
+  transition:
+    transform
+    220ms
+    ease;
+}
+
+@media (
+  hover: hover
+) and (
+  pointer: fine
+) {
+  #root
+  .lb-station-art:hover
+  .echoo-station-art-image,
+  #root
+  .lb-live-card:hover
+  .echoo-live-cover-image,
+  #root
+  .recommendation-card:hover
+  .echoo-home-audio-cover {
+    transform:
+      scale(
+        1.025
+      );
+  }
+}
+
+
+/* ----------------------------------------------------------
+   MOBILE
+---------------------------------------------------------- */
+
+@media (
+  max-width: 760px
+) {
+  #root .lb-station-play {
+    right:
+      10px !important;
+
+    bottom:
+      10px !important;
+
+    width:
+      40px !important;
+
+    height:
+      40px !important;
+
+    min-width:
+      40px !important;
+
+    min-height:
+      40px !important;
+  }
+
+  #root
+  .elx-player
+  .elx-stage-artwork {
+    opacity:
+      0.27;
+  }
+}
+
+
+/* ----------------------------------------------------------
+   REDUCED MOTION
+---------------------------------------------------------- */
+
+@media (
+  prefers-reduced-motion:
+  reduce
+) {
+  #root :is(
+    .echoo-station-art-image,
+    .echoo-live-cover-image,
+    .echoo-home-audio-cover
+  ) {
+    transition:
+      none !important;
+
+    transform:
+      none !important;
+  }
+}

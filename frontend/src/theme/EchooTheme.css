@@ -1,0 +1,759 @@
+
+/* ==========================================================
+   ECHOO GLOBAL THEME
+   ----------------------------------------------------------
+   Philosophy:
+
+   Pale blue-grey = application canvas
+   White          = elevated surface
+
+   We are NOT removing white from Echoo.
+
+   White remains for:
+   - cards
+   - panels
+   - player
+   - sidebar
+   - topbar
+   - modals
+   - dropdowns
+   - forms
+   - elevated components
+========================================================== */
+
+
+:root {
+  /* ======================================================
+     CANVAS
+  ====================================================== */
+
+  --echoo-bg:
+    #F5F8FC;
+
+  --echoo-bg-soft:
+    #F9FBFE;
+
+  --echoo-bg-subtle:
+    #F2F6FB;
+
+
+  /* ======================================================
+     SURFACES
+  ====================================================== */
+
+  --echoo-surface:
+    #FFFFFF;
+
+  --echoo-surface-hover:
+    #FBFDFF;
+
+  --echoo-surface-soft:
+    #F8FAFD;
+
+
+  /* ======================================================
+     TEXT
+  ====================================================== */
+
+  --echoo-text-h:
+    #101828;
+
+  --echoo-text-strong:
+    #344054;
+
+  --echoo-text:
+    #5F6F85;
+
+  --echoo-text-soft:
+    #7D8B9E;
+
+  --echoo-text-muted:
+    #98A2B3;
+
+
+  /* ======================================================
+     ECHOO BLUE
+  ====================================================== */
+
+  --echoo-blue:
+    #1769D3;
+
+  --echoo-blue-hover:
+    #125FBE;
+
+  --echoo-blue-soft:
+    #EAF3FF;
+
+  --echoo-blue-faint:
+    #F3F8FF;
+
+  --echoo-blue-border:
+    rgba(
+      23,
+      105,
+      211,
+      0.26
+    );
+
+
+  /* ======================================================
+     BORDERS
+  ====================================================== */
+
+  --echoo-border:
+    #E3EAF2;
+
+  --echoo-border-soft:
+    #E9EEF4;
+
+  --echoo-border-strong:
+    #D3DEEA;
+
+
+  /* ======================================================
+     INPUT
+  ====================================================== */
+
+  --echoo-input:
+    #F3F6FA;
+
+  --echoo-input-hover:
+    #EEF3F8;
+
+  --echoo-input-focus:
+    #FFFFFF;
+
+
+  /* ======================================================
+     STATUS
+  ====================================================== */
+
+  --echoo-success:
+    #2F7D62;
+
+  --echoo-danger:
+    #C94A48;
+
+  --echoo-live:
+    #E5484D;
+
+
+  /* ======================================================
+     SHADOW
+  ====================================================== */
+
+  --echoo-shadow-sm:
+    0
+    2px
+    8px
+    rgba(
+      23,
+      47,
+      78,
+      0.035
+    );
+
+  --echoo-shadow-md:
+    0
+    12px
+    30px
+    rgba(
+      23,
+      47,
+      78,
+      0.06
+    );
+
+  --echoo-shadow-lg:
+    0
+    20px
+    48px
+    rgba(
+      23,
+      47,
+      78,
+      0.09
+    );
+}
+
+
+/* ==========================================================
+   DOCUMENT CANVAS
+========================================================== */
+
+html,
+body,
+#root {
+  background:
+    var(
+      --echoo-bg
+    );
+
+  color:
+    var(
+      --echoo-text
+    );
+}
+
+
+/* ==========================================================
+   LISTENER APPLICATION SHELL
+
+   This is the important change.
+
+   Previously the listener shell itself was white.
+   It now becomes the pale Echoo canvas.
+========================================================== */
+
+.listener-layout,
+.layout-main,
+.layout-content {
+  background:
+    var(
+      --echoo-bg
+    );
+}
+
+
+/* ==========================================================
+   LISTENER PAGE CANVASES
+
+   Explicit old white page roots are changed to the canvas.
+
+   Cards INSIDE these pages remain white.
+========================================================== */
+
+.listener-home-page,
+.listener-live-page,
+.listener-library-page,
+.listener-history-page,
+.listener-downloads-page,
+.listener-stations-page,
+.lb-page,
+.elx-page,
+.elx-social-page {
+  background:
+    var(
+      --echoo-bg
+    );
+}
+
+
+/* ==========================================================
+   SIDEBAR
+
+   Keep it essentially white.
+
+   A microscopic tint prevents it feeling identical to the
+   application canvas while preserving Echoo's current look.
+========================================================== */
+
+.layout-sidebar {
+  background:
+    #FBFCFE;
+
+  border-right-color:
+    var(
+      --echoo-border
+    );
+}
+
+
+/* ==========================================================
+   GLOBAL TOPBAR
+========================================================== */
+
+.layout-topbar {
+  border-bottom-color:
+    var(
+      --echoo-border-soft
+    );
+
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.94
+    );
+
+  box-shadow:
+    0
+    1px
+    0
+    rgba(
+      23,
+      47,
+      78,
+      0.015
+    );
+
+  backdrop-filter:
+    blur(
+      12px
+    );
+
+  -webkit-backdrop-filter:
+    blur(
+      12px
+    );
+}
+
+
+/* ==========================================================
+   NAVIGATION
+========================================================== */
+
+.layout-nav-item:hover {
+  background:
+    #F1F5FA;
+
+  color:
+    #344054;
+}
+
+.layout-nav-item.active {
+  background:
+    var(
+      --echoo-blue-soft
+    );
+
+  color:
+    var(
+      --echoo-blue
+    );
+}
+
+.layout-playlists
+> button:hover {
+  background:
+    #F3F6FA;
+}
+
+
+/* ==========================================================
+   GLOBAL SEARCH
+========================================================== */
+
+.beautiful-search {
+  border-color:
+    var(
+      --echoo-border
+    );
+
+  background:
+    var(
+      --echoo-surface
+    );
+}
+
+.beautiful-search:focus-within {
+  border-color:
+    var(
+      --echoo-blue-border
+    );
+
+  box-shadow:
+    0
+    0
+    0
+    3px
+    rgba(
+      23,
+      105,
+      211,
+      0.055
+    );
+}
+
+.beautiful-search-panel {
+  border-color:
+    var(
+      --echoo-border
+    );
+
+  background:
+    var(
+      --echoo-surface
+    );
+
+  box-shadow:
+    var(
+      --echoo-shadow-md
+    );
+}
+
+
+/* ==========================================================
+   BOTTOM PLAYER
+
+   White remains intentional.
+========================================================== */
+
+.layout-player {
+  border-top-color:
+    var(
+      --echoo-border
+    ) !important;
+
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.985
+    ) !important;
+
+  box-shadow:
+    0
+    -8px
+    28px
+    rgba(
+      23,
+      47,
+      78,
+      0.05
+    ) !important;
+
+  backdrop-filter:
+    blur(
+      12px
+    );
+}
+
+
+/* ==========================================================
+   SHARED LISTENER SURFACES
+
+   This is where white belongs.
+========================================================== */
+
+.continue-card,
+.home-side-card,
+.listening-card,
+
+.lb-summary-card,
+.lb-live-card,
+.lb-station-card,
+.lb-station-preview,
+.lb-playlist-card,
+.lb-audio-list,
+.lb-history-list,
+.lb-side-panel,
+.lb-skeleton-card,
+.lb-skeleton-rows,
+
+.live-broadcast-card,
+
+.station-card,
+
+.library-playlist-card,
+.library-v2-playlist-card,
+.library-v2-audio-list,
+
+.elx-host-card,
+.elx-info-card,
+.elx-station-card,
+.elx-chat,
+.elx-follow-card,
+.elx-profile-stats,
+.elx-about,
+.elx-feature-live,
+.elx-audio-list,
+.elx-schedule,
+.elx-notifications {
+  background:
+    var(
+      --echoo-surface
+    );
+}
+
+
+/* ==========================================================
+   SHARED SURFACE BORDER POLISH
+========================================================== */
+
+.continue-card,
+.home-side-card,
+
+.lb-summary-card,
+.lb-live-card,
+.lb-station-card,
+.lb-station-preview,
+.lb-playlist-card,
+.lb-audio-list,
+.lb-history-list,
+.lb-side-panel,
+
+.live-broadcast-card,
+
+.library-playlist-card,
+.library-v2-playlist-card,
+.library-v2-audio-list,
+
+.elx-host-card,
+.elx-info-card,
+.elx-station-card,
+.elx-chat {
+  border-color:
+    var(
+      --echoo-border
+    );
+}
+
+
+/* ==========================================================
+   CARD HOVER
+
+   Very restrained. Echoo should not feel floaty.
+========================================================== */
+
+.continue-card:hover,
+.lb-station-card:hover,
+.lb-playlist-card:hover,
+.live-broadcast-card:hover,
+.library-v2-playlist-card:hover,
+.elx-follow-card:hover {
+  border-color:
+    var(
+      --echoo-border-strong
+    );
+}
+
+
+/* ==========================================================
+   EMPTY STATES
+
+   Keep the component white but let it sit visibly above
+   the pale canvas.
+========================================================== */
+
+.lb-empty {
+  border-color:
+    var(
+      --echoo-border
+    );
+
+  background:
+    linear-gradient(
+      180deg,
+      #FFFFFF
+      0%,
+      #FBFDFF
+      100%
+    );
+}
+
+
+/* ==========================================================
+   FORMS / INPUTS
+========================================================== */
+
+.lb-field input,
+.lb-field textarea,
+.lb-field select {
+  background:
+    var(
+      --echoo-input
+    );
+}
+
+.lb-field input:hover,
+.lb-field textarea:hover,
+.lb-field select:hover {
+  background:
+    var(
+      --echoo-input-hover
+    );
+}
+
+.lb-field input:focus,
+.lb-field textarea:focus,
+.lb-field select:focus {
+  background:
+    var(
+      --echoo-input-focus
+    );
+}
+
+
+/* ==========================================================
+   CREATOR STUDIO
+
+   Existing Studio architecture already has an outer pale
+   background. We increase the separation by making the
+   large workspace slightly tinted while keeping cards white.
+========================================================== */
+
+.studio-page {
+  background:
+    var(
+      --echoo-bg
+    );
+}
+
+.studio-main {
+  background:
+    var(
+      --echoo-bg-soft
+    );
+
+  border-color:
+    var(
+      --echoo-border
+    );
+}
+
+.studio-sidebar {
+  background:
+    var(
+      --echoo-surface
+    );
+
+  border-color:
+    var(
+      --echoo-border
+    );
+}
+
+.metric-card,
+.quick-action-card,
+.dashboard-panel,
+.studio-table-wrap,
+.studio-large-empty,
+.audience-summary-card,
+.analytics-summary-grid
+> div {
+  background:
+    var(
+      --echoo-surface
+    );
+
+  border-color:
+    var(
+      --echoo-border
+    );
+}
+
+
+/* ==========================================================
+   ONBOARDING / AUTH
+
+   These pages already followed the correct architecture:
+   pale canvas + white card.
+
+   This simply puts them on the same tokens.
+========================================================== */
+
+.auth-page,
+.profile-page,
+.role-page,
+.creator-page {
+  background:
+    var(
+      --echoo-bg
+    );
+}
+
+.auth-card,
+.profile-container,
+.role-container,
+.creator-container {
+  background:
+    var(
+      --echoo-surface
+    );
+
+  border-color:
+    var(
+      --echoo-border
+    );
+}
+
+
+/* ==========================================================
+   MODALS / DROPDOWNS / TOASTS
+
+   White remains.
+========================================================== */
+
+.lb-modal,
+.lb-toast,
+.lb-menu,
+.listener-profile-dropdown,
+.elx-popover {
+  background:
+    var(
+      --echoo-surface
+    );
+
+  border-color:
+    var(
+      --echoo-border
+    );
+
+  box-shadow:
+    var(
+      --echoo-shadow-md
+    );
+}
+
+
+/* ==========================================================
+   TYPOGRAPHY HIERARCHY
+
+   Do not globally darken every tiny metadata item.
+   Only strengthen normal descriptive copy.
+========================================================== */
+
+.lb-page-header
+p,
+.listener-home-header
+p {
+  color:
+    var(
+      --echoo-text-soft
+    );
+}
+
+
+/* ==========================================================
+   MOBILE
+========================================================== */
+
+@media (
+  max-width:
+    760px
+) {
+  .layout-sidebar {
+    background:
+      #FFFFFF;
+  }
+
+  .studio-main {
+    background:
+      var(
+        --echoo-bg-soft
+      );
+  }
+}
+
+
+/* ==========================================================
+   ACCESSIBILITY
+========================================================== */
+
+@media (
+  prefers-reduced-transparency:
+    reduce
+) {
+  .layout-topbar,
+  .layout-player {
+    backdrop-filter:
+      none;
+
+    -webkit-backdrop-filter:
+      none;
+  }
+}
+

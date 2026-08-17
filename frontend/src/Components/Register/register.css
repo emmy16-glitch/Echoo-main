@@ -1,0 +1,848 @@
+.auth-page,
+.auth-page * {
+  box-sizing: border-box;
+}
+
+.auth-page {
+  width: 100%;
+  min-height: 100vh;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 28px 20px;
+
+  background: #f4f8fd;
+
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    Helvetica,
+    Arial,
+    sans-serif;
+}
+
+
+/* =====================================================
+   CARD
+===================================================== */
+
+.auth-card {
+  width: min(420px, 100%);
+
+  display: flex;
+  flex-direction: column;
+
+  padding:
+    26px
+    32px
+    32px;
+
+  background: #ffffff;
+
+  border:
+    1px
+    solid
+    #e1e7ef;
+
+  border-radius: 15px;
+
+  box-shadow:
+    0
+    14px
+    36px
+    rgba(
+      23,
+      47,
+      78,
+      0.055
+    );
+}
+
+.signup-card {
+  min-height: auto;
+}
+
+.compact-card {
+  min-height: auto;
+
+  padding-bottom: 34px;
+}
+
+
+/* =====================================================
+   STEPPER INSIDE AUTH CARD
+===================================================== */
+
+.auth-card
+.echoo-progress-wrap {
+  margin-bottom: 17px;
+}
+
+
+/* =====================================================
+   TOP NAV
+===================================================== */
+
+.top-nav {
+  width: 100%;
+  min-height: 30px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  margin-bottom: 18px;
+}
+
+.back-button,
+.signin-link {
+  border: 0;
+  outline: 0;
+
+  background: transparent;
+
+  font-family: inherit;
+
+  cursor: pointer;
+}
+
+
+/* BACK */
+
+.back-button {
+  width: 31px;
+  height: 31px;
+
+  display: grid;
+  place-items: center;
+
+  padding: 0;
+
+  border-radius: 8px;
+
+  color: #667085;
+
+  font-size: 11px;
+
+  transition:
+    color 0.18s ease,
+    background 0.18s ease;
+}
+
+.back-button:hover {
+  color: #1769d3;
+
+  background: #f2f6fb;
+}
+
+
+/* SIGN IN */
+
+.signin-link {
+  display: inline-flex;
+  align-items: center;
+
+  gap: 6px;
+
+  margin-left: auto;
+
+  padding: 5px 2px;
+
+  color: #536174;
+
+  font-size: 11.5px;
+  line-height: 1;
+
+  font-weight: 500;
+
+  letter-spacing: 0;
+
+  transition:
+    color 0.18s ease;
+}
+
+.signin-link:hover {
+  color: #1769d3;
+}
+
+.signin-link svg {
+  width: 9px;
+  height: 9px;
+}
+
+
+/* =====================================================
+   LOGO
+===================================================== */
+
+.logo-container {
+  width: 48px;
+  height: 48px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  margin:
+    4px
+    auto
+    17px;
+
+  overflow: hidden;
+}
+
+.echoo-logo-image {
+  width: 100%;
+  height: 100%;
+
+  display: block;
+
+  object-fit: contain;
+}
+
+
+/* =====================================================
+   HEADER
+===================================================== */
+
+.auth-header {
+  width: 100%;
+
+  margin-bottom: 27px;
+
+  text-align: center;
+}
+
+.auth-header h1 {
+  max-width: 330px;
+
+  margin:
+    0
+    auto;
+
+  color: #101828;
+
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    Helvetica,
+    Arial,
+    sans-serif;
+
+  font-size: 24px;
+  line-height: 1.2;
+
+  font-weight: 600;
+
+  letter-spacing: -0.55px;
+}
+
+.auth-header h1 span {
+  color: #1769d3;
+
+  font-weight: 650;
+}
+
+
+/* FORGOT PASSWORD HEADER */
+
+.forgot-header {
+  margin-bottom: 13px;
+}
+
+.forgot-header h1 {
+  max-width: 300px;
+
+  font-size: 23px;
+}
+
+
+/* =====================================================
+   FORM
+===================================================== */
+
+.auth-form {
+  width: 100%;
+
+  display: flex;
+  flex-direction: column;
+}
+
+.input-container {
+  width: 100%;
+
+  display: flex;
+  flex-direction: column;
+
+  gap: 10px;
+}
+
+.signup-grid {
+  width: 100%;
+
+  display: flex;
+  flex-direction: column;
+
+  gap: 10px;
+}
+
+
+/* =====================================================
+   INPUT
+===================================================== */
+
+.input {
+  width: 100%;
+  height: 47px;
+
+  display: flex;
+  align-items: center;
+
+  position: relative;
+
+  overflow: hidden;
+
+  border:
+    1px
+    solid
+    transparent;
+
+  border-radius: 9px;
+
+  background: #f1f4f8;
+
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.input:hover {
+  background: #edf2f7;
+}
+
+.input:focus-within {
+  border-color: #8fb7e8;
+
+  background: #f8fbff;
+
+  box-shadow:
+    0
+    0
+    0
+    3px
+    rgba(
+      23,
+      105,
+      211,
+      0.07
+    );
+}
+
+
+/* INPUT TEXT */
+
+.forminput {
+  width: 100%;
+  height: 100%;
+
+  padding:
+    0
+    16px;
+
+  border: 0;
+  outline: 0;
+
+  background: transparent;
+
+  color: #344054;
+
+  font-family: inherit;
+
+  font-size: 13px;
+  line-height: 1.45;
+
+  font-weight: 400;
+
+  letter-spacing: 0.03px;
+}
+
+.forminput::placeholder {
+  color: #93a1b5;
+
+  opacity: 1;
+}
+
+
+/* PASSWORD INPUT */
+
+.password-input
+.forminput {
+  padding-right: 47px;
+}
+
+.password-toggle {
+  width: 35px;
+  height: 35px;
+
+  position: absolute;
+
+  top: 50%;
+  right: 7px;
+
+  display: grid;
+  place-items: center;
+
+  transform:
+    translateY(-50%);
+
+  padding: 0;
+
+  border: 0;
+
+  background: transparent;
+
+  color: #8a98aa;
+
+  cursor: pointer;
+
+  font-size: 11px;
+
+  transition:
+    color 0.18s ease;
+}
+
+.password-toggle:hover {
+  color: #1769d3;
+}
+
+
+/* =====================================================
+   FORGOT PASSWORD LINK
+===================================================== */
+
+.forgot-password {
+  width: 100%;
+
+  display: flex;
+  justify-content: flex-end;
+
+  margin-top: 10px;
+}
+
+.forgot-password button {
+  padding: 2px 0;
+
+  border: 0;
+
+  background: transparent;
+
+  color: #68758a;
+
+  cursor: pointer;
+
+  font-family: inherit;
+
+  font-size: 10.5px;
+  line-height: 1.4;
+
+  font-weight: 500;
+
+  transition:
+    color 0.18s ease;
+}
+
+.forgot-password button:hover {
+  color: #1769d3;
+}
+
+
+/* =====================================================
+   MAIN BUTTON
+===================================================== */
+
+.main-button {
+  width: 100%;
+  min-height: 46px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  gap: 8px;
+
+  margin-top: 18px;
+
+  padding:
+    0
+    18px;
+
+  border: 0;
+
+  border-radius: 9px;
+
+  background: #e1e7ef;
+
+  color: #9aa6b6;
+
+  cursor: not-allowed;
+
+  font-family: inherit;
+
+  font-size: 12.5px;
+  line-height: 1;
+
+  font-weight: 600;
+
+  letter-spacing: 0.02px;
+
+  box-shadow: none;
+
+  transition:
+    background 0.18s ease,
+    color 0.18s ease,
+    transform 0.15s ease,
+    box-shadow 0.18s ease;
+}
+
+.main-button.active {
+  background: #1769d3;
+
+  color: #ffffff;
+
+  cursor: pointer;
+
+  box-shadow:
+    0
+    8px
+    18px
+    rgba(
+      23,
+      105,
+      211,
+      0.16
+    );
+}
+
+.main-button.active:hover:not(:disabled) {
+  transform:
+    translateY(-1px);
+
+  background: #125fbf;
+}
+
+.main-button.active:active:not(:disabled) {
+  transform:
+    scale(0.99);
+}
+
+.main-button:disabled {
+  opacity: 1;
+}
+
+
+/* LOADING BUTTON CONTENT */
+
+.main-button
+.echoo-button-text {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  color: inherit;
+}
+
+
+/* =====================================================
+   TERMS
+===================================================== */
+
+.terms-text {
+  max-width: 310px;
+
+  margin:
+    14px
+    auto
+    0;
+
+  color: #909caf;
+
+  text-align: center;
+
+  font-size: 10.3px;
+  line-height: 1.55;
+
+  font-weight: 400;
+
+  letter-spacing: 0.015px;
+}
+
+.terms-link {
+  color: #5f6e83;
+
+  font-weight: 500;
+}
+
+
+/* =====================================================
+   OR
+===================================================== */
+
+.or-text {
+  margin:
+    20px
+    0
+    13px;
+
+  color: #9ca7b6;
+
+  text-align: center;
+
+  font-size: 10px;
+  line-height: 1;
+
+  font-weight: 400;
+}
+
+
+/* =====================================================
+   SOCIAL BUTTONS
+===================================================== */
+
+.social-buttons {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  gap: 10px;
+}
+
+.social-button {
+  width: 42px;
+  height: 42px;
+
+  display: grid;
+  place-items: center;
+
+  padding: 0;
+
+  border:
+    1px
+    solid
+    #dfe6ee;
+
+  border-radius: 10px;
+
+  background: #ffffff;
+
+  color: #111827;
+
+  cursor: pointer;
+
+  font-size: 17px;
+
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.social-button:hover {
+  transform:
+    translateY(-1px);
+
+  border-color: #c4d2e2;
+
+  background: #fafcff;
+
+  box-shadow:
+    0
+    6px
+    15px
+    rgba(
+      31,
+      54,
+      88,
+      0.05
+    );
+}
+
+.social-button.apple {
+  font-size: 18px;
+}
+
+
+/* =====================================================
+   FORGOT PASSWORD DESCRIPTION
+===================================================== */
+
+.forgot-description {
+  max-width: 310px;
+
+  margin:
+    0
+    auto
+    24px;
+
+  color: #7b8798;
+
+  text-align: center;
+
+  font-size: 12px;
+  line-height: 1.6;
+
+  font-weight: 400;
+}
+
+
+/* =====================================================
+   FEEDBACK MESSAGES
+===================================================== */
+
+.error-message,
+.success-message {
+  width: 100%;
+
+  margin-bottom: 13px;
+
+  padding:
+    10px
+    12px;
+
+  border-radius: 8px;
+
+  text-align: center;
+
+  font-family: inherit;
+
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.error-message {
+  color: #b42318;
+
+  background: #fff4f2;
+}
+
+.success-message {
+  color: #1769d3;
+
+  background: #f0f6ff;
+}
+
+
+/* =====================================================
+   LOGIN / FORGOT COMPACT FORM
+===================================================== */
+
+.compact-form
+.main-button {
+  margin-top: 20px;
+}
+
+.compact-card
+.logo-container {
+  margin-top: 8px;
+}
+
+.compact-card
+.auth-header {
+  margin-bottom: 27px;
+}
+
+.compact-card
+.or-text {
+  margin-top: 20px;
+}
+
+
+/* =====================================================
+   MOBILE
+===================================================== */
+
+@media (max-width: 520px) {
+  .auth-page {
+    align-items: flex-start;
+
+    padding: 12px;
+  }
+
+  .auth-card {
+    width: 100%;
+
+    padding:
+      22px
+      21px
+      29px;
+
+    border-radius: 12px;
+  }
+
+  .logo-container {
+    width: 45px;
+    height: 45px;
+
+    margin:
+      3px
+      auto
+      16px;
+  }
+
+  .auth-header {
+    margin-bottom: 24px;
+  }
+
+  .auth-header h1 {
+    max-width: 300px;
+
+    font-size: 22px;
+
+    letter-spacing:
+      -0.45px;
+  }
+
+  .signin-link {
+    font-size: 11px;
+  }
+
+  .input {
+    height: 46px;
+  }
+
+  .forminput {
+    padding:
+      0
+      14px;
+
+    font-size: 12.5px;
+  }
+
+  .password-input
+  .forminput {
+    padding-right: 45px;
+  }
+
+  .main-button {
+    min-height: 45px;
+
+    font-size: 12.5px;
+  }
+
+  .terms-text {
+    font-size: 9.8px;
+  }
+
+  .forgot-description {
+    font-size: 11.5px;
+  }
+}

@@ -1,0 +1,1526 @@
+@import "./echoo-figma-tokens.css";
+
+/* ==========================================================
+   ECHOO PHASE 13
+   FINAL QUALITY SYSTEM
+========================================================== */
+
+:root {
+  color-scheme: light;
+
+  font-synthesis:
+    none;
+
+  text-rendering:
+    optimizeLegibility;
+
+  -webkit-font-smoothing:
+    antialiased;
+
+  -moz-osx-font-smoothing:
+    grayscale;
+}
+
+html {
+  min-width: 320px;
+
+  min-height: 100%;
+
+  scroll-padding-top:
+    84px;
+
+  -webkit-text-size-adjust:
+    100%;
+
+  text-size-adjust:
+    100%;
+}
+
+body {
+  min-width: 320px;
+
+  min-height: 100%;
+
+  margin: 0;
+
+  overflow-x: hidden;
+
+  background:
+    var(
+      --echoo-canvas,
+      #FAFAFA
+    );
+
+  color:
+    var(
+      --echoo-text,
+      #101828
+    );
+}
+
+#root {
+  min-height: 100dvh;
+
+  isolation: isolate;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing:
+    border-box;
+}
+
+img,
+picture,
+svg,
+canvas,
+video {
+  max-width: 100%;
+}
+
+img,
+video {
+  height: auto;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button,
+a,
+input,
+select,
+textarea,
+[role="button"] {
+  touch-action:
+    manipulation;
+}
+
+button,
+[role="button"] {
+  -webkit-tap-highlight-color:
+    transparent;
+}
+
+button:disabled,
+input:disabled,
+select:disabled,
+textarea:disabled {
+  cursor:
+    not-allowed;
+}
+
+p,
+li,
+blockquote {
+  overflow-wrap:
+    anywhere;
+
+  text-wrap:
+    pretty;
+}
+
+h1,
+h2,
+h3 {
+  text-wrap:
+    balance;
+}
+
+::selection {
+  background:
+    rgba(
+      38,
+      93,
+      255,
+      0.16
+    );
+
+  color:
+    var(
+      --echoo-text,
+      #101828
+    );
+}
+
+/* ==========================================================
+   KEYBOARD ACCESSIBILITY
+========================================================== */
+
+:where(
+  button,
+  a,
+  input,
+  textarea,
+  select,
+  [role="button"],
+  [tabindex]
+):focus {
+  outline: none;
+}
+
+:where(
+  button,
+  a,
+  input,
+  textarea,
+  select,
+  [role="button"],
+  [tabindex]
+):focus-visible {
+  outline:
+    3px solid
+    rgba(
+      38,
+      93,
+      255,
+      0.22
+    ) !important;
+
+  outline-offset:
+    2px !important;
+}
+
+#echoo-main-content:focus {
+  outline: none !important;
+}
+
+.echoo-skip-link {
+  position: fixed;
+
+  z-index: 100000;
+
+  top: 8px;
+  left: 8px;
+
+  transform:
+    translateY(
+      -140%
+    );
+
+  min-height: 39px;
+
+  display: inline-flex;
+
+  align-items: center;
+
+  padding:
+    0
+    13px;
+
+  border:
+    1px solid
+    var(
+      --echoo-primary,
+      #265DFF
+    );
+
+  border-radius: 8px;
+
+  background:
+    #FFFFFF;
+
+  color:
+    var(
+      --echoo-primary,
+      #265DFF
+    );
+
+  box-shadow:
+    0
+    8px
+    25px
+    rgba(
+      16,
+      24,
+      40,
+      0.1
+    );
+
+  font-size: 12px;
+
+  font-weight: 700;
+
+  text-decoration: none;
+
+  transition:
+    transform
+    150ms
+    ease;
+}
+
+.echoo-skip-link:focus {
+  transform:
+    translateY(
+      0
+    );
+}
+
+/* ==========================================================
+   COMMON INTERACTION QUALITY
+========================================================== */
+
+:where(
+  button,
+  a,
+  [role="button"]
+) {
+  transition:
+    background-color
+    150ms
+    ease,
+    border-color
+    150ms
+    ease,
+    color
+    150ms
+    ease,
+    opacity
+    150ms
+    ease,
+    transform
+    150ms
+    ease;
+}
+
+:where(
+  input,
+  textarea,
+  select
+) {
+  accent-color:
+    var(
+      --echoo-primary,
+      #265DFF
+    );
+}
+
+:where(
+  .lb-button,
+  .main-button,
+  .role-continue,
+  .creator-primary-button,
+  .creator9-primary-button
+) {
+  min-height: 40px;
+}
+
+:where(
+  .layout-player-info,
+  .layout-player-track,
+  .echoo-creator-track-copy,
+  .creator9-content-copy,
+  .creator10-performance-copy,
+  .elx-message > div
+) {
+  min-width: 0;
+}
+
+/* ==========================================================
+   SCROLLBARS
+========================================================== */
+
+* {
+  scrollbar-width:
+    thin;
+
+  scrollbar-color:
+    #D0D5DD
+    transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+*::-webkit-scrollbar-track {
+  background:
+    transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  border-radius:
+    999px;
+
+  background:
+    #D0D5DD;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background:
+    #B8C0CC;
+}
+
+/* ==========================================================
+   LISTENER APP
+========================================================== */
+
+#root .listener-layout,
+#root .layout-main,
+#root .layout-content {
+  min-width: 0;
+}
+
+#root .layout-content {
+  overflow-x: clip;
+}
+
+#root .layout-player {
+  isolation: isolate;
+}
+
+#root .layout-player-info
+strong,
+#root .layout-player-info
+span {
+  overflow: hidden;
+
+  text-overflow:
+    ellipsis;
+
+  white-space:
+    nowrap;
+}
+
+#root
+.layout-player-progress {
+  cursor: pointer;
+}
+
+#root
+.layout-main-play {
+  flex:
+    0
+    0
+    auto;
+}
+
+/* ==========================================================
+   LISTENER CONTENT
+========================================================== */
+
+#root :is(
+  .lb-page,
+  .identity-home-page,
+  .listener-library-page,
+  .listener-history-page,
+  .listener-downloads-page,
+  .elx-page
+) {
+  min-width: 0;
+
+  max-width: 100%;
+}
+
+#root :is(
+  .lb-live-grid,
+  .lb-station-grid,
+  .lb-playlist-grid,
+  .lb-card-grid,
+  .elx-card-grid
+) {
+  min-width: 0;
+}
+
+#root :is(
+  .lb-track-row,
+  .lb-history-row,
+  .lb-download-row,
+  .home-live-row,
+  .elx-message
+) {
+  min-width: 0;
+}
+
+#root :is(
+  .lb-track-row,
+  .lb-history-row,
+  .lb-download-row
+) > * {
+  min-width: 0;
+}
+
+/* ==========================================================
+   LIVE ROOM
+========================================================== */
+
+#root .elx-live-grid {
+  min-width: 0;
+}
+
+#root .elx-player,
+#root .elx-chat {
+  min-width: 0;
+}
+
+#root .elx-message p {
+  overflow-wrap:
+    anywhere;
+}
+
+#root .elx-composer input {
+  min-width: 0;
+}
+
+#root .elx-audio-link {
+  max-width: 100%;
+}
+
+#root .echoo-live-moments,
+#root .echoo-moments-layout,
+#root .echoo-moments-feed {
+  min-width: 0;
+}
+
+/* ==========================================================
+   CREATOR STUDIO
+========================================================== */
+
+#root .studio-page,
+#root .studio-main,
+#root .studio-view {
+  min-width: 0;
+}
+
+#root :is(
+  .studio-table-wrap,
+  .creator9-content-list,
+  .creator10-performance-list
+) {
+  max-width: 100%;
+}
+
+#root .studio-table-wrap {
+  overflow-x: auto;
+}
+
+#root .studio-table-wrap
+table {
+  min-width: 700px;
+}
+
+#root :is(
+  .creator9-content-copy,
+  .creator9-station-copy,
+  .creator9-schedule-copy,
+  .creator10-performance-copy,
+  .creator10-identity-detail
+) {
+  min-width: 0;
+}
+
+/* ==========================================================
+   MODALS
+========================================================== */
+
+#root :is(
+  .lb-modal-backdrop,
+  .studio-modal-overlay
+) {
+  overscroll-behavior:
+    contain;
+}
+
+#root :is(
+  .lb-modal,
+  .studio-upload-modal
+) {
+  max-width:
+    calc(
+      100vw -
+      28px
+    );
+
+  max-height:
+    calc(
+      100dvh -
+      28px
+    );
+}
+
+#root .lb-modal-body,
+#root .studio-upload-modal {
+  overscroll-behavior:
+    contain;
+}
+
+/* ==========================================================
+   DESKTOP QUALITY
+========================================================== */
+
+@media (
+  min-width: 1400px
+) {
+  #root .layout-content {
+    padding-left:
+      clamp(
+        30px,
+        3vw,
+        54px
+      );
+
+    padding-right:
+      clamp(
+        30px,
+        3vw,
+        54px
+      );
+  }
+
+  #root .studio-view {
+    padding-left:
+      clamp(
+        42px,
+        4vw,
+        68px
+      ) !important;
+
+    padding-right:
+      clamp(
+        42px,
+        4vw,
+        68px
+      ) !important;
+  }
+}
+
+/* ==========================================================
+   TABLET
+========================================================== */
+
+@media (
+  max-width: 1100px
+) {
+  #root .elx-live-grid {
+    grid-template-columns:
+      minmax(
+        0,
+        1fr
+      )
+      minmax(
+        300px,
+        0.72fr
+      ) !important;
+  }
+
+  #root .echoo-moments-layout {
+    grid-template-columns:
+      290px
+      minmax(
+        0,
+        1fr
+      );
+
+    gap: 30px;
+  }
+
+  #root .creator10-breakdown-grid {
+    grid-template-columns:
+      1fr !important;
+  }
+}
+
+@media (
+  max-width: 900px
+) {
+  #root .elx-live-grid {
+    grid-template-columns:
+      1fr !important;
+  }
+
+  #root .elx-chat {
+    position: relative !important;
+
+    width: 100% !important;
+
+    max-height: 650px;
+
+    border-radius: 12px !important;
+  }
+
+  #root .elx-chat-scroll {
+    min-height: 320px;
+
+    max-height: 460px;
+  }
+
+  #root .echoo-moments-layout {
+    grid-template-columns:
+      1fr !important;
+  }
+
+  #root .echoo-moment-composer {
+    position: relative !important;
+
+    top: auto !important;
+  }
+
+  #root .creator9-live-layout {
+    grid-template-columns:
+      1fr !important;
+  }
+}
+
+/* ==========================================================
+   LISTENER MOBILE NAVIGATION
+========================================================== */
+
+@media (
+  max-width: 760px
+) {
+  #root .listener-layout {
+    display: block !important;
+
+    min-height:
+      100dvh !important;
+  }
+
+  #root .layout-sidebar {
+    position: fixed !important;
+
+    z-index: 1500 !important;
+
+    top: auto !important;
+    right: 0 !important;
+    bottom:
+      calc(
+        72px +
+        env(
+          safe-area-inset-bottom,
+          0px
+        )
+      ) !important;
+    left: 0 !important;
+
+    width: 100% !important;
+
+    height: 62px !important;
+
+    min-height: 62px !important;
+
+    display: flex !important;
+
+    flex-direction: row !important;
+
+    align-items: center !important;
+
+    padding:
+      5px
+      8px !important;
+
+    border: 0 !important;
+
+    border-top:
+      1px solid
+      var(
+        --echoo-border,
+        #EAECF0
+      ) !important;
+
+    border-right: 0 !important;
+
+    background:
+      rgba(
+        255,
+        255,
+        255,
+        0.97
+      ) !important;
+
+    box-shadow:
+      0
+      -4px
+      20px
+      rgba(
+        16,
+        24,
+        40,
+        0.035
+      ) !important;
+
+    backdrop-filter:
+      blur(
+        12px
+      );
+  }
+
+  #root .layout-brand,
+  #root .layout-playlists,
+  #root .listener-profile-menu-wrap {
+    display:
+      none !important;
+  }
+
+  #root .layout-navigation {
+    width: 100% !important;
+
+    height: 100% !important;
+
+    display: flex !important;
+
+    flex-direction: row !important;
+
+    align-items: center !important;
+
+    gap: 3px !important;
+
+    margin: 0 !important;
+
+    overflow-x: auto !important;
+
+    overflow-y: hidden !important;
+
+    scrollbar-width: none;
+  }
+
+  #root
+  .layout-navigation::-webkit-scrollbar {
+    display: none;
+  }
+
+  #root .layout-nav-item {
+    width: 58px !important;
+    height: 50px !important;
+
+    min-width: 58px !important;
+    min-height: 50px !important;
+
+    flex:
+      1
+      0
+      58px !important;
+
+    display: flex !important;
+
+    flex-direction: column !important;
+
+    align-items: center !important;
+
+    justify-content: center !important;
+
+    gap: 2px !important;
+
+    padding: 0 !important;
+
+    border-radius: 8px !important;
+  }
+
+  #root .layout-nav-icon {
+    width: auto !important;
+
+    height: auto !important;
+
+    display: grid !important;
+
+    place-items: center !important;
+
+    font-size: 14px !important;
+  }
+
+  #root .layout-nav-label {
+    display: block !important;
+
+    max-width: 54px;
+
+    overflow: hidden;
+
+    color: inherit;
+
+    font-size: 8px !important;
+
+    line-height: 1 !important;
+
+    text-overflow:
+      ellipsis;
+
+    white-space:
+      nowrap;
+  }
+
+  #root .layout-main {
+    width: 100% !important;
+
+    min-height:
+      100dvh !important;
+
+    margin-left: 0 !important;
+  }
+
+  #root .layout-topbar {
+    min-height: 64px !important;
+
+    padding:
+      0
+      14px !important;
+  }
+
+  #root .layout-content {
+    width: 100% !important;
+
+    padding-left:
+      14px !important;
+
+    padding-right:
+      14px !important;
+
+    padding-bottom:
+      calc(
+        158px +
+        env(
+          safe-area-inset-bottom,
+          0px
+        )
+      ) !important;
+  }
+
+  #root .layout-player {
+    position: fixed !important;
+
+    z-index: 1600 !important;
+
+    right: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+
+    width: 100% !important;
+
+    height:
+      calc(
+        72px +
+        env(
+          safe-area-inset-bottom,
+          0px
+        )
+      ) !important;
+
+    min-height:
+      72px !important;
+
+    padding:
+      0
+      12px
+      env(
+        safe-area-inset-bottom,
+        0px
+      ) !important;
+
+    grid-template-columns:
+      minmax(
+        0,
+        1fr
+      )
+      auto !important;
+
+    border-top:
+      1px solid
+      var(
+        --echoo-border,
+        #EAECF0
+      ) !important;
+  }
+
+  #root .layout-player-track {
+    min-width: 0 !important;
+  }
+
+  #root .layout-player-heart,
+  #root .layout-player-progress-area {
+    display:
+      none !important;
+  }
+
+  #root
+  .layout-player-controls
+  button:not(
+    .layout-main-play
+  ) {
+    display:
+      none !important;
+  }
+
+  #root .layout-player-cover {
+    width: 42px !important;
+    height: 42px !important;
+
+    flex:
+      0
+      0
+      42px !important;
+  }
+
+  #root
+  .layout-player-controls
+  .layout-main-play {
+    width: 42px !important;
+    height: 42px !important;
+  }
+}
+
+/* ==========================================================
+   CREATOR MOBILE NAVIGATION
+========================================================== */
+
+@media (
+  max-width: 760px
+) {
+  #root .studio-page {
+    display: block !important;
+
+    width: 100% !important;
+
+    min-height:
+      100dvh !important;
+
+    padding: 0 !important;
+  }
+
+  #root .studio-sidebar {
+    position: fixed !important;
+
+    z-index: 1600 !important;
+
+    top: auto !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+
+    width: 100% !important;
+
+    height:
+      calc(
+        68px +
+        env(
+          safe-area-inset-bottom,
+          0px
+        )
+      ) !important;
+
+    min-height: 68px !important;
+
+    display: flex !important;
+
+    flex-direction: row !important;
+
+    align-items: center !important;
+
+    padding:
+      5px
+      8px
+      env(
+        safe-area-inset-bottom,
+        0px
+      ) !important;
+
+    border: 0 !important;
+
+    border-top:
+      1px solid
+      var(
+        --echoo-border,
+        #EAECF0
+      ) !important;
+
+    border-radius: 0 !important;
+
+    background:
+      rgba(
+        255,
+        255,
+        255,
+        0.97
+      ) !important;
+
+    box-shadow:
+      0
+      -4px
+      20px
+      rgba(
+        16,
+        24,
+        40,
+        0.035
+      ) !important;
+
+    backdrop-filter:
+      blur(
+        12px
+      );
+  }
+
+  #root .studio-brand,
+  #root .studio-sidebar-profile {
+    display:
+      none !important;
+  }
+
+  #root .studio-navigation {
+    width: 100% !important;
+
+    height: 100% !important;
+
+    display: flex !important;
+
+    flex-direction: row !important;
+
+    align-items: center !important;
+
+    gap: 3px !important;
+
+    margin: 0 !important;
+
+    overflow-x: auto !important;
+
+    overflow-y: hidden !important;
+
+    scrollbar-width:
+      none;
+  }
+
+  #root
+  .studio-navigation::-webkit-scrollbar {
+    display: none;
+  }
+
+  #root .studio-nav-item {
+    position: relative !important;
+
+    width: 58px !important;
+    height: 54px !important;
+
+    min-width: 58px !important;
+    min-height: 54px !important;
+
+    flex:
+      0
+      0
+      58px !important;
+
+    display: flex !important;
+
+    flex-direction: column !important;
+
+    align-items: center !important;
+
+    justify-content: center !important;
+
+    gap: 3px !important;
+
+    padding: 0 !important;
+
+    border-radius: 8px !important;
+  }
+
+  #root .studio-nav-icon {
+    width: auto !important;
+    height: auto !important;
+
+    font-size: 14px !important;
+  }
+
+  #root
+  .studio-nav-item
+  > span:last-child {
+    position: static !important;
+
+    z-index: auto !important;
+
+    left: auto !important;
+    top: auto !important;
+
+    transform: none !important;
+
+    min-width: 0 !important;
+
+    max-width: 54px !important;
+
+    display: block !important;
+
+    overflow: hidden !important;
+
+    padding: 0 !important;
+
+    border: 0 !important;
+
+    border-radius: 0 !important;
+
+    background:
+      transparent !important;
+
+    color: inherit !important;
+
+    box-shadow: none !important;
+
+    opacity: 1 !important;
+
+    visibility:
+      visible !important;
+
+    font-size: 8px !important;
+
+    line-height: 1 !important;
+
+    font-weight: 500 !important;
+
+    text-overflow:
+      ellipsis !important;
+
+    white-space:
+      nowrap !important;
+  }
+
+  #root .studio-main {
+    width: 100% !important;
+
+    min-height:
+      100dvh !important;
+
+    padding-bottom:
+      calc(
+        68px +
+        env(
+          safe-area-inset-bottom,
+          0px
+        )
+      ) !important;
+  }
+
+  #root .studio-topbar {
+    min-height: 64px !important;
+
+    padding:
+      0
+      14px !important;
+  }
+
+  #root .studio-view {
+    padding:
+      26px
+      14px
+      96px !important;
+  }
+
+  #root .studio-alert {
+    width:
+      calc(
+        100% -
+        28px
+      ) !important;
+
+    margin:
+      13px
+      14px
+      0 !important;
+  }
+
+  #root .studio-footer {
+    margin:
+      auto
+      14px
+      0 !important;
+  }
+
+  #root .studio-modal-overlay {
+    z-index:
+      2500 !important;
+  }
+}
+
+/* ==========================================================
+   SMALL MOBILE
+========================================================== */
+
+@media (
+  max-width: 600px
+) {
+  #root :is(
+    .identity-home-hero,
+    .echoo-creator-presence,
+    .creator9-page-header,
+    .creator10-page-header,
+    .echoo-live-moments-header
+  ) {
+    min-width: 0;
+  }
+
+  #root :is(
+    .identity-home-hero,
+    .echoo-creator-presence
+  ) {
+    border-radius:
+      10px !important;
+  }
+
+  #root :is(
+    .creator9-page-header,
+    .creator10-page-header
+  ) {
+    gap: 18px !important;
+  }
+
+  #root .elx-player {
+    border-radius:
+      10px !important;
+  }
+
+  #root .elx-player-center {
+    padding-left:
+      15px !important;
+
+    padding-right:
+      15px !important;
+  }
+
+  #root .elx-host-card,
+  #root .elx-station-card {
+    min-width: 0;
+  }
+
+  #root .elx-host-actions {
+    flex-wrap:
+      wrap;
+  }
+
+  #root .elx-chat {
+    border-radius:
+      10px !important;
+  }
+
+  #root .elx-composer {
+    padding-left:
+      8px !important;
+
+    padding-right:
+      8px !important;
+  }
+
+  #root .elx-audio-anchor {
+    min-width: 38px;
+  }
+
+  #root .echoo-moment-composer {
+    padding: 19px !important;
+  }
+
+  #root .echoo-moment blockquote {
+    font-size:
+      23px !important;
+  }
+
+  #root .creator10-metric-strip,
+  #root .echoo-creator-metrics {
+    grid-template-columns:
+      1fr !important;
+  }
+
+  #root :is(
+    .creator9-draft-form,
+    .creator9-live-setup,
+    .creator10-breakdown
+  ) {
+    padding:
+      20px !important;
+  }
+
+  #root :is(
+    .auth-page,
+    .profile-page,
+    .role-page,
+    .creator-page
+  ) {
+    min-height:
+      100dvh !important;
+  }
+
+  #root :is(
+    .auth-page,
+    .profile-page,
+    .role-page,
+    .creator-page
+  )
+  :is(
+    input,
+    textarea,
+    select
+  ) {
+    font-size:
+      16px !important;
+  }
+}
+
+/* ==========================================================
+   VERY SMALL MOBILE
+========================================================== */
+
+@media (
+  max-width: 420px
+) {
+  #root .layout-topbar {
+    padding:
+      0
+      10px !important;
+  }
+
+  #root .layout-content {
+    padding-left:
+      10px !important;
+
+    padding-right:
+      10px !important;
+  }
+
+  #root .layout-nav-item {
+    flex-basis:
+      54px !important;
+
+    min-width:
+      54px !important;
+  }
+
+  #root .studio-nav-item {
+    flex-basis:
+      54px !important;
+
+    min-width:
+      54px !important;
+  }
+
+  #root .echoo-error-boundary {
+    padding:
+      30px
+      16px;
+  }
+}
+
+/* ==========================================================
+   HOVER ONLY WHERE HOVER EXISTS
+========================================================== */
+
+@media (
+  hover: hover
+) and (
+  pointer: fine
+) {
+  :where(
+    button,
+    a,
+    [role="button"]
+  ):not(:disabled):active {
+    transform:
+      translateY(
+        1px
+      );
+  }
+}
+
+/* ==========================================================
+   REDUCED MOTION
+========================================================== */
+
+@media (
+  prefers-reduced-motion:
+  reduce
+) {
+  html {
+    scroll-behavior:
+      auto !important;
+  }
+
+  *,
+  *::before,
+  *::after {
+    scroll-behavior:
+      auto !important;
+
+    animation-duration:
+      0.01ms !important;
+
+    animation-iteration-count:
+      1 !important;
+
+    transition-duration:
+      0.01ms !important;
+
+    transition-delay:
+      0ms !important;
+  }
+
+  :is(
+    .echoo-signal,
+    .echoo-wave,
+    .live-pulse,
+    .elx-spinner
+  ) {
+    animation:
+      none !important;
+  }
+}
+
+/* ==========================================================
+   HIGH CONTRAST
+========================================================== */
+
+@media (
+  forced-colors:
+  active
+) {
+  :where(
+    button,
+    a,
+    input,
+    select,
+    textarea,
+    [role="button"]
+  ):focus-visible {
+    outline:
+      2px solid
+      Highlight !important;
+  }
+
+  :where(
+    .echoo-signal,
+    .echoo-wave,
+    .echoo-moment,
+    .elx-live-badge
+  ) {
+    forced-color-adjust:
+      auto;
+  }
+}
+
+/* ==========================================================
+   PRINT
+========================================================== */
+
+@media print {
+  .layout-sidebar,
+  .layout-topbar,
+  .layout-player,
+  .studio-sidebar,
+  .studio-topbar,
+  .echoo-skip-link,
+  .elx-composer,
+  .elx-dev-states {
+    display:
+      none !important;
+  }
+
+  .layout-main,
+  .studio-main {
+    width:
+      100% !important;
+
+    margin:
+      0 !important;
+  }
+
+  body {
+    background:
+      #FFFFFF !important;
+  }
+}

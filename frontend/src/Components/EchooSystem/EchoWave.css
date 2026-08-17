@@ -1,0 +1,241 @@
+.echoo-wave {
+  width:
+    min(
+      420px,
+      100%
+    );
+
+  height: 54px;
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 12px;
+
+  color:
+    #B8C0CC;
+}
+
+.echoo-wave-bars {
+  height: 100%;
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 5px;
+}
+
+.echoo-wave-bars i {
+  width: 2px;
+
+  height:
+    var(
+      --wave-height
+    );
+
+  min-height: 8px;
+
+  border-radius:
+    999px;
+
+  background:
+    currentColor;
+
+  transform-origin:
+    center;
+}
+
+.echoo-wave-transition {
+  width: 26px;
+  height: 1px;
+
+  background:
+    linear-gradient(
+      90deg,
+      currentColor,
+      transparent
+    );
+}
+
+.echoo-wave-ripples {
+  position: relative;
+
+  width: 60px;
+  height: 48px;
+}
+
+.echoo-wave-ripples i {
+  position: absolute;
+
+  top: 50%;
+  left: 0;
+
+  border:
+    1.5px solid
+    transparent;
+
+  border-right-color:
+    currentColor;
+
+  border-radius: 50%;
+
+  transform:
+    translateY(
+      -50%
+    );
+}
+
+.echoo-wave-ripples
+.ripple-one {
+  width: 18px;
+  height: 24px;
+
+  left: 0;
+}
+
+.echoo-wave-ripples
+.ripple-two {
+  width: 31px;
+  height: 36px;
+
+  left: 8px;
+
+  opacity: 0.72;
+}
+
+.echoo-wave-ripples
+.ripple-three {
+  width: 46px;
+  height: 48px;
+
+  left: 16px;
+
+  opacity: 0.42;
+}
+
+.echoo-wave.is-active {
+  color:
+    var(
+      --echoo-primary,
+      #265DFF
+    );
+}
+
+.echoo-wave.is-active
+.echoo-wave-bars i {
+  animation:
+    echooWaveBar
+    1.05s
+    ease-in-out
+    infinite;
+
+  animation-delay:
+    var(
+      --wave-delay
+    );
+}
+
+.echoo-wave-live
+.echoo-wave-ripples i,
+.echoo-wave-speaking
+.echoo-wave-ripples i {
+  animation:
+    echooWaveRipple
+    1.7s
+    ease-out
+    infinite;
+}
+
+.echoo-wave-speaking
+.echoo-wave-bars i {
+  animation-duration:
+    0.72s;
+}
+
+.echoo-wave-compact {
+  width: 190px;
+  height: 35px;
+
+  gap: 8px;
+}
+
+.echoo-wave-compact
+.echoo-wave-bars {
+  gap: 3px;
+}
+
+.echoo-wave-compact
+.echoo-wave-transition {
+  width: 15px;
+}
+
+.echoo-wave-compact
+.echoo-wave-ripples {
+  transform:
+    scale(
+      0.72
+    );
+
+  transform-origin:
+    left center;
+}
+
+@keyframes echooWaveBar {
+  0%,
+  100% {
+    transform:
+      scaleY(
+        0.72
+      );
+  }
+
+  50% {
+    transform:
+      scaleY(
+        1.08
+      );
+  }
+}
+
+@keyframes echooWaveRipple {
+  0% {
+    opacity: 0.18;
+
+    transform:
+      translateY(
+        -50%
+      )
+      scale(
+        0.88
+      );
+  }
+
+  50% {
+    opacity: 0.8;
+  }
+
+  100% {
+    opacity: 0;
+
+    transform:
+      translateY(
+        -50%
+      )
+      scale(
+        1.07
+      );
+  }
+}
+
+@media (
+  prefers-reduced-motion:
+  reduce
+) {
+  .echoo-wave *,
+  .echoo-wave-ripples i {
+    animation:
+      none !important;
+  }
+}

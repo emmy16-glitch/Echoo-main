@@ -1,0 +1,303 @@
+@import "./echoo-figma-tokens.css";
+
+/* HUMAN-FIRST SYSTEM */
+
+#root .echoo-listener-scroll {
+  background:
+    var(--echoo-canvas) !important;
+}
+
+/* Remove decorative colour from fallback artwork.
+   Real photography remains untouched because images cover these surfaces. */
+
+#root :is(
+  .identity-audio-art,
+  .identity-continue-art,
+  .figma-station-circle,
+  .figma-live-station-art,
+  .figma-followed-station-art,
+  .figma-station-profile-art,
+  .figma-station-track-art,
+  .figma-library-audio-art,
+  .figma-library-playlist-art,
+  .figma-following-avatar,
+  .figma-history-continue-art,
+  .figma-history-row-art,
+  .figma-downloaded-art,
+  .figma-download-available-art
+) {
+  background:
+    #F2F4F7 !important;
+
+  box-shadow:
+    none !important;
+}
+
+/* A little neutral variation is allowed.
+   No rainbow category system. */
+
+#root :is(
+  .identity-audio-art.art-2,
+  .identity-continue-art.art-2,
+  .figma-station-track-art.variant-2,
+  .figma-library-audio-art.variant-2,
+  .figma-history-continue-art.variant-2,
+  .figma-downloaded-art.variant-2,
+  .figma-download-available-art.variant-2
+) {
+  background:
+    #EEEFEF !important;
+}
+
+#root :is(
+  .identity-audio-art.art-3,
+  .identity-continue-art.art-3,
+  .figma-station-track-art.variant-3,
+  .figma-library-audio-art.variant-3,
+  .figma-history-continue-art.variant-3,
+  .figma-downloaded-art.variant-3,
+  .figma-download-available-art.variant-3
+) {
+  background:
+    #F3F1EE !important;
+}
+
+#root :is(
+  .identity-audio-art.art-4,
+  .identity-continue-art.art-4,
+  .figma-station-track-art.variant-4,
+  .figma-library-audio-art.variant-4,
+  .figma-history-continue-art.variant-4,
+  .figma-downloaded-art.variant-4,
+  .figma-download-available-art.variant-4
+) {
+  background:
+    #EFF1F3 !important;
+}
+
+/* Blue is interaction, not decoration. */
+
+#root :is(
+  button,
+  a
+):focus-visible {
+  outline:
+    2px solid
+    rgba(
+      38,
+      93,
+      255,
+      0.45
+    ) !important;
+
+  outline-offset:
+    2px !important;
+}
+
+/* Quieter cards */
+
+#root :is(
+  .figma-station-card,
+  .figma-following-card,
+  .figma-library-playlist-card,
+  .figma-downloaded-card
+) {
+  box-shadow:
+    none !important;
+}
+
+#root :is(
+  .figma-station-card,
+  .figma-following-card
+):hover {
+  border-color:
+    var(--echoo-border) !important;
+
+  background:
+    #FFFFFF !important;
+
+  box-shadow:
+    var(--echoo-shadow-soft) !important;
+}
+
+/* LIVE retains restrained red.
+   Do not turn the whole item red. */
+
+#root :is(
+  .figma-station-live-badge,
+  .figma-section-live-label,
+  .figma-station-profile-live-dot,
+  .identity-live-tag
+) {
+  color:
+    var(--echoo-live) !important;
+}
+
+/* Home ambient layer */
+
+#root .identity-home-hero {
+  position: relative;
+
+  min-height: 300px;
+
+  overflow: hidden;
+
+  isolation: isolate;
+}
+
+#root .identity-home-hero
+>
+*:not(
+  .identity-home-ambient
+) {
+  position: relative;
+
+  z-index: 2;
+}
+
+#root .identity-home-ambient {
+  z-index: 1;
+}
+
+/* Do not turn ambient graphics into a visual hero. */
+
+#root .identity-home-ambient {
+  opacity: 0.72;
+}
+
+/* Player remains deliberately quiet. */
+
+#root .echoo-persistent-player {
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.985
+    ) !important;
+}
+
+#root .echoo-persistent-player
+.layout-main-play {
+  background:
+    var(--echoo-primary) !important;
+}
+
+/* Existing icons in empty states are quiet,
+   instead of becoming blue illustration blocks. */
+
+#root :is(
+  .figma-library-empty,
+  .figma-history-empty,
+  .figma-download-empty,
+  .figma-stations-empty
+)
+>
+div:first-child {
+  background:
+    #F2F4F7 !important;
+
+  color:
+    var(--echoo-text-secondary) !important;
+}
+
+/* Avoid blue being everywhere in summary cards. */
+
+#root :is(
+  .figma-library-summary,
+  .figma-history-summary,
+  .figma-download-summary
+)
+article
+>
+div {
+  background:
+    #F2F4F7 !important;
+
+  color:
+    var(--echoo-text-secondary) !important;
+}
+
+/* Selected/active states are where blue should appear. */
+
+#root :is(
+  .figma-history-filters,
+  .figma-following-tabs,
+  .figma-stations-categories
+)
+button.active {
+  border-color:
+    rgba(
+      38,
+      93,
+      255,
+      0.18
+    ) !important;
+
+  background:
+    var(--echoo-primary-pale) !important;
+
+  color:
+    var(--echoo-primary) !important;
+}
+
+/* No giant glow/shadow around signals. */
+
+#root .echoo-signal {
+  filter: none !important;
+}
+
+#root .echoo-signal-core {
+  box-shadow:
+    none !important;
+}
+
+/* Editorial imagery should remain clean. */
+
+#root :is(
+  .identity-featured-visual,
+  .figma-live-station-art,
+  .figma-station-profile-art
+)
+img {
+  filter: none !important;
+}
+
+/* Live room remains more intimate than discovery. */
+
+#root .elx-page {
+  background:
+    #F5F6F8 !important;
+}
+
+/* New Echo Wave inside Live Room */
+
+#root .elx-player-center
+.echoo-wave {
+  margin:
+    22px
+    auto
+    26px;
+}
+
+/* Hide an old decorative waveform only if an old
+   waveform survived beside the new component. */
+
+#root .elx-player-center
+.echoo-wave
++
+.elx-waveform {
+  display: none !important;
+}
+
+@media (
+  max-width: 760px
+) {
+  #root .identity-home-hero {
+    min-height: 260px;
+  }
+
+  #root .identity-home-ambient {
+    opacity: 0.42;
+  }
+}

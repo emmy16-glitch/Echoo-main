@@ -1,0 +1,130 @@
+.echoo-rail-shell {
+  position: relative;
+
+  width: 100%;
+  min-width: 0;
+}
+
+.echoo-drag-rail {
+  width: 100%;
+  min-width: 0;
+
+  display: flex;
+
+  align-items: stretch;
+
+  gap: 24px;
+
+  overflow-x: auto;
+  overflow-y: hidden;
+
+  padding:
+    4px
+    30px
+    18px
+    2px;
+
+  cursor: grab;
+
+  user-select: none;
+
+  -webkit-user-select: none;
+
+  -webkit-overflow-scrolling:
+    touch;
+
+  scroll-behavior:
+    smooth;
+
+  scroll-snap-type:
+    x proximity;
+
+  scrollbar-width:
+    none;
+
+  touch-action:
+    pan-y;
+}
+
+.echoo-drag-rail::-webkit-scrollbar {
+  display: none;
+}
+
+.echoo-drag-rail.is-pointer-down {
+  cursor: grabbing;
+}
+
+.echoo-drag-rail.is-dragging {
+  cursor: grabbing;
+
+  scroll-behavior:
+    auto;
+
+  scroll-snap-type:
+    none;
+}
+
+.echoo-drag-rail > * {
+  scroll-snap-align:
+    start;
+
+  scroll-snap-stop:
+    normal;
+}
+
+.echoo-drag-rail img {
+  pointer-events: none;
+
+  user-select: none;
+
+  -webkit-user-drag:
+    none;
+}
+
+.echoo-rail-shell.has-peek::after {
+  content: "";
+
+  position: absolute;
+
+  z-index: 8;
+
+  top: 0;
+  right: 0;
+  bottom: 16px;
+
+  width: 42px;
+
+  pointer-events: none;
+
+  background:
+    linear-gradient(
+      to right,
+      rgba(
+        255,
+        255,
+        255,
+        0
+      ),
+      rgba(
+        255,
+        255,
+        255,
+        0.96
+      )
+    );
+}
+
+@media (
+  max-width: 700px
+) {
+  .echoo-drag-rail {
+    gap: 15px;
+
+    padding-right:
+      22px;
+  }
+
+  .echoo-rail-shell.has-peek::after {
+    width: 24px;
+  }
+}

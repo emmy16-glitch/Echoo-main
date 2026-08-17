@@ -1,0 +1,40 @@
+name: Frontend validation
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint onboarding frontend
+        run: >-
+          npx eslint
+          src/Components/Register/register.jsx
+          src/Components/Register/BroadcastLoginVisual.jsx
+          src/Components/Onboarding/OnboardingFrame.jsx
+          src/Components/ProfileSetup/ProfileSetup.jsx
+          src/Components/ChooseRole/ChooseRole.jsx
+          src/Components/CreatorSetup/CreatorSetup.jsx
+
+      - name: Build application
+        run: npm run build

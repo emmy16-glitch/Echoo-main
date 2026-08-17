@@ -1,0 +1,343 @@
+.echoo-signal {
+  --signal-size: 56px;
+
+  position: relative;
+
+  width:
+    var(
+      --signal-size
+    );
+
+  height:
+    var(
+      --signal-size
+    );
+
+  flex:
+    0
+    0
+    var(
+      --signal-size
+    );
+
+  display: grid;
+
+  place-items: center;
+
+  isolation: isolate;
+}
+
+.echoo-signal-xs {
+  --signal-size: 30px;
+}
+
+.echoo-signal-sm {
+  --signal-size: 40px;
+}
+
+.echoo-signal-md {
+  --signal-size: 56px;
+}
+
+.echoo-signal-lg {
+  --signal-size: 92px;
+}
+
+.echoo-signal-xl {
+  --signal-size: 132px;
+}
+
+.echoo-signal-ring {
+  position: absolute;
+
+  left: 50%;
+  top: 50%;
+
+  border-radius: 50%;
+
+  transform:
+    translate(
+      -50%,
+      -50%
+    );
+
+  pointer-events: none;
+}
+
+.echoo-signal-ring.ring-one {
+  width: 58%;
+  height: 58%;
+
+  border:
+    1px solid
+    var(
+      --echoo-ring-3,
+      #DCE4F5
+    );
+}
+
+.echoo-signal-ring.ring-two {
+  width: 78%;
+  height: 78%;
+
+  border:
+    1px solid
+    var(
+      --echoo-ring-2,
+      #EAECF0
+    );
+}
+
+.echoo-signal-ring.ring-three {
+  width: 100%;
+  height: 100%;
+
+  border:
+    1px solid
+    var(
+      --echoo-ring-1,
+      #F2F4F7
+    );
+}
+
+.echoo-signal-core {
+  position: relative;
+
+  z-index: 3;
+
+  width: 44%;
+  height: 44%;
+
+  display: grid;
+
+  place-items: center;
+
+  overflow: hidden;
+
+  border:
+    1px solid
+    var(
+      --echoo-border,
+      #EAECF0
+    );
+
+  border-radius: 50%;
+
+  background:
+    #FFFFFF;
+
+  color:
+    var(
+      --echoo-primary,
+      #265DFF
+    );
+}
+
+.echoo-signal-dot {
+  width: 7px;
+  height: 7px;
+
+  border-radius: 50%;
+
+  background:
+    #D0D5DD;
+}
+
+.echoo-signal-live
+.echoo-signal-dot,
+.echoo-signal-speaking
+.echoo-signal-dot,
+.echoo-signal-listening
+.echoo-signal-dot,
+.echoo-signal-loading
+.echoo-signal-dot {
+  background:
+    var(
+      --echoo-primary,
+      #265DFF
+    );
+}
+
+.echoo-signal-live
+.ring-one {
+  border-color:
+    var(
+      --echoo-ring-3,
+      #DCE4F5
+    );
+}
+
+.echoo-signal-speaking
+.ring-one {
+  animation:
+    echooSpeakingRingOne
+    1.35s
+    ease-in-out
+    infinite;
+}
+
+.echoo-signal-speaking
+.ring-two {
+  animation:
+    echooSpeakingRingTwo
+    1.35s
+    ease-in-out
+    infinite;
+}
+
+.echoo-signal-speaking
+.ring-three {
+  animation:
+    echooSpeakingRingThree
+    1.35s
+    ease-in-out
+    infinite;
+}
+
+.echoo-signal-live
+.ring-two {
+  animation:
+    echooLiveBreath
+    2.8s
+    ease-in-out
+    infinite;
+}
+
+.echoo-signal-loading
+.ring-two {
+  border-top-color:
+    var(
+      --echoo-primary,
+      #265DFF
+    );
+
+  animation:
+    echooSignalLoading
+    1.15s
+    linear
+    infinite;
+}
+
+.echoo-signal-listening
+.ring-one {
+  border-color:
+    rgba(
+      38,
+      93,
+      255,
+      0.28
+    );
+}
+
+@keyframes echooSpeakingRingOne {
+  0%,
+  100% {
+    transform:
+      translate(
+        -50%,
+        -50%
+      )
+      scale(
+        0.98
+      );
+  }
+
+  50% {
+    transform:
+      translate(
+        -50%,
+        -50%
+      )
+      scale(
+        1.08
+      );
+  }
+}
+
+@keyframes echooSpeakingRingTwo {
+  0%,
+  100% {
+    transform:
+      translate(
+        -50%,
+        -50%
+      )
+      scale(
+        0.98
+      );
+  }
+
+  50% {
+    transform:
+      translate(
+        -50%,
+        -50%
+      )
+      scale(
+        1.05
+      );
+  }
+}
+
+@keyframes echooSpeakingRingThree {
+  0%,
+  100% {
+    opacity: 0.72;
+
+    transform:
+      translate(
+        -50%,
+        -50%
+      )
+      scale(
+        0.98
+      );
+  }
+
+  50% {
+    opacity: 1;
+
+    transform:
+      translate(
+        -50%,
+        -50%
+      )
+      scale(
+        1.03
+      );
+  }
+}
+
+@keyframes echooLiveBreath {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes echooSignalLoading {
+  to {
+    transform:
+      translate(
+        -50%,
+        -50%
+      )
+      rotate(
+        360deg
+      );
+  }
+}
+
+@media (
+  prefers-reduced-motion:
+  reduce
+) {
+  .echoo-signal-ring {
+    animation:
+      none !important;
+  }
+}

@@ -1,0 +1,338 @@
+.eor-creator-panel {
+  width: min(620px, 100%);
+}
+
+.eor-creator-details-panel,
+.eor-organization-panel {
+  width: min(650px, 100%);
+}
+
+.eor-creator-info {
+  margin: 0 0 18px;
+  padding: 10px 12px;
+  border: 1px solid #dce9f7;
+  border-radius: 10px;
+  background: #f8fbff;
+  color: #61748a;
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+
+.creator-type-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.creator-type-card {
+  position: relative;
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 18px 20px;
+  border: 1px solid #dce4ed;
+  border-radius: 14px;
+  background: #fff;
+  color: #101d35;
+  text-align: center;
+  font: inherit;
+  cursor: pointer;
+  transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease, background .16s ease;
+}
+
+.creator-type-card:hover {
+  transform: translateY(-1px);
+  border-color: #a9c8ef;
+}
+
+.creator-type-card.selected {
+  border-color: #136bd5;
+  background: linear-gradient(180deg, #ffffff, #f7fbff);
+  box-shadow: 0 0 0 3px rgba(19, 107, 213, .055);
+}
+
+.creator-select-circle {
+  position: absolute;
+  right: 14px;
+  top: 14px;
+  width: 19px;
+  height: 19px;
+  border: 1.5px solid #bdc9d8;
+  border-radius: 50%;
+  background: #fff;
+}
+
+.creator-type-card.selected .creator-select-circle {
+  border-color: #136bd5;
+}
+
+.creator-type-card.selected .creator-select-circle::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border-radius: 50%;
+  background: #136bd5;
+}
+
+.creator-type-icon {
+  width: 74px;
+  height: 74px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 15px;
+  border-radius: 22px;
+  background: linear-gradient(180deg, #f3f8ff, #e9f3ff);
+  color: #136bd5;
+  font-size: 31px;
+}
+
+.creator-type-card h2 {
+  margin: 0;
+  color: #101d35;
+  font-size: 17px;
+  line-height: 1.2;
+  letter-spacing: -.02em;
+}
+
+.creator-type-card p {
+  max-width: 230px;
+  margin: 8px auto 0;
+  color: #617289;
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+
+.eor-creator-actions {
+  margin-top: 18px;
+}
+
+.eor-creator-actions .eor-primary {
+  margin-top: 0;
+}
+
+.creator-identity-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+  padding: 12px 14px;
+  border: 1px solid #e0e7f0;
+  border-radius: 11px;
+  background: #f9fbfe;
+}
+
+.creator-avatar {
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 50%;
+  background: #eaf3ff;
+  color: #136bd5;
+  font-size: 17px;
+}
+
+.creator-avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.creator-identity-card h2 {
+  margin: 0;
+  color: #26364a;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.creator-identity-card p {
+  margin: 3px 0 0;
+  color: #8796a9;
+  font-size: 10px;
+}
+
+.creator-input-shell,
+.creator-select-shell,
+.creator-textarea-shell {
+  position: relative;
+  width: 100%;
+  border: 1px solid #d7e0eb;
+  border-radius: 10px;
+  background: #fff;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+.creator-input-shell:focus-within,
+.creator-select-shell:focus-within,
+.creator-textarea-shell:focus-within {
+  border-color: #76a9e9;
+  box-shadow: 0 0 0 3px rgba(19, 107, 213, .08);
+}
+
+.creator-input-shell input,
+.creator-select-shell select {
+  width: 100%;
+  height: 48px;
+  padding: 0 40px 0 14px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #26364a;
+  font: inherit;
+  font-size: 12px;
+}
+
+.creator-input-shell input::placeholder,
+.creator-textarea-shell textarea::placeholder {
+  color: #a2afbf;
+}
+
+.creator-select-shell select {
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+
+.creator-select-shell > svg {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #8fa1b5;
+  font-size: 11px;
+  pointer-events: none;
+}
+
+.creator-textarea-shell {
+  min-height: 96px;
+}
+
+.creator-textarea-shell textarea {
+  width: 100%;
+  min-height: 94px;
+  resize: vertical;
+  padding: 12px 14px 28px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #26364a;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.creator-textarea-shell > span {
+  position: absolute;
+  right: 11px;
+  bottom: 8px;
+  color: #91a0b1;
+  font-size: 9px;
+}
+
+.organization-upload-section {
+  display: grid;
+  place-items: center;
+  margin-bottom: 18px;
+}
+
+.organization-upload {
+  width: 102px;
+  height: 102px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 5px;
+  overflow: hidden;
+  border: 1px dashed #a9c5e8;
+  border-radius: 22px;
+  background: linear-gradient(180deg, #f6faff, #edf5ff);
+  color: #136bd5;
+  cursor: pointer;
+  box-shadow: 0 10px 28px rgba(41, 80, 130, .07);
+}
+
+.organization-upload img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.organization-upload svg {
+  font-size: 20px;
+}
+
+.organization-upload strong {
+  color: #344054;
+  font-size: 10px;
+}
+
+.organization-upload span {
+  color: #8b9aae;
+  font-size: 8px;
+}
+
+.organization-upload-section > p {
+  margin: 7px 0 0;
+  color: #91a0b1;
+  font-size: 9px;
+}
+
+.eor-creator-ready-panel .echoo-success-state {
+  padding: 8px 0 2px;
+}
+
+.eor-creator-ready-panel .echoo-success-state h2 {
+  color: #101d35;
+}
+
+.eor-creator-ready-panel .echoo-success-button {
+  min-height: 48px;
+  border-radius: 10px;
+  background: #136bd5;
+  box-shadow: 0 10px 24px rgba(19, 107, 213, .17);
+}
+
+@media (max-width: 640px), (pointer: coarse) and (max-width: 760px) {
+  .eor-creator-panel,
+  .eor-creator-details-panel,
+  .eor-organization-panel {
+    width: 100%;
+  }
+
+  .creator-type-options {
+    grid-template-columns: 1fr;
+  }
+
+  .creator-type-card {
+    min-height: 170px;
+    padding: 19px 16px 16px;
+  }
+
+  .creator-type-icon {
+    width: 62px;
+    height: 62px;
+    border-radius: 18px;
+    font-size: 27px;
+  }
+
+  .creator-type-card p {
+    max-width: 290px;
+  }
+
+  .eor-creator-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .eor-creator-actions .eor-primary {
+    order: -1;
+  }
+
+  .organization-upload {
+    width: 92px;
+    height: 92px;
+  }
+}

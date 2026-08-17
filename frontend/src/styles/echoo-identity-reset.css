@@ -1,0 +1,1028 @@
+@import "./echoo-figma-tokens.css";
+
+/* ==========================================================
+   ECHOO IDENTITY RESET
+
+   Core idea:
+   80% quiet
+   20% alive
+
+   Quiet:
+   neutral canvas, typography, whitespace, photography.
+
+   Alive:
+   Echo Signal, blue interaction, LIVE state, audio movement.
+========================================================== */
+
+/* ==========================================================
+   APP SHELL
+========================================================== */
+
+#root .echoo-listener-shell {
+  width: 100% !important;
+  height: 100vh !important;
+
+  overflow: hidden !important;
+
+  background:
+    var(--echoo-canvas) !important;
+
+  color:
+    var(--echoo-text) !important;
+
+  font-family:
+    Inter,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif !important;
+}
+
+#root .echoo-listener-shell
+.layout-sidebar {
+  position: fixed !important;
+
+  z-index: 12000 !important;
+
+  left: 0 !important;
+  top: 0 !important;
+  bottom: 0 !important;
+
+  width:
+    var(--echoo-sidebar-width) !important;
+
+  height: 100vh !important;
+  max-height: none !important;
+
+  display: flex !important;
+
+  flex-direction:
+    column !important;
+
+  align-items: center !important;
+
+  padding:
+    18px
+    12px !important;
+
+  border: 0 !important;
+
+  border-right:
+    1px solid
+    var(--echoo-border) !important;
+
+  background:
+    var(--echoo-surface) !important;
+
+  box-shadow: none !important;
+}
+
+/* BRAND */
+
+#root .echoo-listener-shell
+.layout-brand {
+  width: 52px !important;
+  height: 52px !important;
+
+  display: grid !important;
+
+  place-items: center !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  border-radius: 12px !important;
+}
+
+#root .echoo-listener-shell
+.layout-brand img {
+  width: 42px !important;
+  height: 42px !important;
+
+  object-fit: contain !important;
+}
+
+#root .echoo-listener-shell
+.layout-brand > span {
+  display: none !important;
+}
+
+/* ==========================================================
+   SLIM NAVIGATION RAIL
+========================================================== */
+
+#root .echoo-listener-shell
+.layout-navigation {
+  width: 100% !important;
+
+  display: flex !important;
+
+  flex-direction:
+    column !important;
+
+  gap: 7px !important;
+
+  margin-top: 31px !important;
+}
+
+#root .echoo-listener-shell
+.layout-nav-item {
+  position: relative !important;
+
+  width: 56px !important;
+  height: 50px !important;
+
+  min-height: 50px !important;
+
+  display: grid !important;
+
+  place-items: center !important;
+
+  padding: 0 !important;
+
+  border-radius: 10px !important;
+
+  background:
+    transparent !important;
+
+  color:
+    var(--echoo-text-secondary) !important;
+
+  transition:
+    background
+    var(--echoo-transition),
+    color
+    var(--echoo-transition) !important;
+}
+
+#root .echoo-listener-shell
+.layout-nav-item:hover {
+  background:
+    var(--echoo-primary-pale) !important;
+
+  color:
+    var(--echoo-primary) !important;
+}
+
+#root .echoo-listener-shell
+.layout-nav-item.active {
+  background:
+    var(--echoo-primary-pale) !important;
+
+  color:
+    var(--echoo-primary) !important;
+}
+
+#root .echoo-listener-shell
+.layout-nav-icon {
+  width: 24px !important;
+  height: 24px !important;
+
+  display: grid !important;
+
+  place-items: center !important;
+
+  font-size: 18px !important;
+}
+
+#root .echoo-listener-shell
+.layout-nav-label {
+  position: absolute !important;
+
+  z-index: 13000 !important;
+
+  left: 66px !important;
+  top: 50% !important;
+
+  transform:
+    translate(
+      -5px,
+      -50%
+    ) !important;
+
+  min-width: max-content !important;
+
+  padding:
+    8px
+    11px !important;
+
+  border:
+    1px solid
+    var(--echoo-border) !important;
+
+  border-radius: 8px !important;
+
+  background:
+    var(--echoo-surface) !important;
+
+  color:
+    var(--echoo-text) !important;
+
+  box-shadow:
+    var(--echoo-shadow-popover) !important;
+
+  opacity: 0 !important;
+
+  visibility:
+    hidden !important;
+
+  pointer-events:
+    none !important;
+
+  font-size: 13px !important;
+  font-weight: 600 !important;
+
+  white-space: nowrap !important;
+
+  transition:
+    opacity
+    140ms
+    ease,
+    transform
+    140ms
+    ease,
+    visibility
+    140ms
+    ease !important;
+}
+
+#root .echoo-listener-shell
+.layout-nav-item:hover
+.layout-nav-label,
+#root .echoo-listener-shell
+.layout-nav-item:focus-visible
+.layout-nav-label {
+  opacity: 1 !important;
+
+  visibility:
+    visible !important;
+
+  transform:
+    translate(
+      0,
+      -50%
+    ) !important;
+}
+
+/* Old sidebar playlist section is intentionally removed */
+
+#root .echoo-listener-shell
+.layout-playlists {
+  display: none !important;
+}
+
+/* PROFILE BECOMES ONE QUIET AVATAR */
+
+#root .echoo-listener-shell
+.listener-profile-menu-wrap {
+  width: 48px !important;
+
+  margin:
+    auto
+    auto
+    5px !important;
+}
+
+#root .echoo-listener-shell
+.layout-profile {
+  width: 48px !important;
+  height: 48px !important;
+
+  min-height: 48px !important;
+
+  display: grid !important;
+
+  place-items: center !important;
+
+  padding: 0 !important;
+
+  border:
+    1px solid
+    var(--echoo-border) !important;
+
+  border-radius: 50% !important;
+
+  background:
+    var(--echoo-surface) !important;
+}
+
+#root .echoo-listener-shell
+.layout-profile-image {
+  width: 38px !important;
+  height: 38px !important;
+
+  margin: 0 !important;
+
+  border-radius: 50% !important;
+}
+
+#root .echoo-listener-shell
+.layout-profile-info,
+#root .echoo-listener-shell
+.listener-profile-chevron {
+  display: none !important;
+}
+
+#root .echoo-listener-shell
+.listener-profile-dropdown {
+  left: 58px !important;
+  bottom: 0 !important;
+
+  width: 190px !important;
+}
+
+/* ==========================================================
+   MAIN + TOP BAR
+========================================================== */
+
+#root .echoo-listener-shell
+.echoo-listener-main {
+  width:
+    calc(
+      100% -
+      var(--echoo-sidebar-width)
+    ) !important;
+
+  height:
+    calc(
+      100vh -
+      var(--echoo-player-height)
+    ) !important;
+
+  margin-left:
+    var(--echoo-sidebar-width) !important;
+
+  background:
+    var(--echoo-canvas) !important;
+}
+
+#root .echoo-listener-shell
+.layout-topbar {
+  height:
+    var(--echoo-topbar-height) !important;
+
+  min-height:
+    var(--echoo-topbar-height) !important;
+
+  padding:
+    0
+    32px !important;
+
+  border: 0 !important;
+
+  border-bottom:
+    1px solid
+    var(--echoo-border) !important;
+
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.96
+    ) !important;
+
+  backdrop-filter:
+    blur(
+      12px
+    ) !important;
+}
+
+#root .echoo-listener-shell
+.beautiful-search {
+  width:
+    min(
+      440px,
+      48vw
+    ) !important;
+
+  height: 40px !important;
+
+  border:
+    1px solid
+    var(--echoo-border) !important;
+
+  border-radius: 10px !important;
+
+  background:
+    #F2F4F7 !important;
+
+  box-shadow: none !important;
+}
+
+#root .echoo-listener-shell
+.beautiful-search:focus-within,
+#root .echoo-listener-shell
+.beautiful-search.active {
+  border-color:
+    rgba(
+      38,
+      93,
+      255,
+      0.35
+    ) !important;
+
+  background:
+    var(--echoo-surface) !important;
+
+  box-shadow:
+    0
+    0
+    0
+    3px
+    rgba(
+      38,
+      93,
+      255,
+      0.06
+    ) !important;
+}
+
+#root .echoo-listener-shell
+.beautiful-search input {
+  color:
+    var(--echoo-text) !important;
+
+  font-size: 14px !important;
+}
+
+#root .echoo-listener-shell
+.layout-top-button {
+  color:
+    var(--echoo-text-secondary) !important;
+}
+
+/* ==========================================================
+   CONTENT SCROLLER
+========================================================== */
+
+#root .echoo-listener-shell
+.echoo-listener-scroll {
+  height:
+    calc(
+      100vh -
+      var(--echoo-player-height) -
+      var(--echoo-topbar-height)
+    ) !important;
+
+  overflow-x:
+    hidden !important;
+
+  overflow-y:
+    auto !important;
+
+  background:
+    var(--echoo-canvas) !important;
+}
+
+#root .echoo-listener-shell
+.echoo-listener-scroll::-webkit-scrollbar {
+  width: 9px;
+}
+
+#root .echoo-listener-shell
+.echoo-listener-scroll::-webkit-scrollbar-track {
+  background:
+    transparent;
+}
+
+#root .echoo-listener-shell
+.echoo-listener-scroll::-webkit-scrollbar-thumb {
+  border:
+    3px solid
+    transparent;
+
+  border-radius:
+    999px;
+
+  background:
+    #C7CDD6;
+
+  background-clip:
+    padding-box;
+}
+
+/* ==========================================================
+   READABLE TYPE RESET
+
+   Phase 1–6 had too much 6px–10px typography.
+========================================================== */
+
+#root .echoo-listener-scroll h1 {
+  color:
+    var(--echoo-text) !important;
+
+  font-size:
+    clamp(
+      34px,
+      3vw,
+      44px
+    ) !important;
+
+  line-height: 1.08 !important;
+
+  font-weight: 650 !important;
+
+  letter-spacing:
+    -0.035em !important;
+}
+
+#root .echoo-listener-scroll h2 {
+  color:
+    var(--echoo-text) !important;
+
+  font-size: 24px !important;
+
+  line-height: 1.2 !important;
+
+  font-weight: 650 !important;
+
+  letter-spacing:
+    -0.025em !important;
+}
+
+#root .echoo-listener-scroll h3 {
+  color:
+    var(--echoo-text) !important;
+
+  font-size: 16px !important;
+
+  line-height: 1.35 !important;
+
+  font-weight: 600 !important;
+}
+
+#root .echoo-listener-scroll p {
+  color:
+    var(--echoo-text-secondary) !important;
+
+  font-size: 14px !important;
+
+  line-height: 1.6 !important;
+}
+
+#root .echoo-listener-scroll button,
+#root .echoo-listener-scroll input,
+#root .echoo-listener-scroll textarea,
+#root .echoo-listener-scroll select {
+  font-family: inherit !important;
+
+  font-size: 13px !important;
+}
+
+#root .echoo-listener-scroll small {
+  font-size: 12px !important;
+
+  line-height: 1.45 !important;
+}
+
+/* ==========================================================
+   ECHOO PLAYER
+
+   Quiet recording player.
+   White / neutral.
+   Signal is present.
+========================================================== */
+
+#root .echoo-listener-shell
+>
+.echoo-persistent-player.echoo-persistent-player {
+  position: fixed !important;
+
+  z-index: 11000 !important;
+
+  left:
+    var(--echoo-sidebar-width) !important;
+
+  right: 0 !important;
+  bottom: 0 !important;
+
+  width: auto !important;
+
+  height:
+    var(--echoo-player-height) !important;
+
+  min-height:
+    var(--echoo-player-height) !important;
+
+  max-height:
+    var(--echoo-player-height) !important;
+
+  display: grid !important;
+
+  grid-template-columns:
+    minmax(
+      280px,
+      1.05fr
+    )
+    auto
+    minmax(
+      340px,
+      1fr
+    ) !important;
+
+  align-items: center !important;
+
+  gap: 28px !important;
+
+  padding:
+    0
+    30px !important;
+
+  border: 0 !important;
+
+  border-top:
+    1px solid
+    var(--echoo-border) !important;
+
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.985
+    ) !important;
+
+  color:
+    var(--echoo-text) !important;
+
+  box-shadow:
+    0
+    -6px
+    24px
+    rgba(
+      16,
+      24,
+      40,
+      0.035
+    ) !important;
+
+  backdrop-filter:
+    blur(
+      14px
+    ) !important;
+}
+
+#root .echoo-persistent-player
+.layout-player-track {
+  min-width: 0 !important;
+
+  display: flex !important;
+
+  align-items: center !important;
+
+  gap: 11px !important;
+}
+
+#root .echoo-persistent-player
+.layout-player-signal {
+  margin-right: 1px !important;
+}
+
+#root .echoo-persistent-player
+.layout-player-cover {
+  width: 46px !important;
+  height: 46px !important;
+
+  min-width: 46px !important;
+
+  flex:
+    0
+    0
+    46px !important;
+
+  border-radius: 8px !important;
+
+  background:
+    var(--echoo-primary-pale) !important;
+}
+
+#root .echoo-persistent-player
+.layout-player-info strong {
+  color:
+    var(--echoo-text) !important;
+
+  font-size: 14px !important;
+
+  font-weight: 600 !important;
+}
+
+#root .echoo-persistent-player
+.layout-player-info span {
+  margin-top: 4px !important;
+
+  color:
+    var(--echoo-text-secondary) !important;
+
+  font-size: 12px !important;
+}
+
+#root .echoo-persistent-player
+.layout-player-heart {
+  color:
+    var(--echoo-text-secondary) !important;
+}
+
+#root .echoo-persistent-player
+.layout-player-controls {
+  gap: 8px !important;
+}
+
+#root .echoo-persistent-player
+.layout-player-controls
+>
+button {
+  width: 35px !important;
+  height: 35px !important;
+
+  min-width: 35px !important;
+
+  color:
+    var(--echoo-text-secondary) !important;
+
+  font-size: 12px !important;
+}
+
+#root .echoo-persistent-player
+.layout-player-controls
+>
+button:first-child,
+#root .echoo-persistent-player
+.layout-player-controls
+>
+button:last-child {
+  opacity: 0.5 !important;
+}
+
+#root .echoo-persistent-player
+.layout-player-controls
+.layout-main-play {
+  width: 46px !important;
+  height: 46px !important;
+
+  min-width: 46px !important;
+
+  background:
+    var(--echoo-primary) !important;
+
+  color:
+    var(--echoo-white) !important;
+
+  box-shadow: none !important;
+}
+
+#root .echoo-persistent-player
+.layout-player-progress-area {
+  min-width: 0 !important;
+
+  justify-content:
+    flex-end !important;
+
+  gap: 9px !important;
+
+  color:
+    var(--echoo-text-secondary) !important;
+}
+
+#root .echoo-persistent-player
+.layout-player-progress-area
+>
+span {
+  color:
+    var(--echoo-text-muted) !important;
+
+  font-size: 11px !important;
+}
+
+#root .echoo-persistent-player
+.layout-player-progress {
+  width:
+    min(
+      270px,
+      22vw
+    ) !important;
+
+  height: 4px !important;
+
+  border-radius:
+    999px !important;
+
+  background:
+    #E4E7EC !important;
+}
+
+#root .echoo-persistent-player
+.layout-player-progress
+>
+div {
+  background:
+    var(--echoo-primary) !important;
+}
+
+#root .echoo-persistent-player
+.layout-player-progress-area
+>
+button {
+  color:
+    var(--echoo-text-secondary) !important;
+}
+
+#root .echoo-persistent-player
+.layout-player-progress-area
+input[type="range"] {
+  accent-color:
+    var(--echoo-primary) !important;
+}
+
+/* ==========================================================
+   EXISTING PAGE FOUNDATION RESET
+
+   We retain functionality from Phases 4–6, but quieten it.
+========================================================== */
+
+#root :is(
+  .figma-stations-page,
+  .figma-station-profile-page,
+  .figma-library-page,
+  .figma-following-page,
+  .figma-history-page,
+  .figma-downloads-page
+) {
+  background:
+    var(--echoo-canvas) !important;
+
+  color:
+    var(--echoo-text) !important;
+}
+
+#root :is(
+  .figma-stations-summary,
+  .figma-library-summary,
+  .figma-history-summary,
+  .figma-download-summary
+)
+article {
+  border-color:
+    var(--echoo-border) !important;
+
+  border-radius: 10px !important;
+
+  background:
+    var(--echoo-surface) !important;
+
+  box-shadow: none !important;
+}
+
+#root :is(
+  .figma-history-list,
+  .figma-station-profile-about
+) {
+  border-color:
+    var(--echoo-border) !important;
+
+  box-shadow: none !important;
+}
+
+#root .figma-history-list {
+  overflow: visible !important;
+
+  border: 0 !important;
+
+  border-radius: 0 !important;
+
+  background:
+    transparent !important;
+}
+
+#root .figma-history-row {
+  border-bottom:
+    1px solid
+    var(--echoo-border) !important;
+
+  background:
+    transparent !important;
+}
+
+#root .figma-history-row:hover {
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.7
+    ) !important;
+}
+
+#root .figma-download-empty,
+#root .figma-history-empty,
+#root .figma-library-empty,
+#root .figma-stations-empty {
+  border-color:
+    var(--echoo-border) !important;
+
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.7
+    ) !important;
+}
+
+/* Horizontal rail end fade follows canvas */
+
+#root .echoo-rail-shell.has-peek::after {
+  background:
+    linear-gradient(
+      to right,
+      rgba(
+        247,
+        248,
+        250,
+        0
+      ),
+      rgba(
+        247,
+        248,
+        250,
+        0.98
+      )
+    ) !important;
+}
+
+/* ==========================================================
+   RESPONSIVE
+========================================================== */
+
+@media (
+  max-width: 1050px
+) {
+  #root .echoo-listener-shell
+  >
+  .echoo-persistent-player.echoo-persistent-player {
+    grid-template-columns:
+      minmax(
+        220px,
+        1fr
+      )
+      auto
+      minmax(
+        230px,
+        1fr
+      ) !important;
+
+    gap: 14px !important;
+
+    padding:
+      0
+      18px !important;
+  }
+
+  #root .echoo-persistent-player
+  .layout-player-signal {
+    display: none !important;
+  }
+}
+
+@media (
+  max-width: 760px
+) {
+  :root {
+    --echoo-sidebar-width: 66px;
+  }
+
+  #root .echoo-listener-shell
+  .layout-sidebar {
+    width: 66px !important;
+
+    padding:
+      14px
+      7px !important;
+  }
+
+  #root .echoo-listener-shell
+  .layout-nav-item {
+    width: 50px !important;
+  }
+
+  #root .echoo-listener-shell
+  >
+  .echoo-persistent-player.echoo-persistent-player {
+    grid-template-columns:
+      minmax(
+        0,
+        1fr
+      )
+      auto !important;
+  }
+
+  #root .echoo-persistent-player
+  .layout-player-progress-area {
+    display: none !important;
+  }
+
+  #root .echoo-listener-scroll h1 {
+    font-size: 32px !important;
+  }
+}

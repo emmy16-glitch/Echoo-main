@@ -1,0 +1,370 @@
+.b6-kicker {
+  display: block;
+  margin-bottom: 6px;
+  color: #265dff;
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: .13em;
+}
+
+.b6-analytics-trust,
+.b6-history-control,
+.b6-download-meta {
+  margin: 0 0 24px;
+  padding: 20px;
+  border: 1px solid #e4e7ec;
+  border-radius: 15px;
+  background: #fff;
+  color: #101828;
+  box-shadow:
+    0 8px 28px rgba(16, 24, 40, .035);
+}
+
+.b6-analytics-trust > header,
+.b6-download-meta > header,
+.b6-history-control-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 22px;
+}
+
+.b6-analytics-trust > header > div,
+.b6-download-meta > header > div,
+.b6-history-control-head > div:first-child {
+  max-width: 700px;
+}
+
+.b6-analytics-trust h2 {
+  margin: 0;
+  color: #101828;
+  font-size: 20px;
+  letter-spacing: -.025em;
+}
+
+.b6-analytics-trust p,
+.b6-download-meta small,
+.b6-history-control small {
+  display: block;
+  margin: 6px 0 0;
+  color: #667085;
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.b6-analytics-trust > header > button,
+.b6-download-meta > header > button,
+.b6-control-actions button {
+  min-height: 39px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 12px;
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+  background: #fff;
+  color: #344054;
+  cursor: pointer;
+  font: inherit;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.b6-control-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.b6-control-actions .danger {
+  color: #b42318;
+}
+
+.b6-analytics-trust button:disabled,
+.b6-history-control button:disabled,
+.b6-download-meta button:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+.b6-periods {
+  display: flex;
+  gap: 6px;
+  margin-top: 16px;
+}
+
+.b6-periods button {
+  min-height: 32px;
+  padding: 0 11px;
+  border: 1px solid #eaecf0;
+  border-radius: 999px;
+  background: #fff;
+  color: #667085;
+  cursor: pointer;
+  font-size: 9px;
+  font-weight: 650;
+}
+
+.b6-periods button.active {
+  border-color: #265dff;
+  background: #eff4ff;
+  color: #265dff;
+}
+
+.b6-metric-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(6, minmax(0, 1fr));
+  gap: 9px;
+  margin-top: 16px;
+}
+
+.b6-metric-grid article,
+.b6-history-stats article,
+.b6-download-stats article {
+  min-height: 78px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #eaecf0;
+  border-radius: 10px;
+  background: #fafafa;
+}
+
+.b6-metric-grid article > svg,
+.b6-history-stats article > svg,
+.b6-download-stats article > svg {
+  flex: 0 0 auto;
+  color: #265dff;
+  font-size: 15px;
+}
+
+.b6-metric-grid strong,
+.b6-history-stats strong,
+.b6-download-stats strong {
+  display: block;
+  color: #101828;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.b6-metric-grid span,
+.b6-history-stats span,
+.b6-download-stats span {
+  display: block;
+  margin-top: 4px;
+  color: #667085;
+  font-size: 8px;
+  line-height: 1.3;
+}
+
+.b6-data-boundary {
+  margin-top: 14px;
+  padding: 9px 11px;
+  border: 1px solid #dbe4ff;
+  border-radius: 8px;
+  background: #f8faff;
+  color: #667085;
+  font-size: 8px;
+  line-height: 1.55;
+}
+
+.b6-alert {
+  margin-top: 12px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  font-size: 9px;
+}
+
+.b6-alert.error {
+  border: 1px solid #fecdca;
+  background: #fef3f2;
+  color: #b42318;
+}
+
+.b6-alert.success {
+  border: 1px solid #abefc6;
+  background: #ecfdf3;
+  color: #067647;
+}
+
+.b6-history-wrap,
+.b6-download-wrap {
+  width: 100%;
+}
+
+.b6-history-control {
+  margin:
+    20px 28px 0;
+}
+
+.b6-download-meta {
+  margin:
+    20px 28px 0;
+}
+
+.b6-history-control-head strong,
+.b6-download-meta header strong {
+  display: block;
+  color: #101828;
+  font-size: 14px;
+}
+
+.b6-history-stats {
+  display: grid;
+  grid-template-columns:
+    repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 15px;
+}
+
+.b6-download-stats {
+  display: grid;
+  grid-template-columns:
+    repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 15px;
+}
+
+.b6-history-manager {
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid #eaecf0;
+  border-radius: 10px;
+  background: #f9fafb;
+}
+
+.b6-history-manager > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.b6-history-manager > header strong {
+  font-size: 10px;
+}
+
+.b6-history-manager > header span {
+  color: #98a2b3;
+  font-size: 8px;
+}
+
+.b6-history-manage-row {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 9px;
+  border-radius: 7px;
+  background: #fff;
+}
+
+.b6-history-manage-row +
+.b6-history-manage-row {
+  margin-top: 4px;
+}
+
+.b6-history-manage-row strong,
+.b6-history-manage-row span {
+  display: block;
+}
+
+.b6-history-manage-row strong {
+  font-size: 9px;
+}
+
+.b6-history-manage-row span {
+  margin-top: 2px;
+  color: #98a2b3;
+  font-size: 7px;
+}
+
+.b6-history-manage-row button {
+  width: 31px;
+  height: 31px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border: 1px solid #fecdca;
+  border-radius: 7px;
+  background: #fff;
+  color: #b42318;
+  cursor: pointer;
+}
+
+.b6-manager-empty {
+  padding: 18px;
+  color: #98a2b3;
+  text-align: center;
+  font-size: 9px;
+}
+
+@media (max-width: 1200px) {
+  .b6-metric-grid {
+    grid-template-columns:
+      repeat(3, minmax(0, 1fr));
+  }
+
+  .b6-download-stats {
+    grid-template-columns:
+      repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 800px) {
+  .b6-analytics-trust > header,
+  .b6-download-meta > header,
+  .b6-history-control-head {
+    flex-direction: column;
+  }
+
+  .b6-control-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .b6-history-stats {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+
+  .b6-history-control,
+  .b6-download-meta {
+    margin:
+      16px 15px 0;
+  }
+}
+
+@media (max-width: 560px) {
+  .b6-metric-grid,
+  .b6-download-stats {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+
+  .b6-control-actions button {
+    flex: 1;
+  }
+
+  .b6-history-manager > header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .b6-analytics-wrap *,
+  .b6-history-wrap *,
+  .b6-download-wrap * {
+    animation-duration:
+      .01ms !important;
+    transition-duration:
+      .01ms !important;
+  }
+}

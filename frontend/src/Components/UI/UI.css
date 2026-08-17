@@ -1,0 +1,550 @@
+/* ========================================
+   ECHOO SHARED UI
+======================================== */
+
+.echoo-button-text {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  color: inherit;
+
+  font-family: inherit;
+}
+
+.echoo-button-spinner {
+  width: 14px;
+  height: 14px;
+
+  flex: 0 0 14px;
+
+  display: inline-block;
+
+  border: 2px solid rgba(255, 255, 255, 0.42);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+
+  animation: echooButtonSpin 0.7s linear infinite;
+}
+
+@keyframes echooButtonSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+
+/* ========================================
+   DEFAULT LOADING BUTTON
+======================================== */
+
+.echoo-loading-button {
+  min-height: 45px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  gap: 8px;
+
+  padding: 0 18px;
+
+  border: 0;
+  border-radius: 9px;
+
+  background: #1769d3;
+
+  color: #ffffff;
+
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    Helvetica,
+    Arial,
+    sans-serif;
+
+  font-size: 12px;
+  line-height: 1;
+
+  font-weight: 600;
+
+  cursor: pointer;
+
+  transition:
+    background 0.18s ease,
+    transform 0.15s ease,
+    box-shadow 0.18s ease;
+}
+
+.echoo-loading-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+
+  background: #125fbf;
+}
+
+.echoo-loading-button:disabled {
+  background: #d9e0e9;
+
+  cursor: not-allowed;
+
+  box-shadow: none;
+}
+
+
+/* ========================================
+   SUCCESS STATE
+======================================== */
+
+.echoo-success-state {
+  width: 100%;
+  min-height: 320px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  padding: 30px 20px;
+
+  text-align: center;
+
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    Helvetica,
+    Arial,
+    sans-serif;
+}
+
+.echoo-success-animation {
+  width: 90px;
+  height: 90px;
+
+  position: relative;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  margin-bottom: 22px;
+}
+
+.echoo-success-pulse {
+  position: absolute;
+
+  inset: 0;
+
+  border-radius: 50%;
+
+  background: rgba(23, 105, 211, 0.08);
+
+  animation:
+    echooSuccessPulse
+    1.6s
+    ease-out
+    infinite;
+}
+
+.echoo-success-ring {
+  width: 68px;
+  height: 68px;
+
+  position: relative;
+  z-index: 2;
+
+  display: grid;
+  place-items: center;
+
+  border: 1px solid #b9d4f4;
+  border-radius: 50%;
+
+  background: #f3f8ff;
+
+  box-shadow:
+    0 0 0 7px
+    rgba(23, 105, 211, 0.04);
+}
+
+.echoo-success-check {
+  width: 38px;
+  height: 38px;
+
+  display: grid;
+  place-items: center;
+
+  border-radius: 50%;
+
+  background: #1769d3;
+
+  color: #ffffff;
+
+  font-size: 13px;
+
+  animation:
+    echooSuccessCheck
+    0.32s
+    ease-out;
+}
+
+.echoo-success-check svg {
+  width: 12px;
+  height: 12px;
+}
+
+.echoo-success-state h2 {
+  margin: 0;
+
+  color: #101828;
+
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    Helvetica,
+    Arial,
+    sans-serif;
+
+  font-size: 22px;
+  line-height: 1.22;
+
+  font-weight: 600;
+
+  letter-spacing: -0.5px;
+}
+
+.echoo-success-state p {
+  max-width: 360px;
+
+  margin: 8px auto 0;
+
+  color: #7c8798;
+
+  font-size: 12px;
+  line-height: 1.6;
+
+  font-weight: 400;
+}
+
+.echoo-success-button {
+  min-width: 180px;
+  min-height: 44px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  margin-top: 23px;
+  padding: 0 20px;
+
+  border: 0;
+  border-radius: 9px;
+
+  background: #1769d3;
+
+  color: #ffffff;
+
+  font-family: inherit;
+
+  font-size: 12px;
+  font-weight: 600;
+
+  cursor: pointer;
+
+  box-shadow:
+    0 7px 17px
+    rgba(23, 105, 211, 0.14);
+
+  transition:
+    background 0.18s ease,
+    transform 0.15s ease;
+}
+
+.echoo-success-button:hover {
+  transform: translateY(-1px);
+
+  background: #125fbf;
+}
+
+.echoo-success-loading {
+  height: 14px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  gap: 4px;
+
+  margin-top: 17px;
+}
+
+.echoo-success-loading span {
+  width: 4px;
+  height: 4px;
+
+  display: block;
+
+  border-radius: 50%;
+
+  background: #9cbce4;
+
+  animation:
+    echooSuccessDot
+    1s
+    ease-in-out
+    infinite;
+}
+
+.echoo-success-loading span:nth-child(2) {
+  animation-delay: 0.14s;
+}
+
+.echoo-success-loading span:nth-child(3) {
+  animation-delay: 0.28s;
+}
+
+@keyframes echooSuccessPulse {
+  0% {
+    transform: scale(0.76);
+    opacity: 0.8;
+  }
+
+  70% {
+    transform: scale(1.08);
+    opacity: 0;
+  }
+
+  100% {
+    transform: scale(1.08);
+    opacity: 0;
+  }
+}
+
+@keyframes echooSuccessCheck {
+  0% {
+    transform: scale(0.55);
+    opacity: 0;
+  }
+
+  70% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes echooSuccessDot {
+  0%,
+  100% {
+    transform: translateY(0);
+
+    opacity: 0.4;
+  }
+
+  50% {
+    transform: translateY(-3px);
+
+    opacity: 1;
+  }
+}
+
+
+/* ========================================
+   SKELETON
+======================================== */
+
+.echoo-skeleton {
+  position: relative;
+
+  overflow: hidden;
+
+  border-radius: 7px;
+
+  background: #edf1f6;
+}
+
+.echoo-skeleton::after {
+  content: "";
+
+  position: absolute;
+
+  inset: 0;
+
+  transform: translateX(-100%);
+
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.72),
+      transparent
+    );
+
+  animation:
+    echooSkeletonShimmer
+    1.4s
+    ease-in-out
+    infinite;
+}
+
+.echoo-skeleton-grid {
+  width: 100%;
+
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      auto-fit,
+      minmax(180px, 1fr)
+    );
+
+  gap: 16px;
+}
+
+.echoo-skeleton-card {
+  overflow: hidden;
+
+  border: 1px solid #e5eaf0;
+  border-radius: 12px;
+
+  background: #ffffff;
+}
+
+.echoo-skeleton-cover {
+  width: 100%;
+  aspect-ratio: 1 / 0.72;
+
+  border-radius: 0;
+}
+
+.echoo-skeleton-card-body {
+  padding: 14px;
+}
+
+.echoo-skeleton-title {
+  width: 72%;
+  height: 12px;
+
+  margin-bottom: 10px;
+}
+
+.echoo-skeleton-text {
+  width: 100%;
+  height: 8px;
+
+  margin-bottom: 7px;
+}
+
+.echoo-skeleton-text.short {
+  width: 56%;
+}
+
+.echoo-skeleton-list {
+  width: 100%;
+
+  display: flex;
+  flex-direction: column;
+
+  gap: 10px;
+}
+
+.echoo-skeleton-row {
+  width: 100%;
+
+  display: flex;
+  align-items: center;
+
+  gap: 12px;
+
+  padding: 12px;
+
+  border: 1px solid #e5eaf0;
+  border-radius: 10px;
+
+  background: #ffffff;
+}
+
+.echoo-skeleton-avatar {
+  width: 42px;
+  height: 42px;
+
+  flex: 0 0 42px;
+
+  border-radius: 50%;
+}
+
+.echoo-skeleton-row-body {
+  min-width: 0;
+
+  flex: 1;
+}
+
+.echoo-skeleton-action {
+  width: 30px;
+  height: 30px;
+
+  flex: 0 0 30px;
+
+  border-radius: 8px;
+}
+
+@keyframes echooSkeletonShimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+
+/* ========================================
+   RESPONSIVE
+======================================== */
+
+@media (max-width: 520px) {
+  .echoo-success-state {
+    min-height: 280px;
+
+    padding:
+      26px
+      15px;
+  }
+
+  .echoo-success-animation {
+    width: 82px;
+    height: 82px;
+
+    margin-bottom: 19px;
+  }
+
+  .echoo-success-ring {
+    width: 62px;
+    height: 62px;
+  }
+
+  .echoo-success-check {
+    width: 35px;
+    height: 35px;
+  }
+
+  .echoo-success-state h2 {
+    font-size: 20px;
+  }
+
+  .echoo-success-state p {
+    font-size: 11.5px;
+  }
+
+  .echoo-skeleton-grid {
+    grid-template-columns:
+      1fr;
+  }
+}

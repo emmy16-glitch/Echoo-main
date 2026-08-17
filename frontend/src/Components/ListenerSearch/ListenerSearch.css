@@ -1,0 +1,394 @@
+.listener-stations-page {
+  min-height: 100%;
+  padding: 30px;
+  background: #ffffff;
+}
+
+.listener-stations-header {
+  margin-bottom: 23px;
+}
+
+.listener-stations-header h1 {
+  margin: 0;
+  color: #17233c;
+  font-size: 25px;
+}
+
+.listener-stations-header p {
+  margin: 7px 0 0;
+  color: #8996a8;
+  font-size: 13px;
+}
+
+.stations-search {
+  width: min(550px, 100%);
+  height: 43px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 13px;
+  margin-bottom: 25px;
+  border: 1px solid #dfe5ed;
+  border-radius: 9px;
+  color: #8793a5;
+}
+
+.stations-search input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: #18253d;
+  font-size: 12px;
+}
+
+.stations-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(
+      auto-fill,
+      minmax(210px, 1fr)
+    );
+  gap: 17px;
+}
+
+.station-card {
+  overflow: hidden;
+  border: 1px solid #e4e9f0;
+  border-radius: 11px;
+  background: #ffffff;
+}
+
+.station-card-art {
+  height: 145px;
+  position: relative;
+  display: grid;
+  place-items: center;
+  color: #ffffff;
+  font-size: 36px;
+}
+
+.station-card-art img,
+.station-detail-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.station-art-1 {
+  background:
+    linear-gradient(
+      135deg,
+      #1b5fa9,
+      #78aee1
+    );
+}
+
+.station-art-2 {
+  background:
+    linear-gradient(
+      135deg,
+      #65529f,
+      #9e88cf
+    );
+}
+
+.station-art-3 {
+  background:
+    linear-gradient(
+      135deg,
+      #397765,
+      #82b3a4
+    );
+}
+
+.station-art-4 {
+  background:
+    linear-gradient(
+      135deg,
+      #985943,
+      #d99880
+    );
+}
+
+.station-card-play {
+  width: 42px;
+  height: 42px;
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #1769d3;
+  cursor: pointer;
+}
+
+.station-card-content {
+  padding: 14px;
+}
+
+.station-card-content h3 {
+  margin: 0;
+  color: #1b2840;
+  font-size: 14px;
+}
+
+.station-card-content > p {
+  margin: 5px 0 10px;
+  color: #929dad;
+  font-size: 10px;
+}
+
+.station-card-genres {
+  min-height: 24px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.station-card-genres span {
+  padding: 4px 7px;
+  border-radius: 20px;
+  background: #f1f5fa;
+  color: #647187;
+  font-size: 9px;
+}
+
+.station-open-button {
+  width: 100%;
+  min-height: 35px;
+  margin-top: 12px;
+  border: 1px solid #dce4ed;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #1769d3;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.station-back-button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 20px;
+  border: none;
+  background: transparent;
+  color: #647187;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.station-detail-hero {
+  display: flex;
+  align-items: flex-end;
+  gap: 24px;
+  padding: 22px;
+  border: 1px solid #e4e9f0;
+  border-radius: 12px;
+  background:
+    linear-gradient(
+      135deg,
+      #f4f9ff,
+      #ffffff
+    );
+}
+
+.station-detail-art {
+  width: 145px;
+  height: 145px;
+  flex: 0 0 auto;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  background:
+    linear-gradient(
+      135deg,
+      #1769d3,
+      #70acef
+    );
+  color: #ffffff;
+  font-size: 38px;
+}
+
+.station-detail-label {
+  color: #1769d3;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.station-detail-info h1 {
+  margin: 6px 0;
+  color: #17233c;
+  font-size: 27px;
+}
+
+.station-detail-info > p {
+  margin: 0;
+  color: #818c9e;
+  font-size: 11px;
+}
+
+.station-detail-meta {
+  display: flex;
+  gap: 7px;
+  margin-top: 11px;
+  color: #788497;
+  font-size: 10px;
+}
+
+.station-play-all {
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 17px;
+  padding: 0 15px;
+  border: none;
+  border-radius: 8px;
+  background: #1769d3;
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.station-track-section {
+  margin-top: 27px;
+}
+
+.station-section-heading {
+  margin-bottom: 14px;
+}
+
+.station-section-heading h2 {
+  margin: 0;
+  color: #1c2941;
+  font-size: 17px;
+}
+
+.station-section-heading p {
+  margin: 5px 0 0;
+  color: #929dad;
+  font-size: 10px;
+}
+
+.station-track-list {
+  overflow: hidden;
+  border: 1px solid #e5eaf1;
+  border-radius: 11px;
+}
+
+.station-track-row {
+  min-height: 60px;
+  display: grid;
+  grid-template-columns:
+    28px
+    38px
+    minmax(180px, 1fr)
+    120px
+    70px;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  border-bottom: 1px solid #edf0f4;
+}
+
+.station-track-row:last-child {
+  border-bottom: none;
+}
+
+.station-track-number {
+  color: #9ba6b6;
+  font-size: 10px;
+}
+
+.station-track-play {
+  width: 32px;
+  height: 32px;
+  border: 1px solid #dfe5ed;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #1769d3;
+  cursor: pointer;
+}
+
+.station-track-info strong {
+  display: block;
+  color: #1b2840;
+  font-size: 12px;
+}
+
+.station-track-info span {
+  display: block;
+  margin-top: 4px;
+  color: #929dad;
+  font-size: 10px;
+}
+
+.station-track-genre,
+.station-track-duration {
+  color: #7e8a9c;
+  font-size: 10px;
+}
+
+.stations-empty,
+.stations-state {
+  min-height: 270px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #8793a5;
+}
+
+.stations-empty > svg {
+  color: #1769d3;
+  font-size: 27px;
+}
+
+.stations-empty h3 {
+  margin: 12px 0 4px;
+  color: #26334a;
+}
+
+.stations-empty p {
+  margin: 0;
+  font-size: 11px;
+}
+
+.stations-state.error {
+  color: #b44545;
+}
+
+@media (max-width: 700px) {
+  .listener-stations-page {
+    padding: 20px 15px;
+  }
+
+  .station-detail-hero {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .station-detail-art {
+    width: 100%;
+    height: 160px;
+  }
+
+  .station-track-row {
+    grid-template-columns:
+      35px
+      minmax(0, 1fr)
+      60px;
+  }
+
+  .station-track-number,
+  .station-track-genre {
+    display: none;
+  }
+}

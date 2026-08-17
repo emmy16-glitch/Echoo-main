@@ -1,0 +1,51 @@
+:root {
+  --echoo-canvas: #FAFAFA;
+  --echoo-surface: #FFFFFF;
+  --echoo-surface-soft: #F8F9FA;
+  --echoo-surface-muted: #F5F6F7;
+
+  --echoo-text: #101828;
+  --echoo-text-secondary: #667085;
+  --echoo-text-muted: #98A2B3;
+
+  --echoo-border: #EAECF0;
+  --echoo-border-strong: #D0D5DD;
+
+  --echoo-ring-1: #F2F4F7;
+  --echoo-ring-2: #EAECF0;
+  --echoo-ring-3: #DCE4F5;
+
+  --echoo-node: #EAECF0;
+
+  --echoo-primary: #265DFF;
+  --echoo-primary-hover: #1F4ED8;
+  --echoo-primary-deep: #173B9C;
+
+  --echoo-primary-pale: #F4F6FB;
+
+  --echoo-live: #E5484D;
+
+  --echoo-sidebar-width: 82px;
+  --echoo-topbar-height: 72px;
+  --echoo-player-height: 88px;
+
+  --echoo-content-padding-x: 38px;
+  --echoo-content-padding-y: 32px;
+
+  --echoo-radius-xs: 6px;
+  --echoo-radius-sm: 8px;
+  --echoo-radius-md: 12px;
+  --echoo-radius-lg: 18px;
+  --echoo-radius-pill: 999px;
+
+  --echoo-shadow-soft:
+    0 7px 24px
+    rgba(16, 24, 40, 0.045);
+
+  --echoo-shadow-popover:
+    0 16px 40px
+    rgba(16, 24, 40, 0.11);
+
+  --echoo-transition:
+    170ms ease;
+}

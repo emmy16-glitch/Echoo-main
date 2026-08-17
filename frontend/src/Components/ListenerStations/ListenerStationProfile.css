@@ -1,0 +1,1197 @@
+@import "../../styles/echoo-figma-tokens.css";
+
+.figma-station-profile-page,
+.figma-station-profile-page * {
+  box-sizing: border-box;
+}
+
+.figma-station-profile-page {
+  width: 100%;
+  min-height: 100%;
+
+  padding:
+    25px
+    32px
+    68px;
+
+  background: #ffffff;
+
+  color: #17243a;
+
+  font-family:
+    Inter,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    Helvetica,
+    Arial,
+    sans-serif;
+}
+
+.figma-station-profile-top {
+  min-height: 35px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  margin-bottom: 14px;
+}
+
+.figma-station-profile-back,
+.figma-station-profile-share {
+  min-height: 32px;
+
+  display: inline-flex;
+  align-items: center;
+
+  gap: 7px;
+
+  border: 0;
+
+  background:
+    transparent;
+
+  color: #6e7c91;
+
+  cursor: pointer;
+
+  font-size: 8px;
+
+  font-weight: 650;
+}
+
+.figma-station-profile-back:hover,
+.figma-station-profile-share:hover {
+  color:
+    var(--echoo-primary);
+}
+
+.figma-station-profile-share {
+  padding:
+    0
+    10px;
+
+  border:
+    1px solid
+    #dce4ed;
+
+  border-radius: 8px;
+
+  background: #ffffff;
+}
+
+/* HERO */
+
+.figma-station-profile-hero {
+  min-height: 250px;
+
+  display: grid;
+
+  grid-template-columns:
+    190px
+    minmax(
+      0,
+      1fr
+    )
+    290px;
+
+  align-items: center;
+
+  gap: 26px;
+
+  padding: 27px;
+
+  overflow: hidden;
+
+  border:
+    1px solid
+    #dae3ed;
+
+  border-radius: 18px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #f5f9fe,
+      #ffffff
+    );
+}
+
+.figma-station-profile-art {
+  position: relative;
+
+  width: 180px;
+  height: 180px;
+
+  overflow: hidden;
+
+  border-radius: 50%;
+
+  background:
+    linear-gradient(
+      145deg,
+      #315f9a,
+      #78a0cd
+    );
+
+  box-shadow:
+    0
+    14px
+    30px
+    rgba(
+      31,
+      63,
+      120,
+      0.13
+    );
+}
+
+.figma-station-profile-art img {
+  width: 100%;
+  height: 100%;
+
+  object-fit: cover;
+
+  display: block;
+}
+
+.figma-station-profile-fallback {
+  width: 100%;
+  height: 100%;
+
+  display: grid;
+  place-items: center;
+
+  color: #ffffff;
+
+  font-size: 43px;
+}
+
+.figma-station-profile-live-dot {
+  position: absolute;
+
+  left: 50%;
+  bottom: 10px;
+
+  transform:
+    translateX(-50%);
+
+  min-height: 23px;
+
+  display: inline-flex;
+  align-items: center;
+
+  gap: 5px;
+
+  padding:
+    0
+    9px;
+
+  border-radius:
+    999px;
+
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.95
+    );
+
+  color: #ee4d4d;
+
+  font-size: 7px;
+
+  font-weight: 800;
+}
+
+.figma-station-profile-live-dot i {
+  width: 5px;
+  height: 5px;
+
+  border-radius: 50%;
+
+  background: #f33d3d;
+
+  animation:
+    station-profile-pulse
+    1.35s
+    ease-in-out
+    infinite;
+}
+
+.figma-station-profile-copy {
+  min-width: 0;
+}
+
+.figma-station-profile-type {
+  display: inline-block;
+
+  color:
+    var(--echoo-primary);
+
+  font-size: 7px;
+
+  font-weight: 750;
+
+  letter-spacing:
+    0.08em;
+}
+
+.figma-station-profile-copy h1 {
+  margin:
+    7px
+    0
+    0;
+
+  color: #17243a;
+
+  font-size: 27px;
+
+  line-height: 1.12;
+
+  font-weight: 700;
+
+  letter-spacing:
+    -0.6px;
+}
+
+.figma-station-profile-category {
+  margin:
+    7px
+    0
+    0;
+
+  color: #7f8b9f;
+
+  font-size: 9px;
+}
+
+.figma-station-creator-link {
+  margin-top: 7px;
+
+  padding: 0;
+
+  border: 0;
+
+  background:
+    transparent;
+
+  color:
+    var(--echoo-primary);
+
+  cursor: pointer;
+
+  font-size: 8px;
+
+  font-weight: 650;
+}
+
+.figma-station-profile-actions {
+  display: flex;
+  align-items: center;
+
+  gap: 8px;
+
+  margin-top: 17px;
+}
+
+.figma-station-profile-follow,
+.figma-station-profile-play {
+  min-height: 37px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  gap: 7px;
+
+  padding:
+    0
+    13px;
+
+  border-radius: 8px;
+
+  cursor: pointer;
+
+  font-size: 8px;
+
+  font-weight: 650;
+}
+
+.figma-station-profile-follow {
+  border:
+    1px solid
+    var(--echoo-primary);
+
+  background:
+    var(--echoo-primary);
+
+  color: #ffffff;
+}
+
+.figma-station-profile-follow.following {
+  border-color:
+    #cbd9e9;
+
+  background: #f3f8fd;
+
+  color:
+    var(--echoo-primary);
+}
+
+.figma-station-profile-play {
+  border:
+    1px solid
+    #d8e2ec;
+
+  background: #ffffff;
+
+  color: #51647d;
+}
+
+.figma-station-profile-stats {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      3,
+      1fr
+    );
+
+  gap: 8px;
+}
+
+.figma-station-profile-stats article {
+  min-height: 74px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  border:
+    1px solid
+    #dce4ed;
+
+  border-radius: 11px;
+
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.78
+    );
+}
+
+.figma-station-profile-stats strong {
+  color: #1c2a40;
+
+  font-size: 15px;
+}
+
+.figma-station-profile-stats span {
+  margin-top: 4px;
+
+  color: #929dac;
+
+  font-size: 6.5px;
+}
+
+/* ABOUT */
+
+.figma-station-profile-about {
+  margin-top: 13px;
+
+  padding:
+    15px
+    17px;
+
+  border:
+    1px solid
+    #e0e6ed;
+
+  border-radius: 11px;
+
+  background: #ffffff;
+}
+
+.figma-station-profile-about h2 {
+  margin: 0;
+
+  color: #26354b;
+
+  font-size: 10px;
+}
+
+.figma-station-profile-about p {
+  max-width: 760px;
+
+  margin:
+    7px
+    0
+    0;
+
+  color: #758297;
+
+  font-size: 8px;
+
+  line-height: 1.65;
+}
+
+/* SECTIONS */
+
+.figma-station-profile-section {
+  margin-top: 32px;
+}
+
+.figma-station-profile-section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+
+  gap: 15px;
+
+  margin-bottom: 13px;
+}
+
+.figma-station-profile-section-heading h2 {
+  margin: 0;
+
+  color: #17243a;
+
+  font-size: 17px;
+
+  font-weight: 700;
+}
+
+.figma-station-profile-section-heading p {
+  margin:
+    5px
+    0
+    0;
+
+  color: #8c98a9;
+
+  font-size: 8px;
+}
+
+/* LIVE NOW */
+
+.figma-station-profile-live-card {
+  min-height: 100px;
+
+  display: grid;
+
+  grid-template-columns:
+    74px
+    minmax(
+      0,
+      1fr
+    )
+    auto;
+
+  align-items: center;
+
+  gap: 14px;
+
+  padding: 13px;
+
+  border:
+    1px solid
+    #e0e6ed;
+
+  border-radius: 13px;
+
+  background:
+    linear-gradient(
+      90deg,
+      #fffafa,
+      #ffffff
+    );
+
+  cursor: pointer;
+
+  transition:
+    border-color
+    160ms
+    ease,
+    transform
+    160ms
+    ease,
+    box-shadow
+    160ms
+    ease;
+}
+
+.figma-station-profile-live-card:hover {
+  transform:
+    translateY(-2px);
+
+  border-color:
+    #ead0d3;
+
+  box-shadow:
+    0
+    9px
+    22px
+    rgba(
+      31,
+      63,
+      120,
+      0.06
+    );
+}
+
+.figma-station-profile-live-art {
+  position: relative;
+
+  width: 70px;
+  height: 70px;
+
+  display: grid;
+  place-items: center;
+
+  border-radius: 11px;
+
+  background:
+    linear-gradient(
+      145deg,
+      #9e515e,
+      #c9818b
+    );
+
+  color: #ffffff;
+
+  font-size: 20px;
+}
+
+.figma-station-profile-live-art span {
+  position: absolute;
+
+  left: 50%;
+  bottom: 5px;
+
+  transform:
+    translateX(-50%);
+
+  min-height: 18px;
+
+  display: inline-flex;
+  align-items: center;
+
+  gap: 3px;
+
+  padding:
+    0
+    6px;
+
+  border-radius:
+    999px;
+
+  background: #ffffff;
+
+  color: #e84d4d;
+
+  font-size: 5.5px;
+
+  font-weight: 800;
+}
+
+.figma-station-profile-live-art span i {
+  width: 4px;
+  height: 4px;
+
+  border-radius: 50%;
+
+  background: #f33d3d;
+}
+
+.figma-station-profile-live-copy small {
+  color: #e04c4c;
+
+  font-size: 6px;
+
+  font-weight: 800;
+}
+
+.figma-station-profile-live-copy h3 {
+  margin:
+    5px
+    0
+    0;
+
+  color: #26354b;
+
+  font-size: 11px;
+}
+
+.figma-station-profile-live-copy p {
+  margin:
+    4px
+    0
+    0;
+
+  color: #8390a3;
+
+  font-size: 7px;
+}
+
+.figma-station-profile-live-copy > span {
+  display: inline-flex;
+  align-items: center;
+
+  gap: 5px;
+
+  margin-top: 5px;
+
+  color: #919cad;
+
+  font-size: 7px;
+}
+
+.figma-station-profile-live-card > button {
+  min-height: 36px;
+
+  display: inline-flex;
+  align-items: center;
+
+  gap: 7px;
+
+  padding:
+    0
+    13px;
+
+  border: 0;
+
+  border-radius: 8px;
+
+  background:
+    var(--echoo-primary);
+
+  color: #ffffff;
+
+  cursor: pointer;
+
+  font-size: 7.5px;
+
+  font-weight: 650;
+}
+
+/* AUDIO RAILS */
+
+.figma-station-profile-track-rail {
+  gap: 18px;
+}
+
+.figma-station-track-card {
+  flex:
+    0
+    0
+    186px;
+
+  width: 186px;
+  min-width: 186px;
+
+  transition:
+    transform
+    170ms
+    ease;
+}
+
+.figma-station-track-card:hover {
+  transform:
+    translateY(-3px);
+}
+
+.figma-station-track-art {
+  position: relative;
+
+  width: 186px;
+  height: 190px;
+
+  overflow: hidden;
+
+  border-radius: 12px;
+
+  background:
+    linear-gradient(
+      145deg,
+      #315888,
+      #7c9fc8
+    );
+}
+
+.figma-station-track-art.variant-2 {
+  background:
+    linear-gradient(
+      145deg,
+      #5f4274,
+      #9b78ae
+    );
+}
+
+.figma-station-track-art.variant-3 {
+  background:
+    linear-gradient(
+      145deg,
+      #3b746c,
+      #76aaa1
+    );
+}
+
+.figma-station-track-art.variant-4 {
+  background:
+    linear-gradient(
+      145deg,
+      #7b553b,
+      #bc906a
+    );
+}
+
+.figma-station-track-art img {
+  width: 100%;
+  height: 100%;
+
+  display: block;
+
+  object-fit: cover;
+}
+
+.figma-station-track-fallback {
+  width: 100%;
+  height: 100%;
+
+  display: grid;
+  place-items: center;
+
+  color:
+    rgba(
+      255,
+      255,
+      255,
+      0.92
+    );
+
+  font-size: 25px;
+}
+
+.figma-station-track-art button {
+  position: absolute;
+
+  right: 10px;
+  bottom: 10px;
+
+  width: 37px;
+  height: 37px;
+
+  display: grid;
+  place-items: center;
+
+  border: 0;
+
+  border-radius: 50%;
+
+  background:
+    var(--echoo-primary);
+
+  color: #ffffff;
+
+  cursor: pointer;
+
+  box-shadow:
+    0
+    6px
+    16px
+    rgba(
+      31,
+      63,
+      120,
+      0.22
+    );
+
+  opacity: 0;
+
+  transform:
+    translateY(5px);
+
+  transition:
+    opacity
+    160ms
+    ease,
+    transform
+    160ms
+    ease;
+}
+
+.figma-station-track-card:hover
+.figma-station-track-art button,
+.figma-station-track-card:focus-within
+.figma-station-track-art button {
+  opacity: 1;
+
+  transform:
+    translateY(0);
+}
+
+.figma-station-track-card h3 {
+  overflow: hidden;
+
+  margin:
+    9px
+    0
+    0;
+
+  color: #223148;
+
+  font-size: 9px;
+
+  font-weight: 700;
+
+  text-overflow:
+    ellipsis;
+
+  white-space: nowrap;
+}
+
+.figma-station-track-card p {
+  overflow: hidden;
+
+  margin:
+    4px
+    0
+    0;
+
+  color: #8b96a7;
+
+  font-size: 7px;
+
+  text-overflow:
+    ellipsis;
+
+  white-space: nowrap;
+}
+
+.figma-station-profile-no-content {
+  min-height: 90px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border:
+    1px dashed
+    #d8e0e8;
+
+  border-radius: 11px;
+
+  background: #fbfcfe;
+
+  color: #909bab;
+
+  font-size: 8px;
+}
+
+/* SCHEDULE */
+
+.figma-station-schedule {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      3,
+      minmax(
+        0,
+        1fr
+      )
+    );
+
+  gap: 10px;
+}
+
+.figma-station-schedule article {
+  min-height: 72px;
+
+  display: grid;
+
+  grid-template-columns:
+    38px
+    minmax(
+      0,
+      1fr
+    )
+    auto;
+
+  align-items: center;
+
+  gap: 10px;
+
+  padding:
+    10px
+    11px;
+
+  border:
+    1px solid
+    #dfe6ee;
+
+  border-radius: 10px;
+
+  background: #ffffff;
+}
+
+.figma-station-schedule-icon {
+  width: 36px;
+  height: 36px;
+
+  display: grid;
+  place-items: center;
+
+  border-radius: 9px;
+
+  background: #edf5ff;
+
+  color:
+    var(--echoo-primary);
+
+  font-size: 11px;
+}
+
+.figma-station-schedule strong,
+.figma-station-schedule span {
+  display: block;
+}
+
+.figma-station-schedule strong {
+  overflow: hidden;
+
+  color: #29384e;
+
+  font-size: 8px;
+
+  text-overflow:
+    ellipsis;
+
+  white-space: nowrap;
+}
+
+.figma-station-schedule span {
+  margin-top: 4px;
+
+  color: #919cac;
+
+  font-size: 6.5px;
+}
+
+.figma-station-schedule time {
+  color:
+    var(--echoo-primary);
+
+  font-size: 7px;
+
+  font-weight: 700;
+}
+
+/* EMPTY */
+
+.figma-station-profile-empty {
+  min-height: 430px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  text-align: center;
+}
+
+.figma-station-profile-empty > div {
+  width: 53px;
+  height: 53px;
+
+  display: grid;
+  place-items: center;
+
+  border-radius: 50%;
+
+  background: #edf5ff;
+
+  color:
+    var(--echoo-primary);
+
+  font-size: 18px;
+}
+
+.figma-station-profile-empty h1 {
+  margin:
+    13px
+    0
+    0;
+
+  color: #27364d;
+
+  font-size: 16px;
+}
+
+.figma-station-profile-empty p {
+  margin:
+    5px
+    0
+    0;
+
+  color: #8b97a8;
+
+  font-size: 8px;
+}
+
+.figma-station-profile-empty button {
+  min-height: 35px;
+
+  margin-top: 12px;
+
+  padding:
+    0
+    13px;
+
+  border: 0;
+
+  border-radius: 8px;
+
+  background:
+    var(--echoo-primary);
+
+  color: #ffffff;
+
+  cursor: pointer;
+
+  font-size: 8px;
+}
+
+/* RESPONSIVE */
+
+@media (
+  max-width: 1100px
+) {
+  .figma-station-profile-hero {
+    grid-template-columns:
+      160px
+      minmax(
+        0,
+        1fr
+      );
+  }
+
+  .figma-station-profile-art {
+    width: 150px;
+    height: 150px;
+  }
+
+  .figma-station-profile-stats {
+    grid-column:
+      1 / -1;
+  }
+}
+
+@media (
+  max-width: 850px
+) {
+  .figma-station-profile-page {
+    padding:
+      22px
+      20px
+      55px;
+  }
+
+  .figma-station-profile-hero {
+    grid-template-columns:
+      1fr;
+
+    text-align: center;
+  }
+
+  .figma-station-profile-art {
+    margin:
+      0
+      auto;
+  }
+
+  .figma-station-profile-actions {
+    justify-content:
+      center;
+  }
+
+  .figma-station-profile-live-card {
+    grid-template-columns:
+      70px
+      1fr;
+  }
+
+  .figma-station-profile-live-card > button {
+    grid-column:
+      1 / -1;
+
+    justify-content:
+      center;
+  }
+
+  .figma-station-schedule {
+    grid-template-columns:
+      1fr;
+  }
+}
+
+@media (
+  max-width: 600px
+) {
+  .figma-station-profile-page {
+    padding:
+      18px
+      13px
+      50px;
+  }
+
+  .figma-station-profile-copy h1 {
+    font-size: 23px;
+  }
+
+  .figma-station-profile-actions {
+    align-items:
+      stretch;
+
+    flex-direction:
+      column;
+  }
+
+  .figma-station-profile-actions button {
+    width: 100%;
+  }
+
+  .figma-station-profile-stats {
+    grid-template-columns:
+      1fr;
+  }
+
+  .figma-station-profile-live-card {
+    grid-template-columns:
+      1fr;
+  }
+
+  .figma-station-profile-live-art {
+    width: 100%;
+    height: 120px;
+  }
+}
+
+@keyframes station-profile-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.35;
+  }
+}

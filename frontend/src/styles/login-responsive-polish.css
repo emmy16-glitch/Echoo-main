@@ -1,0 +1,425 @@
+/* Echoo login final responsive polish.
+   Loaded after the original login stylesheet so this pass can correct
+   layout behaviour without touching authentication or backend wiring. */
+
+.echoo-login-page {
+  grid-template-columns: minmax(0, 1.08fr) minmax(390px, 0.92fr);
+  min-height: 100dvh;
+  overflow-x: clip;
+}
+
+.echoo-login-hero,
+.echoo-login-panel,
+.echoo-login-form-wrap,
+.echoo-login-live-card,
+.echoo-login-live-card-body {
+  min-width: 0;
+}
+
+.echoo-login-hero {
+  padding: 38px clamp(34px, 4.4vw, 70px) 36px;
+}
+
+.echoo-login-hero-copy {
+  max-width: 610px;
+  margin-top: clamp(54px, 7vh, 92px);
+}
+
+.echoo-login-hero-copy h1 {
+  max-width: 590px;
+  font-size: clamp(46px, 4.55vw, 68px);
+  line-height: 1.01;
+  letter-spacing: -0.052em;
+  text-wrap: balance;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.echoo-login-hero-copy p {
+  max-width: 520px;
+  margin-top: 22px;
+  font-size: clamp(14px, 1.05vw, 17px);
+  line-height: 1.58;
+}
+
+/* The login visual is intentionally decorative and generic.
+   No fake host names, listener counts, follower counts or programme data. */
+.echoo-login-live-card {
+  width: min(540px, 100%);
+  min-height: 176px;
+  margin-top: clamp(34px, 4.8vh, 54px);
+  display: block;
+  overflow: hidden;
+  padding: 0;
+  border: 1px solid rgba(207, 222, 240, 0.95);
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 84% 22%, rgba(106, 139, 234, 0.22) 0 3px, transparent 4px),
+    radial-gradient(circle at 84% 22%, transparent 0 46px, rgba(23, 105, 211, 0.07) 47px 48px, transparent 49px 78px, rgba(23, 105, 211, 0.045) 79px 80px, transparent 81px),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(239, 247, 255, 0.96));
+  box-shadow: 0 18px 44px rgba(35, 76, 124, 0.1);
+  backdrop-filter: blur(12px);
+}
+
+.echoo-login-live-card > * {
+  display: none !important;
+}
+
+.echoo-login-live-card::before {
+  content: "●  LIVE AUDIO\A\AConversations, live on Echoo\ACreate, listen and connect in real time.";
+  position: absolute;
+  z-index: 2;
+  left: 24px;
+  top: 22px;
+  max-width: calc(100% - 48px);
+  white-space: pre-line;
+  color: #6f7f93;
+  font-size: 12px;
+  line-height: 1.5;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.echoo-login-live-card::first-line {
+  color: #1769d3;
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.075em;
+}
+
+.echoo-login-live-card::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  left: 24px;
+  right: 24px;
+  bottom: 22px;
+  height: 34px;
+  border-radius: 8px;
+  opacity: 0.78;
+  background:
+    linear-gradient(180deg, transparent 48%, rgba(23, 105, 211, 0.08) 49% 51%, transparent 52%),
+    repeating-linear-gradient(
+      90deg,
+      rgba(23, 105, 211, 0.78) 0 3px,
+      transparent 3px 8px,
+      rgba(93, 129, 224, 0.58) 8px 11px,
+      transparent 11px 16px
+    );
+  clip-path: polygon(
+    0 52%, 3% 35%, 6% 68%, 9% 25%, 12% 70%, 15% 42%, 18% 60%, 21% 18%,
+    24% 77%, 27% 32%, 30% 63%, 33% 24%, 36% 73%, 39% 39%, 42% 58%, 45% 16%,
+    48% 79%, 51% 36%, 54% 62%, 57% 28%, 60% 71%, 63% 43%, 66% 57%, 69% 23%,
+    72% 74%, 75% 34%, 78% 64%, 81% 26%, 84% 69%, 87% 41%, 90% 60%, 93% 30%,
+    96% 67%, 100% 49%, 100% 100%, 0 100%
+  );
+}
+
+.echoo-login-features {
+  padding-top: 34px;
+  gap: 16px;
+}
+
+.echoo-login-panel {
+  padding: 70px clamp(34px, 4.3vw, 72px) 48px;
+}
+
+.echoo-login-form-wrap {
+  width: min(430px, 100%);
+}
+
+.echoo-login-heading {
+  margin-bottom: 32px;
+}
+
+.echoo-login-heading h1 {
+  font-size: clamp(34px, 2.6vw, 44px);
+}
+
+.echoo-login-field-group {
+  margin-bottom: 18px;
+}
+
+.echoo-login-social {
+  white-space: nowrap;
+}
+
+/* Compact desktop / laptop widths: keep two columns, but stop the hero
+   headline and decorative card from competing with the form. */
+@media (max-width: 1279px) and (min-width: 1024px) {
+  .echoo-login-page {
+    grid-template-columns: minmax(0, 0.98fr) minmax(420px, 1.02fr);
+  }
+
+  .echoo-login-hero {
+    padding-left: 34px;
+    padding-right: 34px;
+  }
+
+  .echoo-login-hero-copy {
+    margin-top: 52px;
+  }
+
+  .echoo-login-hero-copy h1 {
+    font-size: clamp(44px, 4.5vw, 56px);
+  }
+
+  .echoo-login-live-card {
+    width: min(480px, 100%);
+    min-height: 160px;
+    margin-top: 30px;
+  }
+
+  .echoo-login-features {
+    display: none;
+  }
+
+  .echoo-login-panel {
+    padding-left: 38px;
+    padding-right: 38px;
+  }
+}
+
+/* Short laptop screens should fit comfortably without a giant hero card. */
+@media (max-height: 820px) and (min-width: 1024px) {
+  .echoo-login-hero {
+    padding-top: 28px;
+    padding-bottom: 28px;
+  }
+
+  .echoo-login-brand-mark {
+    width: 40px;
+    height: 40px;
+  }
+
+  .echoo-login-brand-name {
+    font-size: 26px;
+  }
+
+  .echoo-login-hero-copy {
+    margin-top: 36px;
+  }
+
+  .echoo-login-hero-copy h1 {
+    font-size: clamp(42px, 4.2vw, 58px);
+  }
+
+  .echoo-login-hero-copy p {
+    margin-top: 16px;
+  }
+
+  .echoo-login-live-card {
+    min-height: 145px;
+    margin-top: 24px;
+  }
+
+  .echoo-login-live-card::before {
+    top: 18px;
+  }
+
+  .echoo-login-live-card::after {
+    bottom: 17px;
+    height: 28px;
+  }
+
+  .echoo-login-features {
+    display: none;
+  }
+
+  .echoo-login-panel {
+    padding-top: 56px;
+    padding-bottom: 36px;
+  }
+
+  .echoo-login-heading {
+    margin-bottom: 24px;
+  }
+
+  .echoo-login-divider {
+    margin-top: 22px;
+    margin-bottom: 17px;
+  }
+
+  .echoo-login-signup-prompt {
+    margin-top: 20px;
+  }
+}
+
+/* Switch earlier than before.  This removes the awkward 760-1000px range
+   where the previous two-column layout squeezed text and cards out of bounds. */
+@media (max-width: 1023px) {
+  .echoo-login-page {
+    display: block;
+    min-height: 100dvh;
+    overflow: visible;
+    background:
+      radial-gradient(circle at 88% 12%, rgba(23, 105, 211, 0.1) 0 2px, transparent 3px),
+      linear-gradient(180deg, #f8fbff 0%, #ffffff 34%, #ffffff 100%);
+  }
+
+  .echoo-login-hero {
+    display: none;
+  }
+
+  .echoo-login-panel {
+    min-height: 100dvh;
+    display: block;
+    padding: 30px 24px 38px;
+    background: transparent;
+  }
+
+  .echoo-login-help {
+    display: none;
+  }
+
+  .echoo-login-form-wrap {
+    position: relative;
+    z-index: 1;
+    width: min(100%, 480px);
+    margin: 0 auto;
+  }
+
+  .echoo-login-mobile-brand {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 28px;
+  }
+
+  .echoo-login-heading {
+    margin-bottom: 22px;
+    text-align: center;
+  }
+
+  .echoo-login-heading h1 {
+    font-size: clamp(31px, 6vw, 40px);
+  }
+
+  .echoo-login-mobile-preview {
+    display: block;
+    margin-bottom: 26px;
+  }
+
+  .echoo-login-mobile-preview .echoo-login-live-card {
+    width: 100%;
+    min-height: 136px;
+    margin: 0;
+    border-radius: 18px;
+  }
+
+  .echoo-login-mobile-preview .echoo-login-live-card::before {
+    left: 18px;
+    top: 17px;
+    max-width: calc(100% - 36px);
+    font-size: 10px;
+    line-height: 1.45;
+  }
+
+  .echoo-login-mobile-preview .echoo-login-live-card::after {
+    left: 18px;
+    right: 18px;
+    bottom: 15px;
+    height: 26px;
+  }
+
+  .echoo-login-socials {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  .echoo-login-panel {
+    padding: 24px 18px 30px;
+  }
+
+  .echoo-login-mobile-brand {
+    margin-bottom: 22px;
+  }
+
+  .echoo-login-mobile-brand .echoo-login-brand-mark {
+    width: 38px;
+    height: 38px;
+  }
+
+  .echoo-login-mobile-brand .echoo-login-brand-name {
+    font-size: 23px;
+  }
+
+  .echoo-login-heading {
+    margin-bottom: 19px;
+  }
+
+  .echoo-login-heading h1 {
+    font-size: clamp(29px, 9vw, 36px);
+  }
+
+  .echoo-login-heading p {
+    margin-top: 7px;
+    font-size: 11.5px;
+  }
+
+  .echoo-login-mobile-preview {
+    margin-bottom: 21px;
+  }
+
+  .echoo-login-mobile-preview .echoo-login-live-card {
+    min-height: 126px;
+  }
+
+  .echoo-login-mobile-preview .echoo-login-live-card::before {
+    font-size: 9.5px;
+  }
+
+  .echoo-login-field-group {
+    margin-bottom: 16px;
+  }
+
+  .echoo-login-input-shell,
+  .echoo-login-submit {
+    min-height: 49px;
+  }
+
+  .echoo-login-divider {
+    margin: 23px 0 17px;
+  }
+
+  .echoo-login-social {
+    min-height: 46px;
+  }
+
+  .echoo-login-signup-prompt {
+    margin-top: 22px;
+  }
+}
+
+@media (max-width: 360px) {
+  .echoo-login-panel {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .echoo-login-mobile-preview .echoo-login-live-card {
+    min-height: 118px;
+  }
+
+  .echoo-login-mobile-preview .echoo-login-live-card::before {
+    left: 15px;
+    top: 14px;
+    max-width: calc(100% - 30px);
+    font-size: 9px;
+  }
+
+  .echoo-login-mobile-preview .echoo-login-live-card::after {
+    left: 15px;
+    right: 15px;
+    bottom: 13px;
+    height: 22px;
+  }
+
+  .echoo-login-field-row {
+    gap: 10px;
+  }
+
+  .echoo-login-social {
+    white-space: normal;
+  }
+}

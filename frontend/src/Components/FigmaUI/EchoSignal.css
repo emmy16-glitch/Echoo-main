@@ -1,0 +1,191 @@
+.echoo-signal {
+  --signal-size: 54px;
+
+  position: relative;
+
+  width:
+    var(--signal-size);
+
+  height:
+    var(--signal-size);
+
+  flex:
+    0 0
+    var(--signal-size);
+
+  display: grid;
+
+  place-items: center;
+
+  isolation: isolate;
+}
+
+.echoo-signal-sm {
+  --signal-size: 40px;
+}
+
+.echoo-signal-md {
+  --signal-size: 54px;
+}
+
+.echoo-signal-lg {
+  --signal-size: 92px;
+}
+
+.echoo-signal-xl {
+  --signal-size: 128px;
+}
+
+.echoo-signal-ring {
+  position: absolute;
+
+  left: 50%;
+  top: 50%;
+
+  border:
+    1px solid
+    rgba(38, 93, 255, 0.18);
+
+  border-radius: 50%;
+
+  pointer-events: none;
+
+  transform:
+    translate(-50%, -50%);
+
+  opacity: 0;
+}
+
+.echoo-signal-ring.ring-one {
+  width: 72%;
+  height: 72%;
+}
+
+.echoo-signal-ring.ring-two {
+  width: 100%;
+  height: 100%;
+}
+
+.echoo-signal-core {
+  position: relative;
+
+  z-index: 3;
+
+  width: 48%;
+  height: 48%;
+
+  display: grid;
+
+  place-items: center;
+
+  overflow: hidden;
+
+  border:
+    1px solid
+    rgba(38, 93, 255, 0.18);
+
+  border-radius: 50%;
+
+  background: #FFFFFF;
+
+  color: #265DFF;
+}
+
+.echoo-signal-dot {
+  width: 8px;
+  height: 8px;
+
+  border-radius: 50%;
+
+  background: #265DFF;
+}
+
+.echoo-signal.is-active
+.echoo-signal-ring {
+  opacity: 1;
+}
+
+.echoo-signal.is-active
+.ring-one {
+  animation:
+    echooSignalOne
+    2.3s
+    ease-out
+    infinite;
+}
+
+.echoo-signal.is-active
+.ring-two {
+  animation:
+    echooSignalTwo
+    2.3s
+    ease-out
+    infinite;
+}
+
+.echoo-signal.is-speaking
+.echoo-signal-ring {
+  border-color:
+    rgba(38, 93, 255, 0.28);
+
+  animation-duration:
+    1.35s;
+}
+
+@keyframes echooSignalOne {
+  0% {
+    opacity: 0;
+    transform:
+      translate(-50%, -50%)
+      scale(0.72);
+  }
+
+  20% {
+    opacity: 0.7;
+  }
+
+  75% {
+    opacity: 0;
+  }
+
+  100% {
+    opacity: 0;
+    transform:
+      translate(-50%, -50%)
+      scale(1.08);
+  }
+}
+
+@keyframes echooSignalTwo {
+  0% {
+    opacity: 0;
+    transform:
+      translate(-50%, -50%)
+      scale(0.62);
+  }
+
+  30% {
+    opacity: 0.42;
+  }
+
+  100% {
+    opacity: 0;
+    transform:
+      translate(-50%, -50%)
+      scale(1.13);
+  }
+}
+
+@media (
+  prefers-reduced-motion:
+  reduce
+) {
+  .echoo-signal-ring {
+    animation: none !important;
+  }
+
+  .echoo-signal.is-active
+  .echoo-signal-ring {
+    opacity: 0.42;
+  }
+}
