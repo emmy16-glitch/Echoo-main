@@ -30,9 +30,16 @@ const forbidFile = (relative) => {
   'frontend/src/Components/CreatorStudio/CreatorStudio.jsx',
   'frontend/src/Components/CreatorStudio/CreatorStudioHome.jsx',
   'frontend/src/Components/CreatorStudio/CreatorLiveConnectedWorkspace.jsx',
+  'frontend/src/Components/CreatorStudio/CreatorAudioMixer.jsx',
+  'frontend/src/Components/CreatorStudio/CreatorBroadcastStudioExact.css',
   'frontend/src/Components/CreatorStudio/CreatorStationsWorkspace.jsx',
+  'frontend/src/Components/CreatorStudio/CreatorStationsExact.css',
+  'frontend/src/Components/CreatorStudio/CreatorContentWorkspace.jsx',
+  'frontend/src/Components/CreatorStudio/CreatorContentExact.css',
   'frontend/src/Components/ListenerLiveExperience/ListenerRealLiveRoom.jsx',
   'frontend/src/Components/ListenerLiveExperience/LiveKitListenerPlayer.jsx',
+  'frontend/src/services/echooMixerService.js',
+  'frontend/src/services/livekitPublisher.js',
   'frontend/src/services/realtimeService.js',
   'backend/src/controllers/broadcastController.js',
   'backend/src/providers/livekit.js',
@@ -139,6 +146,26 @@ if (!broadcastRoutes.includes('enforceSingleLiveCreator')) {
   failures.push('Broadcast start route is missing the one-active-live creator guard.');
 }
 
+const mixerService = read('frontend/src/services/echooMixerService.js');
+for (const mixerChannel of ["name: 'Host Mic'", "name: 'Guest Mic'", "name: 'Music / FX'"]) {
+  if (!mixerService.includes(mixerChannel)) failures.push(`Studio mixer is missing channel: ${mixerChannel}`);
+}
+if (!mixerService.includes('createMediaStreamDestination')) {
+  failures.push('Studio mixer is not producing a real mixed MediaStream output.');
+}
+
+const publisher = read('frontend/src/services/livekitPublisher.js');
+if (!publisher.includes("name: 'echoo-studio-mix'") || !publisher.includes('mediaTrack')) {
+  failures.push('LiveKit publisher is not wired to the real Echoo studio mix.');
+}
+
+const broadcastStudio = read('frontend/src/Components/CreatorStudio/CreatorLiveConnectedWorkspace.jsx');
+for (const requiredStudioFeature of ['CreatorAudioMixer', 'Go live now', 'Schedule for later', 'Live chat']) {
+  if (!broadcastStudio.includes(requiredStudioFeature)) {
+    failures.push(`Broadcast Studio is missing: ${requiredStudioFeature}`);
+  }
+}
+
 if (failures.length) {
   console.error('\nEchoo architecture check FAILED:\n');
   failures.forEach((failure) => console.error(`- ${failure}`));
@@ -150,5 +177,6 @@ console.log(`Station creation UI: ${allowedStationCreator}`);
 console.log('Creator navigation: Home -> Stations -> Broadcast -> Audio -> Audience -> Analytics -> Settings');
 console.log('Scheduling authority: unified Broadcast Studio');
 console.log('Live concurrency: one active broadcast per creator account');
-console.log('Live media path: Creator -> LiveKit -> Listener');
+console.log('Studio mixer: Host Mic + Guest Mic + Music/FX -> Master Output -> LiveKit');
+console.log('Live media path: Creator mixer -> LiveKit -> Listener');
 console.log('Synthetic analytics/search data guard: active');
