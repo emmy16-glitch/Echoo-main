@@ -5,31 +5,35 @@ import {
   unfollowUser,
   getFollowers,
   getFollowing,
+  getMyFollowing,
   checkFollowStatus,
   getFollowerCount,
   getMutualFollowers,
+  followStation,
+  unfollowStation,
+  checkStationFollowStatus,
+  getMyFollowedStations,
 } from '../controllers/followController.js';
 
 const router = express.Router();
-
-// All follow routes require authentication
 router.use(authenticate);
 
-// Follow/Unfollow
-router.post('/:userId/follow', followUser);
-router.delete('/:userId/follow', unfollowUser);
+// Current listener's relationship collections.
+router.get('/me/creators', getMyFollowing);
+router.get('/me/stations', getMyFollowedStations);
 
-// Get followers/following
-router.get('/:userId/followers', getFollowers);
-router.get('/:userId/following', getFollowing);
+// Creator/user relationships.
+router.post('/users/:userId', followUser);
+router.delete('/users/:userId', unfollowUser);
+router.get('/users/:userId/status', checkFollowStatus);
+router.get('/users/:userId/count', getFollowerCount);
+router.get('/users/:userId/followers', getFollowers);
+router.get('/users/:userId/following', getFollowing);
+router.get('/users/:userId/mutual', getMutualFollowers);
 
-// Check follow status
-router.get('/:userId/status', checkFollowStatus);
-
-// Get follower count
-router.get('/:userId/count', getFollowerCount);
-
-// Get mutual followers
-router.get('/:userId/mutual', getMutualFollowers);
+// Station relationships are separate from creator relationships.
+router.post('/stations/:stationId', followStation);
+router.delete('/stations/:stationId', unfollowStation);
+router.get('/stations/:stationId/status', checkStationFollowStatus);
 
 export default router;
