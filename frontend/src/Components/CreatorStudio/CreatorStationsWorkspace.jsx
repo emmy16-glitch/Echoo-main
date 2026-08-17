@@ -4,9 +4,9 @@ import {
   FaCalendarAlt,
   FaEdit,
   FaEllipsisH,
-  FaImage,
   FaMicrophone,
   FaPlus,
+  FaRandom,
   FaSave,
   FaTimes,
   FaTrash,
@@ -15,8 +15,13 @@ import {
 } from 'react-icons/fa';
 
 import batch2Service from '../../services/batch2Service';
+import {
+  buildGeneratedStationBrandCoverUrl,
+  randomStationBrandVariant,
+} from '../../stationBranding/stationBranding';
 import './CreatorStationsExact.css';
 import './CreatorStationLogo.css';
+import './CreatorStationBranding.css';
 
 const CATEGORIES = [
   'Faith & Spirituality',
@@ -33,7 +38,7 @@ const CATEGORIES = [
   'Other',
 ];
 
-const EMPTY_FORM = {
+const createEmptyForm = () => ({
   name: '',
   category: 'Other',
   description: '',
@@ -41,8 +46,10 @@ const EMPTY_FORM = {
   logoFile: null,
   logoPreview: '',
   removeLogo: false,
+  brandingMode: 'generated',
+  brandingVariant: randomStationBrandVariant(),
   isPublic: true,
-};
+});
 
 const MAX_LOGO_SIZE = 5 * 1024 * 1024;
 const LOGO_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -53,7 +60,7 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState('');
   const [menuStationId, setMenuStationId] = useState('');
-  const [form, setForm] = useState(EMPTY_FORM);
+  const [form, setForm] = useState(createEmptyForm);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState('');
   const [message, setMessage] = useState('');
@@ -89,6 +96,24 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
 
   const liveStation = stations.find((station) => station.isLive) || null;
 
+  const generatedPreview = useMemo(
+    () => buildGeneratedStationBrandCoverUrl({
+      id: editingId || `preview-${form.brandingVariant}`,
+      name: form.name.trim() || 'Your Station',
+      category: form.category,
+      branding: {
+        mode: 'generated',
+        variant: form.brandingVariant,
+        version: 1,
+      },
+    }),
+    [editingId, form.name, form.category, form.brandingVariant]
+  );
+
+  const brandPreview = form.brandingMode === 'custom' && form.logoPreview
+    ? form.logoPreview
+    : generatedPreview;
+
   const openBroadcast = (station, nextMode = 'now') => {
     if (!station?.id) return;
     sessionStorage.setItem('echooSelectedStationId', String(station.id));
@@ -105,7 +130,7 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
     if (saving) return;
     setFormOpen(false);
     setEditingId('');
-    setForm(EMPTY_FORM);
+    setForm(createEmptyForm());
     resetLogoInput();
   };
 
@@ -114,7 +139,7 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
     setError('');
     setEditingId('');
     setMenuStationId('');
-    setForm(EMPTY_FORM);
+    setForm(createEmptyForm());
     resetLogoInput();
     setFormOpen(true);
   };
@@ -130,8 +155,12 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
       description: station.description || '',
       tags: Array.isArray(station.tags) ? station.tags.join(', ') : '',
       logoFile: null,
-      logoPreview: station.logo || station.coverArt || '',
+      logoPreview: station.logo || '',
       removeLogo: false,
+      brandingMode: station.logo ? 'custom' : 'generated',
+      brandingVariant: Number.isInteger(Number(station.branding?.variant))
+        ? Number(station.branding.variant)
+        : randomStationBrandVariant(),
       isPublic: station.isPublic !== false,
     });
     resetLogoInput();
@@ -165,20 +194,26 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
         logoFile: file,
         logoPreview: typeof reader.result === 'string' ? reader.result : '',
         removeLogo: false,
+        brandingMode: 'custom',
       }));
       setError('');
     };
     reader.readAsDataURL(file);
   };
 
-  const removeLogo = () => {
+  const useEchooBrand = (shuffle = false) => {
     setForm((current) => ({
       ...current,
       logoFile: null,
       logoPreview: '',
-      removeLogo: true,
+      removeLogo: Boolean(editingId) || current.removeLogo,
+      brandingMode: 'generated',
+      brandingVariant: shuffle
+        ? randomStationBrandVariant(current.brandingVariant)
+        : current.brandingVariant,
     }));
     resetLogoInput();
+    setError('');
   };
 
   const submitStation = async (event) => {
@@ -192,6 +227,8 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
       tags: form.tags.split(',').map((tag) => tag.trim()).filter(Boolean),
       logoFile: form.logoFile,
       removeLogo: form.removeLogo,
+      brandingMode: form.brandingMode,
+      brandingVariant: form.brandingVariant,
       isPublic: form.isPublic,
     };
 
@@ -206,20 +243,29 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
 
       if (!response?.data?.id) throw new Error('Echoo did not return the saved station.');
 
-      setStations((current) => {
-        const exists = current.some((station) => String(station.id) === String(response.data.id));
-        if (exists) {
-          return current.map((station) =>
-            String(station.id) === String(response.data.id) ? response.data : station
-          );
-        }
-        return [response.data, ...current];
-      });
+      const refreshed = await batch2Service.getMyStations();
+      const canonicalStations = Array.isArray(refreshed?.data) ? refreshed.data : [];
+      const canonical = canonicalStations.find(
+        (station) => String(station.id) === String(response.data.id)
+      );
 
+      if (!canonical) {
+        throw new Error('The station saved, but Echoo could not reload its brand from the backend.');
+      }
+
+      if (form.brandingMode === 'custom' && form.logoFile && !canonical.logo) {
+        throw new Error('The station saved, but its custom logo did not persist.');
+      }
+
+      if (form.brandingMode === 'generated' && canonical.branding?.mode !== 'generated') {
+        throw new Error('The station saved, but Echoo could not apply the generated brand.');
+      }
+
+      setStations(canonicalStations);
       setMessage(editingId ? 'Station updated.' : 'Station created.');
       setFormOpen(false);
       setEditingId('');
-      setForm(EMPTY_FORM);
+      setForm(createEmptyForm());
       resetLogoInput();
     } catch (saveError) {
       setError(saveError?.message || 'Could not save the station.');
@@ -290,45 +336,77 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
             </div>
             <button type="button" onClick={closeForm}>Close</button>
           </div>
-          <div className="est-form-grid">
-            <label><span>Station name</span><input value={form.name} maxLength={100} placeholder="e.g. Layers of Truth" onChange={(event) => updateField('name', event.target.value)} required /></label>
-            <label><span>Category</span><select value={form.category} onChange={(event) => updateField('category', event.target.value)}>{CATEGORIES.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
-            <label className="wide"><span>Description</span><textarea value={form.description} maxLength={2000} placeholder="What is this station about?" onChange={(event) => updateField('description', event.target.value)} /></label>
 
-            <div className="est-logo-field wide">
+          <div className="est-form-grid">
+            <label>
+              <span>Station name</span>
+              <input value={form.name} maxLength={100} placeholder="e.g. Layers of Truth" onChange={(event) => updateField('name', event.target.value)} required />
+            </label>
+            <label>
+              <span>Category</span>
+              <select value={form.category} onChange={(event) => updateField('category', event.target.value)}>
+                {CATEGORIES.map((item) => <option key={item} value={item}>{item}</option>)}
+              </select>
+            </label>
+            <label className="wide">
+              <span>Description</span>
+              <textarea value={form.description} maxLength={2000} placeholder="What is this station about?" onChange={(event) => updateField('description', event.target.value)} />
+            </label>
+
+            <div className="est-logo-field est-brand-field wide">
               <div className="est-logo-copy">
-                <span>Station logo <em>Optional</em></span>
-                <p>Upload the logo or brand image listeners should recognize. It will appear across the station, Broadcast Studio and listener-facing station views.</p>
+                <span>Station brand <em>Automatic</em></span>
+                <p>
+                  Echoo creates a branded cover automatically. Upload your own logo if you have one,
+                  or shuffle the Echoo design until the station feels right.
+                </p>
               </div>
-              <div className="est-logo-picker">
-                <div className={`est-logo-preview ${form.logoPreview ? 'has-image' : ''}`}>
-                  {form.logoPreview
-                    ? <img src={form.logoPreview} alt="Station logo preview" />
-                    : <FaImage />}
+
+              <div className="est-brand-editor">
+                <div className={`est-logo-preview est-brand-preview ${form.brandingMode === 'custom' ? 'has-image' : 'generated'}`}>
+                  <img src={brandPreview} alt="Station brand preview" />
+                  <span>{form.brandingMode === 'custom' ? 'CUSTOM LOGO' : 'ECHOO DESIGN'}</span>
                 </div>
-                <div className="est-logo-actions">
+
+                <div className="est-logo-actions est-brand-actions">
                   <input
                     ref={logoInputRef}
                     type="file"
                     accept="image/jpeg,image/png,image/webp"
                     onChange={handleLogoFile}
                   />
+
                   <button type="button" onClick={() => logoInputRef.current?.click()}>
-                    <FaUpload /> {form.logoPreview ? 'Change logo' : 'Upload logo'}
+                    <FaUpload /> {form.brandingMode === 'custom' ? 'Change logo' : 'Upload custom logo'}
                   </button>
-                  {form.logoPreview && (
-                    <button type="button" className="remove" onClick={removeLogo}>
-                      <FaTimes /> Remove
+
+                  <button type="button" onClick={() => useEchooBrand(true)}>
+                    <FaRandom /> Shuffle Echoo design
+                  </button>
+
+                  {form.brandingMode === 'custom' && (
+                    <button type="button" className="remove" onClick={() => useEchooBrand(false)}>
+                      <FaTimes /> Use Echoo design
                     </button>
                   )}
-                  <small>JPG, PNG or WebP · max 5 MB</small>
+
+                  <small>
+                    Generated designs are saved with the station. Custom JPG, PNG or WebP logos can be up to 5 MB.
+                  </small>
                 </div>
               </div>
             </div>
 
-            <label><span>Tags</span><input value={form.tags} placeholder="faith, teaching, inspiration" onChange={(event) => updateField('tags', event.target.value)} /></label>
-            <label className="est-public"><input type="checkbox" checked={form.isPublic} onChange={(event) => updateField('isPublic', event.target.checked)} /><span>Public station</span></label>
+            <label>
+              <span>Tags</span>
+              <input value={form.tags} placeholder="faith, teaching, inspiration" onChange={(event) => updateField('tags', event.target.value)} />
+            </label>
+            <label className="est-public">
+              <input type="checkbox" checked={form.isPublic} onChange={(event) => updateField('isPublic', event.target.checked)} />
+              <span>Public station</span>
+            </label>
           </div>
+
           <div className="est-form-actions">
             <button type="button" onClick={closeForm} disabled={saving}>Cancel</button>
             <button type="submit" className="primary" disabled={saving || !form.name.trim()}>
@@ -357,9 +435,7 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
             return (
               <article className={`est-card ${isCurrentLive ? 'live' : ''}`} key={station.id}>
                 <div className="est-art">
-                  {station.logo || station.coverArt
-                    ? <img src={station.logo || station.coverArt} alt={`${station.name} logo`} />
-                    : <FaBroadcastTower />}
+                  <img src={station.brandCover || station.coverArt} alt={`${station.name} brand`} />
                   {isCurrentLive && <span>LIVE</span>}
                 </div>
                 <div className="est-body">
@@ -384,7 +460,7 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
                       title={anotherStationLive ? 'End the current live broadcast before starting another.' : ''}
                       onClick={() => openBroadcast(station, 'now')}
                     >
-                      <FaMicrophone /> {anotherStationLive ? 'Live on another station' : 'Start broadcast'}
+                      <FaMicrophone /> {anotherStationLive ? 'Another station is live' : 'Start broadcast'}
                     </button>
                   )}
 
