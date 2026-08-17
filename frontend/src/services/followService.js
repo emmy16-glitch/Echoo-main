@@ -3,18 +3,34 @@ import batch2Service, { normalizeStation } from './batch2Service.js';
 
 const normalizeCreator = (creator) => {
   if (!creator) return null;
+  const profile = creator.creatorProfile || {};
+
   return {
     ...creator,
     id: creator.id || creator._id || null,
     avatar: buildMediaUrl(
-      creator.avatar || creator.creatorProfile?.organizationLogo || null
+      creator.avatar || profile.organizationLogo || null
     ),
     name:
       creator.displayName ||
-      creator.creatorProfile?.artistName ||
-      creator.creatorProfile?.organizationName ||
+      profile.artistName ||
+      profile.organizationName ||
       creator.username ||
       'Echoo Creator',
+    category: profile.category || creator.category || 'Creator',
+    verified: Boolean(profile.isVerified || creator.verified),
+  };
+};
+
+const loadFollowingCreators = async () => {
+  const response = await apiRequest('/follows/me/following');
+  const raw = Array.isArray(response?.data?.following)
+    ? response.data.following
+    : [];
+
+  return {
+    ...response,
+    data: raw.map(normalizeCreator).filter(Boolean),
   };
 };
 
@@ -42,16 +58,9 @@ const followService = {
     return response?.data || null;
   },
 
-  getMyFollowingCreators: async () => {
-    const response = await apiRequest('/follows/me/following');
-    const raw = Array.isArray(response?.data?.following)
-      ? response.data.following
-      : [];
-    return {
-      ...response,
-      data: raw.map(normalizeCreator).filter(Boolean),
-    };
-  },
+  // Keep both names because existing listener surfaces use getFollowingCreators.
+  getFollowingCreators: loadFollowingCreators,
+  getMyFollowingCreators: loadFollowingCreators,
 
   getStationStatus: async (stationId) => {
     const response = await apiRequest(
