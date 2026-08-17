@@ -1,9 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   FaArrowLeft,
   FaBroadcastTower,
-  FaCheck,
   FaHeadphones,
   FaPlay,
 } from 'react-icons/fa';
@@ -11,6 +10,8 @@ import {
 import batch3Service from '../../services/batch3Service';
 import followService from '../../services/followService';
 import '../../styles/echoo-batch3.css';
+
+const STATION_SYNC_INTERVAL_MS = 15000;
 
 const ListenerRealStationProfile = () => {
   const { stationId } = useParams();
@@ -25,79 +26,101 @@ const ListenerRealStationProfile = () => {
   const [followBusy, setFollowBusy] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    let active = true;
+  const load = useCallback(async ({ silent = false } = {}) => {
+    try {
+      if (!silent) setLoading(true);
+      setError('');
 
-    const load = async () => {
-      try {
-        setLoading(true);
-        setError('');
+      const stationResult = await batch3Service.getStation(stationId);
+      const nextStation = stationResult?.data || null;
 
-        const stationResult = await batch3Service.getStation(stationId);
-        if (!active || !stationResult?.data) return;
-
-        setStation(stationResult.data);
-        setFollowerCount(Number(stationResult.data.followerCount) || 0);
-
-        const [liveResult, upcomingResult, followResult] = await Promise.allSettled([
-          batch3Service.getLiveBroadcastForStation(stationId),
-          batch3Service.getUpcomingForStation(stationId),
-          followService.getStationStatus(stationId),
-        ]);
-
-        if (!active) return;
-
-        if (liveResult.status === 'fulfilled') {
-          setLive(liveResult.value?.data || null);
-        }
-
-        if (upcomingResult.status === 'fulfilled') {
-          setUpcoming(
-            Array.isArray(upcomingResult.value?.data)
-              ? upcomingResult.value.data
-              : []
-          );
-        }
-
-        if (followResult.status === 'fulfilled') {
-          setFollowing(Boolean(followResult.value?.isFollowing));
-          setFollowerCount(
-            Number(followResult.value?.followerCount) ||
-              Number(stationResult.data.followerCount) ||
-              0
-          );
-        }
-      } catch (loadError) {
-        if (active) {
-          setError(loadError?.message || 'This station could not be loaded from Echoo.');
-        }
-      } finally {
-        if (active) setLoading(false);
+      if (!nextStation?.id || nextStation.isPublic === false) {
+        setStation(null);
+        setLive(null);
+        setUpcoming([]);
+        return;
       }
-    };
 
-    load();
-    return () => {
-      active = false;
-    };
+      setStation(nextStation);
+      setFollowerCount(Number(nextStation.followerCount) || 0);
+
+      const [liveResult, upcomingResult, followResult] = await Promise.allSettled([
+        batch3Service.getLiveBroadcastForStation(stationId),
+        batch3Service.getUpcomingForStation(stationId),
+        followService.getStationStatus(stationId),
+      ]);
+
+      if (liveResult.status === 'fulfilled') {
+        setLive(liveResult.value?.data || null);
+      } else {
+        setLive(null);
+      }
+
+      if (upcomingResult.status === 'fulfilled') {
+        setUpcoming(
+          Array.isArray(upcomingResult.value?.data)
+            ? upcomingResult.value.data
+            : []
+        );
+      } else {
+        setUpcoming([]);
+      }
+
+      if (followResult.status === 'fulfilled') {
+        setFollowing(Boolean(followResult.value?.isFollowing));
+        const statusCount = Number(followResult.value?.followerCount);
+        setFollowerCount(
+          Number.isFinite(statusCount)
+            ? statusCount
+            : Number(nextStation.followerCount) || 0
+        );
+      }
+    } catch (loadError) {
+      if (!silent) {
+        setStation(null);
+      }
+      setError(loadError?.message || 'This station could not be loaded from Echoo.');
+    } finally {
+      if (!silent) setLoading(false);
+    }
   }, [stationId]);
 
+  useEffect(() => {
+    load();
+
+    const sync = () => load({ silent: true });
+    const interval = window.setInterval(sync, STATION_SYNC_INTERVAL_MS);
+    window.addEventListener('focus', sync);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', sync);
+    };
+  }, [load]);
+
   const toggleFollow = async () => {
-    if (followBusy) return;
+    if (followBusy || !station?.id) return;
 
     try {
       setFollowBusy(true);
       setError('');
 
-      if (following) {
-        const response = await followService.unfollowStation(stationId);
-        setFollowing(false);
-        setFollowerCount(Number(response?.data?.followerCount) || 0);
+      const wasFollowing = following;
+      const response = wasFollowing
+        ? await followService.unfollowStation(stationId)
+        : await followService.followStation(stationId);
+
+      setFollowing(!wasFollowing);
+
+      const nextCount = Number(
+        response?.data?.station?.followerCount ?? response?.data?.followerCount
+      );
+
+      if (Number.isFinite(nextCount)) {
+        setFollowerCount(nextCount);
       } else {
-        const response = await followService.followStation(stationId);
-        setFollowing(true);
-        setFollowerCount(
-          Number(response?.data?.station?.followerCount) || followerCount + 1
+        setFollowerCount((current) =>
+          Math.max(0, current + (wasFollowing ? -1 : 1))
         );
       }
     } catch (followError) {
@@ -118,23 +141,35 @@ const ListenerRealStationProfile = () => {
   if (!station) {
     return (
       <div className="b3-listener-page">
-        <button type="button" className="b3-back" onClick={() => navigate('/listen/stations')}>
+        <button
+          type="button"
+          className="b3-back"
+          title="Back to stations"
+          onClick={() => navigate('/listen/stations')}
+        >
           <FaArrowLeft /> Stations
         </button>
         <div className="echoo-cleanup-state">
           <strong>Station unavailable.</strong>
-          <span>{error || 'This station could not be loaded from Echoo.'}</span>
+          <span>{error || 'This station is not available publicly.'}</span>
         </div>
       </div>
     );
   }
 
-  const artwork = station.coverArt || null;
+  const artwork = station.brandCover || station.coverArt || station.logo || null;
   const creatorId = station.ownerId || station.creatorId || station.owner?.id || null;
+  const creatorName = station.ownerName || station.creatorName || station.owner?.displayName || '';
+  const isActuallyLive = Boolean(live?.id);
 
   return (
     <div className="b3-listener-page">
-      <button type="button" className="b3-back" onClick={() => navigate('/listen/stations')}>
+      <button
+        type="button"
+        className="b3-back"
+        title="Back to stations"
+        onClick={() => navigate('/listen/stations')}
+      >
         <FaArrowLeft /> Stations
       </button>
 
@@ -143,26 +178,36 @@ const ListenerRealStationProfile = () => {
       <section className="b3-station-profile">
         <div className="b3-profile-art">
           {artwork ? <img src={artwork} alt="" /> : <FaHeadphones />}
-          {station.isLive && <span className="b3-live-pill">LIVE</span>}
+          {isActuallyLive && <span className="b3-live-pill">LIVE</span>}
         </div>
 
         <div className="b3-profile-copy">
-          <span className="b3-kicker">{station.category}</span>
+          {station.category && <span className="b3-kicker">{station.category}</span>}
           <h1>{station.name}</h1>
-          <p>{station.description || 'An Echoo station.'}</p>
+          {station.description && <p>{station.description}</p>}
+          {creatorName && <small>By {creatorName}</small>}
 
           <div className="b3-profile-metrics">
             <span><strong>{followerCount}</strong> followers</span>
-            <span><strong>{station.listenerCount || 0}</strong> listening</span>
+            <span><strong>{Number(station.listenerCount) || 0}</strong> listening</span>
           </div>
 
           <div className="b3-profile-actions">
-            <button type="button" onClick={toggleFollow} disabled={followBusy}>
-              {following ? <><FaCheck /> Following</> : 'Follow station'}
+            <button
+              type="button"
+              onClick={toggleFollow}
+              disabled={followBusy}
+              title={following ? `Unfollow ${station.name}` : `Follow ${station.name}`}
+            >
+              {followBusy ? 'Updating...' : following ? 'Unfollow' : 'Follow station'}
             </button>
 
             {creatorId && (
-              <button type="button" onClick={() => navigate(`/listen/creator/${creatorId}`)}>
+              <button
+                type="button"
+                title={creatorName ? `View ${creatorName}` : 'View creator'}
+                onClick={() => navigate(`/listen/creator/${creatorId}`)}
+              >
                 View creator
               </button>
             )}
@@ -171,6 +216,7 @@ const ListenerRealStationProfile = () => {
               <button
                 type="button"
                 className="primary"
+                title={`Listen live to ${station.name}`}
                 onClick={() => navigate(`/listen/live/${live.id}`)}
               >
                 <FaPlay /> Listen Live
@@ -187,9 +233,13 @@ const ListenerRealStationProfile = () => {
             <FaBroadcastTower />
             <div>
               <strong>{live.title}</strong>
-              <span>{live.listenerCount || 0} listening</span>
+              <span>{Number(live.listenerCount) || 0} listening</span>
             </div>
-            <button type="button" onClick={() => navigate(`/listen/live/${live.id}`)}>
+            <button
+              type="button"
+              title={`Join ${live.title}`}
+              onClick={() => navigate(`/listen/live/${live.id}`)}
+            >
               Join
             </button>
           </article>
@@ -210,7 +260,11 @@ const ListenerRealStationProfile = () => {
                   <span>Scheduled</span>
                 </div>
                 <time>{new Date(item.startTime).toLocaleString()}</time>
-                <button type="button" onClick={() => navigate(`/listen/live/${item.id}`)}>
+                <button
+                  type="button"
+                  title={`View ${item.title}`}
+                  onClick={() => navigate(`/listen/live/${item.id}`)}
+                >
                   View
                 </button>
               </article>
