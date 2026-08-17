@@ -1,629 +1,370 @@
-import React, {
-  useEffect,
-  useState,
-} from "react";
-
+import { useEffect, useState } from 'react';
 import {
   FaBell,
-  FaGlobe,
+  FaEnvelope,
+  FaLock,
   FaSave,
   FaUser,
-} from "react-icons/fa";
+} from 'react-icons/fa';
 
-import batch1Service from "../../services/batch1Service";
+import settingsService from '../../services/settingsService';
+import './CreatorSettingsConnected.css';
 
-import EchoAvatar from "../EchooSystem/EchoAvatar";
-import EchoSignal from "../EchooSystem/EchoSignal";
-
-import "./CreatorPhase10.css";
-
-const SETTINGS_KEY =
-  "echoo-creator-settings-v1";
-
-const readLocalPublishing =
-  () => {
-    try {
-      const value =
-        JSON.parse(
-          localStorage.getItem(
-            SETTINGS_KEY
-          ) || "{}"
-        );
-
-      return (
-        value.defaultPublic !==
-        false
-      );
-    } catch {
-      return true;
-    }
-  };
-
-const CreatorSettingsWorkspace = ({
-  user = {},
-  studioName = "Creator",
-  studioType = "Creator",
-}) => {
-  const [
-    loading,
-    setLoading,
-  ] = useState(true);
-
-  const [
-    saving,
-    setSaving,
-  ] = useState(false);
-
-  const [
-    message,
-    setMessage,
-  ] = useState("");
-
-  const [
-    error,
-    setError,
-  ] = useState("");
-
-  const [
-    displayName,
-    setDisplayName,
-  ] = useState(
-    user.displayName ||
-    user.fullname ||
-    studioName ||
-    ""
-  );
-
-  const [
-    bio,
-    setBio,
-  ] = useState(
-    user.bio || ""
-  );
-
-  const [
-    email,
-    setEmail,
-  ] = useState(
-    user.email ||
-    "Not available"
-  );
-
-  const [
-    avatar,
-    setAvatar,
-  ] = useState(
-    user.avatar ||
-    user.profileImage ||
-    null
-  );
-
-  const [
-    language,
-    setLanguage,
-  ] = useState("en");
-
-  const [
-    theme,
-    setTheme,
-  ] = useState("system");
-
-  const [
-    notifications,
-    setNotifications,
-  ] = useState({
+const CreatorSettingsWorkspace = () => {
+  const [profile, setProfile] = useState({
+    displayName: '',
+    bio: '',
+    avatar: '',
+  });
+  const [notifications, setNotifications] = useState({
     email: true,
     push: true,
     newFollowers: true,
     newReleases: true,
   });
-
-  const [
-    defaultPublic,
-    setDefaultPublic,
-  ] = useState(
-    readLocalPublishing
-  );
+  const [emailForm, setEmailForm] = useState({ email: '', password: '' });
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
+  const [defaultPublic, setDefaultPublic] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState('');
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
 
   useEffect(() => {
     let active = true;
 
-    batch1Service
-      .getSettings()
-      .then((response) => {
-        if (!active) {
-          return;
-        }
+    const load = async () => {
+      try {
+        setLoading(true);
+        setError('');
+        const response = await settingsService.get();
+        if (!active) return;
 
-        const settings =
-          response?.data || {};
-
-        const profile =
-          settings.profile || {};
-
-        const preferences =
-          settings.preferences || {};
-
-        setDisplayName(
-          profile.displayName ||
-          user.displayName ||
-          user.fullname ||
-          studioName ||
-          ""
-        );
-
-        setBio(
-          profile.bio ||
-          user.bio ||
-          ""
-        );
-
-        setEmail(
-          profile.email ||
-          user.email ||
-          "Not available"
-        );
-
-        setAvatar(
-          profile.avatar ||
-          user.avatar ||
-          user.profileImage ||
-          null
-        );
-
-        setLanguage(
-          preferences.language ||
-          "en"
-        );
-
-        setTheme(
-          preferences.theme ||
-          "system"
-        );
-
-        setNotifications({
-          email:
-            preferences
-              .notifications
-              ?.email !== false,
-          push:
-            preferences
-              .notifications
-              ?.push !== false,
-          newFollowers:
-            preferences
-              .notifications
-              ?.newFollowers !== false,
-          newReleases:
-            preferences
-              .notifications
-              ?.newReleases !== false,
+        const data = response?.data || {};
+        setProfile({
+          displayName: data.profile?.displayName || '',
+          bio: data.profile?.bio || '',
+          avatar: data.profile?.avatar || '',
         });
-      })
-      .catch((loadError) => {
-        console.warn(
-          "Creator settings backend:",
-          loadError
-        );
+        setEmailForm({
+          email: data.profile?.email || '',
+          password: '',
+        });
+        setNotifications({
+          email: data.preferences?.notifications?.email !== false,
+          push: data.preferences?.notifications?.push !== false,
+          newFollowers: data.preferences?.notifications?.newFollowers !== false,
+          newReleases: data.preferences?.notifications?.newReleases !== false,
+        });
 
-        if (active) {
-          setError(
-            "Could not load server settings. Your current local values are still shown."
+        try {
+          const localPreference = JSON.parse(
+            localStorage.getItem('echoo-creator-settings-v1') || '{}'
           );
+          setDefaultPublic(localPreference.defaultPublic !== false);
+        } catch {
+          setDefaultPublic(true);
         }
-      })
-      .finally(() => {
+      } catch (loadError) {
         if (active) {
-          setLoading(false);
+          setError(loadError?.message || 'Could not load Creator Settings.');
         }
-      });
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
 
+    load();
     return () => {
       active = false;
     };
   }, []);
 
-  const changeNotification =
-    (
-      key
-    ) => {
-      setNotifications(
-        (current) => ({
-          ...current,
-          [key]:
-            !current[key],
-        })
-      );
-    };
+  const run = async (name, action, success) => {
+    try {
+      setBusy(name);
+      setError('');
+      setMessage('');
+      const response = await action();
+      setMessage(success);
+      return response;
+    } catch (actionError) {
+      setError(actionError?.message || 'Could not save this setting.');
+      return null;
+    } finally {
+      setBusy('');
+    }
+  };
 
-  const save =
-    async () => {
-      if (saving) {
-        return;
-      }
+  const saveProfile = async (event) => {
+    event.preventDefault();
+    const response = await run(
+      'profile',
+      () => settingsService.updateProfile(profile),
+      'Creator profile updated.'
+    );
 
-      setSaving(true);
-      setMessage("");
-      setError("");
-
-      localStorage.setItem(
-        SETTINGS_KEY,
-        JSON.stringify({
-          defaultPublic,
-          updatedAt:
-            new Date()
-              .toISOString(),
-        })
-      );
-
+    if (response?.data?.profile) {
       try {
-        await Promise.all([
-          batch1Service.updateProfile({
-            displayName:
-              displayName.trim(),
-            bio:
-              bio.trim(),
-          }),
-          batch1Service.updatePreferences({
-            language,
-            theme,
-            notifications,
-          }),
-        ]);
-
-        try {
-          const stored =
-            JSON.parse(
-              localStorage.getItem(
-                "user"
-              ) || "{}"
-            );
-
-          localStorage.setItem(
-            "user",
-            JSON.stringify({
-              ...stored,
-              displayName:
-                displayName.trim(),
-              bio:
-                bio.trim(),
-            })
-          );
-        } catch {}
-
-        setMessage(
-          "Settings saved to your Echoo account."
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        localStorage.setItem(
+          'user',
+          JSON.stringify({ ...user, ...response.data.profile })
         );
-      } catch (
-        saveError
-      ) {
-        console.error(
-          "Save settings error:",
-          saveError
-        );
-
-        setError(
-          saveError?.message ||
-          "Could not save account settings."
-        );
-      } finally {
-        setSaving(false);
+      } catch {
+        // Backend remains authoritative even if the local mirror cannot update.
       }
-    };
+    }
+  };
 
-  const image =
-    avatar ||
-    user.avatar ||
-    user.profileImage ||
-    null;
+  const saveNotifications = async (event) => {
+    event.preventDefault();
+    await run(
+      'notifications',
+      () => settingsService.updateNotifications(notifications),
+      'Notification settings updated.'
+    );
+  };
+
+  const savePublishing = (event) => {
+    event.preventDefault();
+    localStorage.setItem(
+      'echoo-creator-settings-v1',
+      JSON.stringify({ defaultPublic })
+    );
+    setMessage('Default upload visibility updated for this creator workspace.');
+  };
+
+  const saveEmail = async (event) => {
+    event.preventDefault();
+    const response = await run(
+      'email',
+      () => settingsService.updateEmail(emailForm),
+      'Account email updated.'
+    );
+    if (response) setEmailForm((current) => ({ ...current, password: '' }));
+  };
+
+  const savePassword = async (event) => {
+    event.preventDefault();
+    const response = await run(
+      'password',
+      () => settingsService.updatePassword(passwordForm),
+      'Password updated.'
+    );
+    if (response) {
+      setPasswordForm({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: '',
+      });
+    }
+  };
+
+  if (loading) {
+    return <div className="creator-settings-real-message">Loading Creator Settings...</div>;
+  }
 
   return (
-    <section className="creator10-page creator10-settings batch1-settings-page">
-      <header className="creator10-page-header">
-        <div>
-          <span className="creator10-kicker">
-            CREATOR SETTINGS
-          </span>
-
-          <h1>
-            Your Echoo account,
-            connected.
-          </h1>
-
-          <p>
-            Profile and preferences now save to the Echoo backend. Publishing default stays browser-local because the backend does not expose that preference yet.
-          </p>
-        </div>
-
-        <EchoSignal
-          size="lg"
-          state="idle"
-          activeNodes={0}
-        >
-          <EchoAvatar
-            image={image}
-            name={
-              displayName ||
-              studioName
-            }
-            size="sm"
-            state="idle"
-          />
-        </EchoSignal>
+    <section className="creator-settings-real">
+      <header className="creator-settings-real-header">
+        <span>CREATOR SETTINGS</span>
+        <h2>Your creator account.</h2>
+        <p>Account/profile settings are persisted by the Echoo backend.</p>
       </header>
 
-      {loading && (
-        <div className="batch1-settings-notice">
-          Loading account settings...
-        </div>
-      )}
-
       {message && (
-        <div className="batch1-settings-notice success">
-          {message}
-        </div>
+        <div className="creator-settings-real-message success">{message}</div>
       )}
-
       {error && (
-        <div className="batch1-settings-notice error">
-          {error}
-        </div>
+        <div className="creator-settings-real-message error">{error}</div>
       )}
 
-      <section className="creator10-settings-section">
-        <div className="creator10-section-heading">
-          <div>
-            <h2>
-              Creator identity
-            </h2>
-            <p>
-              These details are stored on your Echoo account.
-            </p>
-          </div>
-        </div>
+      <div className="creator-settings-real-grid">
+        <form className="creator-settings-real-card" onSubmit={saveProfile}>
+          <h3><FaUser /> Profile</h3>
+          <p>Update the identity shown around Echoo.</p>
 
-        <div className="creator10-identity-row">
-          <EchoAvatar
-            image={image}
-            name={
-              displayName ||
-              studioName
-            }
-            size="lg"
-            state="idle"
-          />
-
-          <div className="creator10-identity-main">
-            <strong>
-              {displayName ||
-                studioName}
-            </strong>
-            <span>
-              {email}
-            </span>
-            <small>
-              {studioType}
-            </small>
-          </div>
-        </div>
-
-        <div className="batch1-settings-grid">
-          <label className="batch1-field">
-            <span>
-              <FaUser />
-              Display name
-            </span>
+          <label>
+            <span>Display name</span>
             <input
-              value={displayName}
-              maxLength={80}
+              value={profile.displayName}
+              maxLength={100}
               onChange={(event) =>
-                setDisplayName(
-                  event.target.value
-                )
+                setProfile((current) => ({
+                  ...current,
+                  displayName: event.target.value,
+                }))
               }
             />
           </label>
 
-          <label className="batch1-field full">
-            <span>
-              <FaUser />
-              Bio
-            </span>
+          <label>
+            <span>Bio</span>
             <textarea
-              value={bio}
+              value={profile.bio}
               maxLength={500}
-              placeholder="Tell listeners what your voice is about."
               onChange={(event) =>
-                setBio(
-                  event.target.value
-                )
+                setProfile((current) => ({
+                  ...current,
+                  bio: event.target.value,
+                }))
               }
             />
           </label>
-        </div>
-      </section>
 
-      <section className="creator10-settings-section">
-        <div className="creator10-section-heading">
-          <div>
-            <h2>
-              Experience
-            </h2>
-            <p>
-              Account-level preferences stored by Echoo.
-            </p>
-          </div>
-        </div>
-
-        <div className="batch1-settings-grid">
-          <label className="batch1-field">
-            <span>
-              <FaGlobe />
-              Language
-            </span>
-            <select
-              value={language}
+          <label>
+            <span>Avatar URL</span>
+            <input
+              value={profile.avatar}
               onChange={(event) =>
-                setLanguage(
-                  event.target.value
-                )
+                setProfile((current) => ({
+                  ...current,
+                  avatar: event.target.value,
+                }))
               }
-            >
-              <option value="en">
-                English
-              </option>
-              <option value="fr">
-                French
-              </option>
-            </select>
+            />
           </label>
 
-          <label className="batch1-field">
-            <span>
-              <FaGlobe />
-              Theme preference
-            </span>
-            <select
-              value={theme}
-              onChange={(event) =>
-                setTheme(
-                  event.target.value
-                )
-              }
-            >
-              <option value="system">
-                System
-              </option>
-              <option value="light">
-                Light
-              </option>
-              <option value="dark">
-                Dark
-              </option>
-            </select>
-          </label>
-        </div>
-      </section>
+          <button type="submit" disabled={busy === 'profile'}>
+            <FaSave /> {busy === 'profile' ? 'Saving...' : 'Save profile'}
+          </button>
+        </form>
 
-      <section className="creator10-settings-section">
-        <div className="creator10-section-heading">
-          <div>
-            <h2>
-              Notifications
-            </h2>
-            <p>
-              Choose which account updates you want to receive.
-            </p>
-          </div>
-        </div>
+        <form className="creator-settings-real-card" onSubmit={saveNotifications}>
+          <h3><FaBell /> Notifications</h3>
+          <p>Choose which Echoo account updates you receive.</p>
 
-        <div className="batch1-toggle-list">
           {[
-            [
-              "email",
-              "Email notifications",
-            ],
-            [
-              "push",
-              "Push notifications",
-            ],
-            [
-              "newFollowers",
-              "New followers",
-            ],
-            [
-              "newReleases",
-              "New releases",
-            ],
-          ].map(
-            ([key, label]) => (
-              <button
-                type="button"
-                className="batch1-toggle-row"
-                key={key}
-                onClick={() =>
-                  changeNotification(
-                    key
-                  )
+            ['push', 'In-app / push notifications'],
+            ['email', 'Email notifications'],
+            ['newFollowers', 'New follower notifications'],
+            ['newReleases', 'Release and broadcast updates'],
+          ].map(([key, label]) => (
+            <label className="creator-settings-real-toggle" key={key}>
+              <span>{label}</span>
+              <input
+                type="checkbox"
+                checked={Boolean(notifications[key])}
+                onChange={(event) =>
+                  setNotifications((current) => ({
+                    ...current,
+                    [key]: event.target.checked,
+                  }))
                 }
-              >
-                <span>
-                  <FaBell />
-                  {label}
-                </span>
+              />
+            </label>
+          ))}
 
-                <i
-                  className={
-                    notifications[key]
-                      ? "on"
-                      : ""
-                  }
-                >
-                  <b />
-                </i>
-              </button>
-            )
-          )}
-        </div>
-      </section>
+          <button type="submit" disabled={busy === 'notifications'}>
+            <FaSave /> {busy === 'notifications' ? 'Saving...' : 'Save notifications'}
+          </button>
+        </form>
 
-      <section className="creator10-settings-section">
-        <div className="creator10-section-heading">
-          <div>
-            <h2>
-              Publishing default
-            </h2>
-            <p>
-              Local browser preference until the backend exposes a publishing-default field.
-            </p>
+        <form className="creator-settings-real-card" onSubmit={savePublishing}>
+          <h3>Publishing default</h3>
+          <p>
+            This is a creator-workspace convenience default. Every uploaded audio record
+            still stores its own real public/private value in the backend.
+          </p>
+          <label className="creator-settings-real-toggle">
+            <span>Make new uploads public by default</span>
+            <input
+              type="checkbox"
+              checked={defaultPublic}
+              onChange={(event) => setDefaultPublic(event.target.checked)}
+            />
+          </label>
+          <button type="submit"><FaSave /> Save upload default</button>
+        </form>
+
+        <form className="creator-settings-real-card" onSubmit={saveEmail}>
+          <h3><FaEnvelope /> Email</h3>
+          <p>Changing your account email requires your current password.</p>
+          <label>
+            <span>Email</span>
+            <input
+              type="email"
+              required
+              value={emailForm.email}
+              onChange={(event) =>
+                setEmailForm((current) => ({ ...current, email: event.target.value }))
+              }
+            />
+          </label>
+          <label>
+            <span>Current password</span>
+            <input
+              type="password"
+              required
+              value={emailForm.password}
+              onChange={(event) =>
+                setEmailForm((current) => ({ ...current, password: event.target.value }))
+              }
+            />
+          </label>
+          <button type="submit" disabled={busy === 'email'}>
+            <FaSave /> {busy === 'email' ? 'Saving...' : 'Update email'}
+          </button>
+        </form>
+
+        <form className="creator-settings-real-card wide" onSubmit={savePassword}>
+          <h3><FaLock /> Password</h3>
+          <p>Use your current password to rotate the account password.</p>
+          <div className="creator-settings-real-grid">
+            <label>
+              <span>Current password</span>
+              <input
+                type="password"
+                required
+                value={passwordForm.currentPassword}
+                onChange={(event) =>
+                  setPasswordForm((current) => ({
+                    ...current,
+                    currentPassword: event.target.value,
+                  }))
+                }
+              />
+            </label>
+            <label>
+              <span>New password</span>
+              <input
+                type="password"
+                required
+                minLength={6}
+                value={passwordForm.newPassword}
+                onChange={(event) =>
+                  setPasswordForm((current) => ({
+                    ...current,
+                    newPassword: event.target.value,
+                  }))
+                }
+              />
+            </label>
+            <label>
+              <span>Confirm password</span>
+              <input
+                type="password"
+                required
+                minLength={6}
+                value={passwordForm.confirmPassword}
+                onChange={(event) =>
+                  setPasswordForm((current) => ({
+                    ...current,
+                    confirmPassword: event.target.value,
+                  }))
+                }
+              />
+            </label>
           </div>
-        </div>
-
-        <button
-          type="button"
-          className="batch1-toggle-row"
-          onClick={() =>
-            setDefaultPublic(
-              (current) =>
-                !current
-            )
-          }
-        >
-          <span>
-            <FaGlobe />
-            New uploads default to public
-          </span>
-
-          <i
-            className={
-              defaultPublic
-                ? "on"
-                : ""
-            }
-          >
-            <b />
-          </i>
-        </button>
-      </section>
-
-      <div className="batch1-settings-savebar">
-        <span>
-          Profile + preferences save to Echoo. Publishing default saves locally.
-        </span>
-
-        <button
-          type="button"
-          disabled={
-            saving ||
-            loading
-          }
-          onClick={save}
-        >
-          <FaSave />
-          {saving
-            ? "Saving..."
-            : "Save settings"}
-        </button>
+          <button type="submit" disabled={busy === 'password'}>
+            <FaLock /> {busy === 'password' ? 'Updating...' : 'Update password'}
+          </button>
+        </form>
       </div>
     </section>
   );
