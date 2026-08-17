@@ -1,5 +1,26 @@
 import mongoose from 'mongoose';
 
+const stationBrandingSchema = new mongoose.Schema(
+  {
+    mode: {
+      type: String,
+      enum: ['generated', 'custom'],
+      default: 'generated',
+    },
+    variant: {
+      type: Number,
+      min: 0,
+      max: 511,
+      default: 0,
+    },
+    version: {
+      type: Number,
+      default: 1,
+    },
+  },
+  { _id: false }
+);
+
 const stationSchema = new mongoose.Schema(
   {
     name: {
@@ -27,9 +48,19 @@ const stationSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    // A creator-supplied logo/cover. When this is null, clients render the
+    // persisted Echoo-generated brand identity in `branding` instead.
     coverArt: {
       type: String,
       default: null,
+    },
+    branding: {
+      type: stationBrandingSchema,
+      default: () => ({
+        mode: 'generated',
+        variant: 0,
+        version: 1,
+      }),
     },
     category: {
       type: String,
