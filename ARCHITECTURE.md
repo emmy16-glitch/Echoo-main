@@ -26,7 +26,9 @@ The canonical backend resource is:
 
 The Live and Schedule workspaces may select existing stations but must not create another station implementation.
 
-`Station.isLive` and `Station.listenerCount` are runtime fields controlled by the broadcast/LiveKit lifecycle. Creators cannot manually toggle them through the Station API.
+`Station.isLive` and `Station.listenerCount` are derived runtime fields controlled by the Broadcast/LiveKit lifecycle. Creators cannot manually toggle them through the Station API.
+
+Station does not own a second schedule. Future broadcast timing belongs to Broadcast records.
 
 ### Broadcast scheduling
 
@@ -184,10 +186,11 @@ Following never controls access to public live audio.
 - Saved audio lives on the Echoo user account.
 - Playlists are MongoDB Playlist records.
 - Browser `localStorage` is not the authoritative saved-audio or playlist database.
+- Browser Cache Storage may hold actual downloaded media for offline playback, while backend download records hold associated metadata.
 
 ### Search
 
-Search reads real public Echoo data only:
+Global search reads real public Echoo data only:
 
 - audio
 - creators
@@ -195,6 +198,23 @@ Search reads real public Echoo data only:
 - public playlists
 
 Empty search results remain empty. The frontend must not substitute demo content.
+
+Echoo does not yet record query-frequency/search-trend time series. Popular/trending endpoints must therefore identify their measured basis and must not invent query counts or trend percentages.
+
+### Analytics
+
+Only recorded values may appear as analytics.
+
+Examples of recorded values include Audio play/like counters, Follow records, Broadcast listener/peak values and Analytics snapshots.
+
+Until Echoo genuinely collects them, the following remain unavailable/empty rather than estimated:
+
+- audience geography
+- age demographics
+- synthetic audience segments
+- listening-pattern heatmaps
+- fabricated follower curves
+- random/fixed change percentages
 
 ## Optional future media infrastructure
 
@@ -204,7 +224,7 @@ They are **not required** for the current direct LiveKit listening path and must
 
 ## Mock-data policy
 
-Production routes and connected product screens must not substitute fake broadcasts, fake listeners, fake followers, fake creators, fake recommendations or bundled sample audio when the backend is empty or unavailable.
+Production routes and connected product screens must not substitute fake broadcasts, fake listeners, fake followers, fake creators, fake recommendations, bundled sample audio or synthetic analytics when the backend is empty or unavailable.
 
 Use honest states such as:
 
