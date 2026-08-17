@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  FaCheck,
   FaHeadphones,
   FaPlay,
   FaSearch,
@@ -10,6 +9,8 @@ import {
 import batch3Service from '../../services/batch3Service';
 import followService from '../../services/followService';
 import '../../styles/echoo-batch3.css';
+
+const STATION_SYNC_INTERVAL_MS = 15000;
 
 const ListenerStationsConnected = () => {
   const navigate = useNavigate();
@@ -21,9 +22,9 @@ const ListenerStationsConnected = () => {
   const [actionId, setActionId] = useState('');
   const [error, setError] = useState('');
 
-  const load = useCallback(async () => {
+  const load = useCallback(async ({ silent = false } = {}) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       setFailed(false);
       setError('');
 
@@ -37,28 +38,41 @@ const ListenerStationsConnected = () => {
       }
 
       const realStations = Array.isArray(stationResult.value?.data)
-        ? stationResult.value.data
+        ? stationResult.value.data.filter(
+            (station) => station?.id && station.isPublic !== false
+          )
         : [];
       setStations(realStations);
 
       if (followedResult.status === 'fulfilled') {
         setFollowingIds(
           new Set(
-            (followedResult.value?.data || []).map((station) => String(station.id))
+            (followedResult.value?.data || [])
+              .filter((station) => station?.id)
+              .map((station) => String(station.id))
           )
         );
       }
     } catch (loadError) {
       console.error('Real stations:', loadError);
-      setFailed(true);
+      if (!silent) setFailed(true);
       setError(loadError?.message || 'Stations could not be loaded.');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     load();
+
+    const sync = () => load({ silent: true });
+    const interval = window.setInterval(sync, STATION_SYNC_INTERVAL_MS);
+    window.addEventListener('focus', sync);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', sync);
+    };
   }, [load]);
 
   const visible = useMemo(() => {
@@ -69,7 +83,9 @@ const ListenerStationsConnected = () => {
       (station) =>
         station.name?.toLowerCase().includes(term) ||
         station.category?.toLowerCase().includes(term) ||
-        station.description?.toLowerCase().includes(term)
+        station.description?.toLowerCase().includes(term) ||
+        station.ownerName?.toLowerCase().includes(term) ||
+        station.tags?.some((tag) => String(tag).toLowerCase().includes(term))
     );
   }, [stations, query]);
 
@@ -104,7 +120,7 @@ const ListenerStationsConnected = () => {
       if (Number.isFinite(followerCount)) {
         setStations((current) =>
           current.map((item) =>
-            item.id === station.id ? { ...item, followerCount } : item
+            String(item.id) === key ? { ...item, followerCount } : item
           )
         );
       }
@@ -123,7 +139,7 @@ const ListenerStationsConnected = () => {
         return;
       }
     } catch {
-      // Station profile provides the honest non-live state.
+      // The station profile is the authoritative fallback when a live session ends.
     }
 
     navigate(`/listen/stations/${station.id}`);
@@ -135,7 +151,7 @@ const ListenerStationsConnected = () => {
         <div className="echoo-cleanup-state">
           <strong>Stations could not be loaded.</strong>
           <span>{error || 'Echoo could not reach the Station service.'}</span>
-          <button type="button" onClick={load}>Try again</button>
+          <button type="button" onClick={() => load()}>Try again</button>
         </div>
       </div>
     );
@@ -147,7 +163,7 @@ const ListenerStationsConnected = () => {
         <div>
           <span className="b3-kicker">STATIONS</span>
           <h1>Voices with a home.</h1>
-          <p>Real public Echoo stations and their current live state.</p>
+          <p>Public stations exactly as their creators configured them.</p>
         </div>
 
         <div className="b3-search-box">
@@ -167,17 +183,21 @@ const ListenerStationsConnected = () => {
       ) : (
         <div className="b3-station-grid">
           {visible.map((station) => {
-            const isFollowing = followingIds.has(String(station.id));
+            const key = String(station.id);
+            const isFollowing = followingIds.has(key);
+            const artwork = station.brandCover || station.coverArt || station.logo || null;
 
             return (
               <article className="b3-station-card" key={station.id}>
                 <button
                   type="button"
                   className="b3-station-art"
+                  title={`Open ${station.name}`}
+                  aria-label={`Open ${station.name}`}
                   onClick={() => navigate(`/listen/stations/${station.id}`)}
                 >
-                  {station.coverArt ? (
-                    <img src={station.coverArt} alt="" />
+                  {artwork ? (
+                    <img src={artwork} alt="" />
                   ) : (
                     <FaHeadphones />
                   )}
@@ -186,18 +206,21 @@ const ListenerStationsConnected = () => {
                 </button>
 
                 <div className="b3-station-body">
-                  <span className="b3-card-label">{station.category}</span>
+                  {station.category && (
+                    <span className="b3-card-label">{station.category}</span>
+                  )}
                   <h2>{station.name}</h2>
-                  <p>{station.description || 'An Echoo station.'}</p>
+                  {station.description && <p>{station.description}</p>}
 
                   <div className="b3-station-metrics">
-                    <span>{station.listenerCount || 0} listening</span>
-                    <span>{station.followerCount || 0} followers</span>
+                    <span>{Number(station.listenerCount) || 0} listening</span>
+                    <span>{Number(station.followerCount) || 0} followers</span>
                   </div>
 
                   <div className="b3-card-actions">
                     <button
                       type="button"
+                      title={`View ${station.name}`}
                       onClick={() => navigate(`/listen/stations/${station.id}`)}
                     >
                       View station
@@ -207,6 +230,7 @@ const ListenerStationsConnected = () => {
                       <button
                         type="button"
                         className="primary"
+                        title={`Listen live to ${station.name}`}
                         onClick={() => listenLive(station)}
                       >
                         <FaPlay /> Listen Live
@@ -215,10 +239,16 @@ const ListenerStationsConnected = () => {
 
                     <button
                       type="button"
-                      disabled={actionId === String(station.id)}
+                      className={isFollowing ? 'is-following' : ''}
+                      disabled={actionId === key}
+                      title={isFollowing ? `Unfollow ${station.name}` : `Follow ${station.name}`}
                       onClick={() => toggleFollow(station)}
                     >
-                      {isFollowing ? <><FaCheck /> Following</> : 'Follow'}
+                      {actionId === key
+                        ? 'Updating...'
+                        : isFollowing
+                          ? 'Unfollow'
+                          : 'Follow'}
                     </button>
                   </div>
                 </div>
