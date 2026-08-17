@@ -1,0 +1,52 @@
+/* Echoo generated Station brands are authored as 640x360 (16:9) SVGs.
+   They contain real typography and edge-safe artwork, so they must never be
+   cropped like a photographic thumbnail. Custom uploaded artwork is untouched. */
+
+.est-brand-preview img[src^="data:image/svg+xml"],
+.est-art img[src^="data:image/svg+xml"],
+.b3-station-art img[src^="data:image/svg+xml"],
+.b3-feature-art img[src^="data:image/svg+xml"],
+.b3-live-card img[src^="data:image/svg+xml"],
+.b3-profile-art img[src^="data:image/svg+xml"],
+.b3-room-art img[src^="data:image/svg+xml"],
+.llr-art img[src^="data:image/svg+xml"] {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
+  object-position: center !important;
+}
+
+/* Where a generated cover is the main artwork, let its container follow the
+   cover's native ratio instead of forcing the 16:9 design through a square or
+   arbitrary fixed-height crop. */
+.est-art:has(> img[src^="data:image/svg+xml"]),
+.b3-station-art:has(> img[src^="data:image/svg+xml"]),
+.b3-profile-art:has(> img[src^="data:image/svg+xml"]),
+.llr-art:has(> img[src^="data:image/svg+xml"]) {
+  height: auto !important;
+  aspect-ratio: 16 / 9 !important;
+}
+
+.b3-live-card > img[src^="data:image/svg+xml"] {
+  height: auto !important;
+  aspect-ratio: 16 / 9 !important;
+}
+
+/* Keep generated covers centered on larger live/discovery stages. */
+.b3-feature-art:has(> img[src^="data:image/svg+xml"]),
+.b3-room-art:has(> img[src^="data:image/svg+xml"]) {
+  display: grid !important;
+  place-items: center !important;
+}
+
+/* The SVG itself has rounded corners. Neutral backing prevents transparent
+   corner pixels from looking like a broken image while preserving the design. */
+.est-art:has(> img[src^="data:image/svg+xml"]),
+.b3-station-art:has(> img[src^="data:image/svg+xml"]),
+.b3-profile-art:has(> img[src^="data:image/svg+xml"]),
+.b3-feature-art:has(> img[src^="data:image/svg+xml"]),
+.b3-live-card:has(> img[src^="data:image/svg+xml"]),
+.b3-room-art:has(> img[src^="data:image/svg+xml"]),
+.llr-art:has(> img[src^="data:image/svg+xml"]) {
+  background: #eef2f6 !important;
+}
