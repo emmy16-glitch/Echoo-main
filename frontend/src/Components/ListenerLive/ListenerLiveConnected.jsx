@@ -11,6 +11,8 @@ import {
 import batch3Service from '../../services/batch3Service';
 import '../../styles/echoo-batch3.css';
 
+const LIVE_SYNC_INTERVAL_MS = 10000;
+
 const formatStart = (value) => {
   if (!value) return 'Time not set';
   const date = new Date(value);
@@ -45,24 +47,38 @@ const ListenerLiveConnected = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [failed, setFailed] = useState(false);
 
-  const load = useCallback(async (refresh = false) => {
+  const load = useCallback(async ({ refresh = false, silent = false } = {}) => {
     try {
-      refresh ? setRefreshing(true) : setLoading(true);
-      setFailed(false);
+      if (!silent) {
+        refresh ? setRefreshing(true) : setLoading(true);
+        setFailed(false);
+      }
+
       const data = await batch3Service.getDiscovery();
       setLive(data.live || []);
       setScheduled(data.scheduled || []);
     } catch (error) {
       console.error('Real Live:', error);
-      setFailed(true);
+      if (!silent) setFailed(true);
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (!silent) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }, []);
 
   useEffect(() => {
     load();
+
+    const sync = () => load({ silent: true });
+    const interval = window.setInterval(sync, LIVE_SYNC_INTERVAL_MS);
+    window.addEventListener('focus', sync);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', sync);
+    };
   }, [load]);
 
   const totalListeners = useMemo(
@@ -104,7 +120,7 @@ const ListenerLiveConnected = () => {
           type="button"
           className="b3-refresh"
           disabled={refreshing}
-          onClick={() => load(true)}
+          onClick={() => load({ refresh: true })}
         >
           <FaSyncAlt /> {refreshing ? 'Refreshing...' : 'Refresh'}
         </button>
