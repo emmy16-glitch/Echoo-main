@@ -64,7 +64,13 @@ const downloadService = {
     }
 
     const cacheUrl = resolveUrl(track.fileUrl);
-    const response = await fetch(cacheUrl, { credentials: 'include' });
+
+    // Uploaded Echoo audio is served as public static media. Do not send browser
+    // credentials here: frontend and API commonly run on different origins, and
+    // the backend intentionally exposes media with credential-free CORS.
+    const response = await fetch(cacheUrl, {
+      credentials: 'omit',
+    });
 
     if (!response.ok) {
       throw new Error(
