@@ -6,19 +6,13 @@ import {
   FaEllipsisH,
   FaMicrophone,
   FaPlus,
-  FaRandom,
   FaSave,
-  FaTimes,
   FaTrash,
   FaUpload,
   FaUsers,
 } from 'react-icons/fa';
 
 import batch2Service from '../../services/batch2Service';
-import {
-  buildGeneratedStationBrandCoverUrl,
-  randomStationBrandVariant,
-} from '../../stationBranding/stationBranding';
 import './CreatorStationsExact.css';
 import './CreatorStationLogo.css';
 import './CreatorStationBranding.css';
@@ -46,8 +40,6 @@ const createEmptyForm = () => ({
   logoFile: null,
   logoPreview: '',
   removeLogo: false,
-  brandingMode: 'generated',
-  brandingVariant: randomStationBrandVariant(),
   isPublic: true,
 });
 
@@ -96,24 +88,6 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
 
   const liveStation = stations.find((station) => station.isLive) || null;
 
-  const generatedPreview = useMemo(
-    () => buildGeneratedStationBrandCoverUrl({
-      id: editingId || `preview-${form.brandingVariant}`,
-      name: form.name.trim() || 'Your Station',
-      category: form.category,
-      branding: {
-        mode: 'generated',
-        variant: form.brandingVariant,
-        version: 1,
-      },
-    }),
-    [editingId, form.name, form.category, form.brandingVariant]
-  );
-
-  const brandPreview = form.brandingMode === 'custom' && form.logoPreview
-    ? form.logoPreview
-    : generatedPreview;
-
   const openBroadcast = (station, nextMode = 'now') => {
     if (!station?.id) return;
     sessionStorage.setItem('echooSelectedStationId', String(station.id));
@@ -155,12 +129,8 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
       description: station.description || '',
       tags: Array.isArray(station.tags) ? station.tags.join(', ') : '',
       logoFile: null,
-      logoPreview: station.logo || '',
+      logoPreview: station.logo || station.coverArt || '',
       removeLogo: false,
-      brandingMode: station.logo ? 'custom' : 'generated',
-      brandingVariant: Number.isInteger(Number(station.branding?.variant))
-        ? Number(station.branding.variant)
-        : randomStationBrandVariant(),
       isPublic: station.isPublic !== false,
     });
     resetLogoInput();
@@ -176,13 +146,13 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
     if (!file) return;
 
     if (!LOGO_TYPES.has(file.type)) {
-      setError('Station logo must be a JPG, PNG or WebP image.');
+      setError('Station artwork must be a JPG, PNG or WebP image.');
       resetLogoInput();
       return;
     }
 
     if (file.size > MAX_LOGO_SIZE) {
-      setError('Station logo must be 5 MB or smaller.');
+      setError('Station artwork must be 5 MB or smaller.');
       resetLogoInput();
       return;
     }
@@ -194,23 +164,18 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
         logoFile: file,
         logoPreview: typeof reader.result === 'string' ? reader.result : '',
         removeLogo: false,
-        brandingMode: 'custom',
       }));
       setError('');
     };
     reader.readAsDataURL(file);
   };
 
-  const setEchooBrandMode = (shuffle = false) => {
+  const removeArtwork = () => {
     setForm((current) => ({
       ...current,
       logoFile: null,
       logoPreview: '',
       removeLogo: Boolean(editingId) || current.removeLogo,
-      brandingMode: 'generated',
-      brandingVariant: shuffle
-        ? randomStationBrandVariant(current.brandingVariant)
-        : current.brandingVariant,
     }));
     resetLogoInput();
     setError('');
@@ -227,8 +192,6 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
       tags: form.tags.split(',').map((tag) => tag.trim()).filter(Boolean),
       logoFile: form.logoFile,
       removeLogo: form.removeLogo,
-      brandingMode: form.brandingMode,
-      brandingVariant: form.brandingVariant,
       isPublic: form.isPublic,
     };
 
@@ -250,15 +213,11 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
       );
 
       if (!canonical) {
-        throw new Error('The station saved, but Echoo could not reload its brand from the backend.');
+        throw new Error('The station saved, but Echoo could not reload it from the backend.');
       }
 
-      if (form.brandingMode === 'custom' && form.logoFile && !canonical.logo) {
-        throw new Error('The station saved, but its custom logo did not persist.');
-      }
-
-      if (form.brandingMode === 'generated' && canonical.branding?.mode !== 'generated') {
-        throw new Error('The station saved, but Echoo could not apply the generated brand.');
+      if (form.logoFile && !canonical.logo) {
+        throw new Error('The station saved, but its uploaded artwork did not persist.');
       }
 
       setStations(canonicalStations);
@@ -332,7 +291,7 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
             <div>
               <span>{editingId ? 'EDIT STATION' : 'NEW STATION'}</span>
               <h2>{editingId ? 'Update station' : 'Create a station'}</h2>
-              <p>This is the permanent home your broadcasts belong to.</p>
+              <p>Everything listeners see here comes from what you save for this station.</p>
             </div>
             <button type="button" onClick={closeForm}>Close</button>
           </div>
@@ -355,17 +314,24 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
 
             <div className="est-logo-field est-brand-field wide">
               <div className="est-logo-copy">
-                <span>Station brand <em>Automatic</em></span>
+                <span>Station artwork <em>Optional</em></span>
                 <p>
-                  Echoo creates a branded cover automatically. Upload your own logo if you have one,
-                  or shuffle the Echoo design until the station feels right.
+                  Upload the real artwork you want listeners to see. Echoo will not generate or invent
+                  a station cover when you leave this empty.
                 </p>
               </div>
 
               <div className="est-brand-editor">
-                <div className={`est-logo-preview est-brand-preview ${form.brandingMode === 'custom' ? 'has-image' : 'generated'}`}>
-                  <img src={brandPreview} alt="Station brand preview" />
-                  <span>{form.brandingMode === 'custom' ? 'CUSTOM LOGO' : 'ECHOO DESIGN'}</span>
+                <div className={`est-logo-preview est-brand-preview ${form.logoPreview ? 'has-image' : 'empty'}`}>
+                  {form.logoPreview ? (
+                    <img src={form.logoPreview} alt="Station artwork preview" />
+                  ) : (
+                    <div className="est-brand-empty" aria-label="No station artwork uploaded">
+                      <FaBroadcastTower />
+                      <span>No artwork uploaded</span>
+                    </div>
+                  )}
+                  {form.logoPreview && <span>CREATOR ARTWORK</span>}
                 </div>
 
                 <div className="est-logo-actions est-brand-actions">
@@ -377,21 +343,17 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
                   />
 
                   <button type="button" onClick={() => logoInputRef.current?.click()}>
-                    <FaUpload /> {form.brandingMode === 'custom' ? 'Change logo' : 'Upload custom logo'}
+                    <FaUpload /> {form.logoPreview ? 'Change artwork' : 'Upload artwork'}
                   </button>
 
-                  <button type="button" onClick={() => setEchooBrandMode(true)}>
-                    <FaRandom /> Shuffle Echoo design
-                  </button>
-
-                  {form.brandingMode === 'custom' && (
-                    <button type="button" className="remove" onClick={() => setEchooBrandMode(false)}>
-                      <FaTimes /> Use Echoo design
+                  {form.logoPreview && (
+                    <button type="button" className="remove" onClick={removeArtwork}>
+                      <FaTrash /> Remove artwork
                     </button>
                   )}
 
                   <small>
-                    Generated designs are saved with the station. Custom JPG, PNG or WebP logos can be up to 5 MB.
+                    JPG, PNG or WebP, up to 5 MB. If no artwork is uploaded, listeners see a neutral station placeholder.
                   </small>
                 </div>
               </div>
@@ -431,11 +393,18 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
             const isCurrentLive = Boolean(station.isLive);
             const anotherStationLive = Boolean(liveStation && !isCurrentLive);
             const menuOpen = String(menuStationId) === String(station.id);
+            const artwork = station.logo || station.coverArt || null;
 
             return (
               <article className={`est-card ${isCurrentLive ? 'live' : ''}`} key={station.id}>
                 <div className="est-art">
-                  <img src={station.brandCover || station.coverArt} alt={`${station.name} brand`} />
+                  {artwork ? (
+                    <img src={artwork} alt={`${station.name} artwork`} />
+                  ) : (
+                    <div className="est-card-art-empty" aria-label="No station artwork">
+                      <FaBroadcastTower />
+                    </div>
+                  )}
                   {isCurrentLive && <span>LIVE</span>}
                 </div>
                 <div className="est-body">
