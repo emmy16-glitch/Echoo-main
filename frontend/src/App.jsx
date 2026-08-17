@@ -23,6 +23,7 @@ import ListenerHistory from './Components/ListenerHistory/ListenerHistoryConnect
 import ListenerDownloads from './Components/ListenerDownloads/ListenerDownloadsConnected';
 import ListenerCreatorProfile from './Components/ListenerCreatorProfile/ListenerCreatorProfile';
 import ListenerNotifications from './Components/ListenerNotifications/ListenerNotifications';
+import ListenerSettings from './Components/ListenerSettings/ListenerSettings';
 import ListenerRealLiveRoom from './Components/ListenerLiveExperience/ListenerRealLiveRoom';
 import ListenerRealStationProfile from './Components/ListenerLiveExperience/ListenerRealStationProfile';
 
@@ -227,6 +228,7 @@ function App() {
             <Route path="downloads" element={<ListenerDownloads />} />
             <Route path="creator/:creatorId" element={<ListenerCreatorProfile />} />
             <Route path="notifications" element={<ListenerNotifications />} />
+            <Route path="settings" element={<ListenerSettings />} />
           </Route>
 
           <Route path="*" element={<DefaultRedirect />} />
