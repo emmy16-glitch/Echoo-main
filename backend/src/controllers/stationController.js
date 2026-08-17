@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import mongoose from 'mongoose';
 import Station from '../models/Station.js';
 import Broadcast from '../models/Broadcast.js';
@@ -19,6 +21,56 @@ function invalidId(res) {
 
 function populateOwner(query) {
   return query.populate('owner', OWNER_FIELDS);
+}
+
+function parseTags(value) {
+  if (Array.isArray(value)) return value;
+  if (value === undefined || value === null || value === '') return [];
+
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) return parsed;
+    } catch {
+      // Fall through to comma-separated parsing.
+    }
+
+    return value
+      .split(',')
+      .map((tag) => tag.trim())
+      .filter(Boolean);
+  }
+
+  return [];
+}
+
+function parseBoolean(value, fallback = true) {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    if (value.toLowerCase() === 'false') return false;
+    if (value.toLowerCase() === 'true') return true;
+  }
+  if (value === undefined || value === null) return fallback;
+  return Boolean(value);
+}
+
+function uploadedStationLogo(file) {
+  return file?.filename ? `/uploads/stations/${file.filename}` : null;
+}
+
+async function removeManagedStationLogo(value) {
+  if (!value || !String(value).startsWith('/uploads/stations/')) return;
+
+  const fileName = path.basename(String(value));
+  const filePath = path.join(process.cwd(), 'uploads', 'stations', fileName);
+
+  try {
+    await fs.promises.unlink(filePath);
+  } catch (error) {
+    if (error?.code !== 'ENOENT') {
+      console.warn('Could not remove old station logo:', error.message);
+    }
+  }
 }
 
 export async function createStation(req, res, next) {
@@ -73,9 +125,11 @@ export async function createStation(req, res, next) {
       description,
       owner: req.userId,
       category,
-      tags: Array.isArray(tags) ? tags : [],
-      isPublic: isPublic !== false,
-      coverArt,
+      tags: parseTags(tags),
+      isPublic: parseBoolean(isPublic, true),
+      // `coverArt` is the persisted station brand image for backwards compatibility.
+      // New clients upload it as `logo` rather than asking creators for an image URL.
+      coverArt: uploadedStationLogo(req.file) || coverArt || null,
       isLive: false,
       listenerCount: 0,
     });
@@ -237,6 +291,7 @@ export async function updateStation(req, res, next) {
       tags,
       isPublic,
       coverArt,
+      removeLogo,
     } = req.body;
 
     if (name !== undefined) {
@@ -269,13 +324,29 @@ export async function updateStation(req, res, next) {
 
     if (description !== undefined) station.description = description;
     if (category !== undefined) station.category = category;
-    if (tags !== undefined) station.tags = Array.isArray(tags) ? tags : [];
-    if (isPublic !== undefined) station.isPublic = Boolean(isPublic);
-    if (coverArt !== undefined) station.coverArt = coverArt || null;
+    if (tags !== undefined) station.tags = parseTags(tags);
+    if (isPublic !== undefined) station.isPublic = parseBoolean(isPublic, station.isPublic);
+
+    const previousLogo = station.coverArt;
+    const nextUploadedLogo = uploadedStationLogo(req.file);
+    const shouldRemoveLogo = parseBoolean(removeLogo, false);
+
+    if (nextUploadedLogo) {
+      station.coverArt = nextUploadedLogo;
+    } else if (shouldRemoveLogo) {
+      station.coverArt = null;
+    } else if (coverArt !== undefined) {
+      // Retain compatibility with older JSON clients while the UI uses file uploads.
+      station.coverArt = coverArt || null;
+    }
 
     // isLive/listenerCount are intentionally NOT user-editable here.
     // Broadcast lifecycle + LiveKit presence own those fields.
     await station.save();
+
+    if (previousLogo && previousLogo !== station.coverArt) {
+      await removeManagedStationLogo(previousLogo);
+    }
 
     const populated = await populateOwner(Station.findById(station._id));
 
