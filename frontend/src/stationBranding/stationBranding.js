@@ -53,15 +53,20 @@ const PALETTE_FAMILIES = {
   ],
 };
 
+// Keep generated station covers on Echoo's established typography system so
+// SVG rendering stays consistent across Windows, macOS, Linux and mobile.
+const ECHOO_FONT_FAMILY =
+  'system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif';
+
 const TYPOGRAPHY = [
-  { family: 'Georgia, Times New Roman, serif', weight: 700, style: 'normal', spacing: '-1.8', transform: 'title' },
-  { family: 'Arial Narrow, Helvetica Neue, Arial, sans-serif', weight: 900, style: 'normal', spacing: '-2.2', transform: 'upper' },
-  { family: 'Trebuchet MS, Avenir Next, Arial, sans-serif', weight: 800, style: 'normal', spacing: '-1.6', transform: 'title' },
-  { family: 'Palatino Linotype, Book Antiqua, Georgia, serif', weight: 700, style: 'italic', spacing: '-1.2', transform: 'title' },
-  { family: 'Impact, Haettenschweiler, Arial Narrow Bold, sans-serif', weight: 800, style: 'normal', spacing: '0.2', transform: 'upper' },
-  { family: 'Courier New, monospace', weight: 700, style: 'normal', spacing: '-1.1', transform: 'upper' },
-  { family: 'Avenir Next, Segoe UI, Arial, sans-serif', weight: 800, style: 'normal', spacing: '-2', transform: 'title' },
-  { family: 'Georgia, Times New Roman, serif', weight: 500, style: 'italic', spacing: '-1.5', transform: 'title' },
+  { family: ECHOO_FONT_FAMILY, weight: 800, style: 'normal', spacing: '-1.8', transform: 'title' },
+  { family: ECHOO_FONT_FAMILY, weight: 900, style: 'normal', spacing: '-2.0', transform: 'upper' },
+  { family: ECHOO_FONT_FAMILY, weight: 750, style: 'normal', spacing: '-1.4', transform: 'title' },
+  { family: ECHOO_FONT_FAMILY, weight: 700, style: 'italic', spacing: '-1.2', transform: 'title' },
+  { family: ECHOO_FONT_FAMILY, weight: 900, style: 'normal', spacing: '-0.4', transform: 'upper' },
+  { family: ECHOO_FONT_FAMILY, weight: 700, style: 'normal', spacing: '-0.8', transform: 'upper' },
+  { family: ECHOO_FONT_FAMILY, weight: 850, style: 'normal', spacing: '-1.6', transform: 'title' },
+  { family: ECHOO_FONT_FAMILY, weight: 650, style: 'italic', spacing: '-1.0', transform: 'title' },
 ];
 
 const CATEGORY_FAMILY = {
@@ -115,13 +120,44 @@ const transformTitle = (value, mode) => {
 const splitTitle = (value, layout) => {
   const words = String(value || 'Echoo Station').trim().split(/\s+/).filter(Boolean);
   if (!words.length) return ['Echoo', 'Station'];
-  if (words.length === 1) return [words[0]];
-  if (words.length === 2) return layout % 2 === 0 ? words : [words.join(' ')];
 
-  const middle = Math.ceil(words.length / 2);
-  const first = words.slice(0, middle).join(' ');
-  const second = words.slice(middle).join(' ');
-  return second ? [first, second] : [first];
+  // Keep every title inside a safe text area. Layout variants still affect
+  // alignment, but no variant is allowed to force an overly wide one-line name.
+  const targetCharacters = layout % 2 === 0 ? 17 : 19;
+  const lines = [];
+  let current = '';
+
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word;
+    const canAdd = candidate.length <= targetCharacters || !current;
+
+    if (canAdd || lines.length >= 2) {
+      current = candidate;
+    } else {
+      lines.push(current);
+      current = word;
+    }
+  }
+
+  if (current) lines.push(current);
+
+  // If greedy wrapping produced more than three lines, retain all words by
+  // merging the remainder into the third line; font fitting below shrinks it.
+  if (lines.length > 3) {
+    return [lines[0], lines[1], lines.slice(2).join(' ')];
+  }
+
+  return lines;
+};
+
+const fitTitleFontSize = (lines) => {
+  const longestLine = Math.max(1, ...lines.map((line) => String(line).length));
+  const safeWidth = 500;
+  const estimatedGlyphWidth = 0.56;
+  const widthLimitedSize = Math.floor(safeWidth / (longestLine * estimatedGlyphWidth));
+  const lineLimitedMax = lines.length >= 3 ? 46 : lines.length === 2 ? 56 : 62;
+
+  return Math.max(18, Math.min(lineLimitedMax, widthLimitedSize));
 };
 
 const patternSvg = (pattern, accent, soft) => {
@@ -176,13 +212,21 @@ export const buildGeneratedStationBrandCoverUrl = (station = {}) => {
   const layout = branding.layout;
   const title = transformTitle(station.name || station.title || 'Echoo Station', typography.transform);
   const lines = splitTitle(title, layout);
-  const category = escapeXml(station.category || 'Echoo Station');
+
+  // Uppercase before escaping. Uppercasing an escaped value turns &amp; into
+  // invalid XML (&AMP;), which made categories such as Faith & Spirituality
+  // produce a broken image.
+  const category = escapeXml(
+    String(station.category || 'Echoo Station').toUpperCase()
+  );
+
   const anchor = [0, 3, 5].includes(layout) ? 'start' : [2, 6].includes(layout) ? 'end' : 'middle';
-  const x = anchor === 'start' ? 58 : anchor === 'end' ? 582 : 320;
-  const baseY = lines.length === 1 ? 185 : 150;
-  const fontSize = lines.length === 1 ? (title.length > 18 ? 48 : 62) : (title.length > 24 ? 44 : 54);
-  const lineGap = Math.round(fontSize * 0.95);
-  const categoryX = anchor === 'start' ? 60 : anchor === 'end' ? 580 : 320;
+  const x = anchor === 'start' ? 66 : anchor === 'end' ? 574 : 320;
+  const fontSize = fitTitleFontSize(lines);
+  const lineGap = Math.round(fontSize * 1.04);
+  const titleCenterY = 194;
+  const baseY = Math.round(titleCenterY - ((lines.length - 1) * lineGap) / 2);
+  const categoryX = anchor === 'start' ? 66 : anchor === 'end' ? 574 : 320;
   const decorative = patternSvg(branding.pattern, accent, soft);
   const titleMarkup = lines
     .slice(0, 3)
@@ -190,7 +234,7 @@ export const buildGeneratedStationBrandCoverUrl = (station = {}) => {
     .join('');
 
   const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360">
+    <svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360" preserveAspectRatio="xMidYMid meet">
       <defs>
         <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
           <stop offset="0" stop-color="${background}"/>
@@ -206,9 +250,9 @@ export const buildGeneratedStationBrandCoverUrl = (station = {}) => {
       ${decorative}
       <circle cx="52" cy="48" r="10" fill="${accent}"/>
       <circle cx="72" cy="48" r="4" fill="${foreground}" opacity=".55"/>
-      <text x="92" y="54" font-family="Avenir Next, Segoe UI, Arial, sans-serif" font-size="14" font-weight="700" letter-spacing="2" fill="${foreground}" opacity=".8">ECHOO</text>
+      <text x="92" y="54" font-family="${escapeXml(ECHOO_FONT_FAMILY)}" font-size="14" font-weight="700" letter-spacing="2" fill="${foreground}" opacity=".8">ECHOO</text>
       ${titleMarkup}
-      <text x="${categoryX}" y="318" text-anchor="${anchor}" font-family="Avenir Next, Segoe UI, Arial, sans-serif" font-size="13" font-weight="700" letter-spacing="1.4" fill="${foreground}" opacity=".78">${category.toUpperCase()}</text>
+      <text x="${categoryX}" y="318" text-anchor="${anchor}" font-family="${escapeXml(ECHOO_FONT_FAMILY)}" font-size="13" font-weight="700" letter-spacing="1.4" fill="${foreground}" opacity=".78">${category}</text>
     </svg>`;
 
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
