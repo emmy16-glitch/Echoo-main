@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import {
   FaBookmark,
+  FaBroadcastTower,
   FaCheck,
   FaHeadphones,
   FaPause,
@@ -26,7 +27,12 @@ const ListenerSearch = () => {
   const { playTrack, currentTrack, isPlaying, togglePlay } = useOutletContext();
 
   const [query, setQuery] = useState('');
-  const [data, setData] = useState({ tracks: [], creators: [], playlists: [] });
+  const [data, setData] = useState({
+    tracks: [],
+    creators: [],
+    stations: [],
+    playlists: [],
+  });
   const [savedIds, setSavedIds] = useState(new Set());
   const [savingId, setSavingId] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -59,7 +65,7 @@ const ListenerSearch = () => {
     const cleanQuery = query.trim();
 
     if (cleanQuery.length < 2) {
-      setData({ tracks: [], creators: [], playlists: [] });
+      setData({ tracks: [], creators: [], stations: [], playlists: [] });
       setLoading(false);
       setError('');
       return undefined;
@@ -84,11 +90,12 @@ const ListenerSearch = () => {
             ? results.tracks.map(audioService.normalize).filter(Boolean)
             : [],
           creators: Array.isArray(results.creators) ? results.creators : [],
+          stations: Array.isArray(results.stations) ? results.stations : [],
           playlists: Array.isArray(results.playlists) ? results.playlists : [],
         });
       } catch (searchError) {
         if (!active) return;
-        setData({ tracks: [], creators: [], playlists: [] });
+        setData({ tracks: [], creators: [], stations: [], playlists: [] });
         setError(searchError?.message || 'Search failed.');
       } finally {
         if (active) setLoading(false);
@@ -102,7 +109,11 @@ const ListenerSearch = () => {
   }, [query]);
 
   const totalResults = useMemo(
-    () => data.tracks.length + data.creators.length + data.playlists.length,
+    () =>
+      data.tracks.length +
+      data.creators.length +
+      data.stations.length +
+      data.playlists.length,
     [data]
   );
 
@@ -169,7 +180,7 @@ const ListenerSearch = () => {
       <header className="listener-search-header">
         <span className="batch1-kicker">ECHOO / SEARCH</span>
         <h1>Search Echoo</h1>
-        <p>Find real published audio, creators and public playlists.</p>
+        <p>Find real published audio, creators, stations and public playlists.</p>
       </header>
 
       <div className="listener-search-box">
@@ -178,7 +189,7 @@ const ListenerSearch = () => {
           type="text"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search voices, audio, playlists..."
+          placeholder="Search voices, stations, audio, playlists..."
           autoFocus
         />
       </div>
@@ -189,7 +200,7 @@ const ListenerSearch = () => {
       )}
       {!loading && !error && query.trim().length >= 2 && totalResults === 0 && (
         <div className="search-message batch1-search-empty">
-          No matching audio, creators or playlists found.
+          No matching audio, creators, stations or playlists found.
         </div>
       )}
 
@@ -220,6 +231,49 @@ const ListenerSearch = () => {
                   <em>{Number(creator.totalListeners || 0).toLocaleString()} listeners</em>
                 </span>
                 <span className="batch1-open-profile">View profile</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {!loading && data.stations.length > 0 && (
+        <section className="batch1-search-section">
+          <div className="batch1-search-heading">
+            <div>
+              <h2>Stations</h2>
+              <p>Public Echoo stations matching your search.</p>
+            </div>
+            <span>{data.stations.length}</span>
+          </div>
+
+          <div className="batch1-creator-grid">
+            {data.stations.map((station) => (
+              <button
+                type="button"
+                className="batch1-creator-result"
+                key={station.id}
+                onClick={() => navigate(`/listen/stations/${station.id}`)}
+              >
+                <span className="batch1-creator-avatar">
+                  {station.coverArt ? (
+                    <img src={station.coverArt} alt="" />
+                  ) : (
+                    <FaBroadcastTower />
+                  )}
+                </span>
+                <span className="batch1-creator-copy">
+                  <strong>{station.name}</strong>
+                  <small>{station.category || 'Station'}</small>
+                  <em>
+                    {station.isLive
+                      ? `${Number(station.listenerCount || 0).toLocaleString()} listening now`
+                      : `${Number(station.followerCount || 0).toLocaleString()} followers`}
+                  </em>
+                </span>
+                <span className="batch1-open-profile">
+                  {station.isLive ? 'LIVE' : 'View station'}
+                </span>
               </button>
             ))}
           </div>
