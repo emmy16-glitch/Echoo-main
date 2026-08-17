@@ -1,427 +1,409 @@
 import User from '../models/User.js';
 import Audio from '../models/Audio.js';
 import Playlist from '../models/Playlist.js';
+import Station from '../models/Station.js';
 
-// Global search
+const safePage = (value) => Math.max(1, Number(value) || 1);
+const safeLimit = (value) => Math.min(100, Math.max(1, Number(value) || 20));
+
+const trackResult = (track) => ({
+  id: track._id,
+  title: track.title,
+  description: track.description,
+  duration: track.duration,
+  genre: track.genre,
+  fileUrl: track.fileUrl,
+  coverArt: track.coverArt || null,
+  playCount: track.playCount || 0,
+  likeCount: track.likeCount || 0,
+  artist: track.artist
+    ? {
+        id: track.artist._id,
+        username: track.artist.username,
+        displayName: track.artist.displayName,
+        avatar: track.artist.avatar,
+      }
+    : null,
+  createdAt: track.createdAt,
+});
+
+const creatorResult = (user) => ({
+  id: user._id,
+  username: user.username,
+  displayName: user.displayName,
+  avatar: user.avatar,
+  bio: user.bio,
+  userType: user.userType,
+  creatorType: user.creatorProfile?.creatorType,
+  artistName: user.creatorProfile?.artistName,
+  organizationName: user.creatorProfile?.organizationName,
+  category: user.creatorProfile?.category,
+  totalListeners: user.creatorProfile?.totalListeners || 0,
+  isVerified: user.creatorProfile?.isVerified || false,
+});
+
+const stationResult = (station) => ({
+  id: station._id,
+  name: station.name,
+  slug: station.slug,
+  description: station.description,
+  category: station.category,
+  coverArt: station.coverArt,
+  listenerCount: station.listenerCount || 0,
+  followerCount: station.followerCount || 0,
+  isLive: Boolean(station.isLive),
+  owner: station.owner
+    ? {
+        id: station.owner._id,
+        username: station.owner.username,
+        displayName: station.owner.displayName,
+        avatar: station.owner.avatar,
+      }
+    : null,
+  createdAt: station.createdAt,
+});
+
+const playlistResult = (playlist) => ({
+  id: playlist._id,
+  name: playlist.name,
+  description: playlist.description,
+  coverArt: playlist.coverArt,
+  trackCount: playlist.trackCount || playlist.tracks?.length || 0,
+  followerCount: playlist.followerCount || 0,
+  isPublic: playlist.isPublic,
+  owner: playlist.owner
+    ? {
+        id: playlist.owner._id,
+        username: playlist.owner.username,
+        displayName: playlist.owner.displayName,
+        avatar: playlist.owner.avatar,
+      }
+    : null,
+  createdAt: playlist.createdAt,
+});
+
+const requireQuery = (req, res) => {
+  const query = String(req.query.q || '').trim();
+  if (query.length < 2) {
+    res.status(400).json({
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'Search query must be at least 2 characters',
+      },
+    });
+    return null;
+  }
+  return query;
+};
+
+const regexFields = (query, fields) =>
+  fields.map((field) => ({ [field]: { $regex: query, $options: 'i' } }));
+
 export async function globalSearch(req, res, next) {
   try {
-    const { q, type, category, page = 1, limit = 20 } = req.query;
+    const query = requireQuery(req, res);
+    if (!query) return;
 
-    if (!q || q.trim().length < 2) {
-      return res.status(400).json({
-        error: { code: 'VALIDATION_ERROR', message: 'Search query must be at least 2 characters' }
-      });
-    }
-
-    const query = q.trim();
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-    const searchTypes = type ? type.split(',') : ['tracks', 'creators', 'playlists'];
-
+    const page = safePage(req.query.page);
+    const limit = safeLimit(req.query.limit);
+    const skip = (page - 1) * limit;
+    const searchTypes = req.query.type
+      ? String(req.query.type).split(',').map((item) => item.trim())
+      : ['tracks', 'creators', 'stations', 'playlists'];
     const results = {};
     const counts = {};
 
-    // Search tracks
     if (searchTypes.includes('tracks')) {
-      const tracksQuery = {
+      const filter = {
         isPublic: true,
         isDeleted: false,
-        $or: [
-          { title: { $regex: query, $options: 'i' } },
-          { description: { $regex: query, $options: 'i' } },
-          { tags: { $regex: query, $options: 'i' } },
-        ],
+        $or: regexFields(query, ['title', 'description', 'tags']),
       };
+      if (req.query.category) filter.genre = req.query.category;
 
-      if (category) {
-        tracksQuery.genre = category;
-      }
-
-      const tracks = await Audio.find(tracksQuery)
-        .populate('artist', 'username displayName avatar')
-        .sort({ playCount: -1, createdAt: -1 })
-        .skip(skip)
-        .limit(parseInt(limit))
-        .select('title description duration genre fileUrl playCount likeCount createdAt');
-
-      const total = await Audio.countDocuments(tracksQuery);
-
-      results.tracks = tracks.map(track => ({
-        id: track._id,
-        title: track.title,
-        description: track.description,
-        duration: track.duration,
-        genre: track.genre,
-        fileUrl: track.fileUrl,
-        playCount: track.playCount,
-        likeCount: track.likeCount,
-        artist: track.artist ? {
-          id: track.artist._id,
-          username: track.artist.username,
-          displayName: track.artist.displayName,
-          avatar: track.artist.avatar,
-        } : null,
-        createdAt: track.createdAt,
-      }));
-
+      const [tracks, total] = await Promise.all([
+        Audio.find(filter)
+          .populate('artist', 'username displayName avatar')
+          .sort({ playCount: -1, createdAt: -1 })
+          .skip(skip)
+          .limit(limit)
+          .select(
+            'title description duration genre fileUrl coverArt playCount likeCount createdAt artist'
+          ),
+        Audio.countDocuments(filter),
+      ]);
+      results.tracks = tracks.map(trackResult);
       counts.tracks = total;
     }
 
-    // Search creators
     if (searchTypes.includes('creators')) {
-      const creatorsQuery = {
+      const filter = {
         userType: 'creator',
         isActive: true,
         onboardingCompleted: true,
-        $or: [
-          { username: { $regex: query, $options: 'i' } },
-          { displayName: { $regex: query, $options: 'i' } },
-          { 'creatorProfile.artistName': { $regex: query, $options: 'i' } },
-          { 'creatorProfile.organizationName': { $regex: query, $options: 'i' } },
-          { 'creatorProfile.about': { $regex: query, $options: 'i' } },
-        ],
+        $or: regexFields(query, [
+          'username',
+          'displayName',
+          'creatorProfile.artistName',
+          'creatorProfile.organizationName',
+          'creatorProfile.about',
+        ]),
       };
 
-      const creators = await User.find(creatorsQuery)
-        .sort({ 'creatorProfile.totalListeners': -1 })
-        .skip(skip)
-        .limit(parseInt(limit))
-        .select('username displayName avatar bio creatorProfile userType');
-
-      const total = await User.countDocuments(creatorsQuery);
-
-      results.creators = creators.map(user => ({
-        id: user._id,
-        username: user.username,
-        displayName: user.displayName,
-        avatar: user.avatar,
-        bio: user.bio,
-        userType: user.userType,
-        creatorType: user.creatorProfile?.creatorType,
-        artistName: user.creatorProfile?.artistName,
-        organizationName: user.creatorProfile?.organizationName,
-        totalListeners: user.creatorProfile?.totalListeners || 0,
-        isVerified: user.creatorProfile?.isVerified || false,
-      }));
-
+      const [creators, total] = await Promise.all([
+        User.find(filter)
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(limit)
+          .select('username displayName avatar bio creatorProfile userType createdAt'),
+        User.countDocuments(filter),
+      ]);
+      results.creators = creators.map(creatorResult);
       counts.creators = total;
     }
 
-    // Search playlists
-    if (searchTypes.includes('playlists')) {
-      const playlistsQuery = {
+    if (searchTypes.includes('stations')) {
+      const filter = {
         isPublic: true,
         isDeleted: false,
-        $or: [
-          { name: { $regex: query, $options: 'i' } },
-          { description: { $regex: query, $options: 'i' } },
-        ],
+        $or: regexFields(query, ['name', 'description', 'tags', 'category']),
       };
 
-      const playlists = await Playlist.find(playlistsQuery)
-        .populate('owner', 'username displayName avatar')
-        .sort({ followerCount: -1, createdAt: -1 })
-        .skip(skip)
-        .limit(parseInt(limit))
-        .select('name description coverArt trackCount followerCount isPublic createdAt');
+      const [stations, total] = await Promise.all([
+        Station.find(filter)
+          .populate('owner', 'username displayName avatar')
+          .sort({ isLive: -1, listenerCount: -1, createdAt: -1 })
+          .skip(skip)
+          .limit(limit),
+        Station.countDocuments(filter),
+      ]);
+      results.stations = stations.map(stationResult);
+      counts.stations = total;
+    }
 
-      const total = await Playlist.countDocuments(playlistsQuery);
+    if (searchTypes.includes('playlists')) {
+      const filter = {
+        isPublic: true,
+        isDeleted: false,
+        $or: regexFields(query, ['name', 'description']),
+      };
 
-      results.playlists = playlists.map(playlist => ({
-        id: playlist._id,
-        name: playlist.name,
-        description: playlist.description,
-        coverArt: playlist.coverArt,
-        trackCount: playlist.trackCount,
-        followerCount: playlist.followerCount,
-        isPublic: playlist.isPublic,
-        owner: playlist.owner ? {
-          id: playlist.owner._id,
-          username: playlist.owner.username,
-          displayName: playlist.owner.displayName,
-          avatar: playlist.owner.avatar,
-        } : null,
-        createdAt: playlist.createdAt,
-      }));
-
+      const [playlists, total] = await Promise.all([
+        Playlist.find(filter)
+          .populate('owner', 'username displayName avatar')
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(limit),
+        Playlist.countDocuments(filter),
+      ]);
+      results.playlists = playlists.map(playlistResult);
       counts.playlists = total;
     }
 
-    // Get search suggestions
-    const suggestions = await getSearchSuggestions(query);
+    const suggestions = [];
+    for (const track of results.tracks || []) {
+      suggestions.push({ type: 'track', label: track.title, value: track.title });
+    }
+    for (const creator of results.creators || []) {
+      const label = creator.displayName || creator.username;
+      suggestions.push({ type: 'creator', label, value: label });
+    }
+    for (const station of results.stations || []) {
+      suggestions.push({ type: 'station', label: station.name, value: station.name });
+    }
 
     return res.status(200).json({
       data: {
         query,
         results,
         counts,
-        suggestions,
-        pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
-        },
+        suggestions: suggestions.slice(0, 10),
+        pagination: { page, limit },
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     next(error);
   }
 }
 
-// Get search suggestions
-async function getSearchSuggestions(query) {
-  try {
-    const suggestions = [];
-
-    // Get track title suggestions
-    const tracks = await Audio.find({
-      isPublic: true,
-      isDeleted: false,
-      title: { $regex: query, $options: 'i' },
-    })
-      .limit(5)
-      .select('title');
-
-    tracks.forEach(track => {
-      suggestions.push({
-        type: 'track',
-        label: track.title,
-        value: track.title,
-      });
-    });
-
-    // Get creator suggestions
-    const creators = await User.find({
-      userType: 'creator',
-      isActive: true,
-      $or: [
-        { username: { $regex: query, $options: 'i' } },
-        { displayName: { $regex: query, $options: 'i' } },
-        { 'creatorProfile.artistName': { $regex: query, $options: 'i' } },
-      ],
-    })
-      .limit(3)
-      .select('username displayName creatorProfile');
-
-    creators.forEach(user => {
-      const name = user.displayName || user.username;
-      suggestions.push({
-        type: 'creator',
-        label: name,
-        value: name,
-        avatar: user.avatar,
-      });
-    });
-
-    // Get genre suggestions
-    const genres = ['Pop', 'Rock', 'Electronic', 'Jazz', 'Classical', 'R&B', 'Country', 'Metal', 'Reggae', 'Podcast', 'Spiritual', 'Educational', 'Comedy', 'Storytelling', 'Other'];
-    const matchingGenres = genres.filter(g => 
-      g.toLowerCase().includes(query.toLowerCase())
-    );
-
-    matchingGenres.forEach(genre => {
-      suggestions.push({
-        type: 'genre',
-        label: genre,
-        value: genre,
-      });
-    });
-
-    // Limit suggestions
-    return suggestions.slice(0, 10);
-  } catch (error) {
-    console.error('Search suggestions error:', error);
-    return [];
-  }
-}
-
-// Search tracks only
 export async function searchTracks(req, res, next) {
   try {
-    const { q, genre, sort = 'relevance', page = 1, limit = 20 } = req.query;
+    const query = requireQuery(req, res);
+    if (!query) return;
 
-    if (!q || q.trim().length < 2) {
-      return res.status(400).json({
-        error: { code: 'VALIDATION_ERROR', message: 'Search query must be at least 2 characters' }
-      });
-    }
-
-    const query = q.trim();
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-
-    const searchQuery = {
+    const page = safePage(req.query.page);
+    const limit = safeLimit(req.query.limit);
+    const skip = (page - 1) * limit;
+    const filter = {
       isPublic: true,
       isDeleted: false,
-      $or: [
-        { title: { $regex: query, $options: 'i' } },
-        { description: { $regex: query, $options: 'i' } },
-        { tags: { $regex: query, $options: 'i' } },
-      ],
+      $or: regexFields(query, ['title', 'description', 'tags']),
     };
+    if (req.query.genre) filter.genre = req.query.genre;
 
-    if (genre) {
-      searchQuery.genre = genre;
-    }
+    const sort = req.query.sort === 'recent'
+      ? { createdAt: -1 }
+      : { playCount: -1, createdAt: -1 };
 
-    let sortOption = { createdAt: -1 };
-    switch (sort) {
-      case 'popular':
-        sortOption = { playCount: -1 };
-        break;
-      case 'recent':
-        sortOption = { createdAt: -1 };
-        break;
-      case 'relevance':
-      default:
-        sortOption = { playCount: -1, createdAt: -1 };
-        break;
-    }
-
-    const tracks = await Audio.find(searchQuery)
-      .populate('artist', 'username displayName avatar')
-      .sort(sortOption)
-      .skip(skip)
-      .limit(parseInt(limit))
-      .select('title description duration genre fileUrl playCount likeCount createdAt');
-
-    const total = await Audio.countDocuments(searchQuery);
+    const [tracks, total] = await Promise.all([
+      Audio.find(filter)
+        .populate('artist', 'username displayName avatar')
+        .sort(sort)
+        .skip(skip)
+        .limit(limit)
+        .select(
+          'title description duration genre fileUrl coverArt playCount likeCount createdAt artist'
+        ),
+      Audio.countDocuments(filter),
+    ]);
 
     return res.status(200).json({
       data: {
-        tracks: tracks.map(track => ({
-          id: track._id,
-          title: track.title,
-          description: track.description,
-          duration: track.duration,
-          genre: track.genre,
-          fileUrl: track.fileUrl,
-          playCount: track.playCount,
-          likeCount: track.likeCount,
-          artist: track.artist ? {
-            id: track.artist._id,
-            username: track.artist.username,
-            displayName: track.artist.displayName,
-            avatar: track.artist.avatar,
-          } : null,
-          createdAt: track.createdAt,
-        })),
+        tracks: tracks.map(trackResult),
         pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
+          page,
+          limit,
           total,
-          totalPages: Math.ceil(total / parseInt(limit)),
+          totalPages: Math.ceil(total / limit),
         },
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     next(error);
   }
 }
 
-// Search creators only
 export async function searchCreators(req, res, next) {
   try {
-    const { q, page = 1, limit = 20 } = req.query;
+    const query = requireQuery(req, res);
+    if (!query) return;
 
-    if (!q || q.trim().length < 2) {
-      return res.status(400).json({
-        error: { code: 'VALIDATION_ERROR', message: 'Search query must be at least 2 characters' }
-      });
-    }
-
-    const query = q.trim();
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-
-    const searchQuery = {
+    const page = safePage(req.query.page);
+    const limit = safeLimit(req.query.limit);
+    const skip = (page - 1) * limit;
+    const filter = {
       userType: 'creator',
       isActive: true,
       onboardingCompleted: true,
-      $or: [
-        { username: { $regex: query, $options: 'i' } },
-        { displayName: { $regex: query, $options: 'i' } },
-        { 'creatorProfile.artistName': { $regex: query, $options: 'i' } },
-        { 'creatorProfile.organizationName': { $regex: query, $options: 'i' } },
-        { 'creatorProfile.about': { $regex: query, $options: 'i' } },
-      ],
+      $or: regexFields(query, [
+        'username',
+        'displayName',
+        'creatorProfile.artistName',
+        'creatorProfile.organizationName',
+        'creatorProfile.about',
+      ]),
     };
 
-    const creators = await User.find(searchQuery)
-      .sort({ 'creatorProfile.totalListeners': -1 })
-      .skip(skip)
-      .limit(parseInt(limit))
-      .select('username displayName avatar bio creatorProfile userType');
-
-    const total = await User.countDocuments(searchQuery);
+    const [creators, total] = await Promise.all([
+      User.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .select('username displayName avatar bio creatorProfile userType createdAt'),
+      User.countDocuments(filter),
+    ]);
 
     return res.status(200).json({
       data: {
-        creators: creators.map(user => ({
-          id: user._id,
-          username: user.username,
-          displayName: user.displayName,
-          avatar: user.avatar,
-          bio: user.bio,
-          userType: user.userType,
-          creatorType: user.creatorProfile?.creatorType,
-          artistName: user.creatorProfile?.artistName,
-          organizationName: user.creatorProfile?.organizationName,
-          category: user.creatorProfile?.category,
-          totalListeners: user.creatorProfile?.totalListeners || 0,
-          isVerified: user.creatorProfile?.isVerified || false,
-        })),
+        creators: creators.map(creatorResult),
         pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
+          page,
+          limit,
           total,
-          totalPages: Math.ceil(total / parseInt(limit)),
+          totalPages: Math.ceil(total / limit),
         },
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     next(error);
   }
 }
 
-// Get popular searches
 export async function getPopularSearches(req, res, next) {
   try {
-    // This would typically come from analytics
-    const popularSearches = [
-      { term: 'Faith & Spirituality', type: 'category', count: 1250 },
-      { term: 'Podcast', type: 'genre', count: 980 },
-      { term: 'Music', type: 'category', count: 870 },
-      { term: 'Education', type: 'category', count: 650 },
-      { term: 'News', type: 'category', count: 540 },
-      { term: 'Mindset', type: 'track', count: 430 },
-      { term: 'Motivation', type: 'track', count: 380 },
-      { term: 'Business', type: 'category', count: 320 },
-    ];
+    const [tracks, stations] = await Promise.all([
+      Audio.find({ isPublic: true, isDeleted: false })
+        .sort({ playCount: -1, createdAt: -1 })
+        .limit(5)
+        .select('title playCount'),
+      Station.find({ isPublic: true, isDeleted: false })
+        .sort({ listenerCount: -1, followerCount: -1, createdAt: -1 })
+        .limit(5)
+        .select('name listenerCount followerCount'),
+    ]);
+
+    const data = [
+      ...tracks.map((track) => ({
+        term: track.title,
+        type: 'track',
+        count: Number(track.playCount) || 0,
+        basis: 'recorded plays',
+      })),
+      ...stations.map((station) => ({
+        term: station.name,
+        type: 'station',
+        count:
+          (Number(station.listenerCount) || 0) +
+          (Number(station.followerCount) || 0),
+        basis: 'current listeners plus followers',
+      })),
+    ]
+      .sort((first, second) => second.count - first.count)
+      .slice(0, 10);
 
     return res.status(200).json({
-      data: popularSearches,
-      timestamp: new Date().toISOString()
+      data,
+      meta: {
+        measured: true,
+        note: 'Echoo does not yet record search-query frequency; this list uses recorded content activity instead.',
+      },
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     next(error);
   }
 }
 
-// Get trending searches
 export async function getTrendingSearches(req, res, next) {
   try {
-    // This would typically come from analytics
-    const trendingSearches = [
-      { term: 'Faith Talk', type: 'track', trend: 45 },
-      { term: 'Worship Live', type: 'creator', trend: 38 },
-      { term: 'Deep Focus', type: 'playlist', trend: 32 },
-      { term: 'Healing Prayer', type: 'track', trend: 28 },
-      { term: 'Church Online', type: 'creator', trend: 25 },
-    ];
+    const [recentTracks, liveStations] = await Promise.all([
+      Audio.find({ isPublic: true, isDeleted: false })
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .select('title createdAt playCount'),
+      Station.find({ isPublic: true, isDeleted: false, isLive: true })
+        .sort({ listenerCount: -1, createdAt: -1 })
+        .limit(5)
+        .select('name listenerCount createdAt'),
+    ]);
+
+    const data = [
+      ...liveStations.map((station) => ({
+        term: station.name,
+        type: 'station',
+        live: true,
+        activity: Number(station.listenerCount) || 0,
+        basis: 'live now',
+      })),
+      ...recentTracks.map((track) => ({
+        term: track.title,
+        type: 'track',
+        live: false,
+        activity: Number(track.playCount) || 0,
+        basis: 'recently published',
+      })),
+    ].slice(0, 10);
 
     return res.status(200).json({
-      data: trendingSearches,
-      timestamp: new Date().toISOString()
+      data,
+      meta: {
+        measured: false,
+        note: 'Echoo does not yet collect search-trend time series. This endpoint returns live and recent public content without inventing trend percentages.',
+      },
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     next(error);
