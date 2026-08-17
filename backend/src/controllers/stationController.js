@@ -5,6 +5,11 @@ import Station from '../models/Station.js';
 import Broadcast from '../models/Broadcast.js';
 import User from '../models/User.js';
 import { createSlug } from '../utils/helpers.js';
+import {
+  createStationBranding,
+  ensureStationBranding,
+  normalizeStationBrandVariant,
+} from '../utils/stationBranding.js';
 
 const OWNER_FIELDS =
   'username displayName avatar bio userType creatorProfile.category creatorProfile.artistName creatorProfile.organizationName creatorProfile.organizationLogo creatorProfile.isVerified';
@@ -82,6 +87,7 @@ export async function createStation(req, res, next) {
       tags = [],
       isPublic = true,
       coverArt = null,
+      brandingVariant,
     } = req.body;
 
     const cleanName = String(name || '').trim();
@@ -119,6 +125,12 @@ export async function createStation(req, res, next) {
       });
     }
 
+    const uploadedLogo = uploadedStationLogo(req.file) || coverArt || null;
+    const branding = createStationBranding({
+      hasCustomLogo: Boolean(uploadedLogo),
+      variant: brandingVariant,
+    });
+
     const station = await Station.create({
       name: cleanName,
       slug,
@@ -127,9 +139,8 @@ export async function createStation(req, res, next) {
       category,
       tags: parseTags(tags),
       isPublic: parseBoolean(isPublic, true),
-      // `coverArt` is the persisted station brand image for backwards compatibility.
-      // New clients upload it as `logo` rather than asking creators for an image URL.
-      coverArt: uploadedStationLogo(req.file) || coverArt || null,
+      coverArt: uploadedLogo,
+      branding,
       isLive: false,
       listenerCount: 0,
     });
@@ -292,6 +303,8 @@ export async function updateStation(req, res, next) {
       isPublic,
       coverArt,
       removeLogo,
+      brandingMode,
+      brandingVariant,
     } = req.body;
 
     if (name !== undefined) {
@@ -327,17 +340,33 @@ export async function updateStation(req, res, next) {
     if (tags !== undefined) station.tags = parseTags(tags);
     if (isPublic !== undefined) station.isPublic = parseBoolean(isPublic, station.isPublic);
 
+    ensureStationBranding(station);
+
     const previousLogo = station.coverArt;
     const nextUploadedLogo = uploadedStationLogo(req.file);
     const shouldRemoveLogo = parseBoolean(removeLogo, false);
+    const requestedBrandMode = brandingMode === 'generated' || brandingMode === 'custom'
+      ? brandingMode
+      : null;
+    const requestedVariant = normalizeStationBrandVariant(brandingVariant, null);
+
+    if (requestedVariant !== null) {
+      station.branding.variant = requestedVariant;
+      station.branding.version = 1;
+    }
 
     if (nextUploadedLogo) {
       station.coverArt = nextUploadedLogo;
-    } else if (shouldRemoveLogo) {
+      station.branding.mode = 'custom';
+    } else if (shouldRemoveLogo || requestedBrandMode === 'generated') {
       station.coverArt = null;
+      station.branding.mode = 'generated';
     } else if (coverArt !== undefined) {
-      // Retain compatibility with older JSON clients while the UI uses file uploads.
+      // Compatibility for older JSON clients.
       station.coverArt = coverArt || null;
+      station.branding.mode = station.coverArt ? 'custom' : 'generated';
+    } else if (requestedBrandMode === 'custom' && station.coverArt) {
+      station.branding.mode = 'custom';
     }
 
     // isLive/listenerCount are intentionally NOT user-editable here.
