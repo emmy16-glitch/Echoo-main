@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   FaArrowLeft,
   FaBell,
+  FaCamera,
   FaCheck,
   FaEnvelope,
   FaLock,
@@ -11,6 +12,7 @@ import {
 } from 'react-icons/fa';
 
 import settingsService from '../../services/settingsService';
+import { buildMediaUrl } from '../../services/api';
 import './ListenerSettings.css';
 
 const CATEGORIES = [
@@ -27,6 +29,30 @@ const CATEGORIES = [
   'Storytelling',
   'Other',
 ];
+
+const prepareImage = (file) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Could not read the selected image.'));
+    reader.onload = () => {
+      const image = new Image();
+      image.onerror = () => reject(new Error('Could not process the selected image.'));
+      image.onload = () => {
+        const maxSize = 420;
+        const scale = Math.min(1, maxSize / Math.max(image.width, image.height));
+        const width = Math.round(image.width * scale);
+        const height = Math.round(image.height * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext('2d');
+        context.drawImage(image, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.76));
+      };
+      image.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
 
 const ListenerSettings = () => {
   const navigate = useNavigate();
@@ -68,7 +94,7 @@ const ListenerSettings = () => {
         setProfile({
           displayName: data.profile?.displayName || '',
           bio: data.profile?.bio || '',
-          avatar: data.profile?.avatar || '',
+          avatar: buildMediaUrl(data.profile?.avatar || '') || '',
         });
         setEmailForm({
           email: data.profile?.email || '',
@@ -118,6 +144,29 @@ const ListenerSettings = () => {
     }
   };
 
+  const handleAvatarChange = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setError('Please choose a JPG, PNG or WebP image.');
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      setError('Please choose an image smaller than 10 MB.');
+      return;
+    }
+
+    try {
+      const avatar = await prepareImage(file);
+      setProfile((current) => ({ ...current, avatar }));
+      setError('');
+    } catch (imageError) {
+      setError(imageError?.message || 'Could not process the selected image.');
+    }
+  };
+
   const saveProfile = async (event) => {
     event.preventDefault();
     const result = await run(
@@ -127,14 +176,23 @@ const ListenerSettings = () => {
     );
 
     if (result?.data?.profile) {
+      const savedProfile = result.data.profile;
+      setProfile((current) => ({
+        ...current,
+        displayName: savedProfile.displayName || current.displayName,
+        bio: savedProfile.bio ?? current.bio,
+        avatar: buildMediaUrl(savedProfile.avatar || current.avatar) || '',
+      }));
+
       try {
         const user = JSON.parse(localStorage.getItem('user') || '{}');
-        localStorage.setItem(
-          'user',
-          JSON.stringify({ ...user, ...result.data.profile })
-        );
+        const nextUser = { ...user, ...savedProfile };
+        localStorage.setItem('user', JSON.stringify(nextUser));
+        if (savedProfile.avatar) {
+          localStorage.setItem('profileImage', savedProfile.avatar);
+        }
       } catch {
-        // Local cache is optional; backend remains authoritative.
+        // Backend remains authoritative if local cache update fails.
       }
     }
   };
@@ -214,6 +272,26 @@ const ListenerSettings = () => {
       <div className="ls-grid">
         <form className="ls-card" onSubmit={saveProfile}>
           <div className="ls-card-title"><FaUser /><div><h2>Profile</h2><p>How you appear across Echoo.</p></div></div>
+
+          <div className="ls-profile-photo-row">
+            <label htmlFor="listener-avatar-input" className="ls-profile-photo" title="Choose profile photo">
+              {profile.avatar ? <img src={profile.avatar} alt="Profile preview" /> : <FaUser />}
+              <span><FaCamera /></span>
+            </label>
+            <input
+              id="listener-avatar-input"
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={handleAvatarChange}
+              hidden
+            />
+            <div>
+              <strong>Profile photo</strong>
+              <small>JPG, PNG or WebP. Max 10 MB.</small>
+              <label htmlFor="listener-avatar-input" className="ls-photo-action">Choose photo</label>
+            </div>
+          </div>
+
           <label>
             <span>Display name</span>
             <input
@@ -228,14 +306,6 @@ const ListenerSettings = () => {
               value={profile.bio}
               maxLength={500}
               onChange={(event) => setProfile((current) => ({ ...current, bio: event.target.value }))}
-            />
-          </label>
-          <label>
-            <span>Avatar URL</span>
-            <input
-              value={profile.avatar}
-              placeholder="https://..."
-              onChange={(event) => setProfile((current) => ({ ...current, avatar: event.target.value }))}
             />
           </label>
           <button type="submit" disabled={busy === 'profile'}>
