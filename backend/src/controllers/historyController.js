@@ -1,81 +1,100 @@
 import User from '../models/User.js';
-import Audio from '../models/Audio.js';
 
-// Get listening history
+const clampProgress = (value) => {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return 0;
+  return Math.max(0, Math.min(100, number));
+};
+
+const historyPopulate = {
+  path: 'listeningHistory.trackId',
+  select: 'title duration genre fileUrl coverArt artist isDeleted',
+  populate: {
+    path: 'artist',
+    select: 'username displayName avatar',
+  },
+};
+
+const listeningSeconds = (history = []) =>
+  history.reduce((sum, item) => {
+    const duration = Number(item.trackId?.duration) || 0;
+    const progress = clampProgress(item.progress) / 100;
+    return sum + duration * progress;
+  }, 0);
+
 export async function getHistory(req, res, next) {
   try {
     const userId = req.userId;
-    const { 
-      page = 1, 
-      limit = 20, 
+    const {
+      page = 1,
+      limit = 20,
       type = 'all',
       startDate,
       endDate,
-      sort = 'recent'
+      sort = 'recent',
     } = req.query;
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const safePage = Math.max(1, parseInt(page, 10) || 1);
+    const safeLimit = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
+    const skip = (safePage - 1) * safeLimit;
 
-    const user = await User.findById(userId)
-      .populate({
-        path: 'listeningHistory.trackId',
-        populate: {
-          path: 'artist',
-          select: 'username displayName avatar',
-        },
-      });
+    const user = await User.findById(userId).populate(historyPopulate);
 
     if (!user) {
       return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'User not found' }
+        error: { code: 'NOT_FOUND', message: 'User not found' },
       });
     }
 
-    let history = user.listeningHistory || [];
+    let history = [...(user.listeningHistory || [])];
 
-    // Filter by date range
     if (startDate) {
       const start = new Date(startDate);
-      history = history.filter(item => item.playedAt >= start);
+      if (!Number.isNaN(start.getTime())) {
+        history = history.filter((item) => item.playedAt >= start);
+      }
     }
+
     if (endDate) {
       const end = new Date(endDate);
-      history = history.filter(item => item.playedAt <= end);
+      if (!Number.isNaN(end.getTime())) {
+        history = history.filter((item) => item.playedAt <= end);
+      }
     }
 
-    // Filter by type (completed vs in progress)
     if (type === 'completed') {
-      history = history.filter(item => item.completed === true);
+      history = history.filter((item) => item.completed === true);
     } else if (type === 'in-progress') {
-      history = history.filter(item => item.completed !== true);
+      history = history.filter((item) => item.completed !== true);
     }
 
-    // Sort
-    switch(sort) {
-      case 'recent':
-        history.sort((a, b) => b.playedAt - a.playedAt);
-        break;
+    switch (sort) {
       case 'oldest':
         history.sort((a, b) => a.playedAt - b.playedAt);
         break;
       case 'title':
-        history.sort((a, b) => (a.trackId?.title || '').localeCompare(b.trackId?.title || ''));
+        history.sort((a, b) =>
+          (a.trackId?.title || '').localeCompare(b.trackId?.title || '')
+        );
         break;
+      case 'recent':
       default:
         history.sort((a, b) => b.playedAt - a.playedAt);
+        break;
     }
 
     const total = history.length;
-    const paginated = history.slice(skip, skip + parseInt(limit));
+    const paginated = history.slice(skip, skip + safeLimit);
 
-    // Format history items
-    const formattedHistory = paginated.map(item => ({
+    const formattedHistory = paginated.map((item) => ({
       id: item._id,
       track: item.trackId ? {
         id: item.trackId._id,
         title: item.trackId.title,
         duration: item.trackId.duration,
         genre: item.trackId.genre,
+        fileUrl: item.trackId.fileUrl,
+        coverArt: item.trackId.coverArt,
         artist: item.trackId.artist ? {
           id: item.trackId.artist._id,
           username: item.trackId.artist.username,
@@ -84,36 +103,29 @@ export async function getHistory(req, res, next) {
         } : null,
       } : null,
       playedAt: item.playedAt,
-      progress: item.progress,
-      completed: item.completed,
-      duration: item.duration,
+      progress: clampProgress(item.progress),
+      completed: Boolean(item.completed),
     }));
 
-    // Get history stats
-    const totalPlays = history.length;
-    const completedItems = history.filter(item => item.completed === true).length;
-    const totalListeningTime = history.reduce((sum, item) => {
-      const duration = item.trackId?.duration || 0;
-      const progress = (item.progress || 0) / 100;
-      return sum + (duration * progress);
-    }, 0);
+    const completedItems = history.filter((item) => item.completed === true).length;
+    const totalListeningTime = listeningSeconds(history);
 
     return res.status(200).json({
       data: {
         history: formattedHistory,
         stats: {
-          totalPlays,
+          totalPlays: total,
           completedItems,
-          totalListeningTime: Math.round(totalListeningTime / 60), // in minutes
+          totalListeningTime: Math.round(totalListeningTime),
         },
         pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
+          page: safePage,
+          limit: safeLimit,
           total,
-          totalPages: Math.ceil(total / parseInt(limit)),
+          totalPages: Math.ceil(total / safeLimit),
         },
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error('Get history error:', error);
@@ -121,15 +133,12 @@ export async function getHistory(req, res, next) {
   }
 }
 
-// Clear history
 export async function clearHistory(req, res, next) {
   try {
-    const userId = req.userId;
-
-    const user = await User.findById(userId);
+    const user = await User.findById(req.userId);
     if (!user) {
       return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'User not found' }
+        error: { code: 'NOT_FOUND', message: 'User not found' },
       });
     }
 
@@ -141,7 +150,7 @@ export async function clearHistory(req, res, next) {
         message: 'History cleared successfully',
         cleared: true,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error('Clear history error:', error);
@@ -149,27 +158,25 @@ export async function clearHistory(req, res, next) {
   }
 }
 
-// Remove single history item
 export async function removeHistoryItem(req, res, next) {
   try {
-    const userId = req.userId;
     const { historyId } = req.params;
+    const user = await User.findById(req.userId);
 
-    const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'User not found' }
+        error: { code: 'NOT_FOUND', message: 'User not found' },
       });
     }
 
     const initialLength = user.listeningHistory.length;
     user.listeningHistory = user.listeningHistory.filter(
-      item => item._id.toString() !== historyId
+      (item) => String(item._id) !== String(historyId)
     );
 
     if (user.listeningHistory.length === initialLength) {
       return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'History item not found' }
+        error: { code: 'NOT_FOUND', message: 'History item not found' },
       });
     }
 
@@ -180,7 +187,7 @@ export async function removeHistoryItem(req, res, next) {
         message: 'History item removed successfully',
         removed: true,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error('Remove history item error:', error);
@@ -188,28 +195,26 @@ export async function removeHistoryItem(req, res, next) {
   }
 }
 
-// Get history stats
 export async function getHistoryStats(req, res, next) {
   try {
-    const userId = req.userId;
+    const user = await User.findById(req.userId).populate(historyPopulate);
 
-    const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'User not found' }
+        error: { code: 'NOT_FOUND', message: 'User not found' },
       });
     }
 
     const history = user.listeningHistory || [];
     const totalPlays = history.length;
-    const completedItems = history.filter(item => item.completed === true).length;
-    
-    // Get most played tracks
+    const completedItems = history.filter((item) => item.completed === true).length;
+
     const trackCount = {};
-    history.forEach(item => {
-      const trackId = item.trackId?.toString();
+    history.forEach((item) => {
+      const trackId = item.trackId?._id || item.trackId;
       if (trackId) {
-        trackCount[trackId] = (trackCount[trackId] || 0) + 1;
+        const key = String(trackId);
+        trackCount[key] = (trackCount[key] || 0) + 1;
       }
     });
 
@@ -218,10 +223,20 @@ export async function getHistoryStats(req, res, next) {
       .slice(0, 5)
       .map(([trackId, count]) => ({ trackId, count }));
 
-    // Get listening by day of week
-    const dayCount = { Sunday: 0, Monday: 0, Tuesday: 0, Wednesday: 0, Thursday: 0, Friday: 0, Saturday: 0 };
-    history.forEach(item => {
-      const day = new Date(item.playedAt).toLocaleDateString('en-US', { weekday: 'long' });
+    const dayCount = {
+      Sunday: 0,
+      Monday: 0,
+      Tuesday: 0,
+      Wednesday: 0,
+      Thursday: 0,
+      Friday: 0,
+      Saturday: 0,
+    };
+
+    history.forEach((item) => {
+      const day = new Date(item.playedAt).toLocaleDateString('en-US', {
+        weekday: 'long',
+      });
       dayCount[day] = (dayCount[day] || 0) + 1;
     });
 
@@ -229,16 +244,16 @@ export async function getHistoryStats(req, res, next) {
       data: {
         totalPlays,
         completedItems,
-        completionRate: totalPlays > 0 ? Math.round((completedItems / totalPlays) * 100) : 0,
+        completionRate:
+          totalPlays > 0 ? Math.round((completedItems / totalPlays) * 100) : 0,
         mostPlayed,
-        listeningByDay: Object.entries(dayCount).map(([day, count]) => ({ day, count })),
-        totalListeningTime: history.reduce((sum, item) => {
-          const duration = item.trackId?.duration || 0;
-          const progress = (item.progress || 0) / 100;
-          return sum + (duration * progress);
-        }, 0),
+        listeningByDay: Object.entries(dayCount).map(([day, count]) => ({
+          day,
+          count,
+        })),
+        totalListeningTime: Math.round(listeningSeconds(history)),
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error('Get history stats error:', error);
