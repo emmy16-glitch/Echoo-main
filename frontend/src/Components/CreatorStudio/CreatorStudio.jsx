@@ -8,7 +8,7 @@ import {
   FaCloudUploadAlt,
   FaCog,
   FaExclamationCircle,
-  FaFileAlt,
+  FaHeadphones,
   FaHome,
   FaMicrophone,
   FaSignOutAlt,
@@ -31,22 +31,9 @@ import CreatorSettingsWorkspace from './CreatorSettingsWorkspace';
 import CreatorNotificationsWorkspace from './CreatorNotificationsWorkspace';
 
 const GENRES = [
-  'Pop',
-  'Rock',
-  'Hip-Hop',
-  'Electronic',
-  'Jazz',
-  'Classical',
-  'R&B',
-  'Country',
-  'Metal',
-  'Reggae',
-  'Podcast',
-  'Spiritual',
-  'Educational',
-  'Comedy',
-  'Storytelling',
-  'Other',
+  'Pop', 'Rock', 'Hip-Hop', 'Electronic', 'Jazz', 'Classical', 'R&B',
+  'Country', 'Metal', 'Reggae', 'Podcast', 'Spiritual', 'Educational',
+  'Comedy', 'Storytelling', 'Other',
 ];
 
 const EMPTY_UPLOAD = {
@@ -92,46 +79,36 @@ const CreatorStudio = () => {
     user.creatorProfile?.creatorType === 'organization';
 
   const studioName = isOrganization
-    ? creatorSetup.name ||
-      creatorSetup.organizationName ||
-      user.creatorProfile?.organizationName ||
-      user.displayName ||
-      'Creator Studio'
-    : user.displayName ||
-      user.fullname ||
-      user.name ||
-      user.username ||
-      'Creator Studio';
+    ? creatorSetup.name || creatorSetup.organizationName ||
+      user.creatorProfile?.organizationName || user.displayName || 'Creator Studio'
+    : user.displayName || user.fullname || user.name || user.username || 'Creator Studio';
 
   const studioType = isOrganization ? 'Organization' : 'Individual Creator';
   const profileImage =
-    user.avatar ||
-    user.profileImage ||
-    localStorage.getItem('profileImage') ||
-    null;
+    user.avatar || user.profileImage || localStorage.getItem('profileImage') || null;
   const initial = studioName.charAt(0).toUpperCase() || 'E';
 
   const navItems = [
     { name: 'Home', icon: <FaHome /> },
-    { name: 'Content', icon: <FaFileAlt /> },
-    { name: 'Stations', icon: <FaBroadcastTower /> },
     { name: 'Live', icon: <FaMicrophone /> },
     { name: 'Schedule', icon: <FaCalendarAlt /> },
+    { name: 'Stations', icon: <FaBroadcastTower /> },
+    { name: 'Audio', icon: <FaHeadphones /> },
     { name: 'Audience', icon: <FaUsers /> },
     { name: 'Analytics', icon: <FaChartBar /> },
     { name: 'Settings', icon: <FaCog /> },
   ];
 
   const headings = {
-    Home: ['Welcome to your Studio', 'Your creator tools and real Echoo activity.'],
-    Content: ['Your Content', 'Manage audio published through Echoo.'],
-    Stations: ['Stations', 'Create and manage stations from this one workspace.'],
-    Live: ['Live', 'Prepare and publish a real LiveKit audio broadcast.'],
-    Schedule: ['Schedule', 'Plan broadcasts using stations you already created.'],
-    Audience: ['Audience', 'See audience information actually recorded by Echoo.'],
-    Analytics: ['Analytics', 'Review available creator performance data.'],
-    Settings: ['Creator Settings', 'Manage your creator account and preferences.'],
-    Notifications: ['Notifications', 'Real activity for your creator account.'],
+    Home: ['Creator Studio', 'Go live, schedule broadcasts and manage your audio.'],
+    Live: ['Go Live', 'Prepare your microphone and start a live audio broadcast.'],
+    Schedule: ['Schedule', 'Plan an upcoming broadcast and enter the same Live Studio when ready.'],
+    Stations: ['Stations', 'Create and manage the stations your broadcasts belong to.'],
+    Audio: ['Audio', 'Upload and manage your published recordings.'],
+    Audience: ['Audience', 'See the people and listening activity connected to your creator account.'],
+    Analytics: ['Analytics', 'Review your recorded performance.'],
+    Settings: ['Settings', 'Manage your profile, notifications and account security.'],
+    Notifications: ['Notifications', 'Activity from your Echoo account.'],
   };
 
   const headerContent = headings[activeNav] || headings.Home;
@@ -140,17 +117,14 @@ const CreatorStudio = () => {
     let active = true;
 
     const load = async () => {
-      if (!['Content', 'Audience', 'Home'].includes(activeNav)) return;
+      if (!['Audio', 'Audience', 'Home'].includes(activeNav)) return;
 
       try {
         setLoading(true);
         setError('');
 
-        if (activeNav === 'Content') {
-          const response = await studioService.getContent({
-            page: contentPage,
-            limit: 20,
-          });
+        if (activeNav === 'Audio') {
+          const response = await studioService.getContent({ page: contentPage, limit: 20 });
           if (!active) return;
           setContent(response?.data || { tracks: [], pagination: {} });
         }
@@ -161,18 +135,14 @@ const CreatorStudio = () => {
           setAudience(response?.data || null);
         }
       } catch (loadError) {
-        if (active) {
-          setError(loadError?.message || 'Could not load Creator Studio data.');
-        }
+        if (active) setError(loadError?.message || 'Could not load Creator Studio data.');
       } finally {
         if (active) setLoading(false);
       }
     };
 
     load();
-    return () => {
-      active = false;
-    };
+    return () => { active = false; };
   }, [activeNav, contentPage, refreshKey]);
 
   const navigateStudio = (page) => {
@@ -183,36 +153,17 @@ const CreatorStudio = () => {
 
   const handleCreatorLogout = () => {
     [
-      'accessToken',
-      'refreshToken',
-      'token',
-      'user',
-      'profileImage',
-      'profileBio',
-      'echooRole',
-      'echooProfileCompleted',
-      'echooOnboardingCompleted',
-      'creatorSetup',
+      'accessToken', 'refreshToken', 'token', 'user', 'profileImage', 'profileBio',
+      'echooRole', 'echooProfileCompleted', 'echooOnboardingCompleted', 'creatorSetup',
     ].forEach((key) => localStorage.removeItem(key));
-
     sessionStorage.clear();
     window.location.replace('/');
   };
 
   const openUpload = () => {
-    let defaultPublic = true;
-    try {
-      const preferences = JSON.parse(
-        localStorage.getItem('echoo-creator-settings-v1') || '{}'
-      );
-      defaultPublic = preferences.defaultPublic !== false;
-    } catch {
-      defaultPublic = true;
-    }
-
     setError('');
     setNotice('');
-    setUploadForm({ ...EMPTY_UPLOAD, isPublic: defaultPublic });
+    setUploadForm(EMPTY_UPLOAD);
     setUploadOpen(true);
   };
 
@@ -228,8 +179,7 @@ const CreatorStudio = () => {
       setUploadForm((current) => ({
         ...current,
         file,
-        title:
-          current.title || file?.name?.replace(/\.[^/.]+$/, '') || '',
+        title: current.title || file?.name?.replace(/\.[^/.]+$/, '') || '',
       }));
       return;
     }
@@ -259,10 +209,7 @@ const CreatorStudio = () => {
         title: uploadForm.title.trim(),
         description: uploadForm.description.trim(),
         genre: uploadForm.genre,
-        tags: uploadForm.tags
-          .split(',')
-          .map((tag) => tag.trim())
-          .filter(Boolean),
+        tags: uploadForm.tags.split(',').map((tag) => tag.trim()).filter(Boolean),
         isPublic: uploadForm.isPublic,
       });
 
@@ -316,7 +263,7 @@ const CreatorStudio = () => {
 
   const renderWorkspace = () => {
     switch (activeNav) {
-      case 'Content':
+      case 'Audio':
         return (
           <CreatorContentWorkspace
             tracks={Array.isArray(content?.tracks) ? content.tracks : []}
@@ -330,7 +277,7 @@ const CreatorStudio = () => {
           />
         );
       case 'Stations':
-        return <CreatorStationsWorkspace studioName={studioName} />;
+        return <CreatorStationsWorkspace studioName={studioName} onNavigate={navigateStudio} />;
       case 'Live':
         return (
           <CreatorLiveWorkspace
@@ -382,10 +329,7 @@ const CreatorStudio = () => {
           style={{ border: 0, background: 'transparent', textAlign: 'left' }}
         >
           <img src={echooLogo} alt="Echoo" className="studio-logo" />
-          <div>
-            <h2>Echoo</h2>
-            <span>Creator Studio</span>
-          </div>
+          <div><h2>Echoo</h2><span>Creator Studio</span></div>
         </button>
 
         <nav className="studio-navigation">
@@ -406,10 +350,7 @@ const CreatorStudio = () => {
           <div className="sidebar-avatar">
             {profileImage ? <img src={profileImage} alt="" /> : initial}
           </div>
-          <div className="sidebar-profile-text">
-            <strong>{studioName}</strong>
-            <span>{studioType}</span>
-          </div>
+          <div className="sidebar-profile-text"><strong>{studioName}</strong><span>{studioType}</span></div>
           <button
             type="button"
             className="studio-sidebar-logout"
@@ -417,18 +358,14 @@ const CreatorStudio = () => {
             aria-label="Log out of Echoo"
             title="Log out"
           >
-            <FaSignOutAlt />
-            <span>Log out</span>
+            <FaSignOutAlt /><span>Log out</span>
           </button>
         </div>
       </aside>
 
       <main id="echoo-main-content" tabIndex="-1" className="studio-main">
         <header className="studio-topbar">
-          <div>
-            <h1>{headerContent[0]}</h1>
-            <p>{headerContent[1]}</p>
-          </div>
+          <div><h1>{headerContent[0]}</h1><p>{headerContent[1]}</p></div>
 
           <div className="studio-top-actions">
             <button
@@ -450,10 +387,7 @@ const CreatorStudio = () => {
               <div className="top-avatar">
                 {profileImage ? <img src={profileImage} alt="" /> : initial}
               </div>
-              <div>
-                <strong>{studioName}</strong>
-                <span>Creator settings</span>
-              </div>
+              <div><strong>{studioName}</strong><span>Settings</span></div>
               <FaChevronDown />
             </button>
           </div>
@@ -461,21 +395,15 @@ const CreatorStudio = () => {
 
         {error && (
           <div className="studio-alert error">
-            <FaExclamationCircle />
-            <span>{error}</span>
-            <button type="button" onClick={() => setError('')}>
-              <FaTimes />
-            </button>
+            <FaExclamationCircle /><span>{error}</span>
+            <button type="button" onClick={() => setError('')}><FaTimes /></button>
           </div>
         )}
 
         {notice && (
           <div className="studio-alert success">
-            <FaCloudUploadAlt />
-            <span>{notice}</span>
-            <button type="button" onClick={() => setNotice('')}>
-              <FaTimes />
-            </button>
+            <FaCloudUploadAlt /><span>{notice}</span>
+            <button type="button" onClick={() => setNotice('')}><FaTimes /></button>
           </div>
         )}
 
@@ -496,10 +424,7 @@ const CreatorStudio = () => {
         >
           <div className="studio-upload-modal">
             <div className="upload-modal-header">
-              <div>
-                <h2>Upload Audio</h2>
-                <p>Add one real audio item to your Echoo account.</p>
-              </div>
+              <div><h2>Upload Audio</h2><p>Add a recording to your Echoo account.</p></div>
               <button
                 type="button"
                 className="upload-close-button"
@@ -513,13 +438,7 @@ const CreatorStudio = () => {
 
             <form onSubmit={handleUploadSubmit} className="studio-upload-form">
               <label className="studio-upload-drop">
-                <input
-                  type="file"
-                  name="file"
-                  accept="audio/*"
-                  onChange={handleUploadChange}
-                  hidden
-                />
+                <input type="file" name="file" accept="audio/*" onChange={handleUploadChange} hidden />
                 <div><FaCloudUploadAlt /></div>
                 <strong>{uploadForm.file?.name || 'Choose audio file'}</strong>
                 <span>Audio files only</span>
@@ -546,9 +465,7 @@ const CreatorStudio = () => {
                     value={uploadForm.genre}
                     onChange={handleUploadChange}
                   >
-                    {GENRES.map((genre) => (
-                      <option key={genre} value={genre}>{genre}</option>
-                    ))}
+                    {GENRES.map((genre) => <option key={genre} value={genre}>{genre}</option>)}
                   </select>
                 </div>
 
@@ -590,12 +507,7 @@ const CreatorStudio = () => {
               </label>
 
               <div className="upload-modal-actions">
-                <button
-                  type="button"
-                  className="upload-cancel"
-                  onClick={closeUpload}
-                  disabled={uploading}
-                >
+                <button type="button" className="upload-cancel" onClick={closeUpload} disabled={uploading}>
                   Cancel
                 </button>
                 <button
