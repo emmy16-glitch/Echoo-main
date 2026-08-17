@@ -48,12 +48,23 @@ export const normalizeStation = (station) => {
   if (!station) return null;
 
   const owner = normalizeOwner(station.owner);
-  const rawCustomLogo = buildMediaUrl(
+  const rawStoredArt = buildMediaUrl(
     station.logo || station.coverArt || station.artwork || station.image || null
   );
-  const customLogo = versionManagedStationLogo(rawCustomLogo, station.updatedAt);
+  const storedIsGeneratedSvg = Boolean(
+    rawStoredArt && String(rawStoredArt).startsWith('data:image/svg+xml')
+  );
+  const inferredMode = rawStoredArt && !storedIsGeneratedSvg
+    ? 'custom'
+    : station.branding?.mode || 'generated';
+  const customLogo = inferredMode === 'custom'
+    ? versionManagedStationLogo(rawStoredArt, station.updatedAt)
+    : null;
+  const storedGeneratedCover = inferredMode === 'generated' && storedIsGeneratedSvg
+    ? rawStoredArt
+    : null;
   const branding = {
-    mode: station.branding?.mode || (customLogo ? 'custom' : 'generated'),
+    mode: inferredMode,
     variant: Number.isInteger(Number(station.branding?.variant))
       ? Number(station.branding.variant)
       : undefined,
@@ -86,9 +97,7 @@ export const normalizeStation = (station) => {
   };
 
   const generatedCover = buildGeneratedStationBrandCoverUrl(baseStation);
-  const brandCover = branding.mode === 'custom' && customLogo
-    ? customLogo
-    : generatedCover;
+  const brandCover = customLogo || storedGeneratedCover || generatedCover;
 
   return {
     ...baseStation,
@@ -184,6 +193,7 @@ const stationFormData = (payload = {}) => {
   if (payload.removeLogo !== undefined) form.append('removeLogo', String(Boolean(payload.removeLogo)));
   if (payload.brandingMode !== undefined) form.append('brandingMode', payload.brandingMode || 'generated');
   if (payload.brandingVariant !== undefined) form.append('brandingVariant', String(payload.brandingVariant));
+  if (payload.generatedCoverArt !== undefined) form.append('generatedCoverArt', payload.generatedCoverArt || '');
 
   const logoFile = payload.logoFile;
   if (logoFile && typeof logoFile === 'object' && typeof logoFile.name === 'string') {
@@ -224,6 +234,16 @@ const refreshWrittenStation = async (writtenResponse, payload = {}) => {
   }
 
   return canonical;
+};
+
+const sanitizeBroadcastPayload = (payload = {}) => {
+  const next = { ...payload };
+  if (typeof next.coverArt === 'string' && next.coverArt.startsWith('data:image/svg+xml')) {
+    // Generated station branding is already stored on the Station itself. Avoid
+    // duplicating the SVG payload inside every Broadcast document.
+    next.coverArt = null;
+  }
+  return next;
 };
 
 const batch2Service = {
@@ -309,7 +329,7 @@ const batch2Service = {
   createBroadcast: async (payload) => {
     const response = await apiRequest('/broadcasts', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify(sanitizeBroadcastPayload(payload)),
     });
     return { ...response, data: normalizeBroadcast(response?.data) };
   },
@@ -319,7 +339,7 @@ const batch2Service = {
       `/broadcasts/${encodeURIComponent(broadcastId)}`,
       {
         method: 'PATCH',
-        body: JSON.stringify(payload),
+        body: JSON.stringify(sanitizeBroadcastPayload(payload)),
       }
     );
     return { ...response, data: normalizeBroadcast(response?.data) };
