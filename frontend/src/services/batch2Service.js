@@ -193,7 +193,20 @@ const stationFormData = (payload = {}) => {
   if (payload.removeLogo !== undefined) form.append('removeLogo', String(Boolean(payload.removeLogo)));
   if (payload.brandingMode !== undefined) form.append('brandingMode', payload.brandingMode || 'generated');
   if (payload.brandingVariant !== undefined) form.append('brandingVariant', String(payload.brandingVariant));
-  if (payload.generatedCoverArt !== undefined) form.append('generatedCoverArt', payload.generatedCoverArt || '');
+
+  if (payload.brandingMode === 'generated') {
+    const generatedCoverArt = payload.generatedCoverArt || buildGeneratedStationBrandCoverUrl({
+      id: payload.id || `station-${payload.brandingVariant ?? 0}`,
+      name: payload.name || 'Echoo Station',
+      category: payload.category || 'Other',
+      branding: {
+        mode: 'generated',
+        variant: Number(payload.brandingVariant) || 0,
+        version: 1,
+      },
+    });
+    form.append('generatedCoverArt', generatedCoverArt);
+  }
 
   const logoFile = payload.logoFile;
   if (logoFile && typeof logoFile === 'object' && typeof logoFile.name === 'string') {
@@ -239,8 +252,6 @@ const refreshWrittenStation = async (writtenResponse, payload = {}) => {
 const sanitizeBroadcastPayload = (payload = {}) => {
   const next = { ...payload };
   if (typeof next.coverArt === 'string' && next.coverArt.startsWith('data:image/svg+xml')) {
-    // Generated station branding is already stored on the Station itself. Avoid
-    // duplicating the SVG payload inside every Broadcast document.
     next.coverArt = null;
   }
   return next;
