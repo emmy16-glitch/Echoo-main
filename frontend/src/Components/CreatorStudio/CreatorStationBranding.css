@@ -31,6 +31,18 @@
   object-fit: cover;
 }
 
+/* Generated Echoo station covers are authored at 16:9. Never crop them in
+   Creator Studio: their typography and edge-safe decoration must stay visible. */
+.est-brand-preview img[src^="data:image/svg+xml"],
+.est-art img[src^="data:image/svg+xml"] {
+  object-fit: contain;
+}
+
+.est-art:has(> img[src^="data:image/svg+xml"]) {
+  height: auto;
+  aspect-ratio: 16 / 9;
+}
+
 .est-brand-preview > span {
   position: absolute;
   left: 10px;
