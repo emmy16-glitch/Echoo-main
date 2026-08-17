@@ -1,5 +1,24 @@
 import mongoose from 'mongoose';
 
+export const ECHOO_AUDIO_GENRES = [
+  'Pop',
+  'Rock',
+  'Hip-Hop',
+  'Electronic',
+  'Jazz',
+  'Classical',
+  'R&B',
+  'Country',
+  'Metal',
+  'Reggae',
+  'Podcast',
+  'Spiritual',
+  'Educational',
+  'Comedy',
+  'Storytelling',
+  'Other',
+];
+
 const audioSchema = new mongoose.Schema(
   {
     title: {
@@ -55,14 +74,16 @@ const audioSchema = new mongoose.Schema(
     },
     genre: {
       type: String,
-      enum: ['Pop', 'Rock', 'Hip-Hop', 'Electronic', 'Jazz', 'Classical', 'R&B', 'Country', 'Metal', 'Reggae', 'Podcast', 'Other'],
+      enum: ECHOO_AUDIO_GENRES,
       default: 'Other',
     },
-    tags: [{
-      type: String,
-      trim: true,
-      maxlength: [30, 'Tag cannot exceed 30 characters'],
-    }],
+    tags: [
+      {
+        type: String,
+        trim: true,
+        maxlength: [30, 'Tag cannot exceed 30 characters'],
+      },
+    ],
     isPublic: {
       type: Boolean,
       default: true,
@@ -100,32 +121,29 @@ const audioSchema = new mongoose.Schema(
   }
 );
 
-// Indexes
 audioSchema.index({ artist: 1, createdAt: -1 });
 audioSchema.index({ title: 'text', description: 'text', tags: 'text' });
 audioSchema.index({ isPublic: 1, createdAt: -1 });
 audioSchema.index({ playCount: -1 });
 
-// Virtual for file size in MB
-audioSchema.virtual('fileSizeMB').get(function() {
+audioSchema.virtual('fileSizeMB').get(function fileSizeMB() {
   return (this.fileSize / (1024 * 1024)).toFixed(2);
 });
 
-// Instance methods
-audioSchema.methods.incrementPlays = async function() {
+audioSchema.methods.incrementPlays = async function incrementPlays() {
   this.playCount += 1;
-  return await this.save();
+  return this.save();
 };
 
-audioSchema.methods.incrementLikes = async function() {
+audioSchema.methods.incrementLikes = async function incrementLikes() {
   this.likeCount += 1;
-  return await this.save();
+  return this.save();
 };
 
-audioSchema.methods.decrementLikes = async function() {
+audioSchema.methods.decrementLikes = async function decrementLikes() {
   if (this.likeCount > 0) {
     this.likeCount -= 1;
-    return await this.save();
+    return this.save();
   }
   return this;
 };
