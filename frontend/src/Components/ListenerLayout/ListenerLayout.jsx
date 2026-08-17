@@ -118,6 +118,7 @@ const ListenerLayout = () => {
   const searchRef = useRef(null);
   const searchAreaRef = useRef(null);
   const progressSyncRef = useRef(false);
+  const pendingSeekRef = useRef(null);
 
   const [currentTrack, setCurrentTrack] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -174,6 +175,25 @@ const ListenerLayout = () => {
     } finally {
       progressSyncRef.current = false;
     }
+  };
+
+  const applyPendingSeek = () => {
+    const audio = audioRef.current;
+    const pending = pendingSeekRef.current;
+
+    if (
+      !audio ||
+      pending === null ||
+      !Number.isFinite(audio.duration) ||
+      audio.duration <= 0
+    ) {
+      return;
+    }
+
+    const target = Math.max(0, Math.min(Number(pending) || 0, audio.duration));
+    audio.currentTime = target;
+    setCurrentTime(target);
+    pendingSeekRef.current = null;
   };
 
   const loadAndPlay = (track) => {
@@ -249,12 +269,10 @@ const ListenerLayout = () => {
       });
     }
 
+    pendingSeekRef.current = null;
     setCurrentTrack(normalized);
     setCurrentTime(0);
     setDuration(normalized.duration || 0);
-
-    // Start playback directly inside the user's click/tap event. Waiting for a
-    // React effect can lose browser user-activation and make play() get blocked.
     loadAndPlay(normalized);
 
     if (backendTrackId(normalized.id)) {
@@ -266,6 +284,7 @@ const ListenerLayout = () => {
   const playQueueIndex = (index) => {
     if (index < 0 || index >= queue.length) return;
     const track = queue[index];
+    pendingSeekRef.current = null;
     setQueueIndex(index);
     setCurrentTrack(track);
     setCurrentTime(0);
@@ -343,10 +362,16 @@ const ListenerLayout = () => {
   const seekTo = (seconds) => {
     const audio = audioRef.current;
     if (!audio) return 0;
-    const maximum = Number.isFinite(audio.duration) ? audio.duration : duration;
-    const target = Math.max(0, Math.min(Number(seconds) || 0, maximum || 0));
+
+    if (!Number.isFinite(audio.duration) || audio.duration <= 0) {
+      pendingSeekRef.current = Math.max(0, Number(seconds) || 0);
+      return pendingSeekRef.current;
+    }
+
+    const target = Math.max(0, Math.min(Number(seconds) || 0, audio.duration));
     audio.currentTime = target;
     setCurrentTime(target);
+    pendingSeekRef.current = null;
     return target;
   };
 
@@ -357,14 +382,38 @@ const ListenerLayout = () => {
       return;
     }
 
+    const requestedSeek = Math.max(0, Number(seconds) || 0);
+
     if (currentTrack?.id === normalized.id && audioRef.current) {
-      seekTo(seconds);
+      pendingSeekRef.current = requestedSeek;
+      applyPendingSeek();
       loadAndPlay(normalized);
       return;
     }
 
-    playTrack(normalized, incomingQueue);
-    window.setTimeout(() => seekTo(seconds), 100);
+    if (currentTrack?.id && currentTrack.id !== normalized.id) {
+      syncProgress(false);
+    }
+
+    if (Array.isArray(incomingQueue) && incomingQueue.length) {
+      const nextQueue = incomingQueue.map(normalizeTrack).filter((item) => item?.fileUrl);
+      setQueue(nextQueue);
+      const index = nextQueue.findIndex(
+        (item) => item.id === normalized.id || item.title === normalized.title
+      );
+      setQueueIndex(index >= 0 ? index : 0);
+    }
+
+    pendingSeekRef.current = requestedSeek;
+    setCurrentTrack(normalized);
+    setCurrentTime(0);
+    setDuration(normalized.duration || 0);
+    loadAndPlay(normalized);
+
+    if (backendTrackId(normalized.id)) {
+      listenerService.addToContinueListening(normalized.id).catch(() => {});
+      audioService.play(normalized.id).catch(() => {});
+    }
   };
 
   useEffect(() => {
@@ -435,9 +484,11 @@ const ListenerLayout = () => {
     };
 
     loadNotifications();
+    const interval = window.setInterval(loadNotifications, 15000);
     window.addEventListener('focus', loadNotifications);
     return () => {
       active = false;
+      window.clearInterval(interval);
       window.removeEventListener('focus', loadNotifications);
     };
   }, []);
@@ -678,21 +729,24 @@ const ListenerLayout = () => {
           ref={audioRef}
           preload="metadata"
           onTimeUpdate={() => setCurrentTime(audioRef.current?.currentTime || 0)}
-          onLoadedMetadata={() =>
-            setDuration(
-              Number.isFinite(audioRef.current?.duration)
-                ? audioRef.current.duration
-                : currentTrack?.duration || 0
-            )
-          }
-          onDurationChange={() =>
-            setDuration(
-              Number.isFinite(audioRef.current?.duration)
-                ? audioRef.current.duration
-                : currentTrack?.duration || 0
-            )
-          }
-          onCanPlay={() => setPlayerError('')}
+          onLoadedMetadata={() => {
+            const nextDuration = Number.isFinite(audioRef.current?.duration)
+              ? audioRef.current.duration
+              : currentTrack?.duration || 0;
+            setDuration(nextDuration);
+            applyPendingSeek();
+          }}
+          onDurationChange={() => {
+            const nextDuration = Number.isFinite(audioRef.current?.duration)
+              ? audioRef.current.duration
+              : currentTrack?.duration || 0;
+            setDuration(nextDuration);
+            applyPendingSeek();
+          }}
+          onCanPlay={() => {
+            setPlayerError('');
+            applyPendingSeek();
+          }}
           onEnded={() => {
             syncProgress(true);
             if (repeatMode === 'one' && audioRef.current) {
