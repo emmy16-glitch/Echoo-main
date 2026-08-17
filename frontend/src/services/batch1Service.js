@@ -46,18 +46,23 @@ const normalizeProfile = (profile) => {
 
 const resolveCanonicalStations = async (stations = []) => {
   const normalized = stations.map(normalizeStation).filter(Boolean);
+  if (!normalized.length) return [];
 
-  return Promise.all(
-    normalized.map(async (station) => {
-      if (!station?.id) return station;
-      try {
-        const response = await batch2Service.getStation(station.id);
-        return response?.data || station;
-      } catch {
-        return station;
-      }
-    })
-  );
+  try {
+    const response = await batch2Service.listStations({ page: 1, limit: 100 });
+    const canonical = Array.isArray(response?.data) ? response.data : [];
+    const byId = new Map(
+      canonical
+        .filter((station) => station?.id)
+        .map((station) => [String(station.id), station])
+    );
+
+    return normalized.map(
+      (station) => byId.get(String(station.id)) || station
+    );
+  } catch {
+    return normalized;
+  }
 };
 
 export const batch1Service = {
