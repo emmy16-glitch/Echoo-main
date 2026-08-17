@@ -1,4 +1,5 @@
 import { apiRequest, buildMediaUrl } from './api.js';
+import { buildGeneratedStationBrandCoverUrl } from '../stationBranding/stationBranding.js';
 
 const queryString = (values = {}) => {
   const params = new URLSearchParams();
@@ -47,12 +48,19 @@ export const normalizeStation = (station) => {
   if (!station) return null;
 
   const owner = normalizeOwner(station.owner);
-  const rawLogo = buildMediaUrl(
+  const rawCustomLogo = buildMediaUrl(
     station.logo || station.coverArt || station.artwork || station.image || null
   );
-  const logo = versionManagedStationLogo(rawLogo, station.updatedAt);
+  const customLogo = versionManagedStationLogo(rawCustomLogo, station.updatedAt);
+  const branding = {
+    mode: station.branding?.mode || (customLogo ? 'custom' : 'generated'),
+    variant: Number.isInteger(Number(station.branding?.variant))
+      ? Number(station.branding.variant)
+      : undefined,
+    version: Number(station.branding?.version) || 1,
+  };
 
-  return {
+  const baseStation = {
     ...station,
     id: station.id || station._id || null,
     _id: station._id || station.id || null,
@@ -65,10 +73,9 @@ export const normalizeStation = (station) => {
     title: station.name || 'Untitled Station',
     description: station.description || '',
     category: station.category || 'Other',
-    logo,
-    coverArt: logo,
-    artwork: logo,
-    image: logo,
+    branding,
+    logo: customLogo,
+    customLogo,
     isLive: Boolean(station.isLive),
     listenerCount: Number(station.listenerCount) || 0,
     listeners: Number(station.listenerCount) || 0,
@@ -76,6 +83,19 @@ export const normalizeStation = (station) => {
     followers: Number(station.followerCount) || 0,
     isPublic: station.isPublic !== false,
     tags: Array.isArray(station.tags) ? station.tags : [],
+  };
+
+  const generatedCover = buildGeneratedStationBrandCoverUrl(baseStation);
+  const brandCover = branding.mode === 'custom' && customLogo
+    ? customLogo
+    : generatedCover;
+
+  return {
+    ...baseStation,
+    brandCover,
+    coverArt: brandCover,
+    artwork: brandCover,
+    image: brandCover,
   };
 };
 
@@ -90,7 +110,7 @@ export const normalizeBroadcast = (broadcast) => {
   const creatorId = normalizeId(broadcast.creator) || broadcast.creatorId || null;
   const normalizedStation = stationObject ? normalizeStation(stationObject) : null;
   const coverArt =
-    normalizedStation?.logo ||
+    normalizedStation?.brandCover ||
     buildMediaUrl(broadcast.coverArt || null);
   const status = broadcast.status || 'scheduled';
 
@@ -104,6 +124,7 @@ export const normalizeBroadcast = (broadcast) => {
     stationId,
     stationName: stationObject?.name || broadcast.stationName || 'Echoo Station',
     stationSlug: stationObject?.slug || null,
+    stationBranding: normalizedStation?.branding || broadcast.stationBranding || null,
     creatorId,
     creatorName:
       creatorObject?.displayName ||
@@ -161,6 +182,8 @@ const stationFormData = (payload = {}) => {
   }
   if (payload.isPublic !== undefined) form.append('isPublic', String(payload.isPublic !== false));
   if (payload.removeLogo !== undefined) form.append('removeLogo', String(Boolean(payload.removeLogo)));
+  if (payload.brandingMode !== undefined) form.append('brandingMode', payload.brandingMode || 'generated');
+  if (payload.brandingVariant !== undefined) form.append('brandingVariant', String(payload.brandingVariant));
 
   const logoFile = payload.logoFile;
   if (logoFile && typeof logoFile === 'object' && typeof logoFile.name === 'string') {
@@ -190,6 +213,10 @@ const refreshWrittenStation = async (writtenResponse, payload = {}) => {
     throw new Error(
       'The station details saved, but the logo was not stored. Restart the Echoo backend and try the logo upload again.'
     );
+  }
+
+  if (payload.brandingMode === 'generated' && canonical.branding?.mode !== 'generated') {
+    throw new Error('Echoo could not switch this station back to its generated brand.');
   }
 
   if (payload.removeLogo && canonical.logo) {
