@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   useNavigate,
   useOutletContext,
@@ -17,6 +17,8 @@ import profileService from '../../services/profileService';
 import followService from '../../services/followService';
 import './ListenerCreatorProfile.css';
 
+const PROFILE_SYNC_INTERVAL_MS = 15000;
+
 const ListenerCreatorProfile = () => {
   const { creatorId } = useParams();
   const navigate = useNavigate();
@@ -29,40 +31,44 @@ const ListenerCreatorProfile = () => {
   const [followBusy, setFollowBusy] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    let active = true;
+  const load = useCallback(async ({ silent = false } = {}) => {
+    try {
+      if (!silent) setLoading(true);
+      if (!silent) setError('');
 
-    const load = async () => {
+      const response = await profileService.getProfile(creatorId);
+      if (!response?.data) return;
+
+      setProfile(response.data);
+      setFollowerCount(Number(response.data.stats?.followers) || 0);
+
       try {
-        setLoading(true);
-        setError('');
-
-        const response = await profileService.getProfile(creatorId);
-        if (!active || !response?.data) return;
-
-        setProfile(response.data);
-        setFollowerCount(Number(response.data.stats?.followers) || 0);
-
-        try {
-          const status = await followService.getCreatorStatus(response.data.id);
-          if (active) setFollowing(Boolean(status?.isFollowing));
-        } catch {
-          // Public profile still renders if relationship status cannot load.
-        }
-      } catch (loadError) {
-        if (active) {
-          setError(loadError?.message || 'Could not load this creator.');
-        }
-      } finally {
-        if (active) setLoading(false);
+        const status = await followService.getCreatorStatus(response.data.id);
+        setFollowing(Boolean(status?.isFollowing));
+      } catch {
+        // Public profile still renders if relationship status cannot load.
       }
-    };
-
-    load();
-    return () => {
-      active = false;
-    };
+    } catch (loadError) {
+      if (!silent) {
+        setError(loadError?.message || 'Could not load this creator.');
+      }
+    } finally {
+      if (!silent) setLoading(false);
+    }
   }, [creatorId]);
+
+  useEffect(() => {
+    load();
+
+    const sync = () => load({ silent: true });
+    const interval = window.setInterval(sync, PROFILE_SYNC_INTERVAL_MS);
+    window.addEventListener('focus', sync);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', sync);
+    };
+  }, [load]);
 
   const toggleFollow = async () => {
     if (!profile?.id || followBusy) return;
@@ -202,7 +208,11 @@ const ListenerCreatorProfile = () => {
                 onClick={() => navigate(`/listen/stations/${station.id}`)}
               >
                 <div>
-                  {station.coverArt ? <img src={station.coverArt} alt="" /> : <FaHeadphones />}
+                  {station.brandCover || station.coverArt ? (
+                    <img src={station.brandCover || station.coverArt} alt="" />
+                  ) : (
+                    <FaHeadphones />
+                  )}
                 </div>
                 <strong>{station.name}</strong>
                 <span>{station.category || 'Station'}</span>
