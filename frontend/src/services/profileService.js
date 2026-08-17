@@ -1,4 +1,8 @@
 import { apiRequest, buildMediaUrl } from './api.js';
+import batch2Service, {
+  normalizeBroadcast as normalizeCanonicalBroadcast,
+  normalizeStation as normalizeCanonicalStation,
+} from './batch2Service.js';
 
 const normalizeTrack = (track) => {
   if (!track) return null;
@@ -10,26 +14,9 @@ const normalizeTrack = (track) => {
   };
 };
 
-const normalizeStation = (station) => {
-  if (!station) return null;
-  return {
-    ...station,
-    id: station.id || station._id || null,
-    coverArt: buildMediaUrl(station.coverArt || null),
-  };
-};
+const normalizeStation = (station) => normalizeCanonicalStation(station);
 
-const normalizeBroadcast = (broadcast) => {
-  if (!broadcast) return null;
-  const station = typeof broadcast.station === 'object' ? broadcast.station : null;
-  return {
-    ...broadcast,
-    id: broadcast.id || broadcast._id || null,
-    stationId: station?.id || station?._id || broadcast.station || null,
-    stationName: station?.name || 'Echoo Station',
-    coverArt: buildMediaUrl(broadcast.coverArt || station?.coverArt || null),
-  };
-};
+const normalizeBroadcast = (broadcast) => normalizeCanonicalBroadcast(broadcast);
 
 const normalizeProfile = (profile) => {
   if (!profile) return null;
@@ -53,19 +40,64 @@ const normalizeProfile = (profile) => {
   };
 };
 
+const applyCanonicalStations = (profile, canonicalStations = []) => {
+  if (!profile) return null;
+
+  const stationMap = new Map(
+    canonicalStations
+      .filter((station) => station?.id)
+      .map((station) => [String(station.id), station])
+  );
+
+  const stations = profile.stations.map(
+    (station) => stationMap.get(String(station.id)) || station
+  );
+
+  const enrichBroadcast = (broadcast) => {
+    if (!broadcast) return null;
+    const station = stationMap.get(String(broadcast.stationId)) || null;
+    const artwork = station?.brandCover || station?.coverArt || broadcast.coverArt || null;
+
+    return {
+      ...broadcast,
+      station: station || broadcast.station,
+      stationName: station?.name || broadcast.stationName,
+      stationBranding: station?.branding || broadcast.stationBranding || null,
+      coverArt: artwork,
+      artwork,
+      image: artwork,
+    };
+  };
+
+  return {
+    ...profile,
+    stations,
+    liveBroadcast: enrichBroadcast(profile.liveBroadcast),
+    recentBroadcasts: profile.recentBroadcasts.map(enrichBroadcast).filter(Boolean),
+  };
+};
+
 const profileService = {
   getProfile: async (identifier) => {
-    const response = await apiRequest(
-      `/profile/${encodeURIComponent(identifier)}`,
-      {
-        skipAuth: true,
-        skipRefresh: true,
-      }
-    );
+    const [response, stationsResult] = await Promise.all([
+      apiRequest(
+        `/profile/${encodeURIComponent(identifier)}`,
+        {
+          skipAuth: true,
+          skipRefresh: true,
+        }
+      ),
+      batch2Service.listStations({ page: 1, limit: 100 }).catch(() => ({ data: [] })),
+    ]);
+
+    const profile = normalizeProfile(response?.data);
+    const canonicalStations = Array.isArray(stationsResult?.data)
+      ? stationsResult.data
+      : [];
 
     return {
       ...response,
-      data: normalizeProfile(response?.data),
+      data: applyCanonicalStations(profile, canonicalStations),
     };
   },
 
