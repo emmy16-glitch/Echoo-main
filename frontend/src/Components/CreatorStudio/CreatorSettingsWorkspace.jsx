@@ -28,7 +28,6 @@ const CreatorSettingsWorkspace = () => {
     newPassword: '',
     confirmPassword: '',
   });
-  const [defaultPublic, setDefaultPublic] = useState(true);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState('');
   const [message, setMessage] = useState('');
@@ -60,28 +59,15 @@ const CreatorSettingsWorkspace = () => {
           newFollowers: data.preferences?.notifications?.newFollowers !== false,
           newReleases: data.preferences?.notifications?.newReleases !== false,
         });
-
-        try {
-          const localPreference = JSON.parse(
-            localStorage.getItem('echoo-creator-settings-v1') || '{}'
-          );
-          setDefaultPublic(localPreference.defaultPublic !== false);
-        } catch {
-          setDefaultPublic(true);
-        }
       } catch (loadError) {
-        if (active) {
-          setError(loadError?.message || 'Could not load Creator Settings.');
-        }
+        if (active) setError(loadError?.message || 'Could not load Settings.');
       } finally {
         if (active) setLoading(false);
       }
     };
 
     load();
-    return () => {
-      active = false;
-    };
+    return () => { active = false; };
   }, []);
 
   const run = async (name, action, success) => {
@@ -105,18 +91,15 @@ const CreatorSettingsWorkspace = () => {
     const response = await run(
       'profile',
       () => settingsService.updateProfile(profile),
-      'Creator profile updated.'
+      'Profile updated.'
     );
 
     if (response?.data?.profile) {
       try {
         const user = JSON.parse(localStorage.getItem('user') || '{}');
-        localStorage.setItem(
-          'user',
-          JSON.stringify({ ...user, ...response.data.profile })
-        );
+        localStorage.setItem('user', JSON.stringify({ ...user, ...response.data.profile }));
       } catch {
-        // Backend remains authoritative even if the local mirror cannot update.
+        // Profile is already saved remotely.
       }
     }
   };
@@ -126,17 +109,8 @@ const CreatorSettingsWorkspace = () => {
     await run(
       'notifications',
       () => settingsService.updateNotifications(notifications),
-      'Notification settings updated.'
+      'Notifications updated.'
     );
-  };
-
-  const savePublishing = (event) => {
-    event.preventDefault();
-    localStorage.setItem(
-      'echoo-creator-settings-v1',
-      JSON.stringify({ defaultPublic })
-    );
-    setMessage('Default upload visibility updated for this creator workspace.');
   };
 
   const saveEmail = async (event) => {
@@ -144,18 +118,25 @@ const CreatorSettingsWorkspace = () => {
     const response = await run(
       'email',
       () => settingsService.updateEmail(emailForm),
-      'Account email updated.'
+      'Email updated.'
     );
     if (response) setEmailForm((current) => ({ ...current, password: '' }));
   };
 
   const savePassword = async (event) => {
     event.preventDefault();
+
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setError('New passwords do not match.');
+      return;
+    }
+
     const response = await run(
       'password',
       () => settingsService.updatePassword(passwordForm),
       'Password updated.'
     );
+
     if (response) {
       setPasswordForm({
         currentPassword: '',
@@ -166,28 +147,24 @@ const CreatorSettingsWorkspace = () => {
   };
 
   if (loading) {
-    return <div className="creator-settings-real-message">Loading Creator Settings...</div>;
+    return <div className="creator-settings-real-message">Loading settings...</div>;
   }
 
   return (
     <section className="creator-settings-real">
       <header className="creator-settings-real-header">
-        <span>CREATOR SETTINGS</span>
-        <h2>Your creator account.</h2>
-        <p>Account/profile settings are persisted by the Echoo backend.</p>
+        <span>SETTINGS</span>
+        <h2>Your account.</h2>
+        <p>Manage your profile, notifications and account security.</p>
       </header>
 
-      {message && (
-        <div className="creator-settings-real-message success">{message}</div>
-      )}
-      {error && (
-        <div className="creator-settings-real-message error">{error}</div>
-      )}
+      {message && <div className="creator-settings-real-message success">{message}</div>}
+      {error && <div className="creator-settings-real-message error">{error}</div>}
 
       <div className="creator-settings-real-grid">
         <form className="creator-settings-real-card" onSubmit={saveProfile}>
           <h3><FaUser /> Profile</h3>
-          <p>Update the identity shown around Echoo.</p>
+          <p>Update how you appear on Echoo.</p>
 
           <label>
             <span>Display name</span>
@@ -195,10 +172,7 @@ const CreatorSettingsWorkspace = () => {
               value={profile.displayName}
               maxLength={100}
               onChange={(event) =>
-                setProfile((current) => ({
-                  ...current,
-                  displayName: event.target.value,
-                }))
+                setProfile((current) => ({ ...current, displayName: event.target.value }))
               }
             />
           </label>
@@ -209,23 +183,18 @@ const CreatorSettingsWorkspace = () => {
               value={profile.bio}
               maxLength={500}
               onChange={(event) =>
-                setProfile((current) => ({
-                  ...current,
-                  bio: event.target.value,
-                }))
+                setProfile((current) => ({ ...current, bio: event.target.value }))
               }
             />
           </label>
 
           <label>
-            <span>Avatar URL</span>
+            <span>Profile image URL</span>
             <input
               value={profile.avatar}
+              placeholder="https://..."
               onChange={(event) =>
-                setProfile((current) => ({
-                  ...current,
-                  avatar: event.target.value,
-                }))
+                setProfile((current) => ({ ...current, avatar: event.target.value }))
               }
             />
           </label>
@@ -237,13 +206,13 @@ const CreatorSettingsWorkspace = () => {
 
         <form className="creator-settings-real-card" onSubmit={saveNotifications}>
           <h3><FaBell /> Notifications</h3>
-          <p>Choose which Echoo account updates you receive.</p>
+          <p>Choose the updates you want to receive.</p>
 
           {[
-            ['push', 'In-app / push notifications'],
+            ['push', 'Push notifications'],
             ['email', 'Email notifications'],
-            ['newFollowers', 'New follower notifications'],
-            ['newReleases', 'Release and broadcast updates'],
+            ['newFollowers', 'New followers'],
+            ['newReleases', 'Broadcast and release updates'],
           ].map(([key, label]) => (
             <label className="creator-settings-real-toggle" key={key}>
               <span>{label}</span>
@@ -265,26 +234,9 @@ const CreatorSettingsWorkspace = () => {
           </button>
         </form>
 
-        <form className="creator-settings-real-card" onSubmit={savePublishing}>
-          <h3>Publishing default</h3>
-          <p>
-            This is a creator-workspace convenience default. Every uploaded audio record
-            still stores its own real public/private value in the backend.
-          </p>
-          <label className="creator-settings-real-toggle">
-            <span>Make new uploads public by default</span>
-            <input
-              type="checkbox"
-              checked={defaultPublic}
-              onChange={(event) => setDefaultPublic(event.target.checked)}
-            />
-          </label>
-          <button type="submit"><FaSave /> Save upload default</button>
-        </form>
-
         <form className="creator-settings-real-card" onSubmit={saveEmail}>
           <h3><FaEnvelope /> Email</h3>
-          <p>Changing your account email requires your current password.</p>
+          <p>Confirm your current password to change your email.</p>
           <label>
             <span>Email</span>
             <input
@@ -314,7 +266,7 @@ const CreatorSettingsWorkspace = () => {
 
         <form className="creator-settings-real-card wide" onSubmit={savePassword}>
           <h3><FaLock /> Password</h3>
-          <p>Use your current password to rotate the account password.</p>
+          <p>Change the password used to sign in to Echoo.</p>
           <div className="creator-settings-real-grid">
             <label>
               <span>Current password</span>
@@ -323,10 +275,7 @@ const CreatorSettingsWorkspace = () => {
                 required
                 value={passwordForm.currentPassword}
                 onChange={(event) =>
-                  setPasswordForm((current) => ({
-                    ...current,
-                    currentPassword: event.target.value,
-                  }))
+                  setPasswordForm((current) => ({ ...current, currentPassword: event.target.value }))
                 }
               />
             </label>
@@ -338,10 +287,7 @@ const CreatorSettingsWorkspace = () => {
                 minLength={6}
                 value={passwordForm.newPassword}
                 onChange={(event) =>
-                  setPasswordForm((current) => ({
-                    ...current,
-                    newPassword: event.target.value,
-                  }))
+                  setPasswordForm((current) => ({ ...current, newPassword: event.target.value }))
                 }
               />
             </label>
@@ -353,10 +299,7 @@ const CreatorSettingsWorkspace = () => {
                 minLength={6}
                 value={passwordForm.confirmPassword}
                 onChange={(event) =>
-                  setPasswordForm((current) => ({
-                    ...current,
-                    confirmPassword: event.target.value,
-                  }))
+                  setPasswordForm((current) => ({ ...current, confirmPassword: event.target.value }))
                 }
               />
             </label>
