@@ -1,8 +1,15 @@
+import mongoose from 'mongoose';
 import Broadcast from '../models/Broadcast.js';
 
 export async function enforceSingleLiveCreator(req, res, next) {
   try {
     const currentBroadcastId = String(req.params.broadcastId || '');
+
+    // Let the controller return the canonical invalid-id response.
+    if (!mongoose.isValidObjectId(currentBroadcastId)) {
+      next();
+      return;
+    }
 
     const active = await Broadcast.findOne({
       creator: req.userId,
