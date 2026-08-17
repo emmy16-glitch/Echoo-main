@@ -2,50 +2,62 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
+import path from 'path';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { randomUUID } from 'crypto';
 import routes from './routes/index.js';
 import { env } from './config/env.js';
 import { connectDatabase, disconnectDatabase } from './config/database.js';
+import { verifyAccessToken } from './config/jwt.js';
+import User from './models/User.js';
+import Broadcast from './models/Broadcast.js';
 
 const app = express();
 const PORT = env.port || 5001;
 
-// Request ID middleware
 app.use((req, res, next) => {
   req.id = randomUUID();
   res.setHeader('X-Request-Id', req.id);
   next();
 });
 
-// CORS - Allow all origins in development
-app.use(cors({
-  origin: '*', // Allow all origins
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  exposedHeaders: ['X-Request-Id'],
-  credentials: true,
-  preflightContinue: false,
-  optionsSuccessStatus: 204,
-}));
+app.use(
+  cors({
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    exposedHeaders: ['X-Request-Id'],
+    credentials: false,
+    preflightContinue: false,
+    optionsSuccessStatus: 204,
+  })
+);
 
-// Security headers (relaxed for development)
-app.use(helmet({
-  contentSecurityPolicy: false,
-  crossOriginEmbedderPolicy: false,
-  crossOriginOpenerPolicy: false,
-  crossOriginResourcePolicy: false,
-}));
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+    crossOriginOpenerPolicy: false,
+    crossOriginResourcePolicy: false,
+  })
+);
 
 app.use(compression());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Routes
+// Uploaded audio is addressed by the API as /uploads/audio/<file>.
+app.use(
+  '/uploads',
+  express.static(path.join(process.cwd(), 'uploads'), {
+    fallthrough: true,
+    maxAge: env.nodeEnv === 'production' ? '1h' : 0,
+  })
+);
+
 app.use('/api', routes);
 
-// 404 handler
 app.use((req, res) => {
   res.status(404).json({
     error: { code: 'ROUTE_NOT_FOUND', message: 'Route not found' },
@@ -53,7 +65,6 @@ app.use((req, res) => {
   });
 });
 
-// Error handler
 app.use((err, req, res, next) => {
   console.error('Error:', err.message);
   console.error('Stack:', err.stack);
@@ -68,19 +79,109 @@ app.use((err, req, res, next) => {
 
 const server = createServer(app);
 
-// Socket.IO
 const io = new Server(server, {
   cors: {
     origin: '*',
     methods: ['GET', 'POST'],
-    credentials: true,
+    credentials: false,
   },
 });
 
+// Make Socket.IO available to REST controllers for status/chat events.
+app.set('io', io);
+
+io.use(async (socket, next) => {
+  try {
+    const authToken = socket.handshake.auth?.token;
+    const authHeader = socket.handshake.headers?.authorization;
+    const bearerToken =
+      typeof authHeader === 'string' && authHeader.startsWith('Bearer ')
+        ? authHeader.slice(7)
+        : '';
+
+    const token = authToken || bearerToken;
+    if (!token) {
+      return next(new Error('Authentication required'));
+    }
+
+    const decoded = verifyAccessToken(token);
+    const user = await User.findById(decoded.sub).select(
+      '_id username displayName avatar isActive'
+    );
+
+    if (!user || !user.isActive) {
+      return next(new Error('User not found or inactive'));
+    }
+
+    socket.data.userId = String(user._id);
+    socket.data.user = {
+      id: String(user._id),
+      username: user.username,
+      displayName: user.displayName || user.username,
+      avatar: user.avatar || null,
+    };
+
+    return next();
+  } catch (error) {
+    return next(new Error(error?.message || 'Invalid authentication'));
+  }
+});
+
 io.on('connection', (socket) => {
-  console.log('Socket connected:', socket.id);
-  socket.on('disconnect', () => {
-    console.log('Socket disconnected:', socket.id);
+  socket.on('broadcast:join', async ({ broadcastId } = {}, acknowledge) => {
+    try {
+      if (!broadcastId) {
+        throw new Error('broadcastId is required');
+      }
+
+      const broadcast = await Broadcast.findOne({
+        _id: broadcastId,
+        isDeleted: false,
+      }).select('_id status isPublic creator');
+
+      if (!broadcast) {
+        throw new Error('Broadcast not found');
+      }
+
+      const isOwner = String(broadcast.creator) === socket.data.userId;
+      if (!broadcast.isPublic && !isOwner) {
+        throw new Error('Broadcast is private');
+      }
+
+      const room = `broadcast:${broadcastId}`;
+      await socket.join(room);
+
+      socket.to(room).emit('presence:changed', {
+        broadcastId: String(broadcastId),
+        userId: socket.data.userId,
+        action: 'joined',
+      });
+
+      if (typeof acknowledge === 'function') {
+        acknowledge({ ok: true, broadcastId: String(broadcastId) });
+      }
+    } catch (error) {
+      if (typeof acknowledge === 'function') {
+        acknowledge({ ok: false, error: error.message });
+      }
+    }
+  });
+
+  socket.on('broadcast:leave', async ({ broadcastId } = {}, acknowledge) => {
+    const room = broadcastId ? `broadcast:${broadcastId}` : null;
+
+    if (room) {
+      await socket.leave(room);
+      socket.to(room).emit('presence:changed', {
+        broadcastId: String(broadcastId),
+        userId: socket.data.userId,
+        action: 'left',
+      });
+    }
+
+    if (typeof acknowledge === 'function') {
+      acknowledge({ ok: true });
+    }
   });
 });
 
@@ -91,7 +192,6 @@ async function startServer() {
       console.log('Echoo API listening on port', PORT);
       console.log('Health check: http://localhost:' + PORT + '/api/health');
       console.log('Environment:', env.nodeEnv);
-      console.log('CORS: All origins allowed (development)');
     });
   } catch (error) {
     console.error('Failed to start server:', error);
@@ -106,6 +206,7 @@ const shutdown = async (signal) => {
     console.log('Server closed');
     process.exit(0);
   });
+
   setTimeout(() => {
     console.error('Force exit after timeout');
     process.exit(1);
