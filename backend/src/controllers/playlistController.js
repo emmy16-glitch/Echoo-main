@@ -1,67 +1,83 @@
+import mongoose from 'mongoose';
 import Playlist from '../models/Playlist.js';
 import Audio from '../models/Audio.js';
 
-// Create playlist
+const OWNER_FIELDS = 'username displayName avatar';
+
+function validId(value) {
+  return mongoose.isValidObjectId(value);
+}
+
+function invalidId(res) {
+  return res.status(400).json({
+    error: { code: 'INVALID_PLAYLIST_ID', message: 'Invalid playlist ID' },
+  });
+}
+
+function populatePlaylist(query) {
+  return query
+    .populate('owner', OWNER_FIELDS)
+    .populate('tracks.trackId', 'title artist duration fileUrl coverArt genre isPublic isDeleted')
+    .populate('tracks.addedBy', OWNER_FIELDS);
+}
+
 export async function createPlaylist(req, res, next) {
   try {
-    const { name, description, isPublic, isCollaborative } = req.body;
+    const {
+      name,
+      description = '',
+      isPublic = false,
+      isCollaborative = false,
+    } = req.body;
 
-    if (!name) {
+    const cleanName = String(name || '').trim();
+    if (!cleanName) {
       return res.status(400).json({
-        error: { code: 'VALIDATION_ERROR', message: 'Playlist name is required' }
+        error: { code: 'VALIDATION_ERROR', message: 'Playlist name is required' },
       });
     }
 
-    const playlist = new Playlist({
-      name,
-      description: description || '',
+    const playlist = await Playlist.create({
+      name: cleanName,
+      description,
       owner: req.userId,
-      isPublic: isPublic !== undefined ? isPublic : true,
-      isCollaborative: isCollaborative || false,
+      isPublic: Boolean(isPublic),
+      isCollaborative: Boolean(isCollaborative),
     });
 
-    await playlist.save();
+    const populated = await populatePlaylist(Playlist.findById(playlist._id));
 
     return res.status(201).json({
-      data: playlist,
-      timestamp: new Date().toISOString()
+      data: populated,
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     next(error);
   }
 }
 
-// Get all playlists
 export async function getPlaylists(req, res, next) {
   try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 20;
-    const skip = (page - 1) * limit;
-    
-    const filter = { isDeleted: false };
-    
-    // If not authenticated, only show public playlists
-    if (!req.userId) {
-      filter.isPublic = true;
-    } else {
-      // Show user's own playlists and public playlists
-      filter.$or = [
-        { owner: req.userId },
-        { isPublic: true }
-      ];
-    }
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 20));
+    const filter = {
+      isDeleted: false,
+      isPublic: true,
+    };
 
     if (req.query.search) {
       filter.$text = { $search: req.query.search };
     }
 
-    const playlists = await Playlist.find(filter)
-      .populate('owner', 'username displayName avatar')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit);
-
-    const total = await Playlist.countDocuments(filter);
+    const [playlists, total] = await Promise.all([
+      populatePlaylist(
+        Playlist.find(filter)
+          .sort({ createdAt: -1 })
+          .skip((page - 1) * limit)
+          .limit(limit)
+      ),
+      Playlist.countDocuments(filter),
+    ]);
 
     return res.status(200).json({
       data: playlists,
@@ -71,93 +87,114 @@ export async function getPlaylists(req, res, next) {
         total,
         totalPages: Math.ceil(total / limit),
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     next(error);
   }
 }
 
-// Get single playlist
+export async function getMyPlaylists(req, res, next) {
+  try {
+    const playlists = await populatePlaylist(
+      Playlist.find({
+        owner: req.userId,
+        isDeleted: false,
+      }).sort({ createdAt: -1 })
+    );
+
+    return res.status(200).json({
+      data: playlists,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 export async function getPlaylistById(req, res, next) {
   try {
-    const playlist = await Playlist.findById(req.params.id)
-      .populate('owner', 'username displayName avatar bio')
-      .populate('tracks.trackId', 'title artist duration fileUrl genre')
-      .populate('tracks.addedBy', 'username displayName');
+    const { id } = req.params;
+    if (!validId(id)) return invalidId(res);
+
+    const playlist = await populatePlaylist(
+      Playlist.findOne({ _id: id, isDeleted: false })
+    );
 
     if (!playlist) {
       return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Playlist not found' }
+        error: { code: 'NOT_FOUND', message: 'Playlist not found' },
       });
     }
 
-    // Check access
-    if (!playlist.isPublic && playlist.owner._id.toString() !== req.userId) {
+    const ownerId = playlist.owner?._id || playlist.owner;
+    if (!playlist.isPublic && String(ownerId) !== String(req.userId)) {
       return res.status(403).json({
-        error: { code: 'FORBIDDEN', message: 'You do not have access to this playlist' }
+        error: { code: 'FORBIDDEN', message: 'You do not have access to this playlist' },
       });
     }
 
     return res.status(200).json({
       data: playlist,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     next(error);
   }
 }
 
-// Update playlist
 export async function updatePlaylist(req, res, next) {
   try {
-    const { name, description, isPublic, isCollaborative, coverArt } = req.body;
+    const { id } = req.params;
+    if (!validId(id)) return invalidId(res);
 
-    const playlist = await Playlist.findById(req.params.id);
+    const playlist = await Playlist.findOne({ _id: id, isDeleted: false });
     if (!playlist) {
       return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Playlist not found' }
+        error: { code: 'NOT_FOUND', message: 'Playlist not found' },
       });
     }
 
-    // Check ownership
-    if (playlist.owner.toString() !== req.userId.toString()) {
+    if (String(playlist.owner) !== String(req.userId)) {
       return res.status(403).json({
-        error: { code: 'FORBIDDEN', message: 'You do not own this playlist' }
+        error: { code: 'FORBIDDEN', message: 'You do not own this playlist' },
       });
     }
 
-    if (name) playlist.name = name;
+    const { name, description, isPublic, isCollaborative, coverArt } = req.body;
+    if (name !== undefined) playlist.name = String(name).trim();
     if (description !== undefined) playlist.description = description;
-    if (isPublic !== undefined) playlist.isPublic = isPublic;
-    if (isCollaborative !== undefined) playlist.isCollaborative = isCollaborative;
-    if (coverArt) playlist.coverArt = coverArt;
+    if (isPublic !== undefined) playlist.isPublic = Boolean(isPublic);
+    if (isCollaborative !== undefined) playlist.isCollaborative = Boolean(isCollaborative);
+    if (coverArt !== undefined) playlist.coverArt = coverArt || null;
 
     await playlist.save();
+    const populated = await populatePlaylist(Playlist.findById(playlist._id));
 
     return res.status(200).json({
-      data: playlist,
-      timestamp: new Date().toISOString()
+      data: populated,
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     next(error);
   }
 }
 
-// Delete playlist
 export async function deletePlaylist(req, res, next) {
   try {
-    const playlist = await Playlist.findById(req.params.id);
+    const { id } = req.params;
+    if (!validId(id)) return invalidId(res);
+
+    const playlist = await Playlist.findOne({ _id: id, isDeleted: false });
     if (!playlist) {
       return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Playlist not found' }
+        error: { code: 'NOT_FOUND', message: 'Playlist not found' },
       });
     }
 
-    // Check ownership
-    if (playlist.owner.toString() !== req.userId.toString()) {
+    if (String(playlist.owner) !== String(req.userId)) {
       return res.status(403).json({
-        error: { code: 'FORBIDDEN', message: 'You do not own this playlist' }
+        error: { code: 'FORBIDDEN', message: 'You do not own this playlist' },
       });
     }
 
@@ -166,123 +203,116 @@ export async function deletePlaylist(req, res, next) {
 
     return res.status(200).json({
       data: { message: 'Playlist deleted successfully' },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     next(error);
   }
 }
 
-// Add track to playlist
 export async function addTrackToPlaylist(req, res, next) {
   try {
+    const { id } = req.params;
     const { trackId } = req.body;
-
-    if (!trackId) {
+    if (!validId(id)) return invalidId(res);
+    if (!validId(trackId)) {
       return res.status(400).json({
-        error: { code: 'VALIDATION_ERROR', message: 'Track ID is required' }
+        error: { code: 'INVALID_TRACK_ID', message: 'Invalid track ID' },
       });
     }
 
-    // Check if track exists
-    const track = await Audio.findById(trackId);
+    const [track, playlist] = await Promise.all([
+      Audio.findOne({ _id: trackId, isDeleted: false, isPublic: true }).select('_id'),
+      Playlist.findOne({ _id: id, isDeleted: false }),
+    ]);
+
     if (!track) {
       return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Track not found' }
+        error: { code: 'NOT_FOUND', message: 'Public track not found' },
       });
     }
-
-    const playlist = await Playlist.findById(req.params.id);
     if (!playlist) {
       return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Playlist not found' }
+        error: { code: 'NOT_FOUND', message: 'Playlist not found' },
       });
     }
-
-    // Check edit permission
     if (!playlist.canEdit(req.userId)) {
       return res.status(403).json({
-        error: { code: 'FORBIDDEN', message: 'You do not have permission to edit this playlist' }
+        error: { code: 'FORBIDDEN', message: 'You cannot edit this playlist' },
       });
     }
 
     await playlist.addTrack(trackId, req.userId);
+    const populated = await populatePlaylist(Playlist.findById(playlist._id));
 
     return res.status(200).json({
-      data: playlist,
-      timestamp: new Date().toISOString()
+      data: populated,
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     next(error);
   }
 }
 
-// Remove track from playlist
 export async function removeTrackFromPlaylist(req, res, next) {
   try {
+    const { id } = req.params;
     const { trackId } = req.body;
+    if (!validId(id)) return invalidId(res);
 
-    if (!trackId) {
-      return res.status(400).json({
-        error: { code: 'VALIDATION_ERROR', message: 'Track ID is required' }
-      });
-    }
-
-    const playlist = await Playlist.findById(req.params.id);
+    const playlist = await Playlist.findOne({ _id: id, isDeleted: false });
     if (!playlist) {
       return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Playlist not found' }
+        error: { code: 'NOT_FOUND', message: 'Playlist not found' },
       });
     }
-
-    // Check edit permission
     if (!playlist.canEdit(req.userId)) {
       return res.status(403).json({
-        error: { code: 'FORBIDDEN', message: 'You do not have permission to edit this playlist' }
+        error: { code: 'FORBIDDEN', message: 'You cannot edit this playlist' },
       });
     }
 
     await playlist.removeTrack(trackId);
+    const populated = await populatePlaylist(Playlist.findById(playlist._id));
 
     return res.status(200).json({
-      data: playlist,
-      timestamp: new Date().toISOString()
+      data: populated,
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     next(error);
   }
 }
 
-// Reorder tracks in playlist
 export async function reorderTracks(req, res, next) {
   try {
+    const { id } = req.params;
     const { trackIds } = req.body;
-
-    if (!trackIds || !Array.isArray(trackIds)) {
+    if (!validId(id)) return invalidId(res);
+    if (!Array.isArray(trackIds)) {
       return res.status(400).json({
-        error: { code: 'VALIDATION_ERROR', message: 'Track IDs array is required' }
+        error: { code: 'VALIDATION_ERROR', message: 'trackIds must be an array' },
       });
     }
 
-    const playlist = await Playlist.findById(req.params.id);
+    const playlist = await Playlist.findOne({ _id: id, isDeleted: false });
     if (!playlist) {
       return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Playlist not found' }
+        error: { code: 'NOT_FOUND', message: 'Playlist not found' },
       });
     }
-
-    // Check edit permission
     if (!playlist.canEdit(req.userId)) {
       return res.status(403).json({
-        error: { code: 'FORBIDDEN', message: 'You do not have permission to edit this playlist' }
+        error: { code: 'FORBIDDEN', message: 'You cannot edit this playlist' },
       });
     }
 
     await playlist.reorderTracks(trackIds);
+    const populated = await populatePlaylist(Playlist.findById(playlist._id));
 
     return res.status(200).json({
-      data: playlist,
-      timestamp: new Date().toISOString()
+      data: populated,
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     next(error);
