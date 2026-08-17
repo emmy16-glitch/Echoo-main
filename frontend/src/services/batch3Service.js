@@ -23,7 +23,7 @@ const enrichBroadcasts = (broadcasts, stations) => {
 
   return broadcasts.map((broadcast) => {
     const station = stationMap.get(String(broadcast.stationId)) || null;
-    const stationBrand = station?.logo || station?.coverArt || null;
+    const stationBrand = station?.brandCover || station?.coverArt || station?.logo || null;
     const artwork = stationBrand || broadcast.coverArt || null;
 
     return {
@@ -33,7 +33,8 @@ const enrichBroadcasts = (broadcasts, stations) => {
         station?.name || broadcast.stationName || 'Echoo Station',
       category:
         station?.category || broadcast.category || 'Other',
-      // Station branding stays current everywhere; broadcast artwork is fallback only.
+      stationBranding: station?.branding || broadcast.stationBranding || null,
+      // The current Station brand is authoritative for every listener surface.
       coverArt: artwork,
       artwork,
       image: artwork,
@@ -69,9 +70,26 @@ const batch3Service = {
       `/broadcasts/${encodeURIComponent(broadcastId)}`
     );
 
+    const normalized = normalizeBroadcast(response?.data);
+    let canonical = normalized;
+
+    // Broadcast records can carry older copied artwork. Re-resolve the Station so
+    // a creator's latest uploaded/generated Station brand is what listeners see.
+    if (normalized?.stationId) {
+      try {
+        const stationResult = await batch2Service.getStation(normalized.stationId);
+        const station = stationResult?.data || null;
+        if (station?.id) {
+          canonical = enrichBroadcasts([normalized], [station])[0] || normalized;
+        }
+      } catch {
+        // The broadcast itself remains usable if Station metadata refresh fails.
+      }
+    }
+
     return {
       ...response,
-      data: normalizeBroadcast(response?.data),
+      data: canonical,
     };
   },
 
