@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   FaBroadcastTower,
   FaCalendarAlt,
@@ -15,7 +15,6 @@ import {
 } from 'react-icons/fa';
 
 import EchoAmbient from '../EchooSystem/EchoAmbient';
-import EchoAvatar from '../EchooSystem/EchoAvatar';
 import EchoWave from '../EchooSystem/EchoWave';
 import CreatorAudioMixer from './CreatorAudioMixer';
 import batch2Service from '../../services/batch2Service';
@@ -23,6 +22,7 @@ import batch3Service from '../../services/batch3Service';
 import batch4Service from '../../services/batch4Service';
 import {
   getEchooMixerOutputTrack,
+  getEchooMixerState,
   ensureHostInput,
   stopEchooMixer,
 } from '../../services/echooMixerService';
@@ -62,7 +62,6 @@ const formatTimer = (seconds) => {
 
 const CreatorLiveConnectedWorkspace = ({
   studioName = 'Creator',
-  profileImage = null,
   initialBroadcastId = '',
   onNavigate,
   onClearPreparedBroadcast,
@@ -88,7 +87,7 @@ const CreatorLiveConnectedWorkspace = ({
     peakListeners: 0,
     creatorConnected: false,
   });
-  const [mixerState, setMixerState] = useState(null);
+  const [mixerState, setMixerState] = useState(() => getEchooMixerState());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [goingLive, setGoingLive] = useState(false);
@@ -101,10 +100,10 @@ const CreatorLiveConnectedWorkspace = ({
   const [chatText, setChatText] = useState('');
   const [chatSending, setChatSending] = useState(false);
 
-  const clearPreparedBroadcast = () => {
+  const clearPreparedBroadcast = useCallback(() => {
     sessionStorage.removeItem('echooPreparedBroadcastId');
     onClearPreparedBroadcast?.();
-  };
+  }, [onClearPreparedBroadcast]);
 
   useEffect(() => {
     let active = true;
@@ -174,7 +173,7 @@ const CreatorLiveConnectedWorkspace = ({
 
     load();
     return () => { active = false; };
-  }, [preparedBroadcastId]);
+  }, [preparedBroadcastId, clearPreparedBroadcast]);
 
   useEffect(() => {
     if (!currentLiveBroadcast?.id) return undefined;
@@ -199,10 +198,7 @@ const CreatorLiveConnectedWorkspace = ({
   }, [currentLiveBroadcast?.id]);
 
   useEffect(() => {
-    if (!currentLiveBroadcast?.id) {
-      setElapsed(0);
-      return undefined;
-    }
+    if (!currentLiveBroadcast?.id) return undefined;
 
     const started = new Date(
       currentLiveBroadcast.startedAt || currentLiveBroadcast.startTime || Date.now()
@@ -219,10 +215,7 @@ const CreatorLiveConnectedWorkspace = ({
   }, [currentLiveBroadcast?.id, currentLiveBroadcast?.startedAt, currentLiveBroadcast?.startTime]);
 
   useEffect(() => {
-    if (!currentLiveBroadcast?.id) {
-      setChatMessages([]);
-      return undefined;
-    }
+    if (!currentLiveBroadcast?.id) return undefined;
 
     let active = true;
     const loadMessages = async () => {
@@ -269,6 +262,7 @@ const CreatorLiveConnectedWorkspace = ({
     try {
       setError('');
       await ensureHostInput();
+      setMixerState(getEchooMixerState());
       setMessage('Microphone ready.');
     } catch (micError) {
       setError(micError?.message || 'Could not connect your microphone.');
@@ -344,6 +338,7 @@ const CreatorLiveConnectedWorkspace = ({
 
       setSavedBroadcast(liveBroadcast);
       setCurrentLiveBroadcast(liveBroadcast);
+      setElapsed(0);
       setBroadcasts((current) =>
         current.map((item) => item.id === liveBroadcast.id ? liveBroadcast : item)
       );
@@ -409,7 +404,10 @@ const CreatorLiveConnectedWorkspace = ({
     try {
       setGoingLive(true);
       setError('');
-      if (!microphoneReady) await ensureHostInput();
+      if (!microphoneReady) {
+        await ensureHostInput();
+        setMixerState(getEchooMixerState());
+      }
       const mediaTrack = getEchooMixerOutputTrack();
       if (!mediaTrack) throw new Error('The studio mixer output is not ready.');
 
@@ -446,7 +444,10 @@ const CreatorLiveConnectedWorkspace = ({
       ));
       setCurrentLiveBroadcast(null);
       setSavedBroadcast(null);
+      setElapsed(0);
+      setChatMessages([]);
       setPresence({ listenerCount: 0, peakListeners: 0, creatorConnected: false });
+      setMixerState(getEchooMixerState());
       setTitle('');
       setDescription('');
       setMessage('Broadcast ended.');
