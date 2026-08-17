@@ -87,11 +87,23 @@ export async function updatePlaybackProgress(req, res, next) {
 
     const progressPercent = clampProgress(progress, completed === true);
     const isCompleted = completed === true || progressPercent >= 99.5;
-    const totalDuration = Math.max(0, Number(duration) || Number(track.duration) || 0);
+    const clientDuration = Math.max(0, Number(duration) || 0);
+    const totalDuration = clientDuration || Math.max(0, Number(track.duration) || 0);
     const remaining = totalDuration > 0
       ? Math.max(0, totalDuration * (1 - progressPercent / 100))
       : 0;
     const now = new Date();
+
+    // Older uploads may not have duration metadata. Once a browser has loaded
+    // the real media metadata, use it to repair the canonical Audio record so
+    // creator totals, history and future resume calculations stay accurate.
+    if (
+      clientDuration > 0 &&
+      Math.abs((Number(track.duration) || 0) - clientDuration) > 0.5
+    ) {
+      track.duration = clientDuration;
+      await track.save();
+    }
 
     // Update the latest unfinished session for this track instead of creating a
     // duplicate history row every time the client syncs its playback position.
@@ -149,6 +161,7 @@ export async function updatePlaybackProgress(req, res, next) {
       data: {
         trackId,
         progress: progressPercent,
+        duration: totalDuration,
         remaining,
         completed: isCompleted,
         updated: true,
