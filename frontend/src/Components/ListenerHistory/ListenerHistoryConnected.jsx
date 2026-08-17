@@ -1,18 +1,49 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import {
   FaCheckCircle,
   FaClock,
   FaHistory,
+  FaPause,
+  FaPlay,
   FaSyncAlt,
   FaTrash,
 } from 'react-icons/fa';
 
 import batch6Service from '../../services/batch6Service';
+import { buildMediaUrl } from '../../services/api';
 import '../../styles/echoo-batch6.css';
 
 const formatMinutes = (seconds) => Math.round((Number(seconds) || 0) / 60);
 
+const playableTrack = (item) => {
+  const track = item?.track;
+  if (!track?.id || !track?.fileUrl) return null;
+
+  return {
+    ...track,
+    id: track.id,
+    title: track.title || 'Untitled Audio',
+    subtitle:
+      track.artist?.displayName ||
+      track.artist?.username ||
+      'Echoo Creator',
+    fileUrl: buildMediaUrl(track.fileUrl),
+    coverArt: buildMediaUrl(track.coverArt || null),
+    duration: Number(track.duration) || 0,
+    genre: track.genre || 'Audio',
+  };
+};
+
 const ListenerHistoryConnected = () => {
+  const {
+    playTrack,
+    playTrackAt,
+    currentTrack,
+    isPlaying,
+    togglePlay,
+  } = useOutletContext();
+
   const [items, setItems] = useState([]);
   const [stats, setStats] = useState({
     totalPlays: 0,
@@ -25,9 +56,9 @@ const ListenerHistoryConnected = () => {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
-  const load = useCallback(async () => {
+  const load = useCallback(async ({ silent = false } = {}) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       setError('');
 
       const [historyResult, statsResult] = await Promise.all([
@@ -52,16 +83,49 @@ const ListenerHistoryConnected = () => {
         totalListeningTime: Number(statsResult?.data?.totalListeningTime) || 0,
       });
     } catch (loadError) {
-      setItems([]);
+      if (!silent) setItems([]);
       setError(loadError?.message || 'Could not load listening history.');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     load();
+    const sync = () => load({ silent: true });
+    window.addEventListener('focus', sync);
+    return () => window.removeEventListener('focus', sync);
   }, [load]);
+
+  const queue = useMemo(
+    () => items.map(playableTrack).filter(Boolean),
+    [items]
+  );
+
+  const play = (item) => {
+    const track = playableTrack(item);
+    if (!track) {
+      setError('This history item no longer has a playable audio file.');
+      return;
+    }
+
+    const same = String(currentTrack?.id || '') === String(track.id);
+    if (same) {
+      togglePlay();
+      return;
+    }
+
+    const progress = Math.max(0, Math.min(100, Number(item.progress) || 0));
+    const resumeAt = item.completed
+      ? 0
+      : (track.duration * progress) / 100;
+
+    if (playTrackAt) {
+      playTrackAt(track, resumeAt, queue);
+    } else {
+      playTrack(track, queue);
+    }
+  };
 
   const remove = async (item) => {
     if (!item?.id || busyId) return;
@@ -119,12 +183,12 @@ const ListenerHistoryConnected = () => {
         <div className="b6-history-control-head">
           <div>
             <span className="b6-kicker">LISTENING HISTORY</span>
-            <strong>Your real Echoo playback history.</strong>
-            <small>Only activity recorded by the History API is shown here.</small>
+            <strong>Your Echoo playback history.</strong>
+            <small>Resume anything you have listened to from the same persistent player.</small>
           </div>
 
           <div className="b6-control-actions">
-            <button type="button" onClick={load} disabled={loading || Boolean(busyId)}>
+            <button type="button" onClick={() => load()} disabled={loading || Boolean(busyId)}>
               <FaSyncAlt /> {loading ? 'Loading...' : 'Refresh'}
             </button>
             <button
@@ -174,33 +238,53 @@ const ListenerHistoryConnected = () => {
               <span>{items.length} recorded item{items.length === 1 ? '' : 's'}</span>
             </header>
 
-            {items.map((item) => (
-              <div key={item.id} className="b6-history-manage-row">
-                <div>
-                  <strong>{item.track?.title || 'Unavailable audio'}</strong>
-                  <span>
-                    {item.track?.artist?.displayName ||
-                      item.track?.artist?.username ||
-                      'Echoo'}
-                    {' · '}
-                    {item.playedAt
-                      ? new Date(item.playedAt).toLocaleString()
-                      : 'Unknown time'}
-                    {' · '}
-                    {item.completed ? 'Completed' : 'In progress'}
-                  </span>
-                </div>
+            {items.map((item) => {
+              const track = playableTrack(item);
+              const playing = Boolean(
+                track &&
+                isPlaying &&
+                String(currentTrack?.id || '') === String(track.id)
+              );
 
-                <button
-                  type="button"
-                  title="Remove history item"
-                  disabled={busyId === String(item.id)}
-                  onClick={() => remove(item)}
-                >
-                  <FaTrash />
-                </button>
-              </div>
-            ))}
+              return (
+                <div key={item.id} className="b6-history-manage-row">
+                  <div>
+                    <strong>{item.track?.title || 'Unavailable audio'}</strong>
+                    <span>
+                      {item.track?.artist?.displayName ||
+                        item.track?.artist?.username ||
+                        'Echoo'}
+                      {' · '}
+                      {item.playedAt
+                        ? new Date(item.playedAt).toLocaleString()
+                        : 'Unknown time'}
+                      {' · '}
+                      {item.completed
+                        ? 'Completed'
+                        : `${Math.round(Number(item.progress) || 0)}% listened`}
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    title={playing ? 'Pause audio' : item.completed ? 'Play again' : 'Resume audio'}
+                    disabled={!track}
+                    onClick={() => play(item)}
+                  >
+                    {playing ? <FaPause /> : <FaPlay />}
+                  </button>
+
+                  <button
+                    type="button"
+                    title="Remove history item"
+                    disabled={busyId === String(item.id)}
+                    onClick={() => remove(item)}
+                  >
+                    <FaTrash />
+                  </button>
+                </div>
+              );
+            })}
           </div>
         )}
       </section>
