@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   NavLink,
   Outlet,
@@ -108,7 +108,7 @@ const playbackErrorMessage = (error) => {
 
 const ListenerLayout = () => {
   const navigate = useNavigate();
-  const user = useMemo(() => readUser(), []);
+  const [user, setUser] = useState(readUser);
   const displayName =
     user.displayName || user.fullname || user.username || 'Listener';
   const profileImage =
@@ -119,6 +119,7 @@ const ListenerLayout = () => {
   const searchAreaRef = useRef(null);
   const progressSyncRef = useRef(false);
   const pendingSeekRef = useRef(null);
+  const playerPreferencesReadyRef = useRef(false);
 
   const [currentTrack, setCurrentTrack] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -148,6 +149,78 @@ const ListenerLayout = () => {
     { name: 'History', path: '/listen/history', icon: <FaHistory /> },
     { name: 'Downloads', path: '/listen/downloads', icon: <FaDownload /> },
   ];
+
+  useEffect(() => {
+    const refreshProfile = (event) => {
+      const nextUser = event?.detail && typeof event.detail === 'object'
+        ? event.detail
+        : readUser();
+      setUser(nextUser);
+    };
+
+    const storageChanged = (event) => {
+      if (event.key === 'user' || event.key === 'profileImage') {
+        setUser(readUser());
+      }
+    };
+
+    window.addEventListener('echoo-profile-updated', refreshProfile);
+    window.addEventListener('storage', storageChanged);
+
+    return () => {
+      window.removeEventListener('echoo-profile-updated', refreshProfile);
+      window.removeEventListener('storage', storageChanged);
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    const hydratePlayerPreferences = async () => {
+      try {
+        const response = await listenerService.getPlayerState();
+        if (!active) return;
+        const state = response?.data || {};
+        const savedVolume = Number(state.volume);
+        if (Number.isFinite(savedVolume)) {
+          setVolume(Math.max(0, Math.min(1, savedVolume)));
+        }
+        setIsMuted(Boolean(state.isMuted));
+        setShuffle(Boolean(state.isShuffled));
+        setRepeatMode(
+          state.repeatMode === 'one' || state.repeatMode === 'all'
+            ? state.repeatMode
+            : 'off'
+        );
+      } catch {
+        // Playback still works with local defaults when preference hydration fails.
+      } finally {
+        if (active) playerPreferencesReadyRef.current = true;
+      }
+    };
+
+    hydratePlayerPreferences();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!playerPreferencesReadyRef.current) return undefined;
+
+    const timer = window.setTimeout(() => {
+      listenerService.updatePreferences({
+        volume,
+        isMuted,
+        isShuffled: shuffle,
+        repeatMode: repeatMode === 'off' ? 'none' : repeatMode,
+      }).catch((error) => {
+        console.warn('Player preference sync:', error);
+      });
+    }, 350);
+
+    return () => window.clearTimeout(timer);
+  }, [volume, isMuted, shuffle, repeatMode]);
 
   const syncProgress = async (completed = false) => {
     const audio = audioRef.current;
