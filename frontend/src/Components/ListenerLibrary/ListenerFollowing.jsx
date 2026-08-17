@@ -178,6 +178,7 @@ const ListenerFollowing = () => {
       <button
         type="button"
         className="figma-following-back"
+        title="Back to library"
         onClick={() => navigate('/listen/library')}
       >
         <FaArrowLeft /> Library
@@ -258,6 +259,7 @@ const ListenerFollowing = () => {
                       <button
                         type="button"
                         className="figma-following-card-main"
+                        title={`Open ${creator.name}`}
                         onClick={() => navigate(`/listen/creator/${creator.id}`)}
                       >
                         <div className={`figma-following-avatar variant-${(index % 4) + 1}`}>
@@ -273,6 +275,7 @@ const ListenerFollowing = () => {
                         <button
                           type="button"
                           className="figma-following-live-button"
+                          title={`Listen live to ${creator.name}`}
                           onClick={() => navigate(`/listen/live/${live.id}`)}
                         >
                           <FaBroadcastTower /> Live now
@@ -282,11 +285,12 @@ const ListenerFollowing = () => {
                       <button
                         type="button"
                         className="figma-following-unfollow"
+                        title={`Unfollow ${creator.name}`}
                         disabled={actionKey === `creator:${creator.id}`}
                         onClick={(event) => unfollowCreator(event, creator)}
                       >
                         <FaCheck />
-                        {actionKey === `creator:${creator.id}` ? 'Updating...' : 'Following'}
+                        {actionKey === `creator:${creator.id}` ? 'Updating...' : 'Unfollow'}
                       </button>
                     </article>
                   );
@@ -313,6 +317,7 @@ const ListenerFollowing = () => {
                       <button
                         type="button"
                         className="figma-following-card-main"
+                        title={`Open ${station.name}`}
                         onClick={() => navigate(`/listen/stations/${station.id}`)}
                       >
                         <div className={`figma-following-avatar station variant-${(index % 4) + 1}`}>
@@ -328,6 +333,7 @@ const ListenerFollowing = () => {
                         <button
                           type="button"
                           className="figma-following-live-button"
+                          title={`Listen live to ${station.name}`}
                           onClick={() => navigate(`/listen/live/${live.id}`)}
                         >
                           <FaBroadcastTower /> Live now
@@ -337,11 +343,12 @@ const ListenerFollowing = () => {
                       <button
                         type="button"
                         className="figma-following-unfollow"
+                        title={`Unfollow ${station.name}`}
                         disabled={actionKey === `station:${station.id}`}
                         onClick={(event) => unfollowStation(event, station)}
                       >
                         <FaCheck />
-                        {actionKey === `station:${station.id}` ? 'Updating...' : 'Following'}
+                        {actionKey === `station:${station.id}` ? 'Updating...' : 'Unfollow'}
                       </button>
                     </article>
                   );
