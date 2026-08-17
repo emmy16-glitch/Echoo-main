@@ -1,0 +1,49 @@
+name: Echoo checks
+
+on:
+  push:
+    branches:
+      - main
+      - 'integration/**'
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - name: Syntax check API entrypoints
+        run: |
+          node --check src/app.js
+          node --check src/routes/index.js
+          node --check src/routes/broadcastRoutes.js
+          node --check src/controllers/broadcastController.js
+          node --check src/providers/livekit.js
+          node --check src/controllers/chatController.js
