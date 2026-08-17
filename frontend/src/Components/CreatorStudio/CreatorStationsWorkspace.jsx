@@ -201,7 +201,7 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
     reader.readAsDataURL(file);
   };
 
-  const useEchooBrand = (shuffle = false) => {
+  const setEchooBrandMode = (shuffle = false) => {
     setForm((current) => ({
       ...current,
       logoFile: null,
@@ -380,12 +380,12 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
                     <FaUpload /> {form.brandingMode === 'custom' ? 'Change logo' : 'Upload custom logo'}
                   </button>
 
-                  <button type="button" onClick={() => useEchooBrand(true)}>
+                  <button type="button" onClick={() => setEchooBrandMode(true)}>
                     <FaRandom /> Shuffle Echoo design
                   </button>
 
                   {form.brandingMode === 'custom' && (
-                    <button type="button" className="remove" onClick={() => useEchooBrand(false)}>
+                    <button type="button" className="remove" onClick={() => setEchooBrandMode(false)}>
                       <FaTimes /> Use Echoo design
                     </button>
                   )}
