@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   FaArrowLeft,
@@ -11,6 +11,8 @@ import {
 
 import notificationService from '../../services/notificationService';
 import './ListenerNotifications.css';
+
+const NOTIFICATION_SYNC_INTERVAL_MS = 15000;
 
 const iconFor = (type) => {
   if (type === 'new_follower') return <FaUserPlus />;
@@ -28,30 +30,34 @@ const ListenerNotifications = () => {
   const [busyId, setBusyId] = useState('');
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    let active = true;
-
-    const load = async () => {
-      try {
-        setLoading(true);
-        const response = await notificationService.list({ limit: 100 });
-        if (!active) return;
-        setNotifications(response?.data?.notifications || []);
-        setUnreadCount(response?.data?.unreadCount || 0);
-      } catch (loadError) {
-        if (active) {
-          setError(loadError?.message || 'Could not load notifications.');
-        }
-      } finally {
-        if (active) setLoading(false);
+  const load = useCallback(async ({ silent = false } = {}) => {
+    try {
+      if (!silent) setLoading(true);
+      if (!silent) setError('');
+      const response = await notificationService.list({ limit: 100 });
+      setNotifications(response?.data?.notifications || []);
+      setUnreadCount(response?.data?.unreadCount || 0);
+    } catch (loadError) {
+      if (!silent) {
+        setError(loadError?.message || 'Could not load notifications.');
       }
-    };
-
-    load();
-    return () => {
-      active = false;
-    };
+    } finally {
+      if (!silent) setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    load();
+
+    const sync = () => load({ silent: true });
+    const interval = window.setInterval(sync, NOTIFICATION_SYNC_INTERVAL_MS);
+    window.addEventListener('focus', sync);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', sync);
+    };
+  }, [load]);
 
   const openNotification = async (notification) => {
     try {
