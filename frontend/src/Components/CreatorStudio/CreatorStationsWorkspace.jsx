@@ -1,542 +1,216 @@
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
-
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   FaBroadcastTower,
+  FaEdit,
   FaPlus,
   FaSave,
   FaTrash,
-  FaUpload,
-} from "react-icons/fa";
+} from 'react-icons/fa';
 
-import EchoSignal from "../EchooSystem/EchoSignal";
-
-import batch2Service from "../../services/batch2Service";
-
-import {
-  getMockMediaForKey,
-} from "../../services/mockMediaService.js";
-
-import "./CreatorPhase9.css";
-import "./CreatorBatch2.css";
-
-const LOCAL_KEY =
-  "echoo-creator-station-drafts-v1";
+import EchoSignal from '../EchooSystem/EchoSignal';
+import batch2Service from '../../services/batch2Service';
+import './CreatorPhase9.css';
+import './CreatorBatch2.css';
 
 const CATEGORIES = [
-  "Faith & Spirituality",
-  "Education",
-  "News & Politics",
-  "Business",
-  "Health & Wellness",
-  "Entertainment",
-  "Technology",
-  "Sports",
-  "Music",
-  "Comedy",
-  "Storytelling",
-  "Other",
+  'Faith & Spirituality',
+  'Education',
+  'News & Politics',
+  'Business',
+  'Health & Wellness',
+  'Entertainment',
+  'Technology',
+  'Sports',
+  'Music',
+  'Comedy',
+  'Storytelling',
+  'Other',
 ];
 
-const readLocalDrafts =
-  () => {
+const EMPTY_FORM = {
+  name: '',
+  category: 'Other',
+  description: '',
+  tags: '',
+  coverArt: '',
+  isPublic: true,
+};
+
+const CreatorStationsWorkspace = ({ studioName = 'Creator' }) => {
+  const [stations, setStations] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingId, setEditingId] = useState('');
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState('');
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+
+  const loadStations = useCallback(async () => {
     try {
-      const data =
-        JSON.parse(
-          localStorage.getItem(
-            LOCAL_KEY
-          ) || "[]"
-        );
-
-      return Array.isArray(
-        data
-      )
-        ? data
-        : [];
-    } catch {
-      return [];
+      setLoading(true);
+      setError('');
+      const response = await batch2Service.getMyStations();
+      setStations(Array.isArray(response?.data) ? response.data : []);
+    } catch (loadError) {
+      setStations([]);
+      setError(loadError?.message || 'Could not load your stations.');
+    } finally {
+      setLoading(false);
     }
-  };
-
-const CreatorStationsWorkspace = ({
-  studioName =
-    "Creator",
-}) => {
-  const [
-    stations,
-    setStations,
-  ] = useState([]);
-
-  const [
-    localDrafts,
-    setLocalDrafts,
-  ] = useState(
-    readLocalDrafts
-  );
-
-  const [
-    loading,
-    setLoading,
-  ] = useState(true);
-
-  const [
-    formOpen,
-    setFormOpen,
-  ] = useState(false);
-
-  const [
-    saving,
-    setSaving,
-  ] = useState(false);
-
-  const [
-    deletingId,
-    setDeletingId,
-  ] = useState(null);
-
-  const [
-    importing,
-    setImporting,
-  ] = useState(false);
-
-  const [
-    name,
-    setName,
-  ] = useState("");
-
-  const [
-    category,
-    setCategory,
-  ] = useState(
-    "Other"
-  );
-
-  const [
-    description,
-    setDescription,
-  ] = useState("");
-
-  const [
-    tags,
-    setTags,
-  ] = useState("");
-
-  const [
-    message,
-    setMessage,
-  ] = useState("");
-
-  const [
-    error,
-    setError,
-  ] = useState("");
-
-  const loadStations =
-    useCallback(
-      async () => {
-        try {
-          setLoading(
-            true
-          );
-
-          setError(
-            ""
-          );
-
-          const response =
-            await batch2Service
-              .getMyStations();
-
-          setStations(
-            Array.isArray(
-              response?.data
-            )
-              ? response.data
-              : []
-          );
-        } catch (
-          loadError
-        ) {
-          console.error(
-            "Creator stations:",
-            loadError
-          );
-
-          setError(
-            loadError?.message ||
-            "Could not load your stations."
-          );
-        } finally {
-          setLoading(
-            false
-          );
-        }
-      },
-      []
-    );
+  }, []);
 
   useEffect(() => {
     loadStations();
   }, [loadStations]);
 
-  const sorted =
-    useMemo(
-      () =>
-        [...stations].sort(
-          (
-            first,
-            second
-          ) =>
-            new Date(
-              second.updatedAt ||
-              second.createdAt ||
-              0
-            ) -
-            new Date(
-              first.updatedAt ||
-              first.createdAt ||
-              0
-            )
-        ),
-      [
-        stations,
-      ]
-    );
+  const sorted = useMemo(
+    () =>
+      [...stations].sort(
+        (first, second) =>
+          new Date(second.updatedAt || second.createdAt || 0) -
+          new Date(first.updatedAt || first.createdAt || 0)
+      ),
+    [stations]
+  );
 
-  const resetForm =
-    () => {
-      setName("");
-      setCategory(
-        "Other"
-      );
-      setDescription("");
-      setTags("");
-      setFormOpen(
-        false
-      );
+  const closeForm = () => {
+    if (saving) return;
+    setFormOpen(false);
+    setEditingId('');
+    setForm(EMPTY_FORM);
+  };
+
+  const openCreate = () => {
+    setMessage('');
+    setError('');
+    setEditingId('');
+    setForm(EMPTY_FORM);
+    setFormOpen(true);
+  };
+
+  const openEdit = (station) => {
+    setMessage('');
+    setError('');
+    setEditingId(station.id);
+    setForm({
+      name: station.name || '',
+      category: CATEGORIES.includes(station.category) ? station.category : 'Other',
+      description: station.description || '',
+      tags: Array.isArray(station.tags) ? station.tags.join(', ') : '',
+      coverArt: station.coverArt || '',
+      isPublic: station.isPublic !== false,
+    });
+    setFormOpen(true);
+  };
+
+  const updateField = (field, value) => {
+    setForm((current) => ({ ...current, [field]: value }));
+  };
+
+  const submitStation = async (event) => {
+    event.preventDefault();
+    if (!form.name.trim() || saving) return;
+
+    const payload = {
+      name: form.name.trim(),
+      category: form.category,
+      description: form.description.trim(),
+      tags: form.tags
+        .split(',')
+        .map((tag) => tag.trim())
+        .filter(Boolean),
+      coverArt: form.coverArt.trim() || null,
+      isPublic: form.isPublic,
     };
 
-  const saveStation =
-    async (
-      event
-    ) => {
-      event.preventDefault();
+    try {
+      setSaving(true);
+      setError('');
+      setMessage('');
 
-      if (
-        !name.trim() ||
-        saving
-      ) {
-        return;
+      const response = editingId
+        ? await batch2Service.updateStation(editingId, payload)
+        : await batch2Service.createStation(payload);
+
+      if (!response?.data?.id) {
+        throw new Error('Echoo did not return the saved station.');
       }
 
-      try {
-        setSaving(
-          true
+      setStations((current) => {
+        const exists = current.some(
+          (station) => String(station.id) === String(response.data.id)
         );
 
-        setError(
-          ""
-        );
-
-        setMessage(
-          ""
-        );
-
-        const response =
-          await batch2Service
-            .createStation({
-              name:
-                name.trim(),
-
-              category,
-
-              description:
-                description.trim(),
-
-              tags:
-                tags
-                  .split(",")
-                  .map(
-                    (
-                      item
-                    ) =>
-                      item.trim()
-                  )
-                  .filter(Boolean),
-            });
-
-        if (
-          response?.data
-        ) {
-          setStations(
-            (
-              current
-            ) => [
-              response.data,
-              ...current,
-            ]
+        if (exists) {
+          return current.map((station) =>
+            String(station.id) === String(response.data.id)
+              ? response.data
+              : station
           );
         }
 
-        setMessage(
-          `${name.trim()} is now a real Echoo station.`
-        );
-
-        resetForm();
-      } catch (
-        saveError
-      ) {
-        console.error(
-          saveError
-        );
-
-        setError(
-          saveError?.message ||
-          "Could not create the station."
-        );
-      } finally {
-        setSaving(
-          false
-        );
-      }
-    };
-
-  const removeStation =
-    async (
-      station
-    ) => {
-      if (
-        !station?.id ||
-        deletingId
-      ) {
-        return;
-      }
-
-      const confirmed =
-        window.confirm(
-          `Delete "${station.name}"?`
-        );
-
-      if (
-        !confirmed
-      ) {
-        return;
-      }
-
-      try {
-        setDeletingId(
-          station.id
-        );
-
-        setError(
-          ""
-        );
-
-        await batch2Service
-          .deleteStation(
-            station.id
-          );
-
-        setStations(
-          (
-            current
-          ) =>
-            current.filter(
-              (
-                item
-              ) =>
-                item.id !==
-                station.id
-            )
-        );
-
-        setMessage(
-          `${station.name} was deleted.`
-        );
-      } catch (
-        deleteError
-      ) {
-        setError(
-          deleteError?.message ||
-          "Could not delete the station."
-        );
-      } finally {
-        setDeletingId(
-          null
-        );
-      }
-    };
-
-  const importDrafts =
-    async () => {
-      if (
-        !localDrafts.length ||
-        importing
-      ) {
-        return;
-      }
-
-      setImporting(
-        true
-      );
-
-      setError(
-        ""
-      );
+        return [response.data, ...current];
+      });
 
       setMessage(
-        ""
+        editingId
+          ? `${response.data.name} was updated.`
+          : `${response.data.name} is now an Echoo station.`
       );
+      setFormOpen(false);
+      setEditingId('');
+      setForm(EMPTY_FORM);
+    } catch (saveError) {
+      setError(saveError?.message || 'Could not save the station.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
-      const remaining =
-        [];
+  const removeStation = async (station) => {
+    if (!station?.id || deletingId) return;
 
-      let imported =
-        0;
+    const confirmed = window.confirm(
+      `Delete “${station.name}”? This removes the station from your Creator Studio.`
+    );
+    if (!confirmed) return;
 
-      for (
-        const draft of
-        localDrafts
-      ) {
-        const draftName =
-          draft?.name ||
-          draft?.title ||
-          "";
-
-        if (
-          !draftName.trim()
-        ) {
-          remaining.push(
-            draft
-          );
-
-          continue;
-        }
-
-        try {
-          await batch2Service
-            .createStation({
-              name:
-                draftName.trim(),
-
-              description:
-                draft.description ||
-                "",
-
-              category:
-                CATEGORIES.includes(
-                  draft.category
-                )
-                  ? draft.category
-                  : "Other",
-
-              tags:
-                Array.isArray(
-                  draft.tags
-                )
-                  ? draft.tags
-                  : [],
-            });
-
-          imported +=
-            1;
-        } catch {
-          remaining.push(
-            draft
-          );
-        }
-      }
-
-      localStorage.setItem(
-        LOCAL_KEY,
-        JSON.stringify(
-          remaining
-        )
+    try {
+      setDeletingId(String(station.id));
+      setError('');
+      setMessage('');
+      await batch2Service.deleteStation(station.id);
+      setStations((current) =>
+        current.filter((item) => String(item.id) !== String(station.id))
       );
+      setMessage(`${station.name} was deleted.`);
+    } catch (deleteError) {
+      setError(deleteError?.message || 'Could not delete the station.');
+    } finally {
+      setDeletingId('');
+    }
+  };
 
-      setLocalDrafts(
-        remaining
-      );
-
-      setImporting(
-        false
-      );
-
-      await loadStations();
-
-      if (
-        imported
-      ) {
-        setMessage(
-          `${imported} local station ${
-            imported === 1
-              ? "draft was"
-              : "drafts were"
-          } moved to the backend.`
-        );
-      }
-
-      if (
-        remaining.length
-      ) {
-        setError(
-          `${remaining.length} local ${
-            remaining.length === 1
-              ? "draft could"
-              : "drafts could"
-          } not be imported. They were kept safely in this browser.`
-        );
-      }
-    };
+  const anyLive = stations.some((station) => station.isLive);
 
   return (
     <section className="creator-b2-page">
       <header className="creator-b2-header">
         <div>
-          <span className="creator-b2-kicker">
-            REAL STATIONS
-          </span>
-
-          <h1>
-            Your Echoo stations.
-          </h1>
-
+          <span className="creator-b2-kicker">STATIONS</span>
+          <h1>Your Echoo stations.</h1>
           <p>
-            Create and manage the
-            stations owned by{" "}
-            {studioName}. New stations
-            are now stored by the
-            backend instead of only in
-            this browser.
+            This is the one place where {studioName} creates and manages stations.
+            Live and Schedule only select stations that already exist here.
           </p>
         </div>
 
         <EchoSignal
           size="lg"
-          state={
-            stations.some(
-              (
-                station
-              ) =>
-                station.isLive
-            )
-              ? "live"
-              : "idle"
-          }
-          activeNodes={
-            stations.some(
-              (
-                station
-              ) =>
-                station.isLive
-            )
-              ? 3
-              : 0
-          }
+          state={anyLive ? 'live' : 'idle'}
+          activeNodes={anyLive ? 3 : 0}
         >
           <FaBroadcastTower />
         </EchoSignal>
@@ -545,108 +219,32 @@ const CreatorStationsWorkspace = ({
       <div className="creator-b2-toolbar">
         <div>
           <strong>
-            {
-              stations.length
-            }{" "}
-            {stations.length ===
-            1
-              ? "station"
-              : "stations"}
+            {stations.length} {stations.length === 1 ? 'station' : 'stations'}
           </strong>
-
-          <span>
-            Backend connected
-          </span>
+          <span>Synced with the Echoo backend</span>
         </div>
 
         <button
           type="button"
           className="creator-b2-primary"
-          onClick={() =>
-            setFormOpen(
-              (
-                current
-              ) =>
-                !current
-            )
-          }
+          onClick={openCreate}
         >
-          <FaPlus />
-          New station
+          <FaPlus /> New station
         </button>
       </div>
 
-      {localDrafts.length >
-        0 && (
-        <div className="creator-b2-notice">
-          <div>
-            <strong>
-              {
-                localDrafts.length
-              }{" "}
-              old local{" "}
-              {localDrafts.length ===
-              1
-                ? "draft"
-                : "drafts"}{" "}
-              found
-            </strong>
-
-            <span>
-              They have not been
-              deleted. You can safely
-              move them to the new
-              Station API.
-            </span>
-          </div>
-
-          <button
-            type="button"
-            onClick={
-              importDrafts
-            }
-            disabled={
-              importing
-            }
-          >
-            <FaUpload />
-
-            {importing
-              ? "Importing..."
-              : "Import drafts"}
-          </button>
-        </div>
-      )}
-
-      {message && (
-        <div className="creator-b2-message success">
-          {message}
-        </div>
-      )}
-
-      {error && (
-        <div className="creator-b2-message error">
-          {error}
-        </div>
-      )}
+      {message && <div className="creator-b2-message success">{message}</div>}
+      {error && <div className="creator-b2-message error">{error}</div>}
 
       {formOpen && (
-        <form
-          className="creator-b2-form"
-          onSubmit={
-            saveStation
-          }
-        >
+        <form className="creator-b2-form" onSubmit={submitStation}>
           <div className="creator-b2-form-heading">
             <div>
-              <h2>
-                Create a station
-              </h2>
-
+              <h2>{editingId ? 'Edit station' : 'Create a station'}</h2>
               <p>
-                This creates a real
-                station in Echoo's
-                backend.
+                {editingId
+                  ? 'Update the public identity of this station.'
+                  : 'Create one real station. You will select it later when going live or scheduling.'}
               </p>
             </div>
           </div>
@@ -654,135 +252,76 @@ const CreatorStationsWorkspace = ({
           <div className="creator-b2-form-grid">
             <label>
               Station name
-
               <input
-                value={
-                  name
-                }
-                maxLength={
-                  100
-                }
+                value={form.name}
+                maxLength={100}
                 placeholder="e.g. Faith Talk Radio"
-                onChange={(
-                  event
-                ) =>
-                  setName(
-                    event.target
-                      .value
-                  )
-                }
+                onChange={(event) => updateField('name', event.target.value)}
                 required
               />
             </label>
 
             <label>
               Category
-
               <select
-                value={
-                  category
-                }
-                onChange={(
-                  event
-                ) =>
-                  setCategory(
-                    event.target
-                      .value
-                  )
-                }
+                value={form.category}
+                onChange={(event) => updateField('category', event.target.value)}
               >
-                {CATEGORIES.map(
-                  (
-                    item
-                  ) => (
-                    <option
-                      key={
-                        item
-                      }
-                      value={
-                        item
-                      }
-                    >
-                      {item}
-                    </option>
-                  )
-                )}
+                {CATEGORIES.map((item) => (
+                  <option key={item} value={item}>{item}</option>
+                ))}
               </select>
             </label>
 
             <label className="creator-b2-wide">
               Description
-
               <textarea
-                value={
-                  description
-                }
-                maxLength={
-                  2000
-                }
+                value={form.description}
+                maxLength={2000}
                 placeholder="What should listeners know about this station?"
-                onChange={(
-                  event
-                ) =>
-                  setDescription(
-                    event.target
-                      .value
-                  )
-                }
+                onChange={(event) => updateField('description', event.target.value)}
+              />
+            </label>
+
+            <label className="creator-b2-wide">
+              Cover image URL
+              <input
+                value={form.coverArt}
+                placeholder="Optional HTTPS image URL"
+                onChange={(event) => updateField('coverArt', event.target.value)}
               />
             </label>
 
             <label className="creator-b2-wide">
               Tags
-
               <input
-                value={
-                  tags
-                }
+                value={form.tags}
                 placeholder="faith, teaching, inspiration"
-                onChange={(
-                  event
-                ) =>
-                  setTags(
-                    event.target
-                      .value
-                  )
-                }
+                onChange={(event) => updateField('tags', event.target.value)}
               />
+              <small>Separate tags with commas.</small>
+            </label>
 
-              <small>
-                Separate tags with
-                commas.
-              </small>
+            <label className="creator-b2-wide">
+              <input
+                type="checkbox"
+                checked={form.isPublic}
+                onChange={(event) => updateField('isPublic', event.target.checked)}
+              />
+              Public station
             </label>
           </div>
 
           <div className="creator-b2-form-actions">
-            <button
-              type="button"
-              onClick={
-                resetForm
-              }
-              disabled={
-                saving
-              }
-            >
+            <button type="button" onClick={closeForm} disabled={saving}>
               Cancel
             </button>
-
             <button
               type="submit"
               className="creator-b2-primary"
-              disabled={
-                saving ||
-                !name.trim()
-              }
+              disabled={saving || !form.name.trim()}
             >
-              <FaSave />
-
-              {saving
-                ? "Creating..."
-                : "Create station"}
+              <FaSave /> {saving ? 'Saving...' : editingId ? 'Save changes' : 'Create station'}
             </button>
           </div>
         </form>
@@ -790,149 +329,58 @@ const CreatorStationsWorkspace = ({
 
       {loading ? (
         <div className="creator-b2-state">
-          <EchoSignal
-            size="md"
-            state="active"
-            activeNodes={2}
-          />
-
-          <strong>
-            Loading your stations...
-          </strong>
+          <EchoSignal size="md" state="active" activeNodes={2} />
+          <strong>Loading your stations...</strong>
         </div>
-      ) : sorted.length ===
-        0 ? (
+      ) : sorted.length === 0 ? (
         <div className="creator-b2-state">
           <FaBroadcastTower />
-
-          <strong>
-            No backend stations yet
-          </strong>
-
-          <p>
-            Create your first station
-            to begin scheduling
-            broadcasts.
-          </p>
+          <strong>No stations yet</strong>
+          <p>Create your first station here before using Live or Schedule.</p>
+          <button type="button" className="creator-b2-primary" onClick={openCreate}>
+            <FaPlus /> Create station
+          </button>
         </div>
       ) : (
         <div className="creator-b2-grid">
-          {sorted.map(
-            (
-              station
-            ) => {
-              const artwork =
-                station.coverArt ||
-                getMockMediaForKey(
-                  station.id ||
-                    station.name,
-                  "stations"
-                );
+          {sorted.map((station) => (
+            <article className="creator-b2-card" key={station.id}>
+              <div className="creator-b2-art">
+                {station.coverArt ? (
+                  <img src={station.coverArt} alt="" />
+                ) : (
+                  <FaBroadcastTower />
+                )}
+                {station.isLive && <span className="creator-b2-live">LIVE</span>}
+              </div>
 
-              return (
-                <article
-                  className="creator-b2-card"
-                  key={
-                    station.id
-                  }
-                >
-                  <div className="creator-b2-art">
-                    {artwork ? (
-                      <img
-                        src={
-                          artwork
-                        }
-                        alt=""
-                      />
-                    ) : (
-                      <FaBroadcastTower />
-                    )}
+              <div className="creator-b2-card-body">
+                <span className="creator-b2-card-label">{station.category || 'Other'}</span>
+                <h2>{station.name}</h2>
+                <p>{station.description || 'No description yet.'}</p>
 
-                    {station.isLive && (
-                      <span className="creator-b2-live">
-                        LIVE
-                      </span>
-                    )}
-                  </div>
+                <div className="creator-b2-card-stats">
+                  <span>{Number(station.followerCount || 0).toLocaleString()} followers</span>
+                  <span>{Number(station.listenerCount || 0).toLocaleString()} listening</span>
+                </div>
 
-                  <div className="creator-b2-card-body">
-                    <div className="creator-b2-card-top">
-                      <span>
-                        {
-                          station.category
-                        }
-                      </span>
-
-                      <small>
-                        Public
-                      </small>
-                    </div>
-
-                    <h2>
-                      {
-                        station.name
-                      }
-                    </h2>
-
-                    <p>
-                      {station.description ||
-                        "No description yet."}
-                    </p>
-
-                    <div className="creator-b2-stats">
-                      <span>
-                        <strong>
-                          {
-                            station.listenerCount
-                          }
-                        </strong>
-                        listening
-                      </span>
-
-                      <span>
-                        <strong>
-                          {
-                            station.followerCount
-                          }
-                        </strong>
-                        followers
-                      </span>
-                    </div>
-
-                    <div className="creator-b2-card-actions">
-                      <span>
-                        {station.isLive
-                          ? "Station marked live"
-                          : "Station ready"}
-                      </span>
-
-                      <button
-                        type="button"
-                        className="danger"
-                        disabled={
-                          deletingId ===
-                          station.id
-                        }
-                        onClick={() =>
-                          removeStation(
-                            station
-                          )
-                        }
-                        aria-label={`Delete ${station.name}`}
-                      >
-                        <FaTrash />
-
-                        {deletingId ===
-                        station.id
-                          ? "Deleting..."
-                          : "Delete"}
-                      </button>
-                    </div>
-                  </div>
-                </article>
-              );
-            }
-          )}
+                <div className="creator-b2-card-actions">
+                  <button type="button" onClick={() => openEdit(station)}>
+                    <FaEdit /> Edit
+                  </button>
+                  <button
+                    type="button"
+                    className="danger"
+                    disabled={deletingId === String(station.id) || station.isLive}
+                    onClick={() => removeStation(station)}
+                    title={station.isLive ? 'End the live broadcast before deleting this station.' : 'Delete station'}
+                  >
+                    <FaTrash /> {deletingId === String(station.id) ? 'Deleting...' : 'Delete'}
+                  </button>
+                </div>
+              </div>
+            </article>
+          ))}
         </div>
       )}
     </section>
