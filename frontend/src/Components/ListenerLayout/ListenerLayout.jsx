@@ -35,6 +35,7 @@ import notificationService from '../../services/notificationService';
 import { buildMediaUrl } from '../../services/api';
 import './ListenerLayout.css';
 import './ListenerLayout.figma.css';
+import './ListenerPlaybackFix.css';
 import '../../styles/echoo-identity-reset.css';
 import '../../styles/echoo-asset-system.css';
 
@@ -71,7 +72,7 @@ const normalizeTrack = (track) => {
       (typeof track.artist === 'string' ? track.artist : '') ||
       'Echoo Audio',
     coverArt: buildMediaUrl(track.coverArt || track.artwork || null),
-    fileUrl: buildMediaUrl(track.fileUrl || null),
+    fileUrl: buildMediaUrl(track.fileUrl || track.backendFileUrl || null),
     duration: Number(track.duration) || 0,
   };
 };
@@ -95,9 +96,19 @@ const readUser = () => {
   }
 };
 
+const playbackErrorMessage = (error) => {
+  if (error?.name === 'NotAllowedError') {
+    return 'Playback was blocked by the browser. Press Play again.';
+  }
+  if (error?.name === 'NotSupportedError') {
+    return 'This uploaded audio format cannot be played by this browser.';
+  }
+  return 'Echoo could not play this audio. Check that the uploaded file is still available.';
+};
+
 const ListenerLayout = () => {
   const navigate = useNavigate();
-  const user = useMemo(readUser, []);
+  const user = useMemo(() => readUser(), []);
   const displayName =
     user.displayName || user.fullname || user.username || 'Listener';
   const profileImage =
@@ -118,6 +129,7 @@ const ListenerLayout = () => {
   const [queueIndex, setQueueIndex] = useState(-1);
   const [shuffle, setShuffle] = useState(false);
   const [repeatMode, setRepeatMode] = useState('off');
+  const [playerError, setPlayerError] = useState('');
 
   const [searchQuery, setSearchQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
@@ -164,9 +176,54 @@ const ListenerLayout = () => {
     }
   };
 
+  const loadAndPlay = (track) => {
+    const audio = audioRef.current;
+    if (!audio || !track?.fileUrl) {
+      setPlayerError('This audio does not have a playable file attached to it.');
+      setIsPlaying(false);
+      return false;
+    }
+
+    try {
+      const requestedUrl = new URL(track.fileUrl, window.location.href).href;
+      if (audio.src !== requestedUrl) {
+        audio.src = track.fileUrl;
+        audio.load();
+      }
+
+      audio.volume = volume;
+      audio.muted = isMuted;
+      setPlayerError('');
+
+      const playPromise = audio.play();
+      if (playPromise?.then) {
+        playPromise
+          .then(() => {
+            setIsPlaying(true);
+            setPlayerError('');
+          })
+          .catch((error) => {
+            console.warn('Audio playback:', error);
+            setIsPlaying(false);
+            setPlayerError(playbackErrorMessage(error));
+          });
+      }
+
+      return true;
+    } catch (error) {
+      console.warn('Audio playback:', error);
+      setIsPlaying(false);
+      setPlayerError(playbackErrorMessage(error));
+      return false;
+    }
+  };
+
   const playTrack = (track, incomingQueue = null) => {
     const normalized = normalizeTrack(track);
-    if (!normalized?.fileUrl) return;
+    if (!normalized?.fileUrl) {
+      setPlayerError('This audio does not have a playable file attached to it.');
+      return;
+    }
 
     if (currentTrack?.id && currentTrack.id !== normalized.id) {
       syncProgress(false);
@@ -196,6 +253,10 @@ const ListenerLayout = () => {
     setCurrentTime(0);
     setDuration(normalized.duration || 0);
 
+    // Start playback directly inside the user's click/tap event. Waiting for a
+    // React effect can lose browser user-activation and make play() get blocked.
+    loadAndPlay(normalized);
+
     if (backendTrackId(normalized.id)) {
       listenerService.addToContinueListening(normalized.id).catch(() => {});
       audioService.play(normalized.id).catch(() => {});
@@ -209,6 +270,7 @@ const ListenerLayout = () => {
     setCurrentTrack(track);
     setCurrentTime(0);
     setDuration(track.duration || 0);
+    loadAndPlay(track);
 
     if (backendTrackId(track.id)) {
       listenerService.addToContinueListening(track.id).catch(() => {});
@@ -218,14 +280,22 @@ const ListenerLayout = () => {
 
   const togglePlay = async () => {
     const audio = audioRef.current;
-    if (!audio || !currentTrack?.fileUrl) return;
+    if (!audio || !currentTrack?.fileUrl) {
+      if (!currentTrack?.fileUrl) {
+        setPlayerError('Choose an audio track first.');
+      }
+      return;
+    }
 
     if (audio.paused) {
       try {
         await audio.play();
         setIsPlaying(true);
+        setPlayerError('');
       } catch (error) {
         console.warn('Audio playback:', error);
+        setIsPlaying(false);
+        setPlayerError(playbackErrorMessage(error));
       }
     } else {
       audio.pause();
@@ -244,7 +314,10 @@ const ListenerLayout = () => {
       } while (next === queueIndex);
     } else if (next >= queue.length) {
       if (repeatMode === 'all') next = 0;
-      else return setIsPlaying(false);
+      else {
+        setIsPlaying(false);
+        return;
+      }
     }
 
     syncProgress(false);
@@ -279,11 +352,14 @@ const ListenerLayout = () => {
 
   const playTrackAt = (track, seconds, incomingQueue = null) => {
     const normalized = normalizeTrack(track);
-    if (!normalized?.fileUrl) return;
+    if (!normalized?.fileUrl) {
+      setPlayerError('This audio does not have a playable file attached to it.');
+      return;
+    }
 
     if (currentTrack?.id === normalized.id && audioRef.current) {
       seekTo(seconds);
-      audioRef.current.play().catch(() => {});
+      loadAndPlay(normalized);
       return;
     }
 
@@ -295,15 +371,19 @@ const ListenerLayout = () => {
     const audio = audioRef.current;
     if (!audio || !currentTrack?.fileUrl) return;
 
-    audio.src = currentTrack.fileUrl;
-    audio.load();
+    const requestedUrl = new URL(currentTrack.fileUrl, window.location.href).href;
+    if (audio.src !== requestedUrl) {
+      audio.src = currentTrack.fileUrl;
+      audio.load();
+    }
+  }, [currentTrack?.fileUrl]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
     audio.volume = volume;
     audio.muted = isMuted;
-    audio
-      .play()
-      .then(() => setIsPlaying(true))
-      .catch(() => setIsPlaying(false));
-  }, [currentTrack?.fileUrl]);
+  }, [volume, isMuted]);
 
   useEffect(() => {
     const query = searchQuery.trim();
@@ -587,12 +667,13 @@ const ListenerLayout = () => {
               queue,
               playNext,
               playPrevious,
+              playerError,
             }}
           />
         </main>
       </div>
 
-      <div className="layout-player echoo-persistent-player">
+      <div className={`layout-player echoo-persistent-player ${playerError ? 'has-playback-error' : ''}`}>
         <audio
           ref={audioRef}
           preload="metadata"
@@ -611,18 +692,27 @@ const ListenerLayout = () => {
                 : currentTrack?.duration || 0
             )
           }
+          onCanPlay={() => setPlayerError('')}
           onEnded={() => {
             syncProgress(true);
             if (repeatMode === 'one' && audioRef.current) {
               audioRef.current.currentTime = 0;
-              audioRef.current.play().catch(() => {});
+              audioRef.current.play().catch((error) => {
+                setPlayerError(playbackErrorMessage(error));
+              });
             } else {
               playNext();
             }
           }}
-          onPlay={() => setIsPlaying(true)}
+          onPlay={() => {
+            setIsPlaying(true);
+            setPlayerError('');
+          }}
           onPause={() => setIsPlaying(false)}
-          onError={() => setIsPlaying(false)}
+          onError={() => {
+            setIsPlaying(false);
+            setPlayerError('Echoo could not load this uploaded audio file.');
+          }}
         />
 
         <div className="layout-player-track">
@@ -647,7 +737,9 @@ const ListenerLayout = () => {
 
           <div className="layout-player-info">
             <strong>{currentTrack?.title || 'Choose something to play'}</strong>
-            <span>{currentTrack?.subtitle || 'Echoo'}</span>
+            <span className={playerError ? 'layout-player-error-copy' : ''}>
+              {playerError || currentTrack?.subtitle || 'Echoo'}
+            </span>
           </div>
         </div>
 
