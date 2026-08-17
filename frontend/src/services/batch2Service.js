@@ -1,5 +1,4 @@
 import { apiRequest, buildMediaUrl } from './api.js';
-import { buildGeneratedStationBrandCoverUrl } from '../stationBranding/stationBranding.js';
 
 const queryString = (values = {}) => {
   const params = new URLSearchParams();
@@ -44,34 +43,24 @@ const versionManagedStationLogo = (url, updatedAt) => {
   return `${url}${String(url).includes('?') ? '&' : '?'}v=${version}`;
 };
 
+const isGeneratedArtwork = (value) =>
+  Boolean(value && String(value).startsWith('data:image/svg+xml'));
+
+const creatorArtwork = (value, updatedAt = null) => {
+  if (!value || isGeneratedArtwork(value)) return null;
+  return versionManagedStationLogo(buildMediaUrl(value), updatedAt);
+};
+
 export const normalizeStation = (station) => {
   if (!station) return null;
 
   const owner = normalizeOwner(station.owner);
-  const rawStoredArt = buildMediaUrl(
-    station.logo || station.coverArt || station.artwork || station.image || null
+  const suppliedArtwork = creatorArtwork(
+    station.logo || station.coverArt || station.artwork || station.image || null,
+    station.updatedAt
   );
-  const storedIsGeneratedSvg = Boolean(
-    rawStoredArt && String(rawStoredArt).startsWith('data:image/svg+xml')
-  );
-  const inferredMode = rawStoredArt && !storedIsGeneratedSvg
-    ? 'custom'
-    : station.branding?.mode || 'generated';
-  const customLogo = inferredMode === 'custom'
-    ? versionManagedStationLogo(rawStoredArt, station.updatedAt)
-    : null;
-  const storedGeneratedCover = inferredMode === 'generated' && storedIsGeneratedSvg
-    ? rawStoredArt
-    : null;
-  const branding = {
-    mode: inferredMode,
-    variant: Number.isInteger(Number(station.branding?.variant))
-      ? Number(station.branding.variant)
-      : undefined,
-    version: Number(station.branding?.version) || 1,
-  };
 
-  const baseStation = {
+  return {
     ...station,
     id: station.id || station._id || null,
     _id: station._id || station.id || null,
@@ -84,9 +73,16 @@ export const normalizeStation = (station) => {
     title: station.name || 'Untitled Station',
     description: station.description || '',
     category: station.category || 'Other',
-    branding,
-    logo: customLogo,
-    customLogo,
+    branding: {
+      mode: suppliedArtwork ? 'custom' : 'none',
+      version: Number(station.branding?.version) || 1,
+    },
+    logo: suppliedArtwork,
+    customLogo: suppliedArtwork,
+    brandCover: suppliedArtwork,
+    coverArt: suppliedArtwork,
+    artwork: suppliedArtwork,
+    image: suppliedArtwork,
     isLive: Boolean(station.isLive),
     listenerCount: Number(station.listenerCount) || 0,
     listeners: Number(station.listenerCount) || 0,
@@ -94,17 +90,6 @@ export const normalizeStation = (station) => {
     followers: Number(station.followerCount) || 0,
     isPublic: station.isPublic !== false,
     tags: Array.isArray(station.tags) ? station.tags : [],
-  };
-
-  const generatedCover = buildGeneratedStationBrandCoverUrl(baseStation);
-  const brandCover = customLogo || storedGeneratedCover || generatedCover;
-
-  return {
-    ...baseStation,
-    brandCover,
-    coverArt: brandCover,
-    artwork: brandCover,
-    image: brandCover,
   };
 };
 
@@ -118,9 +103,8 @@ export const normalizeBroadcast = (broadcast) => {
   const stationId = normalizeId(broadcast.station) || broadcast.stationId || null;
   const creatorId = normalizeId(broadcast.creator) || broadcast.creatorId || null;
   const normalizedStation = stationObject ? normalizeStation(stationObject) : null;
-  const coverArt =
-    normalizedStation?.brandCover ||
-    buildMediaUrl(broadcast.coverArt || null);
+  const suppliedBroadcastArtwork = creatorArtwork(broadcast.coverArt || null);
+  const coverArt = suppliedBroadcastArtwork || normalizedStation?.brandCover || null;
   const status = broadcast.status || 'scheduled';
 
   return {
@@ -133,7 +117,7 @@ export const normalizeBroadcast = (broadcast) => {
     stationId,
     stationName: stationObject?.name || broadcast.stationName || 'Echoo Station',
     stationSlug: stationObject?.slug || null,
-    stationBranding: normalizedStation?.branding || broadcast.stationBranding || null,
+    stationBranding: normalizedStation?.branding || null,
     creatorId,
     creatorName:
       creatorObject?.displayName ||
@@ -191,22 +175,6 @@ const stationFormData = (payload = {}) => {
   }
   if (payload.isPublic !== undefined) form.append('isPublic', String(payload.isPublic !== false));
   if (payload.removeLogo !== undefined) form.append('removeLogo', String(Boolean(payload.removeLogo)));
-  if (payload.brandingMode !== undefined) form.append('brandingMode', payload.brandingMode || 'generated');
-  if (payload.brandingVariant !== undefined) form.append('brandingVariant', String(payload.brandingVariant));
-
-  if (payload.brandingMode === 'generated') {
-    const generatedCoverArt = payload.generatedCoverArt || buildGeneratedStationBrandCoverUrl({
-      id: payload.id || `station-${payload.brandingVariant ?? 0}`,
-      name: payload.name || 'Echoo Station',
-      category: payload.category || 'Other',
-      branding: {
-        mode: 'generated',
-        variant: Number(payload.brandingVariant) || 0,
-        version: 1,
-      },
-    });
-    form.append('generatedCoverArt', generatedCoverArt);
-  }
 
   const logoFile = payload.logoFile;
   if (logoFile && typeof logoFile === 'object' && typeof logoFile.name === 'string') {
@@ -238,10 +206,6 @@ const refreshWrittenStation = async (writtenResponse, payload = {}) => {
     );
   }
 
-  if (payload.brandingMode === 'generated' && canonical.branding?.mode !== 'generated') {
-    throw new Error('Echoo could not switch this station back to its generated brand.');
-  }
-
   if (payload.removeLogo && canonical.logo) {
     throw new Error('Echoo could not remove the station logo. Please try again.');
   }
@@ -251,7 +215,7 @@ const refreshWrittenStation = async (writtenResponse, payload = {}) => {
 
 const sanitizeBroadcastPayload = (payload = {}) => {
   const next = { ...payload };
-  if (typeof next.coverArt === 'string' && next.coverArt.startsWith('data:image/svg+xml')) {
+  if (isGeneratedArtwork(next.coverArt)) {
     next.coverArt = null;
   }
   return next;
