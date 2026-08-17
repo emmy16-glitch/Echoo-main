@@ -3,6 +3,7 @@ import {
   FaBroadcastTower,
   FaCalendarAlt,
   FaEdit,
+  FaEllipsisH,
   FaMicrophone,
   FaPlus,
   FaSave,
@@ -42,6 +43,7 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState('');
+  const [menuStationId, setMenuStationId] = useState('');
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState('');
@@ -81,6 +83,7 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
     if (!station?.id) return;
     sessionStorage.setItem('echooSelectedStationId', String(station.id));
     sessionStorage.setItem('echooBroadcastMode', nextMode);
+    setMenuStationId('');
     onNavigate?.('Broadcast');
   };
 
@@ -95,6 +98,7 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
     setMessage('');
     setError('');
     setEditingId('');
+    setMenuStationId('');
     setForm(EMPTY_FORM);
     setFormOpen(true);
   };
@@ -103,6 +107,7 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
     setMessage('');
     setError('');
     setEditingId(station.id);
+    setMenuStationId('');
     setForm({
       name: station.name || '',
       category: CATEGORIES.includes(station.category) ? station.category : 'Other',
@@ -171,6 +176,7 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
       setDeletingId(String(station.id));
       setError('');
       setMessage('');
+      setMenuStationId('');
       await batch2Service.deleteStation(station.id);
       setStations((current) => current.filter((item) => String(item.id) !== String(station.id)));
       setMessage('Station deleted.');
@@ -186,15 +192,29 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
       <header className="est-header">
         <div>
           <h1>Your stations</h1>
-          <p>A station is the home for your broadcasts.<br />Create it once, then use it when you go live or schedule content.</p>
+          <p>
+            A station is the home for your broadcasts. Create it once, then choose it whenever
+            you go live or schedule your next session.
+          </p>
         </div>
-        <button type="button" className="est-new" onClick={openCreate}><FaPlus /> New station</button>
+        <button type="button" className="est-new" onClick={openCreate}>
+          <FaPlus /> New station
+        </button>
       </header>
 
       <section className="est-summary">
-        <div><i className="blue"><FaBroadcastTower /></i><span><strong>{stations.length} {stations.length === 1 ? 'station' : 'stations'}</strong><small>All your stations in one place</small></span></div>
-        <div><i className="purple"><FaCalendarAlt /></i><span><strong>Go live or schedule</strong><small>Use any station for your next broadcast</small></span></div>
-        <div><i className="green"><FaUsers /></i><span><strong>Build your audience</strong><small>Share your station and grow listeners</small></span></div>
+        <div>
+          <i className="blue"><FaBroadcastTower /></i>
+          <span><strong>{stations.length} {stations.length === 1 ? 'station' : 'stations'}</strong><small>{studioName}</small></span>
+        </div>
+        <div>
+          <i className="purple"><FaCalendarAlt /></i>
+          <span><strong>Go live or schedule</strong><small>Use any station for your next broadcast</small></span>
+        </div>
+        <div>
+          <i className="green"><FaUsers /></i>
+          <span><strong>Build your audience</strong><small>Keep each station focused and recognizable</small></span>
+        </div>
       </section>
 
       {message && <div className="est-message success">{message}</div>}
@@ -202,7 +222,14 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
 
       {formOpen && (
         <form className="est-form" onSubmit={submitStation}>
-          <div className="est-form-head"><div><span>{editingId ? 'EDIT STATION' : 'NEW STATION'}</span><h2>{editingId ? 'Update station' : 'Create a station'}</h2><p>This is the permanent home your broadcasts belong to.</p></div><button type="button" onClick={closeForm}>Close</button></div>
+          <div className="est-form-head">
+            <div>
+              <span>{editingId ? 'EDIT STATION' : 'NEW STATION'}</span>
+              <h2>{editingId ? 'Update station' : 'Create a station'}</h2>
+              <p>This is the permanent home your broadcasts belong to.</p>
+            </div>
+            <button type="button" onClick={closeForm}>Close</button>
+          </div>
           <div className="est-form-grid">
             <label><span>Station name</span><input value={form.name} maxLength={100} placeholder="e.g. Layers of Truth" onChange={(event) => updateField('name', event.target.value)} required /></label>
             <label><span>Category</span><select value={form.category} onChange={(event) => updateField('category', event.target.value)}>{CATEGORIES.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
@@ -211,19 +238,30 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
             <label><span>Tags</span><input value={form.tags} placeholder="faith, teaching, inspiration" onChange={(event) => updateField('tags', event.target.value)} /></label>
             <label className="est-public"><input type="checkbox" checked={form.isPublic} onChange={(event) => updateField('isPublic', event.target.checked)} /><span>Public station</span></label>
           </div>
-          <div className="est-form-actions"><button type="button" onClick={closeForm} disabled={saving}>Cancel</button><button type="submit" className="primary" disabled={saving || !form.name.trim()}><FaSave /> {saving ? 'Saving...' : editingId ? 'Save changes' : 'Create station'}</button></div>
+          <div className="est-form-actions">
+            <button type="button" onClick={closeForm} disabled={saving}>Cancel</button>
+            <button type="submit" className="primary" disabled={saving || !form.name.trim()}>
+              <FaSave /> {saving ? 'Saving...' : editingId ? 'Save changes' : 'Create station'}
+            </button>
+          </div>
         </form>
       )}
 
       {loading ? (
         <div className="est-loading"><span /><span /><span /></div>
       ) : sorted.length === 0 ? (
-        <div className="est-empty"><FaBroadcastTower /><h2>No stations yet</h2><p>Create your first station to start broadcasting.</p><button type="button" onClick={openCreate}><FaPlus /> New station</button></div>
+        <div className="est-empty">
+          <FaBroadcastTower />
+          <h2>No stations yet</h2>
+          <p>Create your first station to start broadcasting.</p>
+          <button type="button" onClick={openCreate}><FaPlus /> New station</button>
+        </div>
       ) : (
         <div className="est-grid">
           {sorted.map((station) => {
             const isCurrentLive = Boolean(station.isLive);
             const anotherStationLive = Boolean(liveStation && !isCurrentLive);
+            const menuOpen = String(menuStationId) === String(station.id);
 
             return (
               <article className={`est-card ${isCurrentLive ? 'live' : ''}`} key={station.id}>
@@ -235,10 +273,16 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
                   <small>{station.category || 'Other'}</small>
                   <h2>{station.name}</h2>
                   <p>{station.description || 'No description yet.'}</p>
-                  <div className="est-stats"><span><i /> {Number(station.followerCount || 0).toLocaleString()} followers</span><span>·</span><span>{Number(station.listenerCount || 0).toLocaleString()} listening</span></div>
+                  <div className="est-stats">
+                    <span><i /> {Number(station.followerCount || 0).toLocaleString()} followers</span>
+                    <span>·</span>
+                    <span>{Number(station.listenerCount || 0).toLocaleString()} listening</span>
+                  </div>
 
                   {isCurrentLive ? (
-                    <button type="button" className="est-primary-action" onClick={() => openBroadcast(station, 'now')}><FaMicrophone /> Open studio</button>
+                    <button type="button" className="est-primary-action" onClick={() => openBroadcast(station, 'now')}>
+                      <FaMicrophone /> Open studio
+                    </button>
                   ) : (
                     <button
                       type="button"
@@ -246,13 +290,40 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
                       disabled={anotherStationLive}
                       title={anotherStationLive ? 'End the current live broadcast before starting another.' : ''}
                       onClick={() => openBroadcast(station, 'now')}
-                    ><FaMicrophone /> {anotherStationLive ? 'Another station is live' : 'Start broadcast'}</button>
+                    >
+                      <FaMicrophone /> {anotherStationLive ? 'Live on another station' : 'Start broadcast'}
+                    </button>
                   )}
 
-                  <div className="est-card-actions">
-                    <button type="button" onClick={() => openBroadcast(station, 'later')}><FaCalendarAlt /> Schedule</button>
-                    <button type="button" onClick={() => openEdit(station)}><FaEdit /> Edit</button>
-                    <button type="button" className="danger" disabled={deletingId === String(station.id) || isCurrentLive} onClick={() => removeStation(station)} title={isCurrentLive ? 'End the live broadcast before deleting this station.' : 'Delete station'}><FaTrash /></button>
+                  <div className="est-card-footer">
+                    <button type="button" className="est-secondary-action" onClick={() => openBroadcast(station, 'later')}>
+                      <FaCalendarAlt /> Schedule
+                    </button>
+                    <div className="est-more-wrap">
+                      <button
+                        type="button"
+                        className="est-more-button"
+                        aria-label={`More actions for ${station.name}`}
+                        aria-expanded={menuOpen}
+                        onClick={() => setMenuStationId((current) => String(current) === String(station.id) ? '' : String(station.id))}
+                      >
+                        <FaEllipsisH />
+                      </button>
+                      {menuOpen && (
+                        <div className="est-more-menu">
+                          <button type="button" onClick={() => openEdit(station)}><FaEdit /> Edit station</button>
+                          <button
+                            type="button"
+                            className="danger"
+                            disabled={deletingId === String(station.id) || isCurrentLive}
+                            onClick={() => removeStation(station)}
+                            title={isCurrentLive ? 'End the live broadcast before deleting this station.' : 'Delete station'}
+                          >
+                            <FaTrash /> Delete station
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </article>
@@ -261,7 +332,13 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
         </div>
       )}
 
-      <section className="est-bottom-note"><i><FaBroadcastTower /></i><div><strong>Make the most of your stations</strong><span>Use one station for a consistent audience, or create different stations for different shows and communities.</span></div></section>
+      <section className="est-bottom-note">
+        <i><FaBroadcastTower /></i>
+        <div>
+          <strong>Keep stations focused</strong>
+          <span>Use one station for a consistent audience, or separate stations for different shows and communities.</span>
+        </div>
+      </section>
     </section>
   );
 };
