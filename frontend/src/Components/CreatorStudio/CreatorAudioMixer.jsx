@@ -116,9 +116,14 @@ const CreatorAudioMixer = ({ compact = false, onStateChange }) => {
       level: 0,
       connected: false,
     };
+    const clipping = channel.connected && Number(channel.level) >= 0.94;
 
     return (
-      <article className={`eam-channel ${channel.connected ? 'connected' : ''}`} key={channelId}>
+      <article
+        className={`eam-channel ${channel.connected ? 'connected' : ''} ${clipping ? 'clipping' : ''}`}
+        key={channelId}
+      >
+        {clipping && <span className="eam-clip" role="status">CLIP</span>}
         <div className="eam-channel-head">
           <span className="eam-channel-icon">{icon}</span>
           <div>
@@ -149,12 +154,16 @@ const CreatorAudioMixer = ({ compact = false, onStateChange }) => {
             className={channel.muted ? 'active mute' : ''}
             onClick={() => toggleMixerChannelMute(channelId)}
             disabled={!channel.connected}
+            aria-pressed={channel.muted}
+            title={`Mute ${channel.name}`}
           >M</button>
           <button
             type="button"
             className={channel.solo ? 'active' : ''}
             onClick={() => toggleMixerChannelSolo(channelId)}
             disabled={!channel.connected}
+            aria-pressed={channel.solo}
+            title={`Solo ${channel.name}`}
           >S</button>
         </div>
 
@@ -163,6 +172,7 @@ const CreatorAudioMixer = ({ compact = false, onStateChange }) => {
             className="eam-device-select"
             value={guestDeviceId}
             onChange={(event) => setGuestDeviceId(event.target.value)}
+            aria-label="Guest microphone"
           >
             <option value="">Choose microphone</option>
             {devices.map((device) => (
@@ -191,6 +201,8 @@ const CreatorAudioMixer = ({ compact = false, onStateChange }) => {
     );
   };
 
+  const masterClipping = Number(master.level) >= 0.94;
+
   return (
     <section className={`eam ${compact ? 'compact' : ''}`}>
       <div className="eam-heading">
@@ -211,7 +223,8 @@ const CreatorAudioMixer = ({ compact = false, onStateChange }) => {
         {renderChannel('guest', <FaMicrophone />, connectGuest)}
         {renderChannel('media', <FaDesktop />, connectMedia)}
 
-        <article className="eam-channel master connected">
+        <article className={`eam-channel master connected ${masterClipping ? 'clipping' : ''}`}>
+          {masterClipping && <span className="eam-clip" role="status">CLIP</span>}
           <div className="eam-channel-head">
             <span className="eam-channel-icon"><FaVolumeUp /></span>
             <div><strong>Master Output</strong><small>Echoo live mix</small></div>
@@ -235,6 +248,8 @@ const CreatorAudioMixer = ({ compact = false, onStateChange }) => {
               type="button"
               className={master.muted ? 'active mute' : ''}
               onClick={toggleMasterMute}
+              aria-pressed={master.muted}
+              title="Mute master output"
             >
               {master.muted ? <FaVolumeMute /> : <FaVolumeUp />}
             </button>
@@ -246,7 +261,11 @@ const CreatorAudioMixer = ({ compact = false, onStateChange }) => {
         </article>
       </div>
 
-      <div className="eam-legend"><span><b>M</b> Mute</span><span><b>S</b> Solo</span><span>Music / FX uses browser system-audio sharing.</span></div>
+      <div className="eam-legend">
+        <span><b>M</b> Mute</span>
+        <span><b>S</b> Solo</span>
+        <span>Red CLIP means the signal is too hot. Lower that channel or the master.</span>
+      </div>
     </section>
   );
 };
