@@ -45,6 +45,8 @@ const forbidFile = (relative) => {
   'backend/src/routes/listenerLivekitRoutes.js',
   'frontend/src/Components/CreatorStudio/CreatorLiveWorkspace.jsx',
   'frontend/src/Components/ListenerLiveExperience/ListenerLiveExperience.jsx',
+  'frontend/src/Components/ListenerLive/ListenerLive.jsx',
+  'frontend/src/Components/ListenerStations/ListenerStations.jsx',
   'frontend/src/services/listenerMockService.js',
   'frontend/src/services/mockMediaService.js',
   'frontend/src/services/momentService.js',
@@ -108,6 +110,40 @@ for (const obsoleteStationRoute of ['toggle-live', '/schedule']) {
   }
 }
 
+const stationModel = read('backend/src/models/Station.js');
+if (stationModel.includes('schedule: [{') || stationModel.includes('toggleLive')) {
+  failures.push('Station model reintroduced a duplicate schedule/manual live authority.');
+}
+
+const batch2Service = read('frontend/src/services/batch2Service.js');
+for (const obsoleteClientMethod of ['getStationSchedule', 'updateStationSchedule']) {
+  if (batch2Service.includes(obsoleteClientMethod)) {
+    failures.push(`Frontend Station service reintroduced obsolete method: ${obsoleteClientMethod}`);
+  }
+}
+
+const analyticsController = read('backend/src/controllers/analyticsController.js');
+for (const syntheticToken of [
+  'Math.random()',
+  'Mock change percentage',
+  "city: 'Lagos'",
+  "name: 'Chill & Relax'",
+]) {
+  if (analyticsController.includes(syntheticToken)) {
+    failures.push(`Synthetic analytics token returned: ${syntheticToken}`);
+  }
+}
+
+const searchController = read('backend/src/controllers/searchController.js');
+for (const syntheticSearchToken of [
+  "term: 'Faith & Spirituality', type: 'category', count: 1250",
+  "term: 'Faith Talk', type: 'track', trend: 45",
+]) {
+  if (searchController.includes(syntheticSearchToken)) {
+    failures.push(`Synthetic search data returned: ${syntheticSearchToken}`);
+  }
+}
+
 const broadcastRoutes = read('backend/src/routes/broadcastRoutes.js');
 for (const canonicalRoute of ['/start', '/confirm-live', '/end', '/cancel', '/listener-token']) {
   if (!broadcastRoutes.includes(canonicalRoute)) {
@@ -125,3 +161,4 @@ console.log('Echoo architecture check passed.');
 console.log(`Station creation UI: ${allowedStationCreator}`);
 console.log('Scheduling authority: Broadcast');
 console.log('Live media path: Creator -> LiveKit -> Listener');
+console.log('Synthetic analytics/search data guard: active');
