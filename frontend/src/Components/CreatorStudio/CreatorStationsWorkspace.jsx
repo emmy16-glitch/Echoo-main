@@ -16,6 +16,7 @@ import {
 
 import batch2Service from '../../services/batch2Service';
 import './CreatorStationsExact.css';
+import './CreatorStationLogo.css';
 
 const CATEGORIES = [
   'Faith & Spirituality',
