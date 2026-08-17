@@ -96,13 +96,31 @@ const disconnectSource = (channelId, stopTracks = true) => {
   const current = sources.get(channelId);
   if (!current) return;
 
-  try { current.source?.disconnect(); } catch {}
-  try { current.gainNode?.disconnect(); } catch {}
-  try { current.analyser?.disconnect(); } catch {}
+  try {
+    current.source?.disconnect();
+  } catch {
+    // The source may already be disconnected.
+  }
+
+  try {
+    current.gainNode?.disconnect();
+  } catch {
+    // The gain node may already be disconnected.
+  }
+
+  try {
+    current.analyser?.disconnect();
+  } catch {
+    // The analyser may already be disconnected.
+  }
 
   if (stopTracks) {
     current.stream?.getTracks().forEach((track) => {
-      try { track.stop(); } catch {}
+      try {
+        track.stop();
+      } catch {
+        // The browser may have already ended this track.
+      }
     });
   }
 
@@ -236,7 +254,6 @@ function startMeterLoop() {
 
 export const subscribeEchooMixer = (listener) => {
   listeners.add(listener);
-  listener(getSnapshot());
   return () => listeners.delete(listener);
 };
 
@@ -388,7 +405,11 @@ export const stopEchooMixer = async () => {
     animationFrame = null;
   }
 
-  try { await audioContext?.close(); } catch {}
+  try {
+    await audioContext?.close();
+  } catch {
+    // Ignore cleanup errors from an already-closed audio context.
+  }
 
   audioContext = null;
   destinationNode = null;
