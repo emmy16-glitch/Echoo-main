@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   FaArrowLeft,
@@ -13,6 +13,8 @@ import batch3Service from '../../services/batch3Service';
 import HorizontalDragRail from '../FigmaUI/HorizontalDragRail';
 import './ListenerFollowing.css';
 
+const FOLLOWING_SYNC_INTERVAL_MS = 15000;
+
 const compactNumber = (value) =>
   new Intl.NumberFormat('en', {
     notation: 'compact',
@@ -20,6 +22,7 @@ const compactNumber = (value) =>
   }).format(Number(value) || 0);
 
 const getImage = (item) =>
+  item?.brandCover ||
   item?.avatar ||
   item?.profileImage ||
   item?.artwork ||
@@ -69,39 +72,41 @@ const ListenerFollowing = () => {
   const [actionKey, setActionKey] = useState('');
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    let active = true;
+  const load = useCallback(async ({ silent = false } = {}) => {
+    try {
+      if (!silent) setLoading(true);
+      if (!silent) setError('');
 
-    const load = async () => {
-      try {
-        setLoading(true);
-        setError('');
+      const [creatorResult, stationResult, discovery] = await Promise.all([
+        followService.getFollowingCreators(),
+        followService.getFollowingStations(),
+        batch3Service.getDiscovery(),
+      ]);
 
-        const [creatorResult, stationResult, discovery] = await Promise.all([
-          followService.getFollowingCreators(),
-          followService.getFollowingStations(),
-          batch3Service.getDiscovery(),
-        ]);
-
-        if (!active) return;
-
-        setCreators(Array.isArray(creatorResult?.data) ? creatorResult.data : []);
-        setStations(Array.isArray(stationResult?.data) ? stationResult.data : []);
-        setLiveBroadcasts(Array.isArray(discovery?.live) ? discovery.live : []);
-      } catch (loadError) {
-        if (active) {
-          setError(loadError?.message || 'Could not load the people and stations you follow.');
-        }
-      } finally {
-        if (active) setLoading(false);
+      setCreators(Array.isArray(creatorResult?.data) ? creatorResult.data : []);
+      setStations(Array.isArray(stationResult?.data) ? stationResult.data : []);
+      setLiveBroadcasts(Array.isArray(discovery?.live) ? discovery.live : []);
+    } catch (loadError) {
+      if (!silent) {
+        setError(loadError?.message || 'Could not load the people and stations you follow.');
       }
-    };
-
-    load();
-    return () => {
-      active = false;
-    };
+    } finally {
+      if (!silent) setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    load();
+
+    const sync = () => load({ silent: true });
+    const interval = window.setInterval(sync, FOLLOWING_SYNC_INTERVAL_MS);
+    window.addEventListener('focus', sync);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', sync);
+    };
+  }, [load]);
 
   const liveByCreator = useMemo(() => {
     const map = new Map();
