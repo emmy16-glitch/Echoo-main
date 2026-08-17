@@ -1,4 +1,6 @@
 import mongoose from 'mongoose';
+import Notification from './Notification.js';
+import User from './User.js';
 
 const followSchema = new mongoose.Schema(
   {
@@ -18,10 +20,7 @@ const followSchema = new mongoose.Schema(
       type: String,
       enum: ['pending', 'accepted', 'blocked'],
       default: 'accepted',
-    },
-    notified: {
-      type: Boolean,
-      default: false,
+      index: true,
     },
   },
   {
@@ -29,21 +28,47 @@ const followSchema = new mongoose.Schema(
     versionKey: false,
     toJSON: {
       transform(doc, ret) {
-        delete ret.__v;
         ret.id = ret._id;
         delete ret._id;
+        delete ret.__v;
         return ret;
       },
     },
   }
 );
 
-// Compound index to prevent duplicate follows
-followSchema.index({ follower: 1, following: 1 }, { unique: true });
+followSchema.index(
+  { follower: 1, following: 1 },
+  { unique: true }
+);
+followSchema.index({ follower: 1, status: 1, createdAt: -1 });
+followSchema.index({ following: 1, status: 1, createdAt: -1 });
 
-// Indexes for queries
-followSchema.index({ following: 1, createdAt: -1 });
-followSchema.index({ follower: 1, createdAt: -1 });
+followSchema.pre('save', function rememberNewAcceptedFollow() {
+  this.$locals.notifyNewFollower = this.isNew && this.status === 'accepted';
+});
+
+followSchema.post('save', async function notifyFollowedUser(doc) {
+  if (!doc.$locals.notifyNewFollower) return;
+
+  try {
+    const follower = await User.findById(doc.follower).select(
+      'username displayName'
+    );
+
+    await Notification.create({
+      userId: doc.following,
+      type: 'new_follower',
+      title: 'New follower',
+      message: `${follower?.displayName || follower?.username || 'Someone'} started following you on Echoo.`,
+      metadata: {
+        followerId: String(doc.follower),
+      },
+    });
+  } catch (error) {
+    console.warn('New follower notification warning:', error?.message || error);
+  }
+});
 
 const Follow = mongoose.model('Follow', followSchema, 'echoo_follows');
 export default Follow;
