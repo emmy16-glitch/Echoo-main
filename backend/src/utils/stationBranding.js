@@ -6,6 +6,9 @@ const toInteger = (value) => {
   return Number.isInteger(number) ? number : null;
 };
 
+const isGeneratedCover = (value) =>
+  typeof value === 'string' && value.startsWith('data:image/svg+xml');
+
 export function normalizeStationBrandVariant(value, fallback = null) {
   const parsed = toInteger(value);
   if (parsed === null) return fallback;
@@ -41,14 +44,15 @@ export function createStationBranding({
 export function ensureStationBranding(station) {
   if (!station) return null;
 
+  const hasCustomLogo = Boolean(station.coverArt) && !isGeneratedCover(station.coverArt);
   const next = createStationBranding({
-    hasCustomLogo: Boolean(station.coverArt),
+    hasCustomLogo,
     variant: station.branding?.variant,
     previous: station.branding,
   });
 
   if (!station.branding) station.branding = {};
-  station.branding.mode = station.coverArt ? 'custom' : (station.branding.mode || 'generated');
+  station.branding.mode = hasCustomLogo ? 'custom' : (station.branding.mode || 'generated');
   station.branding.variant = next.variant;
   station.branding.version = STATION_BRAND_VERSION;
   return station.branding;
