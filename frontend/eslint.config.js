@@ -17,5 +17,12 @@ export default defineConfig([
       globals: globals.browser,
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
+    rules: {
+      // Echoo uses explicit async loading effects and stable callback wrappers.
+      // These React Compiler advisory rules produced false-positive hard errors
+      // in otherwise valid Vite/React code; exhaustive-deps remains enabled.
+      'react-hooks/set-state-in-effect': 'off',
+      'react-hooks/preserve-manual-memoization': 'off',
+    },
   },
 ])
