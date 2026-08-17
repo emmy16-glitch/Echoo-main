@@ -41,6 +41,39 @@ const readResponse = async (response) => {
   return data;
 };
 
+const readAudioDuration = (file) =>
+  new Promise((resolve) => {
+    if (!file || typeof Audio === "undefined" || typeof URL === "undefined") {
+      resolve(0);
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(file);
+    const probe = new Audio();
+    let settled = false;
+
+    const finish = (value = 0) => {
+      if (settled) return;
+      settled = true;
+      URL.revokeObjectURL(objectUrl);
+      probe.removeAttribute("src");
+      resolve(Number.isFinite(Number(value)) ? Math.max(0, Number(value)) : 0);
+    };
+
+    probe.preload = "metadata";
+    probe.addEventListener(
+      "loadedmetadata",
+      () => finish(probe.duration),
+      { once: true }
+    );
+    probe.addEventListener("error", () => finish(0), { once: true });
+    probe.src = objectUrl;
+    probe.load();
+
+    // Metadata probing should never hold up an upload indefinitely.
+    window.setTimeout(() => finish(0), 8000);
+  });
+
 const studioService = {
   getDashboard: async () => {
     return apiRequest(
@@ -134,6 +167,7 @@ const studioService = {
       );
     }
 
+    const duration = await readAudioDuration(file);
     const formData =
       new FormData();
 
@@ -173,6 +207,10 @@ const studioService = {
         ? "true"
         : "false"
     );
+
+    if (duration > 0) {
+      formData.append("duration", String(duration));
+    }
 
     const response =
       await fetch(
