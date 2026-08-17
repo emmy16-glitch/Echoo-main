@@ -3,6 +3,7 @@ import Follow from './Follow.js';
 import StationFollow from './StationFollow.js';
 import Notification from './Notification.js';
 import Analytics from './Analytics.js';
+import User from './User.js';
 
 const broadcastSchema = new mongoose.Schema(
   {
@@ -225,23 +226,31 @@ broadcastSchema.post('save', async function persistBroadcastSideEffects(doc) {
       recipientIds.delete(String(doc.creator));
 
       if (recipientIds.size > 0) {
-        await Notification.insertMany(
-          [...recipientIds].map((userId) => ({
-            userId,
-            type: 'broadcast_live',
-            title: 'A broadcast you follow is live',
-            message: `${doc.title} is live now on Echoo.`,
-            link: `/listen/live/${doc._id}`,
-            metadata: {
-              broadcastId: String(doc._id),
-              stationId: String(doc.station),
-              creatorId: String(doc.creator),
-            },
-          })),
-          { ordered: false }
-        ).catch((error) => {
-          console.warn('Broadcast live notification warning:', error?.message || error);
-        });
+        const recipients = await User.find({
+          _id: { $in: [...recipientIds] },
+          isActive: true,
+          'preferences.notifications.newReleases': { $ne: false },
+        }).select('_id');
+
+        if (recipients.length > 0) {
+          await Notification.insertMany(
+            recipients.map((recipient) => ({
+              userId: recipient._id,
+              type: 'broadcast_live',
+              title: 'A broadcast you follow is live',
+              message: `${doc.title} is live now on Echoo.`,
+              link: `/listen/live/${doc._id}`,
+              metadata: {
+                broadcastId: String(doc._id),
+                stationId: String(doc.station),
+                creatorId: String(doc.creator),
+              },
+            })),
+            { ordered: false }
+          ).catch((error) => {
+            console.warn('Broadcast live notification warning:', error?.message || error);
+          });
+        }
       }
     }
 
