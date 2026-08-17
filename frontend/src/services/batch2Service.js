@@ -37,8 +37,8 @@ export const normalizeStation = (station) => {
   if (!station) return null;
 
   const owner = normalizeOwner(station.owner);
-  const coverArt = buildMediaUrl(
-    station.coverArt || station.artwork || station.image || null
+  const logo = buildMediaUrl(
+    station.logo || station.coverArt || station.artwork || station.image || null
   );
 
   return {
@@ -54,9 +54,10 @@ export const normalizeStation = (station) => {
     title: station.name || 'Untitled Station',
     description: station.description || '',
     category: station.category || 'Other',
-    coverArt,
-    artwork: coverArt,
-    image: coverArt,
+    logo,
+    coverArt: logo,
+    artwork: logo,
+    image: logo,
     isLive: Boolean(station.isLive),
     listenerCount: Number(station.listenerCount) || 0,
     listeners: Number(station.listenerCount) || 0,
@@ -77,7 +78,8 @@ export const normalizeBroadcast = (broadcast) => {
   const stationId = normalizeId(broadcast.station) || broadcast.stationId || null;
   const creatorId = normalizeId(broadcast.creator) || broadcast.creatorId || null;
   const coverArt = buildMediaUrl(
-    broadcast.coverArt || stationObject?.coverArt || null
+    // The Station is the current brand authority. Existing broadcast snapshots are fallback only.
+    stationObject?.logo || stationObject?.coverArt || broadcast.coverArt || null
   );
   const status = broadcast.status || 'scheduled';
 
@@ -137,6 +139,22 @@ const normalizeBroadcastList = (response) => {
   return list.map(normalizeBroadcast).filter(Boolean);
 };
 
+const stationFormData = (payload = {}) => {
+  const form = new FormData();
+
+  if (payload.name !== undefined) form.append('name', payload.name || '');
+  if (payload.description !== undefined) form.append('description', payload.description || '');
+  if (payload.category !== undefined) form.append('category', payload.category || 'Other');
+  if (payload.tags !== undefined) {
+    form.append('tags', JSON.stringify(Array.isArray(payload.tags) ? payload.tags : []));
+  }
+  if (payload.isPublic !== undefined) form.append('isPublic', String(payload.isPublic !== false));
+  if (payload.removeLogo !== undefined) form.append('removeLogo', String(Boolean(payload.removeLogo)));
+  if (payload.logoFile instanceof File) form.append('logo', payload.logoFile);
+
+  return form;
+};
+
 const batch2Service = {
   listStations: async (options = {}) => {
     const response = await apiRequest(
@@ -169,14 +187,8 @@ const batch2Service = {
   createStation: async (payload) => {
     const response = await apiRequest('/stations', {
       method: 'POST',
-      body: JSON.stringify({
-        name: payload.name,
-        description: payload.description || '',
-        category: payload.category || 'Other',
-        tags: Array.isArray(payload.tags) ? payload.tags : [],
-        isPublic: payload.isPublic !== false,
-        coverArt: payload.coverArt || null,
-      }),
+      body: stationFormData(payload),
+      isFormData: true,
     });
     return { ...response, data: normalizeStation(response?.data) };
   },
@@ -186,7 +198,8 @@ const batch2Service = {
       `/stations/${encodeURIComponent(stationId)}`,
       {
         method: 'PATCH',
-        body: JSON.stringify(payload),
+        body: stationFormData(payload),
+        isFormData: true,
       }
     );
     return { ...response, data: normalizeStation(response?.data) };
