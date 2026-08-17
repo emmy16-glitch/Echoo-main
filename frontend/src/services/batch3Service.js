@@ -23,6 +23,8 @@ const enrichBroadcasts = (broadcasts, stations) => {
 
   return broadcasts.map((broadcast) => {
     const station = stationMap.get(String(broadcast.stationId)) || null;
+    const stationBrand = station?.logo || station?.coverArt || null;
+    const artwork = stationBrand || broadcast.coverArt || null;
 
     return {
       ...broadcast,
@@ -31,10 +33,10 @@ const enrichBroadcasts = (broadcasts, stations) => {
         station?.name || broadcast.stationName || 'Echoo Station',
       category:
         station?.category || broadcast.category || 'Other',
-      coverArt:
-        broadcast.coverArt || station?.coverArt || null,
-      artwork:
-        broadcast.coverArt || station?.coverArt || null,
+      // Station branding stays current everywhere; broadcast artwork is fallback only.
+      coverArt: artwork,
+      artwork,
+      image: artwork,
       followers: station?.followerCount || 0,
     };
   });
