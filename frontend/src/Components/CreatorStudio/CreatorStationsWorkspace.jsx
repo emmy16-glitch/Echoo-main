@@ -15,27 +15,13 @@ import './CreatorPhase9.css';
 import './CreatorBatch2.css';
 
 const CATEGORIES = [
-  'Faith & Spirituality',
-  'Education',
-  'News & Politics',
-  'Business',
-  'Health & Wellness',
-  'Entertainment',
-  'Technology',
-  'Sports',
-  'Music',
-  'Comedy',
-  'Storytelling',
-  'Other',
+  'Faith & Spirituality', 'Education', 'News & Politics', 'Business',
+  'Health & Wellness', 'Entertainment', 'Technology', 'Sports',
+  'Music', 'Comedy', 'Storytelling', 'Other',
 ];
 
 const EMPTY_FORM = {
-  name: '',
-  category: 'Other',
-  description: '',
-  tags: '',
-  coverArt: '',
-  isPublic: true,
+  name: '', category: 'Other', description: '', tags: '', coverArt: '', isPublic: true,
 };
 
 const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
@@ -63,19 +49,17 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
     }
   }, []);
 
-  useEffect(() => {
-    loadStations();
-  }, [loadStations]);
+  useEffect(() => { loadStations(); }, [loadStations]);
 
   const sorted = useMemo(
-    () =>
-      [...stations].sort(
-        (first, second) =>
-          new Date(second.updatedAt || second.createdAt || 0) -
-          new Date(first.updatedAt || first.createdAt || 0)
-      ),
+    () => [...stations].sort(
+      (first, second) => new Date(second.updatedAt || second.createdAt || 0) - new Date(first.updatedAt || first.createdAt || 0)
+    ),
     [stations]
   );
+
+  const liveStation = stations.find((station) => station.isLive) || null;
+  const anyLive = Boolean(liveStation);
 
   const closeForm = () => {
     if (saving) return;
@@ -107,9 +91,7 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
     setFormOpen(true);
   };
 
-  const updateField = (field, value) => {
-    setForm((current) => ({ ...current, [field]: value }));
-  };
+  const updateField = (field, value) => setForm((current) => ({ ...current, [field]: value }));
 
   const submitStation = async (event) => {
     event.preventDefault();
@@ -128,30 +110,19 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
       setSaving(true);
       setError('');
       setMessage('');
-
       const response = editingId
         ? await batch2Service.updateStation(editingId, payload)
         : await batch2Service.createStation(payload);
 
-      if (!response?.data?.id) {
-        throw new Error('Echoo did not return the saved station.');
-      }
+      if (!response?.data?.id) throw new Error('Echoo did not return the saved station.');
 
       setStations((current) => {
-        const exists = current.some(
-          (station) => String(station.id) === String(response.data.id)
-        );
-
-        if (exists) {
-          return current.map((station) =>
-            String(station.id) === String(response.data.id) ? response.data : station
-          );
-        }
-
+        const exists = current.some((station) => String(station.id) === String(response.data.id));
+        if (exists) return current.map((station) => String(station.id) === String(response.data.id) ? response.data : station);
         return [response.data, ...current];
       });
 
-      setMessage(editingId ? 'Station updated.' : 'Station created.');
+      setMessage(editingId ? 'Station updated.' : 'Station created. You can start a broadcast from it now.');
       setFormOpen(false);
       setEditingId('');
       setForm(EMPTY_FORM);
@@ -164,18 +135,13 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
 
   const removeStation = async (station) => {
     if (!station?.id || deletingId) return;
-
-    const confirmed = window.confirm(`Delete “${station.name}”?`);
-    if (!confirmed) return;
-
+    if (!window.confirm(`Delete “${station.name}”?`)) return;
     try {
       setDeletingId(String(station.id));
       setError('');
       setMessage('');
       await batch2Service.deleteStation(station.id);
-      setStations((current) =>
-        current.filter((item) => String(item.id) !== String(station.id))
-      );
+      setStations((current) => current.filter((item) => String(item.id) !== String(station.id)));
       setMessage('Station deleted.');
     } catch (deleteError) {
       setError(deleteError?.message || 'Could not delete the station.');
@@ -184,7 +150,11 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
     }
   };
 
-  const anyLive = stations.some((station) => station.isLive);
+  const openBroadcast = (station, mode) => {
+    sessionStorage.setItem('echooSelectedStationId', String(station.id));
+    sessionStorage.setItem('echooBroadcastMode', mode);
+    onNavigate?.('Broadcast');
+  };
 
   return (
     <section className="creator-b2-page">
@@ -192,170 +162,76 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
         <div>
           <span className="creator-b2-kicker">STATIONS</span>
           <h1>Your stations.</h1>
-          <p>
-            A station is the home for your live broadcasts. Create it once, then choose it when you go live or schedule a broadcast.
-          </p>
+          <p>A station is the home for your broadcasts. Create it once, then choose it whenever you go live or schedule for later.</p>
         </div>
-
-        <EchoSignal
-          size="lg"
-          state={anyLive ? 'live' : 'idle'}
-          activeNodes={anyLive ? 3 : 0}
-        >
-          <FaBroadcastTower />
-        </EchoSignal>
+        <EchoSignal size="lg" state={anyLive ? 'live' : 'idle'} activeNodes={anyLive ? 3 : 0}><FaBroadcastTower /></EchoSignal>
       </header>
 
       <div className="creator-b2-toolbar">
-        <div>
-          <strong>{stations.length} {stations.length === 1 ? 'station' : 'stations'}</strong>
-          <span>{studioName}</span>
-        </div>
-
-        <button type="button" className="creator-b2-primary" onClick={openCreate}>
-          <FaPlus /> New station
-        </button>
+        <div><strong>{stations.length} {stations.length === 1 ? 'station' : 'stations'}</strong><span>{studioName}</span></div>
+        <button type="button" className="creator-b2-primary" onClick={openCreate}><FaPlus /> New station</button>
       </div>
 
+      {anyLive && (
+        <div className="creator-b2-message success">
+          {liveStation.name} is live. Other stations can still be scheduled, but this creator account can only host one live broadcast at a time.
+        </div>
+      )}
       {message && <div className="creator-b2-message success">{message}</div>}
       {error && <div className="creator-b2-message error">{error}</div>}
 
       {formOpen && (
         <form className="creator-b2-form" onSubmit={submitStation}>
-          <div className="creator-b2-form-heading">
-            <div>
-              <h2>{editingId ? 'Edit station' : 'New station'}</h2>
-              <p>{editingId ? 'Update this station.' : 'Set up the station you will use for broadcasts.'}</p>
-            </div>
-          </div>
-
+          <div className="creator-b2-form-heading"><div><h2>{editingId ? 'Edit station' : 'New station'}</h2><p>{editingId ? 'Update this station.' : 'Create the home your broadcasts will belong to.'}</p></div></div>
           <div className="creator-b2-form-grid">
-            <label>
-              Station name
-              <input
-                value={form.name}
-                maxLength={100}
-                placeholder="e.g. Layers of Truth"
-                onChange={(event) => updateField('name', event.target.value)}
-                required
-              />
-            </label>
-
-            <label>
-              Category
-              <select
-                value={form.category}
-                onChange={(event) => updateField('category', event.target.value)}
-              >
-                {CATEGORIES.map((item) => <option key={item} value={item}>{item}</option>)}
-              </select>
-            </label>
-
-            <label className="creator-b2-wide">
-              Description
-              <textarea
-                value={form.description}
-                maxLength={2000}
-                placeholder="What is this station about?"
-                onChange={(event) => updateField('description', event.target.value)}
-              />
-            </label>
-
-            <label className="creator-b2-wide">
-              Cover image URL
-              <input
-                value={form.coverArt}
-                placeholder="Optional HTTPS image URL"
-                onChange={(event) => updateField('coverArt', event.target.value)}
-              />
-            </label>
-
-            <label className="creator-b2-wide">
-              Tags
-              <input
-                value={form.tags}
-                placeholder="faith, teaching, inspiration"
-                onChange={(event) => updateField('tags', event.target.value)}
-              />
-              <small>Separate tags with commas.</small>
-            </label>
-
-            <label className="creator-b2-wide">
-              <input
-                type="checkbox"
-                checked={form.isPublic}
-                onChange={(event) => updateField('isPublic', event.target.checked)}
-              />
-              Public station
-            </label>
+            <label>Station name<input value={form.name} maxLength={100} placeholder="e.g. Layers of Truth" onChange={(event) => updateField('name', event.target.value)} required /></label>
+            <label>Category<select value={form.category} onChange={(event) => updateField('category', event.target.value)}>{CATEGORIES.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+            <label className="creator-b2-wide">Description<textarea value={form.description} maxLength={2000} placeholder="What is this station about?" onChange={(event) => updateField('description', event.target.value)} /></label>
+            <label className="creator-b2-wide">Cover image URL<input value={form.coverArt} placeholder="Optional HTTPS image URL" onChange={(event) => updateField('coverArt', event.target.value)} /></label>
+            <label className="creator-b2-wide">Tags<input value={form.tags} placeholder="faith, teaching, inspiration" onChange={(event) => updateField('tags', event.target.value)} /><small>Separate tags with commas.</small></label>
+            <label className="creator-b2-wide"><input type="checkbox" checked={form.isPublic} onChange={(event) => updateField('isPublic', event.target.checked)} />Public station</label>
           </div>
-
-          <div className="creator-b2-form-actions">
-            <button type="button" onClick={closeForm} disabled={saving}>Cancel</button>
-            <button
-              type="submit"
-              className="creator-b2-primary"
-              disabled={saving || !form.name.trim()}
-            >
-              <FaSave /> {saving ? 'Saving...' : editingId ? 'Save changes' : 'Create station'}
-            </button>
-          </div>
+          <div className="creator-b2-form-actions"><button type="button" onClick={closeForm} disabled={saving}>Cancel</button><button type="submit" className="creator-b2-primary" disabled={saving || !form.name.trim()}><FaSave /> {saving ? 'Saving...' : editingId ? 'Save changes' : 'Create station'}</button></div>
         </form>
       )}
 
       {loading ? (
-        <div className="creator-b2-state">
-          <EchoSignal size="md" state="active" activeNodes={2} />
-          <strong>Loading stations...</strong>
-        </div>
+        <div className="creator-b2-state"><EchoSignal size="md" state="active" activeNodes={2} /><strong>Loading stations...</strong></div>
       ) : sorted.length === 0 ? (
-        <div className="creator-b2-state">
-          <FaBroadcastTower />
-          <strong>No stations yet</strong>
-          <p>Use the New station button above to create your first station.</p>
-        </div>
+        <div className="creator-b2-state"><FaBroadcastTower /><strong>No stations yet</strong><p>Create your first station with the New station button above.</p></div>
       ) : (
         <div className="creator-b2-grid">
-          {sorted.map((station) => (
-            <article className="creator-b2-card" key={station.id}>
-              <div className="creator-b2-art">
-                {station.coverArt ? <img src={station.coverArt} alt="" /> : <FaBroadcastTower />}
-                {station.isLive && <span className="creator-b2-live">LIVE</span>}
-              </div>
-
-              <div className="creator-b2-card-body">
-                <span className="creator-b2-card-label">{station.category || 'Other'}</span>
-                <h2>{station.name}</h2>
-                <p>{station.description || 'No description yet.'}</p>
-
-                <div className="creator-b2-card-stats">
-                  <span>{Number(station.followerCount || 0).toLocaleString()} followers</span>
-                  <span>{Number(station.listenerCount || 0).toLocaleString()} listening</span>
+          {sorted.map((station) => {
+            const liveHere = Boolean(station.isLive);
+            const blockedByOtherLive = anyLive && !liveHere;
+            return (
+              <article className="creator-b2-card" key={station.id}>
+                <div className="creator-b2-art">
+                  {station.coverArt ? <img src={station.coverArt} alt="" /> : <FaBroadcastTower />}
+                  {liveHere && <span className="creator-b2-live">LIVE</span>}
                 </div>
-
-                <div className="creator-b2-card-actions">
-                  <button type="button" onClick={() => onNavigate?.('Live')}>
-                    <FaMicrophone /> Go live
-                  </button>
-                  <button type="button" onClick={() => onNavigate?.('Schedule')}>
-                    <FaCalendarAlt /> Schedule
-                  </button>
-                  <button type="button" onClick={() => openEdit(station)}>
-                    <FaEdit /> Edit
-                  </button>
-                  <button
-                    type="button"
-                    className="danger"
-                    disabled={deletingId === String(station.id) || station.isLive}
-                    onClick={() => removeStation(station)}
-                    title={station.isLive ? 'End the live broadcast before deleting this station.' : 'Delete station'}
-                  >
-                    <FaTrash /> {deletingId === String(station.id) ? 'Deleting...' : 'Delete'}
-                  </button>
+                <div className="creator-b2-card-body">
+                  <span className="creator-b2-card-label">{station.category || 'Other'}</span>
+                  <h2>{station.name}</h2>
+                  <p>{station.description || 'No description yet.'}</p>
+                  <div className="creator-b2-card-stats"><span>{Number(station.followerCount || 0).toLocaleString()} followers</span><span>·</span><span>{Number(station.listenerCount || 0).toLocaleString()} listening</span></div>
+                  <div className="creator-b2-card-actions">
+                    <button
+                      type="button"
+                      disabled={blockedByOtherLive}
+                      title={blockedByOtherLive ? `End the live broadcast on ${liveStation.name} before starting another.` : ''}
+                      onClick={() => openBroadcast(station, 'now')}
+                    >
+                      <FaMicrophone /> {liveHere ? 'Open studio' : 'Start broadcast'}
+                    </button>
+                    <button type="button" onClick={() => openBroadcast(station, 'later')}><FaCalendarAlt /> Schedule</button>
+                    <button type="button" onClick={() => openEdit(station)}><FaEdit /> Edit</button>
+                    <button type="button" className="danger" disabled={deletingId === String(station.id) || liveHere} onClick={() => removeStation(station)} title={liveHere ? 'End the live broadcast before deleting this station.' : 'Delete station'}><FaTrash /> {deletingId === String(station.id) ? 'Deleting...' : 'Delete'}</button>
+                  </div>
                 </div>
-              </div>
-            </article>
-          ))}
+              </article>
+            );
+          })}
         </div>
       )}
     </section>
