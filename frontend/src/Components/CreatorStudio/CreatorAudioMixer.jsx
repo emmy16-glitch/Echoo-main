@@ -12,6 +12,7 @@ import {
   connectSystemAudio,
   disconnectMixerChannel,
   ensureHostInput,
+  getEchooMixerState,
   listAudioInputs,
   resetEchooMixer,
   setMasterGain,
@@ -38,7 +39,7 @@ const Meter = ({ level = 0 }) => (
 );
 
 const CreatorAudioMixer = ({ compact = false, onStateChange }) => {
-  const [mixer, setMixer] = useState(null);
+  const [mixer, setMixer] = useState(() => getEchooMixerState());
   const [devices, setDevices] = useState([]);
   const [guestDeviceId, setGuestDeviceId] = useState('');
   const [workingChannel, setWorkingChannel] = useState('');
