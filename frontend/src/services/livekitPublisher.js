@@ -47,9 +47,23 @@ const createSyntheticTrack = async () => {
 };
 
 const cleanupSyntheticAudio = async () => {
-  try { syntheticNativeTrack?.stop(); } catch {}
-  try { syntheticOscillator?.stop(); } catch {}
-  try { await syntheticContext?.close(); } catch {}
+  try {
+    syntheticNativeTrack?.stop();
+  } catch {
+    // Ignore cleanup errors from an already-ended test track.
+  }
+
+  try {
+    syntheticOscillator?.stop();
+  } catch {
+    // Ignore cleanup errors from an already-stopped oscillator.
+  }
+
+  try {
+    await syntheticContext?.close();
+  } catch {
+    // Ignore cleanup errors from an already-closed context.
+  }
 
   syntheticNativeTrack = null;
   syntheticOscillator = null;
@@ -138,7 +152,12 @@ export const startLiveKitPublishing = async ({
     console.log('[Echoo LiveKit] publishing', result);
     return result;
   } catch (error) {
-    try { await room.disconnect(); } catch {}
+    try {
+      await room.disconnect();
+    } catch {
+      // Ignore cleanup errors while unwinding a failed connection.
+    }
+
     await cleanupSyntheticAudio();
     throw error;
   }
