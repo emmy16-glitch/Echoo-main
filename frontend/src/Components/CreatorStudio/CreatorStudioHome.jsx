@@ -7,21 +7,35 @@ import {
   FaHeadphones,
   FaMicrophone,
   FaPlay,
+  FaShareAlt,
   FaUsers,
+  FaWifi,
 } from 'react-icons/fa';
 
 import studioService from '../../services/studioService';
 import batch2Service from '../../services/batch2Service';
 import EchoAvatar from '../EchooSystem/EchoAvatar';
 import EchoSignal from '../EchooSystem/EchoSignal';
+import EchoWave from '../EchooSystem/EchoWave';
 import './CreatorStudioHomeFinal.css';
 import './CreatorStudioHomeFixes.css';
 import './CreatorPremium2026.css';
+import './CreatorStudioHomeState2026.css';
 
 const formatNumber = (value) =>
   new Intl.NumberFormat('en-US', {
     notation: Number(value) >= 10000 ? 'compact' : 'standard',
   }).format(Number(value) || 0);
+
+const pad = (value) => String(value).padStart(2, '0');
+
+const formatTimer = (seconds) => {
+  const safe = Math.max(0, Number(seconds) || 0);
+  const hours = Math.floor(safe / 3600);
+  const minutes = Math.floor((safe % 3600) / 60);
+  const secs = Math.floor(safe % 60);
+  return `${pad(hours)}:${pad(minutes)}:${pad(secs)}`;
+};
 
 const formatDateTime = (value) => {
   if (!value) return '';
@@ -40,12 +54,14 @@ const CreatorStudioHome = ({
   studioName = 'Creator',
   studioType = 'Creator',
   profileImage = null,
+  onUpload,
   onNavigate,
 }) => {
   const [dashboard, setDashboard] = useState(null);
   const [stations, setStations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [clock, setClock] = useState(Date.now());
 
   useEffect(() => {
     let active = true;
@@ -77,16 +93,49 @@ const CreatorStudioHome = ({
   const upcomingSchedule = Array.isArray(dashboard?.upcomingSchedule) ? dashboard.upcomingSchedule : [];
   const activeBroadcasts = Array.isArray(dashboard?.activeBroadcasts) ? dashboard.activeBroadcasts : [];
   const liveBroadcast = activeBroadcasts.find((item) => item.status === 'live') || null;
-  const stationPreview = stations.slice(0, 3);
+
+  useEffect(() => {
+    if (!liveBroadcast) return undefined;
+    const interval = window.setInterval(() => setClock(Date.now()), 1000);
+    return () => window.clearInterval(interval);
+  }, [liveBroadcast]);
+
+  const liveStation = useMemo(() => {
+    if (!liveBroadcast) return null;
+    const stationId = liveBroadcast.station?.id || liveBroadcast.station?._id || liveBroadcast.stationId;
+    return stations.find((station) => String(station.id) === String(stationId))
+      || (typeof liveBroadcast.station === 'object' ? liveBroadcast.station : null);
+  }, [liveBroadcast, stations]);
+
+  const stationPreview = useMemo(
+    () => [...stations]
+      .sort((first, second) => Number(Boolean(second.isLive)) - Number(Boolean(first.isLive)))
+      .slice(0, 3),
+    [stations]
+  );
+
+  const liveStartedAt = liveBroadcast
+    ? new Date(liveBroadcast.startedAt || liveBroadcast.startTime || clock).getTime()
+    : clock;
+  const liveElapsed = liveBroadcast
+    ? Math.max(0, Math.floor((clock - liveStartedAt) / 1000))
+    : 0;
 
   const metrics = useMemo(
-    () => [
-      { label: 'Live listeners', value: formatNumber(stats.listeners), icon: <FaHeadphones /> },
-      { label: 'Followers', value: formatNumber(stats.followers), icon: <FaUsers /> },
-      { label: 'Total plays', value: formatNumber(stats.plays), icon: <FaPlay /> },
-      { label: 'Published audio', value: formatNumber(dashboard?.totalTracks), icon: <FaCloudUploadAlt /> },
-    ],
-    [dashboard?.totalTracks, stats.followers, stats.listeners, stats.plays]
+    () => liveBroadcast
+      ? [
+          { label: 'Live listeners', value: formatNumber(liveBroadcast.listenerCount ?? stats.listeners), icon: <FaHeadphones /> },
+          { label: 'Peak listeners', value: formatNumber(liveBroadcast.peakListeners), icon: <FaUsers /> },
+          { label: 'Total plays', value: formatNumber(stats.plays), icon: <FaPlay /> },
+          { label: 'Published audio', value: formatNumber(dashboard?.totalTracks), icon: <FaCloudUploadAlt /> },
+        ]
+      : [
+          { label: 'Live listeners', value: formatNumber(stats.listeners), icon: <FaHeadphones /> },
+          { label: 'Followers', value: formatNumber(stats.followers), icon: <FaUsers /> },
+          { label: 'Total plays', value: formatNumber(stats.plays), icon: <FaPlay /> },
+          { label: 'Published audio', value: formatNumber(dashboard?.totalTracks), icon: <FaCloudUploadAlt /> },
+        ],
+    [dashboard?.totalTracks, liveBroadcast, stats.followers, stats.listeners, stats.plays]
   );
 
   const openBroadcast = (mode = 'now', stationId = '') => {
@@ -103,16 +152,40 @@ const CreatorStudioHome = ({
     onNavigate?.('Broadcast');
   };
 
+  const shareLiveBroadcast = async () => {
+    if (!liveBroadcast?.id && !liveBroadcast?._id) return;
+    const broadcastId = liveBroadcast.id || liveBroadcast._id;
+    const url = `${window.location.origin}/listen/live/${encodeURIComponent(broadcastId)}`;
+
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: liveBroadcast.title || 'Echoo live broadcast',
+          text: `${studioName} is live on Echoo.`,
+          url,
+        });
+      } else if (navigator.clipboard) {
+        await navigator.clipboard.writeText(url);
+      }
+    } catch {
+      // Sharing can be cancelled by the creator without changing the live state.
+    }
+  };
+
   return (
-    <div className="ehome">
+    <div className={`ehome ${liveBroadcast ? 'is-live' : 'is-offline'}`}>
       <section className="ehome-hero">
         <div className="ehome-hero-copy">
           <span className="ehome-eyebrow">CREATOR STUDIO</span>
-          <h1>Your voice, <em>ready</em> when you are.</h1>
+          {liveBroadcast ? (
+            <h1>You&apos;re live, <em className="live-word">on air</em><br />right now.</h1>
+          ) : (
+            <h1>Your voice, <em>ready</em><br />when you are.</h1>
+          )}
           <p>
             {liveBroadcast
-              ? 'Your broadcast is on air. Keep the studio close and your next session ready.'
-              : 'Create a station, prepare your broadcast and connect with listeners when you are ready.'}
+              ? 'Keep an eye on your broadcast, monitor the audience and return to the studio whenever you need to adjust the mix.'
+              : 'Create a station, start or schedule a broadcast, or publish audio when you are ready.'}
           </p>
 
           <div className="ehome-hero-actions">
@@ -121,14 +194,14 @@ const CreatorStudioHome = ({
                 <button type="button" className="primary dark" onClick={() => openBroadcast('now')}>
                   <FaMicrophone /> Open live studio
                 </button>
-                <button type="button" onClick={() => openBroadcast('later')}>
-                  <FaCalendarAlt /> Schedule next
+                <button type="button" onClick={shareLiveBroadcast}>
+                  <FaShareAlt /> Share broadcast
                 </button>
               </>
             ) : (
               <>
                 <button type="button" className="primary" onClick={() => onNavigate?.('Stations')}>
-                  <FaBroadcastTower /> {stations.length ? 'Manage stations' : 'Create station'}
+                  <FaBroadcastTower /> Create station
                 </button>
                 <button
                   type="button"
@@ -138,6 +211,9 @@ const CreatorStudioHome = ({
                   onClick={() => openBroadcast('now')}
                 >
                   <FaMicrophone /> Start broadcast
+                </button>
+                <button type="button" onClick={onUpload}>
+                  <FaCloudUploadAlt /> Upload audio
                 </button>
               </>
             )}
@@ -151,59 +227,74 @@ const CreatorStudioHome = ({
             state={liveBroadcast ? 'live' : 'active'}
             activeNodes={liveBroadcast ? 3 : 2}
           >
-            <EchoAvatar
-              image={profileImage}
-              name={studioName}
-              size="lg"
-              state="idle"
-            />
+            <EchoAvatar image={profileImage} name={studioName} size="lg" state="idle" />
           </EchoSignal>
-          <span>{liveBroadcast ? 'ON AIR' : 'READY'}</span>
+          <span>{liveBroadcast ? 'ON AIR' : 'NOT LIVE'}</span>
           <small>{studioName} · {studioType}</small>
         </div>
       </section>
 
-      {liveBroadcast && (
-        <section className="ehome-live-takeover" aria-label="Current live broadcast">
-          <div className="ehome-live-copy">
-            <span className="ehome-live-label">LIVE NOW</span>
-            <h2>{liveBroadcast.title || 'Live broadcast'}</h2>
-            <p>
-              {liveBroadcast.station?.name || liveBroadcast.stationName || 'Your station'} ·{' '}
-              {formatNumber(liveBroadcast.listenerCount ?? stats.listeners)} listening now
-              {Number(liveBroadcast.peakListeners) > 0
-                ? ` · ${formatNumber(liveBroadcast.peakListeners)} peak`
-                : ''}
-            </p>
+      {liveBroadcast ? (
+        <section className="ehome-live-command" aria-label="Current live broadcast">
+          <div className="ehome-live-command-topline">
+            <span><i /> LIVE NOW</span>
+            <b>{formatTimer(liveElapsed)}</b>
           </div>
-          <div className="ehome-live-actions">
+
+          <div className="ehome-live-brand">
+            <div className="ehome-live-art">
+              <img
+                src={liveStation?.brandCover || liveStation?.coverArt || liveBroadcast.coverArt}
+                alt={`${liveStation?.name || 'Station'} brand`}
+              />
+            </div>
+            <div>
+              <h2>{liveBroadcast.title || 'Live broadcast'}</h2>
+              <strong>{liveStation?.name || liveBroadcast.stationName || 'Echoo Station'}</strong>
+              <small>Host: {studioName}</small>
+            </div>
+          </div>
+
+          <div className="ehome-live-wave" aria-hidden="true">
+            <EchoWave state="speaking" />
+          </div>
+
+          <div className="ehome-live-stat">
+            <span>Current listeners</span>
+            <strong>{formatNumber(liveBroadcast.listenerCount ?? stats.listeners)}</strong>
+          </div>
+          <div className="ehome-live-stat">
+            <span>Peak listeners</span>
+            <strong>{formatNumber(liveBroadcast.peakListeners)}</strong>
+          </div>
+          <div className="ehome-live-stat connection">
+            <span><FaWifi /> Connection</span>
+            <strong>Live</strong>
+            <small>Room active</small>
+          </div>
+
+          <div className="ehome-live-command-actions">
             <button type="button" className="primary" onClick={() => openBroadcast('now')}>
-              <FaMicrophone /> Open studio
+              <FaMicrophone /> Open live studio
             </button>
-            <button type="button" onClick={() => openBroadcast('later')}>
-              <FaCalendarAlt /> Schedule another
+            <button type="button" onClick={shareLiveBroadcast}>
+              <FaShareAlt /> Share broadcast
             </button>
           </div>
         </section>
-      )}
-
-      {!liveBroadcast && (
+      ) : (
         <section className="ehome-flow-card">
-          <div className="ehome-flow-intro">
-            <strong>Your creator flow</strong>
-            <span>Three steps from setup to broadcast.</span>
-          </div>
           <div className="ehome-flow-step">
             <b>1</b><i><FaBroadcastTower /></i>
-            <div><strong>Create station</strong><span>Your permanent home on Echoo.</span></div>
+            <div><strong>Create station</strong><span>Set up your space and brand.</span></div>
           </div>
           <div className="ehome-flow-step">
             <b>2</b><i><FaCalendarAlt /></i>
-            <div><strong>Start or schedule</strong><span>Broadcast now or choose a future time.</span></div>
+            <div><strong>Start or schedule</strong><span>Go live now or plan ahead.</span></div>
           </div>
           <div className="ehome-flow-step">
             <b>3</b><i><FaMicrophone /></i>
-            <div><strong>Go on air</strong><span>Enter the studio and connect with listeners.</span></div>
+            <div><strong>Go live</strong><span>Broadcast to your audience.</span></div>
           </div>
         </section>
       )}
@@ -224,24 +315,35 @@ const CreatorStudioHome = ({
             <div className="ehome-loading"><span /><span /><span /></div>
           ) : stationPreview.length ? (
             <div className="ehome-stations-preview">
-              {stationPreview.map((station) => (
-                <button
-                  type="button"
-                  className="ehome-station-mini"
-                  key={station.id}
-                  onClick={() => openBroadcast('now', station.id)}
-                >
-                  <div className="ehome-station-art">
-                    {station.logo || station.coverArt
-                      ? <img src={station.logo || station.coverArt} alt={`${station.name} logo`} />
-                      : <FaBroadcastTower />}
-                    {station.isLive && <span>LIVE</span>}
-                  </div>
-                  <strong>{station.name}</strong>
-                  <small>{station.category || 'Station'}</small>
-                  <em>{station.isLive ? `${formatNumber(station.listenerCount)} listening` : 'Ready to broadcast'}</em>
-                </button>
-              ))}
+              {stationPreview.map((station) => {
+                const anotherStationLive = Boolean(liveBroadcast && !station.isLive);
+                return (
+                  <button
+                    type="button"
+                    className={`ehome-station-mini ${station.isLive ? 'live' : ''}`}
+                    key={station.id}
+                    onClick={() => station.isLive
+                      ? openBroadcast('now', station.id)
+                      : anotherStationLive
+                        ? openBroadcast('later', station.id)
+                        : openBroadcast('now', station.id)}
+                  >
+                    <div className="ehome-station-art">
+                      <img src={station.brandCover || station.coverArt} alt={`${station.name} brand`} />
+                      {station.isLive && <span>LIVE</span>}
+                    </div>
+                    <strong>{station.name}</strong>
+                    <small>{station.category || 'Station'}</small>
+                    <em>
+                      {station.isLive
+                        ? `${formatNumber(station.listenerCount)} listening · Open studio`
+                        : anotherStationLive
+                          ? 'Another station is live · Schedule instead'
+                          : 'Ready to broadcast'}
+                    </em>
+                  </button>
+                );
+              })}
             </div>
           ) : (
             <div className="ehome-empty compact">
@@ -288,7 +390,10 @@ const CreatorStudioHome = ({
 
         <section className="ehome-panel">
           <div className="ehome-panel-head">
-            <div><h2>Performance snapshot</h2><p>Activity from your Echoo account.</p></div>
+            <div>
+              <h2>Performance snapshot</h2>
+              <p>{liveBroadcast ? 'Live performance from your Echoo account.' : 'Activity from your Echoo account.'}</p>
+            </div>
             <button type="button" onClick={() => onNavigate?.('Analytics')}>Analytics <FaArrowRight /></button>
           </div>
           <div className="ehome-metrics">
@@ -323,24 +428,26 @@ const CreatorStudioHome = ({
             <div className="ehome-empty ehome-audio-empty">
               <FaHeadphones />
               <div>
-                <strong>No audio yet</strong>
-                <span>Your published recordings will appear here. Use Audio to upload and manage recordings.</span>
+                <strong>No recent uploads</strong>
+                <span>Audio you publish will appear here for quick access.</span>
               </div>
             </div>
           )}
         </section>
       </div>
 
-      <section className="ehome-station-note">
-        <i><FaBroadcastTower /></i>
-        <div>
-          <strong>Stations are the home for your broadcasts</strong>
-          <span>Create a station once, then choose it whenever you start or schedule a broadcast.</span>
-        </div>
-        <button type="button" onClick={() => onNavigate?.('Stations')}>
-          Manage stations <FaArrowRight />
-        </button>
-      </section>
+      {!stations.length && (
+        <section className="ehome-station-note">
+          <i><FaBroadcastTower /></i>
+          <div>
+            <strong>Stations are the home for your broadcasts</strong>
+            <span>Create a station once, then choose it whenever you start or schedule a broadcast.</span>
+          </div>
+          <button type="button" onClick={() => onNavigate?.('Stations')}>
+            Create station <FaArrowRight />
+          </button>
+        </section>
+      )}
     </div>
   );
 };
