@@ -191,6 +191,9 @@ const ListenerSettings = () => {
         if (savedProfile.avatar) {
           localStorage.setItem('profileImage', savedProfile.avatar);
         }
+        window.dispatchEvent(
+          new CustomEvent('echoo-profile-updated', { detail: nextUser })
+        );
       } catch {
         // Backend remains authoritative if local cache update fails.
       }
