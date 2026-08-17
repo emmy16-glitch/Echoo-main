@@ -1,23 +1,9 @@
-import React, {
-  useEffect,
-  useRef,
-  useState,
-} from "react";
-
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   NavLink,
   Outlet,
   useNavigate,
-} from "react-router-dom";
-
-import "./ListenerLayout.css";
-import "./ListenerLayout.figma.css";
-import EchoSignal from "../EchooSystem/EchoSignal";
-import "../../styles/echoo-identity-reset.css";
-import "../../styles/echoo-asset-system.css";
-
-import ListenerProfileMenu from "./ListenerProfileMenu";
-
+} from 'react-router-dom';
 import {
   FaBell,
   FaBookOpen,
@@ -29,2525 +15,735 @@ import {
   FaHome,
   FaPause,
   FaPlay,
-  FaPlus,
   FaRandom,
   FaRedoAlt,
   FaSearch,
-  FaSlidersH,
   FaStepBackward,
   FaStepForward,
   FaTimes,
   FaVolumeMute,
   FaVolumeUp,
   FaHeadphones,
-  FaMicrophone,
-} from "react-icons/fa";
+} from 'react-icons/fa';
 
-import echooLogo from "../Assets/logo.png";
+import echooLogo from '../Assets/logo.png';
+import ListenerProfileMenu from './ListenerProfileMenu';
+import EchoSignal from '../EchooSystem/EchoSignal';
+import audioService from '../../services/audioService';
+import listenerService from '../../services/listenerService';
+import notificationService from '../../services/notificationService';
+import { buildMediaUrl } from '../../services/api';
+import './ListenerLayout.css';
+import './ListenerLayout.figma.css';
+import '../../styles/echoo-identity-reset.css';
+import '../../styles/echoo-asset-system.css';
 
-import audioService from "../../services/audioService";
-import listenerService from "../../services/listenerService";
-
-import { getMockMediaForKey } from "../../services/mockMediaService.js";
-const suggestedSearches = [
-  "First Track",
-  "Updated Track",
-  "Podcast",
-  "Technology",
+const SEARCH_SUGGESTIONS = [
+  'Podcast',
+  'Technology',
+  'Spiritual',
+  'Education',
 ];
 
-const DEFAULT_TRACK = {
-  id: null,
-  title:
-    "The Daily Motivation",
-  subtitle:
-    "Episode 24",
-  coverClass:
-    "motivation-cover",
-  coverArt: null,
-  fileUrl: null,
-  duration: 0,
+const formatTime = (seconds) => {
+  const safe = Number.isFinite(Number(seconds)) ? Number(seconds) : 0;
+  const minutes = Math.floor(safe / 60);
+  const remaining = Math.floor(safe % 60);
+  return `${minutes}:${String(remaining).padStart(2, '0')}`;
 };
 
-const formatTime =
-  (
-    seconds
-  ) => {
-    const safe =
-      Number.isFinite(
-        Number(
-          seconds
-        )
-      )
-        ? Number(
-            seconds
-          )
-        : 0;
+const backendTrackId = (id) => /^[a-f\d]{24}$/i.test(String(id || ''));
 
-    const minutes =
-      Math.floor(
-        safe / 60
-      );
+const normalizeTrack = (track) => {
+  if (!track) return null;
 
-    const remaining =
-      Math.floor(
-        safe % 60
-      );
+  const artist = typeof track.artist === 'object' ? track.artist : null;
 
-    return `${minutes}:${String(
-      remaining
-    ).padStart(
-      2,
-      "0"
-    )}`;
+  return {
+    ...track,
+    id: track.id || track._id || null,
+    title: track.title || 'Untitled Audio',
+    subtitle:
+      track.subtitle ||
+      track.artistName ||
+      artist?.displayName ||
+      artist?.username ||
+      (typeof track.artist === 'string' ? track.artist : '') ||
+      'Echoo Audio',
+    coverArt: buildMediaUrl(track.coverArt || track.artwork || null),
+    fileUrl: buildMediaUrl(track.fileUrl || null),
+    duration: Number(track.duration) || 0,
   };
+};
 
-const isBackendTrackId =
-  (
-    id
-  ) => {
-    if (!id) {
-      return false;
-    }
+const normalizeSearchResults = (response) => {
+  const data = response?.data;
+  const list = Array.isArray(data)
+    ? data
+    : Array.isArray(data?.tracks)
+      ? data.tracks
+      : [];
 
-    return /^[a-f\d]{24}$/i.test(
-      String(
-        id
-      )
-    );
-  };
+  return list.map(normalizeTrack).filter(Boolean);
+};
 
-const getFallbackAudioUrl =
-  (
-    track
-  ) => {
-    const title =
-      String(
-        track?.title ||
-        ""
-      ).toLowerCase();
+const readUser = () => {
+  try {
+    return JSON.parse(localStorage.getItem('user') || '{}');
+  } catch {
+    return {};
+  }
+};
 
+const ListenerLayout = () => {
+  const navigate = useNavigate();
+  const user = useMemo(readUser, []);
+  const displayName =
+    user.displayName || user.fullname || user.username || 'Listener';
+  const profileImage =
+    buildMediaUrl(user.profileImage || user.avatar || localStorage.getItem('profileImage'));
+
+  const audioRef = useRef(null);
+  const searchRef = useRef(null);
+  const searchAreaRef = useRef(null);
+  const progressSyncRef = useRef(false);
+
+  const [currentTrack, setCurrentTrack] = useState(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [volume, setVolume] = useState(1);
+  const [isMuted, setIsMuted] = useState(false);
+  const [queue, setQueue] = useState([]);
+  const [queueIndex, setQueueIndex] = useState(-1);
+  const [shuffle, setShuffle] = useState(false);
+  const [repeatMode, setRepeatMode] = useState('off');
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState('');
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+
+  const navigation = [
+    { name: 'Home', path: '/listen', icon: <FaHome />, end: true },
+    { name: 'Live', path: '/listen/live', icon: <FaBroadcastTower /> },
+    { name: 'Stations', path: '/listen/stations', icon: <FaHeadphones /> },
+    { name: 'Library', path: '/listen/library', icon: <FaBookOpen /> },
+    { name: 'Following', path: '/listen/library/following', icon: <FaHeart /> },
+    { name: 'History', path: '/listen/history', icon: <FaHistory /> },
+    { name: 'Downloads', path: '/listen/downloads', icon: <FaDownload /> },
+  ];
+
+  const syncProgress = async (completed = false) => {
+    const audio = audioRef.current;
     if (
-      title.includes(
-        "deep focus"
-      )
+      progressSyncRef.current ||
+      !audio ||
+      !backendTrackId(currentTrack?.id) ||
+      !Number.isFinite(audio.currentTime)
     ) {
-      return "/audio/deep-focus.mp3";
+      return;
     }
 
-    if (
-      title.includes(
-        "updated track"
-      )
-    ) {
-      return "/audio/deep-focus.mp3";
-    }
-
-    if (
-      title.includes(
-        "sunday"
-      )
-    ) {
-      return "/audio/sunday-message.mp3";
-    }
-
-    if (
-      title.includes(
-        "first track"
-      )
-    ) {
-      return "/audio/motivation.mp3";
-    }
-
-    if (
-      title.includes(
-        "daily motivation"
-      )
-    ) {
-      return "/audio/motivation.mp3";
-    }
-
-    if (
-      title.includes(
-        "morning prayer"
-      )
-    ) {
-      return "/audio/motivation.mp3";
-    }
-
-    if (
-      title.includes(
-        "worship"
-      )
-    ) {
-      return "/audio/sunday-message.mp3";
-    }
-
-    return null;
-  };
-
-const normalizePlayerTrack =
-  (
-    track
-  ) => {
-    if (!track) {
-      return null;
-    }
-
-    return {
-      ...track,
-
-      id:
-        track.id ||
-        track._id ||
-        null,
-
-      title:
-        track.title ||
-        "Untitled Audio",
-
-      subtitle:
-        track.subtitle ||
-        track.artistName ||
-        track.artist
-          ?.displayName ||
-        track.artist
-          ?.username ||
-        track.artist ||
-        "Echoo Audio",
-
-      coverClass:
-        track.coverClass ||
-        "motivation-cover",
-
-      coverArt:
-        track.coverArt ||
-        null,
-
-      fileUrl:
-        getFallbackAudioUrl(
-          track
-        ) ||
-        track.fileUrl ||
-        null,
-
-      duration:
-        Number(
-          track.duration
-        ) || 0,
-    };
-  };
-
-const normalizeSearchData =
-  (
-    response
-  ) => {
-    if (
-      Array.isArray(
-        response?.data
-      )
-    ) {
-      return response.data;
-    }
-
-    if (
-      Array.isArray(
-        response?.data
-          ?.tracks
-      )
-    ) {
-      return response
-        .data
-        .tracks;
-    }
-
-    return [];
-  };
-
-const ListenerLayout =
-  () => {
-    const navigate =
-      useNavigate();
-
-    const searchRef =
-      useRef(
-        null
-      );
-
-    const searchAreaRef =
-      useRef(
-        null
-      );
-
-    const audioRef =
-      useRef(
-        null
-      );
-
-    const pendingSeekRef =
-      useRef(
-        null
-      );
-
-    const progressSyncRef =
-      useRef(
-        false
-      );
-
-    let storedUser =
-      {};
-
+    progressSyncRef.current = true;
     try {
-      storedUser =
-        JSON.parse(
-          localStorage.getItem(
-            "user"
-          )
-        ) || {};
-    } catch {
-      storedUser =
-        {};
+      await listenerService.updateProgress({
+        trackId: currentTrack.id,
+        progress: Math.floor(audio.currentTime),
+        duration: Math.floor(
+          audio.duration || duration || currentTrack.duration || 0
+        ),
+        completed,
+      });
+    } catch (error) {
+      console.warn('Playback progress sync:', error);
+    } finally {
+      progressSyncRef.current = false;
+    }
+  };
+
+  const playTrack = (track, incomingQueue = null) => {
+    const normalized = normalizeTrack(track);
+    if (!normalized?.fileUrl) return;
+
+    if (currentTrack?.id && currentTrack.id !== normalized.id) {
+      syncProgress(false);
     }
 
-    const displayName =
-      storedUser.displayName ||
-      storedUser.fullname ||
-      storedUser.name ||
-      storedUser.username ||
-      "Listener";
-
-    const profileImage =
-      storedUser.profileImage ||
-      storedUser.avatar ||
-      localStorage.getItem(
-        "profileImage"
-      ) ||
-      null;
-
-    const [
-      searchQuery,
-      setSearchQuery,
-    ] = useState(
-      ""
-    );
-
-    const [
-      searchOpen,
-      setSearchOpen,
-    ] = useState(
-      false
-    );
-
-    const [
-      searchResults,
-      setSearchResults,
-    ] = useState(
-      []
-    );
-
-    const [
-      searchLoading,
-      setSearchLoading,
-    ] = useState(
-      false
-    );
-
-    const [
-      searchError,
-      setSearchError,
-    ] = useState(
-      ""
-    );
-
-    const [
-      currentTrack,
-      setCurrentTrack,
-    ] = useState(
-      DEFAULT_TRACK
-    );
-
-    const [
-      isPlaying,
-      setIsPlaying,
-    ] = useState(
-      false
-    );
-
-    const [
-      currentTime,
-      setCurrentTime,
-    ] = useState(
-      0
-    );
-
-    const [
-      duration,
-      setDuration,
-    ] = useState(
-      0
-    );
-
-    const [
-      volume,
-      setVolume,
-    ] = useState(
-      1
-    );
-
-    const [
-      isMuted,
-      setIsMuted,
-    ] = useState(
-      false
-    );
-
-    const [
-      queue,
-      setQueue,
-    ] = useState(
-      []
-    );
-
-    const [
-      queueIndex,
-      setQueueIndex,
-    ] = useState(
-      -1
-    );
-
-    const [
-      shuffle,
-      setShuffle,
-    ] = useState(
-      false
-    );
-
-    const [
-      repeatMode,
-      setRepeatMode,
-    ] = useState(
-      "off"
-    );
-
-    const [
-      playbackRate,
-      setPlaybackRate,
-    ] = useState(
-      1
-    );
-
-    const navigation =
-      [
-        {
-          name:
-            "Home",
-
-          path:
-            "/listen",
-
-          icon:
-            <FaHome />,
-
-          end:
-            true,
-        },
-
-        {
-          name:
-            "Live",
-
-          path:
-            "/listen/live",
-
-          icon:
-            <FaBroadcastTower />,
-        },
-
-        {
-          name:
-            "Stations",
-
-          path:
-            "/listen/stations",
-
-          icon:
-            <FaHeadphones />,
-        },
-
-        {
-          name:
-            "Library",
-
-          path:
-            "/listen/library",
-
-          icon:
-            <FaBookOpen />,
-        },
-
-        {
-          name:
-            "History",
-
-          path:
-            "/listen/history",
-
-          icon:
-            <FaHistory />,
-        },
-
-        {
-          name:
-            "Downloads",
-
-          path:
-            "/listen/downloads",
-
-          icon:
-            <FaDownload />,
-        },
-      ];
-
-    const syncProgress =
-      async (
-        completed =
-          false
-      ) => {
-        if (
-          progressSyncRef.current
-        ) {
-          return;
+    if (Array.isArray(incomingQueue) && incomingQueue.length) {
+      const nextQueue = incomingQueue.map(normalizeTrack).filter((item) => item?.fileUrl);
+      setQueue(nextQueue);
+      const index = nextQueue.findIndex(
+        (item) => item.id === normalized.id || item.title === normalized.title
+      );
+      setQueueIndex(index >= 0 ? index : 0);
+    } else {
+      setQueue((current) => {
+        const existing = current.findIndex((item) => item.id === normalized.id);
+        if (existing >= 0) {
+          setQueueIndex(existing);
+          return current;
         }
+        const next = [...current, normalized];
+        setQueueIndex(next.length - 1);
+        return next;
+      });
+    }
 
-        const audio =
-          audioRef.current;
+    setCurrentTrack(normalized);
+    setCurrentTime(0);
+    setDuration(normalized.duration || 0);
 
-        if (
-          !audio ||
-          !isBackendTrackId(
-            currentTrack?.id
-          )
-        ) {
-          return;
+    if (backendTrackId(normalized.id)) {
+      listenerService.addToContinueListening(normalized.id).catch(() => {});
+      audioService.play(normalized.id).catch(() => {});
+    }
+  };
+
+  const playQueueIndex = (index) => {
+    if (index < 0 || index >= queue.length) return;
+    const track = queue[index];
+    setQueueIndex(index);
+    setCurrentTrack(track);
+    setCurrentTime(0);
+    setDuration(track.duration || 0);
+
+    if (backendTrackId(track.id)) {
+      listenerService.addToContinueListening(track.id).catch(() => {});
+      audioService.play(track.id).catch(() => {});
+    }
+  };
+
+  const togglePlay = async () => {
+    const audio = audioRef.current;
+    if (!audio || !currentTrack?.fileUrl) return;
+
+    if (audio.paused) {
+      try {
+        await audio.play();
+        setIsPlaying(true);
+      } catch (error) {
+        console.warn('Audio playback:', error);
+      }
+    } else {
+      audio.pause();
+      setIsPlaying(false);
+      syncProgress(false);
+    }
+  };
+
+  const playNext = () => {
+    if (!queue.length) return;
+
+    let next = queueIndex + 1;
+    if (shuffle && queue.length > 1) {
+      do {
+        next = Math.floor(Math.random() * queue.length);
+      } while (next === queueIndex);
+    } else if (next >= queue.length) {
+      if (repeatMode === 'all') next = 0;
+      else return setIsPlaying(false);
+    }
+
+    syncProgress(false);
+    playQueueIndex(next);
+  };
+
+  const playPrevious = () => {
+    const audio = audioRef.current;
+    if (audio?.currentTime > 5) {
+      audio.currentTime = 0;
+      setCurrentTime(0);
+      return;
+    }
+
+    if (!queue.length) return;
+    let previous = queueIndex - 1;
+    if (previous < 0 && repeatMode === 'all') previous = queue.length - 1;
+    if (previous < 0) return;
+    syncProgress(false);
+    playQueueIndex(previous);
+  };
+
+  const seekTo = (seconds) => {
+    const audio = audioRef.current;
+    if (!audio) return 0;
+    const maximum = Number.isFinite(audio.duration) ? audio.duration : duration;
+    const target = Math.max(0, Math.min(Number(seconds) || 0, maximum || 0));
+    audio.currentTime = target;
+    setCurrentTime(target);
+    return target;
+  };
+
+  const playTrackAt = (track, seconds, incomingQueue = null) => {
+    const normalized = normalizeTrack(track);
+    if (!normalized?.fileUrl) return;
+
+    if (currentTrack?.id === normalized.id && audioRef.current) {
+      seekTo(seconds);
+      audioRef.current.play().catch(() => {});
+      return;
+    }
+
+    playTrack(normalized, incomingQueue);
+    window.setTimeout(() => seekTo(seconds), 100);
+  };
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio || !currentTrack?.fileUrl) return;
+
+    audio.src = currentTrack.fileUrl;
+    audio.load();
+    audio.volume = volume;
+    audio.muted = isMuted;
+    audio
+      .play()
+      .then(() => setIsPlaying(true))
+      .catch(() => setIsPlaying(false));
+  }, [currentTrack?.fileUrl]);
+
+  useEffect(() => {
+    const query = searchQuery.trim();
+    if (query.length < 2) {
+      setSearchResults([]);
+      setSearchLoading(false);
+      setSearchError('');
+      return undefined;
+    }
+
+    let active = true;
+    const timer = window.setTimeout(async () => {
+      try {
+        setSearchLoading(true);
+        setSearchError('');
+        const response = await audioService.getAll({
+          search: query,
+          public: true,
+          page: 1,
+          limit: 12,
+        });
+        if (active) setSearchResults(normalizeSearchResults(response));
+      } catch (error) {
+        if (active) {
+          setSearchResults([]);
+          setSearchError(error?.message || 'Search failed.');
         }
-
-        if (
-          !Number.isFinite(
-            audio.currentTime
-          )
-        ) {
-          return;
-        }
-
-        progressSyncRef.current =
-          true;
-
-        try {
-          await listenerService.updateProgress(
-            {
-              trackId:
-                currentTrack.id,
-
-              progress:
-                Math.floor(
-                  audio.currentTime
-                ),
-
-              duration:
-                Math.floor(
-                  audio.duration ||
-                  duration ||
-                  currentTrack.duration ||
-                  0
-                ),
-
-              completed,
-            }
-          );
-        } catch (
-          error
-        ) {
-          console.error(
-            "Could not sync playback progress:",
-            error
-          );
-        } finally {
-          progressSyncRef.current =
-            false;
-        }
-      };
-
-    const addTrackToQueue =
-      (
-        track
-      ) => {
-        setQueue(
-          (
-            previous
-          ) => {
-            const existingIndex =
-              previous.findIndex(
-                (
-                  item
-                ) =>
-                  item.id &&
-                  track.id &&
-                  item.id ===
-                    track.id
-              );
-
-            if (
-              existingIndex >=
-              0
-            ) {
-              setQueueIndex(
-                existingIndex
-              );
-
-              return previous;
-            }
-
-            const next =
-              [
-                ...previous,
-                track,
-              ];
-
-            setQueueIndex(
-              next.length -
-                1
-            );
-
-            return next;
-          }
-        );
-      };
-
-    const playTrack =
-      (
-        track,
-        incomingQueue =
-          null
-      ) => {
-        const normalized =
-          normalizePlayerTrack(
-            track
-          );
-
-        if (
-          !normalized
-        ) {
-          return;
-        }
-
-        const audio =
-          audioRef.current;
-
-        if (
-          currentTrack?.id &&
-          normalized.id &&
-          currentTrack.id !==
-            normalized.id &&
-          audio &&
-          audio.currentTime >
-            0
-        ) {
-          syncProgress(
-            false
-          );
-        }
-
-        if (
-          Array.isArray(
-            incomingQueue
-          ) &&
-          incomingQueue.length >
-            0
-        ) {
-          const normalizedQueue =
-            incomingQueue
-              .map(
-                normalizePlayerTrack
-              )
-              .filter(
-                Boolean
-              );
-
-          setQueue(
-            normalizedQueue
-          );
-
-          const index =
-            normalizedQueue.findIndex(
-              (
-                item
-              ) =>
-                item.id ===
-                  normalized.id ||
-                item.title ===
-                  normalized.title
-            );
-
-          setQueueIndex(
-            index >=
-              0
-              ? index
-              : 0
-          );
-        } else {
-          addTrackToQueue(
-            normalized
-          );
-        }
-
-        setCurrentTrack(
-          normalized
-        );
-
-        setCurrentTime(
-          0
-        );
-
-        setDuration(
-          normalized.duration ||
-            0
-        );
-
-        setIsPlaying(
-          true
-        );
-
-        if (
-          isBackendTrackId(
-            normalized.id
-          )
-        ) {
-          listenerService
-            .addToContinueListening(
-              normalized.id
-            )
-            .catch(
-              () => {}
-            );
-
-          audioService
-            .play(
-              normalized.id
-            )
-            .catch(
-              () => {}
-            );
-        }
-      };
-
-
-    const seekTo =
-      (
-        seconds
-      ) => {
-        const requested =
-          Math.max(
-            0,
-            Number(
-              seconds
-            ) || 0
-          );
-
-        const audio =
-          audioRef.current;
-
-        if (!audio) {
-          pendingSeekRef.current =
-            requested;
-
-          return requested;
-        }
-
-        let target =
-          requested;
-
-        if (
-          Number.isFinite(
-            audio.duration
-          ) &&
-          audio.duration >
-            0
-        ) {
-          target =
-            Math.min(
-              requested,
-              Math.max(
-                0,
-                audio.duration -
-                  0.05
-              )
-            );
-        }
-
-        try {
-          audio.currentTime =
-            target;
-
-          setCurrentTime(
-            target
-          );
-
-          pendingSeekRef.current =
-            null;
-        } catch {
-          pendingSeekRef.current =
-            requested;
-        }
-
-        return target;
-      };
-
-
-    const playTrackAt =
-      (
-        track,
-        seconds,
-        incomingQueue =
-          null
-      ) => {
-        const normalized =
-          normalizePlayerTrack(
-            track
-          );
-
-        if (!normalized) {
-          return;
-        }
-
-        const requested =
-          Math.max(
-            0,
-            Number(
-              seconds
-            ) || 0
-          );
-
-        const sameTrack =
-          currentTrack?.id &&
-          normalized.id &&
-          String(
-            currentTrack.id
-          ) ===
-            String(
-              normalized.id
-            );
-
-        if (
-          sameTrack &&
-          audioRef.current
-        ) {
-          seekTo(
-            requested
-          );
-
-          audioRef.current
-            .play()
-            .then(
-              () =>
-                setIsPlaying(
-                  true
-                )
-            )
-            .catch(
-              () => {}
-            );
-
-          return;
-        }
-
-        pendingSeekRef.current =
-          requested;
-
-        playTrack(
-          track,
-          incomingQueue
-        );
-      };
-
-
-    const togglePlay =
-      async () => {
-        const audio =
-          audioRef.current;
-
-        if (!audio) {
-          return;
-        }
-
-        if (
-          !currentTrack?.fileUrl
-        ) {
-          const fallback =
-            getFallbackAudioUrl(
-              currentTrack
-            );
-
-          if (
-            !fallback
-          ) {
-            return;
-          }
-
-          setCurrentTrack(
-            (
-              current
-            ) => ({
-              ...current,
-
-              fileUrl:
-                fallback,
-            })
-          );
-
-          return;
-        }
-
-        if (
-          audio.paused
-        ) {
-          try {
-            await audio.play();
-
-            setIsPlaying(
-              true
-            );
-          } catch (
-            error
-          ) {
-            console.error(
-              "Could not play audio:",
-              error
-            );
-
-            setIsPlaying(
-              false
-            );
-          }
-
-          return;
-        }
-
-        audio.pause();
-
-        setIsPlaying(
-          false
-        );
-
-        syncProgress(
-          false
-        );
-      };
-
-    const playQueueTrack =
-      (
-        index
-      ) => {
-        if (
-          index <
-            0 ||
-          index >=
-            queue.length
-        ) {
-          return;
-        }
-
-        const track =
-          queue[index];
-
-        setQueueIndex(
-          index
-        );
-
-        setCurrentTrack(
-          track
-        );
-
-        setCurrentTime(
-          0
-        );
-
-        setDuration(
-          track.duration ||
-            0
-        );
-
-        setIsPlaying(
-          true
-        );
-
-        if (
-          isBackendTrackId(
-            track.id
-          )
-        ) {
-          listenerService
-            .addToContinueListening(
-              track.id
-            )
-            .catch(
-              () => {}
-            );
-
-          audioService
-            .play(
-              track.id
-            )
-            .catch(
-              () => {}
-            );
-        }
-      };
-
-    const playPrevious =
-      () => {
-        const audio =
-          audioRef.current;
-
-        if (
-          audio &&
-          audio.currentTime >
-            5
-        ) {
-          audio.currentTime =
-            0;
-
-          setCurrentTime(
-            0
-          );
-
-          return;
-        }
-
-        if (
-          queue.length ===
-          0
-        ) {
-          return;
-        }
-
-        let previous =
-          queueIndex -
-          1;
-
-        if (
-          previous <
-            0 &&
-          repeatMode ===
-            "all"
-        ) {
-          previous =
-            queue.length -
-            1;
-        }
-
-        if (
-          previous <
-          0
-        ) {
-          return;
-        }
-
-        syncProgress(
-          false
-        );
-
-        playQueueTrack(
-          previous
-        );
-      };
-
-    const playNext =
-      () => {
-        if (
-          queue.length ===
-          0
-        ) {
-          setIsPlaying(
-            false
-          );
-
-          return;
-        }
-
-        let next;
-
-        if (
-          shuffle &&
-          queue.length >
-            1
-        ) {
-          do {
-            next =
-              Math.floor(
-                Math.random() *
-                  queue.length
-              );
-          } while (
-            next ===
-            queueIndex
-          );
-        } else {
-          next =
-            queueIndex +
-            1;
-        }
-
-        if (
-          next >=
-          queue.length
-        ) {
-          if (
-            repeatMode ===
-            "all"
-          ) {
-            next =
-              0;
-          } else {
-            setIsPlaying(
-              false
-            );
-
-            return;
-          }
-        }
-
-        syncProgress(
-          false
-        );
-
-        playQueueTrack(
-          next
-        );
-      };
-
-    const handleEnded =
-      () => {
-        syncProgress(
-          true
-        );
-
-        if (
-          repeatMode ===
-          "one"
-        ) {
-          const audio =
-            audioRef.current;
-
-          if (
-            audio
-          ) {
-            audio.currentTime =
-              0;
-
-            audio
-              .play()
-              .catch(
-                () =>
-                  setIsPlaying(
-                    false
-                  )
-              );
-          }
-
-          return;
-        }
-
-        playNext();
-      };
-
-    const handleTimeUpdate =
-      () => {
-        const audio =
-          audioRef.current;
-
-        if (!audio) {
-          return;
-        }
-
-        setCurrentTime(
-          audio.currentTime ||
-            0
-        );
-      };
-
-    const handleLoadedMetadata =
-      () => {
-        const audio =
-          audioRef.current;
-
-        if (!audio) {
-          return;
-        }
-
-        setDuration(
-          Number.isFinite(
-            audio.duration
-          )
-            ? audio.duration
-            : currentTrack
-                ?.duration ||
-              0
-        );
-
-        audio.volume =
-          volume;
-
-        audio.muted =
-          isMuted;
-
-        audio.playbackRate =
-          playbackRate;
-
-        const pending =
-          pendingSeekRef.current;
-
-        if (
-          pending !==
-          null
-        ) {
-          seekTo(
-            pending
-          );
-        }
-      };
-
-    const handleSeek =
-      (
-        event
-      ) => {
-        const audio =
-          audioRef.current;
-
-        if (
-          !audio ||
-          !duration
-        ) {
-          return;
-        }
-
-        const rect =
-          event.currentTarget.getBoundingClientRect();
-
-        const position =
-          event.clientX -
-          rect.left;
-
-        const percentage =
-          Math.min(
-            1,
-            Math.max(
-              0,
-              position /
-                rect.width
-            )
-          );
-
-        const next =
-          percentage *
-          duration;
-
-        audio.currentTime =
-          next;
-
-        setCurrentTime(
-          next
-        );
-      };
-
-    const handleVolumeChange =
-      (
-        event
-      ) => {
-        const next =
-          Number(
-            event.target
-              .value
-          );
-
-        setVolume(
-          next
-        );
-
-        setIsMuted(
-          next ===
-          0
-        );
-
-        const audio =
-          audioRef.current;
-
-        if (
-          audio
-        ) {
-          audio.volume =
-            next;
-
-          audio.muted =
-            next ===
-            0;
-        }
-      };
-
-    const toggleMute =
-      () => {
-        const next =
-          !isMuted;
-
-        setIsMuted(
-          next
-        );
-
-        if (
-          audioRef.current
-        ) {
-          audioRef.current.muted =
-            next;
-        }
-      };
-
-    const toggleRepeat =
-      () => {
-        setRepeatMode(
-          (
-            current
-          ) => {
-            if (
-              current ===
-              "off"
-            ) {
-              return "all";
-            }
-
-            if (
-              current ===
-              "all"
-            ) {
-              return "one";
-            }
-
-            return "off";
-          }
-        );
-      };
-
-    const cyclePlaybackRate =
-      () => {
-        const rates =
-          [
-            1,
-            1.25,
-            1.5,
-            2,
-          ];
-
-        const currentIndex =
-          rates.indexOf(
-            playbackRate
-          );
-
-        const next =
-          rates[
-            (
-              currentIndex +
-              1
-            ) %
-              rates.length
-          ];
-
-        setPlaybackRate(
-          next
-        );
-
-        if (
-          audioRef.current
-        ) {
-          audioRef.current.playbackRate =
-            next;
-        }
-      };
-
-    const clearSearch =
-      () => {
-        setSearchQuery(
-          ""
-        );
-
-        setSearchResults(
-          []
-        );
-
-        setSearchError(
-          ""
-        );
-
-        searchRef.current?.focus();
-      };
-
-    const handleSuggestion =
-      (
-        suggestion
-      ) => {
-        setSearchQuery(
-          suggestion
-        );
-
-        setSearchOpen(
-          true
-        );
-
-        setTimeout(
-          () =>
-            searchRef.current?.focus(),
-          0
-        );
-      };
-
-    const selectSearchResult =
-      (
-        item
-      ) => {
-        playTrack(
-          {
-            ...item,
-
-            subtitle:
-              item.artistName ||
-              item.artist
-                ?.displayName ||
-              item.subtitle ||
-              "Echoo Audio",
-
-            coverClass:
-              item.coverClass ||
-              "motivation-cover",
-          },
-          searchResults
-        );
-
-        setSearchOpen(
-          false
-        );
-
-        setSearchQuery(
-          ""
-        );
-      };
-
-    useEffect(() => {
-      const audio =
-        audioRef.current;
-
+      } finally {
+        if (active) setSearchLoading(false);
+      }
+    }, 300);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [searchQuery]);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadNotifications = async () => {
+      try {
+        const response = await notificationService.list({ limit: 1 });
+        if (active) setUnreadNotifications(response?.data?.unreadCount || 0);
+      } catch {
+        if (active) setUnreadNotifications(0);
+      }
+    };
+
+    loadNotifications();
+    window.addEventListener('focus', loadNotifications);
+    return () => {
+      active = false;
+      window.removeEventListener('focus', loadNotifications);
+    };
+  }, []);
+
+  useEffect(() => {
+    const outside = (event) => {
       if (
-        !audio ||
-        !currentTrack
-          ?.fileUrl
+        searchAreaRef.current &&
+        !searchAreaRef.current.contains(event.target)
       ) {
-        return;
+        setSearchOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', outside);
+    return () => document.removeEventListener('mousedown', outside);
+  }, []);
+
+  useEffect(() => {
+    const keyDown = (event) => {
+      const tag = document.activeElement?.tagName;
+      const typing = tag === 'INPUT' || tag === 'TEXTAREA';
+
+      if (event.key === '/' && !typing) {
+        event.preventDefault();
+        setSearchOpen(true);
+        window.setTimeout(() => searchRef.current?.focus(), 0);
       }
 
-      audio.src =
-        currentTrack.fileUrl;
-
-      audio.load();
-
-      audio.volume =
-        volume;
-
-      audio.muted =
-        isMuted;
-
-      audio.playbackRate =
-        playbackRate;
-
-      audio
-        .play()
-        .then(
-          () =>
-            setIsPlaying(
-              true
-            )
-        )
-        .catch(
-          (
-            error
-          ) => {
-            console.error(
-              "Audio playback failed:",
-              error
-            );
-
-            setIsPlaying(
-              false
-            );
-          }
-        );
-    }, [
-      currentTrack
-        ?.fileUrl,
-    ]);
-
-    useEffect(() => {
-      const query =
-        searchQuery.trim();
-
-      if (
-        query.length <
-        2
-      ) {
-        setSearchResults(
-          []
-        );
-
-        setSearchLoading(
-          false
-        );
-
-        setSearchError(
-          ""
-        );
-
-        return;
+      if (event.key === 'Escape') setSearchOpen(false);
+      if (event.code === 'Space' && !typing) {
+        event.preventDefault();
+        togglePlay();
       }
+    };
 
-      let active =
-        true;
+    window.addEventListener('keydown', keyDown);
+    return () => window.removeEventListener('keydown', keyDown);
+  });
 
-      const timeout =
-        setTimeout(
-          async () => {
-            try {
-              setSearchLoading(
-                true
-              );
+  useEffect(() => {
+    const unload = () => syncProgress(false);
+    window.addEventListener('beforeunload', unload);
+    return () => window.removeEventListener('beforeunload', unload);
+  });
 
-              setSearchError(
-                ""
-              );
+  const progressPercentage =
+    duration > 0 ? Math.max(0, Math.min(100, (currentTime / duration) * 100)) : 0;
 
-              let response;
+  return (
+    <div className="listener-layout echoo-listener-shell">
+      <aside className="layout-sidebar">
+        <button
+          type="button"
+          className="layout-brand"
+          onClick={() => navigate('/listen')}
+          style={{ border: 0, background: 'transparent', cursor: 'pointer' }}
+        >
+          <img src={echooLogo} alt="Echoo" />
+          <span>Echoo</span>
+        </button>
 
-              if (
-                typeof audioService.search ===
-                "function"
-              ) {
-                response =
-                  await audioService.search(
-                    query
-                  );
-              } else {
-                response =
-                  await audioService.getAll(
-                    {
-                      search:
-                        query,
-
-                      public:
-                        true,
-
-                      page:
-                        1,
-
-                      limit:
-                        12,
-                    }
-                  );
-              }
-
-              if (
-                !active
-              ) {
-                return;
-              }
-
-              setSearchResults(
-                normalizeSearchData(
-                  response
-                )
-              );
-            } catch (
-              error
-            ) {
-              if (
-                active
-              ) {
-                setSearchResults(
-                  []
-                );
-
-                setSearchError(
-                  error?.message ||
-                    "Search failed."
-                );
-              }
-            } finally {
-              if (
-                active
-              ) {
-                setSearchLoading(
-                  false
-                );
-              }
-            }
-          },
-          300
-        );
-
-      return () => {
-        active =
-          false;
-
-        clearTimeout(
-          timeout
-        );
-      };
-    }, [
-      searchQuery,
-    ]);
-
-    useEffect(() => {
-      const handleKeyDown =
-        (
-          event
-        ) => {
-          const activeTag =
-            document
-              .activeElement
-              ?.tagName;
-
-          const typing =
-            activeTag ===
-              "INPUT" ||
-            activeTag ===
-              "TEXTAREA";
-
-          if (
-            event.key ===
-              "/" &&
-            !typing
-          ) {
-            event.preventDefault();
-
-            setSearchOpen(
-              true
-            );
-
-            setTimeout(
-              () =>
-                searchRef.current?.focus(),
-              0
-            );
-          }
-
-          if (
-            event.key ===
-            "Escape"
-          ) {
-            setSearchOpen(
-              false
-            );
-
-            searchRef.current?.blur();
-          }
-
-          if (
-            event.code ===
-              "Space" &&
-            !typing
-          ) {
-            event.preventDefault();
-
-            togglePlay();
-          }
-        };
-
-      window.addEventListener(
-        "keydown",
-        handleKeyDown
-      );
-
-      return () =>
-        window.removeEventListener(
-          "keydown",
-          handleKeyDown
-        );
-    }, [
-      currentTrack,
-      isPlaying,
-    ]);
-
-    useEffect(() => {
-      const outside =
-        (
-          event
-        ) => {
-          if (
-            searchAreaRef.current &&
-            !searchAreaRef.current.contains(
-              event.target
-            )
-          ) {
-            setSearchOpen(
-              false
-            );
-          }
-        };
-
-      document.addEventListener(
-        "mousedown",
-        outside
-      );
-
-      return () =>
-        document.removeEventListener(
-          "mousedown",
-          outside
-        );
-    }, []);
-
-    useEffect(() => {
-      const unload =
-        () =>
-          syncProgress(
-            false
-          );
-
-      window.addEventListener(
-        "beforeunload",
-        unload
-      );
-
-      return () =>
-        window.removeEventListener(
-          "beforeunload",
-          unload
-        );
-    }, [
-      currentTrack,
-      duration,
-    ]);
-
-    const progressPercentage =
-      duration >
-      0
-        ? Math.min(
-            100,
-            Math.max(
-              0,
-              (
-                currentTime /
-                duration
-              ) *
-                100
-            )
-          )
-        : 0;
-
-    return (
-      <div className="listener-layout echoo-listener-shell">
-        <aside className="layout-sidebar">
-          <button
-            type="button"
-            className="layout-brand"
-            onClick={() =>
-              navigate(
-                "/listen"
-              )
-            }
-            style={{
-              border:
-                0,
-
-              background:
-                "transparent",
-
-              cursor:
-                "pointer",
-            }}
-          >
-            <img
-              src={
-                echooLogo
-              }
-              alt="Echoo"
-            />
-
-            <span>
-              Echoo
-            </span>
-          </button>
-
-          <nav className="layout-navigation">
-            {navigation.map(
-              (
-                item
-              ) => (
-                <NavLink
-                  key={
-                    item.name
-                  }
-                  to={
-                    item.path
-                  }
-                  end={
-                    item.end
-                  }
-                  className={({
-                    isActive,
-                  }) =>
-                    isActive
-                      ? "layout-nav-item active"
-                      : "layout-nav-item"
-                  }
-                >
-                  <span className="layout-nav-icon">
-                    {
-                      item.icon
-                    }
-                  </span>
-
-                  <span className="layout-nav-label">
-                    {
-                      item.name
-                    }
-                  </span>
-                </NavLink>
-              )
-            )}
-          </nav>
-
-          <div className="layout-playlists">
-            <div className="layout-playlist-heading">
-              <span>
-                Playlists
-              </span>
-
-              <button
-                type="button"
-                aria-label="Create playlist"
-                onClick={() =>
-                  navigate(
-                    "/listen/library"
-                  )
-                }
-              >
-                <FaPlus />
-              </button>
-            </div>
-
-            <button
-              type="button"
-              onClick={() =>
-                navigate(
-                  "/listen/library"
-                )
+        <nav className="layout-navigation">
+          {navigation.map((item) => (
+            <NavLink
+              key={item.name}
+              to={item.path}
+              end={item.end}
+              className={({ isActive }) =>
+                isActive ? 'layout-nav-item active' : 'layout-nav-item'
               }
             >
-              <span className="layout-playlist-icon purple">
-                <FaHeadphones />
-              </span>
+              <span className="layout-nav-icon">{item.icon}</span>
+              <span className="layout-nav-label">{item.name}</span>
+            </NavLink>
+          ))}
+        </nav>
 
-              <span>
-                Morning Flow
-              </span>
-            </button>
+        <ListenerProfileMenu
+          displayName={displayName}
+          profileImage={profileImage}
+        />
+      </aside>
 
-            <button
-              type="button"
-              onClick={() =>
-                navigate(
-                  "/listen/library"
-                )
-              }
-            >
-              <span className="layout-playlist-icon teal">
-                <FaBookOpen />
-              </span>
-
-              <span>
-                Deep Focus
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() =>
-                navigate(
-                  "/listen/library"
-                )
-              }
-            >
-              <span className="layout-playlist-icon coral">
-                <FaBroadcastTower />
-              </span>
-
-              <span>
-                Sunday Messages
-              </span>
-            </button>
-          </div>
-
-          <ListenerProfileMenu
-            displayName={
-              displayName
-            }
-            profileImage={
-              profileImage
-            }
-          />
-        </aside>
-
-        <div className="layout-main echoo-listener-main">
-          <header className="layout-topbar">
-            <div
-              className="beautiful-search-wrapper"
-              ref={
-                searchAreaRef
-              }
-            >
-              <div
-                className={`beautiful-search ${
-                  searchOpen
-                    ? "active"
-                    : ""
-                }`}
-              >
-                <FaSearch className="beautiful-search-icon" />
-
-                <input
-                  ref={
-                    searchRef
-                  }
-                  type="text"
-                  placeholder="Quick search..."
-                  value={
-                    searchQuery
-                  }
-                  onFocus={() =>
-                    setSearchOpen(
-                      true
-                    )
-                  }
-                  onChange={(
-                    event
-                  ) => {
-                    setSearchQuery(
-                      event
-                        .target
-                        .value
-                    );
-
-                    setSearchOpen(
-                      true
-                    );
+      <div className="layout-main echoo-listener-main">
+        <header className="layout-topbar">
+          <div className="beautiful-search-wrapper" ref={searchAreaRef}>
+            <div className={`beautiful-search ${searchOpen ? 'active' : ''}`}>
+              <FaSearch className="beautiful-search-icon" />
+              <input
+                ref={searchRef}
+                type="text"
+                placeholder="Search public Echoo audio..."
+                value={searchQuery}
+                onFocus={() => setSearchOpen(true)}
+                onChange={(event) => {
+                  setSearchQuery(event.target.value);
+                  setSearchOpen(true);
+                }}
+              />
+              {searchQuery ? (
+                <button
+                  type="button"
+                  className="beautiful-search-clear"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setSearchResults([]);
+                    setSearchError('');
+                    searchRef.current?.focus();
                   }}
-                />
-
-                {searchQuery ? (
-                  <button
-                    type="button"
-                    className="beautiful-search-clear"
-                    onClick={
-                      clearSearch
-                    }
-                    aria-label="Clear search"
-                  >
-                    <FaTimes />
-                  </button>
-                ) : (
-                  <span className="beautiful-search-shortcut">
-                    /
-                  </span>
-                )}
-              </div>
-
-              {searchOpen && (
-                <div className="beautiful-search-panel">
-                  {!searchQuery.trim() ? (
-                    <>
-                      <div className="search-panel-section">
-                        <span className="search-panel-label">
-                          Suggested
-                        </span>
-
-                        <div className="search-suggestion-list">
-                          {suggestedSearches.map(
-                            (
-                              suggestion
-                            ) => (
-                              <button
-                                key={
-                                  suggestion
-                                }
-                                type="button"
-                                onClick={() =>
-                                  handleSuggestion(
-                                    suggestion
-                                  )
-                                }
-                              >
-                                <FaSearch />
-
-                                <span>
-                                  {
-                                    suggestion
-                                  }
-                                </span>
-                              </button>
-                            )
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="search-panel-footer">
-                        <span>
-                          Search Echoo
-                          audio
-                        </span>
-                      </div>
-                    </>
-                  ) : searchLoading ? (
-                    <div className="beautiful-search-empty">
-                      <div>
-                        <FaSearch />
-                      </div>
-
-                      <strong>
-                        Searching
-                        Echoo...
-                      </strong>
-
-                      <span>
-                        Looking for “
-                        {
-                          searchQuery
-                        }
-                        ”
-                      </span>
-                    </div>
-                  ) : searchError ? (
-                    <div className="beautiful-search-empty">
-                      <div>
-                        <FaSearch />
-                      </div>
-
-                      <strong>
-                        Search
-                        unavailable
-                      </strong>
-
-                      <span>
-                        {
-                          searchError
-                        }
-                      </span>
-                    </div>
-                  ) : searchResults.length >
-                    0 ? (
-                    <>
-                      <div className="search-panel-section">
-                        <div className="search-results-heading">
-                          <span className="search-panel-label">
-                            Results
-                          </span>
-
-                          <span>
-                            {
-                              searchResults.length
-                            }
-                          </span>
-                        </div>
-
-                        <div className="beautiful-results">
-                          {searchResults
-                            .slice(
-                              0,
-                              6
-                            )
-                            .map(
-                              (
-                                item
-                              ) => (
-                                <button
-                                  key={
-                                    item.id ||
-                                    item._id
-                                  }
-                                  type="button"
-                                  className="beautiful-result-row"
-                                  onClick={() =>
-                                    selectSearchResult(
-                                      item
-                                    )
-                                  }
-                                >
-                                  <div
-                                    className={`beautiful-result-art ${
-                                      item.coverClass ||
-                                      "motivation-cover"
-                                    }`}
-                                  >
-                                    {item.coverArt ? (
-                                      <img
-                                        src={
-                                          item.coverArt
-                                        }
-                                        alt=""
-                                        style={{
-                                          width:
-                                            "100%",
-
-                                          height:
-                                            "100%",
-
-                                          objectFit:
-                                            "cover",
-
-                                          borderRadius:
-                                            "inherit",
-                                        }}
-                                      />
-                                    ) : item.genre ===
-                                      "Live" ? (
-                                      <FaMicrophone />
-                                    ) : (
-                                      <FaHeadphones />
-                                    )}
-                                  </div>
-
-                                  <div className="beautiful-result-info">
-                                    <strong>
-                                      {
-                                        item.title
-                                      }
-                                    </strong>
-
-                                    <span>
-                                      {item.artistName ||
-                                        item.artist
-                                          ?.displayName ||
-                                        item.subtitle ||
-                                        "Echoo Audio"}
-                                    </span>
-                                  </div>
-
-                                  <span className="beautiful-result-type">
-                                    {item.genre ||
-                                      "Audio"}
-                                  </span>
-
-                                  <span className="beautiful-result-play">
-                                    <FaPlay />
-                                  </span>
-                                </button>
-                              )
-                            )}
-                        </div>
-                      </div>
-
-                      <div className="search-panel-footer">
-                        <span>
-                          Press Esc to
-                          close
-                        </span>
-
-                        <span>
-                          {
-                            searchResults.length
-                          }{" "}
-                          results
-                        </span>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="beautiful-search-empty">
-                      <div>
-                        <FaSearch />
-                      </div>
-
-                      <strong>
-                        No results
-                        found
-                      </strong>
-
-                      <span>
-                        Nothing matches
-                        “
-                        {
-                          searchQuery
-                        }
-                        ”
-                      </span>
-                    </div>
-                  )}
-                </div>
+                  aria-label="Clear search"
+                >
+                  <FaTimes />
+                </button>
+              ) : (
+                <span className="beautiful-search-shortcut">/</span>
               )}
             </div>
 
-            <div className="layout-top-actions">
-              <button
-                type="button"
-                className="layout-top-button notification"
-                onClick={() =>
-                  navigate(
-                    "/listen/notifications"
-                  )
-                }
-                title="Notifications"
-              >
-                <FaBell />
-                <span />
-              </button>
+            {searchOpen && (
+              <div className="beautiful-search-panel">
+                {!searchQuery.trim() ? (
+                  <div className="search-panel-section">
+                    <span className="search-panel-label">Try searching</span>
+                    <div className="search-suggestion-list">
+                      {SEARCH_SUGGESTIONS.map((suggestion) => (
+                        <button
+                          key={suggestion}
+                          type="button"
+                          onClick={() => setSearchQuery(suggestion)}
+                        >
+                          <FaSearch /> <span>{suggestion}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : searchLoading ? (
+                  <div className="beautiful-search-empty">
+                    <strong>Searching Echoo...</strong>
+                  </div>
+                ) : searchError ? (
+                  <div className="beautiful-search-empty">
+                    <strong>Search unavailable</strong>
+                    <span>{searchError}</span>
+                  </div>
+                ) : searchResults.length ? (
+                  <div className="beautiful-results">
+                    {searchResults.slice(0, 8).map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        className="beautiful-result-row"
+                        onClick={() => {
+                          playTrack(item, searchResults);
+                          setSearchOpen(false);
+                          setSearchQuery('');
+                        }}
+                      >
+                        <div className="beautiful-result-art">
+                          {item.coverArt ? (
+                            <img
+                              src={item.coverArt}
+                              alt=""
+                              style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }}
+                            />
+                          ) : (
+                            <FaHeadphones />
+                          )}
+                        </div>
+                        <div className="beautiful-result-info">
+                          <strong>{item.title}</strong>
+                          <span>{item.subtitle}</span>
+                        </div>
+                        <span className="beautiful-result-type">{item.genre || 'Audio'}</span>
+                        <span className="beautiful-result-play"><FaPlay /></span>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="beautiful-search-empty">
+                    <strong>No results found</strong>
+                    <span>No public audio matches “{searchQuery}”.</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
-              <button
-                type="button"
-                className="layout-top-button"
-                title="Settings"
-              >
-                <FaCog />
-              </button>
-            </div>
-          </header>
-
-          <main className="layout-content echoo-listener-scroll">
-            <Outlet
-              context={{
-                playTrack,
-                currentTrack,
-                isPlaying,
-                togglePlay,
-                seekTo,
-                playTrackAt,
-                currentTime,
-                duration,
-                queue,
-                playNext,
-                playPrevious,
+          <div className="layout-top-actions">
+            <button
+              type="button"
+              className="layout-top-button notification"
+              onClick={() => {
+                setUnreadNotifications(0);
+                navigate('/listen/notifications');
               }}
-            />
-          </main>
-        </div>
+              title="Notifications"
+            >
+              <FaBell />
+              {unreadNotifications > 0 && (
+                <span title={`${unreadNotifications} unread`} />
+              )}
+            </button>
 
-        <div className="layout-player echoo-persistent-player">
-          <audio
-            ref={
-              audioRef
-            }
-            preload="metadata"
-            onTimeUpdate={
-              handleTimeUpdate
-            }
-            onLoadedMetadata={
-              handleLoadedMetadata
-            }
-            onDurationChange={
-              handleLoadedMetadata
-            }
-            onEnded={
-              handleEnded
-            }
-            onPlay={() =>
-              setIsPlaying(
-                true
-              )
-            }
-            onPause={() =>
-              setIsPlaying(
-                false
-              )
-            }
-            onError={(
-              event
-            ) => {
-              console.error(
-                "Audio element error:",
-                event
-              );
+            <button
+              type="button"
+              className="layout-top-button"
+              title="Settings"
+              onClick={() => navigate('/listen/settings')}
+            >
+              <FaCog />
+            </button>
+          </div>
+        </header>
 
-              setIsPlaying(
-                false
-              );
+        <main className="layout-content echoo-listener-scroll">
+          <Outlet
+            context={{
+              playTrack,
+              currentTrack,
+              isPlaying,
+              togglePlay,
+              seekTo,
+              playTrackAt,
+              currentTime,
+              duration,
+              queue,
+              playNext,
+              playPrevious,
             }}
           />
+        </main>
+      </div>
 
-          <div className="layout-player-track">
+      <div className="layout-player echoo-persistent-player">
+        <audio
+          ref={audioRef}
+          preload="metadata"
+          onTimeUpdate={() => setCurrentTime(audioRef.current?.currentTime || 0)}
+          onLoadedMetadata={() =>
+            setDuration(
+              Number.isFinite(audioRef.current?.duration)
+                ? audioRef.current.duration
+                : currentTrack?.duration || 0
+            )
+          }
+          onDurationChange={() =>
+            setDuration(
+              Number.isFinite(audioRef.current?.duration)
+                ? audioRef.current.duration
+                : currentTrack?.duration || 0
+            )
+          }
+          onEnded={() => {
+            syncProgress(true);
+            if (repeatMode === 'one' && audioRef.current) {
+              audioRef.current.currentTime = 0;
+              audioRef.current.play().catch(() => {});
+            } else {
+              playNext();
+            }
+          }}
+          onPlay={() => setIsPlaying(true)}
+          onPause={() => setIsPlaying(false)}
+          onError={() => setIsPlaying(false)}
+        />
+
+        <div className="layout-player-track">
           <EchoSignal
             size="sm"
             active={isPlaying}
             className="layout-player-signal"
-            label={
-              isPlaying
-                ? "Echoo playback active"
-                : "Echoo playback signal"
-            }
+            label={isPlaying ? 'Echoo playback active' : 'Echoo playback signal'}
           />
 
-            <div
-              className={`layout-player-cover ${
-                currentTrack?.coverClass ||
-                ""
-              }`}
-            >
-              {(
-                currentTrack?.coverArt ||
-                getMockMediaForKey(
-                  `${
-                    currentTrack?.id ||
-                    currentTrack?._id ||
-                    ""
-                  } ${
-                    currentTrack?.title ||
-                    ""
-                  }`,
-                  "audio"
-                )
-              ) && (
-                <img
-                  src={
-                    currentTrack?.coverArt ||
-                    getMockMediaForKey(
-                      `${
-                        currentTrack?.id ||
-                        currentTrack?._id ||
-                        ""
-                      } ${
-                        currentTrack?.title ||
-                        ""
-                      }`,
-                      "audio"
-                    )
-                  }
-                  alt=""
-                  style={{
-                    width:
-                      "100%",
-
-                    height:
-                      "100%",
-
-                    objectFit:
-                      "cover",
-
-                    borderRadius:
-                      "inherit",
-                  }}
-                />
-              )}
-            </div>
-
-            <div className="layout-player-info">
-              <strong>
-                {currentTrack?.title ||
-                  "Choose something to play"}
-              </strong>
-
-              <span>
-                {currentTrack?.subtitle ||
-                  "Echoo"}
-              </span>
-            </div>
-
-            <button
-              type="button"
-              className="layout-player-heart"
-              aria-label="Like track"
-            >
-              <FaHeart />
-            </button>
-          </div>
-
-          <div className="layout-player-controls">
-            <button
-              type="button"
-              onClick={() =>
-                setShuffle(
-                  (
-                    current
-                  ) =>
-                    !current
-                )
-              }
-              aria-label="Shuffle"
-              title={
-                shuffle
-                  ? "Shuffle on"
-                  : "Shuffle off"
-              }
-              style={{
-                color:
-                  shuffle
-                    ? "#1769d3"
-                    : undefined,
-              }}
-            >
-              <FaRandom />
-            </button>
-
-            <button
-              type="button"
-              onClick={
-                playPrevious
-              }
-              aria-label="Previous"
-            >
-              <FaStepBackward />
-            </button>
-
-            <button
-              type="button"
-              className="layout-main-play"
-              onClick={
-                togglePlay
-              }
-              aria-label={
-                isPlaying
-                  ? "Pause"
-                  : "Play"
-              }
-            >
-              {isPlaying ? (
-                <FaPause />
-              ) : (
-                <FaPlay />
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={
-                playNext
-              }
-              aria-label="Next"
-            >
-              <FaStepForward />
-            </button>
-
-            <button
-              type="button"
-              onClick={
-                toggleRepeat
-              }
-              aria-label="Repeat"
-              title={`Repeat: ${repeatMode}`}
-              style={{
-                color:
-                  repeatMode !==
-                  "off"
-                    ? "#1769d3"
-                    : undefined,
-              }}
-            >
-              <FaRedoAlt />
-            </button>
-          </div>
-
-          <div className="layout-player-progress-area">
-            <span>
-              {formatTime(
-                currentTime
-              )}
-            </span>
-
-            <div
-              className="layout-player-progress"
-              onClick={
-                handleSeek
-              }
-              role="slider"
-              aria-label="Audio progress"
-              aria-valuemin="0"
-              aria-valuemax={
-                duration
-              }
-              aria-valuenow={
-                currentTime
-              }
-              tabIndex={
-                0
-              }
-              style={{
-                cursor:
-                  "pointer",
-              }}
-            >
-              <div
-                style={{
-                  width:
-                    `${progressPercentage}%`,
-                }}
+          <div className="layout-player-cover">
+            {currentTrack?.coverArt ? (
+              <img
+                src={currentTrack.coverArt}
+                alt=""
+                style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }}
               />
-            </div>
+            ) : (
+              <FaHeadphones />
+            )}
+          </div>
 
-            <span>
-              {formatTime(
-                duration
-              )}
-            </span>
-
-            <button
-              type="button"
-              onClick={
-                toggleMute
-              }
-              aria-label={
-                isMuted
-                  ? "Unmute"
-                  : "Mute"
-              }
-            >
-              {isMuted ||
-              volume ===
-                0 ? (
-                <FaVolumeMute />
-              ) : (
-                <FaVolumeUp />
-              )}
-            </button>
-
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.01"
-              value={
-                isMuted
-                  ? 0
-                  : volume
-              }
-              onChange={
-                handleVolumeChange
-              }
-              aria-label="Volume"
-              style={{
-                width:
-                  "68px",
-
-                cursor:
-                  "pointer",
-
-                accentColor:
-                  "#1769d3",
-              }}
-            />
-
-            <button
-              type="button"
-              onClick={
-                cyclePlaybackRate
-              }
-              aria-label="Playback speed"
-              title={`${playbackRate}x playback speed`}
-            >
-              <FaSlidersH />
-            </button>
+          <div className="layout-player-info">
+            <strong>{currentTrack?.title || 'Choose something to play'}</strong>
+            <span>{currentTrack?.subtitle || 'Echoo'}</span>
           </div>
         </div>
+
+        <div className="layout-player-controls">
+          <button
+            type="button"
+            className={shuffle ? 'active' : ''}
+            onClick={() => setShuffle((value) => !value)}
+            disabled={!queue.length}
+            aria-label="Shuffle"
+          >
+            <FaRandom />
+          </button>
+          <button type="button" onClick={playPrevious} disabled={!queue.length} aria-label="Previous">
+            <FaStepBackward />
+          </button>
+          <button
+            type="button"
+            className="layout-player-main-button"
+            onClick={togglePlay}
+            disabled={!currentTrack?.fileUrl}
+            aria-label={isPlaying ? 'Pause' : 'Play'}
+          >
+            {isPlaying ? <FaPause /> : <FaPlay />}
+          </button>
+          <button type="button" onClick={playNext} disabled={!queue.length} aria-label="Next">
+            <FaStepForward />
+          </button>
+          <button
+            type="button"
+            className={repeatMode !== 'off' ? 'active' : ''}
+            onClick={() =>
+              setRepeatMode((current) =>
+                current === 'off' ? 'all' : current === 'all' ? 'one' : 'off'
+              )
+            }
+            disabled={!queue.length}
+            aria-label={`Repeat ${repeatMode}`}
+          >
+            <FaRedoAlt />
+          </button>
+        </div>
+
+        <div className="layout-player-volume">
+          <span>{formatTime(currentTime)}</span>
+          <div
+            className="layout-player-progress"
+            onClick={(event) => {
+              if (!duration) return;
+              const rect = event.currentTarget.getBoundingClientRect();
+              seekTo(((event.clientX - rect.left) / rect.width) * duration);
+            }}
+            role="slider"
+            aria-label="Audio progress"
+            aria-valuemin="0"
+            aria-valuemax={duration}
+            aria-valuenow={currentTime}
+            tabIndex={0}
+          >
+            <div style={{ width: `${progressPercentage}%` }} />
+          </div>
+          <span>{formatTime(duration)}</span>
+
+          <button
+            type="button"
+            onClick={() => {
+              const next = !isMuted;
+              setIsMuted(next);
+              if (audioRef.current) audioRef.current.muted = next;
+            }}
+            aria-label={isMuted ? 'Unmute' : 'Mute'}
+          >
+            {isMuted || volume === 0 ? <FaVolumeMute /> : <FaVolumeUp />}
+          </button>
+
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.01"
+            value={isMuted ? 0 : volume}
+            onChange={(event) => {
+              const next = Number(event.target.value);
+              setVolume(next);
+              setIsMuted(next === 0);
+              if (audioRef.current) {
+                audioRef.current.volume = next;
+                audioRef.current.muted = next === 0;
+              }
+            }}
+            aria-label="Volume"
+          />
+        </div>
       </div>
-    );
-  };
+    </div>
+  );
+};
 
 export default ListenerLayout;
