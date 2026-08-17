@@ -15,6 +15,7 @@ import batch2Service from '../../services/batch2Service';
 import EchoAvatar from '../EchooSystem/EchoAvatar';
 import EchoSignal from '../EchooSystem/EchoSignal';
 import './CreatorStudioHomeFinal.css';
+import './CreatorStudioHomeFixes.css';
 import './CreatorPremium2026.css';
 
 const formatNumber = (value) =>
@@ -39,7 +40,6 @@ const CreatorStudioHome = ({
   studioName = 'Creator',
   studioType = 'Creator',
   profileImage = null,
-  onUpload,
   onNavigate,
 }) => {
   const [dashboard, setDashboard] = useState(null);
@@ -124,9 +124,6 @@ const CreatorStudioHome = ({
                 <button type="button" onClick={() => openBroadcast('later')}>
                   <FaCalendarAlt /> Schedule next
                 </button>
-                <button type="button" onClick={onUpload}>
-                  <FaCloudUploadAlt /> Upload audio
-                </button>
               </>
             ) : (
               <>
@@ -142,9 +139,6 @@ const CreatorStudioHome = ({
                 >
                   <FaMicrophone /> Start broadcast
                 </button>
-                <button type="button" onClick={onUpload}>
-                  <FaCloudUploadAlt /> Upload audio
-                </button>
               </>
             )}
           </div>
@@ -152,6 +146,7 @@ const CreatorStudioHome = ({
 
         <div className={`ehome-signal ${liveBroadcast ? 'live' : ''}`}>
           <EchoSignal
+            className="ehome-profile-signal"
             size="xl"
             state={liveBroadcast ? 'live' : 'active'}
             activeNodes={liveBroadcast ? 3 : 2}
@@ -160,7 +155,7 @@ const CreatorStudioHome = ({
               image={profileImage}
               name={studioName}
               size="lg"
-              state={liveBroadcast ? 'speaking' : 'idle'}
+              state="idle"
             />
           </EchoSignal>
           <span>{liveBroadcast ? 'ON AIR' : 'READY'}</span>
@@ -237,7 +232,9 @@ const CreatorStudioHome = ({
                   onClick={() => openBroadcast('now', station.id)}
                 >
                   <div className="ehome-station-art">
-                    {station.coverArt ? <img src={station.coverArt} alt="" /> : <FaBroadcastTower />}
+                    {station.logo || station.coverArt
+                      ? <img src={station.logo || station.coverArt} alt={`${station.name} logo`} />
+                      : <FaBroadcastTower />}
                     {station.isLive && <span>LIVE</span>}
                   </div>
                   <strong>{station.name}</strong>
@@ -323,10 +320,12 @@ const CreatorStudioHome = ({
               ))}
             </div>
           ) : (
-            <div className="ehome-empty">
+            <div className="ehome-empty ehome-audio-empty">
               <FaHeadphones />
-              <div><strong>No audio yet</strong><span>Your uploaded recordings will appear here.</span></div>
-              <button type="button" onClick={onUpload}>Upload audio</button>
+              <div>
+                <strong>No audio yet</strong>
+                <span>Your published recordings will appear here. Use Audio to upload and manage recordings.</span>
+              </div>
             </div>
           )}
         </section>
