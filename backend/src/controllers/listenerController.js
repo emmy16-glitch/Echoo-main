@@ -6,6 +6,9 @@ import Station from '../models/Station.js';
 const creatorSummary =
   '_id username displayName avatar bio userType creatorProfile.category creatorProfile.artistName creatorProfile.organizationName creatorProfile.organizationLogo creatorProfile.isVerified';
 
+const stationPublicFields =
+  'name slug description coverArt branding category tags isLive listenerCount totalListeners followerCount isPublic updatedAt';
+
 const CATEGORY_GENRES = {
   'Faith & Spirituality': ['Spiritual', 'Podcast'],
   Education: ['Educational', 'Podcast'],
@@ -100,7 +103,7 @@ async function getLiveNow() {
     isDeleted: false,
     isPublic: true,
   })
-    .populate('station', 'name slug coverArt category listenerCount followerCount')
+    .populate('station', stationPublicFields)
     .populate('creator', creatorSummary)
     .sort({ startedAt: -1 })
     .limit(12);
@@ -113,7 +116,7 @@ async function getUpcoming() {
     isPublic: true,
     startTime: { $gte: new Date() },
   })
-    .populate('station', 'name slug coverArt category followerCount')
+    .populate('station', stationPublicFields)
     .populate('creator', creatorSummary)
     .sort({ startTime: 1 })
     .limit(12);
