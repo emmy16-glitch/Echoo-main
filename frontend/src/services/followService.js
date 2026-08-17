@@ -1,95 +1,56 @@
-import { apiRequest } from './api.js';
-import { normalizeStation } from './batch2Service.js';
+import { apiRequest, buildMediaUrl } from './api.js';
+import batch2Service, { normalizeStation } from './batch2Service.js';
 
-const normalizeCreator = (user) => {
-  if (!user) return null;
-
-  const creatorProfile = user.creatorProfile || {};
-  const id = user.id || user._id || null;
-
+const normalizeCreator = (creator) => {
+  if (!creator) return null;
   return {
-    ...user,
-    id,
-    _id: user._id || user.id || null,
+    ...creator,
+    id: creator.id || creator._id || null,
+    avatar: buildMediaUrl(
+      creator.avatar || creator.creatorProfile?.organizationLogo || null
+    ),
     name:
-      user.displayName ||
-      creatorProfile.artistName ||
-      creatorProfile.organizationName ||
-      user.username ||
+      creator.displayName ||
+      creator.creatorProfile?.artistName ||
+      creator.creatorProfile?.organizationName ||
+      creator.username ||
       'Echoo Creator',
-    displayName:
-      user.displayName ||
-      creatorProfile.artistName ||
-      creatorProfile.organizationName ||
-      user.username ||
-      'Echoo Creator',
-    category: creatorProfile.category || 'Other',
-    avatar: user.avatar || creatorProfile.organizationLogo || null,
-    verified: Boolean(creatorProfile.isVerified),
   };
 };
 
 const followService = {
-  getFollowingCreators: async () => {
-    const response = await apiRequest('/follows/me/creators');
+  getCreatorStatus: async (creatorId) => {
+    const response = await apiRequest(
+      `/follows/users/${encodeURIComponent(creatorId)}/status`
+    );
+    return response?.data || { isFollowing: false, isFollowedBy: false };
+  },
+
+  followCreator: async (creatorId) => {
+    const response = await apiRequest(
+      `/follows/users/${encodeURIComponent(creatorId)}`,
+      { method: 'POST' }
+    );
+    return response?.data || null;
+  },
+
+  unfollowCreator: async (creatorId) => {
+    const response = await apiRequest(
+      `/follows/users/${encodeURIComponent(creatorId)}`,
+      { method: 'DELETE' }
+    );
+    return response?.data || null;
+  },
+
+  getMyFollowingCreators: async () => {
+    const response = await apiRequest('/follows/me/following');
     const raw = Array.isArray(response?.data?.following)
       ? response.data.following
       : [];
-
     return {
       ...response,
       data: raw.map(normalizeCreator).filter(Boolean),
     };
-  },
-
-  getFollowingStations: async () => {
-    const response = await apiRequest('/follows/me/stations');
-    const raw = Array.isArray(response?.data?.stations)
-      ? response.data.stations
-      : [];
-
-    return {
-      ...response,
-      data: raw.map(normalizeStation).filter(Boolean),
-    };
-  },
-
-  followCreator: async (userId) => {
-    return apiRequest(`/follows/users/${encodeURIComponent(userId)}`, {
-      method: 'POST',
-    });
-  },
-
-  unfollowCreator: async (userId) => {
-    return apiRequest(`/follows/users/${encodeURIComponent(userId)}`, {
-      method: 'DELETE',
-    });
-  },
-
-  getCreatorStatus: async (userId) => {
-    const response = await apiRequest(
-      `/follows/users/${encodeURIComponent(userId)}/status`
-    );
-    return response?.data || { isFollowing: false };
-  },
-
-  getCreatorCount: async (userId) => {
-    const response = await apiRequest(
-      `/follows/users/${encodeURIComponent(userId)}/count`
-    );
-    return response?.data || { followerCount: 0, followingCount: 0 };
-  },
-
-  followStation: async (stationId) => {
-    return apiRequest(`/follows/stations/${encodeURIComponent(stationId)}`, {
-      method: 'POST',
-    });
-  },
-
-  unfollowStation: async (stationId) => {
-    return apiRequest(`/follows/stations/${encodeURIComponent(stationId)}`, {
-      method: 'DELETE',
-    });
   },
 
   getStationStatus: async (stationId) => {
@@ -97,6 +58,46 @@ const followService = {
       `/follows/stations/${encodeURIComponent(stationId)}/status`
     );
     return response?.data || { isFollowing: false, followerCount: 0 };
+  },
+
+  followStation: async (stationId) => {
+    const response = await apiRequest(
+      `/follows/stations/${encodeURIComponent(stationId)}`,
+      { method: 'POST' }
+    );
+    return response?.data || null;
+  },
+
+  unfollowStation: async (stationId) => {
+    const response = await apiRequest(
+      `/follows/stations/${encodeURIComponent(stationId)}`,
+      { method: 'DELETE' }
+    );
+    return response?.data || null;
+  },
+
+  getFollowingStations: async () => {
+    const response = await apiRequest('/follows/me/stations');
+    const raw = Array.isArray(response?.data?.stations)
+      ? response.data.stations.map(normalizeStation).filter(Boolean)
+      : [];
+
+    const canonical = await Promise.all(
+      raw.map(async (station) => {
+        if (!station?.id) return station;
+        try {
+          const current = await batch2Service.getStation(station.id);
+          return current?.data || station;
+        } catch {
+          return station;
+        }
+      })
+    );
+
+    return {
+      ...response,
+      data: canonical.filter(Boolean),
+    };
   },
 
   normalizeCreator,
