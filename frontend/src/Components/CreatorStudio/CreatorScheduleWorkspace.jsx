@@ -109,6 +109,17 @@ const CreatorScheduleWorkspace = ({
     setFormOpen(false);
   };
 
+  const enterStudio = (broadcastId) => {
+    sessionStorage.setItem('echooPreparedBroadcastId', String(broadcastId));
+
+    if (onEnterStudio) {
+      onEnterStudio(broadcastId);
+      return;
+    }
+
+    onNavigate?.('Live');
+  };
+
   const createBroadcast = async (event) => {
     event.preventDefault();
 
@@ -394,7 +405,7 @@ const CreatorScheduleWorkspace = ({
                       <button
                         type="button"
                         className="cbf-button primary"
-                        onClick={() => onEnterStudio?.(broadcast.id)}
+                        onClick={() => enterStudio(broadcast.id)}
                       >
                         <FaMicrophone />
                         {broadcast.status === 'scheduled' ? 'Enter Studio' : 'Open Live Studio'}
