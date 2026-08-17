@@ -3,26 +3,29 @@ import { authenticate } from '../middleware/auth.js';
 import {
   createStation,
   getStations,
+  getMyStations,
   getStationById,
   updateStation,
   deleteStation,
-  toggleLive,
-  getStationSchedule,
-  updateStationSchedule,
 } from '../controllers/stationController.js';
 
 const router = express.Router();
 
-// Public routes
+// Public station discovery.
 router.get('/', getStations);
-router.get('/:stationId', authenticate, getStationById);
 
-// Protected routes
+// Creator-owned collection must be declared before /:stationId.
+router.get('/mine/all', authenticate, getMyStations);
+
+// Public station profile. Private stations remain owner-only in the controller.
+router.get('/:stationId', getStationById);
+
+// Stations are created and managed only through this resource.
 router.post('/', authenticate, createStation);
 router.patch('/:stationId', authenticate, updateStation);
 router.delete('/:stationId', authenticate, deleteStation);
-router.patch('/:stationId/toggle-live', authenticate, toggleLive);
-router.get('/:stationId/schedule', authenticate, getStationSchedule);
-router.patch('/:stationId/schedule', authenticate, updateStationSchedule);
+
+// There is intentionally no station toggle-live or station schedule endpoint.
+// Broadcast lifecycle is the single authority for live/scheduled state.
 
 export default router;
