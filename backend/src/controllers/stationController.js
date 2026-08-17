@@ -63,6 +63,12 @@ function uploadedStationLogo(file) {
   return file?.filename ? `/uploads/stations/${file.filename}` : null;
 }
 
+function safeGeneratedCover(value) {
+  if (!value || typeof value !== 'string') return null;
+  if (!value.startsWith('data:image/svg+xml')) return null;
+  return value.length <= 120000 ? value : null;
+}
+
 async function removeManagedStationLogo(value) {
   if (!value || !String(value).startsWith('/uploads/stations/')) return;
 
@@ -87,7 +93,9 @@ export async function createStation(req, res, next) {
       tags = [],
       isPublic = true,
       coverArt = null,
+      brandingMode,
       brandingVariant,
+      generatedCoverArt,
     } = req.body;
 
     const cleanName = String(name || '').trim();
@@ -125,9 +133,12 @@ export async function createStation(req, res, next) {
       });
     }
 
-    const uploadedLogo = uploadedStationLogo(req.file) || coverArt || null;
+    const uploadedLogo = uploadedStationLogo(req.file);
+    const legacyCustomLogo = brandingMode === 'generated' ? null : coverArt || null;
+    const customLogo = uploadedLogo || legacyCustomLogo;
+    const generatedCover = safeGeneratedCover(generatedCoverArt);
     const branding = createStationBranding({
-      hasCustomLogo: Boolean(uploadedLogo),
+      hasCustomLogo: Boolean(customLogo),
       variant: brandingVariant,
     });
 
@@ -139,8 +150,11 @@ export async function createStation(req, res, next) {
       category,
       tags: parseTags(tags),
       isPublic: parseBoolean(isPublic, true),
-      coverArt: uploadedLogo,
-      branding,
+      coverArt: customLogo || generatedCover || null,
+      branding: {
+        ...branding,
+        mode: customLogo ? 'custom' : 'generated',
+      },
       isLive: false,
       listenerCount: 0,
     });
@@ -305,6 +319,7 @@ export async function updateStation(req, res, next) {
       removeLogo,
       brandingMode,
       brandingVariant,
+      generatedCoverArt,
     } = req.body;
 
     if (name !== undefined) {
@@ -349,6 +364,7 @@ export async function updateStation(req, res, next) {
       ? brandingMode
       : null;
     const requestedVariant = normalizeStationBrandVariant(brandingVariant, null);
+    const generatedCover = safeGeneratedCover(generatedCoverArt);
 
     if (requestedVariant !== null) {
       station.branding.variant = requestedVariant;
@@ -359,18 +375,15 @@ export async function updateStation(req, res, next) {
       station.coverArt = nextUploadedLogo;
       station.branding.mode = 'custom';
     } else if (shouldRemoveLogo || requestedBrandMode === 'generated') {
-      station.coverArt = null;
+      station.coverArt = generatedCover || null;
       station.branding.mode = 'generated';
     } else if (coverArt !== undefined) {
-      // Compatibility for older JSON clients.
       station.coverArt = coverArt || null;
       station.branding.mode = station.coverArt ? 'custom' : 'generated';
     } else if (requestedBrandMode === 'custom' && station.coverArt) {
       station.branding.mode = 'custom';
     }
 
-    // isLive/listenerCount are intentionally NOT user-editable here.
-    // Broadcast lifecycle + LiveKit presence own those fields.
     await station.save();
 
     if (previousLogo && previousLogo !== station.coverArt) {
