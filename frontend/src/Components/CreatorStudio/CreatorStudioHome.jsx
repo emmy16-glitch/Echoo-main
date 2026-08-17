@@ -15,6 +15,7 @@ import EchoAvatar from '../EchooSystem/EchoAvatar';
 import EchoSignal from '../EchooSystem/EchoSignal';
 import EchoAmbient from '../EchooSystem/EchoAmbient';
 import './CreatorStudioHome.css';
+import './CreatorStudioHomeRefresh.css';
 
 const formatNumber = (value) =>
   new Intl.NumberFormat('en-US').format(Number(value) || 0);
