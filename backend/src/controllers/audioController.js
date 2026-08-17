@@ -3,6 +3,11 @@ import Follow from '../models/Follow.js';
 import User from '../models/User.js';
 import { createNotification } from './notificationController.js';
 
+const safeDuration = (value) => {
+  const duration = Number(value);
+  return Number.isFinite(duration) && duration > 0 ? duration : 0;
+};
+
 async function notifyFollowersOfRelease(creator, audio) {
   if (!audio?.isPublic) return;
 
@@ -57,7 +62,7 @@ export async function uploadAudio(req, res, next) {
       });
     }
 
-    const { title, description, genre, tags, isPublic } = req.body;
+    const { title, description, genre, tags, isPublic, duration } = req.body;
 
     let parsedTags = [];
     if (tags) {
@@ -81,6 +86,7 @@ export async function uploadAudio(req, res, next) {
       fileUrl: `/uploads/audio/${req.file.filename}`,
       fileKey: req.file.filename,
       mimeType: req.file.mimetype,
+      duration: safeDuration(duration),
       genre: genre || 'Other',
       tags: parsedTags,
       isPublic: isPublic === 'true' || isPublic === true,
