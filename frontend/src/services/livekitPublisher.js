@@ -1,7 +1,7 @@
 import {
   Room,
   Track,
-} from "livekit-client";
+} from 'livekit-client';
 
 let activeRoom = null;
 let activeBroadcastId = null;
@@ -10,253 +10,139 @@ let syntheticContext = null;
 let syntheticOscillator = null;
 let syntheticNativeTrack = null;
 
-const syntheticModeEnabled =
-  () =>
-    import.meta.env
-      .VITE_SYNTHETIC_AUDIO ===
-    "true";
+const syntheticModeEnabled = () =>
+  import.meta.env.VITE_SYNTHETIC_AUDIO === 'true';
 
-const createSyntheticTrack =
-  async () => {
-    const AudioContextClass =
-      window.AudioContext ||
-      window.webkitAudioContext;
+const createSyntheticTrack = async () => {
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
 
-    if (!AudioContextClass) {
-      throw new Error(
-        "This browser does not support Web Audio."
-      );
-    }
+  if (!AudioContextClass) {
+    throw new Error('This browser does not support Web Audio.');
+  }
 
-    syntheticContext =
-      new AudioContextClass();
+  syntheticContext = new AudioContextClass();
+  await syntheticContext.resume();
 
-    await syntheticContext.resume();
+  const oscillator = syntheticContext.createOscillator();
+  const gain = syntheticContext.createGain();
+  const destination = syntheticContext.createMediaStreamDestination();
 
-    const oscillator =
-      syntheticContext
-        .createOscillator();
+  oscillator.type = 'sine';
+  oscillator.frequency.value = 440;
+  gain.gain.value = 0.02;
 
-    const gain =
-      syntheticContext
-        .createGain();
+  oscillator.connect(gain);
+  gain.connect(destination);
+  oscillator.start();
 
-    const destination =
-      syntheticContext
-        .createMediaStreamDestination();
+  const nativeTrack = destination.stream.getAudioTracks()[0];
 
-    oscillator.type =
-      "sine";
+  if (!nativeTrack) {
+    throw new Error('Could not create Echoo synthetic audio track.');
+  }
 
-    oscillator.frequency.value =
-      440;
+  syntheticOscillator = oscillator;
+  syntheticNativeTrack = nativeTrack;
+  return nativeTrack;
+};
 
-    // Quiet test signal.
-    gain.gain.value =
-      0.02;
+const cleanupSyntheticAudio = async () => {
+  try { syntheticNativeTrack?.stop(); } catch {}
+  try { syntheticOscillator?.stop(); } catch {}
+  try { await syntheticContext?.close(); } catch {}
 
-    oscillator.connect(gain);
-    gain.connect(destination);
+  syntheticNativeTrack = null;
+  syntheticOscillator = null;
+  syntheticContext = null;
+};
 
-    oscillator.start();
+export const getLiveKitPublishingState = () => ({
+  connected: Boolean(activeRoom),
+  broadcastId: activeBroadcastId,
+  roomName: activeRoom?.name || null,
+});
 
-    const nativeTrack =
-      destination.stream
-        .getAudioTracks()[0];
+export const stopLiveKitPublishing = async () => {
+  const room = activeRoom;
 
-    if (!nativeTrack) {
-      throw new Error(
-        "Could not create Echoo synthetic audio track."
-      );
-    }
+  activeRoom = null;
+  activeBroadcastId = null;
 
-    syntheticOscillator =
-      oscillator;
-
-    syntheticNativeTrack =
-      nativeTrack;
-
-    return nativeTrack;
-  };
-
-const cleanupSyntheticAudio =
-  async () => {
+  if (room) {
     try {
-      syntheticNativeTrack
-        ?.stop();
-    } catch {
-      // Ignore cleanup error.
-    }
-
-    try {
-      syntheticOscillator
-        ?.stop();
-    } catch {
-      // Ignore cleanup error.
-    }
-
-    try {
-      await syntheticContext
-        ?.close();
-    } catch {
-      // Ignore cleanup error.
-    }
-
-    syntheticNativeTrack = null;
-    syntheticOscillator = null;
-    syntheticContext = null;
-  };
-
-export const getLiveKitPublishingState =
-  () => ({
-    connected:
-      Boolean(activeRoom),
-
-    broadcastId:
-      activeBroadcastId,
-
-    roomName:
-      activeRoom?.name ||
-      null,
-
-    mode:
-      syntheticModeEnabled()
-        ? "synthetic-test"
-        : "microphone",
-  });
-
-export const stopLiveKitPublishing =
-  async () => {
-    const room =
-      activeRoom;
-
-    activeRoom = null;
-    activeBroadcastId = null;
-
-    if (room) {
-      try {
-        await room.disconnect();
-      } catch (error) {
-        console.warn(
-          "Could not disconnect LiveKit room:",
-          error
-        );
-      }
-    }
-
-    await cleanupSyntheticAudio();
-  };
-
-export const startLiveKitPublishing =
-  async ({
-    url,
-    token,
-    broadcastId,
-  }) => {
-    if (!url) {
-      throw new Error(
-        "VITE_LIVEKIT_URL is not configured."
-      );
-    }
-
-    if (!token) {
-      throw new Error(
-        "Echoo did not return a LiveKit token."
-      );
-    }
-
-    await stopLiveKitPublishing();
-
-    const room =
-      new Room();
-
-    try {
-      await room.connect(
-        url,
-        token
-      );
-
-      const useSynthetic =
-        syntheticModeEnabled();
-
-      let publication;
-
-      if (useSynthetic) {
-        const nativeTrack =
-          await createSyntheticTrack();
-
-        publication =
-          await room
-            .localParticipant
-            .publishTrack(
-              nativeTrack,
-              {
-                name:
-                  "echoo-dev-test-audio",
-
-                source:
-                  Track.Source
-                    .Microphone,
-              }
-            );
-      } else {
-        publication =
-          await room
-            .localParticipant
-            .setMicrophoneEnabled(
-              true
-            );
-      }
-
-      activeRoom =
-        room;
-
-      activeBroadcastId =
-        String(
-          broadcastId ||
-          ""
-        );
-
-      const result = {
-        connected:
-          true,
-
-        roomName:
-          room.name,
-
-        identity:
-          room
-            .localParticipant
-            .identity,
-
-        trackSid:
-          publication?.trackSid ||
-          null,
-
-        mode:
-          useSynthetic
-            ? "synthetic-test"
-            : "microphone",
-      };
-
-      console.log(
-        "[Echoo LiveKit] publishing",
-        result
-      );
-
-      return result;
+      await room.disconnect();
     } catch (error) {
-      try {
-        await room.disconnect();
-      } catch {
-        // Ignore cleanup error.
+      console.warn('Could not disconnect LiveKit room:', error);
+    }
+  }
+
+  await cleanupSyntheticAudio();
+};
+
+export const startLiveKitPublishing = async ({
+  url,
+  token,
+  broadcastId,
+  mediaTrack = null,
+}) => {
+  if (!url) {
+    throw new Error('VITE_LIVEKIT_URL is not configured.');
+  }
+
+  if (!token) {
+    throw new Error('Echoo did not return a LiveKit token.');
+  }
+
+  await stopLiveKitPublishing();
+
+  const room = new Room();
+
+  try {
+    await room.connect(url, token);
+
+    let publication;
+    let mode = 'microphone';
+
+    if (mediaTrack) {
+      if (mediaTrack.kind !== 'audio' || mediaTrack.readyState === 'ended') {
+        throw new Error('The Echoo mixer output is not available.');
       }
 
-      await cleanupSyntheticAudio();
-
-      throw error;
+      publication = await room.localParticipant.publishTrack(mediaTrack, {
+        name: 'echoo-studio-mix',
+        source: Track.Source.Microphone,
+      });
+      mode = 'studio-mix';
+    } else if (syntheticModeEnabled()) {
+      const nativeTrack = await createSyntheticTrack();
+      publication = await room.localParticipant.publishTrack(nativeTrack, {
+        name: 'echoo-dev-test-audio',
+        source: Track.Source.Microphone,
+      });
+      mode = 'synthetic-test';
+    } else {
+      publication = await room.localParticipant.setMicrophoneEnabled(true);
     }
-  };
+
+    activeRoom = room;
+    activeBroadcastId = String(broadcastId || '');
+
+    const result = {
+      connected: true,
+      roomName: room.name,
+      identity: room.localParticipant.identity,
+      trackSid: publication?.trackSid || null,
+      mode,
+    };
+
+    console.log('[Echoo LiveKit] publishing', result);
+    return result;
+  } catch (error) {
+    try { await room.disconnect(); } catch {}
+    await cleanupSyntheticAudio();
+    throw error;
+  }
+};
 
 export default {
   startLiveKitPublishing,
