@@ -330,29 +330,16 @@ const ListenerSettings = () => {
               </button>
             ))}
           </div>
-          <label>
-            <span>Theme preference</span>
-            <select
-              value={preferences.theme}
-              onChange={(event) => setPreferences((current) => ({ ...current, theme: event.target.value }))}
-            >
-              <option value="system">System</option>
-              <option value="light">Light</option>
-              <option value="dark">Dark</option>
-            </select>
-          </label>
           <button type="submit" disabled={busy === 'preferences'}>
             <FaSave /> {busy === 'preferences' ? 'Saving...' : 'Save preferences'}
           </button>
         </form>
 
         <form className="ls-card" onSubmit={saveNotifications}>
-          <div className="ls-card-title"><FaBell /><div><h2>Notifications</h2><p>Choose which Echoo updates you want.</p></div></div>
+          <div className="ls-card-title"><FaBell /><div><h2>Notifications</h2><p>Choose the Echoo activity you want in your notification inbox.</p></div></div>
           {[
-            ['push', 'In-app / push notifications'],
-            ['email', 'Email notifications'],
             ['newFollowers', 'New follower notifications'],
-            ['newReleases', 'New release and broadcast updates'],
+            ['newReleases', 'New audio and live broadcast updates'],
           ].map(([key, label]) => (
             <label className="ls-toggle" key={key}>
               <span>{label}</span>
