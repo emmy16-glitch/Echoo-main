@@ -4,7 +4,6 @@ import {
   FaCalendarAlt,
   FaCheck,
   FaMicrophone,
-  FaSave,
   FaStop,
 } from 'react-icons/fa';
 
@@ -27,9 +26,7 @@ const CreatorLiveConnectedWorkspace = ({
   onClearPreparedBroadcast,
 }) => {
   const preparedBroadcastId =
-    initialBroadcastId ||
-    sessionStorage.getItem('echooPreparedBroadcastId') ||
-    '';
+    initialBroadcastId || sessionStorage.getItem('echooPreparedBroadcastId') || '';
 
   const [stations, setStations] = useState([]);
   const [stationId, setStationId] = useState('');
@@ -118,13 +115,8 @@ const CreatorLiveConnectedWorkspace = ({
 
         if (!active) return;
 
-        const realStations = Array.isArray(stationResult?.data)
-          ? stationResult.data
-          : [];
-        const broadcasts = Array.isArray(broadcastResult?.data)
-          ? broadcastResult.data
-          : [];
-
+        const realStations = Array.isArray(stationResult?.data) ? stationResult.data : [];
+        const broadcasts = Array.isArray(broadcastResult?.data) ? broadcastResult.data : [];
         setStations(realStations);
 
         const live = broadcasts.find((item) => item.status === 'live') || null;
@@ -153,7 +145,7 @@ const CreatorLiveConnectedWorkspace = ({
             setStationId(prepared.stationId || '');
             setTitle(prepared.title || '');
             setDescription(prepared.description || '');
-            setMessage('Scheduled broadcast loaded. Check your microphone, then go live.');
+            setMessage('Scheduled broadcast loaded. Test your microphone when you are ready.');
             return;
           }
 
@@ -162,9 +154,7 @@ const CreatorLiveConnectedWorkspace = ({
 
         setStationId(realStations[0]?.id || '');
       } catch (loadError) {
-        if (active) {
-          setError(loadError?.message || 'Could not load Creator Live.');
-        }
+        if (active) setError(loadError?.message || 'Could not load Live Studio.');
       } finally {
         if (active) setLoading(false);
       }
@@ -187,7 +177,7 @@ const CreatorLiveConnectedWorkspace = ({
         const next = await batch3Service.getPresence(currentLiveBroadcast.id);
         if (active) setPresence(next);
       } catch {
-        // A presence refresh failure must not interrupt audio publishing.
+        // Presence failure must not interrupt the live audio session.
       }
     };
 
@@ -218,7 +208,7 @@ const CreatorLiveConnectedWorkspace = ({
 
       if (!AudioContextClass) {
         stream.getTracks().forEach((track) => track.stop());
-        throw new Error('Web Audio is not available in this browser.');
+        throw new Error('Audio testing is not available in this browser.');
       }
 
       const context = new AudioContextClass();
@@ -247,7 +237,6 @@ const CreatorLiveConnectedWorkspace = ({
     try {
       setSaving(true);
       setError('');
-      setMessage('');
 
       let response;
       if (savedBroadcast?.id && savedBroadcast.status !== 'live') {
@@ -257,12 +246,8 @@ const CreatorLiveConnectedWorkspace = ({
         });
       } else {
         const scheduledStart = new Date(Date.now() + 10 * 60 * 1000);
-        const plannedEnd = new Date(
-          scheduledStart.getTime() + 4 * 60 * 60 * 1000
-        );
-        const station = stations.find(
-          (item) => String(item.id) === String(stationId)
-        );
+        const plannedEnd = new Date(scheduledStart.getTime() + 4 * 60 * 60 * 1000);
+        const station = stations.find((item) => String(item.id) === String(stationId));
 
         response = await batch2Service.createBroadcast({
           title: title.trim(),
@@ -279,14 +264,13 @@ const CreatorLiveConnectedWorkspace = ({
       }
 
       if (!response?.data?.id) {
-        throw new Error('Echoo did not return a broadcast ID.');
+        throw new Error('Could not prepare this broadcast.');
       }
 
       setSavedBroadcast(response.data);
-      setMessage('Broadcast setup saved.');
       return response.data;
     } catch (saveError) {
-      setError(saveError?.message || 'Could not save the broadcast.');
+      setError(saveError?.message || 'Could not prepare the broadcast.');
       return null;
     } finally {
       setSaving(false);
@@ -297,9 +281,7 @@ const CreatorLiveConnectedWorkspace = ({
     if (goingLive || currentLiveBroadcast) return;
     if (!stationId) return setError('Choose a station first.');
     if (!title.trim()) return setError('Add a broadcast title first.');
-    if (micState !== 'ready') {
-      return setError('Test your microphone before going live.');
-    }
+    if (micState !== 'ready') return setError('Test your microphone before going live.');
 
     let broadcast = null;
     let backendStarted = false;
@@ -307,12 +289,10 @@ const CreatorLiveConnectedWorkspace = ({
     try {
       setGoingLive(true);
       setError('');
-      setMessage('Preparing your LiveKit room...');
+      setMessage('Starting your broadcast...');
 
       broadcast = await saveSetup();
-      if (!broadcast?.id) {
-        throw new Error('Could not save the broadcast before going live.');
-      }
+      if (!broadcast?.id) throw new Error('Could not prepare the broadcast.');
 
       releaseMicTest();
 
@@ -322,7 +302,7 @@ const CreatorLiveConnectedWorkspace = ({
       const liveKitUrl = connection?.livekitUrl || import.meta.env.VITE_LIVEKIT_URL;
 
       if (!connection?.token || !liveKitUrl) {
-        throw new Error('Echoo did not return complete LiveKit connection details.');
+        throw new Error('Echoo could not open the live audio room.');
       }
 
       await startLiveKitPublishing({
@@ -340,7 +320,7 @@ const CreatorLiveConnectedWorkspace = ({
 
       setSavedBroadcast(liveBroadcast);
       setCurrentLiveBroadcast(liveBroadcast);
-      setMessage(`${liveBroadcast.title} is live.`);
+      setMessage('You are live.');
       clearPreparedBroadcast();
     } catch (liveError) {
       await stopLiveKitPublishing().catch(() => {});
@@ -350,7 +330,7 @@ const CreatorLiveConnectedWorkspace = ({
       }
 
       setCurrentLiveBroadcast(null);
-      setError(liveError?.message || 'Echoo could not start the live broadcast.');
+      setError(liveError?.message || 'Echoo could not start the broadcast.');
     } finally {
       setGoingLive(false);
     }
@@ -366,7 +346,7 @@ const CreatorLiveConnectedWorkspace = ({
       const liveKitUrl = connection?.livekitUrl || import.meta.env.VITE_LIVEKIT_URL;
 
       if (!connection?.token || !liveKitUrl) {
-        throw new Error('Could not obtain LiveKit connection details.');
+        throw new Error('Could not reconnect the microphone.');
       }
 
       await startLiveKitPublishing({
@@ -374,7 +354,7 @@ const CreatorLiveConnectedWorkspace = ({
         token: connection.token,
         broadcastId: currentLiveBroadcast.id,
       });
-      setMessage('Broadcast microphone connected.');
+      setMessage('Microphone reconnected.');
     } catch (reconnectError) {
       setError(reconnectError?.message || 'Could not reconnect the microphone.');
     } finally {
@@ -384,14 +364,14 @@ const CreatorLiveConnectedWorkspace = ({
 
   const endBroadcast = async () => {
     if (!currentLiveBroadcast?.id || ending) return;
-    if (!window.confirm(`End "${currentLiveBroadcast.title}" now?`)) return;
+    if (!window.confirm(`End “${currentLiveBroadcast.title}” now?`)) return;
 
     try {
       setEnding(true);
       setError('');
       await stopLiveKitPublishing();
       await batch3Service.endBroadcast(currentLiveBroadcast.id);
-      setMessage(`${currentLiveBroadcast.title} has ended.`);
+      setMessage('Broadcast ended.');
       setCurrentLiveBroadcast(null);
       setSavedBroadcast(null);
       setPresence({ listenerCount: 0, peakListeners: 0, creatorConnected: false });
@@ -407,14 +387,13 @@ const CreatorLiveConnectedWorkspace = ({
 
   const microphoneReady = micState === 'ready';
   const formReady = Boolean(stationId && title.trim());
-  const backendReady = Boolean(savedBroadcast?.id);
   const isLive = Boolean(currentLiveBroadcast?.id);
   const speaking = microphoneReady && inputLevel > 0.055;
 
   if (loading) {
     return (
       <section className="cbf-page">
-        <div className="cbf-card cbf-empty">Connecting Creator Live...</div>
+        <div className="cbf-card cbf-empty">Loading Live Studio...</div>
       </section>
     );
   }
@@ -423,16 +402,16 @@ const CreatorLiveConnectedWorkspace = ({
     <section className="cbf-page">
       <header className="cbf-header">
         <div>
-          <span className="cbf-kicker">CREATOR LIVE</span>
-          <h1>{isLive ? 'You are live.' : 'Prepare your broadcast.'}</h1>
+          <span className="cbf-kicker">LIVE</span>
+          <h1>{isLive ? 'You are live.' : 'Start a live broadcast.'}</h1>
           <p>
             {isLive
-              ? 'Your microphone is connected to LiveKit and listeners can hear this broadcast.'
-              : 'Every live broadcast belongs to a station. Create stations only from the Stations workspace, then prepare audio here.'}
+              ? 'Listeners can hear your microphone now.'
+              : 'Choose a station, add the broadcast details and check your microphone.'}
           </p>
         </div>
         <span className={`cbf-status ${isLive ? 'live' : ''}`}>
-          <FaBroadcastTower /> {isLive ? 'LIVE · LiveKit' : 'LiveKit ready'}
+          <FaBroadcastTower /> {isLive ? 'LIVE' : 'Ready'}
         </span>
       </header>
 
@@ -458,7 +437,7 @@ const CreatorLiveConnectedWorkspace = ({
               <>
                 <div className="cbf-meter">
                   <div className="cbf-meter-label">
-                    <span>Microphone level</span>
+                    <span>Microphone</span>
                     <span>{microphoneReady ? 'Ready' : 'Not tested'}</span>
                   </div>
                   <div className="cbf-meter-track">
@@ -477,7 +456,7 @@ const CreatorLiveConnectedWorkspace = ({
                       onClick={startMicTest}
                       disabled={micState === 'requesting'}
                     >
-                      <FaMicrophone /> {micState === 'requesting' ? 'Requesting...' : 'Test microphone'}
+                      <FaMicrophone /> {micState === 'requesting' ? 'Checking...' : 'Test microphone'}
                     </button>
                   )}
                 </div>
@@ -489,7 +468,7 @@ const CreatorLiveConnectedWorkspace = ({
                 <div className="cbf-item-meta">
                   <span>{presence.listenerCount || 0} listening</span>
                   <span>Peak {presence.peakListeners || 0}</span>
-                  <span>{presence.creatorConnected ? 'Creator connected' : 'Checking connection'}</span>
+                  <span>{presence.creatorConnected ? 'Connected' : 'Checking connection'}</span>
                 </div>
                 <div className="cbf-actions">
                   <button type="button" className="cbf-button" onClick={reconnectMicrophone} disabled={goingLive}>
@@ -505,20 +484,20 @@ const CreatorLiveConnectedWorkspace = ({
         </section>
 
         <section className="cbf-card">
-          <h2>{isLive ? 'Live broadcast' : 'Broadcast setup'}</h2>
+          <h2>{isLive ? 'Live now' : 'Broadcast details'}</h2>
           <p>
             {isLive
-              ? 'The broadcast lifecycle is controlled by the Echoo backend.'
+              ? currentLiveBroadcast?.title
               : preparedBroadcastId
-                ? 'This scheduled broadcast is using the same studio as Go Live Now.'
-                : 'Save the setup, test the microphone and start when you are ready.'}
+                ? 'Your scheduled broadcast is ready in this studio.'
+                : 'These details are saved automatically when you go live.'}
           </p>
 
           {!isLive && stations.length === 0 ? (
             <div className="cbf-empty" style={{ marginTop: 20 }}>
               <FaBroadcastTower />
-              <strong>No station yet</strong>
-              <p>Create your station once in the Stations workspace.</p>
+              <strong>Create a station first</strong>
+              <p>Stations are created from the Stations page.</p>
               <button type="button" className="cbf-button primary" onClick={() => onNavigate?.('Stations')}>
                 Open Stations
               </button>
@@ -572,33 +551,28 @@ const CreatorLiveConnectedWorkspace = ({
 
               <div className="cbf-checklist">
                 <div className={`cbf-check ${formReady ? 'complete' : ''}`}>
-                  <span><FaCheck /></span> Choose a station and title
+                  <span><FaCheck /></span> Station and title
                 </div>
                 <div className={`cbf-check ${microphoneReady ? 'complete' : ''}`}>
-                  <span><FaCheck /></span> Test your microphone
-                </div>
-                <div className={`cbf-check ${backendReady ? 'complete' : ''}`}>
-                  <span><FaCheck /></span> Save broadcast to Echoo
+                  <span><FaCheck /></span> Microphone ready
                 </div>
               </div>
 
               <div className="cbf-actions">
-                <button type="button" className="cbf-button" onClick={saveSetup} disabled={!formReady || saving}>
-                  <FaSave /> {saving ? 'Saving...' : 'Save setup'}
-                </button>
-                <button type="button" className="cbf-button primary" onClick={goLive} disabled={!formReady || !microphoneReady || goingLive}>
-                  <FaBroadcastTower /> {goingLive ? 'Starting...' : 'Go live'}
+                <button
+                  type="button"
+                  className="cbf-button primary"
+                  onClick={goLive}
+                  disabled={!formReady || !microphoneReady || goingLive || saving}
+                >
+                  <FaBroadcastTower /> {goingLive || saving ? 'Starting...' : 'Go live'}
                 </button>
               </div>
-
-              <p className="cbf-note">
-                Microphone testing stays on this device. Echoo publishes only after Go live, then confirms the broadcast live after the creator is connected to LiveKit.
-              </p>
             </>
           ) : (
             <div className="cbf-message success">
               <strong>{currentLiveBroadcast.title}</strong><br />
-              LiveKit direct audio is active. Listeners join the same room with receive-only permissions.
+              Your microphone is live and listeners can join now.
             </div>
           )}
 
