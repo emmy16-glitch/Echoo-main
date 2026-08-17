@@ -1,13 +1,16 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FaBroadcastTower,
   FaCalendarAlt,
   FaEdit,
   FaEllipsisH,
+  FaImage,
   FaMicrophone,
   FaPlus,
   FaSave,
+  FaTimes,
   FaTrash,
+  FaUpload,
   FaUsers,
 } from 'react-icons/fa';
 
@@ -34,9 +37,14 @@ const EMPTY_FORM = {
   category: 'Other',
   description: '',
   tags: '',
-  coverArt: '',
+  logoFile: null,
+  logoPreview: '',
+  removeLogo: false,
   isPublic: true,
 };
+
+const MAX_LOGO_SIZE = 5 * 1024 * 1024;
+const LOGO_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
   const [stations, setStations] = useState([]);
@@ -49,6 +57,7 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
   const [deletingId, setDeletingId] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const logoInputRef = useRef(null);
 
   const loadStations = useCallback(async () => {
     try {
@@ -87,11 +96,16 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
     onNavigate?.('Broadcast');
   };
 
+  const resetLogoInput = () => {
+    if (logoInputRef.current) logoInputRef.current.value = '';
+  };
+
   const closeForm = () => {
     if (saving) return;
     setFormOpen(false);
     setEditingId('');
     setForm(EMPTY_FORM);
+    resetLogoInput();
   };
 
   const openCreate = () => {
@@ -100,6 +114,7 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
     setEditingId('');
     setMenuStationId('');
     setForm(EMPTY_FORM);
+    resetLogoInput();
     setFormOpen(true);
   };
 
@@ -113,14 +128,56 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
       category: CATEGORIES.includes(station.category) ? station.category : 'Other',
       description: station.description || '',
       tags: Array.isArray(station.tags) ? station.tags.join(', ') : '',
-      coverArt: station.coverArt || '',
+      logoFile: null,
+      logoPreview: station.logo || station.coverArt || '',
+      removeLogo: false,
       isPublic: station.isPublic !== false,
     });
+    resetLogoInput();
     setFormOpen(true);
   };
 
   const updateField = (field, value) => {
     setForm((current) => ({ ...current, [field]: value }));
+  };
+
+  const handleLogoFile = (event) => {
+    const file = event.target.files?.[0] || null;
+    if (!file) return;
+
+    if (!LOGO_TYPES.has(file.type)) {
+      setError('Station logo must be a JPG, PNG or WebP image.');
+      resetLogoInput();
+      return;
+    }
+
+    if (file.size > MAX_LOGO_SIZE) {
+      setError('Station logo must be 5 MB or smaller.');
+      resetLogoInput();
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setForm((current) => ({
+        ...current,
+        logoFile: file,
+        logoPreview: typeof reader.result === 'string' ? reader.result : '',
+        removeLogo: false,
+      }));
+      setError('');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const removeLogo = () => {
+    setForm((current) => ({
+      ...current,
+      logoFile: null,
+      logoPreview: '',
+      removeLogo: true,
+    }));
+    resetLogoInput();
   };
 
   const submitStation = async (event) => {
@@ -132,7 +189,8 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
       category: form.category,
       description: form.description.trim(),
       tags: form.tags.split(',').map((tag) => tag.trim()).filter(Boolean),
-      coverArt: form.coverArt.trim() || null,
+      logoFile: form.logoFile,
+      removeLogo: form.removeLogo,
       isPublic: form.isPublic,
     };
 
@@ -161,6 +219,7 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
       setFormOpen(false);
       setEditingId('');
       setForm(EMPTY_FORM);
+      resetLogoInput();
     } catch (saveError) {
       setError(saveError?.message || 'Could not save the station.');
     } finally {
@@ -234,7 +293,38 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
             <label><span>Station name</span><input value={form.name} maxLength={100} placeholder="e.g. Layers of Truth" onChange={(event) => updateField('name', event.target.value)} required /></label>
             <label><span>Category</span><select value={form.category} onChange={(event) => updateField('category', event.target.value)}>{CATEGORIES.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
             <label className="wide"><span>Description</span><textarea value={form.description} maxLength={2000} placeholder="What is this station about?" onChange={(event) => updateField('description', event.target.value)} /></label>
-            <label className="wide"><span>Cover image URL</span><input value={form.coverArt} placeholder="Optional HTTPS image URL" onChange={(event) => updateField('coverArt', event.target.value)} /></label>
+
+            <div className="est-logo-field wide">
+              <div className="est-logo-copy">
+                <span>Station logo <em>Optional</em></span>
+                <p>Upload the logo or brand image listeners should recognize. It will appear across the station, Broadcast Studio and listener-facing station views.</p>
+              </div>
+              <div className="est-logo-picker">
+                <div className={`est-logo-preview ${form.logoPreview ? 'has-image' : ''}`}>
+                  {form.logoPreview
+                    ? <img src={form.logoPreview} alt="Station logo preview" />
+                    : <FaImage />}
+                </div>
+                <div className="est-logo-actions">
+                  <input
+                    ref={logoInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={handleLogoFile}
+                  />
+                  <button type="button" onClick={() => logoInputRef.current?.click()}>
+                    <FaUpload /> {form.logoPreview ? 'Change logo' : 'Upload logo'}
+                  </button>
+                  {form.logoPreview && (
+                    <button type="button" className="remove" onClick={removeLogo}>
+                      <FaTimes /> Remove
+                    </button>
+                  )}
+                  <small>JPG, PNG or WebP · max 5 MB</small>
+                </div>
+              </div>
+            </div>
+
             <label><span>Tags</span><input value={form.tags} placeholder="faith, teaching, inspiration" onChange={(event) => updateField('tags', event.target.value)} /></label>
             <label className="est-public"><input type="checkbox" checked={form.isPublic} onChange={(event) => updateField('isPublic', event.target.checked)} /><span>Public station</span></label>
           </div>
@@ -266,7 +356,9 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
             return (
               <article className={`est-card ${isCurrentLive ? 'live' : ''}`} key={station.id}>
                 <div className="est-art">
-                  {station.coverArt ? <img src={station.coverArt} alt="" /> : <FaBroadcastTower />}
+                  {station.logo || station.coverArt
+                    ? <img src={station.logo || station.coverArt} alt={`${station.name} logo`} />
+                    : <FaBroadcastTower />}
                   {isCurrentLive && <span>LIVE</span>}
                 </div>
                 <div className="est-body">
