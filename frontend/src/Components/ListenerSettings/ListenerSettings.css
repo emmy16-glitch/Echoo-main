@@ -111,7 +111,79 @@
   font-size: 13px;
 }
 
-.ls-card label:not(.ls-toggle) {
+.ls-profile-photo-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px;
+  border: 1px solid #e5eaf1;
+  border-radius: 14px;
+  background: #f9fbff;
+}
+
+.ls-profile-photo {
+  position: relative;
+  width: 70px;
+  height: 70px;
+  flex: 0 0 70px;
+  display: grid !important;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid #d7e1ee;
+  border-radius: 50%;
+  background: #eef4ff;
+  color: #1769ff;
+  cursor: pointer;
+}
+
+.ls-profile-photo img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.ls-profile-photo > span {
+  position: absolute;
+  right: 1px;
+  bottom: 1px;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #1769ff;
+  color: #fff;
+  font-size: 10px;
+}
+
+.ls-profile-photo-row > div {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.ls-profile-photo-row strong {
+  color: #101828;
+  font-size: 14px;
+}
+
+.ls-profile-photo-row small {
+  color: #667085;
+  font-size: 12px;
+}
+
+.ls-photo-action {
+  width: fit-content;
+  margin-top: 3px;
+  color: #1769ff;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.ls-card label:not(.ls-toggle):not(.ls-profile-photo):not(.ls-photo-action) {
   display: grid;
   gap: 7px;
 }
@@ -267,5 +339,9 @@
 
   .ls-card > button {
     width: 100%;
+  }
+
+  .ls-profile-photo-row {
+    align-items: flex-start;
   }
 }
