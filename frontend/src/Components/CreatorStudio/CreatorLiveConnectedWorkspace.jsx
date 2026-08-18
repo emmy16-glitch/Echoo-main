@@ -131,6 +131,25 @@ const CreatorLiveConnectedWorkspace = ({
           return;
         }
 
+        // If the browser refreshed or briefly disconnected after /start created
+        // the LiveKit room but before /confirm-live completed, recover the same
+        // broadcast instead of creating a second one that the single-live guard
+        // would correctly reject.
+        const interruptedStart =
+          realBroadcasts.find((item) => item.status === 'starting') || null;
+
+        if (interruptedStart) {
+          setSavedBroadcast(interruptedStart);
+          setStationId(interruptedStart.stationId || '');
+          setTitle(interruptedStart.title || '');
+          setDescription(interruptedStart.description || '');
+          setMode('now');
+          sessionStorage.setItem('echooPreparedBroadcastId', String(interruptedStart.id));
+          sessionStorage.setItem('echooBroadcastMode', 'now');
+          setMessage('Live start was interrupted. Test your microphone, then resume going live.');
+          return;
+        }
+
         if (preparedBroadcastId) {
           let prepared = realBroadcasts.find(
             (item) => String(item.id) === String(preparedBroadcastId)
@@ -283,6 +302,7 @@ const CreatorLiveConnectedWorkspace = ({
 
     let broadcast = null;
     let backendStarted = false;
+    let publisherConnected = false;
 
     try {
       setGoingLive(true);
@@ -290,9 +310,19 @@ const CreatorLiveConnectedWorkspace = ({
       setMessage('Opening your live room...');
 
       broadcast = await prepareImmediateBroadcast();
-      const response = await batch3Service.startBroadcast(broadcast.id);
-      backendStarted = true;
-      const connection = response?.livekit;
+
+      let connection = null;
+      if (broadcast.status === 'starting') {
+        // Resume the room prepared by a previous interrupted start.
+        connection = await batch3Service.getLiveKitToken(broadcast.id);
+        backendStarted = true;
+        setMessage('Reconnecting to your prepared live room...');
+      } else {
+        const response = await batch3Service.startBroadcast(broadcast.id);
+        backendStarted = true;
+        connection = response?.livekit;
+      }
+
       const liveKitUrl = connection?.livekitUrl || import.meta.env.VITE_LIVEKIT_URL;
 
       if (!connection?.token || !liveKitUrl) {
@@ -305,8 +335,20 @@ const CreatorLiveConnectedWorkspace = ({
         broadcastId: broadcast.id,
         mediaTrack,
       });
+      publisherConnected = true;
 
-      const confirmed = await batch3Service.confirmBroadcastLive(broadcast.id);
+      let confirmed = null;
+      try {
+        confirmed = await batch3Service.confirmBroadcastLive(broadcast.id);
+      } catch (confirmError) {
+        // confirm-live is idempotent once the backend reaches live. A single
+        // retry prevents a lost HTTP response from tearing down a publisher
+        // that the backend already accepted as live.
+        if (!publisherConnected) throw confirmError;
+        await new Promise((resolve) => window.setTimeout(resolve, 350));
+        confirmed = await batch3Service.confirmBroadcastLive(broadcast.id);
+      }
+
       const liveBroadcast = confirmed?.data || { ...broadcast, status: 'live', isLive: true };
 
       setSavedBroadcast(liveBroadcast);
@@ -668,7 +710,7 @@ const CreatorLiveConnectedWorkspace = ({
             <>
               <div className={`ebsx-step ${microphoneReady ? 'done' : ''}`}><b>3</b><div><strong>Test microphone</strong><p>Make sure the host input is ready.</p><button type="button" className="ebsx-outline-button full" onClick={testMicrophone}><FaMicrophone /> {microphoneReady ? 'Mic ready — test again' : 'Test microphone'}</button></div></div>
               <div className={`ebsx-step ${formReady && microphoneReady ? 'done' : ''}`}><b>4</b><div><strong>Ready</strong><p>Station, details and microphone must be ready.</p></div></div>
-              <div className="ebsx-step final"><b>5</b><div><strong>Go live</strong><p>Your mixer output will be published to listeners.</p><button type="button" className="ebsx-blue-button full" onClick={goLive} disabled={!formReady || !microphoneReady || goingLive || saving}><FaBroadcastTower /> {goingLive || saving ? 'Starting...' : 'Go live now'}</button><button type="button" className="ebsx-schedule-button full" onClick={() => changeMode('later')}><FaCalendarAlt /> Schedule for later</button></div></div>
+              <div className="ebsx-step final"><b>5</b><div><strong>Go live</strong><p>Your mixer output will be published to listeners.</p><button type="button" className="ebsx-blue-button full" onClick={goLive} disabled={!formReady || !microphoneReady || goingLive || saving}><FaBroadcastTower /> {goingLive || saving ? 'Starting...' : savedBroadcast?.status === 'starting' ? 'Resume going live' : 'Go live now'}</button><button type="button" className="ebsx-schedule-button full" onClick={() => changeMode('later')}><FaCalendarAlt /> Schedule for later</button></div></div>
             </>
           ) : (
             <>
