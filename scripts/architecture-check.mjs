@@ -39,6 +39,15 @@ const forbidFile = (relative) => {
   'frontend/src/Components/CreatorStudio/CreatorContentExact.css',
   'frontend/src/Components/ListenerLiveExperience/ListenerRealLiveRoom.jsx',
   'frontend/src/Components/ListenerLiveExperience/LiveKitListenerPlayer.jsx',
+  'frontend/src/Components/EchooSystem/EchooExperienceOrchestrator.jsx',
+  'frontend/src/Components/Assets/echoo-patterns/signal-wave.svg',
+  'frontend/src/Components/Assets/echoo-patterns/layered-waves.svg',
+  'frontend/src/Components/Assets/echoo-patterns/circle-scatter.svg',
+  'frontend/src/Components/Assets/echoo-patterns/blob-scene.svg',
+  'frontend/src/styles/echoo-experience-2026.css',
+  'frontend/src/styles/echoo-component-refinement-2026.css',
+  'frontend/src/styles/echoo-auth-motion-2026.css',
+  'frontend/src/styles/echoo-responsive-2026.css',
   'frontend/src/services/echooMixerService.js',
   'frontend/src/services/livekitPublisher.js',
   'frontend/src/services/realtimeService.js',
@@ -104,6 +113,31 @@ for (const file of frontendFiles) {
   for (const token of forbiddenRuntimeTokens) {
     if (source.includes(token)) failures.push(`Forbidden production mock token "${token}" found in ${file}`);
   }
+}
+
+const appSource = read('frontend/src/App.jsx');
+const mainSource = read('frontend/src/main.jsx');
+const experienceSource = read('frontend/src/Components/EchooSystem/EchooExperienceOrchestrator.jsx');
+for (const requiredExperienceToken of [
+  'EchooExperienceOrchestrator',
+  '<EchooExperienceOrchestrator />',
+]) {
+  if (!appSource.includes(requiredExperienceToken)) {
+    failures.push(`Product-wide experience orchestration is missing from App.jsx: ${requiredExperienceToken}`);
+  }
+}
+for (const experienceStylesheet of [
+  'echoo-experience-2026.css',
+  'echoo-component-refinement-2026.css',
+  'echoo-auth-motion-2026.css',
+  'echoo-responsive-2026.css',
+]) {
+  if (!mainSource.includes(experienceStylesheet)) {
+    failures.push(`Product-wide Echoo design layer is not loaded: ${experienceStylesheet}`);
+  }
+}
+if (!experienceSource.includes('IntersectionObserver') || !experienceSource.includes('prefers-reduced-motion')) {
+  failures.push('Echoo experience orchestration must keep in-view motion and reduced-motion accessibility.');
 }
 
 const routeIndex = read('backend/src/routes/index.js');
@@ -185,5 +219,6 @@ console.log('Scheduling authority: unified Broadcast Studio');
 console.log('Live concurrency: one active broadcast per creator account');
 console.log('Studio mixer: Host Mic + Guest Mic + Music/FX -> Master Output -> LiveKit');
 console.log('Live chat: synchronized CreatorLiveChatPanel + listener room');
+console.log('Experience system: shared motion + premium component layer + Echoo SVG geometry + strict responsive pass');
 console.log('Live media path: Creator mixer -> LiveKit -> Listener');
 console.log('Synthetic analytics/search data guard: active');
