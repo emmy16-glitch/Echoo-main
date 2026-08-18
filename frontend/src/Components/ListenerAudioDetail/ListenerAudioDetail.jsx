@@ -15,6 +15,7 @@ import audioService from '../../services/audioService';
 import batch1Service from '../../services/batch1Service';
 import downloadService from '../../services/downloadService';
 import '../../styles/listener-reference-pages.css';
+import '../../styles/listener-reference-pages-extended.css';
 
 const formatTime = (seconds) => {
   const total = Math.max(0, Math.floor(Number(seconds) || 0));
