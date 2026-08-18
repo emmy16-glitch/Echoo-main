@@ -2,6 +2,7 @@ import {
   Room,
   Track,
 } from 'livekit-client';
+import { resolveLiveKitUrl } from './livekitUrl.js';
 
 let activeRoom = null;
 let activeBroadcastId = null;
@@ -99,7 +100,9 @@ export const startLiveKitPublishing = async ({
   broadcastId,
   mediaTrack = null,
 }) => {
-  if (!url) {
+  const resolvedUrl = resolveLiveKitUrl(url);
+
+  if (!resolvedUrl) {
     throw new Error('VITE_LIVEKIT_URL is not configured.');
   }
 
@@ -112,7 +115,7 @@ export const startLiveKitPublishing = async ({
   const room = new Room();
 
   try {
-    await room.connect(url, token);
+    await room.connect(resolvedUrl, token);
 
     let publication;
     let mode = 'microphone';
@@ -147,6 +150,7 @@ export const startLiveKitPublishing = async ({
       identity: room.localParticipant.identity,
       trackSid: publication?.trackSid || null,
       mode,
+      url: resolvedUrl,
     };
 
     console.log('[Echoo LiveKit] publishing', result);
