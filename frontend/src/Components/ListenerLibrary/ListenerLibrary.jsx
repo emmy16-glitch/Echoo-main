@@ -3,7 +3,6 @@ import { useNavigate, useOutletContext } from 'react-router-dom';
 import {
   FaBookOpen,
   FaCheck,
-  FaEllipsisH,
   FaHeadphones,
   FaPause,
   FaPlay,
@@ -309,7 +308,6 @@ const ListenerLibrary = () => {
                 <article className="ref-playlist-card" key={idOf(playlist)}>
                   <div className="ref-playlist-art">{playlist.coverArt ? <img src={playlist.coverArt} alt="" /> : <FaBookOpen />}</div>
                   <div><strong>{playlist.name}</strong><span>{playlist.trackCount || 0} tracks</span><p>{playlist.description || 'Private Echoo playlist.'}</p></div>
-                  <button type="button" title="Playlist options"><FaEllipsisH /></button>
                 </article>
               ))}
             </div>
