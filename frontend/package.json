@@ -7,7 +7,10 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "cf:login": "npx wrangler@latest login",
+    "cf:create": "npx wrangler@latest pages project create echoo-test --production-branch integration/echoo-core-cleanup",
+    "cf:deploy": "npm run build && npx wrangler@latest pages deploy dist --project-name echoo-test --branch integration/echoo-core-cleanup"
   },
   "dependencies": {
     "livekit-client": "^2.21.0",
