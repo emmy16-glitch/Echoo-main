@@ -1,0 +1,225 @@
+.echoo-emoji-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.echoo-emoji-trigger {
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid #dfe6ee;
+  border-radius: 10px;
+  background: #fff;
+  color: #5f6f86;
+  cursor: pointer;
+  transition: border-color .16s ease, background .16s ease, color .16s ease;
+}
+
+.echoo-emoji-trigger:hover,
+.echoo-emoji-trigger.active {
+  border-color: #9dbbf8;
+  background: #eef4ff;
+  color: #246bfe;
+}
+
+.echoo-emoji-picker {
+  position: absolute;
+  z-index: 80;
+  left: 0;
+  bottom: calc(100% + 9px);
+  width: 244px;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 5px;
+  padding: 10px;
+  border: 1px solid #dfe6ee;
+  border-radius: 13px;
+  background: #fff;
+  box-shadow: 0 18px 42px rgba(25, 46, 78, .16);
+}
+
+.echoo-emoji-option {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.echoo-emoji-option:hover,
+.echoo-emoji-option:focus-visible {
+  background: #eef4ff;
+  outline: none;
+}
+
+.llr-composer {
+  position: relative;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.llr-composer .echoo-emoji-trigger {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  border-radius: 12px;
+}
+
+.llr-message-actions button.active-reaction {
+  border-color: #a9c3f7;
+  background: #edf4ff;
+  color: #155eef;
+}
+
+.ebsx-chat-form {
+  position: relative;
+  grid-template-columns: 38px minmax(0, 1fr) 38px;
+}
+
+.ebsx-chat-form .echoo-emoji-trigger {
+  width: 38px;
+  min-width: 38px;
+  height: 38px;
+  border-radius: 9px;
+}
+
+.ebsx-chat-form .echoo-emoji-picker {
+  left: 0;
+}
+
+.ebsx-chat-row > div:last-child {
+  min-width: 0;
+}
+
+.ebsx-chat-meta {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.ebsx-chat-meta strong {
+  color: #263850;
+}
+
+.ebsx-chat-meta small {
+  color: #95a1b2;
+  font-size: 8px;
+}
+
+.ebsx-chat-pin-label {
+  display: inline-flex;
+  align-items: center;
+  min-height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #edf4ff;
+  color: #246bfe;
+  font-size: 7px;
+  font-style: normal;
+  font-weight: 900;
+  letter-spacing: .06em;
+}
+
+.ebsx-chat-reactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 7px;
+}
+
+.ebsx-chat-reactions button {
+  min-height: 25px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 7px;
+  border: 1px solid #e1e7ef;
+  border-radius: 999px;
+  background: #fff;
+  color: #627188;
+  font-size: 9px;
+  cursor: pointer;
+}
+
+.ebsx-chat-reactions button:hover {
+  border-color: #a9c3f7;
+  background: #f4f8ff;
+  color: #246bfe;
+}
+
+.ebsx-chat-reactions button:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+
+.ebsx-chat-moderation {
+  display: flex;
+  gap: 7px;
+  margin-top: 7px;
+}
+
+.ebsx-chat-moderation button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #7a889d;
+  font-size: 8px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ebsx-chat-moderation button:hover {
+  color: #246bfe;
+}
+
+.ebsx-chat-moderation button.danger:hover {
+  color: #d92d20;
+}
+
+.ebsx-chat-realtime {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #7f8ca0;
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.ebsx-chat-realtime i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #f79009;
+}
+
+.ebsx-chat-realtime.connected i {
+  background: #12b76a;
+}
+
+@media (max-width: 560px) {
+  .echoo-emoji-picker {
+    width: 224px;
+    grid-template-columns: repeat(6, 1fr);
+  }
+
+  .llr-composer {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .llr-composer > button[type='submit'] {
+    grid-column: 1 / -1;
+  }
+}
