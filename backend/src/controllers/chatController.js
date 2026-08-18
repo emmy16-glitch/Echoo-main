@@ -2,6 +2,8 @@ import ChatMessage from '../models/ChatMessage.js';
 import Broadcast from '../models/Broadcast.js';
 import User from '../models/User.js';
 
+const ALLOWED_CHAT_REACTIONS = new Set(['👍', '❤️', '🔥', '👏', '😂', '🎉']);
+
 // Send message
 export async function sendMessage(req, res, next) {
   try {
@@ -165,44 +167,64 @@ export async function deleteMessage(req, res, next) {
   }
 }
 
-// Add reaction to message
+// Add or remove a quick reaction on a live-chat message.
 export async function addReaction(req, res, next) {
   try {
     const { messageId } = req.params;
-    const { emoji } = req.body;
+    const emoji = String(req.body?.emoji || '').trim();
     const userId = req.userId;
 
-    if (!emoji) {
+    if (!ALLOWED_CHAT_REACTIONS.has(emoji)) {
       return res.status(400).json({
-        error: { code: 'VALIDATION_ERROR', message: 'Emoji is required' }
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Unsupported chat reaction',
+        },
       });
     }
 
-    const message = await ChatMessage.findById(messageId);
+    const message = await ChatMessage.findOne({
+      _id: messageId,
+      isDeleted: false,
+    });
     if (!message) {
       return res.status(404).json({
         error: { code: 'NOT_FOUND', message: 'Message not found' }
       });
     }
 
-    // Check if user already reacted with this emoji
+    const broadcast = await Broadcast.findById(message.broadcastId).select('status');
+    if (!broadcast) {
+      return res.status(404).json({
+        error: { code: 'NOT_FOUND', message: 'Broadcast not found' }
+      });
+    }
+
+    if (!['live', 'scheduled'].includes(broadcast.status)) {
+      return res.status(400).json({
+        error: { code: 'INVALID_STATE', message: 'Chat reactions are closed for this broadcast' }
+      });
+    }
+
     const existingReaction = message.reactions.find(
-      r => r.emoji === emoji && r.userId.toString() === userId.toString()
+      (reaction) =>
+        reaction.emoji === emoji &&
+        String(reaction.userId) === String(userId)
     );
 
     if (existingReaction) {
-      // Remove reaction
       message.reactions = message.reactions.filter(
-        r => !(r.emoji === emoji && r.userId.toString() === userId.toString())
+        (reaction) => !(
+          reaction.emoji === emoji &&
+          String(reaction.userId) === String(userId)
+        )
       );
     } else {
-      // Add reaction
       message.reactions.push({ emoji, userId });
     }
 
     await message.save();
 
-    // Emit reaction event via Socket.IO
     if (req.app.get('io')) {
       const io = req.app.get('io');
       io.to(`broadcast:${message.broadcastId}`).emit('chat:reaction', {
