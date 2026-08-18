@@ -203,15 +203,6 @@ const CreatorStudioHome = ({
                 <button type="button" className="primary" onClick={() => onNavigate?.('Stations')}>
                   <FaBroadcastTower /> Create station
                 </button>
-                <button
-                  type="button"
-                  className="primary dark"
-                  disabled={!stations.length}
-                  title={!stations.length ? 'Create a station first.' : ''}
-                  onClick={() => openBroadcast('now')}
-                >
-                  <FaMicrophone /> Start broadcast
-                </button>
                 <button type="button" onClick={onUpload}>
                   <FaCloudUploadAlt /> Upload audio
                 </button>
