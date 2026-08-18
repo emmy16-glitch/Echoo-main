@@ -8,7 +8,7 @@ export const jwtConfig = {
     algorithm: 'HS256',
   },
   refresh: {
-    secret: env.jwtSecret,
+    secret: env.jwtRefreshSecret,
     expiresIn: env.jwtRefreshExpiresIn,
     algorithm: 'HS256',
   },
