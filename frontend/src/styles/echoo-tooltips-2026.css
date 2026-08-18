@@ -1,9 +1,4 @@
-/*
- * Echoo global hover/focus labels.
- * One shared tooltip surface covers Creator + Listener controls, including
- * collapsed navigation rails and icon-only live/player actions.
- */
-
+/* Echoo global hover/focus labels. */
 .echoo-global-tooltip {
   position: fixed;
   z-index: 10000;
@@ -39,12 +34,6 @@
   visibility: visible;
   transform: translate3d(0, 0, 0) scale(1);
   transition-delay: 0s;
-}
-
-@media (hover: none), (pointer: coarse) {
-  .echoo-global-tooltip {
-    display: none !important;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
