@@ -72,6 +72,16 @@ const audioSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    coverArtMode: {
+      type: String,
+      enum: ['uploaded', 'generated'],
+      default: 'generated',
+    },
+    coverArtVariant: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
     genre: {
       type: String,
       enum: ECHOO_AUDIO_GENRES,
