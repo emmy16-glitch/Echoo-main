@@ -4,9 +4,7 @@ import {
   FaCalendarAlt,
   FaCheck,
   FaClock,
-  FaComments,
   FaMicrophone,
-  FaPaperPlane,
   FaShareAlt,
   FaStop,
   FaTimesCircle,
@@ -17,9 +15,9 @@ import {
 import EchoAmbient from '../EchooSystem/EchoAmbient';
 import EchoWave from '../EchooSystem/EchoWave';
 import CreatorAudioMixer from './CreatorAudioMixer';
+import CreatorLiveChatPanel from './CreatorLiveChatPanel';
 import batch2Service from '../../services/batch2Service';
 import batch3Service from '../../services/batch3Service';
-import batch4Service from '../../services/batch4Service';
 import {
   getEchooMixerOutputTrack,
   getEchooMixerState,
@@ -96,9 +94,6 @@ const CreatorLiveConnectedWorkspace = ({
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [elapsed, setElapsed] = useState(0);
-  const [chatMessages, setChatMessages] = useState([]);
-  const [chatText, setChatText] = useState('');
-  const [chatSending, setChatSending] = useState(false);
 
   const clearPreparedBroadcast = useCallback(() => {
     sessionStorage.removeItem('echooPreparedBroadcastId');
@@ -213,28 +208,6 @@ const CreatorLiveConnectedWorkspace = ({
       window.clearInterval(interval);
     };
   }, [currentLiveBroadcast?.id, currentLiveBroadcast?.startedAt, currentLiveBroadcast?.startTime]);
-
-  useEffect(() => {
-    if (!currentLiveBroadcast?.id) return undefined;
-
-    let active = true;
-    const loadMessages = async () => {
-      try {
-        const response = await batch4Service.getMessages(currentLiveBroadcast.id, { limit: 40 });
-        if (active) setChatMessages(Array.isArray(response?.data) ? response.data : []);
-      } catch {
-        // Chat recovery is best-effort while live audio remains primary.
-      }
-    };
-
-    const first = window.setTimeout(loadMessages, 0);
-    const interval = window.setInterval(loadMessages, 5000);
-    return () => {
-      active = false;
-      window.clearTimeout(first);
-      window.clearInterval(interval);
-    };
-  }, [currentLiveBroadcast?.id]);
 
   const selectedStation = useMemo(
     () => stations.find((station) => String(station.id) === String(stationId)) || null,
@@ -445,7 +418,6 @@ const CreatorLiveConnectedWorkspace = ({
       setCurrentLiveBroadcast(null);
       setSavedBroadcast(null);
       setElapsed(0);
-      setChatMessages([]);
       setPresence({ listenerCount: 0, peakListeners: 0, creatorConnected: false });
       setMixerState(getEchooMixerState());
       setTitle('');
@@ -496,23 +468,6 @@ const CreatorLiveConnectedWorkspace = ({
     sessionStorage.setItem('echooPreparedBroadcastId', String(broadcast.id));
     sessionStorage.setItem('echooBroadcastMode', 'now');
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const sendChat = async (event) => {
-    event.preventDefault();
-    const content = chatText.trim();
-    if (!content || !currentLiveBroadcast?.id || chatSending) return;
-
-    try {
-      setChatSending(true);
-      const response = await batch4Service.sendMessage(currentLiveBroadcast.id, content);
-      if (response?.data) setChatMessages((current) => [...current, response.data]);
-      setChatText('');
-    } catch (chatError) {
-      setError(chatError?.message || 'Could not send the chat message.');
-    } finally {
-      setChatSending(false);
-    }
   };
 
   const shareBroadcast = async () => {
@@ -600,23 +555,7 @@ const CreatorLiveConnectedWorkspace = ({
             </div>
 
             <div className="ebsx-live-lower">
-              <section className="ebsx-chat-card">
-                <div className="ebsx-card-head"><h2>Live chat</h2><span>{chatMessages.length}</span></div>
-                <div className="ebsx-chat-list">
-                  {chatMessages.length ? chatMessages.slice(-8).map((chat) => (
-                    <div className="ebsx-chat-row" key={chat.id || chat._id}>
-                      <div className="ebsx-chat-avatar">
-                        {chat.avatar ? <img src={chat.avatar} alt="" /> : String(chat.displayName || 'E').charAt(0)}
-                      </div>
-                      <div><strong>{chat.displayName || chat.username || 'Listener'}</strong><p>{chat.content}</p></div>
-                    </div>
-                  )) : <div className="ebsx-chat-empty"><FaComments /> No chat messages yet.</div>}
-                </div>
-                <form className="ebsx-chat-form" onSubmit={sendChat}>
-                  <input value={chatText} onChange={(event) => setChatText(event.target.value)} placeholder="Send a message..." />
-                  <button type="submit" disabled={chatSending || !chatText.trim()}><FaPaperPlane /></button>
-                </form>
-              </section>
+              <CreatorLiveChatPanel broadcastId={currentLiveBroadcast.id} />
 
               <section className="ebsx-activity-card">
                 <div className="ebsx-card-head"><h2>Listener activity</h2></div>
