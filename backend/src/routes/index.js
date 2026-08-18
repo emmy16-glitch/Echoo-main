@@ -21,7 +21,6 @@ import profileRoutes from './profileRoutes.js';
 import uploadRoutes from './uploadRoutes.js';
 import historyRoutes from './historyRoutes.js';
 import downloadsRoutes from './downloadsRoutes.js';
-import liveStudioRoutes from './liveStudioRoutes.js';
 import advancedPlayerRoutes from './advancedPlayerRoutes.js';
 import notificationRoutes from './notificationRoutes.js';
 
@@ -57,7 +56,6 @@ router.use('/profile', profileRoutes);
 router.use('/uploads', uploadRoutes);
 router.use('/history', historyRoutes);
 router.use('/downloads', downloadsRoutes);
-router.use('/live-studio', liveStudioRoutes);
 router.use('/player', advancedPlayerRoutes);
 router.use('/notifications', notificationRoutes);
 
