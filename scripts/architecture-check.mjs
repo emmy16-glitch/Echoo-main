@@ -30,6 +30,7 @@ const forbidFile = (relative) => {
   'frontend/src/Components/CreatorStudio/CreatorStudio.jsx',
   'frontend/src/Components/CreatorStudio/CreatorStudioHome.jsx',
   'frontend/src/Components/CreatorStudio/CreatorLiveConnectedWorkspace.jsx',
+  'frontend/src/Components/CreatorStudio/CreatorLiveChatPanel.jsx',
   'frontend/src/Components/CreatorStudio/CreatorAudioMixer.jsx',
   'frontend/src/Components/CreatorStudio/CreatorBroadcastStudioExact.css',
   'frontend/src/Components/CreatorStudio/CreatorStationsWorkspace.jsx',
@@ -160,10 +161,15 @@ if (!publisher.includes("name: 'echoo-studio-mix'") || !publisher.includes('medi
 }
 
 const broadcastStudio = read('frontend/src/Components/CreatorStudio/CreatorLiveConnectedWorkspace.jsx');
-for (const requiredStudioFeature of ['CreatorAudioMixer', 'Go live now', 'Schedule for later', 'Live chat']) {
+for (const requiredStudioFeature of ['CreatorAudioMixer', 'Go live now', 'Schedule for later']) {
   if (!broadcastStudio.includes(requiredStudioFeature)) {
     failures.push(`Broadcast Studio is missing: ${requiredStudioFeature}`);
   }
+}
+
+const creatorLiveChat = read('frontend/src/Components/CreatorStudio/CreatorLiveChatPanel.jsx');
+if (!broadcastStudio.includes('CreatorLiveChatPanel') || !creatorLiveChat.includes('Live chat')) {
+  failures.push('Broadcast Studio is missing the synchronized Live chat component.');
 }
 
 if (failures.length) {
@@ -178,5 +184,6 @@ console.log('Creator navigation: Home -> Stations -> Broadcast -> Audio -> Audie
 console.log('Scheduling authority: unified Broadcast Studio');
 console.log('Live concurrency: one active broadcast per creator account');
 console.log('Studio mixer: Host Mic + Guest Mic + Music/FX -> Master Output -> LiveKit');
+console.log('Live chat: synchronized CreatorLiveChatPanel + listener room');
 console.log('Live media path: Creator mixer -> LiveKit -> Listener');
 console.log('Synthetic analytics/search data guard: active');
