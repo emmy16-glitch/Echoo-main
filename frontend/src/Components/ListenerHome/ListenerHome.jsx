@@ -15,6 +15,24 @@ import { buildMediaUrl } from '../../services/api';
 import '../../styles/listener-reference-pages.css';
 
 const HOME_SYNC_INTERVAL_MS = 15000;
+const HOME_CORE_TIMEOUT_MS = 10000;
+
+const withTimeout = async (promise, label, timeoutMs = HOME_CORE_TIMEOUT_MS) => {
+  let timeoutId;
+
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timeoutId = window.setTimeout(() => {
+          reject(new Error(`${label} took too long to respond.`));
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeoutId) window.clearTimeout(timeoutId);
+  }
+};
 
 const idOf = (item) => item?.id || item?._id || item?.trackId || null;
 const initials = (value) => String(value || 'Echoo')
@@ -73,18 +91,35 @@ const ListenerHome = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  const loadFollowState = useCallback(() => {
+    Promise.allSettled([
+      withTimeout(followService.getFollowingCreators(), 'Creator follows'),
+      withTimeout(followService.getFollowingStations(), 'Station follows'),
+    ]).then(([creatorsResult, stationsFollowedResult]) => {
+      if (creatorsResult.status === 'fulfilled') {
+        setFollowingCreators(new Set(
+          (creatorsResult.value?.data || []).map((creator) => String(creator.id)).filter(Boolean)
+        ));
+      }
+
+      if (stationsFollowedResult.status === 'fulfilled') {
+        setFollowingStations(new Set(
+          (stationsFollowedResult.value?.data || []).map((station) => String(station.id)).filter(Boolean)
+        ));
+      }
+    });
+  }, []);
+
   const load = useCallback(async ({ silent = false } = {}) => {
     try {
       if (!silent) setLoading(true);
       if (!silent) setError('');
 
-      const [dashboardResult, audioResult, discoveryResult, creatorsResult, stationsFollowedResult] =
+      const [dashboardResult, audioResult, discoveryResult] =
         await Promise.allSettled([
-          listenerService.getDashboard(),
-          audioService.getAll({ public: true, page: 1, limit: 60 }),
-          batch3Service.getDiscovery(),
-          followService.getFollowingCreators(),
-          followService.getFollowingStations(),
+          withTimeout(listenerService.getDashboard(), 'Listener dashboard'),
+          withTimeout(audioService.getAll({ public: true, page: 1, limit: 60 }), 'Public audio'),
+          withTimeout(batch3Service.getDiscovery(), 'Listener discovery'),
         ]);
 
       if (dashboardResult.status === 'fulfilled') {
@@ -101,22 +136,11 @@ const ListenerHome = () => {
         setStations(Array.isArray(discoveryResult.value?.stations) ? discoveryResult.value.stations : []);
         setLive(Array.isArray(discoveryResult.value?.live) ? discoveryResult.value.live : []);
       }
-
-      if (creatorsResult.status === 'fulfilled') {
-        setFollowingCreators(new Set(
-          (creatorsResult.value?.data || []).map((creator) => String(creator.id)).filter(Boolean)
-        ));
-      }
-
-      if (stationsFollowedResult.status === 'fulfilled') {
-        setFollowingStations(new Set(
-          (stationsFollowedResult.value?.data || []).map((station) => String(station.id)).filter(Boolean)
-        ));
-      }
     } finally {
       if (!silent) setLoading(false);
+      loadFollowState();
     }
-  }, []);
+  }, [loadFollowState]);
 
   useEffect(() => {
     load();
