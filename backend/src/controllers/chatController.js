@@ -17,7 +17,6 @@ export async function sendMessage(req, res, next) {
       });
     }
 
-    // Check if broadcast exists and is live
     const broadcast = await Broadcast.findById(broadcastId);
     if (!broadcast) {
       return res.status(404).json({
@@ -31,7 +30,6 @@ export async function sendMessage(req, res, next) {
       });
     }
 
-    // Get user info
     const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({
@@ -39,11 +37,10 @@ export async function sendMessage(req, res, next) {
       });
     }
 
-    // Check for spam (simple rate limit - would be more sophisticated in production)
     const recentMessages = await ChatMessage.countDocuments({
       userId,
       broadcastId,
-      createdAt: { $gte: new Date(Date.now() - 5001) }, // Last 5 seconds
+      createdAt: { $gte: new Date(Date.now() - 5001) },
     });
 
     if (recentMessages >= 3) {
@@ -63,11 +60,8 @@ export async function sendMessage(req, res, next) {
     });
 
     await message.save();
-
-    // Populate user info for response
     await message.populate('userId', 'username displayName avatar');
 
-    // Emit via Socket.IO if available
     if (req.app.get('io')) {
       const io = req.app.get('io');
       io.to(`broadcast:${broadcastId}`).emit('chat:message', {
@@ -121,35 +115,41 @@ export async function getMessages(req, res, next) {
   }
 }
 
-// Delete message (moderation)
+// Live-chat deletion is moderation: only the broadcast owner can remove messages.
 export async function deleteMessage(req, res, next) {
   try {
     const { messageId } = req.params;
     const userId = req.userId;
 
-    const message = await ChatMessage.findById(messageId);
+    const message = await ChatMessage.findOne({
+      _id: messageId,
+      isDeleted: false,
+    });
     if (!message) {
       return res.status(404).json({
         error: { code: 'NOT_FOUND', message: 'Message not found' }
       });
     }
 
-    // Check if user is the message author or broadcast owner
-    const broadcast = await Broadcast.findById(message.broadcastId);
-    const isOwner = broadcast && broadcast.creator.toString() === userId.toString();
-    const isAuthor = message.userId.toString() === userId.toString();
+    const broadcast = await Broadcast.findById(message.broadcastId).select('creator');
+    const isOwner = broadcast && String(broadcast.creator) === String(userId);
 
-    if (!isOwner && !isAuthor) {
+    if (!isOwner) {
       return res.status(403).json({
-        error: { code: 'FORBIDDEN', message: 'You do not have permission to delete this message' }
+        error: {
+          code: 'FORBIDDEN',
+          message: 'Only the broadcast creator can remove live-chat messages',
+        }
       });
     }
 
     message.isDeleted = true;
     message.deletedBy = userId;
+    message.isPinned = false;
+    message.pinnedBy = null;
+    message.pinnedAt = null;
     await message.save();
 
-    // Emit delete event via Socket.IO
     if (req.app.get('io')) {
       const io = req.app.get('io');
       io.to(`broadcast:${message.broadcastId}`).emit('chat:messageDeleted', {
@@ -159,7 +159,7 @@ export async function deleteMessage(req, res, next) {
     }
 
     return res.status(200).json({
-      data: { message: 'Message deleted successfully' },
+      data: { message: 'Message removed from live chat' },
       timestamp: new Date().toISOString()
     });
   } catch (error) {
@@ -255,14 +255,16 @@ export async function pinMessage(req, res, next) {
     const { messageId } = req.params;
     const userId = req.userId;
 
-    const message = await ChatMessage.findById(messageId);
+    const message = await ChatMessage.findOne({
+      _id: messageId,
+      isDeleted: false,
+    });
     if (!message) {
       return res.status(404).json({
         error: { code: 'NOT_FOUND', message: 'Message not found' }
       });
     }
 
-    // Check if user is broadcast owner
     const broadcast = await Broadcast.findById(message.broadcastId);
     if (!broadcast || broadcast.creator.toString() !== userId.toString()) {
       return res.status(403).json({
@@ -275,7 +277,6 @@ export async function pinMessage(req, res, next) {
     message.pinnedAt = message.isPinned ? new Date() : null;
     await message.save();
 
-    // Emit pin event via Socket.IO
     if (req.app.get('io')) {
       const io = req.app.get('io');
       io.to(`broadcast:${message.broadcastId}`).emit('chat:messagePinned', {
@@ -337,7 +338,7 @@ export async function getChatStats(req, res, next) {
     const recentMessages = await ChatMessage.find({
       broadcastId,
       isDeleted: false,
-      createdAt: { $gte: new Date(Date.now() - 3600000) }, // Last hour
+      createdAt: { $gte: new Date(Date.now() - 3600000) },
     }).countDocuments();
 
     return res.status(200).json({
@@ -345,7 +346,7 @@ export async function getChatStats(req, res, next) {
         totalMessages,
         uniqueUsers: uniqueUsers.length,
         recentMessages,
-        activeNow: 0, // Would come from WebSocket presence
+        activeNow: 0,
       },
       timestamp: new Date().toISOString()
     });
