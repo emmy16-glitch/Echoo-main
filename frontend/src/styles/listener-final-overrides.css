@@ -1,0 +1,388 @@
+/* Final high-specificity corrections for legacy listener styles. */
+
+/* HOME */
+#root .identity-home {
+  width: min(100%, var(--echoo-page-max)) !important;
+  margin-inline: auto !important;
+  padding: clamp(34px, 4vw, 54px) var(--echoo-page-pad-x) 126px !important;
+  background: var(--echoo-bg) !important;
+}
+
+#root .identity-section {
+  margin-top: clamp(42px, 5vw, 62px) !important;
+}
+
+#root .identity-section-heading h2 {
+  color: var(--echoo-text-h) !important;
+  font-size: clamp(21px, 2vw, 27px) !important;
+  letter-spacing: -0.025em !important;
+}
+
+#root .identity-section-heading p {
+  color: var(--echoo-text-soft) !important;
+  font-size: 13px !important;
+  line-height: 1.5 !important;
+}
+
+#root .identity-section-heading > button {
+  color: var(--echoo-primary) !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+}
+
+#root .echoo-home-hero-copy h1 {
+  color: var(--echoo-text-h) !important;
+}
+
+#root .echoo-home-hero-copy > p {
+  color: var(--echoo-text-soft) !important;
+}
+
+#root .echoo-home-hero-primary,
+#root .echoo-home-hero-secondary {
+  min-height: 44px !important;
+  border-radius: 10px !important;
+  padding-inline: 16px !important;
+  font-size: 12px !important;
+  font-weight: 750 !important;
+}
+
+#root .echoo-home-hero-secondary {
+  border-color: var(--echoo-border-strong) !important;
+  background: var(--echoo-surface) !important;
+  color: var(--echoo-text-strong) !important;
+}
+
+#root .echoo-home-featured-card,
+#root .echoo-home-live-card,
+#root .identity-continue-row,
+#root .identity-empty-row {
+  background: var(--echoo-surface) !important;
+  border-color: var(--echoo-border) !important;
+}
+
+#root .echoo-home-featured-bottom h2,
+#root .echoo-home-live-card-body h3,
+#root .identity-continue-copy h3,
+#root .identity-audio-item h3,
+#root .identity-channel h3 {
+  color: var(--echoo-text-h) !important;
+}
+
+#root .echoo-home-featured-bottom p,
+#root .echoo-home-live-card-body p,
+#root .identity-continue-copy p,
+#root .identity-audio-item p,
+#root .identity-channel p,
+#root .identity-empty-row {
+  color: var(--echoo-text-soft) !important;
+}
+
+#root .identity-audio-item {
+  flex: 0 0 220px !important;
+  width: 220px !important;
+  min-width: 220px !important;
+}
+
+#root .identity-audio-art {
+  width: 100% !important;
+  height: auto !important;
+  aspect-ratio: 1 !important;
+  overflow: hidden !important;
+  border-radius: 14px !important;
+  background: var(--echoo-surface-muted) !important;
+  box-shadow: var(--echoo-shadow-sm);
+}
+
+#root .identity-audio-art img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+}
+
+#root .identity-audio-item h3 {
+  margin-top: 10px !important;
+  font-size: 14px !important;
+  line-height: 1.3 !important;
+}
+
+#root .identity-audio-item p {
+  margin-top: 4px !important;
+  font-size: 11px !important;
+}
+
+#root .identity-continue-row {
+  border-bottom-color: var(--echoo-border) !important;
+}
+
+/* SEARCH */
+#root .listener-search-page {
+  width: min(100%, var(--echoo-page-max)) !important;
+  margin: 0 auto !important;
+  padding: var(--echoo-page-pad-y) var(--echoo-page-pad-x) 126px !important;
+  background: var(--echoo-bg) !important;
+  color: var(--echoo-text) !important;
+}
+
+#root .listener-search-header h1 {
+  margin: 7px 0 0 !important;
+  color: var(--echoo-text-h) !important;
+  font-size: clamp(30px, 3.5vw, 42px) !important;
+  letter-spacing: -0.04em !important;
+}
+
+#root .listener-search-header p {
+  margin: 9px 0 0 !important;
+  color: var(--echoo-text-soft) !important;
+  font-size: 13px !important;
+}
+
+#root .listener-search-box {
+  width: min(680px, 100%) !important;
+  min-height: 48px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 11px !important;
+  margin-top: 24px !important;
+  padding: 0 15px !important;
+  border: 1px solid var(--echoo-border-strong) !important;
+  border-radius: 12px !important;
+  background: var(--echoo-surface) !important;
+  color: var(--echoo-text-muted) !important;
+}
+
+#root .listener-search-box:focus-within {
+  border-color: var(--echoo-primary) !important;
+  box-shadow: var(--echoo-focus-ring) !important;
+}
+
+#root .listener-search-box input {
+  flex: 1 !important;
+  min-width: 0 !important;
+  border: 0 !important;
+  outline: 0 !important;
+  background: transparent !important;
+  color: var(--echoo-text-h) !important;
+  font-size: 13px !important;
+}
+
+#root .batch1-search-heading h2,
+#root .batch1-creator-copy strong,
+#root .batch1-playlist-result strong,
+#root .search-result-main h3,
+#root .batch1-search-guidance strong {
+  color: var(--echoo-text-h) !important;
+}
+
+#root .batch1-search-heading p,
+#root .batch1-creator-copy small,
+#root .batch1-creator-copy em,
+#root .batch1-playlist-result small,
+#root .batch1-playlist-result p,
+#root .search-result-main p,
+#root .batch1-search-guidance span {
+  color: var(--echoo-text-soft) !important;
+}
+
+#root .batch1-creator-result,
+#root .batch1-playlist-result,
+#root .listener-search-result,
+#root .batch1-save-track {
+  background: var(--echoo-surface) !important;
+  border-color: var(--echoo-border) !important;
+}
+
+#root .batch1-creator-result:hover,
+#root .batch1-playlist-result:hover,
+#root .listener-search-result:hover {
+  border-color: var(--echoo-border-strong) !important;
+  box-shadow: var(--echoo-shadow-sm) !important;
+}
+
+#root .batch1-creator-avatar,
+#root .batch1-playlist-art {
+  background: var(--echoo-surface-muted) !important;
+}
+
+#root .batch1-track-result {
+  min-height: 68px !important;
+  grid-template-columns: 50px minmax(0, 1fr) 110px auto 40px !important;
+  gap: 12px !important;
+  padding: 9px 12px !important;
+  border: 1px solid var(--echoo-border) !important;
+  border-radius: 12px !important;
+}
+
+#root .batch1-save-track {
+  min-height: 36px !important;
+  border-radius: 9px !important;
+  color: var(--echoo-text-strong) !important;
+  font-size: 10px !important;
+}
+
+#root .batch1-save-track.saved {
+  background: var(--echoo-blue-soft) !important;
+  color: var(--echoo-primary) !important;
+  border-color: var(--echoo-primary) !important;
+}
+
+/* DOWNLOADS */
+#root .figma-downloads-page {
+  width: min(100%, var(--echoo-page-max)) !important;
+  margin: 0 auto !important;
+  padding: var(--echoo-page-pad-y) var(--echoo-page-pad-x) 126px !important;
+  background: var(--echoo-bg) !important;
+  color: var(--echoo-text) !important;
+}
+
+#root .figma-downloads-header h1,
+#root .figma-download-section-heading h2,
+#root .figma-download-copy strong {
+  color: var(--echoo-text-h) !important;
+}
+
+#root .figma-downloads-header h1 {
+  font-size: clamp(30px, 3vw, 40px) !important;
+  letter-spacing: -0.035em !important;
+}
+
+#root .figma-downloads-header p,
+#root .figma-download-section-heading p,
+#root .figma-download-copy span,
+#root .figma-download-copy small,
+#root .figma-download-empty {
+  color: var(--echoo-text-soft) !important;
+}
+
+#root .figma-download-summary article,
+#root .figma-download-row,
+#root .figma-download-empty,
+#root .figma-download-clear-button {
+  background: var(--echoo-surface) !important;
+  border-color: var(--echoo-border) !important;
+}
+
+#root .figma-download-row {
+  border-radius: 12px !important;
+}
+
+#root .figma-download-art {
+  overflow: hidden !important;
+  border-radius: 10px !important;
+  background: var(--echoo-surface-muted) !important;
+}
+
+#root .figma-download-art img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+}
+
+#root .figma-download-row > button {
+  min-width: 38px !important;
+  min-height: 38px !important;
+  border-color: var(--echoo-border) !important;
+  background: var(--echoo-surface-soft) !important;
+  color: var(--echoo-text-strong) !important;
+}
+
+#root .figma-download-row > button:hover:not(:disabled) {
+  color: var(--echoo-primary) !important;
+  border-color: var(--echoo-primary) !important;
+}
+
+/* HISTORY */
+#root .figma-history-page {
+  width: min(100%, var(--echoo-page-max)) !important;
+  margin: 0 auto !important;
+  padding: var(--echoo-page-pad-y) var(--echoo-page-pad-x) 126px !important;
+  background: var(--echoo-bg) !important;
+  color: var(--echoo-text) !important;
+}
+
+#root .figma-history-header h1,
+#root .figma-history-page h2,
+#root .figma-history-page h3,
+#root .figma-history-page strong {
+  color: var(--echoo-text-h) !important;
+}
+
+#root .figma-history-header h1 {
+  font-size: clamp(30px, 3vw, 40px) !important;
+  letter-spacing: -0.035em !important;
+}
+
+#root .figma-history-header p,
+#root .figma-history-page p,
+#root .figma-history-page small,
+#root .figma-history-page time {
+  color: var(--echoo-text-soft) !important;
+}
+
+html[data-echoo-theme="dark"] #root .figma-history-page :is(article, [class*="row"], [class*="card"], [class*="list"]) {
+  background-color: var(--echoo-surface) !important;
+  border-color: var(--echoo-border) !important;
+}
+
+/* Dark-mode overrides for high-specificity legacy Home/Search styles. */
+html[data-echoo-theme="dark"] #root .echoo-home-featured-card,
+html[data-echoo-theme="dark"] #root .echoo-home-live-card,
+html[data-echoo-theme="dark"] #root .identity-continue-row,
+html[data-echoo-theme="dark"] #root .identity-empty-row,
+html[data-echoo-theme="dark"] #root .batch1-creator-result,
+html[data-echoo-theme="dark"] #root .batch1-playlist-result,
+html[data-echoo-theme="dark"] #root .listener-search-result,
+html[data-echoo-theme="dark"] #root .figma-download-summary article,
+html[data-echoo-theme="dark"] #root .figma-download-row,
+html[data-echoo-theme="dark"] #root .figma-download-empty {
+  background: var(--echoo-surface) !important;
+  border-color: var(--echoo-border) !important;
+}
+
+html[data-echoo-theme="dark"] #root .echoo-home-featured-bottom,
+html[data-echoo-theme="dark"] #root .echoo-home-live-card-body {
+  background: var(--echoo-surface) !important;
+  border-color: var(--echoo-border) !important;
+}
+
+@media (max-width: 980px) {
+  #root .batch1-creator-grid,
+  #root .batch1-playlist-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 700px) {
+  #root .identity-home {
+    padding-inline: 16px !important;
+  }
+
+  #root .identity-section-heading {
+    align-items: flex-start !important;
+  }
+
+  #root .identity-audio-item {
+    flex-basis: 178px !important;
+    width: 178px !important;
+    min-width: 178px !important;
+  }
+
+  #root .batch1-creator-grid,
+  #root .batch1-playlist-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  #root .batch1-track-result {
+    grid-template-columns: 48px minmax(0, 1fr) 40px !important;
+  }
+
+  #root .batch1-track-result .search-result-genre,
+  #root .batch1-track-result .batch1-save-track {
+    grid-column: 2;
+  }
+
+  #root .batch1-track-result .search-result-play {
+    grid-column: 3;
+    grid-row: 1;
+  }
+}
