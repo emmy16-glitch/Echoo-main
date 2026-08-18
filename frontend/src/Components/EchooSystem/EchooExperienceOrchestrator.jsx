@@ -75,6 +75,7 @@ const TOOLTIP_SELECTORS = [
   '[role="tab"]',
   '[role="switch"]',
   '[role="link"]',
+  '[role="slider"]',
   '[tabindex]:not([tabindex="-1"])',
 ].join(',');
 
@@ -93,24 +94,25 @@ const getControlLabel = (element) => {
 
   const explicit =
     element.dataset.echooTooltip ||
+    element.dataset.echooTooltipLabel ||
     element.getAttribute('aria-label') ||
     element.getAttribute('title');
   if (explicit) return normalizeTooltipText(explicit);
+
+  const labelledBy = element.getAttribute('aria-labelledby');
+  if (labelledBy) {
+    const labelledText = labelledBy
+      .split(/\s+/)
+      .map((id) => document.getElementById(id)?.textContent || '')
+      .join(' ');
+    if (normalizeTooltipText(labelledText)) return normalizeTooltipText(labelledText);
+  }
 
   if (
     element instanceof HTMLInputElement ||
     element instanceof HTMLSelectElement ||
     element instanceof HTMLTextAreaElement
   ) {
-    const labelledBy = element.getAttribute('aria-labelledby');
-    if (labelledBy) {
-      const labelledText = labelledBy
-        .split(/\s+/)
-        .map((id) => document.getElementById(id)?.textContent || '')
-        .join(' ');
-      if (normalizeTooltipText(labelledText)) return normalizeTooltipText(labelledText);
-    }
-
     const label = element.labels?.[0]?.textContent;
     if (normalizeTooltipText(label)) return normalizeTooltipText(label);
 
@@ -161,8 +163,27 @@ const EchooExperienceOrchestrator = () => {
       tooltipTimer = null;
     };
 
+    const restoreNativeTitle = (target) => {
+      if (!(target instanceof HTMLElement)) return;
+      const saved = target.dataset.echooNativeTitle;
+      if (saved !== undefined) {
+        target.setAttribute('title', saved);
+        delete target.dataset.echooNativeTitle;
+      }
+    };
+
+    const suspendNativeTitle = (target) => {
+      if (!(target instanceof HTMLElement)) return;
+      const nativeTitle = target.getAttribute('title');
+      if (nativeTitle && target.dataset.echooNativeTitle === undefined) {
+        target.dataset.echooNativeTitle = nativeTitle;
+        target.removeAttribute('title');
+      }
+    };
+
     const hideTooltip = () => {
       cancelTooltipTimer();
+      restoreNativeTitle(tooltipTarget);
       tooltipTarget = null;
       tooltip.classList.remove('visible');
       tooltip.setAttribute('aria-hidden', 'true');
@@ -194,10 +215,13 @@ const EchooExperienceOrchestrator = () => {
         return;
       }
 
+      if (tooltipTarget && tooltipTarget !== target) restoreNativeTitle(tooltipTarget);
       cancelTooltipTimer();
       tooltipTarget = target;
       tooltip.textContent = label;
       tooltip.setAttribute('aria-hidden', 'false');
+      suspendNativeTitle(target);
+
       tooltipTimer = window.setTimeout(() => {
         if (tooltipTarget !== target || !target.isConnected) return;
         tooltip.classList.add('visible');
@@ -206,7 +230,7 @@ const EchooExperienceOrchestrator = () => {
           clientY: pointer?.clientY,
           target,
         });
-      }, 90);
+      }, 70);
     };
 
     const findTooltipTarget = (eventTarget) => {
@@ -215,6 +239,23 @@ const EchooExperienceOrchestrator = () => {
       if (!(target instanceof HTMLElement)) return null;
       if (target.closest('.echoo-global-tooltip')) return null;
       return target;
+    };
+
+    const annotateControl = (element) => {
+      if (!(element instanceof HTMLElement)) return;
+      const label = getControlLabel(element);
+      if (!label) return;
+      element.dataset.echooTooltipLabel = label;
+      // Browser-native fallback: if the custom tooltip path is ever blocked by
+      // a browser/input-device quirk, the control still exposes its name.
+      if (!element.hasAttribute('title')) element.setAttribute('title', label);
+    };
+
+    const annotateControls = (scope = document) => {
+      if (scope instanceof HTMLElement && scope.matches?.(TOOLTIP_SELECTORS)) {
+        annotateControl(scope);
+      }
+      scope.querySelectorAll?.(TOOLTIP_SELECTORS).forEach(annotateControl);
     };
 
     const observed = new WeakSet();
@@ -301,6 +342,21 @@ const EchooExperienceOrchestrator = () => {
       if (target && target !== tooltipTarget) showTooltip(target, event);
     };
 
+    // Mouse events are kept as a compatibility fallback for desktop/browser
+    // combinations that expose incomplete PointerEvent hover metadata.
+    const mouseOver = (event) => {
+      const target = findTooltipTarget(event.target);
+      if (target && target !== tooltipTarget) showTooltip(target, event);
+    };
+
+    const mouseOut = (event) => {
+      const currentTarget = findTooltipTarget(event.target);
+      const nextTarget = findTooltipTarget(event.relatedTarget);
+      if (currentTarget && currentTarget === tooltipTarget && currentTarget !== nextTarget) {
+        hideTooltip();
+      }
+    };
+
     const focusIn = (event) => {
       const target = findTooltipTarget(event.target);
       if (target) showTooltip(target);
@@ -320,6 +376,7 @@ const EchooExperienceOrchestrator = () => {
     const scroll = () => hideTooltip();
 
     prepareReveal();
+    annotateControls();
     animatePageRoots();
 
     const mutationObserver = new MutationObserver((mutations) => {
@@ -328,6 +385,7 @@ const EchooExperienceOrchestrator = () => {
         mutation.addedNodes.forEach((node) => {
           if (!(node instanceof HTMLElement)) return;
           prepareReveal(node);
+          annotateControls(node);
           if (node.matches?.(PAGE_ROOT_SELECTORS) || node.querySelector?.(PAGE_ROOT_SELECTORS)) {
             shouldAnimateRoots = true;
           }
@@ -343,6 +401,8 @@ const EchooExperienceOrchestrator = () => {
     document.addEventListener('pointermove', pointerMove, { passive: true });
     document.addEventListener('pointerover', pointerOver, { passive: true });
     document.addEventListener('pointerout', pointerLeave, { passive: true });
+    document.addEventListener('mouseover', mouseOver, { passive: true });
+    document.addEventListener('mouseout', mouseOut, { passive: true });
     document.addEventListener('focusin', focusIn);
     document.addEventListener('focusout', focusOut);
     document.addEventListener('keydown', keyDown);
@@ -358,6 +418,8 @@ const EchooExperienceOrchestrator = () => {
       document.removeEventListener('pointermove', pointerMove);
       document.removeEventListener('pointerover', pointerOver);
       document.removeEventListener('pointerout', pointerLeave);
+      document.removeEventListener('mouseover', mouseOver);
+      document.removeEventListener('mouseout', mouseOut);
       document.removeEventListener('focusin', focusIn);
       document.removeEventListener('focusout', focusOut);
       document.removeEventListener('keydown', keyDown);
