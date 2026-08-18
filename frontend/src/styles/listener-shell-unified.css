@@ -1,0 +1,77 @@
+/* One listener shell across Home, search, live rooms, station profiles and account pages. */
+#root .echoo-listener-shell{background:#fbfdff!important}
+#root .echoo-listener-shell .layout-sidebar{
+  width:205px!important;padding:20px 12px 18px!important;align-items:stretch!important;
+  background:#fff!important;border-right:1px solid #e3eaf3!important
+}
+#root .echoo-listener-shell .layout-brand{
+  width:auto!important;height:48px!important;min-height:48px!important;display:flex!important;
+  align-items:center!important;justify-content:flex-start!important;gap:10px!important;
+  margin:0 7px 24px!important;padding:0 6px!important;border-radius:10px!important
+}
+#root .echoo-listener-shell .layout-brand img{width:34px!important;height:34px!important;flex:0 0 34px!important;object-fit:contain!important}
+#root .echoo-listener-shell .layout-brand>span{display:inline!important;color:#155eef!important;font-size:21px!important;font-weight:800!important;letter-spacing:-.04em!important}
+#root .echoo-listener-shell .layout-navigation{width:100%!important;margin:0!important;gap:5px!important}
+#root .echoo-listener-shell .layout-nav-item{
+  width:100%!important;height:43px!important;min-height:43px!important;display:flex!important;
+  align-items:center!important;justify-content:flex-start!important;gap:12px!important;
+  padding:0 13px!important;border-radius:9px!important;color:#5f6f86!important
+}
+#root .echoo-listener-shell .layout-nav-item:hover{background:#f4f7fb!important;color:#101828!important;transform:none!important}
+#root .echoo-listener-shell .layout-nav-item.active{background:#edf4ff!important;color:#155eef!important}
+#root .echoo-listener-shell .layout-nav-icon{width:19px!important;height:19px!important;flex:0 0 19px!important;font-size:15px!important}
+#root .echoo-listener-shell .layout-nav-label{
+  position:static!important;display:block!important;min-width:0!important;padding:0!important;border:0!important;
+  background:transparent!important;box-shadow:none!important;opacity:1!important;visibility:visible!important;
+  transform:none!important;color:inherit!important;font-size:12px!important;font-weight:650!important
+}
+#root .echoo-listener-shell .listener-profile-menu-wrap{width:100%!important;margin:auto 0 2px!important}
+#root .echoo-listener-shell .layout-profile{
+  width:100%!important;height:52px!important;min-height:52px!important;display:flex!important;
+  align-items:center!important;justify-content:flex-start!important;gap:10px!important;padding:0 10px!important;
+  border:1px solid #e3eaf3!important;border-radius:11px!important;background:#fff!important
+}
+#root .echoo-listener-shell .layout-profile-info,#root .echoo-listener-shell .listener-profile-chevron{display:block!important}
+#root .echoo-listener-shell .layout-profile-info strong{color:#101828!important;font-size:11px!important}
+#root .echoo-listener-shell .layout-profile-info span{color:#7d8ba1!important;font-size:9px!important}
+#root .echoo-listener-shell .listener-profile-dropdown{left:0!important;bottom:58px!important}
+#root .echoo-listener-shell .echoo-listener-main{width:calc(100% - 205px)!important;margin-left:205px!important;background:#fbfdff!important}
+#root .echoo-listener-shell .layout-topbar{
+  min-height:72px!important;height:72px!important;padding:0 30px!important;background:rgba(255,255,255,.98)!important;
+  border-bottom:1px solid #e3eaf3!important
+}
+#root .echoo-listener-shell .beautiful-search-wrapper{width:min(520px,52vw)!important}
+#root .echoo-listener-shell .beautiful-search{height:42px!important;border:1px solid #e3eaf3!important;border-radius:10px!important;background:#f5f7fa!important}
+#root .echoo-listener-shell .echoo-listener-scroll{background:#fbfdff!important}
+#root .echoo-listener-shell>.echoo-persistent-player{
+  left:205px!important;height:88px!important;min-height:88px!important;max-height:88px!important;
+  padding:0 28px!important;grid-template-columns:minmax(270px,1fr) auto minmax(330px,1fr)!important;
+  gap:24px!important;background:rgba(255,255,255,.99)!important;border-top:1px solid #e3eaf3!important;
+  box-shadow:0 -5px 22px rgba(16,36,67,.04)!important
+}
+#root .echoo-listener-shell .layout-player-main-button{
+  width:48px!important;height:48px!important;min-width:48px!important;border-radius:50%!important;
+  background:#155eef!important;color:#fff!important
+}
+
+@media(max-width:900px){
+  #root .echoo-listener-shell .layout-sidebar{width:74px!important;padding:14px 8px!important}
+  #root .echoo-listener-shell .layout-brand{justify-content:center!important;margin:0 0 18px!important;padding:0!important}
+  #root .echoo-listener-shell .layout-brand>span,#root .echoo-listener-shell .layout-nav-label,#root .echoo-listener-shell .layout-profile-info,#root .echoo-listener-shell .listener-profile-chevron{display:none!important}
+  #root .echoo-listener-shell .layout-nav-item{justify-content:center!important;padding:0!important}
+  #root .echoo-listener-shell .layout-profile{justify-content:center!important;padding:0!important}
+  #root .echoo-listener-shell .echoo-listener-main{width:calc(100% - 74px)!important;margin-left:74px!important}
+  #root .echoo-listener-shell>.echoo-persistent-player{left:74px!important;grid-template-columns:minmax(180px,1fr) auto!important}
+  #root .echoo-listener-shell .layout-player-volume{display:none!important}
+}
+@media(max-width:650px){
+  #root .echoo-listener-shell .layout-sidebar{display:none!important}
+  #root .echoo-listener-shell .echoo-listener-main{width:100%!important;margin-left:0!important}
+  #root .echoo-listener-shell>.echoo-persistent-player{
+    left:0!important;height:76px!important;min-height:76px!important;max-height:76px!important;
+    padding:0 12px!important;grid-template-columns:minmax(0,1fr) auto!important;gap:8px!important
+  }
+  #root .echoo-listener-shell .layout-topbar{height:62px!important;min-height:62px!important;padding:0 12px!important}
+  #root .echoo-listener-shell .beautiful-search-wrapper{width:100%!important}
+  #root .echoo-listener-shell .layout-top-actions{display:none!important}
+}
