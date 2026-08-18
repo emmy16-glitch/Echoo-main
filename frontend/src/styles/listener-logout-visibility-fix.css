@@ -1,7 +1,7 @@
 /*
- * Listener logout visibility guard.
- * Loaded after the responsive system so logout can never disappear when the
- * Listener sidebar becomes the mobile bottom navigation rail.
+ * Echoo logout visibility guard.
+ * Loaded after the responsive system so logout can never disappear for either
+ * Listener or Creator when their shells condense on tablet and phone.
  */
 
 .listener-profile-logout-direct {
@@ -150,5 +150,120 @@
     font-weight: 800 !important;
     line-height: 1 !important;
     letter-spacing: 0 !important;
+  }
+}
+
+/* ---------- Creator logout ---------- */
+#root .studio-final-shell .studio-sidebar-logout {
+  color: #b42318;
+  border-color: #fecdca;
+  background: #fff7f6;
+  transition:
+    background 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease,
+    transform 150ms ease;
+}
+
+#root .studio-final-shell .studio-sidebar-logout:hover,
+#root .studio-final-shell .studio-sidebar-logout:focus-visible {
+  color: #912018;
+  border-color: #fda29b;
+  background: #fff0ee;
+}
+
+#root .studio-final-shell .studio-sidebar-logout:focus-visible {
+  outline: 3px solid rgba(217, 45, 32, 0.14);
+  outline-offset: 2px;
+}
+
+#root .studio-final-shell .studio-sidebar-logout:active {
+  transform: translateY(1px);
+}
+
+@media (min-width: 981px) {
+  #root .studio-final-shell .studio-sidebar-profile {
+    grid-template-columns: 36px minmax(0, 1fr) 78px;
+  }
+
+  #root .studio-final-shell .studio-sidebar-logout {
+    width: 78px;
+    min-width: 78px;
+    height: 36px;
+    min-height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 0 9px;
+    font-family: inherit;
+    font-size: 10px;
+    font-weight: 750;
+  }
+
+  #root .studio-final-shell .studio-sidebar-logout::after {
+    content: "Log out";
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 980px) and (min-width: 641px) {
+  #root .studio-final-shell .studio-sidebar-logout {
+    display: grid !important;
+    width: 38px !important;
+    min-width: 38px !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    place-items: center !important;
+    margin-inline: auto !important;
+    color: #b42318 !important;
+    background: #fff5f4 !important;
+  }
+}
+
+@media (max-width: 640px) {
+  /* The compact Creator shell hides the profile block. Keep only its real
+     logout button and float it inside the topbar area, with room reserved so
+     it cannot cover Notifications or Settings. */
+  #root .studio-final-shell .studio-sidebar-profile {
+    display: contents !important;
+  }
+
+  #root .studio-final-shell .studio-sidebar-profile .sidebar-avatar,
+  #root .studio-final-shell .studio-sidebar-profile .sidebar-profile-text {
+    display: none !important;
+  }
+
+  #root .studio-final-shell .studio-sidebar-logout {
+    display: inline-flex !important;
+    position: fixed !important;
+    top: 72px !important;
+    right: 12px !important;
+    z-index: 180 !important;
+    width: 82px !important;
+    min-width: 82px !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+    padding: 0 9px !important;
+    border: 1px solid #fda29b !important;
+    border-radius: 10px !important;
+    background: #fff5f4 !important;
+    color: #b42318 !important;
+    box-shadow: 0 7px 20px rgba(145, 32, 24, 0.1) !important;
+    font-family: inherit !important;
+    font-size: 10px !important;
+    font-weight: 800 !important;
+  }
+
+  #root .studio-final-shell .studio-sidebar-logout::after {
+    content: "Log out";
+    white-space: nowrap;
+  }
+
+  #root .studio-final-shell .studio-topbar-final {
+    padding-right: 106px !important;
   }
 }
