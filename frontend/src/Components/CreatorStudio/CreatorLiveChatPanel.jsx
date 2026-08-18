@@ -245,49 +245,52 @@ const CreatorLiveChatPanel = ({ broadcastId }) => {
         {loading ? (
           <div className="ebsx-chat-empty"><FaComments /> Loading chat...</div>
         ) : messages.length ? (
-          messages.slice(-20).map((chat) => (
-            <div className="ebsx-chat-row" key={chat.id || chat._id}>
-              <div className="ebsx-chat-avatar">
-                {chat.avatar ? <img src={chat.avatar} alt="" /> : String(chat.displayName || 'E').charAt(0)}
-              </div>
-              <div>
-                <div className="ebsx-chat-meta">
-                  <strong>{chat.displayName || chat.username || 'Listener'}</strong>
-                  <small>{formatTime(chat.createdAt)}</small>
-                  {chat.isPinned && <em className="ebsx-chat-pin-label">PINNED</em>}
+          messages.slice(-20).map((chat) => {
+            const own = sameId(chat.userId, user.id);
+            return (
+              <div className={`ebsx-chat-row ${own ? 'own' : ''}`} key={chat.id || chat._id}>
+                <div className="ebsx-chat-avatar">
+                  {chat.avatar ? <img src={chat.avatar} alt="" /> : String(chat.displayName || 'E').charAt(0)}
                 </div>
-                <p>{chat.content}</p>
+                <div className="ebsx-chat-body">
+                  <div className="ebsx-chat-meta">
+                    <strong>{own ? 'You' : (chat.displayName || chat.username || 'Listener')}</strong>
+                    <small>{formatTime(chat.createdAt)}</small>
+                    {chat.isPinned && <em className="ebsx-chat-pin-label">PINNED</em>}
+                  </div>
+                  <p>{chat.content}</p>
 
-                <div className="ebsx-chat-reactions">
-                  {REACTION_EMOJIS.map((emoji) => {
-                    const matching = (chat.reactions || []).filter((reaction) => reaction.emoji === emoji);
-                    const reacted = matching.some((reaction) => sameId(reaction.userId, user.id));
-                    return (
-                      <button
-                        type="button"
-                        key={emoji}
-                        className={reacted ? 'active-reaction' : ''}
-                        title={reacted ? `Remove ${emoji} reaction` : `React ${emoji}`}
-                        disabled={Boolean(actionId)}
-                        onClick={() => react(chat, emoji)}
-                      >
-                        {emoji}{matching.length ? ` ${matching.length}` : ''}
-                      </button>
-                    );
-                  })}
-                </div>
+                  <div className="ebsx-chat-reactions">
+                    {REACTION_EMOJIS.map((emoji) => {
+                      const matching = (chat.reactions || []).filter((reaction) => reaction.emoji === emoji);
+                      const reacted = matching.some((reaction) => sameId(reaction.userId, user.id));
+                      return (
+                        <button
+                          type="button"
+                          key={emoji}
+                          className={reacted ? 'active-reaction' : ''}
+                          title={reacted ? `Remove ${emoji} reaction` : `React ${emoji}`}
+                          disabled={Boolean(actionId)}
+                          onClick={() => react(chat, emoji)}
+                        >
+                          {emoji}{matching.length ? ` ${matching.length}` : ''}
+                        </button>
+                      );
+                    })}
+                  </div>
 
-                <div className="ebsx-chat-moderation">
-                  <button type="button" disabled={Boolean(actionId)} onClick={() => pin(chat)}>
-                    <FaThumbtack /> {chat.isPinned ? 'Unpin' : 'Pin'}
-                  </button>
-                  <button type="button" className="danger" disabled={Boolean(actionId)} onClick={() => remove(chat)}>
-                    <FaTrash /> Remove
-                  </button>
+                  <div className="ebsx-chat-moderation">
+                    <button type="button" disabled={Boolean(actionId)} onClick={() => pin(chat)}>
+                      <FaThumbtack /> {chat.isPinned ? 'Unpin' : 'Pin'}
+                    </button>
+                    <button type="button" className="danger" disabled={Boolean(actionId)} onClick={() => remove(chat)}>
+                      <FaTrash /> Remove
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))
+            );
+          })
         ) : (
           <div className="ebsx-chat-empty"><FaComments /> No chat messages yet.</div>
         )}
