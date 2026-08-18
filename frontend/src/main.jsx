@@ -21,6 +21,7 @@ import "./styles/listener-reference-pages-extended.css";
 import "./styles/listener-shell-unified.css";
 import "./styles/listener-reference-final.css";
 import "./styles/echoo-experience-2026.css";
+import "./styles/echoo-component-refinement-2026.css";
 
 initializeEchooTheme();
 
