@@ -168,8 +168,8 @@ for (const requiredStudioFeature of ['CreatorAudioMixer', 'Go live now', 'Schedu
 }
 
 const creatorLiveChat = read('frontend/src/Components/CreatorStudio/CreatorLiveChatPanel.jsx');
-if (!broadcastStudio.includes('CreatorLiveChatPanel') || !creatorLiveChat.includes('Live chat')) {
-  failures.push('Broadcast Studio is missing the synchronized Live chat component.');
+if (!broadcastStudio.includes('CreatorLiveChatPanel') || !creatorLiveChat.includes('Live Chat')) {
+  failures.push('Broadcast Studio is missing the synchronized Live Chat component.');
 }
 
 if (failures.length) {
