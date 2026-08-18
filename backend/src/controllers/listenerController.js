@@ -35,10 +35,17 @@ function unique(values) {
   return [...new Set(values.filter(Boolean))];
 }
 
+async function realCreatorIds() {
+  return User.distinct('_id', {
+    userType: 'creator',
+    isActive: true,
+  });
+}
+
 async function getContinueListening(userId) {
   const user = await User.findById(userId).populate({
     path: 'continueListening.trackId',
-    select: 'title description duration artist fileUrl coverArt genre playCount likeCount',
+    select: 'title description duration artist fileUrl coverArt coverArtMode coverArtVariant genre playCount likeCount',
     populate: {
       path: 'artist',
       select: creatorSummary,
@@ -51,7 +58,6 @@ async function getContinueListening(userId) {
     .map((item) => {
       const track = item.trackId;
       if (!track) return null;
-
       return {
         ...track.toJSON(),
         progress: Number(item.progress) || 0,
@@ -71,24 +77,28 @@ async function getRecommendedTracks(user) {
     preferredCategories.flatMap((category) => CATEGORY_GENRES[category] || [])
   );
 
+  // Listener discovery is creator content only. Old development/admin uploads
+  // can stay in the database for diagnostics without leaking into public feeds.
+  const creatorIds = await realCreatorIds();
   const filter = {
     isPublic: true,
     isDeleted: false,
+    artist: { $in: creatorIds },
   };
 
-  if (preferredGenres.length) {
-    filter.genre = { $in: preferredGenres };
-  }
+  if (preferredGenres.length) filter.genre = { $in: preferredGenres };
 
   let tracks = await Audio.find(filter)
     .populate('artist', creatorSummary)
     .sort({ playCount: -1, createdAt: -1 })
     .limit(12);
 
-  // If preferences currently have no matching real audio, broaden to real public
-  // Echoo audio instead of fabricating recommendations.
   if (!tracks.length && preferredGenres.length) {
-    tracks = await Audio.find({ isPublic: true, isDeleted: false })
+    tracks = await Audio.find({
+      isPublic: true,
+      isDeleted: false,
+      artist: { $in: creatorIds },
+    })
       .populate('artist', creatorSummary)
       .sort({ createdAt: -1 })
       .limit(12);
@@ -145,7 +155,7 @@ async function getDiscoverCreators() {
 async function getRecentActivity(userId) {
   const user = await User.findById(userId).populate({
     path: 'listeningHistory.trackId',
-    select: 'title duration artist fileUrl coverArt genre',
+    select: 'title duration artist fileUrl coverArt coverArtMode coverArtVariant genre',
     populate: {
       path: 'artist',
       select: creatorSummary,
@@ -159,7 +169,6 @@ async function getRecentActivity(userId) {
     .reverse()
     .map((entry) => {
       if (!entry.trackId) return null;
-
       return {
         track: entry.trackId,
         playedAt: entry.playedAt,
