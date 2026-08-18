@@ -24,6 +24,7 @@ import "./styles/echoo-experience-2026.css";
 import "./styles/echoo-component-refinement-2026.css";
 import "./styles/echoo-auth-motion-2026.css";
 import "./styles/echoo-responsive-2026.css";
+import "./styles/echoo-responsive-audit-fix.css";
 
 initializeEchooTheme();
 
