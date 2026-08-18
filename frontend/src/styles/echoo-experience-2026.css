@@ -1,0 +1,561 @@
+/*
+ * Echoo Experience 2026
+ * Product-wide interaction + component refinement layer.
+ * Interaction patterns are adapted to Echoo from motion-primitives-style
+ * in-view/transition/popover behaviour; surfaces follow the clean block/card
+ * discipline used by modern component registries. Visual geometry is original.
+ */
+
+:root {
+  --echoo-blue: #1769ff;
+  --echoo-blue-strong: #155eef;
+  --echoo-blue-soft: #edf4ff;
+  --echoo-canvas: #f6f9fd;
+  --echoo-surface: #ffffff;
+  --echoo-ink: #101828;
+  --echoo-muted: #667085;
+  --echoo-line: #e1e7ef;
+  --echoo-shadow-sm: 0 8px 24px rgba(25, 46, 78, .06);
+  --echoo-shadow-md: 0 18px 46px rgba(25, 46, 78, .10);
+  --echoo-radius-md: 16px;
+  --echoo-radius-lg: 22px;
+  --echoo-motion-fast: 160ms;
+  --echoo-motion-base: 240ms;
+  --echoo-motion-slow: 420ms;
+  --echoo-ease: cubic-bezier(.22, 1, .36, 1);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--echoo-canvas);
+}
+
+/* Motion-primitives-inspired in-view choreography */
+.echoo-experience-ready .echoo-inview {
+  opacity: 0;
+  transform: translate3d(0, 14px, 0) scale(.992);
+  transition:
+    opacity var(--echoo-motion-slow) var(--echoo-ease),
+    transform var(--echoo-motion-slow) var(--echoo-ease);
+  transition-delay: calc(var(--echoo-reveal-index, 0) * 28ms);
+  will-change: opacity, transform;
+}
+
+.echoo-experience-ready .echoo-inview.echoo-inview-visible {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
+}
+
+.echoo-page-enter {
+  animation: echoo-page-enter 360ms var(--echoo-ease) both;
+}
+
+@keyframes echoo-page-enter {
+  from { opacity: .72; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Interactive surface spotlight: subtle, never glassy. */
+.echoo-pointer-card {
+  position: relative;
+  isolation: isolate;
+}
+
+.echoo-pointer-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  border-radius: inherit;
+  opacity: 0;
+  background: radial-gradient(
+    240px circle at var(--echoo-pointer-x, 50%) var(--echoo-pointer-y, 50%),
+    rgba(23, 105, 255, .085),
+    transparent 72%
+  );
+  transition: opacity var(--echoo-motion-base) ease;
+}
+
+.echoo-pointer-card.echoo-pointer-active::after {
+  opacity: 1;
+}
+
+/* Shared controls: premium but restrained. */
+.echoo-experience-ready button,
+.echoo-experience-ready a,
+.echoo-experience-ready input,
+.echoo-experience-ready select,
+.echoo-experience-ready textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.echoo-experience-ready button:not(:disabled),
+.echoo-experience-ready a {
+  transition:
+    transform var(--echoo-motion-fast) var(--echoo-ease),
+    border-color var(--echoo-motion-fast) ease,
+    background-color var(--echoo-motion-fast) ease,
+    color var(--echoo-motion-fast) ease,
+    box-shadow var(--echoo-motion-fast) ease,
+    opacity var(--echoo-motion-fast) ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .echoo-experience-ready button:not(:disabled):hover,
+  .echoo-experience-ready .layout-nav-item:hover,
+  .echoo-experience-ready .studio-nav-item:hover {
+    transform: translateY(-1px);
+  }
+}
+
+.echoo-experience-ready button:not(:disabled):active,
+.echoo-experience-ready a:active {
+  transform: translateY(0) scale(.985);
+}
+
+.echoo-experience-ready :is(button, a, input, select, textarea):focus-visible {
+  outline: 3px solid rgba(23, 105, 255, .18);
+  outline-offset: 2px;
+}
+
+/* Shell navigation — animated selection, Watermelon-style component discipline. */
+.layout-nav-item,
+.studio-nav-item {
+  position: relative;
+  overflow: hidden;
+}
+
+.layout-nav-item::before,
+.studio-nav-item::before {
+  content: '';
+  position: absolute;
+  inset: 5px 7px;
+  z-index: -1;
+  border-radius: 12px;
+  background: var(--echoo-blue-soft);
+  transform: scale(.82);
+  opacity: 0;
+  transition: transform 260ms var(--echoo-ease), opacity 180ms ease;
+}
+
+.layout-nav-item.active::before,
+.studio-nav-item.active::before {
+  transform: scale(1);
+  opacity: 1;
+}
+
+.layout-nav-icon,
+.studio-nav-icon {
+  transition: transform 280ms var(--echoo-ease), color 180ms ease;
+}
+
+.layout-nav-item.active .layout-nav-icon,
+.studio-nav-item.active .studio-nav-icon {
+  transform: scale(1.08);
+  color: var(--echoo-blue);
+}
+
+/* Search/dropdowns/popovers: compact TransitionPanel-style entry. */
+.beautiful-search-panel,
+.echoo-emoji-picker,
+.echoo-reaction-picker,
+.echoo-message-menu,
+.studio-upload-modal,
+.listener-profile-menu,
+[role='dialog'] {
+  transform-origin: top center;
+  animation: echoo-popover-in 180ms var(--echoo-ease) both;
+}
+
+@keyframes echoo-popover-in {
+  from { opacity: 0; transform: translateY(-6px) scale(.975); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.studio-modal-overlay {
+  animation: echoo-backdrop-in 180ms ease both;
+}
+
+@keyframes echoo-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Listener reference pages */
+.echoo-reference-page {
+  position: relative;
+}
+
+.ref-home-hero,
+.ref-stations-hero,
+.ref-library-hero,
+.ref-history-hero,
+.ref-downloads-hero,
+.listener-settings-hero,
+.llr-hero {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.ref-home-hero::before,
+.llr-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background: url('../Components/Assets/echoo-patterns/signal-wave.svg') center / cover no-repeat;
+  opacity: .58;
+}
+
+.ref-home-hero::after,
+.llr-hero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(90deg, rgba(255,255,255,.98) 0%, rgba(255,255,255,.93) 48%, rgba(255,255,255,.45) 100%);
+}
+
+.ref-feature-audio-card,
+.ref-creator-tile,
+.ref-home-station-card,
+.ref-state-card,
+.ref-station-card,
+.ref-library-card,
+.ref-history-card,
+.ref-download-card,
+.llr-chat-shell,
+.llr-hero {
+  border-color: var(--echoo-line) !important;
+  box-shadow: var(--echoo-shadow-sm);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .ref-feature-audio-card:hover,
+  .ref-creator-tile:hover,
+  .ref-home-station-card:hover,
+  .ref-station-card:hover,
+  .ref-library-card:hover,
+  .ref-history-card:hover,
+  .ref-download-card:hover {
+    transform: translateY(-3px);
+    border-color: #cbdaf6 !important;
+    box-shadow: var(--echoo-shadow-md);
+  }
+
+  .ref-feature-audio-card:hover img,
+  .ref-home-station-card:hover img,
+  .ref-station-card:hover img {
+    transform: scale(1.025);
+  }
+}
+
+.ref-feature-audio-card img,
+.ref-home-station-card img,
+.ref-station-card img {
+  transition: transform 420ms var(--echoo-ease);
+}
+
+.ref-round-play,
+.echoo-chat-send {
+  box-shadow: 0 8px 18px rgba(23, 105, 255, .18);
+}
+
+.ref-round-play:hover,
+.echoo-chat-send:hover {
+  box-shadow: 0 12px 24px rgba(23, 105, 255, .26);
+}
+
+/* Listener player: alive without being distracting. */
+.echoo-persistent-player {
+  backdrop-filter: none !important;
+  box-shadow: 0 -10px 34px rgba(25, 46, 78, .07);
+}
+
+.echoo-persistent-player .layout-player-cover,
+.echoo-persistent-player .layout-player-signal {
+  transition: transform 260ms var(--echoo-ease), box-shadow 260ms ease;
+}
+
+.echoo-persistent-player:has(audio:not([src=''])) .layout-player-cover {
+  box-shadow: 0 8px 20px rgba(23, 105, 255, .12);
+}
+
+/* Creator product */
+.studio-page,
+.listener-layout {
+  background-color: var(--echoo-canvas);
+}
+
+.studio-sidebar,
+.layout-sidebar,
+.studio-topbar,
+.layout-topbar,
+.echoo-persistent-player {
+  background: rgba(255,255,255,.98) !important;
+}
+
+.studio-view {
+  position: relative;
+}
+
+.ehome-hero,
+.ebsx-station-hero,
+.ebsx-onair-card {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.ehome-hero::before,
+.ebsx-station-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background: url('../Components/Assets/echoo-patterns/layered-waves.svg') center / cover no-repeat;
+  opacity: .75;
+}
+
+.ehome-hero::after,
+.ebsx-station-hero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(100deg, rgba(255,255,255,.99), rgba(255,255,255,.88) 62%, rgba(255,255,255,.42));
+}
+
+.ehome.is-live .ehome-hero::before,
+.ebsx-onair-card::before {
+  background-image: url('../Components/Assets/echoo-patterns/signal-wave.svg');
+}
+
+.ehome.is-live .live-word,
+.ebsx-live-line span,
+.ref-live-chip {
+  animation: echoo-live-breathe 2.2s ease-in-out infinite;
+}
+
+@keyframes echoo-live-breathe {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .68; }
+}
+
+.ehome article,
+.ebsx-chat-card,
+.ebsx-activity-card,
+.ebsx-live-controls,
+.studio-upload-modal {
+  box-shadow: var(--echoo-shadow-sm);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .ehome article:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--echoo-shadow-md);
+  }
+}
+
+/* Onboarding + authentication: animated but calm. */
+.echoo-onboarding-redesign,
+.auth-page {
+  position: relative;
+  overflow: hidden;
+}
+
+.eor-hero::before,
+.auth-page::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: url('../Components/Assets/echoo-patterns/blob-scene.svg') center / cover no-repeat;
+  opacity: .68;
+}
+
+.eor-hero-copy,
+.eor-audio-card,
+.eor-profile-hero-card,
+.eor-panel {
+  position: relative;
+  z-index: 1;
+}
+
+.eor-audio-card,
+.eor-profile-hero-card {
+  animation: echoo-float-card 7s ease-in-out infinite;
+}
+
+@keyframes echoo-float-card {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+.eor-role-card {
+  overflow: hidden;
+  transform-origin: center;
+}
+
+.eor-role-card.selected {
+  box-shadow: 0 14px 34px rgba(23, 105, 255, .13);
+}
+
+.eor-role-card.selected .eor-role-icon {
+  animation: echoo-role-pop 360ms var(--echoo-ease) both;
+}
+
+@keyframes echoo-role-pop {
+  0% { transform: scale(.78) rotate(-6deg); }
+  70% { transform: scale(1.08) rotate(2deg); }
+  100% { transform: scale(1) rotate(0); }
+}
+
+.eor-step.current .eor-step-circle {
+  box-shadow: 0 0 0 6px rgba(23, 105, 255, .08);
+  animation: echoo-step-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes echoo-step-pulse {
+  0%, 100% { box-shadow: 0 0 0 5px rgba(23, 105, 255, .06); }
+  50% { box-shadow: 0 0 0 9px rgba(23, 105, 255, .11); }
+}
+
+/* Cards/empty states across both products */
+:where(
+  .ref-state-card,
+  .ebsx-chat-empty,
+  .llr-chat-empty,
+  .studio-empty-state,
+  .creator-empty-state,
+  .listener-empty-state
+) {
+  background-image: url('../Components/Assets/echoo-patterns/circle-scatter.svg');
+  background-size: cover;
+  background-position: center;
+}
+
+/* Dialog and form surfaces inspired by registry-quality blocks. */
+.studio-upload-modal,
+.echoo-emoji-picker,
+.echoo-reaction-picker,
+.echoo-message-menu,
+.beautiful-search-panel {
+  border: 1px solid var(--echoo-line) !important;
+  box-shadow: var(--echoo-shadow-md) !important;
+}
+
+:where(.studio-upload-modal, .eor-panel, .llr-chat-shell, .listener-settings-card) input,
+:where(.studio-upload-modal, .eor-panel, .llr-chat-shell, .listener-settings-card) textarea,
+:where(.studio-upload-modal, .eor-panel, .llr-chat-shell, .listener-settings-card) select {
+  transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+}
+
+:where(.studio-upload-modal, .eor-panel, .llr-chat-shell, .listener-settings-card) input:focus,
+:where(.studio-upload-modal, .eor-panel, .llr-chat-shell, .listener-settings-card) textarea:focus,
+:where(.studio-upload-modal, .eor-panel, .llr-chat-shell, .listener-settings-card) select:focus {
+  border-color: #84adff !important;
+  box-shadow: 0 0 0 4px rgba(23, 105, 255, .08) !important;
+}
+
+/* Responsive pass */
+@media (max-width: 1180px) {
+  .ref-featured-audio-grid,
+  .ref-home-station-row {
+    gap: 14px !important;
+  }
+
+  .ehome-hero {
+    min-height: auto !important;
+  }
+}
+
+@media (max-width: 980px) {
+  .studio-sidebar,
+  .layout-sidebar {
+    box-shadow: 8px 0 28px rgba(25, 46, 78, .04);
+  }
+
+  .studio-topbar,
+  .layout-topbar {
+    padding-inline: 18px !important;
+  }
+
+  .ref-home-hero::after,
+  .llr-hero::after,
+  .ehome-hero::after,
+  .ebsx-station-hero::after {
+    background: rgba(255,255,255,.90);
+  }
+}
+
+@media (max-width: 760px) {
+  .echoo-experience-ready .echoo-inview {
+    transform: translate3d(0, 8px, 0);
+  }
+
+  .ref-feature-audio-card,
+  .ref-home-station-card,
+  .ref-creator-tile,
+  .llr-chat-shell,
+  .llr-hero,
+  .studio-upload-modal {
+    border-radius: 16px !important;
+  }
+
+  .beautiful-search-panel,
+  .echoo-emoji-picker,
+  .echoo-reaction-picker,
+  .echoo-message-menu {
+    max-width: calc(100vw - 28px);
+  }
+
+  .eor-audio-card,
+  .eor-profile-hero-card {
+    animation-duration: 8.5s;
+  }
+}
+
+@media (max-width: 560px) {
+  .studio-topbar,
+  .layout-topbar {
+    padding-inline: 12px !important;
+  }
+
+  .ref-home-hero,
+  .llr-hero {
+    background-position: center !important;
+  }
+
+  .echoo-persistent-player {
+    box-shadow: 0 -6px 22px rgba(25, 46, 78, .07);
+  }
+}
+
+/* Accessibility: all motion collapses when the user asks for it. */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .echoo-experience-ready .echoo-inview,
+  .echoo-experience-ready .echoo-inview.echoo-inview-visible {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.echoo-reduced-motion .echoo-inview,
+.echoo-reduced-motion .echoo-inview-visible {
+  opacity: 1 !important;
+  transform: none !important;
+}
