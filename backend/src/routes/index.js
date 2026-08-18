@@ -23,6 +23,7 @@ import historyRoutes from './historyRoutes.js';
 import downloadsRoutes from './downloadsRoutes.js';
 import advancedPlayerRoutes from './advancedPlayerRoutes.js';
 import notificationRoutes from './notificationRoutes.js';
+import LiveKitProvider from '../providers/livekit.js';
 
 const router = express.Router();
 
@@ -32,6 +33,33 @@ router.get('/health', (req, res) => {
     service: 'echoo-api',
     timestamp: new Date().toISOString(),
   });
+});
+
+router.get('/health/livekit', async (req, res) => {
+  try {
+    // A participant lookup against a deliberately unused room exercises the
+    // authenticated LiveKit server API. A missing room is a healthy response;
+    // connection/configuration failures are normalized by LiveKitProvider.
+    await LiveKitProvider.getParticipants('echoo-healthcheck');
+
+    return res.status(200).json({
+      status: 'ok',
+      service: 'livekit',
+      reachable: true,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    return res.status(error?.status || 503).json({
+      status: 'error',
+      service: 'livekit',
+      reachable: false,
+      error: {
+        code: error?.code || 'LIVEKIT_UNAVAILABLE',
+        message: error?.message || 'LiveKit is unavailable',
+      },
+      timestamp: new Date().toISOString(),
+    });
+  }
 });
 
 router.use('/auth', authRoutes);
