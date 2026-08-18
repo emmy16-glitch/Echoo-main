@@ -1,785 +1,444 @@
-import React, {
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
-
+import { useEffect, useMemo, useState } from 'react';
 import {
   FaArrowRight,
+  FaBroadcastTower,
   FaCalendarAlt,
   FaCloudUploadAlt,
-  FaHeart,
+  FaHeadphones,
   FaMicrophone,
   FaPlay,
+  FaShareAlt,
   FaUsers,
-} from "react-icons/fa";
+  FaWifi,
+} from 'react-icons/fa';
 
-import studioService from "../../services/studioService";
+import studioService from '../../services/studioService';
+import batch2Service from '../../services/batch2Service';
+import EchoAvatar from '../EchooSystem/EchoAvatar';
+import EchoSignal from '../EchooSystem/EchoSignal';
+import EchoWave from '../EchooSystem/EchoWave';
+import './CreatorStudioHomeFinal.css';
+import './CreatorStudioHomeFixes.css';
+import './CreatorPremium2026.css';
+import './CreatorStudioHomeState2026.css';
 
-import EchoAvatar from "../EchooSystem/EchoAvatar";
-import EchoSignal from "../EchooSystem/EchoSignal";
-import EchoAmbient from "../EchooSystem/EchoAmbient";
+const formatNumber = (value) =>
+  new Intl.NumberFormat('en-US', {
+    notation: Number(value) >= 10000 ? 'compact' : 'standard',
+  }).format(Number(value) || 0);
 
-import "./CreatorStudioHome.css";
+const pad = (value) => String(value).padStart(2, '0');
 
-const formatNumber = (
-  value
-) => {
-  if (
-    value === null ||
-    value === undefined
-  ) {
-    return "—";
-  }
-
-  const number =
-    Number(value);
-
-  if (
-    Number.isNaN(
-      number
-    )
-  ) {
-    return "—";
-  }
-
-  return new Intl.NumberFormat(
-    "en-US"
-  ).format(
-    number
-  );
+const formatTimer = (seconds) => {
+  const safe = Math.max(0, Number(seconds) || 0);
+  const hours = Math.floor(safe / 3600);
+  const minutes = Math.floor((safe % 3600) / 60);
+  const secs = Math.floor(safe % 60);
+  return `${pad(hours)}:${pad(minutes)}:${pad(secs)}`;
 };
 
-const formatDate = (
-  value
-) => {
-  if (!value) {
-    return "";
-  }
-
-  const date =
-    new Date(value);
-
-  if (
-    Number.isNaN(
-      date.getTime()
-    )
-  ) {
-    return "";
-  }
-
-  return date.toLocaleDateString(
-    "en-GB",
-    {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    }
-  );
+const formatDateTime = (value) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleString([], {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 };
-
-const getTrackId = (
-  track
-) =>
-  track?.id ||
-  track?._id ||
-  null;
-
-const getTrackArtwork = (
-  track
-) =>
-  track?.coverArt ||
-  track?.artwork ||
-  track?.image ||
-  null;
 
 const CreatorStudioHome = ({
-  studioName = "Creator",
-  studioType = "Creator",
+  studioName = 'Creator',
+  studioType = 'Creator',
   profileImage = null,
-  followers = 0,
   onUpload,
   onNavigate,
 }) => {
-  const [
-    analytics,
-    setAnalytics,
-  ] = useState(null);
-
-  const [
-    tracks,
-    setTracks,
-  ] = useState([]);
-
-  const [
-    loading,
-    setLoading,
-  ] = useState(true);
-
-  const [
-    dataError,
-    setDataError,
-  ] = useState("");
+  const [dashboard, setDashboard] = useState(null);
+  const [stations, setStations] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [clock, setClock] = useState(Date.now());
 
   useEffect(() => {
-    let mounted =
-      true;
+    let active = true;
 
-    const load =
-      async () => {
+    const load = async () => {
+      try {
         setLoading(true);
-        setDataError("");
-
-        const [
-          analyticsResult,
-          contentResult,
-        ] =
-          await Promise.allSettled(
-            [
-              studioService.getAnalytics(
-                "30d"
-              ),
-
-              studioService.getContent({
-                page: 1,
-                limit: 6,
-              }),
-            ]
-          );
-
-        if (!mounted) {
-          return;
-        }
-
-        if (
-          analyticsResult.status ===
-          "fulfilled"
-        ) {
-          setAnalytics(
-            analyticsResult.value
-              ?.data ||
-              null
-          );
-        } else {
-          console.error(
-            "Creator Studio analytics:",
-            analyticsResult.reason
-          );
-        }
-
-        if (
-          contentResult.status ===
-          "fulfilled"
-        ) {
-          const value =
-            contentResult.value
-              ?.data;
-
-          setTracks(
-            Array.isArray(
-              value?.tracks
-            )
-              ? value.tracks
-              : []
-          );
-        } else {
-          console.error(
-            "Creator Studio content:",
-            contentResult.reason
-          );
-        }
-
-        if (
-          analyticsResult.status ===
-            "rejected" &&
-          contentResult.status ===
-            "rejected"
-        ) {
-          setDataError(
-            "Studio performance data is temporarily unavailable."
-          );
-        }
-
-        setLoading(false);
-      };
+        setError('');
+        const [dashboardResult, stationResult] = await Promise.all([
+          studioService.getDashboard(),
+          batch2Service.getMyStations(),
+        ]);
+        if (!active) return;
+        setDashboard(dashboardResult?.data || null);
+        setStations(Array.isArray(stationResult?.data) ? stationResult.data : []);
+      } catch (loadError) {
+        if (active) setError(loadError?.message || 'Could not load your creator home.');
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
 
     load();
-
-    return () => {
-      mounted =
-        false;
-    };
+    return () => { active = false; };
   }, []);
 
-  const summary =
-    analytics?.summary ||
-    null;
+  const stats = dashboard?.stats || {};
+  const recentContent = Array.isArray(dashboard?.recentContent) ? dashboard.recentContent : [];
+  const upcomingSchedule = Array.isArray(dashboard?.upcomingSchedule) ? dashboard.upcomingSchedule : [];
+  const activeBroadcasts = Array.isArray(dashboard?.activeBroadcasts) ? dashboard.activeBroadcasts : [];
+  const liveBroadcast = activeBroadcasts.find((item) => item.status === 'live') || null;
 
-  const totalTracks =
-    summary?.totalTracks;
+  useEffect(() => {
+    if (!liveBroadcast) return undefined;
+    const interval = window.setInterval(() => setClock(Date.now()), 1000);
+    return () => window.clearInterval(interval);
+  }, [liveBroadcast]);
 
-  const totalPlays =
-    summary?.totalPlays;
+  const liveStation = useMemo(() => {
+    if (!liveBroadcast) return null;
+    const stationId = liveBroadcast.station?.id || liveBroadcast.station?._id || liveBroadcast.stationId;
+    return stations.find((station) => String(station.id) === String(stationId))
+      || (typeof liveBroadcast.station === 'object' ? liveBroadcast.station : null);
+  }, [liveBroadcast, stations]);
 
-  const totalLikes =
-    summary?.totalLikes;
+  const stationPreview = useMemo(
+    () => [...stations]
+      .sort((first, second) => Number(Boolean(second.isLive)) - Number(Boolean(first.isLive)))
+      .slice(0, 3),
+    [stations]
+  );
 
-  const metrics =
-    useMemo(
-      () => [
-        {
-          label:
-            "Followers",
+  const liveStartedAt = liveBroadcast
+    ? new Date(liveBroadcast.startedAt || liveBroadcast.startTime || clock).getTime()
+    : clock;
+  const liveElapsed = liveBroadcast
+    ? Math.max(0, Math.floor((clock - liveStartedAt) / 1000))
+    : 0;
 
-          value:
-            formatNumber(
-              followers
-            ),
+  const metrics = useMemo(
+    () => liveBroadcast
+      ? [
+          { label: 'Live listeners', value: formatNumber(liveBroadcast.listenerCount ?? stats.listeners), icon: <FaHeadphones /> },
+          { label: 'Peak listeners', value: formatNumber(liveBroadcast.peakListeners), icon: <FaUsers /> },
+          { label: 'Total plays', value: formatNumber(stats.plays), icon: <FaPlay /> },
+          { label: 'Published audio', value: formatNumber(dashboard?.totalTracks), icon: <FaCloudUploadAlt /> },
+        ]
+      : [
+          { label: 'Live listeners', value: formatNumber(stats.listeners), icon: <FaHeadphones /> },
+          { label: 'Followers', value: formatNumber(stats.followers), icon: <FaUsers /> },
+          { label: 'Total plays', value: formatNumber(stats.plays), icon: <FaPlay /> },
+          { label: 'Published audio', value: formatNumber(dashboard?.totalTracks), icon: <FaCloudUploadAlt /> },
+        ],
+    [dashboard?.totalTracks, liveBroadcast, stats.followers, stats.listeners, stats.plays]
+  );
 
-          icon:
-            <FaUsers />,
+  const openBroadcast = (mode = 'now', stationId = '') => {
+    sessionStorage.setItem('echooBroadcastMode', mode);
+    if (stationId) sessionStorage.setItem('echooSelectedStationId', String(stationId));
+    else sessionStorage.removeItem('echooSelectedStationId');
+    onNavigate?.('Broadcast');
+  };
 
-          helper:
-            "People following your creator presence.",
-        },
+  const enterScheduled = (broadcast) => {
+    if (!broadcast?.id && !broadcast?._id) return;
+    sessionStorage.setItem('echooPreparedBroadcastId', String(broadcast.id || broadcast._id));
+    sessionStorage.setItem('echooBroadcastMode', 'now');
+    onNavigate?.('Broadcast');
+  };
 
-        {
-          label:
-            "Total plays",
+  const shareLiveBroadcast = async () => {
+    if (!liveBroadcast?.id && !liveBroadcast?._id) return;
+    const broadcastId = liveBroadcast.id || liveBroadcast._id;
+    const url = `${window.location.origin}/listen/live/${encodeURIComponent(broadcastId)}`;
 
-          value:
-            formatNumber(
-              totalPlays
-            ),
-
-          icon:
-            <FaPlay />,
-
-          helper:
-            "Recorded plays across your published audio.",
-        },
-
-        {
-          label:
-            "Total likes",
-
-          value:
-            formatNumber(
-              totalLikes
-            ),
-
-          icon:
-            <FaHeart />,
-
-          helper:
-            "Likes currently recorded on your content.",
-        },
-
-        {
-          label:
-            "Published audio",
-
-          value:
-            formatNumber(
-              totalTracks
-            ),
-
-          icon:
-            <FaCloudUploadAlt />,
-
-          helper:
-            "Audio items represented in Creator analytics.",
-        },
-      ],
-      [
-        followers,
-        totalPlays,
-        totalLikes,
-        totalTracks,
-      ]
-    );
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: liveBroadcast.title || 'Echoo live broadcast',
+          text: `${studioName} is live on Echoo.`,
+          url,
+        });
+      } else if (navigator.clipboard) {
+        await navigator.clipboard.writeText(url);
+      }
+    } catch {
+      // Sharing can be cancelled by the creator without changing the live state.
+    }
+  };
 
   return (
-    <div className="echoo-creator-home">
-      <section className="echoo-creator-presence">
-        <EchoAmbient
-          density="low"
-          className="echoo-creator-home-ambient"
-        />
-
-        <div className="echoo-creator-presence-copy">
-          <span className="echoo-creator-kicker">
-            YOUR CREATOR PRESENCE
-          </span>
-
-          <h1>
-            Your voice,
-            ready when you are.
-          </h1>
-
+    <div className={`ehome ${liveBroadcast ? 'is-live' : 'is-offline'}`}>
+      <section className="ehome-hero">
+        <div className="ehome-hero-copy">
+          <span className="ehome-eyebrow">CREATOR STUDIO</span>
+          {liveBroadcast ? (
+            <h1>You&apos;re live, <em className="live-word">on air</em><br />right now.</h1>
+          ) : (
+            <h1>Your voice, <em>ready</em><br />when you are.</h1>
+          )}
           <p>
-            Publish audio,
-            prepare live
-            conversations and
-            understand the people
-            listening to you.
+            {liveBroadcast
+              ? 'Keep an eye on your broadcast, monitor the audience and return to the studio whenever you need to adjust the mix.'
+              : 'Create a station, start or schedule a broadcast, or publish audio when you are ready.'}
           </p>
 
-          <div className="echoo-creator-primary-actions">
-            <button
-              type="button"
-              className="primary"
-              onClick={
-                onUpload
-              }
-            >
-              <FaCloudUploadAlt />
-              Upload audio
-            </button>
-
-            <button
-              type="button"
-              onClick={() =>
-                onNavigate(
-                  "Live"
-                )
-              }
-            >
-              <FaMicrophone />
-              Prepare to go live
-            </button>
-          </div>
-        </div>
-
-        <div className="echoo-creator-identity">
-          <div className="echoo-creator-signal-wrap">
-            <EchoSignal
-              size="xl"
-              state="idle"
-              activeNodes={0}
-            >
-              <EchoAvatar
-                image={
-                  profileImage
-                }
-                name={
-                  studioName
-                }
-                size="lg"
-                state="idle"
-              />
-            </EchoSignal>
-          </div>
-
-          <strong>
-            {
-              studioName
-            }
-          </strong>
-
-          <span>
-            {
-              studioType
-            }
-          </span>
-
-          <small>
-            Not live
-          </small>
-        </div>
-      </section>
-
-      <section className="echoo-creator-metrics-section">
-        <div className="echoo-creator-section-title">
-          <div>
-            <h2>
-              Performance
-            </h2>
-
-            <p>
-              Real values currently
-              available from your
-              Echoo creator data.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={() =>
-              onNavigate(
-                "Analytics"
-              )
-            }
-          >
-            View analytics
-            <FaArrowRight />
-          </button>
-        </div>
-
-        {loading ? (
-          <div className="echoo-creator-metric-loading">
-            <span />
-            <span />
-            <span />
-            <span />
-          </div>
-        ) : (
-          <div className="echoo-creator-metrics">
-            {metrics.map(
-              (
-                metric
-              ) => (
-                <article
-                  key={
-                    metric.label
-                  }
-                >
-                  <div className="echoo-creator-metric-top">
-                    <span>
-                      {
-                        metric.icon
-                      }
-                    </span>
-
-                    <small>
-                      {
-                        metric.label
-                      }
-                    </small>
-                  </div>
-
-                  <strong>
-                    {
-                      metric.value
-                    }
-                  </strong>
-
-                  <p>
-                    {
-                      metric.helper
-                    }
-                  </p>
-                </article>
-              )
+          <div className="ehome-hero-actions">
+            {liveBroadcast ? (
+              <>
+                <button type="button" className="primary dark" onClick={() => openBroadcast('now')}>
+                  <FaMicrophone /> Open live studio
+                </button>
+                <button type="button" onClick={shareLiveBroadcast}>
+                  <FaShareAlt /> Share broadcast
+                </button>
+              </>
+            ) : (
+              <>
+                <button type="button" className="primary" onClick={() => onNavigate?.('Stations')}>
+                  <FaBroadcastTower /> Create station
+                </button>
+                <button type="button" onClick={onUpload}>
+                  <FaCloudUploadAlt /> Upload audio
+                </button>
+              </>
             )}
           </div>
-        )}
-
-        {dataError && (
-          <p className="echoo-creator-data-error">
-            {
-              dataError
-            }
-          </p>
-        )}
-      </section>
-
-      <section className="echoo-creator-work-section">
-        <div className="echoo-creator-section-title">
-          <div>
-            <h2>
-              What do you want to
-              do?
-            </h2>
-
-            <p>
-              Creator tools,
-              without pretending
-              unfinished backend
-              features already
-              work.
-            </p>
-          </div>
         </div>
 
-        <div className="echoo-creator-actions-list">
-          <button
-            type="button"
-            onClick={
-              onUpload
-            }
-          >
-            <span className="echoo-creator-action-icon">
-              <FaCloudUploadAlt />
-            </span>
-
-            <span className="echoo-creator-action-copy">
-              <strong>
-                Upload audio
-              </strong>
-
-              <small>
-                Publish a new audio
-                item to Echoo.
-              </small>
-            </span>
-
-            <span className="echoo-creator-action-status available">
-              Available
-            </span>
-
-            <FaArrowRight />
-          </button>
-
-          <button
-            type="button"
-            onClick={() =>
-              onNavigate(
-                "Live"
-              )
-            }
-          >
-            <span className="echoo-creator-action-icon">
-              <EchoSignal
-                size="xs"
-                state="idle"
-                nodes={false}
-              />
-            </span>
-
-            <span className="echoo-creator-action-copy">
-              <strong>
-                Go live
-              </strong>
-
-              <small>
-                Start a live audio
-                conversation with
-                your audience.
-              </small>
-            </span>
-
-            <span className="echoo-creator-action-status pending">
-              Backend pending
-            </span>
-
-            <FaArrowRight />
-          </button>
-
-          <button
-            type="button"
-            onClick={() =>
-              onNavigate(
-                "Schedule"
-              )
-            }
-          >
-            <span className="echoo-creator-action-icon">
-              <FaCalendarAlt />
-            </span>
-
-            <span className="echoo-creator-action-copy">
-              <strong>
-                Schedule a broadcast
-              </strong>
-
-              <small>
-                Prepare an upcoming
-                event for your
-                listeners.
-              </small>
-            </span>
-
-            <span className="echoo-creator-action-status pending">
-              Backend pending
-            </span>
-
-            <FaArrowRight />
-          </button>
-        </div>
-      </section>
-
-      <section className="echoo-creator-recent-section">
-        <div className="echoo-creator-section-title">
-          <div>
-            <h2>
-              Recent audio
-            </h2>
-
-            <p>
-              Your latest published
-              content.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={() =>
-              onNavigate(
-                "Content"
-              )
-            }
-          >
-            View all content
-            <FaArrowRight />
-          </button>
-        </div>
-
-        {loading ? (
-          <div className="echoo-creator-recent-loading">
-            <span />
-            <span />
-            <span />
-          </div>
-        ) : tracks.length >
-          0 ? (
-          <div className="echoo-creator-recent-list">
-            {tracks.map(
-              (
-                track,
-                index
-              ) => (
-                <article
-                  key={
-                    getTrackId(
-                      track
-                    ) ||
-                    index
-                  }
-                >
-                  <div className="echoo-creator-track-art">
-                    {getTrackArtwork(
-                      track
-                    ) ? (
-                      <img
-                        src={
-                          getTrackArtwork(
-                            track
-                          )
-                        }
-                        alt=""
-                        draggable="false"
-                      />
-                    ) : (
-                      <span>
-                        {String(
-                          track.title ||
-                          "E"
-                        )
-                          .charAt(
-                            0
-                          )
-                          .toUpperCase()}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="echoo-creator-track-copy">
-                    <strong>
-                      {track.title ||
-                        "Untitled Audio"}
-                    </strong>
-
-                    <span>
-                      {track.genre ||
-                        "Audio"}
-                    </span>
-                  </div>
-
-                  <div className="echoo-creator-track-date">
-                    {formatDate(
-                      track.createdAt
-                    )}
-                  </div>
-
-                  <div className="echoo-creator-track-stat">
-                    <FaPlay />
-
-                    {formatNumber(
-                      track.plays ||
-                        0
-                    )}
-                  </div>
-
-                  <div className="echoo-creator-track-stat">
-                    <FaHeart />
-
-                    {formatNumber(
-                      track.likes ||
-                        0
-                    )}
-                  </div>
-
-                  <span
-                    className={`echoo-creator-public-state ${
-                      track.isPublic
-                        ? "public"
-                        : "private"
-                    }`}
-                  >
-                    {track.isPublic
-                      ? "Public"
-                      : "Private"}
-                  </span>
-                </article>
-              )
-            )}
-          </div>
-        ) : (
-          <div className="echoo-creator-empty-content">
-            <EchoSignal
-              size="lg"
-              state="idle"
-              activeNodes={0}
-            />
-
-            <div>
-              <h3>
-                Your studio is
-                quiet.
-              </h3>
-
-              <p>
-                Publish your first
-                audio and it will
-                appear here.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={
-                onUpload
-              }
-            >
-              Upload audio
-            </button>
-          </div>
-        )}
-      </section>
-
-      <section className="echoo-creator-presence-note">
-        <div>
+        <div className={`ehome-signal ${liveBroadcast ? 'live' : ''}`}>
           <EchoSignal
-            size="md"
-            state="idle"
-            activeNodes={0}
-          />
-        </div>
-
-        <div>
-          <span>
-            CREATOR PRESENCE
-          </span>
-
-          <h2>
-            Your signal only comes
-            alive when something is
-            happening.
-          </h2>
-
-          <p>
-            Echoo keeps the studio
-            visually quiet while
-            you are offline. When
-            live broadcasting is
-            connected, this signal
-            becomes active and
-            represents your real
-            presence.
-          </p>
+            className="ehome-profile-signal"
+            size="xl"
+            state={liveBroadcast ? 'live' : 'active'}
+            activeNodes={liveBroadcast ? 3 : 2}
+          >
+            <EchoAvatar image={profileImage} name={studioName} size="lg" state="idle" />
+          </EchoSignal>
+          <span>{liveBroadcast ? 'ON AIR' : 'NOT LIVE'}</span>
+          <small>{studioName} · {studioType}</small>
         </div>
       </section>
+
+      {liveBroadcast ? (
+        <section className="ehome-live-command" aria-label="Current live broadcast">
+          <div className="ehome-live-command-topline">
+            <span><i /> LIVE NOW</span>
+            <b>{formatTimer(liveElapsed)}</b>
+          </div>
+
+          <div className="ehome-live-brand">
+            <div className="ehome-live-art">
+              <img
+                src={liveStation?.brandCover || liveStation?.coverArt || liveBroadcast.coverArt}
+                alt={`${liveStation?.name || 'Station'} brand`}
+              />
+            </div>
+            <div>
+              <h2>{liveBroadcast.title || 'Live broadcast'}</h2>
+              <strong>{liveStation?.name || liveBroadcast.stationName || 'Echoo Station'}</strong>
+              <small>Host: {studioName}</small>
+            </div>
+          </div>
+
+          <div className="ehome-live-wave" aria-hidden="true">
+            <EchoWave state="speaking" />
+          </div>
+
+          <div className="ehome-live-stat">
+            <span>Current listeners</span>
+            <strong>{formatNumber(liveBroadcast.listenerCount ?? stats.listeners)}</strong>
+          </div>
+          <div className="ehome-live-stat">
+            <span>Peak listeners</span>
+            <strong>{formatNumber(liveBroadcast.peakListeners)}</strong>
+          </div>
+          <div className="ehome-live-stat connection">
+            <span><FaWifi /> Connection</span>
+            <strong>Live</strong>
+            <small>Room active</small>
+          </div>
+
+          <div className="ehome-live-command-actions">
+            <button type="button" className="primary" onClick={() => openBroadcast('now')}>
+              <FaMicrophone /> Open live studio
+            </button>
+            <button type="button" onClick={shareLiveBroadcast}>
+              <FaShareAlt /> Share broadcast
+            </button>
+          </div>
+        </section>
+      ) : (
+        <section className="ehome-flow-card">
+          <div className="ehome-flow-step">
+            <b>1</b><i><FaBroadcastTower /></i>
+            <div><strong>Create station</strong><span>Set up your space and brand.</span></div>
+          </div>
+          <div className="ehome-flow-step">
+            <b>2</b><i><FaCalendarAlt /></i>
+            <div><strong>Start or schedule</strong><span>Go live now or plan ahead.</span></div>
+          </div>
+          <div className="ehome-flow-step">
+            <b>3</b><i><FaMicrophone /></i>
+            <div><strong>Go live</strong><span>Broadcast to your audience.</span></div>
+          </div>
+        </section>
+      )}
+
+      {error && <div className="ehome-alert">{error}</div>}
+
+      <div className="ehome-dashboard-grid">
+        <section className="ehome-panel">
+          <div className="ehome-panel-head">
+            <div>
+              <h2>Your stations</h2>
+              <p>{stations.length ? `${stations.length} owned by this account` : 'Create your first station to begin.'}</p>
+            </div>
+            <button type="button" onClick={() => onNavigate?.('Stations')}>View all <FaArrowRight /></button>
+          </div>
+
+          {loading ? (
+            <div className="ehome-loading"><span /><span /><span /></div>
+          ) : stationPreview.length ? (
+            <div className="ehome-stations-preview">
+              {stationPreview.map((station) => {
+                const anotherStationLive = Boolean(liveBroadcast && !station.isLive);
+                return (
+                  <button
+                    type="button"
+                    className={`ehome-station-mini ${station.isLive ? 'live' : ''}`}
+                    key={station.id}
+                    onClick={() => station.isLive
+                      ? openBroadcast('now', station.id)
+                      : anotherStationLive
+                        ? openBroadcast('later', station.id)
+                        : openBroadcast('now', station.id)}
+                  >
+                    <div className="ehome-station-art">
+                      <img src={station.brandCover || station.coverArt} alt={`${station.name} brand`} />
+                      {station.isLive && <span>LIVE</span>}
+                    </div>
+                    <strong>{station.name}</strong>
+                    <small>{station.category || 'Station'}</small>
+                    <em>
+                      {station.isLive
+                        ? `${formatNumber(station.listenerCount)} listening · Open studio`
+                        : anotherStationLive
+                          ? 'Another station is live · Schedule instead'
+                          : 'Ready to broadcast'}
+                    </em>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="ehome-empty compact">
+              <FaBroadcastTower />
+              <div>
+                <strong>No stations yet</strong>
+                <span>Create a station once, then use it for every broadcast.</span>
+              </div>
+              <button type="button" onClick={() => onNavigate?.('Stations')}>Create station</button>
+            </div>
+          )}
+        </section>
+
+        <section className="ehome-panel">
+          <div className="ehome-panel-head">
+            <div><h2>Upcoming broadcasts</h2><p>Scheduled sessions ready for the studio.</p></div>
+            <button type="button" onClick={() => openBroadcast('later')}>Plan one <FaArrowRight /></button>
+          </div>
+
+          <div className="ehome-upcoming-list">
+            {upcomingSchedule.slice(0, 3).map((broadcast) => (
+              <button
+                type="button"
+                className="ehome-upcoming"
+                key={broadcast.id || broadcast._id}
+                onClick={() => enterScheduled(broadcast)}
+              >
+                <span>SCHEDULED</span>
+                <div>
+                  <strong>{broadcast.title}</strong>
+                  <small>{broadcast.station?.name || 'Station'} · {formatDateTime(broadcast.startTime)}</small>
+                </div>
+                <b>Enter studio</b>
+              </button>
+            ))}
+            {!upcomingSchedule.length && !loading && (
+              <div className="ehome-empty compact">
+                <FaCalendarAlt />
+                <div><strong>Nothing planned yet</strong><span>Schedule a broadcast whenever you are ready.</span></div>
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className="ehome-panel">
+          <div className="ehome-panel-head">
+            <div>
+              <h2>Performance snapshot</h2>
+              <p>{liveBroadcast ? 'Live performance from your Echoo account.' : 'Activity from your Echoo account.'}</p>
+            </div>
+            <button type="button" onClick={() => onNavigate?.('Analytics')}>Analytics <FaArrowRight /></button>
+          </div>
+          <div className="ehome-metrics">
+            {metrics.map((metric) => (
+              <article key={metric.label}>
+                <i>{metric.icon}</i><span>{metric.label}</span><strong>{metric.value}</strong>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="ehome-panel">
+          <div className="ehome-panel-head">
+            <div><h2>Recent audio</h2><p>Your latest uploaded recordings.</p></div>
+            <button type="button" onClick={() => onNavigate?.('Audio')}>View all <FaArrowRight /></button>
+          </div>
+
+          {recentContent.length ? (
+            <div className="ehome-audio-list">
+              {recentContent.slice(0, 3).map((track) => (
+                <article key={track.id}>
+                  <div>{track.coverArt ? <img src={track.coverArt} alt="" /> : <FaPlay />}</div>
+                  <span>
+                    <strong>{track.title}</strong>
+                    <small>{track.genre || 'Audio'} · {formatNumber(track.plays)} plays</small>
+                  </span>
+                  <em>{track.isPublic ? 'Public' : 'Private'}</em>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="ehome-empty ehome-audio-empty">
+              <FaHeadphones />
+              <div>
+                <strong>No recent uploads</strong>
+                <span>Audio you publish will appear here for quick access.</span>
+              </div>
+            </div>
+          )}
+        </section>
+      </div>
+
+      {!stations.length && (
+        <section className="ehome-station-note">
+          <i><FaBroadcastTower /></i>
+          <div>
+            <strong>Stations are the home for your broadcasts</strong>
+            <span>Create a station once, then choose it whenever you start or schedule a broadcast.</span>
+          </div>
+          <button type="button" onClick={() => onNavigate?.('Stations')}>
+            Create station <FaArrowRight />
+          </button>
+        </section>
+      )}
     </div>
   );
 };

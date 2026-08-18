@@ -1,0 +1,391 @@
+.eam,
+.eam * { box-sizing: border-box; }
+
+.eam {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  padding: 22px;
+  border: 1px solid #dfe7f0;
+  border-radius: 18px;
+  background: #ffffff;
+  color: #13233d;
+}
+
+.eam-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.eam-heading > div { min-width: 0; }
+
+.eam-heading span {
+  display: block;
+  color: #246bfe;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .14em;
+}
+
+.eam-heading h2 {
+  margin: 6px 0 0;
+  font-size: 22px;
+  letter-spacing: -.03em;
+}
+
+.eam-heading p {
+  margin: 5px 0 0;
+  color: #75839a;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.eam-reset,
+.eam-connect {
+  border: 1px solid #dbe3ed;
+  border-radius: 9px;
+  background: #fff;
+  color: #33445f;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.eam-reset {
+  min-height: 34px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
+  padding: 0 11px;
+  white-space: nowrap;
+}
+
+.eam-error {
+  margin: -4px 0 16px;
+  padding: 10px 12px;
+  border: 1px solid #ffd2d2;
+  border-radius: 9px;
+  background: #fff7f7;
+  color: #a93434;
+  font-size: 11px;
+}
+
+.eam-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  min-width: 0;
+}
+
+.eam-channel {
+  min-width: 0;
+  overflow: hidden;
+  padding: 14px 12px 12px;
+  border: 1px solid #e3e9f1;
+  border-radius: 13px;
+  background: #fbfcfe;
+  transition: border-color .18s ease, background .18s ease;
+}
+
+.eam-channel.connected {
+  border-color: #d3e0f1;
+  background: #fff;
+}
+
+.eam-channel.master {
+  background: #f8fbff;
+}
+
+.eam-channel-head {
+  min-width: 0;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.eam-channel-head > div { min-width: 0; }
+
+.eam-channel-icon {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 30px;
+  border-radius: 9px;
+  background: #edf4ff;
+  color: #256bfe;
+  font-size: 12px;
+}
+
+.eam-channel-head strong,
+.eam-channel-head small { display: block; }
+
+.eam-channel-head strong {
+  max-width: 100%;
+  overflow: hidden;
+  color: #162640;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.eam-channel-head small {
+  max-width: 100%;
+  overflow: hidden;
+  margin-top: 3px;
+  color: #8290a6;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.eam-channel-body {
+  height: 164px;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: center;
+  justify-items: center;
+  gap: 8px;
+  margin: 10px 0 6px;
+}
+
+.eam-meter {
+  position: relative;
+  width: 9px;
+  height: 142px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: linear-gradient(to top, #e9eef5 0 70%, #f9ead6 70% 88%, #f6dddd 88% 100%);
+}
+
+.eam-meter-fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: inherit;
+  background: linear-gradient(to top, #1dc46b 0 72%, #f2c94c 72% 88%, #ef4444 88% 100%);
+  transition: height .07s linear;
+}
+
+.eam-fader {
+  width: 128px;
+  max-width: 100%;
+  height: 24px;
+  transform: rotate(-90deg);
+  accent-color: #256bfe;
+  cursor: pointer;
+}
+
+.eam-db {
+  display: block;
+  color: #3d4e67;
+  font-size: 10px;
+  text-align: center;
+}
+
+.eam-channel-controls {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 9px;
+}
+
+.eam-channel-controls button {
+  min-width: 29px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #dbe3ed;
+  border-radius: 7px;
+  background: #fff;
+  color: #718097;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.eam-channel-controls button.active {
+  border-color: #86afff;
+  background: #eef4ff;
+  color: #256bfe;
+}
+
+.eam-channel-controls button.active.mute {
+  border-color: #ffc4c4;
+  background: #fff0f0;
+  color: #d43e3e;
+}
+
+.eam-channel-controls button:disabled {
+  cursor: not-allowed;
+  opacity: .4;
+}
+
+.eam-device-select {
+  width: 100%;
+  min-width: 0;
+  height: 32px;
+  margin-top: 8px;
+  padding: 0 7px;
+  border: 1px solid #dbe3ed;
+  border-radius: 8px;
+  background: #fff;
+  color: #4b5a70;
+  font-size: 9px;
+}
+
+.eam-connect {
+  width: 100%;
+  min-width: 0;
+  min-height: 34px;
+  margin-top: 8px;
+  padding: 0 7px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.eam-connect:hover:not(:disabled),
+.eam-reset:hover { border-color: #a9c4ed; }
+
+.eam-output-status {
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 8px;
+  overflow: hidden;
+  color: #7c8aa0;
+  font-size: 9px;
+  text-align: center;
+}
+
+.eam-output-status span {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  border-radius: 50%;
+  background: #b7c0cc;
+}
+
+.eam-output-status span.ready { background: #20bf6b; }
+
+.eam-legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 15px;
+  color: #8693a8;
+  font-size: 9px;
+}
+
+.eam-legend b {
+  display: inline-grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  margin-right: 3px;
+  border: 1px solid #dde4ed;
+  border-radius: 5px;
+  color: #60708a;
+  font-size: 8px;
+}
+
+/* Compact mixer is used inside the Live side rail. Two-by-two keeps each
+   channel readable and prevents labels/faders from escaping the card. */
+.eam.compact {
+  padding: 18px;
+}
+
+.eam.compact .eam-heading { margin-bottom: 16px; }
+.eam.compact .eam-heading p { display: none; }
+.eam.compact .eam-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.eam.compact .eam-channel { padding: 12px 10px; }
+.eam.compact .eam-channel-body { height: 132px; }
+.eam.compact .eam-meter { height: 112px; }
+.eam.compact .eam-fader { width: 98px; }
+
+/* The Broadcast Studio owns the width. Nothing inside the mixer is allowed
+   to create horizontal overflow. */
+.ebsx,
+.ebsx-setup-main,
+.ebsx-live-main,
+.ebsx-live-side,
+.ebsx-preflight-grid,
+.ebsx-setup-layout,
+.ebsx-live-layout {
+  min-width: 0;
+}
+
+.ebsx { overflow-x: clip; }
+
+.ebsx-live-layout {
+  grid-template-columns: minmax(0, 1fr) minmax(420px, 460px);
+  gap: 18px;
+}
+
+.ebsx-live-side { width: 100%; }
+.ebsx-live-side > * { min-width: 0; width: 100%; }
+
+.ebsx-setup-layout {
+  grid-template-columns: minmax(0, 1fr) 350px;
+  gap: 18px;
+}
+
+.ebsx-preflight-grid {
+  grid-template-columns: minmax(300px, .68fr) minmax(0, 1.32fr);
+  align-items: stretch;
+}
+
+.ebsx-mic-preview,
+.ebsx-preflight-grid > .eam { height: 100%; }
+
+@media (max-width: 1480px) {
+  .ebsx-live-layout { grid-template-columns: 1fr; }
+  .ebsx-live-side {
+    grid-template-columns: minmax(0, 1fr) 320px;
+    align-items: start;
+  }
+  .ebsx-live-side > .eam { min-width: 0; }
+}
+
+@media (max-width: 1260px) {
+  .ebsx-setup-layout { grid-template-columns: 1fr; }
+  .ebsx-live-side { grid-template-columns: 1fr; }
+  .ebsx-preflight-grid { grid-template-columns: minmax(280px, .75fr) minmax(0, 1.25fr); }
+}
+
+@media (max-width: 900px) {
+  .ebsx-preflight-grid { grid-template-columns: 1fr; }
+  .eam-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 720px) {
+  .eam { padding: 16px; border-radius: 14px; }
+  .eam-heading { align-items: stretch; flex-direction: column; gap: 10px; }
+  .eam-reset { align-self: flex-start; }
+  .eam-grid,
+  .eam.compact .eam-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .eam-channel-body,
+  .eam.compact .eam-channel-body { height: 120px; }
+  .eam-meter,
+  .eam.compact .eam-meter { height: 100px; }
+  .eam-fader,
+  .eam.compact .eam-fader { width: 88px; }
+}
+
+@media (max-width: 430px) {
+  .eam-grid,
+  .eam.compact .eam-grid { grid-template-columns: 1fr; }
+  .eam-channel-head strong,
+  .eam-channel-head small { white-space: normal; }
+}

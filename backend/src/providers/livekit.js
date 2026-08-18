@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import {
   AccessToken,
   RoomServiceClient,
@@ -6,11 +7,12 @@ import {
 
 function requireEnv(name) {
   const value = process.env[name];
-
   if (!value) {
-    throw new Error(`${name} is not configured`);
+    const error = new Error(`${name} is not configured`);
+    error.code = 'LIVEKIT_CONFIG_MISSING';
+    error.status = 503;
+    throw error;
   }
-
   return value;
 }
 
@@ -23,8 +25,6 @@ function getConfig() {
   const apiKey = requireEnv('LIVEKIT_API_KEY');
   const apiSecret = requireEnv('LIVEKIT_API_SECRET');
 
-  // LiveKit browser URL may be ws:// or wss://.
-  // Server API clients use HTTP(S).
   const apiUrl = url
     .replace(/^ws:/i, 'http:')
     .replace(/^wss:/i, 'https:');
@@ -39,22 +39,25 @@ function getConfig() {
 
 function roomClient() {
   const { apiUrl, apiKey, apiSecret } = getConfig();
-
-  return new RoomServiceClient(
-    apiUrl,
-    apiKey,
-    apiSecret
-  );
+  return new RoomServiceClient(apiUrl, apiKey, apiSecret);
 }
 
 function egressClient() {
   const { apiUrl, apiKey, apiSecret } = getConfig();
+  return new EgressClient(apiUrl, apiKey, apiSecret);
+}
 
-  return new EgressClient(
-    apiUrl,
-    apiKey,
-    apiSecret
+function serviceError(action, cause) {
+  if (cause?.code === 'LIVEKIT_CONFIG_MISSING') return cause;
+
+  const detail = String(cause?.message || cause || '').trim();
+  const error = new Error(
+    `LiveKit ${action} failed. Check that the LiveKit server is running and that LIVEKIT_URL, LIVEKIT_API_KEY and LIVEKIT_API_SECRET match.${detail ? ` ${detail}` : ''}`
   );
+  error.code = 'LIVEKIT_UNAVAILABLE';
+  error.status = 503;
+  error.cause = cause;
+  return error;
 }
 
 const LiveKitProvider = {
@@ -63,30 +66,54 @@ const LiveKitProvider = {
   },
 
   getPublicUrl() {
-    return requireEnv('LIVEKIT_URL');
+    return (
+      process.env.LIVEKIT_PUBLIC_URL ||
+      requireEnv('LIVEKIT_URL')
+    );
   },
 
   async createRoom(broadcastId) {
     const name = roomNameFor(broadcastId);
-    const client = roomClient();
 
-    // Reuse an existing room if one is already present.
-    const existing = await client.listRooms([name]);
+    try {
+      const client = roomClient();
+      const existing = await client.listRooms([name]);
 
-    if (Array.isArray(existing) && existing.length > 0) {
-      return existing[0];
+      if (Array.isArray(existing) && existing.length > 0) {
+        return existing[0];
+      }
+
+      return await client.createRoom({
+        name,
+        emptyTimeout: 10 * 60,
+        maxParticipants: 5000,
+        metadata: JSON.stringify({
+          application: 'echoo',
+          broadcastId: String(broadcastId),
+          mediaType: 'audio',
+        }),
+      });
+    } catch (error) {
+      throw serviceError('room setup', error);
     }
+  },
 
-    return client.createRoom({
-      name,
-      emptyTimeout: 10 * 60,
-      maxParticipants: 5000,
-      metadata: JSON.stringify({
-        application: 'echoo',
-        broadcastId: String(broadcastId),
-        mediaType: 'audio',
-      }),
-    });
+  async getParticipants(broadcastId) {
+    const name = roomNameFor(broadcastId);
+
+    try {
+      return await roomClient().listParticipants(name);
+    } catch (error) {
+      const message = String(error?.message || error || '');
+
+      if (
+        /not found|does not exist|room.*missing/i.test(message)
+      ) {
+        return [];
+      }
+
+      throw serviceError('participant lookup', error);
+    }
   },
 
   async generateCreatorToken(
@@ -94,31 +121,23 @@ const LiveKitProvider = {
     userId,
     displayName = 'Echoo Creator'
   ) {
-    const {
-      apiKey,
-      apiSecret,
-    } = getConfig();
-
+    const { apiKey, apiSecret } = getConfig();
     const roomName = roomNameFor(broadcastId);
 
-    const token = new AccessToken(
-      apiKey,
-      apiSecret,
-      {
-        identity: String(userId),
-        name: String(displayName || 'Echoo Creator'),
-        metadata: JSON.stringify({
-          role: 'creator',
-          broadcastId: String(broadcastId),
-        }),
-      }
-    );
+    const token = new AccessToken(apiKey, apiSecret, {
+      identity: String(userId),
+      name: String(displayName || 'Echoo Creator'),
+      metadata: JSON.stringify({
+        role: 'creator',
+        userId: String(userId),
+        broadcastId: String(broadcastId),
+      }),
+      ttl: '6h',
+    });
 
     token.addGrant({
       roomJoin: true,
       room: roomName,
-
-      // Creator needs to publish microphone audio.
       canPublish: true,
       canSubscribe: true,
       canPublishData: true,
@@ -132,25 +151,26 @@ const LiveKitProvider = {
     userId,
     displayName = 'Echoo Listener'
   ) {
-    const {
-      apiKey,
-      apiSecret,
-    } = getConfig();
-
+    const { apiKey, apiSecret } = getConfig();
     const roomName = roomNameFor(broadcastId);
 
-    const token = new AccessToken(
-      apiKey,
-      apiSecret,
-      {
-        identity: String(userId),
-        name: String(displayName || 'Echoo Listener'),
-        metadata: JSON.stringify({
-          role: 'listener',
-          broadcastId: String(broadcastId),
-        }),
-      }
-    );
+    // A LiveKit participant identity must be unique inside a room. Never reuse
+    // the raw account ID for listeners: doing so can evict a Creator using the
+    // same account in another tab/device, and two listener devices can evict
+    // each other. Keep the real account ID in metadata instead.
+    const sessionSuffix = randomUUID().replace(/-/g, '').slice(0, 10);
+    const listenerIdentity = `listener-${String(userId)}-${sessionSuffix}`;
+
+    const token = new AccessToken(apiKey, apiSecret, {
+      identity: listenerIdentity,
+      name: String(displayName || 'Echoo Listener'),
+      metadata: JSON.stringify({
+        role: 'listener',
+        userId: String(userId),
+        broadcastId: String(broadcastId),
+      }),
+      ttl: '6h',
+    });
 
     token.addGrant({
       roomJoin: true,
@@ -163,11 +183,7 @@ const LiveKitProvider = {
     return token.toJwt();
   },
 
-  async startEgress(
-    broadcastId,
-    title,
-    ingestUrl
-  ) {
+  async startEgress(broadcastId, title, ingestUrl) {
     const name = roomNameFor(broadcastId);
     const client = egressClient();
 
@@ -177,27 +193,16 @@ const LiveKitProvider = {
       );
     }
 
-    // The LiveKit SDK recognizes a stream output by its urls property.
-    // audioOnly keeps Echoo's pipeline audio-first.
     return client.startRoomCompositeEgress(
       name,
-      {
-        urls: [ingestUrl],
-      },
-      {
-        audioOnly: true,
-      }
+      { urls: [ingestUrl] },
+      { audioOnly: true }
     );
   },
 
   async stopEgress(egressId) {
-    if (!egressId) {
-      return null;
-    }
-
-    return egressClient().stopEgress(
-      String(egressId)
-    );
+    if (!egressId) return null;
+    return egressClient().stopEgress(String(egressId));
   },
 
   async endRoom(broadcastId) {
@@ -207,13 +212,10 @@ const LiveKitProvider = {
       await roomClient().deleteRoom(name);
       return true;
     } catch (error) {
-      // Deleting an already-closed room should not prevent
-      // Echoo from finishing the broadcast lifecycle.
       console.warn(
         `LiveKit room cleanup warning for ${name}:`,
         error?.message || error
       );
-
       return false;
     }
   },

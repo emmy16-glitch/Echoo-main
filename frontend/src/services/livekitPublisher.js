@@ -1,7 +1,8 @@
 import {
   Room,
   Track,
-} from "livekit-client";
+} from 'livekit-client';
+import { resolveLiveKitUrl } from './livekitUrl.js';
 
 let activeRoom = null;
 let activeBroadcastId = null;
@@ -10,253 +11,161 @@ let syntheticContext = null;
 let syntheticOscillator = null;
 let syntheticNativeTrack = null;
 
-const syntheticModeEnabled =
-  () =>
-    import.meta.env
-      .VITE_SYNTHETIC_AUDIO ===
-    "true";
+const syntheticModeEnabled = () =>
+  import.meta.env.VITE_SYNTHETIC_AUDIO === 'true';
 
-const createSyntheticTrack =
-  async () => {
-    const AudioContextClass =
-      window.AudioContext ||
-      window.webkitAudioContext;
+const createSyntheticTrack = async () => {
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
 
-    if (!AudioContextClass) {
-      throw new Error(
-        "This browser does not support Web Audio."
-      );
-    }
+  if (!AudioContextClass) {
+    throw new Error('This browser does not support Web Audio.');
+  }
 
-    syntheticContext =
-      new AudioContextClass();
+  syntheticContext = new AudioContextClass();
+  await syntheticContext.resume();
 
-    await syntheticContext.resume();
+  const oscillator = syntheticContext.createOscillator();
+  const gain = syntheticContext.createGain();
+  const destination = syntheticContext.createMediaStreamDestination();
 
-    const oscillator =
-      syntheticContext
-        .createOscillator();
+  oscillator.type = 'sine';
+  oscillator.frequency.value = 440;
+  gain.gain.value = 0.02;
 
-    const gain =
-      syntheticContext
-        .createGain();
+  oscillator.connect(gain);
+  gain.connect(destination);
+  oscillator.start();
 
-    const destination =
-      syntheticContext
-        .createMediaStreamDestination();
+  const nativeTrack = destination.stream.getAudioTracks()[0];
 
-    oscillator.type =
-      "sine";
+  if (!nativeTrack) {
+    throw new Error('Could not create Echoo synthetic audio track.');
+  }
 
-    oscillator.frequency.value =
-      440;
+  syntheticOscillator = oscillator;
+  syntheticNativeTrack = nativeTrack;
+  return nativeTrack;
+};
 
-    // Quiet test signal.
-    gain.gain.value =
-      0.02;
+const cleanupSyntheticAudio = async () => {
+  try {
+    syntheticNativeTrack?.stop();
+  } catch {
+    // Ignore cleanup errors from an already-ended test track.
+  }
 
-    oscillator.connect(gain);
-    gain.connect(destination);
+  try {
+    syntheticOscillator?.stop();
+  } catch {
+    // Ignore cleanup errors from an already-stopped oscillator.
+  }
 
-    oscillator.start();
+  try {
+    await syntheticContext?.close();
+  } catch {
+    // Ignore cleanup errors from an already-closed context.
+  }
 
-    const nativeTrack =
-      destination.stream
-        .getAudioTracks()[0];
+  syntheticNativeTrack = null;
+  syntheticOscillator = null;
+  syntheticContext = null;
+};
 
-    if (!nativeTrack) {
-      throw new Error(
-        "Could not create Echoo synthetic audio track."
-      );
-    }
+export const getLiveKitPublishingState = () => ({
+  connected: Boolean(activeRoom),
+  broadcastId: activeBroadcastId,
+  roomName: activeRoom?.name || null,
+});
 
-    syntheticOscillator =
-      oscillator;
+export const stopLiveKitPublishing = async () => {
+  const room = activeRoom;
 
-    syntheticNativeTrack =
-      nativeTrack;
+  activeRoom = null;
+  activeBroadcastId = null;
 
-    return nativeTrack;
-  };
-
-const cleanupSyntheticAudio =
-  async () => {
+  if (room) {
     try {
-      syntheticNativeTrack
-        ?.stop();
-    } catch {
-      // Ignore cleanup error.
+      await room.disconnect();
+    } catch (error) {
+      console.warn('Could not disconnect LiveKit room:', error);
     }
+  }
 
-    try {
-      syntheticOscillator
-        ?.stop();
-    } catch {
-      // Ignore cleanup error.
-    }
+  await cleanupSyntheticAudio();
+};
 
-    try {
-      await syntheticContext
-        ?.close();
-    } catch {
-      // Ignore cleanup error.
-    }
+export const startLiveKitPublishing = async ({
+  url,
+  token,
+  broadcastId,
+  mediaTrack = null,
+}) => {
+  const resolvedUrl = resolveLiveKitUrl(url);
 
-    syntheticNativeTrack = null;
-    syntheticOscillator = null;
-    syntheticContext = null;
-  };
+  if (!resolvedUrl) {
+    throw new Error('VITE_LIVEKIT_URL is not configured.');
+  }
 
-export const getLiveKitPublishingState =
-  () => ({
-    connected:
-      Boolean(activeRoom),
+  if (!token) {
+    throw new Error('Echoo did not return a LiveKit token.');
+  }
 
-    broadcastId:
-      activeBroadcastId,
+  await stopLiveKitPublishing();
 
-    roomName:
-      activeRoom?.name ||
-      null,
+  const room = new Room();
 
-    mode:
-      syntheticModeEnabled()
-        ? "synthetic-test"
-        : "microphone",
-  });
+  try {
+    await room.connect(resolvedUrl, token);
 
-export const stopLiveKitPublishing =
-  async () => {
-    const room =
-      activeRoom;
+    let publication;
+    let mode = 'microphone';
 
-    activeRoom = null;
-    activeBroadcastId = null;
-
-    if (room) {
-      try {
-        await room.disconnect();
-      } catch (error) {
-        console.warn(
-          "Could not disconnect LiveKit room:",
-          error
-        );
+    if (mediaTrack) {
+      if (mediaTrack.kind !== 'audio' || mediaTrack.readyState === 'ended') {
+        throw new Error('The Echoo mixer output is not available.');
       }
+
+      publication = await room.localParticipant.publishTrack(mediaTrack, {
+        name: 'echoo-studio-mix',
+        source: Track.Source.Microphone,
+      });
+      mode = 'studio-mix';
+    } else if (syntheticModeEnabled()) {
+      const nativeTrack = await createSyntheticTrack();
+      publication = await room.localParticipant.publishTrack(nativeTrack, {
+        name: 'echoo-dev-test-audio',
+        source: Track.Source.Microphone,
+      });
+      mode = 'synthetic-test';
+    } else {
+      publication = await room.localParticipant.setMicrophoneEnabled(true);
+    }
+
+    activeRoom = room;
+    activeBroadcastId = String(broadcastId || '');
+
+    const result = {
+      connected: true,
+      roomName: room.name,
+      identity: room.localParticipant.identity,
+      trackSid: publication?.trackSid || null,
+      mode,
+      url: resolvedUrl,
+    };
+
+    console.log('[Echoo LiveKit] publishing', result);
+    return result;
+  } catch (error) {
+    try {
+      await room.disconnect();
+    } catch {
+      // Ignore cleanup errors while unwinding a failed connection.
     }
 
     await cleanupSyntheticAudio();
-  };
-
-export const startLiveKitPublishing =
-  async ({
-    url,
-    token,
-    broadcastId,
-  }) => {
-    if (!url) {
-      throw new Error(
-        "VITE_LIVEKIT_URL is not configured."
-      );
-    }
-
-    if (!token) {
-      throw new Error(
-        "Echoo did not return a LiveKit token."
-      );
-    }
-
-    await stopLiveKitPublishing();
-
-    const room =
-      new Room();
-
-    try {
-      await room.connect(
-        url,
-        token
-      );
-
-      const useSynthetic =
-        syntheticModeEnabled();
-
-      let publication;
-
-      if (useSynthetic) {
-        const nativeTrack =
-          await createSyntheticTrack();
-
-        publication =
-          await room
-            .localParticipant
-            .publishTrack(
-              nativeTrack,
-              {
-                name:
-                  "echoo-dev-test-audio",
-
-                source:
-                  Track.Source
-                    .Microphone,
-              }
-            );
-      } else {
-        publication =
-          await room
-            .localParticipant
-            .setMicrophoneEnabled(
-              true
-            );
-      }
-
-      activeRoom =
-        room;
-
-      activeBroadcastId =
-        String(
-          broadcastId ||
-          ""
-        );
-
-      const result = {
-        connected:
-          true,
-
-        roomName:
-          room.name,
-
-        identity:
-          room
-            .localParticipant
-            .identity,
-
-        trackSid:
-          publication?.trackSid ||
-          null,
-
-        mode:
-          useSynthetic
-            ? "synthetic-test"
-            : "microphone",
-      };
-
-      console.log(
-        "[Echoo LiveKit] publishing",
-        result
-      );
-
-      return result;
-    } catch (error) {
-      try {
-        await room.disconnect();
-      } catch {
-        // Ignore cleanup error.
-      }
-
-      await cleanupSyntheticAudio();
-
-      throw error;
-    }
-  };
+    throw error;
+  }
+};
 
 export default {
   startLiveKitPublishing,

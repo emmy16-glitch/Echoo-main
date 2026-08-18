@@ -21,9 +21,9 @@ import profileRoutes from './profileRoutes.js';
 import uploadRoutes from './uploadRoutes.js';
 import historyRoutes from './historyRoutes.js';
 import downloadsRoutes from './downloadsRoutes.js';
-import liveStudioRoutes from './liveStudioRoutes.js';
 import advancedPlayerRoutes from './advancedPlayerRoutes.js';
 import notificationRoutes from './notificationRoutes.js';
+import LiveKitProvider from '../providers/livekit.js';
 
 const router = express.Router();
 
@@ -31,8 +31,35 @@ router.get('/health', (req, res) => {
   res.status(200).json({
     status: 'ok',
     service: 'echoo-api',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
+});
+
+router.get('/health/livekit', async (req, res) => {
+  try {
+    // A participant lookup against a deliberately unused room exercises the
+    // authenticated LiveKit server API. A missing room is a healthy response;
+    // connection/configuration failures are normalized by LiveKitProvider.
+    await LiveKitProvider.getParticipants('echoo-healthcheck');
+
+    return res.status(200).json({
+      status: 'ok',
+      service: 'livekit',
+      reachable: true,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    return res.status(error?.status || 503).json({
+      status: 'error',
+      service: 'livekit',
+      reachable: false,
+      error: {
+        code: error?.code || 'LIVEKIT_UNAVAILABLE',
+        message: error?.message || 'LiveKit is unavailable',
+      },
+      timestamp: new Date().toISOString(),
+    });
+  }
 });
 
 router.use('/auth', authRoutes);
@@ -48,7 +75,6 @@ router.use('/follows', followRoutes);
 router.use('/search', searchRoutes);
 router.use('/library', libraryRoutes);
 router.use('/stations', stationRoutes);
-router.use("/broadcasts", listenerLivekitRoutes);
 router.use('/broadcasts', broadcastRoutes);
 router.use('/analytics', analyticsRoutes);
 router.use('/chat', chatRoutes);
@@ -58,16 +84,7 @@ router.use('/profile', profileRoutes);
 router.use('/uploads', uploadRoutes);
 router.use('/history', historyRoutes);
 router.use('/downloads', downloadsRoutes);
-router.use('/live-studio', liveStudioRoutes);
 router.use('/player', advancedPlayerRoutes);
 router.use('/notifications', notificationRoutes);
 
-
 export default router;
-import scheduleRoutes from './scheduleRoutes.js';
-
-import listenerLivekitRoutes from "./listenerLivekitRoutes.js";
-// Add to router
-router.use('/schedule', scheduleRoutes);
-
-// Add to router

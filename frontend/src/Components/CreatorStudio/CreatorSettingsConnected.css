@@ -1,0 +1,207 @@
+.creator-settings-real {
+  display: grid;
+  gap: 18px;
+}
+
+.creator-settings-real-header {
+  padding: 24px;
+  border: 1px solid #e1e7ef;
+  border-radius: 18px;
+  background: #f7faff;
+}
+
+.creator-settings-real-header span {
+  color: #1769ff;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .14em;
+}
+
+.creator-settings-real-header h2 {
+  margin: 7px 0 0;
+  color: #10233f;
+  font-size: clamp(28px, 4vw, 42px);
+  line-height: 1.05;
+}
+
+.creator-settings-real-header p {
+  max-width: 680px;
+  margin: 8px 0 0;
+  color: #667085;
+  line-height: 1.6;
+}
+
+.creator-settings-real-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.creator-settings-real-card {
+  display: grid;
+  gap: 14px;
+  padding: 22px;
+  border: 1px solid #e1e7ef;
+  border-radius: 16px;
+  background: #fff;
+}
+
+.creator-settings-real-card.wide { grid-column: 1 / -1; }
+
+.creator-settings-real-card h3,
+.creator-settings-real-card p { margin: 0; }
+
+.creator-settings-real-card h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #10233f;
+  font-size: 17px;
+  letter-spacing: -.02em;
+}
+
+.creator-settings-real-card p {
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.creator-settings-real-card label {
+  display: grid;
+  gap: 7px;
+}
+
+.creator-settings-real-card label > span {
+  color: #344054;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.creator-settings-real-card input,
+.creator-settings-real-card textarea,
+.creator-settings-real-card select {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #d0d8e3;
+  border-radius: 11px;
+  background: #fff;
+  color: #101828;
+  font: inherit;
+  outline: none;
+  transition: border-color .16s ease, box-shadow .16s ease;
+}
+
+.creator-settings-real-card input:focus,
+.creator-settings-real-card textarea:focus,
+.creator-settings-real-card select:focus {
+  border-color: #91b5ff;
+  box-shadow: 0 0 0 4px rgba(36,107,254,.08);
+}
+
+.creator-settings-real-card input,
+.creator-settings-real-card select {
+  min-height: 44px;
+  padding: 0 12px;
+}
+
+.creator-settings-real-card textarea {
+  min-height: 112px;
+  padding: 11px 12px;
+  resize: vertical;
+}
+
+.creator-settings-real-card button {
+  min-height: 42px;
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 11px;
+  background: #1769ff;
+  color: #fff;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.creator-settings-real-card button:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+
+.creator-settings-real-toggle {
+  min-height: 62px;
+  display: flex !important;
+  grid-template-columns: none !important;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 11px 13px;
+  border: 1px solid #e5eaf1;
+  border-radius: 12px;
+  background: #fbfcfe;
+}
+
+.creator-settings-real-toggle > span {
+  min-width: 0;
+  flex: 1;
+}
+
+.creator-settings-real-toggle > span strong,
+.creator-settings-real-toggle > span small {
+  display: block;
+}
+
+.creator-settings-real-toggle > span strong {
+  color: #24344f;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.creator-settings-real-toggle > span small {
+  margin-top: 4px;
+  color: #8591a3;
+  font-size: 9px;
+  line-height: 1.45;
+  font-weight: 500;
+}
+
+.creator-settings-real-toggle input {
+  width: 22px;
+  height: 22px;
+  min-height: 0;
+  padding: 0;
+  accent-color: #1769ff;
+}
+
+.creator-settings-real-message {
+  padding: 12px 14px;
+  border-radius: 12px;
+  font-size: 11px;
+}
+
+.creator-settings-real-message.success {
+  border: 1px solid #abefc6;
+  background: #ecfdf3;
+  color: #067647;
+}
+
+.creator-settings-real-message.error {
+  border: 1px solid #fecdca;
+  background: #fef3f2;
+  color: #b42318;
+}
+
+@media (max-width: 820px) {
+  .creator-settings-real-grid { grid-template-columns: 1fr; }
+  .creator-settings-real-card.wide { grid-column: auto; }
+}
+
+@media (max-width: 560px) {
+  .creator-settings-real-header { padding: 21px 18px; }
+  .creator-settings-real-card { padding: 18px; }
+  .creator-settings-real-card > button { width: 100%; }
+}

@@ -1,333 +1,417 @@
+import mongoose from 'mongoose';
 import Follow from '../models/Follow.js';
+import StationFollow from '../models/StationFollow.js';
+import Station from '../models/Station.js';
 import User from '../models/User.js';
 
-// Follow a user
+const userSummary = '_id username displayName avatar bio userType creatorProfile.category creatorProfile.isVerified';
+const stationSummary = '_id name slug description coverArt category isLive listenerCount followerCount owner';
+
+function validId(value) {
+  return mongoose.isValidObjectId(value);
+}
+
+function invalidId(res, resource = 'resource') {
+  return res.status(400).json({
+    error: {
+      code: 'INVALID_ID',
+      message: `Invalid ${resource} ID`,
+    },
+  });
+}
+
 export async function followUser(req, res, next) {
   try {
-    const { userId } = req.params; // User to follow
-    const followerId = req.userId; // Current user
+    const { userId } = req.params;
+    const followerId = req.userId;
 
-    if (userId === followerId) {
+    if (!validId(userId)) return invalidId(res, 'user');
+    if (String(userId) === String(followerId)) {
       return res.status(400).json({
-        error: { code: 'SELF_FOLLOW', message: 'You cannot follow yourself' }
+        error: { code: 'SELF_FOLLOW', message: 'You cannot follow yourself' },
       });
     }
 
-    // Check if user exists
-    const userToFollow = await User.findById(userId);
-    if (!userToFollow) {
+    const user = await User.findOne({ _id: userId, isActive: true }).select(userSummary);
+    if (!user) {
       return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'User not found' }
+        error: { code: 'NOT_FOUND', message: 'User not found' },
       });
     }
 
-    // Check if already following
-    const existingFollow = await Follow.findOne({
+    const existing = await Follow.findOne({
       follower: followerId,
       following: userId,
     });
 
-    if (existingFollow) {
-      if (existingFollow.status === 'blocked') {
-        return res.status(400).json({
-          error: { code: 'BLOCKED', message: 'You have been blocked by this user' }
-        });
+    if (existing?.status === 'blocked') {
+      return res.status(403).json({
+        error: { code: 'BLOCKED', message: 'This follow relationship is blocked' },
+      });
+    }
+
+    if (existing) {
+      if (existing.status !== 'accepted') {
+        existing.status = 'accepted';
+        await existing.save();
       }
-      return res.status(400).json({
-        error: { code: 'ALREADY_FOLLOWING', message: 'Already following this user' }
+
+      return res.status(200).json({
+        data: {
+          following: true,
+          user,
+          relationship: existing,
+        },
+        timestamp: new Date().toISOString(),
       });
     }
 
-    // Create follow
-    const follow = new Follow({
+    const relationship = await Follow.create({
       follower: followerId,
       following: userId,
+      status: 'accepted',
     });
 
-    await follow.save();
-
-    // Update follower/following counts
-    await User.findByIdAndUpdate(followerId, {
-      $addToSet: { 'creatorProfile.followers': userId }
-    });
-
+    // Keep this legacy cache correct for older creator profile consumers.
+    // Follow collection remains the source of truth.
     await User.findByIdAndUpdate(userId, {
-      $addToSet: { 'creatorProfile.followers': followerId }
+      $addToSet: { 'creatorProfile.followers': followerId },
     });
-
-    // Increment follower count
-    const userToUpdate = await User.findById(userId);
-    if (userToUpdate.creatorProfile) {
-      userToUpdate.creatorProfile.totalListeners = (userToUpdate.creatorProfile.totalListeners || 0) + 1;
-      await userToUpdate.save();
-    }
 
     return res.status(201).json({
       data: {
-        follow: follow.toJSON(),
-        message: 'Successfully followed user',
+        following: true,
+        user,
+        relationship,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
+    if (error?.code === 11000) {
+      return res.status(200).json({
+        data: { following: true },
+        timestamp: new Date().toISOString(),
+      });
+    }
     next(error);
   }
 }
 
-// Unfollow a user
 export async function unfollowUser(req, res, next) {
   try {
     const { userId } = req.params;
     const followerId = req.userId;
 
-    const follow = await Follow.findOne({
+    if (!validId(userId)) return invalidId(res, 'user');
+
+    const relationship = await Follow.findOneAndDelete({
       follower: followerId,
       following: userId,
     });
 
-    if (!follow) {
-      return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Not following this user' }
-      });
-    }
-
-    await follow.deleteOne();
-
-    // Remove from followers lists
-    await User.findByIdAndUpdate(followerId, {
-      $pull: { 'creatorProfile.followers': userId }
-    });
-
     await User.findByIdAndUpdate(userId, {
-      $pull: { 'creatorProfile.followers': followerId }
+      $pull: { 'creatorProfile.followers': followerId },
     });
-
-    // Decrement follower count
-    const userToUpdate = await User.findById(userId);
-    if (userToUpdate.creatorProfile) {
-      userToUpdate.creatorProfile.totalListeners = Math.max(0, (userToUpdate.creatorProfile.totalListeners || 0) - 1);
-      await userToUpdate.save();
-    }
 
     return res.status(200).json({
       data: {
-        message: 'Successfully unfollowed user',
         following: false,
+        removed: Boolean(relationship),
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     next(error);
   }
 }
 
-// Get followers list
 export async function getFollowers(req, res, next) {
   try {
     const { userId } = req.params;
-    const { page = 1, limit = 20 } = req.query;
+    if (!validId(userId)) return invalidId(res, 'user');
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 20));
+    const skip = (page - 1) * limit;
 
-    const follows = await Follow.find({ following: userId, status: 'accepted' })
-      .populate('follower', 'username displayName avatar bio isActive')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit));
-
-    const total = await Follow.countDocuments({ following: userId, status: 'accepted' });
-
-    // Check if current user follows any of these users
-    const currentUserId = req.userId;
-    const followersWithFollowStatus = await Promise.all(
-      follows.map(async (follow) => {
-        const isFollowing = await Follow.exists({
-          follower: currentUserId,
-          following: follow.follower._id,
-        });
-        return {
-          ...follow.toJSON(),
-          follower: {
-            ...follow.follower.toJSON(),
-            isFollowing: !!isFollowing,
-          },
-        };
-      })
-    );
+    const filter = { following: userId, status: 'accepted' };
+    const [rows, total] = await Promise.all([
+      Follow.find(filter)
+        .populate('follower', userSummary)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      Follow.countDocuments(filter),
+    ]);
 
     return res.status(200).json({
       data: {
-        followers: followersWithFollowStatus,
+        followers: rows
+          .map((row) => row.follower)
+          .filter(Boolean),
         pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
+          page,
+          limit,
           total,
-          totalPages: Math.ceil(total / parseInt(limit)),
+          totalPages: Math.ceil(total / limit),
         },
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     next(error);
   }
 }
 
-// Get following list
 export async function getFollowing(req, res, next) {
   try {
     const { userId } = req.params;
-    const { page = 1, limit = 20 } = req.query;
+    if (!validId(userId)) return invalidId(res, 'user');
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 20));
+    const skip = (page - 1) * limit;
 
-    const follows = await Follow.find({ follower: userId, status: 'accepted' })
-      .populate('following', 'username displayName avatar bio isActive creatorProfile')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit));
-
-    const total = await Follow.countDocuments({ follower: userId, status: 'accepted' });
-
-    // Check if current user follows any of these users
-    const currentUserId = req.userId;
-    const followingWithFollowStatus = await Promise.all(
-      follows.map(async (follow) => {
-        const isFollowing = await Follow.exists({
-          follower: currentUserId,
-          following: follow.following._id,
-        });
-        return {
-          ...follow.toJSON(),
-          following: {
-            ...follow.following.toJSON(),
-            isFollowing: !!isFollowing,
-            isCreator: follow.following.userType === 'creator',
-          },
-        };
-      })
-    );
+    const filter = { follower: userId, status: 'accepted' };
+    const [rows, total] = await Promise.all([
+      Follow.find(filter)
+        .populate('following', userSummary)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      Follow.countDocuments(filter),
+    ]);
 
     return res.status(200).json({
       data: {
-        following: followingWithFollowStatus,
+        following: rows
+          .map((row) => row.following)
+          .filter(Boolean),
         pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
+          page,
+          limit,
           total,
-          totalPages: Math.ceil(total / parseInt(limit)),
+          totalPages: Math.ceil(total / limit),
         },
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     next(error);
   }
 }
 
-// Check follow status
+export async function getMyFollowing(req, res, next) {
+  req.params.userId = String(req.userId);
+  return getFollowing(req, res, next);
+}
+
 export async function checkFollowStatus(req, res, next) {
   try {
     const { userId } = req.params;
+    if (!validId(userId)) return invalidId(res, 'user');
+
     const currentUserId = req.userId;
-
-    const isFollowing = await Follow.exists({
-      follower: currentUserId,
-      following: userId,
-      status: 'accepted',
-    });
-
-    const isFollowedBy = await Follow.exists({
-      follower: userId,
-      following: currentUserId,
-      status: 'accepted',
-    });
+    const [isFollowing, isFollowedBy] = await Promise.all([
+      Follow.exists({
+        follower: currentUserId,
+        following: userId,
+        status: 'accepted',
+      }),
+      Follow.exists({
+        follower: userId,
+        following: currentUserId,
+        status: 'accepted',
+      }),
+    ]);
 
     return res.status(200).json({
       data: {
-        isFollowing: !!isFollowing,
-        isFollowedBy: !!isFollowedBy,
-        relationship: isFollowing && isFollowedBy ? 'mutual' 
-          : isFollowing ? 'following' 
-          : isFollowedBy ? 'follower' 
-          : 'none',
+        isFollowing: Boolean(isFollowing),
+        isFollowedBy: Boolean(isFollowedBy),
+        relationship:
+          isFollowing && isFollowedBy
+            ? 'mutual'
+            : isFollowing
+              ? 'following'
+              : isFollowedBy
+                ? 'follower'
+                : 'none',
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     next(error);
   }
 }
 
-// Get follower count
 export async function getFollowerCount(req, res, next) {
   try {
     const { userId } = req.params;
+    if (!validId(userId)) return invalidId(res, 'user');
 
-    const user = await User.findById(userId);
+    const user = await User.exists({ _id: userId, isActive: true });
     if (!user) {
       return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'User not found' }
+        error: { code: 'NOT_FOUND', message: 'User not found' },
       });
     }
 
-    const followerCount = await Follow.countDocuments({
-      following: userId,
-      status: 'accepted',
-    });
-
-    const followingCount = await Follow.countDocuments({
-      follower: userId,
-      status: 'accepted',
-    });
+    const [followerCount, followingCount] = await Promise.all([
+      Follow.countDocuments({ following: userId, status: 'accepted' }),
+      Follow.countDocuments({ follower: userId, status: 'accepted' }),
+    ]);
 
     return res.status(200).json({
-      data: {
-        userId,
-        followerCount,
-        followingCount,
-      },
-      timestamp: new Date().toISOString()
+      data: { userId, followerCount, followingCount },
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     next(error);
   }
 }
 
-// Get mutual followers
 export async function getMutualFollowers(req, res, next) {
   try {
     const { userId } = req.params;
-    const currentUserId = req.userId;
+    if (!validId(userId)) return invalidId(res, 'user');
 
-    // Get users that current user follows
-    const currentUserFollowing = await Follow.find({
-      follower: currentUserId,
+    const currentFollowing = await Follow.find({
+      follower: req.userId,
       status: 'accepted',
     }).select('following');
 
-    const followingIds = currentUserFollowing.map(f => f.following.toString());
-
-    // Get users that follow the target user
     const targetFollowers = await Follow.find({
       following: userId,
       status: 'accepted',
     }).select('follower');
 
-    const targetFollowerIds = targetFollowers.map(f => f.follower.toString());
+    const followingIds = new Set(
+      currentFollowing.map((item) => String(item.following))
+    );
+    const mutualIds = targetFollowers
+      .map((item) => String(item.follower))
+      .filter((id) => followingIds.has(id));
 
-    // Find mutual follows
-    const mutualIds = followingIds.filter(id => targetFollowerIds.includes(id));
-
-    const mutualUsers = await User.find({
+    const mutual = await User.find({
       _id: { $in: mutualIds },
-    }).select('username displayName avatar bio');
+      isActive: true,
+    }).select(userSummary);
+
+    return res.status(200).json({
+      data: { mutual, count: mutual.length },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function followStation(req, res, next) {
+  try {
+    const { stationId } = req.params;
+    if (!validId(stationId)) return invalidId(res, 'station');
+
+    const station = await Station.findOne({
+      _id: stationId,
+      isDeleted: false,
+      isPublic: true,
+    }).select(stationSummary);
+
+    if (!station) {
+      return res.status(404).json({
+        error: { code: 'NOT_FOUND', message: 'Station not found' },
+      });
+    }
+
+    const relationship = await StationFollow.findOneAndUpdate(
+      { follower: req.userId, station: stationId },
+      { $setOnInsert: { follower: req.userId, station: stationId } },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
+    const followerCount = await StationFollow.countDocuments({ station: stationId });
+    await Station.findByIdAndUpdate(stationId, { followerCount });
 
     return res.status(200).json({
       data: {
-        mutual: mutualUsers,
-        count: mutualUsers.length,
+        following: true,
+        station: { ...station.toJSON(), followerCount },
+        relationship,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function unfollowStation(req, res, next) {
+  try {
+    const { stationId } = req.params;
+    if (!validId(stationId)) return invalidId(res, 'station');
+
+    const relationship = await StationFollow.findOneAndDelete({
+      follower: req.userId,
+      station: stationId,
+    });
+
+    const followerCount = await StationFollow.countDocuments({ station: stationId });
+    await Station.findByIdAndUpdate(stationId, { followerCount });
+
+    return res.status(200).json({
+      data: {
+        following: false,
+        removed: Boolean(relationship),
+        followerCount,
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function checkStationFollowStatus(req, res, next) {
+  try {
+    const { stationId } = req.params;
+    if (!validId(stationId)) return invalidId(res, 'station');
+
+    const [relationship, followerCount] = await Promise.all([
+      StationFollow.exists({ follower: req.userId, station: stationId }),
+      StationFollow.countDocuments({ station: stationId }),
+    ]);
+
+    return res.status(200).json({
+      data: {
+        isFollowing: Boolean(relationship),
+        followerCount,
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function getMyFollowedStations(req, res, next) {
+  try {
+    const rows = await StationFollow.find({ follower: req.userId })
+      .populate({
+        path: 'station',
+        select: stationSummary,
+        populate: {
+          path: 'owner',
+          select: userSummary,
+        },
+      })
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      data: {
+        stations: rows.map((row) => row.station).filter(Boolean),
+      },
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     next(error);

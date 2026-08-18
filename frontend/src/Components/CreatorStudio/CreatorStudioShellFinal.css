@@ -1,0 +1,122 @@
+.studio-final-shell {
+  grid-template-columns: 236px minmax(0, 1fr);
+  gap: 0;
+  padding: 0;
+  background: #f7f9fc;
+  color: #101828;
+  font-family: "Segoe UI Variable", "Avenir Next", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.studio-final-shell .studio-sidebar {
+  min-height: 100vh;
+  padding: 24px 14px 18px;
+  border: 0;
+  border-right: 1px solid #e6eaf0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.studio-final-shell .studio-brand {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px 26px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.studio-final-shell .studio-brand h2 { color: #101828; font-size: 23px; font-weight: 760; letter-spacing: -.035em; }
+.studio-final-shell .studio-brand span { color: #98a2b3; font-size: 9px; }
+.studio-final-shell .studio-logo { width: 34px; height: 34px; }
+
+.studio-final-shell .studio-navigation { gap: 6px; }
+.studio-final-shell .studio-nav-item {
+  min-height: 46px;
+  gap: 12px;
+  padding: 0 13px;
+  border-radius: 11px;
+  color: #667085;
+  font-size: 12px;
+  font-weight: 620;
+}
+.studio-final-shell .studio-nav-item.active { background: #eef4ff; color: #2563eb; }
+.studio-final-shell .studio-nav-icon { width: 18px; font-size: 14px; }
+
+.studio-final-shell .studio-sidebar-profile {
+  grid-template-columns: 36px minmax(0, 1fr) 34px;
+  gap: 9px;
+  padding-top: 16px;
+  border-top: 1px solid #edf0f4;
+}
+.studio-final-shell .sidebar-profile-text strong { color: #101828; font-size: 11px; }
+.studio-final-shell .sidebar-profile-text span { color: #98a2b3; font-size: 9px; }
+.studio-final-shell .studio-sidebar-logout { width: 34px; height: 34px; min-height: 34px; padding: 0; border: 1px solid #e4e7ec; border-radius: 9px; background: #fff; }
+.studio-final-shell .studio-sidebar-logout span { display: none; }
+
+.studio-final-shell .studio-main { min-width: 0; background: #fff; }
+.studio-topbar-final {
+  min-height: 74px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 24px;
+  padding: 0 34px;
+  border-bottom: 1px solid #e9edf3;
+  background: rgba(255,255,255,.96);
+  backdrop-filter: blur(12px);
+}
+
+.studio-command-search {
+  width: min(100%, 430px);
+  height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-right: auto;
+  padding: 0 13px;
+  border: 1px solid #e1e6ee;
+  border-radius: 999px;
+  background: #fbfcfe;
+  color: #98a2b3;
+}
+.studio-command-search input { width: 100%; border: 0; outline: 0; background: transparent; color: #344054; font: inherit; font-size: 11px; }
+.studio-command-search svg { font-size: 12px; }
+
+.studio-final-shell .studio-top-actions { display: flex; align-items: center; gap: 9px; }
+.studio-final-shell .notification-button { width: 40px; height: 40px; min-height: 40px; border: 1px solid #e4e7ec; border-radius: 50%; background: #fff; color: #667085; }
+.studio-final-shell .studio-account-button { min-height: 44px; padding: 0 10px; border: 1px solid #e4e7ec; border-radius: 999px; background: #fff; }
+.studio-final-shell .studio-account-button strong { color: #101828; font-size: 10px; }
+.studio-final-shell .studio-account-button span { color: #98a2b3; font-size: 8px; }
+.studio-final-shell .top-avatar { width: 30px; height: 30px; }
+
+.studio-final-shell .studio-view { width: 100%; max-width: 1540px; margin: 0 auto; padding: 38px 42px 54px; }
+.studio-final-shell .studio-footer { max-width: 1540px; margin: 0 auto; padding: 18px 42px 24px; color: #98a2b3; }
+
+@media (max-width: 980px) {
+  .studio-final-shell { grid-template-columns: 82px minmax(0, 1fr); }
+  .studio-final-shell .studio-sidebar { padding-left: 10px; padding-right: 10px; }
+  .studio-final-shell .studio-brand { justify-content: center; padding-left: 0; padding-right: 0; }
+  .studio-final-shell .studio-brand > div,
+  .studio-final-shell .studio-nav-item > span:last-child,
+  .studio-final-shell .sidebar-profile-text { display: none; }
+  .studio-final-shell .studio-nav-item { justify-content: center; padding: 0; }
+  .studio-final-shell .studio-sidebar-profile { grid-template-columns: 1fr; justify-items: center; }
+  .studio-final-shell .studio-view { padding: 28px 24px 45px; }
+  .studio-topbar-final { padding: 0 22px; }
+}
+
+@media (max-width: 640px) {
+  .studio-final-shell { display: block; }
+  .studio-final-shell .studio-sidebar { min-height: auto; position: sticky; top: 0; z-index: 30; display: grid; grid-template-columns: auto 1fr; align-items: center; padding: 9px 12px; border-right: 0; border-bottom: 1px solid #e6eaf0; }
+  .studio-final-shell .studio-brand { width: auto; padding: 0; }
+  .studio-final-shell .studio-navigation { display: flex; flex-direction: row; justify-content: flex-end; overflow-x: auto; }
+  .studio-final-shell .studio-nav-item { width: 42px; min-width: 42px; min-height: 42px; }
+  .studio-final-shell .studio-sidebar-profile { display: none; }
+  .studio-command-search { display: none; }
+  .studio-topbar-final { min-height: 62px; padding: 0 14px; }
+  .studio-final-shell .studio-view { padding: 22px 14px 38px; }
+  .studio-final-shell .studio-footer { padding-left: 14px; padding-right: 14px; }
+}

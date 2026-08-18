@@ -1,284 +1,459 @@
+import fs from 'fs';
+import path from 'path';
+import mongoose from 'mongoose';
 import Station from '../models/Station.js';
+import Broadcast from '../models/Broadcast.js';
 import User from '../models/User.js';
 import { createSlug } from '../utils/helpers.js';
+import {
+  createStationBranding,
+  ensureStationBranding,
+  normalizeStationBrandVariant,
+} from '../utils/stationBranding.js';
 
-// Create station
+const OWNER_FIELDS =
+  'username displayName avatar bio userType creatorProfile.category creatorProfile.artistName creatorProfile.organizationName creatorProfile.organizationLogo creatorProfile.isVerified';
+
+function validId(value) {
+  return mongoose.isValidObjectId(value);
+}
+
+function invalidId(res) {
+  return res.status(400).json({
+    error: { code: 'INVALID_STATION_ID', message: 'Invalid station ID' },
+  });
+}
+
+function populateOwner(query) {
+  return query.populate('owner', OWNER_FIELDS);
+}
+
+function parseTags(value) {
+  if (Array.isArray(value)) return value;
+  if (value === undefined || value === null || value === '') return [];
+
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) return parsed;
+    } catch {
+      // Fall through to comma-separated parsing.
+    }
+
+    return value
+      .split(',')
+      .map((tag) => tag.trim())
+      .filter(Boolean);
+  }
+
+  return [];
+}
+
+function parseBoolean(value, fallback = true) {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    if (value.toLowerCase() === 'false') return false;
+    if (value.toLowerCase() === 'true') return true;
+  }
+  if (value === undefined || value === null) return fallback;
+  return Boolean(value);
+}
+
+function uploadedStationLogo(file) {
+  return file?.filename ? `/uploads/stations/${file.filename}` : null;
+}
+
+function safeGeneratedCover(value) {
+  if (!value || typeof value !== 'string') return null;
+  if (!value.startsWith('data:image/svg+xml')) return null;
+  return value.length <= 120000 ? value : null;
+}
+
+async function removeManagedStationLogo(value) {
+  if (!value || !String(value).startsWith('/uploads/stations/')) return;
+
+  const fileName = path.basename(String(value));
+  const filePath = path.join(process.cwd(), 'uploads', 'stations', fileName);
+
+  try {
+    await fs.promises.unlink(filePath);
+  } catch (error) {
+    if (error?.code !== 'ENOENT') {
+      console.warn('Could not remove old station logo:', error.message);
+    }
+  }
+}
+
 export async function createStation(req, res, next) {
   try {
-    const { name, description, category, tags, isPublic, coverArt } = req.body;
-    const userId = req.userId;
+    const {
+      name,
+      description = '',
+      category = 'Other',
+      tags = [],
+      isPublic = true,
+      coverArt = null,
+      brandingMode,
+      brandingVariant,
+      generatedCoverArt,
+    } = req.body;
 
-    if (!name) {
+    const cleanName = String(name || '').trim();
+    if (!cleanName) {
       return res.status(400).json({
-        error: { code: 'VALIDATION_ERROR', message: 'Station name is required' }
+        error: { code: 'VALIDATION_ERROR', message: 'Station name is required' },
       });
     }
 
-    // Check if user is a creator
-    const user = await User.findById(userId);
+    const user = await User.findById(req.userId).select('_id userType isActive');
+    if (!user || !user.isActive) {
+      return res.status(404).json({
+        error: { code: 'NOT_FOUND', message: 'User not found' },
+      });
+    }
+
     if (user.userType !== 'creator') {
       return res.status(403).json({
-        error: { code: 'FORBIDDEN', message: 'Only creators can create stations' }
+        error: {
+          code: 'FORBIDDEN',
+          message: 'Only creators can create stations',
+        },
       });
     }
 
-    // Generate slug
-    const slug = createSlug(name);
+    const slug = createSlug(cleanName);
+    const existing = await Station.findOne({ slug, isDeleted: false }).select('_id');
 
-    // Check if slug exists
-    const existingStation = await Station.findOne({ slug });
-    if (existingStation) {
+    if (existing) {
       return res.status(409).json({
-        error: { code: 'CONFLICT', message: 'Station name already exists' }
+        error: {
+          code: 'STATION_NAME_TAKEN',
+          message: 'A station with this name already exists',
+        },
       });
     }
 
-    const station = new Station({
-      name,
-      slug,
-      description: description || '',
-      owner: userId,
-      category: category || 'Other',
-      tags: tags || [],
-      isPublic: isPublic !== undefined ? isPublic : true,
-      coverArt: coverArt || null,
+    const uploadedLogo = uploadedStationLogo(req.file);
+    const legacyCustomLogo = brandingMode === 'generated' ? null : coverArt || null;
+    const customLogo = uploadedLogo || legacyCustomLogo;
+    const generatedCover = safeGeneratedCover(generatedCoverArt);
+    const branding = createStationBranding({
+      hasCustomLogo: Boolean(customLogo),
+      variant: brandingVariant,
     });
 
-    await station.save();
+    const station = await Station.create({
+      name: cleanName,
+      slug,
+      description,
+      owner: req.userId,
+      category,
+      tags: parseTags(tags),
+      isPublic: parseBoolean(isPublic, true),
+      coverArt: customLogo || generatedCover || null,
+      branding: {
+        ...branding,
+        mode: customLogo ? 'custom' : 'generated',
+      },
+      isLive: false,
+      listenerCount: 0,
+    });
+
+    const populated = await populateOwner(Station.findById(station._id));
 
     return res.status(201).json({
-      data: station,
-      timestamp: new Date().toISOString()
+      data: populated,
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
+    if (error?.code === 11000) {
+      return res.status(409).json({
+        error: {
+          code: 'STATION_NAME_TAKEN',
+          message: 'A station with this name already exists',
+        },
+      });
+    }
     next(error);
   }
 }
 
-// Get all stations
 export async function getStations(req, res, next) {
   try {
-    const { page = 1, limit = 20, category, search, featured, live } = req.query;
+    const {
+      page = 1,
+      limit = 20,
+      category,
+      search,
+      featured,
+      live,
+    } = req.query;
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-    const filter = { isDeleted: false };
+    const safePage = Math.max(1, Number(page) || 1);
+    const safeLimit = Math.min(100, Math.max(1, Number(limit) || 20));
+    const skip = (safePage - 1) * safeLimit;
+
+    const filter = {
+      isDeleted: false,
+      isPublic: true,
+    };
 
     if (category) filter.category = category;
     if (featured === 'true') filter.isFeatured = true;
     if (live === 'true') filter.isLive = true;
     if (search) {
-      filter.$text = { $search: search };
+      filter.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } },
+      ];
     }
 
-    const stations = await Station.find(filter)
-      .populate('owner', 'username displayName avatar')
-      .sort({ isLive: -1, listenerCount: -1, createdAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit));
-
-    const total = await Station.countDocuments(filter);
+    const [stations, total] = await Promise.all([
+      populateOwner(
+        Station.find(filter)
+          .sort({ isLive: -1, listenerCount: -1, createdAt: -1 })
+          .skip(skip)
+          .limit(safeLimit)
+      ),
+      Station.countDocuments(filter),
+    ]);
 
     return res.status(200).json({
       data: stations,
       pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
+        page: safePage,
+        limit: safeLimit,
         total,
-        totalPages: Math.ceil(total / parseInt(limit)),
+        totalPages: Math.ceil(total / safeLimit),
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     next(error);
   }
 }
 
-// Get single station
+export async function getMyStations(req, res, next) {
+  try {
+    const stations = await populateOwner(
+      Station.find({
+        owner: req.userId,
+        isDeleted: false,
+      }).sort({ createdAt: -1 })
+    );
+
+    return res.status(200).json({
+      data: stations,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 export async function getStationById(req, res, next) {
   try {
     const { stationId } = req.params;
+    if (!validId(stationId)) return invalidId(res);
 
-    const station = await Station.findById(stationId)
-      .populate('owner', 'username displayName avatar bio');
+    const station = await populateOwner(
+      Station.findOne({
+        _id: stationId,
+        isDeleted: false,
+      })
+    );
 
     if (!station) {
       return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Station not found' }
+        error: { code: 'NOT_FOUND', message: 'Station not found' },
       });
     }
 
-    if (!station.isPublic && station.owner._id.toString() !== req.userId) {
+    const ownerId = station.owner?._id || station.owner;
+    const requesterId = req.userId || null;
+
+    if (!station.isPublic && String(ownerId) !== String(requesterId || '')) {
       return res.status(403).json({
-        error: { code: 'FORBIDDEN', message: 'You do not have access to this station' }
+        error: { code: 'FORBIDDEN', message: 'This station is private' },
       });
     }
 
     return res.status(200).json({
       data: station,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     next(error);
   }
 }
 
-// Update station
 export async function updateStation(req, res, next) {
   try {
     const { stationId } = req.params;
-    const { name, description, category, tags, isPublic, coverArt, isFeatured } = req.body;
+    if (!validId(stationId)) return invalidId(res);
 
-    const station = await Station.findById(stationId);
+    const station = await Station.findOne({
+      _id: stationId,
+      isDeleted: false,
+    });
+
     if (!station) {
       return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Station not found' }
+        error: { code: 'NOT_FOUND', message: 'Station not found' },
       });
     }
 
-    // Check ownership
-    if (station.owner.toString() !== req.userId.toString()) {
+    if (String(station.owner) !== String(req.userId)) {
       return res.status(403).json({
-        error: { code: 'FORBIDDEN', message: 'You do not own this station' }
+        error: { code: 'FORBIDDEN', message: 'You do not own this station' },
       });
     }
 
-    if (name) {
-      station.name = name;
-      station.slug = createSlug(name);
+    const {
+      name,
+      description,
+      category,
+      tags,
+      isPublic,
+      coverArt,
+      removeLogo,
+      brandingMode,
+      brandingVariant,
+      generatedCoverArt,
+    } = req.body;
+
+    if (name !== undefined) {
+      const cleanName = String(name).trim();
+      if (!cleanName) {
+        return res.status(400).json({
+          error: { code: 'VALIDATION_ERROR', message: 'Station name cannot be empty' },
+        });
+      }
+
+      const nextSlug = createSlug(cleanName);
+      const conflict = await Station.findOne({
+        _id: { $ne: station._id },
+        slug: nextSlug,
+        isDeleted: false,
+      }).select('_id');
+
+      if (conflict) {
+        return res.status(409).json({
+          error: {
+            code: 'STATION_NAME_TAKEN',
+            message: 'A station with this name already exists',
+          },
+        });
+      }
+
+      station.name = cleanName;
+      station.slug = nextSlug;
     }
+
     if (description !== undefined) station.description = description;
-    if (category) station.category = category;
-    if (tags) station.tags = tags;
-    if (isPublic !== undefined) station.isPublic = isPublic;
-    if (coverArt) station.coverArt = coverArt;
-    if (isFeatured !== undefined) station.isFeatured = isFeatured;
+    if (category !== undefined) station.category = category;
+    if (tags !== undefined) station.tags = parseTags(tags);
+    if (isPublic !== undefined) station.isPublic = parseBoolean(isPublic, station.isPublic);
+
+    ensureStationBranding(station);
+
+    const previousLogo = station.coverArt;
+    const nextUploadedLogo = uploadedStationLogo(req.file);
+    const shouldRemoveLogo = parseBoolean(removeLogo, false);
+    const requestedBrandMode = brandingMode === 'generated' || brandingMode === 'custom'
+      ? brandingMode
+      : null;
+    const requestedVariant = normalizeStationBrandVariant(brandingVariant, null);
+    const generatedCover = safeGeneratedCover(generatedCoverArt);
+
+    if (requestedVariant !== null) {
+      station.branding.variant = requestedVariant;
+      station.branding.version = 1;
+    }
+
+    if (nextUploadedLogo) {
+      station.coverArt = nextUploadedLogo;
+      station.branding.mode = 'custom';
+    } else if (shouldRemoveLogo || requestedBrandMode === 'generated') {
+      station.coverArt = generatedCover || null;
+      station.branding.mode = 'generated';
+    } else if (coverArt !== undefined) {
+      station.coverArt = coverArt || null;
+      station.branding.mode = station.coverArt ? 'custom' : 'generated';
+    } else if (requestedBrandMode === 'custom' && station.coverArt) {
+      station.branding.mode = 'custom';
+    }
 
     await station.save();
 
+    if (previousLogo && previousLogo !== station.coverArt) {
+      await removeManagedStationLogo(previousLogo);
+    }
+
+    const populated = await populateOwner(Station.findById(station._id));
+
     return res.status(200).json({
-      data: station,
-      timestamp: new Date().toISOString()
+      data: populated,
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
+    if (error?.code === 11000) {
+      return res.status(409).json({
+        error: {
+          code: 'STATION_NAME_TAKEN',
+          message: 'A station with this name already exists',
+        },
+      });
+    }
     next(error);
   }
 }
 
-// Delete station
 export async function deleteStation(req, res, next) {
   try {
     const { stationId } = req.params;
+    if (!validId(stationId)) return invalidId(res);
 
-    const station = await Station.findById(stationId);
+    const station = await Station.findOne({
+      _id: stationId,
+      isDeleted: false,
+    });
+
     if (!station) {
       return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Station not found' }
+        error: { code: 'NOT_FOUND', message: 'Station not found' },
       });
     }
 
-    if (station.owner.toString() !== req.userId.toString()) {
+    if (String(station.owner) !== String(req.userId)) {
       return res.status(403).json({
-        error: { code: 'FORBIDDEN', message: 'You do not own this station' }
+        error: { code: 'FORBIDDEN', message: 'You do not own this station' },
+      });
+    }
+
+    const activeBroadcast = await Broadcast.exists({
+      station: station._id,
+      isDeleted: false,
+      status: { $in: ['starting', 'live', 'ending'] },
+    });
+
+    if (activeBroadcast) {
+      return res.status(409).json({
+        error: {
+          code: 'STATION_HAS_ACTIVE_BROADCAST',
+          message: 'End the active broadcast before deleting this station',
+        },
       });
     }
 
     station.isDeleted = true;
+    station.isLive = false;
+    station.listenerCount = 0;
     await station.save();
 
     return res.status(200).json({
       data: { message: 'Station deleted successfully' },
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    next(error);
-  }
-}
-
-// Toggle live status
-export async function toggleLive(req, res, next) {
-  try {
-    const { stationId } = req.params;
-    const { isLive } = req.body;
-
-    const station = await Station.findById(stationId);
-    if (!station) {
-      return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Station not found' }
-      });
-    }
-
-    if (station.owner.toString() !== req.userId.toString()) {
-      return res.status(403).json({
-        error: { code: 'FORBIDDEN', message: 'You do not own this station' }
-      });
-    }
-
-    await station.toggleLive(isLive);
-
-    return res.status(200).json({
-      data: {
-        station,
-        isLive: station.isLive,
-      },
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    next(error);
-  }
-}
-
-// Get station schedule
-export async function getStationSchedule(req, res, next) {
-  try {
-    const { stationId } = req.params;
-
-    const station = await Station.findById(stationId);
-    if (!station) {
-      return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Station not found' }
-      });
-    }
-
-    return res.status(200).json({
-      data: {
-        station: station.name,
-        schedule: station.schedule || [],
-      },
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    next(error);
-  }
-}
-
-// Update station schedule
-export async function updateStationSchedule(req, res, next) {
-  try {
-    const { stationId } = req.params;
-    const { schedule } = req.body;
-
-    const station = await Station.findById(stationId);
-    if (!station) {
-      return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Station not found' }
-      });
-    }
-
-    if (station.owner.toString() !== req.userId.toString()) {
-      return res.status(403).json({
-        error: { code: 'FORBIDDEN', message: 'You do not own this station' }
-      });
-    }
-
-    station.schedule = schedule;
-    await station.save();
-
-    return res.status(200).json({
-      data: {
-        station: station.name,
-        schedule: station.schedule,
-      },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     next(error);

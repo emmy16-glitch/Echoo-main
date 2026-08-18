@@ -1,0 +1,185 @@
+/* Auth + onboarding motion polish. */
+.echoo-broadcast-login-page {
+  position: relative;
+  overflow: hidden;
+  background: #f7faff;
+}
+
+.echoo-broadcast-login-page::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: url('../Components/Assets/echoo-patterns/blob-scene.svg') center / cover no-repeat;
+  opacity: .75;
+}
+
+.echoo-broadcast-login-hero,
+.echoo-broadcast-login-auth {
+  position: relative;
+  z-index: 1;
+}
+
+.echoo-broadcast-login-hero {
+  animation: echoo-auth-hero-in 520ms var(--echoo-ease) both;
+}
+
+.echoo-broadcast-form-card {
+  animation: echoo-auth-card-in 480ms var(--echoo-ease) 80ms both;
+}
+
+@keyframes echoo-auth-hero-in {
+  from { opacity: 0; transform: translateX(-18px) scale(.99); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+@keyframes echoo-auth-card-in {
+  from { opacity: 0; transform: translateY(16px) scale(.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.echoo-broadcast-form .echoo-broadcast-field,
+.eor-form-grid .eor-field,
+.eor-role-grid .eor-role-card {
+  animation: echoo-auth-field-in 360ms var(--echoo-ease) both;
+}
+
+.echoo-broadcast-form .echoo-broadcast-field:nth-of-type(1),
+.eor-form-grid .eor-field:nth-of-type(1),
+.eor-role-grid .eor-role-card:nth-child(1) { animation-delay: 110ms; }
+.echoo-broadcast-form .echoo-broadcast-field:nth-of-type(2),
+.eor-form-grid .eor-field:nth-of-type(2),
+.eor-role-grid .eor-role-card:nth-child(2) { animation-delay: 150ms; }
+.eor-form-grid .eor-field:nth-of-type(3) { animation-delay: 190ms; }
+.eor-form-grid .eor-field:nth-of-type(4) { animation-delay: 230ms; }
+.eor-form-grid .eor-field:nth-of-type(5) { animation-delay: 270ms; }
+
+@keyframes echoo-auth-field-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.echoo-broadcast-input-shell,
+.eor-input-shell {
+  transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease, transform 180ms var(--echoo-ease);
+}
+
+.echoo-broadcast-input-shell:focus-within,
+.eor-input-shell:focus-within {
+  border-color: #84adff !important;
+  background: #fff !important;
+  box-shadow: 0 0 0 4px rgba(23,105,255,.08) !important;
+  transform: translateY(-1px);
+}
+
+.echoo-broadcast-input-shell:focus-within .echoo-broadcast-input-icon,
+.eor-input-shell:focus-within .eor-field-icon {
+  color: var(--echoo-blue);
+  transform: scale(1.05);
+}
+
+.echoo-broadcast-input-icon,
+.eor-field-icon {
+  transition: color 160ms ease, transform 180ms var(--echoo-ease);
+}
+
+.echoo-broadcast-error,
+.eor-inline-error {
+  animation: echoo-error-in 220ms var(--echoo-ease) both;
+}
+
+@keyframes echoo-error-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.echoo-broadcast-social,
+.eor-social {
+  transition: transform 180ms var(--echoo-ease), border-color 160ms ease, background-color 160ms ease, box-shadow 180ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .echoo-broadcast-social:hover,
+  .eor-social:hover {
+    transform: translateY(-2px);
+    border-color: #c7d7f5 !important;
+    box-shadow: 0 8px 20px rgba(25,46,78,.06);
+  }
+}
+
+.echoo-success-state {
+  animation: echoo-success-enter 420ms var(--echoo-ease) both;
+}
+
+.echoo-success-ring {
+  animation: echoo-success-ring-pop 440ms var(--echoo-ease) 70ms both;
+}
+
+@keyframes echoo-success-enter {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes echoo-success-ring-pop {
+  0% { transform: scale(.72); opacity: 0; }
+  70% { transform: scale(1.06); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.echoo-success-pulse {
+  animation: echoo-success-pulse 1.8s ease-out infinite;
+}
+
+@keyframes echoo-success-pulse {
+  0% { transform: scale(.78); opacity: .45; }
+  75%, 100% { transform: scale(1.35); opacity: 0; }
+}
+
+/* The waveform remains the primary auth motion, but the frame feels alive too. */
+.eor-hero {
+  isolation: isolate;
+}
+
+.eor-hero::after {
+  content: '';
+  position: absolute;
+  inset: auto -10% -12% 15%;
+  height: 48%;
+  z-index: 0;
+  pointer-events: none;
+  background: url('../Components/Assets/echoo-patterns/layered-waves.svg') bottom / cover no-repeat;
+  opacity: .34;
+  animation: echoo-ambient-drift 12s ease-in-out infinite alternate;
+}
+
+@keyframes echoo-ambient-drift {
+  from { transform: translate3d(-1.2%, 0, 0) scale(1.01); }
+  to { transform: translate3d(1.2%, -2%, 0) scale(1.035); }
+}
+
+@media (max-width: 760px) {
+  .echoo-broadcast-login-hero,
+  .echoo-broadcast-form-card {
+    animation-duration: 340ms;
+  }
+
+  .eor-hero::after {
+    opacity: .22;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .echoo-broadcast-login-hero,
+  .echoo-broadcast-form-card,
+  .echoo-broadcast-form .echoo-broadcast-field,
+  .eor-form-grid .eor-field,
+  .eor-role-grid .eor-role-card,
+  .echoo-success-state,
+  .echoo-success-ring,
+  .echoo-success-pulse,
+  .eor-hero::after {
+    animation: none !important;
+    transform: none !important;
+    opacity: 1;
+  }
+}

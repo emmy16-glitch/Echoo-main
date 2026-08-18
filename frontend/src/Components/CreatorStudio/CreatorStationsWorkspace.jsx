@@ -1,940 +1,513 @@
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
-
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FaBroadcastTower,
+  FaCalendarAlt,
+  FaEdit,
+  FaEllipsisH,
+  FaMicrophone,
   FaPlus,
+  FaRandom,
   FaSave,
+  FaTimes,
   FaTrash,
   FaUpload,
-} from "react-icons/fa";
+  FaUsers,
+} from 'react-icons/fa';
 
-import EchoSignal from "../EchooSystem/EchoSignal";
-
-import batch2Service from "../../services/batch2Service";
-
+import batch2Service from '../../services/batch2Service';
 import {
-  getMockMediaForKey,
-} from "../../services/mockMediaService.js";
-
-import "./CreatorPhase9.css";
-import "./CreatorBatch2.css";
-
-const LOCAL_KEY =
-  "echoo-creator-station-drafts-v1";
+  buildGeneratedStationBrandCoverUrl,
+  randomStationBrandVariant,
+} from '../../stationBranding/stationBranding';
+import './CreatorStationsExact.css';
+import './CreatorStationLogo.css';
+import './CreatorStationBranding.css';
 
 const CATEGORIES = [
-  "Faith & Spirituality",
-  "Education",
-  "News & Politics",
-  "Business",
-  "Health & Wellness",
-  "Entertainment",
-  "Technology",
-  "Sports",
-  "Music",
-  "Comedy",
-  "Storytelling",
-  "Other",
+  'Faith & Spirituality',
+  'Education',
+  'News & Politics',
+  'Business',
+  'Health & Wellness',
+  'Entertainment',
+  'Technology',
+  'Sports',
+  'Music',
+  'Comedy',
+  'Storytelling',
+  'Other',
 ];
 
-const readLocalDrafts =
-  () => {
+const createEmptyForm = () => ({
+  name: '',
+  category: 'Other',
+  description: '',
+  tags: '',
+  logoFile: null,
+  logoPreview: '',
+  removeLogo: false,
+  brandingMode: 'generated',
+  brandingVariant: randomStationBrandVariant(),
+  isPublic: true,
+});
+
+const MAX_LOGO_SIZE = 5 * 1024 * 1024;
+const LOGO_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+
+const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
+  const [stations, setStations] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingId, setEditingId] = useState('');
+  const [menuStationId, setMenuStationId] = useState('');
+  const [form, setForm] = useState(createEmptyForm);
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState('');
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+  const logoInputRef = useRef(null);
+
+  const loadStations = useCallback(async () => {
     try {
-      const data =
-        JSON.parse(
-          localStorage.getItem(
-            LOCAL_KEY
-          ) || "[]"
-        );
-
-      return Array.isArray(
-        data
-      )
-        ? data
-        : [];
-    } catch {
-      return [];
+      setLoading(true);
+      setError('');
+      const response = await batch2Service.getMyStations();
+      setStations(Array.isArray(response?.data) ? response.data : []);
+    } catch (loadError) {
+      setStations([]);
+      setError(loadError?.message || 'Could not load your stations.');
+    } finally {
+      setLoading(false);
     }
-  };
-
-const CreatorStationsWorkspace = ({
-  studioName =
-    "Creator",
-}) => {
-  const [
-    stations,
-    setStations,
-  ] = useState([]);
-
-  const [
-    localDrafts,
-    setLocalDrafts,
-  ] = useState(
-    readLocalDrafts
-  );
-
-  const [
-    loading,
-    setLoading,
-  ] = useState(true);
-
-  const [
-    formOpen,
-    setFormOpen,
-  ] = useState(false);
-
-  const [
-    saving,
-    setSaving,
-  ] = useState(false);
-
-  const [
-    deletingId,
-    setDeletingId,
-  ] = useState(null);
-
-  const [
-    importing,
-    setImporting,
-  ] = useState(false);
-
-  const [
-    name,
-    setName,
-  ] = useState("");
-
-  const [
-    category,
-    setCategory,
-  ] = useState(
-    "Other"
-  );
-
-  const [
-    description,
-    setDescription,
-  ] = useState("");
-
-  const [
-    tags,
-    setTags,
-  ] = useState("");
-
-  const [
-    message,
-    setMessage,
-  ] = useState("");
-
-  const [
-    error,
-    setError,
-  ] = useState("");
-
-  const loadStations =
-    useCallback(
-      async () => {
-        try {
-          setLoading(
-            true
-          );
-
-          setError(
-            ""
-          );
-
-          const response =
-            await batch2Service
-              .getMyStations();
-
-          setStations(
-            Array.isArray(
-              response?.data
-            )
-              ? response.data
-              : []
-          );
-        } catch (
-          loadError
-        ) {
-          console.error(
-            "Creator stations:",
-            loadError
-          );
-
-          setError(
-            loadError?.message ||
-            "Could not load your stations."
-          );
-        } finally {
-          setLoading(
-            false
-          );
-        }
-      },
-      []
-    );
+  }, []);
 
   useEffect(() => {
     loadStations();
   }, [loadStations]);
 
-  const sorted =
-    useMemo(
-      () =>
-        [...stations].sort(
-          (
-            first,
-            second
-          ) =>
-            new Date(
-              second.updatedAt ||
-              second.createdAt ||
-              0
-            ) -
-            new Date(
-              first.updatedAt ||
-              first.createdAt ||
-              0
-            )
-        ),
-      [
-        stations,
-      ]
-    );
+  const sorted = useMemo(
+    () => [...stations].sort(
+      (first, second) =>
+        new Date(second.updatedAt || second.createdAt || 0) -
+        new Date(first.updatedAt || first.createdAt || 0)
+    ),
+    [stations]
+  );
 
-  const resetForm =
-    () => {
-      setName("");
-      setCategory(
-        "Other"
-      );
-      setDescription("");
-      setTags("");
-      setFormOpen(
-        false
-      );
+  const liveStation = stations.find((station) => station.isLive) || null;
+
+  const generatedPreview = useMemo(
+    () => buildGeneratedStationBrandCoverUrl({
+      id: editingId || `preview-${form.brandingVariant}`,
+      name: form.name.trim() || 'Your Station',
+      category: form.category,
+      branding: {
+        mode: 'generated',
+        variant: form.brandingVariant,
+        version: 1,
+      },
+    }),
+    [editingId, form.name, form.category, form.brandingVariant]
+  );
+
+  const brandPreview = form.brandingMode === 'custom' && form.logoPreview
+    ? form.logoPreview
+    : generatedPreview;
+
+  const openBroadcast = (station, nextMode = 'now') => {
+    if (!station?.id) return;
+    sessionStorage.setItem('echooSelectedStationId', String(station.id));
+    sessionStorage.setItem('echooBroadcastMode', nextMode);
+    setMenuStationId('');
+    onNavigate?.('Broadcast');
+  };
+
+  const resetLogoInput = () => {
+    if (logoInputRef.current) logoInputRef.current.value = '';
+  };
+
+  const closeForm = () => {
+    if (saving) return;
+    setFormOpen(false);
+    setEditingId('');
+    setForm(createEmptyForm());
+    resetLogoInput();
+  };
+
+  const openCreate = () => {
+    setMessage('');
+    setError('');
+    setEditingId('');
+    setMenuStationId('');
+    setForm(createEmptyForm());
+    resetLogoInput();
+    setFormOpen(true);
+  };
+
+  const openEdit = (station) => {
+    setMessage('');
+    setError('');
+    setEditingId(station.id);
+    setMenuStationId('');
+    setForm({
+      name: station.name || '',
+      category: CATEGORIES.includes(station.category) ? station.category : 'Other',
+      description: station.description || '',
+      tags: Array.isArray(station.tags) ? station.tags.join(', ') : '',
+      logoFile: null,
+      logoPreview: station.logo || '',
+      removeLogo: false,
+      brandingMode: station.logo ? 'custom' : 'generated',
+      brandingVariant: Number.isInteger(Number(station.branding?.variant))
+        ? Number(station.branding.variant)
+        : randomStationBrandVariant(),
+      isPublic: station.isPublic !== false,
+    });
+    resetLogoInput();
+    setFormOpen(true);
+  };
+
+  const updateField = (field, value) => {
+    setForm((current) => ({ ...current, [field]: value }));
+  };
+
+  const handleLogoFile = (event) => {
+    const file = event.target.files?.[0] || null;
+    if (!file) return;
+
+    if (!LOGO_TYPES.has(file.type)) {
+      setError('Station logo must be a JPG, PNG or WebP image.');
+      resetLogoInput();
+      return;
+    }
+
+    if (file.size > MAX_LOGO_SIZE) {
+      setError('Station logo must be 5 MB or smaller.');
+      resetLogoInput();
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setForm((current) => ({
+        ...current,
+        logoFile: file,
+        logoPreview: typeof reader.result === 'string' ? reader.result : '',
+        removeLogo: false,
+        brandingMode: 'custom',
+      }));
+      setError('');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const setEchooBrandMode = (shuffle = false) => {
+    setForm((current) => ({
+      ...current,
+      logoFile: null,
+      logoPreview: '',
+      removeLogo: Boolean(editingId) || current.removeLogo,
+      brandingMode: 'generated',
+      brandingVariant: shuffle
+        ? randomStationBrandVariant(current.brandingVariant)
+        : current.brandingVariant,
+    }));
+    resetLogoInput();
+    setError('');
+  };
+
+  const submitStation = async (event) => {
+    event.preventDefault();
+    if (!form.name.trim() || saving) return;
+
+    const payload = {
+      name: form.name.trim(),
+      category: form.category,
+      description: form.description.trim(),
+      tags: form.tags.split(',').map((tag) => tag.trim()).filter(Boolean),
+      logoFile: form.logoFile,
+      removeLogo: form.removeLogo,
+      brandingMode: form.brandingMode,
+      brandingVariant: form.brandingVariant,
+      isPublic: form.isPublic,
     };
 
-  const saveStation =
-    async (
-      event
-    ) => {
-      event.preventDefault();
+    try {
+      setSaving(true);
+      setError('');
+      setMessage('');
 
-      if (
-        !name.trim() ||
-        saving
-      ) {
-        return;
-      }
+      const response = editingId
+        ? await batch2Service.updateStation(editingId, payload)
+        : await batch2Service.createStation(payload);
 
-      try {
-        setSaving(
-          true
-        );
+      if (!response?.data?.id) throw new Error('Echoo did not return the saved station.');
 
-        setError(
-          ""
-        );
-
-        setMessage(
-          ""
-        );
-
-        const response =
-          await batch2Service
-            .createStation({
-              name:
-                name.trim(),
-
-              category,
-
-              description:
-                description.trim(),
-
-              tags:
-                tags
-                  .split(",")
-                  .map(
-                    (
-                      item
-                    ) =>
-                      item.trim()
-                  )
-                  .filter(Boolean),
-            });
-
-        if (
-          response?.data
-        ) {
-          setStations(
-            (
-              current
-            ) => [
-              response.data,
-              ...current,
-            ]
-          );
-        }
-
-        setMessage(
-          `${name.trim()} is now a real Echoo station.`
-        );
-
-        resetForm();
-      } catch (
-        saveError
-      ) {
-        console.error(
-          saveError
-        );
-
-        setError(
-          saveError?.message ||
-          "Could not create the station."
-        );
-      } finally {
-        setSaving(
-          false
-        );
-      }
-    };
-
-  const removeStation =
-    async (
-      station
-    ) => {
-      if (
-        !station?.id ||
-        deletingId
-      ) {
-        return;
-      }
-
-      const confirmed =
-        window.confirm(
-          `Delete "${station.name}"?`
-        );
-
-      if (
-        !confirmed
-      ) {
-        return;
-      }
-
-      try {
-        setDeletingId(
-          station.id
-        );
-
-        setError(
-          ""
-        );
-
-        await batch2Service
-          .deleteStation(
-            station.id
-          );
-
-        setStations(
-          (
-            current
-          ) =>
-            current.filter(
-              (
-                item
-              ) =>
-                item.id !==
-                station.id
-            )
-        );
-
-        setMessage(
-          `${station.name} was deleted.`
-        );
-      } catch (
-        deleteError
-      ) {
-        setError(
-          deleteError?.message ||
-          "Could not delete the station."
-        );
-      } finally {
-        setDeletingId(
-          null
-        );
-      }
-    };
-
-  const importDrafts =
-    async () => {
-      if (
-        !localDrafts.length ||
-        importing
-      ) {
-        return;
-      }
-
-      setImporting(
-        true
+      const refreshed = await batch2Service.getMyStations();
+      const canonicalStations = Array.isArray(refreshed?.data) ? refreshed.data : [];
+      const canonical = canonicalStations.find(
+        (station) => String(station.id) === String(response.data.id)
       );
 
-      setError(
-        ""
-      );
-
-      setMessage(
-        ""
-      );
-
-      const remaining =
-        [];
-
-      let imported =
-        0;
-
-      for (
-        const draft of
-        localDrafts
-      ) {
-        const draftName =
-          draft?.name ||
-          draft?.title ||
-          "";
-
-        if (
-          !draftName.trim()
-        ) {
-          remaining.push(
-            draft
-          );
-
-          continue;
-        }
-
-        try {
-          await batch2Service
-            .createStation({
-              name:
-                draftName.trim(),
-
-              description:
-                draft.description ||
-                "",
-
-              category:
-                CATEGORIES.includes(
-                  draft.category
-                )
-                  ? draft.category
-                  : "Other",
-
-              tags:
-                Array.isArray(
-                  draft.tags
-                )
-                  ? draft.tags
-                  : [],
-            });
-
-          imported +=
-            1;
-        } catch {
-          remaining.push(
-            draft
-          );
-        }
+      if (!canonical) {
+        throw new Error('The station saved, but Echoo could not reload its brand from the backend.');
       }
 
-      localStorage.setItem(
-        LOCAL_KEY,
-        JSON.stringify(
-          remaining
-        )
-      );
-
-      setLocalDrafts(
-        remaining
-      );
-
-      setImporting(
-        false
-      );
-
-      await loadStations();
-
-      if (
-        imported
-      ) {
-        setMessage(
-          `${imported} local station ${
-            imported === 1
-              ? "draft was"
-              : "drafts were"
-          } moved to the backend.`
-        );
+      if (form.brandingMode === 'custom' && form.logoFile && !canonical.logo) {
+        throw new Error('The station saved, but its custom logo did not persist.');
       }
 
-      if (
-        remaining.length
-      ) {
-        setError(
-          `${remaining.length} local ${
-            remaining.length === 1
-              ? "draft could"
-              : "drafts could"
-          } not be imported. They were kept safely in this browser.`
-        );
+      if (form.brandingMode === 'generated' && canonical.branding?.mode !== 'generated') {
+        throw new Error('The station saved, but Echoo could not apply the generated brand.');
       }
-    };
+
+      setStations(canonicalStations);
+      setMessage(editingId ? 'Station updated.' : 'Station created.');
+      setFormOpen(false);
+      setEditingId('');
+      setForm(createEmptyForm());
+      resetLogoInput();
+    } catch (saveError) {
+      setError(saveError?.message || 'Could not save the station.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const removeStation = async (station) => {
+    if (!station?.id || deletingId) return;
+    if (!window.confirm(`Delete “${station.name}”?`)) return;
+
+    try {
+      setDeletingId(String(station.id));
+      setError('');
+      setMessage('');
+      setMenuStationId('');
+      await batch2Service.deleteStation(station.id);
+      setStations((current) => current.filter((item) => String(item.id) !== String(station.id)));
+      setMessage('Station deleted.');
+    } catch (deleteError) {
+      setError(deleteError?.message || 'Could not delete the station.');
+    } finally {
+      setDeletingId('');
+    }
+  };
 
   return (
-    <section className="creator-b2-page">
-      <header className="creator-b2-header">
+    <section className="est">
+      <header className="est-header">
         <div>
-          <span className="creator-b2-kicker">
-            REAL STATIONS
-          </span>
-
-          <h1>
-            Your Echoo stations.
-          </h1>
-
+          <h1>Your stations</h1>
           <p>
-            Create and manage the
-            stations owned by{" "}
-            {studioName}. New stations
-            are now stored by the
-            backend instead of only in
-            this browser.
+            A station is the home for your broadcasts. Create it once, then choose it whenever
+            you go live or schedule your next session.
           </p>
         </div>
-
-        <EchoSignal
-          size="lg"
-          state={
-            stations.some(
-              (
-                station
-              ) =>
-                station.isLive
-            )
-              ? "live"
-              : "idle"
-          }
-          activeNodes={
-            stations.some(
-              (
-                station
-              ) =>
-                station.isLive
-            )
-              ? 3
-              : 0
-          }
-        >
-          <FaBroadcastTower />
-        </EchoSignal>
+        <button type="button" className="est-new" onClick={openCreate}>
+          <FaPlus /> New station
+        </button>
       </header>
 
-      <div className="creator-b2-toolbar">
+      <section className="est-summary">
         <div>
-          <strong>
-            {
-              stations.length
-            }{" "}
-            {stations.length ===
-            1
-              ? "station"
-              : "stations"}
-          </strong>
-
-          <span>
-            Backend connected
-          </span>
+          <i className="blue"><FaBroadcastTower /></i>
+          <span><strong>{stations.length} {stations.length === 1 ? 'station' : 'stations'}</strong><small>{studioName}</small></span>
         </div>
-
-        <button
-          type="button"
-          className="creator-b2-primary"
-          onClick={() =>
-            setFormOpen(
-              (
-                current
-              ) =>
-                !current
-            )
-          }
-        >
-          <FaPlus />
-          New station
-        </button>
-      </div>
-
-      {localDrafts.length >
-        0 && (
-        <div className="creator-b2-notice">
-          <div>
-            <strong>
-              {
-                localDrafts.length
-              }{" "}
-              old local{" "}
-              {localDrafts.length ===
-              1
-                ? "draft"
-                : "drafts"}{" "}
-              found
-            </strong>
-
-            <span>
-              They have not been
-              deleted. You can safely
-              move them to the new
-              Station API.
-            </span>
-          </div>
-
-          <button
-            type="button"
-            onClick={
-              importDrafts
-            }
-            disabled={
-              importing
-            }
-          >
-            <FaUpload />
-
-            {importing
-              ? "Importing..."
-              : "Import drafts"}
-          </button>
+        <div>
+          <i className="purple"><FaCalendarAlt /></i>
+          <span><strong>Go live or schedule</strong><small>Use any station for your next broadcast</small></span>
         </div>
-      )}
-
-      {message && (
-        <div className="creator-b2-message success">
-          {message}
+        <div>
+          <i className="green"><FaUsers /></i>
+          <span><strong>Build your audience</strong><small>Keep each station focused and recognizable</small></span>
         </div>
-      )}
+      </section>
 
-      {error && (
-        <div className="creator-b2-message error">
-          {error}
-        </div>
-      )}
+      {message && <div className="est-message success">{message}</div>}
+      {error && <div className="est-message error">{error}</div>}
 
       {formOpen && (
-        <form
-          className="creator-b2-form"
-          onSubmit={
-            saveStation
-          }
-        >
-          <div className="creator-b2-form-heading">
+        <form className="est-form" onSubmit={submitStation}>
+          <div className="est-form-head">
             <div>
-              <h2>
-                Create a station
-              </h2>
-
-              <p>
-                This creates a real
-                station in Echoo's
-                backend.
-              </p>
+              <span>{editingId ? 'EDIT STATION' : 'NEW STATION'}</span>
+              <h2>{editingId ? 'Update station' : 'Create a station'}</h2>
+              <p>This is the permanent home your broadcasts belong to.</p>
             </div>
+            <button type="button" onClick={closeForm}>Close</button>
           </div>
 
-          <div className="creator-b2-form-grid">
+          <div className="est-form-grid">
             <label>
-              Station name
-
-              <input
-                value={
-                  name
-                }
-                maxLength={
-                  100
-                }
-                placeholder="e.g. Faith Talk Radio"
-                onChange={(
-                  event
-                ) =>
-                  setName(
-                    event.target
-                      .value
-                  )
-                }
-                required
-              />
+              <span>Station name</span>
+              <input value={form.name} maxLength={100} placeholder="e.g. Layers of Truth" onChange={(event) => updateField('name', event.target.value)} required />
             </label>
-
             <label>
-              Category
-
-              <select
-                value={
-                  category
-                }
-                onChange={(
-                  event
-                ) =>
-                  setCategory(
-                    event.target
-                      .value
-                  )
-                }
-              >
-                {CATEGORIES.map(
-                  (
-                    item
-                  ) => (
-                    <option
-                      key={
-                        item
-                      }
-                      value={
-                        item
-                      }
-                    >
-                      {item}
-                    </option>
-                  )
-                )}
+              <span>Category</span>
+              <select value={form.category} onChange={(event) => updateField('category', event.target.value)}>
+                {CATEGORIES.map((item) => <option key={item} value={item}>{item}</option>)}
               </select>
             </label>
-
-            <label className="creator-b2-wide">
-              Description
-
-              <textarea
-                value={
-                  description
-                }
-                maxLength={
-                  2000
-                }
-                placeholder="What should listeners know about this station?"
-                onChange={(
-                  event
-                ) =>
-                  setDescription(
-                    event.target
-                      .value
-                  )
-                }
-              />
+            <label className="wide">
+              <span>Description</span>
+              <textarea value={form.description} maxLength={2000} placeholder="What is this station about?" onChange={(event) => updateField('description', event.target.value)} />
             </label>
 
-            <label className="creator-b2-wide">
-              Tags
+            <div className="est-logo-field est-brand-field wide">
+              <div className="est-logo-copy">
+                <span>Station brand <em>Automatic</em></span>
+                <p>
+                  Echoo creates a branded cover automatically. Upload your own logo if you have one,
+                  or shuffle the Echoo design until the station feels right.
+                </p>
+              </div>
 
-              <input
-                value={
-                  tags
-                }
-                placeholder="faith, teaching, inspiration"
-                onChange={(
-                  event
-                ) =>
-                  setTags(
-                    event.target
-                      .value
-                  )
-                }
-              />
+              <div className="est-brand-editor">
+                <div className={`est-logo-preview est-brand-preview ${form.brandingMode === 'custom' ? 'has-image' : 'generated'}`}>
+                  <img src={brandPreview} alt="Station brand preview" />
+                  <span>{form.brandingMode === 'custom' ? 'CUSTOM LOGO' : 'ECHOO DESIGN'}</span>
+                </div>
 
-              <small>
-                Separate tags with
-                commas.
-              </small>
+                <div className="est-logo-actions est-brand-actions">
+                  <input
+                    ref={logoInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={handleLogoFile}
+                  />
+
+                  <button type="button" onClick={() => logoInputRef.current?.click()}>
+                    <FaUpload /> {form.brandingMode === 'custom' ? 'Change logo' : 'Upload custom logo'}
+                  </button>
+
+                  <button type="button" onClick={() => setEchooBrandMode(true)}>
+                    <FaRandom /> Shuffle Echoo design
+                  </button>
+
+                  {form.brandingMode === 'custom' && (
+                    <button type="button" className="remove" onClick={() => setEchooBrandMode(false)}>
+                      <FaTimes /> Use Echoo design
+                    </button>
+                  )}
+
+                  <small>
+                    Generated designs are saved with the station. Custom JPG, PNG or WebP logos can be up to 5 MB.
+                  </small>
+                </div>
+              </div>
+            </div>
+
+            <label>
+              <span>Tags</span>
+              <input value={form.tags} placeholder="faith, teaching, inspiration" onChange={(event) => updateField('tags', event.target.value)} />
+            </label>
+            <label className="est-public">
+              <input type="checkbox" checked={form.isPublic} onChange={(event) => updateField('isPublic', event.target.checked)} />
+              <span>Public station</span>
             </label>
           </div>
 
-          <div className="creator-b2-form-actions">
-            <button
-              type="button"
-              onClick={
-                resetForm
-              }
-              disabled={
-                saving
-              }
-            >
-              Cancel
-            </button>
-
-            <button
-              type="submit"
-              className="creator-b2-primary"
-              disabled={
-                saving ||
-                !name.trim()
-              }
-            >
-              <FaSave />
-
-              {saving
-                ? "Creating..."
-                : "Create station"}
+          <div className="est-form-actions">
+            <button type="button" onClick={closeForm} disabled={saving}>Cancel</button>
+            <button type="submit" className="primary" disabled={saving || !form.name.trim()}>
+              <FaSave /> {saving ? 'Saving...' : editingId ? 'Save changes' : 'Create station'}
             </button>
           </div>
         </form>
       )}
 
       {loading ? (
-        <div className="creator-b2-state">
-          <EchoSignal
-            size="md"
-            state="active"
-            activeNodes={2}
-          />
-
-          <strong>
-            Loading your stations...
-          </strong>
-        </div>
-      ) : sorted.length ===
-        0 ? (
-        <div className="creator-b2-state">
+        <div className="est-loading"><span /><span /><span /></div>
+      ) : sorted.length === 0 ? (
+        <div className="est-empty">
           <FaBroadcastTower />
-
-          <strong>
-            No backend stations yet
-          </strong>
-
-          <p>
-            Create your first station
-            to begin scheduling
-            broadcasts.
-          </p>
+          <h2>No stations yet</h2>
+          <p>Create your first station to start broadcasting.</p>
+          <button type="button" onClick={openCreate}><FaPlus /> New station</button>
         </div>
       ) : (
-        <div className="creator-b2-grid">
-          {sorted.map(
-            (
-              station
-            ) => {
-              const artwork =
-                station.coverArt ||
-                getMockMediaForKey(
-                  station.id ||
-                    station.name,
-                  "stations"
-                );
+        <div className="est-grid">
+          {sorted.map((station) => {
+            const isCurrentLive = Boolean(station.isLive);
+            const anotherStationLive = Boolean(liveStation && !isCurrentLive);
+            const menuOpen = String(menuStationId) === String(station.id);
 
-              return (
-                <article
-                  className="creator-b2-card"
-                  key={
-                    station.id
-                  }
-                >
-                  <div className="creator-b2-art">
-                    {artwork ? (
-                      <img
-                        src={
-                          artwork
-                        }
-                        alt=""
-                      />
-                    ) : (
-                      <FaBroadcastTower />
-                    )}
-
-                    {station.isLive && (
-                      <span className="creator-b2-live">
-                        LIVE
-                      </span>
-                    )}
+            return (
+              <article className={`est-card ${isCurrentLive ? 'live' : ''}`} key={station.id}>
+                <div className="est-art">
+                  <img src={station.brandCover || station.coverArt} alt={`${station.name} brand`} />
+                  {isCurrentLive && <span>LIVE</span>}
+                </div>
+                <div className="est-body">
+                  <small>{station.category || 'Other'}</small>
+                  <h2>{station.name}</h2>
+                  <p>{station.description || 'No description yet.'}</p>
+                  <div className="est-stats">
+                    <span><i /> {Number(station.followerCount || 0).toLocaleString()} followers</span>
+                    <span>·</span>
+                    <span>{Number(station.listenerCount || 0).toLocaleString()} listening</span>
                   </div>
 
-                  <div className="creator-b2-card-body">
-                    <div className="creator-b2-card-top">
-                      <span>
-                        {
-                          station.category
-                        }
-                      </span>
+                  {isCurrentLive ? (
+                    <button type="button" className="est-primary-action" onClick={() => openBroadcast(station, 'now')}>
+                      <FaMicrophone /> Open studio
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="est-primary-action outline"
+                      disabled={anotherStationLive}
+                      title={anotherStationLive ? 'End the current live broadcast before starting another.' : ''}
+                      onClick={() => openBroadcast(station, 'now')}
+                    >
+                      <FaMicrophone /> {anotherStationLive ? 'Another station is live' : 'Start broadcast'}
+                    </button>
+                  )}
 
-                      <small>
-                        Public
-                      </small>
-                    </div>
-
-                    <h2>
-                      {
-                        station.name
-                      }
-                    </h2>
-
-                    <p>
-                      {station.description ||
-                        "No description yet."}
-                    </p>
-
-                    <div className="creator-b2-stats">
-                      <span>
-                        <strong>
-                          {
-                            station.listenerCount
-                          }
-                        </strong>
-                        listening
-                      </span>
-
-                      <span>
-                        <strong>
-                          {
-                            station.followerCount
-                          }
-                        </strong>
-                        followers
-                      </span>
-                    </div>
-
-                    <div className="creator-b2-card-actions">
-                      <span>
-                        {station.isLive
-                          ? "Station marked live"
-                          : "Station ready"}
-                      </span>
-
+                  <div className="est-card-footer">
+                    <button type="button" className="est-secondary-action" onClick={() => openBroadcast(station, 'later')}>
+                      <FaCalendarAlt /> Schedule
+                    </button>
+                    <div className="est-more-wrap">
                       <button
                         type="button"
-                        className="danger"
-                        disabled={
-                          deletingId ===
-                          station.id
-                        }
-                        onClick={() =>
-                          removeStation(
-                            station
-                          )
-                        }
-                        aria-label={`Delete ${station.name}`}
+                        className="est-more-button"
+                        aria-label={`More actions for ${station.name}`}
+                        aria-expanded={menuOpen}
+                        onClick={() => setMenuStationId((current) => String(current) === String(station.id) ? '' : String(station.id))}
                       >
-                        <FaTrash />
-
-                        {deletingId ===
-                        station.id
-                          ? "Deleting..."
-                          : "Delete"}
+                        <FaEllipsisH />
                       </button>
+                      {menuOpen && (
+                        <div className="est-more-menu">
+                          <button type="button" onClick={() => openEdit(station)}><FaEdit /> Edit station</button>
+                          <button
+                            type="button"
+                            className="danger"
+                            disabled={deletingId === String(station.id) || isCurrentLive}
+                            onClick={() => removeStation(station)}
+                            title={isCurrentLive ? 'End the live broadcast before deleting this station.' : 'Delete station'}
+                          >
+                            <FaTrash /> Delete station
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
-                </article>
-              );
-            }
-          )}
+                </div>
+              </article>
+            );
+          })}
         </div>
       )}
+
+      <section className="est-bottom-note">
+        <i><FaBroadcastTower /></i>
+        <div>
+          <strong>Keep stations focused</strong>
+          <span>Use one station for a consistent audience, or separate stations for different shows and communities.</span>
+        </div>
+      </section>
     </section>
   );
 };

@@ -1,12 +1,9 @@
-// ... existing imports
+import mongoose from 'mongoose';
 import Broadcast from '../models/Broadcast.js';
 import Station from '../models/Station.js';
 import User from '../models/User.js';
 import LiveKitProvider from '../providers/livekit.js';
 import OvenMediaProvider from '../providers/ovenmedia.js';
-
-
-// ECHOO_BROADCAST_CRUD_REPAIRED
 
 function broadcastPopulate(query) {
   return query
@@ -20,15 +17,63 @@ function broadcastPopulate(query) {
     );
 }
 
+function isValidId(value) {
+  return mongoose.isValidObjectId(value);
+}
 
-// ---------------------------------------------------------
-// CREATE BROADCAST
-// ---------------------------------------------------------
+function invalidId(res) {
+  return res.status(400).json({
+    error: {
+      code: 'INVALID_BROADCAST_ID',
+      message: 'Invalid broadcast ID',
+    },
+  });
+}
+
+function mediaRelayMode() {
+  return String(
+    process.env.MEDIA_RELAY_MODE || 'livekit-only'
+  ).toLowerCase();
+}
+
+function publicLiveKitUrl() {
+  return (
+    process.env.LIVEKIT_PUBLIC_URL ||
+    process.env.LIVEKIT_URL ||
+    ''
+  );
+}
+
+function emitStatus(req, broadcast) {
+  const io = req.app.get('io');
+  if (!io) return;
+
+  io.to(`broadcast:${broadcast.id || broadcast._id}`).emit(
+    'broadcast:status',
+    {
+      broadcastId: String(broadcast.id || broadcast._id),
+      status: broadcast.status,
+      startedAt: broadcast.startedAt || null,
+      endedAt: broadcast.endedAt || null,
+      listenerCount: Number(broadcast.listenerCount || 0),
+      peakListeners: Number(broadcast.peakListeners || 0),
+    }
+  );
+}
+
+async function findOwnedBroadcast(broadcastId, userId) {
+  if (!isValidId(broadcastId)) return null;
+
+  return Broadcast.findOne({
+    _id: broadcastId,
+    creator: userId,
+    isDeleted: false,
+  });
+}
 
 export async function createBroadcast(req, res, next) {
   try {
     const userId = req.userId;
-
     const {
       title,
       description = '',
@@ -46,40 +91,34 @@ export async function createBroadcast(req, res, next) {
       notes = '',
     } = req.body;
 
-    const resolvedStationId =
-      stationId ||
-      stationFromBody;
+    const resolvedStationId = stationId || stationFromBody;
 
-    if (
-      !title ||
-      !resolvedStationId ||
-      !startTime ||
-      !endTime
-    ) {
+    if (!title || !resolvedStationId || !startTime || !endTime) {
       return res.status(400).json({
         error: {
           code: 'VALIDATION_ERROR',
-          message:
-            'title, stationId, startTime and endTime are required',
+          message: 'title, stationId, startTime and endTime are required',
         },
       });
     }
 
-    const start =
-      new Date(startTime);
+    if (!mongoose.isValidObjectId(resolvedStationId)) {
+      return res.status(400).json({
+        error: {
+          code: 'INVALID_STATION_ID',
+          message: 'Invalid station ID',
+        },
+      });
+    }
 
-    const end =
-      new Date(endTime);
+    const start = new Date(startTime);
+    const end = new Date(endTime);
 
-    if (
-      Number.isNaN(start.getTime()) ||
-      Number.isNaN(end.getTime())
-    ) {
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
       return res.status(400).json({
         error: {
           code: 'INVALID_DATE',
-          message:
-            'startTime and endTime must be valid dates',
+          message: 'startTime and endTime must be valid dates',
         },
       });
     }
@@ -88,91 +127,63 @@ export async function createBroadcast(req, res, next) {
       return res.status(400).json({
         error: {
           code: 'INVALID_DATE_RANGE',
-          message:
-            'endTime must be after startTime',
+          message: 'endTime must be after startTime',
         },
       });
     }
 
-    const station =
-      await Station.findOne({
-        _id: resolvedStationId,
-        isDeleted: false,
-      });
+    const station = await Station.findOne({
+      _id: resolvedStationId,
+      isDeleted: false,
+    });
 
     if (!station) {
       return res.status(404).json({
-        error: {
-          code: 'NOT_FOUND',
-          message: 'Station not found',
-        },
+        error: { code: 'NOT_FOUND', message: 'Station not found' },
       });
     }
 
-    if (
-      String(station.owner) !==
-      String(userId)
-    ) {
+    if (String(station.owner) !== String(userId)) {
       return res.status(403).json({
         error: {
           code: 'FORBIDDEN',
-          message:
-            'You do not own this station',
+          message: 'You do not own this station',
         },
       });
     }
 
-    const broadcast =
-      new Broadcast({
-        title: String(title).trim(),
-        description,
-        station: station._id,
-        creator: userId,
-        startTime: start,
-        endTime: end,
-
-        // Scheduled broadcasts created from Creator Schedule
-        // should appear immediately in the schedule.
-        status: 'scheduled',
-
-        type,
-        isRecurring,
-        recurrencePattern,
-        recurrenceDays,
-        coverArt,
-        tags:
-          Array.isArray(tags)
-            ? tags
-            : [],
-        isPublic:
-          isPublic !== false,
-        notes,
-      });
+    const broadcast = new Broadcast({
+      title: String(title).trim(),
+      description,
+      station: station._id,
+      creator: userId,
+      startTime: start,
+      endTime: end,
+      status: 'scheduled',
+      type,
+      isRecurring,
+      recurrencePattern,
+      recurrenceDays: Array.isArray(recurrenceDays) ? recurrenceDays : [],
+      coverArt,
+      tags: Array.isArray(tags) ? tags : [],
+      isPublic: isPublic !== false,
+      notes,
+    });
 
     await broadcast.save();
 
-    const populated =
-      await broadcastPopulate(
-        Broadcast.findById(
-          broadcast._id
-        )
-      );
+    const populated = await broadcastPopulate(
+      Broadcast.findById(broadcast._id)
+    );
 
     return res.status(201).json({
       data: populated,
-      timestamp:
-        new Date().toISOString(),
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     next(error);
   }
 }
-
-
-// ---------------------------------------------------------
-// LIST BROADCASTS
-// ---------------------------------------------------------
 
 export async function getBroadcasts(req, res, next) {
   try {
@@ -188,228 +199,123 @@ export async function getBroadcasts(req, res, next) {
       isRecurring,
     } = req.query;
 
-    const safePage =
-      Math.max(
-        1,
-        Number(page) || 1
-      );
-
-    const safeLimit =
-      Math.min(
-        100,
-        Math.max(
-          1,
-          Number(limit) || 20
-        )
-      );
+    const safePage = Math.max(1, Number(page) || 1);
+    const safeLimit = Math.min(100, Math.max(1, Number(limit) || 20));
 
     const filter = {
       isDeleted: false,
+      isPublic: true,
     };
 
-    if (stationId) {
-      filter.station =
-        stationId;
+    if (stationId) filter.station = stationId;
+    if (status) filter.status = status;
+    if (type) filter.type = type;
+
+    if (isRecurring === 'true' || isRecurring === 'false') {
+      filter.isRecurring = isRecurring === 'true';
     }
 
-    if (status) {
-      filter.status =
-        status;
-    }
-
-    if (type) {
-      filter.type =
-        type;
-    }
-
-    if (
-      isRecurring === 'true' ||
-      isRecurring === 'false'
-    ) {
-      filter.isRecurring =
-        isRecurring === 'true';
-    }
-
-    if (
-      startDate ||
-      endDate
-    ) {
+    if (startDate || endDate) {
       filter.startTime = {};
-
-      if (startDate) {
-        filter.startTime.$gte =
-          new Date(startDate);
-      }
-
-      if (endDate) {
-        filter.startTime.$lte =
-          new Date(endDate);
-      }
+      if (startDate) filter.startTime.$gte = new Date(startDate);
+      if (endDate) filter.startTime.$lte = new Date(endDate);
     }
 
     if (search) {
       filter.$or = [
-        {
-          title: {
-            $regex: search,
-            $options: 'i',
-          },
-        },
-        {
-          description: {
-            $regex: search,
-            $options: 'i',
-          },
-        },
+        { title: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } },
       ];
     }
 
-    const skip =
-      (safePage - 1) *
-      safeLimit;
+    const skip = (safePage - 1) * safeLimit;
 
-    const query =
+    const broadcasts = await broadcastPopulate(
       Broadcast.find(filter)
-        .sort({
-          startTime: 1,
-          createdAt: -1,
-        })
+        .sort({ startTime: 1, createdAt: -1 })
         .skip(skip)
-        .limit(safeLimit);
+        .limit(safeLimit)
+    );
 
-    const broadcasts =
-      await broadcastPopulate(
-        query
-      );
-
-    const total =
-      await Broadcast.countDocuments(
-        filter
-      );
+    const total = await Broadcast.countDocuments(filter);
 
     return res.status(200).json({
       data: broadcasts,
-
       pagination: {
-        page:
-          safePage,
-
-        limit:
-          safeLimit,
-
+        page: safePage,
+        limit: safeLimit,
         total,
-
-        totalPages:
-          Math.ceil(
-            total /
-            safeLimit
-          ),
+        totalPages: Math.ceil(total / safeLimit),
       },
-
-      timestamp:
-        new Date().toISOString(),
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     next(error);
   }
 }
 
+export async function getCreatorBroadcasts(req, res, next) {
+  try {
+    const broadcasts = await broadcastPopulate(
+      Broadcast.find({
+        creator: req.userId,
+        isDeleted: false,
+      }).sort({ startTime: 1, createdAt: -1 })
+    );
 
-// ---------------------------------------------------------
-// GET SINGLE BROADCAST
-// ---------------------------------------------------------
+    return res.status(200).json({
+      data: broadcasts,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    next(error);
+  }
+}
 
 export async function getBroadcastById(req, res, next) {
   try {
-    const {
-      broadcastId,
-    } = req.params;
+    const { broadcastId } = req.params;
+    if (!isValidId(broadcastId)) return invalidId(res);
 
-    const broadcast =
-      await broadcastPopulate(
-        Broadcast.findOne({
-          _id:
-            broadcastId,
-
-          isDeleted:
-            false,
-        })
-      );
+    const broadcast = await broadcastPopulate(
+      Broadcast.findOne({
+        _id: broadcastId,
+        isDeleted: false,
+      })
+    );
 
     if (!broadcast) {
       return res.status(404).json({
-        error: {
-          code:
-            'NOT_FOUND',
+        error: { code: 'NOT_FOUND', message: 'Broadcast not found' },
+      });
+    }
 
-          message:
-            'Broadcast not found',
-        },
+    const ownerId = broadcast.creator?._id || broadcast.creator;
+    if (!broadcast.isPublic && String(ownerId) !== String(req.userId)) {
+      return res.status(403).json({
+        error: { code: 'FORBIDDEN', message: 'This broadcast is private' },
       });
     }
 
     return res.status(200).json({
-      data:
-        broadcast,
-
-      timestamp:
-        new Date().toISOString(),
+      data: broadcast,
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     next(error);
   }
 }
 
-
-// ---------------------------------------------------------
-// UPDATE BROADCAST
-// ---------------------------------------------------------
-
 export async function updateBroadcast(req, res, next) {
   try {
-    const {
-      broadcastId,
-    } = req.params;
+    const { broadcastId } = req.params;
+    if (!isValidId(broadcastId)) return invalidId(res);
 
-    const broadcast =
-      await Broadcast.findOne({
-        _id:
-          broadcastId,
-
-        isDeleted:
-          false,
-      });
+    const broadcast = await findOwnedBroadcast(broadcastId, req.userId);
 
     if (!broadcast) {
       return res.status(404).json({
-        error: {
-          code:
-            'NOT_FOUND',
-
-          message:
-            'Broadcast not found',
-        },
-      });
-    }
-
-    if (
-      String(
-        broadcast.creator
-      ) !==
-      String(
-        req.userId
-      )
-    ) {
-      return res.status(403).json({
-        error: {
-          code:
-            'FORBIDDEN',
-
-          message:
-            'You do not own this broadcast',
-        },
+        error: { code: 'NOT_FOUND', message: 'Broadcast not found' },
       });
     }
 
@@ -418,7 +324,6 @@ export async function updateBroadcast(req, res, next) {
       'description',
       'startTime',
       'endTime',
-      'status',
       'type',
       'isRecurring',
       'recurrencePattern',
@@ -429,437 +334,402 @@ export async function updateBroadcast(req, res, next) {
       'notes',
     ];
 
-    for (
-      const field
-      of allowed
-    ) {
+    const protectedWhileRunning = new Set([
+      'startTime',
+      'endTime',
+      'type',
+      'isRecurring',
+      'recurrencePattern',
+      'recurrenceDays',
+    ]);
+
+    for (const field of allowed) {
+      if (req.body[field] === undefined) continue;
+
       if (
-        req.body[field] !==
-        undefined
+        ['starting', 'live', 'ending'].includes(broadcast.status) &&
+        protectedWhileRunning.has(field)
       ) {
-        broadcast[field] =
-          req.body[field];
+        return res.status(409).json({
+          error: {
+            code: 'BROADCAST_RUNNING',
+            message: `Cannot change ${field} while the broadcast is running`,
+          },
+        });
       }
+
+      broadcast[field] = req.body[field];
     }
 
     if (
       broadcast.startTime &&
       broadcast.endTime &&
-      new Date(
-        broadcast.endTime
-      ) <=
-        new Date(
-          broadcast.startTime
-        )
+      new Date(broadcast.endTime) <= new Date(broadcast.startTime)
     ) {
       return res.status(400).json({
         error: {
-          code:
-            'INVALID_DATE_RANGE',
-
-          message:
-            'endTime must be after startTime',
+          code: 'INVALID_DATE_RANGE',
+          message: 'endTime must be after startTime',
         },
       });
     }
 
     await broadcast.save();
 
-    const populated =
-      await broadcastPopulate(
-        Broadcast.findById(
-          broadcast._id
-        )
-      );
+    const populated = await broadcastPopulate(
+      Broadcast.findById(broadcast._id)
+    );
 
     return res.status(200).json({
-      data:
-        populated,
-
-      timestamp:
-        new Date().toISOString(),
+      data: populated,
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     next(error);
   }
 }
-
-
-// ---------------------------------------------------------
-// DELETE BROADCAST
-// ---------------------------------------------------------
 
 export async function deleteBroadcast(req, res, next) {
   try {
-    const {
-      broadcastId,
-    } = req.params;
+    const { broadcastId } = req.params;
+    if (!isValidId(broadcastId)) return invalidId(res);
 
-    const broadcast =
-      await Broadcast.findOne({
-        _id:
-          broadcastId,
-
-        isDeleted:
-          false,
-      });
+    const broadcast = await findOwnedBroadcast(broadcastId, req.userId);
 
     if (!broadcast) {
       return res.status(404).json({
-        error: {
-          code:
-            'NOT_FOUND',
+        error: { code: 'NOT_FOUND', message: 'Broadcast not found' },
+      });
+    }
 
-          message:
-            'Broadcast not found',
+    if (['starting', 'live', 'ending'].includes(broadcast.status)) {
+      return res.status(409).json({
+        error: {
+          code: 'BROADCAST_RUNNING',
+          message: 'End or cancel the broadcast before deleting it',
         },
       });
     }
 
-    if (
-      String(
-        broadcast.creator
-      ) !==
-      String(
-        req.userId
-      )
-    ) {
-      return res.status(403).json({
-        error: {
-          code:
-            'FORBIDDEN',
-
-          message:
-            'You do not own this broadcast',
-        },
-      });
-    }
-
-    if (
-      broadcast.status ===
-      'live'
-    ) {
-      return res.status(400).json({
-        error: {
-          code:
-            'BROADCAST_LIVE',
-
-          message:
-            'End the live broadcast before deleting it',
-        },
-      });
-    }
-
-    broadcast.isDeleted =
-      true;
-
+    broadcast.isDeleted = true;
     await broadcast.save();
 
     return res.status(200).json({
-      data: {
-        message:
-          'Broadcast deleted successfully',
-      },
-
-      timestamp:
-        new Date().toISOString(),
+      data: { message: 'Broadcast deleted successfully' },
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     next(error);
   }
 }
 
+export async function cancelBroadcast(req, res, next) {
+  try {
+    const { broadcastId } = req.params;
+    if (!isValidId(broadcastId)) return invalidId(res);
 
-// ---------------------------------------------------------
-// UPCOMING BROADCASTS FOR STATION
-// ---------------------------------------------------------
+    const broadcast = await findOwnedBroadcast(broadcastId, req.userId);
+
+    if (!broadcast) {
+      return res.status(404).json({
+        error: { code: 'NOT_FOUND', message: 'Broadcast not found' },
+      });
+    }
+
+    if (broadcast.status === 'live' || broadcast.status === 'ending') {
+      return res.status(409).json({
+        error: {
+          code: 'BROADCAST_LIVE',
+          message: 'Use End Broadcast for a live broadcast',
+        },
+      });
+    }
+
+    if (broadcast.status === 'completed') {
+      return res.status(409).json({
+        error: {
+          code: 'INVALID_STATE',
+          message: 'A completed broadcast cannot be cancelled',
+        },
+      });
+    }
+
+    if (broadcast.livekitEgressId) {
+      await LiveKitProvider.stopEgress(broadcast.livekitEgressId).catch(() => null);
+    }
+
+    if (broadcast.livekitRoomName) {
+      await LiveKitProvider.endRoom(broadcastId).catch(() => null);
+    }
+
+    broadcast.status = 'cancelled';
+    broadcast.endedAt = new Date();
+    broadcast.listenerCount = 0;
+    await broadcast.save();
+
+    await Station.findByIdAndUpdate(broadcast.station, {
+      isLive: false,
+      listenerCount: 0,
+    });
+
+    emitStatus(req, broadcast);
+
+    return res.status(200).json({
+      data: broadcast,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    next(error);
+  }
+}
 
 export async function getUpcomingBroadcasts(req, res, next) {
   try {
-    const {
-      stationId,
-    } = req.params;
+    const { stationId } = req.params;
 
-    const broadcasts =
-      await broadcastPopulate(
-        Broadcast.find({
-          station:
-            stationId,
-
-          status:
-            'scheduled',
-
-          startTime: {
-            $gte:
-              new Date(),
-          },
-
-          isDeleted:
-            false,
-
-          isPublic:
-            true,
-        })
-        .sort({
-          startTime:
-            1,
-        })
+    const broadcasts = await broadcastPopulate(
+      Broadcast.find({
+        station: stationId,
+        status: 'scheduled',
+        startTime: { $gte: new Date() },
+        isDeleted: false,
+        isPublic: true,
+      })
+        .sort({ startTime: 1 })
         .limit(100)
-      );
+    );
 
     return res.status(200).json({
-      data:
-        broadcasts,
-
-      timestamp:
-        new Date().toISOString(),
+      data: broadcasts,
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     next(error);
   }
 }
-
-
-// ---------------------------------------------------------
-// CURRENT LIVE BROADCAST FOR STATION
-// ---------------------------------------------------------
 
 export async function getLiveBroadcast(req, res, next) {
   try {
-    const {
-      stationId,
-    } = req.params;
+    const { stationId } = req.params;
 
-    const broadcast =
-      await broadcastPopulate(
-        Broadcast.findOne({
-          station:
-            stationId,
-
-          status: {
-            $in: [
-              'starting',
-              'live',
-            ],
-          },
-
-          isDeleted:
-            false,
-
-          isPublic:
-            true,
-        })
-        .sort({
-          startedAt:
-            -1,
-
-          startTime:
-            -1,
-        })
-      );
+    const broadcast = await broadcastPopulate(
+      Broadcast.findOne({
+        station: stationId,
+        status: 'live',
+        isDeleted: false,
+        isPublic: true,
+      }).sort({ startedAt: -1, startTime: -1 })
+    );
 
     return res.status(200).json({
-      data:
-        broadcast ||
-        null,
-
-      timestamp:
-        new Date().toISOString(),
+      data: broadcast || null,
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     next(error);
   }
 }
 
-
-
-// Start broadcast with LiveKit
 export async function startBroadcast(req, res, next) {
+  let broadcast = null;
+
   try {
     const { broadcastId } = req.params;
-    const userId = req.userId;
+    if (!isValidId(broadcastId)) return invalidId(res);
 
-    const broadcast = await Broadcast.findOne({
+    broadcast = await Broadcast.findOne({
       _id: broadcastId,
-      creator: userId,
+      creator: req.userId,
       isDeleted: false,
     }).populate('station', 'name');
 
     if (!broadcast) {
       return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Broadcast not found' }
+        error: { code: 'NOT_FOUND', message: 'Broadcast not found' },
       });
     }
 
     if (broadcast.status === 'live') {
-      return res.status(400).json({
-        error: { code: 'ALREADY_LIVE', message: 'Broadcast is already live' }
+      return res.status(409).json({
+        error: { code: 'ALREADY_LIVE', message: 'Broadcast is already live' },
       });
     }
 
-    if (broadcast.status === 'completed') {
-      return res.status(400).json({
-        error: { code: 'INVALID_STATE', message: 'Cannot start a completed broadcast' }
+    if (!['scheduled', 'draft', 'failed'].includes(broadcast.status)) {
+      return res.status(409).json({
+        error: {
+          code: 'INVALID_STATE',
+          message: `Cannot start a broadcast with status ${broadcast.status}`,
+        },
       });
     }
 
-    // 1. Reset previous runtime failure state and move to STARTING
     broadcast.status = 'starting';
     broadcast.failureReason = null;
     broadcast.startedAt = null;
     broadcast.endedAt = null;
+    broadcast.listenerCount = 0;
     broadcast.livekitEgressId = null;
     broadcast.livekitRoomName = null;
     await broadcast.save();
 
-    try {
-      // 2. Create LiveKit room
-      const room = await LiveKitProvider.createRoom(broadcastId);
-      
-      // 3. Generate creator token
-      const user = await User.findById(userId);
-      const token = await LiveKitProvider.generateCreatorToken(
+    const room = await LiveKitProvider.createRoom(broadcastId);
+    const user = await User.findById(req.userId);
+    const token = await LiveKitProvider.generateCreatorToken(
+      broadcastId,
+      req.userId,
+      user?.displayName || user?.username || 'Echoo Creator'
+    );
+
+    const relayMode = mediaRelayMode();
+    const liveKitOnly = relayMode === 'livekit-only';
+
+    let ingestUrl = null;
+    let playbackUrls = null;
+
+    if (!liveKitOnly) {
+      ingestUrl = OvenMediaProvider.getIngestUrl(broadcastId, 'rtmp');
+      const egress = await LiveKitProvider.startEgress(
         broadcastId,
-        userId,
-        user?.displayName || user?.username || 'Echoo Creator'
+        broadcast.title,
+        ingestUrl
       );
-
-      // 4. Decide media relay mode.
-      //
-      // Production/default:
-      //   LiveKit -> Egress -> OvenMediaEngine
-      //
-      // Development:
-      //   LiveKit only, so the browser can publish microphone audio
-      //   even when Egress/OME are not installed.
-      const mediaRelayMode = String(
-        process.env.MEDIA_RELAY_MODE || 'required'
-      ).toLowerCase();
-
-      const liveKitOnly = mediaRelayMode === 'livekit-only';
-
-      let ingestUrl = null;
-      let playbackUrls = null;
-
-      if (liveKitOnly) {
-        console.warn(
-          `[Echoo] Broadcast ${broadcastId} starting in LiveKit-only mode. ` +
-          'OME listener playback is unavailable.'
-        );
-
-        broadcast.livekitEgressId = null;
-      } else {
-        // 5. Production relay: LiveKit -> Egress -> OME
-        ingestUrl = OvenMediaProvider.getIngestUrl(
-          broadcastId,
-          'rtmp'
-        );
-
-        const egress = await LiveKitProvider.startEgress(
-          broadcastId,
-          broadcast.title,
-          ingestUrl
-        );
-
-        broadcast.livekitEgressId = egress.egressId;
-        playbackUrls = OvenMediaProvider.getPlaybackUrls(
-          broadcastId
-        );
-      }
-
-      // The LiveKit room exists in both modes.
-      broadcast.livekitRoomName = room.name;
-      await broadcast.save();
-
-      // 6. Do NOT block here waiting for OME.
-      //
-      // The creator still needs the LiveKit token returned below
-      // before the browser can publish microphone audio.
-      //
-      // OME readiness must therefore be checked after publishing,
-      // not before returning the creator token.
-
-
-
-      // 7. Mark as LIVE
-      broadcast.status = 'live';
-      broadcast.startedAt = new Date();
-      await broadcast.save();
-
-      // 8. Update station live status
-      await Station.findByIdAndUpdate(broadcast.station?._id || broadcast.station, { isLive: true });
-
-      // 9. Emit Socket.IO event
-      if (req.app.get('io')) {
-        const io = req.app.get('io');
-        io.to(`broadcast:${broadcastId}`).emit('broadcast:status', {
-          broadcastId,
-          status: 'live',
-          startedAt: broadcast.startedAt,
-        });
-      }
-
-      // 10. Return token to client
-      return res.status(200).json({
-        data: {
-          broadcast,
-          token, // Frontend uses this to connect to LiveKit
-          roomName: room.name,
-          ingestUrl,
-          playbackUrls,
-          mediaMode: liveKitOnly ? 'livekit-only' : 'livekit-ome',
-          relayAvailable: !liveKitOnly,
-        },
-        message: 'Broadcast is now live!',
-        timestamp: new Date().toISOString()
-      });
-
-    } catch (error) {
-      // If setup fails, mark as failed
-      console.error('Broadcast start error:', error);
-      broadcast.status = 'failed';
-      broadcast.failureReason = error.message || 'Unknown error during start';
-      await broadcast.save();
-      throw error;
+      broadcast.livekitEgressId = egress.egressId;
+      playbackUrls = OvenMediaProvider.getPlaybackUrls(broadcastId);
     }
+
+    broadcast.livekitRoomName = room.name;
+    await broadcast.save();
+
+    emitStatus(req, broadcast);
+
+    return res.status(200).json({
+      data: {
+        broadcast,
+        token,
+        roomName: room.name,
+        livekitUrl: publicLiveKitUrl(),
+        ingestUrl,
+        playbackUrls,
+        mediaMode: liveKitOnly ? 'livekit-direct' : 'livekit-ome',
+        relayAvailable: !liveKitOnly,
+      },
+      message: 'Broadcast room is ready. Publish audio, then confirm live.',
+      timestamp: new Date().toISOString(),
+    });
   } catch (error) {
     console.error('Start broadcast error:', error);
+
+    if (broadcast) {
+      broadcast.status = 'failed';
+      broadcast.failureReason = error.message || 'Unknown error during start';
+      await broadcast.save().catch(() => null);
+    }
+
     next(error);
   }
 }
 
-// Get LiveKit token for creator
-export async function getLiveKitToken(req, res, next) {
+export async function confirmBroadcastLive(req, res, next) {
   try {
     const { broadcastId } = req.params;
-    const userId = req.userId;
+    if (!isValidId(broadcastId)) return invalidId(res);
 
-    const broadcast = await Broadcast.findOne({
-      _id: broadcastId,
-      creator: userId,
-      isDeleted: false,
-    });
+    const broadcast = await findOwnedBroadcast(broadcastId, req.userId);
 
     if (!broadcast) {
       return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Broadcast not found' }
+        error: { code: 'NOT_FOUND', message: 'Broadcast not found' },
       });
     }
 
-    if (broadcast.status !== 'starting' && broadcast.status !== 'live') {
-      return res.status(400).json({
-        error: { code: 'INVALID_STATE', message: 'Broadcast must be starting or live' }
+    if (broadcast.status === 'live') {
+      return res.status(200).json({
+        data: broadcast,
+        timestamp: new Date().toISOString(),
       });
     }
 
-    const user = await User.findById(userId);
+    if (broadcast.status !== 'starting') {
+      return res.status(409).json({
+        error: {
+          code: 'INVALID_STATE',
+          message: 'Broadcast must be starting before it can be confirmed live',
+        },
+      });
+    }
+
+    if (!broadcast.livekitRoomName) {
+      return res.status(409).json({
+        error: {
+          code: 'LIVEKIT_ROOM_UNAVAILABLE',
+          message: 'LiveKit room is not ready',
+        },
+      });
+    }
+
+    const participants = await LiveKitProvider.getParticipants(broadcastId);
+    const creatorPresent = participants.some(
+      (participant) => String(participant.identity) === String(req.userId)
+    );
+
+    if (!creatorPresent) {
+      return res.status(409).json({
+        error: {
+          code: 'CREATOR_NOT_CONNECTED',
+          message: 'Creator has not connected to the LiveKit room yet',
+        },
+      });
+    }
+
+    broadcast.status = 'live';
+    broadcast.startedAt = new Date();
+    broadcast.failureReason = null;
+    await broadcast.save();
+
+    await Station.findByIdAndUpdate(broadcast.station, {
+      isLive: true,
+      listenerCount: 0,
+    });
+
+    emitStatus(req, broadcast);
+
+    return res.status(200).json({
+      data: broadcast,
+      message: 'Broadcast is live',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function getLiveKitToken(req, res, next) {
+  try {
+    const { broadcastId } = req.params;
+    if (!isValidId(broadcastId)) return invalidId(res);
+
+    const broadcast = await findOwnedBroadcast(broadcastId, req.userId);
+
+    if (!broadcast) {
+      return res.status(404).json({
+        error: { code: 'NOT_FOUND', message: 'Broadcast not found' },
+      });
+    }
+
+    if (!['starting', 'live'].includes(broadcast.status)) {
+      return res.status(409).json({
+        error: {
+          code: 'INVALID_STATE',
+          message: 'Broadcast must be starting or live',
+        },
+      });
+    }
+
+    const user = await User.findById(req.userId);
     const token = await LiveKitProvider.generateCreatorToken(
       broadcastId,
-      userId,
+      req.userId,
       user?.displayName || user?.username || 'Echoo Creator'
     );
 
@@ -867,127 +737,257 @@ export async function getLiveKitToken(req, res, next) {
       data: {
         token,
         roomName: broadcast.livekitRoomName || LiveKitProvider.getRoomName(broadcastId),
+        livekitUrl: publicLiveKitUrl(),
         broadcastId,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('Get LiveKit token error:', error);
     next(error);
   }
 }
 
-// Get playback info for listeners
-export async function getPlaybackInfo(req, res, next) {
+export async function getListenerLiveKitToken(req, res, next) {
   try {
     const { broadcastId } = req.params;
+    if (!isValidId(broadcastId)) return invalidId(res);
 
     const broadcast = await Broadcast.findOne({
       _id: broadcastId,
       isDeleted: false,
+    }).select('_id status isPublic livekitRoomName');
+
+    if (!broadcast) {
+      return res.status(404).json({
+        error: { code: 'NOT_FOUND', message: 'Broadcast not found' },
+      });
+    }
+
+    if (broadcast.status !== 'live') {
+      return res.status(409).json({
+        error: {
+          code: 'BROADCAST_NOT_LIVE',
+          message: 'This broadcast is not live',
+        },
+      });
+    }
+
+    if (!broadcast.isPublic) {
+      return res.status(403).json({
+        error: { code: 'BROADCAST_PRIVATE', message: 'This broadcast is private' },
+      });
+    }
+
+    if (!broadcast.livekitRoomName) {
+      return res.status(409).json({
+        error: {
+          code: 'LIVEKIT_ROOM_UNAVAILABLE',
+          message: 'The live audio room is not ready',
+        },
+      });
+    }
+
+    const token = await LiveKitProvider.generateListenerToken(
+      broadcastId,
+      req.userId,
+      req.user?.displayName || req.user?.username || 'Echoo Listener'
+    );
+
+    return res.status(200).json({
+      data: {
+        token,
+        roomName: broadcast.livekitRoomName,
+        livekitUrl: publicLiveKitUrl(),
+        broadcastId: String(broadcast._id),
+        mediaMode: 'livekit-direct',
+        role: 'listener',
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function getBroadcastPresence(req, res, next) {
+  try {
+    const { broadcastId } = req.params;
+    if (!isValidId(broadcastId)) return invalidId(res);
+
+    const broadcast = await Broadcast.findOne({
+      _id: broadcastId,
+      isDeleted: false,
+      isPublic: true,
     });
 
     if (!broadcast) {
       return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Broadcast not found' }
+        error: { code: 'NOT_FOUND', message: 'Broadcast not found' },
       });
     }
 
-    if (broadcast.status !== 'live' && broadcast.status !== 'starting') {
-      return res.status(400).json({
-        error: { code: 'NOT_LIVE', message: 'Broadcast is not live' }
+    if (!['starting', 'live'].includes(broadcast.status)) {
+      return res.status(200).json({
+        data: {
+          broadcastId,
+          listenerCount: 0,
+          peakListeners: Number(broadcast.peakListeners || 0),
+          creatorConnected: false,
+        },
+        timestamp: new Date().toISOString(),
       });
     }
 
-    const playbackUrls = OvenMediaProvider.getPlaybackUrls(broadcastId);
+    const participants = await LiveKitProvider.getParticipants(broadcastId);
+
+    let creatorConnected = false;
+    let listenerCount = 0;
+
+    for (const participant of participants) {
+      let metadata = {};
+      try {
+        metadata = participant.metadata ? JSON.parse(participant.metadata) : {};
+      } catch {
+        metadata = {};
+      }
+
+      if (metadata.role === 'creator') {
+        creatorConnected = true;
+      } else {
+        listenerCount += 1;
+      }
+    }
+
+    const peakListeners = Math.max(
+      Number(broadcast.peakListeners || 0),
+      listenerCount
+    );
+
+    if (
+      Number(broadcast.listenerCount || 0) !== listenerCount ||
+      Number(broadcast.peakListeners || 0) !== peakListeners
+    ) {
+      broadcast.listenerCount = listenerCount;
+      broadcast.peakListeners = peakListeners;
+      await broadcast.save();
+
+      await Station.findByIdAndUpdate(broadcast.station, {
+        listenerCount,
+      });
+    }
+
+    return res.status(200).json({
+      data: {
+        broadcastId,
+        listenerCount,
+        peakListeners,
+        creatorConnected,
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function getPlaybackInfo(req, res, next) {
+  try {
+    const { broadcastId } = req.params;
+    if (!isValidId(broadcastId)) return invalidId(res);
+
+    const broadcast = await Broadcast.findOne({
+      _id: broadcastId,
+      isDeleted: false,
+      isPublic: true,
+    });
+
+    if (!broadcast) {
+      return res.status(404).json({
+        error: { code: 'NOT_FOUND', message: 'Broadcast not found' },
+      });
+    }
+
+    if (broadcast.status !== 'live') {
+      return res.status(409).json({
+        error: { code: 'NOT_LIVE', message: 'Broadcast is not live' },
+      });
+    }
+
+    const liveKitOnly = mediaRelayMode() === 'livekit-only';
+    const playbackUrls = liveKitOnly
+      ? null
+      : OvenMediaProvider.getPlaybackUrls(broadcastId);
 
     return res.status(200).json({
       data: {
         broadcastId,
         status: broadcast.status,
+        mediaMode: liveKitOnly ? 'livekit-direct' : 'livekit-ome',
         playbackUrls,
         startedAt: broadcast.startedAt,
         title: broadcast.title,
         station: broadcast.station,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('Get playback info error:', error);
     next(error);
   }
 }
 
-// End broadcast
 export async function endBroadcast(req, res, next) {
   try {
     const { broadcastId } = req.params;
-    const userId = req.userId;
+    if (!isValidId(broadcastId)) return invalidId(res);
 
-    const broadcast = await Broadcast.findOne({
-      _id: broadcastId,
-      creator: userId,
-      isDeleted: false,
-    });
+    const broadcast = await findOwnedBroadcast(broadcastId, req.userId);
 
     if (!broadcast) {
       return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Broadcast not found' }
+        error: { code: 'NOT_FOUND', message: 'Broadcast not found' },
       });
     }
 
-    if (broadcast.status !== 'live') {
-      return res.status(400).json({
-        error: { code: 'NOT_LIVE', message: 'Broadcast is not currently live' }
+    if (!['starting', 'live'].includes(broadcast.status)) {
+      return res.status(409).json({
+        error: {
+          code: 'NOT_LIVE',
+          message: 'Broadcast is not currently running',
+        },
       });
     }
 
-    // Change status to ENDING
+    const wasLive = broadcast.status === 'live';
     broadcast.status = 'ending';
     await broadcast.save();
 
-    try {
-      // Stop Egress
-      if (broadcast.livekitEgressId) {
-        await LiveKitProvider.stopEgress(broadcast.livekitEgressId);
-      }
-
-      // End room
-      await LiveKitProvider.endRoom(broadcastId);
-
-      // Update station live status
-      await Station.findByIdAndUpdate(broadcast.station?._id || broadcast.station, { isLive: false });
-
-      // Mark as completed
-      broadcast.status = 'completed';
-      broadcast.endedAt = new Date();
-      await broadcast.save();
-
-      // Emit Socket.IO event
-      if (req.app.get('io')) {
-        const io = req.app.get('io');
-        io.to(`broadcast:${broadcastId}`).emit('broadcast:status', {
-          broadcastId,
-          status: 'completed',
-          endedAt: broadcast.endedAt,
-        });
-      }
-
-      return res.status(200).json({
-        data: {
-          broadcast,
-          message: 'Broadcast ended successfully',
-        },
-        timestamp: new Date().toISOString()
-      });
-
-    } catch (error) {
-      console.error('End broadcast error:', error);
-      broadcast.status = 'failed';
-      broadcast.failureReason = error.message || 'Error during end broadcast';
-      await broadcast.save();
-      throw error;
+    if (broadcast.livekitEgressId) {
+      await LiveKitProvider.stopEgress(broadcast.livekitEgressId).catch(() => null);
     }
+
+    await LiveKitProvider.endRoom(broadcastId).catch(() => null);
+
+    await Station.findByIdAndUpdate(broadcast.station, {
+      isLive: false,
+      listenerCount: 0,
+    });
+
+    broadcast.status = wasLive ? 'completed' : 'cancelled';
+    broadcast.endedAt = new Date();
+    broadcast.listenerCount = 0;
+    await broadcast.save();
+
+    emitStatus(req, broadcast);
+
+    return res.status(200).json({
+      data: {
+        broadcast,
+        message: wasLive
+          ? 'Broadcast ended successfully'
+          : 'Broadcast startup cancelled',
+      },
+      timestamp: new Date().toISOString(),
+    });
   } catch (error) {
     console.error('End broadcast error:', error);
     next(error);

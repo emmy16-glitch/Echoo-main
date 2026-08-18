@@ -1,0 +1,157 @@
+.layout-player-error-copy {
+  color: #b42318 !important;
+  font-weight: 600;
+}
+
+.echoo-persistent-player.has-playback-error {
+  box-shadow: 0 -1px 0 rgba(180, 35, 24, 0.18), 0 -10px 30px rgba(15, 23, 42, 0.06);
+}
+
+/* The listener Home audio rail previously hid the only play control until hover.
+   Make the whole artwork a reliable click/tap target while retaining a visible
+   circular play affordance. */
+.identity-audio-art > button {
+  inset: 0 !important;
+  right: auto !important;
+  bottom: auto !important;
+  width: 100% !important;
+  height: 100% !important;
+  padding: 12px !important;
+  display: flex !important;
+  align-items: flex-end !important;
+  justify-content: flex-end !important;
+  border-radius: inherit !important;
+  background: transparent !important;
+  opacity: 1 !important;
+  transform: none !important;
+  cursor: pointer;
+}
+
+.identity-audio-art > button svg {
+  width: 42px;
+  height: 42px;
+  padding: 13px;
+  border-radius: 999px;
+  background: var(--echoo-primary, #335cff);
+  color: #fff;
+  box-shadow: 0 8px 20px rgba(51, 92, 255, 0.24);
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.identity-audio-art > button:hover svg,
+.identity-audio-art > button:focus-visible svg {
+  transform: scale(1.06);
+  box-shadow: 0 10px 24px rgba(51, 92, 255, 0.3);
+}
+
+.identity-audio-art img,
+.identity-audio-art .identity-fallback {
+  pointer-events: none;
+}
+
+/* ----------------------------------------------------------
+   ICON DISCOVERY
+   The compact listener sidebar intentionally hides text labels. Keep the
+   layout compact, but reveal the real destination name on mouse hover and
+   keyboard focus so an icon is never ambiguous.
+---------------------------------------------------------- */
+@media (max-width: 900px) {
+  .layout-sidebar {
+    overflow: visible !important;
+  }
+
+  .layout-navigation,
+  .layout-nav-item {
+    overflow: visible !important;
+  }
+
+  .layout-nav-item {
+    position: relative !important;
+  }
+
+  .layout-nav-item .layout-nav-label {
+    position: absolute !important;
+    z-index: 1200 !important;
+    top: 50% !important;
+    left: calc(100% + 12px) !important;
+    display: block !important;
+    width: max-content !important;
+    max-width: 190px !important;
+    padding: 7px 10px !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    border-radius: 8px !important;
+    background: #101828 !important;
+    color: #fff !important;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.2) !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    line-height: 1.2 !important;
+    white-space: nowrap !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    transform: translate(-4px, -50%) !important;
+    transition: opacity 120ms ease, transform 120ms ease, visibility 120ms ease !important;
+  }
+
+  .layout-nav-item:hover .layout-nav-label,
+  .layout-nav-item:focus-visible .layout-nav-label {
+    opacity: 1 !important;
+    visibility: visible !important;
+    transform: translate(0, -50%) !important;
+  }
+}
+
+/* Player actions are icon-only at every size. Their aria-label is the source
+   of truth for both accessibility and the visual hover/focus label. */
+.layout-player-controls button[aria-label],
+.layout-player-volume button[aria-label] {
+  position: relative !important;
+  overflow: visible !important;
+}
+
+.layout-player-controls button[aria-label]::after,
+.layout-player-volume button[aria-label]::after {
+  content: attr(aria-label);
+  position: absolute;
+  z-index: 1400;
+  left: 50%;
+  bottom: calc(100% + 9px);
+  width: max-content;
+  max-width: 180px;
+  padding: 6px 9px;
+  border-radius: 7px;
+  background: #101828;
+  color: #fff;
+  box-shadow: 0 7px 20px rgba(15, 23, 42, 0.18);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translate(-50%, 4px);
+  transition: opacity 120ms ease, transform 120ms ease, visibility 120ms ease;
+}
+
+.layout-player-controls button[aria-label]:hover::after,
+.layout-player-controls button[aria-label]:focus-visible::after,
+.layout-player-volume button[aria-label]:hover::after,
+.layout-player-volume button[aria-label]:focus-visible::after {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, 0);
+}
+
+@media (max-width: 800px) {
+  .identity-audio-art > button {
+    padding: 10px !important;
+  }
+
+  .identity-audio-art > button svg {
+    width: 40px;
+    height: 40px;
+    padding: 12px;
+  }
+}

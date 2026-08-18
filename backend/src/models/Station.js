@@ -1,5 +1,26 @@
 import mongoose from 'mongoose';
 
+const stationBrandingSchema = new mongoose.Schema(
+  {
+    mode: {
+      type: String,
+      enum: ['generated', 'custom'],
+      default: 'generated',
+    },
+    variant: {
+      type: Number,
+      min: 0,
+      max: 511,
+      default: 0,
+    },
+    version: {
+      type: Number,
+      default: 1,
+    },
+  },
+  { _id: false }
+);
+
 const stationSchema = new mongoose.Schema(
   {
     name: {
@@ -27,33 +48,51 @@ const stationSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    // A creator-supplied logo/cover. When this is null, clients render the
+    // persisted Echoo-generated brand identity in `branding` instead.
     coverArt: {
       type: String,
       default: null,
     },
+    branding: {
+      type: stationBrandingSchema,
+      default: () => ({
+        mode: 'generated',
+        variant: 0,
+        version: 1,
+      }),
+    },
     category: {
       type: String,
-      enum: ['Faith & Spirituality', 'Education', 'News & Politics', 'Business', 'Health & Wellness', 'Entertainment', 'Technology', 'Sports', 'Music', 'Comedy', 'Storytelling', 'Other'],
+      enum: [
+        'Faith & Spirituality',
+        'Education',
+        'News & Politics',
+        'Business',
+        'Health & Wellness',
+        'Entertainment',
+        'Technology',
+        'Sports',
+        'Music',
+        'Comedy',
+        'Storytelling',
+        'Other',
+      ],
       default: 'Other',
     },
-    tags: [{
-      type: String,
-      trim: true,
-      maxlength: [30, 'Tag cannot exceed 30 characters'],
-    }],
+    tags: [
+      {
+        type: String,
+        trim: true,
+        maxlength: [30, 'Tag cannot exceed 30 characters'],
+      },
+    ],
+
+    // Derived runtime state. Broadcast lifecycle code is the only writer.
     isLive: {
       type: Boolean,
       default: false,
       index: true,
-    },
-    isPublic: {
-      type: Boolean,
-      default: true,
-      index: true,
-    },
-    isFeatured: {
-      type: Boolean,
-      default: false,
     },
     listenerCount: {
       type: Number,
@@ -63,10 +102,22 @@ const stationSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+
+    isPublic: {
+      type: Boolean,
+      default: true,
+      index: true,
+    },
+    isFeatured: {
+      type: Boolean,
+      default: false,
+    },
     followerCount: {
       type: Number,
       default: 0,
     },
+
+    // Retained for future distribution compatibility; not used as live authority.
     streamUrl: {
       type: String,
       default: null,
@@ -75,19 +126,6 @@ const stationSchema = new mongoose.Schema(
       type: String,
       select: false,
     },
-    schedule: [{
-      day: {
-        type: String,
-        enum: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
-      },
-      startTime: String,
-      endTime: String,
-      title: String,
-      isRecurring: {
-        type: Boolean,
-        default: false,
-      },
-    }],
     isDeleted: {
       type: Boolean,
       default: false,
@@ -109,7 +147,6 @@ const stationSchema = new mongoose.Schema(
   }
 );
 
-// Indexes
 stationSchema.index({ slug: 1 }, { unique: true });
 stationSchema.index({ owner: 1, createdAt: -1 });
 stationSchema.index({ isPublic: 1, isLive: 1 });
@@ -117,27 +154,18 @@ stationSchema.index({ name: 'text', description: 'text', tags: 'text' });
 stationSchema.index({ category: 1 });
 stationSchema.index({ isFeatured: 1 });
 
-// Instance methods
-stationSchema.methods.incrementListeners = async function() {
+stationSchema.methods.incrementListeners = async function incrementListeners() {
   this.listenerCount += 1;
   this.totalListeners += 1;
-  return await this.save();
+  return this.save();
 };
 
-stationSchema.methods.decrementListeners = async function() {
+stationSchema.methods.decrementListeners = async function decrementListeners() {
   if (this.listenerCount > 0) {
     this.listenerCount -= 1;
-    return await this.save();
+    return this.save();
   }
   return this;
-};
-
-stationSchema.methods.toggleLive = async function(isLive) {
-  this.isLive = isLive;
-  if (!isLive) {
-    this.listenerCount = 0;
-  }
-  return await this.save();
 };
 
 const Station = mongoose.model('Station', stationSchema, 'echoo_stations');

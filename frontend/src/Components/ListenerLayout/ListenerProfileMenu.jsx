@@ -199,6 +199,21 @@ const ListenerProfileMenu = ({
           className="listener-profile-chevron"
         />
       </button>
+
+      <button
+        type="button"
+        className="listener-profile-logout-direct"
+        onClick={handleLogout}
+        aria-label="Log out of Echoo"
+        title="Log out"
+      >
+        <span className="listener-profile-logout-direct-icon">
+          <FaSignOutAlt />
+        </span>
+        <span className="listener-profile-logout-direct-label">
+          Log out
+        </span>
+      </button>
     </div>
   );
 };

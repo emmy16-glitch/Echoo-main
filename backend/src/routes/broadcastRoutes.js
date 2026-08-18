@@ -1,107 +1,51 @@
 import express from 'express';
 import { authenticate } from '../middleware/auth.js';
-
+import { enforceSingleLiveCreator } from '../middleware/enforceSingleLiveCreator.js';
 import {
   createBroadcast,
   getBroadcasts,
+  getCreatorBroadcasts,
   getBroadcastById,
   updateBroadcast,
   deleteBroadcast,
-
+  cancelBroadcast,
   getUpcomingBroadcasts,
   getLiveBroadcast,
-
   startBroadcast,
+  confirmBroadcastLive,
   endBroadcast,
   getLiveKitToken,
+  getListenerLiveKitToken,
+  getBroadcastPresence,
   getPlaybackInfo,
 } from '../controllers/broadcastController.js';
 
-const router =
-  express.Router();
+const router = express.Router();
 
+// Public discovery uses only public broadcasts.
+router.get('/', getBroadcasts);
+router.get('/station/:stationId/upcoming', getUpcomingBroadcasts);
+router.get('/station/:stationId/live', getLiveBroadcast);
+router.get('/:broadcastId/presence', getBroadcastPresence);
+router.get('/:broadcastId/playback', getPlaybackInfo);
 
-/*
- * ==========================================================
- * PUBLIC / DISCOVERY
- * ==========================================================
- */
+// Creator-owned broadcast collection.
+router.get('/mine/all', authenticate, getCreatorBroadcasts);
 
-router.get(
-  '/',
-  getBroadcasts
-);
+// Authenticated single-broadcast access.
+router.get('/:broadcastId', authenticate, getBroadcastById);
+router.post('/', authenticate, createBroadcast);
+router.patch('/:broadcastId', authenticate, updateBroadcast);
+router.delete('/:broadcastId', authenticate, deleteBroadcast);
 
-router.get(
-  '/station/:stationId/upcoming',
-  getUpcomingBroadcasts
-);
+// Explicit lifecycle actions. Status is never changed through generic PATCH.
+router.post('/:broadcastId/cancel', authenticate, cancelBroadcast);
+router.post('/:broadcastId/start', authenticate, enforceSingleLiveCreator, startBroadcast);
+router.post('/:broadcastId/confirm-live', authenticate, confirmBroadcastLive);
+router.post('/:broadcastId/end', authenticate, endBroadcast);
 
-router.get(
-  '/station/:stationId/live',
-  getLiveBroadcast
-);
-
-router.get(
-  '/:broadcastId/playback',
-  getPlaybackInfo
-);
-
-
-/*
- * ==========================================================
- * AUTHENTICATED BROADCAST MANAGEMENT
- * ==========================================================
- */
-
-router.get(
-  '/:broadcastId',
-  authenticate,
-  getBroadcastById
-);
-
-router.post(
-  '/',
-  authenticate,
-  createBroadcast
-);
-
-router.patch(
-  '/:broadcastId',
-  authenticate,
-  updateBroadcast
-);
-
-router.delete(
-  '/:broadcastId',
-  authenticate,
-  deleteBroadcast
-);
-
-
-/*
- * ==========================================================
- * LIVE AUDIO LIFECYCLE
- * ==========================================================
- */
-
-router.post(
-  '/:broadcastId/start',
-  authenticate,
-  startBroadcast
-);
-
-router.post(
-  '/:broadcastId/end',
-  authenticate,
-  endBroadcast
-);
-
-router.post(
-  '/:broadcastId/livekit-token',
-  authenticate,
-  getLiveKitToken
-);
-
+// LiveKit participant credentials.
+router.post('/:broadcastId/livekit-token', authenticate, getLiveKitToken);
+router.post('/:broadcastId/listener-token', authenticate, getListenerLiveKitToken);
 
 export default router;

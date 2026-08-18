@@ -1,0 +1,131 @@
+/*
+ * Echoo responsive audit correction.
+ *
+ * Creator Studio is a CSS grid. The 2026 responsive layer changes the rail
+ * width at tablet/phone breakpoints, so the grid track must change with it.
+ * Keeping a second margin-left on .studio-main double-offsets the workspace
+ * and can clip the Creator canvas on narrow viewports.
+ */
+
+#root .studio-page.studio-final-shell > .studio-main {
+  min-width: 0 !important;
+  width: 100% !important;
+  margin-left: 0 !important;
+}
+
+/*
+ * Broadcast Studio hero repair.
+ *
+ * echoo-experience-2026.css intentionally adds the Echoo wave asset, but its
+ * light ::after wash was overriding the Broadcast Studio's dark hero styling.
+ * That left several status labels with dark-hero colours on an almost-white
+ * surface. Station cover art also used object-fit: cover, which cropped wide
+ * or text-based station artwork. Keep the Echoo geometry, restore contrast,
+ * and always show the complete station artwork in both pre-live and on-air.
+ */
+#root .ebsx-station-hero {
+  color: #fff !important;
+  background:
+    radial-gradient(circle at 82% 42%, rgba(49, 105, 217, .28), transparent 28%),
+    linear-gradient(135deg, #10264b 0%, #0b1d3a 58%, #112a52 100%) !important;
+}
+
+#root .ebsx-station-hero::before {
+  content: '' !important;
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: 0 !important;
+  background: url('../Components/Assets/echoo-patterns/layered-waves.svg') center / cover no-repeat !important;
+  opacity: .16 !important;
+  pointer-events: none !important;
+}
+
+#root .ebsx-station-hero::after {
+  content: '' !important;
+  position: absolute !important;
+  inset: 0 !important;
+  top: 0 !important;
+  right: 0 !important;
+  width: auto !important;
+  height: auto !important;
+  z-index: 1 !important;
+  transform: none !important;
+  border: 0 !important;
+  border-radius: inherit !important;
+  box-shadow: none !important;
+  background: linear-gradient(90deg, rgba(7, 24, 51, .05), rgba(7, 24, 51, .34)) !important;
+  pointer-events: none !important;
+}
+
+#root .ebsx-station-hero > * {
+  position: relative;
+  z-index: 2;
+  min-width: 0;
+}
+
+#root .ebsx-station-art,
+#root .ebsx-onair-art {
+  background: #0d2446 !important;
+}
+
+#root .ebsx-station-art img,
+#root .ebsx-onair-art img {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
+  object-position: center !important;
+  background: #0d2446;
+}
+
+#root .ebsx-station-copy h2 {
+  color: #fff !important;
+  overflow-wrap: anywhere;
+}
+
+#root .ebsx-station-copy p {
+  color: #d6e1f2 !important;
+}
+
+#root .ebsx-station-copy small,
+#root .ebsx-quality > span,
+#root .ebsx-quality p {
+  color: #aebfd8 !important;
+}
+
+#root .ebsx-quality strong {
+  color: #f6f9ff !important;
+}
+
+@media (max-width: 900px) {
+  #root .studio-page.studio-final-shell {
+    grid-template-columns: 210px minmax(0, 1fr) !important;
+  }
+}
+
+@media (max-width: 720px) {
+  #root .studio-page.studio-final-shell {
+    grid-template-columns: 78px minmax(0, 1fr) !important;
+  }
+
+  #root .ebsx-station-hero {
+    text-align: center;
+  }
+
+  #root .ebsx-quality {
+    text-align: left;
+  }
+}
+
+@media (max-width: 520px) {
+  #root .studio-page.studio-final-shell {
+    grid-template-columns: 66px minmax(0, 1fr) !important;
+  }
+
+  #root .studio-page.studio-final-shell .studio-view,
+  #root .studio-page.studio-final-shell .studio-topbar-final,
+  #root .studio-page.studio-final-shell .studio-footer {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+}

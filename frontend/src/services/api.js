@@ -1,9 +1,26 @@
+const configuredApiBase = String(import.meta.env.VITE_API_URL || '')
+  .trim()
+  .replace(/\/$/, '');
+const localRuntime =
+  typeof window !== 'undefined' &&
+  ['localhost', '127.0.0.1'].includes(window.location.hostname);
+
 export const API_BASE_URL =
-  import.meta.env.VITE_API_URL ||
-  'http://localhost:5001/api';
+  configuredApiBase ||
+  (import.meta.env.DEV || localRuntime ? 'http://localhost:5001/api' : '');
 
 export const API_ORIGIN =
   API_BASE_URL.replace(/\/api\/?$/, '');
+
+const requireApiBaseUrl = () => {
+  if (API_BASE_URL) return API_BASE_URL;
+
+  const error = new Error(
+    'Echoo production API is not configured. Set VITE_API_URL to the public backend URL ending in /api and redeploy the frontend.'
+  );
+  error.code = 'ECHOO_API_NOT_CONFIGURED';
+  throw error;
+};
 
 const getAccessToken = () => {
   return (
@@ -112,7 +129,7 @@ const refreshAccessToken =
     }
 
     refreshPromise = fetch(
-      `${API_BASE_URL}/auth/refresh`,
+      `${requireApiBaseUrl()}/auth/refresh`,
       {
         method: 'POST',
         headers: {
@@ -191,7 +208,7 @@ const makeRequest = async (
   };
 
   return fetch(
-    `${API_BASE_URL}${path}`,
+    `${requireApiBaseUrl()}${path}`,
     {
       method:
         options.method || 'GET',
@@ -299,7 +316,10 @@ export const buildMediaUrl = (
     return fileUrl;
   }
 
-  return `${API_ORIGIN}${
+  const origin = API_ORIGIN || (localRuntime ? 'http://localhost:5001' : '');
+  if (!origin) return fileUrl;
+
+  return `${origin}${
     fileUrl.startsWith('/')
       ? fileUrl
       : `/${fileUrl}`

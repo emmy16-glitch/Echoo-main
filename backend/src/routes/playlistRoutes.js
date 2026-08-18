@@ -3,6 +3,7 @@ import { authenticate } from '../middleware/auth.js';
 import {
   createPlaylist,
   getPlaylists,
+  getMyPlaylists,
   getPlaylistById,
   updatePlaylist,
   deletePlaylist,
@@ -13,11 +14,9 @@ import {
 
 const router = express.Router();
 
-// Public routes (with optional auth)
 router.get('/', getPlaylists);
+router.get('/mine/all', authenticate, getMyPlaylists);
 router.get('/:id', authenticate, getPlaylistById);
-
-// Protected routes
 router.post('/', authenticate, createPlaylist);
 router.patch('/:id', authenticate, updatePlaylist);
 router.delete('/:id', authenticate, deletePlaylist);

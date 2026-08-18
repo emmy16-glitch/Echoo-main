@@ -150,6 +150,17 @@ const userSchema = new mongoose.Schema(
         type: String,
         enum: ['Faith & Spirituality', 'Education', 'News & Politics', 'Business', 'Health & Wellness', 'Entertainment', 'Technology', 'Sports', 'Music', 'Comedy', 'Storytelling', 'Other'],
       }],
+      player: {
+        volume: { type: Number, min: 0, max: 1, default: 1 },
+        isMuted: { type: Boolean, default: false },
+        playbackRate: { type: Number, min: 0.5, max: 3, default: 1 },
+        isShuffled: { type: Boolean, default: false },
+        repeatMode: {
+          type: String,
+          enum: ['none', 'one', 'all'],
+          default: 'none',
+        },
+      },
     },
     listeningHistory: [{
       trackId: {

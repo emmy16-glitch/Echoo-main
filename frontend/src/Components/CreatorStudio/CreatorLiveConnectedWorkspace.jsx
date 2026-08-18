@@ -1,1686 +1,724 @@
-import {
-  useEffect,
-  useRef,
-  useState,
-} from "react";
-
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   FaBroadcastTower,
+  FaCalendarAlt,
   FaCheck,
+  FaClock,
   FaMicrophone,
-  FaPlus,
-  FaSave,
+  FaShareAlt,
   FaStop,
-} from "react-icons/fa";
+  FaTimesCircle,
+  FaTrash,
+  FaUsers,
+} from 'react-icons/fa';
 
-import EchoAmbient from "../EchooSystem/EchoAmbient";
-import EchoAvatar from "../EchooSystem/EchoAvatar";
-import EchoWave from "../EchooSystem/EchoWave";
-
-import batch2Service from "../../services/batch2Service";
-import batch3Service from "../../services/batch3Service";
-
+import EchoAmbient from '../EchooSystem/EchoAmbient';
+import EchoWave from '../EchooSystem/EchoWave';
+import CreatorAudioMixer from './CreatorAudioMixer';
+import CreatorLiveChatPanel from './CreatorLiveChatPanel';
+import batch2Service from '../../services/batch2Service';
+import batch3Service from '../../services/batch3Service';
+import {
+  getEchooMixerOutputTrack,
+  getEchooMixerState,
+  ensureHostInput,
+  stopEchooMixer,
+} from '../../services/echooMixerService';
 import {
   startLiveKitPublishing,
   stopLiveKitPublishing,
-} from "../../services/livekitPublisher";
+} from '../../services/livekitPublisher';
+import './CreatorBroadcastStudioExact.css';
 
-import "./CreatorPhase9.css";
+const pad = (value) => String(value).padStart(2, '0');
 
-const CATEGORY_OPTIONS = [
-  "Faith & Spirituality",
-  "Education",
-  "News & Politics",
-  "Business",
-  "Health & Wellness",
-  "Entertainment",
-  "Technology",
-  "Sports",
-  "Music",
-  "Comedy",
-  "Storytelling",
-  "Other",
-];
+const defaultDate = () => {
+  const date = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+};
+
+const formatDateTime = (value) => {
+  if (!value) return 'Time not set';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Time not set';
+  return date.toLocaleString([], {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+
+const formatTimer = (seconds) => {
+  const value = Math.max(0, Number(seconds) || 0);
+  const hours = Math.floor(value / 3600);
+  const minutes = Math.floor((value % 3600) / 60);
+  const secs = Math.floor(value % 60);
+  return `${pad(hours)}:${pad(minutes)}:${pad(secs)}`;
+};
 
 const CreatorLiveConnectedWorkspace = ({
-  studioName = "Creator",
-  profileImage = null,
+  studioName = 'Creator',
+  initialBroadcastId = '',
+  onNavigate,
+  onClearPreparedBroadcast,
 }) => {
-  const [
-    stations,
-    setStations,
-  ] = useState([]);
+  const preparedBroadcastId =
+    initialBroadcastId || sessionStorage.getItem('echooPreparedBroadcastId') || '';
 
-  const [
-    stationId,
-    setStationId,
-  ] = useState("");
+  const [stations, setStations] = useState([]);
+  const [broadcasts, setBroadcasts] = useState([]);
+  const [stationId, setStationId] = useState('');
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [mode, setMode] = useState(
+    () => sessionStorage.getItem('echooBroadcastMode') === 'later' ? 'later' : 'now'
+  );
+  const [date, setDate] = useState(defaultDate);
+  const [time, setTime] = useState('18:00');
+  const [duration, setDuration] = useState('60');
+  const [savedBroadcast, setSavedBroadcast] = useState(null);
+  const [currentLiveBroadcast, setCurrentLiveBroadcast] = useState(null);
+  const [presence, setPresence] = useState({
+    listenerCount: 0,
+    peakListeners: 0,
+    creatorConnected: false,
+  });
+  const [mixerState, setMixerState] = useState(() => getEchooMixerState());
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [goingLive, setGoingLive] = useState(false);
+  const [ending, setEnding] = useState(false);
+  const [actionId, setActionId] = useState('');
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+  const [elapsed, setElapsed] = useState(0);
 
-  const [
-    title,
-    setTitle,
-  ] = useState("");
+  const clearPreparedBroadcast = useCallback(() => {
+    sessionStorage.removeItem('echooPreparedBroadcastId');
+    onClearPreparedBroadcast?.();
+  }, [onClearPreparedBroadcast]);
 
-  const [
-    description,
-    setDescription,
-  ] = useState("");
-
-  const [
-    category,
-    setCategory,
-  ] = useState("Other");
-
-  const [
-    savedBroadcast,
-    setSavedBroadcast,
-  ] = useState(null);
-
-  const [
-    currentLiveBroadcast,
-    setCurrentLiveBroadcast,
-  ] = useState(null);
-
-  const [
-    loading,
-    setLoading,
-  ] = useState(true);
-
-  const [
-    saving,
-    setSaving,
-  ] = useState(false);
-
-  const [
-    goingLive,
-    setGoingLive,
-  ] = useState(false);
-
-  const [
-    ending,
-    setEnding,
-  ] = useState(false);
-
-  const [
-    micState,
-    setMicState,
-  ] = useState("idle");
-
-  const [
-    inputLevel,
-    setInputLevel,
-  ] = useState(0);
-
-  const [
-    message,
-    setMessage,
-  ] = useState("");
-
-  const [
-    error,
-    setError,
-  ] = useState("");
-
-  const [
-    newStationName,
-    setNewStationName,
-  ] = useState("");
-
-  const [
-    creatingStation,
-    setCreatingStation,
-  ] = useState(false);
-
-  const streamRef =
-    useRef(null);
-
-  const contextRef =
-    useRef(null);
-
-  const analyserRef =
-    useRef(null);
-
-  const frameRef =
-    useRef(null);
-
-  const dataRef =
-    useRef(null);
-
-  /*
-   * Local microphone TEST cleanup.
-   *
-   * This is separate from the real LiveKit
-   * publisher. The test microphone never
-   * broadcasts anywhere.
-   */
-  const cleanupMicTest =
-    () => {
-      if (
-        frameRef.current
-      ) {
-        cancelAnimationFrame(
-          frameRef.current
-        );
-
-        frameRef.current =
-          null;
-      }
-
-      if (
-        streamRef.current
-      ) {
-        streamRef.current
-          .getTracks()
-          .forEach(
-            (
-              track
-            ) =>
-              track.stop()
-          );
-
-        streamRef.current =
-          null;
-      }
-
-      if (
-        contextRef.current
-      ) {
-        contextRef.current
-          .close()
-          .catch(
-            () => {}
-          );
-
-        contextRef.current =
-          null;
-      }
-
-      analyserRef.current =
-        null;
-
-      dataRef.current =
-        null;
-
-      setInputLevel(0);
-      setMicState("idle");
-    };
-
-  /*
-   * Load real stations and creator broadcasts.
-   */
   useEffect(() => {
     let active = true;
 
-    const load =
-      async () => {
-        try {
-          const [
-            stationResult,
-            broadcastResult,
-          ] =
-            await Promise.all([
-              batch2Service
-                .getMyStations(),
+    const load = async () => {
+      try {
+        setLoading(true);
+        setError('');
 
-              batch3Service
-                .getCreatorBroadcasts(),
-            ]);
+        const [stationResult, broadcastResult] = await Promise.all([
+          batch2Service.getMyStations(),
+          batch3Service.getCreatorBroadcasts(),
+        ]);
 
-          if (!active) {
+        if (!active) return;
+
+        const realStations = Array.isArray(stationResult?.data) ? stationResult.data : [];
+        const realBroadcasts = Array.isArray(broadcastResult?.data) ? broadcastResult.data : [];
+        setStations(realStations);
+        setBroadcasts(realBroadcasts);
+
+        const live = realBroadcasts.find((item) => item.status === 'live') || null;
+        if (live) {
+          setCurrentLiveBroadcast(live);
+          setSavedBroadcast(live);
+          setStationId(live.stationId || '');
+          setTitle(live.title || '');
+          setDescription(live.description || '');
+          clearPreparedBroadcast();
+          return;
+        }
+
+        // If the browser refreshed or briefly disconnected after /start created
+        // the LiveKit room but before /confirm-live completed, recover the same
+        // broadcast instead of creating a second one that the single-live guard
+        // would correctly reject.
+        const interruptedStart =
+          realBroadcasts.find((item) => item.status === 'starting') || null;
+
+        if (interruptedStart) {
+          setSavedBroadcast(interruptedStart);
+          setStationId(interruptedStart.stationId || '');
+          setTitle(interruptedStart.title || '');
+          setDescription(interruptedStart.description || '');
+          setMode('now');
+          sessionStorage.setItem('echooPreparedBroadcastId', String(interruptedStart.id));
+          sessionStorage.setItem('echooBroadcastMode', 'now');
+          setMessage('Live start was interrupted. Test your microphone, then resume going live.');
+          return;
+        }
+
+        if (preparedBroadcastId) {
+          let prepared = realBroadcasts.find(
+            (item) => String(item.id) === String(preparedBroadcastId)
+          );
+
+          if (!prepared) {
+            const response = await batch3Service.getBroadcast(preparedBroadcastId);
+            prepared = response?.data || null;
+          }
+
+          if (prepared && ['scheduled', 'starting', 'failed'].includes(prepared.status)) {
+            setSavedBroadcast(prepared);
+            setStationId(prepared.stationId || '');
+            setTitle(prepared.title || '');
+            setDescription(prepared.description || '');
+            setMode('now');
             return;
           }
 
-          const realStations =
-            Array.isArray(
-              stationResult?.data
-            )
-              ? stationResult.data
-              : [];
-
-          const broadcasts =
-            Array.isArray(
-              broadcastResult?.data
-            )
-              ? broadcastResult.data
-              : [];
-
-          setStations(
-            realStations
-          );
-
-          setStationId(
-            realStations[0]?.id ||
-              ""
-          );
-
-          const live =
-            broadcasts.find(
-              (
-                item
-              ) =>
-                item.status ===
-                "live"
-            ) || null;
-
-          setCurrentLiveBroadcast(
-            live
-          );
-        } catch (
-          loadError
-        ) {
-          console.error(
-            "Creator Live load:",
-            loadError
-          );
-
-          if (active) {
-            setError(
-              loadError?.message ||
-                "Could not connect Creator Live to the backend."
-            );
-          }
-        } finally {
-          if (active) {
-            setLoading(false);
-          }
+          clearPreparedBroadcast();
         }
-      };
+
+        const requestedStation = sessionStorage.getItem('echooSelectedStationId') || '';
+        setStationId(
+          realStations.some((station) => String(station.id) === String(requestedStation))
+            ? requestedStation
+            : realStations[0]?.id || ''
+        );
+      } catch (loadError) {
+        if (active) setError(loadError?.message || 'Could not load Broadcast Studio.');
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
 
     load();
+    return () => { active = false; };
+  }, [preparedBroadcastId, clearPreparedBroadcast]);
 
+  useEffect(() => {
+    if (!currentLiveBroadcast?.id) return undefined;
+
+    let active = true;
+    const refreshPresence = async () => {
+      try {
+        const next = await batch3Service.getPresence(currentLiveBroadcast.id);
+        if (active) setPresence(next);
+      } catch {
+        // Presence errors never stop an active broadcast.
+      }
+    };
+
+    const first = window.setTimeout(refreshPresence, 0);
+    const interval = window.setInterval(refreshPresence, 5000);
     return () => {
       active = false;
-
-      if (
-        frameRef.current
-      ) {
-        cancelAnimationFrame(
-          frameRef.current
-        );
-      }
-
-      if (
-        streamRef.current
-      ) {
-        streamRef.current
-          .getTracks()
-          .forEach(
-            (
-              track
-            ) =>
-              track.stop()
-          );
-      }
-
-      if (
-        contextRef.current
-      ) {
-        contextRef.current
-          .close()
-          .catch(
-            () => {}
-          );
-      }
+      window.clearTimeout(first);
+      window.clearInterval(interval);
     };
-  }, []);
+  }, [currentLiveBroadcast?.id]);
 
-  /*
-   * Microphone meter.
-   */
-  const runMeter =
-    () => {
-      const analyser =
-        analyserRef.current;
+  useEffect(() => {
+    if (!currentLiveBroadcast?.id) return undefined;
 
-      const data =
-        dataRef.current;
+    const started = new Date(
+      currentLiveBroadcast.startedAt || currentLiveBroadcast.startTime || Date.now()
+    ).getTime();
 
-      if (
-        !analyser ||
-        !data
-      ) {
-        return;
+    const update = () => setElapsed(Math.max(0, Math.floor((Date.now() - started) / 1000)));
+    const first = window.setTimeout(update, 0);
+    const interval = window.setInterval(update, 1000);
+
+    return () => {
+      window.clearTimeout(first);
+      window.clearInterval(interval);
+    };
+  }, [currentLiveBroadcast?.id, currentLiveBroadcast?.startedAt, currentLiveBroadcast?.startTime]);
+
+  const selectedStation = useMemo(
+    () => stations.find((station) => String(station.id) === String(stationId)) || null,
+    [stations, stationId]
+  );
+
+  const planned = useMemo(
+    () => broadcasts
+      .filter((broadcast) => broadcast.status === 'scheduled')
+      .sort((first, second) => new Date(first.startTime || 0) - new Date(second.startTime || 0)),
+    [broadcasts]
+  );
+
+  const microphoneReady = Boolean(mixerState?.channels?.host?.connected);
+  const formReady = Boolean(stationId && title.trim());
+
+  const changeMode = (nextMode) => {
+    setMode(nextMode);
+    sessionStorage.setItem('echooBroadcastMode', nextMode);
+    setMessage('');
+    setError('');
+  };
+
+  const testMicrophone = async () => {
+    try {
+      setError('');
+      await ensureHostInput();
+      setMixerState(getEchooMixerState());
+      setMessage('Microphone ready.');
+    } catch (micError) {
+      setError(micError?.message || 'Could not connect your microphone.');
+    }
+  };
+
+  const prepareImmediateBroadcast = async () => {
+    if (savedBroadcast?.id && savedBroadcast.status !== 'live') {
+      const response = await batch2Service.updateBroadcast(savedBroadcast.id, {
+        title: title.trim(),
+        description: description.trim(),
+      });
+      return response?.data || savedBroadcast;
+    }
+
+    const start = new Date(Date.now() + 10 * 60 * 1000);
+    const end = new Date(start.getTime() + 4 * 60 * 60 * 1000);
+
+    const response = await batch2Service.createBroadcast({
+      title: title.trim(),
+      description: description.trim(),
+      stationId,
+      startTime: start.toISOString(),
+      endTime: end.toISOString(),
+      type: 'live',
+      isRecurring: false,
+      isPublic: true,
+      tags: [],
+      coverArt: selectedStation?.coverArt || null,
+    });
+
+    if (!response?.data?.id) throw new Error('Could not prepare this broadcast.');
+    setSavedBroadcast(response.data);
+    setBroadcasts((current) => [...current, response.data]);
+    return response.data;
+  };
+
+  const goLive = async () => {
+    if (goingLive || currentLiveBroadcast) return;
+    if (!formReady) return setError('Choose a station and add a broadcast title.');
+    if (!microphoneReady) return setError('Connect and test your host microphone first.');
+
+    const mediaTrack = getEchooMixerOutputTrack();
+    if (!mediaTrack) return setError('The studio mixer output is not ready.');
+
+    let broadcast = null;
+    let backendStarted = false;
+    let publisherConnected = false;
+
+    try {
+      setGoingLive(true);
+      setError('');
+      setMessage('Opening your live room...');
+
+      broadcast = await prepareImmediateBroadcast();
+
+      let connection = null;
+      if (broadcast.status === 'starting') {
+        // Resume the room prepared by a previous interrupted start.
+        connection = await batch3Service.getLiveKitToken(broadcast.id);
+        backendStarted = true;
+        setMessage('Reconnecting to your prepared live room...');
+      } else {
+        const response = await batch3Service.startBroadcast(broadcast.id);
+        backendStarted = true;
+        connection = response?.livekit;
       }
 
-      analyser
-        .getByteTimeDomainData(
-          data
-        );
+      const liveKitUrl = connection?.livekitUrl || import.meta.env.VITE_LIVEKIT_URL;
 
-      let total = 0;
-
-      for (
-        let index = 0;
-        index < data.length;
-        index += 1
-      ) {
-        const normalized =
-          (
-            data[index] -
-            128
-          ) / 128;
-
-        total +=
-          normalized *
-          normalized;
+      if (!connection?.token || !liveKitUrl) {
+        throw new Error('Echoo could not open the live audio room.');
       }
 
-      const rms =
-        Math.sqrt(
-          total /
-            data.length
-        );
+      await startLiveKitPublishing({
+        url: liveKitUrl,
+        token: connection.token,
+        broadcastId: broadcast.id,
+        mediaTrack,
+      });
+      publisherConnected = true;
 
-      const level =
-        Math.max(
-          0,
-          Math.min(
-            1,
-            rms * 4.2
-          )
-        );
+      let confirmed = null;
+      try {
+        confirmed = await batch3Service.confirmBroadcastLive(broadcast.id);
+      } catch (confirmError) {
+        // confirm-live is idempotent once the backend reaches live. A single
+        // retry prevents a lost HTTP response from tearing down a publisher
+        // that the backend already accepted as live.
+        if (!publisherConnected) throw confirmError;
+        await new Promise((resolve) => window.setTimeout(resolve, 350));
+        confirmed = await batch3Service.confirmBroadcastLive(broadcast.id);
+      }
 
-      setInputLevel(
-        level
+      const liveBroadcast = confirmed?.data || { ...broadcast, status: 'live', isLive: true };
+
+      setSavedBroadcast(liveBroadcast);
+      setCurrentLiveBroadcast(liveBroadcast);
+      setElapsed(0);
+      setBroadcasts((current) =>
+        current.map((item) => item.id === liveBroadcast.id ? liveBroadcast : item)
       );
-
-      frameRef.current =
-        requestAnimationFrame(
-          runMeter
-        );
-    };
-
-  const startMicTest =
-    async () => {
-      setError("");
-      setMessage("");
-
-      if (
-        !navigator
-          .mediaDevices
-          ?.getUserMedia
-      ) {
-        setError(
-          "Microphone access is not supported by this browser."
-        );
-
-        return;
+      setMessage('You are live.');
+      clearPreparedBroadcast();
+    } catch (liveError) {
+      await stopLiveKitPublishing().catch(() => {});
+      if (backendStarted && broadcast?.id) {
+        await batch3Service.cancelBroadcast(broadcast.id).catch(() => {});
       }
+      setError(liveError?.message || 'Echoo could not start the broadcast.');
+    } finally {
+      setGoingLive(false);
+    }
+  };
 
-      cleanupMicTest();
+  const scheduleBroadcast = async () => {
+    if (!formReady || saving) return;
 
-      try {
-        setMicState(
-          "requesting"
-        );
+    try {
+      setSaving(true);
+      setError('');
+      setMessage('');
 
-        const stream =
-          await navigator
-            .mediaDevices
-            .getUserMedia({
-              audio: true,
-            });
+      const start = new Date(`${date}T${time}`);
+      if (Number.isNaN(start.getTime())) throw new Error('Choose a valid date and time.');
+      if (start <= new Date()) throw new Error('Choose a future date and time.');
 
-        const AudioContextClass =
-          window.AudioContext ||
-          window.webkitAudioContext;
+      const minutes = Number(duration) || 60;
+      const end = new Date(start.getTime() + minutes * 60 * 1000);
+      const response = await batch2Service.createBroadcast({
+        title: title.trim(),
+        description: description.trim(),
+        stationId,
+        startTime: start.toISOString(),
+        endTime: end.toISOString(),
+        type: 'live',
+        isRecurring: false,
+        isPublic: true,
+        tags: [],
+        coverArt: selectedStation?.coverArt || null,
+      });
 
-        if (
-          !AudioContextClass
-        ) {
-          stream
-            .getTracks()
-            .forEach(
-              (
-                track
-              ) =>
-                track.stop()
-            );
+      if (!response?.data?.id) throw new Error('Could not schedule this broadcast.');
+      setBroadcasts((current) => [...current, response.data]);
+      setMessage('Broadcast scheduled.');
+      setTitle('');
+      setDescription('');
+      setDate(defaultDate());
+      setTime('18:00');
+      setDuration('60');
+      setSavedBroadcast(null);
+    } catch (scheduleError) {
+      setError(scheduleError?.message || 'Could not schedule this broadcast.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
-          throw new Error(
-            "Web Audio is not available in this browser."
-          );
-        }
+  const reconnectMicrophone = async () => {
+    if (!currentLiveBroadcast?.id || goingLive) return;
 
-        const context =
-          new AudioContextClass();
-
-        await context.resume();
-
-        const source =
-          context
-            .createMediaStreamSource(
-              stream
-            );
-
-        const analyser =
-          context
-            .createAnalyser();
-
-        analyser.fftSize =
-          256;
-
-        analyser
-          .smoothingTimeConstant =
-          0.72;
-
-        source.connect(
-          analyser
-        );
-
-        const data =
-          new Uint8Array(
-            analyser.fftSize
-          );
-
-        streamRef.current =
-          stream;
-
-        contextRef.current =
-          context;
-
-        analyserRef.current =
-          analyser;
-
-        dataRef.current =
-          data;
-
-        setMicState(
-          "ready"
-        );
-
-        runMeter();
-      } catch (
-        micError
-      ) {
-        console.error(
-          "Microphone test:",
-          micError
-        );
-
-        cleanupMicTest();
-
-        setError(
-          micError?.message ||
-            "Echoo could not access your microphone."
-        );
+    try {
+      setGoingLive(true);
+      setError('');
+      if (!microphoneReady) {
+        await ensureHostInput();
+        setMixerState(getEchooMixerState());
       }
-    };
+      const mediaTrack = getEchooMixerOutputTrack();
+      if (!mediaTrack) throw new Error('The studio mixer output is not ready.');
 
-  /*
-   * Create a station without leaving Live.
-   */
-  const createStation =
-    async () => {
-      const name =
-        newStationName
-          .trim();
+      const connection = await batch3Service.getLiveKitToken(currentLiveBroadcast.id);
+      const liveKitUrl = connection?.livekitUrl || import.meta.env.VITE_LIVEKIT_URL;
+      if (!connection?.token || !liveKitUrl) throw new Error('Could not reconnect the live room.');
 
-      if (
-        !name ||
-        creatingStation
-      ) {
-        return;
+      await startLiveKitPublishing({
+        url: liveKitUrl,
+        token: connection.token,
+        broadcastId: currentLiveBroadcast.id,
+        mediaTrack,
+      });
+      setMessage('Studio mix reconnected.');
+    } catch (reconnectError) {
+      setError(reconnectError?.message || 'Could not reconnect the studio mix.');
+    } finally {
+      setGoingLive(false);
+    }
+  };
+
+  const endBroadcast = async () => {
+    if (!currentLiveBroadcast?.id || ending) return;
+    if (!window.confirm(`End “${currentLiveBroadcast.title}” now?`)) return;
+
+    try {
+      setEnding(true);
+      setError('');
+      await stopLiveKitPublishing();
+      await batch3Service.endBroadcast(currentLiveBroadcast.id);
+      await stopEchooMixer();
+      setBroadcasts((current) => current.map((item) =>
+        item.id === currentLiveBroadcast.id ? { ...item, status: 'completed' } : item
+      ));
+      setCurrentLiveBroadcast(null);
+      setSavedBroadcast(null);
+      setElapsed(0);
+      setPresence({ listenerCount: 0, peakListeners: 0, creatorConnected: false });
+      setMixerState(getEchooMixerState());
+      setTitle('');
+      setDescription('');
+      setMessage('Broadcast ended.');
+      clearPreparedBroadcast();
+    } catch (endError) {
+      setError(endError?.message || 'Could not end the broadcast.');
+    } finally {
+      setEnding(false);
+    }
+  };
+
+  const cancelBroadcast = async (broadcast) => {
+    if (!window.confirm(`Cancel “${broadcast.title}”?`)) return;
+    try {
+      setActionId(broadcast.id);
+      await batch3Service.cancelBroadcast(broadcast.id);
+      setBroadcasts((current) => current.map((item) =>
+        item.id === broadcast.id ? { ...item, status: 'cancelled' } : item
+      ));
+    } catch (cancelError) {
+      setError(cancelError?.message || 'Could not cancel the broadcast.');
+    } finally {
+      setActionId('');
+    }
+  };
+
+  const deleteBroadcast = async (broadcast) => {
+    if (!window.confirm(`Delete “${broadcast.title}”?`)) return;
+    try {
+      setActionId(broadcast.id);
+      await batch2Service.deleteBroadcast(broadcast.id);
+      setBroadcasts((current) => current.filter((item) => item.id !== broadcast.id));
+    } catch (deleteError) {
+      setError(deleteError?.message || 'Could not delete the broadcast.');
+    } finally {
+      setActionId('');
+    }
+  };
+
+  const enterScheduled = (broadcast) => {
+    setSavedBroadcast(broadcast);
+    setStationId(broadcast.stationId || '');
+    setTitle(broadcast.title || '');
+    setDescription(broadcast.description || '');
+    setMode('now');
+    sessionStorage.setItem('echooPreparedBroadcastId', String(broadcast.id));
+    sessionStorage.setItem('echooBroadcastMode', 'now');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const shareBroadcast = async () => {
+    const url = window.location.href;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: currentLiveBroadcast?.title || 'Echoo live broadcast', url });
+      } else {
+        await navigator.clipboard.writeText(url);
+        setMessage('Broadcast link copied.');
       }
-
-      try {
-        setCreatingStation(
-          true
-        );
-
-        setError("");
-        setMessage("");
-
-        const response =
-          await batch2Service
-            .createStation({
-              name,
-
-              description:
-                `${name} on Echoo`,
-
-              category,
-
-              tags: [],
-            });
-
-        const station =
-          response?.data;
-
-        if (
-          !station?.id
-        ) {
-          throw new Error(
-            "Echoo did not return the new station."
-          );
-        }
-
-        setStations(
-          (
-            current
-          ) => [
-            ...current,
-            station,
-          ]
-        );
-
-        setStationId(
-          station.id
-        );
-
-        setNewStationName(
-          ""
-        );
-
-        setSavedBroadcast(
-          null
-        );
-
-        setMessage(
-          `${station.name} was created.`
-        );
-      } catch (
-        stationError
-      ) {
-        setError(
-          stationError?.message ||
-            "Could not create the station."
-        );
-      } finally {
-        setCreatingStation(
-          false
-        );
-      }
-    };
-
-  /*
-   * Create/update a real backend broadcast.
-   */
-  const saveSetup =
-    async () => {
-      if (
-        !stationId ||
-        !title.trim() ||
-        saving
-      ) {
-        return;
-      }
-
-      try {
-        setSaving(true);
-        setError("");
-        setMessage("");
-
-        const station =
-          stations.find(
-            (
-              item
-            ) =>
-              String(
-                item.id
-              ) ===
-              String(
-                stationId
-              )
-          );
-
-        /*
-         * Immediate Live broadcasts still use the
-         * same backend scheduling model.
-         *
-         * We create it starting now with a generous
-         * planned end time. The actual /end route
-         * remains authoritative when the creator
-         * ends the stream.
-         */
-        const now =
-          new Date();
-
-        /*
-         * Keep the saved broadcast in the scheduled/ready state.
-         * The /start endpoint is the ONLY action that should make
-         * the broadcast live.
-         */
-        const scheduledStart =
-          new Date(
-            now.getTime() +
-              10 *
-                60 *
-                1000
-          );
-
-        const plannedEnd =
-          new Date(
-            scheduledStart.getTime() +
-              4 *
-                60 *
-                60 *
-                1000
-          );
-
-        let response;
-
-        if (
-          savedBroadcast?.id &&
-          savedBroadcast
-            .status !==
-            "live"
-        ) {
-          response =
-            await batch2Service
-              .updateBroadcast(
-                savedBroadcast.id,
-                {
-                  title:
-                    title.trim(),
-
-                  description:
-                    description
-                      .trim(),
-
-                  stationId,
-
-                  startTime:
-                    scheduledStart.toISOString(),
-
-                  status:
-                    "scheduled",
-
-                  endTime:
-                    plannedEnd
-                      .toISOString(),
-
-                  type:
-                    "live",
-
-                  isRecurring:
-                    false,
-
-                  isPublic:
-                    true,
-
-                  tags: [],
-
-                  coverArt:
-                    station
-                      ?.coverArt ||
-                    null,
-                }
-              );
-        } else {
-          response =
-            await batch2Service
-              .createBroadcast({
-                title:
-                  title.trim(),
-
-                description:
-                  description
-                    .trim(),
-
-                stationId,
-
-                startTime:
-                  now.toISOString(),
-
-                endTime:
-                  plannedEnd
-                    .toISOString(),
-
-                type:
-                  "live",
-
-                isRecurring:
-                  false,
-
-                isPublic:
-                  true,
-
-                tags: [],
-
-                coverArt:
-                  station
-                    ?.coverArt ||
-                  null,
-              });
-        }
-
-        if (
-          !response?.data?.id
-        ) {
-          throw new Error(
-            "Echoo did not return a broadcast ID."
-          );
-        }
-
-        setSavedBroadcast(
-          response.data
-        );
-
-        setMessage(
-          "Broadcast setup saved to Echoo."
-        );
-
-        return response.data;
-      } catch (
-        saveError
-      ) {
-        console.error(
-          "Save Live setup:",
-          saveError
-        );
-
-        setError(
-          saveError?.message ||
-            "Could not save the broadcast."
-        );
-
-        return null;
-      } finally {
-        setSaving(false);
-      }
-    };
-
-  /*
-   * Start:
-   *
-   * backend -> LiveKit room/token ->
-   * browser microphone -> LiveKit
-   */
-  const goLive =
-    async () => {
-      if (
-        goingLive ||
-        currentLiveBroadcast
-      ) {
-        return;
-      }
-
-      if (
-        !title.trim()
-      ) {
-        setError(
-          "Add a broadcast title first."
-        );
-
-        return;
-      }
-
-      if (
-        !stationId
-      ) {
-        setError(
-          "Choose or create a station first."
-        );
-
-        return;
-      }
-
-      if (
-        micState !==
-        "ready"
-      ) {
-        setError(
-          "Test your microphone before going live."
-        );
-
-        return;
-      }
-
-      let broadcast =
-        savedBroadcast;
-
-      let backendStarted =
-        false;
-
-      try {
-        setGoingLive(
-          true
-        );
-
-        setError("");
-        setMessage("");
-
-        if (
-          !broadcast?.id
-        ) {
-          broadcast =
-            await saveSetup();
-        }
-
-        if (
-          !broadcast?.id
-        ) {
-          throw new Error(
-            "Save the broadcast setup before going live."
-          );
-        }
-
-        /*
-         * Release local microphone test first.
-         * LiveKit will obtain the actual broadcast mic.
-         */
-        cleanupMicTest();
-
-        const response =
-          await batch3Service
-            .startBroadcast(
-              broadcast.id
-            );
-
-        backendStarted =
-          true;
-
-        const connection =
-          response?.livekit;
-
-        if (
-          !connection?.token
-        ) {
-          throw new Error(
-            "Echoo did not return the creator LiveKit token."
-          );
-        }
-
-        const liveKitUrl =
-          import.meta.env
-            .VITE_LIVEKIT_URL;
-
-        if (
-          !liveKitUrl
-        ) {
-          throw new Error(
-            "VITE_LIVEKIT_URL is not configured."
-          );
-        }
-
-        await startLiveKitPublishing({
-          url:
-            liveKitUrl,
-
-          token:
-            connection.token,
-
-          broadcastId:
-            broadcast.id,
-        });
-
-        const liveBroadcast = {
-          ...broadcast,
-          status:
-            "live",
-          isLive:
-            true,
-        };
-
-        setSavedBroadcast(
-          liveBroadcast
-        );
-
-        setCurrentLiveBroadcast(
-          liveBroadcast
-        );
-
-        setMessage(
-          `${broadcast.title} is LIVE. Your microphone is now being sent through LiveKit.`
-        );
-      } catch (
-        liveError
-      ) {
-        console.error(
-          "Creator Go Live:",
-          liveError
-        );
-
-        await stopLiveKitPublishing()
-          .catch(
-            () => {}
-          );
-
-        if (
-          backendStarted &&
-          broadcast?.id
-        ) {
-          try {
-            await batch3Service
-              .endBroadcast(
-                broadcast.id
-              );
-          } catch (
-            rollbackError
-          ) {
-            console.error(
-              "Could not roll back failed broadcast:",
-              rollbackError
-            );
-          }
-        }
-
-        setCurrentLiveBroadcast(
-          null
-        );
-
-        setError(
-          liveError?.message ||
-            "Echoo could not start the live broadcast."
-        );
-      } finally {
-        setGoingLive(
-          false
-        );
-      }
-    };
-
-  const reconnectMicrophone =
-    async () => {
-      const broadcast =
-        currentLiveBroadcast;
-
-      if (
-        !broadcast?.id ||
-        goingLive
-      ) {
-        return;
-      }
-
-      try {
-        setGoingLive(true);
-        setError("");
-
-        const connection =
-          await batch3Service
-            .getLiveKitToken(
-              broadcast.id
-            );
-
-        const liveKitUrl =
-          import.meta.env
-            .VITE_LIVEKIT_URL;
-
-        if (
-          !connection?.token ||
-          !liveKitUrl
-        ) {
-          throw new Error(
-            "Could not obtain LiveKit connection details."
-          );
-        }
-
-        await startLiveKitPublishing({
-          url:
-            liveKitUrl,
-
-          token:
-            connection.token,
-
-          broadcastId:
-            broadcast.id,
-        });
-
-        setMessage(
-          "Broadcast microphone reconnected."
-        );
-      } catch (
-        reconnectError
-      ) {
-        setError(
-          reconnectError?.message ||
-            "Could not reconnect the microphone."
-        );
-      } finally {
-        setGoingLive(false);
-      }
-    };
-
-  const endBroadcast =
-    async () => {
-      const broadcast =
-        currentLiveBroadcast;
-
-      if (
-        !broadcast?.id ||
-        ending
-      ) {
-        return;
-      }
-
-      const confirmed =
-        window.confirm(
-          `End "${broadcast.title}" now?`
-        );
-
-      if (
-        !confirmed
-      ) {
-        return;
-      }
-
-      try {
-        setEnding(true);
-        setError("");
-
-        await stopLiveKitPublishing();
-
-        await batch3Service
-          .endBroadcast(
-            broadcast.id
-          );
-
-        setCurrentLiveBroadcast(
-          null
-        );
-
-        setSavedBroadcast(
-          null
-        );
-
-        setMessage(
-          `${broadcast.title} has ended.`
-        );
-      } catch (
-        endError
-      ) {
-        setError(
-          endError?.message ||
-            "Could not end the broadcast."
-        );
-      } finally {
-        setEnding(false);
-      }
-    };
-
-  const speaking =
-    micState ===
-      "ready" &&
-    inputLevel >
-      0.055;
-
-  const backendReady =
-    Boolean(
-      savedBroadcast?.id
-    );
-
-  const microphoneReady =
-    micState ===
-      "ready";
-
-  const formReady =
-    Boolean(
-      title.trim() &&
-      stationId
-    );
-
-  const isLive =
-    Boolean(
-      currentLiveBroadcast
-    );
-
-  const waveState =
-    isLive
-      ? "speaking"
-      : speaking
-        ? "speaking"
-        : microphoneReady
-          ? "playing"
-          : "idle";
-
-  if (
-    loading
-  ) {
+    } catch {
+      // User cancelled sharing.
+    }
+  };
+
+  if (loading) {
+    return <div className="ebsx-loading">Loading Broadcast Studio...</div>;
+  }
+
+  if (!stations.length && !currentLiveBroadcast) {
     return (
-      <section className="creator9-page">
-        <div className="creator9-live-loading">
-          Connecting Creator Live...
+      <section className="ebsx-empty-page">
+        <FaBroadcastTower />
+        <h1>Create your first station.</h1>
+        <p>A station is required before you can start or schedule a broadcast.</p>
+        <button type="button" onClick={() => onNavigate?.('Stations')}>Open Stations</button>
+      </section>
+    );
+  }
+
+  if (currentLiveBroadcast) {
+    const liveStation = stations.find(
+      (station) => String(station.id) === String(currentLiveBroadcast.stationId)
+    ) || selectedStation;
+
+    return (
+      <section className="ebsx live-page">
+        <header className="ebsx-live-header">
+          <div>
+            <div className="ebsx-live-line"><span>LIVE</span><b>{formatTimer(elapsed)}</b></div>
+            <h1>Live Broadcast</h1>
+            <p>You are live. Keep an eye on your mix and your audience.</p>
+          </div>
+          <div className="ebsx-live-header-actions">
+            <button type="button" onClick={shareBroadcast}><FaShareAlt /> Share</button>
+            <button type="button" onClick={() => changeMode('later')}><FaCalendarAlt /> Schedule another</button>
+          </div>
+        </header>
+
+        {message && <div className="ebsx-message success">{message}</div>}
+        {error && <div className="ebsx-message error">{error}</div>}
+
+        <div className="ebsx-live-layout">
+          <main className="ebsx-live-main">
+            <section className="ebsx-onair-card">
+              <EchoAmbient density="low" />
+              <div className="ebsx-onair-art">
+                {liveStation?.coverArt
+                  ? <img src={liveStation.coverArt} alt="" />
+                  : <FaBroadcastTower />}
+              </div>
+              <div className="ebsx-onair-copy">
+                <div className="ebsx-onair-tags"><span>ON AIR</span><b>LIVE</b><em>{formatTimer(elapsed)}</em></div>
+                <h2>{currentLiveBroadcast.title}</h2>
+                <p>{liveStation?.name || currentLiveBroadcast.stationName || 'Echoo Station'}</p>
+                <small>{studioName}</small>
+                <div className="ebsx-onair-health">
+                  <span><FaUsers /> Public</span>
+                  <span className={presence.creatorConnected ? 'good' : ''}>{presence.creatorConnected ? 'Good connection' : 'Checking connection'}</span>
+                </div>
+              </div>
+              <div className="ebsx-live-mic"><FaMicrophone /></div>
+              <div className="ebsx-wave"><EchoWave state="speaking" /></div>
+              <div className="ebsx-onair-stats">
+                <div><strong>{presence.listenerCount || 0}</strong><span>Listening now</span></div>
+                <div><strong>{presence.peakListeners || 0}</strong><span>Peak listeners</span></div>
+                <div><strong>{presence.creatorConnected ? 'Stable' : 'Checking'}</strong><span>Connection</span></div>
+              </div>
+            </section>
+
+            <div className="ebsx-live-primary-actions">
+              <button type="button" onClick={reconnectMicrophone} disabled={goingLive}><FaMicrophone /> Reconnect studio mix</button>
+              <button type="button" className="danger" onClick={endBroadcast} disabled={ending}><FaStop /> {ending ? 'Ending...' : 'End broadcast'}</button>
+            </div>
+
+            <div className="ebsx-live-lower">
+              <CreatorLiveChatPanel broadcastId={currentLiveBroadcast.id} />
+
+              <section className="ebsx-activity-card">
+                <div className="ebsx-card-head"><h2>Listener activity</h2></div>
+                <strong className="ebsx-activity-big">{presence.listenerCount || 0}</strong>
+                <span className="ebsx-activity-live"><i /> Listening now</span>
+                <div className="ebsx-activity-stats">
+                  <div><span>Peak listeners</span><strong>{presence.peakListeners || 0}</strong></div>
+                  <div><span>Live time</span><strong>{formatTimer(elapsed)}</strong></div>
+                  <div><span>Studio output</span><strong>{mixerState?.channels?.host?.connected ? 'Ready' : 'Check mic'}</strong></div>
+                </div>
+              </section>
+            </div>
+          </main>
+
+          <aside className="ebsx-live-side">
+            <CreatorAudioMixer compact onStateChange={setMixerState} />
+            <section className="ebsx-live-controls">
+              <h2>Live controls</h2>
+              <div className="ebsx-control-grid">
+                <button type="button" onClick={shareBroadcast}><FaShareAlt /><span><strong>Share broadcast</strong><small>Copy or share the live link</small></span></button>
+                <button type="button" onClick={() => onNavigate?.('Stations')}><FaBroadcastTower /><span><strong>Station page</strong><small>Manage this station</small></span></button>
+                <button type="button" onClick={() => changeMode('later')}><FaCalendarAlt /><span><strong>Plan another</strong><small>Schedule while this stays live</small></span></button>
+                <button type="button" onClick={() => onNavigate?.('Analytics')}><FaUsers /><span><strong>View analytics</strong><small>Open creator performance</small></span></button>
+              </div>
+            </section>
+          </aside>
         </div>
+
+        {mode === 'later' && (
+          <section className="ebsx-live-schedule">
+            <div className="ebsx-section-title"><div><span>SCHEDULE</span><h2>Plan another broadcast</h2><p>Your current broadcast stays live while you schedule this one.</p></div><button type="button" onClick={() => changeMode('now')}>Close</button></div>
+            <div className="ebsx-fields inline">
+              <label><span>Station</span><select value={stationId} onChange={(event) => setStationId(event.target.value)}>{stations.map((station) => <option key={station.id} value={station.id}>{station.name}</option>)}</select></label>
+              <label><span>Title</span><input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Broadcast title" /></label>
+              <label><span>Date</span><input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label>
+              <label><span>Time</span><input type="time" value={time} onChange={(event) => setTime(event.target.value)} /></label>
+              <label><span>Duration</span><select value={duration} onChange={(event) => setDuration(event.target.value)}><option value="30">30 min</option><option value="60">1 hour</option><option value="90">1.5 hours</option><option value="120">2 hours</option></select></label>
+            </div>
+            <button type="button" className="ebsx-blue-button" onClick={scheduleBroadcast} disabled={!formReady || saving}><FaCalendarAlt /> {saving ? 'Scheduling...' : 'Schedule broadcast'}</button>
+          </section>
+        )}
       </section>
     );
   }
 
   return (
-    <section className="creator9-page creator9-live">
-      <header className="creator9-page-header">
-        <div>
-          <span className="creator9-kicker">
-            CREATOR LIVE
-          </span>
-
-          <h1>
-            {isLive
-              ? "You are live."
-              : "Prepare your signal."}
-          </h1>
-
-          <p>
-            {isLive
-              ? "Your microphone is publishing through LiveKit and listeners can join the broadcast."
-              : "Choose a station, prepare the broadcast and test your microphone before going live."}
-          </p>
-        </div>
-
-        <span
-          className={`creator9-backend-badge ${
-            isLive
-              ? "live"
-              : ""
-          }`}
-        >
-          {isLive
-            ? "LIVE · LiveKit connected"
-            : "Backend connected · LiveKit ready"}
-        </span>
+    <section className="ebsx setup-page">
+      <header className="ebsx-setup-header">
+        <div><h1>Broadcast Studio <span>PRE-LIVE SETUP</span></h1><p>Set up your broadcast, test your audio, and go live with confidence.</p></div>
       </header>
 
-      <div className="creator9-live-layout">
-        <section className="creator9-live-stage">
-          <EchoAmbient
-            density="low"
-            className="creator9-live-ambient"
-          />
+      {message && <div className="ebsx-message success">{message}</div>}
+      {error && <div className="ebsx-message error">{error}</div>}
 
-          <div className="creator9-live-stage-content">
-            <span
-              className={`creator9-stage-state ${
-                isLive
-                  ? "live"
-                  : ""
-              }`}
-            >
-              {isLive
-                ? "LIVE NOW"
-                : micState ===
-                    "requesting"
-                  ? "Requesting microphone"
-                  : microphoneReady
-                    ? speaking
-                      ? "Speaking"
-                      : "Microphone ready"
-                    : "Offline"}
-            </span>
-
-            <EchoAvatar
-              image={
-                profileImage
-              }
-              name={
-                studioName
-              }
-              state={
-                isLive
-                  ? "speaking"
-                  : speaking
-                    ? "speaking"
-                    : microphoneReady
-                      ? "listening"
-                      : "idle"
-              }
-              size="xl"
-            />
-
-            <h2>
-              {currentLiveBroadcast
-                ?.title ||
-                title.trim() ||
-                "Your live conversation"}
-            </h2>
-
-            <p>
-              {studioName}
-            </p>
-
-            <EchoWave
-              state={
-                waveState
-              }
-            />
-
-            {!isLive && (
-              <>
-                <div className="creator9-mic-level">
-                  <span>
-                    Microphone level
-                  </span>
-
-                  <div>
-                    <i
-                      style={{
-                        width:
-                          `${inputLevel * 100}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-
-                <div className="creator9-mic-actions">
-                  {microphoneReady ? (
-                    <button
-                      type="button"
-                      onClick={
-                        cleanupMicTest
-                      }
-                    >
-                      <FaStop />
-                      Stop test
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      className="primary"
-                      disabled={
-                        micState ===
-                        "requesting"
-                      }
-                      onClick={
-                        startMicTest
-                      }
-                    >
-                      <FaMicrophone />
-
-                      {micState ===
-                      "requesting"
-                        ? "Requesting..."
-                        : "Test microphone"}
-                    </button>
-                  )}
-                </div>
-              </>
-            )}
-
-            {isLive && (
-              <div className="creator9-live-actions-real">
-                <button
-                  type="button"
-                  onClick={
-                    reconnectMicrophone
-                  }
-                  disabled={
-                    goingLive
-                  }
-                >
-                  <FaMicrophone />
-                  {goingLive
-                    ? "Connecting..."
-                    : "Reconnect microphone"}
-                </button>
-
-                <button
-                  type="button"
-                  className="danger"
-                  onClick={
-                    endBroadcast
-                  }
-                  disabled={
-                    ending
-                  }
-                >
-                  <FaStop />
-                  {ending
-                    ? "Ending..."
-                    : "End broadcast"}
-                </button>
-              </div>
-            )}
-          </div>
-        </section>
-
-        <section className="creator9-live-setup">
-          <div className="creator9-workspace-heading">
-            <div>
-              <h2>
-                Broadcast setup
-              </h2>
-
-              <p>
-                Broadcast details are
-                persisted in Echoo's
-                backend before the
-                stream starts.
-              </p>
+      <div className="ebsx-setup-layout">
+        <main className="ebsx-setup-main">
+          <section className="ebsx-station-hero">
+            <div className="ebsx-station-art">
+              {selectedStation?.coverArt ? <img src={selectedStation.coverArt} alt="" /> : <FaBroadcastTower />}
             </div>
+            <div className="ebsx-station-copy">
+              <span>STATION SELECTED <FaCheck /></span>
+              <h2>{selectedStation?.name || 'Choose a station'}</h2>
+              <p>{selectedStation?.category || 'Station'}</p>
+              <small>{Number(selectedStation?.followerCount || 0).toLocaleString()} followers</small>
+            </div>
+            <div className="ebsx-quality">
+              <span>Studio status</span>
+              <strong><i /> {microphoneReady ? 'Audio ready' : 'Waiting for microphone'}</strong>
+              <p>Your live mix is sent to LiveKit when you start the broadcast.</p>
+            </div>
+            <div className="ebsx-hero-mic"><FaMicrophone /></div>
+          </section>
+
+          <div className="ebsx-preflight-grid">
+            <section className="ebsx-mic-preview">
+              <div className="ebsx-card-head"><h2>Microphone preview</h2><span className={microphoneReady ? 'ready' : ''}>{microphoneReady ? 'Mic ready' : 'Not connected'}</span></div>
+              <div className="ebsx-preview-wave"><EchoWave state={microphoneReady ? 'playing' : 'idle'} /></div>
+              <div className="ebsx-mic-source"><FaMicrophone /><div><strong>{mixerState?.channels?.host?.sourceLabel || 'Host microphone'}</strong><small>Primary input</small></div></div>
+              <button type="button" className="ebsx-outline-button" onClick={testMicrophone}><FaMicrophone /> {microphoneReady ? 'Test again' : 'Test microphone'}</button>
+              <div className="ebsx-checks"><span className={microphoneReady ? 'done' : ''}><FaCheck /> Microphone detected</span><span className={stationId ? 'done' : ''}><FaCheck /> Station selected</span><span className={formReady ? 'done' : ''}><FaCheck /> Broadcast details</span></div>
+            </section>
+
+            <CreatorAudioMixer onStateChange={setMixerState} />
           </div>
 
-          {!isLive && (
+          <section className="ebsx-planned-card">
+            <div className="ebsx-section-title"><div><span>UPCOMING</span><h2>Planned broadcasts</h2><p>Scheduled sessions return to this same studio when it is time.</p></div><button type="button" onClick={() => changeMode('later')}><FaCalendarAlt /> Schedule for later</button></div>
+            {planned.length ? (
+              <div className="ebsx-planned-list">
+                {planned.map((broadcast) => (
+                  <article key={broadcast.id}>
+                    <div><span>SCHEDULED</span><small>{broadcast.stationName || 'Station'}</small><h3>{broadcast.title}</h3><p><FaClock /> {formatDateTime(broadcast.startTime)} · {broadcast.duration || '—'} min</p></div>
+                    <div><button type="button" className="primary" onClick={() => enterScheduled(broadcast)}><FaMicrophone /> Enter studio</button><button type="button" disabled={actionId === broadcast.id} onClick={() => cancelBroadcast(broadcast)}><FaTimesCircle /> Cancel</button><button type="button" className="danger" disabled={actionId === broadcast.id} onClick={() => deleteBroadcast(broadcast)}><FaTrash /></button></div>
+                  </article>
+                ))}
+              </div>
+            ) : <div className="ebsx-empty-line"><FaCalendarAlt /> Nothing scheduled yet.</div>}
+          </section>
+        </main>
+
+        <aside className="ebsx-workflow">
+          <div className="ebsx-workflow-head"><h2>Setup workflow</h2><span>{mode === 'now' ? 'Go live now' : 'Schedule for later'}</span></div>
+
+          <div className="ebsx-step done"><b>1</b><div><strong>Choose station</strong><p>Select the station this broadcast belongs to.</p><select value={stationId} disabled={Boolean(savedBroadcast?.id)} onChange={(event) => { setStationId(event.target.value); setSavedBroadcast(null); }}><option value="">Select station</option>{stations.map((station) => <option key={station.id} value={station.id}>{station.name}</option>)}</select><small>Need another station? <button type="button" onClick={() => onNavigate?.('Stations')}>Create it in Stations</button>.</small></div></div>
+
+          <div className={`ebsx-step ${title.trim() ? 'done' : ''}`}><b>2</b><div><strong>Broadcast details</strong><p>Add the title listeners will see.</p><input value={title} maxLength={200} placeholder="Broadcast title" onChange={(event) => setTitle(event.target.value)} /><textarea value={description} maxLength={2000} placeholder="Description" onChange={(event) => setDescription(event.target.value)} /></div></div>
+
+          {mode === 'now' ? (
             <>
-              <label className="creator9-field">
-                <span>
-                  Station
-                </span>
-
-                <select
-                  value={
-                    stationId
-                  }
-                  disabled={
-                    saving ||
-                    goingLive
-                  }
-                  onChange={(
-                    event
-                  ) => {
-                    setStationId(
-                      event.target
-                        .value
-                    );
-
-                    setSavedBroadcast(
-                      null
-                    );
-                  }}
-                >
-                  <option value="">
-                    Select a station
-                  </option>
-
-                  {stations.map(
-                    (
-                      station
-                    ) => (
-                      <option
-                        key={
-                          station.id
-                        }
-                        value={
-                          station.id
-                        }
-                      >
-                        {
-                          station.name
-                        }
-                      </option>
-                    )
-                  )}
-                </select>
-              </label>
-
-              <div className="creator9-inline-station-create">
-                <input
-                  type="text"
-                  maxLength={80}
-                  value={
-                    newStationName
-                  }
-                  placeholder="Create a new station"
-                  onChange={(
-                    event
-                  ) =>
-                    setNewStationName(
-                      event.target
-                        .value
-                    )
-                  }
-                />
-
-                <button
-                  type="button"
-                  disabled={
-                    !newStationName
-                      .trim() ||
-                    creatingStation
-                  }
-                  onClick={
-                    createStation
-                  }
-                >
-                  <FaPlus />
-
-                  {creatingStation
-                    ? "Creating..."
-                    : "Create"}
-                </button>
-              </div>
-
-              <label className="creator9-field">
-                <span>
-                  Broadcast title
-                </span>
-
-                <input
-                  type="text"
-                  maxLength={120}
-                  value={
-                    title
-                  }
-                  placeholder="What are you talking about?"
-                  onChange={(
-                    event
-                  ) => {
-                    setTitle(
-                      event.target
-                        .value
-                    );
-
-                    if (
-                      savedBroadcast
-                    ) {
-                      setSavedBroadcast(
-                        null
-                      );
-                    }
-                  }}
-                />
-              </label>
-
-              <label className="creator9-field">
-                <span>
-                  Category
-                </span>
-
-                <select
-                  value={
-                    category
-                  }
-                  onChange={(
-                    event
-                  ) =>
-                    setCategory(
-                      event.target
-                        .value
-                    )
-                  }
-                >
-                  {CATEGORY_OPTIONS.map(
-                    (
-                      item
-                    ) => (
-                      <option
-                        key={
-                          item
-                        }
-                        value={
-                          item
-                        }
-                      >
-                        {item}
-                      </option>
-                    )
-                  )}
-                </select>
-              </label>
-
-              <label className="creator9-field">
-                <span>
-                  Description
-                </span>
-
-                <textarea
-                  rows={5}
-                  maxLength={500}
-                  value={
-                    description
-                  }
-                  placeholder="Give listeners a reason to join."
-                  onChange={(
-                    event
-                  ) =>
-                    setDescription(
-                      event.target
-                        .value
-                    )
-                  }
-                />
-              </label>
-
-              <div className="creator9-live-checklist">
-                <div
-                  className={
-                    formReady
-                      ? "complete"
-                      : ""
-                  }
-                >
-                  <span>
-                    <FaCheck />
-                  </span>
-
-                  <p>
-                    Choose a station
-                    and title
-                  </p>
-                </div>
-
-                <div
-                  className={
-                    microphoneReady
-                      ? "complete"
-                      : ""
-                  }
-                >
-                  <span>
-                    <FaCheck />
-                  </span>
-
-                  <p>
-                    Test your host
-                    microphone
-                  </p>
-                </div>
-
-                <div
-                  className={
-                    backendReady
-                      ? "complete"
-                      : ""
-                  }
-                >
-                  <span>
-                    <FaCheck />
-                  </span>
-
-                  <p>
-                    Save broadcast
-                    to Echoo
-                  </p>
-                </div>
-              </div>
-
-              {message && (
-                <div className="creator9-inline-message success">
-                  {message}
-                </div>
-              )}
-
-              {error && (
-                <div className="creator9-inline-message error">
-                  {error}
-                </div>
-              )}
-
-              <div className="creator9-live-footer">
-                <button
-                  type="button"
-                  onClick={
-                    saveSetup
-                  }
-                  disabled={
-                    !formReady ||
-                    saving
-                  }
-                >
-                  <FaSave />
-
-                  {saving
-                    ? "Saving..."
-                    : backendReady
-                      ? "Setup saved"
-                      : "Save setup"}
-                </button>
-
-                <button
-                  type="button"
-                  className="creator9-real-go-live"
-                  disabled={
-                    !formReady ||
-                    !microphoneReady ||
-                    goingLive
-                  }
-                  onClick={
-                    goLive
-                  }
-                >
-                  <FaBroadcastTower />
-
-                  {goingLive
-                    ? "Starting..."
-                    : "Go live"}
-                </button>
-              </div>
-
-              <p className="creator9-technical-note">
-                Microphone testing stays
-                local until you press Go
-                live. When live, Echoo
-                publishes your microphone
-                through LiveKit to
-                listeners.
-              </p>
+              <div className={`ebsx-step ${microphoneReady ? 'done' : ''}`}><b>3</b><div><strong>Test microphone</strong><p>Make sure the host input is ready.</p><button type="button" className="ebsx-outline-button full" onClick={testMicrophone}><FaMicrophone /> {microphoneReady ? 'Mic ready — test again' : 'Test microphone'}</button></div></div>
+              <div className={`ebsx-step ${formReady && microphoneReady ? 'done' : ''}`}><b>4</b><div><strong>Ready</strong><p>Station, details and microphone must be ready.</p></div></div>
+              <div className="ebsx-step final"><b>5</b><div><strong>Go live</strong><p>Your mixer output will be published to listeners.</p><button type="button" className="ebsx-blue-button full" onClick={goLive} disabled={!formReady || !microphoneReady || goingLive || saving}><FaBroadcastTower /> {goingLive || saving ? 'Starting...' : savedBroadcast?.status === 'starting' ? 'Resume going live' : 'Go live now'}</button><button type="button" className="ebsx-schedule-button full" onClick={() => changeMode('later')}><FaCalendarAlt /> Schedule for later</button></div></div>
+            </>
+          ) : (
+            <>
+              <div className="ebsx-step done"><b>3</b><div><strong>Date and time</strong><p>Choose when this broadcast should begin.</p><div className="ebsx-workflow-date"><input type="date" value={date} onChange={(event) => setDate(event.target.value)} /><input type="time" value={time} onChange={(event) => setTime(event.target.value)} /></div><select value={duration} onChange={(event) => setDuration(event.target.value)}><option value="30">30 minutes</option><option value="45">45 minutes</option><option value="60">1 hour</option><option value="90">1 hour 30 minutes</option><option value="120">2 hours</option><option value="240">4 hours</option></select></div></div>
+              <div className="ebsx-step final"><b>4</b><div><strong>Schedule</strong><p>Save this broadcast and return when it is time.</p><button type="button" className="ebsx-blue-button full" onClick={scheduleBroadcast} disabled={!formReady || saving || !date || !time}><FaCalendarAlt /> {saving ? 'Scheduling...' : 'Schedule broadcast'}</button><button type="button" className="ebsx-schedule-button full" onClick={() => changeMode('now')}><FaMicrophone /> Go live instead</button></div></div>
             </>
           )}
-
-          {isLive && (
-            <div className="creator9-real-live-summary">
-              <span className="creator9-real-live-pill">
-                LIVE
-              </span>
-
-              <h3>
-                {
-                  currentLiveBroadcast
-                    ?.title
-                }
-              </h3>
-
-              <p>
-                {
-                  currentLiveBroadcast
-                    ?.stationName
-                }
-              </p>
-
-              <div>
-                <FaMicrophone />
-                Microphone publishing
-                through LiveKit
-              </div>
-
-              <div>
-                <FaBroadcastTower />
-                Listeners can join this
-                broadcast now
-              </div>
-
-              {message && (
-                <div className="creator9-inline-message success">
-                  {message}
-                </div>
-              )}
-
-              {error && (
-                <div className="creator9-inline-message error">
-                  {error}
-                </div>
-              )}
-            </div>
-          )}
-        </section>
+        </aside>
       </div>
     </section>
   );

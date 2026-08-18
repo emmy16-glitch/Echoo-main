@@ -1,0 +1,269 @@
+/*
+ * Echoo logout visibility guard.
+ * Loaded after the responsive system so logout can never disappear for either
+ * Listener or Creator when their shells condense on tablet and phone.
+ */
+
+.listener-profile-logout-direct {
+  width: 100%;
+  min-height: 40px;
+  margin-top: 8px;
+  padding: 0 10px;
+  border: 1px solid #fecdca;
+  border-radius: 9px;
+  background: #fff7f6;
+  color: #b42318;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 9px;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease,
+    transform 150ms ease;
+}
+
+.listener-profile-logout-direct:hover,
+.listener-profile-logout-direct:focus-visible {
+  background: #fff0ee;
+  border-color: #fda29b;
+  color: #912018;
+}
+
+.listener-profile-logout-direct:active {
+  transform: translateY(1px);
+}
+
+.listener-profile-logout-direct:focus-visible {
+  outline: 3px solid rgba(217, 45, 32, 0.14);
+  outline-offset: 2px;
+}
+
+.listener-profile-logout-direct-icon {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  background: #fee4e2;
+  color: #d92d20;
+  font-size: 12px;
+}
+
+.listener-profile-logout-direct-label {
+  white-space: nowrap;
+}
+
+@media (max-width: 1050px) and (min-width: 721px) {
+  #root .echoo-listener-shell .listener-profile-logout-direct {
+    width: 52px;
+    min-width: 52px;
+    height: 42px;
+    min-height: 42px;
+    margin: 8px auto 0;
+    padding: 0;
+    justify-content: center;
+  }
+
+  #root .echoo-listener-shell .listener-profile-logout-direct-label {
+    display: none;
+  }
+
+  #root .echoo-listener-shell .listener-profile-logout-direct-icon {
+    width: 30px;
+    height: 30px;
+    flex-basis: 30px;
+  }
+}
+
+@media (max-width: 720px) {
+  #root .echoo-listener-shell .layout-sidebar,
+  #root .echoo-listener-shell:has(.echoo-reference-page) .layout-sidebar {
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 2px !important;
+  }
+
+  #root .echoo-listener-shell .layout-navigation,
+  #root .echoo-listener-shell:has(.echoo-reference-page) .layout-navigation {
+    width: calc(100% - 52px) !important;
+    flex: 1 1 auto !important;
+  }
+
+  #root .echoo-listener-shell .listener-profile-menu-wrap,
+  #root .echoo-listener-shell:has(.echoo-reference-page) .listener-profile-menu-wrap {
+    display: flex !important;
+    position: static !important;
+    width: 50px !important;
+    min-width: 50px !important;
+    max-width: 50px !important;
+    height: 48px !important;
+    flex: 0 0 50px !important;
+    margin: 0 !important;
+    align-items: center !important;
+    justify-content: center !important;
+    z-index: 1 !important;
+  }
+
+  #root .echoo-listener-shell .listener-profile-menu-wrap .layout-profile,
+  #root .echoo-listener-shell .listener-profile-menu-wrap .listener-profile-dropdown,
+  #root .echoo-listener-shell:has(.echoo-reference-page) .listener-profile-menu-wrap .layout-profile,
+  #root .echoo-listener-shell:has(.echoo-reference-page) .listener-profile-menu-wrap .listener-profile-dropdown {
+    display: none !important;
+  }
+
+  #root .echoo-listener-shell .listener-profile-logout-direct,
+  #root .echoo-listener-shell:has(.echoo-reference-page) .listener-profile-logout-direct {
+    width: 48px !important;
+    min-width: 48px !important;
+    height: 48px !important;
+    min-height: 48px !important;
+    margin: 0 !important;
+    padding: 3px 2px !important;
+    border-color: transparent !important;
+    border-radius: 10px !important;
+    background: #fff5f4 !important;
+    color: #b42318 !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    gap: 2px !important;
+  }
+
+  #root .echoo-listener-shell .listener-profile-logout-direct-icon {
+    width: 22px !important;
+    height: 22px !important;
+    flex: 0 0 22px !important;
+    background: transparent !important;
+    font-size: 14px !important;
+  }
+
+  #root .echoo-listener-shell .listener-profile-logout-direct-label {
+    display: block !important;
+    font-size: 7.5px !important;
+    font-weight: 800 !important;
+    line-height: 1 !important;
+    letter-spacing: 0 !important;
+  }
+}
+
+/* ---------- Creator logout ---------- */
+#root .studio-final-shell .studio-sidebar-logout {
+  color: #b42318;
+  border-color: #fecdca;
+  background: #fff7f6;
+  transition:
+    background 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease,
+    transform 150ms ease;
+}
+
+#root .studio-final-shell .studio-sidebar-logout:hover,
+#root .studio-final-shell .studio-sidebar-logout:focus-visible {
+  color: #912018;
+  border-color: #fda29b;
+  background: #fff0ee;
+}
+
+#root .studio-final-shell .studio-sidebar-logout:focus-visible {
+  outline: 3px solid rgba(217, 45, 32, 0.14);
+  outline-offset: 2px;
+}
+
+#root .studio-final-shell .studio-sidebar-logout:active {
+  transform: translateY(1px);
+}
+
+@media (min-width: 981px) {
+  #root .studio-final-shell .studio-sidebar-profile {
+    grid-template-columns: 36px minmax(0, 1fr) 78px;
+  }
+
+  #root .studio-final-shell .studio-sidebar-logout {
+    width: 78px;
+    min-width: 78px;
+    height: 36px;
+    min-height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 0 9px;
+    font-family: inherit;
+    font-size: 10px;
+    font-weight: 750;
+  }
+
+  #root .studio-final-shell .studio-sidebar-logout::after {
+    content: "Log out";
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 980px) and (min-width: 641px) {
+  #root .studio-final-shell .studio-sidebar-logout {
+    display: grid !important;
+    width: 38px !important;
+    min-width: 38px !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    place-items: center !important;
+    margin-inline: auto !important;
+    color: #b42318 !important;
+    background: #fff5f4 !important;
+  }
+}
+
+@media (max-width: 640px) {
+  /* The compact Creator shell hides the profile block. Keep only its real
+     logout button and float it inside the topbar area, with room reserved so
+     it cannot cover Notifications or Settings. */
+  #root .studio-final-shell .studio-sidebar-profile {
+    display: contents !important;
+  }
+
+  #root .studio-final-shell .studio-sidebar-profile .sidebar-avatar,
+  #root .studio-final-shell .studio-sidebar-profile .sidebar-profile-text {
+    display: none !important;
+  }
+
+  #root .studio-final-shell .studio-sidebar-logout {
+    display: inline-flex !important;
+    position: fixed !important;
+    top: 72px !important;
+    right: 12px !important;
+    z-index: 180 !important;
+    width: 82px !important;
+    min-width: 82px !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+    padding: 0 9px !important;
+    border: 1px solid #fda29b !important;
+    border-radius: 10px !important;
+    background: #fff5f4 !important;
+    color: #b42318 !important;
+    box-shadow: 0 7px 20px rgba(145, 32, 24, 0.1) !important;
+    font-family: inherit !important;
+    font-size: 10px !important;
+    font-weight: 800 !important;
+  }
+
+  #root .studio-final-shell .studio-sidebar-logout::after {
+    content: "Log out";
+    white-space: nowrap;
+  }
+
+  #root .studio-final-shell .studio-topbar-final {
+    padding-right: 106px !important;
+  }
+}

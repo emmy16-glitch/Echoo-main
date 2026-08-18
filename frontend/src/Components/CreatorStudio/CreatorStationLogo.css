@@ -1,0 +1,151 @@
+.est-logo-field {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 440px);
+  align-items: center;
+  gap: 24px;
+  padding: 18px;
+  border: 1px solid #dbe3ed;
+  border-radius: 14px;
+  background: #f9fbfe;
+}
+
+.est-logo-copy > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 7px;
+  color: #26364e;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.est-logo-copy > span em {
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: #edf3ff;
+  color: #246bfe;
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.est-logo-copy p {
+  max-width: 600px;
+  margin: 0;
+  color: #718097;
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.est-logo-picker {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+}
+
+.est-logo-preview {
+  width: 92px;
+  height: 92px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px dashed #cdd8e7;
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 70% 24%, rgba(36,107,254,.10), transparent 30%),
+    #fff;
+  color: #9aabc0;
+  font-size: 25px;
+}
+
+.est-logo-preview.has-image {
+  border-style: solid;
+  background: #fff;
+}
+
+.est-logo-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 7px;
+}
+
+.est-logo-actions input[type='file'] {
+  display: none;
+}
+
+.est-logo-actions {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.est-logo-actions button {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 11px;
+  border: 1px solid #cfd9e6;
+  border-radius: 9px;
+  background: #fff;
+  color: #33445f;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.est-logo-actions button:first-of-type {
+  border-color: #aac6ff;
+  color: #246bfe;
+}
+
+.est-logo-actions button.remove {
+  color: #b83a3a;
+}
+
+.est-logo-actions small {
+  flex-basis: 100%;
+  margin-top: 1px;
+  color: #8996a9;
+  font-size: 9px;
+}
+
+.est-art img {
+  object-fit: contain !important;
+  padding: 22px;
+  background: #fff;
+}
+
+@media (max-width: 900px) {
+  .est-logo-field {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  .est-logo-field {
+    padding: 14px;
+  }
+
+  .est-logo-picker {
+    grid-template-columns: 72px minmax(0, 1fr);
+  }
+
+  .est-logo-preview {
+    width: 72px;
+    height: 72px;
+    border-radius: 15px;
+  }
+
+  .est-logo-actions button {
+    min-height: 34px;
+  }
+}
