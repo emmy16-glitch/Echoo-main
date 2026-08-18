@@ -15,11 +15,10 @@ import "./styles/echoo-library-media-final.css";
 import "./styles/echoo-batch1-integration.css";
 import "./styles/station-brand-rendering.css";
 import "./styles/listener-premium-polish.css";
+import "./styles/listener-final-overrides.css";
 
 initializeEchooTheme();
 
-// Apply the account-backed preference as soon as an authenticated session is
-// available. The cached preference keeps first paint stable while this loads.
 if (localStorage.getItem("accessToken")) {
   settingsService.get().catch(() => {
     // Theme stays on its cached/system value if account hydration is unavailable.
