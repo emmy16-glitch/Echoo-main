@@ -9,7 +9,6 @@ import {
   FaSmile,
   FaSyncAlt,
   FaThumbtack,
-  FaTrash,
   FaUsers,
 } from 'react-icons/fa';
 
@@ -75,6 +74,7 @@ const ListenerRealLiveRoom = () => {
   });
   const [text, setText] = useState('');
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [reactionMessageId, setReactionMessageId] = useState('');
   const [loading, setLoading] = useState(true);
   const [chatLoading, setChatLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -86,8 +86,6 @@ const ListenerRealLiveRoom = () => {
   const isLive = broadcast?.status === 'live';
   const isScheduled = broadcast?.status === 'scheduled';
   const chatAvailable = isLive || isScheduled;
-  const creatorId = broadcast?.creatorId || null;
-  const isCreator = sameId(user.id, creatorId);
 
   const mergeMessage = useCallback((incoming) => {
     const normalized = normalizeChatMessage(incoming);
@@ -214,7 +212,12 @@ const ListenerRealLiveRoom = () => {
             current.filter((item) => !sameId(item.id, messageId))
           );
         };
-        const onReaction = () => loadChat({ silent: true });
+        const onReaction = ({ messageId, reactions } = {}) => {
+          if (!messageId || !Array.isArray(reactions)) return;
+          setMessages((current) => current.map((item) =>
+            sameId(item.id, messageId) ? { ...item, reactions } : item
+          ));
+        };
         const onPinned = () => loadChat({ silent: true });
         const onStatus = (payload) => {
           if (!sameId(payload?.broadcastId, broadcast.id)) return;
@@ -304,6 +307,7 @@ const ListenerRealLiveRoom = () => {
       const next = `${current}${emoji}`;
       return next.length <= 500 ? next : current;
     });
+    setEmojiOpen(false);
   };
 
   const send = async (event) => {
@@ -329,44 +333,18 @@ const ListenerRealLiveRoom = () => {
     if (!message?.id || actionId) return;
     try {
       setActionId(`reaction:${message.id}`);
-      await batch4Service.react(message.id, emoji);
-      if (realtimeState !== 'connected') await loadChat({ silent: true });
+      const response = await batch4Service.react(message.id, emoji);
+      const reactions = response?.data?.reactions;
+      if (Array.isArray(reactions)) {
+        setMessages((current) => current.map((item) =>
+          sameId(item.id, message.id) ? { ...item, reactions } : item
+        ));
+      } else if (realtimeState !== 'connected') {
+        await loadChat({ silent: true });
+      }
+      setReactionMessageId('');
     } catch (reactionError) {
       setError(reactionError?.message || 'Could not update the reaction.');
-    } finally {
-      setActionId('');
-    }
-  };
-
-  const pin = async (message) => {
-    if (!message?.id || actionId || !isCreator) return;
-    try {
-      setActionId(`pin:${message.id}`);
-      await batch4Service.pin(message.id);
-      await loadChat({ silent: true });
-    } catch (pinError) {
-      setError(pinError?.message || 'Could not update the pinned message.');
-    } finally {
-      setActionId('');
-    }
-  };
-
-  const remove = async (message) => {
-    if (!message?.id || actionId) return;
-    const own = sameId(message.userId, user.id);
-    if (!own && !isCreator) return;
-
-    try {
-      setActionId(`delete:${message.id}`);
-      await batch4Service.deleteMessage(message.id);
-      setMessages((current) =>
-        current.filter((item) => !sameId(item.id, message.id))
-      );
-      setPinned((current) =>
-        current.filter((item) => !sameId(item.id, message.id))
-      );
-    } catch (deleteError) {
-      setError(deleteError?.message || 'Could not remove the message.');
     } finally {
       setActionId('');
     }
@@ -457,7 +435,7 @@ const ListenerRealLiveRoom = () => {
             <FaComments />
             <div>
               <strong>Live Chat</strong>
-              <span>{chatAvailable ? 'Real Echoo messages' : 'Chat closed'}</span>
+              <span>{chatAvailable ? 'Real conversations happening now' : 'Chat closed'}</span>
             </div>
           </div>
           <button
@@ -492,7 +470,16 @@ const ListenerRealLiveRoom = () => {
           ) : (
             messages.map((message) => {
               const own = sameId(message.userId, user.id);
-              const canDelete = own || isCreator;
+              const reactionGroups = REACTION_EMOJIS.map((emoji) => {
+                const matching = (message.reactions || []).filter(
+                  (reaction) => reaction.emoji === emoji
+                );
+                return {
+                  emoji,
+                  count: matching.length,
+                  reacted: matching.some((reaction) => sameId(reaction.userId, user.id)),
+                };
+              }).filter((reaction) => reaction.count > 0);
 
               return (
                 <article key={message.id} className={`llr-message-row ${own ? 'own' : ''}`}>
@@ -506,45 +493,59 @@ const ListenerRealLiveRoom = () => {
 
                   <div className="llr-message-body">
                     <div className="llr-message-topline">
-                      <strong>{message.displayName}</strong>
+                      <strong>{own ? 'You' : message.displayName}</strong>
                       <time>{timeLabel(message.createdAt)}</time>
                       {message.isPinned && <span className="llr-pin-label">PINNED</span>}
                     </div>
                     <p>{message.content}</p>
 
-                    <div className="llr-message-actions">
-                      {REACTION_EMOJIS.map((emoji) => {
-                        const matching = message.reactions.filter(
-                          (reaction) => reaction.emoji === emoji
-                        );
-                        const reacted = matching.some((reaction) =>
-                          sameId(reaction.userId, user.id)
-                        );
-                        return (
-                          <button
-                            type="button"
-                            key={emoji}
-                            className={reacted ? 'active-reaction' : ''}
-                            title={reacted ? `Remove ${emoji} reaction` : `React ${emoji}`}
-                            disabled={Boolean(actionId)}
-                            onClick={() => react(message, emoji)}
-                          >
-                            {emoji}{matching.length > 0 ? ` ${matching.length}` : ''}
-                          </button>
-                        );
-                      })}
-
-                      {isCreator && (
-                        <button type="button" onClick={() => pin(message)} disabled={Boolean(actionId)}>
-                          <FaThumbtack /> {message.isPinned ? 'Unpin' : 'Pin'}
-                        </button>
+                    <div className="echoo-message-footer">
+                      {reactionGroups.length > 0 && (
+                        <div className="echoo-reaction-summary" aria-label="Message reactions">
+                          {reactionGroups.map(({ emoji, count, reacted }) => (
+                            <button
+                              type="button"
+                              key={emoji}
+                              className={reacted ? 'active-reaction' : ''}
+                              disabled={Boolean(actionId)}
+                              onClick={() => react(message, emoji)}
+                              title={reacted ? `Remove ${emoji} reaction` : `React ${emoji}`}
+                            >
+                              {emoji} <span>{count}</span>
+                            </button>
+                          ))}
+                        </div>
                       )}
 
-                      {canDelete && (
-                        <button type="button" onClick={() => remove(message)} disabled={Boolean(actionId)}>
-                          <FaTrash /> Remove
+                      <div className="echoo-message-tools">
+                        <button
+                          type="button"
+                          className="echoo-react-trigger"
+                          title="React to message"
+                          aria-label="React to message"
+                          onClick={() => setReactionMessageId((current) =>
+                            sameId(current, message.id) ? '' : message.id
+                          )}
+                        >
+                          <FaSmile /><span>+</span>
                         </button>
-                      )}
+
+                        {sameId(reactionMessageId, message.id) && (
+                          <div className={`echoo-reaction-picker ${own ? 'align-right' : ''}`} role="dialog" aria-label="Choose a reaction">
+                            {REACTION_EMOJIS.map((emoji) => (
+                              <button
+                                type="button"
+                                key={emoji}
+                                disabled={Boolean(actionId)}
+                                onClick={() => react(message, emoji)}
+                                aria-label={`React ${emoji}`}
+                              >
+                                {emoji}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </article>
@@ -555,43 +556,54 @@ const ListenerRealLiveRoom = () => {
         </div>
 
         {chatAvailable ? (
-          <form className="llr-composer" onSubmit={send}>
-            <div className="echoo-emoji-wrap">
+          <>
+            {isLive && (
+              <div className="echoo-chat-live-divider"><span><i /> Live</span></div>
+            )}
+            <form className="llr-composer" onSubmit={send}>
+              <div className="echoo-emoji-wrap">
+                <button
+                  type="button"
+                  className={`echoo-emoji-trigger ${emojiOpen ? 'active' : ''}`}
+                  aria-label="Add emoji"
+                  title="Add emoji"
+                  onClick={() => setEmojiOpen((open) => !open)}
+                >
+                  <FaSmile />
+                </button>
+                {emojiOpen && (
+                  <div className="echoo-emoji-picker" role="dialog" aria-label="Choose an emoji">
+                    {CHAT_EMOJIS.map((emoji) => (
+                      <button
+                        type="button"
+                        className="echoo-emoji-option"
+                        key={emoji}
+                        aria-label={`Add ${emoji}`}
+                        onClick={() => appendEmoji(emoji)}
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <input
+                value={text}
+                maxLength={500}
+                placeholder={isScheduled ? 'Chat before the broadcast starts...' : 'Type a message...'}
+                onChange={(event) => setText(event.target.value)}
+              />
               <button
-                type="button"
-                className={`echoo-emoji-trigger ${emojiOpen ? 'active' : ''}`}
-                aria-label="Add emoji"
-                title="Add emoji"
-                onClick={() => setEmojiOpen((open) => !open)}
+                type="submit"
+                className="echoo-chat-send"
+                title="Send message"
+                aria-label="Send message"
+                disabled={!text.trim() || sending}
               >
-                <FaSmile />
+                <FaPaperPlane />
               </button>
-              {emojiOpen && (
-                <div className="echoo-emoji-picker" role="dialog" aria-label="Choose an emoji">
-                  {CHAT_EMOJIS.map((emoji) => (
-                    <button
-                      type="button"
-                      className="echoo-emoji-option"
-                      key={emoji}
-                      aria-label={`Add ${emoji}`}
-                      onClick={() => appendEmoji(emoji)}
-                    >
-                      {emoji}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            <input
-              value={text}
-              maxLength={500}
-              placeholder={isScheduled ? 'Chat before the broadcast starts...' : 'Type a message...'}
-              onChange={(event) => setText(event.target.value)}
-            />
-            <button type="submit" disabled={!text.trim() || sending}>
-              <FaPaperPlane /> {sending ? 'Sending...' : 'Send'}
-            </button>
-          </form>
+            </form>
+          </>
         ) : (
           <div className="llr-chat-closed">Chat is closed for this broadcast.</div>
         )}
