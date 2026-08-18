@@ -7,11 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview",
-    "cf:check": "node scripts/check-cloudflare-env.mjs",
-    "cf:login": "npx wrangler@latest login",
-    "cf:create": "npx wrangler@latest pages project create echoo-test --production-branch integration/echoo-core-cleanup",
-    "cf:deploy": "npm run cf:check && npm run build && npx wrangler@latest pages deploy dist --project-name echoo-test --branch integration/echoo-core-cleanup"
+    "preview": "vite preview"
   },
   "dependencies": {
     "livekit-client": "^2.21.0",
