@@ -25,7 +25,7 @@ import EchoAmbient from "../EchooSystem/EchoAmbient";
 import "../../styles/echoo-onboarding.css";
 
 const Register = ({ onAccountCreated, onLoginSuccess }) => {
-  const [action, setAction] = useState("Login");
+  const [action, setAction] = useState("Sign Up");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
