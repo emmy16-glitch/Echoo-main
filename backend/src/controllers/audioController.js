@@ -16,6 +16,12 @@ const creatorDisplayName = (user) =>
   user?.username ||
   'Echoo Creator';
 
+const activeCreatorIds = () =>
+  User.distinct('_id', {
+    userType: 'creator',
+    isActive: true,
+  });
+
 async function notifyFollowersOfRelease(creator, audio) {
   if (!audio?.isPublic) return;
 
@@ -145,7 +151,12 @@ export async function getAudio(req, res, next) {
     const skip = (page - 1) * limit;
     const filter = { isDeleted: false };
 
-    if (req.query.public === 'true') filter.isPublic = true;
+    if (req.query.public === 'true') {
+      filter.isPublic = true;
+      if (!req.query.userId) {
+        filter.artist = { $in: await activeCreatorIds() };
+      }
+    }
     if (req.query.genre) filter.genre = req.query.genre;
     if (req.query.search) filter.$text = { $search: req.query.search };
     if (req.query.userId) filter.artist = req.query.userId;
