@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import {
   FaArrowRight,
-  FaBroadcastTower,
   FaHeadphones,
   FaPause,
   FaPlay,
@@ -11,135 +10,66 @@ import {
 import listenerService from '../../services/listenerService';
 import audioService from '../../services/audioService';
 import batch3Service from '../../services/batch3Service';
+import followService from '../../services/followService';
 import { buildMediaUrl } from '../../services/api';
-import EchoAmbient from '../EchooSystem/EchoAmbient';
-import HorizontalDragRail from '../FigmaUI/HorizontalDragRail';
-import './ListenerHome.css';
+import '../../styles/listener-reference-pages.css';
 
 const HOME_SYNC_INTERVAL_MS = 15000;
 
-const normalizeAudioResponse = (response) => {
-  if (Array.isArray(response?.data)) return response.data;
-  if (Array.isArray(response?.data?.tracks)) return response.data.tracks;
-  return [];
-};
-
 const idOf = (item) => item?.id || item?._id || item?.trackId || null;
+const initials = (value) => String(value || 'Echoo')
+  .split(/\s+/)
+  .filter(Boolean)
+  .slice(0, 2)
+  .map((word) => word.charAt(0).toUpperCase())
+  .join('');
 
 const artistName = (item) => {
   const artist = item?.artist;
-  return (
-    item?.artistName ||
+  return item?.artistName ||
     (typeof artist === 'string'
       ? artist
-      : artist?.displayName || artist?.username) ||
+      : artist?.creatorProfile?.artistName ||
+        artist?.creatorProfile?.organizationName ||
+        artist?.displayName ||
+        artist?.username) ||
+    item?.creatorName ||
     item?.creator?.displayName ||
     item?.creator?.username ||
-    'Echoo Creator'
-  );
+    'Echoo Creator';
 };
 
-const artworkOf = (item) =>
-  buildMediaUrl(
-    item?.brandCover ||
-      item?.coverArt ||
-      item?.artwork ||
-      item?.image ||
-      item?.thumbnail ||
-      item?.station?.brandCover ||
-      item?.station?.coverArt ||
-      item?.creator?.avatar ||
-      null
-  );
-
-const initials = (value) =>
-  String(value || 'Echoo')
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((word) => word.charAt(0).toUpperCase())
-    .join('');
-
-const IdentityImage = ({ item, name }) => {
-  const [failed, setFailed] = useState(false);
-  const source = artworkOf(item) || buildMediaUrl(item?.avatar || null);
-
-  if (source && !failed) {
-    return (
-      <img
-        src={source}
-        alt=""
-        draggable="false"
-        onError={() => setFailed(true)}
-      />
-    );
-  }
-
-  return <span className="identity-fallback">{initials(name)}</span>;
+const creatorName = (item) => {
+  const profile = item?.creatorProfile || {};
+  return item?.name || item?.displayName || profile.artistName ||
+    profile.organizationName || item?.username || 'Echoo Creator';
 };
 
-const normalizeLive = (item) => {
-  if (!item) return null;
+const artworkOf = (item) => buildMediaUrl(
+  item?.brandCover ||
+  item?.coverArt ||
+  item?.artwork ||
+  item?.image ||
+  item?.station?.brandCover ||
+  item?.station?.coverArt ||
+  null
+);
 
-  const station = typeof item.station === 'object' ? item.station : null;
-  const creator = typeof item.creator === 'object' ? item.creator : null;
-
-  return {
-    ...item,
-    id: item.id || item._id || null,
-    stationId: station?.id || station?._id || item.stationId || item.station || null,
-    stationName: station?.name || item.stationName || 'Echoo Station',
-    creatorId: creator?.id || creator?._id || item.creatorId || item.creator || null,
-    creatorName:
-      creator?.displayName || creator?.username || item.creatorName || 'Echoo Creator',
-    coverArt:
-      station?.brandCover ||
-      item.brandCover ||
-      item.coverArt ||
-      station?.coverArt ||
-      null,
-    listenerCount: Number(item.listenerCount) || 0,
-  };
-};
-
-const normalizeCreator = (item) => {
-  if (!item) return null;
-  const profile = item.creatorProfile || {};
-  return {
-    ...item,
-    id: item.id || item._id || null,
-    name:
-      item.displayName ||
-      profile.artistName ||
-      profile.organizationName ||
-      item.username ||
-      'Echoo Creator',
-    avatar: item.avatar || profile.organizationLogo || null,
-  };
-};
-
-const normalizeStation = (item) => {
-  if (!item) return null;
-  return {
-    ...item,
-    id: item.id || item._id || null,
-    name: item.name || 'Echoo Station',
-  };
-};
+const avatarOf = (item) => buildMediaUrl(
+  item?.avatar || item?.creatorProfile?.organizationLogo || item?.profileImage || null
+);
 
 const ListenerHome = () => {
   const navigate = useNavigate();
-  const {
-    playTrack,
-    playTrackAt,
-    currentTrack,
-    isPlaying,
-    togglePlay,
-  } = useOutletContext();
+  const { playTrack, currentTrack, isPlaying, togglePlay } = useOutletContext();
 
   const [dashboard, setDashboard] = useState(null);
-  const [audioTracks, setAudioTracks] = useState([]);
-  const [discovery, setDiscovery] = useState({ live: [], stations: [] });
+  const [tracks, setTracks] = useState([]);
+  const [stations, setStations] = useState([]);
+  const [live, setLive] = useState([]);
+  const [followingCreators, setFollowingCreators] = useState(new Set());
+  const [followingStations, setFollowingStations] = useState(new Set());
+  const [busyId, setBusyId] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -148,33 +78,40 @@ const ListenerHome = () => {
       if (!silent) setLoading(true);
       if (!silent) setError('');
 
-      const [dashboardResult, audioResult, discoveryResult] = await Promise.allSettled([
-        listenerService.getDashboard(),
-        audioService.getAll({ public: true, page: 1, limit: 50 }),
-        batch3Service.getDiscovery(),
-      ]);
+      const [dashboardResult, audioResult, discoveryResult, creatorsResult, stationsFollowedResult] =
+        await Promise.allSettled([
+          listenerService.getDashboard(),
+          audioService.getAll({ public: true, page: 1, limit: 60 }),
+          batch3Service.getDiscovery(),
+          followService.getFollowingCreators(),
+          followService.getFollowingStations(),
+        ]);
 
       if (dashboardResult.status === 'fulfilled') {
         setDashboard(dashboardResult.value?.data || null);
       } else if (!silent) {
-        setError(
-          dashboardResult.reason?.message || 'Could not load your Echoo home feed.'
-        );
+        setError(dashboardResult.reason?.message || 'Could not load your Echoo home feed.');
       }
 
       if (audioResult.status === 'fulfilled') {
-        setAudioTracks(normalizeAudioResponse(audioResult.value));
+        setTracks(Array.isArray(audioResult.value?.data) ? audioResult.value.data : []);
       }
 
       if (discoveryResult.status === 'fulfilled') {
-        setDiscovery({
-          live: Array.isArray(discoveryResult.value?.live)
-            ? discoveryResult.value.live
-            : [],
-          stations: Array.isArray(discoveryResult.value?.stations)
-            ? discoveryResult.value.stations
-            : [],
-        });
+        setStations(Array.isArray(discoveryResult.value?.stations) ? discoveryResult.value.stations : []);
+        setLive(Array.isArray(discoveryResult.value?.live) ? discoveryResult.value.live : []);
+      }
+
+      if (creatorsResult.status === 'fulfilled') {
+        setFollowingCreators(new Set(
+          (creatorsResult.value?.data || []).map((creator) => String(creator.id)).filter(Boolean)
+        ));
+      }
+
+      if (stationsFollowedResult.status === 'fulfilled') {
+        setFollowingStations(new Set(
+          (stationsFollowedResult.value?.data || []).map((station) => String(station.id)).filter(Boolean)
+        ));
       }
     } finally {
       if (!silent) setLoading(false);
@@ -183,363 +120,255 @@ const ListenerHome = () => {
 
   useEffect(() => {
     load();
-
     const sync = () => load({ silent: true });
     const interval = window.setInterval(sync, HOME_SYNC_INTERVAL_MS);
     window.addEventListener('focus', sync);
-
     return () => {
       window.clearInterval(interval);
       window.removeEventListener('focus', sync);
     };
   }, [load]);
 
-  const liveItems = useMemo(() => {
-    const source = discovery.live.length
-      ? discovery.live
-      : Array.isArray(dashboard?.liveNow)
-        ? dashboard.liveNow
-        : [];
-
-    return source.map(normalizeLive).filter((item) => item?.id);
-  }, [dashboard, discovery.live]);
-
-  const continueItems = useMemo(() => {
-    const backend = Array.isArray(dashboard?.continueListening)
-      ? dashboard.continueListening
-      : [];
-    return backend.slice(0, 6);
+  const creators = useMemo(() => {
+    const source = Array.isArray(dashboard?.discoverCreators) ? dashboard.discoverCreators : [];
+    return source.filter((creator) => idOf(creator)).slice(0, 7);
   }, [dashboard]);
 
-  const recommended = useMemo(() => {
-    const backend = Array.isArray(dashboard?.recommendedTracks)
-      ? dashboard.recommendedTracks
+  const featuredAudio = useMemo(() => {
+    const recommended = Array.isArray(dashboard?.recommendedTracks)
+      ? dashboard.recommendedTracks.filter((track) => track?.fileUrl)
       : [];
-    return (backend.length ? backend : audioTracks).slice(0, 12);
-  }, [dashboard, audioTracks]);
+    const merged = [...live, ...(recommended.length ? recommended : tracks)];
+    const seen = new Set();
+    return merged.filter((item) => {
+      const key = `${item?.status === 'live' ? 'live' : 'audio'}:${idOf(item)}`;
+      if (!idOf(item) || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    }).slice(0, 6);
+  }, [dashboard, live, tracks]);
 
-  const channels = useMemo(() => {
-    const creators = (Array.isArray(dashboard?.discoverCreators)
-      ? dashboard.discoverCreators
-      : []
-    )
-      .map(normalizeCreator)
-      .filter((item) => item?.id)
-      .map((creator) => ({
-        ...creator,
-        type: 'Creator',
-        route: `/listen/creator/${creator.id}`,
-      }));
+  const stationCards = useMemo(() => stations.filter((station) => station?.id).slice(0, 5), [stations]);
+  const featuredLive = live[0] || null;
 
-    const stationSource = discovery.stations.length
-      ? discovery.stations
-      : Array.isArray(dashboard?.discoverStations)
-        ? dashboard.discoverStations
-        : [];
-
-    const stations = stationSource
-      .map(normalizeStation)
-      .filter((item) => item?.id)
-      .map((station) => ({
-        ...station,
-        type: 'Station',
-        route: `/listen/stations/${station.id}`,
-      }));
-
-    return [...creators, ...stations].slice(0, 12);
-  }, [dashboard, discovery.stations]);
-
-  const play = (item, queue) => {
-    const id = idOf(item);
-
-    if ((id && currentTrack?.id === id) || currentTrack?.title === item.title) {
+  const playAudio = (track) => {
+    const id = idOf(track);
+    if (!track?.fileUrl) return;
+    if (String(currentTrack?.id || '') === String(id || '')) {
       togglePlay();
       return;
     }
-
-    const track = {
-      ...item,
+    playTrack({
+      ...track,
       id,
-      title: item.title || 'Untitled Audio',
-      subtitle: artistName(item),
-      coverArt: artworkOf(item),
-      fileUrl: buildMediaUrl(item.fileUrl || null),
-      duration: Number(item.duration) || 0,
-      genre: item.genre || 'Audio',
-    };
+      title: track.title || 'Untitled Audio',
+      subtitle: artistName(track),
+      coverArt: artworkOf(track),
+      fileUrl: buildMediaUrl(track.fileUrl),
+      duration: Number(track.duration) || 0,
+      genre: track.genre || 'Audio',
+    }, tracks);
+  };
 
-    const progress = Math.max(0, Math.min(100, Number(item.progress) || 0));
-    const resumeAt = track.duration > 0 ? (track.duration * progress) / 100 : 0;
+  const openFeatured = (item) => {
+    if (item?.status === 'live' || item?.isLive) navigate(`/listen/live/${idOf(item)}`);
+    else navigate(`/listen/audio/${idOf(item)}`);
+  };
 
-    if (resumeAt > 0 && playTrackAt) {
-      playTrackAt(track, resumeAt, queue);
-    } else {
-      playTrack(track, queue);
+  const toggleCreatorFollow = async (creator) => {
+    const id = idOf(creator);
+    if (!id || busyId) return;
+    const key = String(id);
+    const active = followingCreators.has(key);
+    try {
+      setBusyId(`creator-${key}`);
+      if (active) await followService.unfollowCreator(id);
+      else await followService.followCreator(id);
+      setFollowingCreators((current) => {
+        const next = new Set(current);
+        if (active) next.delete(key); else next.add(key);
+        return next;
+      });
+    } catch (followError) {
+      setError(followError?.message || 'Could not update creator follow status.');
+    } finally {
+      setBusyId('');
     }
   };
 
-  const playing = (item) => {
-    const id = idOf(item);
-    return (
-      isPlaying &&
-      ((id && currentTrack?.id === id) || currentTrack?.title === item.title)
-    );
+  const toggleStationFollow = async (station) => {
+    const id = idOf(station);
+    if (!id || busyId) return;
+    const key = String(id);
+    const active = followingStations.has(key);
+    try {
+      setBusyId(`station-${key}`);
+      if (active) await followService.unfollowStation(id);
+      else await followService.followStation(id);
+      setFollowingStations((current) => {
+        const next = new Set(current);
+        if (active) next.delete(key); else next.add(key);
+        return next;
+      });
+    } catch (followError) {
+      setError(followError?.message || 'Could not update station follow status.');
+    } finally {
+      setBusyId('');
+    }
   };
 
   if (loading) {
     return (
-      <div className="identity-home">
-        <div className="identity-home-loading"><span /><span /><span /></div>
-      </div>
+      <main className="echoo-reference-page ref-home-page">
+        <div className="ref-home-skeleton" />
+        <div className="ref-loading-row"><i /><i /><i /><i /></div>
+      </main>
     );
   }
 
-  const featured = liveItems[0] || null;
-
   return (
-    <div className="identity-home">
-      {error && <div className="cbf-message error">{error}</div>}
+    <main className="echoo-reference-page ref-home-page">
+      {error && <div className="ref-inline-error">{error}</div>}
 
-      <header className="identity-home-hero echoo-home-filled-hero">
-        <EchoAmbient density="low" className="identity-home-ambient" />
-
-        <div className="echoo-home-hero-copy">
-          <span className="identity-kicker">ECHOO / NOW</span>
-          <h1>Your world is talking.</h1>
-          <p>Live voices, conversations and audio worth hearing right now.</p>
-
-          <div className="echoo-home-hero-buttons">
-            <button
-              type="button"
-              className="echoo-home-hero-primary"
-              onClick={() =>
-                navigate(featured ? `/listen/live/${featured.id}` : '/listen/live')
-              }
-            >
-              {featured ? "Join what's live" : 'Discover Live'} <FaArrowRight />
-            </button>
-            <button
-              type="button"
-              className="echoo-home-hero-secondary"
-              onClick={() => navigate('/listen/stations')}
-            >
-              Browse stations
-            </button>
+      <section className="ref-home-hero">
+        <div className="ref-home-hero-copy">
+          <span className="ref-kicker light">HOME / REAL AUDIO</span>
+          <h1>Voices that inspire.<br />Audio that connects.</h1>
+          <p>Live and recorded audio from creators and stations across Echoo.</p>
+          <div className="ref-home-hero-actions">
+            <button type="button" onClick={() => navigate('/listen/stations')}>Explore stations</button>
+            <button type="button" className="ghost" onClick={() => navigate('/listen/search')}>Browse audio</button>
           </div>
         </div>
 
-        {featured ? (
-          <article className="echoo-home-featured-card">
-            <button
-              type="button"
-              className="echoo-home-featured-image"
-              aria-label={`Open ${featured.title}`}
-              onClick={() => navigate(`/listen/live/${featured.id}`)}
-            >
-              {artworkOf(featured) ? (
-                <img src={artworkOf(featured)} alt="" />
-              ) : (
-                <div className="identity-fallback"><FaBroadcastTower /></div>
-              )}
-              <span className="echoo-home-featured-overlay" />
-              <span className="echoo-home-live-pill"><i /> LIVE</span>
-              <span className="echoo-home-featured-count">
-                {featured.listenerCount.toLocaleString()} listening
-              </span>
-            </button>
+        <div className="ref-home-hero-visual" aria-hidden="true">
+          <div className="ref-home-wave one" />
+          <div className="ref-home-wave two" />
+          <FaHeadphones />
+        </div>
 
-            <div className="echoo-home-featured-bottom">
-              <div>
-                <small>Featured live</small>
-                <h2>{featured.title}</h2>
-                <p>{featured.stationName} · {featured.creatorName}</p>
-              </div>
-              <button
-                type="button"
-                aria-label={`Join ${featured.title}`}
-                onClick={() => navigate(`/listen/live/${featured.id}`)}
-              >
-                <FaPlay />
-              </button>
-            </div>
-          </article>
-        ) : (
-          <div className="echoo-home-featured-card identity-empty-row">
-            <FaHeadphones />
-            <span>No one is live right now. Scheduled broadcasts will appear in Live.</span>
-          </div>
-        )}
-      </header>
+        <button
+          type="button"
+          className={`ref-home-live-feature ${featuredLive ? '' : 'offline'}`}
+          onClick={() => featuredLive && navigate(`/listen/live/${idOf(featuredLive)}`)}
+          disabled={!featuredLive}
+        >
+          <span><i /> {featuredLive ? 'Live now' : 'Nothing live now'}</span>
+          <strong>{featuredLive?.title || 'Live broadcasts will appear here'}</strong>
+          <small>{featuredLive ? `${Number(featuredLive.listenerCount) || 0} listening` : 'Check Live for upcoming broadcasts'}</small>
+          <b><FaPlay /></b>
+        </button>
+      </section>
 
-      <section className="identity-section presence-section echoo-home-live-around">
-        <div className="identity-section-heading echoo-home-live-heading">
+      <section className="ref-home-section">
+        <div className="ref-section-heading">
           <div>
-            <h2>Live around you</h2>
-            <p>Real broadcasts happening now.</p>
+            <h2>Featured public audio</h2>
+            <p>Real recordings and live shows available on Echoo.</p>
           </div>
-          <button type="button" onClick={() => navigate('/listen/live')}>
-            See all <FaArrowRight />
-          </button>
+          <button type="button" onClick={() => navigate('/listen/search')}>View all <FaArrowRight /></button>
         </div>
 
-        {liveItems.length ? (
-          <div className="echoo-home-live-cards">
-            {liveItems.slice(0, 3).map((item) => (
-              <article key={item.id} className="echoo-home-live-card">
-                <button
-                  type="button"
-                  className="echoo-home-live-card-image"
-                  aria-label={`Open ${item.title}`}
-                  onClick={() => navigate(`/listen/live/${item.id}`)}
-                >
-                  {artworkOf(item) ? (
-                    <img src={artworkOf(item)} alt="" />
-                  ) : (
-                    <div className="identity-fallback"><FaBroadcastTower /></div>
-                  )}
-                  <span className="echoo-home-live-card-overlay" />
-                  <span className="echoo-home-live-pill"><i /> LIVE</span>
-                  <span className="echoo-home-live-card-count">
-                    {item.listenerCount.toLocaleString()} listening
-                  </span>
-                </button>
-                <div className="echoo-home-live-card-body">
-                  <div>
-                    <h3>{item.title}</h3>
-                    <p>{item.stationName}</p>
+        {featuredAudio.length ? (
+          <div className="ref-featured-audio-grid">
+            {featuredAudio.map((item) => {
+              const itemIsLive = item?.status === 'live' || item?.isLive;
+              const playing = !itemIsLive && isPlaying && String(currentTrack?.id || '') === String(idOf(item));
+              return (
+                <article className="ref-feature-audio-card" key={`${itemIsLive ? 'live' : 'audio'}-${idOf(item)}`}>
+                  <button type="button" className="ref-feature-art" onClick={() => openFeatured(item)}>
+                    {artworkOf(item) ? <img src={artworkOf(item)} alt="" /> : <FaHeadphones />}
+                    {itemIsLive && <span className="ref-live-chip"><i /> LIVE NOW</span>}
+                  </button>
+                  <div className="ref-feature-audio-copy">
+                    <span>{itemIsLive ? item.stationName || item.category || 'Live' : item.genre || 'Audio'}</span>
+                    <strong>{item.title || item.name || 'Untitled'}</strong>
+                    <small>{itemIsLive ? `${Number(item.listenerCount) || 0} listening` : artistName(item)}</small>
                   </div>
                   <button
                     type="button"
-                    className="echoo-home-live-card-open"
-                    aria-label={`Join ${item.title}`}
-                    onClick={() => navigate(`/listen/live/${item.id}`)}
+                    className="ref-round-play"
+                    onClick={() => itemIsLive ? navigate(`/listen/live/${idOf(item)}`) : playAudio(item)}
+                    aria-label={itemIsLive ? 'Join live broadcast' : playing ? 'Pause audio' : 'Play audio'}
                   >
-                    <FaArrowRight />
+                    {playing ? <FaPause /> : <FaPlay />}
                   </button>
-                </div>
-              </article>
-            ))}
+                </article>
+              );
+            })}
           </div>
         ) : (
-          <div className="identity-empty-row">
-            <FaHeadphones />
-            <span>No live broadcasts at the moment.</span>
-          </div>
+          <div className="ref-state-card compact"><FaHeadphones /><strong>No public audio yet.</strong></div>
         )}
       </section>
 
-      <section className="identity-section">
-        <div className="identity-section-heading">
-          <div>
-            <h2>Continue listening</h2>
-            <p>Pick up where you left off.</p>
-          </div>
-          <button type="button" onClick={() => navigate('/listen/history')}>
-            History <FaArrowRight />
-          </button>
+      <section className="ref-home-section">
+        <div className="ref-section-heading">
+          <div><h2>Voices to know</h2><p>Creators building real audiences on Echoo.</p></div>
+          <button type="button" onClick={() => navigate('/listen/search')}>View all creators <FaArrowRight /></button>
         </div>
 
-        {continueItems.length ? (
-          <div className="identity-continue-list">
-            {continueItems.map((item, index) => (
-              <article className="identity-continue-row" key={idOf(item) || index}>
-                <div className={`identity-continue-art art-${(index % 4) + 1}`}>
-                  <IdentityImage item={item} name={item.title} />
-                </div>
-                <div className="identity-continue-copy">
-                  <h3>{item.title || 'Untitled Audio'}</h3>
-                  <p>{artistName(item)}</p>
-                </div>
-                <div className="identity-row-line" />
-                <button
-                  type="button"
-                  className="identity-round-play"
-                  onClick={() => play(item, continueItems)}
-                >
-                  {playing(item) ? <FaPause /> : <FaPlay />}
-                </button>
-              </article>
-            ))}
-          </div>
-        ) : (
-          <div className="identity-empty-row">
-            <FaHeadphones />
-            <span>Start listening and unfinished audio will appear here.</span>
-          </div>
-        )}
-      </section>
-
-      <section className="identity-section">
-        <div className="identity-section-heading">
-          <div>
-            <h2>For you</h2>
-            <p>Real public audio from across Echoo.</p>
-          </div>
-          <button type="button" onClick={() => navigate('/listen/library')}>
-            Library <FaArrowRight />
-          </button>
-        </div>
-
-        {recommended.length ? (
-          <HorizontalDragRail ariaLabel="Recommended audio" className="identity-audio-rail">
-            {recommended.map((item, index) => (
-              <article className="identity-audio-item" key={idOf(item) || index}>
-                <div className={`identity-audio-art art-${(index % 4) + 1}`}>
-                  <IdentityImage item={item} name={item.title} />
+        {creators.length ? (
+          <div className="ref-creators-row">
+            {creators.map((creator) => {
+              const id = idOf(creator);
+              const following = followingCreators.has(String(id));
+              const name = creatorName(creator);
+              return (
+                <article className="ref-creator-tile" key={id}>
+                  <button type="button" className="ref-creator-avatar" onClick={() => navigate(`/listen/creator/${id}`)}>
+                    {avatarOf(creator) ? <img src={avatarOf(creator)} alt="" /> : <span>{initials(name)}</span>}
+                  </button>
+                  <strong>{name}</strong>
+                  <small>{creator.creatorProfile?.category || creator.category || 'Creator'}</small>
                   <button
                     type="button"
-                    aria-label={playing(item) ? `Pause ${item.title}` : `Play ${item.title}`}
-                    onClick={() => play(item, recommended)}
+                    className={following ? 'following' : ''}
+                    disabled={busyId === `creator-${id}`}
+                    onClick={() => toggleCreatorFollow(creator)}
                   >
-                    {playing(item) ? <FaPause /> : <FaPlay />}
+                    {busyId === `creator-${id}` ? 'Updating...' : following ? 'Following' : 'Follow'}
                   </button>
-                </div>
-                <h3>{item.title || 'Untitled Audio'}</h3>
-                <p>{artistName(item)}</p>
-              </article>
-            ))}
-          </HorizontalDragRail>
-        ) : (
-          <div className="identity-empty-row">
-            <FaHeadphones />
-            <span>No public audio has been published yet.</span>
+                </article>
+              );
+            })}
           </div>
-        )}
+        ) : <div className="ref-state-card compact"><strong>No public creators to show yet.</strong></div>}
       </section>
 
-      <section className="identity-section channels-section">
-        <div className="identity-section-heading">
-          <div>
-            <h2>Voices to know</h2>
-            <p>Real creators and stations building on Echoo.</p>
-          </div>
+      <section className="ref-home-section">
+        <div className="ref-section-heading">
+          <div><h2>Stations worth following</h2><p>Public stations configured by Echoo creators.</p></div>
+          <button type="button" onClick={() => navigate('/listen/stations')}>View all stations <FaArrowRight /></button>
         </div>
 
-        {channels.length ? (
-          <HorizontalDragRail ariaLabel="Creators and stations" className="identity-channel-rail">
-            {channels.map((channel) => (
-              <button
-                type="button"
-                key={`${channel.type}-${channel.id}`}
-                className="identity-channel"
-                onClick={() => navigate(channel.route)}
-              >
-                <div className="identity-channel-avatar">
-                  <IdentityImage item={channel} name={channel.name} />
-                </div>
-                <h3>{channel.name}</h3>
-                <p>{channel.type}</p>
-              </button>
-            ))}
-          </HorizontalDragRail>
-        ) : (
-          <div className="identity-empty-row">
-            <FaHeadphones />
-            <span>Creators and stations will appear here as Echoo grows.</span>
+        {stationCards.length ? (
+          <div className="ref-home-station-row">
+            {stationCards.map((station) => {
+              const id = idOf(station);
+              const following = followingStations.has(String(id));
+              return (
+                <article className="ref-home-station-card" key={id}>
+                  <button type="button" className="ref-home-station-art" onClick={() => navigate(`/listen/stations/${id}`)}>
+                    {artworkOf(station) ? <img src={artworkOf(station)} alt="" /> : <FaHeadphones />}
+                    {station.isLive && <span className="ref-live-chip"><i /> LIVE</span>}
+                  </button>
+                  <div><strong>{station.name}</strong><span>{station.category || 'Other'} · {Number(station.listenerCount) || 0} listening</span></div>
+                  <button
+                    type="button"
+                    className={following ? 'following' : ''}
+                    disabled={busyId === `station-${id}`}
+                    onClick={() => toggleStationFollow(station)}
+                  >
+                    {following ? 'Following' : 'Follow'}
+                  </button>
+                </article>
+              );
+            })}
           </div>
-        )}
+        ) : <div className="ref-state-card compact"><strong>No public stations yet.</strong></div>}
       </section>
-    </div>
+    </main>
   );
 };
 
