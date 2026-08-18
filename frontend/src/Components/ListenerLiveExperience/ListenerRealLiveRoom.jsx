@@ -6,6 +6,7 @@ import {
   FaComments,
   FaHeadphones,
   FaPaperPlane,
+  FaSmile,
   FaSyncAlt,
   FaThumbtack,
   FaTrash,
@@ -17,10 +18,10 @@ import batch4Service, {
   normalizeChatMessage,
 } from '../../services/batch4Service';
 import realtimeService from '../../services/realtimeService';
+import { CHAT_EMOJIS, REACTION_EMOJIS } from '../../constants/liveChatEmoji';
 import LiveKitListenerPlayer from './LiveKitListenerPlayer';
 import './ListenerLiveRoom.css';
-
-const REACTIONS = ['👍', '❤️', '🔥', '👏'];
+import '../../styles/live-chat-interactions.css';
 
 const currentUser = () => {
   try {
@@ -73,6 +74,7 @@ const ListenerRealLiveRoom = () => {
     creatorConnected: false,
   });
   const [text, setText] = useState('');
+  const [emojiOpen, setEmojiOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [chatLoading, setChatLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -297,6 +299,13 @@ const ListenerRealLiveRoom = () => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, [messages.length, chatLoading]);
 
+  const appendEmoji = (emoji) => {
+    setText((current) => {
+      const next = `${current}${emoji}`;
+      return next.length <= 500 ? next : current;
+    });
+  };
+
   const send = async (event) => {
     event.preventDefault();
     const content = text.trim();
@@ -308,6 +317,7 @@ const ListenerRealLiveRoom = () => {
       const response = await batch4Service.sendMessage(broadcastId, content);
       if (response?.data) mergeMessage(response.data);
       setText('');
+      setEmojiOpen(false);
     } catch (sendError) {
       setError(sendError?.message || 'Could not send your message.');
     } finally {
@@ -503,18 +513,23 @@ const ListenerRealLiveRoom = () => {
                     <p>{message.content}</p>
 
                     <div className="llr-message-actions">
-                      {REACTIONS.map((emoji) => {
-                        const count = message.reactions.filter(
+                      {REACTION_EMOJIS.map((emoji) => {
+                        const matching = message.reactions.filter(
                           (reaction) => reaction.emoji === emoji
-                        ).length;
+                        );
+                        const reacted = matching.some((reaction) =>
+                          sameId(reaction.userId, user.id)
+                        );
                         return (
                           <button
                             type="button"
                             key={emoji}
+                            className={reacted ? 'active-reaction' : ''}
+                            title={reacted ? `Remove ${emoji} reaction` : `React ${emoji}`}
                             disabled={Boolean(actionId)}
                             onClick={() => react(message, emoji)}
                           >
-                            {emoji}{count > 0 ? ` ${count}` : ''}
+                            {emoji}{matching.length > 0 ? ` ${matching.length}` : ''}
                           </button>
                         );
                       })}
@@ -541,6 +556,32 @@ const ListenerRealLiveRoom = () => {
 
         {chatAvailable ? (
           <form className="llr-composer" onSubmit={send}>
+            <div className="echoo-emoji-wrap">
+              <button
+                type="button"
+                className={`echoo-emoji-trigger ${emojiOpen ? 'active' : ''}`}
+                aria-label="Add emoji"
+                title="Add emoji"
+                onClick={() => setEmojiOpen((open) => !open)}
+              >
+                <FaSmile />
+              </button>
+              {emojiOpen && (
+                <div className="echoo-emoji-picker" role="dialog" aria-label="Choose an emoji">
+                  {CHAT_EMOJIS.map((emoji) => (
+                    <button
+                      type="button"
+                      className="echoo-emoji-option"
+                      key={emoji}
+                      aria-label={`Add ${emoji}`}
+                      onClick={() => appendEmoji(emoji)}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <input
               value={text}
               maxLength={500}
