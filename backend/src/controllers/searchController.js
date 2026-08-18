@@ -6,6 +6,12 @@ import Station from '../models/Station.js';
 const safePage = (value) => Math.max(1, Number(value) || 1);
 const safeLimit = (value) => Math.min(100, Math.max(1, Number(value) || 20));
 
+const creatorAudioIds = () =>
+  User.distinct('_id', {
+    userType: 'creator',
+    isActive: true,
+  });
+
 const trackResult = (track) => ({
   id: track._id,
   title: track.title,
@@ -14,6 +20,8 @@ const trackResult = (track) => ({
   genre: track.genre,
   fileUrl: track.fileUrl,
   coverArt: track.coverArt || null,
+  coverArtMode: track.coverArtMode || null,
+  coverArtVariant: track.coverArtVariant ?? null,
   playCount: track.playCount || 0,
   likeCount: track.likeCount || 0,
   artist: track.artist
@@ -22,6 +30,9 @@ const trackResult = (track) => ({
         username: track.artist.username,
         displayName: track.artist.displayName,
         avatar: track.artist.avatar,
+        userType: track.artist.userType,
+        artistName: track.artist.creatorProfile?.artistName,
+        organizationName: track.artist.creatorProfile?.organizationName,
       }
     : null,
   createdAt: track.createdAt,
@@ -49,6 +60,7 @@ const stationResult = (station) => ({
   description: station.description,
   category: station.category,
   coverArt: station.coverArt,
+  branding: station.branding || null,
   listenerCount: station.listenerCount || 0,
   followerCount: station.followerCount || 0,
   isLive: Boolean(station.isLive),
@@ -114,21 +126,26 @@ export async function globalSearch(req, res, next) {
     const counts = {};
 
     if (searchTypes.includes('tracks')) {
+      const creatorIds = await creatorAudioIds();
       const filter = {
         isPublic: true,
         isDeleted: false,
+        artist: { $in: creatorIds },
         $or: regexFields(query, ['title', 'description', 'tags']),
       };
       if (req.query.category) filter.genre = req.query.category;
 
       const [tracks, total] = await Promise.all([
         Audio.find(filter)
-          .populate('artist', 'username displayName avatar')
+          .populate(
+            'artist',
+            'username displayName avatar userType creatorProfile.artistName creatorProfile.organizationName'
+          )
           .sort({ playCount: -1, createdAt: -1 })
           .skip(skip)
           .limit(limit)
           .select(
-            'title description duration genre fileUrl coverArt playCount likeCount createdAt artist'
+            'title description duration genre fileUrl coverArt coverArtMode coverArtVariant playCount likeCount createdAt artist'
           ),
         Audio.countDocuments(filter),
       ]);
@@ -235,9 +252,11 @@ export async function searchTracks(req, res, next) {
     const page = safePage(req.query.page);
     const limit = safeLimit(req.query.limit);
     const skip = (page - 1) * limit;
+    const creatorIds = await creatorAudioIds();
     const filter = {
       isPublic: true,
       isDeleted: false,
+      artist: { $in: creatorIds },
       $or: regexFields(query, ['title', 'description', 'tags']),
     };
     if (req.query.genre) filter.genre = req.query.genre;
@@ -248,12 +267,15 @@ export async function searchTracks(req, res, next) {
 
     const [tracks, total] = await Promise.all([
       Audio.find(filter)
-        .populate('artist', 'username displayName avatar')
+        .populate(
+          'artist',
+          'username displayName avatar userType creatorProfile.artistName creatorProfile.organizationName'
+        )
         .sort(sort)
         .skip(skip)
         .limit(limit)
         .select(
-          'title description duration genre fileUrl coverArt playCount likeCount createdAt artist'
+          'title description duration genre fileUrl coverArt coverArtMode coverArtVariant playCount likeCount createdAt artist'
         ),
       Audio.countDocuments(filter),
     ]);
@@ -324,8 +346,13 @@ export async function searchCreators(req, res, next) {
 
 export async function getPopularSearches(req, res, next) {
   try {
+    const creatorIds = await creatorAudioIds();
     const [tracks, stations] = await Promise.all([
-      Audio.find({ isPublic: true, isDeleted: false })
+      Audio.find({
+        isPublic: true,
+        isDeleted: false,
+        artist: { $in: creatorIds },
+      })
         .sort({ playCount: -1, createdAt: -1 })
         .limit(5)
         .select('title playCount'),
@@ -369,8 +396,13 @@ export async function getPopularSearches(req, res, next) {
 
 export async function getTrendingSearches(req, res, next) {
   try {
+    const creatorIds = await creatorAudioIds();
     const [recentTracks, liveStations] = await Promise.all([
-      Audio.find({ isPublic: true, isDeleted: false })
+      Audio.find({
+        isPublic: true,
+        isDeleted: false,
+        artist: { $in: creatorIds },
+      })
         .sort({ createdAt: -1 })
         .limit(5)
         .select('title createdAt playCount'),
