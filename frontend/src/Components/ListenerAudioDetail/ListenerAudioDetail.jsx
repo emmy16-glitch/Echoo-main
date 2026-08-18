@@ -86,7 +86,7 @@ const ListenerAudioDetail = () => {
       if (creatorResult.status === 'fulfilled') {
         setMoreFromCreator((creatorResult.value?.data || []).filter((item) => String(item.id) !== String(nextTrack.id)).slice(0,4));
       }
-      setDownloaded(downloadService.has(nextTrack.id));
+      setDownloaded(downloadService.isDownloaded(nextTrack.id));
     } catch (loadError) {
       setTrack(null);
       setError(loadError?.message || 'Could not load this audio.');
