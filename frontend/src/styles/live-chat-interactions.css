@@ -130,6 +130,30 @@
   letter-spacing: .06em;
 }
 
+.ebsx-chat-pinned {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin-top: 10px;
+  padding: 9px 10px;
+  border: 1px solid #dce8fb;
+  border-radius: 9px;
+  background: #f6f9ff;
+  color: #52647d;
+  font-size: 8px;
+  line-height: 1.4;
+}
+
+.ebsx-chat-pinned > svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: #246bfe;
+}
+
+.ebsx-chat-pinned strong {
+  color: #263850;
+}
+
 .ebsx-chat-reactions {
   display: flex;
   flex-wrap: wrap;
@@ -151,7 +175,8 @@
   cursor: pointer;
 }
 
-.ebsx-chat-reactions button:hover {
+.ebsx-chat-reactions button:hover,
+.ebsx-chat-reactions button.active-reaction {
   border-color: #a9c3f7;
   background: #f4f8ff;
   color: #246bfe;
