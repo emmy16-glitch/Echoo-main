@@ -27,6 +27,7 @@ import ListenerSettings from './Components/ListenerSettings/ListenerSettings';
 import ListenerAudioDetail from './Components/ListenerAudioDetail/ListenerAudioDetail';
 import ListenerRealLiveRoom from './Components/ListenerLiveExperience/ListenerRealLiveRoom';
 import ListenerRealStationProfile from './Components/ListenerLiveExperience/ListenerRealStationProfile';
+import EchooExperienceOrchestrator from './Components/EchooSystem/EchooExperienceOrchestrator';
 
 const getStoredUser = () => {
   try {
@@ -192,6 +193,8 @@ const DefaultRedirect = () => {
 function App() {
   return (
     <BrowserRouter>
+      <EchooExperienceOrchestrator />
+
       <a className="echoo-skip-to-content" href="#echoo-main-content">
         Skip to content
       </a>
