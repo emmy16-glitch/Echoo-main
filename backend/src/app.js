@@ -16,6 +16,59 @@ import Broadcast from './models/Broadcast.js';
 const app = express();
 const PORT = env.port || 5001;
 
+const normalizeOrigin = (value = '') => String(value).trim().replace(/\/$/, '');
+const allowedOrigins = new Set(env.clientOrigins.map(normalizeOrigin));
+
+const matchesOriginSuffix = (origin) => {
+  if (!env.clientOriginSuffixes.length) return false;
+
+  try {
+    const hostname = new URL(origin).hostname.toLowerCase();
+    return env.clientOriginSuffixes.some((configuredSuffix) => {
+      const suffix = String(configuredSuffix)
+        .trim()
+        .toLowerCase()
+        .replace(/^\./, '');
+      return suffix && (hostname === suffix || hostname.endsWith(`.${suffix}`));
+    });
+  } catch {
+    return false;
+  }
+};
+
+const isAllowedOrigin = (origin) => {
+  // Non-browser clients such as curl and internal health checks do not send Origin.
+  if (!origin) return true;
+
+  const normalized = normalizeOrigin(origin);
+  if (allowedOrigins.has(normalized) || matchesOriginSuffix(normalized)) return true;
+
+  // Preserve the existing LAN development workflow. This lets a second phone or
+  // laptop open Vite on the Creator machine while keeping production restricted.
+  if (env.isDevelopment) {
+    try {
+      const parsed = new URL(normalized);
+      return parsed.protocol === 'http:' && parsed.port === '5174';
+    } catch {
+      return false;
+    }
+  }
+
+  return false;
+};
+
+const echooCorsOrigin = (origin, callback) => {
+  if (isAllowedOrigin(origin)) {
+    callback(null, true);
+    return;
+  }
+
+  const error = new Error('This frontend origin is not allowed to access the Echoo API.');
+  error.code = 'CORS_ORIGIN_DENIED';
+  error.status = 403;
+  callback(error);
+};
+
 app.use((req, res, next) => {
   req.id = randomUUID();
   res.setHeader('X-Request-Id', req.id);
@@ -24,7 +77,7 @@ app.use((req, res, next) => {
 
 app.use(
   cors({
-    origin: '*',
+    origin: echooCorsOrigin,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
     exposedHeaders: ['X-Request-Id'],
@@ -81,7 +134,7 @@ const server = createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: '*',
+    origin: echooCorsOrigin,
     methods: ['GET', 'POST'],
     credentials: false,
   },
@@ -187,11 +240,18 @@ io.on('connection', (socket) => {
 
 async function startServer() {
   try {
+    if (env.isProduction && env.clientOrigins.length === 0) {
+      console.warn(
+        'Echoo production warning: CLIENT_ORIGINS is empty. Browser API/Socket.IO requests will be blocked until it is configured.'
+      );
+    }
+
     await connectDatabase();
     server.listen(PORT, () => {
       console.log('Echoo API listening on port', PORT);
       console.log('Health check: http://localhost:' + PORT + '/api/health');
       console.log('Environment:', env.nodeEnv);
+      console.log('Allowed frontend origins:', env.clientOrigins.join(', ') || '(none configured)');
     });
   } catch (error) {
     console.error('Failed to start server:', error);
