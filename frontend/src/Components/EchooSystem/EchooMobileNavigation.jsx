@@ -45,7 +45,7 @@ const primaryItems = [
   { label: 'Home', path: '/listen', icon: FaHome, end: true },
   { label: 'Live', path: '/listen/live', icon: FaBroadcastTower },
   { label: 'Stations', path: '/listen/stations', icon: FaHeadphones },
-  { label: 'Library', path: '/listen/library', icon: FaBookOpen },
+  { label: 'Library', path: '/listen/library', icon: FaBookOpen, end: true },
 ];
 
 const moreItems = [
