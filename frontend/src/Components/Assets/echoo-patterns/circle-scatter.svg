@@ -1,0 +1,23 @@
+<svg width="1600" height="900" viewBox="0 0 1600 900" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1600" height="900" fill="#F8FBFF"/>
+  <g fill="#1769FF">
+    <circle cx="154" cy="148" r="18" opacity="0.08"/>
+    <circle cx="238" cy="252" r="44" opacity="0.05"/>
+    <circle cx="390" cy="110" r="10" opacity="0.14"/>
+    <circle cx="516" cy="206" r="28" opacity="0.07"/>
+    <circle cx="682" cy="102" r="16" opacity="0.09"/>
+    <circle cx="832" cy="218" r="60" opacity="0.04"/>
+    <circle cx="1038" cy="126" r="22" opacity="0.08"/>
+    <circle cx="1178" cy="264" r="12" opacity="0.13"/>
+    <circle cx="1356" cy="136" r="48" opacity="0.05"/>
+    <circle cx="1480" cy="288" r="18" opacity="0.09"/>
+    <circle cx="122" cy="654" r="56" opacity="0.04"/>
+    <circle cx="304" cy="742" r="14" opacity="0.12"/>
+    <circle cx="510" cy="624" r="22" opacity="0.07"/>
+    <circle cx="736" cy="756" r="42" opacity="0.05"/>
+    <circle cx="936" cy="646" r="13" opacity="0.12"/>
+    <circle cx="1134" cy="764" r="26" opacity="0.07"/>
+    <circle cx="1332" cy="642" r="16" opacity="0.11"/>
+    <circle cx="1500" cy="738" r="50" opacity="0.04"/>
+  </g>
+</svg>
