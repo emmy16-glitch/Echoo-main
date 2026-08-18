@@ -21,6 +21,7 @@ import './CreatorStudio.identity.css';
 import './CreatorStudioShellFinal.css';
 import echooLogo from '../Assets/logo.png';
 import studioService from '../../services/studioService';
+import ListenerLiveConnected from '../ListenerLive/ListenerLiveConnected';
 import CreatorStudioHome from './CreatorStudioHome';
 import CreatorContentWorkspace from './CreatorContentWorkspace';
 import CreatorBroadcastWorkspace from './CreatorLiveConnectedWorkspace';
@@ -91,6 +92,7 @@ const CreatorStudio = () => {
     { name: 'Home', icon: <FaHome /> },
     { name: 'Stations', icon: <FaBroadcastTower /> },
     { name: 'Broadcast', icon: <FaMicrophone /> },
+    { name: 'Explore Live', icon: <FaHeadphones /> },
     { name: 'Audio', icon: <FaHeadphones /> },
     { name: 'Audience', icon: <FaUsers /> },
     { name: 'Analytics', icon: <FaChartBar /> },
@@ -147,6 +149,11 @@ const CreatorStudio = () => {
       setStudioSearch('');
       return;
     }
+    if (query.includes('explore') || query.includes('listen')) {
+      navigateStudio('Explore Live');
+      setStudioSearch('');
+      return;
+    }
     if (query.includes('live') || query.includes('schedule') || query.includes('broadcast')) {
       navigateStudio('Broadcast');
       setStudioSearch('');
@@ -157,7 +164,7 @@ const CreatorStudio = () => {
       setStudioSearch('');
       return;
     }
-    setNotice('Try Home, Stations, Broadcast, Audio, Audience, Analytics, or Settings.');
+    setNotice('Try Home, Stations, Broadcast, Explore Live, Audio, Audience, Analytics, or Settings.');
   };
 
   const handleCreatorLogout = () => {
@@ -277,6 +284,8 @@ const CreatorStudio = () => {
             onClearPreparedBroadcast={clearPreparedBroadcast}
           />
         );
+      case 'Explore Live':
+        return <ListenerLiveConnected />;
       case 'Audience':
         return <CreatorAudienceWorkspace audience={audience} loading={loading} />;
       case 'Analytics':
