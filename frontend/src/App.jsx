@@ -24,6 +24,7 @@ import ListenerDownloads from './Components/ListenerDownloads/ListenerDownloadsC
 import ListenerCreatorProfile from './Components/ListenerCreatorProfile/ListenerCreatorProfile';
 import ListenerNotifications from './Components/ListenerNotifications/ListenerNotifications';
 import ListenerSettings from './Components/ListenerSettings/ListenerSettings';
+import ListenerAudioDetail from './Components/ListenerAudioDetail/ListenerAudioDetail';
 import ListenerRealLiveRoom from './Components/ListenerLiveExperience/ListenerRealLiveRoom';
 import ListenerRealStationProfile from './Components/ListenerLiveExperience/ListenerRealStationProfile';
 
@@ -222,6 +223,7 @@ function App() {
             <Route path="live/:broadcastId" element={<ListenerRealLiveRoom />} />
             <Route path="stations" element={<ListenerStations />} />
             <Route path="stations/:stationId" element={<ListenerRealStationProfile />} />
+            <Route path="audio/:audioId" element={<ListenerAudioDetail />} />
             <Route path="library" element={<ListenerLibrary />} />
             <Route path="library/following" element={<ListenerFollowing />} />
             <Route path="history" element={<ListenerHistory />} />
