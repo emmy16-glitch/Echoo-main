@@ -2,26 +2,34 @@ import {
   apiRequest,
   buildMediaUrl,
 } from './api.js';
+import { buildGeneratedAudioCoverUrl } from '../audioCover/audioCover.js';
 
 const normalizeAudio = (track) => {
-  if (!track) {
-    return null;
-  }
+  if (!track) return null;
 
-  return {
+  const artistName =
+    typeof track.artist === 'string'
+      ? track.artist
+      : track.artist?.creatorProfile?.artistName ||
+        track.artist?.creatorProfile?.organizationName ||
+        track.artist?.displayName ||
+        track.artist?.username ||
+        track.artistName ||
+        'Echoo Creator';
+
+  const normalized = {
     ...track,
     id: track.id || track._id || null,
     backendFileUrl: buildMediaUrl(track.fileUrl),
     fileUrl: buildMediaUrl(track.fileUrl),
-    coverArt: buildMediaUrl(track.coverArt),
-    artistName:
-      typeof track.artist === 'string'
-        ? track.artist
-        : track.artist?.displayName ||
-          track.artist?.username ||
-          track.artistName ||
-          'Unknown Artist',
+    artistName,
   };
+
+  normalized.coverArt =
+    buildMediaUrl(track.coverArt) ||
+    buildGeneratedAudioCoverUrl({ ...normalized, artistName });
+
+  return normalized;
 };
 
 export const audioService = {
