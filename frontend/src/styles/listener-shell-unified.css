@@ -54,11 +54,47 @@
   background:#155eef!important;color:#fff!important
 }
 
+/* Visible hover labels for icon-only listener controls. aria-label remains the
+   accessibility source of truth; these rules make the same name visible to a
+   mouse/keyboard user instead of leaving the icons unexplained. */
+#root .echoo-listener-shell .layout-player-controls button[aria-label],
+#root .echoo-listener-shell .layout-player-volume button[aria-label],
+#root .echoo-listener-shell .beautiful-search-clear[aria-label]{position:relative!important}
+#root .echoo-listener-shell .layout-player-controls button[aria-label]::after,
+#root .echoo-listener-shell .layout-player-volume button[aria-label]::after,
+#root .echoo-listener-shell .beautiful-search-clear[aria-label]::after{
+  content:attr(aria-label);position:absolute;z-index:120;left:50%;bottom:calc(100% + 9px);
+  min-width:max-content;max-width:190px;padding:6px 8px;border:1px solid #dce5f0;border-radius:7px;
+  background:#101828;color:#fff;box-shadow:0 7px 20px rgba(16,24,40,.15);font-size:10px;
+  font-weight:700;line-height:1;white-space:nowrap;opacity:0;visibility:hidden;pointer-events:none;
+  transform:translate(-50%,4px);transition:opacity .14s ease,transform .14s ease,visibility .14s ease
+}
+#root .echoo-listener-shell .layout-player-controls button[aria-label]:hover::after,
+#root .echoo-listener-shell .layout-player-controls button[aria-label]:focus-visible::after,
+#root .echoo-listener-shell .layout-player-volume button[aria-label]:hover::after,
+#root .echoo-listener-shell .layout-player-volume button[aria-label]:focus-visible::after,
+#root .echoo-listener-shell .beautiful-search-clear[aria-label]:hover::after,
+#root .echoo-listener-shell .beautiful-search-clear[aria-label]:focus-visible::after{
+  opacity:1;visibility:visible;transform:translate(-50%,0)
+}
+
 @media(max-width:900px){
-  #root .echoo-listener-shell .layout-sidebar{width:74px!important;padding:14px 8px!important}
+  #root .echoo-listener-shell .layout-sidebar{width:74px!important;padding:14px 8px!important;overflow:visible!important}
   #root .echoo-listener-shell .layout-brand{justify-content:center!important;margin:0 0 18px!important;padding:0!important}
-  #root .echoo-listener-shell .layout-brand>span,#root .echoo-listener-shell .layout-nav-label,#root .echoo-listener-shell .layout-profile-info,#root .echoo-listener-shell .listener-profile-chevron{display:none!important}
-  #root .echoo-listener-shell .layout-nav-item{justify-content:center!important;padding:0!important}
+  #root .echoo-listener-shell .layout-brand>span,#root .echoo-listener-shell .layout-profile-info,#root .echoo-listener-shell .listener-profile-chevron{display:none!important}
+  #root .echoo-listener-shell .layout-nav-item{position:relative!important;justify-content:center!important;padding:0!important;overflow:visible!important}
+  #root .echoo-listener-shell .layout-nav-item .layout-nav-label{
+    position:absolute!important;z-index:130;display:block!important;left:calc(100% + 10px)!important;top:50%!important;
+    min-width:max-content!important;padding:7px 9px!important;border:1px solid #dce5f0!important;border-radius:7px!important;
+    background:#101828!important;color:#fff!important;box-shadow:0 7px 20px rgba(16,24,40,.15)!important;
+    font-size:10px!important;font-weight:700!important;line-height:1!important;white-space:nowrap!important;
+    opacity:0!important;visibility:hidden!important;pointer-events:none!important;transform:translate(4px,-50%)!important;
+    transition:opacity .14s ease,transform .14s ease,visibility .14s ease!important
+  }
+  #root .echoo-listener-shell .layout-nav-item:hover .layout-nav-label,
+  #root .echoo-listener-shell .layout-nav-item:focus-visible .layout-nav-label{
+    opacity:1!important;visibility:visible!important;transform:translate(0,-50%)!important
+  }
   #root .echoo-listener-shell .layout-profile{justify-content:center!important;padding:0!important}
   #root .echoo-listener-shell .echoo-listener-main{width:calc(100% - 74px)!important;margin-left:74px!important}
   #root .echoo-listener-shell>.echoo-persistent-player{left:74px!important;grid-template-columns:minmax(180px,1fr) auto!important}
