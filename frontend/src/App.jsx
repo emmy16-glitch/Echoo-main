@@ -28,6 +28,7 @@ import ListenerAudioDetail from './Components/ListenerAudioDetail/ListenerAudioD
 import ListenerRealLiveRoom from './Components/ListenerLiveExperience/ListenerRealLiveRoom';
 import ListenerRealStationProfile from './Components/ListenerLiveExperience/ListenerRealStationProfile';
 import EchooExperienceOrchestrator from './Components/EchooSystem/EchooExperienceOrchestrator';
+import EchooMobileNavigation from './Components/EchooSystem/EchooMobileNavigation';
 
 const getStoredUser = () => {
   try {
@@ -194,6 +195,7 @@ function App() {
   return (
     <BrowserRouter>
       <EchooExperienceOrchestrator />
+      <EchooMobileNavigation />
 
       <a className="echoo-skip-to-content" href="#echoo-main-content">
         Skip to content
