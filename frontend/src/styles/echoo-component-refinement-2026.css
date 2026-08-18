@@ -1,0 +1,350 @@
+/* Echoo premium component refinement — shared across listener + creator. */
+
+/* Settings: clean registry-style blocks with animated active state. */
+.ref-settings-layout,
+.creator-settings-real {
+  position: relative;
+}
+
+.ref-settings-nav,
+.creator-settings-tabs {
+  border: 1px solid var(--echoo-line);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: var(--echoo-shadow-sm);
+}
+
+.ref-settings-nav button,
+.creator-settings-tabs button {
+  position: relative;
+  overflow: hidden;
+}
+
+.ref-settings-nav button::before,
+.creator-settings-tabs button::before {
+  content: '';
+  position: absolute;
+  inset: 5px;
+  z-index: 0;
+  border-radius: 11px;
+  background: var(--echoo-blue-soft);
+  opacity: 0;
+  transform: scale(.94);
+  transition: opacity 180ms ease, transform 260ms var(--echoo-ease);
+}
+
+.ref-settings-nav button.active::before,
+.creator-settings-tabs button.active::before {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.ref-settings-nav button > *,
+.creator-settings-tabs button > * {
+  position: relative;
+  z-index: 1;
+}
+
+.ref-settings-card,
+.creator-settings-real-card {
+  border: 1px solid var(--echoo-line) !important;
+  border-radius: 20px !important;
+  background: #fff !important;
+  box-shadow: var(--echoo-shadow-sm) !important;
+}
+
+.ref-settings-card > header,
+.creator-settings-real-card > h3 {
+  position: relative;
+}
+
+.ref-settings-categories button,
+.creator-settings-avatar-actions button {
+  border-radius: 999px !important;
+}
+
+.ref-settings-categories button.selected {
+  border-color: #9dbbf8 !important;
+  background: var(--echoo-blue-soft) !important;
+  color: var(--echoo-blue-strong) !important;
+  box-shadow: inset 0 0 0 1px rgba(23,105,255,.04);
+}
+
+.ref-settings-toggle-list label,
+.creator-settings-real-toggle {
+  transition: border-color 180ms ease, background 180ms ease, transform 180ms var(--echoo-ease);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .ref-settings-toggle-list label:hover,
+  .creator-settings-real-toggle:hover {
+    border-color: #cbdaf6 !important;
+    background: #fbfdff !important;
+    transform: translateX(2px);
+  }
+}
+
+/* Notifications: not a plain list anymore. */
+.ln-page {
+  position: relative;
+}
+
+.ln-header {
+  position: relative;
+  overflow: hidden;
+  padding: 26px !important;
+  border: 1px solid var(--echoo-line);
+  border-radius: 20px;
+  background: #fff url('../Components/Assets/echoo-patterns/circle-scatter.svg') center / cover no-repeat;
+  box-shadow: var(--echoo-shadow-sm);
+}
+
+.ln-item {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--echoo-line) !important;
+  border-radius: 16px !important;
+  background: #fff !important;
+  box-shadow: 0 6px 18px rgba(25,46,78,.04);
+  transition: transform 200ms var(--echoo-ease), border-color 180ms ease, box-shadow 200ms ease !important;
+}
+
+.ln-item.unread {
+  border-color: #bdd1fb !important;
+  background: linear-gradient(90deg, #f7faff, #fff 52%) !important;
+}
+
+.ln-item.unread::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 14px;
+  bottom: 14px;
+  width: 3px;
+  border-radius: 0 999px 999px 0;
+  background: var(--echoo-blue);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .ln-item:hover {
+    transform: translateY(-2px);
+    border-color: #cbdaf6 !important;
+    box-shadow: var(--echoo-shadow-sm);
+  }
+}
+
+.ln-icon {
+  box-shadow: inset 0 0 0 1px rgba(23,105,255,.08);
+}
+
+/* Creator notification surfaces share the same premium list behaviour. */
+.creator-notifications-workspace article,
+.creator-notifications-list article,
+.creator-notification-card {
+  border-radius: 16px !important;
+  box-shadow: 0 6px 18px rgba(25,46,78,.04);
+  transition: transform 200ms var(--echoo-ease), box-shadow 200ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .creator-notifications-workspace article:hover,
+  .creator-notifications-list article:hover,
+  .creator-notification-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--echoo-shadow-sm);
+  }
+}
+
+/* Tables/rows used by History and Downloads feel like one system. */
+.ref-history-page,
+.ref-downloads-page,
+.echoo-reference-page {
+  --echoo-row-hover: #f8fbff;
+}
+
+.ref-history-page :is(article, li, .ref-history-row),
+.ref-downloads-page :is(article, li, .ref-download-row) {
+  transition: background-color 160ms ease, transform 180ms var(--echoo-ease);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .ref-history-page :is(article, li, .ref-history-row):hover,
+  .ref-downloads-page :is(article, li, .ref-download-row):hover {
+    background: var(--echoo-row-hover);
+  }
+}
+
+/* Home/listener audio: play buttons feel responsive and artwork remains the hero. */
+.ref-feature-art,
+.ref-home-station-art,
+.ref-creator-avatar {
+  overflow: hidden;
+}
+
+.ref-feature-art::after,
+.ref-home-station-art::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent 58%, rgba(8,25,51,.12));
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .ref-feature-audio-card:hover .ref-feature-art::after,
+  .ref-home-station-card:hover .ref-home-station-art::after {
+    opacity: 1;
+  }
+}
+
+/* Broadcast/live workspaces: visual hierarchy rather than random panels. */
+.ebsx-live-layout,
+.ebsx-setup-layout {
+  position: relative;
+}
+
+.ebsx-chat-card,
+.ebsx-activity-card,
+.ebsx-live-controls,
+.ebsx-planned-card,
+.ebsx-mic-preview {
+  border: 1px solid var(--echoo-line) !important;
+  border-radius: 18px !important;
+  background: #fff !important;
+}
+
+.ebsx-chat-card,
+.llr-chat-shell {
+  overflow: visible !important;
+}
+
+.ebsx-onair-card {
+  box-shadow: 0 22px 50px rgba(9,22,42,.16) !important;
+}
+
+/* Upload dialog: stronger information hierarchy, no dated modal feel. */
+.studio-upload-modal {
+  border-radius: 22px !important;
+  overflow: hidden;
+}
+
+.upload-modal-header {
+  padding-bottom: 15px;
+  border-bottom: 1px solid #edf1f6;
+}
+
+.studio-upload-drop {
+  position: relative;
+  overflow: hidden;
+  transition: border-color 180ms ease, background-color 180ms ease, transform 200ms var(--echoo-ease);
+}
+
+.studio-upload-drop::after {
+  content: '';
+  position: absolute;
+  inset: auto -10% -65% 20%;
+  height: 120%;
+  background: url('../Components/Assets/echoo-patterns/layered-waves.svg') bottom / cover no-repeat;
+  opacity: .35;
+  pointer-events: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .studio-upload-drop:hover {
+    border-color: #9dbbf8 !important;
+    background: #fbfdff !important;
+    transform: translateY(-1px);
+  }
+}
+
+/* Empty states — deliberate visual treatment, no fake content. */
+.ref-state-card,
+.ln-empty,
+.ebsx-chat-empty,
+.creator-settings-real-message:not(.error):not(.success) {
+  border: 1px dashed #d7e2f2;
+  border-radius: 18px;
+}
+
+.ln-empty {
+  background: #fff url('../Components/Assets/echoo-patterns/circle-scatter.svg') center / cover no-repeat;
+}
+
+/* Onboarding: each stage feels like one continuous journey. */
+.eor-panel {
+  box-shadow: 0 24px 70px rgba(25,46,78,.10);
+}
+
+.eor-form-header h1,
+.eor-hero-copy h1 {
+  letter-spacing: -.045em;
+}
+
+.eor-primary,
+.ref-primary-action,
+.creator-settings-real-card > button[type='submit'] {
+  box-shadow: 0 8px 20px rgba(23,105,255,.16);
+}
+
+.eor-primary:hover,
+.ref-primary-action:hover,
+.creator-settings-real-card > button[type='submit']:hover {
+  box-shadow: 0 12px 26px rgba(23,105,255,.22);
+}
+
+/* Motion-aware progress through onboarding stepper. */
+.eor-step-line::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--echoo-blue);
+  transform-origin: left center;
+  transform: scaleX(0);
+  transition: transform 420ms var(--echoo-ease);
+}
+
+.eor-step.complete .eor-step-line::after {
+  transform: scaleX(1);
+}
+
+/* Mobile/tablet refinement. */
+@media (max-width: 920px) {
+  .ref-settings-layout {
+    grid-template-columns: 1fr !important;
+  }
+
+  .ref-settings-nav {
+    position: static !important;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0,1fr));
+    gap: 6px;
+    padding: 6px !important;
+  }
+
+  .creator-settings-tabs {
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .creator-settings-tabs::-webkit-scrollbar { display: none; }
+}
+
+@media (max-width: 640px) {
+  .ref-settings-nav {
+    grid-template-columns: 1fr;
+  }
+
+  .ln-header {
+    padding: 18px !important;
+  }
+
+  .ln-item {
+    border-radius: 14px !important;
+  }
+
+  .studio-upload-modal {
+    border-radius: 18px 18px 0 0 !important;
+  }
+}
