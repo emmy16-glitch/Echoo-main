@@ -16,12 +16,15 @@ import "./styles/echoo-batch1-integration.css";
 import "./styles/station-brand-rendering.css";
 import "./styles/listener-premium-polish.css";
 import "./styles/listener-final-overrides.css";
+import "./styles/listener-reference-pages.css";
+import "./styles/listener-reference-pages-extended.css";
+import "./styles/listener-shell-unified.css";
 
 initializeEchooTheme();
 
 if (localStorage.getItem("accessToken")) {
   settingsService.get().catch(() => {
-    // Theme stays on its cached/system value if account hydration is unavailable.
+    // Echoo remains on its intentional product theme if account hydration is unavailable.
   });
 }
 
