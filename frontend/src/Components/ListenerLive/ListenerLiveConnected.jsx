@@ -3,13 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import {
   FaBroadcastTower,
   FaClock,
+  FaHeadphones,
   FaPlay,
   FaSyncAlt,
   FaUsers,
 } from 'react-icons/fa';
 
 import batch3Service from '../../services/batch3Service';
-import '../../styles/echoo-batch3.css';
+import '../../styles/listener-reference-pages.css';
 
 const LIVE_SYNC_INTERVAL_MS = 10000;
 
@@ -17,27 +18,12 @@ const formatStart = (value) => {
   if (!value) return 'Time not set';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return 'Time not set';
-
   return date.toLocaleString([], {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-    hour: 'numeric',
-    minute: '2-digit',
+    weekday:'short', day:'numeric', month:'short', hour:'numeric', minute:'2-digit',
   });
 };
 
-const Artwork = ({ item }) => {
-  if (item?.coverArt) {
-    return <img src={item.coverArt} alt="" />;
-  }
-
-  return (
-    <div className="echoo-cleanup-art-fallback" aria-hidden="true">
-      <FaBroadcastTower />
-    </div>
-  );
-};
+const artworkOf = (item) => item?.station?.brandCover || item?.coverArt || item?.artwork || null;
 
 const ListenerLiveConnected = () => {
   const navigate = useNavigate();
@@ -45,21 +31,19 @@ const ListenerLiveConnected = () => {
   const [scheduled, setScheduled] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const [error, setError] = useState('');
 
   const load = useCallback(async ({ refresh = false, silent = false } = {}) => {
     try {
       if (!silent) {
         refresh ? setRefreshing(true) : setLoading(true);
-        setFailed(false);
+        setError('');
       }
-
       const data = await batch3Service.getDiscovery();
-      setLive(data.live || []);
-      setScheduled(data.scheduled || []);
-    } catch (error) {
-      console.error('Real Live:', error);
-      if (!silent) setFailed(true);
+      setLive(Array.isArray(data.live) ? data.live : []);
+      setScheduled(Array.isArray(data.scheduled) ? data.scheduled : []);
+    } catch (loadError) {
+      if (!silent) setError(loadError?.message || 'Live discovery could not be loaded.');
     } finally {
       if (!silent) {
         setLoading(false);
@@ -70,11 +54,9 @@ const ListenerLiveConnected = () => {
 
   useEffect(() => {
     load();
-
-    const sync = () => load({ silent: true });
+    const sync = () => load({ silent:true });
     const interval = window.setInterval(sync, LIVE_SYNC_INTERVAL_MS);
     window.addEventListener('focus', sync);
-
     return () => {
       window.clearInterval(interval);
       window.removeEventListener('focus', sync);
@@ -82,135 +64,101 @@ const ListenerLiveConnected = () => {
   }, [load]);
 
   const totalListeners = useMemo(
-    () =>
-      live.reduce(
-        (total, item) => total + (Number(item.listenerCount) || 0),
-        0
-      ),
+    () => live.reduce((total, item) => total + (Number(item.listenerCount) || 0), 0),
     [live]
   );
-
-  if (!loading && failed) {
-    return (
-      <div className="b3-listener-page">
-        <div className="echoo-cleanup-state">
-          <strong>Live discovery is unavailable.</strong>
-          <span>Echoo could not load live broadcasts. No fake live activity was substituted.</span>
-          <button type="button" onClick={() => load()}>Try again</button>
-        </div>
-      </div>
-    );
-  }
-
+  const peakAcrossLive = useMemo(
+    () => live.reduce((peak, item) => Math.max(peak, Number(item.peakListeners) || 0), 0),
+    [live]
+  );
   const featured = live[0] || null;
 
   return (
-    <div className="b3-listener-page">
-      <header className="b3-listener-header">
+    <main className="echoo-reference-page ref-live-page">
+      <header className="ref-page-heading ref-live-heading">
         <div>
-          <span className="b3-kicker">LIVE NOW</span>
-          <h1>Your world is talking.</h1>
-          <p>
-            {live.length} live {live.length === 1 ? 'conversation' : 'conversations'} ·{' '}
-            {totalListeners} listening
-          </p>
+          <span className="ref-kicker">LIVE NOW</span>
+          <h1>Hear it while it happens.</h1>
+          <p>Creator broadcasts appear here from the same live state used by Broadcast Studio.</p>
         </div>
-
-        <button
-          type="button"
-          className="b3-refresh"
-          disabled={refreshing}
-          onClick={() => load({ refresh: true })}
-        >
+        <button type="button" className="ref-secondary-action" disabled={refreshing} onClick={() => load({ refresh:true })}>
           <FaSyncAlt /> {refreshing ? 'Refreshing...' : 'Refresh'}
         </button>
       </header>
 
+      {error && <div className="ref-inline-error">{error}</div>}
+
       {loading ? (
-        <div className="b3-big-empty">Checking who is live...</div>
+        <div className="ref-state-card"><FaBroadcastTower /><strong>Checking who is live...</strong></div>
       ) : (
         <>
           {featured ? (
-            <section className="b3-feature-live">
-              <div className="b3-feature-copy">
-                <span className="b3-live-pill">LIVE</span>
+            <section className="ref-live-feature">
+              <div className="ref-live-feature-copy">
+                <span className="ref-live-status"><i /> LIVE NOW</span>
                 <h2>{featured.title}</h2>
-                <p>{featured.stationName} · {featured.category}</p>
-                <div className="b3-feature-stats">
-                  <span><FaUsers /> {featured.listenerCount || 0} listening</span>
+                <p>{featured.stationName} · {featured.creatorName || featured.station?.ownerName || 'Echoo Creator'}</p>
+                <div className="ref-live-feature-metrics">
+                  <span><FaUsers /> {Number(featured.listenerCount) || 0} listening</span>
+                  <span><FaHeadphones /> {Number(featured.peakListeners) || 0} peak</span>
                 </div>
-                <button
-                  type="button"
-                  className="b3-join"
-                  onClick={() => navigate(`/listen/live/${featured.id}`)}
-                >
-                  <FaPlay /> Join live
-                </button>
+                <button type="button" onClick={() => navigate(`/listen/live/${featured.id}`)}><FaPlay /> Join live</button>
               </div>
-              <div className="b3-feature-art"><Artwork item={featured} /></div>
+              <button type="button" className="ref-live-feature-art" onClick={() => navigate(`/listen/live/${featured.id}`)} aria-label={`Join ${featured.title}`}>
+                {artworkOf(featured) ? <img src={artworkOf(featured)} alt="" /> : <FaBroadcastTower />}
+                <span className="ref-live-rings"><i /><i /><i /></span>
+              </button>
             </section>
           ) : (
-            <div className="b3-big-empty">
-              <FaBroadcastTower />
-              <strong>No one is live right now.</strong>
-            </div>
+            <section className="ref-live-offline">
+              <div className="ref-live-offline-signal"><FaBroadcastTower /><span /><span /><span /></div>
+              <div><span className="ref-kicker">QUIET RIGHT NOW</span><h2>No creator is live at the moment.</h2><p>Scheduled broadcasts below are connected to the creator scheduling system and will move here when they go live.</p></div>
+            </section>
           )}
 
-          {live.length > 1 && (
-            <section className="b3-section">
-              <div className="b3-section-title">
-                <h2>Happening now</h2>
-                <span>{live.length} live</span>
-              </div>
+          <section className="ref-live-summary">
+            <article><FaBroadcastTower /><div><strong>{live.length}</strong><span>Live broadcasts</span></div></article>
+            <article><FaUsers /><div><strong>{totalListeners}</strong><span>Listening now</span></div></article>
+            <article><FaHeadphones /><div><strong>{peakAcrossLive}</strong><span>Highest current peak</span></div></article>
+            <article><FaClock /><div><strong>{scheduled.length}</strong><span>Scheduled next</span></div></article>
+          </section>
 
-              <div className="b3-live-grid">
+          {live.length > 1 && (
+            <section className="ref-live-section">
+              <div className="ref-section-heading"><div><h2>Happening now</h2><p>Other broadcasts currently on air.</p></div><span className="ref-count-pill">{live.length - 1}</span></div>
+              <div className="ref-live-grid">
                 {live.slice(1).map((item) => (
-                  <article className="b3-live-card" key={item.id}>
-                    <Artwork item={item} />
-                    <div>
-                      <span className="b3-live-pill">LIVE</span>
-                      <h3>{item.title}</h3>
-                      <p>{item.stationName}</p>
-                      <small>{item.listenerCount || 0} listening</small>
-                      <button type="button" onClick={() => navigate(`/listen/live/${item.id}`)}>
-                        Join
-                      </button>
-                    </div>
+                  <article className="ref-live-card" key={item.id}>
+                    <button type="button" className="ref-live-card-art" onClick={() => navigate(`/listen/live/${item.id}`)}>
+                      {artworkOf(item) ? <img src={artworkOf(item)} alt="" /> : <FaBroadcastTower />}
+                      <span className="ref-live-chip"><i /> LIVE NOW</span>
+                    </button>
+                    <div><span>{item.category || item.station?.category || 'Live'}</span><strong>{item.title}</strong><small>{item.stationName}</small></div>
+                    <div className="ref-live-card-bottom"><span><FaUsers /> {Number(item.listenerCount) || 0}</span><button type="button" onClick={() => navigate(`/listen/live/${item.id}`)}><FaPlay /> Join</button></div>
                   </article>
                 ))}
               </div>
             </section>
           )}
 
-          <section className="b3-section">
-            <div className="b3-section-title">
-              <h2>Starting soon</h2>
-              <span>{scheduled.length} scheduled</span>
-            </div>
-
-            {scheduled.length === 0 ? (
-              <div className="b3-small-empty">No upcoming broadcasts yet.</div>
-            ) : (
-              <div className="b3-upcoming-list">
-                {scheduled.slice(0, 12).map((item) => (
+          <section className="ref-live-section">
+            <div className="ref-section-heading"><div><h2>Starting soon</h2><p>Real broadcasts scheduled by Echoo creators.</p></div><span className="ref-count-pill">{scheduled.length}</span></div>
+            {scheduled.length ? (
+              <div className="ref-upcoming-list">
+                {scheduled.slice(0,12).map((item) => (
                   <article key={item.id}>
-                    <div className="b3-upcoming-time"><FaClock /></div>
-                    <div>
-                      <strong>{item.title}</strong>
-                      <span>{item.stationName}</span>
-                    </div>
+                    <div className="ref-upcoming-art">{artworkOf(item) ? <img src={artworkOf(item)} alt="" /> : <FaClock />}</div>
+                    <div className="ref-upcoming-copy"><strong>{item.title}</strong><span>{item.stationName}</span></div>
                     <time>{formatStart(item.startTime)}</time>
-                    <button type="button" onClick={() => navigate(`/listen/live/${item.id}`)}>
-                      View
-                    </button>
+                    <button type="button" onClick={() => item.stationId ? navigate(`/listen/stations/${item.stationId}`) : navigate('/listen/live')}>View station</button>
                   </article>
                 ))}
               </div>
-            )}
+            ) : <div className="ref-state-card compact"><FaClock /><strong>No upcoming broadcasts yet.</strong></div>}
           </section>
         </>
       )}
-    </div>
+    </main>
   );
 };
 
