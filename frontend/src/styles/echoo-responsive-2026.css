@@ -1,0 +1,694 @@
+/*
+ * Echoo strict responsive pass — desktop, tablet and phone.
+ * Loaded last so the product-wide design system can safely correct legacy
+ * fixed widths without changing backend/data behaviour.
+ */
+
+html,
+body,
+#root {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+:where(
+  .studio-page,
+  .studio-main,
+  .studio-view,
+  .listener-layout,
+  .echoo-listener-main,
+  .layout-content,
+  .echoo-listener-scroll,
+  .echoo-reference-page,
+  .ehome,
+  .ebsx-setup-layout,
+  .ebsx-live-layout,
+  .llr-page,
+  .ref-settings-layout,
+  .creator-settings-real
+) {
+  min-width: 0;
+}
+
+:where(img, video, canvas, svg) {
+  max-width: 100%;
+}
+
+/* ---------- Wide desktop ---------- */
+@media (max-width: 1320px) {
+  #root .echoo-reference-page {
+    padding-inline: 28px !important;
+  }
+
+  #root .ref-featured-audio-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+
+  #root .ref-home-hero {
+    grid-template-columns: minmax(0, 1.1fr) minmax(190px, .68fr) minmax(210px, .62fr) !important;
+    padding-inline: 28px !important;
+  }
+
+  .studio-view {
+    padding-inline: clamp(18px, 2.2vw, 30px);
+  }
+}
+
+/* ---------- Laptop / landscape tablet ---------- */
+@media (max-width: 1100px) {
+  #root .ref-home-hero {
+    grid-template-columns: minmax(0, 1fr) minmax(220px, .72fr) !important;
+  }
+
+  #root .ref-home-live-feature {
+    grid-column: 1 / -1;
+    min-height: 108px;
+  }
+
+  #root .ref-featured-audio-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  #root .ref-creators-row,
+  #root .ref-home-station-row {
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scroll-snap-type: x proximity;
+    padding-bottom: 8px;
+    scrollbar-width: thin;
+  }
+
+  #root .ref-creators-row > *,
+  #root .ref-home-station-row > * {
+    scroll-snap-align: start;
+  }
+
+  .ebsx-live-layout,
+  .ebsx-setup-layout {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .ebsx-live-side,
+  .ebsx-workflow {
+    position: static !important;
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  .creator-settings-security-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ---------- Tablet ---------- */
+@media (max-width: 900px) {
+  /* Listener shell becomes icon rail while preserving the product player. */
+  #root .echoo-listener-shell:has(.echoo-reference-page) .layout-sidebar,
+  #root .echoo-listener-shell .layout-sidebar {
+    width: 76px !important;
+    padding: 16px 9px !important;
+  }
+
+  #root .echoo-listener-shell:has(.echoo-reference-page) .layout-brand,
+  #root .echoo-listener-shell .layout-brand {
+    justify-content: center !important;
+    margin-inline: 0 !important;
+    padding-inline: 0 !important;
+  }
+
+  #root .echoo-listener-shell:has(.echoo-reference-page) .layout-brand > span,
+  #root .echoo-listener-shell .layout-brand > span,
+  #root .echoo-listener-shell:has(.echoo-reference-page) .layout-nav-label,
+  #root .echoo-listener-shell .layout-nav-label,
+  #root .echoo-listener-shell:has(.echoo-reference-page) .layout-profile-info,
+  #root .echoo-listener-shell .layout-profile-info,
+  #root .echoo-listener-shell:has(.echoo-reference-page) .listener-profile-chevron,
+  #root .echoo-listener-shell .listener-profile-chevron {
+    display: none !important;
+  }
+
+  #root .echoo-listener-shell:has(.echoo-reference-page) .layout-nav-item,
+  #root .echoo-listener-shell .layout-nav-item {
+    width: 52px !important;
+    min-width: 52px !important;
+    height: 46px !important;
+    min-height: 46px !important;
+    margin-inline: auto !important;
+    justify-content: center !important;
+    padding: 0 !important;
+  }
+
+  #root .echoo-listener-shell:has(.echoo-reference-page) .layout-profile,
+  #root .echoo-listener-shell .layout-profile {
+    width: 52px !important;
+    height: 52px !important;
+    min-height: 52px !important;
+    justify-content: center !important;
+    padding: 0 !important;
+  }
+
+  #root .echoo-listener-shell:has(.echoo-reference-page) .listener-profile-dropdown,
+  #root .echoo-listener-shell .listener-profile-dropdown {
+    left: 58px !important;
+    bottom: 0 !important;
+  }
+
+  #root .echoo-listener-shell:has(.echoo-reference-page) .echoo-listener-main,
+  #root .echoo-listener-shell .echoo-listener-main {
+    width: calc(100% - 76px) !important;
+    margin-left: 76px !important;
+  }
+
+  #root .echoo-listener-shell:has(.echoo-reference-page) > .echoo-persistent-player,
+  #root .echoo-listener-shell > .echoo-persistent-player {
+    left: 76px !important;
+    grid-template-columns: minmax(200px, 1fr) auto minmax(190px, .7fr) !important;
+    gap: 14px !important;
+    padding-inline: 18px !important;
+  }
+
+  #root .echoo-listener-shell .layout-topbar {
+    padding-inline: 18px !important;
+  }
+
+  #root .echoo-listener-shell .beautiful-search-wrapper {
+    width: min(470px, 66vw) !important;
+  }
+
+  #root .echoo-reference-page {
+    padding: 26px 22px 122px !important;
+  }
+
+  #root .ref-home-hero {
+    grid-template-columns: 1fr !important;
+    min-height: 0 !important;
+    gap: 18px !important;
+  }
+
+  #root .ref-home-hero-visual {
+    min-height: 150px;
+    height: 150px !important;
+  }
+
+  #root .ref-home-live-feature {
+    width: 100%;
+  }
+
+  #root .ref-featured-audio-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  #root .ref-page-heading,
+  #root .ref-section-heading {
+    align-items: flex-start !important;
+    flex-direction: column !important;
+  }
+
+  #root .ref-page-heading > :last-child,
+  #root .ref-section-heading > button {
+    align-self: flex-start;
+  }
+
+  .llr-page {
+    padding-inline: 18px !important;
+  }
+
+  .llr-hero {
+    grid-template-columns: 1fr !important;
+  }
+
+  .llr-art {
+    width: min(100%, 360px) !important;
+    margin-inline: auto;
+  }
+
+  /* Creator shell condenses without hiding destinations. */
+  .studio-sidebar {
+    width: 210px !important;
+  }
+
+  .studio-main {
+    margin-left: 210px !important;
+    width: calc(100% - 210px) !important;
+  }
+
+  .studio-topbar-final {
+    padding-inline: 18px !important;
+  }
+
+  .studio-command-search {
+    width: min(420px, 48vw) !important;
+  }
+
+  .ehome-hero,
+  .ebsx-station-hero,
+  .ebsx-onair-card {
+    min-height: 0 !important;
+  }
+
+  .ehome-hero-actions {
+    flex-wrap: wrap;
+  }
+
+  .ebsx-onair-card {
+    grid-template-columns: 120px minmax(0, 1fr) !important;
+  }
+
+  .ebsx-live-mic {
+    display: none !important;
+  }
+}
+
+/* ---------- Small tablet / large phone ---------- */
+@media (max-width: 720px) {
+  /* Listener uses bottom navigation to free horizontal space. */
+  #root .echoo-listener-shell .layout-sidebar,
+  #root .echoo-listener-shell:has(.echoo-reference-page) .layout-sidebar {
+    position: fixed !important;
+    z-index: 120 !important;
+    left: 0 !important;
+    right: 0 !important;
+    top: auto !important;
+    bottom: 74px !important;
+    width: 100% !important;
+    height: 60px !important;
+    min-height: 60px !important;
+    padding: 6px 8px !important;
+    display: flex !important;
+    align-items: center !important;
+    border-right: 0 !important;
+    border-top: 1px solid var(--echoo-line) !important;
+    box-shadow: 0 -5px 18px rgba(25,46,78,.05) !important;
+  }
+
+  #root .echoo-listener-shell .layout-brand,
+  #root .echoo-listener-shell:has(.echoo-reference-page) .layout-brand,
+  #root .echoo-listener-shell .listener-profile-menu-wrap,
+  #root .echoo-listener-shell:has(.echoo-reference-page) .listener-profile-menu-wrap {
+    display: none !important;
+  }
+
+  #root .echoo-listener-shell .layout-navigation,
+  #root .echoo-listener-shell:has(.echoo-reference-page) .layout-navigation {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
+    align-items: center !important;
+    gap: 2px !important;
+    margin: 0 !important;
+  }
+
+  #root .echoo-listener-shell .layout-nav-item,
+  #root .echoo-listener-shell:has(.echoo-reference-page) .layout-nav-item {
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 48px !important;
+    min-height: 48px !important;
+    margin: 0 !important;
+    border-radius: 10px !important;
+  }
+
+  #root .echoo-listener-shell .layout-nav-icon,
+  #root .echoo-listener-shell:has(.echoo-reference-page) .layout-nav-icon {
+    width: auto !important;
+    height: auto !important;
+    font-size: 16px !important;
+  }
+
+  #root .echoo-listener-shell .echoo-listener-main,
+  #root .echoo-listener-shell:has(.echoo-reference-page) .echoo-listener-main {
+    width: 100% !important;
+    margin-left: 0 !important;
+  }
+
+  #root .echoo-listener-shell .layout-topbar,
+  #root .echoo-listener-shell:has(.echoo-reference-page) .layout-topbar {
+    height: 64px !important;
+    min-height: 64px !important;
+    padding: 0 12px !important;
+  }
+
+  #root .echoo-listener-shell .beautiful-search-wrapper,
+  #root .echoo-listener-shell:has(.echoo-reference-page) .beautiful-search-wrapper {
+    width: min(100%, calc(100vw - 112px)) !important;
+  }
+
+  #root .echoo-listener-shell > .echoo-persistent-player,
+  #root .echoo-listener-shell:has(.echoo-reference-page) > .echoo-persistent-player {
+    left: 0 !important;
+    bottom: 0 !important;
+    height: 74px !important;
+    min-height: 74px !important;
+    max-height: 74px !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    padding: 8px 12px !important;
+    gap: 8px !important;
+  }
+
+  #root .echoo-listener-shell .layout-player-secondary,
+  #root .echoo-listener-shell .layout-player-volume,
+  #root .echoo-listener-shell .layout-player-progress-wrap {
+    display: none !important;
+  }
+
+  #root .echoo-listener-shell .echoo-listener-scroll {
+    padding-bottom: 140px !important;
+  }
+
+  #root .echoo-reference-page {
+    padding: 20px 14px 152px !important;
+  }
+
+  #root .ref-home-hero {
+    padding: 24px 20px !important;
+    border-radius: 18px !important;
+  }
+
+  #root .ref-home-hero-copy h1 {
+    font-size: clamp(34px, 10vw, 46px) !important;
+  }
+
+  #root .ref-home-hero-actions {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  #root .ref-home-hero-actions button {
+    width: 100%;
+  }
+
+  #root .ref-featured-audio-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+  }
+
+  #root .ref-feature-audio-copy {
+    padding-right: 40px !important;
+  }
+
+  #root .ref-creators-row,
+  #root .ref-home-station-row {
+    display: flex !important;
+  }
+
+  #root .ref-creators-row > * {
+    flex: 0 0 150px;
+  }
+
+  #root .ref-home-station-row > * {
+    flex: 0 0 min(78vw, 310px);
+  }
+
+  .llr-page {
+    padding: 14px 12px 138px !important;
+  }
+
+  .llr-chat-header {
+    gap: 10px;
+  }
+
+  .llr-refresh {
+    font-size: 0 !important;
+    width: 38px;
+    min-width: 38px;
+    padding: 0 !important;
+    justify-content: center;
+  }
+
+  .llr-refresh svg {
+    font-size: 13px;
+  }
+
+  .llr-messages {
+    min-height: 300px !important;
+    height: min(50vh, 480px) !important;
+  }
+
+  .llr-message-body {
+    max-width: 88% !important;
+  }
+
+  /* Creator swaps to an icon rail, mirroring listener tablet behaviour. */
+  .studio-sidebar {
+    width: 78px !important;
+    padding-inline: 9px !important;
+  }
+
+  .studio-brand {
+    justify-content: center !important;
+  }
+
+  .studio-brand > div,
+  .studio-nav-item > span:last-child,
+  .sidebar-profile-text,
+  .studio-sidebar-logout {
+    display: none !important;
+  }
+
+  .studio-nav-item {
+    width: 52px !important;
+    height: 48px !important;
+    min-height: 48px !important;
+    margin-inline: auto;
+    justify-content: center !important;
+    padding: 0 !important;
+  }
+
+  .studio-sidebar-profile {
+    justify-content: center !important;
+    padding-inline: 0 !important;
+  }
+
+  .studio-main {
+    width: calc(100% - 78px) !important;
+    margin-left: 78px !important;
+  }
+
+  .studio-topbar-final {
+    min-height: 66px !important;
+    padding-inline: 12px !important;
+  }
+
+  .studio-command-search {
+    width: min(100%, 52vw) !important;
+  }
+
+  .studio-account-button > div:not(.top-avatar),
+  .studio-account-button > svg {
+    display: none !important;
+  }
+
+  .studio-view {
+    padding-inline: 12px !important;
+  }
+
+  .ehome-hero-actions,
+  .ebsx-live-header-actions,
+  .ebsx-live-primary-actions {
+    grid-template-columns: 1fr !important;
+    flex-direction: column !important;
+  }
+
+  .ehome-hero-actions button,
+  .ebsx-live-header-actions button,
+  .ebsx-live-primary-actions button {
+    width: 100%;
+  }
+
+  .ebsx-onair-card,
+  .ebsx-station-hero {
+    grid-template-columns: 1fr !important;
+    padding: 18px !important;
+  }
+
+  .ebsx-onair-art,
+  .ebsx-station-art {
+    justify-self: center;
+  }
+
+  .creator-settings-real {
+    padding-inline: 0 !important;
+  }
+
+  .creator-settings-tabs {
+    display: flex !important;
+    gap: 6px;
+    padding: 6px;
+  }
+
+  .creator-settings-tabs button {
+    flex: 0 0 auto;
+  }
+
+  /* Onboarding */
+  .echoo-onboarding-redesign {
+    grid-template-columns: 1fr !important;
+    min-height: 100svh;
+  }
+
+  .eor-hero {
+    min-height: 300px !important;
+    padding: 24px 20px !important;
+  }
+
+  .eor-form-side {
+    padding: 18px 14px 28px !important;
+  }
+
+  .eor-panel {
+    width: 100% !important;
+    max-width: 620px !important;
+    margin-inline: auto;
+  }
+
+  .eor-role-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ---------- Phone ---------- */
+@media (max-width: 520px) {
+  #root .echoo-listener-shell .layout-navigation,
+  #root .echoo-listener-shell:has(.echoo-reference-page) .layout-navigation {
+    grid-template-columns: repeat(7, minmax(36px, 1fr)) !important;
+  }
+
+  #root .echoo-listener-shell .layout-nav-item,
+  #root .echoo-listener-shell:has(.echoo-reference-page) .layout-nav-item {
+    height: 44px !important;
+    min-height: 44px !important;
+  }
+
+  #root .echoo-listener-shell .beautiful-search-wrapper,
+  #root .echoo-listener-shell:has(.echoo-reference-page) .beautiful-search-wrapper {
+    width: calc(100vw - 100px) !important;
+  }
+
+  #root .echoo-listener-shell .layout-top-actions {
+    gap: 4px !important;
+  }
+
+  #root .echoo-reference-page {
+    padding-inline: 12px !important;
+  }
+
+  #root .ref-featured-audio-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  #root .ref-feature-audio-card {
+    display: grid;
+    grid-template-columns: 118px minmax(0, 1fr);
+  }
+
+  #root .ref-feature-art {
+    height: 100%;
+    aspect-ratio: auto !important;
+  }
+
+  #root .ref-feature-audio-copy {
+    min-height: 118px !important;
+    justify-content: center;
+  }
+
+  #root .ref-round-play {
+    right: 12px !important;
+    bottom: 14px !important;
+  }
+
+  #root .ref-page-heading h1 {
+    font-size: clamp(31px, 10vw, 40px) !important;
+  }
+
+  .llr-hero {
+    padding: 14px !important;
+  }
+
+  .llr-hero-copy h1 {
+    font-size: clamp(30px, 10vw, 42px) !important;
+  }
+
+  .llr-chat-shell {
+    border-radius: 16px !important;
+  }
+
+  .echoo-emoji-picker,
+  .echoo-reaction-picker,
+  .echoo-message-menu {
+    max-width: calc(100vw - 32px) !important;
+  }
+
+  .studio-sidebar {
+    width: 66px !important;
+  }
+
+  .studio-main {
+    width: calc(100% - 66px) !important;
+    margin-left: 66px !important;
+  }
+
+  .studio-nav-item {
+    width: 46px !important;
+  }
+
+  .studio-command-search {
+    width: calc(100vw - 164px) !important;
+  }
+
+  .studio-account-button {
+    padding-inline: 4px !important;
+  }
+
+  .studio-upload-modal {
+    position: fixed !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    top: auto !important;
+    width: 100% !important;
+    max-width: none !important;
+    max-height: min(88svh, 760px) !important;
+    overflow-y: auto;
+    margin: 0 !important;
+    border-radius: 20px 20px 0 0 !important;
+  }
+
+  .studio-form-row {
+    grid-template-columns: 1fr !important;
+  }
+
+  .eor-hero {
+    min-height: 260px !important;
+  }
+
+  .eor-hero-copy h1 {
+    font-size: clamp(34px, 12vw, 48px) !important;
+  }
+
+  .eor-panel {
+    border-radius: 18px !important;
+  }
+
+  .eor-step-label {
+    font-size: 9px !important;
+  }
+
+  .echoo-broadcast-login-page {
+    grid-template-columns: 1fr !important;
+  }
+
+  .echoo-broadcast-login-hero {
+    min-height: 280px !important;
+  }
+
+  .echoo-broadcast-login-auth {
+    padding: 18px 14px 28px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #root .ref-creators-row,
+  #root .ref-home-station-row {
+    scroll-behavior: auto !important;
+  }
+}
