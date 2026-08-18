@@ -1,4 +1,5 @@
 import { apiRequest, buildMediaUrl } from './api.js';
+import audioService from './audioService.js';
 import batch2Service, { normalizeStation as normalizeCanonicalStation } from './batch2Service.js';
 
 const queryString = (values = {}) => {
@@ -90,7 +91,9 @@ export const batch1Service = {
         ...data,
         results: {
           ...results,
-          tracks: Array.isArray(results.tracks) ? results.tracks : [],
+          tracks: Array.isArray(results.tracks)
+            ? results.tracks.map(audioService.normalize).filter(Boolean)
+            : [],
           creators: Array.isArray(results.creators)
             ? results.creators.map(normalizeCreator).filter(Boolean)
             : [],
