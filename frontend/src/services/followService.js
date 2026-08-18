@@ -23,10 +23,16 @@ const normalizeCreator = (creator) => {
 };
 
 const loadFollowingCreators = async () => {
-  const response = await apiRequest('/follows/me/following');
+  // Backend route is /follows/me/creators. Using /me/following caused the
+  // Following page to surface the API's generic "Route not found" message.
+  const response = await apiRequest('/follows/me/creators');
   const raw = Array.isArray(response?.data?.following)
     ? response.data.following
-    : [];
+    : Array.isArray(response?.data?.creators)
+      ? response.data.creators
+      : Array.isArray(response?.data)
+        ? response.data
+        : [];
 
   return {
     ...response,
@@ -58,7 +64,6 @@ const followService = {
     return response?.data || null;
   },
 
-  // Keep both names because existing listener surfaces use getFollowingCreators.
   getFollowingCreators: loadFollowingCreators,
   getMyFollowingCreators: loadFollowingCreators,
 
@@ -89,7 +94,9 @@ const followService = {
     const response = await apiRequest('/follows/me/stations');
     const raw = Array.isArray(response?.data?.stations)
       ? response.data.stations.map(normalizeStation).filter(Boolean)
-      : [];
+      : Array.isArray(response?.data)
+        ? response.data.map(normalizeStation).filter(Boolean)
+        : [];
 
     const canonical = await Promise.all(
       raw.map(async (station) => {
