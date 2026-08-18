@@ -188,7 +188,17 @@ const connectStream = async (channelId, stream, sourceLabel) => {
     gainNode,
     analyser,
     data: new Uint8Array(analyser.fftSize),
+    audioTrack,
   });
+
+  audioTrack.addEventListener('ended', () => {
+    const current = sources.get(channelId);
+    if (!current || current.audioTrack !== audioTrack) return;
+
+    disconnectSource(channelId, false);
+    applyMixState();
+    notify();
+  }, { once: true });
 
   channels = {
     ...channels,
@@ -260,6 +270,12 @@ export const subscribeEchooMixer = (listener) => {
 export const getEchooMixerState = getSnapshot;
 
 export const ensureHostInput = async (deviceId = '') => {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    throw new Error(
+      'Microphone access is unavailable here. Open Creator Studio on HTTPS or http://localhost and allow microphone permission.'
+    );
+  }
+
   const constraints = {
     audio: {
       echoCancellation: true,
@@ -276,6 +292,12 @@ export const ensureHostInput = async (deviceId = '') => {
 };
 
 export const connectGuestInput = async (deviceId) => {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    throw new Error(
+      'Microphone access is unavailable here. Open Creator Studio on HTTPS or http://localhost and allow microphone permission.'
+    );
+  }
+
   if (!deviceId) {
     throw new Error('Choose a guest microphone first.');
   }
@@ -384,6 +406,8 @@ export const resetEchooMixer = () => {
 };
 
 export const listAudioInputs = async () => {
+  if (!navigator.mediaDevices?.enumerateDevices) return [];
+
   const devices = await navigator.mediaDevices.enumerateDevices();
   return devices
     .filter((device) => device.kind === 'audioinput')
