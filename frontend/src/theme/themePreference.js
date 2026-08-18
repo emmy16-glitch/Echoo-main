@@ -1,63 +1,39 @@
 const THEME_KEY = 'echooThemePreference';
-const VALID = new Set(['light', 'dark', 'system']);
+const PRODUCT_THEME = 'light';
 
-let mediaQuery = null;
-let mediaListener = null;
+// Echoo currently has one intentional product theme: the light blue/white
+// visual system. A previous implementation followed the operating-system
+// colour scheme, which could silently turn the listener experience dark even
+// though there is no longer a theme control in the product UI.
+export const normalizeThemePreference = () => PRODUCT_THEME;
 
-export const normalizeThemePreference = (value) =>
-  VALID.has(value) ? value : 'system';
+export const getCachedThemePreference = () => PRODUCT_THEME;
 
-export const getCachedThemePreference = () => {
-  try {
-    return normalizeThemePreference(localStorage.getItem(THEME_KEY));
-  } catch {
-    return 'system';
-  }
-};
+export const resolveThemePreference = () => PRODUCT_THEME;
 
-export const resolveThemePreference = (preference = 'system') => {
-  const normalized = normalizeThemePreference(preference);
-  if (normalized !== 'system') return normalized;
-  if (typeof window === 'undefined' || !window.matchMedia) return 'light';
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-};
-
-export const applyEchooTheme = (preference = 'system', { persist = true } = {}) => {
-  const normalized = normalizeThemePreference(preference);
-  const resolved = resolveThemePreference(normalized);
-
+export const applyEchooTheme = (_preference = PRODUCT_THEME, { persist = true } = {}) => {
   if (typeof document !== 'undefined') {
-    document.documentElement.dataset.echooThemePreference = normalized;
-    document.documentElement.dataset.echooTheme = resolved;
-    document.documentElement.style.colorScheme = resolved;
+    document.documentElement.dataset.echooThemePreference = PRODUCT_THEME;
+    document.documentElement.dataset.echooTheme = PRODUCT_THEME;
+    document.documentElement.style.colorScheme = PRODUCT_THEME;
   }
 
   if (persist) {
     try {
-      localStorage.setItem(THEME_KEY, normalized);
+      localStorage.setItem(THEME_KEY, PRODUCT_THEME);
     } catch {
-      // The document still receives the theme when storage is unavailable.
+      // The document still receives the product theme when storage is unavailable.
     }
   }
 
-  return resolved;
+  return PRODUCT_THEME;
 };
 
 export const initializeEchooTheme = () => {
-  const preference = getCachedThemePreference();
-  applyEchooTheme(preference, { persist: false });
-
-  if (typeof window === 'undefined' || !window.matchMedia) return;
-  mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-  mediaListener = () => {
-    if (getCachedThemePreference() === 'system') {
-      applyEchooTheme('system', { persist: false });
-    }
-  };
-
-  if (mediaQuery.addEventListener) mediaQuery.addEventListener('change', mediaListener);
-  else mediaQuery.addListener?.(mediaListener);
+  // Intentionally ignore prefers-color-scheme and any stale cached dark value.
+  // Echoo should render consistently across creator and listener devices.
+  applyEchooTheme(PRODUCT_THEME, { persist: true });
 };
 
-export const syncThemeFromAccount = (preference) =>
-  applyEchooTheme(normalizeThemePreference(preference), { persist: true });
+export const syncThemeFromAccount = () =>
+  applyEchooTheme(PRODUCT_THEME, { persist: true });
