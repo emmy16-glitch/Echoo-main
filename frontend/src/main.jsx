@@ -27,6 +27,7 @@ import "./styles/echoo-responsive-2026.css";
 import "./styles/echoo-responsive-audit-fix.css";
 import "./styles/echoo-tooltips-2026.css";
 import "./styles/listener-logout-visibility-fix.css";
+import "./styles/echoo-logout-always-visible.css";
 
 initializeEchooTheme();
 
