@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.jsx";
 import AppErrorBoundary from "./Components/System/AppErrorBoundary.jsx";
+import settingsService from "./services/settingsService.js";
 import { initializeEchooTheme } from "./theme/themePreference.js";
 import "./index.css";
 import "./theme/EchooTheme.css";
@@ -16,6 +17,14 @@ import "./styles/station-brand-rendering.css";
 import "./styles/listener-premium-polish.css";
 
 initializeEchooTheme();
+
+// Apply the account-backed preference as soon as an authenticated session is
+// available. The cached preference keeps first paint stable while this loads.
+if (localStorage.getItem("accessToken")) {
+  settingsService.get().catch(() => {
+    // Theme stays on its cached/system value if account hydration is unavailable.
+  });
+}
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
