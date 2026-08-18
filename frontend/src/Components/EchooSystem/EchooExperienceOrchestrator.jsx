@@ -7,23 +7,35 @@ const REVEAL_SELECTORS = [
   '.echoo-onboarding-redesign .eor-audio-card',
   '.echoo-onboarding-redesign .eor-profile-hero-card',
   '.auth-page .auth-card',
+  '.echoo-broadcast-login-hero',
+  '.echoo-broadcast-form-card',
   '.ehome > section',
   '.ehome article',
   '.studio-view > *',
   '.studio-view section',
   '.studio-view article',
+  '.studio-alert',
+  '.studio-upload-modal',
+  '.creator-settings-real-header',
+  '.creator-settings-tabs',
+  '.creator-settings-real-card',
+  '.creator-settings-real-toggle',
   '.echoo-reference-page > section',
   '.echoo-reference-page article',
   '.echoo-reference-page .ref-state-card',
+  '.ref-page-heading',
+  '.ref-settings-nav',
+  '.ref-settings-card',
+  '.ln-header',
+  '.ln-item',
+  '.ln-empty',
   '.llr-hero',
   '.llr-chat-shell',
-  '.listener-settings-page > *',
-  '.listener-downloads-page > *',
-  '.listener-history-page > *',
 ].join(',');
 
 const SPOTLIGHT_SELECTORS = [
   '.eor-role-card',
+  '.echoo-broadcast-form-card',
   '.ref-feature-audio-card',
   '.ref-creator-tile',
   '.ref-home-station-card',
@@ -31,6 +43,9 @@ const SPOTLIGHT_SELECTORS = [
   '.ref-library-card',
   '.ref-history-card',
   '.ref-download-card',
+  '.ref-settings-card',
+  '.ln-item',
+  '.creator-settings-real-card',
   '.ehome-station-card',
   '.ehome-live-command',
   '.studio-upload-modal',
@@ -44,6 +59,7 @@ const SPOTLIGHT_SELECTORS = [
 const PAGE_ROOT_SELECTORS = [
   '.echoo-onboarding-redesign',
   '.auth-page',
+  '.echoo-broadcast-login-page',
   '.studio-view > *',
   '.layout-content > *',
 ].join(',');
@@ -76,24 +92,35 @@ const EchooExperienceOrchestrator = () => {
           { threshold: 0.08, rootMargin: '0px 0px -5% 0px' }
         );
 
+    const prepareElement = (element, index = 0) => {
+      if (!(element instanceof HTMLElement) || observed.has(element)) return;
+      observed.add(element);
+      element.classList.add('echoo-inview');
+      element.style.setProperty('--echoo-reveal-index', String(index % 8));
+
+      if (reduced || !revealObserver) {
+        element.classList.add('echoo-inview-visible');
+        return;
+      }
+
+      revealObserver.observe(element);
+    };
+
     const prepareReveal = (scope = document) => {
-      scope.querySelectorAll?.(REVEAL_SELECTORS).forEach((element, index) => {
-        if (observed.has(element)) return;
-        observed.add(element);
-        element.classList.add('echoo-inview');
-        element.style.setProperty('--echoo-reveal-index', String(index % 8));
-
-        if (reduced || !revealObserver) {
-          element.classList.add('echoo-inview-visible');
-          return;
-        }
-
-        revealObserver.observe(element);
-      });
+      const elements = [];
+      if (scope instanceof HTMLElement && scope.matches?.(REVEAL_SELECTORS)) {
+        elements.push(scope);
+      }
+      scope.querySelectorAll?.(REVEAL_SELECTORS).forEach((element) => elements.push(element));
+      elements.forEach(prepareElement);
     };
 
     const animatePageRoots = (scope = document) => {
-      scope.querySelectorAll?.(PAGE_ROOT_SELECTORS).forEach((element) => {
+      const roots = [];
+      if (scope instanceof HTMLElement && scope.matches?.(PAGE_ROOT_SELECTORS)) roots.push(scope);
+      scope.querySelectorAll?.(PAGE_ROOT_SELECTORS).forEach((element) => roots.push(element));
+
+      roots.forEach((element) => {
         element.classList.remove('echoo-page-enter');
         void element.offsetWidth;
         element.classList.add('echoo-page-enter');
@@ -111,7 +138,8 @@ const EchooExperienceOrchestrator = () => {
 
     const pointerLeave = (event) => {
       const card = event.target.closest?.(SPOTLIGHT_SELECTORS);
-      if (card) card.classList.remove('echoo-pointer-active');
+      const nextCard = event.relatedTarget?.closest?.(SPOTLIGHT_SELECTORS);
+      if (card && card !== nextCard) card.classList.remove('echoo-pointer-active');
     };
 
     const pointerOver = (event) => {
