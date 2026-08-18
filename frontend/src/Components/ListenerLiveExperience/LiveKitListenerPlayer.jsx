@@ -14,6 +14,7 @@ import {
 } from 'react-icons/fa';
 
 import batch3Service from '../../services/batch3Service';
+import { resolveLiveKitUrl } from '../../services/livekitUrl';
 import './LiveKitListenerPlayer.css';
 
 const STATUS_COPY = {
@@ -77,8 +78,9 @@ const LiveKitListenerPlayer = ({
       const credentials = await batch3Service.getListenerLiveKitToken(
         broadcastId
       );
+      const liveKitUrl = resolveLiveKitUrl(credentials?.livekitUrl);
 
-      if (!credentials?.token || !credentials?.livekitUrl) {
+      if (!credentials?.token || !liveKitUrl) {
         throw new Error(
           'Echoo did not return listener audio credentials.'
         );
@@ -108,6 +110,8 @@ const LiveKitListenerPlayer = ({
         } catch {
           // Ignore detached element cleanup.
         }
+
+        if (!disposed) setStatus('connected');
       });
 
       room.on(RoomEvent.Reconnecting, () => {
@@ -126,7 +130,7 @@ const LiveKitListenerPlayer = ({
         if (!disposed) setNeedsAudioStart(!room.canPlaybackAudio);
       });
 
-      await room.connect(credentials.livekitUrl, credentials.token, {
+      await room.connect(liveKitUrl, credentials.token, {
         autoSubscribe: true,
       });
 
