@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FaComments,
+  FaEllipsisH,
   FaPaperPlane,
   FaSmile,
   FaThumbtack,
@@ -40,11 +41,14 @@ const CreatorLiveChatPanel = ({ broadcastId }) => {
   const [pinned, setPinned] = useState([]);
   const [text, setText] = useState('');
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [reactionMessageId, setReactionMessageId] = useState('');
+  const [menuMessageId, setMenuMessageId] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [actionId, setActionId] = useState('');
   const [realtimeState, setRealtimeState] = useState('connecting');
   const [error, setError] = useState('');
+  const chatEndRef = useRef(null);
 
   const mergeMessage = useCallback((incoming) => {
     const normalized = normalizeChatMessage(incoming);
@@ -105,7 +109,12 @@ const CreatorLiveChatPanel = ({ broadcastId }) => {
           setMessages((current) => current.filter((item) => !sameId(item.id, messageId)));
           setPinned((current) => current.filter((item) => !sameId(item.id, messageId)));
         };
-        const onReaction = () => loadChat({ silent: true });
+        const onReaction = ({ messageId, reactions } = {}) => {
+          if (!messageId || !Array.isArray(reactions)) return;
+          setMessages((current) => current.map((item) =>
+            sameId(item.id, messageId) ? { ...item, reactions } : item
+          ));
+        };
         const onPinned = () => loadChat({ silent: true });
         const onDisconnect = () => {
           if (!active) return;
@@ -156,11 +165,17 @@ const CreatorLiveChatPanel = ({ broadcastId }) => {
     };
   }, [broadcastId, loadChat, mergeMessage]);
 
+  useEffect(() => {
+    if (loading) return;
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, [messages.length, loading]);
+
   const appendEmoji = (emoji) => {
     setText((current) => {
       const next = `${current}${emoji}`;
       return next.length <= 500 ? next : current;
     });
+    setEmojiOpen(false);
   };
 
   const send = async (event) => {
@@ -186,8 +201,16 @@ const CreatorLiveChatPanel = ({ broadcastId }) => {
     if (!message?.id || actionId) return;
     try {
       setActionId(`reaction:${message.id}`);
-      await batch4Service.react(message.id, emoji);
-      if (realtimeState !== 'connected') await loadChat({ silent: true });
+      const response = await batch4Service.react(message.id, emoji);
+      const reactions = response?.data?.reactions;
+      if (Array.isArray(reactions)) {
+        setMessages((current) => current.map((item) =>
+          sameId(item.id, message.id) ? { ...item, reactions } : item
+        ));
+      } else if (realtimeState !== 'connected') {
+        await loadChat({ silent: true });
+      }
+      setReactionMessageId('');
     } catch (reactionError) {
       setError(reactionError?.message || 'Could not update the reaction.');
     } finally {
@@ -200,7 +223,8 @@ const CreatorLiveChatPanel = ({ broadcastId }) => {
     try {
       setActionId(`pin:${message.id}`);
       await batch4Service.pin(message.id);
-      if (realtimeState !== 'connected') await loadChat({ silent: true });
+      setMenuMessageId('');
+      await loadChat({ silent: true });
     } catch (pinError) {
       setError(pinError?.message || 'Could not update the pinned message.');
     } finally {
@@ -215,6 +239,7 @@ const CreatorLiveChatPanel = ({ broadcastId }) => {
       await batch4Service.deleteMessage(message.id);
       setMessages((current) => current.filter((item) => !sameId(item.id, message.id)));
       setPinned((current) => current.filter((item) => !sameId(item.id, message.id)));
+      setMenuMessageId('');
     } catch (deleteError) {
       setError(deleteError?.message || 'Could not remove the message.');
     } finally {
@@ -223,13 +248,18 @@ const CreatorLiveChatPanel = ({ broadcastId }) => {
   };
 
   return (
-    <section className="ebsx-chat-card">
-      <div className="ebsx-card-head">
-        <h2>Live chat</h2>
+    <section className="ebsx-chat-card echoo-premium-live-chat">
+      <div className="ebsx-card-head echoo-live-chat-head">
+        <div>
+          <FaComments />
+          <div>
+            <h2>Live Chat</h2>
+            <small>Real conversations happening now</small>
+          </div>
+        </div>
         <div className={`ebsx-chat-realtime ${realtimeState === 'connected' ? 'connected' : ''}`}>
           <i /> {realtimeState === 'connected' ? 'Realtime' : 'Reconnecting'}
         </div>
-        <span>{messages.length}</span>
       </div>
 
       {error && <div className="ebsx-message error">{error}</div>}
@@ -241,12 +271,21 @@ const CreatorLiveChatPanel = ({ broadcastId }) => {
         </div>
       )}
 
-      <div className="ebsx-chat-list">
+      <div className="ebsx-chat-list echoo-premium-chat-list">
         {loading ? (
           <div className="ebsx-chat-empty"><FaComments /> Loading chat...</div>
         ) : messages.length ? (
-          messages.slice(-20).map((chat) => {
+          messages.slice(-30).map((chat) => {
             const own = sameId(chat.userId, user.id);
+            const reactionGroups = REACTION_EMOJIS.map((emoji) => {
+              const matching = (chat.reactions || []).filter((reaction) => reaction.emoji === emoji);
+              return {
+                emoji,
+                count: matching.length,
+                reacted: matching.some((reaction) => sameId(reaction.userId, user.id)),
+              };
+            }).filter((reaction) => reaction.count > 0);
+
             return (
               <div className={`ebsx-chat-row ${own ? 'own' : ''}`} key={chat.id || chat._id}>
                 <div className="ebsx-chat-avatar">
@@ -260,32 +299,75 @@ const CreatorLiveChatPanel = ({ broadcastId }) => {
                   </div>
                   <p>{chat.content}</p>
 
-                  <div className="ebsx-chat-reactions">
-                    {REACTION_EMOJIS.map((emoji) => {
-                      const matching = (chat.reactions || []).filter((reaction) => reaction.emoji === emoji);
-                      const reacted = matching.some((reaction) => sameId(reaction.userId, user.id));
-                      return (
-                        <button
-                          type="button"
-                          key={emoji}
-                          className={reacted ? 'active-reaction' : ''}
-                          title={reacted ? `Remove ${emoji} reaction` : `React ${emoji}`}
-                          disabled={Boolean(actionId)}
-                          onClick={() => react(chat, emoji)}
-                        >
-                          {emoji}{matching.length ? ` ${matching.length}` : ''}
-                        </button>
-                      );
-                    })}
-                  </div>
+                  <div className="echoo-message-footer">
+                    {reactionGroups.length > 0 && (
+                      <div className="echoo-reaction-summary" aria-label="Message reactions">
+                        {reactionGroups.map(({ emoji, count, reacted }) => (
+                          <button
+                            type="button"
+                            key={emoji}
+                            className={reacted ? 'active-reaction' : ''}
+                            disabled={Boolean(actionId)}
+                            onClick={() => react(chat, emoji)}
+                            title={reacted ? `Remove ${emoji} reaction` : `React ${emoji}`}
+                          >
+                            {emoji} <span>{count}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
 
-                  <div className="ebsx-chat-moderation">
-                    <button type="button" disabled={Boolean(actionId)} onClick={() => pin(chat)}>
-                      <FaThumbtack /> {chat.isPinned ? 'Unpin' : 'Pin'}
-                    </button>
-                    <button type="button" className="danger" disabled={Boolean(actionId)} onClick={() => remove(chat)}>
-                      <FaTrash /> Remove
-                    </button>
+                    <div className="echoo-message-tools">
+                      <button
+                        type="button"
+                        className="echoo-react-trigger"
+                        title="React to message"
+                        aria-label="React to message"
+                        onClick={() => setReactionMessageId((current) =>
+                          sameId(current, chat.id) ? '' : chat.id
+                        )}
+                      >
+                        <FaSmile /><span>+</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="echoo-message-menu-trigger"
+                        title="Message actions"
+                        aria-label="Message actions"
+                        onClick={() => setMenuMessageId((current) =>
+                          sameId(current, chat.id) ? '' : chat.id
+                        )}
+                      >
+                        <FaEllipsisH />
+                      </button>
+
+                      {sameId(reactionMessageId, chat.id) && (
+                        <div className={`echoo-reaction-picker ${own ? 'align-right' : ''}`} role="dialog" aria-label="Choose a reaction">
+                          {REACTION_EMOJIS.map((emoji) => (
+                            <button
+                              type="button"
+                              key={emoji}
+                              disabled={Boolean(actionId)}
+                              onClick={() => react(chat, emoji)}
+                              aria-label={`React ${emoji}`}
+                            >
+                              {emoji}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {sameId(menuMessageId, chat.id) && (
+                        <div className={`echoo-message-menu ${own ? 'align-right' : ''}`} role="menu">
+                          <button type="button" disabled={Boolean(actionId)} onClick={() => pin(chat)}>
+                            <FaThumbtack /> {chat.isPinned ? 'Unpin message' : 'Pin message'}
+                          </button>
+                          <button type="button" className="danger" disabled={Boolean(actionId)} onClick={() => remove(chat)}>
+                            <FaTrash /> Remove message
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -294,7 +376,10 @@ const CreatorLiveChatPanel = ({ broadcastId }) => {
         ) : (
           <div className="ebsx-chat-empty"><FaComments /> No chat messages yet.</div>
         )}
+        <div ref={chatEndRef} />
       </div>
+
+      <div className="echoo-chat-live-divider"><span><i /> Live</span></div>
 
       <form className="ebsx-chat-form" onSubmit={send}>
         <div className="echoo-emoji-wrap">
@@ -327,9 +412,15 @@ const CreatorLiveChatPanel = ({ broadcastId }) => {
           value={text}
           maxLength={500}
           onChange={(event) => setText(event.target.value)}
-          placeholder="Send a message..."
+          placeholder="Type a message..."
         />
-        <button type="submit" title="Send message" aria-label="Send message" disabled={sending || !text.trim()}>
+        <button
+          type="submit"
+          className="echoo-chat-send"
+          title="Send message"
+          aria-label="Send message"
+          disabled={sending || !text.trim()}
+        >
           <FaPaperPlane />
         </button>
       </form>
