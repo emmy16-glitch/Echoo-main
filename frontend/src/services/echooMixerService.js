@@ -4,6 +4,14 @@ const MAX_MASTER_DB = 3;
 const CLIP_DB = -1;
 const PCM_CAPTURE_WORKLET_URL = '/echoo-pcm-capture-worklet.js';
 const PCM_CAPTURE_CHANNELS = 2;
+const PREFERRED_SAMPLE_RATE = 48000;
+
+const DEFAULT_MIC_CONSTRAINTS = Object.freeze({
+  echoCancellation: true,
+  noiseSuppression: true,
+  autoGainControl: true,
+  channelCount: 1,
+});
 
 const dbToGain = (db) => {
   const value = Number(db);
@@ -69,6 +77,7 @@ let destinationNode = null;
 let masterGainNode = null;
 let masterLimiterNode = null;
 let masterAnalyser = null;
+let masterMeterData = null;
 let monitorGainNode = null;
 let monitorDestinationNode = null;
 let monitorAudioElement = null;
@@ -100,7 +109,14 @@ const createAudioContext = () => {
   if (!AudioContextClass) {
     throw new Error('This browser does not support the Echoo audio mixer.');
   }
-  return new AudioContextClass();
+
+  try {
+    return new AudioContextClass({ sampleRate: PREFERRED_SAMPLE_RATE, latencyHint: 'interactive' });
+  } catch {
+    // Safari and some older browsers reject constructor options even though
+    // Web Audio itself is supported. Falling back keeps the Studio usable.
+    return new AudioContextClass();
+  }
 };
 
 const supportsOutputSelection = () =>
@@ -109,6 +125,7 @@ const supportsOutputSelection = () =>
 
 const getSnapshot = () => ({
   ready: Boolean(audioContext && destinationNode),
+  engineSampleRate: audioContext?.sampleRate || null,
   channels: Object.fromEntries(
     Object.entries(channels).map(([key, value]) => [key, { ...value }])
   ),
@@ -173,6 +190,7 @@ const ensureContext = async () => {
 
     masterAnalyser.fftSize = 512;
     masterAnalyser.smoothingTimeConstant = 0.72;
+    masterMeterData = new Float32Array(masterAnalyser.fftSize);
 
     masterGainNode.connect(masterLimiterNode);
     masterLimiterNode.connect(masterAnalyser);
@@ -381,9 +399,8 @@ function startMeterLoop() {
       }
     });
 
-    if (masterAnalyser) {
-      const data = new Float32Array(masterAnalyser.fftSize);
-      const meter = readMeter(masterAnalyser, data);
+    if (masterAnalyser && masterMeterData) {
+      const meter = readMeter(masterAnalyser, masterMeterData);
       if (
         Math.abs(meter.level - master.level) > 0.004 ||
         Math.abs(meter.peakDb - master.peakDb) > 0.5
@@ -400,6 +417,11 @@ function startMeterLoop() {
   animationFrame = window.requestAnimationFrame(tick);
 }
 
+const normalizedMicConstraints = (audioConstraints) => ({
+  ...DEFAULT_MIC_CONSTRAINTS,
+  ...(audioConstraints && typeof audioConstraints === 'object' ? audioConstraints : {}),
+});
+
 export const subscribeEchooMixer = (listener) => {
   listeners.add(listener);
   return () => listeners.delete(listener);
@@ -407,7 +429,12 @@ export const subscribeEchooMixer = (listener) => {
 
 export const getEchooMixerState = getSnapshot;
 
-export const ensureHostInput = async (deviceId = '') => {
+export const getMixerChannelTrack = (channelId) => {
+  const track = sources.get(channelId)?.audioTrack || null;
+  return track?.readyState === 'live' ? track : null;
+};
+
+export const ensureHostInput = async (deviceId = '', audioConstraints = null) => {
   if (!navigator.mediaDevices?.getUserMedia) {
     throw new Error(
       'Microphone access is unavailable here. Open Creator Studio on HTTPS or http://localhost and allow microphone permission.'
@@ -416,10 +443,7 @@ export const ensureHostInput = async (deviceId = '') => {
 
   const constraints = {
     audio: {
-      echoCancellation: true,
-      noiseSuppression: true,
-      autoGainControl: true,
-      channelCount: 1,
+      ...normalizedMicConstraints(audioConstraints),
       ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
     },
   };
@@ -430,7 +454,7 @@ export const ensureHostInput = async (deviceId = '') => {
   return connectStream('host', stream, label, deviceId);
 };
 
-export const connectGuestInput = async (deviceId) => {
+export const connectGuestInput = async (deviceId, audioConstraints = null) => {
   if (!navigator.mediaDevices?.getUserMedia) {
     throw new Error(
       'Microphone access is unavailable here. Open Creator Studio on HTTPS or http://localhost and allow microphone permission.'
@@ -443,11 +467,8 @@ export const connectGuestInput = async (deviceId) => {
 
   const stream = await navigator.mediaDevices.getUserMedia({
     audio: {
+      ...normalizedMicConstraints(audioConstraints),
       deviceId: { exact: deviceId },
-      echoCancellation: true,
-      noiseSuppression: true,
-      autoGainControl: true,
-      channelCount: 1,
     },
   });
 
@@ -791,6 +812,7 @@ export const getEchooMixerDiagnostics = () => {
   return {
     ready: Boolean(outputTrack && outputTrack.readyState === 'live'),
     outputTrackState: outputTrack?.readyState || 'missing',
+    engineSampleRate: audioContext?.sampleRate || null,
     hostConnected: Boolean(channels.host?.connected),
     hostPeakDb: channels.host?.peakDb ?? MIN_DB,
     masterPeakDb: master.peakDb ?? MIN_DB,
@@ -841,6 +863,7 @@ export const stopEchooMixer = async () => {
   masterGainNode = null;
   masterLimiterNode = null;
   masterAnalyser = null;
+  masterMeterData = null;
   monitorGainNode = null;
   monitorDestinationNode = null;
   pcmCaptureModuleContext = null;
@@ -868,6 +891,7 @@ export const ECHOO_MIXER_LIMITS = {
 export default {
   subscribeEchooMixer,
   getEchooMixerState,
+  getMixerChannelTrack,
   ensureHostInput,
   connectGuestInput,
   connectSystemAudio,
