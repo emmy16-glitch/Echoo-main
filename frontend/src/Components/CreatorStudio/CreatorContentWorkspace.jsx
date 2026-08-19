@@ -163,7 +163,10 @@ const CreatorContentWorkspace = ({
   };
 
   const notifyChanged = () => {
-    onChanged?.();
+    if (onChanged) {
+      onChanged();
+      return;
+    }
     window.dispatchEvent(new CustomEvent('echoo:creator-audio-changed'));
   };
 
