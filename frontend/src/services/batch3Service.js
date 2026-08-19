@@ -3,6 +3,11 @@ import batch2Service, {
   normalizeBroadcast,
   normalizeStation,
 } from './batch2Service.js';
+import {
+  announceFinishedBroadcastRecording,
+  discardBroadcastRecording,
+  finishBroadcastRecording,
+} from './broadcastRecordingService.js';
 
 const sleep = (milliseconds) =>
   new Promise((resolve) => window.setTimeout(resolve, milliseconds));
@@ -238,15 +243,20 @@ const batch3Service = {
   },
 
   cancelBroadcast: async (broadcastId) => {
-    const response = await apiRequest(
-      `/broadcasts/${encodeURIComponent(broadcastId)}/cancel`,
-      { method: 'POST' }
-    );
+    try {
+      const response = await apiRequest(
+        `/broadcasts/${encodeURIComponent(broadcastId)}/cancel`,
+        { method: 'POST' }
+      );
 
-    return {
-      ...response,
-      data: normalizeBroadcast(response?.data),
-    };
+      return {
+        ...response,
+        data: normalizeBroadcast(response?.data),
+      };
+    } finally {
+      // Cancelled/failed starts must never surface a save-recording prompt.
+      await discardBroadcastRecording(broadcastId).catch(() => {});
+    }
   },
 
   getLiveKitToken: async (broadcastId) => {
@@ -290,10 +300,29 @@ const batch3Service = {
     );
 
     const raw = response?.data?.broadcast || response?.data;
+    const normalized = normalizeBroadcast(raw);
+
+    // End the browser-local recorder only after the backend accepts the end
+    // transition. The Blob remains in memory until the creator explicitly
+    // chooses Discard, Save privately, or Save & publish.
+    try {
+      const recording = await finishBroadcastRecording(broadcastId);
+      if (recording?.blob?.size) {
+        announceFinishedBroadcastRecording({
+          recording,
+          broadcast: normalized,
+        });
+      }
+    } catch (recordingError) {
+      console.warn(
+        '[Echoo Recording] could not finalize local recording:',
+        recordingError?.message || recordingError
+      );
+    }
 
     return {
       ...response,
-      data: normalizeBroadcast(raw),
+      data: normalized,
     };
   },
 
