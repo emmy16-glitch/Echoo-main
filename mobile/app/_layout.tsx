@@ -1,4 +1,5 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { registerGlobals } from '@livekit/react-native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useMemo } from 'react';
@@ -6,6 +7,8 @@ import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { getEchooColors } from '@/src/theme/echooTheme';
+
+registerGlobals();
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -41,6 +44,8 @@ export default function RootLayout() {
       >
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="auth" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="settings" />
+        <Stack.Screen name="live-room" />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       </Stack>
       <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
