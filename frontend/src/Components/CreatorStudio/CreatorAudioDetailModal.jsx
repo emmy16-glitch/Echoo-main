@@ -30,7 +30,7 @@ const formatClock = (seconds) => {
 
 const formatBytes = (bytes) => {
   const value = Number(bytes) || 0;
-  if (!value) return '—';
+  if (!value) return 'Stored original';
   if (value >= 1024 * 1024 * 1024) return `${(value / (1024 ** 3)).toFixed(2)} GB`;
   if (value >= 1024 * 1024) return `${(value / (1024 ** 2)).toFixed(1)} MB`;
   return `${Math.max(1, Math.round(value / 1024))} KB`;
@@ -44,7 +44,7 @@ const formatType = (mimeType = '') => {
   if (value.includes('wav')) return 'WAV';
   if (value.includes('flac')) return 'FLAC';
   if (value.includes('aac') || value.includes('m4a')) return 'AAC / M4A';
-  return mimeType || 'Audio';
+  return mimeType || 'Original format';
 };
 
 const CreatorAudioDetailModal = ({ track, onClose, onChanged }) => {
@@ -108,24 +108,11 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged }) => {
   useEffect(() => {
     const onKeyDown = (event) => {
       if (event.key === 'Escape') onClose?.();
-      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
-      if (event.key === 'ArrowLeft') {
-        event.preventDefault();
-        seekBy(-10);
-      }
-      if (event.key === 'ArrowRight') {
-        event.preventDefault();
-        seekBy(10);
-      }
-      if (event.code === 'Space') {
-        event.preventDefault();
-        togglePlayback();
-      }
     };
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  });
+  }, [onClose]);
 
   if (!track) return null;
 
@@ -181,6 +168,7 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged }) => {
       const nextPublic = !visibility;
       const response = await studioService.updateAudio(id, { isPublic: nextPublic });
       setVisibility(Boolean(response?.data?.isPublic ?? nextPublic));
+      window.dispatchEvent(new CustomEvent('echoo:creator-audio-changed'));
       onChanged?.();
     } catch (visibilityError) {
       setError(visibilityError?.message || 'Could not update audio visibility.');
