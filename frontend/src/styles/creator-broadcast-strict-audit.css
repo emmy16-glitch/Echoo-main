@@ -1,0 +1,168 @@
+/*
+ * Strict Broadcast Studio audit layer.
+ * Loaded last so legacy Creator Studio rules cannot reintroduce tiny text,
+ * misleading meter zones, or viewport-only breakpoints inside the mixer.
+ */
+
+/* Keep the top command/search region away from the sidebar edge control. */
+#root .studio-final-shell .studio-topbar-final {
+  column-gap: 22px !important;
+}
+
+#root .studio-final-shell .studio-command-search {
+  width: min(42vw, 460px) !important;
+  max-width: 460px !important;
+  margin-left: 8px !important;
+}
+
+/* The meter language and meter colours now describe the same ranges.
+   -60..-24 dB = low, -24..~-8 dB = healthy, ~-8..-2 dB = strong,
+   -2..0 dB = too hot. */
+#root .studio-final-shell .eam-level-track {
+  background: linear-gradient(
+    90deg,
+    #edf1f6 0 60%,
+    #e8f6ed 60% 87%,
+    #fff3d8 87% 97%,
+    #fde9e9 97% 100%
+  ) !important;
+}
+
+#root .studio-final-shell .eam-level-track > span {
+  background: #8d9caf !important;
+}
+
+#root .studio-final-shell .eam-level.good .eam-level-track > span {
+  background: #22a765 !important;
+}
+
+#root .studio-final-shell .eam-level.strong .eam-level-track > span {
+  background: #d69b24 !important;
+}
+
+#root .studio-final-shell .eam-level.hot .eam-level-track > span {
+  background: #d94747 !important;
+}
+
+#root .studio-final-shell .eam-level-track .eam-zone-low { left: 60% !important; }
+#root .studio-final-shell .eam-level-track .eam-zone-good { left: 87% !important; }
+#root .studio-final-shell .eam-level-track .eam-zone-hot { left: 97% !important; }
+
+/* Readability floor: the mixer is meant for ordinary creators, not engineers
+   reading 8px utility copy on a dense DAW. */
+#root .studio-final-shell .eam-profile-options small,
+#root .studio-final-shell .eam-profile > p,
+#root .studio-final-shell .eam-source-title > span,
+#root .studio-final-shell .eam-source-device,
+#root .studio-final-shell .eam-level-copy span,
+#root .studio-final-shell .eam-guidance p,
+#root .studio-final-shell .eam-output-head small,
+#root .studio-final-shell .eam-output-explainer,
+#root .studio-final-shell .eam-output-select > span,
+#root .studio-final-shell .eam-headphone-note,
+#root .studio-final-shell .eam-master-status span,
+#root .studio-final-shell .eam-path-note {
+  font-size: 10px !important;
+}
+
+#root .studio-final-shell .eam-quality-chip,
+#root .studio-final-shell .eam-zone-labels {
+  font-size: 9px !important;
+}
+
+#root .studio-final-shell .eam-source-actions button,
+#root .studio-final-shell .eam-monitor-actions button,
+#root .studio-final-shell .eam-master-mute,
+#root .studio-final-shell .eam-device-select,
+#root .studio-final-shell .eam-output-select select {
+  font-size: 10px !important;
+}
+
+#root .studio-final-shell .eam-source-actions button,
+#root .studio-final-shell .eam-monitor-actions button,
+#root .studio-final-shell .eam-master-mute {
+  min-height: 40px !important;
+}
+
+#root .studio-final-shell .eam-zone-labels {
+  grid-template-columns: 1.7fr 1.15fr .85fr 1fr !important;
+  gap: 4px !important;
+}
+
+/* The mixer must respond to the actual Creator Studio canvas after the sidebar
+   takes its width, not just to the browser viewport. */
+@container creator-main (max-width: 1120px) {
+  #root .studio-final-shell .eam-workspace {
+    grid-template-columns: 1fr !important;
+  }
+
+  #root .studio-final-shell .eam-output-column {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    grid-template-rows: none !important;
+  }
+}
+
+@container creator-main (max-width: 820px) {
+  #root .studio-final-shell .eam-profile {
+    grid-template-columns: 1fr !important;
+  }
+
+  #root .studio-final-shell .eam-source-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  #root .studio-final-shell .eam-source-card:last-child {
+    grid-column: 1 / -1 !important;
+  }
+}
+
+@container creator-main (max-width: 620px) {
+  #root .studio-final-shell .eam-source-grid,
+  #root .studio-final-shell .eam-output-column,
+  #root .studio-final-shell .eam-profile-options {
+    grid-template-columns: 1fr !important;
+  }
+
+  #root .studio-final-shell .eam-source-card:last-child {
+    grid-column: auto !important;
+  }
+}
+
+/* When the setup workflow drops below the mixer, remove the inherited vertical
+   divider that made every card look like it had a stray right border. */
+@container creator-main (max-width: 1180px) {
+  #root .studio-final-shell .ebsx.setup-page .ebsx-workflow .ebsx-step {
+    border-right: 0 !important;
+  }
+}
+
+/* Raise the remaining Broadcast Studio helper text that older reference CSS
+   intentionally made tiny. */
+#root .studio-final-shell .ebsx.setup-page .ebsx-step p,
+#root .studio-final-shell .ebsx.setup-page .ebsx-step small,
+#root .studio-final-shell .ebsx.setup-page .ebsx-checks span,
+#root .studio-final-shell .ebsx.setup-page .ebsx-section-title p,
+#root .studio-final-shell .ebsx.setup-page .ebsx-empty-line,
+#root .studio-final-shell .ebsx.setup-page .ebsx-mic-source small {
+  font-size: 10px !important;
+}
+
+#root .studio-final-shell .ebsx.setup-page .ebsx-step input,
+#root .studio-final-shell .ebsx.setup-page .ebsx-step select,
+#root .studio-final-shell .ebsx.setup-page .ebsx-step textarea,
+#root .studio-final-shell .ebsx.setup-page .ebsx-blue-button,
+#root .studio-final-shell .ebsx.setup-page .ebsx-schedule-button,
+#root .studio-final-shell .ebsx.setup-page .ebsx-outline-button,
+#root .studio-final-shell .ebsx.setup-page .ebsx-section-title > button {
+  font-size: 11px !important;
+}
+
+@media (max-width: 760px) {
+  #root .studio-final-shell .studio-command-search {
+    margin-left: 0 !important;
+  }
+
+  #root .studio-final-shell .eam {
+    padding: 16px !important;
+  }
+}
