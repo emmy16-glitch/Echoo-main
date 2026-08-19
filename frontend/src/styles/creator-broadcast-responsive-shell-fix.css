@@ -1,0 +1,449 @@
+/*
+ * Final Creator shell / Broadcast Studio responsive correction.
+ *
+ * Loaded after every previous Creator Studio stylesheet.
+ * This pass fixes the actual shell math first (main width + sidebar offset),
+ * then makes Broadcast Studio reflow before cards become cramped.
+ */
+
+/* ==========================================================
+   SHELL GEOMETRY
+========================================================== */
+
+#root .studio-final-shell .studio-main {
+  width: calc(100% - var(--studio-sidebar-width)) !important;
+  max-width: calc(100% - var(--studio-sidebar-width)) !important;
+  min-width: 0 !important;
+  margin-left: var(--studio-sidebar-width) !important;
+  overflow-x: clip !important;
+}
+
+#root .studio-final-shell .studio-topbar-final {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  min-height: 82px !important;
+  padding: 0 30px 0 34px !important;
+  gap: 18px !important;
+  overflow: visible !important;
+}
+
+#root .studio-final-shell .studio-command-search {
+  flex: 0 1 460px !important;
+  width: min(100%, 460px) !important;
+  max-width: 460px !important;
+  min-width: 220px !important;
+  height: 44px !important;
+  margin: 0 auto 0 0 !important;
+  padding: 0 14px !important;
+  overflow: hidden !important;
+}
+
+#root .studio-final-shell .studio-command-search svg {
+  flex: 0 0 14px !important;
+  width: 14px !important;
+}
+
+#root .studio-final-shell .studio-command-search input {
+  width: 100% !important;
+  min-width: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+/* Keep collapse/expand control completely inside the sidebar. */
+#root .studio-final-shell.sidebar-expanded .studio-sidebar-toggle {
+  top: 6px !important;
+  right: 8px !important;
+  left: auto !important;
+  transform: none !important;
+}
+
+#root .studio-final-shell.sidebar-collapsed .studio-sidebar-toggle {
+  top: 56px !important;
+  left: 50% !important;
+  right: auto !important;
+  transform: translateX(-50%) !important;
+}
+
+#root .studio-final-shell .studio-view:has(.ebsx) {
+  width: 100% !important;
+  max-width: 1320px !important;
+  min-width: 0 !important;
+  margin: 0 auto !important;
+  padding: 30px 32px 52px !important;
+  overflow-x: clip !important;
+}
+
+/* ==========================================================
+   BROADCAST TYPOGRAPHY — readable, never oversized in a narrow canvas
+========================================================== */
+
+#root .studio-final-shell .ebsx.setup-page .ebsx-setup-header h1::before,
+#root .studio-final-shell .ebsx.setup-page .ebsx-setup-header h1::after {
+  font-size: clamp(34px, 3.2vw, 46px) !important;
+  line-height: 1.02 !important;
+}
+
+#root .studio-final-shell .ebsx.setup-page .ebsx-setup-header p {
+  max-width: 680px !important;
+  font-size: 13px !important;
+  line-height: 1.52 !important;
+}
+
+#root .studio-final-shell .ebsx :where(
+  .ebsx-station-copy p,
+  .ebsx-station-copy small,
+  .ebsx-quality p,
+  .ebsx-quality > span,
+  .ebsx-step p,
+  .ebsx-step small,
+  .ebsx-checks span,
+  .eam-channel-head small,
+  .eam-db,
+  .eam-output-status,
+  .eam-legend,
+  .eam-monitor-title small,
+  .eam-monitor-warning
+) {
+  font-size: 10px !important;
+  line-height: 1.4 !important;
+}
+
+#root .studio-final-shell .ebsx :where(
+  .ebsx-station-copy h2,
+  .ebsx-card-head h2,
+  .ebsx-workflow-head h2,
+  .eam-heading h2
+) {
+  line-height: 1.2 !important;
+}
+
+/* ==========================================================
+   PRE-LIVE / OFFLINE
+========================================================== */
+
+#root .studio-final-shell .ebsx.setup-page .ebsx-setup-header {
+  margin-bottom: 24px !important;
+}
+
+#root .studio-final-shell .ebsx.setup-page .ebsx-setup-layout {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 310px !important;
+  gap: 24px !important;
+  align-items: start !important;
+}
+
+#root .studio-final-shell .ebsx.setup-page .ebsx-setup-main {
+  display: block !important;
+  min-width: 0 !important;
+}
+
+#root .studio-final-shell .ebsx.setup-page .ebsx-station-hero {
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 150px !important;
+  grid-template-columns: 112px minmax(180px, 1fr) minmax(230px, .88fr) !important;
+  gap: 22px !important;
+  padding: 20px 22px !important;
+  overflow: hidden !important;
+}
+
+#root .studio-final-shell .ebsx.setup-page .ebsx-station-art {
+  width: 104px !important;
+  height: 104px !important;
+}
+
+#root .studio-final-shell .ebsx.setup-page .ebsx-station-copy {
+  min-width: 0 !important;
+}
+
+#root .studio-final-shell .ebsx.setup-page .ebsx-station-copy h2,
+#root .studio-final-shell .ebsx.setup-page .ebsx-station-copy p,
+#root .studio-final-shell .ebsx.setup-page .ebsx-station-copy small {
+  overflow-wrap: anywhere !important;
+}
+
+#root .studio-final-shell .ebsx.setup-page .ebsx-quality {
+  min-width: 0 !important;
+  min-height: 92px !important;
+}
+
+#root .studio-final-shell .ebsx.setup-page .ebsx-preflight-grid {
+  display: grid !important;
+  grid-template-columns: minmax(220px, 260px) minmax(0, 1fr) !important;
+  gap: 20px !important;
+  margin-top: 20px !important;
+  align-items: stretch !important;
+}
+
+#root .studio-final-shell .ebsx.setup-page .ebsx-mic-preview,
+#root .studio-final-shell .ebsx.setup-page .ebsx-preflight-grid > .eam,
+#root .studio-final-shell .ebsx.setup-page .ebsx-workflow,
+#root .studio-final-shell .ebsx.setup-page .ebsx-planned-card {
+  min-width: 0 !important;
+}
+
+#root .studio-final-shell .ebsx.setup-page .ebsx-workflow {
+  width: 100% !important;
+  position: sticky !important;
+  top: 102px !important;
+}
+
+#root .studio-final-shell .ebsx.setup-page .eam-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+}
+
+#root .studio-final-shell .ebsx.setup-page .eam-channel {
+  min-width: 0 !important;
+}
+
+#root .studio-final-shell .ebsx.setup-page .eam-channel-head strong,
+#root .studio-final-shell .ebsx.setup-page .eam-channel-head small {
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+}
+
+/* ==========================================================
+   LIVE
+========================================================== */
+
+#root .studio-final-shell .ebsx.live-page .ebsx-live-layout {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(350px, 390px) !important;
+  gap: 24px !important;
+  align-items: start !important;
+}
+
+#root .studio-final-shell .ebsx.live-page .ebsx-live-main,
+#root .studio-final-shell .ebsx.live-page .ebsx-live-side {
+  min-width: 0 !important;
+}
+
+#root .studio-final-shell .ebsx.live-page .ebsx-onair-card {
+  width: 100% !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+}
+
+#root .studio-final-shell .ebsx.live-page .ebsx-onair-copy,
+#root .studio-final-shell .ebsx.live-page .ebsx-onair-stats,
+#root .studio-final-shell .ebsx.live-page .ebsx-chat-card,
+#root .studio-final-shell .ebsx.live-page .ebsx-activity-card,
+#root .studio-final-shell .ebsx.live-page .ebsx-live-side > .eam,
+#root .studio-final-shell .ebsx.live-page .ebsx-live-controls {
+  min-width: 0 !important;
+}
+
+#root .studio-final-shell .ebsx.live-page .eam.compact .eam-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+
+#root .studio-final-shell .ebsx.live-page .eam.compact .eam-channel-head strong,
+#root .studio-final-shell .ebsx.live-page .eam.compact .eam-channel-head small {
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+}
+
+/* ==========================================================
+   CONTAINER BREAKPOINTS
+   These use the width AFTER the sidebar, which is the real available canvas.
+========================================================== */
+
+@container creator-main (max-width: 1240px) {
+  #root .studio-final-shell .ebsx.setup-page .ebsx-setup-layout,
+  #root .studio-final-shell .ebsx.live-page .ebsx-live-layout {
+    grid-template-columns: 1fr !important;
+  }
+
+  #root .studio-final-shell .ebsx.setup-page .ebsx-workflow {
+    position: static !important;
+  }
+
+  #root .studio-final-shell .ebsx.live-page .ebsx-live-side {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 300px !important;
+    gap: 20px !important;
+    align-items: start !important;
+  }
+
+  #root .studio-final-shell .ebsx.live-page .eam.compact .eam-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+}
+
+@container creator-main (max-width: 1080px) {
+  #root .studio-final-shell .ebsx.setup-page .ebsx-setup-header h1::before,
+  #root .studio-final-shell .ebsx.setup-page .ebsx-setup-header h1::after {
+    font-size: clamp(32px, 4.2vw, 40px) !important;
+  }
+
+  #root .studio-final-shell .ebsx.setup-page .ebsx-station-hero {
+    grid-template-columns: 104px minmax(0, 1fr) !important;
+    gap: 18px !important;
+  }
+
+  #root .studio-final-shell .ebsx.setup-page .ebsx-quality {
+    grid-column: 1 / -1 !important;
+  }
+
+  #root .studio-final-shell .ebsx.setup-page .ebsx-preflight-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  #root .studio-final-shell .ebsx.setup-page .ebsx-mic-preview {
+    min-height: 0 !important;
+  }
+
+  #root .studio-final-shell .ebsx.setup-page .eam-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  #root .studio-final-shell .ebsx.live-page .ebsx-live-side {
+    grid-template-columns: 1fr !important;
+  }
+
+  #root .studio-final-shell .ebsx.live-page .eam.compact .eam-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@container creator-main (max-width: 820px) {
+  #root .studio-final-shell .ebsx.setup-page .ebsx-setup-header h1::before,
+  #root .studio-final-shell .ebsx.setup-page .ebsx-setup-header h1::after {
+    font-size: 32px !important;
+    line-height: 1.04 !important;
+  }
+
+  #root .studio-final-shell .ebsx.setup-page .ebsx-station-hero {
+    grid-template-columns: 1fr !important;
+    text-align: left !important;
+  }
+
+  #root .studio-final-shell .ebsx.setup-page .ebsx-station-art {
+    justify-self: start !important;
+  }
+
+  #root .studio-final-shell .ebsx.setup-page .ebsx-quality {
+    grid-column: auto !important;
+  }
+
+  #root .studio-final-shell .ebsx.setup-page .eam-grid,
+  #root .studio-final-shell .ebsx.live-page .eam.compact .eam-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  #root .studio-final-shell .ebsx.live-page .ebsx-onair-card {
+    grid-template-columns: 82px minmax(0, 1fr) !important;
+  }
+
+  #root .studio-final-shell .ebsx.live-page .ebsx-onair-stats {
+    grid-template-columns: 1fr !important;
+  }
+
+  #root .studio-final-shell .ebsx.live-page .ebsx-live-primary-actions {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ==========================================================
+   VIEWPORT BREAKPOINTS FOR THE SHELL ITSELF
+========================================================== */
+
+@media (max-width: 1180px) and (min-width: 761px) {
+  #root .studio-final-shell.sidebar-expanded { --studio-sidebar-width: 220px !important; }
+  #root .studio-final-shell.sidebar-collapsed { --studio-sidebar-width: 78px !important; }
+
+  #root .studio-final-shell .studio-topbar-final {
+    padding-inline: 24px !important;
+  }
+
+  #root .studio-final-shell .studio-command-search {
+    flex-basis: 390px !important;
+    width: min(42vw, 390px) !important;
+    max-width: 390px !important;
+    min-width: 200px !important;
+  }
+
+  #root .studio-final-shell .studio-view:has(.ebsx) {
+    padding-inline: 24px !important;
+  }
+}
+
+@media (max-width: 900px) and (min-width: 761px) {
+  #root .studio-final-shell .studio-topbar-final {
+    padding-inline: 20px !important;
+    gap: 12px !important;
+  }
+
+  #root .studio-final-shell .studio-command-search {
+    flex: 1 1 auto !important;
+    width: auto !important;
+    max-width: 330px !important;
+    min-width: 170px !important;
+  }
+
+  #root .studio-final-shell .studio-account-button {
+    min-width: 52px !important;
+    grid-template-columns: 38px 12px !important;
+    gap: 4px !important;
+  }
+
+  #root .studio-final-shell .studio-account-button > div:nth-child(2) {
+    display: none !important;
+  }
+}
+
+@media (max-width: 760px) {
+  #root .studio-final-shell .studio-main {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+  }
+
+  #root .studio-final-shell .studio-topbar-final {
+    width: 100% !important;
+    min-height: 62px !important;
+    padding: 0 14px !important;
+  }
+
+  #root .studio-final-shell .studio-command-search {
+    display: none !important;
+  }
+
+  #root .studio-final-shell .studio-view:has(.ebsx) {
+    max-width: 100% !important;
+    padding: 20px 12px 30px !important;
+  }
+
+  #root .studio-final-shell .ebsx.setup-page .ebsx-setup-header h1::before,
+  #root .studio-final-shell .ebsx.setup-page .ebsx-setup-header h1::after {
+    font-size: clamp(28px, 9vw, 34px) !important;
+  }
+
+  #root .studio-final-shell .ebsx.setup-page .ebsx-setup-header p {
+    font-size: 12px !important;
+  }
+
+  #root .studio-final-shell .ebsx.setup-page .ebsx-station-hero,
+  #root .studio-final-shell .ebsx.setup-page .ebsx-mic-preview,
+  #root .studio-final-shell .ebsx.setup-page .ebsx-preflight-grid > .eam,
+  #root .studio-final-shell .ebsx.setup-page .ebsx-workflow,
+  #root .studio-final-shell .ebsx.setup-page .ebsx-planned-card,
+  #root .studio-final-shell .ebsx.live-page .ebsx-onair-card,
+  #root .studio-final-shell .ebsx.live-page .ebsx-chat-card,
+  #root .studio-final-shell .ebsx.live-page .ebsx-activity-card,
+  #root .studio-final-shell .ebsx.live-page .ebsx-live-side > .eam,
+  #root .studio-final-shell .ebsx.live-page .ebsx-live-controls {
+    border-radius: 12px !important;
+  }
+}
+
+@media (max-width: 430px) {
+  #root .studio-final-shell .ebsx.setup-page .eam-grid,
+  #root .studio-final-shell .ebsx.live-page .eam.compact .eam-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
