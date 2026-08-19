@@ -9,7 +9,7 @@ import {
   Play,
   Search,
 } from 'lucide-react-native';
-import { ReactNode, useMemo } from 'react';
+import { ReactNode, useEffect, useMemo, useState } from 'react';
 import {
   Pressable,
   StyleSheet,
@@ -20,6 +20,7 @@ import {
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { EchooAudio } from '@/src/services/echooApi';
+import { getUnreadNotificationCount } from '@/src/services/notificationService';
 import { EchooColors, getEchooColors } from '@/src/theme/echooTheme';
 
 export function useListenerPalette() {
@@ -30,7 +31,7 @@ export function useListenerPalette() {
 export function ListenerTopBar({
   onMenu,
   onNotifications,
-  notificationCount = 0,
+  notificationCount,
 }: {
   onMenu?: () => void;
   onNotifications?: () => void;
@@ -39,6 +40,27 @@ export function ListenerTopBar({
   const router = useRouter();
   const palette = useListenerPalette();
   const styles = useMemo(() => makeStyles(palette), [palette]);
+  const [unreadCount, setUnreadCount] = useState(notificationCount || 0);
+
+  useEffect(() => {
+    if (notificationCount !== undefined) {
+      setUnreadCount(notificationCount);
+      return;
+    }
+
+    let active = true;
+    getUnreadNotificationCount()
+      .then((count) => {
+        if (active) setUnreadCount(count);
+      })
+      .catch(() => {
+        if (active) setUnreadCount(0);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [notificationCount]);
 
   return (
     <View style={styles.topBar}>
@@ -61,14 +83,14 @@ export function ListenerTopBar({
 
       <Pressable
         style={styles.notificationButton}
-        onPress={onNotifications || (() => router.push('/settings'))}
+        onPress={onNotifications || (() => router.push('/notifications'))}
         accessibilityLabel="Notifications"
       >
         <Bell color={palette.ink} size={22} strokeWidth={2.1} />
-        {notificationCount > 0 ? (
+        {unreadCount > 0 ? (
           <View style={styles.notificationBadge}>
             <Text style={styles.notificationBadgeText}>
-              {notificationCount > 9 ? '9+' : notificationCount}
+              {unreadCount > 9 ? '9+' : unreadCount}
             </Text>
           </View>
         ) : null}
@@ -263,14 +285,30 @@ export function ListenerMiniPlayer({
   title?: string;
   subtitle?: string;
 }) {
+  const router = useRouter();
   const palette = useListenerPalette();
   const styles = useMemo(() => makeStyles(palette), [palette]);
 
   const resolvedTitle = audio?.title || title;
   if (!resolvedTitle) return null;
 
+  const openPlayer = () => {
+    if (!audio) return;
+    router.push({
+      pathname: '/audio-player',
+      params: {
+        audioId: audio.id,
+        title: audio.title,
+        subtitle: audio.subtitle || audio.artistName || audio.genre || 'Echoo Audio',
+        coverArt: audio.coverArt || '',
+        fileUrl: audio.fileUrl || '',
+        genre: audio.genre || '',
+      },
+    });
+  };
+
   return (
-    <View style={styles.miniPlayer}>
+    <Pressable style={styles.miniPlayer} onPress={openPlayer} disabled={!audio}>
       <View style={styles.miniArt}>
         {audio?.coverArt ? (
           <Image source={{ uri: audio.coverArt }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
@@ -284,10 +322,10 @@ export function ListenerMiniPlayer({
           {audio?.subtitle || subtitle || 'Echoo'}
         </Text>
       </View>
-      <Pressable style={styles.miniPlayButton} accessibilityLabel="Play">
+      <View style={styles.miniPlayButton}>
         <Play color="#FFFFFF" fill="#FFFFFF" size={17} />
-      </Pressable>
-    </View>
+      </View>
+    </Pressable>
   );
 }
 
