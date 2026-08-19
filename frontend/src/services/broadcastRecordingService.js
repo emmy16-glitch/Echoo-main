@@ -1,3 +1,8 @@
+import {
+  startEchooMasterPcmCapture,
+  supportsEchooMasterPcmCapture,
+} from './echooMixerService.js';
+
 const RECORDING_EVENT = 'echoo:broadcast-recording-ready';
 
 const WAV_TARGET_SAMPLE_RATE = 48000;
@@ -5,7 +10,6 @@ const WAV_CHANNELS = 2;
 const WAV_BIT_DEPTH = 24;
 const WAV_BYTES_PER_SAMPLE = WAV_BIT_DEPTH / 8;
 const WAV_MIME_TYPE = 'audio/wav';
-const WAV_WORKLET_URL = '/echoo-pcm-capture-worklet.js';
 const MAX_WAV_DATA_BYTES = 0xffffffff - 44;
 
 const OPUS_FALLBACK_BITRATE = 256000;
@@ -13,16 +17,7 @@ const OPUS_FALLBACK_BITRATE = 256000;
 let activeRecording = null;
 let pendingRecording = null;
 
-const getAudioContextClass = () =>
-  typeof window !== 'undefined'
-    ? window.AudioContext || window.webkitAudioContext
-    : null;
-
-const supportsLosslessWavCapture = () =>
-  Boolean(
-    getAudioContextClass() &&
-    typeof AudioWorkletNode !== 'undefined'
-  );
+const supportsLosslessWavCapture = () => supportsEchooMasterPcmCapture();
 
 const supportedFallbackMimeType = () => {
   if (typeof MediaRecorder === 'undefined') return '';
@@ -105,77 +100,13 @@ const createWavHeader = ({
   return new Uint8Array(buffer);
 };
 
-const createCaptureContext = () => {
-  const AudioContextClass = getAudioContextClass();
-  if (!AudioContextClass) {
-    throw new Error('This browser does not support Web Audio recording.');
-  }
-
-  try {
-    return new AudioContextClass({
-      sampleRate: WAV_TARGET_SAMPLE_RATE,
-      latencyHint: 'interactive',
-    });
-  } catch {
-    return new AudioContextClass();
-  }
-};
-
-const cleanupLosslessRecording = async (recording) => {
-  try {
-    recording.source?.disconnect();
-  } catch {
-    // Already disconnected.
-  }
-
-  try {
-    recording.worklet?.disconnect();
-  } catch {
-    // Already disconnected.
-  }
-
-  try {
-    recording.silentGain?.disconnect();
-  } catch {
-    // Already disconnected.
-  }
-
-  try {
-    recording.track?.stop();
-  } catch {
-    // The cloned recording track may already be ended.
-  }
-
-  try {
-    await recording.context?.close();
-  } catch {
-    // Ignore cleanup errors from a closed context.
-  }
-};
-
 const stopLosslessRecording = async (recording, { keep = true } = {}) => {
-  if (!recording?.worklet) return null;
+  if (!recording?.capture) return null;
 
-  await new Promise((resolve) => {
-    let settled = false;
-    const finish = () => {
-      if (settled) return;
-      settled = true;
-      recording.stopResolve = null;
-      resolve();
-    };
-
-    recording.stopResolve = finish;
-    window.setTimeout(finish, 1000);
-
-    try {
-      recording.worklet.port.postMessage({ type: 'stop' });
-    } catch {
-      finish();
-    }
-  });
-
-  await cleanupLosslessRecording(recording);
+  // stop() flushes the AudioWorklet's final PCM chunk before disconnecting the
+  // recorder branch from the SAME master bus used by LiveKit.
+  await recording.capture.stop();
+  recording.capture = null;
 
   if (!keep || !recording.dataBytes) return null;
 
@@ -200,6 +131,7 @@ const stopLosslessRecording = async (recording, { keep = true } = {}) => {
     bitDepth: WAV_BIT_DEPTH,
     lossless: true,
     recordingFormat: 'pcm-wav',
+    captureSource: 'echoo-post-master-bus',
     audioBitsPerSecond: sampleRate * WAV_CHANNELS * WAV_BIT_DEPTH,
     startedAt: new Date(recording.startedAt).toISOString(),
     endedAt: new Date().toISOString(),
@@ -208,104 +140,56 @@ const stopLosslessRecording = async (recording, { keep = true } = {}) => {
   };
 };
 
-const startLosslessRecording = async ({ broadcastId, mediaTrack, title }) => {
+const startLosslessRecording = async ({ broadcastId, title }) => {
   if (!supportsLosslessWavCapture()) {
-    throw new Error('AudioWorklet PCM capture is not supported by this browser.');
+    throw new Error('Direct master-bus PCM capture is not supported by this browser.');
   }
 
-  const context = createCaptureContext();
-  const track = mediaTrack.clone();
-  const stream = new MediaStream([track]);
-  let source = null;
-  let worklet = null;
-  let silentGain = null;
+  const recording = {
+    mode: 'lossless-wav',
+    capture: null,
+    pcmChunks: [],
+    dataBytes: 0,
+    broadcastId: String(broadcastId || ''),
+    title,
+    startedAt: Date.now(),
+    sampleRate: null,
+    limitReached: false,
+  };
 
-  try {
-    if (!context.audioWorklet?.addModule) {
-      throw new Error('AudioWorklet is unavailable in this browser.');
-    }
+  const capture = await startEchooMasterPcmCapture({
+    onPcm: (buffer) => {
+      if (!buffer || recording.limitReached) return;
 
-    await context.audioWorklet.addModule(WAV_WORKLET_URL);
+      const floats = new Float32Array(buffer);
+      const pcm = floatToPcm24(floats);
 
-    source = context.createMediaStreamSource(stream);
-    worklet = new AudioWorkletNode(context, 'echoo-pcm-capture', {
-      numberOfInputs: 1,
-      numberOfOutputs: 1,
-      outputChannelCount: [WAV_CHANNELS],
-      channelCount: WAV_CHANNELS,
-      channelCountMode: 'explicit',
-      channelInterpretation: 'speakers',
-    });
-    silentGain = context.createGain();
-    silentGain.gain.value = 0;
-
-    const recording = {
-      mode: 'lossless-wav',
-      context,
-      source,
-      worklet,
-      silentGain,
-      stream,
-      track,
-      pcmChunks: [],
-      dataBytes: 0,
-      broadcastId: String(broadcastId || ''),
-      title,
-      startedAt: Date.now(),
-      sampleRate: context.sampleRate,
-      limitReached: false,
-      stopResolve: null,
-    };
-
-    worklet.port.onmessage = (event) => {
-      const message = event?.data || {};
-
-      if (message.type === 'pcm' && message.buffer) {
-        const floats = new Float32Array(message.buffer);
-        const pcm = floatToPcm24(floats);
-
-        if (recording.dataBytes + pcm.byteLength > MAX_WAV_DATA_BYTES) {
-          recording.limitReached = true;
-          console.error(
-            '[Echoo Recording] WAV master reached the classic RIFF/WAV 4 GB data limit.'
-          );
-          try {
-            worklet.port.postMessage({ type: 'stop' });
-          } catch {
-            // The processor may already be stopping.
-          }
-          return;
-        }
-
-        recording.pcmChunks.push(pcm);
-        recording.dataBytes += pcm.byteLength;
+      if (recording.dataBytes + pcm.byteLength > MAX_WAV_DATA_BYTES) {
+        recording.limitReached = true;
+        console.error(
+          '[Echoo Recording] WAV master reached the classic RIFF/WAV 4 GB data limit.'
+        );
         return;
       }
 
-      if (message.type === 'stopped') {
-        recording.stopResolve?.();
-      }
-    };
+      recording.pcmChunks.push(pcm);
+      recording.dataBytes += pcm.byteLength;
+    },
+  });
 
-    source.connect(worklet);
-    worklet.connect(silentGain);
-    silentGain.connect(context.destination);
+  recording.capture = capture;
+  recording.sampleRate = capture.sampleRate;
 
-    if (context.state === 'suspended') await context.resume();
+  console.log('[Echoo Recording] lossless WAV master recording started from the live master bus', {
+    broadcastId: recording.broadcastId,
+    sampleRate: recording.sampleRate,
+    channels: WAV_CHANNELS,
+    bitDepth: WAV_BIT_DEPTH,
+    source: capture.source,
+    format: 'PCM WAV',
+  });
 
-    console.log('[Echoo Recording] lossless WAV master recording started', {
-      broadcastId: recording.broadcastId,
-      sampleRate: recording.sampleRate,
-      channels: WAV_CHANNELS,
-      bitDepth: WAV_BIT_DEPTH,
-      format: 'PCM WAV',
-    });
-
-    return recording;
-  } catch (error) {
-    await cleanupLosslessRecording({ context, source, worklet, silentGain, track });
-    throw error;
-  }
+  return recording;
 };
 
 const stopFallbackRecording = (recording, { keep = true } = {}) =>
@@ -319,7 +203,7 @@ const stopFallbackRecording = (recording, { keep = true } = {}) =>
       try {
         recording.track?.stop();
       } catch {
-        // The cloned recording track may already be ended.
+        // The cloned fallback track may already be ended.
       }
 
       if (!keep) {
@@ -346,6 +230,7 @@ const stopFallbackRecording = (recording, { keep = true } = {}) =>
         bitDepth: null,
         lossless: false,
         recordingFormat: 'opus-fallback',
+        captureSource: 'published-media-track-fallback',
         targetAudioBitsPerSecond: OPUS_FALLBACK_BITRATE,
         audioBitsPerSecond:
           Number(recording.recorder.audioBitsPerSecond) || OPUS_FALLBACK_BITRATE,
@@ -410,7 +295,7 @@ const startFallbackRecording = ({ broadcastId, mediaTrack, title }) => {
   };
 
   recorder.start(1000);
-  console.warn('[Echoo Recording] using lossy Opus fallback; lossless WAV capture was unavailable.');
+  console.warn('[Echoo Recording] using lossy Opus fallback; direct master capture was unavailable.');
   return recording;
 };
 
@@ -427,6 +312,10 @@ const activeRecordingSnapshot = (recording) => ({
   broadcastId: recording?.broadcastId || null,
   startedAt: recording?.startedAt || null,
   recordingFormat: recording?.mode || null,
+  captureSource:
+    recording?.mode === 'lossless-wav'
+      ? 'echoo-post-master-bus'
+      : 'published-media-track-fallback',
   lossless: recording?.mode === 'lossless-wav',
   sampleRate: recording?.sampleRate || null,
   channels: recording?.mode === 'lossless-wav' ? WAV_CHANNELS : 2,
@@ -441,6 +330,12 @@ export const getBroadcastRecordingState = () => ({
   startedAt: activeRecording?.startedAt || null,
   pending: Boolean(pendingRecording),
   recordingFormat: activeRecording?.mode || null,
+  captureSource:
+    activeRecording?.mode === 'lossless-wav'
+      ? 'echoo-post-master-bus'
+      : activeRecording
+        ? 'published-media-track-fallback'
+        : null,
   lossless: activeRecording?.mode === 'lossless-wav',
   sampleRate: activeRecording?.sampleRate || null,
   channels: activeRecording?.mode === 'lossless-wav' ? WAV_CHANNELS : null,
@@ -468,18 +363,22 @@ export const ensureBroadcastRecording = async ({
   }
 
   try {
+    // Primary path: capture PCM directly from Echoo's post-limiter master bus
+    // inside the mixer AudioContext. No cloned track, no second AudioContext,
+    // no extra resampling/channel conversion before WAV encoding.
     activeRecording = await startLosslessRecording({
       broadcastId: id,
-      mediaTrack,
       title,
     });
   } catch (losslessError) {
     console.warn(
-      '[Echoo Recording] lossless PCM WAV capture could not start:',
+      '[Echoo Recording] direct lossless master-bus capture could not start:',
       losslessError?.message || losslessError
     );
 
     try {
+      // Compatibility only. If AudioWorklet/direct master capture is unavailable,
+      // retain the previous high-quality Opus track recorder rather than lose the take.
       activeRecording = startFallbackRecording({
         broadcastId: id,
         mediaTrack,
@@ -555,6 +454,7 @@ export const ECHOO_BROADCAST_MASTER_FORMAT = {
   channels: WAV_CHANNELS,
   bitDepth: WAV_BIT_DEPTH,
   lossless: true,
+  captureSource: 'echoo-post-master-bus',
 };
 
 export default {
