@@ -4,6 +4,7 @@ import {
 } from 'livekit-client';
 import { resolveLiveKitUrl } from './livekitUrl.js';
 import { ensureBroadcastRecording } from './broadcastRecordingService.js';
+import { applyProgramTrackQuality } from './audioQualityProfile.js';
 
 const ECHOO_LIVE_AUDIO_BITRATE = 256000;
 
@@ -45,6 +46,7 @@ const createSyntheticTrack = async () => {
     throw new Error('Could not create Echoo synthetic audio track.');
   }
 
+  applyProgramTrackQuality(nativeTrack);
   syntheticOscillator = oscillator;
   syntheticNativeTrack = nativeTrack;
   return nativeTrack;
@@ -151,11 +153,17 @@ export const startLiveKitPublishing = async ({
 
     let publication;
     let mode = 'microphone';
+    let programTrackQuality = null;
 
     if (mediaTrack) {
       if (mediaTrack.kind !== 'audio' || mediaTrack.readyState === 'ended') {
         throw new Error('The Echoo mixer output is not available.');
       }
+
+      // The destination track is a finished broadcast program, not a speech-call
+      // microphone. Mark it as music/program audio before WebRTC negotiates so
+      // browsers avoid speech-oriented handling where they support contentHint.
+      programTrackQuality = applyProgramTrackQuality(mediaTrack);
 
       publication = await room.localParticipant.publishTrack(mediaTrack, {
         name: 'echoo-studio-mix',
@@ -166,6 +174,9 @@ export const startLiveKitPublishing = async ({
         audioPreset: { maxBitrate: ECHOO_LIVE_AUDIO_BITRATE },
         forceStereo: true,
         dtx: false,
+        // Stereo RED is intentionally left off for the primary quality profile.
+        // Network resilience can be A/B tested separately without changing the
+        // clean source/mastering path.
         red: false,
       });
       mode = 'studio-mix';
@@ -213,6 +224,7 @@ export const startLiveKitPublishing = async ({
       mode,
       url: resolvedUrl,
       targetAudioBitsPerSecond: ECHOO_LIVE_AUDIO_BITRATE,
+      programTrackQuality,
     };
 
     console.log('[Echoo LiveKit] publishing hi-fi studio mix', result);
