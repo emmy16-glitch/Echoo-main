@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   BookOpenText,
   Headphones,
@@ -44,16 +44,21 @@ const categorySuggestions = [
 
 export default function SearchScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ q?: string }>();
   const scheme = useColorScheme();
   const palette = getEchooColors(scheme);
   const styles = useMemo(() => createStyles(palette), [palette]);
 
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(() => String(params.q || ''));
   const [audio, setAudio] = useState<EchooAudio[]>([]);
   const [stations, setStations] = useState<EchooStation[]>([]);
   const [live, setLive] = useState<EchooBroadcast[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (params.q !== undefined) setQuery(String(params.q));
+  }, [params.q]);
 
   useEffect(() => {
     const cleanQuery = query.trim();
@@ -115,7 +120,7 @@ export default function SearchScreen() {
           value={query}
           onChangeText={setQuery}
           placeholder="Search stations, shows, podcasts..."
-          autoFocus
+          autoFocus={!params.q}
         />
 
         {!query.trim() ? (
