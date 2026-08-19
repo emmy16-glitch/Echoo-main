@@ -21,9 +21,7 @@
   height: 100%;
   display: block;
   object-fit: cover;
-  object-position: 50% 44%;
-  transform: scale(1.06);
-  transform-origin: 50% 44%;
+  object-position: 50% 50%;
 }
 
 .echoo-avatar .echoo-signal-core {
