@@ -37,15 +37,15 @@ router.get('/health', (req, res) => {
 
 router.get('/health/livekit', async (req, res) => {
   try {
-    // A participant lookup against a deliberately unused room exercises the
-    // authenticated LiveKit server API. A missing room is a healthy response;
-    // connection/configuration failures are normalized by LiveKitProvider.
-    await LiveKitProvider.getParticipants('echoo-healthcheck');
+    const health = await LiveKitProvider.checkHealth();
 
     return res.status(200).json({
       status: 'ok',
       service: 'livekit',
       reachable: true,
+      cloud: Boolean(health.cloud),
+      publicUrl: health.publicUrl,
+      mediaMode: String(process.env.MEDIA_RELAY_MODE || 'livekit-only'),
       timestamp: new Date().toISOString(),
     });
   } catch (error) {

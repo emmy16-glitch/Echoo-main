@@ -71,6 +71,29 @@ const cleanupSyntheticAudio = async () => {
   syntheticContext = null;
 };
 
+const liveKitConnectionError = (error, url) => {
+  const message = String(error?.message || error || '').trim();
+  const lower = message.toLowerCase();
+
+  if (/token|jwt|authorization|permission|unauth/.test(lower)) {
+    return new Error(
+      `LiveKit rejected the broadcast session credentials. Confirm the backend is using the API key and secret for ${url}, then sign in again and retry.${message ? ` (${message})` : ''}`
+    );
+  }
+
+  if (/websocket|network|connect|timeout|fetch|ice|signal/.test(lower)) {
+    return new Error(
+      `Could not establish the LiveKit audio connection to ${url}. Check internet access, firewall/VPN restrictions, and that the .env points to the correct LiveKit Cloud project.${message ? ` (${message})` : ''}`
+    );
+  }
+
+  return new Error(
+    message
+      ? `LiveKit could not publish the Echoo studio mix: ${message}`
+      : 'LiveKit could not publish the Echoo studio mix.'
+  );
+};
+
 export const getLiveKitPublishingState = () => ({
   connected: Boolean(activeRoom),
   broadcastId: activeBroadcastId,
@@ -103,11 +126,11 @@ export const startLiveKitPublishing = async ({
   const resolvedUrl = resolveLiveKitUrl(url);
 
   if (!resolvedUrl) {
-    throw new Error('VITE_LIVEKIT_URL is not configured.');
+    throw new Error('Echoo did not receive a LiveKit websocket URL from the backend.');
   }
 
   if (!token) {
-    throw new Error('Echoo did not return a LiveKit token.');
+    throw new Error('Echoo did not return a LiveKit participant token.');
   }
 
   await stopLiveKitPublishing();
@@ -115,7 +138,12 @@ export const startLiveKitPublishing = async ({
   const room = new Room();
 
   try {
-    await room.connect(resolvedUrl, token);
+    await room.connect(resolvedUrl, token, {
+      autoSubscribe: false,
+      maxRetries: 3,
+      websocketTimeout: 15000,
+      peerConnectionTimeout: 20000,
+    });
 
     let publication;
     let mode = 'microphone';
@@ -163,7 +191,7 @@ export const startLiveKitPublishing = async ({
     }
 
     await cleanupSyntheticAudio();
-    throw error;
+    throw liveKitConnectionError(error, resolvedUrl);
   }
 };
 
