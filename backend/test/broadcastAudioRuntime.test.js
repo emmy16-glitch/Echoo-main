@@ -10,7 +10,11 @@ import {
   isCreatorParticipant,
   isEchooProgramAudioTrack,
   parseParticipantMetadata,
+  waitForCreatorProgramAudio,
 } from '../src/services/broadcastAudioReadiness.js';
+import { CreatorBroadcastLease } from '../src/services/creatorBroadcastLease.js';
+import LiveKitProvider from '../src/providers/livekit.js';
+import { matchesUploadedFileSignature } from '../src/routes/audioRoutes.js';
 import { normalizeApiError } from '../src/app.js';
 
 const mockResponse = () => {
@@ -156,7 +160,88 @@ test('confirm-live accepts only the named Echoo post-master program track', () =
   );
 });
 
-test('API error normalizer maps database failures to stable client statuses', () => {
+test('audio readiness retries propagation and returns the creator program track', async () => {
+  const userId = new mongoose.Types.ObjectId().toString();
+  const original = LiveKitProvider.getParticipants;
+  let calls = 0;
+
+  LiveKitProvider.getParticipants = async () => {
+    calls += 1;
+    if (calls === 1) {
+      return [{
+        identity: userId,
+        metadata: JSON.stringify({ role: 'creator', userId }),
+        tracks: [{ name: 'microphone', mimeType: 'audio/opus', muted: false }],
+      }];
+    }
+    return [{
+      sid: 'PA_creator',
+      identity: userId,
+      metadata: JSON.stringify({ role: 'creator', userId }),
+      tracks: [{
+        sid: 'TR_program',
+        name: 'echoo-studio-mix',
+        mimeType: 'audio/opus',
+        muted: false,
+      }],
+    }];
+  };
+
+  try {
+    const result = await waitForCreatorProgramAudio('broadcast-id', userId, {
+      maxAttempts: 3,
+      initialDelayMs: 0,
+      delayStepMs: 0,
+    });
+    assert.equal(calls, 2);
+    assert.equal(result.participantSid, 'PA_creator');
+    assert.equal(result.trackSid, 'TR_program');
+    assert.equal(result.trackName, 'echoo-studio-mix');
+  } finally {
+    LiveKitProvider.getParticipants = original;
+  }
+});
+
+test('creator broadcast lease schema enforces one active lease and automatic expiry', () => {
+  const indexes = CreatorBroadcastLease.schema.indexes();
+  assert.ok(
+    indexes.some(([fields, options]) => fields.creator === 1 && options.unique === true),
+    'creator lease must have a unique creator index'
+  );
+  assert.ok(
+    indexes.some(([fields, options]) => fields.expiresAt === 1 && options.expireAfterSeconds === 0),
+    'creator lease must have a TTL expiry index'
+  );
+});
+
+test('uploaded file signature checks reject extension-only spoofing', () => {
+  const wav = Buffer.from([
+    0x52, 0x49, 0x46, 0x46, 0x00, 0x00, 0x00, 0x00,
+    0x57, 0x41, 0x56, 0x45,
+  ]);
+  const png = Buffer.from([
+    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+  ]);
+
+  assert.equal(
+    matchesUploadedFileSignature({ originalname: 'master.wav' }, wav),
+    true
+  );
+  assert.equal(
+    matchesUploadedFileSignature({ originalname: 'fake.wav' }, Buffer.from('not-wave-data')),
+    false
+  );
+  assert.equal(
+    matchesUploadedFileSignature({ originalname: 'cover.png' }, png),
+    true
+  );
+  assert.equal(
+    matchesUploadedFileSignature({ originalname: 'cover.jpg' }, png),
+    false
+  );
+});
+
+test('API error normalizer maps database failures and hides unknown server details', () => {
   assert.deepEqual(
     normalizeApiError({ name: 'CastError', path: 'station' }),
     {
@@ -181,6 +266,15 @@ test('API error normalizer maps database failures to stable client statuses', ()
       status: 503,
       code: 'LIVEKIT_DOWN',
       message: 'LiveKit unavailable',
+    }
+  );
+
+  assert.deepEqual(
+    normalizeApiError(new Error('database password should never reach client')),
+    {
+      status: 500,
+      code: 'INTERNAL_ERROR',
+      message: 'An unexpected error occurred',
     }
   );
 });
