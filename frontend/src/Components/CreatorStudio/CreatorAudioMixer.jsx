@@ -377,7 +377,7 @@ const CreatorAudioMixer = ({ compact = false, onStateChange }) => {
     }
   };
 
-  const renderChannel = (channelId, icon, connectAction) => {
+  const renderChannel = (channelId, icon) => {
     const channel = channels[channelId] || {
       name: channelId,
       sourceLabel: 'Not connected',
@@ -470,7 +470,15 @@ const CreatorAudioMixer = ({ compact = false, onStateChange }) => {
             type="button"
             className="primary"
             disabled={isWorking || workingChannel === 'profile'}
-            onClick={() => channel.connected ? disconnectMixerChannel(channelId) : connectAction()}
+            onClick={() => {
+              if (channel.connected) {
+                disconnectMixerChannel(channelId);
+                return;
+              }
+              if (channelId === 'host') connectHost();
+              else if (channelId === 'guest') connectGuest();
+              else connectMedia();
+            }}
           >
             <FaPlug />
             {isWorking
@@ -580,9 +588,9 @@ const CreatorAudioMixer = ({ compact = false, onStateChange }) => {
       <div className="eam-workspace">
         <div className="eam-sources">
           <div className="eam-source-grid">
-            {renderChannel('host', <FaMicrophone />, connectHost)}
-            {renderChannel('guest', <FaMicrophone />, connectGuest)}
-            {renderChannel('media', <FaDesktop />, connectMedia)}
+            {renderChannel('host', <FaMicrophone />)}
+            {renderChannel('guest', <FaMicrophone />)}
+            {renderChannel('media', <FaDesktop />)}
           </div>
 
           <div className={`eam-guidance ${balanceAdvice.tone}`}>
