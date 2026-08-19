@@ -6,7 +6,7 @@ import {
 } from 'livekit-server-sdk';
 
 function requireEnv(name) {
-  const value = process.env[name];
+  const value = String(process.env[name] || '').trim();
   if (!value) {
     const error = new Error(`${name} is not configured`);
     error.code = 'LIVEKIT_CONFIG_MISSING';
@@ -16,22 +16,73 @@ function requireEnv(name) {
   return value;
 }
 
+function normalizeApiUrl(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+
+  try {
+    const parsed = new URL(raw);
+
+    if (parsed.protocol === 'ws:') parsed.protocol = 'http:';
+    if (parsed.protocol === 'wss:') parsed.protocol = 'https:';
+
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      throw new Error('LiveKit server URL must use ws://, wss://, http://, or https://');
+    }
+
+    return parsed.toString().replace(/\/$/, '');
+  } catch (cause) {
+    const error = new Error(
+      `LIVEKIT_URL is invalid. Expected a LiveKit host such as wss://your-project.livekit.cloud. ${cause?.message || ''}`.trim()
+    );
+    error.code = 'LIVEKIT_CONFIG_INVALID';
+    error.status = 503;
+    throw error;
+  }
+}
+
+function normalizeWebsocketUrl(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+
+  try {
+    const parsed = new URL(raw);
+
+    if (parsed.protocol === 'http:') parsed.protocol = 'ws:';
+    if (parsed.protocol === 'https:') parsed.protocol = 'wss:';
+
+    if (!['ws:', 'wss:'].includes(parsed.protocol)) {
+      throw new Error('LiveKit public URL must use ws:// or wss://');
+    }
+
+    return parsed.toString().replace(/\/$/, '');
+  } catch (cause) {
+    const error = new Error(
+      `LIVEKIT_PUBLIC_URL is invalid. Expected a websocket URL such as wss://your-project.livekit.cloud. ${cause?.message || ''}`.trim()
+    );
+    error.code = 'LIVEKIT_CONFIG_INVALID';
+    error.status = 503;
+    throw error;
+  }
+}
+
 function roomNameFor(broadcastId) {
   return `echoo-broadcast-${broadcastId}`;
 }
 
 function getConfig() {
-  const url = requireEnv('LIVEKIT_URL');
+  const configuredUrl = requireEnv('LIVEKIT_URL');
   const apiKey = requireEnv('LIVEKIT_API_KEY');
   const apiSecret = requireEnv('LIVEKIT_API_SECRET');
-
-  const apiUrl = url
-    .replace(/^ws:/i, 'http:')
-    .replace(/^wss:/i, 'https:');
+  const apiUrl = normalizeApiUrl(configuredUrl);
+  const publicUrl = normalizeWebsocketUrl(
+    process.env.LIVEKIT_PUBLIC_URL || configuredUrl
+  );
 
   return {
-    url,
+    url: configuredUrl,
     apiUrl,
+    publicUrl,
     apiKey,
     apiSecret,
   };
@@ -48,11 +99,16 @@ function egressClient() {
 }
 
 function serviceError(action, cause) {
-  if (cause?.code === 'LIVEKIT_CONFIG_MISSING') return cause;
+  if (
+    cause?.code === 'LIVEKIT_CONFIG_MISSING' ||
+    cause?.code === 'LIVEKIT_CONFIG_INVALID'
+  ) {
+    return cause;
+  }
 
   const detail = String(cause?.message || cause || '').trim();
   const error = new Error(
-    `LiveKit ${action} failed. Check that the LiveKit server is running and that LIVEKIT_URL, LIVEKIT_API_KEY and LIVEKIT_API_SECRET match.${detail ? ` ${detail}` : ''}`
+    `LiveKit ${action} failed. Check LIVEKIT_URL, LIVEKIT_PUBLIC_URL, LIVEKIT_API_KEY and LIVEKIT_API_SECRET, and confirm this machine can reach the configured LiveKit project.${detail ? ` ${detail}` : ''}`
   );
   error.code = 'LIVEKIT_UNAVAILABLE';
   error.status = 503;
@@ -66,10 +122,29 @@ const LiveKitProvider = {
   },
 
   getPublicUrl() {
-    return (
-      process.env.LIVEKIT_PUBLIC_URL ||
-      requireEnv('LIVEKIT_URL')
-    );
+    return getConfig().publicUrl;
+  },
+
+  getSafeConfiguration() {
+    const { apiUrl, publicUrl } = getConfig();
+    return {
+      apiUrl,
+      publicUrl,
+      cloud: /\.livekit\.cloud$/i.test(new URL(apiUrl).hostname),
+    };
+  },
+
+  async checkHealth() {
+    try {
+      const client = roomClient();
+      await client.listRooms([]);
+      return {
+        reachable: true,
+        ...this.getSafeConfiguration(),
+      };
+    } catch (error) {
+      throw serviceError('health check', error);
+    }
   },
 
   async createRoom(broadcastId) {
