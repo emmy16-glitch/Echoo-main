@@ -17,7 +17,7 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 20px;
-  margin-bottom: 20px;
+  margin-bottom: 18px;
 }
 
 .eam-heading > div { min-width: 0; }
@@ -44,7 +44,8 @@
 }
 
 .eam-reset,
-.eam-connect {
+.eam-connect,
+.eam-monitor-panel button {
   border: 1px solid #dbe3ed;
   border-radius: 9px;
   background: #fff;
@@ -66,13 +67,140 @@
 }
 
 .eam-error {
-  margin: -4px 0 16px;
+  margin: -2px 0 14px;
   padding: 10px 12px;
   border: 1px solid #ffd2d2;
   border-radius: 9px;
   background: #fff7f7;
   color: #a93434;
   font-size: 11px;
+}
+
+.eam-monitor-panel {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(320px, 1.25fr);
+  gap: 12px 18px;
+  align-items: center;
+  margin-bottom: 14px;
+  padding: 13px 14px;
+  border: 1px solid #dbe6f7;
+  border-radius: 13px;
+  background: #f8fbff;
+}
+
+.eam-monitor-title {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.eam-monitor-title > span {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: #edf4ff;
+  color: #8293ad;
+}
+
+.eam-monitor-title > span.active {
+  background: #e9f8ef;
+  color: #159457;
+}
+
+.eam-monitor-title strong,
+.eam-monitor-title small {
+  display: block;
+}
+
+.eam-monitor-title strong {
+  color: #172842;
+  font-size: 12px;
+}
+
+.eam-monitor-title small {
+  margin-top: 3px;
+  color: #7c8ba1;
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.eam-monitor-controls {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(130px, 1fr) auto auto;
+  gap: 7px;
+}
+
+.eam-monitor-controls select,
+.eam-monitor-panel input[type="range"] {
+  min-width: 0;
+}
+
+.eam-monitor-controls select {
+  height: 34px;
+  padding: 0 8px;
+  border: 1px solid #d5dfec;
+  border-radius: 8px;
+  background: #fff;
+  color: #43526a;
+  font: inherit;
+  font-size: 10px;
+}
+
+.eam-monitor-controls button {
+  min-height: 34px;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
+.eam-monitor-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.eam-monitor-toggle.active {
+  border-color: #9fd8b9;
+  background: #effaf4;
+  color: #137c4b;
+}
+
+.eam-monitor-panel button:disabled,
+.eam-monitor-controls select:disabled {
+  cursor: not-allowed;
+  opacity: .5;
+}
+
+.eam-monitor-volume {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: auto minmax(100px, 1fr) 42px;
+  align-items: center;
+  gap: 10px;
+  color: #65758d;
+  font-size: 9px;
+}
+
+.eam-monitor-volume input {
+  accent-color: #256bfe;
+}
+
+.eam-monitor-volume strong {
+  color: #40516b;
+  text-align: right;
+}
+
+.eam-monitor-warning {
+  grid-column: 1 / -1;
+  margin: -3px 0 0;
+  color: #8b6b35;
+  font-size: 9px;
+  line-height: 1.35;
 }
 
 .eam-grid {
@@ -83,6 +211,7 @@
 }
 
 .eam-channel {
+  position: relative;
   min-width: 0;
   overflow: hidden;
   padding: 14px 12px 12px;
@@ -99,6 +228,20 @@
 
 .eam-channel.master {
   background: #f8fbff;
+}
+
+.eam-clip {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  padding: 3px 5px;
+  border-radius: 5px;
+  background: #d92d20;
+  color: #fff;
+  font-size: 7px;
+  font-weight: 900;
+  letter-spacing: .08em;
 }
 
 .eam-channel-head {
@@ -145,23 +288,55 @@
   white-space: nowrap;
 }
 
+.eam-device-select {
+  width: 100%;
+  min-width: 0;
+  height: 32px;
+  margin-top: 5px;
+  padding: 0 7px;
+  border: 1px solid #dbe3ed;
+  border-radius: 8px;
+  background: #fff;
+  color: #4b5a70;
+  font-size: 9px;
+}
+
 .eam-channel-body {
   height: 164px;
   display: grid;
-  grid-template-columns: 20px minmax(0, 1fr);
+  grid-template-columns: 42px minmax(0, 1fr);
   align-items: center;
   justify-items: center;
-  gap: 8px;
-  margin: 10px 0 6px;
+  gap: 5px;
+  margin: 9px 0 4px;
+}
+
+.eam-meter-wrap {
+  height: 152px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.eam-meter-wrap small {
+  width: 42px;
+  overflow: hidden;
+  color: #8492a6;
+  font-size: 7px;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .eam-meter {
   position: relative;
-  width: 9px;
-  height: 142px;
+  width: 10px;
+  height: 126px;
   overflow: hidden;
   border-radius: 999px;
-  background: linear-gradient(to top, #e9eef5 0 70%, #f9ead6 70% 88%, #f6dddd 88% 100%);
+  background: linear-gradient(to top, #e9eef5 0 68%, #f9ead6 68% 88%, #f6dddd 88% 100%);
 }
 
 .eam-meter-fill {
@@ -170,8 +345,8 @@
   right: 0;
   bottom: 0;
   border-radius: inherit;
-  background: linear-gradient(to top, #1dc46b 0 72%, #f2c94c 72% 88%, #ef4444 88% 100%);
-  transition: height .07s linear;
+  background: linear-gradient(to top, #1dc46b 0 68%, #f2c94c 68% 88%, #ef4444 88% 100%);
+  transition: height .06s linear;
 }
 
 .eam-fader {
@@ -190,15 +365,24 @@
   text-align: center;
 }
 
+.eam-unity-hint {
+  display: block;
+  min-height: 12px;
+  margin-top: 2px;
+  color: #9aa6b7;
+  font-size: 7px;
+  text-align: center;
+}
+
 .eam-channel-controls {
   display: flex;
   justify-content: center;
   gap: 6px;
-  margin-top: 9px;
+  margin-top: 8px;
 }
 
 .eam-channel-controls button {
-  min-width: 29px;
+  min-width: 31px;
   height: 28px;
   display: grid;
   place-items: center;
@@ -228,19 +412,6 @@
   opacity: .4;
 }
 
-.eam-device-select {
-  width: 100%;
-  min-width: 0;
-  height: 32px;
-  margin-top: 8px;
-  padding: 0 7px;
-  border: 1px solid #dbe3ed;
-  border-radius: 8px;
-  background: #fff;
-  color: #4b5a70;
-  font-size: 9px;
-}
-
 .eam-connect {
   width: 100%;
   min-width: 0;
@@ -253,7 +424,8 @@
 }
 
 .eam-connect:hover:not(:disabled),
-.eam-reset:hover { border-color: #a9c4ed; }
+.eam-reset:hover,
+.eam-monitor-panel button:hover:not(:disabled) { border-color: #a9c4ed; }
 
 .eam-output-status {
   min-height: 32px;
@@ -300,18 +472,22 @@
   font-size: 8px;
 }
 
-/* Compact mixer is used inside the Live side rail. Two-by-two keeps each
-   channel readable and prevents labels/faders from escaping the card. */
+/* Compact mixer is used inside the Live side rail. Monitoring remains usable
+   but is condensed so the live workspace does not become a wall of controls. */
 .eam.compact {
   padding: 18px;
 }
 
-.eam.compact .eam-heading { margin-bottom: 16px; }
+.eam.compact .eam-heading { margin-bottom: 14px; }
 .eam.compact .eam-heading p { display: none; }
+.eam.compact .eam-monitor-panel { grid-template-columns: 1fr; }
+.eam.compact .eam-monitor-controls { grid-template-columns: 1fr 1fr; }
+.eam.compact .eam-monitor-controls select { grid-column: 1 / -1; }
 .eam.compact .eam-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .eam.compact .eam-channel { padding: 12px 10px; }
 .eam.compact .eam-channel-body { height: 132px; }
-.eam.compact .eam-meter { height: 112px; }
+.eam.compact .eam-meter-wrap { height: 120px; }
+.eam.compact .eam-meter { height: 96px; }
 .eam.compact .eam-fader { width: 98px; }
 
 /* The Broadcast Studio owns the width. Nothing inside the mixer is allowed
@@ -362,28 +538,39 @@
   .ebsx-setup-layout { grid-template-columns: 1fr; }
   .ebsx-live-side { grid-template-columns: 1fr; }
   .ebsx-preflight-grid { grid-template-columns: minmax(280px, .75fr) minmax(0, 1.25fr); }
+  .eam-monitor-panel { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 900px) {
   .ebsx-preflight-grid { grid-template-columns: 1fr; }
   .eam-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .eam-monitor-controls { grid-template-columns: minmax(0, 1fr) auto auto; }
 }
 
 @media (max-width: 720px) {
   .eam { padding: 16px; border-radius: 14px; }
   .eam-heading { align-items: stretch; flex-direction: column; gap: 10px; }
   .eam-reset { align-self: flex-start; }
+  .eam-monitor-controls { grid-template-columns: 1fr 1fr; }
+  .eam-monitor-controls select { grid-column: 1 / -1; }
   .eam-grid,
   .eam.compact .eam-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .eam-channel-body,
   .eam.compact .eam-channel-body { height: 120px; }
+  .eam-meter-wrap,
+  .eam.compact .eam-meter-wrap { height: 108px; }
   .eam-meter,
-  .eam.compact .eam-meter { height: 100px; }
+  .eam.compact .eam-meter { height: 84px; }
   .eam-fader,
   .eam.compact .eam-fader { width: 88px; }
 }
 
 @media (max-width: 430px) {
+  .eam-monitor-panel { padding: 12px; }
+  .eam-monitor-controls { grid-template-columns: 1fr; }
+  .eam-monitor-controls select { grid-column: auto; }
+  .eam-monitor-volume { grid-template-columns: 1fr 42px; }
+  .eam-monitor-volume > span { grid-column: 1 / -1; }
   .eam-grid,
   .eam.compact .eam-grid { grid-template-columns: 1fr; }
   .eam-channel-head strong,

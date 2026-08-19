@@ -1,17 +1,6 @@
-import {
-  useEffect,
-  useRef,
-  useState,
-} from 'react';
-import {
-  Room,
-  RoomEvent,
-  Track,
-} from 'livekit-client';
-import {
-  FaHeadphones,
-  FaRedoAlt,
-} from 'react-icons/fa';
+import { useEffect, useRef, useState } from 'react';
+import { Room, RoomEvent, Track } from 'livekit-client';
+import { FaHeadphones, FaRedoAlt, FaVolumeUp } from 'react-icons/fa';
 
 import batch3Service from '../../services/batch3Service';
 import { resolveLiveKitUrl } from '../../services/livekitUrl';
@@ -19,59 +8,102 @@ import './LiveKitListenerPlayer.css';
 
 const STATUS_COPY = {
   connecting: 'Connecting live audio...',
-  connected: 'Connected — waiting for audio',
+  connected: 'Connected — waiting for creator audio',
   listening: 'Listening live',
   reconnecting: 'Reconnecting live audio...',
   disconnected: 'Live audio disconnected',
   error: 'Could not connect to live audio',
 };
 
-const LiveKitListenerPlayer = ({
-  broadcastId,
-  isLive,
-}) => {
+const LiveKitListenerPlayer = ({ broadcastId, isLive }) => {
   const roomRef = useRef(null);
   const audioHostRef = useRef(null);
+  const outputRef = useRef('');
+  const attachedRef = useRef(new Set());
   const [retryVersion, setRetryVersion] = useState(0);
-  const [status, setStatus] = useState(
-    isLive ? 'connecting' : 'disconnected'
-  );
+  const [status, setStatus] = useState(isLive ? 'connecting' : 'disconnected');
   const [needsAudioStart, setNeedsAudioStart] = useState(false);
   const [error, setError] = useState('');
+  const [outputs, setOutputs] = useState([]);
+  const [outputDeviceId, setOutputDeviceId] = useState('');
+  const [trackCount, setTrackCount] = useState(0);
+
+  useEffect(() => {
+    outputRef.current = outputDeviceId;
+  }, [outputDeviceId]);
 
   useEffect(() => {
     if (!broadcastId || !isLive) return undefined;
-
     let disposed = false;
 
     const clearAudio = () => {
-      const host = audioHostRef.current;
-      if (!host) return;
-
-      host.querySelectorAll('audio').forEach((element) => {
-        try {
-          element.pause();
-        } catch {
-          // Ignore cleanup errors.
-        }
+      attachedRef.current.clear();
+      setTrackCount(0);
+      audioHostRef.current?.querySelectorAll('audio').forEach((element) => {
+        try { element.pause(); } catch { /* ignore */ }
         element.remove();
       });
     };
 
-    const attachAudioTrack = (track) => {
+    const loadOutputs = async () => {
+      try {
+        const devices = await Room.getLocalDevices('audiooutput');
+        if (!disposed) {
+          setOutputs(devices.map((device) => ({
+            deviceId: device.deviceId,
+            label: device.label || 'Audio output',
+          })));
+        }
+      } catch {
+        if (!disposed) setOutputs([]);
+      }
+    };
+
+    const attachAudio = async (track) => {
       if (disposed || track.kind !== Track.Kind.Audio) return;
+      const id = String(track.sid || track.mediaStreamTrack?.id || 'audio');
+      if (attachedRef.current.has(id)) return;
+      attachedRef.current.add(id);
 
       const element = track.attach();
       element.autoplay = true;
       element.controls = false;
+      element.muted = false;
+      element.volume = 1;
       element.setAttribute('playsinline', '');
+
+      if (outputRef.current && typeof element.setSinkId === 'function') {
+        try { await element.setSinkId(outputRef.current); } catch { /* use system default */ }
+      }
+
       audioHostRef.current?.appendChild(element);
+      setTrackCount((current) => current + 1);
 
-      element.play?.().catch(() => {
-        if (!disposed) setNeedsAudioStart(true);
+      try {
+        await element.play();
+        if (!disposed) {
+          setNeedsAudioStart(false);
+          setStatus('listening');
+        }
+      } catch (playError) {
+        if (!disposed) {
+          setNeedsAudioStart(true);
+          setStatus('connected');
+          if (playError?.name !== 'NotAllowedError') {
+            setError(playError?.message || 'The live track arrived but playback did not start.');
+          }
+        }
+      }
+    };
+
+    const attachExisting = async (room) => {
+      const tasks = [];
+      room.remoteParticipants.forEach((participant) => {
+        participant.trackPublications.forEach((publication) => {
+          if (publication.track?.kind === Track.Kind.Audio) tasks.push(attachAudio(publication.track));
+        });
       });
-
-      setStatus('listening');
+      await Promise.allSettled(tasks);
     };
 
     const connect = async () => {
@@ -82,71 +114,52 @@ const LiveKitListenerPlayer = ({
 
       const previousRoom = roomRef.current;
       roomRef.current = null;
-
       if (previousRoom) {
-        try {
-          await previousRoom.disconnect();
-        } catch {
-          // Ignore old room cleanup.
-        }
+        try { await previousRoom.disconnect(); } catch { /* ignore */ }
       }
 
-      const credentials = await batch3Service.getListenerLiveKitToken(
-        broadcastId
-      );
+      const credentials = await batch3Service.getListenerLiveKitToken(broadcastId);
       const liveKitUrl = resolveLiveKitUrl(credentials?.livekitUrl);
-
       if (!credentials?.token || !liveKitUrl) {
-        throw new Error(
-          'Echoo did not return listener audio credentials.'
-        );
+        throw new Error('Echoo did not return listener audio credentials.');
       }
 
-      const room = new Room({
-        adaptiveStream: false,
-        dynacast: false,
-      });
-
+      const room = new Room({ adaptiveStream: false, dynacast: false });
       roomRef.current = room;
 
-      room.on(RoomEvent.TrackSubscribed, attachAudioTrack);
+      room.on(RoomEvent.TrackSubscribed, (track) => {
+        attachAudio(track).catch((trackError) => {
+          if (!disposed) setError(trackError?.message || 'Could not attach live audio.');
+        });
+      });
 
       room.on(RoomEvent.TrackUnsubscribed, (track) => {
-        try {
-          track.detach().forEach((element) => element.remove());
-        } catch {
-          // Ignore detached element cleanup.
+        const id = String(track.sid || track.mediaStreamTrack?.id || 'audio');
+        attachedRef.current.delete(id);
+        try { track.detach().forEach((element) => element.remove()); } catch { /* ignore */ }
+        if (!disposed) {
+          setTrackCount((current) => Math.max(0, current - 1));
+          setStatus('connected');
         }
-
-        if (!disposed) setStatus('connected');
       });
 
-      room.on(RoomEvent.Reconnecting, () => {
-        if (!disposed) setStatus('reconnecting');
-      });
-
-      room.on(RoomEvent.Reconnected, () => {
-        if (!disposed) setStatus('connected');
-      });
-
-      room.on(RoomEvent.Disconnected, () => {
-        if (!disposed) setStatus('disconnected');
-      });
-
+      room.on(RoomEvent.Reconnecting, () => !disposed && setStatus('reconnecting'));
+      room.on(RoomEvent.Reconnected, () => !disposed && setStatus(attachedRef.current.size ? 'listening' : 'connected'));
+      room.on(RoomEvent.Disconnected, () => !disposed && setStatus('disconnected'));
       room.on(RoomEvent.AudioPlaybackStatusChanged, () => {
         if (!disposed) setNeedsAudioStart(!room.canPlaybackAudio);
       });
+      room.on(RoomEvent.MediaDevicesChanged, loadOutputs);
 
-      await room.connect(liveKitUrl, credentials.token, {
-        autoSubscribe: true,
-      });
-
+      await room.connect(liveKitUrl, credentials.token, { autoSubscribe: true });
       if (disposed) {
         await room.disconnect();
         return;
       }
 
-      setStatus('connected');
+      await loadOutputs();
+      await attachExisting(room);
+      setStatus(attachedRef.current.size ? 'listening' : 'connected');
       setNeedsAudioStart(!room.canPlaybackAudio);
 
       room.remoteParticipants.forEach((participant) => {
@@ -166,10 +179,7 @@ const LiveKitListenerPlayer = ({
       console.error('[Echoo Listener LiveKit]', connectError);
       if (!disposed) {
         setStatus('error');
-        setError(
-          connectError?.message ||
-            'Could not connect to the live broadcast.'
-        );
+        setError(connectError?.message || 'Could not connect to the live broadcast.');
       }
     });
 
@@ -178,73 +188,88 @@ const LiveKitListenerPlayer = ({
       const room = roomRef.current;
       roomRef.current = null;
       clearAudio();
-
-      if (room) {
-        try {
-          room.disconnect();
-        } catch {
-          // Ignore cleanup.
-        }
-      }
+      if (room) room.disconnect().catch(() => {});
     };
   }, [broadcastId, isLive, retryVersion]);
 
   const startAudio = async () => {
     const room = roomRef.current;
     if (!room) return;
-
     try {
+      setError('');
       await room.startAudio();
+      const elements = Array.from(audioHostRef.current?.querySelectorAll('audio') || []);
+      for (const element of elements) await element.play();
       setNeedsAudioStart(false);
+      if (elements.length) setStatus('listening');
     } catch (startError) {
-      setError(
-        startError?.message || 'Tap again to start the live audio.'
-      );
+      setNeedsAudioStart(true);
+      setError(startError?.message || 'Tap again to start the live audio.');
+    }
+  };
+
+  const changeOutput = async (deviceId) => {
+    setOutputDeviceId(deviceId);
+    outputRef.current = deviceId;
+    setError('');
+    const elements = Array.from(audioHostRef.current?.querySelectorAll('audio') || []);
+    const target = deviceId || 'default';
+    try {
+      const configurable = elements.filter((element) => typeof element.setSinkId === 'function');
+      if (deviceId && configurable.length === 0) {
+        throw new Error('This browser does not support choosing a separate audio output device.');
+      }
+      for (const element of configurable) await element.setSinkId(target);
+    } catch (outputError) {
+      setError(outputError?.message || 'Could not switch the listening output.');
     }
   };
 
   if (!isLive) return null;
 
+  const detail = needsAudioStart
+    ? 'Audio received — tap to allow playback'
+    : trackCount > 0
+      ? `${trackCount} live audio track${trackCount === 1 ? '' : 's'} received`
+      : 'Waiting for the creator to publish the studio mix';
+
   return (
-    <section
-      className={`echoo-livekit-listener ${status}`}
-      aria-live="polite"
-    >
-      <div className="echoo-livekit-listener-icon">
-        <FaHeadphones />
-      </div>
+    <section className={`echoo-livekit-listener ${status}`} aria-live="polite">
+      <div className="echoo-livekit-listener-icon"><FaHeadphones /></div>
 
       <div className="echoo-livekit-listener-copy">
         <strong>{STATUS_COPY[status] || 'Live audio'}</strong>
-        <span>Real-time Echoo audio</span>
+        <span>{detail}</span>
         {error && <small>{error}</small>}
       </div>
 
+      {outputs.length > 1 && (
+        <label className="echoo-livekit-output-select">
+          <FaVolumeUp aria-hidden="true" />
+          <select value={outputDeviceId} onChange={(event) => changeOutput(event.target.value)}>
+            <option value="">System default output</option>
+            {outputs
+              .filter((device) => device.deviceId && device.deviceId !== 'default')
+              .map((device) => (
+                <option value={device.deviceId} key={device.deviceId}>{device.label}</option>
+              ))}
+          </select>
+        </label>
+      )}
+
       {needsAudioStart && (
-        <button
-          type="button"
-          className="echoo-livekit-start-audio"
-          onClick={startAudio}
-        >
+        <button type="button" className="echoo-livekit-start-audio" onClick={startAudio}>
           <FaHeadphones /> Tap to hear audio
         </button>
       )}
 
       {(status === 'error' || status === 'disconnected') && (
-        <button
-          type="button"
-          className="echoo-livekit-retry"
-          onClick={() => setRetryVersion((current) => current + 1)}
-        >
+        <button type="button" className="echoo-livekit-retry" onClick={() => setRetryVersion((current) => current + 1)}>
           <FaRedoAlt /> Reconnect
         </button>
       )}
 
-      <div
-        ref={audioHostRef}
-        className="echoo-livekit-audio-host"
-        aria-hidden="true"
-      />
+      <div ref={audioHostRef} className="echoo-livekit-audio-host" aria-hidden="true" />
     </section>
   );
 };
