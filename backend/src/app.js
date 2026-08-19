@@ -39,14 +39,11 @@ const matchesOriginSuffix = (origin) => {
 };
 
 const isAllowedOrigin = (origin) => {
-  // Non-browser clients such as curl and internal health checks do not send Origin.
   if (!origin) return true;
 
   const normalized = normalizeOrigin(origin);
   if (allowedOrigins.has(normalized) || matchesOriginSuffix(normalized)) return true;
 
-  // Preserve the existing LAN development workflow. This lets a second phone or
-  // laptop open Vite on the Creator machine while keeping production restricted.
   if (env.isDevelopment) {
     try {
       const parsed = new URL(normalized);
@@ -102,7 +99,6 @@ app.use(compression());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Uploaded audio is addressed by the API as /uploads/audio/<file>.
 app.use(
   '/uploads',
   express.static(path.join(process.cwd(), 'uploads'), {
@@ -182,12 +178,8 @@ const io = new Server(server, {
   },
 });
 
-// Make Socket.IO available to REST controllers for status/chat events.
 app.set('io', io);
 
-// A live-room page opens both a LiveKit participant and a small Socket.IO
-// realtime channel. When many listeners arrive together, do not repeat the
-// same broadcast-access query or fan out one presence-refresh event per join.
 const SOCKET_BROADCAST_CACHE_MS = 2000;
 const PRESENCE_EVENT_COALESCE_MS = 400;
 const socketBroadcastCache = new Map();
@@ -288,14 +280,15 @@ io.on('connection', (socket) => {
         throw new Error('Broadcast is private');
       }
 
-      // Listeners should not be able to sit in realtime rooms for scheduled,
-      // completed or failed sessions. The creator may join while starting so
-      // the studio/chat can come online before public listeners are admitted.
-      if (!isOwner && broadcast.status !== 'live') {
-        throw new Error('Broadcast is not live');
-      }
-      if (isOwner && !['starting', 'live', 'ending'].includes(broadcast.status)) {
-        throw new Error('Broadcast is not active');
+      // Scheduled public broadcasts intentionally support pre-live chat. Audio
+      // credentials remain unavailable until status=live, while completed,
+      // cancelled and failed broadcasts cannot accept new realtime participants.
+      const allowedStatuses = isOwner
+        ? ['scheduled', 'starting', 'live', 'ending']
+        : ['scheduled', 'live'];
+
+      if (!allowedStatuses.includes(broadcast.status)) {
+        throw new Error('Broadcast realtime room is not active');
       }
 
       const room = `broadcast:${broadcastId}`;
@@ -370,8 +363,6 @@ const currentFile = fileURLToPath(import.meta.url);
 const invokedFile = process.argv[1] ? path.resolve(process.argv[1]) : '';
 const isEntrypoint = invokedFile && path.resolve(currentFile) === invokedFile;
 
-// Importing app.js in tests/tools must not connect to MongoDB or bind a port.
-// The production/dev `node src/app.js` entrypoint still behaves exactly as before.
 if (isEntrypoint) {
   process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.on('SIGINT', () => shutdown('SIGINT'));
