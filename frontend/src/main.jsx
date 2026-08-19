@@ -35,6 +35,7 @@ import "./styles/creator-artwork-layout-2026.css";
 import "./Components/CreatorStudio/CreatorAudioCardControls.css";
 import "./styles/creator-typography-system.css";
 import "./styles/creator-data-pages-typography.css";
+import "./styles/creator-studio-consistency-audit.css";
 
 initializeEchooTheme();
 
