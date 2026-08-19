@@ -72,21 +72,41 @@ const persistPresenceIfNeeded = ({ broadcast, listenerCount, peakListeners }) =>
 
   // Do not hold the listener HTTP response open on analytics persistence. The
   // authoritative count remains LiveKit; these fields are dashboard snapshots.
-  Promise.all([
-    Broadcast.updateOne(
-      { _id: broadcast._id },
-      { $set: { listenerCount, peakListeners } }
-    ),
-    Station.updateOne(
-      { _id: broadcast.station },
-      { $set: { listenerCount } }
-    ),
-  ]).catch((error) => {
-    console.warn(
-      'Presence snapshot persistence warning:',
-      error?.message || error
-    );
-  });
+  // Crucially, guard the write by active status. A delayed presence write must
+  // never restore non-zero counts after /end has already finalized the session.
+  void (async () => {
+    try {
+      const result = await Broadcast.updateOne(
+        {
+          _id: broadcast._id,
+          isDeleted: false,
+          status: { $in: ['starting', 'live'] },
+        },
+        {
+          $set: { listenerCount },
+          $max: { peakListeners },
+        }
+      );
+
+      if (!result?.matchedCount) return;
+
+      await Station.updateOne(
+        {
+          _id: broadcast.station,
+          isLive: true,
+        },
+        { $set: { listenerCount } }
+      );
+    } catch (error) {
+      // Permit an immediate retry on the next presence request after a failed
+      // persistence attempt instead of suppressing writes for the full window.
+      lastPersistedAt.delete(broadcastId);
+      console.warn(
+        'Presence snapshot persistence warning:',
+        error?.message || error
+      );
+    }
+  })();
 };
 
 const resolvePresence = async (broadcastId) => {
@@ -127,8 +147,13 @@ const resolvePresence = async (broadcastId) => {
 
     for (const participant of participants) {
       const metadata = parseParticipantMetadata(participant);
-      if (metadata.role === 'creator') creatorConnected = true;
-      else listenerCount += 1;
+      if (metadata.role === 'creator') {
+        creatorConnected = true;
+      } else if (metadata.role === 'listener') {
+        // Count only Echoo listener credentials. Unknown service/test
+        // participants must not inflate the public listener number.
+        listenerCount += 1;
+      }
     }
 
     const peakListeners = Math.max(

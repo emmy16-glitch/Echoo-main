@@ -11,13 +11,20 @@ const WAV_BIT_DEPTH = 24;
 const WAV_BYTES_PER_SAMPLE = WAV_BIT_DEPTH / 8;
 const WAV_MIME_TYPE = 'audio/wav';
 const MAX_WAV_DATA_BYTES = 0xffffffff - 44;
+const OPFS_DIRECTORY = 'echoo-live-recordings';
+const STALE_OPFS_FILE_MS = 24 * 60 * 60 * 1000;
 
 const OPUS_FALLBACK_BITRATE = 256000;
 
 let activeRecording = null;
 let pendingRecording = null;
 
-const supportsLosslessWavCapture = () => supportsEchooMasterPcmCapture();
+const supportsOpfs = () =>
+  typeof navigator !== 'undefined' &&
+  typeof navigator.storage?.getDirectory === 'function';
+
+const supportsLosslessWavCapture = () =>
+  supportsEchooMasterPcmCapture() && supportsOpfs();
 
 const supportedFallbackMimeType = () => {
   if (typeof MediaRecorder === 'undefined') return '';
@@ -65,7 +72,7 @@ const floatToPcm24 = (floatSamples) => {
   return output;
 };
 
-const createWavHeader = ({
+export const createWavHeader = ({
   dataBytes,
   sampleRate,
   channels = WAV_CHANNELS,
@@ -100,92 +107,208 @@ const createWavHeader = ({
   return new Uint8Array(buffer);
 };
 
+const safeRemoveOpfsEntry = async (directory, name) => {
+  if (!directory || !name) return;
+  try {
+    await directory.removeEntry(name);
+  } catch (error) {
+    if (error?.name !== 'NotFoundError') {
+      console.warn(
+        '[Echoo Recording] temporary recording cleanup warning:',
+        error?.message || error
+      );
+    }
+  }
+};
+
+const cleanupStaleOpfsRecordings = async (directory) => {
+  if (!directory?.entries) return;
+
+  try {
+    for await (const [name, handle] of directory.entries()) {
+      if (handle?.kind !== 'file' || !name.startsWith('echoo-tmp-')) continue;
+      try {
+        const file = await handle.getFile();
+        if (Date.now() - Number(file.lastModified || 0) > STALE_OPFS_FILE_MS) {
+          await safeRemoveOpfsEntry(directory, name);
+        }
+      } catch {
+        // Ignore one unreadable stale entry; it should never block a new take.
+      }
+    }
+  } catch {
+    // Directory enumeration is an optional cleanup only.
+  }
+};
+
+const openLosslessRecordingFile = async (broadcastId) => {
+  if (!supportsOpfs()) {
+    throw new Error('Browser-backed recording storage is not available.');
+  }
+
+  const root = await navigator.storage.getDirectory();
+  const directory = await root.getDirectoryHandle(OPFS_DIRECTORY, { create: true });
+  void cleanupStaleOpfsRecordings(directory);
+
+  const safeId = cleanFilenamePart(broadcastId).slice(0, 50);
+  const randomPart =
+    globalThis.crypto?.randomUUID?.() ||
+    `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const storageName = `echoo-tmp-${safeId}-${randomPart}.wav`;
+  const fileHandle = await directory.getFileHandle(storageName, { create: true });
+  const writable = await fileHandle.createWritable();
+
+  // Reserve the RIFF header. The real sizes are patched after the final PCM
+  // worklet chunk has been flushed.
+  await writable.write(new Uint8Array(44));
+
+  return { directory, fileHandle, writable, storageName };
+};
+
 const stopLosslessRecording = async (recording, { keep = true } = {}) => {
-  if (!recording?.capture) return null;
+  if (!recording) return null;
 
-  // stop() flushes the AudioWorklet's final PCM chunk before disconnecting the
-  // recorder branch from the SAME master bus used by LiveKit.
-  await recording.capture.stop();
-  recording.capture = null;
+  try {
+    if (recording.capture) {
+      // stop() flushes the AudioWorklet's final PCM chunk before disconnecting
+      // the recorder branch from the SAME master bus used by LiveKit.
+      await recording.capture.stop();
+      recording.capture = null;
+    }
 
-  if (!keep || !recording.dataBytes) return null;
+    await recording.writeChain;
 
-  const sampleRate = Number(recording.sampleRate) || WAV_TARGET_SAMPLE_RATE;
-  const header = createWavHeader({
-    dataBytes: recording.dataBytes,
-    sampleRate,
-    channels: WAV_CHANNELS,
-    bitDepth: WAV_BIT_DEPTH,
-  });
-  const blob = new Blob([header, ...recording.pcmChunks], { type: WAV_MIME_TYPE });
-  const durationSeconds = recording.dataBytes /
-    (sampleRate * WAV_CHANNELS * WAV_BYTES_PER_SAMPLE);
+    if (recording.writeError) throw recording.writeError;
 
-  return {
-    broadcastId: recording.broadcastId,
-    blob,
-    mimeType: WAV_MIME_TYPE,
-    durationSeconds: Math.max(1, durationSeconds),
-    sampleRate,
-    channels: WAV_CHANNELS,
-    bitDepth: WAV_BIT_DEPTH,
-    lossless: true,
-    recordingFormat: 'pcm-wav',
-    captureSource: 'echoo-post-master-bus',
-    audioBitsPerSecond: sampleRate * WAV_CHANNELS * WAV_BIT_DEPTH,
-    startedAt: new Date(recording.startedAt).toISOString(),
-    endedAt: new Date().toISOString(),
-    filename: `${cleanFilenamePart(recording.title)}-${recordingDatePart(recording.startedAt)}.wav`,
-    limitReached: Boolean(recording.limitReached),
-  };
+    if (!keep || !recording.dataBytes) {
+      await recording.writable?.close();
+      recording.writable = null;
+      await safeRemoveOpfsEntry(recording.directory, recording.storageName);
+      return null;
+    }
+
+    const sampleRate = Number(recording.sampleRate) || WAV_TARGET_SAMPLE_RATE;
+    const header = createWavHeader({
+      dataBytes: recording.dataBytes,
+      sampleRate,
+      channels: WAV_CHANNELS,
+      bitDepth: WAV_BIT_DEPTH,
+    });
+
+    await recording.writable.seek(0);
+    await recording.writable.write(header);
+    await recording.writable.close();
+    recording.writable = null;
+
+    const file = await recording.fileHandle.getFile();
+    const durationSeconds = recording.dataBytes /
+      (sampleRate * WAV_CHANNELS * WAV_BYTES_PER_SAMPLE);
+
+    return {
+      broadcastId: recording.broadcastId,
+      blob: file,
+      mimeType: WAV_MIME_TYPE,
+      durationSeconds: Math.max(1, durationSeconds),
+      sampleRate,
+      channels: WAV_CHANNELS,
+      bitDepth: WAV_BIT_DEPTH,
+      lossless: true,
+      recordingFormat: 'pcm-wav',
+      captureSource: 'echoo-post-master-bus',
+      storageMode: 'opfs-stream',
+      audioBitsPerSecond: sampleRate * WAV_CHANNELS * WAV_BIT_DEPTH,
+      startedAt: new Date(recording.startedAt).toISOString(),
+      endedAt: new Date().toISOString(),
+      filename: `${cleanFilenamePart(recording.title)}-${recordingDatePart(recording.startedAt)}.wav`,
+      limitReached: Boolean(recording.limitReached),
+      dispose: () =>
+        safeRemoveOpfsEntry(recording.directory, recording.storageName),
+    };
+  } catch (error) {
+    try {
+      await recording.writable?.close();
+    } catch {
+      // Ignore close failure while unwinding the recorder.
+    }
+    recording.writable = null;
+    await safeRemoveOpfsEntry(recording.directory, recording.storageName);
+    throw error;
+  }
 };
 
 const startLosslessRecording = async ({ broadcastId, title }) => {
-  if (!supportsLosslessWavCapture()) {
+  if (!supportsEchooMasterPcmCapture()) {
     throw new Error('Direct master-bus PCM capture is not supported by this browser.');
   }
+  if (!supportsOpfs()) {
+    throw new Error(
+      'This browser cannot stream a long lossless master to local recording storage.'
+    );
+  }
 
+  const storage = await openLosslessRecordingFile(broadcastId);
   const recording = {
     mode: 'lossless-wav',
     capture: null,
-    pcmChunks: [],
     dataBytes: 0,
     broadcastId: String(broadcastId || ''),
     title,
     startedAt: Date.now(),
     sampleRate: null,
     limitReached: false,
+    writeError: null,
+    writeChain: Promise.resolve(),
+    ...storage,
   };
 
-  const capture = await startEchooMasterPcmCapture({
-    onPcm: (buffer) => {
-      if (!buffer || recording.limitReached) return;
+  try {
+    const capture = await startEchooMasterPcmCapture({
+      onPcm: (buffer) => {
+        if (!buffer || recording.limitReached || recording.writeError) return;
 
-      const floats = new Float32Array(buffer);
-      const pcm = floatToPcm24(floats);
+        const floats = new Float32Array(buffer);
+        const pcm = floatToPcm24(floats);
 
-      if (recording.dataBytes + pcm.byteLength > MAX_WAV_DATA_BYTES) {
-        recording.limitReached = true;
-        console.error(
-          '[Echoo Recording] WAV master reached the classic RIFF/WAV 4 GB data limit.'
-        );
-        return;
-      }
+        if (recording.dataBytes + pcm.byteLength > MAX_WAV_DATA_BYTES) {
+          recording.limitReached = true;
+          console.error(
+            '[Echoo Recording] WAV master reached the classic RIFF/WAV 4 GB data limit.'
+          );
+          return;
+        }
 
-      recording.pcmChunks.push(pcm);
-      recording.dataBytes += pcm.byteLength;
-    },
-  });
+        recording.dataBytes += pcm.byteLength;
+        recording.writeChain = recording.writeChain
+          .then(() => recording.writable.write(pcm))
+          .catch((error) => {
+            recording.writeError = error;
+            console.error(
+              '[Echoo Recording] browser storage write failed:',
+              error?.message || error
+            );
+          });
+      },
+    });
 
-  recording.capture = capture;
-  recording.sampleRate = capture.sampleRate;
+    recording.capture = capture;
+    recording.sampleRate = capture.sampleRate;
+  } catch (error) {
+    try {
+      await recording.writable.close();
+    } catch {
+      // Ignore close failure while unwinding setup.
+    }
+    await safeRemoveOpfsEntry(recording.directory, recording.storageName);
+    throw error;
+  }
 
   console.log('[Echoo Recording] lossless WAV master recording started from the live master bus', {
     broadcastId: recording.broadcastId,
     sampleRate: recording.sampleRate,
     channels: WAV_CHANNELS,
     bitDepth: WAV_BIT_DEPTH,
-    source: capture.source,
+    source: recording.capture.source,
+    storage: 'OPFS stream',
     format: 'PCM WAV',
   });
 
@@ -199,7 +322,11 @@ const stopFallbackRecording = (recording, { keep = true } = {}) =>
       return;
     }
 
+    let finished = false;
     const finish = () => {
+      if (finished) return;
+      finished = true;
+
       try {
         recording.track?.stop();
       } catch {
@@ -231,6 +358,7 @@ const stopFallbackRecording = (recording, { keep = true } = {}) =>
         lossless: false,
         recordingFormat: 'opus-fallback',
         captureSource: 'published-media-track-fallback',
+        storageMode: 'memory-opus-fallback',
         targetAudioBitsPerSecond: OPUS_FALLBACK_BITRATE,
         audioBitsPerSecond:
           Number(recording.recorder.audioBitsPerSecond) || OPUS_FALLBACK_BITRATE,
@@ -295,7 +423,9 @@ const startFallbackRecording = ({ broadcastId, mediaTrack, title }) => {
   };
 
   recorder.start(1000);
-  console.warn('[Echoo Recording] using lossy Opus fallback; direct master capture was unavailable.');
+  console.warn(
+    '[Echoo Recording] using high-quality Opus fallback because disk-backed lossless capture was unavailable.'
+  );
   return recording;
 };
 
@@ -316,6 +446,10 @@ const activeRecordingSnapshot = (recording) => ({
     recording?.mode === 'lossless-wav'
       ? 'echoo-post-master-bus'
       : 'published-media-track-fallback',
+  storageMode:
+    recording?.mode === 'lossless-wav'
+      ? 'opfs-stream'
+      : 'memory-opus-fallback',
   lossless: recording?.mode === 'lossless-wav',
   sampleRate: recording?.sampleRate || null,
   channels: recording?.mode === 'lossless-wav' ? WAV_CHANNELS : 2,
@@ -335,6 +469,12 @@ export const getBroadcastRecordingState = () => ({
       ? 'echoo-post-master-bus'
       : activeRecording
         ? 'published-media-track-fallback'
+        : null,
+  storageMode:
+    activeRecording?.mode === 'lossless-wav'
+      ? 'opfs-stream'
+      : activeRecording
+        ? 'memory-opus-fallback'
         : null,
   lossless: activeRecording?.mode === 'lossless-wav',
   sampleRate: activeRecording?.sampleRate || null,
@@ -364,21 +504,22 @@ export const ensureBroadcastRecording = async ({
 
   try {
     // Primary path: capture PCM directly from Echoo's post-limiter master bus
-    // inside the mixer AudioContext. No cloned track, no second AudioContext,
-    // no extra resampling/channel conversion before WAV encoding.
+    // and stream it to Origin Private File System. Long broadcasts therefore do
+    // not accumulate raw 24-bit PCM in the JavaScript heap.
     activeRecording = await startLosslessRecording({
       broadcastId: id,
       title,
     });
   } catch (losslessError) {
     console.warn(
-      '[Echoo Recording] direct lossless master-bus capture could not start:',
+      '[Echoo Recording] disk-backed lossless master capture could not start:',
       losslessError?.message || losslessError
     );
 
     try {
-      // Compatibility only. If AudioWorklet/direct master capture is unavailable,
-      // retain the previous high-quality Opus track recorder rather than lose the take.
+      // Compatibility path: if AudioWorklet or browser-backed file storage is
+      // unavailable, keep a 256 kbps Opus take rather than risking an enormous
+      // in-memory PCM buffer or losing the recording entirely.
       activeRecording = startFallbackRecording({
         broadcastId: id,
         mediaTrack,
@@ -437,13 +578,21 @@ export const discardBroadcastRecording = async (broadcastId = '') => {
   }
 
   if (!id || pendingRecording?.broadcastId === id) {
+    const recording = pendingRecording;
     pendingRecording = null;
+    await recording?.dispose?.();
   }
 };
 
 export const clearPendingBroadcastRecording = (broadcastId = '') => {
   const id = String(broadcastId || '');
-  if (!id || pendingRecording?.broadcastId === id) pendingRecording = null;
+  if (!id || pendingRecording?.broadcastId === id) {
+    const recording = pendingRecording;
+    pendingRecording = null;
+    // The caller only clears a pending recording after upload or explicit
+    // discard, so remove its OPFS temporary file without blocking UI cleanup.
+    void recording?.dispose?.();
+  }
 };
 
 export const BROADCAST_RECORDING_READY_EVENT = RECORDING_EVENT;
@@ -455,6 +604,7 @@ export const ECHOO_BROADCAST_MASTER_FORMAT = {
   bitDepth: WAV_BIT_DEPTH,
   lossless: true,
   captureSource: 'echoo-post-master-bus',
+  storageMode: 'opfs-stream',
 };
 
 export default {

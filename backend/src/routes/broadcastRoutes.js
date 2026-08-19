@@ -1,7 +1,10 @@
 import express from 'express';
 import { authenticate } from '../middleware/auth.js';
 import { enforceSingleLiveCreator } from '../middleware/enforceSingleLiveCreator.js';
-import { requireCreatorAudioPublished } from '../middleware/requireCreatorAudioPublished.js';
+import {
+  validateBroadcastListQuery,
+  validateStationIdParam,
+} from '../middleware/broadcastQueryValidation.js';
 import { getBroadcastPresenceCached } from '../controllers/broadcastPresenceController.js';
 import {
   createBroadcast,
@@ -10,23 +13,34 @@ import {
   getBroadcastById,
   updateBroadcast,
   deleteBroadcast,
-  cancelBroadcast,
   getUpcomingBroadcasts,
   getLiveBroadcast,
+  getListenerLiveKitToken,
+  getPlaybackInfo,
+} from '../controllers/broadcastController.js';
+import {
+  cancelBroadcast,
   startBroadcast,
   confirmBroadcastLive,
   endBroadcast,
   getLiveKitToken,
-  getListenerLiveKitToken,
-  getPlaybackInfo,
-} from '../controllers/broadcastController.js';
+} from '../controllers/broadcastLifecycleController.js';
 
 const router = express.Router();
 
-// Public discovery uses only public broadcasts.
-router.get('/', getBroadcasts);
-router.get('/station/:stationId/upcoming', getUpcomingBroadcasts);
-router.get('/station/:stationId/live', getLiveBroadcast);
+// Public discovery uses only public broadcasts. Validate IDs/dates and treat
+// search as literal text before it reaches MongoDB regex matching.
+router.get('/', validateBroadcastListQuery, getBroadcasts);
+router.get(
+  '/station/:stationId/upcoming',
+  validateStationIdParam,
+  getUpcomingBroadcasts
+);
+router.get(
+  '/station/:stationId/live',
+  validateStationIdParam,
+  getLiveBroadcast
+);
 router.get('/:broadcastId/presence', getBroadcastPresenceCached);
 router.get('/:broadcastId/playback', getPlaybackInfo);
 
@@ -42,12 +56,7 @@ router.delete('/:broadcastId', authenticate, deleteBroadcast);
 // Explicit lifecycle actions. Status is never changed through generic PATCH.
 router.post('/:broadcastId/cancel', authenticate, cancelBroadcast);
 router.post('/:broadcastId/start', authenticate, enforceSingleLiveCreator, startBroadcast);
-router.post(
-  '/:broadcastId/confirm-live',
-  authenticate,
-  requireCreatorAudioPublished,
-  confirmBroadcastLive
-);
+router.post('/:broadcastId/confirm-live', authenticate, confirmBroadcastLive);
 router.post('/:broadcastId/end', authenticate, endBroadcast);
 
 // LiveKit participant credentials.

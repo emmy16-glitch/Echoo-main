@@ -173,6 +173,10 @@ const BroadcastRecordingPrompt = () => {
     setPending(null);
   };
 
+  const savedLabel = recording.lossless
+    ? 'Lossless master recording'
+    : 'High-quality fallback recording';
+
   return (
     <div className="echoo-recording-decision-overlay" role="presentation">
       <section
@@ -188,8 +192,8 @@ const BroadcastRecordingPrompt = () => {
             <h2 id="echoo-recording-decision-title">Keep this broadcast recording?</h2>
             <p>
               {recording.lossless
-                ? 'Echoo captured the actual post-master studio mix as a lossless PCM WAV master.'
-                : 'Lossless capture was unavailable, so Echoo used the high-quality Opus fallback for this session.'}
+                ? 'Echoo captured the actual post-master studio mix as a lossless PCM WAV master without holding the full raw session in page memory.'
+                : 'Disk-backed lossless capture was unavailable, so Echoo used the high-quality Opus fallback for this session.'}
             </p>
           </div>
         </header>
@@ -230,7 +234,7 @@ const BroadcastRecordingPrompt = () => {
             <FaLock />
             <span>
               <strong>{savingMode === 'private' ? 'Saving...' : 'Save unpublished'}</strong>
-              <small>Keep the master in Creator Audio. Listeners cannot see it.</small>
+              <small>Keep the recording in Creator Audio. Listeners cannot see it.</small>
             </span>
           </button>
 
@@ -243,7 +247,7 @@ const BroadcastRecordingPrompt = () => {
             <FaGlobe />
             <span>
               <strong>{savingMode === 'publish' ? 'Publishing...' : 'Save & publish'}</strong>
-              <small>Save the master locally and make this audio available to listeners.</small>
+              <small>Save the recording and make this audio available to listeners.</small>
             </span>
           </button>
         </div>
@@ -254,8 +258,8 @@ const BroadcastRecordingPrompt = () => {
           <div className="echoo-recording-saved">
             <FaCheckCircle />
             {savedMode === 'publish'
-              ? 'Lossless recording saved and published to listeners.'
-              : 'Lossless recording saved privately in Creator Audio.'}
+              ? `${savedLabel} saved and published to listeners.`
+              : `${savedLabel} saved privately in Creator Audio.`}
           </div>
         )}
 
@@ -269,7 +273,7 @@ const BroadcastRecordingPrompt = () => {
             <FaTrash /> Discard recording
           </button>
           <span>
-            <FaCloudUploadAlt /> Local testing: WAV masters are large and stay on this Echoo backend, not cloud storage.
+            <FaCloudUploadAlt /> Local testing: completed recordings are uploaded to this Echoo backend, not cloud storage.
           </span>
         </footer>
       </section>

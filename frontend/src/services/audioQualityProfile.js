@@ -90,7 +90,26 @@ export const getBroadcastCaptureConstraints = (profileId = 'studio') => {
   return filteredConstraints(profile.constraints);
 };
 
-export const applyBroadcastCaptureProfile = async (track, profileId = 'studio') => {
+export const getBroadcastRuntimeProcessingConstraints = (profileId = 'studio') => {
+  const profile =
+    BROADCAST_CAPTURE_PROFILES[profileId] || BROADCAST_CAPTURE_PROFILES.studio;
+
+  // Once a microphone is flowing through the live mixer, changing its physical
+  // sample rate/channel layout can cause a driver renegotiation and audible gap.
+  // Runtime profile changes therefore touch only processing flags. Initial
+  // getUserMedia acquisition still requests the complete 48 kHz/mono profile.
+  return filteredConstraints({
+    echoCancellation: profile.constraints.echoCancellation,
+    noiseSuppression: profile.constraints.noiseSuppression,
+    autoGainControl: profile.constraints.autoGainControl,
+  });
+};
+
+export const applyBroadcastCaptureProfile = async (
+  track,
+  profileId = 'studio',
+  { preserveFormat = true } = {}
+) => {
   if (!track || track.kind !== 'audio' || track.readyState === 'ended') {
     throw new Error('The microphone track is not available for audio-quality setup.');
   }
@@ -101,18 +120,19 @@ export const applyBroadcastCaptureProfile = async (track, profileId = 'studio') 
   setContentHint(track, profile.contentHint);
 
   if (typeof track.applyConstraints === 'function') {
-    const constraints = getBroadcastCaptureConstraints(profile.id);
+    const constraints = preserveFormat
+      ? getBroadcastRuntimeProcessingConstraints(profile.id)
+      : getBroadcastCaptureConstraints(profile.id);
+
     try {
       await track.applyConstraints(constraints);
     } catch (error) {
-      // Some devices reject one optional constraint even when the browser says
-      // the key is supported. Retry the processing controls without requesting
-      // a specific sample rate rather than replacing a healthy live track.
+      // Some devices reject an optional processing control even when the browser
+      // reports support. Retry only the controls that still have boolean values.
       const fallback = filteredConstraints({
         echoCancellation: profile.constraints.echoCancellation,
         noiseSuppression: profile.constraints.noiseSuppression,
         autoGainControl: profile.constraints.autoGainControl,
-        channelCount: 1,
       });
 
       try {

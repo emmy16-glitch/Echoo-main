@@ -16,16 +16,23 @@ let syntheticOscillator = null;
 let syntheticNativeTrack = null;
 
 const syntheticModeEnabled = () =>
-  import.meta.env.VITE_SYNTHETIC_AUDIO === 'true';
+  import.meta.env.DEV && import.meta.env.VITE_SYNTHETIC_AUDIO === 'true';
 
-const createSyntheticTrack = async () => {
+const createPreferredAudioContext = () => {
   const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-
   if (!AudioContextClass) {
     throw new Error('This browser does not support Web Audio.');
   }
 
-  syntheticContext = new AudioContextClass({ sampleRate: 48000 });
+  try {
+    return new AudioContextClass({ sampleRate: 48000, latencyHint: 'interactive' });
+  } catch {
+    return new AudioContextClass();
+  }
+};
+
+const createSyntheticTrack = async () => {
+  syntheticContext = createPreferredAudioContext();
   await syntheticContext.resume();
 
   const oscillator = syntheticContext.createOscillator();
@@ -130,6 +137,7 @@ export const startLiveKitPublishing = async ({
   mediaTrack = null,
 }) => {
   const resolvedUrl = resolveLiveKitUrl(url);
+  const id = String(broadcastId || '').trim();
 
   if (!resolvedUrl) {
     throw new Error('Echoo did not receive a LiveKit websocket URL from the backend.');
@@ -139,9 +147,24 @@ export const startLiveKitPublishing = async ({
     throw new Error('Echoo did not return a LiveKit participant token.');
   }
 
+  if (!id) {
+    throw new Error('Echoo cannot publish audio without a broadcast ID.');
+  }
+
+  if (!mediaTrack && !syntheticModeEnabled()) {
+    // Never silently bypass the mixer with LiveKit's default microphone helper.
+    // Backend confirm-live accepts only this named post-master program track.
+    throw new Error(
+      'The Echoo post-master studio mix is not ready. Connect the Host Mic and confirm the Audience Output before going live.'
+    );
+  }
+
   await stopLiveKitPublishing();
 
-  const room = new Room();
+  // Echoo owns the mixer MediaStreamTrack. LiveKit must not stop it when a room
+  // disconnects/unpublishes, otherwise a manual reconnect would kill the one
+  // post-master program track before the new room can republish it.
+  const room = new Room({ stopLocalTrackOnUnpublish: false });
 
   try {
     await room.connect(resolvedUrl, token, {
@@ -152,7 +175,7 @@ export const startLiveKitPublishing = async ({
     });
 
     let publication;
-    let mode = 'microphone';
+    let mode = 'studio-mix';
     let programTrackQuality = null;
 
     if (mediaTrack) {
@@ -179,8 +202,7 @@ export const startLiveKitPublishing = async ({
         // clean source/mastering path.
         red: false,
       });
-      mode = 'studio-mix';
-    } else if (syntheticModeEnabled()) {
+    } else {
       const nativeTrack = await createSyntheticTrack();
       publication = await room.localParticipant.publishTrack(nativeTrack, {
         name: 'echoo-dev-test-audio',
@@ -189,14 +211,12 @@ export const startLiveKitPublishing = async ({
         dtx: false,
       });
       mode = 'synthetic-test';
-    } else {
-      publication = await room.localParticipant.setMicrophoneEnabled(true);
     }
 
     activeRoom = room;
-    activeBroadcastId = String(broadcastId || '');
+    activeBroadcastId = id;
 
-    // Local-first recording: clone the exact post-master mixer track that is
+    // Local-first recording: tap the exact post-master mixer signal that is
     // being published to LiveKit. Recording is deliberately independent from
     // the LiveKit Room so a reconnect does not split or lose the local take.
     if (mode === 'studio-mix' && mediaTrack) {

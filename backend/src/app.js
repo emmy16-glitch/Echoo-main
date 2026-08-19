@@ -3,9 +3,11 @@ import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { randomUUID } from 'crypto';
+import mongoose from 'mongoose';
 import routes from './routes/index.js';
 import { env } from './config/env.js';
 import { connectDatabase, disconnectDatabase } from './config/database.js';
@@ -37,14 +39,11 @@ const matchesOriginSuffix = (origin) => {
 };
 
 const isAllowedOrigin = (origin) => {
-  // Non-browser clients such as curl and internal health checks do not send Origin.
   if (!origin) return true;
 
   const normalized = normalizeOrigin(origin);
   if (allowedOrigins.has(normalized) || matchesOriginSuffix(normalized)) return true;
 
-  // Preserve the existing LAN development workflow. This lets a second phone or
-  // laptop open Vite on the Creator machine while keeping production restricted.
   if (env.isDevelopment) {
     try {
       const parsed = new URL(normalized);
@@ -100,7 +99,6 @@ app.use(compression());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Uploaded audio is addressed by the API as /uploads/audio/<file>.
 app.use(
   '/uploads',
   express.static(path.join(process.cwd(), 'uploads'), {
@@ -118,13 +116,53 @@ app.use((req, res) => {
   });
 });
 
+const normalizeApiError = (err) => {
+  if (err?.name === 'ValidationError') {
+    const first = Object.values(err.errors || {})[0];
+    return {
+      status: 400,
+      code: 'VALIDATION_ERROR',
+      message: first?.message || err.message || 'Request validation failed',
+    };
+  }
+
+  if (err?.name === 'CastError') {
+    return {
+      status: 400,
+      code: 'INVALID_VALUE',
+      message: `Invalid value for ${err.path || 'request field'}`,
+    };
+  }
+
+  if (err?.code === 11000) {
+    return {
+      status: 409,
+      code: 'DUPLICATE_RESOURCE',
+      message: 'A record with this unique value already exists.',
+    };
+  }
+
+  const status = Number(err?.status) || 500;
+  const exposeMessage = status < 500 || Boolean(err?.status);
+  return {
+    status,
+    code: err?.code || 'INTERNAL_ERROR',
+    message:
+      exposeMessage && err?.message
+        ? err.message
+        : 'An unexpected error occurred',
+  };
+};
+
 app.use((err, req, res, next) => {
-  console.error('Error:', err.message);
-  console.error('Stack:', err.stack);
-  res.status(err.status || 500).json({
+  const normalized = normalizeApiError(err);
+  console.error(`[${req.id}] Error:`, err?.message || err);
+  if (normalized.status >= 500) console.error(`[${req.id}] Stack:`, err?.stack);
+
+  res.status(normalized.status).json({
     error: {
-      code: err.code || 'INTERNAL_ERROR',
-      message: err.message || 'An unexpected error occurred',
+      code: normalized.code,
+      message: normalized.message,
     },
     requestId: req.id,
   });
@@ -140,18 +178,16 @@ const io = new Server(server, {
   },
 });
 
-// Make Socket.IO available to REST controllers for status/chat events.
 app.set('io', io);
 
-// A live-room page opens both a LiveKit participant and a small Socket.IO
-// realtime channel. When many listeners arrive together, do not repeat the
-// same broadcast-access query or fan out one presence-refresh event per join.
 const SOCKET_BROADCAST_CACHE_MS = 2000;
 const PRESENCE_EVENT_COALESCE_MS = 400;
 const socketBroadcastCache = new Map();
 const presenceEventTimers = new Map();
 
 const getSocketBroadcast = async (broadcastId) => {
+  if (!mongoose.isValidObjectId(broadcastId)) return null;
+
   const key = String(broadcastId);
   const cached = socketBroadcastCache.get(key);
   if (cached && cached.expiresAt > Date.now()) return cached.broadcast;
@@ -229,8 +265,8 @@ io.use(async (socket, next) => {
 io.on('connection', (socket) => {
   socket.on('broadcast:join', async ({ broadcastId } = {}, acknowledge) => {
     try {
-      if (!broadcastId) {
-        throw new Error('broadcastId is required');
+      if (!broadcastId || !mongoose.isValidObjectId(broadcastId)) {
+        throw new Error('A valid broadcastId is required');
       }
 
       const broadcast = await getSocketBroadcast(broadcastId);
@@ -242,6 +278,17 @@ io.on('connection', (socket) => {
       const isOwner = String(broadcast.creator) === socket.data.userId;
       if (!broadcast.isPublic && !isOwner) {
         throw new Error('Broadcast is private');
+      }
+
+      // Scheduled public broadcasts intentionally support pre-live chat. Audio
+      // credentials remain unavailable until status=live, while completed,
+      // cancelled and failed broadcasts cannot accept new realtime participants.
+      const allowedStatuses = isOwner
+        ? ['scheduled', 'starting', 'live', 'ending']
+        : ['scheduled', 'live'];
+
+      if (!allowedStatuses.includes(broadcast.status)) {
+        throw new Error('Broadcast realtime room is not active');
       }
 
       const room = `broadcast:${broadcastId}`;
@@ -295,6 +342,11 @@ async function startServer() {
 
 const shutdown = async (signal) => {
   console.log('Received', signal, '. Shutting down...');
+
+  for (const timer of presenceEventTimers.values()) clearTimeout(timer);
+  presenceEventTimers.clear();
+  socketBroadcastCache.clear();
+
   server.close(async () => {
     await disconnectDatabase();
     console.log('Server closed');
@@ -304,20 +356,33 @@ const shutdown = async (signal) => {
   setTimeout(() => {
     console.error('Force exit after timeout');
     process.exit(1);
-  }, 10000);
+  }, 10000).unref?.();
 };
 
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT', () => shutdown('SIGINT'));
-process.on('uncaughtException', (error) => {
-  console.error('Uncaught Exception:', error);
-  process.exit(1);
-});
-process.on('unhandledRejection', (reason) => {
-  console.error('Unhandled Rejection:', reason);
-  process.exit(1);
-});
+const currentFile = fileURLToPath(import.meta.url);
+const invokedFile = process.argv[1] ? path.resolve(process.argv[1]) : '';
+const isEntrypoint = invokedFile && path.resolve(currentFile) === invokedFile;
 
-startServer();
+if (isEntrypoint) {
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
+  process.on('uncaughtException', (error) => {
+    console.error('Uncaught Exception:', error);
+    process.exit(1);
+  });
+  process.on('unhandledRejection', (reason) => {
+    console.error('Unhandled Rejection:', reason);
+    process.exit(1);
+  });
 
-export { app, server, io };
+  startServer();
+}
+
+export {
+  app,
+  server,
+  io,
+  startServer,
+  normalizeApiError,
+  isAllowedOrigin,
+};

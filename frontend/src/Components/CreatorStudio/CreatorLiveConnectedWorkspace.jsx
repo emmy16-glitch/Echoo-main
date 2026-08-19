@@ -337,7 +337,6 @@ const CreatorLiveConnectedWorkspace = ({
 
     let broadcast = null;
     let backendStarted = false;
-    let publisherConnected = false;
 
     try {
       setGoingLive(true);
@@ -370,16 +369,13 @@ const CreatorLiveConnectedWorkspace = ({
         broadcastId: broadcast.id,
         mediaTrack,
       });
-      publisherConnected = true;
 
       let confirmed = null;
       try {
         confirmed = await batch3Service.confirmBroadcastLive(broadcast.id);
       } catch (confirmError) {
-        // confirm-live is idempotent once the backend reaches live. A single
-        // retry prevents a lost HTTP response from tearing down a publisher
-        // that the backend already accepted as live.
-        if (!publisherConnected) throw confirmError;
+        // confirm-live is idempotent. A single retry protects against a lost
+        // HTTP response after the backend already accepted the publisher.
         await new Promise((resolve) => window.setTimeout(resolve, 350));
         confirmed = await batch3Service.confirmBroadcastLive(broadcast.id);
       }
@@ -395,10 +391,12 @@ const CreatorLiveConnectedWorkspace = ({
       setMessage('You are live.');
       clearPreparedBroadcast();
     } catch (liveError) {
-      await stopLiveKitPublishing().catch(() => {});
+      // Let the backend release its lifecycle lease and room first. Local
+      // publishing is then torn down whether or not that cleanup request works.
       if (backendStarted && broadcast?.id) {
         await batch3Service.cancelBroadcast(broadcast.id).catch(() => {});
       }
+      await stopLiveKitPublishing().catch(() => {});
       setError(liveError?.message || 'Echoo could not start the broadcast.');
     } finally {
       setGoingLive(false);
@@ -486,11 +484,30 @@ const CreatorLiveConnectedWorkspace = ({
     try {
       setEnding(true);
       setError('');
-      await stopLiveKitPublishing();
-      await batch3Service.endBroadcast(currentLiveBroadcast.id);
-      await stopEchooMixer();
+
+      // Backend state is authoritative. Do not disconnect the creator first:
+      // if /end fails, listeners should continue receiving audio while the
+      // creator sees the error and can retry instead of being left "live" but silent.
+      const endedResponse = await batch3Service.endBroadcast(currentLiveBroadcast.id);
+      const endedBroadcast = endedResponse?.data || currentLiveBroadcast;
+
+      const cleanupWarnings = [];
+      try {
+        await stopLiveKitPublishing();
+      } catch (cleanupError) {
+        cleanupWarnings.push(cleanupError?.message || 'LiveKit cleanup failed.');
+      }
+
+      try {
+        await stopEchooMixer();
+      } catch (cleanupError) {
+        cleanupWarnings.push(cleanupError?.message || 'Mixer cleanup failed.');
+      }
+
       setBroadcasts((current) => current.map((item) =>
-        item.id === currentLiveBroadcast.id ? { ...item, status: 'completed' } : item
+        item.id === currentLiveBroadcast.id
+          ? { ...item, ...endedBroadcast, status: endedBroadcast.status || 'completed' }
+          : item
       ));
       setCurrentLiveBroadcast(null);
       setSavedBroadcast(null);
@@ -501,7 +518,13 @@ const CreatorLiveConnectedWorkspace = ({
       setDescription('');
       setMessage('Broadcast ended.');
       clearPreparedBroadcast();
+
+      if (cleanupWarnings.length) {
+        setError(`Broadcast ended, but local cleanup reported: ${cleanupWarnings.join(' ')}`);
+      }
     } catch (endError) {
+      // Because local publishing was intentionally left connected until the
+      // backend accepted /end, a backend failure does not create silent live air.
       setError(endError?.message || 'Could not end the broadcast.');
     } finally {
       setEnding(false);
