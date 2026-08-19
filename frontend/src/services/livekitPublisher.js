@@ -161,7 +161,10 @@ export const startLiveKitPublishing = async ({
 
   await stopLiveKitPublishing();
 
-  const room = new Room();
+  // Echoo owns the mixer MediaStreamTrack. LiveKit must not stop it when a room
+  // disconnects/unpublishes, otherwise a manual reconnect would kill the one
+  // post-master program track before the new room can republish it.
+  const room = new Room({ stopLocalTrackOnUnpublish: false });
 
   try {
     await room.connect(resolvedUrl, token, {
@@ -213,7 +216,7 @@ export const startLiveKitPublishing = async ({
     activeRoom = room;
     activeBroadcastId = id;
 
-    // Local-first recording: clone/tap the exact post-master mixer signal that is
+    // Local-first recording: tap the exact post-master mixer signal that is
     // being published to LiveKit. Recording is deliberately independent from
     // the LiveKit Room so a reconnect does not split or lose the local take.
     if (mode === 'studio-mix' && mediaTrack) {
