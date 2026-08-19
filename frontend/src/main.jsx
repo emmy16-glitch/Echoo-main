@@ -38,6 +38,7 @@ import "./styles/creator-data-pages-typography.css";
 import "./styles/creator-studio-consistency-audit.css";
 import "./styles/creator-broadcast-studio-final.css";
 import "./styles/creator-shell-broadcast-breathing-room.css";
+import "./styles/creator-broadcast-responsive-shell-fix.css";
 
 initializeEchooTheme();
 
