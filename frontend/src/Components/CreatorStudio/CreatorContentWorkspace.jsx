@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import {
   FaCloudUploadAlt,
+  FaExpandAlt,
   FaHeart,
   FaLock,
   FaPause,
@@ -9,6 +10,8 @@ import {
   FaTrash,
 } from 'react-icons/fa';
 
+import { buildMediaUrl } from '../../services/api.js';
+import CreatorAudioDetailModal from './CreatorAudioDetailModal.jsx';
 import './CreatorContentExact.css';
 
 const formatNumber = (value) =>
@@ -44,7 +47,7 @@ const formatLibraryDuration = (seconds) => {
 
 const getId = (track) => track?.id || track?._id || null;
 const getArtwork = (track) =>
-  track?.coverArt || track?.artwork || track?.image || track?.thumbnail || null;
+  buildMediaUrl(track?.coverArt || track?.artwork || track?.image || track?.thumbnail || null);
 
 const CreatorContentWorkspace = ({
   tracks = [],
@@ -55,10 +58,12 @@ const CreatorContentWorkspace = ({
   onUpload,
   onDelete,
   onPageChange,
+  onChanged,
 }) => {
   const [search, setSearch] = useState('');
   const [visibility, setVisibility] = useState('All');
   const [playingId, setPlayingId] = useState('');
+  const [selectedTrack, setSelectedTrack] = useState(null);
   const audioRef = useRef(null);
 
   const filtered = useMemo(() => {
@@ -90,9 +95,22 @@ const CreatorContentWorkspace = ({
 
   const totalPages = Number(pagination?.totalPages) || 1;
 
+  const stopQuickPlayer = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    setPlayingId('');
+  };
+
+  const openTrack = (track) => {
+    stopQuickPlayer();
+    setSelectedTrack(track);
+  };
+
   const togglePlay = async (track) => {
     const id = String(getId(track) || '');
-    const url = track.fileUrl || track.audioUrl || '';
+    const url = buildMediaUrl(track.fileUrl || track.audioUrl || '');
     if (!url) return;
 
     if (playingId === id && audioRef.current) {
@@ -101,10 +119,7 @@ const CreatorContentWorkspace = ({
       return;
     }
 
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current = null;
-    }
+    stopQuickPlayer();
 
     const player = new Audio(url);
     audioRef.current = player;
@@ -125,7 +140,7 @@ const CreatorContentWorkspace = ({
         <div>
           <span>AUDIO</span>
           <h1>Your audio, in one place.</h1>
-          <p>Manage the recordings you have published on Echoo.</p>
+          <p>Manage, preview, seek, publish and download every recording on Echoo.</p>
         </div>
         <button type="button" className="eca-upload" onClick={onUpload}><FaCloudUploadAlt /> Upload audio</button>
       </header>
@@ -166,20 +181,32 @@ const CreatorContentWorkspace = ({
 
               return (
                 <article key={id}>
-                  <button type="button" className="eca-art" onClick={() => togglePlay(track)} disabled={!track.fileUrl} aria-label={isPlaying ? 'Pause audio' : 'Play audio'}>
+                  <button
+                    type="button"
+                    className="eca-art"
+                    onClick={() => openTrack(track)}
+                    disabled={!track.fileUrl}
+                    aria-label={`Open ${track.title || 'audio'} player`}
+                  >
                     {artwork ? <img src={artwork} alt="" /> : <span>{String(track.title || 'E').charAt(0).toUpperCase()}</span>}
-                    <i>{isPlaying ? <FaPause /> : <FaPlay />}</i>
+                    <i><FaExpandAlt /></i>
                   </button>
 
                   <div className="eca-copy">
-                    <div><strong>{track.title || 'Untitled Audio'}</strong><span className={track.isPublic ? 'published' : 'private'}>{track.isPublic ? 'Published' : 'Private'}</span></div>
+                    <div>
+                      <button type="button" className="eca-title-button" onClick={() => openTrack(track)}>
+                        {track.title || 'Untitled Audio'}
+                      </button>
+                      <span className={track.isPublic ? 'published' : 'private'}>{track.isPublic ? 'Published' : 'Private'}</span>
+                    </div>
                     <p><span>{track.duration || '—'}</span><span>{formatDate(track.createdAt)}</span><span><FaPlay /> {formatNumber(track.plays)}</span><span><FaHeart /> {formatNumber(track.likes)}</span></p>
                   </div>
 
                   <span className={`eca-visibility ${track.isPublic ? 'public' : 'private'}`}>{track.isPublic ? 'Public' : <><FaLock /> Private</>}</span>
 
                   <div className="eca-actions">
-                    <button type="button" onClick={() => togglePlay(track)} disabled={!track.fileUrl}>{isPlaying ? <FaPause /> : <FaPlay />}</button>
+                    <button type="button" onClick={() => openTrack(track)} disabled={!track.fileUrl} aria-label="Open full player"><FaExpandAlt /></button>
+                    <button type="button" onClick={() => togglePlay(track)} disabled={!track.fileUrl} aria-label={isPlaying ? 'Pause audio' : 'Quick play'}>{isPlaying ? <FaPause /> : <FaPlay />}</button>
                     <button type="button" className="danger" disabled={deletingId === getId(track)} onClick={() => onDelete(getId(track), track.title)} aria-label="Delete audio"><FaTrash /></button>
                   </div>
                 </article>
@@ -195,6 +222,14 @@ const CreatorContentWorkspace = ({
           <span>Page {page} of {totalPages}</span>
           <button type="button" disabled={page >= totalPages} onClick={() => onPageChange(page + 1)}>Next</button>
         </div>
+      )}
+
+      {selectedTrack && (
+        <CreatorAudioDetailModal
+          track={selectedTrack}
+          onClose={() => setSelectedTrack(null)}
+          onChanged={onChanged}
+        />
       )}
     </section>
   );
