@@ -1,20 +1,16 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   FaBell,
   FaBroadcastTower,
   FaChartBar,
   FaChevronDown,
-  FaChevronLeft,
-  FaChevronRight,
   FaCloudUploadAlt,
-  FaCog,
   FaExclamationCircle,
   FaHeadphones,
   FaHome,
   FaImage,
   FaMicrophone,
   FaSearch,
-  FaSignOutAlt,
   FaTimes,
   FaUsers,
 } from 'react-icons/fa';
@@ -34,6 +30,7 @@ import CreatorAudienceWorkspace from './CreatorAudienceWorkspace';
 import CreatorAnalyticsWorkspace from './CreatorAnalyticsConnectedWorkspace';
 import CreatorSettingsWorkspace from './CreatorSettingsWorkspace';
 import CreatorNotificationsWorkspace from './CreatorNotificationsWorkspace';
+import CreatorAccountMenuPortal from './CreatorAccountMenuPortal';
 
 const GENRES = [
   'Pop', 'Rock', 'Hip-Hop', 'Electronic', 'Jazz', 'Classical', 'R&B',
@@ -90,9 +87,9 @@ const CreatorStudio = () => {
   );
   const [studioSearch, setStudioSearch] = useState('');
   const [profileMenuOpen, setProfileMenuOpen] = useState('');
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(
-    () => localStorage.getItem('echooCreatorSidebarCollapsed') === 'true'
-  );
+
+  const sidebarProfileRef = useRef(null);
+  const topProfileRef = useRef(null);
 
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -167,7 +164,9 @@ const CreatorStudio = () => {
 
   useEffect(() => {
     const closeProfileMenu = (event) => {
-      if (!event.target.closest?.('[data-creator-profile-menu]')) setProfileMenuOpen('');
+      const insideTrigger = event.target.closest?.('[data-creator-profile-menu]');
+      const insidePopover = event.target.closest?.('[data-creator-profile-popover]');
+      if (!insideTrigger && !insidePopover) setProfileMenuOpen('');
     };
     const closeOnEscape = (event) => {
       if (event.key === 'Escape') setProfileMenuOpen('');
@@ -180,14 +179,6 @@ const CreatorStudio = () => {
       document.removeEventListener('keydown', closeOnEscape);
     };
   }, []);
-
-  const toggleSidebar = () => {
-    setSidebarCollapsed((current) => {
-      const next = !current;
-      localStorage.setItem('echooCreatorSidebarCollapsed', String(next));
-      return next;
-    });
-  };
 
   const navigateStudio = (page) => {
     let target = page;
@@ -431,29 +422,13 @@ const CreatorStudio = () => {
     }
   };
 
-  const renderProfileMenu = (location) => (
-    <div className={`studio-profile-menu ${location === 'sidebar' ? 'sidebar-menu' : 'top-menu'}`}>
-      <button type="button" onClick={() => navigateStudio('Settings')}><FaCog /> Creator settings</button>
-      <button type="button" className="danger" onClick={handleCreatorLogout}><FaSignOutAlt /> Log out</button>
-    </div>
-  );
-
   return (
-    <div className={`studio-page studio-final-shell ${sidebarCollapsed ? 'sidebar-collapsed' : 'sidebar-expanded'}`}>
+    <div className="studio-page studio-final-shell">
       <aside className="studio-sidebar">
         <div className="studio-sidebar-head">
           <button type="button" className="studio-brand" onClick={() => navigateStudio('Home')} aria-label="Echoo Creator Studio home">
             <img src={echooLogo} alt="Echoo" className="studio-logo" />
             <div><h2>Echoo</h2><span>Creator Studio</span></div>
-          </button>
-          <button
-            type="button"
-            className="studio-sidebar-toggle"
-            onClick={toggleSidebar}
-            aria-label={sidebarCollapsed ? 'Expand Creator Studio navigation' : 'Collapse Creator Studio navigation'}
-            title={sidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'}
-          >
-            {sidebarCollapsed ? <FaChevronRight /> : <FaChevronLeft />}
           </button>
         </div>
 
@@ -464,7 +439,8 @@ const CreatorStudio = () => {
               key={item.name}
               className={`studio-nav-item ${activeNav === item.name ? 'active' : ''}`}
               onClick={() => navigateStudio(item.name)}
-              title={sidebarCollapsed ? item.label : undefined}
+              title={item.label}
+              aria-label={item.label}
             >
               <span className="studio-nav-icon">{item.icon}</span><span>{item.label}</span>
             </button>
@@ -473,17 +449,19 @@ const CreatorStudio = () => {
 
         <div className="studio-sidebar-profile-wrap" data-creator-profile-menu>
           <button
+            ref={sidebarProfileRef}
             type="button"
             className="studio-sidebar-profile"
             aria-expanded={profileMenuOpen === 'sidebar'}
+            aria-haspopup="menu"
             aria-label={`${studioName} profile menu`}
+            title={studioName}
             onClick={() => setProfileMenuOpen((current) => current === 'sidebar' ? '' : 'sidebar')}
           >
             <div className="sidebar-avatar">{profileImage ? <img src={profileImage} alt="" /> : initial}</div>
             <div className="sidebar-profile-text"><strong>{studioName}</strong><span>{studioType}</span></div>
             <FaChevronDown />
           </button>
-          {profileMenuOpen === 'sidebar' && renderProfileMenu('sidebar')}
         </div>
       </aside>
 
@@ -498,16 +476,17 @@ const CreatorStudio = () => {
             <button type="button" className="notification-button" onClick={() => navigateStudio('Notifications')} title="Notifications" aria-label="Notifications"><FaBell /></button>
             <div className="studio-top-profile-wrap" data-creator-profile-menu>
               <button
+                ref={topProfileRef}
                 type="button"
                 className="studio-account-button"
                 aria-expanded={profileMenuOpen === 'top'}
+                aria-haspopup="menu"
                 onClick={() => setProfileMenuOpen((current) => current === 'top' ? '' : 'top')}
               >
                 <div className="top-avatar">{profileImage ? <img src={profileImage} alt="" /> : initial}</div>
                 <div><strong>{studioName}</strong><span>Creator</span></div>
                 <FaChevronDown />
               </button>
-              {profileMenuOpen === 'top' && renderProfileMenu('top')}
             </div>
           </div>
         </header>
@@ -518,6 +497,21 @@ const CreatorStudio = () => {
         <div className="studio-view">{renderWorkspace()}</div>
         <footer className="studio-footer"><span>© 2026 Echoo.</span><span>Audio-first creator platform</span></footer>
       </main>
+
+      <CreatorAccountMenuPortal
+        open={profileMenuOpen === 'sidebar'}
+        anchorRef={sidebarProfileRef}
+        placement="sidebar"
+        onSettings={() => navigateStudio('Settings')}
+        onLogout={handleCreatorLogout}
+      />
+      <CreatorAccountMenuPortal
+        open={profileMenuOpen === 'top'}
+        anchorRef={topProfileRef}
+        placement="top"
+        onSettings={() => navigateStudio('Settings')}
+        onLogout={handleCreatorLogout}
+      />
 
       {uploadOpen && (
         <div className="studio-modal-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) closeUpload(); }}>
