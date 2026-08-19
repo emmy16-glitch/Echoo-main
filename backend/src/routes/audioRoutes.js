@@ -70,7 +70,11 @@ const upload = multer({
   storage,
   fileFilter,
   limits: {
-    fileSize: 100 * 1024 * 1024,
+    // Local-first broadcast recordings can run for several hours. Keep enough
+    // headroom for an Opus/WebM studio recording during testing. Cloud storage,
+    // quotas and resumable uploads can replace this when online media storage
+    // is introduced.
+    fileSize: 256 * 1024 * 1024,
     files: 2,
   },
 });
