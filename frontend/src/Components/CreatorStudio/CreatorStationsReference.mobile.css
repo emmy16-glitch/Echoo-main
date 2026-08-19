@@ -1,0 +1,12 @@
+/* Imported by CreatorStationsReference.css via the shell bundle. */
+@media (max-width: 420px) {
+  .est-header > div { min-width: 0; }
+  .est-header h1,
+  .est-header p,
+  .est-summary strong,
+  .est-summary small,
+  .est-body h2,
+  .est-body > p { overflow-wrap: anywhere; }
+  .est-summary strong,
+  .est-summary small { white-space: normal; }
+}
