@@ -4,6 +4,8 @@ import {
   FaBroadcastTower,
   FaChartBar,
   FaChevronDown,
+  FaChevronLeft,
+  FaChevronRight,
   FaCloudUploadAlt,
   FaCog,
   FaExclamationCircle,
@@ -88,6 +90,9 @@ const CreatorStudio = () => {
   );
   const [studioSearch, setStudioSearch] = useState('');
   const [profileMenuOpen, setProfileMenuOpen] = useState('');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    () => localStorage.getItem('echooCreatorSidebarCollapsed') === 'true'
+  );
 
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -175,6 +180,14 @@ const CreatorStudio = () => {
       document.removeEventListener('keydown', closeOnEscape);
     };
   }, []);
+
+  const toggleSidebar = () => {
+    setSidebarCollapsed((current) => {
+      const next = !current;
+      localStorage.setItem('echooCreatorSidebarCollapsed', String(next));
+      return next;
+    });
+  };
 
   const navigateStudio = (page) => {
     let target = page;
@@ -425,12 +438,23 @@ const CreatorStudio = () => {
   );
 
   return (
-    <div className="studio-page studio-final-shell">
+    <div className={`studio-page studio-final-shell ${sidebarCollapsed ? 'sidebar-collapsed' : 'sidebar-expanded'}`}>
       <aside className="studio-sidebar">
-        <button type="button" className="studio-brand" onClick={() => navigateStudio('Home')} aria-label="Echoo Creator Studio home">
-          <img src={echooLogo} alt="Echoo" className="studio-logo" />
-          <div><h2>Echoo</h2><span>Creator Studio</span></div>
-        </button>
+        <div className="studio-sidebar-head">
+          <button type="button" className="studio-brand" onClick={() => navigateStudio('Home')} aria-label="Echoo Creator Studio home">
+            <img src={echooLogo} alt="Echoo" className="studio-logo" />
+            <div><h2>Echoo</h2><span>Creator Studio</span></div>
+          </button>
+          <button
+            type="button"
+            className="studio-sidebar-toggle"
+            onClick={toggleSidebar}
+            aria-label={sidebarCollapsed ? 'Expand Creator Studio navigation' : 'Collapse Creator Studio navigation'}
+            title={sidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'}
+          >
+            {sidebarCollapsed ? <FaChevronRight /> : <FaChevronLeft />}
+          </button>
+        </div>
 
         <nav className="studio-navigation" aria-label="Creator Studio">
           {navItems.map((item) => (
@@ -439,6 +463,7 @@ const CreatorStudio = () => {
               key={item.name}
               className={`studio-nav-item ${activeNav === item.name ? 'active' : ''}`}
               onClick={() => navigateStudio(item.name)}
+              title={sidebarCollapsed ? item.label : undefined}
             >
               <span className="studio-nav-icon">{item.icon}</span><span>{item.label}</span>
             </button>
@@ -450,6 +475,7 @@ const CreatorStudio = () => {
             type="button"
             className="studio-sidebar-profile"
             aria-expanded={profileMenuOpen === 'sidebar'}
+            aria-label={`${studioName} profile menu`}
             onClick={() => setProfileMenuOpen((current) => current === 'sidebar' ? '' : 'sidebar')}
           >
             <div className="sidebar-avatar">{profileImage ? <img src={profileImage} alt="" /> : initial}</div>
@@ -458,14 +484,6 @@ const CreatorStudio = () => {
           </button>
           {profileMenuOpen === 'sidebar' && renderProfileMenu('sidebar')}
         </div>
-
-        <section className="studio-creator-tip" aria-label="Creator tip">
-          <i>✦</i>
-          <span>Creator tips</span>
-          <strong>Keep stations focused</strong>
-          <p>Use one station for a consistent audience, or separate stations for different shows and communities.</p>
-          <button type="button" onClick={() => navigateStudio('Stations')}>Learn more →</button>
-        </section>
       </aside>
 
       <main id="echoo-main-content" tabIndex="-1" className="studio-main">
