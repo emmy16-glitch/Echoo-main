@@ -20,6 +20,7 @@
     max-width: 78px !important;
     padding: 18px 8px 14px !important;
     overflow: visible !important;
+    z-index: 1000 !important;
   }
 
   /* Expand/collapse is deliberately removed on desktop. */
@@ -177,20 +178,19 @@
     transform: translateY(50%) translateX(0) !important;
   }
 
-  /*
-    The account dropdown is fixed to the viewport rather than the 78px rail.
-    This prevents the shell/nav overflow rules from clipping Creator settings
-    and, most importantly, Log out.
-  */
+  /* Account dropdown opens ABOVE the avatar, inside the viewport. */
   html body #root .studio-page.studio-final-shell .studio-profile-menu.sidebar-menu {
     position: fixed !important;
-    left: 90px !important;
+    left: 10px !important;
     right: auto !important;
     top: auto !important;
-    bottom: 14px !important;
-    width: 204px !important;
-    min-width: 204px !important;
+    bottom: 78px !important;
+    width: 196px !important;
+    min-width: 196px !important;
     display: grid !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
     gap: 4px !important;
     padding: 8px !important;
     overflow: visible !important;
@@ -198,18 +198,23 @@
     border-radius: 12px !important;
     background: #fff !important;
     box-shadow: 0 20px 54px rgba(15,23,42,.20) !important;
-    z-index: 10000 !important;
+    transform: none !important;
+    z-index: 2147483000 !important;
   }
 
+  /* Downward pointer aims at the avatar underneath the menu. */
   html body #root .studio-page.studio-final-shell .studio-profile-menu.sidebar-menu::before {
     content: "" !important;
     position: absolute !important;
-    left: -6px !important;
-    bottom: 20px !important;
+    left: 21px !important;
+    right: auto !important;
+    top: auto !important;
+    bottom: -6px !important;
     width: 11px !important;
     height: 11px !important;
     transform: rotate(45deg) !important;
-    border-left: 1px solid #dfe6ef !important;
+    border: 0 !important;
+    border-right: 1px solid #dfe6ef !important;
     border-bottom: 1px solid #dfe6ef !important;
     background: #fff !important;
   }
