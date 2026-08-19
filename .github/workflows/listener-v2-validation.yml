@@ -1,4 +1,4 @@
-# validation pass 3 - full listener scope
+# validation pass 4 - branch closing validation
 name: Validate Listener Mobile V2
 
 on:
