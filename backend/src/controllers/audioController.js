@@ -24,6 +24,23 @@ const activeCreatorIds = () =>
     isActive: true,
   });
 
+const safeLocalMediaPath = (folder, filename) => {
+  const basename = path.basename(String(filename || ''));
+  if (!basename) return null;
+  return path.join(process.cwd(), 'uploads', folder, basename);
+};
+
+const removeLocalFile = async (absolutePath) => {
+  if (!absolutePath) return;
+  try {
+    await fs.promises.unlink(absolutePath);
+  } catch (error) {
+    if (error?.code !== 'ENOENT') {
+      console.warn('Audio media cleanup warning:', error?.message || error);
+    }
+  }
+};
+
 async function notifyFollowersOfRelease(creator, audio) {
   if (!audio?.isPublic) return;
 
@@ -91,6 +108,8 @@ export async function uploadAudio(req, res, next) {
       }
     }
 
+    if (!Array.isArray(parsedTags)) parsedTags = [];
+
     let coverArt;
     let coverArtMode;
     let coverArtVariant = 0;
@@ -129,15 +148,29 @@ export async function uploadAudio(req, res, next) {
     });
 
     await audio.save();
+
+    // From this point the media bytes and Mongo record belong together. The
+    // upload error middleware must not delete files merely because a secondary
+    // populate/notification step failed after the authoritative save.
+    req.audioUploadCommitted = true;
+
     await notifyFollowersOfRelease(req.user, audio);
 
-    const populated = await Audio.findById(audio._id).populate(
-      'artist',
-      'username displayName avatar creatorProfile.artistName creatorProfile.organizationName userType'
-    );
+    let responseAudio = audio;
+    try {
+      responseAudio = await Audio.findById(audio._id).populate(
+        'artist',
+        'username displayName avatar creatorProfile.artistName creatorProfile.organizationName userType'
+      ) || audio;
+    } catch (populateError) {
+      console.warn(
+        'Audio upload populate warning:',
+        populateError?.message || populateError
+      );
+    }
 
     return res.status(201).json({
-      data: populated,
+      data: responseAudio,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -151,17 +184,21 @@ export async function getAudio(req, res, next) {
     const page = parseInt(req.query.page, 10) || 1;
     const limit = parseInt(req.query.limit, 10) || 20;
     const skip = (page - 1) * limit;
-    const filter = { isDeleted: false };
 
-    if (req.query.public === 'true') {
-      filter.isPublic = true;
-      if (!req.query.userId) {
-        filter.artist = { $in: await activeCreatorIds() };
-      }
-    }
+    // This route is intentionally public discovery. It must never become a way
+    // to enumerate unpublished Creator Audio by omitting ?public=true.
+    const filter = {
+      isDeleted: false,
+      isPublic: true,
+    };
+
     if (req.query.genre) filter.genre = req.query.genre;
     if (req.query.search) filter.$text = { $search: req.query.search };
-    if (req.query.userId) filter.artist = req.query.userId;
+    if (req.query.userId) {
+      filter.artist = req.query.userId;
+    } else {
+      filter.artist = { $in: await activeCreatorIds() };
+    }
 
     const audio = await Audio.find(filter)
       .populate(
@@ -290,7 +327,7 @@ export async function updateAudio(req, res, next) {
     if (tags) {
       if (typeof tags === 'string') {
         audio.tags = tags.split(',').map((tag) => tag.trim()).filter(Boolean);
-      } else {
+      } else if (Array.isArray(tags)) {
         audio.tags = tags;
       }
     }
@@ -326,7 +363,7 @@ export async function updateAudio(req, res, next) {
 export async function deleteAudio(req, res, next) {
   try {
     const audio = await Audio.findById(req.params.id);
-    if (!audio) {
+    if (!audio || audio.isDeleted) {
       return res.status(404).json({
         error: { code: 'NOT_FOUND', message: 'Audio not found' },
       });
@@ -340,6 +377,22 @@ export async function deleteAudio(req, res, next) {
 
     audio.isDeleted = true;
     await audio.save();
+
+    const audioPath = safeLocalMediaPath(
+      'audio',
+      audio.filename || audio.fileKey
+    );
+    const coverPath =
+      audio.coverArtMode === 'uploaded' && String(audio.coverArt || '').startsWith('/uploads/audio-covers/')
+        ? safeLocalMediaPath('audio-covers', path.basename(audio.coverArt))
+        : null;
+
+    // Once the logical delete is durable, remove local bytes best-effort. The
+    // record remains as an audit/tombstone while old static URLs stop working.
+    await Promise.all([
+      removeLocalFile(audioPath),
+      removeLocalFile(coverPath),
+    ]);
 
     return res.status(200).json({
       data: { message: 'Audio deleted successfully' },
@@ -355,6 +408,7 @@ export async function incrementPlays(req, res, next) {
     const audio = await Audio.findOne({
       _id: req.params.id,
       isDeleted: false,
+      isPublic: true,
     });
 
     if (!audio) {
@@ -379,6 +433,7 @@ export async function toggleLike(req, res, next) {
     const audio = await Audio.findOne({
       _id: req.params.id,
       isDeleted: false,
+      isPublic: true,
     });
 
     if (!audio) {
