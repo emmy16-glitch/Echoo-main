@@ -63,8 +63,12 @@ const supportedConstraintKeys = () => {
 
 const filteredConstraints = (constraints = {}) => {
   const supported = supportedConstraintKeys();
+  const hasSupportMap = Object.keys(supported).length > 0;
+
   return Object.fromEntries(
-    Object.entries(constraints).filter(([key]) => supported[key] !== false)
+    Object.entries(constraints).filter(([key]) =>
+      !hasSupportMap || supported[key] === true
+    )
   );
 };
 
