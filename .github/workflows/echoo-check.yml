@@ -65,8 +65,13 @@ jobs:
           node --check src/controllers/broadcastController.js
           node --check src/controllers/broadcastLifecycleController.js
           node --check src/controllers/broadcastPresenceController.js
+          node --check src/controllers/advancedPlayerController.js
+          node --check src/controllers/playerController.js
+          node --check src/controllers/historyController.js
+          node --check src/controllers/listenerController.js
           node --check src/models/Audio.js
           node --check src/providers/livekit.js
+          node --check src/services/audioAccess.js
           node --check src/services/audioStreamAccess.js
           node --check src/services/broadcastAudioReadiness.js
           node --check src/services/creatorBroadcastLease.js
