@@ -37,6 +37,16 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# Local-first Echoo live recordings. These are generated media files and must
+# stay on the development backend; never commit them to GitHub.
+backend/uploads/audio/
+backend/uploads/audio/*.webm
+backend/uploads/audio/*.ogg
+backend/uploads/audio/*.oga
+backend/uploads/audio/*.opus
+backend/uploads/audio/*.wav
+backend/uploads/audio/*.mp3
+
 # =============================================
 # Local tools/editors
 # =============================================
