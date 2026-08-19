@@ -1,5 +1,6 @@
 import { useRouter } from 'expo-router';
 import {
+  Bell,
   Heart,
   Home,
   Library,
@@ -34,6 +35,7 @@ export default function MenuScreen() {
     { label: 'Library', path: '/library', icon: Library },
     { label: 'Search', path: '/search', icon: Search },
     { label: 'Favorites', path: '/favorites', icon: Heart },
+    { label: 'Notifications', path: '/notifications', icon: Bell },
     { label: 'Profile', path: '/profile', icon: UserRound },
     { label: 'Settings', path: '/settings', icon: Settings },
   ];
