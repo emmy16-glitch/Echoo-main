@@ -1,0 +1,66 @@
+/* Creator Studio viewport lock.
+   Desktop/tablet chrome stays anchored to the viewport: only the workspace scrolls.
+   This keeps the sidebar profile, collapse control, search bar and top profile static. */
+
+@media (min-width: 761px) {
+  html body #root #echoo-main-content > .studio-page.studio-final-shell {
+    height: 100vh !important;
+    height: 100dvh !important;
+    min-height: 0 !important;
+    max-height: 100dvh !important;
+    align-items: stretch !important;
+    overflow: hidden !important;
+    overscroll-behavior: none;
+  }
+
+  html body #root #echoo-main-content > .studio-page.studio-final-shell > .studio-sidebar {
+    position: relative !important;
+    inset: auto !important;
+    top: auto !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    min-height: 0 !important;
+    max-height: 100dvh !important;
+    overflow: hidden !important;
+  }
+
+  html body #root #echoo-main-content > .studio-page.studio-final-shell > .studio-sidebar .studio-navigation {
+    min-height: 0 !important;
+    flex: 1 1 auto !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+  }
+
+  html body #root #echoo-main-content > .studio-page.studio-final-shell > .studio-sidebar .studio-sidebar-profile-wrap {
+    position: relative !important;
+    inset: auto !important;
+    flex: 0 0 auto !important;
+    margin-top: auto !important;
+    background: rgba(255, 255, 255, .985);
+  }
+
+  html body #root #echoo-main-content > .studio-page.studio-final-shell > .studio-main {
+    position: relative !important;
+    inset: auto !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    min-height: 0 !important;
+    max-height: 100dvh !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+
+  html body #root #echoo-main-content > .studio-page.studio-final-shell > .studio-main > .studio-topbar-final {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 90 !important;
+    transform: none !important;
+  }
+
+  html body #root #echoo-main-content > .studio-page.studio-final-shell .studio-sidebar-toggle {
+    position: absolute !important;
+  }
+}
