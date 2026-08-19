@@ -1,0 +1,136 @@
+/*
+ * Typography finishing layer for Creator Audio, Audience and Analytics.
+ * The shared Creator font family still comes from creator-typography-system.css;
+ * this file only maps the three reference pages onto the same readable scale.
+ */
+
+.studio-final-shell .eca,
+.studio-final-shell .eau,
+.studio-final-shell .ean {
+  font-family: var(--echoo-font-sans) !important;
+  font-size: var(--echoo-type-body);
+}
+
+.studio-final-shell .eca-header h1 {
+  font-size: clamp(42px, 3.65vw, 52px) !important;
+  line-height: 1.03 !important;
+  font-weight: var(--echoo-weight-bold) !important;
+  letter-spacing: -.04em !important;
+}
+
+.studio-final-shell .eau-header h1,
+.studio-final-shell .ean-header h1 {
+  font-size: var(--echoo-type-page-title) !important;
+  line-height: 1.08 !important;
+  font-weight: var(--echoo-weight-bold) !important;
+  letter-spacing: -.035em !important;
+}
+
+.studio-final-shell .eca-header > div > span,
+.studio-final-shell .eau-header > div:first-child > span,
+.studio-final-shell .ean-header > div:first-child > span {
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  letter-spacing: .14em !important;
+}
+
+.studio-final-shell .eca-header p,
+.studio-final-shell .eau-header p,
+.studio-final-shell .ean-header p {
+  font-size: 13px !important;
+  line-height: 1.52 !important;
+}
+
+.studio-final-shell .eca :where(button, input, select),
+.studio-final-shell .eau :where(button, select),
+.studio-final-shell .ean :where(button, select) {
+  font-size: 11px;
+}
+
+.studio-final-shell .eca-summary small,
+.studio-final-shell .eca-summary em,
+.studio-final-shell .eca-library-head > div:first-child > span,
+.studio-final-shell .eca-title-row > span,
+.studio-final-shell .eca-copy p,
+.studio-final-shell .eca-more-menu button,
+.studio-final-shell .eca-library-footer,
+.studio-final-shell .eau-metrics small,
+.studio-final-shell .eau-metrics span,
+.studio-final-shell .eau-chart-legend,
+.studio-final-shell .eau-chart-axis,
+.studio-final-shell .eau-overview-stats span,
+.studio-final-shell .eau-station-list b,
+.studio-final-shell .eau-station-list small,
+.studio-final-shell .eau-donut small,
+.studio-final-shell .eau-donut span,
+.studio-final-shell .eau-engagement-legend,
+.studio-final-shell .eau-activity-list strong,
+.studio-final-shell .eau-activity-list small,
+.studio-final-shell .eau-activity-list time,
+.studio-final-shell .eau-snapshot-columns h3,
+.studio-final-shell .eau-snapshot-columns p,
+.studio-final-shell .eau-snapshot-columns small,
+.studio-final-shell .eau-snapshot-note,
+.studio-final-shell .ean-metrics small,
+.studio-final-shell .ean-metrics span,
+.studio-final-shell .ean-legend,
+.studio-final-shell .ean-axis,
+.studio-final-shell .ean-chart-empty,
+.studio-final-shell .ean-top-audio-list strong,
+.studio-final-shell .ean-top-audio-list small,
+.studio-final-shell .ean-table-head,
+.studio-final-shell .ean-broadcast-list > div:not(.ean-empty-list),
+.studio-final-shell .ean-broadcast-name b,
+.studio-final-shell .ean-broadcast-list strong,
+.studio-final-shell .ean-broadcast-list em,
+.studio-final-shell .ean-insight-list strong,
+.studio-final-shell .ean-insight-list small,
+.studio-final-shell .ean-insight-link,
+.studio-final-shell .ean-empty-list {
+  font-size: 10px !important;
+  line-height: 1.4;
+}
+
+.studio-final-shell .eca-summary strong {
+  font-size: 24px !important;
+  font-weight: var(--echoo-weight-bold) !important;
+}
+
+.studio-final-shell .eca-library-head h2,
+.studio-final-shell .eau-card > header h2,
+.studio-final-shell .ean-card > header h2 {
+  font-size: 14px !important;
+  font-weight: var(--echoo-weight-bold) !important;
+}
+
+.studio-final-shell .eca-title-button {
+  font-size: 16px !important;
+  font-weight: var(--echoo-weight-semibold) !important;
+}
+
+.studio-final-shell .eau-metrics strong,
+.studio-final-shell .ean-metrics strong {
+  font-size: 22px !important;
+  font-weight: var(--echoo-weight-bold) !important;
+}
+
+.studio-final-shell .eau-overview-stats strong {
+  font-size: 17px !important;
+  font-weight: var(--echoo-weight-bold) !important;
+}
+
+.studio-final-shell .eau-donut strong {
+  font-size: 21px !important;
+  font-weight: var(--echoo-weight-bold) !important;
+}
+
+@media (max-width: 760px) {
+  .studio-final-shell .eca-header h1 {
+    font-size: 34px !important;
+  }
+
+  .studio-final-shell .eau-header h1,
+  .studio-final-shell .ean-header h1 {
+    font-size: 28px !important;
+  }
+}

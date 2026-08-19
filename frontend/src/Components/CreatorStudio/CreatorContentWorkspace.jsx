@@ -1,16 +1,24 @@
 import { useMemo, useRef, useState } from 'react';
 import {
+  FaChevronLeft,
+  FaChevronRight,
+  FaClock,
   FaCloudUploadAlt,
-  FaExpandAlt,
+  FaDownload,
+  FaEllipsisH,
+  FaGlobeAfrica,
   FaHeart,
+  FaList,
   FaLock,
   FaPause,
   FaPlay,
   FaSearch,
+  FaThLarge,
   FaTrash,
 } from 'react-icons/fa';
 
 import { buildMediaUrl } from '../../services/api.js';
+import studioService from '../../services/studioService.js';
 import CreatorAudioDetailModal from './CreatorAudioDetailModal.jsx';
 import './CreatorContentExact.css';
 
@@ -62,14 +70,19 @@ const CreatorContentWorkspace = ({
 }) => {
   const [search, setSearch] = useState('');
   const [visibility, setVisibility] = useState('All');
+  const [sortMode, setSortMode] = useState('newest');
+  const [viewMode, setViewMode] = useState('grid');
   const [playingId, setPlayingId] = useState('');
   const [selectedTrack, setSelectedTrack] = useState(null);
+  const [openMenuId, setOpenMenuId] = useState('');
+  const [busyId, setBusyId] = useState('');
+  const [actionError, setActionError] = useState('');
   const audioRef = useRef(null);
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
 
-    return tracks.filter((track) => {
+    const matches = tracks.filter((track) => {
       const searchMatch =
         !query ||
         String(track.title || '').toLowerCase().includes(query) ||
@@ -84,16 +97,30 @@ const CreatorContentWorkspace = ({
 
       return searchMatch && visibilityMatch;
     });
-  }, [tracks, search, visibility]);
+
+    return [...matches].sort((a, b) => {
+      if (sortMode === 'oldest') {
+        return new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
+      }
+      if (sortMode === 'plays') {
+        return (Number(b.plays ?? b.playCount) || 0) - (Number(a.plays ?? a.playCount) || 0);
+      }
+      return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+    });
+  }, [tracks, search, visibility, sortMode]);
 
   const totals = useMemo(() => ({
     uploads: tracks.length,
-    plays: tracks.reduce((sum, track) => sum + (Number(track.plays) || 0), 0),
-    likes: tracks.reduce((sum, track) => sum + (Number(track.likes) || 0), 0),
+    plays: tracks.reduce((sum, track) => sum + (Number(track.plays ?? track.playCount) || 0), 0),
+    likes: tracks.reduce((sum, track) => sum + (Number(track.likes ?? track.likeCount) || 0), 0),
     duration: tracks.reduce((sum, track) => sum + parseDurationSeconds(track.duration), 0),
   }), [tracks]);
 
-  const totalPages = Number(pagination?.totalPages) || 1;
+  const totalPages = Math.max(1, Number(pagination?.totalPages) || 1);
+  const totalItems = Number(pagination?.total) || tracks.length;
+  const pageSize = Number(pagination?.limit) || tracks.length || 1;
+  const rangeStart = totalItems === 0 ? 0 : (Math.max(1, page) - 1) * pageSize + 1;
+  const rangeEnd = Math.min(totalItems, rangeStart + Math.max(0, tracks.length - 1));
 
   const stopQuickPlayer = () => {
     if (audioRef.current) {
@@ -105,6 +132,7 @@ const CreatorContentWorkspace = ({
 
   const openTrack = (track) => {
     stopQuickPlayer();
+    setOpenMenuId('');
     setSelectedTrack(track);
   };
 
@@ -134,35 +162,92 @@ const CreatorContentWorkspace = ({
     }
   };
 
+  const notifyChanged = () => {
+    if (onChanged) {
+      onChanged();
+      return;
+    }
+    window.dispatchEvent(new CustomEvent('echoo:creator-audio-changed'));
+  };
+
+  const toggleVisibility = async (track) => {
+    const id = getId(track);
+    if (!id || busyId) return;
+    try {
+      setBusyId(String(id));
+      setActionError('');
+      await studioService.updateAudio(id, { isPublic: !track.isPublic });
+      notifyChanged();
+    } catch (error) {
+      setActionError(error?.message || 'Could not update audio visibility.');
+    } finally {
+      setBusyId('');
+    }
+  };
+
+  const downloadTrack = async (track) => {
+    const id = getId(track);
+    if (!id || busyId) return;
+    try {
+      setBusyId(String(id));
+      setActionError('');
+      await studioService.downloadAudio(id, {
+        title: track.title,
+        originalName: track.originalName,
+        mimeType: track.mimeType,
+      });
+      setOpenMenuId('');
+    } catch (error) {
+      setActionError(error?.message || 'Could not download this audio.');
+    } finally {
+      setBusyId('');
+    }
+  };
+
   return (
     <section className="eca">
       <header className="eca-header">
         <div>
           <span>AUDIO</span>
-          <h1>Your audio, in one place.</h1>
-          <p>Manage, preview, seek, publish and download every recording on Echoo.</p>
+          <h1>Your <em>audio</em>, in one place.</h1>
+          <p>Manage the recordings you’ve uploaded to Echoo.<br />Organize, share, and grow your audience.</p>
         </div>
         <button type="button" className="eca-upload" onClick={onUpload}><FaCloudUploadAlt /> Upload audio</button>
       </header>
 
       <div className="eca-toolbar">
         <label className="eca-search"><FaSearch /><input type="search" value={search} placeholder="Search your audio..." onChange={(event) => setSearch(event.target.value)} /></label>
-        <div className="eca-tabs">
-          {['All', 'Public', 'Private'].map((item) => (
-            <button type="button" key={item} className={visibility === item ? 'active' : ''} onClick={() => setVisibility(item)}>{item}</button>
-          ))}
+        <div className="eca-toolbar-right">
+          <div className="eca-tabs" aria-label="Audio visibility filter">
+            {['All', 'Public', 'Private'].map((item) => (
+              <button type="button" key={item} className={visibility === item ? 'active' : ''} onClick={() => setVisibility(item)}>{item}</button>
+            ))}
+          </div>
+          <select className="eca-sort" value={sortMode} onChange={(event) => setSortMode(event.target.value)} aria-label="Sort audio">
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="plays">Most played</option>
+          </select>
         </div>
       </div>
 
       <section className="eca-summary">
-        <div><i className="blue"><FaCloudUploadAlt /></i><span><small>Total uploads</small><strong>{formatNumber(totals.uploads)}</strong></span></div>
-        <div><i className="green"><FaPlay /></i><span><small>Total plays</small><strong>{formatNumber(totals.plays)}</strong></span></div>
-        <div><i className="purple"><FaHeart /></i><span><small>Total likes</small><strong>{formatNumber(totals.likes)}</strong></span></div>
-        <div><i className="gold"><FaPause /></i><span><small>Library duration</small><strong>{formatLibraryDuration(totals.duration)}</strong></span></div>
+        <div><i className="blue"><FaCloudUploadAlt /></i><span><small>Total uploads</small><strong>{formatNumber(totals.uploads)}</strong><em>— Current library</em></span></div>
+        <div><i className="green"><FaPlay /></i><span><small>Total plays</small><strong>{formatNumber(totals.plays)}</strong><em className={totals.plays > 0 ? 'positive' : ''}>{totals.plays > 0 ? '↑ Plays recorded' : '— No plays yet'}</em></span></div>
+        <div><i className="purple"><FaHeart /></i><span><small>Total likes</small><strong>{formatNumber(totals.likes)}</strong><em>{totals.likes > 0 ? 'Likes received' : '— No likes yet'}</em></span></div>
+        <div><i className="gold"><FaPause /></i><span><small>Library duration</small><strong>{formatLibraryDuration(totals.duration)}</strong><em>— Current library</em></span></div>
       </section>
 
       <section className="eca-library">
-        <div className="eca-library-head"><div><h2>Your audio library</h2><span>{tracks.length} {tracks.length === 1 ? 'item' : 'items'}</span></div></div>
+        <div className="eca-library-head">
+          <div><h2>Your audio library</h2><span>{totalItems} {totalItems === 1 ? 'item' : 'items'}</span></div>
+          <div className="eca-view-toggle" aria-label="Audio library view">
+            <button type="button" className={viewMode === 'grid' ? 'active' : ''} onClick={() => setViewMode('grid')} aria-label="Grid view"><FaThLarge /></button>
+            <button type="button" className={viewMode === 'list' ? 'active' : ''} onClick={() => setViewMode('list')} aria-label="List view"><FaList /></button>
+          </div>
+        </div>
+
+        {actionError && <div className="eca-action-error">{actionError}<button type="button" onClick={() => setActionError('')}>Dismiss</button></div>}
 
         {loading ? (
           <div className="eca-loading"><span /><span /><span /><span /></div>
@@ -173,11 +258,13 @@ const CreatorContentWorkspace = ({
             {!tracks.length && <button type="button" onClick={onUpload}><FaCloudUploadAlt /> Upload audio</button>}
           </div>
         ) : (
-          <div className="eca-list">
+          <div className={`eca-list ${viewMode === 'list' ? 'list-view' : 'grid-view'}`}>
             {filtered.map((track, index) => {
               const id = String(getId(track) || index);
               const artwork = getArtwork(track);
               const isPlaying = playingId === id;
+              const plays = Number(track.plays ?? track.playCount) || 0;
+              const likes = Number(track.likes ?? track.likeCount) || 0;
 
               return (
                 <article key={id}>
@@ -185,28 +272,33 @@ const CreatorContentWorkspace = ({
                     type="button"
                     className="eca-art"
                     onClick={() => openTrack(track)}
-                    disabled={!track.fileUrl}
-                    aria-label={`Open ${track.title || 'audio'} player`}
+                    aria-label={`Open ${track.title || 'audio'} details`}
                   >
-                    {artwork ? <img src={artwork} alt="" /> : <span>{String(track.title || 'E').charAt(0).toUpperCase()}</span>}
-                    <i><FaExpandAlt /></i>
+                    {artwork ? <img src={artwork} alt="" /> : <span>{track.title || 'Echoo audio'}</span>}
+                    <i onClick={(event) => { event.stopPropagation(); togglePlay(track); }} role="button" tabIndex="0" aria-label={isPlaying ? 'Pause audio' : 'Play audio'}>{isPlaying ? <FaPause /> : <FaPlay />}</i>
                   </button>
 
                   <div className="eca-copy">
-                    <div>
-                      <button type="button" className="eca-title-button" onClick={() => openTrack(track)}>
-                        {track.title || 'Untitled Audio'}
-                      </button>
-                      <span className={track.isPublic ? 'published' : 'private'}>{track.isPublic ? 'Published' : 'Private'}</span>
+                    <div className="eca-title-row">
+                      <button type="button" className="eca-title-button" onClick={() => openTrack(track)}>{track.title || 'Untitled Audio'}</button>
+                      <span className={track.isPublic ? 'public' : 'private'}>{track.isPublic ? <><FaGlobeAfrica /> Public</> : <><FaLock /> Private</>}</span>
                     </div>
-                    <p><span>{track.duration || '—'}</span><span>{formatDate(track.createdAt)}</span><span><FaPlay /> {formatNumber(track.plays)}</span><span><FaHeart /> {formatNumber(track.likes)}</span></p>
+                    <p className="eca-meta"><span><FaClock /> {track.duration || '0:00'}</span><span>•</span><span>{formatDate(track.createdAt)}</span></p>
+                    <p className="eca-performance"><span><FaPlay /> {formatNumber(plays)} plays</span><span>•</span><span><FaHeart /> {formatNumber(likes)} likes</span></p>
                   </div>
 
-                  <span className={`eca-visibility ${track.isPublic ? 'public' : 'private'}`}>{track.isPublic ? 'Public' : <><FaLock /> Private</>}</span>
-
                   <div className="eca-actions">
-                    <button type="button" onClick={() => openTrack(track)} disabled={!track.fileUrl} aria-label="Open full player"><FaExpandAlt /></button>
-                    <button type="button" onClick={() => togglePlay(track)} disabled={!track.fileUrl} aria-label={isPlaying ? 'Pause audio' : 'Quick play'}>{isPlaying ? <FaPause /> : <FaPlay />}</button>
+                    <button type="button" className="icon-primary" onClick={() => togglePlay(track)} disabled={!track.fileUrl && !track.audioUrl} aria-label={isPlaying ? 'Pause audio' : 'Play audio'}>{isPlaying ? <FaPause /> : <FaPlay />}</button>
+                    <button type="button" className="details" onClick={() => openTrack(track)}><FaList /> Details</button>
+                    <button type="button" className="visibility" disabled={busyId === id} onClick={() => toggleVisibility(track)}>{track.isPublic ? <><FaLock /> Make private</> : <><FaGlobeAfrica /> Make public</>}</button>
+                    <div className="eca-more-wrap">
+                      <button type="button" className="more" onClick={() => setOpenMenuId((current) => current === id ? '' : id)} aria-expanded={openMenuId === id}><FaEllipsisH /></button>
+                      {openMenuId === id && (
+                        <div className="eca-more-menu">
+                          <button type="button" disabled={busyId === id} onClick={() => downloadTrack(track)}><FaDownload /> Download audio</button>
+                        </div>
+                      )}
+                    </div>
                     <button type="button" className="danger" disabled={deletingId === getId(track)} onClick={() => onDelete(getId(track), track.title)} aria-label="Delete audio"><FaTrash /></button>
                   </div>
                 </article>
@@ -214,21 +306,22 @@ const CreatorContentWorkspace = ({
             })}
           </div>
         )}
-      </section>
 
-      {totalPages > 1 && (
-        <div className="eca-pagination">
-          <button type="button" disabled={page <= 1} onClick={() => onPageChange(Math.max(1, page - 1))}>Previous</button>
-          <span>Page {page} of {totalPages}</span>
-          <button type="button" disabled={page >= totalPages} onClick={() => onPageChange(page + 1)}>Next</button>
+        <div className="eca-library-footer">
+          <span>Showing {rangeStart}–{rangeEnd} of {totalItems} items</span>
+          <div>
+            <button type="button" disabled={page <= 1} onClick={() => onPageChange(Math.max(1, page - 1))} aria-label="Previous page"><FaChevronLeft /></button>
+            <strong>{page}</strong>
+            <button type="button" disabled={page >= totalPages} onClick={() => onPageChange(page + 1)} aria-label="Next page"><FaChevronRight /></button>
+          </div>
         </div>
-      )}
+      </section>
 
       {selectedTrack && (
         <CreatorAudioDetailModal
           track={selectedTrack}
           onClose={() => setSelectedTrack(null)}
-          onChanged={onChanged}
+          onChanged={notifyChanged}
         />
       )}
     </section>
