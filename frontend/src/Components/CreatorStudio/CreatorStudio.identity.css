@@ -47,6 +47,72 @@ html body #root .studio-page.studio-final-shell > .studio-sidebar {
   overflow: visible !important;
 }
 
+/* The collapse control belongs to the sidebar divider, not the logo/header. */
+html body #root .studio-page.studio-final-shell .studio-sidebar-head {
+  position: static !important;
+}
+
+html body #root .studio-page.studio-final-shell .studio-sidebar-toggle {
+  position: absolute !important;
+  top: 92px !important;
+  right: -11px !important;
+  width: 22px !important;
+  height: calc(100vh - 184px) !important;
+  min-height: 180px !important;
+  display: block !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: transparent !important;
+  transform: none !important;
+  cursor: ew-resize !important;
+  opacity: 1 !important;
+  z-index: 95 !important;
+}
+
+html body #root .studio-page.studio-final-shell .studio-sidebar-toggle > svg {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+html body #root .studio-page.studio-final-shell .studio-sidebar-toggle::after {
+  content: "‹";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 24px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  transform: translate(-50%, -50%);
+  border: 1px solid #d9e2ee;
+  border-radius: 999px;
+  background: rgba(255,255,255,.98);
+  color: #62738a;
+  box-shadow: 0 8px 22px rgba(15,23,42,.10);
+  font-size: 19px;
+  font-weight: 500;
+  line-height: 1;
+  opacity: .16;
+  pointer-events: none;
+  transition: opacity .16s ease, color .16s ease, border-color .16s ease, box-shadow .16s ease, transform .16s ease;
+}
+
+html body #root .studio-page.studio-final-shell.sidebar-collapsed .studio-sidebar-toggle::after {
+  content: "›";
+}
+
+html body #root .studio-page.studio-final-shell .studio-sidebar-toggle:hover::after,
+html body #root .studio-page.studio-final-shell .studio-sidebar-toggle:focus-visible::after {
+  opacity: 1;
+  color: var(--studio-blue);
+  border-color: #b9cff9;
+  box-shadow: 0 10px 26px rgba(36,107,254,.16);
+  transform: translate(-50%, -50%) scale(1.03);
+}
+
 html body #root .studio-page.studio-final-shell > .studio-main {
   position: relative !important;
   inset: auto !important;
@@ -60,11 +126,6 @@ html body #root .studio-page.studio-final-shell > .studio-main {
   padding: 0 !important;
   transform: none !important;
   overflow-x: clip !important;
-}
-
-html body #root .studio-page.studio-final-shell .studio-sidebar-toggle {
-  right: 8px !important;
-  top: 4px !important;
 }
 
 html body #root .studio-page.studio-final-shell .studio-topbar-final {
