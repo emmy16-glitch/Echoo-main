@@ -38,12 +38,21 @@ const getStoredUser = () => {
   }
 };
 
+const getStoredRole = (user = getStoredUser()) =>
+  user.userType || localStorage.getItem('echooRole') || '';
+
+const roleHome = (role) => {
+  if (role === 'creator') return '/creator-studio';
+  if (role === 'listener') return '/listen';
+  return '/';
+};
+
 const getStartingStage = () => {
   const accessToken = localStorage.getItem('accessToken');
   if (!accessToken) return 'register';
 
   const user = getStoredUser();
-  const role = user.userType || localStorage.getItem('echooRole') || '';
+  const role = getStoredRole(user);
   const onboardingComplete =
     Boolean(user.onboardingCompleted) ||
     localStorage.getItem('echooOnboardingCompleted') === 'true';
@@ -76,7 +85,7 @@ const OnboardingFlow = () => {
   }, [stage, navigate]);
 
   const handleLoginSuccess = (user) => {
-    const role = user?.userType || localStorage.getItem('echooRole') || '';
+    const role = getStoredRole(user || {});
     const onboardingComplete =
       Boolean(user?.onboardingCompleted) ||
       localStorage.getItem('echooOnboardingCompleted') === 'true';
@@ -160,16 +169,24 @@ const OnboardingFlow = () => {
   return null;
 };
 
-const RequireCompletedAccount = ({ children }) => {
+const RequireRole = ({ role, children }) => {
   const accessToken = localStorage.getItem('accessToken');
   if (!accessToken) return <Navigate to="/" replace />;
 
   const user = getStoredUser();
+  const currentRole = getStoredRole(user);
   const onboardingComplete =
     Boolean(user.onboardingCompleted) ||
     localStorage.getItem('echooOnboardingCompleted') === 'true';
 
-  if (!onboardingComplete) return <Navigate to="/" replace />;
+  if (!onboardingComplete || !currentRole) {
+    return <Navigate to="/" replace />;
+  }
+
+  if (currentRole !== role) {
+    return <Navigate to={roleHome(currentRole)} replace />;
+  }
+
   return children;
 };
 
@@ -178,17 +195,13 @@ const DefaultRedirect = () => {
   if (!accessToken) return <Navigate to="/" replace />;
 
   const user = getStoredUser();
-  const role = user.userType || localStorage.getItem('echooRole');
+  const role = getStoredRole(user);
+  const onboardingComplete =
+    Boolean(user.onboardingCompleted) ||
+    localStorage.getItem('echooOnboardingCompleted') === 'true';
 
-  if (
-    role === 'creator' &&
-    (user.onboardingCompleted ||
-      localStorage.getItem('echooOnboardingCompleted') === 'true')
-  ) {
-    return <Navigate to="/creator-studio" replace />;
-  }
-
-  return <Navigate to="/listen" replace />;
+  if (!onboardingComplete || !role) return <Navigate to="/" replace />;
+  return <Navigate to={roleHome(role)} replace />;
 };
 
 function App() {
@@ -208,18 +221,18 @@ function App() {
           <Route
             path="/creator-studio"
             element={
-              <RequireCompletedAccount>
+              <RequireRole role="creator">
                 <CreatorStudio />
-              </RequireCompletedAccount>
+              </RequireRole>
             }
           />
 
           <Route
             path="/listen"
             element={
-              <RequireCompletedAccount>
+              <RequireRole role="listener">
                 <ListenerLayout />
-              </RequireCompletedAccount>
+              </RequireRole>
             }
           >
             <Route index element={<ListenerHome />} />
