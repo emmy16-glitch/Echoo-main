@@ -21,10 +21,6 @@ import EchoAvatar from '../EchooSystem/EchoAvatar';
 import EchoSignal from '../EchooSystem/EchoSignal';
 import CreatorAudioDetailModal from './CreatorAudioDetailModal.jsx';
 import './CreatorStudioHomeFinal.css';
-import './CreatorStudioHomeFixes.css';
-import './CreatorPremium2026.css';
-import './CreatorStudioHomeState2026.css';
-import './CreatorStudioHomeReference.css';
 import './CreatorStudioHomeAudit.css';
 
 const PERIODS = [
