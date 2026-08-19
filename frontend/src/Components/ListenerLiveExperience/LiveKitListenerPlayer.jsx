@@ -100,7 +100,9 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive }) => {
       const tasks = [];
       room.remoteParticipants.forEach((participant) => {
         participant.trackPublications.forEach((publication) => {
-          if (publication.track?.kind === Track.Kind.Audio) tasks.push(attachAudio(publication.track));
+          if (publication.track?.kind === Track.Kind.Audio) {
+            tasks.push(attachAudio(publication.track));
+          }
         });
       });
       await Promise.allSettled(tasks);
@@ -161,18 +163,6 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive }) => {
       await attachExisting(room);
       setStatus(attachedRef.current.size ? 'listening' : 'connected');
       setNeedsAudioStart(!room.canPlaybackAudio);
-
-      room.remoteParticipants.forEach((participant) => {
-        participant.trackPublications.forEach((publication) => {
-          if (
-            publication.kind === Track.Kind.Audio &&
-            publication.isSubscribed &&
-            publication.track
-          ) {
-            attachAudioTrack(publication.track);
-          }
-        });
-      });
     };
 
     connect().catch((connectError) => {

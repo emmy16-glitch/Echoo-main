@@ -1,0 +1,266 @@
+/*
+ * Echoo persistent player cleanup
+ * Loaded after the product UI layer so the playback bar has one final,
+ * predictable layout across desktop, compact desktop/tablet and mobile.
+ */
+
+#root .echoo-listener-shell .echoo-persistent-player {
+  --echoo-player-control-size: 34px;
+  --echoo-player-main-size: 44px;
+  grid-template-columns: minmax(210px, 290px) minmax(250px, 1fr) minmax(250px, 330px) !important;
+  column-gap: clamp(16px, 2vw, 30px) !important;
+  padding-inline: clamp(16px, 2vw, 28px) !important;
+  overflow: visible !important;
+}
+
+#root .echoo-listener-shell .layout-player-track {
+  min-width: 0 !important;
+  gap: 10px !important;
+}
+
+/* The animated signal repeated information already communicated by the play
+   button and made the left side feel crowded. Keep the cover + identity as the
+   primary track block. */
+#root .echoo-listener-shell .layout-player-signal {
+  display: none !important;
+}
+
+#root .echoo-listener-shell .layout-player-cover {
+  width: 48px !important;
+  height: 48px !important;
+  min-width: 48px !important;
+}
+
+#root .echoo-listener-shell .layout-player-info {
+  min-width: 0 !important;
+  overflow: hidden !important;
+}
+
+#root .echoo-listener-shell .layout-player-info strong,
+#root .echoo-listener-shell .layout-player-info span {
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+#root .echoo-listener-shell .layout-player-info strong {
+  font-size: 12.5px !important;
+  line-height: 1.25 !important;
+}
+
+#root .echoo-listener-shell .layout-player-info span {
+  margin-top: 3px !important;
+  font-size: 10.5px !important;
+  line-height: 1.25 !important;
+}
+
+#root .echoo-listener-shell .layout-player-controls {
+  min-width: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 10px !important;
+}
+
+#root .echoo-listener-shell .layout-player-controls > button {
+  width: var(--echoo-player-control-size) !important;
+  height: var(--echoo-player-control-size) !important;
+  min-width: var(--echoo-player-control-size) !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  display: grid !important;
+  place-items: center !important;
+  color: #667085 !important;
+  background: transparent !important;
+  font-size: 13px !important;
+  transition: background 150ms ease, color 150ms ease, transform 150ms ease !important;
+}
+
+#root .echoo-listener-shell .layout-player-controls > button:hover:not(:disabled) {
+  background: #f2f4f7 !important;
+  color: #101828 !important;
+  transform: none !important;
+}
+
+#root .echoo-listener-shell .layout-player-controls > button.active {
+  color: var(--echoo-product-blue, #265dff) !important;
+  background: var(--echoo-product-blue-soft, #f2f5ff) !important;
+}
+
+#root .echoo-listener-shell .layout-player-controls > button:disabled {
+  opacity: .32 !important;
+  cursor: default !important;
+}
+
+#root .echoo-listener-shell .layout-player-controls > .layout-player-main-button {
+  width: var(--echoo-player-main-size) !important;
+  height: var(--echoo-player-main-size) !important;
+  min-width: var(--echoo-player-main-size) !important;
+  background: #101828 !important;
+  color: #fff !important;
+  font-size: 14px !important;
+  box-shadow: 0 2px 5px rgba(16, 24, 40, .15) !important;
+}
+
+#root .echoo-listener-shell .layout-player-controls > .layout-player-main-button:hover:not(:disabled) {
+  background: #1d2939 !important;
+  color: #fff !important;
+  transform: scale(1.025) !important;
+}
+
+/* Timeline is the primary element in the right block. Volume becomes a
+   compact second row rather than competing for the same horizontal line. */
+#root .echoo-listener-shell .layout-player-volume {
+  min-width: 0 !important;
+  display: grid !important;
+  grid-template-columns: 34px minmax(90px, 1fr) 34px;
+  grid-template-rows: 18px 26px;
+  align-items: center !important;
+  gap: 3px 8px !important;
+}
+
+#root .echoo-listener-shell .layout-player-volume > span:first-child {
+  grid-column: 1;
+  grid-row: 1;
+  justify-self: start;
+}
+
+#root .echoo-listener-shell .layout-player-volume > .layout-player-progress {
+  grid-column: 2;
+  grid-row: 1;
+  width: 100% !important;
+  min-width: 80px !important;
+  height: 4px !important;
+  cursor: pointer;
+}
+
+#root .echoo-listener-shell .layout-player-volume > span:nth-of-type(2) {
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: end;
+}
+
+#root .echoo-listener-shell .layout-player-volume > button {
+  grid-column: 1;
+  grid-row: 2;
+  width: 30px !important;
+  height: 30px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  display: grid !important;
+  place-items: center !important;
+  background: transparent !important;
+  color: #667085 !important;
+}
+
+#root .echoo-listener-shell .layout-player-volume > input[type="range"] {
+  grid-column: 2 / 4;
+  grid-row: 2;
+  width: 100% !important;
+  min-width: 0 !important;
+  height: 4px !important;
+  margin: 0 !important;
+  accent-color: var(--echoo-product-blue, #265dff);
+}
+
+#root .echoo-listener-shell .layout-player-volume > span {
+  color: #98a2b3 !important;
+  font-size: 9.5px !important;
+  font-variant-numeric: tabular-nums;
+}
+
+#root .echoo-listener-shell .layout-player-progress {
+  border-radius: 999px !important;
+  background: #e4e7ec !important;
+  overflow: hidden !important;
+}
+
+#root .echoo-listener-shell .layout-player-progress > div {
+  height: 100% !important;
+  border-radius: inherit !important;
+  background: var(--echoo-product-blue, #265dff) !important;
+}
+
+/* Compact desktop/tablet: keep Previous / Play / Next visible, move the two
+   lower-priority transport modes out before the bar becomes cramped. */
+@media (max-width: 1180px) and (min-width: 761px) {
+  #root .echoo-listener-shell .echoo-persistent-player {
+    grid-template-columns: minmax(190px, 240px) minmax(180px, 1fr) minmax(210px, 270px) !important;
+    column-gap: 12px !important;
+    padding-inline: 16px !important;
+  }
+
+  #root .echoo-listener-shell .layout-player-controls > button:first-child,
+  #root .echoo-listener-shell .layout-player-controls > button:last-child {
+    display: none !important;
+  }
+
+  #root .echoo-listener-shell .layout-player-controls {
+    gap: 7px !important;
+  }
+
+  #root .echoo-listener-shell .layout-player-cover {
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px !important;
+  }
+}
+
+/* Mobile remains a compact now-playing strip above the real five-item nav.
+   Only track identity and the essential Play/Pause action belong here. */
+@media (max-width: 760px) {
+  #root .echoo-listener-shell .echoo-persistent-player {
+    grid-template-columns: minmax(0, 1fr) 42px !important;
+    gap: 10px !important;
+    padding: 7px 12px !important;
+    overflow: hidden !important;
+  }
+
+  #root .echoo-listener-shell .layout-player-cover {
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px !important;
+  }
+
+  #root .echoo-listener-shell .layout-player-info strong {
+    font-size: 12px !important;
+  }
+
+  #root .echoo-listener-shell .layout-player-info span {
+    font-size: 10px !important;
+  }
+
+  #root .echoo-listener-shell .layout-player-volume {
+    display: none !important;
+  }
+
+  #root .echoo-listener-shell .layout-player-controls {
+    width: 42px !important;
+    min-width: 42px !important;
+  }
+
+  #root .echoo-listener-shell .layout-player-controls > button:not(.layout-player-main-button) {
+    display: none !important;
+  }
+
+  #root .echoo-listener-shell .layout-player-controls > .layout-player-main-button {
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px !important;
+  }
+}
+
+@media (max-width: 390px) {
+  #root .echoo-listener-shell .echoo-persistent-player {
+    padding-inline: 9px !important;
+    gap: 8px !important;
+  }
+
+  #root .echoo-listener-shell .layout-player-cover {
+    width: 38px !important;
+    height: 38px !important;
+    min-width: 38px !important;
+  }
+}
