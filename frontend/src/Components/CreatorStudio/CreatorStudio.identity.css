@@ -47,27 +47,33 @@ html body #root .studio-page.studio-final-shell > .studio-sidebar {
   overflow: visible !important;
 }
 
-/* The collapse control belongs to the sidebar divider, not the logo/header. */
+/*
+  Sidebar collapse control.
+  The interaction target is intentionally small and centred on the divider so
+  it never sits over Home/Stations/etc. or steals clicks from navigation rows.
+*/
 html body #root .studio-page.studio-final-shell .studio-sidebar-head {
   position: static !important;
 }
 
 html body #root .studio-page.studio-final-shell .studio-sidebar-toggle {
   position: absolute !important;
-  top: 92px !important;
-  right: -11px !important;
-  width: 22px !important;
-  height: calc(100vh - 184px) !important;
-  min-height: 180px !important;
-  display: block !important;
+  top: 50% !important;
+  right: -7px !important;
+  width: 14px !important;
+  height: 64px !important;
+  min-width: 14px !important;
+  min-height: 64px !important;
+  display: grid !important;
+  place-items: center !important;
   padding: 0 !important;
   border: 0 !important;
-  border-radius: 0 !important;
+  border-radius: 999px !important;
   background: transparent !important;
   box-shadow: none !important;
   color: transparent !important;
-  transform: none !important;
-  cursor: ew-resize !important;
+  transform: translateY(-50%) !important;
+  cursor: col-resize !important;
   opacity: 1 !important;
   z-index: 95 !important;
 }
@@ -77,31 +83,51 @@ html body #root .studio-page.studio-final-shell .studio-sidebar-toggle > svg {
   pointer-events: none !important;
 }
 
+html body #root .studio-page.studio-final-shell .studio-sidebar-toggle::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 7px;
+  bottom: 7px;
+  width: 1px;
+  transform: translateX(-50%);
+  background: #dfe6ef;
+  opacity: .65;
+  pointer-events: none;
+  transition: background .16s ease, opacity .16s ease;
+}
+
 html body #root .studio-page.studio-final-shell .studio-sidebar-toggle::after {
   content: "‹";
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 24px;
-  height: 46px;
+  width: 22px;
+  height: 40px;
   display: grid;
   place-items: center;
   transform: translate(-50%, -50%);
   border: 1px solid #d9e2ee;
   border-radius: 999px;
-  background: rgba(255,255,255,.98);
-  color: #62738a;
-  box-shadow: 0 8px 22px rgba(15,23,42,.10);
-  font-size: 19px;
-  font-weight: 500;
+  background: rgba(255,255,255,.99);
+  color: #64758c;
+  box-shadow: 0 6px 18px rgba(15,23,42,.09);
+  font-size: 17px;
+  font-weight: 550;
   line-height: 1;
-  opacity: .16;
+  opacity: 0;
   pointer-events: none;
-  transition: opacity .16s ease, color .16s ease, border-color .16s ease, box-shadow .16s ease, transform .16s ease;
+  transition: opacity .14s ease, color .14s ease, border-color .14s ease, box-shadow .14s ease, transform .14s ease;
 }
 
 html body #root .studio-page.studio-final-shell.sidebar-collapsed .studio-sidebar-toggle::after {
   content: "›";
+}
+
+html body #root .studio-page.studio-final-shell .studio-sidebar-toggle:hover::before,
+html body #root .studio-page.studio-final-shell .studio-sidebar-toggle:focus-visible::before {
+  background: #9fc0ff;
+  opacity: 1;
 }
 
 html body #root .studio-page.studio-final-shell .studio-sidebar-toggle:hover::after,
@@ -109,8 +135,8 @@ html body #root .studio-page.studio-final-shell .studio-sidebar-toggle:focus-vis
   opacity: 1;
   color: var(--studio-blue);
   border-color: #b9cff9;
-  box-shadow: 0 10px 26px rgba(36,107,254,.16);
-  transform: translate(-50%, -50%) scale(1.03);
+  box-shadow: 0 9px 24px rgba(36,107,254,.15);
+  transform: translate(-50%, -50%) scale(1.02);
 }
 
 html body #root .studio-page.studio-final-shell > .studio-main {
