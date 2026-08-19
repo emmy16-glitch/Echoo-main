@@ -21,7 +21,6 @@ import {
   ListenerAuthCard,
   ListenerEmptyState,
   ListenerListRow,
-  ListenerMiniPlayer,
   ListenerPageHeader,
   ListenerSectionHeader,
   ListenerTopBar,
@@ -104,6 +103,25 @@ export default function LibraryScreen() {
     }, [loadLibrary])
   );
 
+  const openAudio = (track?: EchooAudio | null) => {
+    if (!track) return;
+    router.push({
+      pathname: '/audio-player',
+      params: {
+        audioId: track.id,
+        title: track.title,
+        subtitle: track.subtitle || track.artistName || track.genre || 'Echoo Audio',
+        coverArt: track.coverArt || '',
+        fileUrl: track.fileUrl || '',
+        genre: track.genre || '',
+      },
+    });
+  };
+
+  const openStation = (station: EchooStation) => {
+    router.push({ pathname: '/station', params: { stationId: station.id } });
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -152,6 +170,7 @@ export default function LibraryScreen() {
                   subtitle={track.subtitle || track.genre || 'Echoo Audio'}
                   meta={track.genre || 'Saved'}
                   image={track.coverArt}
+                  onPress={() => openAudio(track)}
                 />
               ))
             ) : (
@@ -173,6 +192,7 @@ export default function LibraryScreen() {
                   meta={station.isLive ? 'LIVE' : `${station.followerCount || 0} followers`}
                   image={station.coverArt}
                   fallback={<Radio color={palette.blue} size={21} />}
+                  onPress={() => openStation(station)}
                 />
               ))
             ) : (
@@ -193,6 +213,7 @@ export default function LibraryScreen() {
                   subtitle={item.track?.subtitle || item.track?.genre || 'Echoo'}
                   meta={item.playedAt ? new Date(item.playedAt).toLocaleDateString() : 'History'}
                   image={item.track?.coverArt}
+                  onPress={() => openAudio(item.track)}
                 />
               ))
             ) : (
@@ -217,8 +238,6 @@ export default function LibraryScreen() {
           </>
         ) : null}
       </ScrollView>
-
-      {signedIn && saved[0] ? <ListenerMiniPlayer audio={saved[0]} /> : null}
     </SafeAreaView>
   );
 }
@@ -246,7 +265,7 @@ function LibraryStat({
 
 const createStyles = (palette: EchooColors) => StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: palette.background },
-  content: { paddingHorizontal: 18, paddingTop: 8, paddingBottom: 130 },
+  content: { paddingHorizontal: 18, paddingTop: 8, paddingBottom: 120 },
   loadingState: { minHeight: 150, alignItems: 'center', justifyContent: 'center', gap: 10 },
   loadingText: { color: palette.muted, fontSize: 12.5, fontWeight: '700' },
   statGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
