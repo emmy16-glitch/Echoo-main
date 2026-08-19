@@ -29,17 +29,24 @@ export function useListenerPalette() {
 
 export function ListenerTopBar({
   onMenu,
+  onNotifications,
   notificationCount = 0,
 }: {
   onMenu?: () => void;
+  onNotifications?: () => void;
   notificationCount?: number;
 }) {
+  const router = useRouter();
   const palette = useListenerPalette();
   const styles = useMemo(() => makeStyles(palette), [palette]);
 
   return (
     <View style={styles.topBar}>
-      <Pressable style={styles.iconButton} onPress={onMenu} accessibilityLabel="Open menu">
+      <Pressable
+        style={styles.iconButton}
+        onPress={onMenu || (() => router.push('/menu'))}
+        accessibilityLabel="Open menu"
+      >
         <Menu color={palette.ink} size={25} strokeWidth={2.1} />
       </Pressable>
 
@@ -52,7 +59,11 @@ export function ListenerTopBar({
         <Text style={styles.brandText}>echoo</Text>
       </View>
 
-      <Pressable style={styles.notificationButton} accessibilityLabel="Notifications">
+      <Pressable
+        style={styles.notificationButton}
+        onPress={onNotifications || (() => router.push('/settings'))}
+        accessibilityLabel="Notifications"
+      >
         <Bell color={palette.ink} size={22} strokeWidth={2.1} />
         {notificationCount > 0 ? (
           <View style={styles.notificationBadge}>
