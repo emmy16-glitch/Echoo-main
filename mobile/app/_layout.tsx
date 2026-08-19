@@ -46,6 +46,8 @@ export default function RootLayout() {
         <Stack.Screen name="auth" options={{ presentation: 'modal' }} />
         <Stack.Screen name="menu" options={{ presentation: 'modal' }} />
         <Stack.Screen name="settings" />
+        <Stack.Screen name="station" />
+        <Stack.Screen name="audio-player" />
         <Stack.Screen name="live-room" />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       </Stack>
