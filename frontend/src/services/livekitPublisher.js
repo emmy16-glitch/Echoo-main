@@ -5,6 +5,8 @@ import {
 import { resolveLiveKitUrl } from './livekitUrl.js';
 import { ensureBroadcastRecording } from './broadcastRecordingService.js';
 
+const ECHOO_LIVE_AUDIO_BITRATE = 256000;
+
 let activeRoom = null;
 let activeBroadcastId = null;
 
@@ -22,7 +24,7 @@ const createSyntheticTrack = async () => {
     throw new Error('This browser does not support Web Audio.');
   }
 
-  syntheticContext = new AudioContextClass();
+  syntheticContext = new AudioContextClass({ sampleRate: 48000 });
   await syntheticContext.resume();
 
   const oscillator = syntheticContext.createOscillator();
@@ -99,6 +101,7 @@ export const getLiveKitPublishingState = () => ({
   connected: Boolean(activeRoom),
   broadcastId: activeBroadcastId,
   roomName: activeRoom?.name || null,
+  targetAudioBitsPerSecond: ECHOO_LIVE_AUDIO_BITRATE,
 });
 
 export const stopLiveKitPublishing = async () => {
@@ -157,6 +160,13 @@ export const startLiveKitPublishing = async ({
       publication = await room.localParticipant.publishTrack(mediaTrack, {
         name: 'echoo-studio-mix',
         source: Track.Source.Microphone,
+        // Echoo is an audio-broadcast product, not a speech-call product. Keep
+        // continuous music/system audio in stereo and give Opus enough bitrate
+        // to preserve the post-master studio feed without speech-style DTX.
+        audioPreset: { maxBitrate: ECHOO_LIVE_AUDIO_BITRATE },
+        forceStereo: true,
+        dtx: false,
+        red: false,
       });
       mode = 'studio-mix';
     } else if (syntheticModeEnabled()) {
@@ -164,6 +174,8 @@ export const startLiveKitPublishing = async ({
       publication = await room.localParticipant.publishTrack(nativeTrack, {
         name: 'echoo-dev-test-audio',
         source: Track.Source.Microphone,
+        audioPreset: { maxBitrate: 128000 },
+        dtx: false,
       });
       mode = 'synthetic-test';
     } else {
@@ -200,9 +212,10 @@ export const startLiveKitPublishing = async ({
       trackSid: publication?.trackSid || null,
       mode,
       url: resolvedUrl,
+      targetAudioBitsPerSecond: ECHOO_LIVE_AUDIO_BITRATE,
     };
 
-    console.log('[Echoo LiveKit] publishing', result);
+    console.log('[Echoo LiveKit] publishing hi-fi studio mix', result);
     return result;
   } catch (error) {
     try {
