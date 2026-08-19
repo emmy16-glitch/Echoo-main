@@ -1,3 +1,5 @@
+/* global AudioWorkletProcessor, registerProcessor */
+
 const CHUNK_FRAMES = 4096;
 
 class EchooPcmCaptureProcessor extends AudioWorkletProcessor {
