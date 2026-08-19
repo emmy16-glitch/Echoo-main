@@ -15,6 +15,17 @@ const STATUS_COPY = {
   error: 'Could not connect to live audio',
 };
 
+const isEchooProgramPublication = (publication) => {
+  const name = String(
+    publication?.trackName || publication?.name || publication?.track?.name || ''
+  ).toLowerCase();
+
+  return (
+    name === 'echoo-studio-mix' ||
+    (import.meta.env.DEV && name === 'echoo-dev-test-audio')
+  );
+};
+
 const LiveKitListenerPlayer = ({ broadcastId, isLive }) => {
   const roomRef = useRef(null);
   const audioHostRef = useRef(null);
@@ -59,8 +70,15 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive }) => {
       }
     };
 
-    const attachAudio = async (track) => {
-      if (disposed || track.kind !== Track.Kind.Audio) return;
+    const attachAudio = async (track, publication = null) => {
+      if (
+        disposed ||
+        track.kind !== Track.Kind.Audio ||
+        !isEchooProgramPublication(publication)
+      ) {
+        return;
+      }
+
       const id = String(track.sid || track.mediaStreamTrack?.id || 'audio');
       if (attachedRef.current.has(id)) return;
       attachedRef.current.add(id);
@@ -100,8 +118,11 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive }) => {
       const tasks = [];
       room.remoteParticipants.forEach((participant) => {
         participant.trackPublications.forEach((publication) => {
-          if (publication.track?.kind === Track.Kind.Audio) {
-            tasks.push(attachAudio(publication.track));
+          if (
+            publication.track?.kind === Track.Kind.Audio &&
+            isEchooProgramPublication(publication)
+          ) {
+            tasks.push(attachAudio(publication.track, publication));
           }
         });
       });
@@ -129,14 +150,15 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive }) => {
       const room = new Room({ adaptiveStream: false, dynacast: false });
       roomRef.current = room;
 
-      room.on(RoomEvent.TrackSubscribed, (track) => {
-        attachAudio(track).catch((trackError) => {
+      room.on(RoomEvent.TrackSubscribed, (track, publication) => {
+        attachAudio(track, publication).catch((trackError) => {
           if (!disposed) setError(trackError?.message || 'Could not attach live audio.');
         });
       });
 
       room.on(RoomEvent.TrackUnsubscribed, (track) => {
         const id = String(track.sid || track.mediaStreamTrack?.id || 'audio');
+        if (!attachedRef.current.has(id)) return;
         attachedRef.current.delete(id);
         try { track.detach().forEach((element) => element.remove()); } catch { /* ignore */ }
         if (!disposed) {
@@ -220,7 +242,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive }) => {
   const detail = needsAudioStart
     ? 'Audio received — tap to allow playback'
     : trackCount > 0
-      ? `${trackCount} live audio track${trackCount === 1 ? '' : 's'} received`
+      ? 'Echoo studio mix received'
       : 'Waiting for the creator to publish the studio mix';
 
   return (
