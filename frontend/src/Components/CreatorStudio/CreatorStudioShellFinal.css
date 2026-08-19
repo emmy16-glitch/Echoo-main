@@ -1,3 +1,5 @@
+@import "./CreatorStationsReference.css";
+
 .studio-final-shell {
   grid-template-columns: 236px minmax(0, 1fr);
   gap: 0;
@@ -8,11 +10,18 @@
 }
 
 .studio-final-shell .studio-sidebar {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  height: 100vh;
   min-height: 100vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 24px 14px 18px;
   border: 0;
   border-right: 1px solid #e6eaf0;
   border-radius: 0;
+  background: #fff;
   box-shadow: none;
 }
 
@@ -110,7 +119,20 @@
 
 @media (max-width: 640px) {
   .studio-final-shell { display: block; }
-  .studio-final-shell .studio-sidebar { min-height: auto; position: sticky; top: 0; z-index: 30; display: grid; grid-template-columns: auto 1fr; align-items: center; padding: 9px 12px; border-right: 0; border-bottom: 1px solid #e6eaf0; }
+  .studio-final-shell .studio-sidebar {
+    min-height: auto;
+    height: auto;
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    overflow: visible;
+    padding: 9px 12px;
+    border-right: 0;
+    border-bottom: 1px solid #e6eaf0;
+  }
   .studio-final-shell .studio-brand { width: auto; padding: 0; }
   .studio-final-shell .studio-navigation { display: flex; flex-direction: row; justify-content: flex-end; overflow-x: auto; }
   .studio-final-shell .studio-nav-item { width: 42px; min-width: 42px; min-height: 42px; }
