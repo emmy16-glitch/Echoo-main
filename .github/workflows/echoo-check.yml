@@ -55,11 +55,18 @@ jobs:
           cache: npm
           cache-dependency-path: backend/package-lock.json
       - run: npm ci
-      - name: Syntax check API entrypoints
+      - name: Syntax check API and broadcast audio entrypoints
         run: |
           node --check src/app.js
           node --check src/routes/index.js
           node --check src/routes/broadcastRoutes.js
+          node --check src/routes/audioRoutes.js
           node --check src/controllers/broadcastController.js
+          node --check src/controllers/broadcastLifecycleController.js
+          node --check src/controllers/broadcastPresenceController.js
           node --check src/providers/livekit.js
+          node --check src/services/broadcastAudioReadiness.js
+          node --check src/services/creatorBroadcastLease.js
           node --check src/controllers/chatController.js
+      - name: Run backend invariant tests
+        run: npm test
