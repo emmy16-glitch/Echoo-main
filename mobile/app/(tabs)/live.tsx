@@ -62,6 +62,23 @@ export default function LiveScreen() {
     load();
   }, []);
 
+  const openLiveRoom = (item: EchooBroadcast) => {
+    if (!signedIn) {
+      router.push('/auth');
+      return;
+    }
+
+    router.push({
+      pathname: '/live-room',
+      params: {
+        broadcastId: item.id,
+        title: item.title,
+        stationName: item.stationName || 'Echoo Station',
+        coverArt: item.coverArt || '',
+      },
+    });
+  };
+
   const featured = live[0];
   const liveAudience = live.reduce((sum, item) => sum + (item.listenerCount || 0), 0);
 
@@ -92,7 +109,7 @@ export default function LiveScreen() {
         ) : null}
 
         {!loading && !error && featured ? (
-          <Pressable style={styles.featuredCard} onPress={() => !signedIn && router.push('/auth')}>
+          <Pressable style={styles.featuredCard} onPress={() => openLiveRoom(featured)}>
             {featured.coverArt ? (
               <Image source={{ uri: featured.coverArt }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
             ) : (
@@ -155,7 +172,7 @@ export default function LiveScreen() {
                 meta={`${item.listenerCount || 0} live`}
                 image={item.coverArt}
                 fallback={<Radio color={palette.red} size={21} />}
-                onPress={() => !signedIn && router.push('/auth')}
+                onPress={() => openLiveRoom(item)}
               />
             ))}
           </>
