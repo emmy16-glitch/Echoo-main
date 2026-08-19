@@ -1,0 +1,28 @@
+/* Narrow-screen QA guards for the approved Stations composition. */
+@media (max-width: 420px) {
+  .est-header {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .est-header > div {
+    min-width: 0;
+  }
+
+  .est-header h1,
+  .est-header p,
+  .est-summary strong,
+  .est-summary small,
+  .est-body h2,
+  .est-body > p {
+    overflow-wrap: anywhere;
+  }
+
+  .est-summary small,
+  .est-summary strong {
+    white-space: normal;
+  }
+
+  .est-card-footer {
+    grid-template-columns: minmax(0, 1fr) 36px;
+  }
+}
