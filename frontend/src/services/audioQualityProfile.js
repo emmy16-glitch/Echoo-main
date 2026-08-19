@@ -108,7 +108,7 @@ export const getBroadcastRuntimeProcessingConstraints = (profileId = 'studio') =
 export const applyBroadcastCaptureProfile = async (
   track,
   profileId = 'studio',
-  { preserveFormat = false } = {}
+  { preserveFormat = true } = {}
 ) => {
   if (!track || track.kind !== 'audio' || track.readyState === 'ended') {
     throw new Error('The microphone track is not available for audio-quality setup.');
