@@ -391,6 +391,7 @@ const CreatorStudio = () => {
             onUpload={openUpload}
             onDelete={handleDelete}
             onPageChange={setContentPage}
+            onChanged={() => setRefreshKey((value) => value + 1)}
           />
         );
       case 'Stations':
@@ -408,9 +409,9 @@ const CreatorStudio = () => {
       case 'Explore Live':
         return <ListenerLiveConnected />;
       case 'Audience':
-        return <CreatorAudienceWorkspace audience={audience} loading={loading} />;
+        return <CreatorAudienceWorkspace audience={audience} loading={loading} onNavigate={navigateStudio} />;
       case 'Analytics':
-        return <CreatorAnalyticsWorkspace />;
+        return <CreatorAnalyticsWorkspace onNavigate={navigateStudio} />;
       case 'Settings':
         return <CreatorSettingsWorkspace />;
       case 'Notifications':
