@@ -32,6 +32,7 @@ import "./styles/echoo-logout-always-visible.css";
 import "./styles/echoo-product-ui-2026.css";
 import "./styles/echoo-player-cleanup-2026.css";
 import "./styles/creator-artwork-layout-2026.css";
+import "./Components/CreatorStudio/CreatorAudioCardControls.css";
 
 initializeEchooTheme();
 
