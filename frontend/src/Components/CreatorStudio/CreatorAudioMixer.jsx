@@ -19,6 +19,7 @@ import {
   ensureHostInput,
   gainToDb,
   getEchooMixerState,
+  getMixerChannelTrack,
   listAudioInputs,
   listAudioOutputs,
   playMonitorTestTone,
@@ -37,6 +38,7 @@ import {
   applyBroadcastCaptureProfile,
   applyProgramTrackQuality,
   audioQualityLabel,
+  getBroadcastCaptureConstraints,
   getBroadcastCaptureProfile,
   saveBroadcastCaptureProfile,
 } from '../../services/audioQualityProfile';
@@ -108,6 +110,20 @@ const LevelMeter = ({ connected = true, level = 0, peakDb, master = false }) => 
   );
 };
 
+const parentStateSignature = (snapshot = {}) => [
+  snapshot.ready ? '1' : '0',
+  snapshot.engineSampleRate || '',
+  snapshot.channels?.host?.connected ? '1' : '0',
+  snapshot.channels?.host?.deviceId || '',
+  snapshot.channels?.host?.sourceLabel || '',
+  snapshot.channels?.guest?.connected ? '1' : '0',
+  snapshot.channels?.guest?.deviceId || '',
+  snapshot.channels?.media?.connected ? '1' : '0',
+  snapshot.channels?.media?.sourceLabel || '',
+  snapshot.master?.muted ? '1' : '0',
+  snapshot.monitoring?.enabled ? '1' : '0',
+].join('|');
+
 const CreatorAudioMixer = ({ compact = false, onStateChange }) => {
   const [mixer, setMixer] = useState(() => getEchooMixerState());
   const [inputs, setInputs] = useState([]);
@@ -121,12 +137,20 @@ const CreatorAudioMixer = ({ compact = false, onStateChange }) => {
   const [captureProfile, setCaptureProfile] = useState(getBroadcastCaptureProfile);
   const [qualitySummary, setQualitySummary] = useState({});
   const [error, setError] = useState('');
-  const autoProfileApplied = useRef(false);
+  const parentSignatureRef = useRef('');
+  const appliedProfileRef = useRef({});
 
   useEffect(() =>
     subscribeEchooMixer((next) => {
+      // The mixer itself needs fast meter updates. The parent Broadcast Studio
+      // does not. Only notify the parent when connection/control state changes
+      // so live chat, scheduling and the whole page are not re-rendered ~60fps.
       setMixer(next);
-      onStateChange?.(next);
+      const signature = parentStateSignature(next);
+      if (signature !== parentSignatureRef.current) {
+        parentSignatureRef.current = signature;
+        onStateChange?.(next);
+      }
     }), [onStateChange]);
 
   const channels = useMemo(() => mixer?.channels || {}, [mixer]);
@@ -191,27 +215,39 @@ const CreatorAudioMixer = ({ compact = false, onStateChange }) => {
   }, []);
 
   const applyMicQuality = async (track, channelId, profileId = captureProfile) => {
+    if (!track || track.readyState !== 'live') return null;
+    const applicationKey = `${track.id}:${profileId}`;
+    if (appliedProfileRef.current[channelId] === applicationKey) {
+      return qualitySummary[channelId] || null;
+    }
+
     const summary = await applyBroadcastCaptureProfile(track, profileId);
+    if (getMixerChannelTrack(channelId) !== track) return summary;
+
+    appliedProfileRef.current[channelId] = applicationKey;
     setQualitySummary((current) => ({ ...current, [channelId]: summary }));
     return summary;
   };
 
-  const connectHost = async ({ quiet = false } = {}) => {
+  const connectHost = async () => {
     try {
       setWorkingChannel('host');
       setError('');
       const deviceId = hostDeviceId || channels.host?.deviceId || '';
-      const track = await ensureHostInput(deviceId);
-      await applyMicQuality(track, 'host');
+      const track = await ensureHostInput(
+        deviceId,
+        getBroadcastCaptureConstraints(captureProfile)
+      );
+      await applyMicQuality(track, 'host', captureProfile);
       await refreshDevices();
     } catch (connectError) {
-      if (!quiet) setError(connectError?.message || 'Could not connect the host microphone.');
+      setError(connectError?.message || 'Could not connect the host microphone.');
     } finally {
       setWorkingChannel('');
     }
   };
 
-  const connectGuest = async ({ quiet = false } = {}) => {
+  const connectGuest = async () => {
     try {
       setWorkingChannel('guest');
       setError('');
@@ -230,10 +266,13 @@ const CreatorAudioMixer = ({ compact = false, onStateChange }) => {
         throw new Error('Host Mic and Guest Mic cannot use the same hardware input at the same time.');
       }
 
-      const track = await connectGuestInput(nextDeviceId);
-      await applyMicQuality(track, 'guest');
+      const track = await connectGuestInput(
+        nextDeviceId,
+        getBroadcastCaptureConstraints(captureProfile)
+      );
+      await applyMicQuality(track, 'guest', captureProfile);
     } catch (connectError) {
-      if (!quiet) setError(connectError?.message || 'Could not connect the guest microphone.');
+      setError(connectError?.message || 'Could not connect the guest microphone.');
     } finally {
       setWorkingChannel('');
     }
@@ -253,32 +292,46 @@ const CreatorAudioMixer = ({ compact = false, onStateChange }) => {
     }
   };
 
+  // A host mic can also be connected by the page-level Test microphone action.
+  // Apply the selected quality profile IN PLACE. Never reopen a connected input:
+  // doing that during a live broadcast can create an audible gap.
   useEffect(() => {
-    if (autoProfileApplied.current || !channels.host?.connected) return;
-    autoProfileApplied.current = true;
-    connectHost({ quiet: true });
-    // A host mic can be connected from the page-level Test microphone button.
-    // Re-open it once so the saved Echoo capture profile is actually applied.
+    let cancelled = false;
+
+    const applyToExisting = async () => {
+      const targets = ['host', 'guest'].filter((channelId) => channels[channelId]?.connected);
+      for (const channelId of targets) {
+        const track = getMixerChannelTrack(channelId);
+        if (!track || cancelled) continue;
+        try {
+          await applyMicQuality(track, channelId, captureProfile);
+        } catch (profileError) {
+          if (!cancelled) {
+            setError(profileError?.message || 'Could not apply the microphone sound profile.');
+          }
+        }
+      }
+    };
+
+    applyToExisting();
+    return () => { cancelled = true; };
+    // applyMicQuality intentionally reads the current profile/summary refs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [channels.host?.connected]);
+  }, [captureProfile, channels.host?.connected, channels.guest?.connected]);
 
   const changeCaptureProfile = async (nextProfile) => {
     if (!BROADCAST_CAPTURE_PROFILES[nextProfile] || nextProfile === captureProfile) return;
-    setCaptureProfile(saveBroadcastCaptureProfile(nextProfile));
+    const savedProfile = saveBroadcastCaptureProfile(nextProfile);
+    setCaptureProfile(savedProfile);
     setError('');
 
     try {
       setWorkingChannel('profile');
-      if (channels.host?.connected) {
-        const hostTrack = await ensureHostInput(channels.host.deviceId || hostDeviceId || '');
-        const summary = await applyBroadcastCaptureProfile(hostTrack, nextProfile);
-        setQualitySummary((current) => ({ ...current, host: summary }));
-      }
-      if (channels.guest?.connected && channels.guest.deviceId) {
-        const guestTrack = await connectGuestInput(channels.guest.deviceId);
-        const summary = await applyBroadcastCaptureProfile(guestTrack, nextProfile);
-        setQualitySummary((current) => ({ ...current, guest: summary }));
-      }
+      const targets = ['host', 'guest'].filter((channelId) => channels[channelId]?.connected);
+      await Promise.all(targets.map(async (channelId) => {
+        const track = getMixerChannelTrack(channelId);
+        if (track) await applyMicQuality(track, channelId, savedProfile);
+      }));
     } catch (profileError) {
       setError(profileError?.message || 'Could not apply the new microphone sound profile.');
     } finally {
@@ -324,7 +377,7 @@ const CreatorAudioMixer = ({ compact = false, onStateChange }) => {
     }
   };
 
-  const renderChannel = (channelId, icon, connectAction) => {
+  const renderChannel = (channelId, icon) => {
     const channel = channels[channelId] || {
       name: channelId,
       sourceLabel: 'Not connected',
@@ -397,7 +450,7 @@ const CreatorAudioMixer = ({ compact = false, onStateChange }) => {
 
         <LevelMeter connected={channel.connected} level={channel.level} peakDb={channel.peakDb} />
 
-        {summary && (
+        {summary && channel.connected && (
           <div className="eam-quality-chip">
             <FaCheckCircle /> {audioQualityLabel(summary)}
           </div>
@@ -417,7 +470,15 @@ const CreatorAudioMixer = ({ compact = false, onStateChange }) => {
             type="button"
             className="primary"
             disabled={isWorking || workingChannel === 'profile'}
-            onClick={() => channel.connected ? disconnectMixerChannel(channelId) : connectAction()}
+            onClick={() => {
+              if (channel.connected) {
+                disconnectMixerChannel(channelId);
+                return;
+              }
+              if (channelId === 'host') connectHost();
+              else if (channelId === 'guest') connectGuest();
+              else connectMedia();
+            }}
           >
             <FaPlug />
             {isWorking
@@ -492,7 +553,7 @@ const CreatorAudioMixer = ({ compact = false, onStateChange }) => {
           <p>Simple controls for the exact sound your audience receives.</p>
         </div>
         <button type="button" className="eam-reset" onClick={resetEchooMixer}>
-          <FaRedo /> Reset levels
+          <FaRedo /> Reset mix
         </button>
       </div>
 
@@ -527,9 +588,9 @@ const CreatorAudioMixer = ({ compact = false, onStateChange }) => {
       <div className="eam-workspace">
         <div className="eam-sources">
           <div className="eam-source-grid">
-            {renderChannel('host', <FaMicrophone />, connectHost)}
-            {renderChannel('guest', <FaMicrophone />, connectGuest)}
-            {renderChannel('media', <FaDesktop />, connectMedia)}
+            {renderChannel('host', <FaMicrophone />)}
+            {renderChannel('guest', <FaMicrophone />)}
+            {renderChannel('media', <FaDesktop />)}
           </div>
 
           <div className={`eam-guidance ${balanceAdvice.tone}`}>
@@ -636,7 +697,7 @@ const CreatorAudioMixer = ({ compact = false, onStateChange }) => {
 
       <div className="eam-path-note">
         <FaCheckCircle />
-        <span><strong>One clean program feed.</strong> Microphones and music are mixed here first, protected by the master limiter, then sent as one stereo LiveKit stream.</span>
+        <span><strong>One clean program feed.</strong> Microphones and music are mixed here first, protected by the master safety limiter, then sent as one stereo LiveKit stream.</span>
       </div>
     </section>
   );

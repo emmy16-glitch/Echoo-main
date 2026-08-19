@@ -12,7 +12,6 @@ export const BROADCAST_CAPTURE_PROFILES = Object.freeze({
       autoGainControl: false,
       channelCount: 1,
       sampleRate: { ideal: 48000 },
-      sampleSize: { ideal: 24 },
     },
   },
   voice: {
@@ -39,8 +38,12 @@ const safeStorage = () => {
 };
 
 export const getBroadcastCaptureProfile = () => {
-  const stored = safeStorage()?.getItem(PROFILE_STORAGE_KEY) || '';
-  return BROADCAST_CAPTURE_PROFILES[stored] ? stored : 'studio';
+  try {
+    const stored = safeStorage()?.getItem(PROFILE_STORAGE_KEY) || '';
+    return BROADCAST_CAPTURE_PROFILES[stored] ? stored : 'studio';
+  } catch {
+    return 'studio';
+  }
 };
 
 export const saveBroadcastCaptureProfile = (profileId) => {
@@ -81,6 +84,12 @@ const setContentHint = (track, hint) => {
   }
 };
 
+export const getBroadcastCaptureConstraints = (profileId = 'studio') => {
+  const profile =
+    BROADCAST_CAPTURE_PROFILES[profileId] || BROADCAST_CAPTURE_PROFILES.studio;
+  return filteredConstraints(profile.constraints);
+};
+
 export const applyBroadcastCaptureProfile = async (track, profileId = 'studio') => {
   if (!track || track.kind !== 'audio' || track.readyState === 'ended') {
     throw new Error('The microphone track is not available for audio-quality setup.');
@@ -92,13 +101,13 @@ export const applyBroadcastCaptureProfile = async (track, profileId = 'studio') 
   setContentHint(track, profile.contentHint);
 
   if (typeof track.applyConstraints === 'function') {
-    const constraints = filteredConstraints(profile.constraints);
+    const constraints = getBroadcastCaptureConstraints(profile.id);
     try {
       await track.applyConstraints(constraints);
     } catch (error) {
       // Some devices reject one optional constraint even when the browser says
-      // the key is supported. Retry the universally useful processing controls
-      // rather than failing an otherwise healthy microphone.
+      // the key is supported. Retry the processing controls without requesting
+      // a specific sample rate rather than replacing a healthy live track.
       const fallback = filteredConstraints({
         echoCancellation: profile.constraints.echoCancellation,
         noiseSuppression: profile.constraints.noiseSuppression,
