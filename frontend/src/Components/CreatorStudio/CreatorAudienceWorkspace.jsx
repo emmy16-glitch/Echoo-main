@@ -119,6 +119,7 @@ const CreatorAudienceWorkspace = ({ audience = null, loading: shellLoading = fal
   const newFollowers = Number(analytics?.followers?.addedThisPeriod) || 0;
   const listeningNow = Number(audience?.topListeners?.total) || 0;
   const returningListeners = Number(analytics?.returningListeners?.total) || 0;
+  const newListeners = Number(analytics?.newListeners?.total) || 0;
   const engagementRate = Number(analytics?.engagementRate?.rate ?? overview?.engagementRate) || 0;
 
   const metrics = [
@@ -126,7 +127,7 @@ const CreatorAudienceWorkspace = ({ audience = null, loading: shellLoading = fal
       label: 'Total listeners',
       value: formatNumber(totalListeners),
       icon: <FaUsers />,
-      change: changeText(overview?.changes?.listeners),
+      change: changeText(analytics?.activeListeners?.change),
     },
     {
       label: 'New followers',
@@ -170,9 +171,11 @@ const CreatorAudienceWorkspace = ({ audience = null, loading: shellLoading = fal
     [stations]
   );
 
-  const engagementTotal = Math.max(1, returningListeners + Number(analytics?.newListeners?.total || 0));
-  const returningShare = Math.round((returningListeners / engagementTotal) * 100);
-  const newShare = Math.max(0, 100 - returningShare);
+  const engagementTotal = returningListeners + newListeners;
+  const returningShare = engagementTotal > 0
+    ? Math.round((returningListeners / engagementTotal) * 100)
+    : 0;
+  const newShare = engagementTotal > 0 ? Math.max(0, 100 - returningShare) : 0;
 
   const exportAudience = () => {
     const rows = [
