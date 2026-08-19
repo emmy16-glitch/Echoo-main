@@ -1,7 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { Eye, EyeOff, Headphones, Mail, UserRound } from 'lucide-react-native';
-import { useMemo, useState } from 'react';
+import { ReactNode, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -180,7 +180,7 @@ export default function AuthScreen() {
           </View>
 
           <Text style={styles.securityText}>
-            Echoo stores mobile session credentials in your device's secure credential storage on iOS and Android.
+            {"Echoo stores mobile session credentials in your device's secure credential storage on iOS and Android."}
           </Text>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -193,7 +193,7 @@ function Field({
   palette,
   ...props
 }: {
-  icon: React.ReactNode;
+  icon: ReactNode;
   palette: EchooColors;
   value: string;
   onChangeText: (value: string) => void;
