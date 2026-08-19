@@ -169,7 +169,7 @@ export default function LiveRoomScreen() {
             <View style={styles.errorIcon}><Headphones color={palette.blue} size={26} /></View>
             <Text style={styles.stateTitle}>Live audio needs the Echoo development build</Text>
             <Text style={styles.stateText}>
-              Expo Go does not include LiveKit's native WebRTC module. The rest of Echoo can run in Expo Go, but live listening requires an iOS/Android development build.
+              Expo Go does not include the LiveKit native WebRTC module. The rest of Echoo can run in Expo Go, but live listening requires an iOS/Android development build.
             </Text>
             <Pressable style={styles.backHomeButton} onPress={() => router.back()}>
               <Text style={styles.backHomeText}>Back to Echoo</Text>
