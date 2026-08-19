@@ -16,13 +16,6 @@
   </head>
   <body>
     <div id="root"></div>
-    <script>
-      try {
-        localStorage.setItem('echooCreatorSidebarCollapsed', 'true');
-      } catch (_) {
-        // Storage can be unavailable in strict/private contexts; component CSS still enforces the compact rail.
-      }
-    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
