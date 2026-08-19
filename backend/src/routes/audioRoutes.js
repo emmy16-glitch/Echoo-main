@@ -261,11 +261,14 @@ const validateUploadedFileSignatures = async (req, res, next) => {
   }
 };
 
-// Multer writes to disk before the controller creates the Mongo record. If the
-// multipart parser, signature validation or database/controller fails, delete
-// those temporary files so repeated failed uploads cannot fill the backend disk.
+// Multer writes to disk before the controller creates the Mongo record. Only
+// remove temporary files when the authoritative Audio record has NOT committed.
+// A later notification/populate failure must never orphan a durable record by
+// deleting the media bytes it already owns.
 const cleanupUploadError = async (err, req, res, next) => {
-  await removeUploadedFiles(req);
+  if (!req.audioUploadCommitted) {
+    await removeUploadedFiles(req);
+  }
 
   if (err instanceof multer.MulterError) {
     const tooLarge = err.code === 'LIMIT_FILE_SIZE';
