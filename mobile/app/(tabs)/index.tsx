@@ -100,10 +100,10 @@ export default function HomeScreen() {
     };
   }, []);
 
-  const liveNow = discovery.live.slice(0, 8);
-  const topStations = [...discovery.stations]
+  const liveNow: EchooBroadcast[] = discovery.live.slice(0, 8);
+  const topStations: EchooStation[] = [...discovery.stations]
     .sort(
-      (a, b) =>
+      (a: EchooStation, b: EchooStation) =>
         (b.listenerCount || 0) - (a.listenerCount || 0) ||
         (b.followerCount || 0) - (a.followerCount || 0)
     )
@@ -126,20 +126,12 @@ export default function HomeScreen() {
   };
 
   const openStation = (station: EchooStation) => {
-    const liveBroadcast = discovery.live.find((item) => item.stationId === station.id);
-    if (station.isLive && liveBroadcast) {
-      openLiveRoom(liveBroadcast);
-      return;
-    }
-    router.push({ pathname: '/search', params: { q: station.name } });
+    router.push({ pathname: '/station', params: { stationId: station.id } });
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-      >
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <ListenerTopBar />
 
         <View style={styles.hero}>
@@ -187,20 +179,11 @@ export default function HomeScreen() {
           </View>
         ) : null}
 
-        <SectionHeader
-          title="Live now"
-          action="View all"
-          palette={palette}
-          onPress={() => router.push('/live')}
-        />
+        <SectionHeader title="Live now" action="View all" palette={palette} onPress={() => router.push('/live')} />
 
         {liveNow.length ? (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.liveRail}
-          >
-            {liveNow.map((item) => (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.liveRail}>
+            {liveNow.map((item: EchooBroadcast) => (
               <LiveCard
                 key={item.id}
                 item={item}
@@ -233,20 +216,12 @@ export default function HomeScreen() {
                 : 'Sign in to save audio, follow stations and sync your listening history.'}
             </Text>
           </View>
-          <Pressable
-            style={styles.accountAction}
-            onPress={() => router.push(signedIn ? '/library' : '/auth')}
-          >
+          <Pressable style={styles.accountAction} onPress={() => router.push(signedIn ? '/library' : '/auth')}>
             <Text style={styles.accountActionText}>{signedIn ? 'Open' : 'Sign in'}</Text>
           </Pressable>
         </View>
 
-        <SectionHeader
-          title="Categories"
-          action="View all"
-          palette={palette}
-          onPress={() => router.push('/search')}
-        />
+        <SectionHeader title="Categories" action="View all" palette={palette} onPress={() => router.push('/search')} />
         <View style={styles.categoryRow}>
           {categories.map(({ label, icon: Icon }) => (
             <Pressable
@@ -260,15 +235,10 @@ export default function HomeScreen() {
           ))}
         </View>
 
-        <SectionHeader
-          title="Top stations"
-          action="View all"
-          palette={palette}
-          onPress={() => router.push('/search')}
-        />
+        <SectionHeader title="Top stations" action="View all" palette={palette} onPress={() => router.push('/search')} />
         <View style={styles.stationList}>
           {topStations.length ? (
-            topStations.map((station) => (
+            topStations.map((station: EchooStation) => (
               <StationRow
                 key={station.id}
                 station={station}
@@ -331,10 +301,7 @@ function LiveCard({
       ) : (
         <LinearGradient colors={['#0E6D68', '#102A5E']} style={StyleSheet.absoluteFillObject} />
       )}
-      <LinearGradient
-        colors={['rgba(4,9,22,0.03)', 'rgba(4,9,22,0.92)']}
-        style={StyleSheet.absoluteFillObject}
-      />
+      <LinearGradient colors={['rgba(4,9,22,0.03)', 'rgba(4,9,22,0.92)']} style={StyleSheet.absoluteFillObject} />
       <View style={styles.liveBadge}>
         <Text style={styles.liveBadgeText}>LIVE</Text>
       </View>
