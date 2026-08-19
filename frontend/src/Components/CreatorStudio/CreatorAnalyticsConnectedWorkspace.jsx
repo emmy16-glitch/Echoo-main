@@ -49,10 +49,9 @@ const changeCopy = (value, fallback = 'Current period') => {
   return `${numeric > 0 ? '↑' : '↓'} ${Math.abs(numeric).toFixed(1).replace('.0', '')}% vs previous period`;
 };
 
-const buildPoints = (items, accessor, width = 620, height = 190) => {
+const buildPoints = (items, accessor, maxValue, width = 620, height = 190) => {
   if (!items.length) return '';
-  const values = items.map((item) => Math.max(0, Number(accessor(item)) || 0));
-  const max = Math.max(1, ...values);
+  const max = Math.max(1, Number(maxValue) || 1);
   return items.map((item, index) => {
     const x = items.length === 1 ? width / 2 : (index / (items.length - 1)) * width;
     const y = height - (Math.max(0, Number(accessor(item)) || 0) / max) * (height - 26) - 10;
@@ -133,10 +132,16 @@ const CreatorAnalyticsConnectedWorkspace = ({ onNavigate }) => {
     }));
   }, [recentBroadcasts, grouping]);
 
-  const listenerPoints = buildPoints(series, (item) => item.listeners);
-  const peakPoints = buildPoints(series, (item) => item.peakListeners);
+  const chartMax = Math.max(
+    1,
+    totals.average,
+    ...series.map((item) => Number(item.listeners) || 0),
+    ...series.map((item) => Number(item.peakListeners) || 0)
+  );
+  const listenerPoints = buildPoints(series, (item) => item.listeners, chartMax);
+  const peakPoints = buildPoints(series, (item) => item.peakListeners, chartMax);
   const averageSeries = series.map((item) => ({ ...item, average: totals.average }));
-  const averagePoints = buildPoints(averageSeries, (item) => item.average);
+  const averagePoints = buildPoints(averageSeries, (item) => item.average, chartMax);
   const maxTrackPlays = Math.max(1, ...topTracks.map((track) => Number(track.plays) || 0));
 
   const metrics = [
