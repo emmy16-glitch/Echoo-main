@@ -1,0 +1,429 @@
+/*
+ * Echoo Creator Studio typography system
+ *
+ * This file is intentionally imported last. It provides one font family and a
+ * predictable type scale across Home, Stations, Broadcast Studio, Audio,
+ * Audience, Analytics, Settings, Notifications and Creator modals.
+ */
+
+.studio-final-shell {
+  --echoo-font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+  /* Display hierarchy */
+  --echoo-type-display: clamp(44px, 3.55vw, 56px);
+  --echoo-type-page-title: clamp(32px, 2.45vw, 38px);
+  --echoo-type-section-title: 17px;
+  --echoo-type-card-title: 14px;
+
+  /* Product copy */
+  --echoo-type-body: 13px;
+  --echoo-type-control: 12px;
+  --echoo-type-meta: 11px;
+  --echoo-type-micro: 10px;
+
+  --echoo-line-display: 1.02;
+  --echoo-line-title: 1.18;
+  --echoo-line-body: 1.5;
+  --echoo-line-meta: 1.4;
+
+  --echoo-weight-regular: 450;
+  --echoo-weight-medium: 560;
+  --echoo-weight-semibold: 650;
+  --echoo-weight-bold: 760;
+
+  font-family: var(--echoo-font-sans) !important;
+  font-size: var(--echoo-type-body);
+  line-height: var(--echoo-line-body);
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* One font family everywhere inside Creator Studio. */
+.studio-final-shell :where(
+  button,
+  input,
+  select,
+  textarea,
+  label,
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6,
+  p,
+  span,
+  small,
+  strong,
+  em,
+  a
+) {
+  font-family: var(--echoo-font-sans) !important;
+}
+
+/* Generic hierarchy shared by every Creator Studio page. */
+.studio-final-shell .studio-view :where(h1) {
+  font-size: var(--echoo-type-page-title);
+  line-height: 1.08;
+  letter-spacing: -0.035em;
+  font-weight: var(--echoo-weight-bold);
+}
+
+.studio-final-shell .studio-view :where(h2) {
+  font-size: var(--echoo-type-section-title);
+  line-height: var(--echoo-line-title);
+  letter-spacing: -0.018em;
+  font-weight: var(--echoo-weight-bold);
+}
+
+.studio-final-shell .studio-view :where(h3, h4) {
+  font-size: var(--echoo-type-card-title);
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  font-weight: var(--echoo-weight-semibold);
+}
+
+.studio-final-shell .studio-view :where(p) {
+  line-height: var(--echoo-line-body);
+}
+
+.studio-final-shell :where(button, input, select, textarea) {
+  font-size: var(--echoo-type-control);
+  line-height: 1.25;
+}
+
+.studio-final-shell :where(label, small) {
+  font-size: var(--echoo-type-meta);
+  line-height: var(--echoo-line-meta);
+}
+
+/* Shell */
+.studio-final-shell .studio-nav-item {
+  font-size: 13px !important;
+  font-weight: var(--echoo-weight-medium) !important;
+}
+
+.studio-final-shell .studio-command-search input {
+  font-size: 12px !important;
+}
+
+.studio-final-shell .sidebar-profile-text strong,
+.studio-final-shell .studio-account-button strong {
+  font-size: 12px !important;
+  font-weight: var(--echoo-weight-semibold) !important;
+}
+
+.studio-final-shell .sidebar-profile-text span,
+.studio-final-shell .studio-account-button span {
+  font-size: 10px !important;
+  line-height: 1.35;
+}
+
+.studio-final-shell .studio-profile-menu button {
+  font-size: 12px !important;
+  font-weight: var(--echoo-weight-medium);
+}
+
+/* ---------------- Home ---------------- */
+.studio-final-shell .ehome-reference .ehome-eyebrow {
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  letter-spacing: .14em;
+}
+
+.studio-final-shell .ehome-reference .ehome-hero h1 {
+  max-width: 530px;
+  font-size: var(--echoo-type-display) !important;
+  line-height: var(--echoo-line-display) !important;
+  letter-spacing: -0.045em !important;
+  font-weight: var(--echoo-weight-bold) !important;
+}
+
+.studio-final-shell .ehome-reference .ehome-hero-copy > p {
+  max-width: 440px;
+  font-size: 14px !important;
+  line-height: 1.52 !important;
+}
+
+.studio-final-shell .ehome-reference .ehome-hero-actions button {
+  font-size: 12px !important;
+  font-weight: var(--echoo-weight-semibold) !important;
+}
+
+.studio-final-shell .ehome-reference .ehome-reference-signal > span {
+  font-size: 10px !important;
+  font-weight: 750 !important;
+}
+
+.studio-final-shell .ehome-reference .ehome-reference-signal small {
+  font-size: 10px !important;
+}
+
+.studio-final-shell .ehome-readiness-item strong {
+  font-size: 12px !important;
+  font-weight: var(--echoo-weight-semibold) !important;
+}
+
+.studio-final-shell .ehome-readiness-item span {
+  font-size: 11px !important;
+}
+
+.studio-final-shell .ehome-reference .ehome-panel-head h2 {
+  font-size: 14px !important;
+  font-weight: var(--echoo-weight-bold) !important;
+}
+
+.studio-final-shell .ehome-reference .ehome-panel-head > button,
+.studio-final-shell .ehome-settings-link {
+  font-size: 10px !important;
+  font-weight: var(--echoo-weight-semibold) !important;
+}
+
+.studio-final-shell .ehome-primary-station-copy > strong {
+  font-size: 13px !important;
+  font-weight: var(--echoo-weight-semibold) !important;
+}
+
+.studio-final-shell .ehome-primary-station-copy > span,
+.studio-final-shell .ehome-primary-station-stats span,
+.studio-final-shell .ehome-primary-station-copy > em {
+  font-size: 10px !important;
+}
+
+.studio-final-shell .ehome-primary-station-stats strong {
+  font-size: 17px !important;
+}
+
+.studio-final-shell .ehome-panel-footer-actions button {
+  font-size: 11px !important;
+}
+
+.studio-final-shell .ehome-reference-upcoming strong,
+.studio-final-shell .ehome-reference-audio-copy strong {
+  font-size: 11px !important;
+  font-weight: var(--echoo-weight-semibold) !important;
+}
+
+.studio-final-shell .ehome-reference-upcoming span,
+.studio-final-shell .ehome-reference-upcoming small,
+.studio-final-shell .ehome-reference-audio-copy span,
+.studio-final-shell .ehome-reference-audio-row > small,
+.studio-final-shell .ehome-reference-empty-row span {
+  font-size: 10px !important;
+}
+
+.studio-final-shell .ehome-reference-empty-row strong {
+  font-size: 12px !important;
+}
+
+.studio-final-shell .ehome-reference-metrics article > span {
+  font-size: 10px !important;
+}
+
+.studio-final-shell .ehome-reference-metrics article > strong {
+  font-size: 21px !important;
+  font-weight: var(--echoo-weight-bold) !important;
+}
+
+.studio-final-shell .ehome-reference-metrics article > small {
+  font-size: 9px !important;
+}
+
+.studio-final-shell .ehome-creator-status-list span strong {
+  font-size: 11px !important;
+}
+
+.studio-final-shell .ehome-creator-status-list span small {
+  font-size: 10px !important;
+}
+
+.studio-final-shell .ehome-creator-status-list > div.featured button {
+  font-size: 10px !important;
+}
+
+/* ---------------- Stations ---------------- */
+.studio-final-shell .est-header h1 {
+  font-size: var(--echoo-type-page-title) !important;
+  line-height: 1.08 !important;
+  letter-spacing: -0.035em !important;
+}
+
+.studio-final-shell .est-header p {
+  font-size: 13px !important;
+  line-height: 1.5 !important;
+}
+
+.studio-final-shell .est-new,
+.studio-final-shell .est-empty button {
+  font-size: 12px !important;
+  font-weight: var(--echoo-weight-semibold) !important;
+}
+
+.studio-final-shell .est-featured-label {
+  font-size: 10px !important;
+  font-weight: 800 !important;
+}
+
+.studio-final-shell .est-status,
+.studio-final-shell .est-status.compact {
+  font-size: 10px !important;
+  font-weight: var(--echoo-weight-semibold) !important;
+}
+
+.studio-final-shell .est-featured-copy h2 {
+  font-size: 24px !important;
+  line-height: 1.12 !important;
+  font-weight: var(--echoo-weight-bold) !important;
+}
+
+.studio-final-shell .est-category-pill {
+  font-size: 10px !important;
+}
+
+.studio-final-shell .est-featured-copy > p {
+  font-size: 12px !important;
+  line-height: 1.55 !important;
+}
+
+.studio-final-shell .est-featured-stats strong {
+  font-size: 13px !important;
+}
+
+.studio-final-shell .est-featured-stats span {
+  font-size: 10px !important;
+}
+
+.studio-final-shell .est-featured-actions > button,
+.studio-final-shell .est-featured-more-wrap > button,
+.studio-final-shell .est-more-menu button,
+.studio-final-shell .est-row-open,
+.studio-final-shell .est-show-more,
+.studio-final-shell .est-view-broadcasts {
+  font-size: 11px !important;
+}
+
+.studio-final-shell .est-all-head h2 {
+  font-size: 17px !important;
+}
+
+.studio-final-shell .est-search input,
+.studio-final-shell .est-sort select {
+  font-size: 11px !important;
+}
+
+.studio-final-shell .est-row-identity strong {
+  font-size: 13px !important;
+  font-weight: var(--echoo-weight-semibold) !important;
+}
+
+.studio-final-shell .est-row-identity small,
+.studio-final-shell .est-row-stat span {
+  font-size: 10px !important;
+}
+
+.studio-final-shell .est-row-stat strong {
+  font-size: 12px !important;
+}
+
+.studio-final-shell .est-details-head h2 {
+  font-size: 15px !important;
+}
+
+.studio-final-shell .est-details-identity h3 {
+  font-size: 17px !important;
+}
+
+.studio-final-shell .est-details-identity span,
+.studio-final-shell .est-details-dates,
+.studio-final-shell .est-details-about p,
+.studio-final-shell .est-detail-fields strong,
+.studio-final-shell .est-detail-fields span {
+  font-size: 10px !important;
+}
+
+.studio-final-shell .est-details-about h3,
+.studio-final-shell .est-recent-activity h3 {
+  font-size: 13px !important;
+}
+
+.studio-final-shell .est-details-about button,
+.studio-final-shell .est-recent-activity strong,
+.studio-final-shell .est-recent-activity small,
+.studio-final-shell .est-activity-empty {
+  font-size: 10px !important;
+}
+
+/* ---------------- Other Creator Studio pages ---------------- */
+/* These semantic rules prevent every workspace from inventing a different scale. */
+.studio-final-shell .studio-view :where(section, article, aside, form) :where(button) {
+  font-weight: var(--echoo-weight-medium);
+}
+
+.studio-final-shell .studio-view :where(input, select, textarea) {
+  font-size: 12px !important;
+}
+
+.studio-final-shell .studio-view :where(label) {
+  font-size: 11px;
+  font-weight: var(--echoo-weight-medium);
+}
+
+.studio-final-shell .studio-view :where(.studio-form-field, .studio-form-row) :where(label) {
+  font-size: 11px !important;
+}
+
+.studio-final-shell .studio-view :where(.studio-form-field, .studio-form-row) :where(input, select, textarea) {
+  font-size: 12px !important;
+}
+
+.studio-final-shell .studio-alert {
+  font-size: 12px !important;
+}
+
+.studio-final-shell .studio-upload-modal :where(h2) {
+  font-size: 20px !important;
+  font-weight: var(--echoo-weight-bold) !important;
+}
+
+.studio-final-shell .studio-upload-modal :where(p) {
+  font-size: 12px !important;
+  line-height: 1.5 !important;
+}
+
+.studio-final-shell .studio-upload-modal :where(button, label, input, select, textarea, small, span) {
+  font-size: 11px;
+}
+
+/* Responsive typography: hierarchy remains stable, only the largest text compresses. */
+@media (max-width: 980px) {
+  .studio-final-shell {
+    --echoo-type-display: clamp(40px, 5.5vw, 50px);
+    --echoo-type-page-title: clamp(30px, 4vw, 36px);
+  }
+}
+
+@media (max-width: 760px) {
+  .studio-final-shell {
+    --echoo-type-display: clamp(34px, 10.5vw, 44px);
+    --echoo-type-page-title: 28px;
+    --echoo-type-section-title: 16px;
+    --echoo-type-card-title: 14px;
+    --echoo-type-body: 13px;
+    --echoo-type-control: 12px;
+    --echoo-type-meta: 11px;
+  }
+
+  .studio-final-shell .ehome-reference .ehome-hero h1 {
+    font-size: var(--echoo-type-display) !important;
+  }
+
+  .studio-final-shell .ehome-reference .ehome-hero-copy > p,
+  .studio-final-shell .est-header p {
+    font-size: 13px !important;
+  }
+
+  .studio-final-shell .est-featured-copy h2 {
+    font-size: 21px !important;
+  }
+}
