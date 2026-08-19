@@ -1,4 +1,3 @@
-import { AudioSession, LiveKitRoom } from '@livekit/react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -7,11 +6,11 @@ import { ReactNode, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
-  SafeAreaView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ListenerAuthCard, ListenerBackHeader } from '@/src/components/ListenerV2';
 import {
@@ -22,6 +21,8 @@ import {
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { EchooColors, getEchooColors } from '@/src/theme/echooTheme';
 
+type LiveKitNativeModule = typeof import('@livekit/react-native');
+
 type Credentials = {
   token: string;
   roomName: string;
@@ -29,6 +30,17 @@ type Credentials = {
   broadcastId: string;
   role?: string;
 };
+
+let liveKitGlobalsRegistered = false;
+
+async function loadLiveKitNativeModule() {
+  const liveKit = await import('@livekit/react-native');
+  if (!liveKitGlobalsRegistered) {
+    liveKit.registerGlobals();
+    liveKitGlobalsRegistered = true;
+  }
+  return liveKit;
+}
 
 export default function LiveRoomScreen() {
   const router = useRouter();
@@ -50,6 +62,8 @@ export default function LiveRoomScreen() {
   const [signedIn, setSignedIn] = useState(false);
   const [loading, setLoading] = useState(true);
   const [credentials, setCredentials] = useState<Credentials | null>(null);
+  const [liveKit, setLiveKit] = useState<LiveKitNativeModule | null>(null);
+  const [nativeModuleUnavailable, setNativeModuleUnavailable] = useState(false);
   const [listenerCount, setListenerCount] = useState(0);
   const [error, setError] = useState('');
   const [listening, setListening] = useState(true);
@@ -60,17 +74,27 @@ export default function LiveRoomScreen() {
     const prepare = async () => {
       setLoading(true);
       setError('');
+      setNativeModuleUnavailable(false);
+
       try {
         const activeSession = await hasEchooSession();
         if (!active) return;
         setSignedIn(activeSession);
 
-        if (!activeSession) {
-          setLoading(false);
+        if (!activeSession) return;
+        if (!broadcastId) throw new Error('Broadcast ID is missing.');
+
+        let liveKitModule: LiveKitNativeModule;
+        try {
+          liveKitModule = await loadLiveKitNativeModule();
+        } catch {
+          if (!active) return;
+          setNativeModuleUnavailable(true);
           return;
         }
 
-        if (!broadcastId) throw new Error('Broadcast ID is missing.');
+        if (!active) return;
+        setLiveKit(liveKitModule);
 
         const [nextCredentials, presence] = await Promise.all([
           getListenerLiveKitCredentials(broadcastId),
@@ -95,14 +119,14 @@ export default function LiveRoomScreen() {
   }, [broadcastId]);
 
   useEffect(() => {
-    if (!broadcastId || !signedIn) return;
+    if (!broadcastId || !signedIn || nativeModuleUnavailable) return;
     const timer = setInterval(() => {
       getBroadcastPresence(broadcastId)
         .then((presence) => setListenerCount(Number(presence?.listenerCount) || 0))
         .catch(() => undefined);
     }, 10000);
     return () => clearInterval(timer);
-  }, [broadcastId, signedIn]);
+  }, [broadcastId, signedIn, nativeModuleUnavailable]);
 
   const roomContent = (
     <LiveRoomContent
@@ -118,7 +142,7 @@ export default function LiveRoomScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <View style={styles.content}>
         <ListenerBackHeader title="Live room" />
 
@@ -140,7 +164,20 @@ export default function LiveRoomScreen() {
           </View>
         ) : null}
 
-        {!loading && signedIn && error ? (
+        {!loading && signedIn && nativeModuleUnavailable ? (
+          <View style={styles.centerState}>
+            <View style={styles.errorIcon}><Headphones color={palette.blue} size={26} /></View>
+            <Text style={styles.stateTitle}>Live audio needs the Echoo development build</Text>
+            <Text style={styles.stateText}>
+              Expo Go does not include LiveKit's native WebRTC module. The rest of Echoo can run in Expo Go, but live listening requires an iOS/Android development build.
+            </Text>
+            <Pressable style={styles.backHomeButton} onPress={() => router.back()}>
+              <Text style={styles.backHomeText}>Back to Echoo</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
+        {!loading && signedIn && !nativeModuleUnavailable && error ? (
           <View style={styles.centerState}>
             <View style={styles.errorIcon}><Radio color={palette.red} size={25} /></View>
             <Text style={styles.stateTitle}>Could not join live audio</Text>
@@ -151,9 +188,10 @@ export default function LiveRoomScreen() {
           </View>
         ) : null}
 
-        {!loading && signedIn && credentials && !error ? (
+        {!loading && signedIn && !nativeModuleUnavailable && liveKit && credentials && !error ? (
           listening ? (
             <LiveAudioConnection
+              liveKit={liveKit}
               serverUrl={credentials.livekitUrl}
               token={credentials.token}
               onError={(message) => setError(message)}
@@ -170,16 +208,20 @@ export default function LiveRoomScreen() {
 }
 
 function LiveAudioConnection({
+  liveKit,
   serverUrl,
   token,
   children,
   onError,
 }: {
+  liveKit: LiveKitNativeModule;
   serverUrl: string;
   token: string;
   children: ReactNode;
   onError: (message: string) => void;
 }) {
+  const { AudioSession, LiveKitRoom } = liveKit;
+
   useEffect(() => {
     AudioSession.startAudioSession().catch((error) => {
       onError(error?.message || 'Could not start the device audio session.');
@@ -187,7 +229,7 @@ function LiveAudioConnection({
     return () => {
       AudioSession.stopAudioSession();
     };
-  }, [onError]);
+  }, [AudioSession, onError]);
 
   return (
     <LiveKitRoom
@@ -284,8 +326,8 @@ const createStyles = (palette: EchooColors) => StyleSheet.create({
   centerWrap: { flex: 1, justifyContent: 'center' },
   centerState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28 },
   stateTitle: { color: palette.ink, fontSize: 18, fontWeight: '900', textAlign: 'center', marginTop: 14 },
-  stateText: { color: palette.muted, fontSize: 12.5, lineHeight: 19, textAlign: 'center', marginTop: 5, maxWidth: 320 },
-  errorIcon: { width: 58, height: 58, borderRadius: 19, backgroundColor: `${palette.red}18`, alignItems: 'center', justifyContent: 'center' },
+  stateText: { color: palette.muted, fontSize: 12.5, lineHeight: 19, textAlign: 'center', marginTop: 5, maxWidth: 330 },
+  errorIcon: { width: 58, height: 58, borderRadius: 19, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
   backHomeButton: { marginTop: 16, minHeight: 44, borderRadius: 14, paddingHorizontal: 18, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
   backHomeText: { color: '#FFFFFF', fontSize: 13, fontWeight: '900' },
   roomSurface: { flex: 1, paddingTop: 8 },
