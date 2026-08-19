@@ -4,6 +4,9 @@ import batch2Service, {
   normalizeStation,
 } from './batch2Service.js';
 
+const sleep = (milliseconds) =>
+  new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+
 const uniqueById = (items) => {
   const seen = new Set();
 
@@ -46,6 +49,31 @@ const enrichBroadcasts = (broadcasts, stations) => {
 const normalizeList = (response) => {
   const data = Array.isArray(response?.data) ? response.data : [];
   return data.map(normalizeBroadcast).filter(Boolean);
+};
+
+const checkLiveKitReadiness = async () => {
+  try {
+    const health = await apiRequest('/health/livekit', {
+      skipAuth: true,
+      skipRefresh: true,
+    });
+
+    if (health?.reachable !== true) {
+      throw new Error('LiveKit health check did not report ready.');
+    }
+
+    return health;
+  } catch (error) {
+    const readinessError = new Error(
+      error?.message
+        ? `Live audio service is not ready: ${error.message}`
+        : 'Live audio service is not ready. Check the backend LiveKit configuration.'
+    );
+    readinessError.code = error?.code || 'LIVEKIT_NOT_READY';
+    readinessError.status = error?.status || 503;
+    readinessError.cause = error;
+    throw readinessError;
+  }
 };
 
 const batch3Service = {
@@ -144,7 +172,13 @@ const batch3Service = {
     };
   },
 
+  checkLiveKitReadiness,
+
   startBroadcast: async (broadcastId) => {
+    // Fail before changing the broadcast lifecycle if this machine's backend
+    // cannot actually reach/authenticate to LiveKit.
+    await checkLiveKitReadiness();
+
     const response = await apiRequest(
       `/broadcasts/${encodeURIComponent(broadcastId)}/start`,
       { method: 'POST' }
@@ -170,15 +204,37 @@ const batch3Service = {
   },
 
   confirmBroadcastLive: async (broadcastId) => {
-    const response = await apiRequest(
-      `/broadcasts/${encodeURIComponent(broadcastId)}/confirm-live`,
-      { method: 'POST' }
-    );
+    const path = `/broadcasts/${encodeURIComponent(broadcastId)}/confirm-live`;
+    const maxAttempts = 7;
 
-    return {
-      ...response,
-      data: normalizeBroadcast(response?.data),
-    };
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      try {
+        const response = await apiRequest(path, { method: 'POST' });
+
+        return {
+          ...response,
+          data: normalizeBroadcast(response?.data),
+        };
+      } catch (error) {
+        const creatorPropagationDelay =
+          error?.code === 'CREATOR_NOT_CONNECTED' ||
+          (
+            error?.status === 409 &&
+            /creator.*not.*connected|has not connected/i.test(error?.message || '')
+          );
+
+        if (!creatorPropagationDelay || attempt === maxAttempts - 1) {
+          throw error;
+        }
+
+        // LiveKit client connection can complete slightly before the server API
+        // participant list reflects it. Give Cloud/WebRTC propagation a bounded
+        // window rather than incorrectly cancelling a healthy publisher.
+        await sleep(250 + attempt * 250);
+      }
+    }
+
+    throw new Error('Echoo could not confirm the live publisher.');
   },
 
   cancelBroadcast: async (broadcastId) => {
