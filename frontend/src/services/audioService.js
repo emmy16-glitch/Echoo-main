@@ -62,6 +62,20 @@ export const audioService = {
     };
   },
 
+  getStreamUrl: async (id) => {
+    if (!id) throw new Error('Audio ID is missing.');
+    const response = await apiRequest(
+      `/audio/${encodeURIComponent(id)}/stream-token`,
+      { method: 'POST' }
+    );
+    const streamUrl = buildMediaUrl(response?.data?.streamUrl || '');
+    if (!streamUrl) throw new Error('Echoo could not prepare this audio for playback.');
+    return {
+      streamUrl,
+      expiresIn: Number(response?.data?.expiresIn) || 0,
+    };
+  },
+
   upload: async (formData) => {
     const response = await apiRequest('/audio/upload', {
       method: 'POST',
