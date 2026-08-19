@@ -86,6 +86,9 @@ const chatMessageSchema = new mongoose.Schema(
 // Indexes
 chatMessageSchema.index({ broadcastId: 1, createdAt: -1 });
 chatMessageSchema.index({ userId: 1, createdAt: -1 });
+// sendMessage rate limiting filters by all three fields. This compound index
+// keeps that check cheap when a busy live room has a large chat history.
+chatMessageSchema.index({ broadcastId: 1, userId: 1, createdAt: -1 });
 chatMessageSchema.index({ isPinned: 1 });
 
 const ChatMessage = mongoose.model('ChatMessage', chatMessageSchema, 'echoo_chat_messages');

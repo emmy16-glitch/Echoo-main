@@ -2,6 +2,7 @@ import express from 'express';
 import { authenticate } from '../middleware/auth.js';
 import { enforceSingleLiveCreator } from '../middleware/enforceSingleLiveCreator.js';
 import { requireCreatorAudioPublished } from '../middleware/requireCreatorAudioPublished.js';
+import { getBroadcastPresenceCached } from '../controllers/broadcastPresenceController.js';
 import {
   createBroadcast,
   getBroadcasts,
@@ -17,7 +18,6 @@ import {
   endBroadcast,
   getLiveKitToken,
   getListenerLiveKitToken,
-  getBroadcastPresence,
   getPlaybackInfo,
 } from '../controllers/broadcastController.js';
 
@@ -27,7 +27,7 @@ const router = express.Router();
 router.get('/', getBroadcasts);
 router.get('/station/:stationId/upcoming', getUpcomingBroadcasts);
 router.get('/station/:stationId/live', getLiveBroadcast);
-router.get('/:broadcastId/presence', getBroadcastPresence);
+router.get('/:broadcastId/presence', getBroadcastPresenceCached);
 router.get('/:broadcastId/playback', getPlaybackInfo);
 
 // Creator-owned broadcast collection.

@@ -143,6 +143,52 @@ const io = new Server(server, {
 // Make Socket.IO available to REST controllers for status/chat events.
 app.set('io', io);
 
+// A live-room page opens both a LiveKit participant and a small Socket.IO
+// realtime channel. When many listeners arrive together, do not repeat the
+// same broadcast-access query or fan out one presence-refresh event per join.
+const SOCKET_BROADCAST_CACHE_MS = 2000;
+const PRESENCE_EVENT_COALESCE_MS = 400;
+const socketBroadcastCache = new Map();
+const presenceEventTimers = new Map();
+
+const getSocketBroadcast = async (broadcastId) => {
+  const key = String(broadcastId);
+  const cached = socketBroadcastCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.broadcast;
+
+  const broadcast = await Broadcast.findOne({
+    _id: broadcastId,
+    isDeleted: false,
+  }).select('_id status isPublic creator');
+
+  if (broadcast) {
+    socketBroadcastCache.set(key, {
+      broadcast,
+      expiresAt: Date.now() + SOCKET_BROADCAST_CACHE_MS,
+    });
+  } else {
+    socketBroadcastCache.delete(key);
+  }
+
+  return broadcast;
+};
+
+const schedulePresenceChanged = (broadcastId) => {
+  const key = String(broadcastId || '');
+  if (!key || presenceEventTimers.has(key)) return;
+
+  const timer = setTimeout(() => {
+    presenceEventTimers.delete(key);
+    io.to(`broadcast:${key}`).emit('presence:changed', {
+      broadcastId: key,
+      action: 'sync',
+    });
+  }, PRESENCE_EVENT_COALESCE_MS);
+
+  timer.unref?.();
+  presenceEventTimers.set(key, timer);
+};
+
 io.use(async (socket, next) => {
   try {
     const authToken = socket.handshake.auth?.token;
@@ -187,10 +233,7 @@ io.on('connection', (socket) => {
         throw new Error('broadcastId is required');
       }
 
-      const broadcast = await Broadcast.findOne({
-        _id: broadcastId,
-        isDeleted: false,
-      }).select('_id status isPublic creator');
+      const broadcast = await getSocketBroadcast(broadcastId);
 
       if (!broadcast) {
         throw new Error('Broadcast not found');
@@ -203,12 +246,7 @@ io.on('connection', (socket) => {
 
       const room = `broadcast:${broadcastId}`;
       await socket.join(room);
-
-      socket.to(room).emit('presence:changed', {
-        broadcastId: String(broadcastId),
-        userId: socket.data.userId,
-        action: 'joined',
-      });
+      schedulePresenceChanged(broadcastId);
 
       if (typeof acknowledge === 'function') {
         acknowledge({ ok: true, broadcastId: String(broadcastId) });
@@ -225,11 +263,7 @@ io.on('connection', (socket) => {
 
     if (room) {
       await socket.leave(room);
-      socket.to(room).emit('presence:changed', {
-        broadcastId: String(broadcastId),
-        userId: socket.data.userId,
-        action: 'left',
-      });
+      schedulePresenceChanged(broadcastId);
     }
 
     if (typeof acknowledge === 'function') {
