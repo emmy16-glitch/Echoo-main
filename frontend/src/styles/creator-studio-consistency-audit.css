@@ -1,0 +1,722 @@
+/*
+ * Creator Studio final consistency audit.
+ *
+ * Loaded after all legacy Creator styles. This file is intentionally the
+ * authoritative shell/spacing/typography layer for Home, Stations, Audio,
+ * Audience and Analytics so old Phase 8 rail rules cannot re-introduce a
+ * skinny sidebar or tiny text.
+ */
+
+#root .studio-final-shell {
+  --creator-blue: #1769ee;
+  --creator-text: #101828;
+  --creator-muted: #667085;
+  --creator-border: #e2e8f0;
+  --creator-soft-border: #edf1f5;
+  --creator-card-radius: 12px;
+  --creator-control-radius: 9px;
+  --creator-control-height: 42px;
+  --creator-section-gap: 20px;
+  --creator-card-shadow: 0 5px 18px rgba(15, 23, 42, .025);
+  --creator-page-title: clamp(34px, 2.75vw, 40px);
+
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 100vh !important;
+  display: block !important;
+  grid-template-columns: none !important;
+  gap: 0 !important;
+  padding: 0 !important;
+  background: #fff !important;
+  color: var(--creator-text) !important;
+  font-family: var(--echoo-font-sans) !important;
+}
+
+#root .studio-final-shell.sidebar-expanded { --studio-sidebar-width: 236px; }
+#root .studio-final-shell.sidebar-collapsed { --studio-sidebar-width: 82px; }
+
+/* ==========================================================
+   ONE CREATOR SHELL
+========================================================== */
+
+#root .studio-final-shell .studio-sidebar {
+  position: fixed !important;
+  inset: 0 auto 0 0 !important;
+  z-index: 50 !important;
+  width: var(--studio-sidebar-width) !important;
+  height: 100vh !important;
+  min-height: 100vh !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  overflow: visible !important;
+  padding: 24px 12px 16px !important;
+  border: 0 !important;
+  border-right: 1px solid #e4eaf2 !important;
+  border-radius: 0 !important;
+  background: #fff !important;
+  box-shadow: none !important;
+  transition: width .22s ease !important;
+}
+
+#root .studio-final-shell .studio-sidebar-head {
+  position: relative !important;
+  width: 100% !important;
+  min-height: 54px !important;
+  display: flex !important;
+  align-items: flex-start !important;
+  flex: 0 0 auto !important;
+}
+
+#root .studio-final-shell .studio-brand {
+  width: 100% !important;
+  height: auto !important;
+  min-width: 0 !important;
+  min-height: 47px !important;
+  display: flex !important;
+  place-items: initial !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 0 !important;
+  padding: 0 12px 22px !important;
+  overflow: hidden !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+
+#root .studio-final-shell .studio-brand .studio-logo {
+  width: 112px !important;
+  height: auto !important;
+  max-width: 100% !important;
+  max-height: 42px !important;
+  flex: 0 1 auto !important;
+  object-fit: contain !important;
+  object-position: left center !important;
+}
+
+#root .studio-final-shell .studio-brand > div { display: none !important; }
+
+#root .studio-final-shell .studio-sidebar-toggle {
+  display: grid !important;
+  place-items: center !important;
+}
+
+#root .studio-final-shell .studio-navigation {
+  width: 100% !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex: 1 1 auto !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 5px !important;
+  margin-top: 0 !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  padding: 2px 0 10px !important;
+}
+
+#root .studio-final-shell .studio-nav-item {
+  position: relative !important;
+  width: 100% !important;
+  height: auto !important;
+  min-height: 47px !important;
+  flex: 0 0 47px !important;
+  display: flex !important;
+  place-items: initial !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 13px !important;
+  padding: 0 16px !important;
+  border: 0 !important;
+  border-radius: 10px !important;
+  background: transparent !important;
+  color: #5d6c84 !important;
+  font-size: 13px !important;
+  font-weight: var(--echoo-weight-medium) !important;
+  text-align: left !important;
+  transform: none !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+}
+
+#root .studio-final-shell .studio-nav-item:hover {
+  background: #f7f9fc !important;
+  color: #34445d !important;
+  transform: none !important;
+}
+
+#root .studio-final-shell .studio-nav-item.active {
+  background: linear-gradient(90deg, #edf4ff, #eaf2ff) !important;
+  color: var(--creator-blue) !important;
+}
+
+#root .studio-final-shell .studio-nav-icon {
+  width: 20px !important;
+  height: auto !important;
+  display: grid !important;
+  place-items: center !important;
+  flex: 0 0 20px !important;
+  font-size: 15px !important;
+}
+
+#root .studio-final-shell.sidebar-expanded .studio-nav-item > span:last-child {
+  position: static !important;
+  z-index: auto !important;
+  min-width: 0 !important;
+  width: auto !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: inherit !important;
+  box-shadow: none !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+  transform: none !important;
+  font-size: inherit !important;
+  font-weight: inherit !important;
+}
+
+#root .studio-final-shell.sidebar-collapsed .studio-brand {
+  justify-content: center !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+#root .studio-final-shell.sidebar-collapsed .studio-brand .studio-logo {
+  width: 42px !important;
+  height: 42px !important;
+  max-height: 42px !important;
+  object-fit: cover !important;
+  object-position: left center !important;
+}
+
+#root .studio-final-shell.sidebar-collapsed .studio-nav-item {
+  justify-content: center !important;
+  gap: 0 !important;
+  padding: 0 !important;
+}
+
+#root .studio-final-shell.sidebar-collapsed .studio-nav-item > span:last-child {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+#root .studio-final-shell .studio-sidebar-profile-wrap {
+  position: relative !important;
+  z-index: 75 !important;
+  display: block !important;
+  flex: 0 0 auto !important;
+  margin-top: auto !important;
+  padding-top: 10px !important;
+}
+
+#root .studio-final-shell .studio-sidebar-profile {
+  position: relative !important;
+  width: 100% !important;
+  height: auto !important;
+  min-height: 68px !important;
+  display: grid !important;
+  grid-template-columns: 40px minmax(0, 1fr) 18px !important;
+  place-items: initial !important;
+  align-items: center !important;
+  gap: 10px !important;
+  margin: 0 !important;
+  padding: 10px !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 12px !important;
+  background: #fff !important;
+  color: var(--creator-text) !important;
+  box-shadow: 0 3px 12px rgba(15, 23, 42, .025) !important;
+}
+
+#root .studio-final-shell.sidebar-collapsed .studio-sidebar-profile {
+  width: 50px !important;
+  min-height: 50px !important;
+  grid-template-columns: 1fr !important;
+  justify-items: center !important;
+  margin: 0 auto !important;
+  padding: 4px !important;
+  border-radius: 50% !important;
+}
+
+#root .studio-final-shell.sidebar-collapsed .sidebar-profile-text,
+#root .studio-final-shell.sidebar-collapsed .studio-sidebar-profile > svg {
+  display: none !important;
+}
+
+#root .studio-final-shell .studio-profile-menu {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  overflow: visible !important;
+}
+
+#root .studio-final-shell .studio-main {
+  min-width: 0 !important;
+  min-height: 100vh !important;
+  margin-left: var(--studio-sidebar-width) !important;
+  overflow: visible !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: #fff !important;
+  transition: margin-left .22s ease !important;
+}
+
+#root .studio-final-shell .studio-topbar-final {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 35 !important;
+  min-height: 88px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 22px !important;
+  padding: 0 28px !important;
+  border: 0 !important;
+  border-bottom: 1px solid #e7ecf2 !important;
+  border-radius: 0 !important;
+  background: rgba(255, 255, 255, .97) !important;
+  box-shadow: none !important;
+}
+
+#root .studio-final-shell .studio-command-search {
+  width: min(100%, 560px) !important;
+  height: 48px !important;
+  margin-right: auto !important;
+  border: 1px solid #dfe6ef !important;
+  border-radius: 11px !important;
+  background: #fff !important;
+}
+
+#root .studio-final-shell .studio-top-actions {
+  margin-left: 0 !important;
+}
+
+#root .studio-final-shell .studio-view {
+  width: 100% !important;
+  max-width: 1260px !important;
+  min-width: 0 !important;
+  margin: 0 auto !important;
+  padding: 24px 28px 52px !important;
+}
+
+#root .studio-final-shell .studio-alert {
+  width: calc(100% - 56px) !important;
+  max-width: 1204px !important;
+  margin: 14px auto 0 !important;
+  font-size: 12px !important;
+}
+
+#root .studio-final-shell .studio-footer { display: none !important; }
+
+/* ==========================================================
+   SHARED PAGE RHYTHM
+========================================================== */
+
+#root .studio-final-shell :where(.ehome, .est, .eca, .eau, .ean) {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  color: var(--creator-text) !important;
+  font-family: var(--echoo-font-sans) !important;
+}
+
+#root .studio-final-shell :where(.est-header, .eca-header, .eau-header, .ean-header) {
+  min-height: 0 !important;
+  gap: 24px !important;
+  margin: 0 0 24px !important;
+}
+
+#root .studio-final-shell :where(.est-header h1, .eau-header h1, .ean-header h1) {
+  margin-top: 0 !important;
+  font-size: var(--creator-page-title) !important;
+  line-height: 1.06 !important;
+  letter-spacing: -.038em !important;
+  font-weight: var(--echoo-weight-bold) !important;
+}
+
+#root .studio-final-shell .eca-header h1 {
+  max-width: 720px !important;
+  margin-top: 9px !important;
+  font-size: clamp(38px, 3.15vw, 46px) !important;
+  line-height: 1.04 !important;
+  letter-spacing: -.04em !important;
+  font-weight: var(--echoo-weight-bold) !important;
+}
+
+#root .studio-final-shell :where(
+  .eca-header > div > span,
+  .eau-header > div:first-child > span,
+  .ean-header > div:first-child > span,
+  .ehome-eyebrow,
+  .est-featured-label
+) {
+  color: var(--creator-blue) !important;
+  font-size: 11px !important;
+  line-height: 1.1 !important;
+  font-weight: 800 !important;
+  letter-spacing: .14em !important;
+}
+
+#root .studio-final-shell :where(.est-header p, .eca-header p, .eau-header p, .ean-header p) {
+  margin-top: 11px !important;
+  color: #687791 !important;
+  font-size: 13px !important;
+  line-height: 1.52 !important;
+}
+
+#root .studio-final-shell :where(
+  .est-new,
+  .eca-upload,
+  .eau-header-actions select,
+  .eau-header-actions button,
+  .ean-periods button,
+  .eca-search,
+  .eca-sort
+) {
+  min-height: var(--creator-control-height) !important;
+  height: var(--creator-control-height) !important;
+  border-radius: var(--creator-control-radius) !important;
+  font-size: 12px !important;
+}
+
+#root .studio-final-shell :where(.eca-upload, .eau-header-actions, .ean-periods) {
+  margin-top: 22px !important;
+}
+
+#root .studio-final-shell :where(
+  .ehome-panel,
+  .est-featured-card,
+  .est-details,
+  .est-station-row,
+  .eca-summary,
+  .eca-library,
+  .eca-list article,
+  .eau-card,
+  .eau-metrics article,
+  .ean-card,
+  .ean-metrics article
+) {
+  border-color: var(--creator-border) !important;
+  border-radius: var(--creator-card-radius) !important;
+  box-shadow: var(--creator-card-shadow) !important;
+}
+
+#root .studio-final-shell :where(
+  .ehome-panel-head h2,
+  .est-all-head h2,
+  .eca-library-head h2,
+  .eau-card > header h2,
+  .ean-card > header h2
+) {
+  color: #17223b !important;
+  font-size: 14px !important;
+  line-height: 1.25 !important;
+  font-weight: var(--echoo-weight-bold) !important;
+  letter-spacing: -.012em !important;
+}
+
+#root .studio-final-shell :where(
+  .ehome-panel-head > button,
+  .ehome-settings-link,
+  .ean-card > header button,
+  .eau-wide-link,
+  .ean-insight-link,
+  .est-show-more,
+  .est-view-broadcasts
+) {
+  font-size: 10px !important;
+  font-weight: var(--echoo-weight-semibold) !important;
+}
+
+/* Never let dashboard metadata collapse back to the old 7-8px phase styles. */
+#root .studio-final-shell :where(
+  .ehome-primary-station-stats span,
+  .ehome-primary-station-copy > span,
+  .ehome-primary-station-copy > em,
+  .ehome-reference-upcoming span,
+  .ehome-reference-upcoming small,
+  .ehome-reference-audio-copy span,
+  .ehome-reference-audio-row > small,
+  .ehome-reference-empty-row span,
+  .ehome-reference-metrics article > span,
+  .ehome-reference-metrics article > small,
+  .ehome-creator-status-list span small,
+  .est-category-pill,
+  .est-featured-stats span,
+  .est-row-identity small,
+  .est-row-stat span,
+  .est-details-identity span,
+  .est-details-dates,
+  .est-details-about p,
+  .est-detail-fields strong,
+  .est-detail-fields span,
+  .est-recent-activity strong,
+  .est-recent-activity small,
+  .est-activity-empty,
+  .eca-summary small,
+  .eca-summary em,
+  .eca-library-head > div:first-child > span,
+  .eca-title-row > span,
+  .eca-copy p,
+  .eca-library-footer,
+  .eau-metrics small,
+  .eau-metrics span,
+  .eau-chart-legend,
+  .eau-chart-axis,
+  .eau-overview-stats span,
+  .eau-station-list b,
+  .eau-station-list small,
+  .eau-donut small,
+  .eau-donut span,
+  .eau-engagement-legend,
+  .eau-activity-list strong,
+  .eau-activity-list small,
+  .eau-activity-list time,
+  .eau-snapshot-columns h3,
+  .eau-snapshot-columns p,
+  .eau-snapshot-columns small,
+  .eau-snapshot-note,
+  .ean-metrics small,
+  .ean-metrics span,
+  .ean-legend,
+  .ean-axis,
+  .ean-chart-empty,
+  .ean-top-audio-list strong,
+  .ean-top-audio-list small,
+  .ean-table-head,
+  .ean-broadcast-list > div:not(.ean-empty-list),
+  .ean-broadcast-name b,
+  .ean-broadcast-list strong,
+  .ean-broadcast-list em,
+  .ean-insight-list strong,
+  .ean-insight-list small,
+  .ean-empty-list
+) {
+  font-size: 10px !important;
+  line-height: 1.4 !important;
+}
+
+#root .studio-final-shell :where(
+  .ehome-readiness-item strong,
+  .ehome-primary-station-copy > strong,
+  .ehome-reference-upcoming strong,
+  .ehome-reference-audio-copy strong,
+  .ehome-reference-empty-row strong,
+  .ehome-creator-status-list span strong,
+  .est-featured-stats strong,
+  .est-row-stat strong,
+  .eca-copy p,
+  .eau-station-list b,
+  .eau-activity-list strong,
+  .ean-top-audio-list strong,
+  .ean-broadcast-name b,
+  .ean-insight-list strong
+) {
+  font-weight: var(--echoo-weight-semibold) !important;
+}
+
+#root .studio-final-shell :where(
+  .ehome-reference-metrics article > strong,
+  .eca-summary strong,
+  .eau-metrics strong,
+  .ean-metrics strong,
+  .eau-donut strong
+) {
+  font-size: 22px !important;
+  line-height: 1 !important;
+  font-weight: var(--echoo-weight-bold) !important;
+  letter-spacing: -.03em !important;
+}
+
+/* Home remains the only display-led page. */
+#root .studio-final-shell .ehome-reference .ehome-reference-hero {
+  min-height: 318px !important;
+  border-radius: 15px !important;
+}
+
+#root .studio-final-shell .ehome-reference .ehome-hero h1 {
+  font-size: var(--echoo-type-display) !important;
+}
+
+#root .studio-final-shell .ehome-reference-grid {
+  gap: 18px !important;
+  margin-top: 18px !important;
+}
+
+/* Stations */
+#root .studio-final-shell .est-workspace-grid {
+  grid-template-columns: minmax(0, 1fr) 340px !important;
+  gap: 20px !important;
+}
+
+#root .studio-final-shell .est-all-stations { margin-top: 20px !important; }
+#root .studio-final-shell .est-station-collection { gap: 10px !important; }
+#root .studio-final-shell .est-details { top: 112px !important; }
+#root .studio-final-shell .est-search,
+#root .studio-final-shell .est-sort,
+#root .studio-final-shell .est-view-toggle { height: 38px !important; }
+
+/* Audio */
+#root .studio-final-shell .eca-toolbar { margin-bottom: 18px !important; }
+#root .studio-final-shell .eca-summary { margin-bottom: 20px !important; }
+#root .studio-final-shell .eca-list.grid-view { gap: 18px !important; }
+
+/* Audience + Analytics */
+#root .studio-final-shell .eau-metrics,
+#root .studio-final-shell .ean-metrics { gap: 14px !important; margin-bottom: 20px !important; }
+
+#root .studio-final-shell .eau-main-grid,
+#root .studio-final-shell .eau-bottom-grid,
+#root .studio-final-shell .ean-top-grid,
+#root .studio-final-shell .ean-bottom-grid { gap: 18px !important; }
+
+/* ==========================================================
+   TABLET
+========================================================== */
+
+@media (max-width: 1120px) and (min-width: 761px) {
+  #root .studio-final-shell.sidebar-expanded { --studio-sidebar-width: 220px; }
+  #root .studio-final-shell.sidebar-collapsed { --studio-sidebar-width: 78px; }
+
+  #root .studio-final-shell .studio-topbar-final { padding: 0 20px !important; }
+  #root .studio-final-shell .studio-view { padding: 24px 20px 44px !important; }
+  #root .studio-final-shell .studio-alert { width: calc(100% - 40px) !important; }
+
+  #root .studio-final-shell .est-workspace-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  #root .studio-final-shell .est-details {
+    position: static !important;
+    top: auto !important;
+  }
+}
+
+/* ==========================================================
+   MOBILE: one bottom navigation, no squeezed desktop rail
+========================================================== */
+
+@media (max-width: 760px) {
+  #root .studio-final-shell,
+  #root .studio-final-shell.sidebar-collapsed,
+  #root .studio-final-shell.sidebar-expanded {
+    --studio-sidebar-width: 0px;
+    display: block !important;
+    padding-bottom: calc(68px + env(safe-area-inset-bottom)) !important;
+  }
+
+  #root .studio-final-shell .studio-sidebar {
+    position: fixed !important;
+    inset: auto 0 0 0 !important;
+    width: auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    display: block !important;
+    padding: 7px max(8px, env(safe-area-inset-right)) calc(7px + env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)) !important;
+    border: 0 !important;
+    border-top: 1px solid #e4eaf2 !important;
+    background: rgba(255, 255, 255, .98) !important;
+    backdrop-filter: blur(16px) !important;
+  }
+
+  #root .studio-final-shell .studio-sidebar-head,
+  #root .studio-final-shell .studio-sidebar-profile-wrap {
+    display: none !important;
+  }
+
+  #root .studio-final-shell .studio-navigation {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
+    gap: 2px !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    padding: 0 !important;
+  }
+
+  #root .studio-final-shell .studio-nav-item,
+  #root .studio-final-shell.sidebar-collapsed .studio-nav-item,
+  #root .studio-final-shell.sidebar-expanded .studio-nav-item {
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 48px !important;
+    min-height: 48px !important;
+    flex-basis: 48px !important;
+    justify-content: center !important;
+    gap: 0 !important;
+    padding: 0 !important;
+    border-radius: 9px !important;
+  }
+
+  #root .studio-final-shell .studio-nav-item > span:last-child,
+  #root .studio-final-shell.sidebar-expanded .studio-nav-item > span:last-child,
+  #root .studio-final-shell.sidebar-collapsed .studio-nav-item > span:last-child {
+    display: none !important;
+  }
+
+  #root .studio-final-shell .studio-nav-icon {
+    width: auto !important;
+    height: auto !important;
+    flex-basis: auto !important;
+    font-size: 16px !important;
+  }
+
+  #root .studio-final-shell .studio-main {
+    margin-left: 0 !important;
+  }
+
+  #root .studio-final-shell .studio-topbar-final {
+    min-height: 62px !important;
+    padding: 0 14px !important;
+  }
+
+  #root .studio-final-shell .studio-command-search { display: none !important; }
+  #root .studio-final-shell .studio-top-actions { margin-left: auto !important; }
+  #root .studio-final-shell .notification-button { width: 38px !important; height: 38px !important; min-height: 38px !important; }
+  #root .studio-final-shell .studio-account-button { min-width: 48px !important; grid-template-columns: 34px 12px !important; gap: 4px !important; }
+  #root .studio-final-shell .studio-account-button > div:nth-child(2) { display: none !important; }
+  #root .studio-final-shell .top-avatar { width: 34px !important; height: 34px !important; }
+  #root .studio-final-shell .studio-profile-menu.top-menu { position: fixed !important; top: 56px !important; right: 12px !important; }
+
+  #root .studio-final-shell .studio-view {
+    padding: 18px 12px 28px !important;
+  }
+
+  #root .studio-final-shell .studio-alert {
+    width: calc(100% - 24px) !important;
+  }
+
+  #root .studio-final-shell :where(.est-header, .eca-header, .eau-header, .ean-header) {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 14px !important;
+    margin-bottom: 20px !important;
+  }
+
+  #root .studio-final-shell :where(.est-header h1, .eau-header h1, .ean-header h1) {
+    font-size: 30px !important;
+  }
+
+  #root .studio-final-shell .eca-header h1 { font-size: 34px !important; }
+  #root .studio-final-shell :where(.eca-upload, .eau-header-actions, .ean-periods) { margin-top: 0 !important; }
+
+  #root .studio-final-shell .est-workspace-grid { grid-template-columns: 1fr !important; }
+  #root .studio-final-shell .est-details { position: static !important; top: auto !important; }
+
+  #root .studio-final-shell :where(.eau-main-grid, .eau-bottom-grid, .ean-top-grid, .ean-bottom-grid) {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 620px) {
+  #root .studio-final-shell .ehome-reference .ehome-hero h1 {
+    font-size: clamp(34px, 10.5vw, 44px) !important;
+  }
+
+  #root .studio-final-shell .eau-metrics { grid-template-columns: 1fr !important; }
+  #root .studio-final-shell .ean-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+}
