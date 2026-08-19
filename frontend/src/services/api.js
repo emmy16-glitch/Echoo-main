@@ -227,7 +227,20 @@ const makeRequest = async (
   );
 };
 
-export const apiRequest = async (
+const sessionExpiredError = () => {
+  const error = new Error(
+    'Your session has expired. Please log in again.'
+  );
+  error.code = 'SESSION_EXPIRED';
+  error.status = 401;
+  return error;
+};
+
+// Raw-response requests (downloads, multipart uploads, media helpers) must use
+// the same access-token refresh path as JSON API calls. Otherwise a creator can
+// be signed in successfully yet see an upload/download fail only because the
+// short-lived access token expired while the Studio remained open.
+export const apiFetch = async (
   path,
   options = {}
 ) => {
@@ -248,11 +261,6 @@ export const apiRequest = async (
       accessToken
     );
 
-  let data =
-    await parseResponse(
-      response
-    );
-
   if (
     response.status === 401 &&
     !skipAuth &&
@@ -269,27 +277,21 @@ export const apiRequest = async (
           options,
           newAccessToken
         );
-
-      data =
-        await parseResponse(
-          response
-        );
-    } catch (refreshError) {
+    } catch {
       clearAuthTokens();
-
-      const error =
-        new Error(
-          'Your session has expired. Please log in again.'
-        );
-
-      error.code =
-        'SESSION_EXPIRED';
-
-      error.status = 401;
-
-      throw error;
+      throw sessionExpiredError();
     }
   }
+
+  return response;
+};
+
+export const apiRequest = async (
+  path,
+  options = {}
+) => {
+  const response = await apiFetch(path, options);
+  const data = await parseResponse(response);
 
   if (!response.ok) {
     throw createError(
