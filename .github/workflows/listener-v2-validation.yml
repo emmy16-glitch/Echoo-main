@@ -1,4 +1,4 @@
-# validation pass 2
+# validation pass 3 - full listener scope
 name: Validate Listener Mobile V2
 
 on:
