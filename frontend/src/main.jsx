@@ -39,6 +39,7 @@ import "./styles/creator-studio-consistency-audit.css";
 import "./styles/creator-broadcast-studio-final.css";
 import "./styles/creator-shell-broadcast-breathing-room.css";
 import "./styles/creator-broadcast-responsive-shell-fix.css";
+import "./styles/creator-broadcast-guided-mixer.css";
 
 initializeEchooTheme();
 
