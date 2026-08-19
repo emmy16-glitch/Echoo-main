@@ -61,18 +61,27 @@ const saveTokens = ({
   }
 };
 
+const AUTH_LOCAL_STORAGE_KEYS = [
+  'accessToken',
+  'refreshToken',
+  'token',
+  'user',
+  'profileImage',
+  'profileBio',
+  'echooRole',
+  'echooProfileCompleted',
+  'echooOnboardingCompleted',
+  'creatorSetup',
+];
+
 export const clearAuthTokens = () => {
-  localStorage.removeItem(
-    'accessToken'
-  );
+  AUTH_LOCAL_STORAGE_KEYS.forEach((key) => {
+    localStorage.removeItem(key);
+  });
 
-  localStorage.removeItem(
-    'refreshToken'
-  );
-
-  localStorage.removeItem(
-    'token'
-  );
+  // Creator/broadcast setup is session-scoped and must never leak into
+  // the next account that signs in on the same browser.
+  sessionStorage.clear();
 };
 
 const parseResponse = async (

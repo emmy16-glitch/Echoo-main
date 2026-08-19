@@ -31,10 +31,14 @@ export function generateAccessToken(payload) {
 }
 
 export function generateRefreshToken(payload) {
+  const tokenVersion = Number.isInteger(payload.tokenVersion)
+    ? payload.tokenVersion
+    : 0;
+
   return jwt.sign(
     {
       sub: payload.userId,
-      tokenVersion: payload.tokenVersion || 1,
+      tokenVersion,
       type: 'refresh',
     },
     jwtConfig.refresh.secret,
