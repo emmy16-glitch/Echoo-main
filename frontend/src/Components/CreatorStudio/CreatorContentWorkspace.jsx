@@ -13,7 +13,6 @@ import {
   FaPause,
   FaPlay,
   FaSearch,
-  FaThLarge,
   FaTrash,
 } from 'react-icons/fa';
 
@@ -71,7 +70,6 @@ const CreatorContentWorkspace = ({
   const [search, setSearch] = useState('');
   const [visibility, setVisibility] = useState('All');
   const [sortMode, setSortMode] = useState('newest');
-  const [viewMode, setViewMode] = useState('list');
   const [playingId, setPlayingId] = useState('');
   const [selectedTrack, setSelectedTrack] = useState(null);
   const [openMenuId, setOpenMenuId] = useState('');
@@ -238,25 +236,21 @@ const CreatorContentWorkspace = ({
       </div>
 
       <section className="eca-summary">
-        <div><i className="blue"><FaCloudUploadAlt /></i><span><small>Total uploads</small><strong>{formatNumber(totals.uploads)}</strong><em>— Current library</em></span></div>
-        <div><i className="green"><FaPlay /></i><span><small>Total plays</small><strong>{formatNumber(totals.plays)}</strong><em className={totals.plays > 0 ? 'positive' : ''}>{totals.plays > 0 ? '↑ Plays recorded' : '— No plays yet'}</em></span></div>
-        <div><i className="purple"><FaHeart /></i><span><small>Total likes</small><strong>{formatNumber(totals.likes)}</strong><em>{totals.likes > 0 ? 'Likes received' : '— No likes yet'}</em></span></div>
-        <div><i className="gold"><FaPause /></i><span><small>Library duration</small><strong>{formatLibraryDuration(totals.duration)}</strong><em>— Current library</em></span></div>
+        <div><i className="blue"><FaCloudUploadAlt /></i><span><small>Total uploads</small><strong>{formatNumber(totals.uploads)}</strong><em>Current library</em></span></div>
+        <div><i className="green"><FaPlay /></i><span><small>Total plays</small><strong>{formatNumber(totals.plays)}</strong><em className={totals.plays > 0 ? 'positive' : ''}>{totals.plays > 0 ? 'Plays recorded' : 'No plays yet'}</em></span></div>
+        <div><i className="purple"><FaHeart /></i><span><small>Total likes</small><strong>{formatNumber(totals.likes)}</strong><em>{totals.likes > 0 ? 'Likes received' : 'No likes yet'}</em></span></div>
+        <div><i className="gold"><FaPause /></i><span><small>Library duration</small><strong>{formatLibraryDuration(totals.duration)}</strong><em>Current library</em></span></div>
       </section>
 
       <section className="eca-library">
         <div className="eca-library-head">
           <div><h2>Your audio library</h2><span>{totalItems} {totalItems === 1 ? 'item' : 'items'}</span></div>
-          <div className="eca-view-toggle" aria-label="Audio library view">
-            <button type="button" className={viewMode === 'grid' ? 'active' : ''} onClick={() => setViewMode('grid')} aria-label="Grid view"><FaThLarge /></button>
-            <button type="button" className={viewMode === 'list' ? 'active' : ''} onClick={() => setViewMode('list')} aria-label="List view"><FaList /></button>
-          </div>
         </div>
 
         {actionError && <div className="eca-action-error">{actionError}<button type="button" onClick={() => setActionError('')}>Dismiss</button></div>}
 
         {loading ? (
-          <div className="eca-loading"><span /><span /><span /><span /></div>
+          <div className="eca-loading"><span /><span /><span /></div>
         ) : filtered.length === 0 ? (
           <div className="eca-empty">
             <div className="eca-empty-icon"><FaCloudUploadAlt /></div>
@@ -264,7 +258,7 @@ const CreatorContentWorkspace = ({
             {!tracks.length && <button type="button" onClick={onUpload}><FaCloudUploadAlt /> Upload audio</button>}
           </div>
         ) : (
-          <div className={`eca-list ${viewMode === 'list' ? 'list-view' : 'grid-view'}`}>
+          <div className="eca-list list-view">
             {filtered.map((track, index) => {
               const id = String(getId(track) || index);
               const artwork = getArtwork(track);
