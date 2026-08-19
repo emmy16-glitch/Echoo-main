@@ -16,6 +16,15 @@ import { CreatorBroadcastLease } from '../src/services/creatorBroadcastLease.js'
 import LiveKitProvider from '../src/providers/livekit.js';
 import { matchesUploadedFileSignature } from '../src/routes/audioRoutes.js';
 import { normalizeApiError } from '../src/app.js';
+import {
+  parseSingleByteRange,
+} from '../src/controllers/audioStreamController.js';
+import {
+  audioStreamTtlSeconds,
+  createAudioStreamToken,
+  verifyAudioStreamToken,
+} from '../src/services/audioStreamAccess.js';
+import Audio from '../src/models/Audio.js';
 
 const mockResponse = () => {
   const result = { statusCode: 200, body: null };
@@ -239,6 +248,116 @@ test('uploaded file signature checks reject extension-only spoofing', () => {
     matchesUploadedFileSignature({ originalname: 'cover.jpg' }, png),
     false
   );
+});
+
+test('audio byte-range parser supports full, open, suffix and bounded ranges', () => {
+  assert.deepEqual(
+    parseSingleByteRange(null, 1000),
+    { start: 0, end: 999, partial: false }
+  );
+  assert.deepEqual(
+    parseSingleByteRange('bytes=100-199', 1000),
+    { start: 100, end: 199, partial: true }
+  );
+  assert.deepEqual(
+    parseSingleByteRange('bytes=900-', 1000),
+    { start: 900, end: 999, partial: true }
+  );
+  assert.deepEqual(
+    parseSingleByteRange('bytes=-100', 1000),
+    { start: 900, end: 999, partial: true }
+  );
+  assert.deepEqual(
+    parseSingleByteRange('bytes=100-2000', 1000),
+    { start: 100, end: 999, partial: true }
+  );
+  assert.equal(parseSingleByteRange('bytes=1000-', 1000), null);
+  assert.equal(parseSingleByteRange('bytes=500-400', 1000), null);
+  assert.equal(parseSingleByteRange('bytes=0-1,4-5', 1000), null);
+  assert.equal(parseSingleByteRange('items=0-10', 1000), null);
+});
+
+test('audio stream tokens are scoped to one audio record and preserve owner scope', () => {
+  const audioId = new mongoose.Types.ObjectId().toString();
+  const otherAudioId = new mongoose.Types.ObjectId().toString();
+  const ownerId = new mongoose.Types.ObjectId().toString();
+
+  const publicSigned = createAudioStreamToken({
+    audioId,
+    access: 'public',
+    duration: 3600,
+  });
+  const publicGrant = verifyAudioStreamToken(publicSigned.token, audioId);
+  assert.equal(publicGrant.type, 'audio-stream');
+  assert.equal(publicGrant.audioId, audioId);
+  assert.equal(publicGrant.access, 'public');
+  assert.throws(
+    () => verifyAudioStreamToken(publicSigned.token, otherAudioId),
+    (error) => error?.code === 'INVALID_AUDIO_STREAM_TOKEN'
+  );
+
+  const ownerSigned = createAudioStreamToken({
+    audioId,
+    access: 'owner',
+    ownerId,
+    duration: 120,
+  });
+  const ownerGrant = verifyAudioStreamToken(ownerSigned.token, audioId);
+  assert.equal(ownerGrant.access, 'owner');
+  assert.equal(ownerGrant.ownerId, ownerId);
+  assert.ok(ownerSigned.ttl >= 15 * 60);
+});
+
+test('audio stream token TTL covers playback duration without becoming unbounded', () => {
+  assert.ok(audioStreamTtlSeconds({ access: 'public', duration: 0 }) >= 15 * 60);
+  assert.ok(audioStreamTtlSeconds({ access: 'owner', duration: 3600 }) >= 3600 + 15 * 60);
+  assert.equal(
+    audioStreamTtlSeconds({ access: 'public', duration: 24 * 60 * 60 }),
+    12 * 60 * 60
+  );
+});
+
+test('audio JSON hides storage keys and returns only scoped playback URLs', () => {
+  const ownerId = new mongoose.Types.ObjectId();
+  const publicAudio = new Audio({
+    title: 'Public master',
+    artist: ownerId,
+    filename: 'secret-storage-name.wav',
+    originalName: 'master.wav',
+    fileSize: 1234,
+    fileUrl: '/uploads/audio/secret-storage-name.wav',
+    fileKey: 'secret-storage-name.wav',
+    mimeType: 'audio/wav',
+    duration: 300,
+    isPublic: true,
+  });
+
+  const publicJson = publicAudio.toJSON();
+  assert.equal(publicJson.filename, undefined);
+  assert.equal(publicJson.fileKey, undefined);
+  assert.match(
+    publicJson.fileUrl,
+    new RegExp(`^/api/audio/${publicAudio._id}/stream\\?token=`)
+  );
+  assert.doesNotMatch(publicJson.fileUrl, /uploads\/audio/);
+
+  const privateAudio = new Audio({
+    title: 'Private master',
+    artist: ownerId,
+    filename: 'private-storage-name.wav',
+    originalName: 'private.wav',
+    fileSize: 1234,
+    fileUrl: '/uploads/audio/private-storage-name.wav',
+    fileKey: 'private-storage-name.wav',
+    mimeType: 'audio/wav',
+    duration: 60,
+    isPublic: false,
+  });
+
+  const privateJson = privateAudio.toJSON();
+  assert.equal(privateJson.fileUrl, null);
+  assert.equal(privateJson.filename, undefined);
+  assert.equal(privateJson.fileKey, undefined);
 });
 
 test('API error normalizer maps database failures and hides unknown server details', () => {
