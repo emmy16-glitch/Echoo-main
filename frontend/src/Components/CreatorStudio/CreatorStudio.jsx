@@ -87,6 +87,7 @@ const CreatorStudio = () => {
     () => sessionStorage.getItem('echooPreparedBroadcastId') || ''
   );
   const [studioSearch, setStudioSearch] = useState('');
+  const [profileMenuOpen, setProfileMenuOpen] = useState('');
 
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -119,14 +120,13 @@ const CreatorStudio = () => {
   const uploadArtwork = uploadForm.coverPreview || generatedUploadArtwork;
 
   const navItems = [
-    { name: 'Home', icon: <FaHome /> },
-    { name: 'Stations', icon: <FaBroadcastTower /> },
-    { name: 'Broadcast', icon: <FaMicrophone /> },
-    { name: 'Explore Live', icon: <FaHeadphones /> },
-    { name: 'Audio', icon: <FaHeadphones /> },
-    { name: 'Audience', icon: <FaUsers /> },
-    { name: 'Analytics', icon: <FaChartBar /> },
-    { name: 'Settings', icon: <FaCog /> },
+    { name: 'Home', label: 'Home', icon: <FaHome /> },
+    { name: 'Stations', label: 'Stations', icon: <FaBroadcastTower /> },
+    { name: 'Broadcast', label: 'Broadcast Studio', icon: <FaMicrophone /> },
+    { name: 'Audio', label: 'Audio', icon: <FaHeadphones /> },
+    { name: 'Audience', label: 'Audience', icon: <FaUsers /> },
+    { name: 'Analytics', label: 'Analytics', icon: <FaChartBar /> },
+    { name: 'Settings', label: 'Settings', icon: <FaCog /> },
   ];
 
   useEffect(() => {
@@ -160,6 +160,22 @@ const CreatorStudio = () => {
     return () => window.removeEventListener('echoo:creator-audio-changed', onCreatorAudioChanged);
   }, []);
 
+  useEffect(() => {
+    const closeProfileMenu = (event) => {
+      if (!event.target.closest?.('[data-creator-profile-menu]')) setProfileMenuOpen('');
+    };
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') setProfileMenuOpen('');
+    };
+
+    document.addEventListener('pointerdown', closeProfileMenu);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeProfileMenu);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, []);
+
   const navigateStudio = (page) => {
     let target = page;
     if (page === 'Live') {
@@ -170,6 +186,7 @@ const CreatorStudio = () => {
       sessionStorage.setItem('echooBroadcastMode', 'later');
       target = 'Broadcast';
     }
+    setProfileMenuOpen('');
     setError('');
     setNotice('');
     setActiveNav(target);
@@ -179,7 +196,9 @@ const CreatorStudio = () => {
     event.preventDefault();
     const query = studioSearch.trim().toLowerCase();
     if (!query) return;
-    const match = navItems.find((item) => item.name.toLowerCase().startsWith(query));
+    const match = navItems.find((item) =>
+      item.name.toLowerCase().startsWith(query) || item.label.toLowerCase().startsWith(query)
+    );
     if (match) {
       navigateStudio(match.name);
       setStudioSearch('');
@@ -200,7 +219,7 @@ const CreatorStudio = () => {
       setStudioSearch('');
       return;
     }
-    setNotice('Try Home, Stations, Broadcast, Explore Live, Audio, Audience, Analytics, or Settings.');
+    setNotice('Try Home, Stations, Broadcast Studio, Audio, Audience, Analytics, or Settings.');
   };
 
   const handleCreatorLogout = () => {
@@ -398,27 +417,55 @@ const CreatorStudio = () => {
     }
   };
 
+  const renderProfileMenu = (location) => (
+    <div className={`studio-profile-menu ${location === 'sidebar' ? 'sidebar-menu' : 'top-menu'}`}>
+      <button type="button" onClick={() => navigateStudio('Settings')}><FaCog /> Creator settings</button>
+      <button type="button" className="danger" onClick={handleCreatorLogout}><FaSignOutAlt /> Log out</button>
+    </div>
+  );
+
   return (
     <div className="studio-page studio-final-shell">
       <aside className="studio-sidebar">
-        <button type="button" className="studio-brand" onClick={() => navigateStudio('Home')}>
+        <button type="button" className="studio-brand" onClick={() => navigateStudio('Home')} aria-label="Echoo Creator Studio home">
           <img src={echooLogo} alt="Echoo" className="studio-logo" />
           <div><h2>Echoo</h2><span>Creator Studio</span></div>
         </button>
 
-        <nav className="studio-navigation">
+        <nav className="studio-navigation" aria-label="Creator Studio">
           {navItems.map((item) => (
-            <button type="button" key={item.name} className={`studio-nav-item ${activeNav === item.name ? 'active' : ''}`} onClick={() => navigateStudio(item.name)}>
-              <span className="studio-nav-icon">{item.icon}</span><span>{item.name}</span>
+            <button
+              type="button"
+              key={item.name}
+              className={`studio-nav-item ${activeNav === item.name ? 'active' : ''}`}
+              onClick={() => navigateStudio(item.name)}
+            >
+              <span className="studio-nav-icon">{item.icon}</span><span>{item.label}</span>
             </button>
           ))}
         </nav>
 
-        <div className="studio-sidebar-profile">
-          <div className="sidebar-avatar">{profileImage ? <img src={profileImage} alt="" /> : initial}</div>
-          <div className="sidebar-profile-text"><strong>{studioName}</strong><span>{studioType}</span></div>
-          <button type="button" className="studio-sidebar-logout" onClick={handleCreatorLogout} aria-label="Log out" title="Log out"><FaSignOutAlt /></button>
+        <div className="studio-sidebar-profile-wrap" data-creator-profile-menu>
+          <button
+            type="button"
+            className="studio-sidebar-profile"
+            aria-expanded={profileMenuOpen === 'sidebar'}
+            onClick={() => setProfileMenuOpen((current) => current === 'sidebar' ? '' : 'sidebar')}
+          >
+            <div className="sidebar-avatar">{profileImage ? <img src={profileImage} alt="" /> : initial}</div>
+            <div className="sidebar-profile-text"><strong>{studioName}</strong><span>{studioType}</span></div>
+            <FaChevronDown />
+          </button>
+          {profileMenuOpen === 'sidebar' && renderProfileMenu('sidebar')}
         </div>
+
+        <section className="studio-creator-tip" aria-label="Creator tip">
+          <i>✦</i>
+          <span>Creator tips</span>
+          <strong>Keep stations focused</strong>
+          <p>Use one station for a consistent audience, or separate stations for different shows and communities.</p>
+          <button type="button" onClick={() => navigateStudio('Stations')}>Learn more →</button>
+        </section>
       </aside>
 
       <main id="echoo-main-content" tabIndex="-1" className="studio-main">
@@ -430,11 +477,19 @@ const CreatorStudio = () => {
 
           <div className="studio-top-actions">
             <button type="button" className="notification-button" onClick={() => navigateStudio('Notifications')} title="Notifications" aria-label="Notifications"><FaBell /></button>
-            <button type="button" className="studio-account-button" onClick={() => navigateStudio('Settings')} title="Creator settings">
-              <div className="top-avatar">{profileImage ? <img src={profileImage} alt="" /> : initial}</div>
-              <div><strong>{studioName}</strong><span>Creator</span></div>
-              <FaChevronDown />
-            </button>
+            <div className="studio-top-profile-wrap" data-creator-profile-menu>
+              <button
+                type="button"
+                className="studio-account-button"
+                aria-expanded={profileMenuOpen === 'top'}
+                onClick={() => setProfileMenuOpen((current) => current === 'top' ? '' : 'top')}
+              >
+                <div className="top-avatar">{profileImage ? <img src={profileImage} alt="" /> : initial}</div>
+                <div><strong>{studioName}</strong><span>Creator</span></div>
+                <FaChevronDown />
+              </button>
+              {profileMenuOpen === 'top' && renderProfileMenu('top')}
+            </div>
           </div>
         </header>
 
