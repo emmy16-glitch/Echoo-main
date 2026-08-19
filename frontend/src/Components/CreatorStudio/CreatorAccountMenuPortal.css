@@ -1,0 +1,94 @@
+.creator-account-popover,
+.creator-account-popover * {
+  box-sizing: border-box;
+}
+
+.creator-account-popover {
+  position: fixed;
+  z-index: 2147483647;
+  width: 216px;
+  display: grid;
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid #dfe6ef;
+  border-radius: 13px;
+  background: #ffffff;
+  color: #0b1730;
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.22);
+  font-family: Inter, "SF Pro Text", "Segoe UI Variable", "Helvetica Neue", Arial, ui-sans-serif, system-ui, sans-serif;
+  animation: creator-account-popover-in 120ms ease-out;
+}
+
+.creator-account-popover::after {
+  content: "";
+  position: absolute;
+  width: 11px;
+  height: 11px;
+  background: #fff;
+  transform: rotate(45deg);
+}
+
+.creator-account-popover-sidebar::after {
+  left: 20px;
+  bottom: -6px;
+  border-right: 1px solid #dfe6ef;
+  border-bottom: 1px solid #dfe6ef;
+}
+
+.creator-account-popover-top::after {
+  right: 24px;
+  top: -6px;
+  border-left: 1px solid #dfe6ef;
+  border-top: 1px solid #dfe6ef;
+}
+
+.creator-account-popover button {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #344054;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 680;
+  text-align: left;
+  cursor: pointer;
+}
+
+.creator-account-popover button svg {
+  flex: 0 0 auto;
+  font-size: 12px;
+}
+
+.creator-account-popover button:hover,
+.creator-account-popover button:focus-visible {
+  background: #f4f7fb;
+  outline: none;
+}
+
+.creator-account-popover button.danger {
+  color: #b42318;
+}
+
+.creator-account-popover button.danger:hover,
+.creator-account-popover button.danger:focus-visible {
+  background: #fff1f0;
+}
+
+@keyframes creator-account-popover-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
