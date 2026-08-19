@@ -1,0 +1,552 @@
+/* Echoo Creator artwork + station branding refinement.
+ * Loaded last so it can deliberately normalize older Creator Studio CSS layers.
+ */
+
+/* -------------------- Creator Studio canvas -------------------- */
+#root .studio-final-shell .studio-main {
+  background: #f8f9fb !important;
+}
+
+#root .studio-final-shell .studio-view {
+  max-width: 1420px !important;
+  padding-top: 32px !important;
+}
+
+/* -------------------- Audio upload composer -------------------- */
+#root .studio-upload-modal.studio-upload-modal-artwork {
+  width: min(920px, 100%) !important;
+  border-radius: 18px !important;
+  border-color: #e4e7ec !important;
+  box-shadow: 0 28px 80px rgba(16, 24, 40, .16) !important;
+}
+
+#root .studio-upload-modal-artwork .upload-modal-header {
+  padding: 24px 26px 18px !important;
+}
+
+#root .studio-upload-modal-artwork .upload-modal-header h2 {
+  color: #101828;
+  font-size: 24px !important;
+}
+
+#root .studio-upload-modal-artwork .upload-modal-header p {
+  max-width: 560px;
+  color: #667085 !important;
+  font-size: 11px !important;
+  line-height: 1.55;
+}
+
+#root .studio-upload-modal-artwork .studio-upload-form {
+  padding: 22px 26px 26px !important;
+}
+
+.studio-upload-composer {
+  display: grid;
+  grid-template-columns: minmax(210px, 250px) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.studio-upload-artwork-column {
+  position: sticky;
+  top: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.studio-upload-artwork-preview {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  border: 1px solid #dfe4ea;
+  border-radius: 14px;
+  background: #eef3ff;
+  box-shadow: 0 8px 24px rgba(16, 24, 40, .08);
+}
+
+.studio-upload-artwork-preview img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.studio-upload-artwork-preview > span {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: rgba(16, 24, 40, .76);
+  color: #fff;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  backdrop-filter: blur(8px);
+}
+
+.studio-cover-picker {
+  position: relative;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 1px solid #d0d5dd;
+  border-radius: 10px;
+  background: #fff;
+  color: #344054;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.studio-cover-picker:hover {
+  border-color: #9db4ff;
+  background: #f8faff;
+  color: #265dff;
+}
+
+.studio-cover-picker input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.studio-upload-artwork-help {
+  margin: 0;
+  color: #667085;
+  font-size: 9px;
+  line-height: 1.55;
+}
+
+.studio-upload-fields-column {
+  min-width: 0;
+}
+
+#root .studio-upload-fields-column .studio-upload-drop {
+  min-height: 104px !important;
+  border-color: #cfd7e4 !important;
+  border-radius: 12px !important;
+  background: #fbfcfe !important;
+}
+
+#root .studio-upload-fields-column .studio-upload-drop:hover {
+  border-color: #9db4ff !important;
+  background: #f7f9ff !important;
+}
+
+.studio-upload-card-preview {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 11px;
+  margin-top: 16px;
+  padding: 10px;
+  border: 1px solid #e4e7ec;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.studio-upload-card-preview img {
+  width: 58px;
+  height: 58px;
+  border-radius: 9px;
+  object-fit: cover;
+}
+
+.studio-upload-card-preview strong,
+.studio-upload-card-preview span,
+.studio-upload-card-preview small {
+  display: block;
+}
+
+.studio-upload-card-preview strong {
+  overflow: hidden;
+  color: #101828;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.studio-upload-card-preview span {
+  margin-top: 3px;
+  color: #667085;
+  font-size: 9px;
+}
+
+.studio-upload-card-preview small {
+  justify-self: end;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: #f2f5ff;
+  color: #265dff;
+  font-size: 8px;
+  font-weight: 800;
+}
+
+#root .studio-upload-modal-artwork .studio-upload-public {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 14px;
+  padding: 0 12px;
+  border: 1px solid #e4e7ec;
+  border-radius: 10px;
+  background: #fff;
+  color: #344054;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+#root .studio-upload-modal-artwork .studio-upload-actions {
+  margin-top: 20px !important;
+  padding-top: 16px;
+  border-top: 1px solid #eaecf0;
+}
+
+/* -------------------- Creator Audio: artwork-first cards -------------------- */
+#root .eca-library {
+  overflow: visible !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+#root .eca-library-head {
+  padding: 10px 0 14px !important;
+}
+
+#root .eca-list {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+#root .eca-list article {
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column;
+  align-items: stretch !important;
+  gap: 0 !important;
+  padding: 0 !important;
+  overflow: hidden;
+  border: 1px solid #e4e7ec !important;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(16, 24, 40, .04);
+  transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  #root .eca-list article:hover {
+    transform: translateY(-2px);
+    border-color: #d0d5dd !important;
+    box-shadow: 0 10px 24px rgba(16, 24, 40, .08);
+  }
+}
+
+#root .eca-list .eca-art {
+  width: 100% !important;
+  height: auto !important;
+  aspect-ratio: 1 / 1;
+  border-radius: 0 !important;
+  background: #eef3ff !important;
+}
+
+#root .eca-list .eca-art > i {
+  right: 10px !important;
+  bottom: 10px !important;
+  width: 36px !important;
+  height: 36px !important;
+  border: 0 !important;
+  background: rgba(16, 24, 40, .82) !important;
+  font-size: 10px !important;
+  box-shadow: 0 5px 14px rgba(16, 24, 40, .24);
+}
+
+#root .eca-list .eca-copy {
+  padding: 12px 12px 4px;
+}
+
+#root .eca-list .eca-copy > div {
+  align-items: flex-start !important;
+  flex-direction: column;
+  gap: 5px !important;
+}
+
+#root .eca-list .eca-copy strong {
+  width: 100%;
+  color: #101828;
+  font-size: 12px !important;
+}
+
+#root .eca-list .eca-copy > div > span {
+  padding-left: 9px !important;
+}
+
+#root .eca-list .eca-copy p {
+  gap: 8px !important;
+  margin-top: 8px !important;
+  line-height: 1.4;
+}
+
+#root .eca-list .eca-visibility {
+  justify-self: auto !important;
+  align-self: flex-start;
+  margin: 7px 12px 0;
+}
+
+#root .eca-list .eca-actions {
+  justify-content: flex-start !important;
+  margin-top: auto;
+  padding: 10px 12px 12px;
+}
+
+#root .eca-list .eca-actions button {
+  width: 36px !important;
+  height: 36px !important;
+}
+
+/* -------------------- Station creation + branding -------------------- */
+#root .est-form {
+  padding: 0 !important;
+  overflow: hidden;
+  border-color: #e4e7ec !important;
+  box-shadow: 0 4px 16px rgba(16, 24, 40, .04);
+}
+
+#root .est-form-head {
+  margin: 0 !important;
+  padding: 22px 24px 18px;
+  border-bottom: 1px solid #eaecf0;
+}
+
+#root .est-form-grid {
+  gap: 16px !important;
+  padding: 22px 24px 4px;
+}
+
+#root .est-form-actions {
+  margin-top: 20px !important;
+  padding: 16px 24px 22px;
+  border-top: 1px solid #eaecf0;
+  background: #fbfcfe;
+}
+
+#root .est-brand-field {
+  padding: 0 !important;
+  overflow: hidden;
+  border-color: #e4e7ec !important;
+  border-radius: 14px !important;
+  background: #fff !important;
+}
+
+#root .est-brand-field .est-logo-copy {
+  padding: 16px 18px 14px;
+  border-bottom: 1px solid #eaecf0;
+  background: #fbfcfe;
+}
+
+#root .est-brand-field .est-logo-copy > span {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #101828;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+#root .est-brand-field .est-logo-copy > span em {
+  margin-left: 0 !important;
+  padding: 4px 7px;
+  border-radius: 999px;
+  background: #eef4ff;
+  color: #265dff !important;
+  font-size: 7px !important;
+}
+
+#root .est-brand-field .est-logo-copy p {
+  max-width: 680px;
+  margin: 6px 0 0;
+  color: #667085;
+  font-size: 9px;
+  line-height: 1.55;
+}
+
+#root .est-brand-editor {
+  grid-template-columns: 230px minmax(0, 1fr) !important;
+  gap: 22px !important;
+  align-items: start !important;
+  margin: 0 !important;
+  padding: 18px;
+}
+
+#root .est-brand-preview {
+  width: 230px !important;
+  max-width: 100%;
+  border-radius: 12px !important;
+  box-shadow: 0 6px 18px rgba(16, 24, 40, .07);
+}
+
+#root .est-brand-preview.has-image {
+  background: #fff !important;
+}
+
+#root .est-brand-preview.has-image img {
+  padding: 18px;
+  object-fit: contain !important;
+  background: #fff;
+}
+
+#root .est-brand-actions {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px !important;
+  align-items: stretch !important;
+}
+
+#root .est-brand-actions button {
+  width: 100%;
+  min-height: 42px !important;
+  border-radius: 10px !important;
+  font-size: 9px;
+}
+
+#root .est-brand-actions button:first-of-type {
+  border-color: #265dff !important;
+  background: #265dff !important;
+  color: #fff !important;
+}
+
+#root .est-brand-actions button:nth-of-type(2) {
+  border-color: #cbd5e1 !important;
+  background: #f8fafc !important;
+  color: #344054 !important;
+}
+
+#root .est-brand-actions button.remove {
+  grid-column: 1 / -1;
+  border-color: #fecdca !important;
+  background: #fffafa !important;
+  color: #b42318 !important;
+}
+
+#root .est-brand-actions small {
+  grid-column: 1 / -1;
+  margin-top: 2px;
+  color: #667085 !important;
+  font-size: 8px;
+}
+
+/* Station cards get more breathing room and larger, readable artwork. */
+#root .est-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 16px !important;
+}
+
+#root .est-card {
+  border-radius: 14px !important;
+  box-shadow: 0 2px 8px rgba(16, 24, 40, .04) !important;
+}
+
+#root .est-art {
+  height: auto !important;
+  aspect-ratio: 16 / 9;
+}
+
+@media (max-width: 1180px) {
+  #root .eca-list,
+  #root .est-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .studio-upload-composer {
+    grid-template-columns: 190px minmax(0, 1fr);
+    gap: 18px;
+  }
+
+  #root .eca-list,
+  #root .est-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  #root .est-brand-editor {
+    grid-template-columns: 200px minmax(0, 1fr) !important;
+  }
+
+  #root .est-brand-preview {
+    width: 200px !important;
+  }
+}
+
+@media (max-width: 680px) {
+  #root .studio-upload-modal.studio-upload-modal-artwork {
+    max-height: 92svh;
+  }
+
+  .studio-upload-composer {
+    grid-template-columns: 1fr;
+  }
+
+  .studio-upload-artwork-column {
+    position: static;
+    grid-template-columns: 118px minmax(0, 1fr);
+    align-items: center;
+  }
+
+  .studio-upload-artwork-preview {
+    width: 118px;
+  }
+
+  .studio-cover-picker,
+  .studio-upload-artwork-help {
+    grid-column: 2;
+  }
+
+  .studio-upload-card-preview {
+    grid-template-columns: 48px minmax(0, 1fr);
+  }
+
+  .studio-upload-card-preview img {
+    width: 48px;
+    height: 48px;
+  }
+
+  .studio-upload-card-preview small {
+    display: none;
+  }
+
+  #root .eca-list,
+  #root .est-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  #root .est-brand-editor {
+    grid-template-columns: 1fr !important;
+  }
+
+  #root .est-brand-preview {
+    width: 100% !important;
+  }
+
+  #root .est-brand-actions {
+    grid-template-columns: 1fr !important;
+  }
+
+  #root .est-brand-actions button.remove,
+  #root .est-brand-actions small {
+    grid-column: auto;
+  }
+}
