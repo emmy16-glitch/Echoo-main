@@ -1,4 +1,5 @@
 import User from '../models/User.js';
+import { isAudioAccessibleToUser } from '../services/audioAccess.js';
 
 const clampProgress = (value) => {
   const number = Number(value);
@@ -8,7 +9,7 @@ const clampProgress = (value) => {
 
 const historyPopulate = {
   path: 'listeningHistory.trackId',
-  select: 'title duration genre fileUrl coverArt artist isDeleted',
+  select: 'title duration genre fileUrl coverArt artist isDeleted isPublic',
   populate: {
     path: 'artist',
     select: 'username displayName avatar',
@@ -21,6 +22,11 @@ const listeningSeconds = (history = []) =>
     const progress = clampProgress(item.progress) / 100;
     return sum + duration * progress;
   }, 0);
+
+const accessibleHistory = (history, userId) =>
+  (history || []).filter((item) =>
+    isAudioAccessibleToUser(item.trackId, userId)
+  );
 
 export async function getHistory(req, res, next) {
   try {
@@ -46,7 +52,9 @@ export async function getHistory(req, res, next) {
       });
     }
 
-    let history = [...(user.listeningHistory || [])];
+    // Visibility is evaluated at read time. If a creator unpublishes/deletes a
+    // track, stale listening-history metadata cannot keep surfacing it.
+    let history = accessibleHistory(user.listeningHistory, userId);
 
     if (startDate) {
       const start = new Date(startDate);
@@ -205,7 +213,7 @@ export async function getHistoryStats(req, res, next) {
       });
     }
 
-    const history = user.listeningHistory || [];
+    const history = accessibleHistory(user.listeningHistory, req.userId);
     const totalPlays = history.length;
     const completedItems = history.filter((item) => item.completed === true).length;
 
