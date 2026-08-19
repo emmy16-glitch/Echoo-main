@@ -115,7 +115,12 @@ export const buildAudioStreamUrl = (audio, { access = 'public' } = {}) => {
 
   const artistId = audio?.artist?._id || audio?.artist;
 
-  if (access === 'public' && !audio?.isPublic) return null;
+  // Some public list/search projections intentionally omit isPublic because the
+  // Mongo query already enforces it. Only an explicit false blocks issuance.
+  // The stream controller still reloads the record and re-checks current
+  // visibility on every Range request, so a public token can never open a
+  // private track after the creator unpublishes it.
+  if (access === 'public' && audio?.isPublic === false) return null;
   if (access === 'owner' && !artistId) return null;
 
   const { token, ttl } = createAudioStreamToken({
