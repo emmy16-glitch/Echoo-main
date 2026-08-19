@@ -27,17 +27,44 @@ const formatDuration = (seconds) => {
 
 const formatBytes = (bytes) => {
   const size = Number(bytes) || 0;
+  if (size >= 1024 * 1024 * 1024) return `${(size / (1024 ** 3)).toFixed(2)} GB`;
   if (size < 1024 * 1024) return `${Math.max(1, Math.round(size / 1024))} KB`;
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 };
 
-const formatBitrate = (bitsPerSecond) => {
-  const value = Number(bitsPerSecond) || 0;
-  return value > 0 ? `${Math.round(value / 1000)} kbps Opus` : 'High-quality Opus';
+const formatRecordingType = (recording) => {
+  if (recording?.lossless || recording?.mimeType === 'audio/wav') {
+    return 'PCM WAV';
+  }
+  if (String(recording?.mimeType || '').includes('ogg')) return 'Opus / OGG';
+  return 'Opus / WebM';
 };
 
-const safeFilename = (title, fallback) => {
-  const extension = String(fallback || '').toLowerCase().endsWith('.ogg') ? 'ogg' : 'webm';
+const formatRecordingQuality = (recording) => {
+  if (recording?.lossless || recording?.recordingFormat === 'pcm-wav') {
+    const sampleRate = Number(recording?.sampleRate) || 48000;
+    const bitDepth = Number(recording?.bitDepth) || 24;
+    const channels = Number(recording?.channels) || 2;
+    return `${(sampleRate / 1000).toFixed(sampleRate % 1000 ? 1 : 0)} kHz · ${bitDepth}-bit PCM · ${channels === 2 ? 'Stereo' : `${channels} ch`} · Lossless`;
+  }
+
+  const value = Number(
+    recording?.audioBitsPerSecond || recording?.targetAudioBitsPerSecond
+  ) || 0;
+  return value > 0
+    ? `${Math.round(value / 1000)} kbps Opus · fallback`
+    : 'Opus fallback';
+};
+
+const safeFilename = (title, recording) => {
+  const fallback = String(recording?.filename || '').toLowerCase();
+  const mimeType = String(recording?.mimeType || '').toLowerCase();
+  const extension =
+    fallback.endsWith('.wav') || mimeType === 'audio/wav'
+      ? 'wav'
+      : fallback.endsWith('.ogg') || mimeType.includes('ogg')
+        ? 'ogg'
+        : 'webm';
   const clean = String(title || 'Echoo live recording')
     .trim()
     .replace(/[^a-z0-9]+/gi, '-')
@@ -113,8 +140,8 @@ const BroadcastRecordingPrompt = () => {
     try {
       const file = new File(
         [recording.blob],
-        safeFilename(title, recording.filename),
-        { type: recording.mimeType || recording.blob.type || 'audio/webm' }
+        safeFilename(title, recording),
+        { type: recording.mimeType || recording.blob.type || 'audio/wav' }
       );
 
       await studioService.uploadAudio({
@@ -124,7 +151,11 @@ const BroadcastRecordingPrompt = () => {
           description ||
           `Recorded live on Echoo. Broadcast recording from ${new Date(recording.startedAt).toLocaleString()}.`,
         genre: 'Other',
-        tags: ['live-recording', 'broadcast'],
+        tags: [
+          'live-recording',
+          'broadcast',
+          recording.lossless ? 'lossless-master' : 'recording-fallback',
+        ],
         isPublic,
       });
 
@@ -155,7 +186,11 @@ const BroadcastRecordingPrompt = () => {
           <div>
             <span>LIVE SESSION ENDED</span>
             <h2 id="echoo-recording-decision-title">Keep this broadcast recording?</h2>
-            <p>The actual post-master studio mix was recorded locally while you were live.</p>
+            <p>
+              {recording.lossless
+                ? 'Echoo captured the actual post-master studio mix as a lossless PCM WAV master.'
+                : 'Lossless capture was unavailable, so Echoo used the high-quality Opus fallback for this session.'}
+            </p>
           </div>
         </header>
 
@@ -167,14 +202,20 @@ const BroadcastRecordingPrompt = () => {
           <dl>
             <div><dt>Length</dt><dd>{formatDuration(recording.durationSeconds)}</dd></div>
             <div><dt>Local file</dt><dd>{formatBytes(recording.blob.size)}</dd></div>
-            <div><dt>Format</dt><dd>{recording.mimeType?.includes('ogg') ? 'Opus / OGG' : 'Opus / WebM'}</dd></div>
-            <div><dt>Quality</dt><dd>{formatBitrate(recording.audioBitsPerSecond || recording.targetAudioBitsPerSecond)}</dd></div>
+            <div><dt>Format</dt><dd>{formatRecordingType(recording)}</dd></div>
+            <div><dt>Quality</dt><dd>{formatRecordingQuality(recording)}</dd></div>
           </dl>
         </div>
 
+        {recording.limitReached && (
+          <div className="echoo-recording-error">
+            This master reached the classic WAV file-size limit. Save this segment before recording another session.
+          </div>
+        )}
+
         {previewUrl && (
           <div className="echoo-recording-preview">
-            <span>Check the recording before you decide</span>
+            <span>Check the master before you decide</span>
             <audio src={previewUrl} controls preload="metadata" />
           </div>
         )}
@@ -189,7 +230,7 @@ const BroadcastRecordingPrompt = () => {
             <FaLock />
             <span>
               <strong>{savingMode === 'private' ? 'Saving...' : 'Save unpublished'}</strong>
-              <small>Keep it in Creator Audio. Listeners cannot see it.</small>
+              <small>Keep the master in Creator Audio. Listeners cannot see it.</small>
             </span>
           </button>
 
@@ -202,7 +243,7 @@ const BroadcastRecordingPrompt = () => {
             <FaGlobe />
             <span>
               <strong>{savingMode === 'publish' ? 'Publishing...' : 'Save & publish'}</strong>
-              <small>Save it locally and make it available to listeners.</small>
+              <small>Save the master locally and make this audio available to listeners.</small>
             </span>
           </button>
         </div>
@@ -213,8 +254,8 @@ const BroadcastRecordingPrompt = () => {
           <div className="echoo-recording-saved">
             <FaCheckCircle />
             {savedMode === 'publish'
-              ? 'Recording saved and published to listeners.'
-              : 'Recording saved privately in Creator Audio.'}
+              ? 'Lossless recording saved and published to listeners.'
+              : 'Lossless recording saved privately in Creator Audio.'}
           </div>
         )}
 
@@ -227,7 +268,9 @@ const BroadcastRecordingPrompt = () => {
           >
             <FaTrash /> Discard recording
           </button>
-          <span><FaCloudUploadAlt /> Local testing: files stay on this Echoo backend, not cloud storage.</span>
+          <span>
+            <FaCloudUploadAlt /> Local testing: WAV masters are large and stay on this Echoo backend, not cloud storage.
+          </span>
         </footer>
       </section>
     </div>

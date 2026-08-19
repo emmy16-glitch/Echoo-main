@@ -71,11 +71,13 @@ const upload = multer({
   storage,
   fileFilter,
   limits: {
-    // Local-first broadcast recordings can run for several hours. Keep enough
-    // headroom for an Opus/WebM studio recording during testing. Cloud storage,
-    // quotas and resumable uploads can replace this when online media storage
-    // is introduced.
-    fileSize: 256 * 1024 * 1024,
+    // Echoo's local-first post-live master is 48 kHz / 24-bit stereo PCM WAV.
+    // Uncompressed masters are intentionally much larger than Opus delivery
+    // files, so local testing needs substantially more room. This remains a
+    // temporary development ceiling until resumable object-storage uploads are
+    // introduced. Multer streams the multipart body to disk; it does not keep
+    // the entire uploaded file in backend memory.
+    fileSize: 2 * 1024 * 1024 * 1024,
     files: 2,
   },
 });
