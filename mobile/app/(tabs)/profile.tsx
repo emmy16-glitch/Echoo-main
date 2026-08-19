@@ -1,54 +1,258 @@
-import { Bell, LogOut, Settings, Shield, UserRound } from 'lucide-react-native';
-import { StyleSheet, Text, View } from 'react-native';
-import { AppTopBar, ListRow, MiniPlayer, Screen, Section } from '@/src/components/EchooMobile';
-import { colors, radius } from '@/src/theme/echooTheme';
+import { useFocusEffect } from '@react-navigation/native';
+import { Image } from 'expo-image';
+import { useRouter } from 'expo-router';
+import {
+  Bell,
+  ChevronRight,
+  Download,
+  Headphones,
+  LogOut,
+  MoonStar,
+  Settings,
+  Shield,
+  UserRound,
+} from 'lucide-react-native';
+import { useCallback, useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
-const profileItems = [
-  { title: 'Account', subtitle: 'Profile, username and avatar', icon: UserRound },
-  { title: 'Notifications', subtitle: 'Live and creator updates', icon: Bell },
-  { title: 'Settings', subtitle: 'Playback, privacy and app preferences', icon: Settings },
-  { title: 'Privacy', subtitle: 'Control your Echoo experience', icon: Shield },
-  { title: 'Log out', subtitle: 'Leave this device', icon: LogOut },
-];
+import {
+  ListenerAuthCard,
+  ListenerPageHeader,
+  ListenerSectionHeader,
+  ListenerTopBar,
+} from '@/src/components/ListenerV2';
+import {
+  EchooLibraryStats,
+  EchooUser,
+  getCurrentUser,
+  getLibraryStats,
+  hasEchooSession,
+  logoutEchoo,
+} from '@/src/services/echooApi';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import { EchooColors, getEchooColors } from '@/src/theme/echooTheme';
+
+const emptyStats: EchooLibraryStats = {
+  savedTracks: 0,
+  playlists: 0,
+  totalSaved: 0,
+  listeningHistory: 0,
+};
 
 export default function ProfileScreen() {
+  const router = useRouter();
+  const scheme = useColorScheme();
+  const palette = getEchooColors(scheme);
+  const styles = useMemo(() => createStyles(palette), [palette]);
+
+  const [signedIn, setSignedIn] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<EchooUser | null>(null);
+  const [stats, setStats] = useState<EchooLibraryStats>(emptyStats);
+  const [error, setError] = useState('');
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  const loadProfile = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    const activeSession = await hasEchooSession();
+    setSignedIn(activeSession);
+
+    if (!activeSession) {
+      setUser(null);
+      setStats(emptyStats);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const [nextUser, nextStats] = await Promise.all([
+        getCurrentUser(),
+        getLibraryStats().catch(() => emptyStats),
+      ]);
+      setUser(nextUser);
+      setStats(nextStats);
+      setSignedIn(true);
+    } catch (loadError: any) {
+      if (loadError?.code === 'AUTH_REQUIRED' || loadError?.code === 'SESSION_EXPIRED') {
+        setSignedIn(false);
+        setUser(null);
+      } else {
+        setError(loadError?.message || 'Could not load your Echoo account.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadProfile();
+    }, [loadProfile])
+  );
+
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    try {
+      await logoutEchoo();
+    } finally {
+      setLoggingOut(false);
+      setSignedIn(false);
+      setUser(null);
+      setStats(emptyStats);
+    }
+  };
+
+  const settingsRows = [
+    { title: 'Account', subtitle: 'Profile, username and account details', icon: UserRound },
+    { title: 'Notifications', subtitle: 'Live, creator and release alerts', icon: Bell },
+    { title: 'Appearance', subtitle: `Following your device: ${scheme === 'dark' ? 'Dark' : 'Light'}`, icon: MoonStar },
+    { title: 'Playback & downloads', subtitle: 'Audio quality, offline and player behavior', icon: Download },
+    { title: 'Privacy & security', subtitle: 'Session, privacy and account controls', icon: Shield },
+  ];
+
   return (
-    <Screen>
-      <AppTopBar title="Profile" subtitle="Your Echoo" />
+    <SafeAreaView style={styles.safeArea}>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <ListenerTopBar />
+        <ListenerPageHeader
+          eyebrow="LISTENER"
+          title="Profile"
+          subtitle="Your Echoo identity, preferences and account controls in one place."
+        />
 
-      <View style={styles.profileCard}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>E</Text>
-        </View>
-        <View style={styles.profileCopy}>
-          <Text style={styles.name}>Echoo Listener</Text>
-          <Text style={styles.handle}>Switch between listening and creator mode</Text>
-        </View>
-      </View>
+        {loading ? (
+          <View style={styles.loadingState}>
+            <ActivityIndicator color={palette.blue} />
+            <Text style={styles.loadingText}>Loading profile...</Text>
+          </View>
+        ) : null}
 
-      <Section title="Account">
-        {profileItems.map((item) => {
-          const Icon = item.icon;
-          return (
-            <View key={item.title} style={styles.item}>
-              <Icon color={item.title === 'Log out' ? colors.red : colors.blue} size={20} />
-              <ListRow title={item.title} subtitle={item.subtitle} />
+        {!loading && !signedIn ? (
+          <>
+            <View style={styles.guestHero}>
+              <View style={styles.guestAvatar}>
+                <Headphones color="#FFFFFF" size={31} />
+              </View>
+              <Text style={styles.guestTitle}>Listening as a guest</Text>
+              <Text style={styles.guestText}>
+                Public discovery works without an account. Sign in when you want Echoo to remember you.
+              </Text>
             </View>
-          );
-        })}
-      </Section>
+            <ListenerAuthCard onPress={() => router.push('/auth')} />
+          </>
+        ) : null}
 
-      <MiniPlayer />
-    </Screen>
+        {!loading && signedIn && user ? (
+          <>
+            <View style={styles.profileCard}>
+              <View style={styles.avatar}>
+                {user.avatar ? (
+                  <Image source={{ uri: user.avatar }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
+                ) : (
+                  <Text style={styles.avatarText}>{(user.displayName || user.username || 'E').charAt(0).toUpperCase()}</Text>
+                )}
+              </View>
+              <View style={styles.profileCopy}>
+                <Text style={styles.name}>{user.displayName || user.username}</Text>
+                <Text style={styles.handle}>@{user.username}</Text>
+                {user.bio ? <Text style={styles.bio} numberOfLines={2}>{user.bio}</Text> : null}
+              </View>
+            </View>
+
+            <View style={styles.statsRow}>
+              <View style={styles.statCard}>
+                <Text style={styles.statValue}>{stats.savedTracks}</Text>
+                <Text style={styles.statLabel}>Saved audio</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Text style={styles.statValue}>{stats.playlists}</Text>
+                <Text style={styles.statLabel}>Playlists</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Text style={styles.statValue}>{stats.listeningHistory}</Text>
+                <Text style={styles.statLabel}>History</Text>
+              </View>
+            </View>
+
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          </>
+        ) : null}
+
+        <ListenerSectionHeader title="Settings" />
+        <View style={styles.settingsGroup}>
+          {settingsRows.map(({ title, subtitle, icon: Icon }) => (
+            <Pressable key={title} style={styles.settingRow} onPress={() => router.push('/settings')}>
+              <View style={styles.settingIcon}>
+                <Icon color={palette.blue} size={20} />
+              </View>
+              <View style={styles.settingCopy}>
+                <Text style={styles.settingTitle}>{title}</Text>
+                <Text style={styles.settingSubtitle}>{subtitle}</Text>
+              </View>
+              <ChevronRight color={palette.faint} size={18} />
+            </Pressable>
+          ))}
+        </View>
+
+        <View style={styles.infoCard}>
+          <Settings color={palette.blue} size={20} />
+          <View style={styles.infoCopy}>
+            <Text style={styles.infoTitle}>Listener-first mobile</Text>
+            <Text style={styles.infoText}>Creator tools are intentionally kept outside this listener navigation while the listener experience is being completed.</Text>
+          </View>
+        </View>
+
+        {signedIn ? (
+          <Pressable style={styles.logoutButton} onPress={handleLogout} disabled={loggingOut}>
+            {loggingOut ? <ActivityIndicator color={palette.red} /> : <LogOut color={palette.red} size={20} />}
+            <Text style={styles.logoutText}>{loggingOut ? 'Signing out...' : 'Sign out'}</Text>
+          </Pressable>
+        ) : null}
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  profileCard: { backgroundColor: colors.card, borderRadius: 22, padding: 16, borderWidth: 1, borderColor: colors.line, flexDirection: 'row', alignItems: 'center', gap: 14 },
-  avatar: { width: 72, height: 72, borderRadius: 22, backgroundColor: colors.blue, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { color: '#fff', fontSize: 30, fontWeight: '900' },
-  profileCopy: { flex: 1, gap: 4 },
-  name: { color: colors.ink, fontSize: 21, fontWeight: '900' },
-  handle: { color: colors.muted, fontSize: 13, lineHeight: 18 },
-  item: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.card, borderRadius: radius.md, paddingLeft: 12 },
+const createStyles = (palette: EchooColors) => StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: palette.background },
+  content: { paddingHorizontal: 18, paddingTop: 8, paddingBottom: 120 },
+  loadingState: { minHeight: 150, alignItems: 'center', justifyContent: 'center', gap: 10 },
+  loadingText: { color: palette.muted, fontSize: 12.5, fontWeight: '700' },
+  guestHero: { backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line, borderRadius: 22, padding: 20, alignItems: 'center', marginBottom: 12 },
+  guestAvatar: { width: 70, height: 70, borderRadius: 23, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
+  guestTitle: { color: palette.ink, fontSize: 19, fontWeight: '900', marginTop: 13 },
+  guestText: { color: palette.muted, fontSize: 12.5, lineHeight: 19, textAlign: 'center', marginTop: 5, maxWidth: 315 },
+  profileCard: { backgroundColor: palette.surface, borderRadius: 22, borderWidth: 1, borderColor: palette.line, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 14 },
+  avatar: { width: 76, height: 76, borderRadius: 24, backgroundColor: palette.blue, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
+  avatarText: { color: '#FFFFFF', fontSize: 31, fontWeight: '900' },
+  profileCopy: { flex: 1 },
+  name: { color: palette.ink, fontSize: 20, fontWeight: '900' },
+  handle: { color: palette.blue, fontSize: 12, fontWeight: '800', marginTop: 2 },
+  bio: { color: palette.muted, fontSize: 11.5, lineHeight: 17, marginTop: 5 },
+  statsRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  statCard: { flex: 1, minHeight: 78, backgroundColor: palette.surface, borderRadius: 16, borderWidth: 1, borderColor: palette.line, padding: 11, alignItems: 'center', justifyContent: 'center' },
+  statValue: { color: palette.ink, fontSize: 19, fontWeight: '900' },
+  statLabel: { color: palette.muted, fontSize: 10.5, fontWeight: '700', marginTop: 2, textAlign: 'center' },
+  errorText: { color: palette.red, fontSize: 11.5, marginTop: 8 },
+  settingsGroup: { backgroundColor: palette.surface, borderRadius: 20, borderWidth: 1, borderColor: palette.line, overflow: 'hidden' },
+  settingRow: { minHeight: 70, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 13, borderBottomWidth: 1, borderBottomColor: palette.line },
+  settingIcon: { width: 40, height: 40, borderRadius: 13, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
+  settingCopy: { flex: 1, paddingHorizontal: 11 },
+  settingTitle: { color: palette.ink, fontSize: 13.5, fontWeight: '900' },
+  settingSubtitle: { color: palette.muted, fontSize: 10.8, lineHeight: 15, marginTop: 2 },
+  infoCard: { marginTop: 14, backgroundColor: palette.surface, borderRadius: 17, borderWidth: 1, borderColor: palette.line, padding: 14, flexDirection: 'row', alignItems: 'flex-start', gap: 11 },
+  infoCopy: { flex: 1 },
+  infoTitle: { color: palette.ink, fontSize: 13, fontWeight: '900' },
+  infoText: { color: palette.muted, fontSize: 11, lineHeight: 16, marginTop: 3 },
+  logoutButton: { minHeight: 50, marginTop: 18, borderRadius: 15, borderWidth: 1, borderColor: `${palette.red}55`, backgroundColor: `${palette.red}0D`, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  logoutText: { color: palette.red, fontSize: 13.5, fontWeight: '900' },
 });
