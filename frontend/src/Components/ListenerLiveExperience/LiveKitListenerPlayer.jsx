@@ -58,6 +58,22 @@ const LiveKitListenerPlayer = ({
       });
     };
 
+    const attachAudioTrack = (track) => {
+      if (disposed || track.kind !== Track.Kind.Audio) return;
+
+      const element = track.attach();
+      element.autoplay = true;
+      element.controls = false;
+      element.setAttribute('playsinline', '');
+      audioHostRef.current?.appendChild(element);
+
+      element.play?.().catch(() => {
+        if (!disposed) setNeedsAudioStart(true);
+      });
+
+      setStatus('listening');
+    };
+
     const connect = async () => {
       setStatus('connecting');
       setError('');
@@ -93,16 +109,7 @@ const LiveKitListenerPlayer = ({
 
       roomRef.current = room;
 
-      room.on(RoomEvent.TrackSubscribed, (track) => {
-        if (disposed || track.kind !== Track.Kind.Audio) return;
-
-        const element = track.attach();
-        element.autoplay = true;
-        element.controls = false;
-        element.setAttribute('playsinline', '');
-        audioHostRef.current?.appendChild(element);
-        setStatus('listening');
-      });
+      room.on(RoomEvent.TrackSubscribed, attachAudioTrack);
 
       room.on(RoomEvent.TrackUnsubscribed, (track) => {
         try {
@@ -141,6 +148,18 @@ const LiveKitListenerPlayer = ({
 
       setStatus('connected');
       setNeedsAudioStart(!room.canPlaybackAudio);
+
+      room.remoteParticipants.forEach((participant) => {
+        participant.trackPublications.forEach((publication) => {
+          if (
+            publication.kind === Track.Kind.Audio &&
+            publication.isSubscribed &&
+            publication.track
+          ) {
+            attachAudioTrack(publication.track);
+          }
+        });
+      });
     };
 
     connect().catch((connectError) => {

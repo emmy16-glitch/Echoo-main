@@ -58,6 +58,14 @@ const formatTimer = (seconds) => {
   return `${pad(hours)}:${pad(minutes)}:${pad(secs)}`;
 };
 
+const isMissingBroadcastError = (error) =>
+  error?.status === 404 &&
+  (
+    error?.code === 'NOT_FOUND' ||
+    error?.data?.error?.code === 'NOT_FOUND' ||
+    /broadcast not found/i.test(error?.message || '')
+  );
+
 const CreatorLiveConnectedWorkspace = ({
   studioName = 'Creator',
   initialBroadcastId = '',
@@ -156,8 +164,13 @@ const CreatorLiveConnectedWorkspace = ({
           );
 
           if (!prepared) {
-            const response = await batch3Service.getBroadcast(preparedBroadcastId);
-            prepared = response?.data || null;
+            try {
+              const response = await batch3Service.getBroadcast(preparedBroadcastId);
+              prepared = response?.data || null;
+            } catch (preparedError) {
+              if (!isMissingBroadcastError(preparedError)) throw preparedError;
+              prepared = null;
+            }
           }
 
           if (prepared && ['scheduled', 'starting', 'failed'].includes(prepared.status)) {
@@ -263,27 +276,49 @@ const CreatorLiveConnectedWorkspace = ({
 
   const prepareImmediateBroadcast = async () => {
     if (savedBroadcast?.id && savedBroadcast.status !== 'live') {
-      const response = await batch2Service.updateBroadcast(savedBroadcast.id, {
-        title: title.trim(),
-        description: description.trim(),
-      });
-      return response?.data || savedBroadcast;
+      try {
+        const response = await batch2Service.updateBroadcast(savedBroadcast.id, {
+          title: title.trim(),
+          description: description.trim(),
+        });
+        return response?.data || savedBroadcast;
+      } catch (updateError) {
+        if (!isMissingBroadcastError(updateError)) throw updateError;
+
+        setSavedBroadcast(null);
+        setBroadcasts((current) =>
+          current.filter((item) => String(item.id) !== String(savedBroadcast.id))
+        );
+        clearPreparedBroadcast();
+      }
     }
 
     const start = new Date(Date.now() + 10 * 60 * 1000);
     const end = new Date(start.getTime() + 4 * 60 * 60 * 1000);
+    const writableStation =
+      stations.find((station) => String(station.id) === String(stationId)) ||
+      stations[0] ||
+      null;
+
+    if (!writableStation?.id) {
+      throw new Error('Create a station before starting a broadcast.');
+    }
+
+    if (String(writableStation.id) !== String(stationId)) {
+      setStationId(writableStation.id);
+    }
 
     const response = await batch2Service.createBroadcast({
       title: title.trim(),
       description: description.trim(),
-      stationId,
+      stationId: writableStation.id,
       startTime: start.toISOString(),
       endTime: end.toISOString(),
       type: 'live',
       isRecurring: false,
       isPublic: true,
       tags: [],
-      coverArt: selectedStation?.coverArt || null,
+      coverArt: writableStation.coverArt || null,
     });
 
     if (!response?.data?.id) throw new Error('Could not prepare this broadcast.');

@@ -75,7 +75,7 @@ textarea {
 }
 
 #root .echoo-listener-shell .layout-sidebar {
-  width: var(--echoo-product-sidebar) !important;
+ 
   bottom: var(--echoo-product-player) !important;
   padding: 20px 14px 16px !important;
   border-right: 1px solid var(--echoo-product-line) !important;
@@ -289,7 +289,6 @@ textarea {
 }
 
 #root .studio-sidebar {
-  width: var(--echoo-product-sidebar) !important;
   padding: 20px 14px 16px !important;
   border-right: 1px solid var(--echoo-product-line) !important;
   background: #fff !important;
