@@ -2,7 +2,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { BellRing, Headphones, Heart, Radio, Users } from 'lucide-react-native';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -47,7 +47,7 @@ export default function StationScreen() {
   const [followBusy, setFollowBusy] = useState(false);
   const [error, setError] = useState('');
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!stationId) {
       setError('Station ID is missing.');
       setLoading(false);
@@ -69,7 +69,7 @@ export default function StationScreen() {
 
       if (session) {
         const followed = await getFollowedStations().catch(() => []);
-        setFollowing(followed.some((item) => item.id === stationId));
+        setFollowing(followed.some((item: EchooStation) => item.id === stationId));
       } else {
         setFollowing(false);
       }
@@ -78,11 +78,11 @@ export default function StationScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [stationId]);
 
   useEffect(() => {
     load();
-  }, [stationId]);
+  }, [load]);
 
   const toggleFollow = async () => {
     if (!stationId) return;
