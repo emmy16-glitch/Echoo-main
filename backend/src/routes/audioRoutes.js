@@ -24,6 +24,18 @@ const COVER_UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'audio-covers');
   if (!fs.existsSync(directory)) fs.mkdirSync(directory, { recursive: true });
 });
 
+const MAX_CLASSIC_WAV_BYTES = 0xffffffff;
+const configuredUploadLimit = Number.parseInt(
+  process.env.AUDIO_UPLOAD_MAX_BYTES || '',
+  10
+);
+const MAX_LOCAL_AUDIO_UPLOAD_BYTES = Number.isFinite(configuredUploadLimit)
+  ? Math.max(
+      1024 * 1024,
+      Math.min(MAX_CLASSIC_WAV_BYTES, configuredUploadLimit)
+    )
+  : MAX_CLASSIC_WAV_BYTES;
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, file.fieldname === 'cover' ? COVER_UPLOAD_DIR : AUDIO_UPLOAD_DIR);
@@ -75,13 +87,13 @@ const upload = multer({
   storage,
   fileFilter,
   limits: {
-    // Echoo's local-first post-live master is 48 kHz / 24-bit stereo PCM WAV.
-    // Multer streams the multipart body to disk; it does not keep the entire
-    // uploaded file in backend memory. This development ceiling should be
-    // replaced by resumable object-storage uploads before large-scale release.
-    fileSize: 2 * 1024 * 1024 * 1024,
+    // A 4-hour 48 kHz / 24-bit stereo PCM WAV is ~3.86 GiB. Keep the local
+    // development path consistent with Echoo's four-hour scheduling option and
+    // classic RIFF/WAV's 4 GiB ceiling. Multer streams bytes directly to disk.
+    fileSize: MAX_LOCAL_AUDIO_UPLOAD_BYTES,
     files: 2,
     fields: 20,
+    fieldSize: 64 * 1024,
   },
 });
 
@@ -158,9 +170,96 @@ const removeUploadedFiles = async (req) => {
   );
 };
 
+const readFileHeader = async (filePath, length = 16) => {
+  const handle = await fs.promises.open(filePath, 'r');
+  try {
+    const buffer = Buffer.alloc(length);
+    const { bytesRead } = await handle.read(buffer, 0, length, 0);
+    return buffer.subarray(0, bytesRead);
+  } finally {
+    await handle.close();
+  }
+};
+
+const ascii = (buffer, start, end) => buffer.toString('ascii', start, end);
+
+export const matchesUploadedFileSignature = (file, header) => {
+  const extension = path.extname(file?.originalname || '').toLowerCase();
+  if (!header?.length) return false;
+
+  switch (extension) {
+    case '.wav':
+      return header.length >= 12 &&
+        ascii(header, 0, 4) === 'RIFF' &&
+        ascii(header, 8, 12) === 'WAVE';
+    case '.flac':
+      return header.length >= 4 && ascii(header, 0, 4) === 'fLaC';
+    case '.ogg':
+    case '.oga':
+    case '.opus':
+      return header.length >= 4 && ascii(header, 0, 4) === 'OggS';
+    case '.webm':
+      return header.length >= 4 &&
+        header[0] === 0x1a &&
+        header[1] === 0x45 &&
+        header[2] === 0xdf &&
+        header[3] === 0xa3;
+    case '.mp3':
+      return (
+        (header.length >= 3 && ascii(header, 0, 3) === 'ID3') ||
+        (header.length >= 2 && header[0] === 0xff && (header[1] & 0xe0) === 0xe0)
+      );
+    case '.aac':
+      return header.length >= 2 &&
+        header[0] === 0xff &&
+        (header[1] & 0xf0) === 0xf0;
+    case '.m4a':
+      return header.length >= 12 && ascii(header, 4, 8) === 'ftyp';
+    case '.jpg':
+    case '.jpeg':
+      return header.length >= 3 &&
+        header[0] === 0xff && header[1] === 0xd8 && header[2] === 0xff;
+    case '.png':
+      return header.length >= 8 &&
+        header.subarray(0, 8).equals(
+          Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+        );
+    case '.webp':
+      return header.length >= 12 &&
+        ascii(header, 0, 4) === 'RIFF' &&
+        ascii(header, 8, 12) === 'WEBP';
+    default:
+      return false;
+  }
+};
+
+const validateUploadedFileSignatures = async (req, res, next) => {
+  try {
+    for (const file of uploadedFiles(req)) {
+      const header = await readFileHeader(file.path, 16);
+      if (!matchesUploadedFileSignature(file, header)) {
+        const cover = file.fieldname === 'cover';
+        const error = new Error(
+          cover
+            ? 'The uploaded cover does not match its image file type.'
+            : 'The uploaded audio bytes do not match the selected audio file type.'
+        );
+        error.code = cover
+          ? 'INVALID_COVER_SIGNATURE'
+          : 'INVALID_AUDIO_SIGNATURE';
+        error.status = 415;
+        throw error;
+      }
+    }
+    return next();
+  } catch (error) {
+    return next(error);
+  }
+};
+
 // Multer writes to disk before the controller creates the Mongo record. If the
-// multipart parser or database/controller fails, delete those temporary files
-// so repeated failed uploads cannot silently fill the backend disk.
+// multipart parser, signature validation or database/controller fails, delete
+// those temporary files so repeated failed uploads cannot fill the backend disk.
 const cleanupUploadError = async (err, req, res, next) => {
   await removeUploadedFiles(req);
 
@@ -170,7 +269,7 @@ const cleanupUploadError = async (err, req, res, next) => {
       error: {
         code: tooLarge ? 'AUDIO_FILE_TOO_LARGE' : err.code || 'UPLOAD_ERROR',
         message: tooLarge
-          ? 'The audio file exceeds Echoo’s current local upload limit.'
+          ? 'The audio file exceeds Echoo’s configured local upload limit.'
           : err.message || 'Invalid audio upload.',
       },
     });
@@ -178,7 +277,9 @@ const cleanupUploadError = async (err, req, res, next) => {
 
   if (
     err?.code === 'UNSUPPORTED_AUDIO_FILE' ||
-    err?.code === 'UNSUPPORTED_COVER_IMAGE'
+    err?.code === 'UNSUPPORTED_COVER_IMAGE' ||
+    err?.code === 'INVALID_AUDIO_SIGNATURE' ||
+    err?.code === 'INVALID_COVER_SIGNATURE'
   ) {
     return res.status(err.status || 415).json({
       error: { code: err.code, message: err.message },
@@ -199,6 +300,7 @@ router.post(
     { name: 'audio', maxCount: 1 },
     { name: 'cover', maxCount: 1 },
   ]),
+  validateUploadedFileSignatures,
   uploadAudio,
   cleanupUploadError
 );
