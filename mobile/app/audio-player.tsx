@@ -23,6 +23,7 @@ import {
 
 import { ListenerBackHeader } from '@/src/components/ListenerV2';
 import {
+  EchooAudio,
   getSavedAudio,
   hasEchooSession,
   saveAudio,
@@ -71,7 +72,7 @@ export default function AudioPlayerScreen() {
       if (session && audioId) {
         getSavedAudio()
           .then((tracks) => {
-            if (active) setSaved(tracks.some((track) => track.id === audioId));
+            if (active) setSaved(tracks.some((track: EchooAudio) => track.id === audioId));
           })
           .catch(() => undefined);
       }
@@ -237,7 +238,7 @@ export default function AudioPlayerScreen() {
         <View style={styles.infoCard}>
           <Text style={styles.infoTitle}>Published audio</Text>
           <Text style={styles.infoText}>
-            Echoo streams the creator's published media URL directly. Saving this item adds it to your account library when you are signed in.
+            {"Echoo streams the creator's published media URL directly. Saving this item adds it to your account library when you are signed in."}
           </Text>
         </View>
       </View>
