@@ -32,6 +32,7 @@ import {
   subscribeEchooMixer,
   toggleMasterMute,
   toggleMixerChannelMute,
+  toggleMixerChannelSolo,
 } from '../../services/echooMixerService';
 import {
   BROADCAST_CAPTURE_PROFILES,
@@ -143,8 +144,7 @@ const CreatorAudioMixer = ({ compact = false, onStateChange }) => {
   useEffect(() =>
     subscribeEchooMixer((next) => {
       // The mixer itself needs fast meter updates. The parent Broadcast Studio
-      // does not. Only notify the parent when connection/control state changes
-      // so live chat, scheduling and the whole page are not re-rendered ~60fps.
+      // does not. Only notify the parent when connection/control state changes.
       setMixer(next);
       const signature = parentStateSignature(next);
       if (signature !== parentSignatureRef.current) {
@@ -292,9 +292,6 @@ const CreatorAudioMixer = ({ compact = false, onStateChange }) => {
     }
   };
 
-  // A host mic can also be connected by the page-level Test microphone action.
-  // Apply the selected quality profile IN PLACE. Never reopen a connected input:
-  // doing that during a live broadcast can create an audible gap.
   useEffect(() => {
     let cancelled = false;
 
@@ -315,7 +312,6 @@ const CreatorAudioMixer = ({ compact = false, onStateChange }) => {
 
     applyToExisting();
     return () => { cancelled = true; };
-    // applyMicQuality intentionally reads the current profile/summary refs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [captureProfile, channels.host?.connected, channels.guest?.connected]);
 
@@ -346,6 +342,24 @@ const CreatorAudioMixer = ({ compact = false, onStateChange }) => {
       await setMonitorEnabled(!monitoring.enabled);
     } catch (monitorError) {
       setError(monitorError?.message || 'Could not start studio monitoring.');
+    } finally {
+      setMonitorWorking(false);
+    }
+  };
+
+  const handleListenOnly = async (channelId) => {
+    const channel = channels[channelId];
+    if (!channel?.connected) return;
+
+    try {
+      setError('');
+      if (!monitoring.enabled) {
+        setMonitorWorking(true);
+        await setMonitorEnabled(true);
+      }
+      toggleMixerChannelSolo(channelId);
+    } catch (monitorError) {
+      setError(monitorError?.message || 'Could not start headphone monitoring.');
     } finally {
       setMonitorWorking(false);
     }
@@ -384,6 +398,7 @@ const CreatorAudioMixer = ({ compact = false, onStateChange }) => {
       deviceId: '',
       gain: 1,
       muted: false,
+      solo: false,
       level: 0,
       rmsDb: ECHOO_MIXER_LIMITS.minDb,
       peakDb: ECHOO_MIXER_LIMITS.minDb,
@@ -468,10 +483,21 @@ const CreatorAudioMixer = ({ compact = false, onStateChange }) => {
           </button>
           <button
             type="button"
-            className="primary"
+            className={`listen-only ${channel.solo ? 'active' : ''}`}
+            onClick={() => handleListenOnly(channelId)}
+            disabled={!channel.connected || monitorWorking}
+            aria-pressed={Boolean(channel.solo)}
+            title="Headphones only — this never changes the audience mix"
+          >
+            <FaHeadphones /> {channel.solo ? 'Listening' : 'Listen only'}
+          </button>
+          <button
+            type="button"
+            className="primary source-connect"
             disabled={isWorking || workingChannel === 'profile'}
             onClick={() => {
               if (channel.connected) {
+                if (channel.solo) toggleMixerChannelSolo(channelId);
                 disconnectMixerChannel(channelId);
                 return;
               }

@@ -1,26 +1,94 @@
+import mongoose from 'mongoose';
 import PlayerQueue from '../models/PlayerQueue.js';
-import Audio from '../models/Audio.js';
-import User from '../models/User.js';
+import {
+  findAccessibleAudio,
+  isAudioAccessibleToUser,
+} from '../services/audioAccess.js';
+
+const QUEUE_TRACK_FIELDS =
+  'title duration artist genre fileUrl playCount likeCount isPublic isDeleted';
+
+const safeIndex = (value) => Number.parseInt(value, 10);
+
+const invalidTrackId = (res) =>
+  res.status(400).json({
+    error: { code: 'INVALID_TRACK_ID', message: 'Invalid track ID' },
+  });
+
+const formatTrack = (track) => track ? {
+  id: track._id,
+  title: track.title,
+  duration: track.duration,
+  artist: track.artist,
+  genre: track.genre,
+  fileUrl: track.fileUrl,
+  playCount: track.playCount,
+  likeCount: track.likeCount,
+} : null;
+
+const loadQueue = (userId, { populate = false } = {}) => {
+  let query = PlayerQueue.findOne({ userId, isActive: true });
+  if (populate) {
+    query = query.populate('tracks.trackId', QUEUE_TRACK_FIELDS);
+  }
+  return query;
+};
+
+const findNextAccessible = async (queue, userId, direction) => {
+  const length = queue.tracks.length;
+  if (!length) return null;
+
+  let index = queue.currentIndex;
+  let inspected = 0;
+
+  while (inspected < length) {
+    index += direction;
+
+    if (index >= length) {
+      if (direction > 0 && queue.repeatMode === 'all') index = 0;
+      else return null;
+    }
+    if (index < 0) {
+      if (direction < 0 && queue.repeatMode === 'all') index = length - 1;
+      else return null;
+    }
+
+    inspected += 1;
+    const ref = queue.tracks[index]?.trackId;
+    if (!ref) continue;
+
+    const track = await findAccessibleAudio(ref, userId, QUEUE_TRACK_FIELDS);
+    if (track) return { index, track };
+  }
+
+  return null;
+};
 
 // Get current queue
 export async function getQueue(req, res, next) {
   try {
     const userId = req.userId;
 
-    let queue = await PlayerQueue.findOne({ userId, isActive: true })
-      .populate('tracks.trackId', 'title duration artist genre fileUrl playCount likeCount');
+    let queue = await loadQueue(userId, { populate: true });
 
     if (!queue) {
-      // Create empty queue
       queue = new PlayerQueue({ userId });
       await queue.save();
+      await queue.populate('tracks.trackId', QUEUE_TRACK_FIELDS);
     }
 
-    // Get current track
-    const currentTrack = queue.tracks[queue.currentIndex] || null;
+    const visibleTracks = queue.tracks
+      .map((entry, originalIndex) => ({ entry, originalIndex }))
+      .filter(({ entry }) => isAudioAccessibleToUser(entry.trackId, userId));
 
-    // Get next track
-    const nextTrack = queue.tracks[queue.currentIndex + 1] || null;
+    const currentEntry = queue.tracks[queue.currentIndex] || null;
+    const currentTrack = isAudioAccessibleToUser(currentEntry?.trackId, userId)
+      ? currentEntry
+      : null;
+
+    const nextVisible = visibleTracks.find(
+      ({ originalIndex }) => originalIndex > queue.currentIndex
+    )?.entry || null;
 
     return res.status(200).json({
       data: {
@@ -30,30 +98,17 @@ export async function getQueue(req, res, next) {
           currentIndex: queue.currentIndex,
           shuffle: queue.shuffle,
           repeatMode: queue.repeatMode,
-          tracks: queue.tracks.map((t, index) => ({
-            id: t.trackId?._id,
-            title: t.trackId?.title,
-            duration: t.trackId?.duration,
-            artist: t.trackId?.artist,
-            addedAt: t.addedAt,
-            isCurrent: index === queue.currentIndex,
+          tracks: visibleTracks.map(({ entry, originalIndex }) => ({
+            id: entry.trackId?._id,
+            title: entry.trackId?.title,
+            duration: entry.trackId?.duration,
+            artist: entry.trackId?.artist,
+            addedAt: entry.addedAt,
+            isCurrent: originalIndex === queue.currentIndex,
           })),
         },
-        currentTrack: currentTrack ? {
-          id: currentTrack.trackId?._id,
-          title: currentTrack.trackId?.title,
-          duration: currentTrack.trackId?.duration,
-          artist: currentTrack.trackId?.artist,
-          fileUrl: currentTrack.trackId?.fileUrl,
-          playCount: currentTrack.trackId?.playCount,
-          likeCount: currentTrack.trackId?.likeCount,
-        } : null,
-        nextTrack: nextTrack ? {
-          id: nextTrack.trackId?._id,
-          title: nextTrack.trackId?.title,
-          duration: nextTrack.trackId?.duration,
-          artist: nextTrack.trackId?.artist,
-        } : null,
+        currentTrack: currentTrack ? formatTrack(currentTrack.trackId) : null,
+        nextTrack: nextVisible ? formatTrack(nextVisible.trackId) : null,
       },
       timestamp: new Date().toISOString()
     });
@@ -74,19 +129,17 @@ export async function addToQueue(req, res, next) {
         error: { code: 'VALIDATION_ERROR', message: 'Track ID is required' }
       });
     }
+    if (!mongoose.isValidObjectId(trackId)) return invalidTrackId(res);
 
-    // Check if track exists
-    const track = await Audio.findById(trackId);
+    const track = await findAccessibleAudio(trackId, userId, '_id');
     if (!track) {
       return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Track not found' }
+        error: { code: 'NOT_FOUND', message: 'Track is unavailable' }
       });
     }
 
-    let queue = await PlayerQueue.findOne({ userId, isActive: true });
-    if (!queue) {
-      queue = new PlayerQueue({ userId });
-    }
+    let queue = await loadQueue(userId);
+    if (!queue) queue = new PlayerQueue({ userId });
 
     const newTrack = {
       trackId,
@@ -94,16 +147,15 @@ export async function addToQueue(req, res, next) {
     };
 
     if (position === 'next' && queue.tracks.length > 0) {
-      // Add after current track
-      const insertIndex = queue.currentIndex + 1;
+      const insertIndex = Math.min(queue.tracks.length, queue.currentIndex + 1);
       queue.tracks.splice(insertIndex, 0, newTrack);
     } else if (position === 'now') {
-      // Add as next and shift current index
-      queue.tracks.splice(queue.currentIndex + 1, 0, newTrack);
-      queue.currentIndex += 1;
+      const insertIndex = Math.min(queue.tracks.length, queue.currentIndex + 1);
+      queue.tracks.splice(insertIndex, 0, newTrack);
+      queue.currentIndex = insertIndex;
     } else {
-      // Add to end
       queue.tracks.push(newTrack);
+      if (queue.tracks.length === 1) queue.currentIndex = 0;
     }
 
     await queue.save();
@@ -126,25 +178,29 @@ export async function addToQueue(req, res, next) {
 export async function removeFromQueue(req, res, next) {
   try {
     const userId = req.userId;
-    const { trackIndex } = req.params;
+    const index = safeIndex(req.params.trackIndex);
 
-    const queue = await PlayerQueue.findOne({ userId, isActive: true });
+    const queue = await loadQueue(userId);
     if (!queue) {
       return res.status(404).json({
         error: { code: 'NOT_FOUND', message: 'Queue not found' }
       });
     }
 
-    const index = parseInt(trackIndex);
-    if (index < 0 || index >= queue.tracks.length) {
+    if (!Number.isInteger(index) || index < 0 || index >= queue.tracks.length) {
       return res.status(400).json({
         error: { code: 'INVALID_INDEX', message: 'Invalid track index' }
       });
     }
 
     queue.tracks.splice(index, 1);
-    if (queue.currentIndex >= queue.tracks.length) {
-      queue.currentIndex = Math.max(0, queue.tracks.length - 1);
+
+    if (!queue.tracks.length) {
+      queue.currentIndex = 0;
+    } else if (index < queue.currentIndex) {
+      queue.currentIndex -= 1;
+    } else if (queue.currentIndex >= queue.tracks.length) {
+      queue.currentIndex = queue.tracks.length - 1;
     }
 
     await queue.save();
@@ -157,7 +213,7 @@ export async function removeFromQueue(req, res, next) {
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    console.error('Remove from queue error:', error);
+    console.error('Remove track error:', error);
     next(error);
   }
 }
@@ -166,19 +222,21 @@ export async function removeFromQueue(req, res, next) {
 export async function reorderQueue(req, res, next) {
   try {
     const userId = req.userId;
-    const { startIndex, endIndex } = req.body;
+    const start = safeIndex(req.body.startIndex);
+    const end = safeIndex(req.body.endIndex);
 
-    const queue = await PlayerQueue.findOne({ userId, isActive: true });
+    const queue = await loadQueue(userId);
     if (!queue) {
       return res.status(404).json({
         error: { code: 'NOT_FOUND', message: 'Queue not found' }
       });
     }
 
-    const start = parseInt(startIndex);
-    const end = parseInt(endIndex);
-
-    if (start < 0 || start >= queue.tracks.length || end < 0 || end >= queue.tracks.length) {
+    if (
+      !Number.isInteger(start) || !Number.isInteger(end) ||
+      start < 0 || start >= queue.tracks.length ||
+      end < 0 || end >= queue.tracks.length
+    ) {
       return res.status(400).json({
         error: { code: 'INVALID_INDEX', message: 'Invalid indices' }
       });
@@ -200,7 +258,7 @@ export async function reorderQueue(req, res, next) {
     return res.status(200).json({
       data: {
         message: 'Queue reordered successfully',
-        queue: queue,
+        queue,
       },
       timestamp: new Date().toISOString()
     });
@@ -210,41 +268,30 @@ export async function reorderQueue(req, res, next) {
   }
 }
 
-// Play next track
 export async function playNext(req, res, next) {
   try {
     const userId = req.userId;
+    const queue = await loadQueue(userId);
 
-    const queue = await PlayerQueue.findOne({ userId, isActive: true });
     if (!queue || queue.tracks.length === 0) {
       return res.status(404).json({
         error: { code: 'NO_TRACKS', message: 'No tracks in queue' }
       });
     }
 
-    if (queue.currentIndex < queue.tracks.length - 1) {
-      queue.currentIndex += 1;
-    } else if (queue.repeatMode === 'all') {
-      queue.currentIndex = 0;
-    } else {
+    const nextTrack = await findNextAccessible(queue, userId, 1);
+    if (!nextTrack) {
       return res.status(400).json({
-        error: { code: 'END_OF_QUEUE', message: 'End of queue reached' }
+        error: { code: 'END_OF_QUEUE', message: 'No more available tracks in the queue' }
       });
     }
 
+    queue.currentIndex = nextTrack.index;
     await queue.save();
-
-    const currentTrack = queue.tracks[queue.currentIndex];
-    await currentTrack.trackId.populate('title duration artist genre');
 
     return res.status(200).json({
       data: {
-        currentTrack: {
-          id: currentTrack.trackId._id,
-          title: currentTrack.trackId.title,
-          duration: currentTrack.trackId.duration,
-          artist: currentTrack.trackId.artist,
-        },
+        currentTrack: formatTrack(nextTrack.track),
         index: queue.currentIndex,
         total: queue.tracks.length,
       },
@@ -256,39 +303,30 @@ export async function playNext(req, res, next) {
   }
 }
 
-// Play previous track
 export async function playPrevious(req, res, next) {
   try {
     const userId = req.userId;
+    const queue = await loadQueue(userId);
 
-    const queue = await PlayerQueue.findOne({ userId, isActive: true });
     if (!queue || queue.tracks.length === 0) {
       return res.status(404).json({
         error: { code: 'NO_TRACKS', message: 'No tracks in queue' }
       });
     }
 
-    if (queue.currentIndex > 0) {
-      queue.currentIndex -= 1;
-    } else {
+    const previousTrack = await findNextAccessible(queue, userId, -1);
+    if (!previousTrack) {
       return res.status(400).json({
-        error: { code: 'START_OF_QUEUE', message: 'Start of queue reached' }
+        error: { code: 'START_OF_QUEUE', message: 'No previous available track in the queue' }
       });
     }
 
+    queue.currentIndex = previousTrack.index;
     await queue.save();
-
-    const currentTrack = queue.tracks[queue.currentIndex];
-    await currentTrack.trackId.populate('title duration artist genre');
 
     return res.status(200).json({
       data: {
-        currentTrack: {
-          id: currentTrack.trackId._id,
-          title: currentTrack.trackId.title,
-          duration: currentTrack.trackId.duration,
-          artist: currentTrack.trackId.artist,
-        },
+        currentTrack: formatTrack(previousTrack.track),
         index: queue.currentIndex,
         total: queue.tracks.length,
       },
@@ -300,12 +338,9 @@ export async function playPrevious(req, res, next) {
   }
 }
 
-// Clear queue
 export async function clearQueue(req, res, next) {
   try {
-    const userId = req.userId;
-
-    const queue = await PlayerQueue.findOne({ userId, isActive: true });
+    const queue = await loadQueue(req.userId);
     if (!queue) {
       return res.status(404).json({
         error: { code: 'NOT_FOUND', message: 'Queue not found' }
@@ -317,9 +352,7 @@ export async function clearQueue(req, res, next) {
     await queue.save();
 
     return res.status(200).json({
-      data: {
-        message: 'Queue cleared successfully',
-      },
+      data: { message: 'Queue cleared successfully' },
       timestamp: new Date().toISOString()
     });
   } catch (error) {
@@ -328,21 +361,27 @@ export async function clearQueue(req, res, next) {
   }
 }
 
-// Update player settings
 export async function updatePlayerSettings(req, res, next) {
   try {
     const userId = req.userId;
     const { shuffle, repeatMode } = req.body;
 
-    const queue = await PlayerQueue.findOne({ userId, isActive: true });
+    const queue = await loadQueue(userId);
     if (!queue) {
       return res.status(404).json({
         error: { code: 'NOT_FOUND', message: 'Queue not found' }
       });
     }
 
-    if (shuffle !== undefined) queue.shuffle = shuffle;
-    if (repeatMode) queue.repeatMode = repeatMode;
+    if (shuffle !== undefined) queue.shuffle = Boolean(shuffle);
+    if (repeatMode !== undefined) {
+      if (!['none', 'one', 'all'].includes(repeatMode)) {
+        return res.status(400).json({
+          error: { code: 'INVALID_REPEAT_MODE', message: 'repeatMode must be none, one or all' }
+        });
+      }
+      queue.repeatMode = repeatMode;
+    }
 
     await queue.save();
 

@@ -113,8 +113,6 @@ const createAudioContext = () => {
   try {
     return new AudioContextClass({ sampleRate: PREFERRED_SAMPLE_RATE, latencyHint: 'interactive' });
   } catch {
-    // Safari and some older browsers reject constructor options even though
-    // Web Audio itself is supported. Falling back keeps the Studio usable.
     return new AudioContextClass();
   }
 };
@@ -167,9 +165,30 @@ const ensureMonitorElement = () => {
   return monitorAudioElement;
 };
 
+// Monitoring has its own routing. With no Listen-only channel selected the
+// creator hears the exact post-limiter Audience Output. When one or more channels
+// are selected for Listen only, only the headphones change; the audience program
+// bus is never altered by a monitoring action.
 const applyMonitorState = () => {
   if (!monitorGainNode) return;
-  monitorGainNode.gain.value = monitoring.enabled ? monitoring.gain : 0;
+
+  const soloedIds = Object.entries(channels)
+    .filter(([, channel]) => channel.solo && channel.connected)
+    .map(([channelId]) => channelId);
+  const hasSolo = soloedIds.length > 0;
+  const enabledGain = monitoring.enabled ? monitoring.gain : 0;
+
+  monitorGainNode.gain.value = hasSolo ? 0 : enabledGain;
+
+  sources.forEach((sourceState, channelId) => {
+    const soloGainNode = sourceState?.soloMonitorGainNode;
+    if (!soloGainNode) return;
+    const channel = channels[channelId];
+    const selected = hasSolo && channel?.solo;
+    // Listen-only is a headphone/PFL-style audition. It remains useful even if
+    // the channel is muted from the audience mix.
+    soloGainNode.gain.value = selected ? channel.gain * enabledGain : 0;
+  });
 };
 
 const ensureContext = async () => {
@@ -195,9 +214,8 @@ const ensureContext = async () => {
     masterGainNode.connect(masterLimiterNode);
     masterLimiterNode.connect(masterAnalyser);
 
-    // This is Echoo's single post-master program bus. LiveKit, local
-    // monitoring and the lossless recorder all branch from this same node so
-    // the saved master does not take a second resampling/conversion path.
+    // One post-master program bus feeds LiveKit and recording. The normal
+    // headphone monitor branches from exactly the same point.
     masterAnalyser.connect(destinationNode);
     masterAnalyser.connect(monitorGainNode);
     monitorGainNode.connect(monitorDestinationNode);
@@ -227,22 +245,17 @@ const disconnectSource = (channelId, stopTracks = true) => {
   const current = sources.get(channelId);
   if (!current) return;
 
-  try {
-    current.source?.disconnect();
-  } catch {
-    // The source may already be disconnected.
-  }
-
-  try {
-    current.gainNode?.disconnect();
-  } catch {
-    // The gain node may already be disconnected.
-  }
-
-  try {
-    current.analyser?.disconnect();
-  } catch {
-    // The analyser may already be disconnected.
+  for (const node of [
+    current.source,
+    current.gainNode,
+    current.analyser,
+    current.soloMonitorGainNode,
+  ]) {
+    try {
+      node?.disconnect();
+    } catch {
+      // The node may already be disconnected.
+    }
   }
 
   if (stopTracks) {
@@ -279,15 +292,12 @@ const disconnectSource = (channelId, stopTracks = true) => {
 };
 
 const applyMixState = () => {
-  const soloed = Object.values(channels).filter((channel) => channel.solo);
-  const hasSolo = soloed.length > 0;
-
   Object.entries(channels).forEach(([channelId, channel]) => {
     const node = sources.get(channelId)?.gainNode;
     if (!node) return;
 
-    const audible = !channel.muted && (!hasSolo || channel.solo);
-    node.gain.value = audible ? channel.gain : 0;
+    // Solo/Listen-only never touches this audience/program gain.
+    node.gain.value = channel.muted ? 0 : channel.gain;
   });
 
   if (masterGainNode) {
@@ -297,32 +307,51 @@ const applyMixState = () => {
   applyMonitorState();
 };
 
+const stopStreamTracks = (stream) => {
+  stream?.getTracks?.().forEach((track) => {
+    try {
+      track.stop();
+    } catch {
+      // Ignore an already-ended acquired track.
+    }
+  });
+};
+
 const connectStream = async (channelId, stream, sourceLabel, deviceId = '') => {
   const context = await ensureContext();
   const audioTrack = stream?.getAudioTracks?.()[0];
 
   if (!audioTrack) {
-    stream?.getTracks?.().forEach((track) => track.stop());
+    stopStreamTracks(stream);
     throw new Error('No audio track was available for this mixer channel.');
   }
 
   disconnectSource(channelId);
 
   const source = context.createMediaStreamSource(stream);
-  const gainNode = context.createGain();
   const analyser = context.createAnalyser();
+  const gainNode = context.createGain();
+  const soloMonitorGainNode = context.createGain();
   analyser.fftSize = 512;
   analyser.smoothingTimeConstant = 0.72;
+  soloMonitorGainNode.gain.value = 0;
 
-  source.connect(gainNode);
-  gainNode.connect(analyser);
-  analyser.connect(masterGainNode);
+  // Meter pre-fader input so a muted/quietly-faded source still visibly proves
+  // that signal is reaching the Studio. Audience gain is applied afterwards.
+  source.connect(analyser);
+  analyser.connect(gainNode);
+  gainNode.connect(masterGainNode);
+
+  // Separate headphone audition path. It never reaches the master/LiveKit bus.
+  source.connect(soloMonitorGainNode);
+  soloMonitorGainNode.connect(monitorDestinationNode);
 
   sources.set(channelId, {
     stream,
     source,
     gainNode,
     analyser,
+    soloMonitorGainNode,
     data: new Float32Array(analyser.fftSize),
     audioTrack,
   });
@@ -350,6 +379,15 @@ const connectStream = async (channelId, stream, sourceLabel, deviceId = '') => {
   startMeterLoop();
   notify();
   return audioTrack;
+};
+
+const connectAcquiredStream = async (channelId, stream, sourceLabel, deviceId = '') => {
+  try {
+    return await connectStream(channelId, stream, sourceLabel, deviceId);
+  } catch (error) {
+    stopStreamTracks(stream);
+    throw error;
+  }
 };
 
 const readMeter = (analyser, data) => {
@@ -451,7 +489,7 @@ export const ensureHostInput = async (deviceId = '', audioConstraints = null) =>
   const stream = await navigator.mediaDevices.getUserMedia(constraints);
   const track = stream.getAudioTracks()[0];
   const label = track?.label || 'Host microphone';
-  return connectStream('host', stream, label, deviceId);
+  return connectAcquiredStream('host', stream, label, deviceId);
 };
 
 export const connectGuestInput = async (deviceId, audioConstraints = null) => {
@@ -473,7 +511,7 @@ export const connectGuestInput = async (deviceId, audioConstraints = null) => {
   });
 
   const track = stream.getAudioTracks()[0];
-  return connectStream('guest', stream, track?.label || 'Guest microphone', deviceId);
+  return connectAcquiredStream('guest', stream, track?.label || 'Guest microphone', deviceId);
 };
 
 export const connectSystemAudio = async () => {
@@ -488,12 +526,15 @@ export const connectSystemAudio = async () => {
 
   const audioTrack = stream.getAudioTracks()[0];
   if (!audioTrack) {
-    stream.getTracks().forEach((track) => track.stop());
+    stopStreamTracks(stream);
     throw new Error('No shared audio was selected. Choose a tab or screen with audio enabled.');
   }
 
-  stream.getVideoTracks().forEach((track) => track.stop());
-  return connectStream('media', stream, audioTrack.label || 'Shared system audio');
+  stream.getVideoTracks().forEach((track) => {
+    stream.removeTrack(track);
+    track.stop();
+  });
+  return connectAcquiredStream('media', stream, audioTrack.label || 'Shared system audio');
 };
 
 export const disconnectMixerChannel = (channelId) => {
@@ -534,7 +575,8 @@ export const toggleMixerChannelSolo = (channelId) => {
     ...channels,
     [channelId]: { ...channels[channelId], solo: !channels[channelId].solo },
   };
-  applyMixState();
+  // Solo means Listen only and is deliberately monitoring-only.
+  applyMonitorState();
   notify();
 };
 

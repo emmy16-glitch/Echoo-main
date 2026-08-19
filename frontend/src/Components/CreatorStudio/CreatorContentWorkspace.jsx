@@ -76,7 +76,6 @@ const CreatorContentWorkspace = ({
   const [busyId, setBusyId] = useState('');
   const [actionError, setActionError] = useState('');
   const audioRef = useRef(null);
-  const streamCacheRef = useRef(new Map());
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -124,7 +123,6 @@ const CreatorContentWorkspace = ({
   const stopQuickPlayer = () => {
     if (audioRef.current) {
       audioRef.current.pause();
-      audioRef.current.src = '';
       audioRef.current = null;
     }
     setPlayingId('');
@@ -136,24 +134,9 @@ const CreatorContentWorkspace = ({
     setSelectedTrack(track);
   };
 
-  const protectedStreamUrl = async (track) => {
-    const id = String(getId(track) || '');
-    if (!id) return buildMediaUrl(track.fileUrl || track.audioUrl || '');
-
-    const cached = streamCacheRef.current.get(id);
-    if (cached?.url && cached.expiresAt > Date.now() + 60_000) return cached.url;
-
-    const stream = await studioService.getAudioStreamUrl(id);
-    const expiresIn = Math.max(60, Number(stream.expiresIn) || 0);
-    streamCacheRef.current.set(id, {
-      url: stream.streamUrl,
-      expiresAt: Date.now() + expiresIn * 1000,
-    });
-    return stream.streamUrl;
-  };
-
   const togglePlay = async (track) => {
     const id = String(getId(track) || '');
+    if (!id) return;
 
     if (playingId === id && audioRef.current) {
       audioRef.current.pause();
@@ -162,28 +145,18 @@ const CreatorContentWorkspace = ({
     }
 
     stopQuickPlayer();
-    setActionError('');
 
     try {
-      const url = await protectedStreamUrl(track);
-      if (!url) {
-        setActionError('Echoo could not prepare this audio for playback.');
-        return;
-      }
-
-      const player = new Audio(url);
+      const { streamUrl } = await studioService.getAudioStreamUrl(id);
+      const player = new Audio(streamUrl);
       audioRef.current = player;
       player.addEventListener('ended', () => setPlayingId(''), { once: true });
-      player.addEventListener('error', () => {
-        setPlayingId('');
-        setActionError('Echoo could not play this protected audio stream.');
-      }, { once: true });
-
+      player.addEventListener('error', () => setPlayingId(''), { once: true });
       await player.play();
       setPlayingId(id);
-    } catch (error) {
+    } catch (playError) {
       setPlayingId('');
-      setActionError(error?.message || 'Could not play this audio.');
+      setActionError(playError?.message || 'Could not play this audio.');
     }
   };
 
@@ -292,19 +265,35 @@ const CreatorContentWorkspace = ({
               const isPlaying = playingId === id;
               const plays = Number(track.plays ?? track.playCount) || 0;
               const likes = Number(track.likes ?? track.likeCount) || 0;
-              const playable = Boolean(getId(track) || track.fileUrl || track.audioUrl);
 
               return (
                 <article key={id}>
-                  <button
-                    type="button"
+                  <div
                     className="eca-art"
+                    role="button"
+                    tabIndex="0"
                     onClick={() => openTrack(track)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        openTrack(track);
+                      }
+                    }}
                     aria-label={`Open ${track.title || 'audio'} details`}
                   >
                     {artwork ? <img src={artwork} alt="" /> : <span>{track.title || 'Echoo audio'}</span>}
-                    <i onClick={(event) => { event.stopPropagation(); togglePlay(track); }} role="button" tabIndex="0" aria-label={isPlaying ? 'Pause audio' : 'Play audio'}>{isPlaying ? <FaPause /> : <FaPlay />}</i>
-                  </button>
+                    <button
+                      type="button"
+                      className="eca-art-play"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        togglePlay(track);
+                      }}
+                      aria-label={isPlaying ? 'Pause audio' : 'Play audio'}
+                    >
+                      {isPlaying ? <FaPause /> : <FaPlay />}
+                    </button>
+                  </div>
 
                   <div className="eca-copy">
                     <div className="eca-title-row">
@@ -316,7 +305,7 @@ const CreatorContentWorkspace = ({
                   </div>
 
                   <div className="eca-actions">
-                    <button type="button" className="icon-primary" onClick={() => togglePlay(track)} disabled={!playable} aria-label={isPlaying ? 'Pause audio' : 'Play audio'}>{isPlaying ? <FaPause /> : <FaPlay />}</button>
+                    <button type="button" className="icon-primary" onClick={() => togglePlay(track)} disabled={!getId(track)} aria-label={isPlaying ? 'Pause audio' : 'Play audio'}>{isPlaying ? <FaPause /> : <FaPlay />}</button>
                     <button type="button" className="details" onClick={() => openTrack(track)}><FaList /> Details</button>
                     <div className="eca-more-wrap">
                       <button type="button" className="more" onClick={() => setOpenMenuId((current) => current === id ? '' : id)} aria-expanded={openMenuId === id} aria-label={`More actions for ${track.title || 'audio'}`}><FaEllipsisH /></button>

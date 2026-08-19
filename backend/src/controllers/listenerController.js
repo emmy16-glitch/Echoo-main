@@ -2,6 +2,7 @@ import User from '../models/User.js';
 import Audio from '../models/Audio.js';
 import Broadcast from '../models/Broadcast.js';
 import Station from '../models/Station.js';
+import { isAudioAccessibleToUser } from '../services/audioAccess.js';
 
 const creatorSummary =
   '_id username displayName avatar bio userType creatorProfile.category creatorProfile.artistName creatorProfile.organizationName creatorProfile.organizationLogo creatorProfile.isVerified';
@@ -45,7 +46,7 @@ async function realCreatorIds() {
 async function getContinueListening(userId) {
   const user = await User.findById(userId).populate({
     path: 'continueListening.trackId',
-    select: 'title description duration artist fileUrl coverArt coverArtMode coverArtVariant genre playCount likeCount',
+    select: 'title description duration artist fileUrl coverArt coverArtMode coverArtVariant genre playCount likeCount isPublic isDeleted',
     populate: {
       path: 'artist',
       select: creatorSummary,
@@ -57,7 +58,7 @@ async function getContinueListening(userId) {
   return user.continueListening
     .map((item) => {
       const track = item.trackId;
-      if (!track) return null;
+      if (!isAudioAccessibleToUser(track, userId)) return null;
       return {
         ...track.toJSON(),
         progress: Number(item.progress) || 0,
@@ -77,8 +78,6 @@ async function getRecommendedTracks(user) {
     preferredCategories.flatMap((category) => CATEGORY_GENRES[category] || [])
   );
 
-  // Listener discovery is creator content only. Old development/admin uploads
-  // can stay in the database for diagnostics without leaking into public feeds.
   const creatorIds = await realCreatorIds();
   const filter = {
     isPublic: true,
@@ -155,7 +154,7 @@ async function getDiscoverCreators() {
 async function getRecentActivity(userId) {
   const user = await User.findById(userId).populate({
     path: 'listeningHistory.trackId',
-    select: 'title duration artist fileUrl coverArt coverArtMode coverArtVariant genre',
+    select: 'title duration artist fileUrl coverArt coverArtMode coverArtVariant genre isPublic isDeleted',
     populate: {
       path: 'artist',
       select: creatorSummary,
@@ -165,10 +164,10 @@ async function getRecentActivity(userId) {
   if (!user?.listeningHistory?.length) return [];
 
   return user.listeningHistory
-    .slice(-10)
+    .slice(-20)
     .reverse()
     .map((entry) => {
-      if (!entry.trackId) return null;
+      if (!isAudioAccessibleToUser(entry.trackId, userId)) return null;
       return {
         track: entry.trackId,
         playedAt: entry.playedAt,
@@ -176,7 +175,8 @@ async function getRecentActivity(userId) {
         completed: Boolean(entry.completed),
       };
     })
-    .filter(Boolean);
+    .filter(Boolean)
+    .slice(0, 10);
 }
 
 export async function getListenerDashboard(req, res, next) {

@@ -41,6 +41,7 @@ import "./styles/creator-shell-broadcast-breathing-room.css";
 import "./styles/creator-broadcast-responsive-shell-fix.css";
 import "./styles/creator-broadcast-guided-mixer.css";
 import "./styles/creator-broadcast-strict-audit.css";
+import "./styles/creator-audio-interaction-fix.css";
 
 initializeEchooTheme();
 

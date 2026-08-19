@@ -1,4 +1,4 @@
-import { apiRequest, API_BASE_URL, buildMediaUrl } from "./api.js";
+import { apiFetch, apiRequest, buildMediaUrl } from "./api.js";
 
 const readResponse = async (response) => {
   const contentType = response.headers.get("content-type") || "";
@@ -119,12 +119,12 @@ const studioService = {
   downloadAudio: async (audioId, metadata = {}) => {
     if (!audioId) throw new Error("Audio ID is missing.");
 
-    const accessToken = localStorage.getItem("accessToken") || localStorage.getItem("token");
-    if (!accessToken) throw new Error("Your session is missing. Please sign in again.");
-
-    const response = await fetch(`${API_BASE_URL}/audio/${encodeURIComponent(audioId)}/download`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
+    // apiFetch returns the raw Response but still performs Echoo's normal
+    // access-token refresh/retry. Large downloads therefore do not randomly fail
+    // with a stale 15-minute access token after a long Creator Studio session.
+    const response = await apiFetch(
+      `/audio/${encodeURIComponent(audioId)}/download`
+    );
 
     if (!response.ok) {
       let message = "Could not download this audio.";
@@ -167,9 +167,6 @@ const studioService = {
   }) => {
     if (!file) throw new Error("Please choose an audio file.");
 
-    const accessToken = localStorage.getItem("accessToken");
-    if (!accessToken) throw new Error("Your session is missing. Please sign in again.");
-
     const duration = await readAudioDuration(file);
     const formData = new FormData();
 
@@ -182,10 +179,10 @@ const studioService = {
     formData.append("isPublic", isPublic ? "true" : "false");
     if (duration > 0) formData.append("duration", String(duration));
 
-    const response = await fetch(`${API_BASE_URL}/audio/upload`, {
+    const response = await apiFetch("/audio/upload", {
       method: "POST",
-      headers: { Authorization: `Bearer ${accessToken}` },
       body: formData,
+      isFormData: true,
     });
 
     return readResponse(response);

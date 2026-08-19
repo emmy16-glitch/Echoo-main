@@ -153,22 +153,36 @@ audioSchema.virtual('fileSizeMB').get(function fileSizeMB() {
   return (this.fileSize / (1024 * 1024)).toFixed(2);
 });
 
+// Atomic increments keep analytics correct when many listeners begin playback
+// at the same moment. Read-modify-save can silently lose concurrent updates.
 audioSchema.methods.incrementPlays = async function incrementPlays() {
-  this.playCount += 1;
-  return this.save();
+  const updated = await this.constructor.findOneAndUpdate(
+    { _id: this._id, isDeleted: false },
+    { $inc: { playCount: 1 } },
+    { new: true }
+  );
+  if (updated) this.playCount = updated.playCount;
+  return updated || this;
 };
 
 audioSchema.methods.incrementLikes = async function incrementLikes() {
-  this.likeCount += 1;
-  return this.save();
+  const updated = await this.constructor.findOneAndUpdate(
+    { _id: this._id, isDeleted: false },
+    { $inc: { likeCount: 1 } },
+    { new: true }
+  );
+  if (updated) this.likeCount = updated.likeCount;
+  return updated || this;
 };
 
 audioSchema.methods.decrementLikes = async function decrementLikes() {
-  if (this.likeCount > 0) {
-    this.likeCount -= 1;
-    return this.save();
-  }
-  return this;
+  const updated = await this.constructor.findOneAndUpdate(
+    { _id: this._id, isDeleted: false, likeCount: { $gt: 0 } },
+    { $inc: { likeCount: -1 } },
+    { new: true }
+  );
+  if (updated) this.likeCount = updated.likeCount;
+  return updated || this;
 };
 
 const Audio = mongoose.model('Audio', audioSchema, 'echoo_audios');
