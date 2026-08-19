@@ -3,6 +3,7 @@ import {
   Track,
 } from 'livekit-client';
 import { resolveLiveKitUrl } from './livekitUrl.js';
+import { ensureBroadcastRecording } from './broadcastRecordingService.js';
 
 let activeRoom = null;
 let activeBroadcastId = null;
@@ -171,6 +172,26 @@ export const startLiveKitPublishing = async ({
 
     activeRoom = room;
     activeBroadcastId = String(broadcastId || '');
+
+    // Local-first recording: clone the exact post-master mixer track that is
+    // being published to LiveKit. Recording is deliberately independent from
+    // the LiveKit Room so a reconnect does not split or lose the local take.
+    if (mode === 'studio-mix' && mediaTrack) {
+      try {
+        await ensureBroadcastRecording({
+          broadcastId: activeBroadcastId,
+          mediaTrack,
+          title: `echoo-live-${activeBroadcastId}`,
+        });
+      } catch (recordingError) {
+        // Recording must never prevent the creator from going live. The end
+        // flow simply will not offer a recording if this browser cannot record.
+        console.warn(
+          '[Echoo Recording] could not start local recording:',
+          recordingError?.message || recordingError
+        );
+      }
+    }
 
     const result = {
       connected: true,
