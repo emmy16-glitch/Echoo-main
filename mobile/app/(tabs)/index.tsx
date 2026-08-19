@@ -3,11 +3,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Bell,
   BookOpenText,
   Dumbbell,
   Headphones,
-  Menu,
+  Heart,
   MessageCircleMore,
   Music2,
   Newspaper,
@@ -27,21 +26,17 @@ import {
   View,
 } from 'react-native';
 
+import { ListenerTopBar } from '@/src/components/ListenerV2';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
-  EchooAudio,
   EchooBroadcast,
   EchooStation,
   getMobileDiscovery,
+  hasEchooSession,
 } from '@/src/services/echooApi';
 import { EchooColors, getEchooColors } from '@/src/theme/echooTheme';
 
-type Discovery = {
-  stations: EchooStation[];
-  live: EchooBroadcast[];
-  scheduled: EchooBroadcast[];
-  audio: EchooAudio[];
-};
+type Discovery = Awaited<ReturnType<typeof getMobileDiscovery>>;
 
 const emptyDiscovery: Discovery = {
   stations: [],
@@ -78,16 +73,18 @@ export default function HomeScreen() {
   const styles = useMemo(() => createStyles(palette), [palette]);
 
   const [discovery, setDiscovery] = useState<Discovery>(emptyDiscovery);
+  const [signedIn, setSignedIn] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
     let active = true;
 
-    getMobileDiscovery()
-      .then((next) => {
+    Promise.all([getMobileDiscovery(), hasEchooSession()])
+      .then(([next, activeSession]) => {
         if (!active) return;
         setDiscovery(next);
+        setSignedIn(activeSession);
         setError('');
       })
       .catch((loadError) => {
@@ -112,7 +109,30 @@ export default function HomeScreen() {
     )
     .slice(0, 5);
 
-  const featuredAudio = discovery.audio[0];
+  const openLiveRoom = (item: EchooBroadcast) => {
+    if (!signedIn) {
+      router.push('/auth');
+      return;
+    }
+    router.push({
+      pathname: '/live-room',
+      params: {
+        broadcastId: item.id,
+        title: item.title,
+        stationName: item.stationName || 'Echoo Station',
+        coverArt: item.coverArt || '',
+      },
+    });
+  };
+
+  const openStation = (station: EchooStation) => {
+    const liveBroadcast = discovery.live.find((item) => item.stationId === station.id);
+    if (station.isLive && liveBroadcast) {
+      openLiveRoom(liveBroadcast);
+      return;
+    }
+    router.push({ pathname: '/search', params: { q: station.name } });
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -120,27 +140,7 @@ export default function HomeScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.topBar}>
-          <Pressable style={styles.iconButton} accessibilityLabel="Open menu">
-            <Menu color={palette.ink} size={25} strokeWidth={2.1} />
-          </Pressable>
-
-          <View style={styles.brand}>
-            <View style={styles.brandMark}>
-              <View style={[styles.brandDot, styles.brandDotOne]} />
-              <View style={[styles.brandDot, styles.brandDotTwo]} />
-              <View style={[styles.brandDot, styles.brandDotThree]} />
-            </View>
-            <Text style={styles.brandText}>echoo</Text>
-          </View>
-
-          <Pressable style={styles.notificationButton} accessibilityLabel="Notifications">
-            <Bell color={palette.ink} size={23} strokeWidth={2.1} />
-            <View style={styles.notificationBadge}>
-              <Text style={styles.notificationBadgeText}>3</Text>
-            </View>
-          </Pressable>
-        </View>
+        <ListenerTopBar />
 
         <View style={styles.hero}>
           <View style={styles.heroCopy}>
@@ -155,10 +155,7 @@ export default function HomeScreen() {
             <View style={[styles.orbit, styles.orbitLarge]} />
             <View style={[styles.orbit, styles.orbitMedium]} />
             <View style={[styles.orbit, styles.orbitSmall]} />
-            <LinearGradient
-              colors={['#4378FF', '#2155EA']}
-              style={styles.listenOrb}
-            >
+            <LinearGradient colors={['#4378FF', '#2155EA']} style={styles.listenOrb}>
               <Headphones color="#FFFFFF" size={29} strokeWidth={2.6} />
             </LinearGradient>
             <View style={[styles.orbitPoint, { top: 12, right: 5 }]} />
@@ -208,7 +205,7 @@ export default function HomeScreen() {
                 key={item.id}
                 item={item}
                 palette={palette}
-                onPress={() => router.push('/live')}
+                onPress={() => openLiveRoom(item)}
               />
             ))}
           </ScrollView>
@@ -224,13 +221,38 @@ export default function HomeScreen() {
           </View>
         )}
 
-        <SectionHeader title="Categories" action="View all" palette={palette} />
+        <View style={styles.accountCard}>
+          <View style={styles.accountIcon}>
+            {signedIn ? <Heart color="#FFFFFF" fill="#FFFFFF" size={21} /> : <Headphones color="#FFFFFF" size={21} />}
+          </View>
+          <View style={styles.accountCopy}>
+            <Text style={styles.accountTitle}>{signedIn ? 'Your Echoo is synced' : 'Make Echoo yours'}</Text>
+            <Text style={styles.accountText}>
+              {signedIn
+                ? 'Saved audio, favorites and history stay with your account.'
+                : 'Sign in to save audio, follow stations and sync your listening history.'}
+            </Text>
+          </View>
+          <Pressable
+            style={styles.accountAction}
+            onPress={() => router.push(signedIn ? '/library' : '/auth')}
+          >
+            <Text style={styles.accountActionText}>{signedIn ? 'Open' : 'Sign in'}</Text>
+          </Pressable>
+        </View>
+
+        <SectionHeader
+          title="Categories"
+          action="View all"
+          palette={palette}
+          onPress={() => router.push('/search')}
+        />
         <View style={styles.categoryRow}>
           {categories.map(({ label, icon: Icon }) => (
             <Pressable
               key={label}
               style={styles.categoryCard}
-              onPress={() => router.push('/search')}
+              onPress={() => router.push({ pathname: '/search', params: { q: label } })}
             >
               <Icon color={palette.blue} size={21} strokeWidth={2.1} />
               <Text style={styles.categoryText}>{label}</Text>
@@ -238,11 +260,21 @@ export default function HomeScreen() {
           ))}
         </View>
 
-        <SectionHeader title="Top stations" action="View all" palette={palette} />
+        <SectionHeader
+          title="Top stations"
+          action="View all"
+          palette={palette}
+          onPress={() => router.push('/search')}
+        />
         <View style={styles.stationList}>
           {topStations.length ? (
             topStations.map((station) => (
-              <StationRow key={station.id} station={station} palette={palette} />
+              <StationRow
+                key={station.id}
+                station={station}
+                palette={palette}
+                onPress={() => openStation(station)}
+              />
             ))
           ) : (
             <View style={styles.noticeCard}>
@@ -254,25 +286,6 @@ export default function HomeScreen() {
 
         <View style={styles.spacer} />
       </ScrollView>
-
-      {featuredAudio ? (
-        <View style={styles.miniPlayer}>
-          <View style={styles.miniArt}>
-            {featuredAudio.coverArt ? (
-              <Image source={{ uri: featuredAudio.coverArt }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
-            ) : (
-              <Music2 color="#FFFFFF" size={18} />
-            )}
-          </View>
-          <View style={styles.miniCopy}>
-            <Text style={styles.miniTitle} numberOfLines={1}>{featuredAudio.title}</Text>
-            <Text style={styles.miniSubtitle} numberOfLines={1}>{featuredAudio.subtitle || 'Echoo Audio'}</Text>
-          </View>
-          <Pressable style={styles.miniPlayButton}>
-            <Play color="#FFFFFF" fill="#FFFFFF" size={17} />
-          </Pressable>
-        </View>
-      ) : null}
     </SafeAreaView>
   );
 }
@@ -337,10 +350,18 @@ function LiveCard({
   );
 }
 
-function StationRow({ station, palette }: { station: EchooStation; palette: EchooColors }) {
+function StationRow({
+  station,
+  palette,
+  onPress,
+}: {
+  station: EchooStation;
+  palette: EchooColors;
+  onPress: () => void;
+}) {
   const styles = useMemo(() => createStyles(palette), [palette]);
   return (
-    <View style={styles.stationRow}>
+    <Pressable style={styles.stationRow} onPress={onPress}>
       <View style={styles.stationArt}>
         {station.coverArt ? (
           <Image source={{ uri: station.coverArt }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
@@ -356,29 +377,19 @@ function StationRow({ station, palette }: { station: EchooStation; palette: Echo
         <Users color={palette.muted} size={14} />
         <Text style={styles.stationAudienceText}>{compactNumber(station.listenerCount || station.followerCount || 0)}</Text>
       </View>
-      <Pressable style={styles.stationPlayButton}>
-        <Play color="#FFFFFF" fill="#FFFFFF" size={16} />
-      </Pressable>
-    </View>
+      {station.isLive ? (
+        <View style={styles.stationPlayButton}>
+          <Play color="#FFFFFF" fill="#FFFFFF" size={16} />
+        </View>
+      ) : null}
+    </Pressable>
   );
 }
 
 const createStyles = (palette: EchooColors) =>
   StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: palette.background },
-    content: { paddingHorizontal: 18, paddingTop: 8, paddingBottom: 130 },
-    topBar: { height: 58, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    iconButton: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
-    brand: { flexDirection: 'row', alignItems: 'center', gap: 9 },
-    brandMark: { width: 26, height: 26 },
-    brandDot: { position: 'absolute', width: 13, height: 13, borderRadius: 7 },
-    brandDotOne: { left: 1, top: 6, backgroundColor: '#2F63F6' },
-    brandDotTwo: { right: 1, top: 2, backgroundColor: '#4B7BFF' },
-    brandDotThree: { right: 3, bottom: 1, backgroundColor: '#7E9DFF', opacity: 0.78 },
-    brandText: { color: palette.ink, fontSize: 22, fontWeight: '900', letterSpacing: -0.8 },
-    notificationButton: { width: 40, height: 40, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.surfaceRaised, borderWidth: 1, borderColor: palette.line },
-    notificationBadge: { position: 'absolute', top: -3, right: -3, minWidth: 17, height: 17, borderRadius: 9, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },
-    notificationBadgeText: { color: '#FFFFFF', fontSize: 9, fontWeight: '900' },
+    content: { paddingHorizontal: 18, paddingTop: 8, paddingBottom: 108 },
     hero: { minHeight: 180, flexDirection: 'row', alignItems: 'center', marginTop: 12 },
     heroCopy: { flex: 1, paddingRight: 4 },
     greeting: { color: palette.ink2, fontSize: 15, marginBottom: 7, fontWeight: '600' },
@@ -416,6 +427,13 @@ const createStyles = (palette: EchooColors) =>
     emptyLiveIcon: { width: 46, height: 46, borderRadius: 14, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
     emptyLiveTitle: { color: palette.ink, fontSize: 14, fontWeight: '800' },
     emptyLiveText: { color: palette.muted, fontSize: 12, lineHeight: 17, marginTop: 3 },
+    accountCard: { minHeight: 82, marginTop: 18, borderRadius: 17, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 11 },
+    accountIcon: { width: 48, height: 48, borderRadius: 15, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
+    accountCopy: { flex: 1 },
+    accountTitle: { color: palette.ink, fontSize: 13.5, fontWeight: '900' },
+    accountText: { color: palette.muted, fontSize: 10.8, lineHeight: 15, marginTop: 3 },
+    accountAction: { minHeight: 36, borderRadius: 12, backgroundColor: palette.blueSoft, paddingHorizontal: 11, alignItems: 'center', justifyContent: 'center' },
+    accountActionText: { color: palette.blue, fontSize: 11, fontWeight: '900' },
     categoryRow: { flexDirection: 'row', gap: 8 },
     categoryCard: { flex: 1, minWidth: 0, height: 69, borderRadius: 14, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line, alignItems: 'center', justifyContent: 'center', gap: 7 },
     categoryText: { color: palette.ink2, fontSize: 10.5, fontWeight: '600' },
@@ -429,10 +447,4 @@ const createStyles = (palette: EchooColors) =>
     stationAudienceText: { color: palette.ink2, fontSize: 11.5, fontWeight: '700' },
     stationPlayButton: { width: 36, height: 36, borderRadius: 18, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
     spacer: { height: 24 },
-    miniPlayer: { position: 'absolute', left: 14, right: 14, bottom: 8, height: 64, borderRadius: 18, backgroundColor: palette.glass, borderWidth: 1, borderColor: palette.line, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 9, gap: 10, shadowColor: '#000000', shadowOpacity: 0.14, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 10 },
-    miniArt: { width: 46, height: 46, borderRadius: 12, backgroundColor: palette.blueDeep, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
-    miniCopy: { flex: 1 },
-    miniTitle: { color: palette.ink, fontSize: 13, fontWeight: '800' },
-    miniSubtitle: { color: palette.muted, fontSize: 11, marginTop: 2 },
-    miniPlayButton: { width: 36, height: 36, borderRadius: 18, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
   });
