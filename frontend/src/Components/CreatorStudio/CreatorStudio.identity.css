@@ -1,11 +1,329 @@
 @import "../../styles/echoo-figma-tokens.css";
 
 /*
-  Legacy Phase-8 Creator Studio shell rules were intentionally retired.
-  This file now exposes only the shared Echoo design tokens.
+  Creator Studio critical layout invariants.
 
-  The active Creator Studio shell is owned by CreatorStudioShellFinal.css.
-  Keeping layout rules out of this file prevents old #root + !important
-  selectors from overriding the expanded/collapsed sidebar, top bar and
-  workspace grid.
+  These rules intentionally own only the shell geometry and the two places
+  where older page styles were still able to break the current product UI:
+  the Home workspace width and the Creator Audio library presentation.
+
+  Page-specific visual design remains in each page stylesheet. These guards
+  make sure legacy CSS cannot move the desktop sidebar over the workspace or
+  compress media actions into unusable cards.
 */
+
+/* -------------------------------------------------------------------------- */
+/* DESKTOP SHELL: the sidebar is a real grid column, never an overlay drawer. */
+/* -------------------------------------------------------------------------- */
+
+html body #root .studio-page.studio-final-shell {
+  width: 100% !important;
+  max-width: 100vw !important;
+  min-width: 0 !important;
+  min-height: 100vh !important;
+  display: grid !important;
+  grid-template-columns: var(--studio-sidebar-width) minmax(0, 1fr) !important;
+  gap: 0 !important;
+  align-items: start !important;
+  padding: 0 !important;
+  overflow-x: clip !important;
+}
+
+html body #root .studio-page.studio-final-shell > .studio-sidebar {
+  position: sticky !important;
+  inset: auto !important;
+  top: 0 !important;
+  left: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  grid-column: 1 !important;
+  grid-row: 1 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  height: 100vh !important;
+  margin: 0 !important;
+  transform: none !important;
+  overflow: visible !important;
+}
+
+html body #root .studio-page.studio-final-shell > .studio-main {
+  position: relative !important;
+  inset: auto !important;
+  grid-column: 2 !important;
+  grid-row: 1 !important;
+  width: 100% !important;
+  max-width: calc(100vw - var(--studio-sidebar-width)) !important;
+  min-width: 0 !important;
+  min-height: 100vh !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  transform: none !important;
+  overflow-x: clip !important;
+}
+
+html body #root .studio-page.studio-final-shell .studio-sidebar-toggle {
+  right: 8px !important;
+  top: 4px !important;
+}
+
+html body #root .studio-page.studio-final-shell .studio-topbar-final {
+  position: sticky !important;
+  top: 0 !important;
+  left: auto !important;
+  right: auto !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  transform: none !important;
+}
+
+html body #root .studio-page.studio-final-shell .studio-command-search {
+  min-width: 0 !important;
+  max-width: 540px !important;
+}
+
+html body #root .studio-page.studio-final-shell .studio-view {
+  width: 100% !important;
+  max-width: 1440px !important;
+  min-width: 0 !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  transform: none !important;
+  overflow: visible !important;
+}
+
+html body #root .studio-page.studio-final-shell .studio-view > *,
+html body #root .studio-page.studio-final-shell .studio-view :where(.ehome,.est,.ebsx,.eca,.eau,.ean,.creator-settings-real) {
+  min-width: 0 !important;
+  max-width: 100% !important;
+}
+
+/* Home must reflow with the sidebar instead of retaining an old canvas width. */
+html body #root .studio-page.studio-final-shell .studio-view > .ehome,
+html body #root .studio-page.studio-final-shell .ehome-reference,
+html body #root .studio-page.studio-final-shell .ehome-reference-hero,
+html body #root .studio-page.studio-final-shell .ehome-reference-grid {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  left: auto !important;
+  right: auto !important;
+  transform: none !important;
+}
+
+html body #root .studio-page.studio-final-shell .ehome-reference-grid > *,
+html body #root .studio-page.studio-final-shell .ehome-hero-copy,
+html body #root .studio-page.studio-final-shell .ehome-signal,
+html body #root .studio-page.studio-final-shell .ehome-readiness {
+  min-width: 0 !important;
+}
+
+/* -------------------------------------------------------------------------- */
+/* AUDIO LIBRARY: one professional row system, even if old grid state exists. */
+/* -------------------------------------------------------------------------- */
+
+html body #root .studio-page.studio-final-shell .eca-view-toggle {
+  display: none !important;
+}
+
+html body #root .studio-page.studio-final-shell .eca-library {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+}
+
+html body #root .studio-page.studio-final-shell .eca-list.grid-view,
+html body #root .studio-page.studio-final-shell .eca-list.list-view {
+  width: 100% !important;
+  min-width: 0 !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 10px !important;
+}
+
+html body #root .studio-page.studio-final-shell .eca-list.grid-view > article,
+html body #root .studio-page.studio-final-shell .eca-list.list-view > article {
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 104px !important;
+  display: grid !important;
+  grid-template-columns: 88px minmax(0, 1fr) 176px !important;
+  grid-template-rows: none !important;
+  align-items: center !important;
+  gap: 0 !important;
+  padding: 9px 10px !important;
+  overflow: visible !important;
+  border-radius: 12px !important;
+}
+
+html body #root .studio-page.studio-final-shell .eca-list.grid-view .eca-art,
+html body #root .studio-page.studio-final-shell .eca-list.list-view .eca-art {
+  width: 78px !important;
+  height: 78px !important;
+  min-width: 78px !important;
+  aspect-ratio: 1 / 1 !important;
+  border-radius: 10px !important;
+}
+
+html body #root .studio-page.studio-final-shell .eca-list.grid-view .eca-art > i,
+html body #root .studio-page.studio-final-shell .eca-list.list-view .eca-art > i {
+  width: 30px !important;
+  height: 30px !important;
+  right: 6px !important;
+  bottom: 6px !important;
+}
+
+html body #root .studio-page.studio-final-shell .eca-list.grid-view .eca-copy,
+html body #root .studio-page.studio-final-shell .eca-list.list-view .eca-copy {
+  min-width: 0 !important;
+  padding: 0 14px !important;
+}
+
+html body #root .studio-page.studio-final-shell .eca-title-row {
+  min-width: 0 !important;
+  align-items: center !important;
+}
+
+html body #root .studio-page.studio-final-shell .eca-title-button {
+  min-width: 0 !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+html body #root .studio-page.studio-final-shell .eca-meta,
+html body #root .studio-page.studio-final-shell .eca-performance {
+  min-width: 0 !important;
+  flex-wrap: wrap !important;
+}
+
+html body #root .studio-page.studio-final-shell .eca-list.grid-view .eca-actions,
+html body #root .studio-page.studio-final-shell .eca-list.list-view .eca-actions {
+  width: 100% !important;
+  min-width: 0 !important;
+  display: grid !important;
+  grid-template-columns: 38px minmax(0, 1fr) 38px !important;
+  gap: 8px !important;
+  align-items: center !important;
+  padding: 0 !important;
+  border-top: 0 !important;
+}
+
+html body #root .studio-page.studio-final-shell .eca-actions > button,
+html body #root .studio-page.studio-final-shell .eca-more-wrap > button {
+  min-width: 0 !important;
+  min-height: 38px !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+html body #root .studio-page.studio-final-shell .eca-actions .icon-primary,
+html body #root .studio-page.studio-final-shell .eca-more-wrap,
+html body #root .studio-page.studio-final-shell .eca-more-wrap > button {
+  width: 38px !important;
+}
+
+html body #root .studio-page.studio-final-shell .eca-actions .details {
+  width: 100% !important;
+}
+
+/* Intermediate widths: content gets the available width instead of squeezing. */
+@media (max-width: 980px) and (min-width: 761px) {
+  html body #root .studio-page.studio-final-shell .eca-list.grid-view > article,
+  html body #root .studio-page.studio-final-shell .eca-list.list-view > article {
+    grid-template-columns: 74px minmax(0, 1fr) !important;
+    grid-template-areas:
+      "art copy"
+      "actions actions" !important;
+    row-gap: 10px !important;
+  }
+
+  html body #root .studio-page.studio-final-shell .eca-list .eca-art {
+    grid-area: art !important;
+    width: 66px !important;
+    height: 66px !important;
+    min-width: 66px !important;
+  }
+
+  html body #root .studio-page.studio-final-shell .eca-list .eca-copy {
+    grid-area: copy !important;
+    padding: 0 8px !important;
+  }
+
+  html body #root .studio-page.studio-final-shell .eca-list .eca-actions {
+    grid-area: actions !important;
+  }
+}
+
+/* Mobile uses the existing bottom navigation and a single full-width workspace. */
+@media (max-width: 760px) {
+  html body #root .studio-page.studio-final-shell {
+    display: block !important;
+    max-width: 100vw !important;
+    overflow-x: hidden !important;
+  }
+
+  html body #root .studio-page.studio-final-shell > .studio-main {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100vw !important;
+    min-width: 0 !important;
+  }
+
+  html body #root .studio-page.studio-final-shell > .studio-sidebar {
+    position: fixed !important;
+    inset: auto 0 0 0 !important;
+    width: auto !important;
+    max-width: none !important;
+    height: auto !important;
+  }
+
+  html body #root .studio-page.studio-final-shell .studio-sidebar-toggle {
+    display: none !important;
+  }
+
+  html body #root .studio-page.studio-final-shell .studio-view {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+  }
+
+  html body #root .studio-page.studio-final-shell .eca-list.grid-view > article,
+  html body #root .studio-page.studio-final-shell .eca-list.list-view > article {
+    grid-template-columns: 68px minmax(0, 1fr) !important;
+    grid-template-areas:
+      "art copy"
+      "actions actions" !important;
+    row-gap: 10px !important;
+    min-height: 0 !important;
+  }
+
+  html body #root .studio-page.studio-final-shell .eca-list .eca-art {
+    grid-area: art !important;
+    width: 60px !important;
+    height: 60px !important;
+    min-width: 60px !important;
+  }
+
+  html body #root .studio-page.studio-final-shell .eca-list .eca-copy {
+    grid-area: copy !important;
+    padding: 0 7px !important;
+  }
+
+  html body #root .studio-page.studio-final-shell .eca-list .eca-actions {
+    grid-area: actions !important;
+  }
+
+  html body #root .studio-page.studio-final-shell .eca-toolbar,
+  html body #root .studio-page.studio-final-shell .eca-header {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+}
