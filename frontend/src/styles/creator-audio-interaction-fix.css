@@ -49,3 +49,25 @@
 .eca .eca-action-error,
 .eca .eca-empty p,
 .eca .eca-empty button { font-size: 10px; }
+
+/* Mixer source actions are deliberately simple: two state controls, followed by
+   one full-width source connection action. Listen only is headphones/PFL only. */
+.eam .eam-source-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.eam .eam-source-actions .source-connect {
+  grid-column: 1 / -1;
+}
+
+.eam .eam-source-actions .listen-only.active {
+  border-color: #a8c5fb;
+  background: #eff5ff;
+  color: #225fc9;
+}
+
+.eam .eam-source-actions button {
+  min-width: 0;
+  white-space: normal;
+  line-height: 1.25;
+}
