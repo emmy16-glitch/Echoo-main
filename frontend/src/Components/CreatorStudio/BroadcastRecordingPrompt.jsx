@@ -31,6 +31,11 @@ const formatBytes = (bytes) => {
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 };
 
+const formatBitrate = (bitsPerSecond) => {
+  const value = Number(bitsPerSecond) || 0;
+  return value > 0 ? `${Math.round(value / 1000)} kbps Opus` : 'High-quality Opus';
+};
+
 const safeFilename = (title, fallback) => {
   const extension = String(fallback || '').toLowerCase().endsWith('.ogg') ? 'ogg' : 'webm';
   const clean = String(title || 'Echoo live recording')
@@ -163,6 +168,7 @@ const BroadcastRecordingPrompt = () => {
             <div><dt>Length</dt><dd>{formatDuration(recording.durationSeconds)}</dd></div>
             <div><dt>Local file</dt><dd>{formatBytes(recording.blob.size)}</dd></div>
             <div><dt>Format</dt><dd>{recording.mimeType?.includes('ogg') ? 'Opus / OGG' : 'Opus / WebM'}</dd></div>
+            <div><dt>Quality</dt><dd>{formatBitrate(recording.audioBitsPerSecond || recording.targetAudioBitsPerSecond)}</dd></div>
           </dl>
         </div>
 

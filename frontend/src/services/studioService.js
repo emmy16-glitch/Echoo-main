@@ -49,6 +49,28 @@ const readAudioDuration = (file) =>
     window.setTimeout(() => finish(0), 8000);
   });
 
+const extensionForMime = (mimeType = "") => {
+  const value = String(mimeType).toLowerCase();
+  if (value.includes("webm")) return ".webm";
+  if (value.includes("ogg") || value.includes("opus")) return ".ogg";
+  if (value.includes("mpeg") || value.includes("mp3")) return ".mp3";
+  if (value.includes("wav")) return ".wav";
+  if (value.includes("flac")) return ".flac";
+  if (value.includes("aac")) return ".aac";
+  if (value.includes("mp4") || value.includes("m4a")) return ".m4a";
+  return ".audio";
+};
+
+const safeDownloadName = ({ title, originalName, mimeType } = {}) => {
+  if (String(originalName || "").trim()) return String(originalName).trim();
+  const base = String(title || "echoo-audio")
+    .trim()
+    .replace(/[^a-z0-9-_ ]+/gi, "")
+    .replace(/\s+/g, "-")
+    .slice(0, 90) || "echoo-audio";
+  return `${base}${extensionForMime(mimeType)}`;
+};
+
 const studioService = {
   getDashboard: async () => apiRequest("/studio/dashboard"),
 
@@ -67,9 +89,57 @@ const studioService = {
     return apiRequest(`/studio/analytics?${params.toString()}`);
   },
 
+  updateAudio: async (audioId, data = {}) => {
+    if (!audioId) throw new Error("Audio ID is missing.");
+    return apiRequest(`/audio/${audioId}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  },
+
   deleteAudio: async (audioId) => {
     if (!audioId) throw new Error("Audio ID is missing.");
     return apiRequest(`/audio/${audioId}`, { method: "DELETE" });
+  },
+
+  downloadAudio: async (audioId, metadata = {}) => {
+    if (!audioId) throw new Error("Audio ID is missing.");
+
+    const accessToken = localStorage.getItem("accessToken") || localStorage.getItem("token");
+    if (!accessToken) throw new Error("Your session is missing. Please sign in again.");
+
+    const response = await fetch(`${API_BASE_URL}/audio/${encodeURIComponent(audioId)}/download`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (!response.ok) {
+      let message = "Could not download this audio.";
+      try {
+        const data = await response.json();
+        message = data?.error?.message || data?.message || message;
+      } catch {
+        // Non-JSON failures keep the safe fallback message.
+      }
+      const error = new Error(message);
+      error.status = response.status;
+      throw error;
+    }
+
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = objectUrl;
+    anchor.download = safeDownloadName({
+      ...metadata,
+      mimeType: metadata?.mimeType || blob.type,
+    });
+    anchor.style.display = "none";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+
+    return { size: blob.size, mimeType: blob.type };
   },
 
   uploadAudio: async ({

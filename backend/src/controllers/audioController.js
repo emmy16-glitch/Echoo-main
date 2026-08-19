@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import Audio from '../models/Audio.js';
 import Follow from '../models/Follow.js';
 import User from '../models/User.js';
@@ -210,6 +212,52 @@ export async function getAudioById(req, res, next) {
       data: audio,
       timestamp: new Date().toISOString(),
     });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function downloadAudio(req, res, next) {
+  try {
+    const audio = await Audio.findById(req.params.id);
+
+    if (!audio || audio.isDeleted) {
+      return res.status(404).json({
+        error: { code: 'NOT_FOUND', message: 'Audio not found' },
+      });
+    }
+
+    const isOwner = audio.artist.toString() === req.userId.toString();
+    if (!audio.isPublic && !isOwner) {
+      return res.status(403).json({
+        error: { code: 'FORBIDDEN', message: 'You do not have access to this audio' },
+      });
+    }
+
+    const storedFilename = path.basename(String(audio.filename || audio.fileKey || ''));
+    const absolutePath = path.join(process.cwd(), 'uploads', 'audio', storedFilename);
+
+    if (!storedFilename || !fs.existsSync(absolutePath)) {
+      return res.status(404).json({
+        error: {
+          code: 'AUDIO_FILE_MISSING',
+          message: 'The audio record exists, but its local media file is missing on this backend.',
+        },
+      });
+    }
+
+    // The download endpoint serves the exact stored bytes. Echoo does not
+    // decode, normalize, recompress or transcode audio during a download.
+    res.setHeader('Cache-Control', 'private, no-transform');
+    if (audio.mimeType) res.setHeader('Content-Type', audio.mimeType);
+
+    return res.download(
+      absolutePath,
+      audio.originalName || storedFilename,
+      (downloadError) => {
+        if (downloadError && !res.headersSent) next(downloadError);
+      }
+    );
   } catch (error) {
     next(error);
   }

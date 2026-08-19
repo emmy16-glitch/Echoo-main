@@ -7,6 +7,7 @@ import {
   uploadAudio,
   getAudio,
   getAudioById,
+  downloadAudio,
   updateAudio,
   deleteAudio,
   incrementPlays,
@@ -93,6 +94,7 @@ const requireCreator = (req, res, next) => {
 };
 
 router.get('/', getAudio);
+router.get('/:id/download', authenticate, downloadAudio);
 router.get('/:id', authenticate, getAudioById);
 router.post(
   '/upload',
