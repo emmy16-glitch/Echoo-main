@@ -1,0 +1,464 @@
+/*
+ * Creator shell + Broadcast Studio breathing-room pass.
+ *
+ * This intentionally loads last. The previous reference pass was accurate in
+ * content, but it flattened too many connected panels into one dense grid.
+ * Here we keep every real control/data source and restore a calmer hierarchy.
+ */
+
+/* ==========================================================
+   SHELL — keep the sidebar control completely away from search
+========================================================== */
+
+#root .studio-final-shell.sidebar-expanded .studio-sidebar-head {
+  min-height: 62px !important;
+}
+
+#root .studio-final-shell.sidebar-expanded .studio-brand {
+  padding-right: 46px !important;
+}
+
+#root .studio-final-shell.sidebar-expanded .studio-sidebar-toggle {
+  top: 5px !important;
+  right: 8px !important;
+  left: auto !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+#root .studio-final-shell.sidebar-collapsed .studio-sidebar-head {
+  min-height: 92px !important;
+}
+
+#root .studio-final-shell.sidebar-collapsed .studio-sidebar-toggle {
+  top: 55px !important;
+  left: 50% !important;
+  right: auto !important;
+  transform: translateX(-50%) !important;
+  box-shadow: none !important;
+}
+
+#root .studio-final-shell .studio-topbar-final {
+  min-height: 82px !important;
+  padding: 0 28px !important;
+}
+
+#root .studio-final-shell .studio-command-search {
+  width: min(42vw, 470px) !important;
+  min-width: 230px !important;
+  height: 44px !important;
+  margin-left: 0 !important;
+  margin-right: auto !important;
+  padding-inline: 14px !important;
+  border-radius: 10px !important;
+}
+
+#root .studio-final-shell .studio-view:has(.ebsx) {
+  max-width: 1360px !important;
+  padding-top: 30px !important;
+  padding-inline: 32px !important;
+}
+
+/* ==========================================================
+   PRE-LIVE — stop flattening the entire page into 3 tight columns
+========================================================== */
+
+#root .studio-final-shell .ebsx.setup-page .ebsx-setup-header {
+  min-height: 0 !important;
+  display: block !important;
+  margin: 0 0 28px !important;
+  padding-right: 0 !important;
+}
+
+/* The station card already communicates the real studio status. Removing the
+   duplicate pseudo-card makes the top of the page calmer and easier to scan. */
+#root .studio-final-shell .ebsx.setup-page .ebsx-setup-header::after {
+  display: none !important;
+  content: none !important;
+}
+
+#root .studio-final-shell .ebsx.setup-page .ebsx-setup-header p {
+  max-width: 720px !important;
+}
+
+#root .studio-final-shell .ebsx.setup-page .ebsx-setup-layout {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 320px !important;
+  grid-template-areas: none !important;
+  gap: 24px !important;
+  align-items: start !important;
+}
+
+#root .studio-final-shell .ebsx.setup-page .ebsx-setup-main {
+  display: block !important;
+  min-width: 0 !important;
+}
+
+#root .studio-final-shell .ebsx.setup-page .ebsx-preflight-grid {
+  display: grid !important;
+  grid-template-columns: minmax(230px, 270px) minmax(0, 1fr) !important;
+  grid-template-areas: none !important;
+  gap: 20px !important;
+  margin-top: 20px !important;
+  align-items: stretch !important;
+}
+
+#root .studio-final-shell .ebsx.setup-page .ebsx-station-hero {
+  min-height: 156px !important;
+  grid-area: auto !important;
+  grid-template-columns: 124px minmax(190px, 1fr) minmax(260px, .9fr) !important;
+  gap: 26px !important;
+  padding: 20px 22px !important;
+  border-radius: 14px !important;
+}
+
+#root .studio-final-shell .ebsx.setup-page .ebsx-station-art {
+  width: 116px !important;
+  height: 108px !important;
+}
+
+#root .studio-final-shell .ebsx.setup-page .ebsx-quality {
+  min-height: 96px !important;
+  padding: 16px 18px !important;
+}
+
+#root .studio-final-shell .ebsx.setup-page .ebsx-hero-mic {
+  display: none !important;
+}
+
+#root .studio-final-shell .ebsx.setup-page .ebsx-mic-preview {
+  grid-area: auto !important;
+  min-height: 100% !important;
+  padding: 20px !important;
+  border-radius: 14px !important;
+}
+
+#root .studio-final-shell .ebsx.setup-page .ebsx-preflight-grid > .eam {
+  grid-area: auto !important;
+  min-height: 100% !important;
+  padding: 20px !important;
+  border-radius: 14px !important;
+}
+
+#root .studio-final-shell .ebsx.setup-page .ebsx-preflight-grid > .eam .eam-grid {
+  gap: 10px !important;
+}
+
+#root .studio-final-shell .ebsx.setup-page .ebsx-preflight-grid > .eam .eam-channel {
+  padding: 12px 10px !important;
+}
+
+#root .studio-final-shell .ebsx.setup-page .ebsx-workflow {
+  grid-area: auto !important;
+  position: sticky !important;
+  top: 102px !important;
+  padding: 20px !important;
+  border-radius: 14px !important;
+}
+
+#root .studio-final-shell .ebsx.setup-page .ebsx-step {
+  padding-block: 16px !important;
+}
+
+#root .studio-final-shell .ebsx.setup-page .ebsx-planned-card {
+  grid-area: auto !important;
+  margin-top: 20px !important;
+  padding: 20px 22px !important;
+  border-radius: 14px !important;
+}
+
+/* ==========================================================
+   LIVE — use a real main workspace + side console, not display:contents
+========================================================== */
+
+#root .studio-final-shell .ebsx.live-page .ebsx-live-layout {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 410px) !important;
+  gap: 24px !important;
+  align-items: start !important;
+}
+
+#root .studio-final-shell .ebsx.live-page .ebsx-live-main {
+  display: flex !important;
+  flex-direction: column !important;
+  min-width: 0 !important;
+  gap: 18px !important;
+}
+
+#root .studio-final-shell .ebsx.live-page .ebsx-live-side {
+  display: flex !important;
+  flex-direction: column !important;
+  min-width: 0 !important;
+  gap: 18px !important;
+}
+
+#root .studio-final-shell .ebsx.live-page .ebsx-live-lower {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 18px !important;
+  margin: 0 !important;
+}
+
+#root .studio-final-shell .ebsx.live-page .ebsx-onair-card {
+  grid-column: auto !important;
+  grid-row: auto !important;
+  min-height: 230px !important;
+  grid-template-columns: 104px minmax(0, 1fr) !important;
+  grid-template-rows: auto auto !important;
+  gap: 18px 22px !important;
+  padding: 22px !important;
+  border-radius: 14px !important;
+}
+
+#root .studio-final-shell .ebsx.live-page .ebsx-onair-art {
+  grid-column: 1 !important;
+  grid-row: 1 !important;
+  width: 96px !important;
+  height: 96px !important;
+}
+
+#root .studio-final-shell .ebsx.live-page .ebsx-onair-copy {
+  grid-column: 2 !important;
+  grid-row: 1 !important;
+}
+
+#root .studio-final-shell .ebsx.live-page .ebsx-onair-copy h2 {
+  max-width: none !important;
+  white-space: normal !important;
+}
+
+#root .studio-final-shell .ebsx.live-page .ebsx-onair-stats {
+  grid-column: 1 / -1 !important;
+  grid-row: 2 !important;
+  min-height: 76px !important;
+  align-self: auto !important;
+  border-left: 0 !important;
+  border-top: 1px solid #edf1f5 !important;
+  padding-top: 8px !important;
+}
+
+#root .studio-final-shell .ebsx.live-page .ebsx-onair-stats div {
+  padding: 12px 16px !important;
+}
+
+#root .studio-final-shell .ebsx.live-page .ebsx-live-primary-actions {
+  grid-column: auto !important;
+  grid-row: auto !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  gap: 10px !important;
+  margin: 0 !important;
+}
+
+#root .studio-final-shell .ebsx.live-page .ebsx-live-primary-actions button.danger {
+  min-width: 170px !important;
+}
+
+#root .studio-final-shell .ebsx.live-page .ebsx-chat-card {
+  grid-column: auto !important;
+  grid-row: auto !important;
+  min-height: 430px !important;
+  padding: 20px !important;
+  border-radius: 14px !important;
+}
+
+#root .studio-final-shell .ebsx.live-page .ebsx-chat-list {
+  min-height: 280px !important;
+  max-height: 360px !important;
+}
+
+#root .studio-final-shell .ebsx.live-page .ebsx-activity-card {
+  grid-column: auto !important;
+  grid-row: auto !important;
+  min-height: 190px !important;
+  padding: 20px 22px !important;
+  border-radius: 14px !important;
+}
+
+#root .studio-final-shell .ebsx.live-page .ebsx-live-side > .eam,
+#root .studio-final-shell .ebsx.live-page .eam.compact {
+  grid-column: auto !important;
+  grid-row: auto !important;
+  min-height: 0 !important;
+  padding: 20px !important;
+  border-radius: 14px !important;
+}
+
+/* The side console is deliberately two channels per row. Four narrow faders
+   looked technically impressive but visually cramped in the available rail. */
+#root .studio-final-shell .ebsx.live-page .eam.compact .eam-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 10px !important;
+}
+
+#root .studio-final-shell .ebsx.live-page .eam.compact .eam-monitor-panel {
+  grid-template-columns: 1fr !important;
+  gap: 10px !important;
+}
+
+#root .studio-final-shell .ebsx.live-page .eam.compact .eam-monitor-controls {
+  grid-template-columns: 1fr 1fr !important;
+}
+
+#root .studio-final-shell .ebsx.live-page .eam.compact .eam-monitor-controls select {
+  grid-column: 1 / -1 !important;
+}
+
+#root .studio-final-shell .ebsx.live-page .eam.compact .eam-channel-body {
+  height: 150px !important;
+}
+
+#root .studio-final-shell .ebsx.live-page .eam.compact .eam-meter-wrap {
+  height: 136px !important;
+}
+
+#root .studio-final-shell .ebsx.live-page .eam.compact .eam-meter {
+  height: 110px !important;
+}
+
+#root .studio-final-shell .ebsx.live-page .eam.compact .eam-fader {
+  width: 108px !important;
+}
+
+#root .studio-final-shell .ebsx.live-page .ebsx-live-controls {
+  grid-column: auto !important;
+  grid-row: auto !important;
+  min-height: 0 !important;
+  padding: 20px !important;
+  border-radius: 14px !important;
+}
+
+#root .studio-final-shell .ebsx.live-page .ebsx-control-grid {
+  grid-template-columns: 1fr !important;
+  gap: 9px !important;
+}
+
+#root .studio-final-shell .ebsx.live-page .ebsx-control-grid button {
+  min-height: 64px !important;
+}
+
+/* ==========================================================
+   RESPONSIVE — reflow before anything becomes cramped
+========================================================== */
+
+@container creator-main (max-width: 1160px) {
+  #root .studio-final-shell .ebsx.setup-page .ebsx-setup-layout {
+    grid-template-columns: 1fr !important;
+  }
+
+  #root .studio-final-shell .ebsx.setup-page .ebsx-workflow {
+    position: static !important;
+  }
+
+  #root .studio-final-shell .ebsx.live-page .ebsx-live-layout {
+    grid-template-columns: 1fr !important;
+  }
+
+  #root .studio-final-shell .ebsx.live-page .ebsx-live-side {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 300px !important;
+    align-items: start !important;
+  }
+
+  #root .studio-final-shell .ebsx.live-page .eam.compact .eam-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+}
+
+@container creator-main (max-width: 900px) {
+  #root .studio-final-shell .ebsx.setup-page .ebsx-station-hero {
+    grid-template-columns: 112px minmax(0, 1fr) !important;
+  }
+
+  #root .studio-final-shell .ebsx.setup-page .ebsx-quality {
+    grid-column: 1 / -1 !important;
+  }
+
+  #root .studio-final-shell .ebsx.setup-page .ebsx-preflight-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  #root .studio-final-shell .ebsx.live-page .ebsx-live-side {
+    grid-template-columns: 1fr !important;
+  }
+
+  #root .studio-final-shell .ebsx.live-page .eam.compact .eam-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 980px) and (min-width: 761px) {
+  #root .studio-final-shell .studio-command-search {
+    width: min(38vw, 380px) !important;
+    min-width: 210px !important;
+  }
+}
+
+@media (max-width: 760px) {
+  #root .studio-final-shell .studio-topbar-final {
+    min-height: 62px !important;
+    padding-inline: 14px !important;
+  }
+
+  #root .studio-final-shell .studio-view:has(.ebsx) {
+    padding: 20px 12px 30px !important;
+  }
+
+  #root .studio-final-shell .ebsx.setup-page .ebsx-setup-header {
+    margin-bottom: 22px !important;
+  }
+
+  #root .studio-final-shell .ebsx.setup-page .ebsx-station-hero {
+    grid-template-columns: 1fr !important;
+    text-align: left !important;
+    padding: 18px !important;
+  }
+
+  #root .studio-final-shell .ebsx.setup-page .ebsx-station-art {
+    justify-self: start !important;
+  }
+
+  #root .studio-final-shell .ebsx.setup-page .ebsx-quality {
+    grid-column: auto !important;
+  }
+
+  #root .studio-final-shell .ebsx.live-page .ebsx-onair-card {
+    grid-template-columns: 82px minmax(0, 1fr) !important;
+    padding: 18px !important;
+  }
+
+  #root .studio-final-shell .ebsx.live-page .ebsx-onair-art {
+    width: 78px !important;
+    height: 78px !important;
+  }
+
+  #root .studio-final-shell .ebsx.live-page .ebsx-onair-stats {
+    grid-template-columns: 1fr !important;
+  }
+
+  #root .studio-final-shell .ebsx.live-page .ebsx-onair-stats div {
+    border-right: 0 !important;
+    border-bottom: 1px solid #edf1f5 !important;
+  }
+
+  #root .studio-final-shell .ebsx.live-page .ebsx-onair-stats div:last-child {
+    border-bottom: 0 !important;
+  }
+
+  #root .studio-final-shell .ebsx.live-page .ebsx-live-primary-actions {
+    grid-template-columns: 1fr !important;
+  }
+
+  #root .studio-final-shell .ebsx.live-page .ebsx-live-primary-actions button.danger {
+    min-width: 0 !important;
+  }
+
+  #root .studio-final-shell .ebsx.live-page .eam.compact .eam-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 430px) {
+  #root .studio-final-shell .ebsx.live-page .eam.compact .eam-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
