@@ -15,7 +15,6 @@ import {
   ListenerAuthCard,
   ListenerEmptyState,
   ListenerListRow,
-  ListenerMiniPlayer,
   ListenerPageHeader,
   ListenerSectionHeader,
   ListenerTopBar,
@@ -79,6 +78,24 @@ export default function FavoritesScreen() {
     }, [loadFavorites])
   );
 
+  const openAudio = (track: EchooAudio) => {
+    router.push({
+      pathname: '/audio-player',
+      params: {
+        audioId: track.id,
+        title: track.title,
+        subtitle: track.subtitle || track.artistName || track.genre || 'Echoo Audio',
+        coverArt: track.coverArt || '',
+        fileUrl: track.fileUrl || '',
+        genre: track.genre || '',
+      },
+    });
+  };
+
+  const openStation = (station: EchooStation) => {
+    router.push({ pathname: '/station', params: { stationId: station.id } });
+  };
+
   const total = savedAudio.length + stations.length;
 
   return (
@@ -140,6 +157,7 @@ export default function FavoritesScreen() {
                   meta={station.isLive ? 'LIVE' : `${station.followerCount || 0} followers`}
                   image={station.coverArt}
                   fallback={<Radio color={palette.blue} size={21} />}
+                  onPress={() => openStation(station)}
                 />
               ))
             ) : (
@@ -161,6 +179,7 @@ export default function FavoritesScreen() {
                   meta={track.genre || 'Saved'}
                   image={track.coverArt}
                   fallback={<Music2 color={palette.blue} size={21} />}
+                  onPress={() => openAudio(track)}
                 />
               ))
             ) : (
@@ -174,15 +193,13 @@ export default function FavoritesScreen() {
           </>
         ) : null}
       </ScrollView>
-
-      {signedIn && savedAudio[0] ? <ListenerMiniPlayer audio={savedAudio[0]} /> : null}
     </SafeAreaView>
   );
 }
 
 const createStyles = (palette: EchooColors) => StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: palette.background },
-  content: { paddingHorizontal: 18, paddingTop: 8, paddingBottom: 130 },
+  content: { paddingHorizontal: 18, paddingTop: 8, paddingBottom: 120 },
   loadingState: { minHeight: 160, alignItems: 'center', justifyContent: 'center', gap: 10 },
   loadingText: { color: palette.muted, fontSize: 12.5, fontWeight: '700' },
   summaryCard: { backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line, borderRadius: 20, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 14 },
