@@ -15,6 +15,10 @@ import {
   incrementPlays,
   toggleLike,
 } from '../controllers/audioController.js';
+import {
+  issueAudioStreamUrl,
+  streamAudio,
+} from '../controllers/audioStreamController.js';
 
 const router = express.Router();
 
@@ -290,6 +294,13 @@ const cleanupUploadError = async (err, req, res, next) => {
 };
 
 router.get('/', validateAudioListQuery, getAudio);
+
+// Playback is never served from /uploads/audio. Browser media elements use a
+// scoped signed URL; API clients may alternatively send a normal Bearer token.
+router.post('/:id/stream-token', validateAudioId, authenticate, issueAudioStreamUrl);
+router.get('/:id/stream', validateAudioId, streamAudio);
+router.head('/:id/stream', validateAudioId, streamAudio);
+
 router.get('/:id/download', validateAudioId, authenticate, downloadAudio);
 router.get('/:id', validateAudioId, authenticate, getAudioById);
 router.post(
