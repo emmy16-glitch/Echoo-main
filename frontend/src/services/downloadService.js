@@ -1,7 +1,9 @@
 import batch6Service from './batch6Service.js';
+import audioService from './audioService.js';
 
 const STORAGE_KEY = 'echooDownloads';
 const CACHE_NAME = 'echoo-offline-audio-v1';
+const OFFLINE_CACHE_PREFIX = '/__echoo-offline-audio/';
 
 const readDownloads = () => {
   try {
@@ -27,18 +29,23 @@ const resolveUrl = (value) => {
   }
 };
 
+const offlineCacheUrl = (trackId) =>
+  resolveUrl(`${OFFLINE_CACHE_PREFIX}${encodeURIComponent(String(trackId || ''))}`);
+
 const normalizeDownload = (track) => {
   if (!track) return null;
+  const id = track.id || track._id || null;
   return {
-    id: track.id || track._id || null,
+    id,
     title: track.title || 'Untitled Audio',
     artistName: track.artistName || track.subtitle || 'Echoo Audio',
     genre: track.genre || 'Audio',
     duration: Number(track.duration) || 0,
     fileSize: Number(track.fileSize) || 0,
     coverArt: track.coverArt || null,
-    fileUrl: track.fileUrl || null,
-    cacheUrl: resolveUrl(track.fileUrl),
+    // Never persist a temporary signed stream token in localStorage. Offline
+    // bytes are indexed by an Echoo-local stable cache key instead.
+    cacheUrl: offlineCacheUrl(id),
     downloadedAt: new Date().toISOString(),
   };
 };
@@ -100,19 +107,20 @@ const downloadService = {
 
   download: async (track) => {
     if (!track?.id) throw new Error('This track does not have an ID.');
-    if (!track?.fileUrl) throw new Error('This track does not have an audio file.');
     if (!('caches' in window)) throw new Error('Offline storage is not supported in this browser.');
 
-    const cacheUrl = resolveUrl(track.fileUrl);
-    const response = await fetch(cacheUrl, { credentials:'omit' });
+    // Always mint a fresh protected playback URL at download time instead of
+    // trusting a possibly old token embedded in track metadata.
+    const { streamUrl } = await audioService.getStreamUrl(track.id);
+    const response = await fetch(streamUrl, { credentials:'omit' });
     if (!response.ok) {
       throw new Error(`Could not download audio. Server returned ${response.status}.`);
     }
 
-    const cache = await caches.open(CACHE_NAME);
-    await cache.put(cacheUrl, response.clone());
-
     const item = normalizeDownload(track);
+    const cache = await caches.open(CACHE_NAME);
+    await cache.put(item.cacheUrl, response.clone());
+
     const current = readDownloads();
     const next = [item, ...current.filter((existing) => String(existing.id) !== String(item.id))];
     writeDownloads(next);
@@ -127,9 +135,11 @@ const downloadService = {
     const current = readDownloads();
     const target = current.find((item) => String(item.id) === String(trackId));
 
-    if (target?.cacheUrl && 'caches' in window) {
+    if ('caches' in window) {
       const cache = await caches.open(CACHE_NAME);
-      await cache.delete(target.cacheUrl);
+      if (target?.cacheUrl) await cache.delete(target.cacheUrl);
+      // Also clear the stable cache key in case this is a pre-migration record.
+      await cache.delete(offlineCacheUrl(trackId));
     }
 
     const next = current.filter((item) => String(item.id) !== String(trackId));
@@ -148,14 +158,27 @@ const downloadService = {
   getPlayableUrl: async (trackId) => {
     const target = readDownloads().find((item) => String(item.id) === String(trackId));
     if (!target) throw new Error('Downloaded track not found.');
-    if (!('caches' in window)) return target.fileUrl || null;
 
-    const cache = await caches.open(CACHE_NAME);
-    const response = await cache.match(target.cacheUrl);
-    if (!response) return target.fileUrl || null;
+    if ('caches' in window) {
+      const cache = await caches.open(CACHE_NAME);
+      const preferredKey = target.cacheUrl || offlineCacheUrl(trackId);
+      let response = preferredKey ? await cache.match(preferredKey) : null;
 
-    const blob = await response.blob();
-    return URL.createObjectURL(blob);
+      // Migration path for records written before stable cache keys existed.
+      if (!response && preferredKey !== offlineCacheUrl(trackId)) {
+        response = await cache.match(offlineCacheUrl(trackId));
+      }
+
+      if (response) {
+        const blob = await response.blob();
+        return URL.createObjectURL(blob);
+      }
+    }
+
+    // If local browser storage was evicted, obtain a fresh online stream rather
+    // than returning an expired signed URL saved months earlier.
+    const { streamUrl } = await audioService.getStreamUrl(trackId);
+    return streamUrl;
   },
 };
 
