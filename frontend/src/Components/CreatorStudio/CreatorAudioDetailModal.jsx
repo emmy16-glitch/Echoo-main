@@ -49,6 +49,8 @@ const formatType = (mimeType = '') => {
 
 const CreatorAudioDetailModal = ({ track, onClose, onChanged }) => {
   const audioRef = useRef(null);
+  const [fileUrl, setFileUrl] = useState('');
+  const [streamLoading, setStreamLoading] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -59,7 +61,8 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged }) => {
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState('');
 
-  const fileUrl = useMemo(
+  const trackId = getId(track);
+  const legacyFileUrl = useMemo(
     () => buildMediaUrl(track?.fileUrl || track?.audioUrl || ''),
     [track]
   );
@@ -73,6 +76,38 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged }) => {
   }, [track?.isPublic]);
 
   useEffect(() => {
+    let active = true;
+    setFileUrl('');
+    setDuration(0);
+    setCurrentTime(0);
+    setError('');
+
+    const prepareStream = async () => {
+      if (!trackId) {
+        if (active) setFileUrl(legacyFileUrl || '');
+        return;
+      }
+
+      try {
+        setStreamLoading(true);
+        const stream = await studioService.getAudioStreamUrl(trackId);
+        if (active) setFileUrl(stream.streamUrl);
+      } catch (streamError) {
+        if (active) {
+          setError(streamError?.message || 'Echoo could not prepare this audio for playback.');
+        }
+      } finally {
+        if (active) setStreamLoading(false);
+      }
+    };
+
+    prepareStream();
+    return () => {
+      active = false;
+    };
+  }, [trackId, legacyFileUrl]);
+
+  useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return undefined;
 
@@ -83,7 +118,7 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged }) => {
     const handlePlay = () => setIsPlaying(true);
     const handlePause = () => setIsPlaying(false);
     const handleEnded = () => setIsPlaying(false);
-    const handleError = () => setError('Echoo could not load this audio file from the backend.');
+    const handleError = () => setError('Echoo could not load this protected audio stream.');
 
     audio.addEventListener('loadedmetadata', syncMetadata);
     audio.addEventListener('durationchange', syncMetadata);
@@ -265,7 +300,7 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged }) => {
                 <button type="button" onClick={() => seekBy(-15)} disabled={!fileUrl} title="Back 15 seconds">
                   <FaStepBackward /> <span>-15s</span>
                 </button>
-                <button type="button" className="primary" onClick={togglePlayback} disabled={!fileUrl} aria-label={isPlaying ? 'Pause' : 'Play'}>
+                <button type="button" className="primary" onClick={togglePlayback} disabled={!fileUrl || streamLoading} aria-label={isPlaying ? 'Pause' : 'Play'}>
                   {isPlaying ? <FaPause /> : <FaPlay />}
                 </button>
                 <button type="button" onClick={() => seekBy(30)} disabled={!fileUrl} title="Forward 30 seconds">
@@ -290,6 +325,9 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged }) => {
             </div>
           </div>
 
+          {streamLoading && !error && (
+            <div className="creator-audio-modal-error" role="status">Preparing protected playback...</div>
+          )}
           {error && <div className="creator-audio-modal-error" role="alert">{error}</div>}
 
           <div className="creator-audio-modal-actions">
@@ -308,7 +346,7 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged }) => {
           </div>
 
           <p className="creator-audio-quality-note">
-            Downloads use the exact file stored by Echoo. No extra audio transcoding is applied during download.
+            Playback uses Echoo’s protected range stream. Downloads still use the exact stored original with no extra transcoding.
           </p>
         </div>
       </section>
