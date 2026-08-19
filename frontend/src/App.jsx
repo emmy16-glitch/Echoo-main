@@ -29,6 +29,7 @@ import ListenerRealLiveRoom from './Components/ListenerLiveExperience/ListenerRe
 import ListenerRealStationProfile from './Components/ListenerLiveExperience/ListenerRealStationProfile';
 import EchooExperienceOrchestrator from './Components/EchooSystem/EchooExperienceOrchestrator';
 import EchooMobileNavigation from './Components/EchooSystem/EchooMobileNavigation';
+import ImageCropProvider from './Components/Common/ImageCropProvider';
 
 const getStoredUser = () => {
   try {
@@ -207,53 +208,55 @@ const DefaultRedirect = () => {
 function App() {
   return (
     <BrowserRouter>
-      <EchooExperienceOrchestrator />
-      <EchooMobileNavigation />
+      <ImageCropProvider>
+        <EchooExperienceOrchestrator />
+        <EchooMobileNavigation />
 
-      <a className="echoo-skip-to-content" href="#echoo-main-content">
-        Skip to content
-      </a>
+        <a className="echoo-skip-to-content" href="#echoo-main-content">
+          Skip to content
+        </a>
 
-      <div id="echoo-main-content" tabIndex={-1}>
-        <Routes>
-          <Route path="/" element={<OnboardingFlow />} />
+        <div id="echoo-main-content" tabIndex={-1}>
+          <Routes>
+            <Route path="/" element={<OnboardingFlow />} />
 
-          <Route
-            path="/creator-studio"
-            element={
-              <RequireRole role="creator">
-                <CreatorStudio />
-              </RequireRole>
-            }
-          />
+            <Route
+              path="/creator-studio"
+              element={
+                <RequireRole role="creator">
+                  <CreatorStudio />
+                </RequireRole>
+              }
+            />
 
-          <Route
-            path="/listen"
-            element={
-              <RequireRole role="listener">
-                <ListenerLayout />
-              </RequireRole>
-            }
-          >
-            <Route index element={<ListenerHome />} />
-            <Route path="search" element={<ListenerSearch />} />
-            <Route path="live" element={<ListenerLive />} />
-            <Route path="live/:broadcastId" element={<ListenerRealLiveRoom />} />
-            <Route path="stations" element={<ListenerStations />} />
-            <Route path="stations/:stationId" element={<ListenerRealStationProfile />} />
-            <Route path="audio/:audioId" element={<ListenerAudioDetail />} />
-            <Route path="library" element={<ListenerLibrary />} />
-            <Route path="library/following" element={<ListenerFollowing />} />
-            <Route path="history" element={<ListenerHistory />} />
-            <Route path="downloads" element={<ListenerDownloads />} />
-            <Route path="creator/:creatorId" element={<ListenerCreatorProfile />} />
-            <Route path="notifications" element={<ListenerNotifications />} />
-            <Route path="settings" element={<ListenerSettings />} />
-          </Route>
+            <Route
+              path="/listen"
+              element={
+                <RequireRole role="listener">
+                  <ListenerLayout />
+                </RequireRole>
+              }
+            >
+              <Route index element={<ListenerHome />} />
+              <Route path="search" element={<ListenerSearch />} />
+              <Route path="live" element={<ListenerLive />} />
+              <Route path="live/:broadcastId" element={<ListenerRealLiveRoom />} />
+              <Route path="stations" element={<ListenerStations />} />
+              <Route path="stations/:stationId" element={<ListenerRealStationProfile />} />
+              <Route path="audio/:audioId" element={<ListenerAudioDetail />} />
+              <Route path="library" element={<ListenerLibrary />} />
+              <Route path="library/following" element={<ListenerFollowing />} />
+              <Route path="history" element={<ListenerHistory />} />
+              <Route path="downloads" element={<ListenerDownloads />} />
+              <Route path="creator/:creatorId" element={<ListenerCreatorProfile />} />
+              <Route path="notifications" element={<ListenerNotifications />} />
+              <Route path="settings" element={<ListenerSettings />} />
+            </Route>
 
-          <Route path="*" element={<DefaultRedirect />} />
-        </Routes>
-      </div>
+            <Route path="*" element={<DefaultRedirect />} />
+          </Routes>
+        </div>
+      </ImageCropProvider>
     </BrowserRouter>
   );
 }

@@ -270,14 +270,15 @@
   z-index: 1000;
   display: grid;
   place-items: center;
-  padding: 22px;
+  padding: 14px;
+  overflow: hidden;
   background: rgba(17, 30, 48, .34);
   backdrop-filter: blur(5px);
 }
 
 .studio-upload-modal {
   width: min(620px, 100%);
-  max-height: calc(100vh - 44px);
+  max-height: calc(100dvh - 28px);
   overflow: auto;
   border: 1px solid #dce4ed;
   border-radius: 18px;
@@ -316,6 +317,144 @@
 .studio-upload-actions button { min-height: 38px; display: inline-flex; align-items: center; gap: 7px; padding: 0 12px; border: 1px solid #dce4ed; border-radius: 9px; background: #fff; color: #40516a; cursor: pointer; font-weight: 700; }
 .studio-upload-actions button.primary { border-color: #246bfe; background: #246bfe; color: #fff; }
 
+/* Artwork upload modal: keep the entire flow visible, never cut the footer off. */
+.studio-upload-modal.studio-upload-modal-artwork {
+  width: min(920px, calc(100vw - 28px));
+  max-height: min(92dvh, 760px);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.studio-upload-modal-artwork .upload-modal-header {
+  padding: 16px 20px 12px;
+}
+.studio-upload-modal-artwork .upload-modal-header h2 { font-size: 20px; }
+.studio-upload-modal-artwork .upload-modal-header p { max-width: 650px; line-height: 1.45; }
+
+.studio-upload-modal-artwork .studio-upload-form {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  padding: 0;
+  overflow: hidden;
+}
+
+.studio-upload-composer {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 20px;
+  overflow: auto;
+  padding: 16px 20px 12px;
+}
+
+.studio-upload-artwork-column,
+.studio-upload-fields-column { min-width: 0; }
+
+.studio-upload-artwork-preview {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border: 1px solid #dde5ef;
+  border-radius: 14px;
+  background: #edf3fb;
+}
+.studio-upload-artwork-preview img { width: 100%; height: 100%; display: block; object-fit: cover; }
+.studio-upload-artwork-preview > span {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  padding: 5px 7px;
+  border-radius: 7px;
+  background: rgba(10,23,48,.82);
+  color: #fff;
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: .07em;
+}
+
+.studio-cover-picker,
+.studio-cover-remove {
+  width: 100%;
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 10px;
+  padding: 0 10px;
+  border: 1px solid #dce4ed;
+  border-radius: 9px;
+  background: #fff;
+  color: #40516b;
+  font-size: 9px;
+  font-weight: 720;
+  cursor: pointer;
+}
+.studio-cover-picker input { display: none; }
+.studio-cover-remove { color: #a33a3a; }
+.studio-upload-artwork-help { margin: 10px 0 0; color: #7d8b9f; font-size: 9px; line-height: 1.5; }
+
+.studio-upload-modal-artwork .studio-upload-drop {
+  min-height: 92px;
+  padding: 12px;
+}
+.studio-upload-modal-artwork .studio-upload-drop > div { font-size: 20px; }
+.studio-upload-modal-artwork .studio-form-field { margin-top: 10px; }
+.studio-upload-modal-artwork .studio-form-field input,
+.studio-upload-modal-artwork .studio-form-field select { height: 36px; }
+.studio-upload-modal-artwork .studio-form-field textarea { min-height: 68px; max-height: 100px; }
+
+.studio-form-row {
+  display: grid;
+  grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr);
+  gap: 10px;
+}
+
+.studio-upload-card-preview {
+  min-height: 66px;
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  margin-top: 12px;
+  padding: 8px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fbfcfe;
+}
+.studio-upload-card-preview img { width: 52px; height: 52px; border-radius: 8px; object-fit: cover; }
+.studio-upload-card-preview strong,
+.studio-upload-card-preview span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.studio-upload-card-preview strong { color: #21314b; font-size: 10px; }
+.studio-upload-card-preview span { margin-top: 4px; color: #7d899b; font-size: 8px; }
+.studio-upload-card-preview small { padding: 5px 7px; border-radius: 999px; background: #edf4ff; color: #246bfe; font-size: 7px; font-weight: 800; }
+
+.studio-upload-public {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 8px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 9px;
+  color: #45556e;
+  font-size: 9px;
+  font-weight: 650;
+}
+.studio-upload-public input { accent-color: #246bfe; }
+
+.studio-upload-modal-artwork .studio-upload-actions {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 12px 20px 14px;
+  border-top: 1px solid #e8edf4;
+  background: #fff;
+}
+
 @media (max-width: 920px) {
   .studio-page { grid-template-columns: 78px minmax(0,1fr); }
   .studio-brand > div,
@@ -325,6 +464,16 @@
   .studio-nav-item { justify-content: center; padding: 0; }
   .studio-sidebar-profile { grid-template-columns: 1fr; justify-items: center; }
   .studio-view { padding: 26px 22px 44px; }
+}
+
+@media (max-width: 720px) {
+  .studio-upload-modal.studio-upload-modal-artwork { width: calc(100vw - 20px); max-height: 94dvh; }
+  .studio-upload-composer { grid-template-columns: 1fr; padding: 14px; }
+  .studio-upload-artwork-column { display: grid; grid-template-columns: 120px minmax(0,1fr); gap: 10px 12px; align-items: start; }
+  .studio-upload-artwork-preview { grid-row: 1 / span 3; }
+  .studio-cover-picker,
+  .studio-cover-remove { margin-top: 0; }
+  .studio-upload-artwork-help { margin-top: 0; }
 }
 
 @media (max-width: 620px) {
@@ -342,4 +491,6 @@
   .studio-account-button > svg { display: none; }
   .studio-view { padding: 20px 14px 36px; }
   .studio-footer { padding: 16px 14px 22px; }
+  .studio-form-row { grid-template-columns: 1fr; }
+  .studio-upload-artwork-column { grid-template-columns: 94px minmax(0,1fr); }
 }
