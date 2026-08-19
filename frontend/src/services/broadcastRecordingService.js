@@ -1,4 +1,5 @@
 const RECORDING_EVENT = 'echoo:broadcast-recording-ready';
+const RECORDING_TARGET_BITRATE = 256000;
 
 let activeRecording = null;
 let pendingRecording = null;
@@ -8,8 +9,8 @@ const supportedMimeType = () => {
 
   const candidates = [
     'audio/webm;codecs=opus',
-    'audio/webm',
     'audio/ogg;codecs=opus',
+    'audio/webm',
     'audio/ogg',
   ];
 
@@ -63,6 +64,9 @@ const stopRecorder = (recording, { keep = true } = {}) =>
         blob,
         mimeType,
         durationSeconds,
+        targetAudioBitsPerSecond: RECORDING_TARGET_BITRATE,
+        audioBitsPerSecond:
+          Number(recording.recorder.audioBitsPerSecond) || RECORDING_TARGET_BITRATE,
         startedAt: new Date(recording.startedAt).toISOString(),
         endedAt: new Date().toISOString(),
         filename: `${cleanFilenamePart(recording.title)}-${datePart}.${extension}`,
@@ -95,6 +99,7 @@ export const getBroadcastRecordingState = () => ({
   broadcastId: activeRecording?.broadcastId || null,
   startedAt: activeRecording?.startedAt || null,
   pending: Boolean(pendingRecording),
+  targetAudioBitsPerSecond: RECORDING_TARGET_BITRATE,
 });
 
 export const ensureBroadcastRecording = async ({
@@ -114,6 +119,7 @@ export const ensureBroadcastRecording = async ({
       recording: true,
       broadcastId: id,
       startedAt: activeRecording.startedAt,
+      targetAudioBitsPerSecond: RECORDING_TARGET_BITRATE,
     };
   }
 
@@ -132,7 +138,7 @@ export const ensureBroadcastRecording = async ({
   const stream = new MediaStream([clonedTrack]);
 
   const options = {
-    audioBitsPerSecond: 96000,
+    audioBitsPerSecond: RECORDING_TARGET_BITRATE,
   };
   if (mimeType) options.mimeType = mimeType;
 
@@ -161,9 +167,11 @@ export const ensureBroadcastRecording = async ({
 
   recorder.start(1000);
 
-  console.log('[Echoo Recording] local recording started', {
+  console.log('[Echoo Recording] high-quality local recording started', {
     broadcastId: id,
     mimeType: recorder.mimeType || mimeType || 'browser-default',
+    requestedAudioBitsPerSecond: RECORDING_TARGET_BITRATE,
+    actualAudioBitsPerSecond: recorder.audioBitsPerSecond || null,
   });
 
   return {
@@ -171,6 +179,8 @@ export const ensureBroadcastRecording = async ({
     recording: true,
     broadcastId: id,
     startedAt,
+    targetAudioBitsPerSecond: RECORDING_TARGET_BITRATE,
+    audioBitsPerSecond: recorder.audioBitsPerSecond || RECORDING_TARGET_BITRATE,
   };
 };
 
