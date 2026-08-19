@@ -1,5 +1,4 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { registerGlobals } from '@livekit/react-native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useMemo } from 'react';
@@ -7,8 +6,6 @@ import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { getEchooColors } from '@/src/theme/echooTheme';
-
-registerGlobals();
 
 export const unstable_settings = {
   anchor: '(tabs)',
