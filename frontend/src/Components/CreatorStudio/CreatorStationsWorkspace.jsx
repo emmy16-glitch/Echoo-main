@@ -7,7 +7,6 @@ import {
   FaChevronRight,
   FaEdit,
   FaEllipsisH,
-  FaExternalLinkAlt,
   FaList,
   FaMicrophone,
   FaPlay,
@@ -93,7 +92,7 @@ const stationState = (station) => {
   return 'ready';
 };
 
-const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
+const CreatorStationsWorkspace = ({ onNavigate }) => {
   const [stations, setStations] = useState([]);
   const [broadcasts, setBroadcasts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -459,11 +458,6 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
   const featuredBroadcastCount = featured ? broadcastCounts.get(idOf(featured)) || 0 : 0;
   const stationDescription = featured?.description || 'No description has been added for this station yet.';
   const defaultAudio = featured?.defaultAudio?.title || featured?.defaultAudioTitle || 'Not set';
-  const primaryLanguage = featured?.primaryLanguage || featured?.language || 'Not set';
-  const requestsSetting = typeof featured?.allowListenerRequests === 'boolean'
-    ? featured.allowListenerRequests ? 'On' : 'Off'
-    : 'Not set';
-  const ageRating = featured?.ageRating || 'Not set';
 
   return (
     <section className="est est-reference-page">
@@ -505,7 +499,7 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
                   type="button"
                   className="est-featured-art"
                   onClick={() => selectStation(featured, true)}
-                  aria-label={`Open ${featured?.name || 'featured station'} details`}
+                  aria-label={`Select ${featured?.name || 'featured station'}`}
                 >
                   <img src={featured?.brandCover || featured?.coverArt} alt={`${featured?.name || 'Station'} brand`} />
                   {featured?.isLive && <span>LIVE</span>}
@@ -528,9 +522,6 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
                 <div className="est-featured-actions">
                   <button type="button" className="primary" onClick={() => openBroadcast(featured, 'now')}>
                     <FaBroadcastTower /> {featured?.isLive ? 'Open studio' : 'Start broadcast'}
-                  </button>
-                  <button type="button" onClick={() => selectStation(featured, true)}>
-                    <FaExternalLinkAlt /> Open station
                   </button>
                   <button type="button" onClick={() => openEdit(featured)}>
                     <FaEdit /> Edit branding
@@ -568,9 +559,7 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
 
             <section className="est-all-stations">
               <div className="est-all-head">
-                <div>
-                  <h2>All stations</h2>
-                </div>
+                <div><h2>All stations</h2></div>
                 <div className="est-toolbar">
                   <label className="est-search">
                     <FaSearch />
@@ -615,7 +604,6 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
                         <div className="est-row-stat"><strong>{formatNumber(station.listenerCount)}</strong><span>Listening now</span></div>
                         <div className="est-row-stat"><strong>{formatNumber(broadcastCount)}</strong><span>Broadcasts</span></div>
                         <span className={`est-status compact ${state}`}><i />{state === 'live' ? 'Live' : state === 'offline' ? 'Offline' : 'Ready'}</span>
-                        <button type="button" className="est-row-open" onClick={() => selectStation(station, true)}>Open</button>
                         <div className="est-more-wrap">
                           <button
                             type="button"
@@ -687,15 +675,8 @@ const CreatorStationsWorkspace = ({ studioName = 'Creator', onNavigate }) => {
             </section>
 
             <div className="est-detail-fields">
-              {[
-                ['Visibility', featured?.isPublic === false ? 'Private' : 'Public'],
-                ['Default audio', defaultAudio],
-                ['Primary language', primaryLanguage],
-                ['Allow listener requests', requestsSetting],
-                ['Age rating', ageRating],
-              ].map(([label, value]) => (
-                <div key={label}><strong>{label}</strong><span>{value}</span><FaChevronRight /></div>
-              ))}
+              <div><strong>Visibility</strong><span>{featured?.isPublic === false ? 'Private' : 'Public'}</span></div>
+              <div><strong>Default audio</strong><span>{defaultAudio}</span></div>
             </div>
 
             <section className="est-recent-activity">
