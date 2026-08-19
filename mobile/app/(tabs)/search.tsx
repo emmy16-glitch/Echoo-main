@@ -100,6 +100,24 @@ export default function SearchScreen() {
     };
   }, [query]);
 
+  const openAudio = (track: EchooAudio) => {
+    router.push({
+      pathname: '/audio-player',
+      params: {
+        audioId: track.id,
+        title: track.title,
+        subtitle: track.subtitle || track.artistName || track.genre || 'Echoo Audio',
+        coverArt: track.coverArt || '',
+        fileUrl: track.fileUrl || '',
+        genre: track.genre || '',
+      },
+    });
+  };
+
+  const openStation = (station: EchooStation) => {
+    router.push({ pathname: '/station', params: { stationId: station.id } });
+  };
+
   const hasResults = audio.length + stations.length + live.length > 0;
 
   return (
@@ -204,6 +222,7 @@ export default function SearchScreen() {
                 meta={`${station.followerCount || 0} followers`}
                 image={station.coverArt}
                 fallback={<Radio color={palette.blue} size={21} />}
+                onPress={() => openStation(station)}
               />
             ))}
           </>
@@ -220,6 +239,7 @@ export default function SearchScreen() {
                 meta={track.genre || 'Audio'}
                 image={track.coverArt}
                 fallback={<Music2 color={palette.blue} size={21} />}
+                onPress={() => openAudio(track)}
               />
             ))}
           </>
