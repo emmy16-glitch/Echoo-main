@@ -1,17 +1,26 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { BellRing, Headphones, Heart, Radio, Users } from 'lucide-react-native';
+import {
+  BellRing,
+  Clock3,
+  Headphones,
+  Heart,
+  Music2,
+  Play,
+  Radio,
+  Users,
+} from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
   ListenerBackHeader,
@@ -19,6 +28,8 @@ import {
   ListenerSectionHeader,
 } from '@/src/components/ListenerV2';
 import {
+  API_URL,
+  EchooAudio,
   EchooBroadcast,
   EchooStation,
   followStation,
@@ -26,10 +37,38 @@ import {
   getLiveBroadcastForStation,
   getStationById,
   hasEchooSession,
+  normalizeAudio,
   unfollowStation,
 } from '@/src/services/echooApi';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { EchooColors, getEchooColors } from '@/src/theme/echooTheme';
+
+function formatDuration(seconds = 0) {
+  const safe = Math.max(0, Math.round(Number(seconds) || 0));
+  const hours = Math.floor(safe / 3600);
+  const minutes = Math.floor((safe % 3600) / 60);
+  const remaining = safe % 60;
+  if (hours) return `${hours}:${String(minutes).padStart(2, '0')}:${String(remaining).padStart(2, '0')}`;
+  return `${minutes}:${String(remaining).padStart(2, '0')}`;
+}
+
+async function getPublishedAudioByCreator(creatorId: string): Promise<EchooAudio[]> {
+  if (!creatorId) return [];
+
+  const response = await fetch(
+    `${API_URL}/audio?public=true&userId=${encodeURIComponent(creatorId)}&page=1&limit=100`
+  );
+  const payload = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(
+      payload?.error?.message || payload?.message || 'Could not load published station audio.'
+    );
+  }
+
+  const rows = Array.isArray(payload?.data) ? payload.data : [];
+  return rows.map(normalizeAudio).filter((item: EchooAudio) => item.id && item.fileUrl);
+}
 
 export default function StationScreen() {
   const router = useRouter();
@@ -41,11 +80,14 @@ export default function StationScreen() {
 
   const [station, setStation] = useState<EchooStation | null>(null);
   const [live, setLive] = useState<EchooBroadcast | null>(null);
+  const [publishedAudio, setPublishedAudio] = useState<EchooAudio[]>([]);
   const [signedIn, setSignedIn] = useState(false);
   const [following, setFollowing] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [audioLoading, setAudioLoading] = useState(false);
   const [followBusy, setFollowBusy] = useState(false);
   const [error, setError] = useState('');
+  const [audioError, setAudioError] = useState('');
 
   const load = useCallback(async () => {
     if (!stationId) {
@@ -56,6 +98,7 @@ export default function StationScreen() {
 
     setLoading(true);
     setError('');
+    setAudioError('');
     try {
       const session = await hasEchooSession();
       const [nextStation, nextLive] = await Promise.all([
@@ -66,6 +109,23 @@ export default function StationScreen() {
       setSignedIn(session);
       setStation(nextStation);
       setLive(nextLive);
+
+      const ownerId = nextStation?.owner?.id || '';
+      if (ownerId) {
+        setAudioLoading(true);
+        try {
+          const audio = await getPublishedAudioByCreator(ownerId);
+          setPublishedAudio(audio);
+        } catch (publishedError: any) {
+          setPublishedAudio([]);
+          setAudioError(publishedError?.message || 'Could not load this station audio.');
+        } finally {
+          setAudioLoading(false);
+        }
+      } else {
+        setPublishedAudio([]);
+        setAudioLoading(false);
+      }
 
       if (session) {
         const followed = await getFollowedStations().catch(() => []);
@@ -133,8 +193,22 @@ export default function StationScreen() {
     });
   };
 
+  const openAudio = (track: EchooAudio) => {
+    router.push({
+      pathname: '/audio-player',
+      params: {
+        audioId: track.id,
+        title: track.title,
+        subtitle: track.subtitle || track.artistName || station?.name || 'Echoo Audio',
+        coverArt: track.coverArt || '',
+        fileUrl: track.fileUrl || '',
+        genre: track.genre || '',
+      },
+    });
+  };
+
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <ListenerBackHeader title="Station" />
 
@@ -219,6 +293,69 @@ export default function StationScreen() {
 
             {error ? <Text style={styles.inlineError}>{error}</Text> : null}
 
+            <ListenerSectionHeader title="Published audio" />
+            <Text style={styles.sectionHint}>
+              Public recordings published by {station.owner?.displayName || 'this station creator'}.
+            </Text>
+
+            {audioLoading ? (
+              <View style={styles.audioLoadingCard}>
+                <ActivityIndicator color={palette.blue} />
+                <Text style={styles.audioLoadingText}>Loading published audio...</Text>
+              </View>
+            ) : null}
+
+            {!audioLoading && audioError ? (
+              <View style={styles.audioErrorCard}>
+                <Text style={styles.audioErrorTitle}>Published audio could not be loaded</Text>
+                <Text style={styles.audioErrorText}>{audioError}</Text>
+                <Pressable onPress={load} style={styles.retryButton}>
+                  <Text style={styles.retryButtonText}>Try again</Text>
+                </Pressable>
+              </View>
+            ) : null}
+
+            {!audioLoading && !audioError && publishedAudio.length ? (
+              <View style={styles.audioList}>
+                {publishedAudio.map((track) => (
+                  <Pressable key={track.id} style={styles.audioRow} onPress={() => openAudio(track)}>
+                    <View style={styles.audioArt}>
+                      {track.coverArt ? (
+                        <Image
+                          source={{ uri: track.coverArt }}
+                          style={StyleSheet.absoluteFillObject}
+                          contentFit="cover"
+                        />
+                      ) : (
+                        <Music2 color={palette.blue} size={22} />
+                      )}
+                    </View>
+                    <View style={styles.audioCopy}>
+                      <Text style={styles.audioTitle} numberOfLines={1}>{track.title}</Text>
+                      <Text style={styles.audioSubtitle} numberOfLines={1}>
+                        {track.genre || 'Audio'} · {track.playCount || 0} plays
+                      </Text>
+                      <View style={styles.durationLine}>
+                        <Clock3 color={palette.faint} size={12} />
+                        <Text style={styles.durationText}>{formatDuration(track.duration)}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.audioPlayButton}>
+                      <Play color="#FFFFFF" fill="#FFFFFF" size={16} />
+                    </View>
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
+
+            {!audioLoading && !audioError && !publishedAudio.length ? (
+              <ListenerEmptyState
+                title="No published audio yet"
+                subtitle="When this creator publishes an audio recording, episode, teaching or show, listeners will see it here."
+                icon={<Music2 color={palette.blue} size={24} />}
+              />
+            ) : null}
+
             <ListenerSectionHeader title="About this station" />
             <View style={styles.infoCard}>
               <Text style={styles.description}>
@@ -270,7 +407,7 @@ export default function StationScreen() {
 
 const createStyles = (palette: EchooColors) => StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: palette.background },
-  content: { paddingHorizontal: 18, paddingTop: 8, paddingBottom: 48 },
+  content: { paddingHorizontal: 18, paddingTop: 8, paddingBottom: 52 },
   loadingState: { minHeight: 360, alignItems: 'center', justifyContent: 'center', gap: 10 },
   loadingText: { color: palette.muted, fontSize: 12.5, fontWeight: '700' },
   cover: { height: 310, borderRadius: 27, overflow: 'hidden', borderWidth: 1, borderColor: palette.lineStrong, marginTop: 8 },
@@ -291,6 +428,23 @@ const createStyles = (palette: EchooColors) => StyleSheet.create({
   listenButton: { flex: 1, minHeight: 50, borderRadius: 15, backgroundColor: palette.blue, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   listenText: { color: '#FFFFFF', fontSize: 12.5, fontWeight: '900' },
   inlineError: { color: palette.red, fontSize: 11.5, lineHeight: 16, textAlign: 'center', marginTop: 9 },
+  sectionHint: { color: palette.muted, fontSize: 11.5, lineHeight: 17, marginTop: -5, marginBottom: 10 },
+  audioLoadingCard: { minHeight: 72, borderRadius: 17, borderWidth: 1, borderColor: palette.line, backgroundColor: palette.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9 },
+  audioLoadingText: { color: palette.muted, fontSize: 12, fontWeight: '700' },
+  audioErrorCard: { borderRadius: 18, borderWidth: 1, borderColor: `${palette.red}55`, backgroundColor: palette.surface, padding: 15 },
+  audioErrorTitle: { color: palette.ink, fontSize: 13.5, fontWeight: '900' },
+  audioErrorText: { color: palette.muted, fontSize: 11.5, lineHeight: 17, marginTop: 4 },
+  retryButton: { alignSelf: 'flex-start', marginTop: 10, minHeight: 38, borderRadius: 12, backgroundColor: palette.blue, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center' },
+  retryButtonText: { color: '#FFFFFF', fontSize: 11.5, fontWeight: '900' },
+  audioList: { gap: 9 },
+  audioRow: { minHeight: 76, borderRadius: 17, borderWidth: 1, borderColor: palette.line, backgroundColor: palette.surface, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  audioArt: { width: 54, height: 54, borderRadius: 14, backgroundColor: palette.blueSoft, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
+  audioCopy: { flex: 1 },
+  audioTitle: { color: palette.ink, fontSize: 13.5, fontWeight: '900' },
+  audioSubtitle: { color: palette.muted, fontSize: 11, marginTop: 3 },
+  durationLine: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+  durationText: { color: palette.faint, fontSize: 10.5, fontWeight: '700' },
+  audioPlayButton: { width: 38, height: 38, borderRadius: 19, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
   infoCard: { borderRadius: 19, borderWidth: 1, borderColor: palette.line, backgroundColor: palette.surface, padding: 15 },
   description: { color: palette.ink2, fontSize: 12.5, lineHeight: 19 },
   ownerRow: { flexDirection: 'row', alignItems: 'center', marginTop: 16, paddingTop: 14, borderTopWidth: 1, borderTopColor: palette.line },
