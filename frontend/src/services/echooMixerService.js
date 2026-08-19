@@ -2,6 +2,8 @@ const MIN_DB = -60;
 const MAX_CHANNEL_DB = 6;
 const MAX_MASTER_DB = 3;
 const CLIP_DB = -1;
+const PCM_CAPTURE_WORKLET_URL = '/echoo-pcm-capture-worklet.js';
+const PCM_CAPTURE_CHANNELS = 2;
 
 const dbToGain = (db) => {
   const value = Number(db);
@@ -71,6 +73,8 @@ let monitorGainNode = null;
 let monitorDestinationNode = null;
 let monitorAudioElement = null;
 let animationFrame = null;
+let pcmCaptureModuleContext = null;
+let activeMasterCapture = null;
 
 const sources = new Map();
 const listeners = new Set();
@@ -173,6 +177,9 @@ const ensureContext = async () => {
     masterGainNode.connect(masterLimiterNode);
     masterLimiterNode.connect(masterAnalyser);
 
+    // This is Echoo's single post-master program bus. LiveKit, local
+    // monitoring and the lossless recorder all branch from this same node so
+    // the saved master does not take a second resampling/conversion path.
     masterAnalyser.connect(destinationNode);
     masterAnalyser.connect(monitorGainNode);
     monitorGainNode.connect(monitorDestinationNode);
@@ -186,6 +193,16 @@ const ensureContext = async () => {
   }
 
   return audioContext;
+};
+
+const ensurePcmCaptureModule = async (context) => {
+  if (!context?.audioWorklet?.addModule || typeof AudioWorkletNode === 'undefined') {
+    throw new Error('AudioWorklet PCM capture is not supported by this browser.');
+  }
+
+  if (pcmCaptureModuleContext === context) return;
+  await context.audioWorklet.addModule(PCM_CAPTURE_WORKLET_URL);
+  pcmCaptureModuleContext = context;
 };
 
 const disconnectSource = (channelId, stopTracks = true) => {
@@ -658,6 +675,117 @@ export const listAudioOutputs = async () => {
 export const getEchooMixerOutputTrack = () =>
   destinationNode?.stream?.getAudioTracks?.()[0] || null;
 
+export const supportsEchooMasterPcmCapture = () =>
+  Boolean(
+    typeof window !== 'undefined' &&
+    (window.AudioContext || window.webkitAudioContext) &&
+    typeof AudioWorkletNode !== 'undefined'
+  );
+
+export const startEchooMasterPcmCapture = async ({ onPcm } = {}) => {
+  if (activeMasterCapture) {
+    throw new Error('The Echoo master bus is already being recorded.');
+  }
+
+  const context = await ensureContext();
+  if (!masterAnalyser) {
+    throw new Error('The Echoo master bus is not ready for recording.');
+  }
+
+  await ensurePcmCaptureModule(context);
+
+  const worklet = new AudioWorkletNode(context, 'echoo-pcm-capture', {
+    numberOfInputs: 1,
+    numberOfOutputs: 1,
+    outputChannelCount: [PCM_CAPTURE_CHANNELS],
+    channelCount: PCM_CAPTURE_CHANNELS,
+    channelCountMode: 'explicit',
+    channelInterpretation: 'speakers',
+  });
+  const silentGain = context.createGain();
+  silentGain.gain.value = 0;
+
+  let stoppingPromise = null;
+  let resolveStopped = null;
+  let stopped = false;
+
+  const cleanup = () => {
+    try {
+      masterAnalyser?.disconnect(worklet);
+    } catch {
+      // The recorder branch may already be disconnected.
+    }
+    try {
+      worklet.disconnect();
+    } catch {
+      // The processor may already be disconnected.
+    }
+    try {
+      silentGain.disconnect();
+    } catch {
+      // The silent sink may already be disconnected.
+    }
+    worklet.port.onmessage = null;
+    if (activeMasterCapture?.worklet === worklet) activeMasterCapture = null;
+  };
+
+  worklet.port.onmessage = (event) => {
+    const message = event?.data || {};
+    if (message.type === 'pcm' && message.buffer) {
+      onPcm?.(message.buffer);
+      return;
+    }
+    if (message.type === 'stopped') {
+      resolveStopped?.();
+    }
+  };
+
+  masterAnalyser.connect(worklet);
+  worklet.connect(silentGain);
+  silentGain.connect(context.destination);
+
+  const handle = {
+    worklet,
+    sampleRate: context.sampleRate,
+    channels: PCM_CAPTURE_CHANNELS,
+    source: 'post-master-bus',
+    stop: async () => {
+      if (stopped) return stoppingPromise;
+      stopped = true;
+
+      stoppingPromise = new Promise((resolve) => {
+        let settled = false;
+        const finish = () => {
+          if (settled) return;
+          settled = true;
+          resolveStopped = null;
+          resolve();
+        };
+        resolveStopped = finish;
+        window.setTimeout(finish, 1000);
+        try {
+          worklet.port.postMessage({ type: 'stop' });
+        } catch {
+          finish();
+        }
+      });
+
+      await stoppingPromise;
+      cleanup();
+    },
+  };
+
+  activeMasterCapture = handle;
+
+  console.log('[Echoo Mixer] direct post-master PCM capture attached', {
+    sampleRate: handle.sampleRate,
+    channels: handle.channels,
+    source: handle.source,
+  });
+
+  return handle;
+};
+
 export const getEchooMixerDiagnostics = () => {
   const outputTrack = getEchooMixerOutputTrack();
   return {
@@ -668,11 +796,21 @@ export const getEchooMixerDiagnostics = () => {
     masterPeakDb: master.peakDb ?? MIN_DB,
     masterMuted: Boolean(master.muted),
     clipping: Number(master.peakDb) >= CLIP_DB,
+    recordingTapActive: Boolean(activeMasterCapture),
+    recordingSampleRate: activeMasterCapture?.sampleRate || null,
     monitoring: { ...monitoring },
   };
 };
 
 export const stopEchooMixer = async () => {
+  if (activeMasterCapture) {
+    try {
+      await activeMasterCapture.stop();
+    } catch {
+      // Recording teardown must not block mixer cleanup.
+    }
+  }
+
   sources.forEach((_, channelId) => disconnectSource(channelId));
   sources.clear();
 
@@ -705,6 +843,8 @@ export const stopEchooMixer = async () => {
   masterAnalyser = null;
   monitorGainNode = null;
   monitorDestinationNode = null;
+  pcmCaptureModuleContext = null;
+  activeMasterCapture = null;
   channels = cloneChannels();
   master = { gain: 1, muted: false, level: 0, rmsDb: MIN_DB, peakDb: MIN_DB };
   monitoring = {
@@ -747,6 +887,8 @@ export default {
   listAudioInputs,
   listAudioOutputs,
   getEchooMixerOutputTrack,
+  supportsEchooMasterPcmCapture,
+  startEchooMasterPcmCapture,
   getEchooMixerDiagnostics,
   stopEchooMixer,
 };
