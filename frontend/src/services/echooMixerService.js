@@ -161,8 +161,6 @@ const ensureContext = async () => {
     masterAnalyser = audioContext.createAnalyser();
     monitorGainNode = audioContext.createGain();
 
-    // Broadcast safety limiter. It is not a loudness maximizer; it only catches
-    // short peaks before they reach LiveKit and the local monitor bus.
     masterLimiterNode.threshold.value = -1;
     masterLimiterNode.knee.value = 0;
     masterLimiterNode.ratio.value = 20;
@@ -175,8 +173,6 @@ const ensureContext = async () => {
     masterGainNode.connect(masterLimiterNode);
     masterLimiterNode.connect(masterAnalyser);
 
-    // One post-master signal feeds both destinations. The LiveKit track comes
-    // from destinationNode; monitoring is a completely separate local output.
     masterAnalyser.connect(destinationNode);
     masterAnalyser.connect(monitorGainNode);
     monitorGainNode.connect(monitorDestinationNode);
@@ -549,11 +545,11 @@ export const setMonitorEnabled = async (enabled) => {
       monitoring = { ...monitoring, enabled: false, playing: false };
       applyMonitorState();
       notify();
-      throw new Error(
+      const message =
         error?.name === 'NotAllowedError'
           ? 'The browser blocked monitoring. Click Monitor again after interacting with the page.'
-          : error?.message || 'Could not start studio monitoring.'
-      );
+          : error?.message || 'Could not start studio monitoring.';
+      throw new Error(message, { cause: error });
     }
   } else {
     try {
