@@ -5,6 +5,7 @@ import {
   FaChartBar,
   FaChevronDown,
   FaCloudUploadAlt,
+  FaCog,
   FaExclamationCircle,
   FaHeadphones,
   FaHome,
