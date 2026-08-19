@@ -1,4 +1,4 @@
-import { apiRequest, API_BASE_URL } from "./api.js";
+import { apiRequest, API_BASE_URL, buildMediaUrl } from "./api.js";
 
 const readResponse = async (response) => {
   const contentType = response.headers.get("content-type") || "";
@@ -87,6 +87,20 @@ const studioService = {
     const params = new URLSearchParams();
     params.set("period", period);
     return apiRequest(`/studio/analytics?${params.toString()}`);
+  },
+
+  getAudioStreamUrl: async (audioId) => {
+    if (!audioId) throw new Error("Audio ID is missing.");
+    const response = await apiRequest(
+      `/audio/${encodeURIComponent(audioId)}/stream-token`,
+      { method: "POST" }
+    );
+    const streamUrl = buildMediaUrl(response?.data?.streamUrl || "");
+    if (!streamUrl) throw new Error("Echoo could not prepare this audio for playback.");
+    return {
+      streamUrl,
+      expiresIn: Number(response?.data?.expiresIn) || 0,
+    };
   },
 
   updateAudio: async (audioId, data = {}) => {

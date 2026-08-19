@@ -61,10 +61,13 @@ jobs:
           node --check src/routes/index.js
           node --check src/routes/broadcastRoutes.js
           node --check src/routes/audioRoutes.js
+          node --check src/controllers/audioStreamController.js
           node --check src/controllers/broadcastController.js
           node --check src/controllers/broadcastLifecycleController.js
           node --check src/controllers/broadcastPresenceController.js
+          node --check src/models/Audio.js
           node --check src/providers/livekit.js
+          node --check src/services/audioStreamAccess.js
           node --check src/services/broadcastAudioReadiness.js
           node --check src/services/creatorBroadcastLease.js
           node --check src/controllers/chatController.js

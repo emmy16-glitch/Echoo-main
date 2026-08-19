@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { buildAudioStreamUrl } from '../services/audioStreamAccess.js';
 
 export const ECHOO_AUDIO_GENRES = [
   'Pop',
@@ -54,6 +55,13 @@ const audioSchema = new mongoose.Schema(
     fileUrl: {
       type: String,
       required: true,
+      get() {
+        // Public API surfaces never receive the permanent local-storage path.
+        // Public tracks get a scoped, expiring playback URL; private tracks
+        // deliberately return null unless an authenticated creator controller
+        // explicitly issues an owner-scoped stream URL.
+        return buildAudioStreamUrl(this, { access: 'public' })?.url || null;
+      },
     },
     fileKey: {
       type: String,
@@ -121,10 +129,15 @@ const audioSchema = new mongoose.Schema(
     timestamps: true,
     versionKey: false,
     toJSON: {
+      getters: true,
       transform(doc, ret) {
         delete ret.__v;
         ret.id = ret._id;
         delete ret._id;
+        // Physical storage identifiers are backend-only. Playback is always
+        // through /api/audio/:id/stream.
+        delete ret.filename;
+        delete ret.fileKey;
         return ret;
       },
     },

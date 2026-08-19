@@ -78,8 +78,13 @@ app.use(
   cors({
     origin: echooCorsOrigin,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-    exposedHeaders: ['X-Request-Id'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Range'],
+    exposedHeaders: [
+      'X-Request-Id',
+      'Accept-Ranges',
+      'Content-Range',
+      'Content-Length',
+    ],
     credentials: false,
     preflightContinue: false,
     optionsSuccessStatus: 204,
@@ -98,6 +103,24 @@ app.use(
 app.use(compression());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Audio bytes are private backend storage, not a public static directory.
+// Keep other uploaded assets (avatars, covers, etc.) available through the
+// existing development static mount while forcing audio playback through the
+// authenticated /api/audio/:id/stream controller.
+app.use('/uploads', (req, res, next) => {
+  const requestPath = String(req.path || '');
+  if (requestPath === '/audio' || requestPath.startsWith('/audio/')) {
+    return res.status(404).json({
+      error: {
+        code: 'DIRECT_AUDIO_STORAGE_BLOCKED',
+        message: 'Direct audio storage URLs are not available.',
+      },
+      requestId: req.id,
+    });
+  }
+  return next();
+});
 
 app.use(
   '/uploads',
