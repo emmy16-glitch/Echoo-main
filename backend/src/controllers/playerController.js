@@ -1,5 +1,9 @@
+import mongoose from 'mongoose';
 import User from '../models/User.js';
-import Audio from '../models/Audio.js';
+import {
+  findAccessibleAudio,
+  isAudioAccessibleToUser,
+} from '../services/audioAccess.js';
 
 const clampProgress = (value, completed = false) => {
   if (completed) return 100;
@@ -11,13 +15,25 @@ const clampProgress = (value, completed = false) => {
 const sameId = (first, second) =>
   Boolean(first && second && String(first) === String(second));
 
-// Get current playback state
+const validTrackId = (value) => mongoose.isValidObjectId(value);
+
+const invalidTrack = (res) =>
+  res.status(400).json({
+    error: { code: 'INVALID_TRACK_ID', message: 'Invalid track ID' },
+  });
+
+const playableTrackFields =
+  'title duration artist genre fileUrl coverArt isDeleted isPublic';
+
+// Get current playback state. A creator making a track private or deleting it
+// takes effect on listener resume surfaces immediately; old history state is not
+// allowed to keep a now-inaccessible track playable.
 export async function getPlaybackState(req, res, next) {
   try {
     const userId = req.userId;
 
     const user = await User.findById(userId)
-      .populate('continueListening.trackId', 'title duration artist genre fileUrl coverArt');
+      .populate('continueListening.trackId', playableTrackFields);
 
     if (!user) {
       return res.status(404).json({
@@ -25,9 +41,9 @@ export async function getPlaybackState(req, res, next) {
       });
     }
 
-    const currentTrack = user.continueListening && user.continueListening.length > 0
-      ? user.continueListening[0]
-      : null;
+    const currentTrack = (user.continueListening || []).find((item) =>
+      isAudioAccessibleToUser(item.trackId, userId)
+    ) || null;
 
     return res.status(200).json({
       data: {
@@ -67,10 +83,11 @@ export async function updatePlaybackProgress(req, res, next) {
         error: { code: 'VALIDATION_ERROR', message: 'Track ID is required' }
       });
     }
+    if (!validTrackId(trackId)) return invalidTrack(res);
 
     const [user, track] = await Promise.all([
       User.findById(userId),
-      Audio.findOne({ _id: trackId, isDeleted: false }),
+      findAccessibleAudio(trackId, userId),
     ]);
 
     if (!user) {
@@ -81,7 +98,7 @@ export async function updatePlaybackProgress(req, res, next) {
 
     if (!track) {
       return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Track not found' }
+        error: { code: 'NOT_FOUND', message: 'Track is unavailable' }
       });
     }
 
@@ -95,8 +112,7 @@ export async function updatePlaybackProgress(req, res, next) {
     const now = new Date();
 
     // Older uploads may not have duration metadata. Once a browser has loaded
-    // the real media metadata, use it to repair the canonical Audio record so
-    // creator totals, history and future resume calculations stay accurate.
+    // the real media metadata, use it to repair the canonical Audio record.
     if (
       clientDuration > 0 &&
       Math.abs((Number(track.duration) || 0) - clientDuration) > 0.5
@@ -105,8 +121,6 @@ export async function updatePlaybackProgress(req, res, next) {
       await track.save();
     }
 
-    // Update the latest unfinished session for this track instead of creating a
-    // duplicate history row every time the client syncs its playback position.
     let historyEntry = null;
     for (let index = user.listeningHistory.length - 1; index >= 0; index -= 1) {
       const candidate = user.listeningHistory[index];
@@ -133,8 +147,6 @@ export async function updatePlaybackProgress(req, res, next) {
       user.listeningHistory = user.listeningHistory.slice(-100);
     }
 
-    // Completed audio should leave Continue Listening. Otherwise keep one
-    // canonical entry at the front while preserving the percentage position.
     user.continueListening = user.continueListening.filter(
       (item) => !sameId(item.trackId, trackId)
     );
@@ -155,8 +167,6 @@ export async function updatePlaybackProgress(req, res, next) {
 
     await user.save();
 
-    // Play counts are recorded by POST /audio/:id/play when playback actually
-    // starts. Do not increment again here or one listen is counted twice.
     return res.status(200).json({
       data: {
         trackId,
@@ -184,10 +194,11 @@ export async function addToContinueListening(req, res, next) {
         error: { code: 'VALIDATION_ERROR', message: 'Track ID is required' }
       });
     }
+    if (!validTrackId(trackId)) return invalidTrack(res);
 
     const [user, track] = await Promise.all([
       User.findById(userId),
-      Audio.findOne({ _id: trackId, isDeleted: false }),
+      findAccessibleAudio(trackId, userId),
     ]);
 
     if (!user) {
@@ -198,7 +209,7 @@ export async function addToContinueListening(req, res, next) {
 
     if (!track) {
       return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Track not found' }
+        error: { code: 'NOT_FOUND', message: 'Track is unavailable' }
       });
     }
 
@@ -251,6 +262,8 @@ export async function removeFromContinueListening(req, res, next) {
     const userId = req.userId;
     const { trackId } = req.params;
 
+    if (!validTrackId(trackId)) return invalidTrack(res);
+
     const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({
@@ -280,7 +293,7 @@ export async function getContinueListening(req, res, next) {
     const user = await User.findById(userId)
       .populate({
         path: 'continueListening.trackId',
-        select: 'title duration artist genre fileUrl coverArt isDeleted isPublic',
+        select: playableTrackFields,
         populate: {
           path: 'artist',
           select: 'username displayName avatar',
@@ -294,7 +307,7 @@ export async function getContinueListening(req, res, next) {
     }
 
     const tracks = user.continueListening
-      .filter((item) => item.trackId && !item.trackId.isDeleted)
+      .filter((item) => isAudioAccessibleToUser(item.trackId, userId))
       .map((item) => ({
         id: item.trackId?._id,
         title: item.title || item.trackId?.title,
@@ -320,13 +333,14 @@ export async function getContinueListening(req, res, next) {
 export async function getListeningHistory(req, res, next) {
   try {
     const userId = req.userId;
-    const { page = 1, limit = 20 } = req.query;
-    const skip = (parseInt(page, 10) - 1) * parseInt(limit, 10);
+    const safePage = Math.max(1, parseInt(req.query.page || '1', 10) || 1);
+    const safeLimit = Math.min(100, Math.max(1, parseInt(req.query.limit || '20', 10) || 20));
+    const skip = (safePage - 1) * safeLimit;
 
     const user = await User.findById(userId)
       .populate({
         path: 'listeningHistory.trackId',
-        select: 'title duration artist genre fileUrl coverArt',
+        select: playableTrackFields,
         populate: {
           path: 'artist',
           select: 'username displayName avatar',
@@ -339,9 +353,12 @@ export async function getListeningHistory(req, res, next) {
       });
     }
 
-    const history = user.listeningHistory
-      .sort((a, b) => b.playedAt - a.playedAt)
-      .slice(skip, skip + parseInt(limit, 10))
+    const accessibleHistory = user.listeningHistory
+      .filter((item) => isAudioAccessibleToUser(item.trackId, userId))
+      .sort((a, b) => b.playedAt - a.playedAt);
+
+    const history = accessibleHistory
+      .slice(skip, skip + safeLimit)
       .map((item) => ({
         trackId: item.trackId?._id,
         title: item.trackId?.title,
@@ -355,16 +372,16 @@ export async function getListeningHistory(req, res, next) {
         completed: item.completed,
       }));
 
-    const total = user.listeningHistory.length;
+    const total = accessibleHistory.length;
 
     return res.status(200).json({
       data: {
         history,
         pagination: {
-          page: parseInt(page, 10),
-          limit: parseInt(limit, 10),
+          page: safePage,
+          limit: safeLimit,
           total,
-          totalPages: Math.ceil(total / parseInt(limit, 10)),
+          totalPages: Math.ceil(total / safeLimit),
         },
       },
       timestamp: new Date().toISOString()
@@ -390,10 +407,20 @@ export async function updatePlayerPreferences(req, res, next) {
       user.preferences.player = {};
     }
 
-    if (volume !== undefined) user.preferences.player.volume = Math.min(1, Math.max(0, volume));
-    if (isMuted !== undefined) user.preferences.player.isMuted = isMuted;
-    if (playbackRate !== undefined) user.preferences.player.playbackRate = playbackRate;
-    if (isShuffled !== undefined) user.preferences.player.isShuffled = isShuffled;
+    if (volume !== undefined) {
+      const nextVolume = Number(volume);
+      if (Number.isFinite(nextVolume)) {
+        user.preferences.player.volume = Math.min(1, Math.max(0, nextVolume));
+      }
+    }
+    if (isMuted !== undefined) user.preferences.player.isMuted = Boolean(isMuted);
+    if (playbackRate !== undefined) {
+      const nextRate = Number(playbackRate);
+      if (Number.isFinite(nextRate) && nextRate >= 0.5 && nextRate <= 2) {
+        user.preferences.player.playbackRate = nextRate;
+      }
+    }
+    if (isShuffled !== undefined) user.preferences.player.isShuffled = Boolean(isShuffled);
     if (repeatMode !== undefined) {
       const validModes = ['none', 'one', 'all'];
       if (validModes.includes(repeatMode)) {
