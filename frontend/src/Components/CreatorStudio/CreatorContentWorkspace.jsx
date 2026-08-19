@@ -71,7 +71,7 @@ const CreatorContentWorkspace = ({
   const [search, setSearch] = useState('');
   const [visibility, setVisibility] = useState('All');
   const [sortMode, setSortMode] = useState('newest');
-  const [viewMode, setViewMode] = useState('grid');
+  const [viewMode, setViewMode] = useState('list');
   const [playingId, setPlayingId] = useState('');
   const [selectedTrack, setSelectedTrack] = useState(null);
   const [openMenuId, setOpenMenuId] = useState('');
@@ -177,6 +177,7 @@ const CreatorContentWorkspace = ({
       setBusyId(String(id));
       setActionError('');
       await studioService.updateAudio(id, { isPublic: !track.isPublic });
+      setOpenMenuId('');
       notifyChanged();
     } catch (error) {
       setActionError(error?.message || 'Could not update audio visibility.');
@@ -202,6 +203,11 @@ const CreatorContentWorkspace = ({
     } finally {
       setBusyId('');
     }
+  };
+
+  const deleteTrack = (track) => {
+    setOpenMenuId('');
+    onDelete?.(getId(track), track.title);
   };
 
   return (
@@ -290,16 +296,18 @@ const CreatorContentWorkspace = ({
                   <div className="eca-actions">
                     <button type="button" className="icon-primary" onClick={() => togglePlay(track)} disabled={!track.fileUrl && !track.audioUrl} aria-label={isPlaying ? 'Pause audio' : 'Play audio'}>{isPlaying ? <FaPause /> : <FaPlay />}</button>
                     <button type="button" className="details" onClick={() => openTrack(track)}><FaList /> Details</button>
-                    <button type="button" className="visibility" disabled={busyId === id} onClick={() => toggleVisibility(track)}>{track.isPublic ? <><FaLock /> Make private</> : <><FaGlobeAfrica /> Make public</>}</button>
                     <div className="eca-more-wrap">
-                      <button type="button" className="more" onClick={() => setOpenMenuId((current) => current === id ? '' : id)} aria-expanded={openMenuId === id}><FaEllipsisH /></button>
+                      <button type="button" className="more" onClick={() => setOpenMenuId((current) => current === id ? '' : id)} aria-expanded={openMenuId === id} aria-label={`More actions for ${track.title || 'audio'}`}><FaEllipsisH /></button>
                       {openMenuId === id && (
                         <div className="eca-more-menu">
+                          <button type="button" disabled={busyId === id} onClick={() => toggleVisibility(track)}>
+                            {track.isPublic ? <><FaLock /> Make private</> : <><FaGlobeAfrica /> Make public</>}
+                          </button>
                           <button type="button" disabled={busyId === id} onClick={() => downloadTrack(track)}><FaDownload /> Download audio</button>
+                          <button type="button" className="danger" disabled={deletingId === getId(track)} onClick={() => deleteTrack(track)}><FaTrash /> Delete audio</button>
                         </div>
                       )}
                     </div>
-                    <button type="button" className="danger" disabled={deletingId === getId(track)} onClick={() => onDelete(getId(track), track.title)} aria-label="Delete audio"><FaTrash /></button>
                   </div>
                 </article>
               );
