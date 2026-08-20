@@ -1,12 +1,13 @@
-import { API_ORIGIN } from './api.js';
+import {
+  API_ORIGIN,
+  clearAuthTokens,
+  getCurrentAccessToken,
+  refreshSessionAccessToken,
+} from './api.js';
 
 let clientScriptPromise = null;
 let sharedSocket = null;
-
-const getAccessToken = () =>
-  localStorage.getItem('accessToken') ||
-  localStorage.getItem('token') ||
-  '';
+let socketAuthRefreshPromise = null;
 
 const scriptUrl = () => `${API_ORIGIN || ''}/socket.io/socket.io.js`;
 
@@ -21,10 +22,10 @@ const loadSocketIoClient = () => {
       existing.addEventListener('load', () => {
         if (window.io) resolve(window.io);
         else reject(new Error('Socket.IO client did not initialize.'));
-      });
+      }, { once: true });
       existing.addEventListener('error', () =>
-        reject(new Error('Could not load the Echoo realtime client.'))
-      );
+        reject(new Error('Could not load the Echoo realtime client.')),
+      { once: true });
       return;
     }
 
@@ -47,11 +48,69 @@ const loadSocketIoClient = () => {
   return clientScriptPromise;
 };
 
+const authErrorLikely = (error) => {
+  const message = String(error?.message || error || '').toLowerCase();
+  return /auth|token|jwt|expired|inactive|user not found/.test(message);
+};
+
+const updateSocketAuth = (token = getCurrentAccessToken()) => {
+  if (sharedSocket) sharedSocket.auth = { token };
+  return token;
+};
+
+const recoverSocketAuthentication = async () => {
+  if (socketAuthRefreshPromise) return socketAuthRefreshPromise;
+
+  socketAuthRefreshPromise = refreshSessionAccessToken()
+    .then((token) => {
+      updateSocketAuth(token);
+      if (sharedSocket && !sharedSocket.connected) sharedSocket.connect();
+      return token;
+    })
+    .catch((error) => {
+      // Authentication failed after an explicit token refresh attempt. Avoid an
+      // infinite reconnect loop using a permanently-invalid credential.
+      clearAuthTokens();
+      sharedSocket?.disconnect();
+      throw error;
+    })
+    .finally(() => {
+      socketAuthRefreshPromise = null;
+    });
+
+  return socketAuthRefreshPromise;
+};
+
+const installSocketRecovery = (socket) => {
+  if (socket.__echooAuthRecoveryInstalled) return;
+  socket.__echooAuthRecoveryInstalled = true;
+
+  // If normal API activity already refreshed the access token, every Socket.IO
+  // reconnect attempt should pick up the newest local token rather than the one
+  // captured when the page first opened.
+  socket.io?.on?.('reconnect_attempt', () => {
+    updateSocketAuth();
+  });
+
+  socket.on('connect_error', (error) => {
+    if (!authErrorLikely(error)) return;
+    recoverSocketAuthentication().catch((refreshError) => {
+      console.warn(
+        'Echoo realtime session refresh failed:',
+        refreshError?.message || refreshError
+      );
+    });
+  });
+};
+
 const connect = async () => {
-  const token = getAccessToken();
+  const token = getCurrentAccessToken();
   if (!token) throw new Error('Login is required for realtime Echoo updates.');
 
-  if (sharedSocket?.connected) return sharedSocket;
+  if (sharedSocket?.connected) {
+    updateSocketAuth(token);
+    return sharedSocket;
+  }
 
   const io = await loadSocketIoClient();
 
@@ -67,8 +126,9 @@ const connect = async () => {
       reconnectionDelayMax: 5000,
       timeout: 10000,
     });
+    installSocketRecovery(sharedSocket);
   } else {
-    sharedSocket.auth = { token };
+    updateSocketAuth(token);
   }
 
   if (!sharedSocket.connected) sharedSocket.connect();
@@ -82,7 +142,7 @@ const connect = async () => {
     const timer = window.setTimeout(() => {
       cleanup();
       reject(new Error('Realtime connection timed out.'));
-    }, 10000);
+    }, 12000);
 
     const onConnect = () => {
       cleanup();
@@ -90,6 +150,9 @@ const connect = async () => {
     };
 
     const onError = (error) => {
+      // An expired token may be recovered asynchronously by the permanent
+      // connect_error handler. Keep this caller bounded; the screen can fall
+      // back to polling while Socket.IO finishes recovering.
       cleanup();
       reject(error instanceof Error ? error : new Error('Realtime connection failed.'));
     };
@@ -109,9 +172,22 @@ const joinBroadcast = async (broadcastId) => {
   const socket = await connect();
 
   return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (callback) => (value) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timer);
+      callback(value);
+    };
+    const resolveOnce = finish(resolve);
+    const rejectOnce = finish(reject);
+    const timer = window.setTimeout(() => {
+      rejectOnce(new Error('Joining the realtime broadcast room timed out.'));
+    }, 10000);
+
     socket.emit('broadcast:join', { broadcastId }, (response) => {
-      if (response?.ok) resolve(socket);
-      else reject(new Error(response?.error || 'Could not join realtime broadcast room.'));
+      if (response?.ok) resolveOnce(socket);
+      else rejectOnce(new Error(response?.error || 'Could not join realtime broadcast room.'));
     });
   });
 };
@@ -129,6 +205,7 @@ const realtimeService = {
   disconnect: () => {
     sharedSocket?.disconnect();
     sharedSocket = null;
+    socketAuthRefreshPromise = null;
   },
 };
 
