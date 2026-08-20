@@ -1,0 +1,315 @@
+/* Echoo Creator Studio — shared embedded media treatment
+   Keeps station/audio artwork visually connected to the surface that owns it.
+   This is intentionally subtle: soft inset depth, ambient edge light and slow
+   hover motion instead of floating cards or heavy shadows. */
+
+.creator-studio-shell {
+  --echoo-media-line: rgba(203, 214, 229, .82);
+  --echoo-media-line-soft: rgba(255, 255, 255, .72);
+  --echoo-media-shadow: 0 10px 28px rgba(19, 42, 76, .075);
+  --echoo-media-shadow-hover: 0 14px 34px rgba(19, 42, 76, .095);
+  --echoo-media-ease: cubic-bezier(.2, .72, .2, 1);
+}
+
+/* Shared framed media surfaces. */
+.creator-studio-shell :is(
+  .ehome-primary-station-art,
+  .ehome-reference-audio-art,
+  .est-featured-art,
+  .est-brand-preview,
+  .eca-art,
+  .ebsx-live-summary-art,
+  .ebsx-station-art
+) {
+  position: relative;
+  isolation: isolate;
+  border: 1px solid var(--echoo-media-line) !important;
+  background-color: #edf3fb;
+  box-shadow:
+    var(--echoo-media-shadow),
+    inset 0 1px 0 var(--echoo-media-line-soft),
+    inset 0 -1px 0 rgba(16, 39, 72, .035) !important;
+  transform: translateZ(0);
+  transition:
+    transform .46s var(--echoo-media-ease),
+    box-shadow .46s var(--echoo-media-ease),
+    border-color .46s var(--echoo-media-ease) !important;
+}
+
+.creator-studio-shell :is(
+  .ehome-primary-station-art,
+  .est-featured-art,
+  .est-brand-preview,
+  .eca-art,
+  .ebsx-live-summary-art,
+  .ebsx-station-art
+)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  border-radius: inherit;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .095) 0%, transparent 34%),
+    linear-gradient(0deg, rgba(9, 25, 52, .08) 0%, transparent 34%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .10);
+}
+
+.creator-studio-shell :is(
+  .ehome-primary-station-art,
+  .est-featured-art,
+  .est-brand-preview,
+  .eca-art,
+  .ebsx-live-summary-art,
+  .ebsx-station-art
+) > img {
+  position: relative;
+  z-index: 0;
+  transform: scale(1.002);
+  transition: transform .7s var(--echoo-media-ease), filter .7s var(--echoo-media-ease);
+}
+
+.creator-studio-shell :is(
+  .ehome-primary-station-art,
+  .est-featured-art,
+  .eca-art,
+  .ebsx-live-summary-art,
+  .ebsx-station-art
+):hover > img {
+  transform: scale(1.018);
+}
+
+.creator-studio-shell :is(
+  .ehome-primary-station-art,
+  .est-featured-art,
+  .est-brand-preview,
+  .eca-art,
+  .ebsx-live-summary-art,
+  .ebsx-station-art
+) > :not(img) {
+  position: relative;
+  z-index: 2;
+}
+
+/* Creator Home: turn the station area into one continuous station surface. */
+.creator-studio-shell .ehome-station-overview {
+  background:
+    radial-gradient(circle at 20% 24%, rgba(36, 107, 254, .045), transparent 34%),
+    linear-gradient(180deg, #fff 0%, #fbfdff 100%) !important;
+}
+
+.creator-studio-shell .ehome-primary-station {
+  position: relative;
+  padding: 8px;
+  border: 1px solid rgba(220, 228, 239, .88);
+  border-radius: 15px;
+  background:
+    linear-gradient(145deg, rgba(248, 251, 255, .96), rgba(241, 246, 253, .76));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .88);
+}
+
+.creator-studio-shell .ehome-primary-station-art {
+  border-radius: 13px !important;
+}
+
+.creator-studio-shell .ehome-primary-station-stats {
+  padding: 6px 5px 6px 2px;
+}
+
+.creator-studio-shell .ehome-primary-station-copy {
+  margin-top: 8px !important;
+  padding: 2px 5px 0;
+}
+
+.creator-studio-shell .ehome-panel-footer-actions {
+  position: relative;
+  margin-top: 12px !important;
+  padding-top: 14px !important;
+  border-top: 0 !important;
+}
+
+.creator-studio-shell .ehome-panel-footer-actions::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 4px;
+  right: 4px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #e3e9f1 12%, #e3e9f1 88%, transparent);
+}
+
+.creator-studio-shell .ehome-reference-audio-row {
+  border: 1px solid transparent !important;
+  border-radius: 11px !important;
+  transition: background .3s ease, border-color .3s ease !important;
+}
+
+.creator-studio-shell .ehome-reference-audio-row:hover {
+  border-color: rgba(220, 228, 239, .88) !important;
+  background: #fbfdff;
+}
+
+.creator-studio-shell .ehome-reference-audio-art {
+  border-radius: 10px !important;
+  box-shadow:
+    0 7px 18px rgba(19, 42, 76, .07),
+    inset 0 0 0 1px rgba(255, 255, 255, .4) !important;
+}
+
+/* Stations: artwork is nested into the station surface rather than floating. */
+.creator-studio-shell .est-featured-card {
+  background:
+    radial-gradient(circle at 19% 28%, rgba(36, 107, 254, .05), transparent 30%),
+    radial-gradient(circle at 90% 20%, rgba(36, 107, 254, .055), transparent 24%),
+    linear-gradient(145deg, #fff 0%, #fbfdff 64%, #f6f9ff 100%) !important;
+  box-shadow:
+    0 10px 30px rgba(20, 42, 76, .045),
+    inset 0 1px 0 rgba(255, 255, 255, .92) !important;
+}
+
+.creator-studio-shell .est-featured-art {
+  border-radius: 15px !important;
+  box-shadow:
+    0 12px 30px rgba(20, 42, 76, .09),
+    inset 0 1px 0 rgba(255, 255, 255, .5) !important;
+}
+
+.creator-studio-shell .est-featured-art:hover {
+  border-color: rgba(172, 194, 228, .94) !important;
+  box-shadow:
+    var(--echoo-media-shadow-hover),
+    inset 0 1px 0 rgba(255, 255, 255, .56) !important;
+}
+
+.creator-studio-shell .est-station-row {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .75);
+}
+
+.creator-studio-shell .est-row-identity img,
+.creator-studio-shell .est-details-identity img {
+  border: 1px solid rgba(207, 218, 232, .88);
+  background: #edf3fb;
+  box-shadow:
+    0 7px 18px rgba(19, 42, 76, .065),
+    inset 0 0 0 1px rgba(255, 255, 255, .35);
+  transform: translateZ(0);
+  transition: transform .42s var(--echoo-media-ease), box-shadow .42s var(--echoo-media-ease);
+}
+
+.creator-studio-shell .est-row-identity:hover img {
+  transform: scale(1.025);
+  box-shadow: 0 10px 24px rgba(19, 42, 76, .085);
+}
+
+.creator-studio-shell .est-details-identity {
+  padding: 9px;
+  border: 1px solid rgba(224, 231, 240, .9);
+  border-radius: 14px;
+  background: linear-gradient(145deg, #fbfdff, #f6f9fd);
+}
+
+.creator-studio-shell .est-details-identity img {
+  border-radius: 12px;
+}
+
+.creator-studio-shell .est-brand-editor {
+  background:
+    radial-gradient(circle at 17% 28%, rgba(36, 107, 254, .045), transparent 36%),
+    #fbfcfe !important;
+}
+
+.creator-studio-shell .est-brand-preview {
+  border-radius: 12px !important;
+}
+
+/* Audio library: preserve list density but give cover art the same embedded depth. */
+.creator-studio-shell .eca-list > article,
+.creator-studio-shell .eca-list.grid-view > article,
+.creator-studio-shell .eca-list.list-view > article {
+  background:
+    radial-gradient(circle at 3% 50%, rgba(36, 107, 254, .028), transparent 18%),
+    #fff !important;
+}
+
+.creator-studio-shell .eca-list > article:hover,
+.creator-studio-shell .eca-list.grid-view > article:hover,
+.creator-studio-shell .eca-list.list-view > article:hover {
+  background:
+    radial-gradient(circle at 4% 50%, rgba(36, 107, 254, .045), transparent 20%),
+    #fbfdff !important;
+}
+
+.creator-studio-shell .eca-art {
+  border-radius: 12px !important;
+}
+
+.creator-studio-shell .eca-art-play {
+  z-index: 3;
+  backdrop-filter: blur(8px);
+}
+
+/* Broadcast Studio: selected/live station artwork follows the same system. */
+.creator-studio-shell .ebsx-live-summary-art,
+.creator-studio-shell .ebsx-station-art {
+  border-radius: 14px !important;
+}
+
+.creator-studio-shell .ebsx-live-summary-art > span {
+  z-index: 3;
+}
+
+/* Small screens keep the treatment but reduce depth so cards do not feel heavy. */
+@media (max-width: 720px) {
+  .creator-studio-shell :is(
+    .ehome-primary-station-art,
+    .est-featured-art,
+    .est-brand-preview,
+    .eca-art,
+    .ebsx-live-summary-art,
+    .ebsx-station-art
+  ) {
+    box-shadow:
+      0 7px 20px rgba(19, 42, 76, .065),
+      inset 0 1px 0 rgba(255, 255, 255, .72) !important;
+  }
+
+  .creator-studio-shell .ehome-primary-station {
+    padding: 6px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .creator-studio-shell :is(
+    .ehome-primary-station-art,
+    .ehome-reference-audio-art,
+    .est-featured-art,
+    .est-brand-preview,
+    .eca-art,
+    .ebsx-live-summary-art,
+    .ebsx-station-art,
+    .est-row-identity img,
+    .est-details-identity img
+  ),
+  .creator-studio-shell :is(
+    .ehome-primary-station-art,
+    .est-featured-art,
+    .est-brand-preview,
+    .eca-art,
+    .ebsx-live-summary-art,
+    .ebsx-station-art
+  ) > img {
+    transition: none !important;
+  }
+
+  .creator-studio-shell :is(
+    .ehome-primary-station-art,
+    .est-featured-art,
+    .eca-art,
+    .ebsx-live-summary-art,
+    .ebsx-station-art
+  ):hover > img,
+  .creator-studio-shell .est-row-identity:hover img {
+    transform: none !important;
+  }
+}
