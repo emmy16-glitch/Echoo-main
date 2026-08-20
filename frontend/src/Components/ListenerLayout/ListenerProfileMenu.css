@@ -141,3 +141,16 @@
     transform: translateY(0);
   }
 }
+.layout-profile-role-badge {
+  display: inline-flex;
+  align-self: flex-start;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--echoo-blue);
+  background: var(--echoo-blue-soft);
+  border: 1px solid var(--echoo-blue-border);
+  border-radius: 10px;
+  padding: 1px 8px;
+  margin-top: 3px;
+}

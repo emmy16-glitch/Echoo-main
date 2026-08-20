@@ -7,6 +7,8 @@ import {
 import {
   FaBell,
   FaBookOpen,
+  FaCompass,
+  FaListUl,
   FaBroadcastTower,
   FaCog,
   FaDownload,
@@ -26,7 +28,7 @@ import {
   FaHeadphones,
 } from 'react-icons/fa';
 
-import echooLogo from '../Assets/logo_optimized.jpg';
+import echooLogo from '../Assets/echoo-logo.jpg';
 import ListenerProfileMenu from './ListenerProfileMenu';
 import EchoSignal from '../EchooSystem/EchoSignal';
 import audioService from '../../services/audioService';
@@ -151,12 +153,15 @@ const ListenerLayout = () => {
 
   const navigation = [
     { name: 'Home', path: '/listen', icon: <FaHome />, end: true },
-    { name: 'Live', path: '/listen/live', icon: <FaBroadcastTower /> },
+    { name: 'Live now', path: '/listen/live', icon: <FaBroadcastTower /> },
+    { name: 'Discover', path: '/listen/stations', icon: <FaCompass /> },
     { name: 'Stations', path: '/listen/stations', icon: <FaHeadphones /> },
-    { name: 'Library', path: '/listen/library', icon: <FaBookOpen /> },
+    { name: 'Audio library', path: '/listen/library', icon: <FaBookOpen /> },
+    { name: 'My playlist', path: '/listen/library', icon: <FaListUl /> },
     { name: 'Following', path: '/listen/library/following', icon: <FaHeart /> },
     { name: 'History', path: '/listen/history', icon: <FaHistory /> },
     { name: 'Downloads', path: '/listen/downloads', icon: <FaDownload /> },
+    { name: 'Notifications', path: '/listen/notifications', icon: <FaBell /> },
   ];
 
   useEffect(() => {

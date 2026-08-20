@@ -6,6 +6,7 @@ import {
   FaBookOpen,
   FaBroadcastTower,
   FaCog,
+  FaCompass,
   FaDownload,
   FaHeadphones,
   FaHistory,
@@ -43,9 +44,10 @@ const clearEchooSession = () => {
 
 const primaryItems = [
   { label: 'Home', path: '/listen', icon: FaHome, end: true },
-  { label: 'Live', path: '/listen/live', icon: FaBroadcastTower },
+  { label: 'Live now', path: '/listen/live', icon: FaBroadcastTower },
+  { label: 'Discover', path: '/listen/stations', icon: FaCompass },
   { label: 'Stations', path: '/listen/stations', icon: FaHeadphones },
-  { label: 'Library', path: '/listen/library', icon: FaBookOpen, end: true },
+  { label: 'Audio library', path: '/listen/library', icon: FaBookOpen, end: true },
 ];
 
 const moreItems = [

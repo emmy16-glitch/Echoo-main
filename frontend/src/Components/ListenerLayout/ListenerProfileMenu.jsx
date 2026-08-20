@@ -189,6 +189,7 @@ const ListenerProfileMenu = ({
           <strong>
             {firstName}
           </strong>
+          <span className="layout-profile-role-badge">Listener</span>
 
           <span>
             View profile
