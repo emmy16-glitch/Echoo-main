@@ -19,77 +19,90 @@
 }
 
 /* ---------- shared listener shell ---------- */
-#root .echoo-listener-shell:has(.echoo-reference-page){background:var(--lr-canvas)!important}
-#root .echoo-listener-shell:has(.echoo-reference-page) .layout-sidebar{
+#root .echoo-listener-shell{background:var(--lr-canvas)!important}
+#root .echoo-listener-shell .layout-sidebar{
   width:205px!important;padding:20px 12px 18px!important;align-items:stretch!important;
   background:#fff!important;border-right:1px solid var(--lr-border)!important
 }
-#root .echoo-listener-shell:has(.echoo-reference-page) .layout-brand{
+#root .echoo-listener-shell .layout-brand{
   width:auto!important;height:48px!important;min-height:48px!important;display:flex!important;
   align-items:center!important;justify-content:flex-start!important;gap:10px!important;
   margin:0 7px 24px!important;padding:0 6px!important;border-radius:10px!important
 }
-#root .echoo-listener-shell:has(.echoo-reference-page) .layout-brand img{
+#root .echoo-listener-shell .layout-brand img{
   width:34px!important;height:34px!important;flex:0 0 34px!important;object-fit:contain!important
 }
-#root .echoo-listener-shell:has(.echoo-reference-page) .layout-brand>span{
+#root .echoo-listener-shell .layout-brand>span{
   display:inline!important;color:var(--lr-blue)!important;font-size:21px!important;
   font-weight:800!important;letter-spacing:-.04em!important
 }
-#root .echoo-listener-shell:has(.echoo-reference-page) .layout-navigation{width:100%!important;margin:0!important;gap:5px!important}
-#root .echoo-listener-shell:has(.echoo-reference-page) .layout-nav-item{
+#root .echoo-listener-shell .layout-navigation{width:100%!important;margin:0!important;gap:5px!important}
+#root .echoo-listener-shell .layout-nav-item{
   width:100%!important;height:43px!important;min-height:43px!important;display:flex!important;
   align-items:center!important;justify-content:flex-start!important;gap:12px!important;
   padding:0 13px!important;border-radius:9px!important;color:#5f6f86!important
 }
-#root .echoo-listener-shell:has(.echoo-reference-page) .layout-nav-item:hover{
+#root .echoo-listener-shell .layout-nav-item:hover{
   background:#f4f7fb!important;color:var(--lr-navy)!important;transform:none!important
 }
-#root .echoo-listener-shell:has(.echoo-reference-page) .layout-nav-item.active{
+#root .echoo-listener-shell .layout-nav-item.active{
   background:var(--lr-blue-soft)!important;color:var(--lr-blue)!important
 }
-#root .echoo-listener-shell:has(.echoo-reference-page) .layout-nav-icon{
+#root .echoo-listener-shell .layout-nav-icon{
   width:19px!important;height:19px!important;flex:0 0 19px!important;font-size:15px!important
 }
-#root .echoo-listener-shell:has(.echoo-reference-page) .layout-nav-label{
+#root .echoo-listener-shell .layout-nav-label{
   position:static!important;display:block!important;min-width:0!important;padding:0!important;
   border:0!important;background:transparent!important;box-shadow:none!important;opacity:1!important;
   visibility:visible!important;transform:none!important;color:inherit!important;font-size:12px!important;
   font-weight:650!important
 }
-#root .echoo-listener-shell:has(.echoo-reference-page) .listener-profile-menu-wrap{width:100%!important;margin:auto 0 2px!important}
-#root .echoo-listener-shell:has(.echoo-reference-page) .layout-profile{
+#root .echoo-listener-shell .listener-profile-menu-wrap{width:100%!important;margin:auto 0 2px!important}
+#root .echoo-listener-shell .layout-profile{
   width:100%!important;height:52px!important;min-height:52px!important;display:flex!important;
   align-items:center!important;justify-content:flex-start!important;gap:10px!important;padding:0 10px!important;
   border:1px solid var(--lr-border)!important;border-radius:11px!important;background:#fff!important
 }
-#root .echoo-listener-shell:has(.echoo-reference-page) .layout-profile-info,
-#root .echoo-listener-shell:has(.echoo-reference-page) .listener-profile-chevron{display:block!important}
-#root .echoo-listener-shell:has(.echoo-reference-page) .layout-profile-info strong{color:var(--lr-navy)!important;font-size:11px!important}
-#root .echoo-listener-shell:has(.echoo-reference-page) .layout-profile-info span{color:var(--lr-muted)!important;font-size:9px!important}
-#root .echoo-listener-shell:has(.echoo-reference-page) .listener-profile-dropdown{left:0!important;bottom:58px!important}
-#root .echoo-listener-shell:has(.echoo-reference-page) .echoo-listener-main{
+#root .echoo-listener-shell .layout-profile-info,
+#root .echoo-listener-shell .listener-profile-chevron{display:block!important}
+#root .echoo-listener-shell .layout-profile-info strong{color:var(--lr-navy)!important;font-size:11px!important}
+#root .echoo-listener-shell .layout-profile-info span{color:var(--lr-muted)!important;font-size:9px!important}
+#root .echoo-listener-shell .listener-profile-dropdown{left:0!important;bottom:58px!important}
+#root .echoo-listener-shell .echoo-listener-main{
   width:calc(100% - 205px)!important;margin-left:205px!important;background:var(--lr-canvas)!important
 }
-#root .echoo-listener-shell:has(.echoo-reference-page) .layout-topbar{
+#root .echoo-listener-shell .layout-topbar{
   min-height:72px!important;height:72px!important;padding:0 30px!important;background:rgba(255,255,255,.98)!important;
   border-bottom:1px solid var(--lr-border)!important
 }
-#root .echoo-listener-shell:has(.echoo-reference-page) .beautiful-search-wrapper{width:min(520px,52vw)!important}
-#root .echoo-listener-shell:has(.echoo-reference-page) .beautiful-search{
+#root .echoo-listener-shell .beautiful-search-wrapper{width:min(520px,52vw)!important}
+#root .echoo-listener-shell .beautiful-search{
   height:42px!important;border:1px solid var(--lr-border)!important;border-radius:10px!important;background:#f5f7fa!important
 }
-#root .echoo-listener-shell:has(.echoo-reference-page) .echoo-listener-scroll{background:var(--lr-canvas)!important}
-#root .echoo-listener-shell:has(.echoo-reference-page)>.echoo-persistent-player{
+#root .echoo-listener-shell .echoo-listener-scroll{background:var(--lr-canvas)!important}
+#root .echoo-listener-shell>.echoo-persistent-player{
   left:205px!important;height:88px!important;min-height:88px!important;max-height:88px!important;
   padding:0 28px!important;grid-template-columns:minmax(270px,1fr) auto minmax(330px,1fr)!important;
   gap:24px!important;background:rgba(255,255,255,.99)!important;border-top:1px solid var(--lr-border)!important;
   box-shadow:0 -5px 22px rgba(16,36,67,.04)!important
 }
-#root .echoo-listener-shell:has(.echoo-reference-page) .layout-player-main-button{
+#root .echoo-listener-shell .layout-player-main-button{
   width:48px!important;height:48px!important;min-width:48px!important;border-radius:50%!important;
   background:var(--lr-blue)!important;color:#fff!important
 }
+
+/* ---------- listener-shell alignment polish (crisp logo, flush sidebar footer, aligned player bar) ---------- */
+#root .echoo-listener-shell .layout-brand{gap:12px!important;margin:0 7px 30px!important}
+#root .echoo-listener-shell .layout-brand img{width:35px!important;height:35px!important;flex:0 0 35px!important;object-fit:contain!important}
+#root .echoo-listener-shell .layout-profile{min-height:66px!important;height:auto!important;gap:12px!important;padding:16px 10px 8px!important;margin-top:auto!important;border:0!important;border-top:1px solid var(--lr-border)!important;border-radius:0!important;background:#fff!important}
+#root .echoo-listener-shell .layout-profile-image{width:38px!important;height:38px!important;flex:0 0 38px!important;min-width:38px!important;border-radius:50%!important;background:#eaf1fb!important;overflow:hidden!important}
+#root .echoo-listener-shell .layout-profile-info strong{font-size:13px!important}
+#root .echoo-listener-shell .layout-profile-info span{font-size:10px!important}
+#root .echoo-listener-shell .listener-profile-menu-wrap{margin:auto 0 0!important}
+#root .echoo-listener-shell .layout-player-volume{display:flex!important;align-items:center!important;justify-content:flex-end!important;gap:9px!important;min-width:0!important}
+#root .echoo-listener-shell .layout-player-volume>span{flex:0 0 auto!important;color:#64748b!important;font-size:10px!important}
+#root .echoo-listener-shell .layout-player-volume>button{width:32px!important;height:32px!important;min-width:32px!important;display:grid!important;place-items:center!important;padding:0!important;border-radius:50%!important}
+#root .echoo-listener-shell .layout-player-volume input[type="range"]{width:96px!important;height:4px!important;cursor:pointer!important;accent-color:#155eef!important}
 
 /* ---------- shared page foundation ---------- */
 #root .echoo-reference-page{
@@ -223,14 +236,14 @@
   #root .ref-home-hero-visual{display:none}
 }
 @media(max-width:900px){
-  #root .echoo-listener-shell:has(.echoo-reference-page) .layout-sidebar{width:74px!important;padding:14px 8px!important}
-  #root .echoo-listener-shell:has(.echoo-reference-page) .layout-brand{justify-content:center!important;margin:0 0 18px!important;padding:0!important}
-  #root .echoo-listener-shell:has(.echoo-reference-page) .layout-brand>span,#root .echoo-listener-shell:has(.echoo-reference-page) .layout-nav-label,#root .echoo-listener-shell:has(.echoo-reference-page) .layout-profile-info,#root .echoo-listener-shell:has(.echoo-reference-page) .listener-profile-chevron{display:none!important}
-  #root .echoo-listener-shell:has(.echoo-reference-page) .layout-nav-item{justify-content:center!important;padding:0!important}
-  #root .echoo-listener-shell:has(.echoo-reference-page) .layout-profile{justify-content:center!important;padding:0!important}
-  #root .echoo-listener-shell:has(.echoo-reference-page) .echoo-listener-main{width:calc(100% - 74px)!important;margin-left:74px!important}
-  #root .echoo-listener-shell:has(.echoo-reference-page)>.echoo-persistent-player{left:74px!important;grid-template-columns:minmax(180px,1fr) auto!important}
-  #root .echoo-listener-shell:has(.echoo-reference-page) .layout-player-volume{display:none!important}
+  #root .echoo-listener-shell .layout-sidebar{width:74px!important;padding:14px 8px!important}
+  #root .echoo-listener-shell .layout-brand{justify-content:center!important;margin:0 0 18px!important;padding:0!important}
+  #root .echoo-listener-shell .layout-brand>span,#root .echoo-listener-shell .layout-nav-label,#root .echoo-listener-shell .layout-profile-info,#root .echoo-listener-shell .listener-profile-chevron{display:none!important}
+  #root .echoo-listener-shell .layout-nav-item{justify-content:center!important;padding:0!important}
+  #root .echoo-listener-shell .layout-profile{justify-content:center!important;padding:0!important}
+  #root .echoo-listener-shell .echoo-listener-main{width:calc(100% - 74px)!important;margin-left:74px!important}
+  #root .echoo-listener-shell>.echoo-persistent-player{left:74px!important;grid-template-columns:minmax(180px,1fr) auto!important}
+  #root .echoo-listener-shell .layout-player-volume{display:none!important}
   #root .echoo-reference-page{padding:26px 24px 122px!important}
   #root .ref-station-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
   #root .ref-page-heading{flex-direction:column;align-items:stretch}
@@ -239,12 +252,12 @@
   #root .ref-search-control{width:100%}
 }
 @media(max-width:650px){
-  #root .echoo-listener-shell:has(.echoo-reference-page) .layout-sidebar{display:none!important}
-  #root .echoo-listener-shell:has(.echoo-reference-page) .echoo-listener-main{width:100%!important;margin-left:0!important}
-  #root .echoo-listener-shell:has(.echoo-reference-page)>.echoo-persistent-player{left:0!important;height:76px!important;min-height:76px!important;max-height:76px!important;padding:0 12px!important;grid-template-columns:minmax(0,1fr) auto!important;gap:8px!important}
-  #root .echoo-listener-shell:has(.echoo-reference-page) .layout-topbar{height:62px!important;min-height:62px!important;padding:0 12px!important}
-  #root .echoo-listener-shell:has(.echoo-reference-page) .beautiful-search-wrapper{width:100%!important}
-  #root .echoo-listener-shell:has(.echoo-reference-page) .layout-top-actions{display:none!important}
+  #root .echoo-listener-shell .layout-sidebar{display:none!important}
+  #root .echoo-listener-shell .echoo-listener-main{width:100%!important;margin-left:0!important}
+  #root .echoo-listener-shell>.echoo-persistent-player{left:0!important;height:76px!important;min-height:76px!important;max-height:76px!important;padding:0 12px!important;grid-template-columns:minmax(0,1fr) auto!important;gap:8px!important}
+  #root .echoo-listener-shell .layout-topbar{height:62px!important;min-height:62px!important;padding:0 12px!important}
+  #root .echoo-listener-shell .beautiful-search-wrapper{width:100%!important}
+  #root .echoo-listener-shell .layout-top-actions{display:none!important}
   #root .echoo-reference-page{padding:20px 14px 102px!important}
   #root .ref-home-hero{min-height:auto;grid-template-columns:1fr;padding:26px 20px}
   #root .ref-home-hero-copy h1{font-size:38px!important}
@@ -259,4 +272,25 @@
   #root .ref-featured-audio-grid,#root .ref-home-station-row,#root .ref-creators-row,#root .ref-station-grid{grid-template-columns:1fr}
   #root .ref-home-hero-actions{flex-direction:column}
   #root .ref-home-hero-actions button{width:100%}
+}
+
+/* ---------- keep the full-label 205px sidebar at all viewport sizes ---------- */
+@media(max-width:1180px){
+  :root{--echoo-sidebar-width:205px!important}
+  #root .echoo-listener-shell .layout-sidebar{width:205px!important;padding-left:12px!important;padding-right:12px!important;align-items:stretch!important}
+}
+@media(max-width:900px){
+  :root{--echoo-sidebar-width:205px!important}
+  #root .echoo-listener-shell .layout-sidebar{width:205px!important;align-items:stretch!important}
+  #root .echoo-listener-shell .layout-brand{margin-bottom:30px!important}
+  #root .echoo-listener-shell .layout-brand>span,#root .echoo-listener-shell .layout-nav-label,#root .echoo-listener-shell .layout-profile-info,#root .echoo-listener-shell .listener-profile-chevron{display:block!important;opacity:1!important;visibility:visible!important}
+  #root .echoo-listener-shell .layout-navigation{align-items:stretch!important}
+  #root .echoo-listener-shell .layout-nav-item{width:100%!important;height:43px!important;justify-content:flex-start!important;padding:0 13px!important}
+  #root .echoo-listener-shell .layout-brand img{width:34px!important;height:34px!important}
+}
+@media(max-width:760px){
+  :root{--echoo-sidebar-width:205px!important}
+  #root .echoo-listener-shell .layout-sidebar{width:205px!important;position:fixed!important}
+  #root .echoo-listener-shell .echoo-listener-main{width:calc(100% - 205px)!important;margin-left:205px!important}
+  #root .echoo-listener-shell>.echoo-persistent-player{left:205px!important}
 }

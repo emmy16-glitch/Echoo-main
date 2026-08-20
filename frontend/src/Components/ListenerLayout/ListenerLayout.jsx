@@ -28,18 +28,18 @@ import {
   FaHeadphones,
 } from 'react-icons/fa';
 
-import echooLogo from '../Assets/echoo-logo.jpg';
+import echooLogo from '../Assets/echoo-logo.png';
 import ListenerProfileMenu from './ListenerProfileMenu';
 import EchoSignal from '../EchooSystem/EchoSignal';
 import audioService from '../../services/audioService';
 import listenerService from '../../services/listenerService';
 import notificationService from '../../services/notificationService';
 import { buildMediaUrl } from '../../services/api';
+import '../../styles/echoo-identity-reset.css';
+import '../../styles/echoo-asset-system.css';
 import './ListenerLayout.css';
 import './ListenerLayout.figma.css';
 import './ListenerPlaybackFix.css';
-import '../../styles/echoo-identity-reset.css';
-import '../../styles/echoo-asset-system.css';
 
 const SEARCH_SUGGESTIONS = [
   'Podcast',
@@ -154,8 +154,7 @@ const ListenerLayout = () => {
   const navigation = [
     { name: 'Home', path: '/listen', icon: <FaHome />, end: true },
     { name: 'Live now', path: '/listen/live', icon: <FaBroadcastTower /> },
-    { name: 'Discover', path: '/listen/stations', icon: <FaCompass /> },
-    { name: 'Stations', path: '/listen/stations', icon: <FaHeadphones /> },
+    { name: 'Stations', path: '/listen/stations', icon: <FaCompass />, end: true },
     { name: 'Audio library', path: '/listen/library', icon: <FaBookOpen /> },
     { name: 'My playlist', path: '/listen/library', icon: <FaListUl /> },
     { name: 'Following', path: '/listen/library/following', icon: <FaHeart /> },
