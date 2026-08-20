@@ -12,7 +12,6 @@ import {
   FaUsers,
 } from 'react-icons/fa';
 
-import EchoAmbient from '../EchooSystem/EchoAmbient';
 import EchoWave from '../EchooSystem/EchoWave';
 import CreatorAudioMixer from './CreatorAudioMixer';
 import CreatorLiveChatPanel from './CreatorLiveChatPanel';
@@ -29,6 +28,7 @@ import {
   stopLiveKitPublishing,
 } from '../../services/livekitPublisher';
 import './CreatorBroadcastStudioExact.css';
+import './CreatorLiveBroadcastConsole.css';
 
 const pad = (value) => String(value).padStart(2, '0');
 
@@ -139,10 +139,6 @@ const CreatorLiveConnectedWorkspace = ({
           return;
         }
 
-        // If the browser refreshed or briefly disconnected after /start created
-        // the LiveKit room but before /confirm-live completed, recover the same
-        // broadcast instead of creating a second one that the single-live guard
-        // would correctly reject.
         const interruptedStart =
           realBroadcasts.find((item) => item.status === 'starting') || null;
 
@@ -347,7 +343,6 @@ const CreatorLiveConnectedWorkspace = ({
 
       let connection = null;
       if (broadcast.status === 'starting') {
-        // Resume the room prepared by a previous interrupted start.
         connection = await batch3Service.getLiveKitToken(broadcast.id);
         backendStarted = true;
         setMessage('Reconnecting to your prepared live room...');
@@ -374,8 +369,6 @@ const CreatorLiveConnectedWorkspace = ({
       try {
         confirmed = await batch3Service.confirmBroadcastLive(broadcast.id);
       } catch (confirmError) {
-        // confirm-live is idempotent. A single retry protects against a lost
-        // HTTP response after the backend already accepted the publisher.
         await new Promise((resolve) => window.setTimeout(resolve, 350));
         confirmed = await batch3Service.confirmBroadcastLive(broadcast.id);
       }
@@ -391,8 +384,6 @@ const CreatorLiveConnectedWorkspace = ({
       setMessage('You are live.');
       clearPreparedBroadcast();
     } catch (liveError) {
-      // Let the backend release its lifecycle lease and room first. Local
-      // publishing is then torn down whether or not that cleanup request works.
       if (backendStarted && broadcast?.id) {
         await batch3Service.cancelBroadcast(broadcast.id).catch(() => {});
       }
@@ -485,9 +476,6 @@ const CreatorLiveConnectedWorkspace = ({
       setEnding(true);
       setError('');
 
-      // Backend state is authoritative. Do not disconnect the creator first:
-      // if /end fails, listeners should continue receiving audio while the
-      // creator sees the error and can retry instead of being left "live" but silent.
       const endedResponse = await batch3Service.endBroadcast(currentLiveBroadcast.id);
       const endedBroadcast = endedResponse?.data || currentLiveBroadcast;
 
@@ -523,8 +511,6 @@ const CreatorLiveConnectedWorkspace = ({
         setError(`Broadcast ended, but local cleanup reported: ${cleanupWarnings.join(' ')}`);
       }
     } catch (endError) {
-      // Because local publishing was intentionally left connected until the
-      // backend accepted /end, a backend failure does not create silent live air.
       setError(endError?.message || 'Could not end the broadcast.');
     } finally {
       setEnding(false);
@@ -603,85 +589,129 @@ const CreatorLiveConnectedWorkspace = ({
     const liveStation = stations.find(
       (station) => String(station.id) === String(currentLiveBroadcast.stationId)
     ) || selectedStation;
+    const connectionLabel = presence.creatorConnected ? 'Stable' : 'Checking';
 
     return (
       <section className="ebsx live-page">
-        <header className="ebsx-live-header">
-          <div>
-            <div className="ebsx-live-line"><span>LIVE</span><b>{formatTimer(elapsed)}</b></div>
-            <h1>Live Broadcast</h1>
-            <p>You are live. Keep an eye on your mix and your audience.</p>
-          </div>
-          <div className="ebsx-live-header-actions">
-            <button type="button" onClick={shareBroadcast}><FaShareAlt /> Share</button>
-            <button type="button" onClick={() => changeMode('later')}><FaCalendarAlt /> Schedule another</button>
-          </div>
-        </header>
+        <div className="ebsx-live-console">
+          <div className="ebsx-live-primary">
+            <section className="ebsx-live-now-strip" aria-label="Broadcast live status">
+              <div className="ebsx-live-now-copy">
+                <span className="ebsx-live-now-dot" aria-hidden="true" />
+                <div>
+                  <strong>LIVE NOW</strong>
+                  <span>You&apos;re broadcasting to your listeners.</span>
+                </div>
+              </div>
+              <div className="ebsx-live-now-right">
+                <div className="ebsx-live-now-wave" aria-hidden="true">
+                  <EchoWave state="playing" />
+                </div>
+                <div className="ebsx-live-timer">
+                  <span>Live timer</span>
+                  <strong>{formatTimer(elapsed)}</strong>
+                </div>
+              </div>
+            </section>
 
-        {message && <div className="ebsx-message success">{message}</div>}
-        {error && <div className="ebsx-message error">{error}</div>}
+            {message && message !== 'You are live.' && (
+              <div className="ebsx-message success">{message}</div>
+            )}
+            {error && <div className="ebsx-message error">{error}</div>}
 
-        <div className="ebsx-live-layout">
-          <main className="ebsx-live-main">
-            <section className="ebsx-onair-card">
-              <EchoAmbient density="low" />
-              <div className="ebsx-onair-art">
+            <section className="ebsx-live-summary">
+              <div className="ebsx-live-summary-art">
                 {liveStation?.coverArt
                   ? <img src={liveStation.coverArt} alt="" />
                   : <FaBroadcastTower />}
+                <span>LIVE</span>
               </div>
-              <div className="ebsx-onair-copy">
-                <div className="ebsx-onair-tags"><span>ON AIR</span><b>LIVE</b><em>{formatTimer(elapsed)}</em></div>
-                <h2>{currentLiveBroadcast.title}</h2>
+
+              <div className="ebsx-live-summary-copy">
+                <span>ON AIR</span>
+                <h1>{currentLiveBroadcast.title}</h1>
                 <p>{liveStation?.name || currentLiveBroadcast.stationName || 'Echoo Station'}</p>
                 <small>{studioName}</small>
-                <div className="ebsx-onair-health">
+                <div className="ebsx-live-summary-health">
                   <span><FaUsers /> Public</span>
-                  <span className={presence.creatorConnected ? 'good' : ''}>{presence.creatorConnected ? 'Good connection' : 'Checking connection'}</span>
+                  <span className={presence.creatorConnected ? 'good' : ''}>
+                    <i /> {presence.creatorConnected ? 'Good connection' : 'Checking connection'}
+                  </span>
                 </div>
               </div>
-              <div className="ebsx-live-mic"><FaMicrophone /></div>
-              <div className="ebsx-wave"><EchoWave state="speaking" /></div>
-              <div className="ebsx-onair-stats">
-                <div><strong>{presence.listenerCount || 0}</strong><span>Listening now</span></div>
-                <div><strong>{presence.peakListeners || 0}</strong><span>Peak listeners</span></div>
-                <div><strong>{presence.creatorConnected ? 'Stable' : 'Checking'}</strong><span>Connection</span></div>
+
+              <div className="ebsx-live-summary-right">
+                <div className="ebsx-live-summary-metrics">
+                  <div>
+                    <strong>{presence.listenerCount || 0}</strong>
+                    <span>Listening now</span>
+                  </div>
+                  <div>
+                    <strong>{presence.peakListeners || 0}</strong>
+                    <span>Peak listeners</span>
+                  </div>
+                  <div>
+                    <strong>{connectionLabel}</strong>
+                    <span>Connection</span>
+                  </div>
+                </div>
+                <div className="ebsx-live-summary-actions">
+                  <button type="button" onClick={reconnectMicrophone} disabled={goingLive}>
+                    <FaMicrophone /> {goingLive ? 'Reconnecting...' : 'Reconnect studio mix'}
+                  </button>
+                  <button type="button" onClick={shareBroadcast}>
+                    <FaShareAlt /> Share
+                  </button>
+                  <button type="button" className="danger" onClick={endBroadcast} disabled={ending}>
+                    <FaStop /> {ending ? 'Ending...' : 'End broadcast'}
+                  </button>
+                </div>
               </div>
             </section>
 
-            <div className="ebsx-live-primary-actions">
-              <button type="button" onClick={reconnectMicrophone} disabled={goingLive}><FaMicrophone /> Reconnect studio mix</button>
-              <button type="button" className="danger" onClick={endBroadcast} disabled={ending}><FaStop /> {ending ? 'Ending...' : 'End broadcast'}</button>
+            <div className="ebsx-live-mixer-stage">
+              <CreatorAudioMixer onStateChange={setMixerState} />
             </div>
+          </div>
 
-            <div className="ebsx-live-lower">
-              <CreatorLiveChatPanel broadcastId={currentLiveBroadcast.id} />
-
-              <section className="ebsx-activity-card">
-                <div className="ebsx-card-head"><h2>Listener activity</h2></div>
-                <strong className="ebsx-activity-big">{presence.listenerCount || 0}</strong>
-                <span className="ebsx-activity-live"><i /> Listening now</span>
-                <div className="ebsx-activity-stats">
-                  <div><span>Peak listeners</span><strong>{presence.peakListeners || 0}</strong></div>
-                  <div><span>Live time</span><strong>{formatTimer(elapsed)}</strong></div>
-                  <div><span>Studio output</span><strong>{mixerState?.channels?.host?.connected ? 'Ready' : 'Check mic'}</strong></div>
-                </div>
-              </section>
-            </div>
-          </main>
-
-          <aside className="ebsx-live-side">
-            <CreatorAudioMixer compact onStateChange={setMixerState} />
-            <section className="ebsx-live-controls">
-              <h2>Live controls</h2>
-              <div className="ebsx-control-grid">
-                <button type="button" onClick={shareBroadcast}><FaShareAlt /><span><strong>Share broadcast</strong><small>Copy or share the live link</small></span></button>
-                <button type="button" onClick={() => onNavigate?.('Stations')}><FaBroadcastTower /><span><strong>Station page</strong><small>Manage this station</small></span></button>
-                <button type="button" onClick={() => changeMode('later')}><FaCalendarAlt /><span><strong>Plan another</strong><small>Schedule while this stays live</small></span></button>
-                <button type="button" onClick={() => onNavigate?.('Analytics')}><FaUsers /><span><strong>View analytics</strong><small>Open creator performance</small></span></button>
-              </div>
-            </section>
+          <aside className="ebsx-live-chat-rail" aria-label="Live chat">
+            <CreatorLiveChatPanel broadcastId={currentLiveBroadcast.id} />
           </aside>
+
+          <div className="ebsx-live-secondary">
+            <section className="ebsx-activity-card">
+              <div className="ebsx-card-head"><h2>Listener activity</h2></div>
+              <strong className="ebsx-activity-big">{presence.listenerCount || 0}</strong>
+              <span className="ebsx-activity-live"><i /> Listening now</span>
+              <div className="ebsx-activity-stats">
+                <div><span>Peak listeners</span><strong>{presence.peakListeners || 0}</strong></div>
+                <div><span>Live time</span><strong>{formatTimer(elapsed)}</strong></div>
+                <div><span>Studio output</span><strong>{mixerState?.channels?.host?.connected ? 'Ready' : 'Check mic'}</strong></div>
+              </div>
+            </section>
+
+            <section className="ebsx-live-controls">
+              <div className="ebsx-card-head"><h2>Live controls</h2></div>
+              <div className="ebsx-live-quick-actions">
+                <button type="button" onClick={shareBroadcast}>
+                  <FaShareAlt />
+                  <span><strong>Share broadcast</strong><small>Copy or share the live link</small></span>
+                </button>
+                <button type="button" onClick={() => onNavigate?.('Stations')}>
+                  <FaBroadcastTower />
+                  <span><strong>Station page</strong><small>Manage this station</small></span>
+                </button>
+                <button type="button" onClick={() => changeMode('later')}>
+                  <FaCalendarAlt />
+                  <span><strong>Plan another</strong><small>Schedule while this stays live</small></span>
+                </button>
+                <button type="button" onClick={() => onNavigate?.('Analytics')}>
+                  <FaUsers />
+                  <span><strong>View analytics</strong><small>Open creator performance</small></span>
+                </button>
+              </div>
+            </section>
+          </div>
         </div>
 
         {mode === 'later' && (
