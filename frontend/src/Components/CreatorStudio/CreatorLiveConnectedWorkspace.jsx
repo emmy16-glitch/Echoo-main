@@ -368,7 +368,7 @@ const CreatorLiveConnectedWorkspace = ({
       let confirmed = null;
       try {
         confirmed = await batch3Service.confirmBroadcastLive(broadcast.id);
-      } catch (confirmError) {
+      } catch {
         await new Promise((resolve) => window.setTimeout(resolve, 350));
         confirmed = await batch3Service.confirmBroadcastLive(broadcast.id);
       }

@@ -14,6 +14,7 @@ import {
 import audioService from '../../services/audioService';
 import batch1Service from '../../services/batch1Service';
 import downloadService from '../../services/downloadService';
+import { getCreatorProfilePath } from '../../services/profileIdentifier';
 import '../../styles/listener-reference-pages.css';
 import '../../styles/listener-reference-pages-extended.css';
 
@@ -174,6 +175,8 @@ const ListenerAudioDetail = () => {
     return <main className="echoo-reference-page ref-audio-detail-page"><div className="ref-state-card"><FaHeadphones /><strong>{error || 'Audio unavailable.'}</strong><button type="button" onClick={() => navigate('/listen')}>Back home</button></div></main>;
   }
 
+  const artistProfilePath = getCreatorProfilePath(track.artist || artistIdOf(track));
+
   return (
     <main className="echoo-reference-page ref-audio-detail-page">
       <button type="button" className="ref-back-link" onClick={() => navigate(-1)}><FaArrowLeft /> Back</button>
@@ -185,7 +188,7 @@ const ListenerAudioDetail = () => {
         <div className="ref-audio-detail-copy">
           <span className="ref-kicker">AUDIO</span>
           <h1>{track.title}</h1>
-          <button type="button" className="ref-audio-artist" onClick={() => artistIdOf(track) && navigate(`/listen/creator/${artistIdOf(track)}`)}>{track.artistName || 'Echoo Creator'}</button>
+          <button type="button" className="ref-audio-artist" onClick={() => artistProfilePath && navigate(artistProfilePath)}>{track.artistName || 'Echoo Creator'}</button>
           <p>{track.genre || 'Audio'} · {formatTime(track.duration)} · {formatDate(track.createdAt)}</p>
           <div className="ref-audio-actions">
             <button type="button" className="primary" onClick={() => play()}>{playing ? <FaPause /> : <FaPlay />} {playing ? 'Pause' : 'Play'}</button>

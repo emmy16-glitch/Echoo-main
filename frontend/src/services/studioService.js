@@ -2,10 +2,10 @@ import { apiFetch, apiRequest, buildMediaUrl } from "./api.js";
 
 const readResponse = async (response) => {
   const contentType = response.headers.get("content-type") || "";
-  let data = null;
-
-  if (contentType.includes("application/json")) data = await response.json();
-  else {
+  let data;
+  if (contentType.includes("application/json")) {
+    data = await response.json();
+  } else {
     const text = await response.text();
     data = text ? { message: text } : null;
   }

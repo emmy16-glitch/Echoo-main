@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import {
   FaCheckCircle,
@@ -58,13 +58,13 @@ const ListenerDownloads = () => {
   const [clearOpen, setClearOpen] = useState(false);
   const [toast, setToast] = useState({ open:false, type:'info', title:'', message:'' });
 
-  const showToast = (type,title,message) => setToast({ open:true,type,title,message });
-  const readDownloads = () => {
+  const showToast = useCallback((type,title,message) => setToast({ open:true,type,title,message }), []);
+  const readDownloads = useCallback(() => {
     const items = downloadService.getAll();
     setDownloaded(Array.isArray(items) ? items.map(normalizeTrack).filter((track) => track?.id) : []);
-  };
+  }, []);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const response = await audioService.getAll({ public:true, page:1, limit:100 });
@@ -76,14 +76,14 @@ const ListenerDownloads = () => {
       readDownloads();
       setLoading(false);
     }
-  };
+  }, [readDownloads, showToast]);
 
   useEffect(() => {
     load();
     const refresh = () => readDownloads();
     window.addEventListener('focus', refresh);
     return () => window.removeEventListener('focus', refresh);
-  }, []);
+  }, [load, readDownloads]);
 
   const downloadedIds = useMemo(() => new Set(downloaded.map((item) => String(item.id))), [downloaded]);
   const availableToDownload = useMemo(() => available.filter((item) => !downloadedIds.has(String(item.id))), [available, downloadedIds]);

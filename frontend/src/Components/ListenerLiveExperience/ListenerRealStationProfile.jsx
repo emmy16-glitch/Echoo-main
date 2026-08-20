@@ -9,6 +9,7 @@ import {
 
 import batch3Service from '../../services/batch3Service';
 import followService from '../../services/followService';
+import { getCreatorProfilePath } from '../../services/profileIdentifier';
 import '../../styles/echoo-batch3.css';
 
 const STATION_SYNC_INTERVAL_MS = 15000;
@@ -206,7 +207,10 @@ const ListenerRealStationProfile = () => {
               <button
                 type="button"
                 title={creatorName ? `View ${creatorName}` : 'View creator'}
-                onClick={() => navigate(`/listen/creator/${creatorId}`)}
+                onClick={() => {
+                  const profilePath = getCreatorProfilePath(creatorId);
+                  if (profilePath) navigate(profilePath);
+                }}
               >
                 View creator
               </button>
