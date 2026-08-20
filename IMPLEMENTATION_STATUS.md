@@ -1,121 +1,111 @@
 # Echoo implementation status
 
-Working branch: `integration/echoo-core-cleanup`
+This document describes the current repository architecture. `main` is the integration source of truth; feature/audit branches are merged only after Echoo checks and the architecture guard are green.
 
-This branch remains separate from `main` until the end-to-end local LiveKit smoke test is green.
+## Creator Studio
 
-## Implemented on this branch
+- One Creator Studio shell with Home, Stations, Broadcast, Audio, Audience, Analytics and Settings workspaces.
+- Stations is the only station-creation authority.
+- Broadcast owns both Go Live Now and Schedule Later flows.
+- Scheduled and immediate broadcasts converge on the same Broadcast Studio.
+- The live Broadcast Studio contains the full mixer, live status/control surface and Live Chat.
 
-### One station creation flow
-- Creator Studio → Stations is the only station creation UI.
-- Stations creates, edits and deletes real backend Station records.
-- Live selects an existing station only.
-- Schedule selects an existing station only.
-- Station API no longer exposes a second schedule or manual live toggle.
-- Stale frontend Station schedule client methods are removed.
-- The Station schema no longer contains a competing schedule model.
-- Station live/listener fields are derived runtime state written by Broadcast/LiveKit lifecycle code.
+## Live audio
 
-### One broadcast lifecycle
-- Broadcast is the scheduling source of truth.
-- Removed the separate backend Schedule route/controller.
-- Removed the duplicate listener LiveKit token route.
-- Generic Broadcast metadata updates cannot set lifecycle status.
-- Explicit flow: scheduled/draft/failed → starting → LiveKit creator connected/publishing → confirm-live → live → ending → completed.
-- Cancel is a separate terminal state.
+Current production media path:
 
-### Creator flows
-- Go Live Now uses real Broadcast records.
-- Schedule Later creates real scheduled Broadcast records.
-- Schedule → Enter Studio converges on the same Live workspace.
-- Microphone test remains local until Start.
-- Creator microphone publishes directly to LiveKit.
-- Creator Studio is one shell plus dedicated workspaces; duplicate inline Home/Content/Audience/Analytics implementations were removed from the shell.
-- Creator notifications have a real backend-connected workspace.
+```text
+Host Mic + Guest Mic + Music/System
+                ↓
+          Web Audio mixer
+                ↓
+        post-master program
+        `echoo-studio-mix`
+                ↓
+             LiveKit
+                ↓
+      receive-only listeners
+```
 
-### Listener live experience
-- Real public live discovery only.
-- Receive-only authenticated listener LiveKit token.
-- Direct LiveKit audio player.
-- Real Live Chat persistence.
-- Socket.IO realtime room updates with REST recovery fallback.
-- Real listener/peak presence synchronization.
+Implemented protections include:
 
-### Social
-- Correct creator Follow relationship.
-- Separate StationFollow relationship.
-- Real Following frontend.
-- Real Station follow UI.
-- Real Creator profile frontend.
+- mixer output is mandatory; no silent raw-microphone fallback
+- backend confirm-live waits for the actual named program publication
+- stereo program publishing with DTX disabled and a 256 kbps maximum Opus bitrate target
+- Studio Clean / Voice Cleanup microphone profiles
+- preferred 48 kHz capture/context where the browser/device supports it
+- creator reconnect handling without intentionally stopping the externally owned mixer track
+- listener attaches only to the Echoo program publication
+- local post-master recording with disk-backed lossless capture when supported and a truthful high-quality fallback otherwise
 
-### Listener product data
-- Removed listener mock service and mock media service.
-- Removed obsolete mock Live/Stations screens.
-- Removed bundled sample audio/mock broadcast images.
-- Listener Home uses real broadcasts/audio/creators/stations.
-- Search uses real audio, creators, stations and public playlists.
-- Library saved audio is backend-authoritative.
-- Playlists are backend-authoritative and can receive saved tracks.
-- History is one backend-authoritative UI; the duplicate legacy history render was removed.
-- Offline downloads cache actual published media rather than substituting sample audio.
-- Notifications have a real frontend.
-- Listener Settings has a real frontend.
+LiveKit remains the only required live media distribution layer. OME is not enabled in the current path.
 
-### Data honesty
-- Analytics no longer generates random follower curves, locations, audience segments or listening patterns.
-- Fixed percentage changes were removed.
-- Unsupported demographic/listening analytics are returned as unavailable/empty instead of estimated.
-- Search popular/trending endpoints no longer return fabricated query counts or trend percentages.
-- Where Echoo lacks true search trend measurement, the API says so explicitly and returns measured live/recent content activity instead.
+## Broadcast lifecycle and presence
 
-### Creator data
-- Creator dashboard metrics use real Audio, Follow and Broadcast data.
-- Upcoming scheduled Broadcasts come from the real Broadcast collection.
-- Audience metrics use Follow/Broadcast data.
-- Analytics stores/reads recorded broadcast metrics.
-- Creator Settings account/profile/security controls use the real Settings API.
+- Broadcast is the single schedule/lifecycle model.
+- Explicit lifecycle endpoints own start, confirm-live, end and cancel.
+- One active live/start lease per creator is enforced with MongoDB-backed coordination.
+- Presence reads are cached/coalesced to avoid request storms.
+- Broadcast and Station listener counters are synchronized from LiveKit presence.
 
-### Uploads
-- `/uploads` is served by the backend.
-- Creator audio uploads reject unsupported non-audio files.
-- Audio upload UI is shared from one Creator Studio shell.
+## Realtime
 
-### Repository quality
-- `ARCHITECTURE.md` documents the single-authority rules.
-- `SMOKE_TEST.md` documents the end-to-end test.
-- GitHub Actions checks frontend lint/build and backend syntax.
-- `scripts/architecture-check.mjs` guards against duplicate station creation and removed mock architecture returning.
-- Archived backup directories are excluded from production lint checks.
+- Chat persistence is MongoDB/REST.
+- Socket.IO delivers realtime chat/status/presence-change events.
+- REST remains recovery fallback.
+- Socket authentication refreshes with the HTTP session when access tokens rotate.
+- Current Socket.IO deployment is process-local; horizontal scale still requires a shared adapter/state layer.
 
-## Automated validation
+## Prerecorded audio
 
-The current branch has passed GitHub Actions for:
-- frontend `npm ci`
-- frontend `npm run lint`
-- frontend `npm run build`
-- backend `npm ci`
-- backend syntax checks
-- Echoo architecture guard
+- Audio uploads are validated by extension, MIME intent and file signature.
+- Physical filenames are randomized and not exposed in normal API JSON.
+- `/uploads/audio/...` is blocked.
+- Protected playback uses scoped `/api/audio/:id/stream` URLs with HTTP Range support.
+- Stream authorization is rechecked against current visibility on every request.
+- Creator Studio can obtain owner-scoped playback URLs for private recordings.
+- Explicit downloads are authenticated.
+- Offline browser metadata does not persist expiring signed playback tokens.
+- Current storage is local disk; private object storage/CDN remains a future production-scale migration.
 
-The local output that previously failed because deleted mock services were still imported has been repaired on this branch. Automated checks are green; local infrastructure/runtime behavior is the remaining merge gate.
+## Authentication and account controls
 
-## Preserved for later, not required by the MVP
-- LiveKit Egress support
-- OvenMediaEngine provider/integration code
+- Access and refresh JWTs are separate token types.
+- JWT verification pins the configured signing algorithm.
+- Logout and password changes invalidate older refresh tokens using `refreshTokenVersion`.
+- Auth, refresh, search, sensitive account actions and audio uploads have endpoint-specific request throttles.
+- Normal product routes reject inactive accounts.
+- The dedicated account-reactivation path can identify an inactive account through a valid signed session.
+- Forgot-password API routing exists; outbound reset-email delivery/token workflow is still a product integration item.
 
-These remain optional future recording/distribution infrastructure. They do not block direct LiveKit listening.
+## Listener/library data integrity
 
-## Required before merge
-1. Pull this exact integration branch locally.
-2. Start MongoDB/backend, Redis and LiveKit.
-3. Creator: create a station in **Stations**.
-4. Confirm neither Live nor Schedule contains a second station creation form.
-5. Creator: Go Live → microphone preflight → Start.
-6. Confirm Broadcast becomes `live` only after LiveKit connection/publish and `confirm-live`.
-7. Second authenticated Listener browser/device: open Live and join the real broadcast.
-8. Confirm the creator microphone is audible and the listener cannot publish media.
-9. Confirm listener count/presence and realtime chat.
-10. End broadcast and confirm Broadcast/Station runtime state resets.
-11. Verify Schedule → Enter Studio → same Live flow.
-12. Smoke-test Follow, Station Follow, Library Save, Playlist, Search, Notifications, History, Downloads and Settings using real records.
-13. Only then change the PR from draft to ready and merge.
+- Saved audio and playlists are backend-authoritative.
+- Playback state, history, queues and downloads re-evaluate audio visibility so deleted/private tracks do not remain usable by unauthorized listeners.
+- Listener playback progress cannot rewrite canonical creator-owned Audio duration metadata.
+- Queue, playlist ordering and download-revival edge cases have regression coverage.
+
+## Search and analytics honesty
+
+- Search uses real public Echoo data only.
+- Regex-like input is bounded/escaped where literal public matching is intended.
+- Unsupported demographics/trends remain unavailable instead of being fabricated.
+- Creator follower totals are counted independently from the bounded follower sample returned to the UI.
+
+## Health and validation
+
+- `/api/health` — process liveness
+- `/api/health/ready` — MongoDB readiness
+- `/api/health/livekit` — LiveKit connectivity
+- GitHub Actions runs frontend lint/build, backend syntax/invariant tests and mobile lint/typecheck.
+- A separate architecture check guards critical single-authority/media invariants.
+
+## Known scale/deployment work that is not falsely marked complete
+
+- real multi-browser/device LiveKit soak/load tests must be run against the deployed environment
+- multi-instance Socket.IO requires a shared adapter/store
+- rate-limit enforcement is process-local until a shared store is configured
+- prerecorded media should move from local disk to private object storage/CDN for mature production scale
+- account hard-delete/cascade policy should be deliberately designed before using hard deletion as a production data-retention workflow
+
+LiveKit Egress and OvenMediaEngine remain optional future infrastructure and do not block the current direct LiveKit path.
