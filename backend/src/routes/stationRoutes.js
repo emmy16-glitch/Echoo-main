@@ -2,7 +2,9 @@ import express from 'express';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import { authenticate } from '../middleware/auth.js';
+import { randomUUID } from 'crypto';
+import { authenticate, optionalAuth } from '../middleware/auth.js';
+import { requireStationDeletionSafe } from '../middleware/stationDeletionGuard.js';
 import {
   boundedSearchText,
   escapeRegexLiteral,
@@ -26,9 +28,8 @@ if (!fs.existsSync(STATION_UPLOAD_DIR)) {
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, STATION_UPLOAD_DIR),
   filename: (req, file, cb) => {
-    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
     const ext = path.extname(file.originalname || '').toLowerCase();
-    cb(null, `station-${uniqueSuffix}${ext}`);
+    cb(null, `station-${Date.now()}-${randomUUID()}${ext}`);
   },
 });
 
@@ -106,8 +107,9 @@ router.get('/', validateStationListQuery, getStations);
 // Creator-owned collection must be declared before /:stationId.
 router.get('/mine/all', authenticate, getMyStations);
 
-// Public station profile. Private stations remain owner-only in the controller.
-router.get('/:stationId', getStationById);
+// Public station profile. Optional auth is required here so the controller can
+// distinguish an anonymous visitor from the owner of a private station.
+router.get('/:stationId', optionalAuth, getStationById);
 
 // Stations are created and managed only through this resource.
 // `logo` is optional; metadata-only JSON requests remain supported.
@@ -125,7 +127,12 @@ router.patch(
   cleanupFailedStationUpload,
   updateStation
 );
-router.delete('/:stationId', authenticate, deleteStation);
+router.delete(
+  '/:stationId',
+  authenticate,
+  requireStationDeletionSafe,
+  deleteStation
+);
 
 // Broadcasts are the only authority for live state and future broadcast timing.
 

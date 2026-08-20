@@ -13,8 +13,8 @@ import {
   updateAudio,
   deleteAudio,
   incrementPlays,
-  toggleLike,
 } from '../controllers/audioController.js';
+import { toggleAudioLike } from '../controllers/audioLikeController.js';
 import {
   issueAudioStreamUrl,
   streamAudio,
@@ -321,6 +321,6 @@ router.post(
 router.patch('/:id', validateAudioId, authenticate, requireCreator, updateAudio);
 router.delete('/:id', validateAudioId, authenticate, requireCreator, deleteAudio);
 router.post('/:id/play', validateAudioId, authenticate, incrementPlays);
-router.post('/:id/like', validateAudioId, authenticate, toggleLike);
+router.post('/:id/like', validateAudioId, authenticate, toggleAudioLike);
 
 export default router;
