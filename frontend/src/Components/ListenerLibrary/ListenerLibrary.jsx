@@ -1,89 +1,164 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import {
-  FaBookOpen,
-  FaCheck,
+  FaAngleDoubleRight,
+  FaCheckCircle,
+  FaChevronDown,
+  FaChevronLeft,
+  FaChevronRight,
+  FaDownload,
+  FaEllipsisV,
   FaHeadphones,
   FaPause,
   FaPlay,
-  FaPlus,
-  FaTrash,
+  FaSearch,
+  FaSlidersH,
 } from 'react-icons/fa';
 
 import audioService from '../../services/audioService';
-import batch1Service from '../../services/batch1Service';
-import followService from '../../services/followService';
+import batch6Service from '../../services/batch6Service';
 import playlistService from '../../services/playlistService';
-import { getCreatorProfilePath } from '../../services/profileIdentifier';
-import ListenerModal from '../ListenerUI/ListenerModal';
 import ListenerToast from '../ListenerUI/ListenerToast';
 import '../../styles/listener-reference-pages.css';
+import './ListenerLibrary.css';
 
-const idOf = (item) => item?.id || item?._id || null;
-const getArtist = (track) => track?.artistName || track?.artist?.displayName || track?.artist?.username || 'Echoo Creator';
-const initials = (value) => String(value || 'Echoo')
-  .split(/\s+/).filter(Boolean).slice(0,2).map((part) => part[0]?.toUpperCase()).join('');
-const formatTime = (seconds) => {
+const PAGE_SIZE = 10;
+
+// Reference chips (audio-library.png type row). Filtering maps each chip to
+// backend genres; chips whose mapped genres exist in the real dataset become
+// selectable, the rest remain visible for fidelity but match nothing.
+const LIBRARY_CHIPS = [
+  { label: 'All audio', genres: [] },
+  { label: 'Episodes', genres: ['News & Politics', 'Business'] },
+  { label: 'Clips', genres: [] },
+  { label: 'Teachings', genres: ['Education'] },
+  { label: 'Messages', genres: ['Faith & Spirituality'] },
+  { label: 'Interviews', genres: [] },
+  { label: 'Music', genres: ['Music'] },
+  { label: 'Podcasts', genres: ['Podcast'] },
+];
+
+const idOf = (item) => String(item?.id || item?._id || '');
+
+const formatDuration = (seconds) => {
   const total = Number(seconds) || 0;
-  const minutes = Math.floor(total / 60);
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
   const secs = Math.floor(total % 60);
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  }
   return `${minutes}:${String(secs).padStart(2, '0')}`;
+};
+
+const formatDate = (value) => {
+  const date = value ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) return '';
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+};
+
+// Real backend genre → reference-style type pill label.
+const typeLabelFor = (genre) => {
+  switch (String(genre || '').trim()) {
+    case 'Faith & Spirituality': return 'Message';
+    case 'Education': return 'Teaching';
+    case 'Music': return 'Music';
+    case 'Podcast': return 'Podcast';
+    default: return 'Episode';
+  }
+};
+
+const initials = (value) => String(value || 'E')
+  .split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('');
+
+const ArtistName = ({ track }) => {
+  const artist = track?.artist && typeof track.artist === 'object' ? track.artist : null;
+  const fallback = artist?.displayName || artist?.username || track?.artistName || 'Echoo Creator';
+  const verified = artist && artist.userType === 'creator';
+  return (
+    <span className="al-row-sub">
+      {fallback}
+      {verified && <FaCheckCircle className="al-verified" />}
+    </span>
+  );
 };
 
 const ListenerLibrary = () => {
   const navigate = useNavigate();
   const { playTrack, currentTrack, isPlaying, togglePlay } = useOutletContext();
 
-  const [tab, setTab] = useState('overview');
-  const [tracks, setTracks] = useState([]);
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState('');
+  const [listSearch, setListSearch] = useState('');
+  const [sort, setSort] = useState('recent');
+  const [chip, setChip] = useState('All audio');
+  const [audio, setAudio] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [genres, setGenres] = useState([]);
   const [playlists, setPlaylists] = useState([]);
-  const [creators, setCreators] = useState([]);
-  const [stations, setStations] = useState([]);
+  const [downloads, setDownloads] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [busyId, setBusyId] = useState('');
-  const [createOpen, setCreateOpen] = useState(false);
-  const [playlistName, setPlaylistName] = useState('');
-  const [playlistDescription, setPlaylistDescription] = useState('');
-  const [toast, setToast] = useState({ open:false, type:'info', title:'', message:'' });
+  const [toast, setToast] = useState({ open: false, type: 'info', title: '', message: '' });
+  const [waveSeed] = useState(() => Array.from({ length: 14 }, () => 0.35 + Math.random() * 0.65));
+
+  const showToast = useCallback((type, title, message) => setToast({ open: true, type, title, message }), []);
+
+  const chipGenres = useMemo(() => {
+    const match = LIBRARY_CHIPS.find((item) => item.label === chip);
+    return match ? (match.genres || []).filter((genre) => genres.includes(genre)) : [];
+  }, [chip, genres]);
+
+  const genreFilter = useMemo(() => {
+    if (chipGenres.length) return chipGenres[0];
+    return '';
+  }, [chipGenres]);
 
   const load = useCallback(async ({ silent = false } = {}) => {
     try {
       if (!silent) setLoading(true);
-      if (!silent) setError('');
-      const [savedResult, playlistsResult, creatorsResult, stationsResult] = await Promise.allSettled([
-        batch1Service.getSavedTracks({ page:1, limit:100 }),
+      const [audioResult, playlistsResult, downloadsResult, genresResult] = await Promise.allSettled([
+        audioService.getAll({
+          public: true,
+          page,
+          limit: PAGE_SIZE,
+          search: listSearch.trim() || undefined,
+          genre: genreFilter || undefined,
+        }),
         playlistService.getMine(),
-        followService.getFollowingCreators(),
-        followService.getFollowingStations(),
+        batch6Service.getDownloads({ page: 1, limit: 100 }),
+        audioService.getAll({ public: true, page: 1, limit: 100 }),
       ]);
 
-      if (savedResult.status === 'fulfilled') {
-        const raw = Array.isArray(savedResult.value?.data?.tracks) ? savedResult.value.data.tracks : [];
-        setTracks(raw.map(audioService.normalize).filter(Boolean));
+      if (audioResult.status === 'fulfilled') {
+        setAudio(audioResult.value?.data || []);
+        setTotal(Number(audioResult.value?.pagination?.total) || 0);
+        setTotalPages(Number(audioResult.value?.pagination?.totalPages) || 0);
+      } else {
+        setAudio([]);
+        setTotal(0);
+        setTotalPages(0);
       }
       if (playlistsResult.status === 'fulfilled') {
         setPlaylists(Array.isArray(playlistsResult.value?.data) ? playlistsResult.value.data : []);
       }
-      if (creatorsResult.status === 'fulfilled') {
-        setCreators(Array.isArray(creatorsResult.value?.data) ? creatorsResult.value.data : []);
+      if (downloadsResult.status === 'fulfilled') {
+        setDownloads(Array.isArray(downloadsResult.value?.data?.downloads) ? downloadsResult.value.data.downloads : []);
       }
-      if (stationsResult.status === 'fulfilled') {
-        setStations(Array.isArray(stationsResult.value?.data) ? stationsResult.value.data : []);
+      if (genresResult.status === 'fulfilled') {
+        const list = Array.isArray(genresResult.value?.data) ? genresResult.value.data : [];
+        const seen = new Set();
+        setGenres(list.map((track) => String(track.genre || '')).filter((value) => value && !seen.has(value) && seen.add(value)));
       }
-
-      const failed = [savedResult, playlistsResult, creatorsResult, stationsResult].find((result) => result.status === 'rejected');
-      if (failed && !silent) setError(failed.reason?.message || 'Some Library data could not be loaded.');
-    } catch (loadError) {
-      if (!silent) setError(loadError?.message || 'Could not load your Library.');
     } finally {
       if (!silent) setLoading(false);
     }
-  }, []);
+  }, [page, listSearch, genreFilter]);
 
   useEffect(() => {
     load();
-    const sync = () => load({ silent:true });
+    const sync = () => load({ silent: true });
     const interval = window.setInterval(sync, 20000);
     window.addEventListener('focus', sync);
     return () => {
@@ -92,232 +167,361 @@ const ListenerLibrary = () => {
     };
   }, [load]);
 
-  const showToast = (type, title, message) => setToast({ open:true, type, title, message });
-
   const playAudio = (track) => {
     const id = idOf(track);
-    if (!id || !track.fileUrl) return;
-    if (String(currentTrack?.id || '') === String(id)) {
+    if (!id) return;
+    if (idOf(currentTrack) === id) {
       togglePlay();
       return;
     }
     playTrack({
-      ...track,
       id,
-      title:track.title || 'Untitled Audio',
-      subtitle:getArtist(track),
-      fileUrl:track.fileUrl,
-      coverArt:track.coverArt || null,
-      duration:Number(track.duration) || 0,
-      genre:track.genre || 'Audio',
-    }, tracks);
+      title: track.title || 'Untitled Audio',
+      subtitle: (track.artist && typeof track.artist === 'object'
+        ? track.artist.displayName || track.artist.username
+        : track.artistName || 'Echoo Creator'),
+      fileUrl: track.fileUrl,
+      coverArt: track.coverArt || null,
+      duration: Number(track.duration) || 0,
+      genre: track.genre || 'Audio',
+    });
   };
 
-  const removeSaved = async (track) => {
+  const requestDownload = async (track) => {
     const id = idOf(track);
     if (!id || busyId) return;
     try {
-      setBusyId(`track-${id}`);
-      await batch1Service.unsaveTrack(id);
-      setTracks((current) => current.filter((item) => String(idOf(item)) !== String(id)));
-      showToast('success', 'Removed from Library', `“${track.title || 'Audio'}” was removed.`);
-    } catch (actionError) {
-      showToast('error', 'Could not remove audio', actionError?.message || 'Please try again.');
+      setBusyId(id);
+      await batch6Service.requestDownload(id, 'medium');
+      showToast('success', 'Download started', `${track.title || 'Audio'} is being prepared.`);
+      const downloadsResult = await batch6Service.getDownloads({ page: 1, limit: 100 });
+      setDownloads(Array.isArray(downloadsResult?.data?.downloads) ? downloadsResult.data.downloads : []);
+    } catch (error) {
+      showToast('error', 'Could not start download', error?.message || 'Please try again.');
     } finally {
       setBusyId('');
     }
   };
 
-  const unfollowCreator = async (creator) => {
-    const id = idOf(creator);
-    if (!id || busyId) return;
-    try {
-      setBusyId(`creator-${id}`);
-      await followService.unfollowCreator(id);
-      setCreators((current) => current.filter((item) => String(idOf(item)) !== String(id)));
-    } catch (actionError) {
-      setError(actionError?.message || 'Could not unfollow this creator.');
-    } finally { setBusyId(''); }
-  };
-
-  const unfollowStation = async (station) => {
-    const id = idOf(station);
-    if (!id || busyId) return;
-    try {
-      setBusyId(`station-${id}`);
-      await followService.unfollowStation(id);
-      setStations((current) => current.filter((item) => String(idOf(item)) !== String(id)));
-    } catch (actionError) {
-      setError(actionError?.message || 'Could not unfollow this station.');
-    } finally { setBusyId(''); }
-  };
-
-  const createPlaylist = async (event) => {
-    event.preventDefault();
-    if (!playlistName.trim() || busyId) return;
-    try {
-      setBusyId('playlist-create');
-      const response = await playlistService.create({
-        name:playlistName.trim(),
-        description:playlistDescription.trim(),
-        isPublic:false,
-        isCollaborative:false,
-      });
-      if (!response?.data?.id) throw new Error('Echoo did not return the new playlist.');
-      setPlaylists((current) => [response.data, ...current]);
-      setPlaylistName('');
-      setPlaylistDescription('');
-      setCreateOpen(false);
-      showToast('success', 'Playlist created', `${response.data.name} is ready.`);
-    } catch (actionError) {
-      showToast('error', 'Could not create playlist', actionError?.message || 'Please try again.');
-    } finally { setBusyId(''); }
-  };
-
-  const totalPlaylistTracks = useMemo(
-    () => playlists.reduce((total, playlist) => total + (Number(playlist.trackCount) || 0), 0),
-    [playlists]
+  const downloadIds = useMemo(
+    () => new Set(downloads.map((item) => idOf(item))),
+    [downloads]
   );
+
+  const applySearch = () => {
+    setSearch(listSearch);
+    setPage(1);
+  };
+
+  const clearFilters = () => {
+    setListSearch('');
+    setSearch('');
+    setChip('All audio');
+    setSort('recent');
+    setPage(1);
+  };
+
+  const scrollToMain = () => {
+    const section = document.getElementById('al-main-section');
+    if (section) section.scrollIntoView({ block: 'start' });
+  };
+
+  const pageNumbers = useMemo(() => {
+    const pages = [];
+    const max = Math.min(totalPages, 5);
+    for (let index = 1; index <= max; index += 1) pages.push(index);
+    return pages;
+  }, [totalPages]);
 
   if (loading) {
     return <main className="echoo-reference-page ref-library-page"><div className="ref-state-card"><strong>Loading your Library...</strong></div></main>;
   }
 
-  const showCreators = tab === 'overview' || tab === 'creators';
-  const showStations = tab === 'overview' || tab === 'stations';
-  const showTracks = tab === 'overview' || tab === 'audio';
-  const showPlaylists = tab === 'playlists';
-
   return (
-    <main className="echoo-reference-page ref-library-page">
-      <ListenerToast {...toast} onClose={() => setToast((current) => ({ ...current, open:false }))} />
-      <ListenerModal
-        open={createOpen}
-        size="small"
-        title="Create playlist"
-        subtitle="Create a private playlist from your saved Echoo audio."
-        onClose={() => !busyId && setCreateOpen(false)}
-        footer={
-          <>
-            <button type="button" className="lb-button" onClick={() => setCreateOpen(false)}>Cancel</button>
-            <button type="submit" form="ref-library-playlist-form" className="lb-button primary" disabled={busyId === 'playlist-create' || !playlistName.trim()}>
-              <FaPlus /> {busyId === 'playlist-create' ? 'Creating...' : 'Create playlist'}
-            </button>
-          </>
-        }
-      >
-        <form id="ref-library-playlist-form" className="ref-modal-form" onSubmit={createPlaylist}>
-          <label>Playlist name<input value={playlistName} maxLength={80} onChange={(event) => setPlaylistName(event.target.value)} autoFocus /></label>
-          <label>Description<textarea value={playlistDescription} maxLength={300} onChange={(event) => setPlaylistDescription(event.target.value)} /></label>
-        </form>
-      </ListenerModal>
+    <main className="echoo-reference-page ref-library-page al-page">
+      <ListenerToast {...toast} onClose={() => setToast((current) => ({ ...current, open: false }))} />
 
-      <header className="ref-page-heading ref-library-heading">
-        <div>
-          <span className="ref-kicker">YOUR LIBRARY</span>
-          <h1>Your Library</h1>
-          <p>All of your followed creators, stations, saved audio and playlists.</p>
+      <header className="al-page-heading">
+        <div className="al-heading-text">
+          <h1>Audio library</h1>
+          <p>Discover and listen to recorded audio from creators and stations.</p>
         </div>
-        <button type="button" className="ref-primary-action" onClick={() => setCreateOpen(true)}><FaPlus /> New playlist</button>
       </header>
 
-      {error && <div className="ref-inline-error">{error}</div>}
+      <div className="al-chips" role="tablist" aria-label="Audio types">
+        {LIBRARY_CHIPS.map((item) => {
+          const hasMatchingGenre = item.label === 'All audio' || item.genres.some((genre) => genres.includes(genre));
+          return (
+            <button
+              type="button"
+              role="tab"
+              key={item.label}
+              aria-selected={chip === item.label}
+              className={`al-chip${chip === item.label ? ' al-chip-active' : ''}`}
+              onClick={() => { if (hasMatchingGenre || item.label === 'All audio') { setChip(item.label); setPage(1); } }}
+            >
+              {item.label}
+            </button>
+          );
+        })}
+      </div>
 
-      <nav className="ref-library-tabs" aria-label="Library sections">
-        {[
-          ['overview','Overview'],['creators','Creators'],['stations','Stations'],['audio','Saved Audio'],['playlists','Playlists'],
-        ].map(([key,label]) => (
-          <button type="button" key={key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}>{label}</button>
-        ))}
-      </nav>
+      <section className="al-hero">
+        <div className="al-hero-copy">
+          <h2>
+            Audio that <span>inspires.</span>
+            <br />
+            Anytime, anywhere.
+          </h2>
+          <p>Stream or download your favorite shows and messages.</p>
+          <button type="button" className="al-hero-cta" onClick={scrollToMain}>Explore audio</button>
+        </div>
+        <div className="al-hero-visual" aria-hidden>
+          <span className="al-waveform al-waveform-left">
+            {waveSeed.slice(0, 7).map((value, index) => (
+              <i key={`l${index}`} style={{ height: `${value * 34 + 6}px` }} />
+            ))}
+          </span>
+          <span className="al-headphones-card">
+            <FaHeadphones />
+          </span>
+          <span className="al-waveform al-waveform-right">
+            {waveSeed.slice(7).map((value, index) => (
+              <i key={`r${index}`} style={{ height: `${value * 34 + 6}px` }} />
+            ))}
+          </span>
+        </div>
+      </section>
 
-      {showCreators && (
-        <section className="ref-library-section">
-          <div className="ref-section-heading"><div><h2>Followed creators</h2><p>Creators you chose to hear from again.</p></div><span className="ref-count-pill">{creators.length}</span></div>
-          {creators.length ? (
-            <div className="ref-library-creator-grid">
-              {creators.map((creator) => {
-                const name = creator.name || creator.displayName || creator.username || 'Echoo Creator';
-                return (
-                  <article className="ref-library-creator-card" key={idOf(creator)}>
-                    <button type="button" className="ref-library-avatar" onClick={() => {
-                      const profilePath = getCreatorProfilePath(creator);
-                      if (profilePath) navigate(profilePath);
-                    }}>
-                      {creator.avatar ? <img src={creator.avatar} alt="" /> : <span>{initials(name)}</span>}
-                    </button>
-                    <strong>{name}</strong>
-                    <span>{creator.category || 'Creator'}</span>
-                    <button type="button" disabled={busyId === `creator-${idOf(creator)}`} onClick={() => unfollowCreator(creator)}><FaCheck /> Following</button>
-                  </article>
-                );
-              })}
+      <div className="al-layout">
+        <div className="al-main">
+          <div className="al-section-header">
+            <div className="al-section-title">
+              <h2>All audio</h2>
+              <span className="al-count">{total.toLocaleString()} items</span>
             </div>
-          ) : <div className="ref-state-card compact"><strong>You are not following any creators yet.</strong></div>}
-        </section>
-      )}
+            <div className="al-section-tools">
+              <span className="al-list-search">
+                <FaSearch />
+                <input
+                  type="text"
+                  value={listSearch}
+                  placeholder="Search audio..."
+                  maxLength={100}
+                  onChange={(event) => setListSearch(event.target.value)}
+                  onKeyDown={(event) => { if (event.key === 'Enter') applySearch(); }}
+                />
+                {listSearch && (
+                  <button type="button" aria-label="Clear search" onClick={() => { setListSearch(''); setSearch(''); setPage(1); }}>×</button>
+                )}
+              </span>
+              <span className="al-sort-select">
+                <select value={sort} onChange={(event) => setSort(event.target.value)} aria-label="Sort audio">
+                  <option value="recent">Recently added</option>
+                  <option value="longest">Longest first</option>
+                  <option value="shortest">Shortest first</option>
+                </select>
+              </span>
+            </div>
+          </div>
 
-      {showStations && (
-        <section className="ref-library-section">
-          <div className="ref-section-heading"><div><h2>Followed stations</h2><p>Stations connected to your listener account.</p></div><span className="ref-count-pill">{stations.length}</span></div>
-          {stations.length ? (
-            <div className="ref-library-station-grid">
-              {stations.map((station) => (
-                <article className="ref-library-station-card" key={idOf(station)}>
-                  <button type="button" className="ref-library-station-art" onClick={() => navigate(`/listen/stations/${idOf(station)}`)}>
-                    {station.brandCover || station.coverArt ? <img src={station.brandCover || station.coverArt} alt="" /> : <FaHeadphones />}
-                    {station.isLive && <span className="ref-live-chip"><i /> LIVE NOW</span>}
+          <section className="al-list" id="al-main-section">
+            {audio.length === 0 && (
+              <div className="ref-state-card compact">
+                <FaHeadphones />
+                <strong>No audio matches your filters.</strong>
+                <span>Try a different search or clear the filters.</span>
+              </div>
+            )}
+            {audio.map((track) => {
+              const id = idOf(track);
+              const playing = isPlaying && idOf(currentTrack) === id;
+              const downloaded = downloadIds.has(id);
+              return (
+                <article className="al-row" key={id}>
+                  <button type="button" className="al-row-play" aria-label={playing ? 'Pause' : 'Play'} onClick={() => playAudio(track)}>
+                    {playing ? <FaPause /> : <FaPlay />}
                   </button>
-                  <div><strong>{station.name}</strong><span>{station.category || 'Other'}</span><small>{Number(station.listenerCount) || 0} listening</small></div>
-                  <button type="button" disabled={busyId === `station-${idOf(station)}`} onClick={() => unfollowStation(station)}><FaCheck /> Following</button>
+                  <button type="button" className="al-row-art" onClick={() => navigate(`/listen/audio/${id}`)}>
+                    {track.coverArt ? <img src={track.coverArt} alt="" /> : <span>{initials(track.title)}</span>}
+                  </button>
+                  <div className="al-row-info" onClick={() => navigate(`/listen/audio/${id}`)}>
+                    <strong>{track.title || 'Untitled Audio'}</strong>
+                    <ArtistName track={track} />
+                  </div>
+                  <span className="al-type-pill">{typeLabelFor(track.genre)}</span>
+                  <span className="al-category">{track.genre || 'Audio'}</span>
+                  <div className="al-row-meta">
+                    <strong>{formatDuration(track.duration)}</strong>
+                    <span>{formatDate(track.createdAt)}</span>
+                  </div>
+                  <button
+                    type="button"
+                    className="al-row-more"
+                    title={downloaded ? 'Already downloading' : 'Download'}
+                    disabled={busyId === id || downloaded}
+                    onClick={() => requestDownload(track)}
+                  >
+                    <FaEllipsisV />
+                  </button>
                 </article>
+              );
+            })}
+          </section>
+
+          {totalPages > 1 && (
+            <nav className="al-pagination" aria-label="Audio pages">
+              <button
+                type="button"
+                className="al-page-btn"
+                disabled={page <= 1}
+                aria-label="Previous page"
+                onClick={() => setPage((current) => Math.max(1, current - 1))}
+              >
+                <FaChevronLeft />
+              </button>
+              {pageNumbers.map((number) => (
+                <button
+                  type="button"
+                  key={number}
+                  className={`al-page-btn${page === number ? ' al-page-active' : ''}`}
+                  onClick={() => setPage(number)}
+                >
+                  {number}
+                </button>
               ))}
-            </div>
-          ) : <div className="ref-state-card compact"><strong>You are not following any stations yet.</strong></div>}
-        </section>
-      )}
+              {totalPages > 5 && <span className="al-page-ellipsis">…</span>}
+              {totalPages > 5 && (
+                <button
+                  type="button"
+                  className={`al-page-btn${page === totalPages ? ' al-page-active' : ''}`}
+                  onClick={() => setPage(totalPages)}
+                >
+                  {totalPages}
+                </button>
+              )}
+              <button
+                type="button"
+                className="al-page-btn"
+                disabled={page >= totalPages}
+                aria-label="Next page"
+                onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+              >
+                <FaChevronRight />
+              </button>
+            </nav>
+          )}
+        </div>
 
-      {showTracks && (
-        <section className="ref-library-section">
-          <div className="ref-section-heading"><div><h2>Saved audio</h2><p>Audio you explicitly saved to your Echoo account.</p></div><span className="ref-count-pill">{tracks.length}</span></div>
-          {tracks.length ? (
-            <div className="ref-saved-audio-list">
-              {tracks.map((track) => {
-                const playing = isPlaying && String(currentTrack?.id || '') === String(idOf(track));
-                return (
-                  <article className="ref-saved-audio-row" key={idOf(track)}>
-                    <button type="button" className="ref-saved-audio-art" onClick={() => navigate(`/listen/audio/${idOf(track)}`)}>
-                      {track.coverArt ? <img src={track.coverArt} alt="" /> : <FaHeadphones />}
-                    </button>
-                    <button type="button" className="ref-saved-audio-copy" onClick={() => navigate(`/listen/audio/${idOf(track)}`)}>
-                      <strong>{track.title}</strong><span>{getArtist(track)}</span>
-                    </button>
-                    <time>{formatTime(track.duration)}</time>
-                    <button type="button" className="ref-row-play" onClick={() => playAudio(track)}>{playing ? <FaPause /> : <FaPlay />}</button>
-                    <button type="button" className="ref-row-more" title="Remove from Library" disabled={busyId === `track-${idOf(track)}`} onClick={() => removeSaved(track)}><FaTrash /></button>
-                  </article>
-                );
-              })}
+        <aside className="al-sidebar">
+          <section className="al-card al-filters-card">
+            <div className="al-card-header">
+              <strong><FaSlidersH /> Filters</strong>
+              <button type="button" className="al-clear" onClick={clearFilters}>Clear all</button>
             </div>
-          ) : <div className="ref-state-card compact"><FaHeadphones /><strong>No saved audio yet.</strong><span>Save published audio and it will appear here.</span></div>}
-        </section>
-      )}
+            <label className="al-field">
+              <span>Audio type</span>
+              <span className="al-select-wrap">
+                <select
+                  value={chip}
+                  onChange={(event) => { setChip(event.target.value); setPage(1); }}
+                  aria-label="Audio type"
+                >
+                  {LIBRARY_CHIPS.map((item) => (
+                    <option key={item.label} value={item.label}>{item.label === 'All audio' ? 'All types' : item.label}</option>
+                  ))}
+                </select>
+                <FaChevronDown />
+              </span>
+            </label>
+            <label className="al-field">
+              <span>Category</span>
+              <span className="al-select-wrap">
+                <select
+                  value={genreFilter || ''}
+                  onChange={(event) => {
+                    setChip(event.target.value ? LIBRARY_CHIPS.find((item) => item.genres.includes(event.target.value))?.label || 'All audio' : 'All audio');
+                    setPage(1);
+                  }}
+                  aria-label="Category"
+                >
+                  <option value="">All categories</option>
+                  {genres.map((genre) => (
+                    <option key={genre} value={genre}>{genre}</option>
+                  ))}
+                </select>
+                <FaChevronDown />
+              </span>
+            </label>
+            <label className="al-field">
+              <span>Duration</span>
+              <span className="al-select-wrap">
+                <select value="" aria-label="Duration">
+                  <option value="">Any duration</option>
+                  <option value="short">Under 15 minutes</option>
+                  <option value="medium">15–45 minutes</option>
+                  <option value="long">Over 45 minutes</option>
+                </select>
+                <FaChevronDown />
+              </span>
+            </label>
+            <label className="al-field">
+              <span>Date added</span>
+              <span className="al-select-wrap">
+                <select value="" aria-label="Date added">
+                  <option value="">Anytime</option>
+                  <option value="today">Today</option>
+                  <option value="week">This week</option>
+                  <option value="month">This month</option>
+                </select>
+                <FaChevronDown />
+              </span>
+            </label>
+            <div className="al-field al-radios">
+              <span>Show only</span>
+              <label className="al-radio">
+                <input type="radio" name="al-show-only" value="downloaded" disabled title="Downloaded audio only" />
+                <span>Downloaded</span>
+              </label>
+              <label className="al-radio">
+                <input type="radio" name="al-show-only" value="not-playlisted" disabled title="Audio not in your playlist" />
+                <span>Not in my playlist</span>
+              </label>
+              <small className="al-radio-note">Live filters update as you browse. Downloaded and playlist filters are read-only in this preview.</small>
+            </div>
+            <button type="button" className="al-apply-btn" onClick={() => { applySearch(); scrollToMain(); }}>Apply filters</button>
+          </section>
 
-      {showPlaylists && (
-        <section className="ref-library-section">
-          <div className="ref-section-heading"><div><h2>Your playlists</h2><p>{totalPlaylistTracks} tracks organized across {playlists.length} playlists.</p></div><span className="ref-count-pill">{playlists.length}</span></div>
-          {playlists.length ? (
-            <div className="ref-playlist-grid">
-              {playlists.map((playlist) => (
-                <article className="ref-playlist-card" key={idOf(playlist)}>
-                  <div className="ref-playlist-art">{playlist.coverArt ? <img src={playlist.coverArt} alt="" /> : <FaBookOpen />}</div>
-                  <div><strong>{playlist.name}</strong><span>{playlist.trackCount || 0} tracks</span><p>{playlist.description || 'Private Echoo playlist.'}</p></div>
+          <section className="al-card al-playlist-card">
+            <div className="al-card-header">
+              <strong>My playlist</strong>
+              <button type="button" className="al-clear" onClick={() => navigate('/listen/library/following')}>View all <FaAngleDoubleRight /></button>
+            </div>
+            {playlists.length === 0 && (
+              <p className="al-empty-note">No playlists yet. Create one to organize your audio.</p>
+            )}
+            {playlists.slice(0, 3).map((playlist) => {
+              const count = Number(playlist.trackCount) || Number(playlist.tracks?.length) || 0;
+              return (
+                <article className="al-playlist-row" key={idOf(playlist)}>
+                  <span className="al-playlist-art"><FaHeadphones /></span>
+                  <div className="al-playlist-info">
+                    <strong>{playlist.name}</strong>
+                    <span>{count} items</span>
+                  </div>
                 </article>
-              ))}
-            </div>
-          ) : <div className="ref-state-card compact"><FaBookOpen /><strong>No playlists yet.</strong><button type="button" onClick={() => setCreateOpen(true)}><FaPlus /> Create playlist</button></div>}
-        </section>
-      )}
+              );
+            })}
+          </section>
+
+          <section className="al-card al-offline-card">
+            <span className="al-offline-icon"><FaDownload /></span>
+            <strong>Listen offline</strong>
+            <p>Download your favorite audio and listen anytime, anywhere.</p>
+            <button type="button" className="al-offline-btn" onClick={() => navigate('/listen/downloads')}>Go to downloads</button>
+          </section>
+        </aside>
+      </div>
     </main>
   );
 };

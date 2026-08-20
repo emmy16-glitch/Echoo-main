@@ -156,8 +156,10 @@ const ListenerLayout = () => {
     { name: 'Live now', path: '/listen/live', icon: <FaBroadcastTower /> },
     { name: 'Stations', path: '/listen/stations', icon: <FaCompass />, end: true },
     { name: 'Audio library', path: '/listen/library', icon: <FaBookOpen /> },
-    { name: 'My playlist', path: '/listen/library', icon: <FaListUl /> },
     { name: 'Following', path: '/listen/library/following', icon: <FaHeart /> },
+  ];
+  const navigationLibrary = [
+    { name: 'My playlist', path: '/listen/library', icon: <FaListUl /> },
     { name: 'History', path: '/listen/history', icon: <FaHistory /> },
     { name: 'Downloads', path: '/listen/downloads', icon: <FaDownload /> },
     { name: 'Notifications', path: '/listen/notifications', icon: <FaBell /> },
@@ -641,6 +643,19 @@ const ListenerLayout = () => {
               key={item.name}
               to={item.path}
               end={item.end}
+              className={({ isActive }) =>
+                isActive ? 'layout-nav-item active' : 'layout-nav-item'
+              }
+            >
+              <span className="layout-nav-icon">{item.icon}</span>
+              <span className="layout-nav-label">{item.name}</span>
+            </NavLink>
+          ))}
+          <div className="layout-nav-divider" aria-hidden />
+          {navigationLibrary.map((item) => (
+            <NavLink
+              key={item.name}
+              to={item.path}
               className={({ isActive }) =>
                 isActive ? 'layout-nav-item active' : 'layout-nav-item'
               }

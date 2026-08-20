@@ -854,3 +854,7 @@ article {
 #root .echoo-listener-shell .layout-sidebar{width:205px!important;align-items:stretch!important}
 #root .echoo-listener-shell .echoo-listener-main{width:calc(100% - 205px)!important;margin-left:205px!important}
 #root .echoo-listener-shell>.echoo-persistent-player{left:205px!important}
+/* Brand bar vertical breathing room — logo was sitting too high in the sidebar */
+#root .echoo-listener-shell .layout-brand{margin-top:14px!important;margin-bottom:26px!important}
+/* Secondary library group divider in the sidebar (matches reference layout) */
+#root .echoo-listener-shell .layout-nav-divider{width:100%!important;height:1px!important;background:#e3eaf3!important;margin:9px 0!important;flex:0 0 auto!important}

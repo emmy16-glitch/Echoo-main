@@ -12,7 +12,7 @@
 /* ---------- Header ---------- */
 .ls-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 24px;
   flex-wrap: wrap;
@@ -203,7 +203,7 @@
 .ls-hero-content {
   position: relative;
   z-index: 2;
-  max-width: 420px;
+  max-width: 380px;
 }
 
 .ls-hero-content h2 {

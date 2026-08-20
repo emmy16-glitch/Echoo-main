@@ -23,13 +23,15 @@ import './ListenerStations.css';
 
 const PAGE_SIZE = 8;
 const CLUSTER_COUNT = 6;
+// Cluster lives entirely in the right half of the hero banner (reference: stations.png).
+// Left boundary at 54% keeps a clear margin from the text block (max-width 380px).
 const HERO_CLUSTER_CIRCLE = {
-  0: { size: 58, top: '8%', left: '40%' },
-  1: { size: 52, top: '2%', left: '60%' },
-  2: { size: 72, top: '24%', left: '56%' },
-  3: { size: 60, top: '34%', left: '38%' },
-  4: { size: 50, top: '38%', left: '68%' },
-  5: { size: 44, top: '52%', left: '46%' },
+  0: { size: 54, top: '12%', left: '55%' },
+  1: { size: 48, top: '2%', left: '77%' },
+  2: { size: 66, top: '26%', left: '72%' },
+  3: { size: 52, top: '54%', left: '57%' },
+  4: { size: 46, top: '40%', left: '87%' },
+  5: { size: 40, top: '68%', left: '77%' },
 };
 
 const formatCount = (value) => {
