@@ -1,4 +1,5 @@
 import express from 'express';
+import mongoose from 'mongoose';
 import authRoutes from './authRoutes.js';
 import userRoutes from './userRoutes.js';
 import audioRoutes from './audioRoutes.js';
@@ -24,13 +25,33 @@ import downloadsRoutes from './downloadsRoutes.js';
 import advancedPlayerRoutes from './advancedPlayerRoutes.js';
 import notificationRoutes from './notificationRoutes.js';
 import LiveKitProvider from '../providers/livekit.js';
+import { uploadLimiter } from '../middleware/rateLimiter.js';
 
 const router = express.Router();
 
+// Liveness says the Node process can answer requests. It deliberately does not
+// depend on MongoDB or LiveKit so an orchestrator can distinguish a live process
+// from a process that is ready to serve product traffic.
 router.get('/health', (req, res) => {
   res.status(200).json({
     status: 'ok',
     service: 'echoo-api',
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// Readiness currently requires MongoDB because every authenticated/product flow
+// depends on it. LiveKit has its own health endpoint and a temporary LiveKit
+// outage must not make ordinary non-live Echoo API traffic unhealthy.
+router.get('/health/ready', (req, res) => {
+  const databaseReady = mongoose.connection.readyState === 1;
+  return res.status(databaseReady ? 200 : 503).json({
+    status: databaseReady ? 'ok' : 'error',
+    service: 'echoo-api',
+    ready: databaseReady,
+    dependencies: {
+      mongodb: databaseReady ? 'connected' : 'unavailable',
+    },
     timestamp: new Date().toISOString(),
   });
 });
@@ -64,6 +85,10 @@ router.get('/health/livekit', async (req, res) => {
 
 router.use('/auth', authRoutes);
 router.use('/users', userRoutes);
+// Audio uploads can be multi-gigabyte local-disk writes, so throttle the upload
+// entrypoint separately without rate-limiting media Range requests used for
+// normal playback.
+router.use('/audio/upload', uploadLimiter);
 router.use('/audio', audioRoutes);
 router.use('/playlists', playlistRoutes);
 router.use('/comments', commentRoutes);
