@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { FaCog, FaSignOutAlt } from 'react-icons/fa';
 
 import './CreatorAccountMenuPortal.css';
+import './CreatorMediaSurfaces.css';
 
 const MENU_WIDTH = 216;
 const VIEWPORT_GUTTER = 12;
