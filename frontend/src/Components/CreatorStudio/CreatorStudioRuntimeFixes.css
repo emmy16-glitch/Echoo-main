@@ -1,0 +1,100 @@
+/* Creator Studio runtime/UI corrections shared across Settings, Stations and Audio. */
+
+/* Settings: keep active tab labels visible even if older creator-shell rules are cached. */
+.studio-final-shell .creator-settings-tabs button.active,
+.creator-settings-tabs button.active {
+  font-size: 11px !important;
+  line-height: 1.2 !important;
+  text-indent: 0 !important;
+  letter-spacing: normal !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  -webkit-text-fill-color: #1f63ef !important;
+}
+
+.studio-final-shell .creator-settings-tabs button.active svg,
+.creator-settings-tabs button.active svg {
+  opacity: 1 !important;
+  visibility: visible !important;
+  -webkit-text-fill-color: initial !important;
+}
+
+/* Stations: menus must render above neighbouring rows/cards and never be clipped. */
+.est-featured-card {
+  overflow: visible !important;
+}
+
+.est-featured-more-wrap,
+.est-more-wrap {
+  isolation: isolate;
+}
+
+.est-featured-more-wrap:has(.est-more-menu),
+.est-station-row:has(.est-more-menu) {
+  position: relative;
+  z-index: 120 !important;
+}
+
+.est-more-menu,
+.est-more-menu.featured-menu,
+.est-more-wrap .est-more-menu {
+  z-index: 999 !important;
+}
+
+/* List menus open upward so they do not disappear beneath the next station row. */
+.est-more-wrap .est-more-menu {
+  top: auto !important;
+  bottom: calc(100% + 8px) !important;
+}
+
+.est-featured-more-wrap .est-more-menu.featured-menu {
+  top: calc(100% + 8px) !important;
+  bottom: auto !important;
+}
+
+.est-featured-actions .icon-only,
+.est-more-button {
+  min-height: 40px;
+}
+
+/* Audio: keep errors compact and controls aligned consistently. */
+.eca-action-error {
+  min-height: 42px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  font-size: 10px;
+}
+
+.eca-action-error button {
+  min-height: 28px;
+  padding: 0 4px;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.eca-list > article,
+.eca-list.grid-view > article,
+.eca-list.list-view > article {
+  position: relative;
+}
+
+.eca-list > article:has(.eca-more-menu),
+.eca-list.grid-view > article:has(.eca-more-menu),
+.eca-list.list-view > article:has(.eca-more-menu) {
+  z-index: 80;
+}
+
+.eca-more-menu {
+  z-index: 900 !important;
+}
+
+@media (max-width: 760px) {
+  .creator-settings-tabs button.active {
+    font-size: 11px !important;
+  }
+
+  .est-more-wrap .est-more-menu {
+    right: 0;
+    left: auto;
+  }
+}
