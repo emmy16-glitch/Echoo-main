@@ -3,12 +3,16 @@ import echooLogo from '../Assets/creator-logo.png';
 import '../CreatorStudio/CreatorStudioShellFinal.css';
 import './EchooAppShell.css';
 
-const DefaultBrand = ({ roleLabel }) => (
-  <button type="button" className="studio-brand" aria-label={`Echoo ${roleLabel} home`}>
-    <img src={echooLogo} alt="Echoo" className="studio-logo" />
-    <div><h2>Echoo</h2><span>{roleLabel}</span></div>
-  </button>
-);
+const DefaultBrand = ({ role, roleLabel }) => {
+  const homePath = role === 'listener' ? '/listen' : '/creator-studio';
+
+  return (
+    <NavLink to={homePath} className="studio-brand" aria-label={`Echoo ${roleLabel} home`}>
+      <img src={echooLogo} alt="Echoo" className="studio-logo" />
+      <div><h2>Echoo</h2><span>{roleLabel}</span></div>
+    </NavLink>
+  );
+};
 
 const navigationContent = (item) => (
   <>
@@ -18,14 +22,15 @@ const navigationContent = (item) => (
 );
 
 const SharedNavItem = ({ item, activeKey, onNavigate }) => {
-  const active = Boolean(item.active) || item.key === activeKey;
+  const destination = item.to || item.path;
+  const active = Boolean(item.active) || item.key === activeKey || item.name === activeKey || destination === activeKey;
   const className = `studio-nav-item${active ? ' active' : ''}`;
   const label = item.label || item.name;
 
-  if (item.to) {
+  if (destination) {
     return (
       <NavLink
-        to={item.to}
+        to={destination}
         end={item.end}
         className={className}
         aria-label={label}
@@ -71,7 +76,7 @@ const EchooAppShell = ({
   <div className={`studio-final-shell echoo-app-shell echoo-app-shell--${role} ${className}`.trim()}>
     <aside className="studio-sidebar echoo-app-sidebar">
       <div className="studio-sidebar-head">
-        {brand || <DefaultBrand roleLabel={roleLabel} />}
+        {brand || <DefaultBrand role={role} roleLabel={roleLabel} />}
       </div>
 
       <nav className="studio-navigation echoo-app-navigation" aria-label={`${roleLabel} navigation`}>

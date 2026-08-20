@@ -45,7 +45,16 @@ const heroSubtitle = (hero, isLive) => {
     );
   }
   if (hero.station?.name || hero.stationName) return hero.station?.name || hero.stationName;
-  return hero.artist || hero.creator?.displayName || '';
+  if (typeof hero.artist === 'string') return hero.artist;
+  return (
+    hero.artist?.displayName ||
+    hero.artist?.username ||
+    hero.artist?.creatorProfile?.artistName ||
+    hero.artist?.creatorProfile?.organizationName ||
+    hero.creator?.displayName ||
+    hero.creator?.username ||
+    ''
+  );
 };
 
 const artworkOf = (item) =>
