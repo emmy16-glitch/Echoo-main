@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense, lazy } from 'react';
 import {
   BrowserRouter,
   Navigate,
@@ -11,25 +11,42 @@ import Register from './Components/Register/register';
 import ProfileSetup from './Components/ProfileSetup/ProfileSetup';
 import ChooseRole from './Components/ChooseRole/ChooseRole';
 import CreatorSetup from './Components/CreatorSetup/CreatorSetup';
-import CreatorStudio from './Components/CreatorStudio/CreatorStudio';
-import ListenerLayout from './Components/ListenerLayout/ListenerLayout';
-import ListenerHome from './Components/ListenerHome/ListenerHome';
-import ListenerSearch from './Components/ListenerSearch/ListenerSearch';
-import ListenerLive from './Components/ListenerLive/ListenerLiveConnected';
-import ListenerStations from './Components/ListenerStations/ListenerStationsConnected';
-import ListenerLibrary from './Components/ListenerLibrary/ListenerLibrary';
-import ListenerFollowing from './Components/ListenerLibrary/ListenerFollowing';
-import ListenerHistory from './Components/ListenerHistory/ListenerHistoryConnected';
-import ListenerDownloads from './Components/ListenerDownloads/ListenerDownloadsConnected';
-import ListenerCreatorProfile from './Components/ListenerCreatorProfile/ListenerCreatorProfile';
-import ListenerNotifications from './Components/ListenerNotifications/ListenerNotifications';
-import ListenerSettings from './Components/ListenerSettings/ListenerSettings';
-import ListenerAudioDetail from './Components/ListenerAudioDetail/ListenerAudioDetail';
-import ListenerRealLiveRoom from './Components/ListenerLiveExperience/ListenerRealLiveRoom';
-import ListenerRealStationProfile from './Components/ListenerLiveExperience/ListenerRealStationProfile';
+
+// The logged-in shells are lazy-loaded so each role downloads only its own
+// experience instead of one monolithic bundle.
+const CreatorStudio = lazy(() => import('./Components/CreatorStudio/CreatorStudio'));
+const ListenerLayout = lazy(() => import('./Components/ListenerLayout/ListenerLayout'));
+const ListenerHome = lazy(() => import('./Components/ListenerHome/ListenerHome'));
+const ListenerSearch = lazy(() => import('./Components/ListenerSearch/ListenerSearch'));
+const ListenerLive = lazy(() => import('./Components/ListenerLive/ListenerLiveConnected'));
+const ListenerStations = lazy(() => import('./Components/ListenerStations/ListenerStationsConnected'));
+const ListenerLibrary = lazy(() => import('./Components/ListenerLibrary/ListenerLibrary'));
+const ListenerFollowing = lazy(() => import('./Components/ListenerLibrary/ListenerFollowing'));
+const ListenerHistory = lazy(() => import('./Components/ListenerHistory/ListenerHistoryConnected'));
+const ListenerDownloads = lazy(() => import('./Components/ListenerDownloads/ListenerDownloadsConnected'));
+const ListenerCreatorProfile = lazy(() => import('./Components/ListenerCreatorProfile/ListenerCreatorProfile'));
+const ListenerNotifications = lazy(() => import('./Components/ListenerNotifications/ListenerNotifications'));
+const ListenerSettings = lazy(() => import('./Components/ListenerSettings/ListenerSettings'));
+const ListenerAudioDetail = lazy(() => import('./Components/ListenerAudioDetail/ListenerAudioDetail'));
+const ListenerRealLiveRoom = lazy(() => import('./Components/ListenerLiveExperience/ListenerRealLiveRoom'));
+const ListenerRealStationProfile = lazy(() => import('./Components/ListenerLiveExperience/ListenerRealStationProfile'));
+
 import EchooExperienceOrchestrator from './Components/EchooSystem/EchooExperienceOrchestrator';
 import EchooMobileNavigation from './Components/EchooSystem/EchooMobileNavigation';
 import ImageCropProvider from './Components/Common/ImageCropProvider';
+
+// Lightweight fallback shown while a lazy page shell loads.
+const LazyPage = ({ element }) => (
+  <Suspense
+    fallback={
+      <div className="echoo-lazy-page-fallback" role="status">
+        Loading…
+      </div>
+    }
+  >
+    {element}
+  </Suspense>
+);
 
 const getStoredUser = () => {
   try {
@@ -224,7 +241,7 @@ function App() {
               path="/creator-studio"
               element={
                 <RequireRole role="creator">
-                  <CreatorStudio />
+                  <LazyPage element={<CreatorStudio />} />
                 </RequireRole>
               }
             />
@@ -233,7 +250,7 @@ function App() {
               path="/listen"
               element={
                 <RequireRole role="listener">
-                  <ListenerLayout />
+                  <LazyPage element={<ListenerLayout />} />
                 </RequireRole>
               }
             >

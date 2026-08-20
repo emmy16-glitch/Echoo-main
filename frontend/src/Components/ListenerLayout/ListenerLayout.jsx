@@ -26,7 +26,7 @@ import {
   FaHeadphones,
 } from 'react-icons/fa';
 
-import echooLogo from '../Assets/logo.png';
+import echooLogo from '../Assets/logo_optimized.jpg';
 import ListenerProfileMenu from './ListenerProfileMenu';
 import EchoSignal from '../EchooSystem/EchoSignal';
 import audioService from '../../services/audioService';
