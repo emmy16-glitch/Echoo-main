@@ -1,10 +1,10 @@
 import { Tabs } from 'expo-router';
 import {
-  CircleUserRound,
-  Heart,
+  Compass,
   Home,
+  Headphones,
   Library,
-  Search,
+  CircleUserRound,
 } from 'lucide-react-native';
 import { useMemo } from 'react';
 
@@ -49,15 +49,10 @@ export default function TabLayout() {
       }}
     >
       <Tabs.Screen name="index" options={{ title: 'Home', tabBarIcon: makeTabIcon(Home) }} />
+      <Tabs.Screen name="discover" options={{ title: 'Discover', tabBarIcon: makeTabIcon(Compass) }} />
+      <Tabs.Screen name="live" options={{ title: 'Live', tabBarIcon: makeTabIcon(Headphones) }} />
       <Tabs.Screen name="library" options={{ title: 'Library', tabBarIcon: makeTabIcon(Library) }} />
-      <Tabs.Screen name="search" options={{ title: 'Search', tabBarIcon: makeTabIcon(Search) }} />
-      <Tabs.Screen name="favorites" options={{ title: 'Favorites', tabBarIcon: makeTabIcon(Heart) }} />
       <Tabs.Screen name="profile" options={{ title: 'Profile', tabBarIcon: makeTabIcon(CircleUserRound) }} />
-
-      {/* Listener V2 keeps these routes available without exposing them as primary tabs. */}
-      <Tabs.Screen name="live" options={{ href: null }} />
-      <Tabs.Screen name="creator" options={{ href: null }} />
-      <Tabs.Screen name="explore" options={{ href: null }} />
     </Tabs>
   );
 }
