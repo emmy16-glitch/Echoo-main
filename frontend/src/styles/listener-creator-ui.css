@@ -1142,4 +1142,65 @@
     height: 44px !important;
     border-radius: 12px !important;
   }
+
+  /* Remove legacy route-specific padding so every Listener page begins at
+     the same Creator-derived content origin: x=106 / y=106. */
+  #root .studio-final-shell.echoo-app-shell--listener :is(
+    .listener-live,
+    .ls-page,
+    .al-page,
+    .fl-page,
+    .ln-page
+  ) {
+    padding: 0 !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell--listener .ln-header {
+    padding: 0 0 18px !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell--listener .ls-header {
+    padding: 0 0 18px !important;
+  }
+
+  /* Creator Home reference: 45.44px / 760 / 46.35px. */
+  #root .studio-final-shell.echoo-app-shell--listener .echoo-home-greeting {
+    font-size: 45.44px !important;
+    font-weight: 760 !important;
+    line-height: 1.02 !important;
+    letter-spacing: -0.045em !important;
+  }
+
+  /* Creator Home reference section heading: 14px / 760. */
+  #root .studio-final-shell.echoo-app-shell--listener .echoo-home-section-title {
+    font-size: 14px !important;
+    font-weight: 760 !important;
+    line-height: 1.25 !important;
+    letter-spacing: -0.012em !important;
+  }
+
+  /* Creator workspace page-title reference: 32px / 760 / 34.56px. */
+  #root .studio-final-shell.echoo-app-shell--listener :is(
+    .listener-live h1,
+    .ls-page h1,
+    .al-page h1,
+    .fl-page h1,
+    .pl-page h1,
+    .lh-page h1,
+    .ld-page h1,
+    .set-page h1
+  ) {
+    font-size: 32px !important;
+    font-weight: 760 !important;
+    line-height: 1.08 !important;
+    letter-spacing: -0.035em !important;
+  }
+
+  /* Notifications maps to Creator Notifications, whose title is 38.4px / 760. */
+  #root .studio-final-shell.echoo-app-shell--listener .ln-page h1 {
+    font-size: 38.4px !important;
+    font-weight: 760 !important;
+    line-height: 1.1 !important;
+    letter-spacing: -0.04em !important;
+  }
 }
