@@ -94,7 +94,10 @@ const CreatorAnalyticsConnectedWorkspace = ({ onNavigate }) => {
   const summary = data?.summary || {};
   const contentByType = data?.contentByType || {};
   const topTracks = Array.isArray(data?.topTracks) ? data.topTracks : [];
-  const recentBroadcasts = Array.isArray(data?.recentBroadcasts) ? data.recentBroadcasts : [];
+  const recentBroadcasts = useMemo(
+    () => (Array.isArray(data?.recentBroadcasts) ? data.recentBroadcasts : []),
+    [data]
+  );
 
   const totals = {
     plays: Number(summary.totalPlays ?? overview.totalPlays) || 0,

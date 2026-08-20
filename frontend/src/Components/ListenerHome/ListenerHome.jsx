@@ -12,6 +12,8 @@ import audioService from '../../services/audioService';
 import batch3Service from '../../services/batch3Service';
 import followService from '../../services/followService';
 import { buildMediaUrl } from '../../services/api';
+import { getCreatorProfilePath } from '../../services/profileIdentifier';
+import UnavailableState from '../UI/UnavailableState';
 import '../../styles/listener-reference-pages.css';
 
 const HOME_SYNC_INTERVAL_MS = 15000;
@@ -89,6 +91,10 @@ const ListenerHome = () => {
   const [followingStations, setFollowingStations] = useState(new Set());
   const [busyId, setBusyId] = useState('');
   const [loading, setLoading] = useState(true);
+  const [dashboardUnavailable, setDashboardUnavailable] = useState(false);
+  const [audioUnavailable, setAudioUnavailable] = useState(false);
+  const [discoveryUnavailable, setDiscoveryUnavailable] = useState(false);
+  const [reloadVersion, setReloadVersion] = useState(0);
   const [error, setError] = useState('');
 
   const loadFollowState = useCallback(() => {
@@ -112,7 +118,12 @@ const ListenerHome = () => {
 
   const load = useCallback(async ({ silent = false } = {}) => {
     try {
-      if (!silent) setLoading(true);
+      if (!silent) {
+        setLoading(true);
+        setDashboardUnavailable(false);
+        setAudioUnavailable(false);
+        setDiscoveryUnavailable(false);
+      }
       if (!silent) setError('');
 
       const [dashboardResult, audioResult, discoveryResult] =
@@ -122,19 +133,28 @@ const ListenerHome = () => {
           withTimeout(batch3Service.getDiscovery(), 'Listener discovery'),
         ]);
 
+      setDashboardUnavailable(dashboardResult.status === 'rejected');
+      setAudioUnavailable(audioResult.status === 'rejected');
+      setDiscoveryUnavailable(discoveryResult.status === 'rejected');
+
       if (dashboardResult.status === 'fulfilled') {
         setDashboard(dashboardResult.value?.data || null);
       } else if (!silent) {
-        setError(dashboardResult.reason?.message || 'Could not load your Echoo home feed.');
+        setError('Some Echoo home data is unavailable. Retry to refresh the affected sections.');
       }
 
       if (audioResult.status === 'fulfilled') {
         setTracks(Array.isArray(audioResult.value?.data) ? audioResult.value.data : []);
+      } else {
+        setTracks([]);
       }
 
       if (discoveryResult.status === 'fulfilled') {
         setStations(Array.isArray(discoveryResult.value?.stations) ? discoveryResult.value.stations : []);
         setLive(Array.isArray(discoveryResult.value?.live) ? discoveryResult.value.live : []);
+      } else {
+        setStations([]);
+        setLive([]);
       }
     } finally {
       if (!silent) setLoading(false);
@@ -151,7 +171,7 @@ const ListenerHome = () => {
       window.clearInterval(interval);
       window.removeEventListener('focus', sync);
     };
-  }, [load]);
+  }, [load, reloadVersion]);
 
   const creators = useMemo(() => {
     const source = Array.isArray(dashboard?.discoverCreators) ? dashboard.discoverCreators : [];
@@ -174,6 +194,8 @@ const ListenerHome = () => {
 
   const stationCards = useMemo(() => stations.filter((station) => station?.id).slice(0, 5), [stations]);
   const featuredLive = live[0] || null;
+
+  const retry = () => setReloadVersion((v) => v + 1);
 
   const playAudio = (track) => {
     const id = idOf(track);
@@ -252,7 +274,9 @@ const ListenerHome = () => {
 
   return (
     <main className="echoo-reference-page ref-home-page">
-      {error && <div className="ref-inline-error">{error}</div>}
+      {error && !(dashboardUnavailable && audioUnavailable && discoveryUnavailable) && (
+        <div className="ref-inline-error">{error}</div>
+      )}
 
       <section className="ref-home-hero">
         <div className="ref-home-hero-copy">
@@ -275,11 +299,11 @@ const ListenerHome = () => {
           type="button"
           className={`ref-home-live-feature ${featuredLive ? '' : 'offline'}`}
           onClick={() => featuredLive && navigate(`/listen/live/${idOf(featuredLive)}`)}
-          disabled={!featuredLive}
+          disabled={!featuredLive || discoveryUnavailable}
         >
-          <span><i /> {featuredLive ? 'Live now' : 'Nothing live now'}</span>
-          <strong>{featuredLive?.title || 'Live broadcasts will appear here'}</strong>
-          <small>{featuredLive ? `${Number(featuredLive.listenerCount) || 0} listening` : 'Check Live for upcoming broadcasts'}</small>
+          <span><i /> {discoveryUnavailable ? 'Live feed unavailable' : featuredLive ? 'Live now' : 'Nothing live now'}</span>
+          <strong>{discoveryUnavailable ? 'Echoo could not load live broadcasts' : featuredLive?.title || 'Live broadcasts will appear here'}</strong>
+          <small>{discoveryUnavailable ? 'Retry to check the live feed.' : featuredLive ? `${Number(featuredLive.listenerCount) || 0} listening` : 'Check Live for upcoming broadcasts'}</small>
           <b><FaPlay /></b>
         </button>
       </section>
@@ -293,7 +317,13 @@ const ListenerHome = () => {
           <button type="button" onClick={() => navigate('/listen/search')}>View all <FaArrowRight /></button>
         </div>
 
-        {featuredAudio.length ? (
+        {audioUnavailable ? (
+          <UnavailableState
+            title="Featured audio unavailable"
+            message="Echoo could not load the public audio feed."
+            onRetry={retry}
+          />
+        ) : featuredAudio.length ? (
           <div className="ref-featured-audio-grid">
             {featuredAudio.map((item) => {
               const itemIsLive = item?.status === 'live' || item?.isLive;
@@ -332,7 +362,13 @@ const ListenerHome = () => {
           <button type="button" onClick={() => navigate('/listen/search')}>View all creators <FaArrowRight /></button>
         </div>
 
-        {creators.length ? (
+        {dashboardUnavailable ? (
+          <UnavailableState
+            title="Creators unavailable"
+            message="Echoo could not load the public creator list."
+            onRetry={retry}
+          />
+        ) : creators.length ? (
           <div className="ref-creators-row">
             {creators.map((creator) => {
               const id = idOf(creator);
@@ -340,7 +376,10 @@ const ListenerHome = () => {
               const name = creatorName(creator);
               return (
                 <article className="ref-creator-tile" key={id}>
-                  <button type="button" className="ref-creator-avatar" onClick={() => navigate(`/listen/creator/${id}`)}>
+                  <button type="button" className="ref-creator-avatar" onClick={() => {
+                    const profilePath = getCreatorProfilePath(creator);
+                    if (profilePath) navigate(profilePath);
+                  }}>
                     {avatarOf(creator) ? <img src={avatarOf(creator)} alt="" /> : <span>{initials(name)}</span>}
                   </button>
                   <strong>{name}</strong>
@@ -366,7 +405,13 @@ const ListenerHome = () => {
           <button type="button" onClick={() => navigate('/listen/stations')}>View all stations <FaArrowRight /></button>
         </div>
 
-        {stationCards.length ? (
+        {discoveryUnavailable ? (
+          <UnavailableState
+            title="Stations unavailable"
+            message="Echoo could not load the public station list."
+            onRetry={retry}
+          />
+        ) : stationCards.length ? (
           <div className="ref-home-station-row">
             {stationCards.map((station) => {
               const id = idOf(station);

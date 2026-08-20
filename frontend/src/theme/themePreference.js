@@ -11,7 +11,9 @@ export const getCachedThemePreference = () => PRODUCT_THEME;
 
 export const resolveThemePreference = () => PRODUCT_THEME;
 
-export const applyEchooTheme = (_preference = PRODUCT_THEME, { persist = true } = {}) => {
+export const applyEchooTheme = (preference = PRODUCT_THEME, { persist = true } = {}) => {
+  void preference;
+
   if (typeof document !== 'undefined') {
     document.documentElement.dataset.echooThemePreference = PRODUCT_THEME;
     document.documentElement.dataset.echooTheme = PRODUCT_THEME;

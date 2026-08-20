@@ -20,6 +20,7 @@ import { buildMediaUrl } from '../../services/api.js';
 import EchoAvatar from '../EchooSystem/EchoAvatar';
 import EchoSignal from '../EchooSystem/EchoSignal';
 import CreatorAudioDetailModal from './CreatorAudioDetailModal.jsx';
+import UnavailableState from '../UI/UnavailableState';
 import './CreatorStudioHomeFinal.css';
 import './CreatorStudioHomeAudit.css';
 
@@ -78,6 +79,9 @@ export default function CreatorStudioHome({
   const [stations, setStations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [analyticsLoading, setAnalyticsLoading] = useState(true);
+  const [dashboardUnavailable, setDashboardUnavailable] = useState(false);
+  const [analyticsUnavailable, setAnalyticsUnavailable] = useState(false);
+  const [reloadVersion, setReloadVersion] = useState(0);
   const [period, setPeriod] = useState('30d');
   const [error, setError] = useState('');
   const [playingId, setPlayingId] = useState('');
@@ -90,6 +94,7 @@ export default function CreatorStudioHome({
     (async () => {
       try {
         setLoading(true);
+        setDashboardUnavailable(false);
         setError('');
         const [home, stationList] = await Promise.all([
           studioService.getDashboard(),
@@ -100,6 +105,9 @@ export default function CreatorStudioHome({
         setStations(Array.isArray(stationList?.data) ? stationList.data : []);
       } catch (loadError) {
         if (mounted) {
+          setDashboard(null);
+          setStations([]);
+          setDashboardUnavailable(true);
           setError(loadError?.message || 'Could not load your creator home.');
         }
       } finally {
@@ -110,7 +118,7 @@ export default function CreatorStudioHome({
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [reloadVersion]);
 
   useEffect(() => {
     let mounted = true;
@@ -118,10 +126,14 @@ export default function CreatorStudioHome({
     (async () => {
       try {
         setAnalyticsLoading(true);
+        setAnalyticsUnavailable(false);
         const result = await studioService.getAnalytics(period);
         if (mounted) setAnalytics(result?.data || null);
       } catch {
-        if (mounted) setAnalytics(null);
+        if (mounted) {
+          setAnalytics(null);
+          setAnalyticsUnavailable(true);
+        }
       } finally {
         if (mounted) setAnalyticsLoading(false);
       }
@@ -130,7 +142,9 @@ export default function CreatorStudioHome({
     return () => {
       mounted = false;
     };
-  }, [period]);
+  }, [period, reloadVersion]);
+
+  const retryData = () => setReloadVersion((current) => current + 1);
 
   useEffect(() => () => {
     if (audioRef.current) {
@@ -168,8 +182,9 @@ export default function CreatorStudioHome({
   const setupReady =
     localFlag('echooProfileCompleted') ||
     Boolean(studioName && !['Creator', 'Creator Studio'].includes(studioName));
-  const canBroadcast = stations.length > 0;
+  const canBroadcast = !dashboardUnavailable && stations.length > 0;
   const systemsReady = setupReady && canBroadcast;
+  const contentLabel = dashboardUnavailable ? 'Unavailable' : plural(totalTracks, 'audio upload');
   const periodLabel = PERIODS.find((item) => item.value === period)?.label || 'Selected period';
 
   const openBroadcast = (mode = 'now') => {
@@ -302,7 +317,7 @@ export default function CreatorStudioHome({
           </div>
           <div className="ehome-readiness-item">
             <i><FaCloudUploadAlt /></i>
-            <div><strong>Content</strong><span>{plural(totalTracks, 'audio upload')}</span></div>
+            <div><strong>Content</strong><span>{contentLabel}</span></div>
           </div>
           <div className="ehome-readiness-item">
             <i><FaMicrophone /></i>
@@ -311,7 +326,7 @@ export default function CreatorStudioHome({
         </div>
       </section>
 
-      {error && <div className="ehome-alert">{error}</div>}
+      {error && !dashboardUnavailable && <div className="ehome-alert">{error}</div>}
 
       <div className="ehome-reference-grid">
         <section className="ehome-panel ehome-station-overview">
@@ -324,6 +339,13 @@ export default function CreatorStudioHome({
 
           {loading ? (
             <div className="ehome-reference-loading" />
+          ) : dashboardUnavailable ? (
+            <UnavailableState
+              compact
+              title="Station data unavailable"
+              message="Echoo could not load your station status."
+              onRetry={retryData}
+            />
           ) : station ? (
             <>
               <div className="ehome-primary-station">
@@ -380,7 +402,14 @@ export default function CreatorStudioHome({
             </button>
           </div>
           <div className="ehome-reference-upcoming-list">
-            {upcoming.slice(0, 3).map((item) => (
+            {dashboardUnavailable ? (
+              <UnavailableState
+                compact
+                title="Schedule unavailable"
+                message="Echoo could not load your upcoming broadcasts."
+                onRetry={retryData}
+              />
+            ) : upcoming.slice(0, 3).map((item) => (
               <button
                 type="button"
                 className="ehome-reference-upcoming"
@@ -395,7 +424,7 @@ export default function CreatorStudioHome({
                 </div>
               </button>
             ))}
-            {!upcoming.length && !loading && (
+            {!dashboardUnavailable && !upcoming.length && !loading && (
               <div className="ehome-reference-empty-row">
                 <i><FaCalendarAlt /></i>
                 <div><strong>Nothing scheduled</strong><span>Plan a broadcast when you are ready.</span></div>
@@ -417,7 +446,14 @@ export default function CreatorStudioHome({
             </button>
           </div>
           <div className="ehome-reference-audio-list">
-            {recent.slice(0, 2).map((track) => {
+            {dashboardUnavailable ? (
+              <UnavailableState
+                compact
+                title="Recent audio unavailable"
+                message="Echoo could not load your published audio."
+                onRetry={retryData}
+              />
+            ) : recent.slice(0, 2).map((track) => {
               const id = trackId(track);
               const artwork = buildMediaUrl(
                 track.coverArt || track.artwork || track.image || track.thumbnail || null
@@ -463,7 +499,7 @@ export default function CreatorStudioHome({
                 </article>
               );
             })}
-            {!recent.length && !loading && (
+            {!dashboardUnavailable && !recent.length && !loading && (
               <div className="ehome-reference-empty-row">
                 <i><FaHeadphones /></i>
                 <div><strong>No recent audio</strong><span>Your latest uploads will appear here.</span></div>
@@ -495,20 +531,48 @@ export default function CreatorStudioHome({
               <FaChevronDown />
             </label>
           </div>
-          <div className={`ehome-reference-metrics ${analyticsLoading ? 'is-loading' : ''}`}>
-            {metrics.map(([label, value, icon, detail]) => (
-              <article key={label}>
-                <i>{icon}</i>
-                <span>{label}</span>
-                <strong>{value}</strong>
-                <small>{detail}</small>
-              </article>
-            ))}
-          </div>
+          {analyticsLoading ? (
+            <div className="ehome-reference-metrics is-loading">
+              {metrics.map(([label, value, icon, detail]) => (
+                <article key={label}>
+                  <i>{icon}</i>
+                  <span>{label}</span>
+                  <strong>{value}</strong>
+                  <small>{detail}</small>
+                </article>
+              ))}
+            </div>
+          ) : analyticsUnavailable ? (
+            <UnavailableState
+              compact
+              title="Analytics unavailable"
+              message="Echoo could not load performance data for this period."
+              onRetry={retryData}
+            />
+          ) : (
+            <div className="ehome-reference-metrics">
+              {metrics.map(([label, value, icon, detail]) => (
+                <article key={label}>
+                  <i>{icon}</i>
+                  <span>{label}</span>
+                  <strong>{value}</strong>
+                  <small>{detail}</small>
+                </article>
+              ))}
+            </div>
+          )}
         </section>
 
         <section className="ehome-panel ehome-creator-status-panel">
           <div className="ehome-panel-head"><div><h2>Creator status</h2></div></div>
+          {dashboardUnavailable ? (
+            <UnavailableState
+              compact
+              title="Creator status unavailable"
+              message="Echoo could not confirm your current setup status."
+              onRetry={retryData}
+            />
+          ) : (
           <div className="ehome-creator-status-list">
             <div>
               <i className={setupReady ? 'complete' : ''}>{setupReady ? <FaCheck /> : <FaUsers />}</i>
@@ -540,6 +604,7 @@ export default function CreatorStudioHome({
               </button>
             </div>
           </div>
+          )}
           <button
             type="button"
             className="ehome-settings-link"

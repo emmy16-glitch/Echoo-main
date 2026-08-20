@@ -559,3 +559,58 @@ body {
   opacity: 1 !important;
   transform: none !important;
 }
+
+/* Explicit backend-unavailable state: never present missing data as real zeroes. */
+.echoo-unavailable-state {
+  min-height: 170px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 28px 24px;
+  border: 1px dashed #efcaca;
+  border-radius: 16px;
+  background: #fff8f8;
+  text-align: center;
+}
+
+.echoo-unavailable-state.compact {
+  min-height: 120px;
+  padding: 20px 18px;
+}
+
+.echoo-unavailable-state > svg {
+  color: #b42318;
+  font-size: 21px;
+}
+
+.echoo-unavailable-state strong {
+  color: #7f1d1d;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.echoo-unavailable-state span {
+  max-width: 420px;
+  color: #8f4545;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.echoo-unavailable-state button {
+  min-height: 34px;
+  margin-top: 4px;
+  padding: 0 13px;
+  border: 1px solid #e7a6a6;
+  border-radius: 8px;
+  background: #fff;
+  color: #8f1d1d;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.echoo-unavailable-state button:hover {
+  background: #fff1f1;
+}

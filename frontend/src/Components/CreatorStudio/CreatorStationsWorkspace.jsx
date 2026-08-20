@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FaBroadcastTower,
   FaCalendarAlt,
-  FaCheckCircle,
   FaChevronDown,
   FaChevronRight,
   FaEdit,

@@ -13,6 +13,7 @@ import {
 
 import audioService from '../../services/audioService';
 import batch1Service from '../../services/batch1Service';
+import { getCreatorProfilePath } from '../../services/profileIdentifier';
 import './ListenerSearch.css';
 
 const creatorName = (creator) =>
@@ -220,7 +221,10 @@ const ListenerSearch = () => {
                 type="button"
                 className="batch1-creator-result"
                 key={creator.id || creator.username}
-                onClick={() => navigate(`/listen/creator/${creator.username}`)}
+                onClick={() => {
+                  const profilePath = getCreatorProfilePath(creator);
+                  if (profilePath) navigate(profilePath);
+                }}
               >
                 <span className="batch1-creator-avatar">
                   {creator.avatar ? <img src={creator.avatar} alt="" /> : <FaUser />}

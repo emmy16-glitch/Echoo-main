@@ -87,16 +87,11 @@ export const clearAuthTokens = () => {
 const parseResponse = async (
   response
 ) => {
-  let data = null;
-
   try {
-    data =
-      await response.json();
+    return await response.json();
   } catch {
-    data = null;
+    return null;
   }
-
-  return data;
 };
 
 const createError = (

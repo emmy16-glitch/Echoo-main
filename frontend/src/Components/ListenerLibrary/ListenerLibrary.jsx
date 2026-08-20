@@ -14,6 +14,7 @@ import audioService from '../../services/audioService';
 import batch1Service from '../../services/batch1Service';
 import followService from '../../services/followService';
 import playlistService from '../../services/playlistService';
+import { getCreatorProfilePath } from '../../services/profileIdentifier';
 import ListenerModal from '../ListenerUI/ListenerModal';
 import ListenerToast from '../ListenerUI/ListenerToast';
 import '../../styles/listener-reference-pages.css';
@@ -239,7 +240,10 @@ const ListenerLibrary = () => {
                 const name = creator.name || creator.displayName || creator.username || 'Echoo Creator';
                 return (
                   <article className="ref-library-creator-card" key={idOf(creator)}>
-                    <button type="button" className="ref-library-avatar" onClick={() => navigate(`/listen/creator/${idOf(creator)}`)}>
+                    <button type="button" className="ref-library-avatar" onClick={() => {
+                      const profilePath = getCreatorProfilePath(creator);
+                      if (profilePath) navigate(profilePath);
+                    }}>
                       {creator.avatar ? <img src={creator.avatar} alt="" /> : <span>{initials(name)}</span>}
                     </button>
                     <strong>{name}</strong>

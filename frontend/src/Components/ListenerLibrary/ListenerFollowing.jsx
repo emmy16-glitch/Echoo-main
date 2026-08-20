@@ -10,6 +10,7 @@ import {
 
 import followService from '../../services/followService';
 import batch3Service from '../../services/batch3Service';
+import { getCreatorProfilePath } from '../../services/profileIdentifier';
 import HorizontalDragRail from '../FigmaUI/HorizontalDragRail';
 import './ListenerFollowing.css';
 
@@ -265,7 +266,10 @@ const ListenerFollowing = () => {
                         type="button"
                         className="figma-following-card-main"
                         title={`Open ${creator.name}`}
-                        onClick={() => navigate(`/listen/creator/${creator.id}`)}
+                        onClick={() => {
+                          const profilePath = getCreatorProfilePath(creator);
+                          if (profilePath) navigate(profilePath);
+                        }}
                       >
                         <div className={`figma-following-avatar variant-${(index % 4) + 1}`}>
                           <IdentityImage item={creator} />

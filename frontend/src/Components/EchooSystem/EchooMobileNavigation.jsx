@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   FaBars,
@@ -61,7 +61,7 @@ const EchooMobileNavigation = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
-  const user = useMemo(readUser, [location.pathname]);
+  const user = readUser();
 
   const isListenerRoute = location.pathname.startsWith('/listen');
   const isMoreRoute = moreItems.some((item) =>

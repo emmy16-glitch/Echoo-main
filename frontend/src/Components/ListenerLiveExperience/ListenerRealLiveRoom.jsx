@@ -62,7 +62,7 @@ const dateLabel = (value) => {
 const ListenerRealLiveRoom = () => {
   const { broadcastId } = useParams();
   const navigate = useNavigate();
-  const user = useMemo(currentUser, []);
+  const user = useMemo(() => currentUser(), []);
 
   const [broadcast, setBroadcast] = useState(null);
   const [messages, setMessages] = useState([]);

@@ -36,7 +36,7 @@ const formatTime = (value) => {
 };
 
 const CreatorLiveChatPanel = ({ broadcastId }) => {
-  const user = useMemo(readCurrentUser, []);
+  const user = useMemo(() => readCurrentUser(), []);
   const [messages, setMessages] = useState([]);
   const [pinned, setPinned] = useState([]);
   const [text, setText] = useState('');

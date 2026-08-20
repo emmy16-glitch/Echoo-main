@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import { useEffect } from "react";
 import { FaCheck } from "react-icons/fa";
 import "./UI.css";
 

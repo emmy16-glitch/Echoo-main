@@ -55,6 +55,15 @@ const formatTime = (seconds) => {
 
 const backendTrackId = (id) => /^[a-f\d]{24}$/i.test(String(id || ''));
 
+const getRandomQueueIndex = (length, currentIndex) => {
+  if (length <= 1) return 0;
+  let next = currentIndex;
+  while (next === currentIndex) {
+    next = Math.floor(Math.random() * length);
+  }
+  return next;
+};
+
 const normalizeTrack = (track) => {
   if (!track) return null;
 
@@ -401,9 +410,7 @@ const ListenerLayout = () => {
 
     let next = queueIndex + 1;
     if (shuffle && queue.length > 1) {
-      do {
-        next = Math.floor(Math.random() * queue.length);
-      } while (next === queueIndex);
+      next = getRandomQueueIndex(queue.length, queueIndex);
     } else if (next >= queue.length) {
       if (repeatMode === 'all') next = 0;
       else {
