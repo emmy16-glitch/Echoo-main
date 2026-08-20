@@ -4,6 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { randomUUID } from 'crypto';
 import { authenticate, optionalAuth } from '../middleware/auth.js';
+import { requireStationDeletionSafe } from '../middleware/stationDeletionGuard.js';
 import {
   boundedSearchText,
   escapeRegexLiteral,
@@ -126,7 +127,12 @@ router.patch(
   cleanupFailedStationUpload,
   updateStation
 );
-router.delete('/:stationId', authenticate, deleteStation);
+router.delete(
+  '/:stationId',
+  authenticate,
+  requireStationDeletionSafe,
+  deleteStation
+);
 
 // Broadcasts are the only authority for live state and future broadcast timing.
 
