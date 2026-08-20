@@ -73,6 +73,42 @@ test('listener playback metadata cannot rewrite canonical Audio duration', async
   assert.match(player, /const totalDuration = canonicalDuration \|\| reportedDuration/);
 });
 
+test('private station detail can identify its authenticated owner', async () => {
+  const routes = await source('src/routes/stationRoutes.js');
+  assert.match(routes, /authenticate,\s*optionalAuth/);
+  assert.match(
+    routes,
+    /router\.get\(['"]\/:stationId['"],\s*optionalAuth,\s*getStationById\)/
+  );
+});
+
+test('user lookup does not expose another account private collections', async () => {
+  const routes = await source('src/routes/userRoutes.js');
+  assert.match(routes, /PUBLIC_USER_FIELDS/);
+  assert.match(routes, /isActive:\s*true/);
+  assert.match(routes, /PUBLIC_USER_FIELDS\)/);
+  assert.doesNotMatch(routes, /user\.isActive\s*=\s*false/);
+  assert.match(routes, /ACCOUNT_STATE_VIA_SETTINGS/);
+  assert.match(routes, /INVALID_USER_ID/);
+});
+
+test('audio likes are a per-user toggle instead of an inflation endpoint', async () => {
+  const routes = await source('src/routes/audioRoutes.js');
+  const controller = await source('src/controllers/audioLikeController.js');
+
+  assert.match(routes, /toggleAudioLike/);
+  assert.match(routes, /['"]\/:id\/like['"].*toggleAudioLike/);
+  assert.doesNotMatch(routes, /toggleLike[,}\s]/);
+
+  assert.match(controller, /likedAudio/);
+  assert.match(controller, /\$addToSet:\s*\{\s*likedAudio:/);
+  assert.match(controller, /\$pull:\s*\{\s*likedAudio:/);
+  assert.match(controller, /audio\.incrementLikes\(\)/);
+  assert.match(controller, /audio\.decrementLikes\(\)/);
+  assert.match(controller, /liked:\s*true/);
+  assert.match(controller, /liked:\s*false/);
+});
+
 test('health separates process liveness, database readiness and LiveKit health', async () => {
   const routes = await source('src/routes/index.js');
   assert.match(routes, /['"]\/health['"]/);
