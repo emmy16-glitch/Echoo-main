@@ -40,6 +40,7 @@ import '../../styles/echoo-asset-system.css';
 import './ListenerLayout.css';
 import './ListenerLayout.figma.css';
 import './ListenerPlaybackFix.css';
+import './ListenerPlayerBlue.css';
 
 const SEARCH_SUGGESTIONS = [
   'Podcast',
@@ -159,7 +160,7 @@ const ListenerLayout = () => {
     { name: 'Following', path: '/listen/library/following', icon: <FaHeart /> },
   ];
   const navigationLibrary = [
-    { name: 'My playlist', path: '/listen/library', icon: <FaListUl /> },
+    { name: 'My playlist', path: '/listen/playlist', icon: <FaListUl /> },
     { name: 'History', path: '/listen/history', icon: <FaHistory /> },
     { name: 'Downloads', path: '/listen/downloads', icon: <FaDownload /> },
     { name: 'Notifications', path: '/listen/notifications', icon: <FaBell /> },
