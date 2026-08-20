@@ -11,6 +11,7 @@ import mongoose from 'mongoose';
 import routes from './routes/index.js';
 import { env } from './config/env.js';
 import { connectDatabase, disconnectDatabase } from './config/database.js';
+import { startOrphanSweep } from './services/livekitOrphanSweep.js';
 import { verifyAccessToken } from './config/jwt.js';
 import User from './models/User.js';
 import Broadcast from './models/Broadcast.js';
@@ -351,6 +352,12 @@ async function startServer() {
     }
 
     await connectDatabase();
+
+    // Fire-and-forget reaper for broadcasts stuck in transitory states with
+    // lingering LiveKit resources. It self-guards when LiveKit is not
+    // configured, so test and no-livekit environments skip it silently.
+    startOrphanSweep();
+
     server.listen(PORT, () => {
       console.log('Echoo API listening on port', PORT);
       console.log('Health check: http://localhost:' + PORT + '/api/health');

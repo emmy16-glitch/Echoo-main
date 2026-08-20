@@ -9,8 +9,9 @@ import {
 // usable for only a bounded window, and long enough to survive a live session
 // plus reconnect jitter. Both clients re-fetch tokens on every join or
 // reconnect, so sessions longer than this simply reissue automatically.
-const LIVEKIT_TOKEN_TTL =
-  Number(process.env.LIVEKIT_TOKEN_TTL_MINUTES || 120) * 60;
+function resolveTokenTtl() {
+  return Number(process.env.LIVEKIT_TOKEN_TTL_MINUTES || 120) * 60;
+}
 
 function requireEnv(name) {
   const value = String(process.env[name] || '').trim();
@@ -128,6 +129,27 @@ function serviceError(action, cause) {
   return error;
 }
 
+
+// Factory overrides exist so test suites can substitute fake SDK clients
+// without network access. Production code never assigns these.
+let roomClientOverride = roomClient;
+let egressClientOverride = egressClient;
+let ingressClientOverride = ingressClient;
+
+// eslint-disable-next-line no-unused-vars
+function setClientOverrides({ room, egress, ingress } = {}) {
+  if (room !== undefined) roomClientOverride = room;
+  if (egress !== undefined) egressClientOverride = egress;
+  if (ingress !== undefined) ingressClientOverride = ingress;
+  return function clearClientOverrides() {
+    roomClientOverride = roomClient;
+    egressClientOverride = egressClient;
+    ingressClientOverride = ingressClient;
+  };
+}
+
+// Clients consumed below must route through the (possibly overridden)
+// factories so tests can intercept SDK calls.
 const LiveKitProvider = {
   getRoomName(broadcastId) {
     return roomNameFor(broadcastId);
@@ -148,7 +170,7 @@ const LiveKitProvider = {
 
   async checkHealth() {
     try {
-      const client = roomClient();
+      const client = roomClientOverride();
       await client.listRooms([]);
       return {
         reachable: true,
@@ -163,7 +185,7 @@ const LiveKitProvider = {
     const name = roomNameFor(broadcastId);
 
     try {
-      const client = roomClient();
+      const client = roomClientOverride();
       const existing = await client.listRooms([name]);
 
       if (Array.isArray(existing) && existing.length > 0) {
@@ -189,7 +211,7 @@ const LiveKitProvider = {
     const name = roomNameFor(broadcastId);
 
     try {
-      return await roomClient().listParticipants(name);
+      return await roomClientOverride().listParticipants(name);
     } catch (error) {
       const message = String(error?.message || error || '');
 
@@ -219,7 +241,7 @@ const LiveKitProvider = {
         userId: String(userId),
         broadcastId: String(broadcastId),
       }),
-      ttl: LIVEKIT_TOKEN_TTL,
+      ttl: resolveTokenTtl(),
     });
 
     token.addGrant({
@@ -256,7 +278,7 @@ const LiveKitProvider = {
         userId: String(userId),
         broadcastId: String(broadcastId),
       }),
-      ttl: LIVEKIT_TOKEN_TTL,
+      ttl: resolveTokenTtl(),
     });
 
     token.addGrant({
@@ -272,7 +294,7 @@ const LiveKitProvider = {
 
   async startEgress(broadcastId, title, ingestUrl) {
     const name = roomNameFor(broadcastId);
-    const client = egressClient();
+    const client = egressClientOverride();
 
     if (!/^rtmps?:\/\//i.test(ingestUrl)) {
       throw new Error(
@@ -289,14 +311,14 @@ const LiveKitProvider = {
 
   async stopEgress(egressId) {
     if (!egressId) return null;
-    return egressClient().stopEgress(String(egressId));
+    return egressClientOverride().stopEgress(String(egressId));
   },
 
   async stopIngress(ingressId) {
     if (!ingressId) return null;
 
     try {
-      return await ingressClient().deleteIngress(String(ingressId));
+      return await ingressClientOverride().deleteIngress(String(ingressId));
     } catch (error) {
       // Removing a finished prerecorded ingress must never fail an end
       // broadcast request; the URL-input source cannot republish anything
@@ -313,7 +335,7 @@ const LiveKitProvider = {
     const name = roomNameFor(broadcastId);
 
     try {
-      await roomClient().deleteRoom(name);
+      await roomClientOverride().deleteRoom(name);
       return true;
     } catch (error) {
       console.warn(
@@ -324,5 +346,7 @@ const LiveKitProvider = {
     }
   },
 };
+
+export { setClientOverrides };
 
 export default LiveKitProvider;
