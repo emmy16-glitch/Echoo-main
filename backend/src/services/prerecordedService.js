@@ -205,9 +205,14 @@ export async function processPrerecordedBroadcast(broadcastId) {
       );
     }
 
-    // 3. Relay the mixed program to OME when relay is enabled.
+    // 3. Relay the mixed program to OME only when OME is actually configured.
+    // Echoo currently runs livekit-only (LIVEKIT_URL/LIVEKIT_PUBLIC_URL), and
+    // OME_API_AUTH is not set in the environment templates, so the OME egress
+    // path stays dormant until a real OME deployment is configured.
     let egressId = null;
-    const liveKitOnly = mediaRelayMode() === 'livekit-only';
+    const liveKitOnly =
+      mediaRelayMode() === 'livekit-only' ||
+      !String(process.env.OME_API_AUTH || '').trim();
     if (!liveKitOnly) {
       const ingestUrl = OvenMediaProvider.getIngestUrl(broadcastId, 'rtmp');
       const egress = await LiveKitProvider.startEgress(
