@@ -67,6 +67,7 @@ jobs:
           node --check src/routes/broadcastRoutes.js
           node --check src/routes/audioRoutes.js
           node --check src/routes/stationRoutes.js
+          node --check src/routes/commentRoutes.js
           node --check src/controllers/authController.js
           node --check src/controllers/settingsController.js
           node --check src/controllers/studioController.js
@@ -87,6 +88,7 @@ jobs:
           node --check src/controllers/contentController.js
           node --check src/controllers/followController.js
           node --check src/models/Audio.js
+          node --check src/models/Comment.js
           node --check src/models/Playlist.js
           node --check src/providers/livekit.js
           node --check src/services/audioAccess.js
