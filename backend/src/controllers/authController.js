@@ -4,21 +4,27 @@ import { verifyRefreshToken } from '../config/jwt.js';
 export async function register(req, res, next) {
   try {
     const { username, email, password, displayName } = req.body;
+    const cleanUsername = String(username || '').trim();
+    const cleanEmail = String(email || '').trim().toLowerCase();
 
-    console.log('Registration attempt:', { username, email });
-
-    if (!username || !email || !password) {
+    if (!cleanUsername || !cleanEmail || !password) {
       return res.status(400).json({
         error: { code: 'VALIDATION_ERROR', message: 'Username, email, and password are required' }
       });
     }
 
+    if (String(password).length < 6) {
+      return res.status(400).json({
+        error: { code: 'VALIDATION_ERROR', message: 'Password must be at least 6 characters' }
+      });
+    }
+
     const existingUser = await User.findOne({
-      $or: [{ email: email.toLowerCase() }, { username }]
+      $or: [{ email: cleanEmail }, { username: cleanUsername }]
     });
 
     if (existingUser) {
-      if (existingUser.email === email.toLowerCase()) {
+      if (existingUser.email === cleanEmail) {
         return res.status(409).json({ error: { code: 'CONFLICT', message: 'Email already registered' } });
       }
       return res.status(409).json({ error: { code: 'CONFLICT', message: 'Username already taken' } });
@@ -27,24 +33,22 @@ export async function register(req, res, next) {
     const hashedPassword = await User.hashPassword(password);
 
     const user = new User({
-      username,
-      email: email.toLowerCase(),
+      username: cleanUsername,
+      email: cleanEmail,
       passwordHash: hashedPassword,
-      displayName: displayName || username,
+      displayName: String(displayName || cleanUsername).trim() || cleanUsername,
       roles: ['listener'],
     });
 
     await user.save();
     const { accessToken, refreshToken } = user.generateTokens();
 
-    console.log('User registered:', username);
-
     return res.status(201).json({
       data: { user: user.toJSON(), accessToken, refreshToken },
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    console.error('Registration error:', error);
+    console.error('Registration error:', error?.message || error);
     next(error);
   }
 }
@@ -53,7 +57,7 @@ export async function login(req, res, next) {
   try {
     const { username, email, password } = req.body;
 
-    const identifier = username || email;
+    const identifier = String(username || email || '').trim();
     if (!identifier || !password) {
       return res.status(400).json({
         error: { code: 'VALIDATION_ERROR', message: 'Username/email and password are required' }
@@ -71,13 +75,20 @@ export async function login(req, res, next) {
       return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Invalid credentials' } });
     }
 
-    if (!user.isActive) {
-      return res.status(403).json({ error: { code: 'ACCOUNT_DEACTIVATED', message: 'Account has been deactivated' } });
-    }
-
+    // Verify the password before disclosing whether this particular account is
+    // inactive. Otherwise login becomes an account-state enumeration endpoint.
     const isValidPassword = await user.comparePassword(password);
     if (!isValidPassword) {
       return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Invalid credentials' } });
+    }
+
+    if (!user.isActive) {
+      return res.status(403).json({
+        error: {
+          code: 'ACCOUNT_DEACTIVATED',
+          message: 'Account has been deactivated. Reactivate it to continue.',
+        },
+      });
     }
 
     user.lastLogin = new Date();
@@ -90,7 +101,7 @@ export async function login(req, res, next) {
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    console.error('Login error:', error);
+    console.error('Login error:', error?.message || error);
     next(error);
   }
 }
@@ -108,16 +119,16 @@ export async function refreshToken(req, res, next) {
     let decoded;
     try {
       decoded = verifyRefreshToken(refreshToken);
-    } catch (error) {
+    } catch {
       return res.status(401).json({
         error: { code: 'INVALID_REFRESH_TOKEN', message: 'Invalid or expired refresh token' }
       });
     }
 
     const user = await User.findById(decoded.sub).select('+refreshTokenVersion');
-    if (!user || !user.isActive) {
+    if (!user) {
       return res.status(401).json({
-        error: { code: 'USER_NOT_FOUND', message: 'User not found or inactive' }
+        error: { code: 'USER_NOT_FOUND', message: 'User not found' }
       });
     }
 
@@ -127,10 +138,17 @@ export async function refreshToken(req, res, next) {
       });
     }
 
+    // Inactive accounts may refresh an already-issued session solely so the
+    // dedicated reactivation endpoint remains reachable. Normal API auth and
+    // Socket.IO still reject inactive users.
     const { accessToken, refreshToken: newRefreshToken } = user.generateTokens();
 
     return res.status(200).json({
-      data: { accessToken, refreshToken: newRefreshToken },
+      data: {
+        accessToken,
+        refreshToken: newRefreshToken,
+        accountActive: Boolean(user.isActive),
+      },
       timestamp: new Date().toISOString()
     });
   } catch (error) {
