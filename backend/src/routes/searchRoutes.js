@@ -1,5 +1,6 @@
 import express from 'express';
-import { authenticate, optionalAuth } from '../middleware/auth.js';
+import { optionalAuth } from '../middleware/auth.js';
+import { searchLimiter } from '../middleware/rateLimiter.js';
 import {
   globalSearch,
   searchTracks,
@@ -9,6 +10,8 @@ import {
 } from '../controllers/searchController.js';
 
 const router = express.Router();
+
+router.use(searchLimiter);
 
 // Global search (public with optional auth for personalization)
 router.get('/', optionalAuth, globalSearch);
