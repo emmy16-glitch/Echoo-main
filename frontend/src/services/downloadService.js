@@ -4,6 +4,11 @@ import audioService from './audioService.js';
 const STORAGE_KEY = 'echooDownloads';
 const CACHE_NAME = 'echoo-offline-audio-v1';
 const OFFLINE_CACHE_PREFIX = '/__echoo-offline-audio/';
+const OFFLINE_DB_NAME = 'echoo-offline-audio-v1';
+const OFFLINE_DB_STORE = 'audio';
+const OFFLINE_DB_VERSION = 1;
+
+let offlineDbPromise = null;
 
 const readDownloads = () => {
   try {
@@ -32,6 +37,120 @@ const resolveUrl = (value) => {
 const offlineCacheUrl = (trackId) =>
   resolveUrl(`${OFFLINE_CACHE_PREFIX}${encodeURIComponent(String(trackId || ''))}`);
 
+const cacheStorageAvailable = () =>
+  typeof window !== 'undefined' && 'caches' in window;
+
+const indexedDbAvailable = () =>
+  typeof indexedDB !== 'undefined';
+
+const openOfflineDb = () => {
+  if (!indexedDbAvailable()) {
+    return Promise.reject(new Error('IndexedDB is not available.'));
+  }
+
+  if (offlineDbPromise) return offlineDbPromise;
+
+  offlineDbPromise = new Promise((resolve, reject) => {
+    const request = indexedDB.open(OFFLINE_DB_NAME, OFFLINE_DB_VERSION);
+
+    request.onupgradeneeded = () => {
+      const database = request.result;
+      if (!database.objectStoreNames.contains(OFFLINE_DB_STORE)) {
+        database.createObjectStore(OFFLINE_DB_STORE, { keyPath: 'id' });
+      }
+    };
+
+    request.onsuccess = () => {
+      const database = request.result;
+      database.onversionchange = () => {
+        database.close();
+        offlineDbPromise = null;
+      };
+      resolve(database);
+    };
+
+    request.onerror = () => {
+      offlineDbPromise = null;
+      reject(request.error || new Error('Could not open offline audio storage.'));
+    };
+
+    request.onblocked = () => {
+      offlineDbPromise = null;
+      reject(new Error('Offline audio storage is blocked by another browser tab.'));
+    };
+  });
+
+  return offlineDbPromise;
+};
+
+const putIndexedDbBlob = async (trackId, blob) => {
+  const database = await openOfflineDb();
+
+  await new Promise((resolve, reject) => {
+    const transaction = database.transaction(OFFLINE_DB_STORE, 'readwrite');
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(
+      transaction.error || new Error('Could not save offline audio.')
+    );
+    transaction.onabort = () => reject(
+      transaction.error || new Error('Offline audio save was cancelled.')
+    );
+
+    transaction.objectStore(OFFLINE_DB_STORE).put({
+      id: String(trackId),
+      blob,
+      size: Number(blob?.size) || 0,
+      storedAt: Date.now(),
+    });
+  });
+};
+
+const getIndexedDbBlob = async (trackId) => {
+  if (!indexedDbAvailable()) return null;
+  const database = await openOfflineDb();
+
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction(OFFLINE_DB_STORE, 'readonly');
+    const request = transaction.objectStore(OFFLINE_DB_STORE).get(String(trackId));
+
+    request.onsuccess = () => {
+      const value = request.result;
+      resolve(value?.blob instanceof Blob ? value.blob : null);
+    };
+    request.onerror = () => reject(
+      request.error || new Error('Could not read offline audio.')
+    );
+  });
+};
+
+const deleteIndexedDbBlob = async (trackId) => {
+  if (!indexedDbAvailable()) return;
+  const database = await openOfflineDb();
+
+  await new Promise((resolve, reject) => {
+    const transaction = database.transaction(OFFLINE_DB_STORE, 'readwrite');
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(
+      transaction.error || new Error('Could not remove offline audio.')
+    );
+    transaction.objectStore(OFFLINE_DB_STORE).delete(String(trackId));
+  });
+};
+
+const clearIndexedDbAudio = async () => {
+  if (!indexedDbAvailable()) return;
+  const database = await openOfflineDb();
+
+  await new Promise((resolve, reject) => {
+    const transaction = database.transaction(OFFLINE_DB_STORE, 'readwrite');
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(
+      transaction.error || new Error('Could not clear offline audio.')
+    );
+    transaction.objectStore(OFFLINE_DB_STORE).clear();
+  });
+};
+
 const normalizeDownload = (track) => {
   if (!track) return null;
   const id = track.id || track._id || null;
@@ -46,6 +165,7 @@ const normalizeDownload = (track) => {
     // Never persist a temporary signed stream token in localStorage. Offline
     // bytes are indexed by an Echoo-local stable cache key instead.
     cacheUrl: offlineCacheUrl(id),
+    storageMode: track.storageMode || null,
     downloadedAt: new Date().toISOString(),
   };
 };
@@ -100,6 +220,63 @@ const clearBackendDownloads = async () => {
   }
 };
 
+const persistOfflineResponse = async (item, response) => {
+  let cacheError = null;
+
+  if (cacheStorageAvailable()) {
+    try {
+      const cache = await caches.open(CACHE_NAME);
+      await cache.put(item.cacheUrl, response.clone());
+      return {
+        ...item,
+        storageMode: 'cache',
+        fileSize:
+          Number(response.headers.get('content-length')) ||
+          Number(item.fileSize) ||
+          0,
+      };
+    } catch (error) {
+      cacheError = error;
+      console.warn(
+        '[Echoo Downloads] Cache Storage unavailable; trying IndexedDB:',
+        error?.message || error
+      );
+    }
+  }
+
+  if (indexedDbAvailable()) {
+    try {
+      const blob = await response.blob();
+      if (!blob?.size) throw new Error('The downloaded audio file was empty.');
+      await putIndexedDbBlob(item.id, blob);
+      return {
+        ...item,
+        storageMode: 'indexeddb',
+        fileSize: Number(blob.size) || Number(item.fileSize) || 0,
+      };
+    } catch (error) {
+      console.warn(
+        '[Echoo Downloads] IndexedDB offline storage failed:',
+        error?.message || error
+      );
+      throw new Error(
+        'This browser could not save the audio for offline listening. Check that site storage is allowed and private/incognito mode is off.',
+        { cause: error }
+      );
+    }
+  }
+
+  if (cacheError) {
+    throw new Error(
+      'This browser blocked offline storage. Check site storage permissions or use a normal browser tab.'
+    );
+  }
+
+  throw new Error(
+    'Offline storage is not available in this browser. Try a current Chrome, Edge, Firefox, or Safari browser outside private mode.'
+  );
+};
+
 const downloadService = {
   getAll: () => readDownloads(),
 
@@ -107,7 +284,6 @@ const downloadService = {
 
   download: async (track) => {
     if (!track?.id) throw new Error('This track does not have an ID.');
-    if (!('caches' in window)) throw new Error('Offline storage is not supported in this browser.');
 
     // Always mint a fresh protected playback URL at download time instead of
     // trusting a possibly old token embedded in track metadata.
@@ -118,29 +294,37 @@ const downloadService = {
     }
 
     const item = normalizeDownload(track);
-    const cache = await caches.open(CACHE_NAME);
-    await cache.put(item.cacheUrl, response.clone());
+    const storedItem = await persistOfflineResponse(item, response);
 
     const current = readDownloads();
-    const next = [item, ...current.filter((existing) => String(existing.id) !== String(item.id))];
+    const next = [storedItem, ...current.filter((existing) => String(existing.id) !== String(storedItem.id))];
     writeDownloads(next);
 
     // Backend metadata is useful across signed-in sessions, but a temporary API
-    // failure must never invalidate a successfully cached offline file.
-    await markBackendDownloaded(item);
-    return item;
+    // failure must never invalidate a successfully stored offline file.
+    await markBackendDownloaded(storedItem);
+    return storedItem;
   },
 
   remove: async (trackId) => {
     const current = readDownloads();
     const target = current.find((item) => String(item.id) === String(trackId));
+    const cleanupTasks = [];
 
-    if ('caches' in window) {
-      const cache = await caches.open(CACHE_NAME);
-      if (target?.cacheUrl) await cache.delete(target.cacheUrl);
-      // Also clear the stable cache key in case this is a pre-migration record.
-      await cache.delete(offlineCacheUrl(trackId));
+    if (cacheStorageAvailable()) {
+      cleanupTasks.push((async () => {
+        const cache = await caches.open(CACHE_NAME);
+        if (target?.cacheUrl) await cache.delete(target.cacheUrl);
+        // Also clear the stable cache key in case this is a pre-migration record.
+        await cache.delete(offlineCacheUrl(trackId));
+      })());
     }
+
+    if (indexedDbAvailable()) {
+      cleanupTasks.push(deleteIndexedDbBlob(trackId));
+    }
+
+    if (cleanupTasks.length) await Promise.allSettled(cleanupTasks);
 
     const next = current.filter((item) => String(item.id) !== String(trackId));
     writeDownloads(next);
@@ -149,7 +333,11 @@ const downloadService = {
   },
 
   clear: async () => {
-    if ('caches' in window) await caches.delete(CACHE_NAME);
+    const cleanupTasks = [];
+    if (cacheStorageAvailable()) cleanupTasks.push(caches.delete(CACHE_NAME));
+    if (indexedDbAvailable()) cleanupTasks.push(clearIndexedDbAudio());
+    if (cleanupTasks.length) await Promise.allSettled(cleanupTasks);
+
     writeDownloads([]);
     await clearBackendDownloads();
     return [];
@@ -159,19 +347,38 @@ const downloadService = {
     const target = readDownloads().find((item) => String(item.id) === String(trackId));
     if (!target) throw new Error('Downloaded track not found.');
 
-    if ('caches' in window) {
-      const cache = await caches.open(CACHE_NAME);
-      const preferredKey = target.cacheUrl || offlineCacheUrl(trackId);
-      let response = preferredKey ? await cache.match(preferredKey) : null;
+    if (cacheStorageAvailable()) {
+      try {
+        const cache = await caches.open(CACHE_NAME);
+        const preferredKey = target.cacheUrl || offlineCacheUrl(trackId);
+        let response = preferredKey ? await cache.match(preferredKey) : null;
 
-      // Migration path for records written before stable cache keys existed.
-      if (!response && preferredKey !== offlineCacheUrl(trackId)) {
-        response = await cache.match(offlineCacheUrl(trackId));
+        // Migration path for records written before stable cache keys existed.
+        if (!response && preferredKey !== offlineCacheUrl(trackId)) {
+          response = await cache.match(offlineCacheUrl(trackId));
+        }
+
+        if (response) {
+          const blob = await response.blob();
+          return URL.createObjectURL(blob);
+        }
+      } catch (error) {
+        console.warn(
+          '[Echoo Downloads] Cache Storage playback failed; checking IndexedDB:',
+          error?.message || error
+        );
       }
+    }
 
-      if (response) {
-        const blob = await response.blob();
-        return URL.createObjectURL(blob);
+    if (indexedDbAvailable()) {
+      try {
+        const blob = await getIndexedDbBlob(trackId);
+        if (blob?.size) return URL.createObjectURL(blob);
+      } catch (error) {
+        console.warn(
+          '[Echoo Downloads] IndexedDB playback failed:',
+          error?.message || error
+        );
       }
     }
 

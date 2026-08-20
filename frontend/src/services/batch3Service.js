@@ -9,6 +9,22 @@ import {
   finishBroadcastRecording,
 } from './broadcastRecordingService.js';
 
+const PENDING_RECORDING_DECISION_KEY = '__echooPendingBroadcastRecording';
+
+const rememberPendingRecordingDecision = (detail) => {
+  if (typeof window === 'undefined' || !detail?.recording?.blob?.size) return;
+  window[PENDING_RECORDING_DECISION_KEY] = detail;
+};
+
+const forgetPendingRecordingDecision = () => {
+  if (typeof window === 'undefined') return;
+  try {
+    delete window[PENDING_RECORDING_DECISION_KEY];
+  } catch {
+    window[PENDING_RECORDING_DECISION_KEY] = null;
+  }
+};
+
 const sleep = (milliseconds) =>
   new Promise((resolve) => window.setTimeout(resolve, milliseconds));
 
@@ -256,6 +272,7 @@ const batch3Service = {
     } finally {
       // Cancelled/failed starts must never surface a save-recording prompt.
       await discardBroadcastRecording(broadcastId).catch(() => {});
+      forgetPendingRecordingDecision();
     }
   },
 
@@ -303,15 +320,18 @@ const batch3Service = {
     const normalized = normalizeBroadcast(raw);
 
     // End the browser-local recorder only after the backend accepts the end
-    // transition. The Blob remains in memory until the creator explicitly
-    // chooses Discard, Save privately, or Save & publish.
+    // transition and before the caller tears down the mixer. The decision is
+    // also held on window memory so a React remount or a very narrow event-listener
+    // race cannot make a completed recording disappear without a creator choice.
     try {
       const recording = await finishBroadcastRecording(broadcastId);
       if (recording?.blob?.size) {
-        announceFinishedBroadcastRecording({
+        const decision = {
           recording,
           broadcast: normalized,
-        });
+        };
+        rememberPendingRecordingDecision(decision);
+        announceFinishedBroadcastRecording(decision);
       }
     } catch (recordingError) {
       console.warn(
