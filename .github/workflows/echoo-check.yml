@@ -61,6 +61,7 @@ jobs:
           node --check src/routes/index.js
           node --check src/routes/broadcastRoutes.js
           node --check src/routes/audioRoutes.js
+          node --check src/routes/stationRoutes.js
           node --check src/controllers/audioStreamController.js
           node --check src/controllers/broadcastController.js
           node --check src/controllers/broadcastLifecycleController.js
@@ -69,12 +70,23 @@ jobs:
           node --check src/controllers/playerController.js
           node --check src/controllers/historyController.js
           node --check src/controllers/listenerController.js
+          node --check src/controllers/chatController.js
+          node --check src/controllers/commentController.js
+          node --check src/controllers/downloadsController.js
+          node --check src/controllers/playlistController.js
+          node --check src/controllers/searchController.js
+          node --check src/controllers/authController.js
+          node --check src/controllers/contentController.js
+          node --check src/controllers/followController.js
           node --check src/models/Audio.js
+          node --check src/models/Playlist.js
           node --check src/providers/livekit.js
           node --check src/services/audioAccess.js
           node --check src/services/audioStreamAccess.js
           node --check src/services/broadcastAudioReadiness.js
           node --check src/services/creatorBroadcastLease.js
-          node --check src/controllers/chatController.js
+          node --check src/middleware/enforceSingleLiveCreator.js
+          node --check src/middleware/broadcastQueryValidation.js
+          node --check src/utils/queryText.js
       - name: Run backend invariant tests
         run: npm test

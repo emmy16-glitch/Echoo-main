@@ -2,6 +2,10 @@ import User from '../models/User.js';
 import Audio from '../models/Audio.js';
 import Playlist from '../models/Playlist.js';
 import Station from '../models/Station.js';
+import {
+  boundedSearchText,
+  escapeRegexLiteral,
+} from '../utils/queryText.js';
 
 const safePage = (value) => Math.max(1, Number(value) || 1);
 const safeLimit = (value) => Math.min(100, Math.max(1, Number(value) || 20));
@@ -95,7 +99,19 @@ const playlistResult = (playlist) => ({
 });
 
 const requireQuery = (req, res) => {
-  const query = String(req.query.q || '').trim();
+  let query;
+  try {
+    query = boundedSearchText(req.query.q, { maxLength: 120 });
+  } catch (error) {
+    res.status(error.status || 400).json({
+      error: {
+        code: error.code || 'SEARCH_TOO_LONG',
+        message: error.message || 'Invalid search query',
+      },
+    });
+    return null;
+  }
+
   if (query.length < 2) {
     res.status(400).json({
       error: {
@@ -105,16 +121,21 @@ const requireQuery = (req, res) => {
     });
     return null;
   }
-  return query;
+
+  return {
+    query,
+    pattern: escapeRegexLiteral(query),
+  };
 };
 
-const regexFields = (query, fields) =>
-  fields.map((field) => ({ [field]: { $regex: query, $options: 'i' } }));
+const regexFields = (pattern, fields) =>
+  fields.map((field) => ({ [field]: { $regex: pattern, $options: 'i' } }));
 
 export async function globalSearch(req, res, next) {
   try {
-    const query = requireQuery(req, res);
-    if (!query) return;
+    const prepared = requireQuery(req, res);
+    if (!prepared) return;
+    const { query, pattern } = prepared;
 
     const page = safePage(req.query.page);
     const limit = safeLimit(req.query.limit);
@@ -131,7 +152,7 @@ export async function globalSearch(req, res, next) {
         isPublic: true,
         isDeleted: false,
         artist: { $in: creatorIds },
-        $or: regexFields(query, ['title', 'description', 'tags']),
+        $or: regexFields(pattern, ['title', 'description', 'tags']),
       };
       if (req.query.category) filter.genre = req.query.category;
 
@@ -158,7 +179,7 @@ export async function globalSearch(req, res, next) {
         userType: 'creator',
         isActive: true,
         onboardingCompleted: true,
-        $or: regexFields(query, [
+        $or: regexFields(pattern, [
           'username',
           'displayName',
           'creatorProfile.artistName',
@@ -183,7 +204,7 @@ export async function globalSearch(req, res, next) {
       const filter = {
         isPublic: true,
         isDeleted: false,
-        $or: regexFields(query, ['name', 'description', 'tags', 'category']),
+        $or: regexFields(pattern, ['name', 'description', 'tags', 'category']),
       };
 
       const [stations, total] = await Promise.all([
@@ -202,7 +223,7 @@ export async function globalSearch(req, res, next) {
       const filter = {
         isPublic: true,
         isDeleted: false,
-        $or: regexFields(query, ['name', 'description']),
+        $or: regexFields(pattern, ['name', 'description']),
       };
 
       const [playlists, total] = await Promise.all([
@@ -246,8 +267,9 @@ export async function globalSearch(req, res, next) {
 
 export async function searchTracks(req, res, next) {
   try {
-    const query = requireQuery(req, res);
-    if (!query) return;
+    const prepared = requireQuery(req, res);
+    if (!prepared) return;
+    const { pattern } = prepared;
 
     const page = safePage(req.query.page);
     const limit = safeLimit(req.query.limit);
@@ -257,7 +279,7 @@ export async function searchTracks(req, res, next) {
       isPublic: true,
       isDeleted: false,
       artist: { $in: creatorIds },
-      $or: regexFields(query, ['title', 'description', 'tags']),
+      $or: regexFields(pattern, ['title', 'description', 'tags']),
     };
     if (req.query.genre) filter.genre = req.query.genre;
 
@@ -299,8 +321,9 @@ export async function searchTracks(req, res, next) {
 
 export async function searchCreators(req, res, next) {
   try {
-    const query = requireQuery(req, res);
-    if (!query) return;
+    const prepared = requireQuery(req, res);
+    if (!prepared) return;
+    const { pattern } = prepared;
 
     const page = safePage(req.query.page);
     const limit = safeLimit(req.query.limit);
@@ -309,7 +332,7 @@ export async function searchCreators(req, res, next) {
       userType: 'creator',
       isActive: true,
       onboardingCompleted: true,
-      $or: regexFields(query, [
+      $or: regexFields(pattern, [
         'username',
         'displayName',
         'creatorProfile.artistName',

@@ -85,58 +85,78 @@ const playlistSchema = new mongoose.Schema(
   }
 );
 
-// Indexes
 playlistSchema.index({ owner: 1, createdAt: -1 });
 playlistSchema.index({ isPublic: 1, createdAt: -1 });
 playlistSchema.index({ name: 'text', description: 'text' });
 
-// Instance methods
-playlistSchema.methods.canEdit = function(userId) {
+const objectIdString = (value) =>
+  String(value?._id || value?.id || value || '');
+
+playlistSchema.methods.canEdit = function canEdit(userId) {
   if (!userId) return false;
-  const userIdStr = userId.toString();
-  if (this.owner.toString() === userIdStr) return true;
-  if (this.isCollaborative && this.collaborators.some(id => id.toString() === userIdStr)) {
-    return true;
-  }
-  return false;
+  const userIdStr = objectIdString(userId);
+  if (objectIdString(this.owner) === userIdStr) return true;
+  return Boolean(
+    this.isCollaborative &&
+    this.collaborators.some((id) => objectIdString(id) === userIdStr)
+  );
 };
 
-playlistSchema.methods.addTrack = async function(trackId, userId) {
-  const exists = this.tracks.some(t => t.trackId.toString() === trackId.toString());
+playlistSchema.methods.addTrack = async function addTrack(trackId, userId) {
+  const trackKey = objectIdString(trackId);
+  const exists = this.tracks.some((entry) => objectIdString(entry.trackId) === trackKey);
   if (exists) {
-    throw new Error('Track already in playlist');
+    const error = new Error('Track already in playlist');
+    error.status = 409;
+    error.code = 'TRACK_ALREADY_IN_PLAYLIST';
+    throw error;
   }
 
-  this.tracks.push({
-    trackId,
-    addedBy: userId,
-  });
-
+  this.tracks.push({ trackId, addedBy: userId });
   this.trackCount = this.tracks.length;
-  return await this.save();
+  return this.save();
 };
 
-playlistSchema.methods.removeTrack = async function(trackId) {
-  this.tracks = this.tracks.filter(t => t.trackId.toString() !== trackId.toString());
+playlistSchema.methods.removeTrack = async function removeTrack(trackId) {
+  const trackKey = objectIdString(trackId);
+  this.tracks = this.tracks.filter(
+    (entry) => objectIdString(entry.trackId) !== trackKey
+  );
   this.trackCount = this.tracks.length;
-  return await this.save();
+  return this.save();
 };
 
-playlistSchema.methods.reorderTracks = async function(trackIds) {
-  if (trackIds.length !== this.tracks.length) {
-    throw new Error('Track count mismatch');
+playlistSchema.methods.reorderTracks = async function reorderTracks(trackIds) {
+  if (!Array.isArray(trackIds) || trackIds.length !== this.tracks.length) {
+    const error = new Error('Track count mismatch');
+    error.status = 400;
+    error.code = 'PLAYLIST_TRACK_MISMATCH';
+    throw error;
   }
 
-  const orderedTracks = trackIds.map(id =>
-    this.tracks.find(t => t.trackId.toString() === id.toString())
-  ).filter(Boolean);
+  const requestedIds = trackIds.map(objectIdString);
+  const existingIds = this.tracks.map((entry) => objectIdString(entry.trackId));
 
-  if (orderedTracks.length !== this.tracks.length) {
-    throw new Error('Some tracks not found in playlist');
+  // `find()`-based ordering used to allow [A, A] to replace [A, B] because the
+  // resulting array still had the same length. Require an exact unique set.
+  if (
+    requestedIds.some((id) => !id) ||
+    new Set(requestedIds).size !== requestedIds.length ||
+    requestedIds.some((id) => !existingIds.includes(id)) ||
+    existingIds.some((id) => !requestedIds.includes(id))
+  ) {
+    const error = new Error('trackIds must contain every playlist track exactly once');
+    error.status = 400;
+    error.code = 'INVALID_PLAYLIST_ORDER';
+    throw error;
   }
 
-  this.tracks = orderedTracks;
-  return await this.save();
+  const byId = new Map(
+    this.tracks.map((entry) => [objectIdString(entry.trackId), entry])
+  );
+  this.tracks = requestedIds.map((id) => byId.get(id));
+  this.trackCount = this.tracks.length;
+  return this.save();
 };
 
 const Playlist = mongoose.model('Playlist', playlistSchema, 'echoo_playlists');

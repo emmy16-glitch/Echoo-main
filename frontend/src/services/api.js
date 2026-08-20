@@ -22,7 +22,7 @@ const requireApiBaseUrl = () => {
   throw error;
 };
 
-const getAccessToken = () => {
+export const getCurrentAccessToken = () => {
   return (
     localStorage.getItem('accessToken') ||
     localStorage.getItem('token') ||
@@ -122,78 +122,57 @@ const createError = (
 
 let refreshPromise = null;
 
-const refreshAccessToken =
-  async () => {
-    const refreshToken =
-      getRefreshToken();
+// Shared by normal API retries and Socket.IO reconnect recovery. Coalescing the
+// promise prevents a network flap from rotating the refresh token many times at
+// once across API calls and realtime reconnect attempts.
+export const refreshSessionAccessToken = async () => {
+  const refreshToken = getRefreshToken();
 
-    if (!refreshToken) {
-      throw new Error(
-        'No refresh token available'
-      );
+  if (!refreshToken) {
+    throw new Error('No refresh token available');
+  }
+
+  if (refreshPromise) {
+    return refreshPromise;
+  }
+
+  refreshPromise = fetch(
+    `${requireApiBaseUrl()}/auth/refresh`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ refreshToken }),
     }
+  )
+    .then(async (response) => {
+      const data = await parseResponse(response);
 
-    if (refreshPromise) {
-      return refreshPromise;
-    }
-
-    refreshPromise = fetch(
-      `${requireApiBaseUrl()}/auth/refresh`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type':
-            'application/json',
-        },
-        body: JSON.stringify({
-          refreshToken,
-        }),
+      if (!response.ok) {
+        throw createError(response, data);
       }
-    )
-      .then(
-        async (response) => {
-          const data =
-            await parseResponse(
-              response
-            );
 
-          if (!response.ok) {
-            throw createError(
-              response,
-              data
-            );
-          }
+      const newAccessToken = data?.data?.accessToken;
+      const newRefreshToken = data?.data?.refreshToken;
 
-          const newAccessToken =
-            data?.data
-              ?.accessToken;
+      if (!newAccessToken) {
+        throw new Error('Backend did not return a new access token');
+      }
 
-          const newRefreshToken =
-            data?.data
-              ?.refreshToken;
-
-          if (!newAccessToken) {
-            throw new Error(
-              'Backend did not return a new access token'
-            );
-          }
-
-          saveTokens({
-            accessToken:
-              newAccessToken,
-            refreshToken:
-              newRefreshToken,
-          });
-
-          return newAccessToken;
-        }
-      )
-      .finally(() => {
-        refreshPromise = null;
+      saveTokens({
+        accessToken: newAccessToken,
+        refreshToken: newRefreshToken,
       });
 
-    return refreshPromise;
-  };
+      return newAccessToken;
+    })
+    .finally(() => {
+      refreshPromise = null;
+    });
+
+  return refreshPromise;
+};
 
 const makeRequest = async (
   path,
@@ -252,7 +231,7 @@ export const apiFetch = async (
   const accessToken =
     skipAuth
       ? ''
-      : getAccessToken();
+      : getCurrentAccessToken();
 
   let response =
     await makeRequest(
@@ -269,7 +248,7 @@ export const apiFetch = async (
   ) {
     try {
       const newAccessToken =
-        await refreshAccessToken();
+        await refreshSessionAccessToken();
 
       response =
         await makeRequest(

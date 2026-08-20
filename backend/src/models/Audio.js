@@ -153,8 +153,8 @@ audioSchema.virtual('fileSizeMB').get(function fileSizeMB() {
   return (this.fileSize / (1024 * 1024)).toFixed(2);
 });
 
-// Atomic increments keep analytics correct when many listeners begin playback
-// at the same moment. Read-modify-save can silently lose concurrent updates.
+// Atomic increments keep analytics correct when many listeners act at the same
+// moment. Read-modify-save can silently lose concurrent updates.
 audioSchema.methods.incrementPlays = async function incrementPlays() {
   const updated = await this.constructor.findOneAndUpdate(
     { _id: this._id, isDeleted: false },
@@ -182,6 +182,30 @@ audioSchema.methods.decrementLikes = async function decrementLikes() {
     { new: true }
   );
   if (updated) this.likeCount = updated.likeCount;
+  return updated || this;
+};
+
+// Comment controllers historically called these methods even though they were
+// missing from the model, which meant a comment could be saved/deleted and the
+// HTTP request would still fail afterward. Keep the denormalized counter atomic
+// and never allow it to move below zero.
+audioSchema.methods.incrementComments = async function incrementComments() {
+  const updated = await this.constructor.findOneAndUpdate(
+    { _id: this._id, isDeleted: false },
+    { $inc: { commentCount: 1 } },
+    { new: true }
+  );
+  if (updated) this.commentCount = updated.commentCount;
+  return updated || this;
+};
+
+audioSchema.methods.decrementComments = async function decrementComments() {
+  const updated = await this.constructor.findOneAndUpdate(
+    { _id: this._id, isDeleted: false, commentCount: { $gt: 0 } },
+    { $inc: { commentCount: -1 } },
+    { new: true }
+  );
+  if (updated) this.commentCount = updated.commentCount;
   return updated || this;
 };
 

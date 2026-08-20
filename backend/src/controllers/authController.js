@@ -13,7 +13,6 @@ export async function register(req, res, next) {
       });
     }
 
-    // Check if user exists
     const existingUser = await User.findOne({
       $or: [{ email: email.toLowerCase() }, { username }]
     });
@@ -25,10 +24,8 @@ export async function register(req, res, next) {
       return res.status(409).json({ error: { code: 'CONFLICT', message: 'Username already taken' } });
     }
 
-    // Hash password using the static method
     const hashedPassword = await User.hashPassword(password);
 
-    // Create user
     const user = new User({
       username,
       email: email.toLowerCase(),
@@ -56,8 +53,6 @@ export async function login(req, res, next) {
   try {
     const { username, email, password } = req.body;
 
-    console.log('Login attempt:', { username, email });
-
     const identifier = username || email;
     if (!identifier || !password) {
       return res.status(400).json({
@@ -65,7 +60,6 @@ export async function login(req, res, next) {
       });
     }
 
-    // Find user
     const user = await User.findOne({
       $or: [
         { username: identifier },
@@ -74,20 +68,15 @@ export async function login(req, res, next) {
     }).select('+passwordHash +refreshTokenVersion');
 
     if (!user) {
-      console.log('User not found:', identifier);
       return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Invalid credentials' } });
     }
-
-    console.log('User found:', user.username);
 
     if (!user.isActive) {
       return res.status(403).json({ error: { code: 'ACCOUNT_DEACTIVATED', message: 'Account has been deactivated' } });
     }
 
-    // Compare password
     const isValidPassword = await user.comparePassword(password);
     if (!isValidPassword) {
-      console.log('Invalid password for:', user.username);
       return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Invalid credentials' } });
     }
 
@@ -95,8 +84,6 @@ export async function login(req, res, next) {
     await user.save({ validateBeforeSave: false });
 
     const { accessToken, refreshToken } = user.generateTokens();
-
-    console.log('Login successful:', user.username);
 
     return res.status(200).json({
       data: { user: user.toJSON(), accessToken, refreshToken },
@@ -153,6 +140,14 @@ export async function refreshToken(req, res, next) {
 
 export async function logout(req, res, next) {
   try {
+    // The browser clearing localStorage is not enough to invalidate a copied or
+    // still-open refresh token. Rotate the account token version so every
+    // refresh token issued before logout becomes unusable immediately.
+    await User.updateOne(
+      { _id: req.userId, isActive: true },
+      { $inc: { refreshTokenVersion: 1 } }
+    );
+
     return res.status(200).json({
       data: { message: 'Logged out successfully' },
       timestamp: new Date().toISOString()

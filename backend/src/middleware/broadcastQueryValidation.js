@@ -1,4 +1,8 @@
 import mongoose from 'mongoose';
+import {
+  boundedSearchText,
+  escapeRegexLiteral,
+} from '../utils/queryText.js';
 
 const BROADCAST_STATUSES = new Set([
   'draft',
@@ -13,8 +17,7 @@ const BROADCAST_STATUSES = new Set([
 
 const BROADCAST_TYPES = new Set(['live', 'recorded', 'recurring', 'special']);
 
-export const escapeRegexLiteral = (value = '') =>
-  String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+export { escapeRegexLiteral };
 
 const badRequest = (res, code, message) =>
   res.status(400).json({ error: { code, message } });
@@ -59,15 +62,16 @@ export function validateBroadcastListQuery(req, res, next) {
   }
 
   if (req.query.search !== undefined) {
-    const search = String(req.query.search).trim();
-    if (search.length > 120) {
+    try {
+      const search = boundedSearchText(req.query.search, { maxLength: 120 });
+      req.query.search = escapeRegexLiteral(search);
+    } catch (error) {
       return badRequest(
         res,
-        'SEARCH_TOO_LONG',
-        'Search text cannot exceed 120 characters'
+        error.code || 'SEARCH_TOO_LONG',
+        error.message || 'Invalid search text'
       );
     }
-    req.query.search = escapeRegexLiteral(search);
   }
 
   return next();

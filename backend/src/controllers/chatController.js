@@ -1,69 +1,121 @@
+import mongoose from 'mongoose';
 import ChatMessage from '../models/ChatMessage.js';
 import Broadcast from '../models/Broadcast.js';
 import User from '../models/User.js';
 
 const ALLOWED_CHAT_REACTIONS = new Set(['👍', '❤️', '🔥', '👏', '😂', '🎉']);
+const OPEN_CHAT_STATUSES = new Set(['live', 'scheduled']);
+const MAX_CHAT_PAGE_SIZE = 100;
+
+const chatError = (status, code, message) => {
+  const error = new Error(message);
+  error.status = status;
+  error.code = code;
+  return error;
+};
+
+const requireValidId = (value, label = 'broadcast') => {
+  if (!mongoose.isValidObjectId(value)) {
+    throw chatError(400, `INVALID_${label.toUpperCase()}_ID`, `Invalid ${label} ID`);
+  }
+};
+
+const requireBroadcastAccess = async (broadcastId, userId) => {
+  requireValidId(broadcastId, 'broadcast');
+
+  const broadcast = await Broadcast.findOne({
+    _id: broadcastId,
+    isDeleted: false,
+  }).select('_id creator isPublic status');
+
+  if (!broadcast) {
+    throw chatError(404, 'NOT_FOUND', 'Broadcast not found');
+  }
+
+  const isOwner = String(broadcast.creator) === String(userId);
+  if (!broadcast.isPublic && !isOwner) {
+    // Socket.IO already enforced this rule, but the HTTP chat endpoints did not.
+    // Keep private broadcast chat private even when somebody knows its ID.
+    throw chatError(403, 'BROADCAST_PRIVATE', 'This broadcast is private');
+  }
+
+  return { broadcast, isOwner };
+};
+
+const requireOpenChat = (broadcast) => {
+  if (!OPEN_CHAT_STATUSES.has(broadcast.status)) {
+    throw chatError(409, 'INVALID_STATE', 'Chat is not available for this broadcast');
+  }
+};
+
+const loadMessageWithAccess = async (messageId, userId) => {
+  requireValidId(messageId, 'message');
+
+  const message = await ChatMessage.findOne({
+    _id: messageId,
+    isDeleted: false,
+  });
+  if (!message) throw chatError(404, 'NOT_FOUND', 'Message not found');
+
+  const access = await requireBroadcastAccess(message.broadcastId, userId);
+  return { message, ...access };
+};
 
 // Send message
 export async function sendMessage(req, res, next) {
   try {
     const { broadcastId } = req.params;
-    const { content } = req.body;
+    const content = String(req.body?.content || '').trim();
     const userId = req.userId;
 
-    if (!content || content.trim().length === 0) {
+    if (!content) {
       return res.status(400).json({
-        error: { code: 'VALIDATION_ERROR', message: 'Message content is required' }
+        error: { code: 'VALIDATION_ERROR', message: 'Message content is required' },
       });
     }
 
-    const broadcast = await Broadcast.findById(broadcastId);
-    if (!broadcast) {
-      return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Broadcast not found' }
-      });
-    }
+    const { broadcast } = await requireBroadcastAccess(broadcastId, userId);
+    requireOpenChat(broadcast);
 
-    if (broadcast.status !== 'live' && broadcast.status !== 'scheduled') {
-      return res.status(400).json({
-        error: { code: 'INVALID_STATE', message: 'Chat is not available for this broadcast' }
-      });
-    }
-
-    const user = await User.findById(userId);
+    const user = await User.findOne({ _id: userId, isActive: true }).select(
+      '_id username displayName avatar'
+    );
     if (!user) {
       return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'User not found' }
+        error: { code: 'NOT_FOUND', message: 'User not found' },
       });
     }
 
     const recentMessages = await ChatMessage.countDocuments({
       userId,
       broadcastId,
+      isDeleted: false,
       createdAt: { $gte: new Date(Date.now() - 5001) },
     });
 
     if (recentMessages >= 3) {
       return res.status(429).json({
-        error: { code: 'RATE_LIMIT_EXCEEDED', message: 'Too many messages. Please slow down.' }
+        error: {
+          code: 'RATE_LIMIT_EXCEEDED',
+          message: 'Too many messages. Please slow down.',
+        },
       });
     }
 
-    const message = new ChatMessage({
+    const message = await ChatMessage.create({
       broadcastId,
       userId,
       username: user.username,
       displayName: user.displayName || user.username,
       avatar: user.avatar,
-      content: content.trim(),
+      content,
       type: 'message',
     });
 
-    await message.save();
     await message.populate('userId', 'username displayName avatar');
 
-    if (req.app.get('io')) {
-      const io = req.app.get('io');
+    const io = req.app.get('io');
+    if (io) {
       io.to(`broadcast:${broadcastId}`).emit('chat:message', {
         ...message.toJSON(),
         sentAt: new Date().toISOString(),
@@ -72,7 +124,7 @@ export async function sendMessage(req, res, next) {
 
     return res.status(201).json({
       data: message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     next(error);
@@ -83,32 +135,44 @@ export async function sendMessage(req, res, next) {
 export async function getMessages(req, res, next) {
   try {
     const { broadcastId } = req.params;
-    const { page = 1, limit = 50, before } = req.query;
+    await requireBroadcastAccess(broadcastId, req.userId);
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const page = Math.max(1, Number.parseInt(req.query.page || '1', 10) || 1);
+    const limit = Math.min(
+      MAX_CHAT_PAGE_SIZE,
+      Math.max(1, Number.parseInt(req.query.limit || '50', 10) || 50)
+    );
+    const skip = (page - 1) * limit;
     const filter = { broadcastId, isDeleted: false };
 
-    if (before) {
-      filter.createdAt = { $lt: new Date(before) };
+    if (req.query.before) {
+      const before = new Date(req.query.before);
+      if (Number.isNaN(before.getTime())) {
+        return res.status(400).json({
+          error: { code: 'INVALID_DATE', message: 'before must be a valid date' },
+        });
+      }
+      filter.createdAt = { $lt: before };
     }
 
-    const messages = await ChatMessage.find(filter)
-      .populate('userId', 'username displayName avatar')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit));
-
-    const total = await ChatMessage.countDocuments(filter);
+    const [messages, total] = await Promise.all([
+      ChatMessage.find(filter)
+        .populate('userId', 'username displayName avatar')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      ChatMessage.countDocuments(filter),
+    ]);
 
     return res.status(200).json({
       data: messages.reverse(),
       pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
+        page,
+        limit,
         total,
-        totalPages: Math.ceil(total / parseInt(limit)),
+        totalPages: Math.ceil(total / limit),
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     next(error);
@@ -120,26 +184,14 @@ export async function deleteMessage(req, res, next) {
   try {
     const { messageId } = req.params;
     const userId = req.userId;
-
-    const message = await ChatMessage.findOne({
-      _id: messageId,
-      isDeleted: false,
-    });
-    if (!message) {
-      return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Message not found' }
-      });
-    }
-
-    const broadcast = await Broadcast.findById(message.broadcastId).select('creator');
-    const isOwner = broadcast && String(broadcast.creator) === String(userId);
+    const { message, isOwner } = await loadMessageWithAccess(messageId, userId);
 
     if (!isOwner) {
       return res.status(403).json({
         error: {
           code: 'FORBIDDEN',
           message: 'Only the broadcast creator can remove live-chat messages',
-        }
+        },
       });
     }
 
@@ -150,8 +202,8 @@ export async function deleteMessage(req, res, next) {
     message.pinnedAt = null;
     await message.save();
 
-    if (req.app.get('io')) {
-      const io = req.app.get('io');
+    const io = req.app.get('io');
+    if (io) {
       io.to(`broadcast:${message.broadcastId}`).emit('chat:messageDeleted', {
         messageId,
         deletedBy: userId,
@@ -160,7 +212,7 @@ export async function deleteMessage(req, res, next) {
 
     return res.status(200).json({
       data: { message: 'Message removed from live chat' },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     next(error);
@@ -176,48 +228,22 @@ export async function addReaction(req, res, next) {
 
     if (!ALLOWED_CHAT_REACTIONS.has(emoji)) {
       return res.status(400).json({
-        error: {
-          code: 'VALIDATION_ERROR',
-          message: 'Unsupported chat reaction',
-        },
+        error: { code: 'VALIDATION_ERROR', message: 'Unsupported chat reaction' },
       });
     }
 
-    const message = await ChatMessage.findOne({
-      _id: messageId,
-      isDeleted: false,
-    });
-    if (!message) {
-      return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Message not found' }
-      });
-    }
-
-    const broadcast = await Broadcast.findById(message.broadcastId).select('status');
-    if (!broadcast) {
-      return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Broadcast not found' }
-      });
-    }
-
-    if (!['live', 'scheduled'].includes(broadcast.status)) {
-      return res.status(400).json({
-        error: { code: 'INVALID_STATE', message: 'Chat reactions are closed for this broadcast' }
-      });
-    }
+    const { message, broadcast } = await loadMessageWithAccess(messageId, userId);
+    requireOpenChat(broadcast);
 
     const existingReaction = message.reactions.find(
       (reaction) =>
-        reaction.emoji === emoji &&
-        String(reaction.userId) === String(userId)
+        reaction.emoji === emoji && String(reaction.userId) === String(userId)
     );
 
     if (existingReaction) {
       message.reactions = message.reactions.filter(
-        (reaction) => !(
-          reaction.emoji === emoji &&
-          String(reaction.userId) === String(userId)
-        )
+        (reaction) =>
+          !(reaction.emoji === emoji && String(reaction.userId) === String(userId))
       );
     } else {
       message.reactions.push({ emoji, userId });
@@ -225,8 +251,8 @@ export async function addReaction(req, res, next) {
 
     await message.save();
 
-    if (req.app.get('io')) {
-      const io = req.app.get('io');
+    const io = req.app.get('io');
+    if (io) {
       io.to(`broadcast:${message.broadcastId}`).emit('chat:reaction', {
         messageId,
         reactions: message.reactions,
@@ -242,7 +268,7 @@ export async function addReaction(req, res, next) {
         reactions: message.reactions,
         reactionCount: message.reactions.length,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     next(error);
@@ -254,31 +280,25 @@ export async function pinMessage(req, res, next) {
   try {
     const { messageId } = req.params;
     const userId = req.userId;
+    const { message, broadcast, isOwner } = await loadMessageWithAccess(
+      messageId,
+      userId
+    );
 
-    const message = await ChatMessage.findOne({
-      _id: messageId,
-      isDeleted: false,
-    });
-    if (!message) {
-      return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Message not found' }
-      });
-    }
-
-    const broadcast = await Broadcast.findById(message.broadcastId);
-    if (!broadcast || broadcast.creator.toString() !== userId.toString()) {
+    if (!isOwner) {
       return res.status(403).json({
-        error: { code: 'FORBIDDEN', message: 'Only broadcast owner can pin messages' }
+        error: { code: 'FORBIDDEN', message: 'Only broadcast owner can pin messages' },
       });
     }
+    requireOpenChat(broadcast);
 
     message.isPinned = !message.isPinned;
     message.pinnedBy = message.isPinned ? userId : null;
     message.pinnedAt = message.isPinned ? new Date() : null;
     await message.save();
 
-    if (req.app.get('io')) {
-      const io = req.app.get('io');
+    const io = req.app.get('io');
+    if (io) {
       io.to(`broadcast:${message.broadcastId}`).emit('chat:messagePinned', {
         messageId,
         isPinned: message.isPinned,
@@ -287,11 +307,8 @@ export async function pinMessage(req, res, next) {
     }
 
     return res.status(200).json({
-      data: {
-        message,
-        isPinned: message.isPinned,
-      },
-      timestamp: new Date().toISOString()
+      data: { message, isPinned: message.isPinned },
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     next(error);
@@ -302,6 +319,7 @@ export async function pinMessage(req, res, next) {
 export async function getPinnedMessages(req, res, next) {
   try {
     const { broadcastId } = req.params;
+    await requireBroadcastAccess(broadcastId, req.userId);
 
     const messages = await ChatMessage.find({
       broadcastId,
@@ -309,11 +327,12 @@ export async function getPinnedMessages(req, res, next) {
       isDeleted: false,
     })
       .populate('userId', 'username displayName avatar')
-      .sort({ pinnedAt: -1 });
+      .sort({ pinnedAt: -1 })
+      .limit(100);
 
     return res.status(200).json({
       data: messages,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     next(error);
@@ -324,22 +343,17 @@ export async function getPinnedMessages(req, res, next) {
 export async function getChatStats(req, res, next) {
   try {
     const { broadcastId } = req.params;
+    await requireBroadcastAccess(broadcastId, req.userId);
 
-    const totalMessages = await ChatMessage.countDocuments({
-      broadcastId,
-      isDeleted: false,
-    });
-
-    const uniqueUsers = await ChatMessage.distinct('userId', {
-      broadcastId,
-      isDeleted: false,
-    });
-
-    const recentMessages = await ChatMessage.find({
-      broadcastId,
-      isDeleted: false,
-      createdAt: { $gte: new Date(Date.now() - 3600000) },
-    }).countDocuments();
+    const [totalMessages, uniqueUsers, recentMessages] = await Promise.all([
+      ChatMessage.countDocuments({ broadcastId, isDeleted: false }),
+      ChatMessage.distinct('userId', { broadcastId, isDeleted: false }),
+      ChatMessage.countDocuments({
+        broadcastId,
+        isDeleted: false,
+        createdAt: { $gte: new Date(Date.now() - 3600000) },
+      }),
+    ]);
 
     return res.status(200).json({
       data: {
@@ -348,7 +362,7 @@ export async function getChatStats(req, res, next) {
         recentMessages,
         activeNow: 0,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     next(error);
