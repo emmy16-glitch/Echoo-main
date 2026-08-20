@@ -27,7 +27,7 @@ const ListenerPlaylist = lazy(() => import('./Components/ListenerPlaylist/Listen
 const ListenerHistory = lazy(() => import('./Components/ListenerHistory/ListenerHistoryConnected'));
 const ListenerDownloads = lazy(() => import('./Components/ListenerDownloads/ListenerDownloadsConnected'));
 const ListenerCreatorProfile = lazy(() => import('./Components/ListenerCreatorProfile/ListenerCreatorProfile'));
-const ListenerNotifications = lazy(() => import('./Components/ListenerNotifications/ListenerNotifications'));
+const ListenerNotifications = lazy(() => import('./Components/ListenerNotifications/ListenerNotificationsConnected'));
 const ListenerSettings = lazy(() => import('./Components/ListenerSettings/ListenerSettings'));
 const ListenerAudioDetail = lazy(() => import('./Components/ListenerAudioDetail/ListenerAudioDetail'));
 const ListenerRealLiveRoom = lazy(() => import('./Components/ListenerLiveExperience/ListenerRealLiveRoom'));
