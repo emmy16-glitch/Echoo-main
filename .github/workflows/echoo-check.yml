@@ -61,6 +61,7 @@ jobs:
           node --check src/config/jwt.js
           node --check src/routes/index.js
           node --check src/routes/authRoutes.js
+          node --check src/routes/userRoutes.js
           node --check src/routes/settingsRoutes.js
           node --check src/routes/searchRoutes.js
           node --check src/routes/broadcastRoutes.js
@@ -69,6 +70,7 @@ jobs:
           node --check src/controllers/authController.js
           node --check src/controllers/settingsController.js
           node --check src/controllers/studioController.js
+          node --check src/controllers/audioLikeController.js
           node --check src/controllers/audioStreamController.js
           node --check src/controllers/broadcastController.js
           node --check src/controllers/broadcastLifecycleController.js
