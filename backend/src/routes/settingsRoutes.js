@@ -1,5 +1,9 @@
 import express from 'express';
-import { authenticate } from '../middleware/auth.js';
+import {
+  authenticate,
+  authenticateIncludingInactive,
+} from '../middleware/auth.js';
+import { sensitiveLimiter } from '../middleware/rateLimiter.js';
 import {
   getSettings,
   updateProfile,
@@ -14,34 +18,26 @@ import {
 
 const router = express.Router();
 
-// All settings routes require authentication
+// Reactivation must be reachable after deactivation. The special middleware
+// verifies the access token but intentionally allows the identified account to
+// be inactive; every normal settings route below still requires an active user.
+router.post(
+  '/reactivate',
+  sensitiveLimiter,
+  authenticateIncludingInactive,
+  reactivateAccount
+);
+
 router.use(authenticate);
 
-// Get all settings
 router.get('/', getSettings);
-
-// Update profile
 router.patch('/profile', updateProfile);
-
-// Update preferences
 router.patch('/preferences', updatePreferences);
-
-// Update password
-router.patch('/password', updatePassword);
-
-// Update email
-router.patch('/email', updateEmail);
-
-// Update notification settings
 router.patch('/notifications', updateNotificationSettings);
 
-// Deactivate account
-router.post('/deactivate', deactivateAccount);
-
-// Reactivate account
-router.post('/reactivate', reactivateAccount);
-
-// Delete account
-router.delete('/account', deleteAccount);
+router.patch('/password', sensitiveLimiter, updatePassword);
+router.patch('/email', sensitiveLimiter, updateEmail);
+router.post('/deactivate', sensitiveLimiter, deactivateAccount);
+router.delete('/account', sensitiveLimiter, deleteAccount);
 
 export default router;

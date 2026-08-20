@@ -1,104 +1,125 @@
 # Echoo end-to-end smoke test
 
-Run this checklist against the `integration/echoo-core-cleanup` branch before merging it to `main`.
+Run this checklist against the exact candidate commit before production deployment or after substantial live/audio/auth changes.
 
 ## Services
 
-Expected local services:
+Required for the current direct-listening path:
 
 - MongoDB
-- Redis
-- Echoo backend on port `5001`
-- LiveKit on port `7880`
-- Echoo frontend on port `5174`
+- Echoo backend on port `5001` (local default)
+- LiveKit
+- Echoo frontend on port `5174` (local default)
 
-The current MVP does not require OvenMediaEngine or LiveKit Egress for direct listening.
+OvenMediaEngine and LiveKit Egress are not required for direct LiveKit listening.
 
-## 1. Authentication and roles
+## 1. Health
 
-1. Register or log in as a creator.
-2. Complete creator onboarding.
-3. Confirm Creator Studio opens.
-4. Register/log in as a listener in another browser profile/device.
-5. Confirm Listener Home opens.
-
-Expected: no fake creator/listener data is inserted into empty UI states.
-
-## 2. Station single-authority check
-
-1. Open Creator Studio → Stations.
-2. Create one station.
-3. Open Creator Studio → Live.
-4. Open Creator Studio → Schedule.
+1. Open `/api/health`.
+2. Open `/api/health/ready` with MongoDB running and then with it unavailable in a disposable environment.
+3. Open `/api/health/livekit`.
 
 Expected:
 
-- Stations is the only place with station creation controls.
-- Live only selects an existing station.
-- Schedule only selects an existing station.
-- A duplicate station name returns a clear conflict instead of creating another record.
+- liveness answers while the Node process is alive
+- readiness is 200 only when MongoDB is connected
+- LiveKit health reports its own dependency state independently
 
-## 3. Go Live Now
+## 2. Authentication and account state
+
+1. Register/log in as a creator.
+2. Register/log in as a listener in another browser profile/device.
+3. Exercise invalid password/login attempts and verify throttling eventually returns 429.
+4. Call forgot-password and confirm the route exists and returns the non-enumerating response.
+5. Deactivate a disposable account, then use the dedicated Reactivate flow while its signed session is still valid.
+6. Log out and verify an older copied refresh token can no longer mint a session.
+
+Expected: no fake product data is inserted into empty UI states and inactive accounts cannot use normal authenticated product APIs.
+
+## 3. Station single authority
+
+1. Open Creator Studio → Stations.
+2. Create one station.
+3. Open Creator Studio → Broadcast.
+4. Test both Go Live Now and Schedule Later setup.
+
+Expected:
+
+- Stations is the only station-creation UI.
+- Broadcast selects an existing station.
+- Scheduling creates a Broadcast record, not a second Station schedule.
+
+## 4. Broadcast preflight and mixer
 
 Creator:
 
-1. Open Live.
-2. Select the station.
-3. Enter title/description.
-4. Test microphone.
-5. Save setup.
-6. Confirm the Broadcast is saved as `scheduled`, not `live`.
-7. Press Go Live.
+1. Open Creator Studio → Broadcast.
+2. Select the station and enter broadcast details.
+3. Connect Host Mic.
+4. Test Studio Clean and Voice Cleanup using appropriate input hardware.
+5. Connect Guest Mic if available.
+6. Share Music/System Audio if available.
+7. Verify channel meters, Mute and Listen Only.
+8. Verify Headphones/Monitor changes only monitoring, not Audience Output.
+9. Verify Audience Output moves when the post-master mix is active.
+
+Expected:
+
+- Listen Only never removes other channels from the audience program
+- the audience program is one post-master mix
+- no raw microphone is published as a fallback
+
+## 5. Go Live
+
+1. Start the Broadcast.
+2. Inspect LiveKit using its dashboard/CLI if available.
 
 Expected lifecycle:
 
 ```text
-scheduled → starting → creator connects to LiveKit → live
+scheduled/draft → starting → post-master track published → live
 ```
 
-Expected UI:
+Expected LiveKit creator publication:
 
-- creator microphone test ends before the real LiveKit microphone starts
-- Creator Live switches to LIVE state
-- reconnect microphone is available
-- listener/peak counts are real values
+- track name: `echoo-studio-mix`
+- audio program is stereo where supported
+- DTX is disabled for the program profile
+- backend does not confirm LIVE until this publication exists
 
-## 4. Listener direct audio
+## 6. Listener direct audio
 
 Listener in a second browser/device:
 
-1. Open Live.
-2. Find the creator's real live Broadcast.
-3. Open it.
-4. If the browser blocks autoplay, press `Tap to hear audio`.
+1. Open the real public live broadcast.
+2. If autoplay is blocked, press `Tap to hear audio`.
+3. Change output device where the browser supports it.
+4. Interrupt/recover network connectivity and test Reconnect.
 
 Expected:
 
-- real creator microphone is audible
-- listener cannot publish microphone/media
-- no Egress/OME is required
-- listener count increases after presence synchronization
+- real post-master creator program is audible
+- listener cannot publish microphone/media/data
+- unrelated remote audio tracks are not attached as the Echoo program
+- reconnect does not require OME/Egress
 
-## 5. Live Chat realtime
+## 7. Presence and Live Chat
 
-1. Send a message from the listener.
-2. Open another listener session and join the same broadcast.
-3. Send another message.
-4. React to a message.
-5. From the creator account, pin/unpin a message.
-6. Remove an owned/moderated message.
+1. Join from multiple authenticated listener sessions.
+2. Send messages and reactions.
+3. Pin/unpin/remove messages with the correct ownership/moderation roles.
+4. Leave/rejoin sessions.
 
 Expected:
 
-- messages persist through REST/MongoDB
-- Socket.IO delivers chat/status/presence changes without 5-second fake polling
-- REST refresh remains a recovery fallback
+- messages persist in MongoDB
+- Socket.IO delivers realtime hints/events
+- REST refresh recovers state if realtime delivery is unavailable
+- presence/listener counts converge to LiveKit participant state without request storms
 
-## 6. End broadcast
+## 8. End broadcast
 
-Creator:
-
-1. Press End Broadcast.
+Creator: press End Broadcast.
 
 Expected:
 
@@ -106,121 +127,104 @@ Expected:
 live → ending → completed
 ```
 
-Expected:
+Also verify:
 
-- LiveKit publisher disconnects
-- station becomes offline
+- LiveKit room/publisher is cleaned up
+- Station returns offline
 - live listener count becomes zero
-- listener room displays ended state
-- broadcast disappears from Live discovery
-- completed peak listener snapshot is retained for analytics
+- listener UI shows ended state
+- peak listener snapshot remains available for analytics
 
-## 7. Schedule Later
+## 9. Schedule Later
 
-Creator:
+1. Schedule a future Broadcast from the Broadcast workspace.
+2. Return to/enter the same Broadcast Studio.
+3. Run preflight and start it.
 
-1. Open Schedule.
-2. Select an existing station.
-3. Enter title/date/start time/duration.
-4. Schedule.
-5. Confirm status is `scheduled`.
-6. Press Enter Studio.
-7. Confirm the same Live workspace opens with that Broadcast loaded.
-8. Run microphone check.
-9. Start the Broadcast.
+Expected: scheduled and immediate flows converge on the same mixer/live lifecycle.
 
-Expected:
-
-- Schedule does not create a second station
-- scheduled and immediate flows converge on one Live Studio
-- scheduled Broadcast becomes live only through the explicit lifecycle
-
-## 8. Following
-
-Listener:
-
-1. Follow a creator.
-2. Follow a station.
-3. Open Library → Following.
-4. Confirm both relationships are present.
-5. Unfollow each.
-
-Expected:
-
-- creator and station follow relationships are separate
-- following does not gate public listening
-- creator receives a real new-follower notification when enabled
-
-## 9. Notifications
-
-1. Open Notifications.
-2. Mark one read.
-3. Mark all read.
-4. Delete one.
-5. Follow a creator from another account.
-6. Start a public broadcast from a followed creator/station.
-
-Expected:
-
-- notification records are real backend data
-- no sample notifications appear
-- links open the real Echoo destination
-
-## 10. Library and playlists
-
-1. Save a real public audio track.
-2. Open Library.
-3. Confirm it appears under Saved Audio.
-4. Create a playlist.
-5. Add the saved track to the playlist.
-6. Play it from the playlist.
-7. Remove from Saved Audio.
-8. Delete the playlist.
-
-Expected: saved audio/playlists are backend data, not localStorage mock collections.
-
-## 11. Search
-
-Search for a real creator/station/audio title.
-
-Expected:
-
-- real matching audio
-- real creators
-- real stations
-- real public playlists
-- honest empty results for nonexistent terms
-- no `Faith Talk Live`, sample broadcast or mock creator substitution
-
-## 12. Upload/content
+## 10. Protected prerecorded audio
 
 Creator:
 
 1. Upload a supported audio file.
-2. Confirm `/uploads/audio/...` is reachable through the backend/frontend proxy.
-3. Confirm unsupported non-audio files are rejected.
-4. Confirm private content is not returned by public discovery.
+2. Upload a file with a renamed/invalid signature and confirm rejection.
+3. Upload a private track.
+4. Quick-play the private track from Creator Studio Home and Audio.
+5. Request a protected stream URL.
+6. Send `Range: bytes=10-19` to the stream URL.
+7. Try direct `/uploads/audio/<stored-name>` access in a controlled test where the stored name is known.
+8. Make a previously public track private and retry an old public signed stream URL.
 
-## 13. Settings
+Expected:
 
-Listener and creator:
+- protected stream returns `206 Partial Content` for valid Range requests
+- seeking/pause/resume work
+- direct `/uploads/audio/...` is blocked/404
+- Creator owner-scoped playback works for private recordings
+- an old public stream grant stops working after the track becomes private
+- physical filename/fileKey is not exposed in ordinary Audio JSON
 
-- update display name/bio
-- update notification settings
-- change email with current password
-- change password
+## 11. Library, playback and queues
 
-Expected: account changes are persisted by backend settings endpoints.
+1. Save a public track.
+2. Play, pause and resume it.
+3. Verify Continue Listening and History.
+4. Create/reorder a playlist.
+5. Exercise next/previous queue operations.
+6. Make a queued/saved track private from another creator account and reload listener surfaces.
 
-## 14. Empty account test
+Expected:
 
-With an account that has no data:
+- unauthorized private/deleted audio disappears from playback surfaces
+- listener progress updates do not modify canonical Audio duration/metadata
+- playlist reorder requires an exact permutation, not duplicate IDs
 
-Expected states include:
+## 12. Downloads
 
-- No one is live right now.
-- No public audio has been published yet.
-- You're not following anyone yet.
-- No saved audio yet.
+1. Download a public track for offline use.
+2. Remove download metadata and download it again.
+3. Test browser storage eviction/recovery if practical.
 
-Expected: no bundled mock audio, fake listeners, fake creators, fake analytics or fake broadcasts.
+Expected:
+
+- deleted download records can be revived/recreated correctly
+- expiring signed stream tokens are not treated as permanent offline identifiers
+
+## 13. Search
+
+Search for real creator/station/audio titles and regex-like input such as `a+b`.
+
+Expected:
+
+- real public data only
+- literal matching where intended
+- bounded input
+- honest empty results
+- request floods are throttled
+
+## 14. Settings
+
+Test profile/preferences plus password/email changes, deactivation and reactivation on disposable accounts.
+
+Expected:
+
+- sensitive operations require the expected credentials
+- sensitive operations are throttled
+- password/logout token-version changes invalidate older refresh tokens
+
+## 15. Empty account
+
+With an account that has no content/relationships, confirm honest empty states and zero real metrics. No bundled mock audio, fake listeners, creators, analytics or broadcasts should appear.
+
+## 16. Deployment-only validation
+
+Repository CI cannot prove physical audio/network capacity. Before claiming a listener target is supported, run against the deployed LiveKit/API environment:
+
+- multi-browser/device audio checks
+- long-duration broadcast soak test
+- network-loss/recovery test
+- API presence burst probe
+- LiveKit subscriber load test at the intended concurrency
+
+Record the exact deployment, browser/device matrix and test result instead of inferring capacity from `maxParticipants` or CI alone.

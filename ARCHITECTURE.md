@@ -5,148 +5,102 @@ This repository is the source of truth for the Echoo product.
 ## Repository
 
 - `frontend/` — React + Vite web client
-- `backend/` — Express + MongoDB API
-- Live audio — LiveKit
-- Realtime app events — Socket.IO
+- `backend/` — Express + MongoDB API/control plane
+- Live media — LiveKit
+- Realtime application events — Socket.IO
+- Current prerecorded-media storage — local backend disk behind protected streaming endpoints
 
-## Single-authority rules
+## Core authority rules
 
-Echoo intentionally avoids multiple competing implementations for the same product state.
+Echoo avoids multiple competing implementations for the same product state.
 
 ### Stations
 
-There is one creator UI for creating and managing stations: **Creator Studio → Stations**.
+Creator Studio → **Stations** is the only station creation/management UI.
 
-The canonical backend resource is:
+Canonical backend resource:
 
 - `POST /api/stations`
 - `GET /api/stations/mine/all`
 - `PATCH /api/stations/:stationId`
 - `DELETE /api/stations/:stationId`
 
-The Live and Schedule workspaces may select existing stations but must not create another station implementation.
+`Station.isLive` and `Station.listenerCount` are derived runtime fields controlled by the Broadcast/LiveKit lifecycle. A creator cannot manually toggle them through the Station API.
 
-`Station.isLive` and `Station.listenerCount` are derived runtime fields controlled by the Broadcast/LiveKit lifecycle. Creators cannot manually toggle them through the Station API.
+Station does not own a second schedule. Future timing belongs to Broadcast records.
 
-Station does not own a second schedule. Future broadcast timing belongs to Broadcast records.
+### Broadcast scheduling and lifecycle
 
-### Broadcast scheduling
+Broadcast is the single scheduling/lifecycle model.
 
-There is one scheduling model: **Broadcast**.
-
-Canonical fields:
-
-- `startTime`
-- `endTime`
-- `status`
-
-There is no separate Schedule document/API and no separate Station schedule that competes with Broadcast state.
-
-### Broadcast lifecycle
-
-Canonical state flow:
+Canonical lifecycle:
 
 ```text
 draft/scheduled/failed
         ↓
      starting
         ↓
-LiveKit creator connected
+post-master Echoo program track published to LiveKit
         ↓
-      live
+       live
         ↓
-     ending
+      ending
         ↓
     completed
 ```
 
-Other terminal state:
+Other terminal state: `cancelled`.
 
-```text
-cancelled
-```
-
-A generic Broadcast `PATCH` must not change lifecycle status.
-
-Lifecycle actions use explicit endpoints:
+Lifecycle mutations use explicit endpoints:
 
 - `POST /api/broadcasts/:broadcastId/start`
 - `POST /api/broadcasts/:broadcastId/confirm-live`
 - `POST /api/broadcasts/:broadcastId/end`
 - `POST /api/broadcasts/:broadcastId/cancel`
 
-### Creator live flow
+A generic Broadcast metadata update must not change lifecycle status.
 
-#### Go Live Now
+### Creator Broadcast Studio
 
-```text
-Creator Studio → Live
-        ↓
-Choose existing station
-        ↓
-Broadcast details
-        ↓
-Local microphone check
-        ↓
-Save real Broadcast
-        ↓
-/start
-        ↓
-Creator connects/publishes microphone to LiveKit
-        ↓
-/confirm-live
-        ↓
-LIVE
-```
+Immediate and scheduled broadcasts converge on the same Creator Studio → **Broadcast** workspace.
 
-#### Schedule Later
+The current production media path is:
 
 ```text
-Creator Studio → Schedule
-        ↓
-Choose existing station
-        ↓
-Details + date/time
-        ↓
-Save real scheduled Broadcast
-        ↓
-Enter Studio
-        ↓
-Same Live workspace
-        ↓
-Local microphone check
-        ↓
-/start → LiveKit publish → /confirm-live
-        ↓
-LIVE
+Host microphone ─┐
+Guest microphone ├─> Web Audio mixer ─> master protection/output
+Music/system ────┘                         ↓
+                                   echoo-studio-mix
+                                          ↓
+                           stereo Opus, DTX disabled
+                                          ↓
+                                       LiveKit
+                                          ↓
+                               receive-only listeners
 ```
 
-Both flows converge on the same Creator Live Studio.
+Important invariants:
+
+- The browser mixer owns the audio program.
+- The post-master track is named `echoo-studio-mix`.
+- The backend only confirms LIVE after that program publication is visible in LiveKit.
+- The backend is a control plane; Node/Express does not relay the live audio bytes to every listener.
+- Echoo must never silently fall back from the mixer to a raw microphone publication.
+
+Current quality profile targets a 48 kHz browser pipeline where supported and a 256 kbps maximum Opus bitrate target for the stereo program feed. Actual WebRTC bitrate remains network/browser dependent.
 
 ### Listener live audio
 
-Current MVP media path:
+Public live broadcasts can be joined by authenticated listener participants without requiring a Follow relationship.
 
-```text
-Creator microphone
-        ↓
-      LiveKit
-        ↓
-Listener receive-only participant
-        ↓
-Browser audio
-```
-
-Listeners do not need to follow a creator or station to hear a public live broadcast.
-
-The listener LiveKit token is authenticated and receive-only:
+Listener LiveKit grants are receive-only:
 
 - room join: yes
 - media subscribe/receive: yes
 - media publish: no
 - data publish: no
 
-`subscribe` in LiveKit terminology means receiving a media track. It is not an Echoo subscription product or paywall.
+The listener attaches only to Echoo's named program publication rather than arbitrary remote audio tracks.
 
 ### Presence
 
@@ -158,19 +112,30 @@ Echoo synchronizes:
 - `Broadcast.peakListeners`
 - `Station.listenerCount`
 
-Creator and listener UIs consume these real values.
+The API uses short-lived/coalesced presence reads so listener bursts do not cause a database/refetch storm.
 
 ### Realtime chat/status
 
-Persisted chat remains in MongoDB/REST. Socket.IO is the realtime delivery layer for:
+MongoDB/REST is the persisted source of truth for chat. Socket.IO is the realtime delivery layer for messages, reactions, moderation, broadcast status and presence-change hints. REST refresh is the recovery fallback.
 
-- chat messages
-- reactions
-- pinned/deleted messages
-- broadcast status
-- presence changes
+Current Socket.IO state is process-local. A single backend process is supported today. Horizontal multi-instance deployment requires a shared Socket.IO adapter/state layer (for example Redis) before realtime rooms/events can be treated as cluster-wide.
 
-REST refresh is a fallback, not a second source of truth.
+### Prerecorded audio and private media
+
+Physical audio bytes remain on local backend disk for the current implementation, but `/uploads/audio/...` is deliberately blocked.
+
+Playback uses:
+
+- `POST /api/audio/:id/stream-token` — issue a scoped, expiring playback grant
+- `GET /api/audio/:id/stream` — protected streaming with HTTP Range support
+- `HEAD /api/audio/:id/stream` — metadata/range-compatible probe
+- `GET /api/audio/:id/download` — authenticated explicit download
+
+Every stream request rechecks the current Audio record. A previously issued public URL cannot continue opening a track after it is unpublished or deleted.
+
+The frontend must not persist signed stream tokens as permanent media identifiers.
+
+Future production scale should move the physical bytes to private object storage/CDN while preserving Echoo's authorization layer.
 
 ### Follow relationships
 
@@ -181,55 +146,39 @@ Creator follows and Station follows are separate relationships:
 
 Following never controls access to public live audio.
 
-### Library
+### Library and playback state
 
-- Saved audio lives on the Echoo user account.
-- Playlists are MongoDB Playlist records.
-- Browser `localStorage` is not the authoritative saved-audio or playlist database.
-- Browser Cache Storage may hold actual downloaded media for offline playback, while backend download records hold associated metadata.
+- Saved audio and playlists are backend-authoritative.
+- Browser `localStorage` is not the authoritative library database.
+- Cache Storage may hold downloaded media bytes for offline use.
+- A listener playback-progress report may update that user's progress/history only; it must never rewrite creator-owned canonical Audio metadata.
 
-### Search
+### Search and analytics honesty
 
-Global search reads real public Echoo data only:
+Search reads real public Echoo data only: audio, creators, stations and public playlists.
 
-- audio
-- creators
-- stations
-- public playlists
+Analytics and trend surfaces may show only recorded values. Echoo does not fabricate geography, demographics, follower curves, query counts or trend percentages when those measurements do not exist.
 
-Empty search results remain empty. The frontend must not substitute demo content.
+## Authentication and account state
 
-Echoo does not yet record query-frequency/search-trend time series. Popular/trending endpoints must therefore identify their measured basis and must not invent query counts or trend percentages.
+- Access and refresh JWTs are separate token types and are verified against their configured algorithms.
+- Logout/password changes invalidate older refresh tokens through `refreshTokenVersion`.
+- Normal authenticated routes require an active account.
+- Reactivation is an explicit exception: a valid signed session may identify an inactive account only for the dedicated reactivation operation.
+- Authentication, sensitive account operations, search and large uploads have endpoint-specific request throttles. Current in-memory rate-limit stores are per backend process; multi-instance enforcement requires a shared store.
 
-### Analytics
+## Health semantics
 
-Only recorded values may appear as analytics.
-
-Examples of recorded values include Audio play/like counters, Follow records, Broadcast listener/peak values and Analytics snapshots.
-
-Until Echoo genuinely collects them, the following remain unavailable/empty rather than estimated:
-
-- audience geography
-- age demographics
-- synthetic audience segments
-- listening-pattern heatmaps
-- fabricated follower curves
-- random/fixed change percentages
+- `/api/health` — process liveness
+- `/api/health/ready` — API readiness, currently requiring MongoDB
+- `/api/health/livekit` — explicit LiveKit connectivity/configuration check
 
 ## Optional future media infrastructure
 
-LiveKit Egress and OvenMediaEngine code may remain available for later requirements such as recording, RTMP/SRT export, HLS distribution or large passive-audience delivery.
-
-They are **not required** for the current direct LiveKit listening path and must not block current live audio.
+LiveKit Egress and OvenMediaEngine code may remain for later recording/export/large passive-audience requirements. They are not required for the current direct LiveKit listener path and must not block current broadcasting.
 
 ## Mock-data policy
 
-Production routes and connected product screens must not substitute fake broadcasts, fake listeners, fake followers, fake creators, fake recommendations, bundled sample audio or synthetic analytics when the backend is empty or unavailable.
+Production routes and connected product screens must not substitute fake broadcasts, listeners, followers, creators, recommendations, bundled sample audio or synthetic analytics when the backend is empty or unavailable.
 
-Use honest states such as:
-
-- `No one is live right now.`
-- `No public audio has been published yet.`
-- `You are not following anyone yet.`
-
-Design-only mock code should not be imported by production application routes.
+Use honest empty states instead.

@@ -3,6 +3,7 @@ import Audio from '../models/Audio.js';
 import Analytics from '../models/Analytics.js';
 import Follow from '../models/Follow.js';
 import Broadcast from '../models/Broadcast.js';
+import { buildAudioStreamUrl } from '../services/audioStreamAccess.js';
 
 function formatDuration(seconds) {
   const value = Number(seconds) || 0;
@@ -51,6 +52,9 @@ async function requireCreator(userId, res) {
   return user;
 }
 
+const ownerPlaybackUrl = (track) =>
+  buildAudioStreamUrl(track, { access: 'owner' })?.url || null;
+
 export async function getDashboardOverview(req, res, next) {
   try {
     const user = await requireCreator(req.userId, res);
@@ -68,7 +72,7 @@ export async function getDashboardOverview(req, res, next) {
       Audio.find({ artist: req.userId, isDeleted: false })
         .sort({ createdAt: -1 })
         .limit(5)
-        .select('title createdAt duration playCount likeCount coverArt fileUrl genre isPublic'),
+        .select('title createdAt duration playCount likeCount coverArt genre isPublic artist'),
       Audio.countDocuments({ artist: req.userId, isDeleted: false }),
       Audio.aggregate([
         { $match: { artist: user._id, isDeleted: false } },
@@ -132,7 +136,7 @@ export async function getDashboardOverview(req, res, next) {
           plays: track.playCount || 0,
           likes: track.likeCount || 0,
           coverArt: track.coverArt,
-          fileUrl: track.fileUrl,
+          fileUrl: ownerPlaybackUrl(track),
           genre: track.genre,
           isPublic: track.isPublic,
         })),
@@ -245,18 +249,24 @@ export async function getStudioAnalytics(req, res, next) {
 
 export async function getContentList(req, res, next) {
   try {
-    const page = Math.max(1, Number(req.query.page) || 1);
-    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 20));
+    const user = await requireCreator(req.userId, res);
+    if (!user) return;
+
+    const page = Math.max(1, Number.parseInt(req.query.page || '1', 10) || 1);
+    const limit = Math.min(
+      100,
+      Math.max(1, Number.parseInt(req.query.limit || '20', 10) || 20)
+    );
     const skip = (page - 1) * limit;
 
-    const filter = { artist: req.userId, isDeleted: false };
+    const filter = { artist: user._id, isDeleted: false };
     const [tracks, total] = await Promise.all([
       Audio.find(filter)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .select(
-          'title description createdAt duration playCount likeCount genre isPublic fileUrl coverArt'
+          'title description createdAt duration playCount likeCount genre isPublic coverArt artist'
         ),
       Audio.countDocuments(filter),
     ]);
@@ -272,7 +282,7 @@ export async function getContentList(req, res, next) {
           likes: track.likeCount || 0,
           genre: track.genre,
           isPublic: track.isPublic,
-          fileUrl: track.fileUrl,
+          fileUrl: ownerPlaybackUrl(track),
           coverArt: track.coverArt,
           createdAt: track.createdAt,
         })),
@@ -295,11 +305,13 @@ export async function getAudienceAnalytics(req, res, next) {
     const user = await requireCreator(req.userId, res);
     if (!user) return;
 
-    const [follows, completedBroadcasts, liveBroadcasts] = await Promise.all([
-      Follow.find({ following: req.userId, status: 'accepted' })
-        .populate('follower', 'username displayName avatar bio userType')
+    const followFilter = { following: req.userId, status: 'accepted' };
+    const [follows, totalFollowers, completedBroadcasts, liveBroadcasts] = await Promise.all([
+      Follow.find(followFilter)
+        .populate('follower', 'username displayName avatar bio userType isActive')
         .sort({ createdAt: -1 })
         .limit(100),
+      Follow.countDocuments(followFilter),
       Broadcast.find({
         creator: req.userId,
         status: 'completed',
@@ -312,7 +324,6 @@ export async function getAudienceAnalytics(req, res, next) {
       }).select('peakListeners listenerCount startedAt'),
     ]);
 
-    const totalFollowers = follows.length;
     const peak = Math.max(
       0,
       ...completedBroadcasts.map((item) => Number(item.peakListeners) || 0),
@@ -337,7 +348,7 @@ export async function getAudienceAnalytics(req, res, next) {
         totalFollowers,
         followers: follows
           .map((item) => item.follower)
-          .filter(Boolean),
+          .filter((follower) => follower?.isActive !== false),
         topListeners: {
           total: liveNow,
           average,
