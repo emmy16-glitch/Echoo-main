@@ -1,60 +1,101 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  FaBroadcastTower,
-  FaClock,
+  FaBell,
+  FaFilter,
   FaHeadphones,
+  FaList,
   FaPlay,
-  FaSyncAlt,
+  FaRandom,
+  FaSearch,
+  FaThLarge,
   FaUsers,
 } from 'react-icons/fa';
 
 import batch3Service from '../../services/batch3Service';
-import '../../styles/listener-reference-pages.css';
+import notificationService from '../../services/notificationService';
+import { buildMediaUrl } from '../../services/api';
+import './ListenerLive.css';
 
-const LIVE_SYNC_INTERVAL_MS = 10000;
+const LIVE_SYNC_INTERVAL_MS = 15000;
 
-const formatStart = (value) => {
-  if (!value) return 'Time not set';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return 'Time not set';
-  return date.toLocaleString([], {
-    weekday:'short', day:'numeric', month:'short', hour:'numeric', minute:'2-digit',
-  });
+const CATEGORY_OPTIONS = [
+  'All',
+  'Faith & Spirituality',
+  'Business',
+  'Entertainment',
+  'News & Politics',
+  'Music',
+  'Education',
+];
+
+const SORT_OPTIONS = [
+  { value: 'most', label: 'Most listeners' },
+  { value: 'least', label: 'Least listeners' },
+  { value: 'newest', label: 'Newest first' },
+];
+
+const categoryOf = (broadcast) =>
+  broadcast?.station?.category || broadcast?.category || 'Other';
+
+const artworkOf = (broadcast) =>
+  buildMediaUrl(broadcast?.station?.brandCover || broadcast?.coverArt || null);
+
+const sortBroadcasts = (list, sortBy) => {
+  const copy = [...list];
+  if (sortBy === 'most') {
+    copy.sort((a, b) => (b.listenerCount || 0) - (a.listenerCount || 0));
+  } else if (sortBy === 'least') {
+    copy.sort((a, b) => (a.listenerCount || 0) - (b.listenerCount || 0));
+  } else {
+    copy.sort((a, b) => {
+      const aTime = a.startTime ? new Date(a.startTime).getTime() : 0;
+      const bTime = b.startTime ? new Date(b.startTime).getTime() : 0;
+      return bTime - aTime;
+    });
+  }
+  return copy;
 };
-
-const artworkOf = (item) => item?.station?.brandCover || item?.coverArt || item?.artwork || null;
 
 const ListenerLiveConnected = () => {
   const navigate = useNavigate();
   const [live, setLive] = useState([]);
-  const [scheduled, setScheduled] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+  const [category, setCategory] = useState('All');
+  const [sortBy, setSortBy] = useState('most');
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortOpen, setSortOpen] = useState(false);
 
-  const load = useCallback(async ({ refresh = false, silent = false } = {}) => {
+  const load = useCallback(async ({ silent = false } = {}) => {
     try {
       if (!silent) {
-        refresh ? setRefreshing(true) : setLoading(true);
+        setLoading(true);
         setError('');
       }
-      const data = await batch3Service.getDiscovery();
-      setLive(Array.isArray(data.live) ? data.live : []);
-      setScheduled(Array.isArray(data.scheduled) ? data.scheduled : []);
+      const discovery = await batch3Service.getDiscovery();
+      const liveList = Array.isArray(discovery?.live) ? discovery.live : [];
+      setLive(liveList);
+      const notifications = await notificationService.list({
+        page: 1,
+        limit: 1,
+        unreadOnly: true,
+      });
+      setUnreadCount(Number(notifications?.unreadCount) || 0);
     } catch (loadError) {
-      if (!silent) setError(loadError?.message || 'Live discovery could not be loaded.');
-    } finally {
       if (!silent) {
-        setLoading(false);
-        setRefreshing(false);
+        setError(loadError?.message || 'Live broadcasts could not be loaded.');
       }
+    } finally {
+      if (!silent) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     load();
-    const sync = () => load({ silent:true });
+    const sync = () => load({ silent: true });
     const interval = window.setInterval(sync, LIVE_SYNC_INTERVAL_MS);
     window.addEventListener('focus', sync);
     return () => {
@@ -63,98 +104,313 @@ const ListenerLiveConnected = () => {
     };
   }, [load]);
 
+  const filteredLive = useMemo(() => {
+    let list = live;
+    if (category !== 'All') {
+      list = list.filter((broadcast) => categoryOf(broadcast) === category);
+    }
+    if (searchQuery.trim()) {
+      const needle = searchQuery.trim().toLowerCase();
+      list = list.filter((broadcast) => {
+        const haystack = [
+          broadcast.title,
+          broadcast.stationName,
+          broadcast.description,
+          categoryOf(broadcast),
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+        return haystack.includes(needle);
+      });
+    }
+    return sortBroadcasts(list, sortBy);
+  }, [live, category, searchQuery, sortBy]);
+
+  const featured = useMemo(() => {
+    if (category === 'All' && !searchQuery.trim()) {
+      return [...live].sort((a, b) => (b.listenerCount || 0) - (a.listenerCount || 0))[0] || null;
+    }
+    if (filteredLive.length > 0) return filteredLive[0];
+    return null;
+  }, [live, filteredLive, category, searchQuery]);
+
+  const gridBroadcasts = useMemo(
+    () => (featured && filteredLive.length > 1 ? filteredLive.slice(1) : filteredLive),
+    [featured, filteredLive]
+  );
+
   const totalListeners = useMemo(
     () => live.reduce((total, item) => total + (Number(item.listenerCount) || 0), 0),
     [live]
   );
-  const peakAcrossLive = useMemo(
-    () => live.reduce((peak, item) => Math.max(peak, Number(item.peakListeners) || 0), 0),
-    [live]
-  );
-  const featured = live[0] || null;
+
+  const categoryOptions = useMemo(() => {
+    const available = new Set(live.map(categoryOf).filter(Boolean));
+    return CATEGORY_OPTIONS.filter(
+      (option) => option === 'All' || available.has(option)
+    );
+  }, [live]);
+
+  const handleSearch = () => {
+    const query = searchQuery.trim();
+    if (query) {
+      navigate(`/listen/search?q=${encodeURIComponent(query)}`);
+    }
+  };
 
   return (
-    <main className="echoo-reference-page ref-live-page">
-      <header className="ref-page-heading ref-live-heading">
-        <div>
-          <span className="ref-kicker">LIVE NOW</span>
-          <h1>Hear it while it happens.</h1>
-          <p>Creator broadcasts appear here from the same live state used by Broadcast Studio.</p>
+    <main className="listener-live">
+      <header className="listener-live-header">
+        <div className="listener-live-header-left">
+          <h1>Live now</h1>
+          <p>Listen to creators who are live right now across Echoo.</p>
         </div>
-        <button type="button" className="ref-secondary-action" disabled={refreshing} onClick={() => load({ refresh:true })}>
-          <FaSyncAlt /> {refreshing ? 'Refreshing...' : 'Refresh'}
-        </button>
+        <div className="listener-live-header-right">
+          <div className="listener-live-search">
+            <FaSearch className="listener-live-search-icon" aria-hidden="true" />
+            <input
+              type="text"
+              placeholder="Search stations, shows or audio..."
+              aria-label="Search live broadcasts"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') handleSearch();
+              }}
+            />
+            <span className="listener-live-search-kbd">⌘ K</span>
+          </div>
+          <button
+            type="button"
+            className="listener-live-notifications"
+            aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`}
+            onClick={() => navigate('/listen/notifications')}
+          >
+            <FaBell aria-hidden="true" />
+            {unreadCount > 0 && <span className="listener-live-badge">{unreadCount}</span>}
+          </button>
+        </div>
       </header>
 
-      {error && <div className="ref-inline-error">{error}</div>}
+      {error && <div className="listener-live-error" role="alert">{error}</div>}
+
+      <div className="listener-live-chip-row">
+        <div className="listener-live-chips" role="tablist" aria-label="Category filters">
+          {categoryOptions.map((option) => (
+            <button
+              key={option}
+              type="button"
+              role="tab"
+              aria-selected={category === option}
+              className={`listener-live-chip${category === option ? ' active' : ''}`}
+              onClick={() => setCategory(option)}
+            >
+              {option}
+            </button>
+          ))}
+        </div>
+        <div className="listener-live-sort">
+          <button
+            type="button"
+            className="listener-live-sort-button"
+            aria-label="Sort broadcasts"
+            aria-expanded={sortOpen}
+            onClick={() => setSortOpen((open) => !open)}
+          >
+            <FaFilter aria-hidden="true" />
+            <span>{SORT_OPTIONS.find((option) => option.value === sortBy)?.label || 'Sort'}</span>
+          </button>
+          {sortOpen && (
+            <div className="listener-live-sort-menu">
+              {SORT_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  className={`listener-live-sort-option${sortBy === option.value ? ' active' : ''}`}
+                  onClick={() => {
+                    setSortBy(option.value);
+                    setSortOpen(false);
+                  }}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
 
       {loading ? (
-        <div className="ref-state-card"><FaBroadcastTower /><strong>Checking who is live...</strong></div>
+        <div className="listener-live-state">Loading live broadcasts...</div>
       ) : (
         <>
           {featured ? (
-            <section className="ref-live-feature">
-              <div className="ref-live-feature-copy">
-                <span className="ref-live-status"><i /> LIVE NOW</span>
+            <button
+              type="button"
+              className="listener-live-featured"
+              onClick={() => navigate(`/listen/live/${featured.id}`)}
+            >
+              <div className="listener-live-featured-copy">
+                <span className="listener-live-featured-label">FEATURED LIVE</span>
+                <span className="listener-live-featured-status">
+                  <i aria-hidden="true" /> LIVE NOW
+                </span>
                 <h2>{featured.title}</h2>
-                <p>{featured.stationName} · {featured.creatorName || featured.station?.ownerName || 'Echoo Creator'}</p>
-                <div className="ref-live-feature-metrics">
-                  <span><FaUsers /> {Number(featured.listenerCount) || 0} listening</span>
-                  <span><FaHeadphones /> {Number(featured.peakListeners) || 0} peak</span>
+                <div className="listener-live-featured-chips">
+                  <span className="listener-live-featured-chip">
+                    {categoryOf(featured)}
+                  </span>
+                  <span className="listener-live-featured-chip listeners">
+                    <FaUsers aria-hidden="true" />
+                    {Number(featured.listenerCount) || 0} listening
+                  </span>
                 </div>
-                <button type="button" onClick={() => navigate(`/listen/live/${featured.id}`)}><FaPlay /> Join live</button>
+                {featured.description && (
+                  <p className="listener-live-featured-description">
+                    {featured.description}
+                  </p>
+                )}
+                <span
+                  type="button"
+                  className="listener-live-featured-join"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    navigate(`/listen/live/${featured.id}`);
+                  }}
+                >
+                  <FaPlay aria-hidden="true" /> Join live
+                </span>
               </div>
-              <button type="button" className="ref-live-feature-art" onClick={() => navigate(`/listen/live/${featured.id}`)} aria-label={`Join ${featured.title}`}>
-                {artworkOf(featured) ? <img src={artworkOf(featured)} alt="" /> : <FaBroadcastTower />}
-                <span className="ref-live-rings"><i /><i /><i /></span>
+              <span className="listener-live-featured-art" aria-hidden="true">
+                {artworkOf(featured) ? (
+                  <img src={artworkOf(featured)} alt="" />
+                ) : (
+                  <FaHeadphones />
+                )}
+              </span>
+            </button>
+          ) : (
+            <section className="listener-live-offline">
+              <FaHeadphones aria-hidden="true" />
+              <h2>No creators are live right now.</h2>
+              <p>
+                Broadcasts will appear here as soon as creators start streaming.
+              </p>
+              <button type="button" onClick={() => navigate('/listen/stations')}>
+                Explore stations
               </button>
             </section>
-          ) : (
-            <section className="ref-live-offline">
-              <div className="ref-live-offline-signal"><FaBroadcastTower /><span /><span /><span /></div>
-              <div><span className="ref-kicker">QUIET RIGHT NOW</span><h2>No creator is live at the moment.</h2><p>Scheduled broadcasts below are connected to the creator scheduling system and will move here when they go live.</p></div>
-            </section>
           )}
 
-          <section className="ref-live-summary">
-            <article><FaBroadcastTower /><div><strong>{live.length}</strong><span>Live broadcasts</span></div></article>
-            <article><FaUsers /><div><strong>{totalListeners}</strong><span>Listening now</span></div></article>
-            <article><FaHeadphones /><div><strong>{peakAcrossLive}</strong><span>Highest current peak</span></div></article>
-            <article><FaClock /><div><strong>{scheduled.length}</strong><span>Scheduled next</span></div></article>
+          <section className="listener-live-section">
+            <div className="listener-live-section-heading">
+              <h2>All live broadcasts</h2>
+              <div className="listener-live-view-controls">
+                <span
+                  className="listener-live-view-control"
+                  title="Shuffle view"
+                  aria-hidden="true"
+                >
+                  <FaRandom aria-hidden="true" />
+                </span>
+                <span
+                  className="listener-live-view-control active"
+                  title="Grid view"
+                  aria-hidden="true"
+                >
+                  <FaThLarge aria-hidden="true" />
+                </span>
+                <span
+                  className="listener-live-view-control"
+                  title="List view"
+                  aria-hidden="true"
+                >
+                  <FaList aria-hidden="true" />
+                </span>
+              </div>
+            </div>
+
+            {gridBroadcasts.length > 0 ? (
+              <div className="listener-live-grid">
+                {gridBroadcasts.map((broadcast) => (
+                  <article
+                    key={broadcast.id}
+                    className="listener-live-card"
+                  >
+                    <button
+                      type="button"
+                      className="listener-live-card-art"
+                      onClick={() => navigate(`/listen/live/${broadcast.id}`)}
+                      aria-label={`Join ${broadcast.title}`}
+                    >
+                      {artworkOf(broadcast) ? (
+                        <img src={artworkOf(broadcast)} alt="" />
+                      ) : (
+                        <FaHeadphones />
+                      )}
+                      <span className="listener-live-card-live">
+                        <i aria-hidden="true" /> LIVE
+                      </span>
+                      <span className="listener-live-card-listeners">
+                        <FaUsers aria-hidden="true" />{' '}
+                        {Number(broadcast.listenerCount) || 0}
+                      </span>
+                    </button>
+                    <div className="listener-live-card-body">
+                      <h3>{broadcast.title}</h3>
+                      <span className="listener-live-card-category">
+                        {categoryOf(broadcast)}
+                      </span>
+                      {broadcast.description && (
+                        <p className="listener-live-card-description">
+                          {broadcast.description}
+                        </p>
+                      )}
+                      <div className="listener-live-card-bottom">
+                        <span className="listener-live-card-now">
+                          <i aria-hidden="true" /> Live now
+                        </span>
+                        <button
+                          type="button"
+                          className="listener-live-card-play"
+                          aria-label={`Join ${broadcast.title}`}
+                          onClick={() => navigate(`/listen/live/${broadcast.id}`)}
+                        >
+                          <FaPlay aria-hidden="true" />
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <div className="listener-live-empty">
+                <FaHeadphones aria-hidden="true" />
+                <p>
+                  {category === 'All'
+                    ? 'No live broadcasts match your search.'
+                    : `No live broadcasts in ${category} right now.`}
+                </p>
+              </div>
+            )}
           </section>
 
-          {live.length > 1 && (
-            <section className="ref-live-section">
-              <div className="ref-section-heading"><div><h2>Happening now</h2><p>Other broadcasts currently on air.</p></div><span className="ref-count-pill">{live.length - 1}</span></div>
-              <div className="ref-live-grid">
-                {live.slice(1).map((item) => (
-                  <article className="ref-live-card" key={item.id}>
-                    <button type="button" className="ref-live-card-art" onClick={() => navigate(`/listen/live/${item.id}`)}>
-                      {artworkOf(item) ? <img src={artworkOf(item)} alt="" /> : <FaBroadcastTower />}
-                      <span className="ref-live-chip"><i /> LIVE NOW</span>
-                    </button>
-                    <div><span>{item.category || item.station?.category || 'Live'}</span><strong>{item.title}</strong><small>{item.stationName}</small></div>
-                    <div className="ref-live-card-bottom"><span><FaUsers /> {Number(item.listenerCount) || 0}</span><button type="button" onClick={() => navigate(`/listen/live/${item.id}`)}><FaPlay /> Join</button></div>
-                  </article>
-                ))}
-              </div>
-            </section>
-          )}
-
-          <section className="ref-live-section">
-            <div className="ref-section-heading"><div><h2>Starting soon</h2><p>Real broadcasts scheduled by Echoo creators.</p></div><span className="ref-count-pill">{scheduled.length}</span></div>
-            {scheduled.length ? (
-              <div className="ref-upcoming-list">
-                {scheduled.slice(0,12).map((item) => (
-                  <article key={item.id}>
-                    <div className="ref-upcoming-art">{artworkOf(item) ? <img src={artworkOf(item)} alt="" /> : <FaClock />}</div>
-                    <div className="ref-upcoming-copy"><strong>{item.title}</strong><span>{item.stationName}</span></div>
-                    <time>{formatStart(item.startTime)}</time>
-                    <button type="button" onClick={() => item.stationId ? navigate(`/listen/stations/${item.stationId}`) : navigate('/listen/live')}>View station</button>
-                  </article>
-                ))}
-              </div>
-            ) : <div className="ref-state-card compact"><FaClock /><strong>No upcoming broadcasts yet.</strong></div>}
+          <section className="listener-live-promo">
+            <span className="listener-live-promo-icon" aria-hidden="true">
+              <FaHeadphones />
+            </span>
+            <div className="listener-live-promo-copy">
+              <h3>Don't miss a live broadcast</h3>
+              <p>Follow your favorite stations and get notified when they go live.</p>
+            </div>
+            <button
+              type="button"
+              className="listener-live-promo-button"
+              onClick={() => navigate('/listen/stations')}
+            >
+              Explore stations
+            </button>
           </section>
         </>
       )}
