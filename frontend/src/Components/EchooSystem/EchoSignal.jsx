@@ -3,6 +3,7 @@ import React from "react";
 import EchoNodes from "./EchoNodes";
 
 import "./EchoSignal.css";
+import "./EchoSignalMotion.css";
 
 const SIZE_MAP = {
   xs: 30,
