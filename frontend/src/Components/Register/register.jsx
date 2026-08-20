@@ -15,7 +15,7 @@ import {
 } from "react-icons/fa";
 import { FcGoogle } from "react-icons/fc";
 
-import EchooLogoImage from "../Assets/logo_optimized.jpg";
+import EchooLogoImage from "../Assets/creator-logo.png";
 import BroadcastLoginVisual from "./BroadcastLoginVisual";
 import OnboardingFrame from "../Onboarding/OnboardingFrame";
 import LoadingButton from "../UI/LoadingButton";
