@@ -156,7 +156,14 @@ export async function processPrerecordedBroadcast(broadcastId) {
     await broadcast.save();
 
     // 2. Attach the scheduled track as a URL-input ingress so LiveKit pulls
-    // the signed audio stream into the room as program audio.
+    // the signed audio stream into the room as program audio. Clear a stale
+    // ingress left behind by a previous (failed or restarted) run first, so a
+    // duplicate input never publishes two program streams into the room.
+    if (broadcast.livekitIngressId) {
+      await LiveKitProvider.stopIngress(broadcast.livekitIngressId);
+      broadcast.livekitIngressId = null;
+    }
+
     let ingressId = null;
     try {
       const ingress = await ingressClient().createIngress(2 /* URL_INPUT */, {

@@ -134,6 +134,10 @@ const broadcastSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    livekitIngressId: {
+      type: String,
+      default: null,
+    },
     startedAt: {
       type: Date,
       default: null,

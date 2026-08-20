@@ -853,7 +853,10 @@ export async function getBroadcastPresence(req, res, next) {
 
       if (metadata.role === 'creator') {
         creatorConnected = true;
-      } else {
+      } else if (metadata.role !== 'prerecorded-ingest') {
+        // Prerecorded broadcasts publish program audio through a LiveKit
+        // URL-input ingress participant; it is not a human listener and must
+        // not inflate the displayed listener count.
         listenerCount += 1;
       }
     }
@@ -963,6 +966,14 @@ export async function endBroadcast(req, res, next) {
 
     if (broadcast.livekitEgressId) {
       await LiveKitProvider.stopEgress(broadcast.livekitEgressId).catch(() => null);
+    }
+
+    // Prerecorded broadcasts publish through a LiveKit URL-input ingress that
+    // must be torn down alongside the room, otherwise the input keeps pulling
+    // the signed audio stream until its own timeout.
+    if (broadcast.livekitIngressId) {
+      await LiveKitProvider.stopIngress(broadcast.livekitIngressId).catch(() => null);
+      broadcast.livekitIngressId = null;
     }
 
     await LiveKitProvider.endRoom(broadcastId).catch(() => null);

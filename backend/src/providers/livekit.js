@@ -98,6 +98,11 @@ function egressClient() {
   return new EgressClient(apiUrl, apiKey, apiSecret);
 }
 
+function ingressClient() {
+  const { apiUrl, apiKey, apiSecret } = getConfig();
+  return new IngressClient(apiUrl, apiKey, apiSecret);
+}
+
 function serviceError(action, cause) {
   if (
     cause?.code === 'LIVEKIT_CONFIG_MISSING' ||
@@ -278,6 +283,23 @@ const LiveKitProvider = {
   async stopEgress(egressId) {
     if (!egressId) return null;
     return egressClient().stopEgress(String(egressId));
+  },
+
+  async stopIngress(ingressId) {
+    if (!ingressId) return null;
+
+    try {
+      return await ingressClient().deleteIngress(String(ingressId));
+    } catch (error) {
+      // Removing a finished prerecorded ingress must never fail an end
+      // broadcast request; the URL-input source cannot republish anything
+      // once the room it publishes into is deleted anyway.
+      console.warn(
+        `LiveKit ingress cleanup warning for ${ingressId}:`,
+        error?.message || error
+      );
+      return null;
+    }
   },
 
   async endRoom(broadcastId) {
