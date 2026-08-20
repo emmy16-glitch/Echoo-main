@@ -1,6 +1,9 @@
 import express from 'express';
 import { authenticate } from '../middleware/auth.js';
-import { enforceSingleLiveCreator } from '../middleware/enforceSingleLiveCreator.js';
+import {
+  enforceSingleLiveCreator,
+  requireUsableBroadcastStation,
+} from '../middleware/enforceSingleLiveCreator.js';
 import {
   validateBroadcastListQuery,
   validateStationIdParam,
@@ -55,7 +58,13 @@ router.delete('/:broadcastId', authenticate, deleteBroadcast);
 
 // Explicit lifecycle actions. Status is never changed through generic PATCH.
 router.post('/:broadcastId/cancel', authenticate, cancelBroadcast);
-router.post('/:broadcastId/start', authenticate, enforceSingleLiveCreator, startBroadcast);
+router.post(
+  '/:broadcastId/start',
+  authenticate,
+  enforceSingleLiveCreator,
+  requireUsableBroadcastStation,
+  startBroadcast
+);
 router.post('/:broadcastId/confirm-live', authenticate, confirmBroadcastLive);
 router.post('/:broadcastId/end', authenticate, endBroadcast);
 
