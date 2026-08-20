@@ -22,7 +22,7 @@ export function EchooHomeHero({ onSearch }: { onSearch?: () => void }) {
         </LinearGradient>
         <View style={styles.waveText}>
           <Text style={styles.live}>LIVE ON ECHOO</Text>
-          <Text style={styles.show}>Discover what's happening now</Text>
+          <Text style={styles.show}>Discover what{`'`}s happening now</Text>
         </View>
       </View>
 
