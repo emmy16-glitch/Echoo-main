@@ -41,6 +41,7 @@ import './ListenerLayout.css';
 import './ListenerLayout.figma.css';
 import './ListenerPlaybackFix.css';
 import './ListenerPlayerBlue.css';
+import '../../styles/listener-typography-unified.css';
 
 const SEARCH_SUGGESTIONS = [
   'Podcast',

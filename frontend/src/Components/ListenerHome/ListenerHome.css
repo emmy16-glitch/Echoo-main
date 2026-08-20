@@ -87,7 +87,7 @@
 
 .listener-home-greeting {
   margin: 0;
-  font-family: var(--echoo-sans);
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 26px;
   font-weight: 700;
   color: var(--echoo-text-h);

@@ -1,0 +1,20 @@
+/* Unified listener typography — one consistent typeface (Inter) across all
+   listener pages, matching the creator UI. Loaded late in ListenerLayout so it
+   wins over legacy system-ui / Arial stacks. */
+#root .echoo-listener-shell,
+#root .echoo-listener-shell * {
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+}
+#root .echoo-listener-shell h1,
+#root .echoo-listener-shell h2,
+#root .echoo-listener-shell h3,
+#root .echoo-listener-shell h4,
+#root .echoo-listener-shell h5,
+#root .echoo-listener-shell h6 {
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+}
+#root .echoo-listener-shell .lb-page h1 {
+  letter-spacing: -0.02em;
+}

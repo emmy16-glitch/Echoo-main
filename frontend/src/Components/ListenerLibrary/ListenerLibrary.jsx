@@ -9,6 +9,7 @@ import {
   FaDownload,
   FaEllipsisV,
   FaHeadphones,
+  FaMusic,
   FaPause,
   FaPlay,
   FaSearch,
