@@ -4,6 +4,10 @@ import path from 'path';
 import fs from 'fs';
 import { authenticate } from '../middleware/auth.js';
 import {
+  boundedSearchText,
+  escapeRegexLiteral,
+} from '../utils/queryText.js';
+import {
   createStation,
   getStations,
   getMyStations,
@@ -45,6 +49,7 @@ const stationLogoFilter = (req, file, cb) => {
   ) {
     const error = new Error('Station logo must be a JPG, PNG or WebP image.');
     error.code = 'UNSUPPORTED_STATION_LOGO';
+    error.status = 415;
     return cb(error, false);
   }
 
@@ -60,8 +65,43 @@ const uploadStationLogo = multer({
   },
 });
 
+const validateStationListQuery = (req, res, next) => {
+  if (req.query.search === undefined) return next();
+
+  try {
+    const text = boundedSearchText(req.query.search, { maxLength: 120 });
+    req.query.search = escapeRegexLiteral(text);
+    return next();
+  } catch (error) {
+    return res.status(error.status || 400).json({
+      error: {
+        code: error.code || 'INVALID_SEARCH',
+        message: error.message || 'Invalid station search text',
+      },
+    });
+  }
+};
+
+// Multer writes the file before the controller runs. If later validation or a
+// database write returns 4xx/5xx, remove that new file instead of leaking one
+// orphaned logo on disk for every failed request.
+const cleanupFailedStationUpload = (req, res, next) => {
+  const uploadedPath = req.file?.path;
+  if (uploadedPath) {
+    res.once('finish', () => {
+      if (res.statusCode < 400) return;
+      fs.promises.unlink(uploadedPath).catch((error) => {
+        if (error?.code !== 'ENOENT') {
+          console.warn('Failed station-logo cleanup warning:', error?.message || error);
+        }
+      });
+    });
+  }
+  next();
+};
+
 // Public station discovery.
-router.get('/', getStations);
+router.get('/', validateStationListQuery, getStations);
 
 // Creator-owned collection must be declared before /:stationId.
 router.get('/mine/all', authenticate, getMyStations);
@@ -71,8 +111,20 @@ router.get('/:stationId', getStationById);
 
 // Stations are created and managed only through this resource.
 // `logo` is optional; metadata-only JSON requests remain supported.
-router.post('/', authenticate, uploadStationLogo.single('logo'), createStation);
-router.patch('/:stationId', authenticate, uploadStationLogo.single('logo'), updateStation);
+router.post(
+  '/',
+  authenticate,
+  uploadStationLogo.single('logo'),
+  cleanupFailedStationUpload,
+  createStation
+);
+router.patch(
+  '/:stationId',
+  authenticate,
+  uploadStationLogo.single('logo'),
+  cleanupFailedStationUpload,
+  updateStation
+);
 router.delete('/:stationId', authenticate, deleteStation);
 
 // Broadcasts are the only authority for live state and future broadcast timing.
