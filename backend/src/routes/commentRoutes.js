@@ -3,6 +3,7 @@ import { authenticate } from '../middleware/auth.js';
 import {
   addComment,
   getComments,
+  getCommentReplies,
   updateComment,
   deleteComment,
   likeComment,
@@ -15,6 +16,9 @@ router.get('/audio/:audioId', getComments);
 
 // Add comment (authenticated)
 router.post('/audio/:audioId', authenticate, addComment);
+
+// Page the complete direct-reply list for a root comment.
+router.get('/:commentId/replies', getCommentReplies);
 
 // Update comment (authenticated)
 router.patch('/:commentId', authenticate, updateComment);
