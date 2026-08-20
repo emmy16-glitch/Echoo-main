@@ -260,7 +260,8 @@ const persistOfflineResponse = async (item, response) => {
         error?.message || error
       );
       throw new Error(
-        'This browser could not save the audio for offline listening. Check that site storage is allowed and private/incognito mode is off.'
+        'This browser could not save the audio for offline listening. Check that site storage is allowed and private/incognito mode is off.',
+        { cause: error }
       );
     }
   }
