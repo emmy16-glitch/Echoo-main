@@ -71,6 +71,51 @@ const safeDownloadName = ({ title, originalName, mimeType } = {}) => {
   return `${base}${extensionForMime(mimeType)}`;
 };
 
+let fallbackPlaybackObjectUrl = "";
+
+const releaseFallbackPlaybackUrl = () => {
+  if (!fallbackPlaybackObjectUrl || typeof URL === "undefined") return;
+  URL.revokeObjectURL(fallbackPlaybackObjectUrl);
+  fallbackPlaybackObjectUrl = "";
+};
+
+const missingStreamTokenRoute = (error) =>
+  Number(error?.status) === 404 &&
+  (
+    error?.code === "ROUTE_NOT_FOUND" ||
+    error?.data?.error?.code === "ROUTE_NOT_FOUND" ||
+    /route not found/i.test(String(error?.message || ""))
+  );
+
+const getCompatibilityPlaybackUrl = async (audioId) => {
+  const response = await apiFetch(`/audio/${encodeURIComponent(audioId)}/download`);
+
+  if (!response.ok) {
+    let message = "Could not prepare this audio for playback.";
+    let code = "PLAYBACK_FALLBACK_FAILED";
+    try {
+      const data = await response.json();
+      message = data?.error?.message || data?.message || message;
+      code = data?.error?.code || code;
+    } catch {
+      // Keep the safe fallback message for non-JSON failures.
+    }
+    const error = new Error(message);
+    error.status = response.status;
+    error.code = code;
+    throw error;
+  }
+
+  const blob = await response.blob();
+  releaseFallbackPlaybackUrl();
+  fallbackPlaybackObjectUrl = URL.createObjectURL(blob);
+  return {
+    streamUrl: fallbackPlaybackObjectUrl,
+    expiresIn: 0,
+    compatibilityFallback: true,
+  };
+};
+
 const studioService = {
   getDashboard: async () => apiRequest("/studio/dashboard"),
 
@@ -91,17 +136,32 @@ const studioService = {
 
   getAudioStreamUrl: async (audioId) => {
     if (!audioId) throw new Error("Audio ID is missing.");
-    const response = await apiRequest(
-      `/audio/${encodeURIComponent(audioId)}/stream-token`,
-      { method: "POST" }
-    );
-    const streamUrl = buildMediaUrl(response?.data?.streamUrl || "");
-    if (!streamUrl) throw new Error("Echoo could not prepare this audio for playback.");
-    return {
-      streamUrl,
-      expiresIn: Number(response?.data?.expiresIn) || 0,
-    };
+
+    try {
+      const response = await apiRequest(
+        `/audio/${encodeURIComponent(audioId)}/stream-token`,
+        { method: "POST" }
+      );
+      const streamUrl = buildMediaUrl(response?.data?.streamUrl || "");
+      if (!streamUrl) throw new Error("Echoo could not prepare this audio for playback.");
+      return {
+        streamUrl,
+        expiresIn: Number(response?.data?.expiresIn) || 0,
+        compatibilityFallback: false,
+      };
+    } catch (error) {
+      // A browser can stay open while a developer/server process is still running
+      // an older Echoo backend that predates /stream-token. Do not surface the
+      // generic "Route not found" banner to creators in that transitional state.
+      // Use the existing authenticated download route as a temporary in-memory
+      // playback source. The protected Range stream remains the primary path and
+      // is used automatically as soon as the backend exposes it.
+      if (!missingStreamTokenRoute(error)) throw error;
+      return getCompatibilityPlaybackUrl(audioId);
+    }
   },
+
+  releaseFallbackPlaybackUrl,
 
   updateAudio: async (audioId, data = {}) => {
     if (!audioId) throw new Error("Audio ID is missing.");
@@ -121,7 +181,7 @@ const studioService = {
 
     // apiFetch returns the raw Response but still performs Echoo's normal
     // access-token refresh/retry. Large downloads therefore do not randomly fail
-    // with a stale 15-minute access token after a long Creator Studio session.
+    // with a stale access token after a long Creator Studio session.
     const response = await apiFetch(
       `/audio/${encodeURIComponent(audioId)}/download`
     );

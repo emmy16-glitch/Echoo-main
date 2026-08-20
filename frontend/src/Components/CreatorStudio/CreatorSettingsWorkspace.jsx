@@ -11,6 +11,7 @@ import {
 
 import settingsService from '../../services/settingsService';
 import './CreatorSettingsConnected.css';
+import './CreatorStudioRuntimeFixes.css';
 
 const TABS = [
   { id: 'profile', label: 'Profile', icon: <FaUser /> },
@@ -206,7 +207,8 @@ const CreatorSettingsWorkspace = () => {
               setMessage('');
             }}
           >
-            {tab.icon} {tab.label}
+            {tab.icon}
+            <span className="creator-settings-tab-label">{tab.label}</span>
           </button>
         ))}
       </nav>

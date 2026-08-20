@@ -1,6 +1,6 @@
 /* Creator Studio runtime/UI corrections shared across Settings, Stations and Audio. */
 
-/* Settings: keep active tab labels visible even if older creator-shell rules are cached. */
+/* Settings: keep the selected row fully readable even when legacy shell CSS is present. */
 .studio-final-shell .creator-settings-tabs button.active,
 .creator-settings-tabs button.active {
   font-size: 11px !important;
@@ -9,6 +9,24 @@
   letter-spacing: normal !important;
   opacity: 1 !important;
   visibility: visible !important;
+  -webkit-text-fill-color: #1f63ef !important;
+}
+
+.creator-settings-tab-label {
+  display: inline !important;
+  min-width: 0;
+  overflow: visible !important;
+  color: inherit !important;
+  font-size: 11px !important;
+  line-height: 1.2 !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+
+.studio-final-shell .creator-settings-tabs button.active .creator-settings-tab-label,
+.creator-settings-tabs button.active .creator-settings-tab-label {
+  color: #1f63ef !important;
   -webkit-text-fill-color: #1f63ef !important;
 }
 
@@ -57,6 +75,10 @@
   min-height: 40px;
 }
 
+.est-featured-actions .icon-only {
+  height: 40px;
+}
+
 /* Audio: keep errors compact and controls aligned consistently. */
 .eca-action-error {
   min-height: 42px;
@@ -89,7 +111,8 @@
 }
 
 @media (max-width: 760px) {
-  .creator-settings-tabs button.active {
+  .creator-settings-tabs button.active,
+  .creator-settings-tab-label {
     font-size: 11px !important;
   }
 
