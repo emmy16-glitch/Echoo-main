@@ -23,3 +23,6 @@ jobs:
 
       - name: Check duplicate, mock and synthetic-data architecture
         run: node scripts/architecture-check.mjs
+
+      - name: Check runtime, auth and media architecture
+        run: node scripts/runtime-architecture-check.mjs
