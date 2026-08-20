@@ -5,6 +5,13 @@ import {
   EgressClient,
 } from 'livekit-server-sdk';
 
+// LiveKit participant JWT lifetime. Kept short enough that a leaked token is
+// usable for only a bounded window, and long enough to survive a live session
+// plus reconnect jitter. Both clients re-fetch tokens on every join or
+// reconnect, so sessions longer than this simply reissue automatically.
+const LIVEKIT_TOKEN_TTL =
+  Number(process.env.LIVEKIT_TOKEN_TTL_MINUTES || 120) * 60;
+
 function requireEnv(name) {
   const value = String(process.env[name] || '').trim();
   if (!value) {
@@ -212,7 +219,7 @@ const LiveKitProvider = {
         userId: String(userId),
         broadcastId: String(broadcastId),
       }),
-      ttl: '6h',
+      ttl: LIVEKIT_TOKEN_TTL,
     });
 
     token.addGrant({
@@ -249,7 +256,7 @@ const LiveKitProvider = {
         userId: String(userId),
         broadcastId: String(broadcastId),
       }),
-      ttl: '6h',
+      ttl: LIVEKIT_TOKEN_TTL,
     });
 
     token.addGrant({

@@ -1,4 +1,7 @@
 import express from 'express';
+import {
+  livekitTokenLimiter,
+} from '../middleware/rateLimiter.js';
 import { authenticate } from '../middleware/auth.js';
 import {
   enforceSingleLiveCreator,
@@ -68,8 +71,20 @@ router.post(
 router.post('/:broadcastId/confirm-live', authenticate, confirmBroadcastLive);
 router.post('/:broadcastId/end', authenticate, endBroadcast);
 
-// LiveKit participant credentials.
-router.post('/:broadcastId/livekit-token', authenticate, getLiveKitToken);
-router.post('/:broadcastId/listener-token', authenticate, getListenerLiveKitToken);
+// LiveKit participant credentials. Token issuance is rate-limited per IP to
+// prevent token-spam abuse (spawning cheap listener participants), while
+// leaving ample headroom for join retries and reconnects.
+router.post(
+  '/:broadcastId/livekit-token',
+  authenticate,
+  livekitTokenLimiter,
+  getLiveKitToken
+);
+router.post(
+  '/:broadcastId/listener-token',
+  authenticate,
+  livekitTokenLimiter,
+  getListenerLiveKitToken
+);
 
 export default router;

@@ -64,3 +64,13 @@ export const searchLimiter = limiter({
   code: 'SEARCH_LIMIT_EXCEEDED',
   message: 'Too many search requests, please slow down.',
 });
+
+// LiveKit token issuance can be provoked by every listener join, so the limit
+// must comfortably exceed a single user's retry/reconnect bursts while still
+// bounding token-spam abuse (spawning cheap listener participants).
+export const livekitTokenLimiter = limiter({
+  windowMs: 15 * 60 * 1000,
+  limit: 60,
+  code: 'LIVEKIT_TOKEN_LIMIT_EXCEEDED',
+  message: 'LiveKit token requests exceeded, please try again later.',
+});

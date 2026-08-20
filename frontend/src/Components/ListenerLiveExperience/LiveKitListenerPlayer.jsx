@@ -191,6 +191,19 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive }) => {
       room.on(RoomEvent.Disconnected, () => {
         if (!disposed && roomRef.current === room) setStatus('disconnected');
       });
+
+      // LiveKit signals an expiring token through a Disconnect with
+      // DisconnectReason.TokenExpired. Re-fetch credentials and reconnect
+      // automatically instead of dropping the listener to a manual retry.
+      room.on(RoomEvent.Disconnected, (reason) => {
+        if (disposed || roomRef.current !== room) return;
+        const tokenExpired =
+          reason === 2 /* DisconnectReason.TokenExpired */ ||
+          String(reason || '').toLowerCase().includes('token');
+        if (tokenExpired && broadcastId && isLive) {
+          setRetryVersion((current) => current + 1);
+        }
+      });
       room.on(RoomEvent.AudioPlaybackStatusChanged, () => {
         if (!disposed && roomRef.current === room) {
           setNeedsAudioStart(!room.canPlaybackAudio);

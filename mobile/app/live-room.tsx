@@ -2,7 +2,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Headphones, Radio, Users, Volume2, X } from 'lucide-react-native';
-import { ReactNode, useEffect, useMemo, useState } from 'react';
+import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -63,6 +63,8 @@ export default function LiveRoomScreen() {
   const [loading, setLoading] = useState(true);
   const [credentials, setCredentials] = useState<Credentials | null>(null);
   const [liveKit, setLiveKit] = useState<LiveKitNativeModule | null>(null);
+  const [reissueVersion, setReissueVersion] = useState(0);
+  const reissueInFlight = useRef(false);
   const [nativeModuleUnavailable, setNativeModuleUnavailable] = useState(false);
   const [listenerCount, setListenerCount] = useState(0);
   const [error, setError] = useState('');
@@ -116,7 +118,7 @@ export default function LiveRoomScreen() {
     return () => {
       active = false;
     };
-  }, [broadcastId]);
+  }, [broadcastId, reissueVersion]);
 
   useEffect(() => {
     if (!broadcastId || !signedIn || nativeModuleUnavailable) return;
@@ -194,7 +196,25 @@ export default function LiveRoomScreen() {
               liveKit={liveKit}
               serverUrl={credentials.livekitUrl}
               token={credentials.token}
-              onError={(message) => setError(message)}
+              onError={(message) => {
+                // An expiring or revoked token surfaces as a LiveKit failure.
+                // Re-fetching fresh credentials gives the listener an
+                // automatic second wind instead of a hard error screen.
+                const looksLikeTokenFailure =
+                  /token|expired|unauthorized|authentication/i.test(
+                    String(message || '')
+                  );
+                if (looksLikeTokenFailure && !reissueInFlight.current) {
+                  reissueInFlight.current = true;
+                  setError('');
+                  setReissueVersion((version) => version + 1);
+                  setTimeout(() => {
+                    reissueInFlight.current = false;
+                  }, 15000);
+                } else {
+                  setError(message);
+                }
+              }}
             >
               {roomContent}
             </LiveAudioConnection>
