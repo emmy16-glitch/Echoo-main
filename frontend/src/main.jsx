@@ -42,6 +42,7 @@ import "./styles/creator-broadcast-responsive-shell-fix.css";
 import "./styles/creator-broadcast-guided-mixer.css";
 import "./styles/creator-broadcast-strict-audit.css";
 import "./styles/creator-audio-interaction-fix.css";
+import "./styles/creator-ui-harmony-2026.css";
 
 initializeEchooTheme();
 

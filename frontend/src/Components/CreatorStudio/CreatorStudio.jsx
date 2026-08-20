@@ -19,7 +19,7 @@ import {
 import './CreatorStudio.css';
 import './CreatorStudio.identity.css';
 import './CreatorStudioShellFinal.css';
-import echooLogo from '../Assets/logo_optimized.jpg';
+import echooLogo from '../Assets/creator-logo.png';
 import studioService from '../../services/studioService';
 import { buildGeneratedAudioCoverUrl } from '../../audioCover/audioCover';
 import ListenerLiveConnected from '../ListenerLive/ListenerLiveConnected';
