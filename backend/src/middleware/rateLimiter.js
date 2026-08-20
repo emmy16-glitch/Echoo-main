@@ -1,87 +1,66 @@
-// src/middleware/rateLimiter.js
 import rateLimit from 'express-rate-limit';
-import { env } from '../config/env.js';
 
-/**
- * Rate Limiter Configuration
- * 
- * Different rate limits for different endpoints to prevent abuse.
- * Uses Redis store in production for distributed rate limiting.
- */
-
-// Default rate limiter
-export const defaultLimiter = rateLimit({
-  windowMs: env.rateLimitWindowMs,
-  limit: env.rateLimitMax,
-  standardHeaders: 'draft-8',
-  legacyHeaders: false,
-  message: {
-    error: {
-      code: 'RATE_LIMIT_EXCEEDED',
-      message: 'Too many requests, please try again later.',
+const limiter = ({ windowMs, limit, code, message }) =>
+  rateLimit({
+    windowMs,
+    limit,
+    standardHeaders: 'draft-8',
+    legacyHeaders: false,
+    message: {
+      error: {
+        code,
+        message,
+      },
     },
-  },
-  skip: (req) => req.path === '/api/health',
-  keyGenerator: (req) => {
-    return req.ip || req.connection.remoteAddress;
-  },
+  });
+
+// These guards intentionally use express-rate-limit's built-in IP key handling
+// so IPv6 clients are normalized correctly. The default MemoryStore is
+// process-local; a horizontally scaled Echoo API must configure a shared store
+// before relying on these limits as a cross-instance abuse boundary.
+export const defaultLimiter = limiter({
+  windowMs: 60 * 1000,
+  limit: 600,
+  code: 'RATE_LIMIT_EXCEEDED',
+  message: 'Too many requests, please try again shortly.',
 });
 
-// Strict limiter for authentication endpoints
-export const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  limit: 10, // 10 requests per 15 minutes
-  standardHeaders: 'draft-8',
-  legacyHeaders: false,
-  message: {
-    error: {
-      code: 'RATE_LIMIT_EXCEEDED',
-      message: 'Too many authentication attempts, please try again later.',
-    },
-  },
-  keyGenerator: (req) => {
-    return req.ip || req.connection.remoteAddress;
-  },
+// Password/identity entry points are deliberately stricter than normal API use.
+export const authLimiter = limiter({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  code: 'AUTH_RATE_LIMIT_EXCEEDED',
+  message: 'Too many authentication attempts, please try again later.',
 });
 
-// Strict limiter for sensitive operations
-export const sensitiveLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  limit: 30, // 30 requests per hour
-  standardHeaders: 'draft-8',
-  legacyHeaders: false,
-  message: {
-    error: {
-      code: 'RATE_LIMIT_EXCEEDED',
-      message: 'Too many requests for this operation, please try again later.',
-    },
-  },
+// Refresh is called automatically by open tabs, so it needs a substantially
+// higher ceiling than password entry while still bounding abusive token churn.
+export const refreshLimiter = limiter({
+  windowMs: 15 * 60 * 1000,
+  limit: 120,
+  code: 'REFRESH_RATE_LIMIT_EXCEEDED',
+  message: 'Too many session refresh attempts, please try again shortly.',
 });
 
-// Upload rate limiter
-export const uploadLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  limit: 20, // 20 uploads per hour
-  standardHeaders: 'draft-8',
-  legacyHeaders: false,
-  message: {
-    error: {
-      code: 'UPLOAD_LIMIT_EXCEEDED',
-      message: 'Upload limit exceeded, please try again later.',
-    },
-  },
+export const sensitiveLimiter = limiter({
+  windowMs: 60 * 60 * 1000,
+  limit: 30,
+  code: 'SENSITIVE_RATE_LIMIT_EXCEEDED',
+  message: 'Too many sensitive account requests, please try again later.',
 });
 
-// Search rate limiter
-export const searchLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  limit: 30, // 30 searches per minute
-  standardHeaders: 'draft-8',
-  legacyHeaders: false,
-  message: {
-    error: {
-      code: 'SEARCH_LIMIT_EXCEEDED',
-      message: 'Too many search requests, please slow down.',
-    },
-  },
+export const uploadLimiter = limiter({
+  windowMs: 60 * 60 * 1000,
+  limit: 20,
+  code: 'UPLOAD_LIMIT_EXCEEDED',
+  message: 'Upload limit exceeded, please try again later.',
+});
+
+// Search-as-you-type can generate several legitimate requests per query, so
+// keep this high enough for normal UI behaviour while preventing request floods.
+export const searchLimiter = limiter({
+  windowMs: 60 * 1000,
+  limit: 120,
+  code: 'SEARCH_LIMIT_EXCEEDED',
+  message: 'Too many search requests, please slow down.',
 });
