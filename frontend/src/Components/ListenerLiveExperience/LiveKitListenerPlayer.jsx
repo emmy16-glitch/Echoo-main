@@ -70,9 +70,10 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive }) => {
       }
     };
 
-    const attachAudio = async (track, publication = null) => {
+    const attachAudio = async (track, publication = null, room = roomRef.current) => {
       if (
         disposed ||
+        roomRef.current !== room ||
         track.kind !== Track.Kind.Audio ||
         !isEchooProgramPublication(publication)
       ) {
@@ -94,17 +95,24 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive }) => {
         try { await element.setSinkId(outputRef.current); } catch { /* use system default */ }
       }
 
+      if (disposed || roomRef.current !== room) {
+        try { track.detach(element); } catch { /* ignore */ }
+        element.remove();
+        attachedRef.current.delete(id);
+        return;
+      }
+
       audioHostRef.current?.appendChild(element);
       setTrackCount((current) => current + 1);
 
       try {
         await element.play();
-        if (!disposed) {
+        if (!disposed && roomRef.current === room) {
           setNeedsAudioStart(false);
           setStatus('listening');
         }
       } catch (playError) {
-        if (!disposed) {
+        if (!disposed && roomRef.current === room) {
           setNeedsAudioStart(true);
           setStatus('connected');
           if (playError?.name !== 'NotAllowedError') {
@@ -122,7 +130,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive }) => {
             publication.track?.kind === Track.Kind.Audio &&
             isEchooProgramPublication(publication)
           ) {
-            tasks.push(attachAudio(publication.track, publication));
+            tasks.push(attachAudio(publication.track, publication, room));
           }
         });
       });
@@ -151,12 +159,16 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive }) => {
       roomRef.current = room;
 
       room.on(RoomEvent.TrackSubscribed, (track, publication) => {
-        attachAudio(track, publication).catch((trackError) => {
-          if (!disposed) setError(trackError?.message || 'Could not attach live audio.');
+        if (roomRef.current !== room) return;
+        attachAudio(track, publication, room).catch((trackError) => {
+          if (!disposed && roomRef.current === room) {
+            setError(trackError?.message || 'Could not attach live audio.');
+          }
         });
       });
 
       room.on(RoomEvent.TrackUnsubscribed, (track) => {
+        if (roomRef.current !== room) return;
         const id = String(track.sid || track.mediaStreamTrack?.id || 'audio');
         if (!attachedRef.current.has(id)) return;
         attachedRef.current.delete(id);
@@ -167,16 +179,27 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive }) => {
         }
       });
 
-      room.on(RoomEvent.Reconnecting, () => !disposed && setStatus('reconnecting'));
-      room.on(RoomEvent.Reconnected, () => !disposed && setStatus(attachedRef.current.size ? 'listening' : 'connected'));
-      room.on(RoomEvent.Disconnected, () => !disposed && setStatus('disconnected'));
+      room.on(RoomEvent.Reconnecting, () => {
+        if (!disposed && roomRef.current === room) setStatus('reconnecting');
+      });
+      room.on(RoomEvent.Reconnected, () => {
+        if (!disposed && roomRef.current === room) {
+          setStatus(attachedRef.current.size ? 'listening' : 'connected');
+          attachExisting(room).catch(() => {});
+        }
+      });
+      room.on(RoomEvent.Disconnected, () => {
+        if (!disposed && roomRef.current === room) setStatus('disconnected');
+      });
       room.on(RoomEvent.AudioPlaybackStatusChanged, () => {
-        if (!disposed) setNeedsAudioStart(!room.canPlaybackAudio);
+        if (!disposed && roomRef.current === room) {
+          setNeedsAudioStart(!room.canPlaybackAudio);
+        }
       });
       room.on(RoomEvent.MediaDevicesChanged, loadOutputs);
 
       await room.connect(liveKitUrl, credentials.token, { autoSubscribe: true });
-      if (disposed) {
+      if (disposed || roomRef.current !== room) {
         await room.disconnect();
         return;
       }
@@ -187,8 +210,18 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive }) => {
       setNeedsAudioStart(!room.canPlaybackAudio);
     };
 
-    connect().catch((connectError) => {
+    connect().catch(async (connectError) => {
       console.error('[Echoo Listener LiveKit]', connectError);
+
+      // A failed ICE/signalling attempt can leave a partially-created Room in
+      // memory. Disconnect it immediately instead of waiting for Retry/unmount.
+      const failedRoom = roomRef.current;
+      roomRef.current = null;
+      clearAudio();
+      if (failedRoom) {
+        try { await failedRoom.disconnect(); } catch { /* ignore */ }
+      }
+
       if (!disposed) {
         setStatus('error');
         setError(connectError?.message || 'Could not connect to the live broadcast.');
