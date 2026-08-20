@@ -3,7 +3,6 @@ import { useNavigate, useParams } from 'react-router-dom';
 import {
   FaBell,
   FaBellSlash,
-  FaCheckCircle,
   FaComments,
   FaExpand,
   FaHeart,
@@ -18,6 +17,8 @@ import {
   FaCalendar,
   FaEllipsisH,
   FaHeadphones,
+  FaPause,
+  FaVolumeUp,
 } from 'react-icons/fa';
 
 import batch3Service from '../../services/batch3Service';
@@ -106,6 +107,7 @@ const ListenerRealLiveRoom = () => {
     following: false,
   });
   const [chatTab, setChatTab] = useState('chat');
+  const [history, setHistory] = useState([]);
   const [text, setText] = useState('');
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [reactionMessageId, setReactionMessageId] = useState('');
@@ -151,6 +153,32 @@ const ListenerRealLiveRoom = () => {
       return next;
     });
   }, []);
+
+  useEffect(() => {
+    if (!broadcast?.id) return undefined;
+    let active = true;
+    let interval = null;
+
+    const snapshot = () => {
+      const count = Number(
+        presence.listenerCount || broadcast.listenerCount || 0
+      ) || 0;
+      setHistory((current) => {
+        const last = current[current.length - 1];
+        if (last && last.n === count) return current;
+        const next = [...current, { t: Date.now(), n: count }];
+        return next.slice(-30);
+      });
+    };
+
+    snapshot();
+    interval = window.setInterval(snapshot, 10000);
+
+    return () => {
+      active = false;
+      if (interval) window.clearInterval(interval);
+    };
+  }, [broadcast?.id, broadcast?.listenerCount, presence.listenerCount]);
 
   const loadBroadcast = useCallback(async () => {
     const response = await batch3Service.getBroadcast(broadcastId);
@@ -504,6 +532,37 @@ const ListenerRealLiveRoom = () => {
     presence.listenerCount || broadcast?.listenerCount || 0
   );
 
+  const sparklinePoints = useMemo(() => {
+    const samples = history.length > 1 ? history : [{ n: listenersCount }];
+    const values = samples.map((sample) => sample.n);
+    const max = Math.max(...values, 1);
+    const width = 260;
+    const height = 72;
+    const step = width / (values.length - 1 || 1);
+    return values
+      .map((value, index) => {
+        const x = index * step;
+        const y = height - (value / max) * (height - 8) - 4;
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+      })
+      .join(' ');
+  }, [history, listenersCount]);
+
+  const sparklineArea = useMemo(() => {
+    const samples = history.length > 1 ? history : [{ n: listenersCount }];
+    const values = samples.map((sample) => sample.n);
+    const max = Math.max(...values, 1);
+    const width = 260;
+    const height = 72;
+    const step = width / (values.length - 1 || 1);
+    const points = values.map((value, index) => {
+      const x = index * step;
+      const y = height - (value / max) * (height - 8) - 4;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    });
+    return `M0,${height} ${points.map((point) => `L${point}`).join(' ')} L${width},${height} Z`;
+  }, [history, listenersCount]);
+
   if (loading) {
     return (
       <main className="llr-page">
@@ -535,7 +594,6 @@ const ListenerRealLiveRoom = () => {
       <header className="llr-topbar">
         <div className="llr-topbar-left">
           <h1 className="llr-room-title">{broadcast.title}</h1>
-          <FaCheckCircle className="llr-verified" title="Verified station" aria-hidden="true" />
         </div>
         <div className="llr-topbar-meta">
           <span className="llr-live-pill"><i /> LIVE NOW</span>
@@ -591,17 +649,41 @@ const ListenerRealLiveRoom = () => {
               </div>
             </div>
 
-            <div className="llr-player-controls">
-              {isLive && (
+              <div className="llr-player-controls">
+            {isLive && (
                 <LiveKitListenerPlayer broadcastId={broadcast.id} isLive />
               )}
-              <div className="llr-controls-right">
-                <span className="llr-controls-live-label"><i /> LIVE</span>
+                <button
+                  type="button"
+                  className="llr-ctrl-pause"
+                  aria-label={isLive ? 'Pause broadcast audio' : 'Broadcast ended'}
+                  disabled={!isLive}
+                >
+                  <FaPause />
+                </button>
+                <span className="llr-ctrl-volume" aria-label="Volume">
+                  <FaVolumeUp />
+                </span>
+                {isLive && (
+                  <span className="llr-controls-live-label">
+                    <i /> LIVE
+                  </span>
+                )}
+                <div
+                  className="llr-controls-progress"
+                  aria-label="Live stream progress"
+                  role="progressbar"
+                  aria-valuenow={isLive ? 100 : 0}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                >
+                  <span className="llr-controls-progress-bar" />
+                </div>
                 <div className="llr-controls-icons">
                   <button type="button" className="llr-ctrl-icon" title="Picture in picture" aria-label="Picture in picture">
                     <FaTv />
                   </button>
-                  <button type="button" className="llr-ctrl-icon" title="Like this broadcast" aria-label="Like this broadcast">
+                  <button type="button" className="llr-ctrl-icon llr-ctrl-icon-heart" title="Like this broadcast" aria-label="Like this broadcast">
                     <FaHeart />
                   </button>
                   <button type="button" className="llr-ctrl-icon" title="Fullscreen" aria-label="Fullscreen">
@@ -609,7 +691,6 @@ const ListenerRealLiveRoom = () => {
                   </button>
                 </div>
               </div>
-            </div>
           </article>
 
           <section className="llr-tabs-shell">
@@ -639,7 +720,6 @@ const ListenerRealLiveRoom = () => {
                   <div className="llr-station-info">
                     <div className="llr-station-name-row">
                       <strong>{broadcast.stationName}</strong>
-                      <FaCheckCircle className="llr-verified-sm" />
                     </div>
                     <span className="llr-station-category">
                       {broadcast.category || 'Other'}
@@ -699,6 +779,40 @@ const ListenerRealLiveRoom = () => {
                   {listenersCount}
                   <span>Listening now</span>
                 </div>
+
+                <div className="llr-sparkline" aria-label="Listeners over time">
+                  <svg
+                    viewBox="0 0 260 72"
+                    preserveAspectRatio="none"
+                    aria-hidden="true"
+                  >
+                    <defs>
+                      <linearGradient
+                        id="llr-sparkline-fill"
+                        x1="0"
+                        y1="0"
+                        x2="0"
+                        y2="1"
+                      >
+                        <stop offset="0%" stopColor="var(--echoo-blue)" stopOpacity=".28" />
+                        <stop offset="100%" stopColor="var(--echoo-blue)" stopOpacity=".02" />
+                      </linearGradient>
+                    </defs>
+                    <path
+                      d={sparklineArea}
+                      fill="url(#llr-sparkline-fill)"
+                    />
+                    <polyline
+                      points={sparklinePoints}
+                      fill="none"
+                      stroke="var(--echoo-blue)"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </div>
+
                 <div className="llr-listeners-stats">
                   <div className="llr-stat">
                     <span>Peak today</span>
@@ -706,13 +820,15 @@ const ListenerRealLiveRoom = () => {
                       {Number(presence.peakListeners || broadcast?.peakListeners) || listenersCount}
                     </strong>
                   </div>
-                  <div className="llr-stat">
-                    <span>Started</span>
-                    <strong>{startedAtLabel}</strong>
-                  </div>
-                  <div className="llr-stat">
-                    <span>Duration</span>
-                    <strong>{elapsedLabel || '—'}</strong>
+                  <div className="llr-stat-grid">
+                    <div className="llr-stat">
+                      <span>Started</span>
+                      <strong>{startedAtLabel}</strong>
+                    </div>
+                    <div className="llr-stat llr-stat-duration">
+                      <span className="llr-stat-label">Duration</span>
+                      <strong>{elapsedLabel || '—'}</strong>
+                    </div>
                   </div>
                 </div>
               </article>
