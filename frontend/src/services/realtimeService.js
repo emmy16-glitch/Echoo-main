@@ -150,9 +150,21 @@ const connect = async () => {
     };
 
     const onError = (error) => {
-      // An expired token may be recovered asynchronously by the permanent
-      // connect_error handler. Keep this caller bounded; the screen can fall
-      // back to polling while Socket.IO finishes recovering.
+      if (authErrorLikely(error)) {
+        // Do not immediately throw the screen into polling fallback. Give the
+        // shared token-refresh path a chance to rotate credentials; `onConnect`
+        // will resolve this same caller when the recovered socket reconnects.
+        recoverSocketAuthentication().catch((refreshError) => {
+          cleanup();
+          reject(
+            refreshError instanceof Error
+              ? refreshError
+              : new Error('Realtime session expired.')
+          );
+        });
+        return;
+      }
+
       cleanup();
       reject(error instanceof Error ? error : new Error('Realtime connection failed.'));
     };
@@ -173,15 +185,16 @@ const joinBroadcast = async (broadcastId) => {
 
   return new Promise((resolve, reject) => {
     let settled = false;
+    let timer = null;
     const finish = (callback) => (value) => {
       if (settled) return;
       settled = true;
-      window.clearTimeout(timer);
+      if (timer) window.clearTimeout(timer);
       callback(value);
     };
     const resolveOnce = finish(resolve);
     const rejectOnce = finish(reject);
-    const timer = window.setTimeout(() => {
+    timer = window.setTimeout(() => {
       rejectOnce(new Error('Joining the realtime broadcast room timed out.'));
     }, 10000);
 
