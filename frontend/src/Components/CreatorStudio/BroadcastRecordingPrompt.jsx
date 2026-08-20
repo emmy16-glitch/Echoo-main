@@ -15,6 +15,28 @@ import {
 } from '../../services/broadcastRecordingService.js';
 import './BroadcastRecordingPrompt.css';
 
+const PENDING_RECORDING_DECISION_KEY = '__echooPendingBroadcastRecording';
+
+const readRecoveredPendingDecision = () => {
+  if (typeof window === 'undefined') return null;
+  const detail = window[PENDING_RECORDING_DECISION_KEY] || null;
+  return detail?.recording?.blob?.size ? detail : null;
+};
+
+const rememberPendingDecision = (detail) => {
+  if (typeof window === 'undefined' || !detail?.recording?.blob?.size) return;
+  window[PENDING_RECORDING_DECISION_KEY] = detail;
+};
+
+const forgetPendingDecision = () => {
+  if (typeof window === 'undefined') return;
+  try {
+    delete window[PENDING_RECORDING_DECISION_KEY];
+  } catch {
+    window[PENDING_RECORDING_DECISION_KEY] = null;
+  }
+};
+
 const formatDuration = (seconds) => {
   const value = Math.max(0, Number(seconds) || 0);
   const hours = Math.floor(value / 3600);
@@ -74,23 +96,42 @@ const safeFilename = (title, recording) => {
 };
 
 const BroadcastRecordingPrompt = () => {
-  const [pending, setPending] = useState(null);
+  const [pending, setPending] = useState(readRecoveredPendingDecision);
   const [savingMode, setSavingMode] = useState('');
   const [error, setError] = useState('');
   const [savedMode, setSavedMode] = useState('');
 
   useEffect(() => {
-    const onRecordingReady = (event) => {
-      const detail = event?.detail || null;
+    const applyPendingDecision = (detail) => {
       if (!detail?.recording?.blob?.size) return;
+      rememberPendingDecision(detail);
       setPending(detail);
       setError('');
       setSavedMode('');
       setSavingMode('');
     };
 
+    const onRecordingReady = (event) => {
+      applyPendingDecision(event?.detail || null);
+    };
+
+    const recoverPendingDecision = () => {
+      const recovered = readRecoveredPendingDecision();
+      if (recovered) applyPendingDecision(recovered);
+    };
+
+    // Recover first in case the recording event was emitted during a component
+    // remount. This is especially useful during Creator Studio navigation/HMR.
+    recoverPendingDecision();
+
     window.addEventListener(BROADCAST_RECORDING_READY_EVENT, onRecordingReady);
-    return () => window.removeEventListener(BROADCAST_RECORDING_READY_EVENT, onRecordingReady);
+    window.addEventListener('focus', recoverPendingDecision);
+    window.addEventListener('pageshow', recoverPendingDecision);
+    return () => {
+      window.removeEventListener(BROADCAST_RECORDING_READY_EVENT, onRecordingReady);
+      window.removeEventListener('focus', recoverPendingDecision);
+      window.removeEventListener('pageshow', recoverPendingDecision);
+    };
   }, []);
 
   useEffect(() => {
@@ -122,6 +163,7 @@ const BroadcastRecordingPrompt = () => {
 
   const closeAfterSave = (mode) => {
     setSavedMode(mode);
+    forgetPendingDecision();
     clearPendingBroadcastRecording(recording.broadcastId);
     window.dispatchEvent(new CustomEvent('echoo:creator-audio-changed'));
     window.setTimeout(() => {
@@ -169,6 +211,7 @@ const BroadcastRecordingPrompt = () => {
 
   const discard = () => {
     if (savingMode || savedMode) return;
+    forgetPendingDecision();
     clearPendingBroadcastRecording(recording.broadcastId);
     setPending(null);
   };
