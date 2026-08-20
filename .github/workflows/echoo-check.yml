@@ -95,6 +95,7 @@ jobs:
           node --check src/services/creatorBroadcastLease.js
           node --check src/middleware/auth.js
           node --check src/middleware/rateLimiter.js
+          node --check src/middleware/stationDeletionGuard.js
           node --check src/middleware/enforceSingleLiveCreator.js
           node --check src/middleware/broadcastQueryValidation.js
           node --check src/utils/queryText.js
