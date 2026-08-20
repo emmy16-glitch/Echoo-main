@@ -1,6 +1,7 @@
 import Broadcast from '../models/Broadcast.js';
 import Audio from '../models/Audio.js';
 import Station from '../models/Station.js';
+import { IngressClient } from 'livekit-server-sdk';
 import LiveKitProvider from '../providers/livekit.js';
 import OvenMediaProvider from '../providers/ovenmedia.js';
 import { createAudioStreamToken } from '../services/audioStreamAccess.js';
@@ -22,32 +23,13 @@ import { createAudioStreamToken } from '../services/audioStreamAccess.js';
 const PRERECORDED_STATUS = 'recorded';
 
 const ingressClient = () => {
-  const { IngressClient } = (() => {
-    // livekit-server-sdk exports IngressClient alongside RoomServiceClient and
-    // EgressClient; import it lazily so models that never touch prerecorded
-    // broadcasts do not pay for the extra module.
-    let cached = null;
-    return {
-      get IngressClient() {
-        if (!cached) {
-          cached = require('livekit-server-sdk').IngressClient;
-        }
-        return cached;
-      },
-    };
-  })();
-  const { apiUrl, apiKey, apiSecret } = (() => {
-    // Mirror LiveKitProvider's getConfig without re-exporting it.
-    const url = String(process.env.LIVEKIT_URL || '').trim();
-    return {
-      apiUrl: url
-        .replace(/^ws:\/\//i, 'http://')
-        .replace(/^wss:\/\//i, 'https://')
-        .replace(/\/$/, ''),
-      apiKey: String(process.env.LIVEKIT_API_KEY || '').trim(),
-      apiSecret: String(process.env.LIVEKIT_API_SECRET || '').trim(),
-    };
-  })();
+  const url = String(process.env.LIVEKIT_URL || '').trim();
+  const apiUrl = url
+    .replace(/^ws:\/\//i, 'http://')
+    .replace(/^wss:\/\//i, 'https://')
+    .replace(/\/$/, '');
+  const apiKey = String(process.env.LIVEKIT_API_KEY || '').trim();
+  const apiSecret = String(process.env.LIVEKIT_API_SECRET || '').trim();
   return new IngressClient(apiUrl, apiKey, apiSecret);
 };
 
