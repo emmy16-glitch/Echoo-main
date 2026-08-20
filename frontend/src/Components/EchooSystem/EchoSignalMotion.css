@@ -1,0 +1,161 @@
+/* Creator Home signal motion: calm while ready, warmer and more present while live. */
+
+.ehome-profile-signal.echoo-signal-active .ring-one {
+  animation: echooHomeReadyRingOne 6.4s ease-in-out infinite;
+}
+
+.ehome-profile-signal.echoo-signal-active .ring-two {
+  animation: echooHomeReadyRingTwo 7.8s ease-in-out infinite;
+}
+
+.ehome-profile-signal.echoo-signal-active .ring-three {
+  animation: echooHomeReadyRingThree 9.2s ease-in-out infinite;
+}
+
+.ehome-profile-signal.echoo-signal-active .echoo-nodes {
+  animation: echooHomeNodeOrbit 22s linear infinite;
+}
+
+.ehome-reference-signal:not(.live)::before {
+  animation: echooHomeOuterHalo 8.5s ease-in-out infinite;
+}
+
+.ehome-reference-signal:not(.live)::after {
+  animation: echooHomeOuterHalo 6.8s ease-in-out 1.1s infinite;
+}
+
+/* Live state intentionally uses a soft broadcast red rather than a hard alarm red. */
+.ehome-profile-signal.echoo-signal-live {
+  --echoo-primary: #e5484d;
+  --echoo-ring-1: rgba(229, 72, 77, .16);
+  --echoo-ring-2: rgba(229, 72, 77, .23);
+  --echoo-ring-3: rgba(229, 72, 77, .34);
+  --echoo-node: rgba(229, 72, 77, .15);
+}
+
+.ehome-profile-signal.echoo-signal-live .ring-one {
+  animation: echooHomeLiveRingOne 3.8s ease-in-out infinite;
+  border-color: rgba(229, 72, 77, .34);
+}
+
+.ehome-profile-signal.echoo-signal-live .ring-two {
+  animation: echooHomeLiveRingTwo 4.6s ease-in-out .45s infinite;
+  border-color: rgba(229, 72, 77, .24);
+}
+
+.ehome-profile-signal.echoo-signal-live .ring-three {
+  animation: echooHomeLiveRingThree 5.4s ease-in-out .9s infinite;
+  border-color: rgba(229, 72, 77, .16);
+}
+
+.ehome-profile-signal.echoo-signal-live .echoo-nodes {
+  animation: echooHomeNodeOrbit 13s linear infinite;
+}
+
+.ehome-reference-signal.live::before,
+.ehome-reference-signal.live::after {
+  border-color: rgba(229, 72, 77, .15) !important;
+}
+
+.ehome-reference-signal.live::before {
+  animation: echooHomeLiveOuterHalo 5.2s ease-in-out infinite;
+}
+
+.ehome-reference-signal.live::after {
+  animation: echooHomeLiveOuterHalo 4.2s ease-in-out .7s infinite;
+}
+
+.ehome-reference-signal.live .echoo-signal-core {
+  box-shadow:
+    0 0 0 5px rgba(229, 72, 77, .035),
+    0 0 26px rgba(229, 72, 77, .10);
+}
+
+@keyframes echooHomeReadyRingOne {
+  0%, 100% {
+    opacity: .72;
+    transform: translate(-50%, -50%) scale(.985);
+  }
+  50% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.045);
+  }
+}
+
+@keyframes echooHomeReadyRingTwo {
+  0%, 100% {
+    opacity: .58;
+    transform: translate(-50%, -50%) scale(.99);
+  }
+  50% {
+    opacity: .9;
+    transform: translate(-50%, -50%) scale(1.035);
+  }
+}
+
+@keyframes echooHomeReadyRingThree {
+  0%, 100% {
+    opacity: .42;
+    transform: translate(-50%, -50%) scale(.995);
+  }
+  50% {
+    opacity: .72;
+    transform: translate(-50%, -50%) scale(1.025);
+  }
+}
+
+@keyframes echooHomeLiveRingOne {
+  0%, 100% {
+    opacity: .72;
+    transform: translate(-50%, -50%) scale(.985);
+  }
+  50% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.065);
+  }
+}
+
+@keyframes echooHomeLiveRingTwo {
+  0%, 100% {
+    opacity: .5;
+    transform: translate(-50%, -50%) scale(.99);
+  }
+  50% {
+    opacity: .88;
+    transform: translate(-50%, -50%) scale(1.055);
+  }
+}
+
+@keyframes echooHomeLiveRingThree {
+  0%, 100% {
+    opacity: .34;
+    transform: translate(-50%, -50%) scale(.995);
+  }
+  50% {
+    opacity: .66;
+    transform: translate(-50%, -50%) scale(1.045);
+  }
+}
+
+@keyframes echooHomeNodeOrbit {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes echooHomeOuterHalo {
+  0%, 100% { opacity: .52; }
+  50% { opacity: .88; }
+}
+
+@keyframes echooHomeLiveOuterHalo {
+  0%, 100% { opacity: .38; }
+  50% { opacity: .78; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ehome-profile-signal .echoo-signal-ring,
+  .ehome-profile-signal .echoo-nodes,
+  .ehome-reference-signal::before,
+  .ehome-reference-signal::after {
+    animation: none !important;
+  }
+}
