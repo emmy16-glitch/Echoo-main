@@ -1,4 +1,5 @@
-import { useEffect, useState, Suspense, lazy } from 'react';
+import { Component, useEffect, useState, Suspense, lazy } from 'react';
+import { FiAlertTriangle } from 'react-icons/fi';
 import {
   BrowserRouter,
   Navigate,
@@ -35,16 +36,55 @@ import EchooExperienceOrchestrator from './Components/EchooSystem/EchooExperienc
 import EchooMobileNavigation from './Components/EchooSystem/EchooMobileNavigation';
 import ImageCropProvider from './Components/Common/ImageCropProvider';
 
-// Lightweight fallback shown while a lazy page shell loads.
-const LazyPage = ({ element }) => (
-  <Suspense
-    fallback={
-      <div className="echoo-lazy-page-fallback" role="status">
-        Loading…
-      </div>
+// Error boundary that catches lazy-chunk load failures (e.g. a network drop
+// mid-session) and lets the user retry instead of crashing the whole app.
+// Class component because ErrorBoundary requires getDerivedStateFromError.
+class LazyPageErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  retry = () => {
+    this.setState({ hasError: false });
+  };
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="echoo-lazy-page-fallback echoo-lazy-page-fallback--error" role="alert">
+          <div className="echoo-lazy-page-fallback__icon" aria-hidden="true">
+            <FiAlertTriangle />
+          </div>
+          <p className="echoo-lazy-page-fallback__title">This page couldn&apos;t load</p>
+          <p className="echoo-lazy-page-fallback__hint">
+            Your connection may have dropped. Try again.
+          </p>
+          <button type="button" className="echoo-lazy-page-fallback__retry" onClick={this.retry}>
+            Try again
+          </button>
+        </div>
+      );
     }
-  >
-    {element}
+    return this.props.children;
+  }
+}
+
+// Loading state shown while a lazy page shell (or its route chunk) loads.
+const LazyPageLoading = () => (
+  <div className="echoo-lazy-page-fallback" role="status" aria-live="polite">
+    <div className="echoo-lazy-page-fallback__spinner" aria-hidden="true" />
+    <p className="echoo-lazy-page-fallback__text">Loading…</p>
+  </div>
+);
+
+const LazyPage = ({ element }) => (
+  <Suspense fallback={<LazyPageLoading />}>
+    <LazyPageErrorBoundary>{element}</LazyPageErrorBoundary>
   </Suspense>
 );
 

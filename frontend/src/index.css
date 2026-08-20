@@ -212,3 +212,117 @@ pre {
     font-size: 14px;
   }
 }
+
+/* Lazy-route loading and error states — shown while a lazy page shell or
+   its route chunk loads, and when a chunk fails to load. */
+.echoo-lazy-page-fallback {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+
+  padding: 64px 24px;
+
+  min-height: 280px;
+
+  color: var(--echoo-text-soft);
+
+  font-family: var(--echoo-sans);
+}
+
+.echoo-lazy-page-fallback__spinner {
+  width: 34px;
+  height: 34px;
+
+  border: 3px solid var(--echoo-blue-soft);
+  border-top-color: var(--echoo-blue);
+  border-radius: 50%;
+
+  animation: echooLazyPageSpin 0.9s linear infinite;
+}
+
+@keyframes echooLazyPageSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.echoo-lazy-page-fallback__text {
+  margin: 0;
+
+  font-size: 14px;
+
+  letter-spacing: 0.2px;
+}
+
+/* Chunk-load failure state */
+.echoo-lazy-page-fallback--error {
+  background: var(--echoo-surface);
+  border: 1px solid var(--echoo-border);
+  border-radius: 16px;
+  box-shadow: var(--echoo-shadow);
+  text-align: center;
+}
+
+.echoo-lazy-page-fallback__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+
+  border-radius: 50%;
+
+  background: var(--echoo-blue-soft);
+
+  color: var(--echoo-blue);
+
+  font-size: 22px;
+}
+
+.echoo-lazy-page-fallback__title {
+  margin: 0;
+
+  font-size: 16px;
+  font-weight: 600;
+
+  color: var(--echoo-text-h);
+}
+
+.echoo-lazy-page-fallback__hint {
+  margin: 0;
+
+  font-size: 13.5px;
+
+  color: var(--echoo-text-muted);
+}
+
+.echoo-lazy-page-fallback__retry {
+  margin-top: 6px;
+  padding: 9px 22px;
+
+  border: 1px solid var(--echoo-blue-border);
+  border-radius: 999px;
+
+  background: var(--echoo-blue);
+
+  color: #ffffff;
+
+  font-family: var(--echoo-sans);
+  font-size: 14px;
+  font-weight: 500;
+
+  cursor: pointer;
+
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.echoo-lazy-page-fallback__retry:hover {
+  background: var(--echoo-blue-hover);
+}
+
+.echoo-lazy-page-fallback__retry:focus-visible {
+  outline: 2px solid var(--echoo-blue);
+  outline-offset: 2px;
+}
