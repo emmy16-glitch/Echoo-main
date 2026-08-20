@@ -5,7 +5,7 @@ import Station from '../models/Station.js';
 import User from '../models/User.js';
 
 const userSummary = '_id username displayName avatar bio userType creatorProfile.category creatorProfile.isVerified';
-const stationSummary = '_id name slug description coverArt category isLive listenerCount followerCount owner';
+const stationSummary = '_id name slug description coverArt category isLive listenerCount followerCount owner isPublic isDeleted';
 
 function validId(value) {
   return mongoose.isValidObjectId(value);
@@ -56,6 +56,10 @@ export async function followUser(req, res, next) {
         await existing.save();
       }
 
+      await User.findByIdAndUpdate(userId, {
+        $addToSet: { 'creatorProfile.followers': followerId },
+      });
+
       return res.status(200).json({
         data: {
           following: true,
@@ -72,8 +76,6 @@ export async function followUser(req, res, next) {
       status: 'accepted',
     });
 
-    // Keep this legacy cache correct for older creator profile consumers.
-    // Follow collection remains the source of truth.
     await User.findByIdAndUpdate(userId, {
       $addToSet: { 'creatorProfile.followers': followerId },
     });
@@ -137,18 +139,17 @@ export async function getFollowers(req, res, next) {
     const filter = { following: userId, status: 'accepted' };
     const [rows, total] = await Promise.all([
       Follow.find(filter)
-        .populate('follower', userSummary)
+        .populate({ path: 'follower', match: { isActive: true }, select: userSummary })
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit),
       Follow.countDocuments(filter),
     ]);
 
+    const followers = rows.map((row) => row.follower).filter(Boolean);
     return res.status(200).json({
       data: {
-        followers: rows
-          .map((row) => row.follower)
-          .filter(Boolean),
+        followers,
         pagination: {
           page,
           limit,
@@ -175,18 +176,17 @@ export async function getFollowing(req, res, next) {
     const filter = { follower: userId, status: 'accepted' };
     const [rows, total] = await Promise.all([
       Follow.find(filter)
-        .populate('following', userSummary)
+        .populate({ path: 'following', match: { isActive: true }, select: userSummary })
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit),
       Follow.countDocuments(filter),
     ]);
 
+    const following = rows.map((row) => row.following).filter(Boolean);
     return res.status(200).json({
       data: {
-        following: rows
-          .map((row) => row.following)
-          .filter(Boolean),
+        following,
         pagination: {
           page,
           limit,
@@ -210,6 +210,13 @@ export async function checkFollowStatus(req, res, next) {
   try {
     const { userId } = req.params;
     if (!validId(userId)) return invalidId(res, 'user');
+
+    const targetExists = await User.exists({ _id: userId, isActive: true });
+    if (!targetExists) {
+      return res.status(404).json({
+        error: { code: 'NOT_FOUND', message: 'User not found' },
+      });
+    }
 
     const currentUserId = req.userId;
     const [isFollowing, isFollowedBy] = await Promise.all([
@@ -275,6 +282,13 @@ export async function getMutualFollowers(req, res, next) {
   try {
     const { userId } = req.params;
     if (!validId(userId)) return invalidId(res, 'user');
+
+    const targetExists = await User.exists({ _id: userId, isActive: true });
+    if (!targetExists) {
+      return res.status(404).json({
+        error: { code: 'NOT_FOUND', message: 'User not found' },
+      });
+    }
 
     const currentFollowing = await Follow.find({
       follower: req.userId,
@@ -357,7 +371,10 @@ export async function unfollowStation(req, res, next) {
     });
 
     const followerCount = await StationFollow.countDocuments({ station: stationId });
-    await Station.findByIdAndUpdate(stationId, { followerCount });
+    await Station.findOneAndUpdate(
+      { _id: stationId, isDeleted: false },
+      { followerCount }
+    );
 
     return res.status(200).json({
       data: {
@@ -376,6 +393,17 @@ export async function checkStationFollowStatus(req, res, next) {
   try {
     const { stationId } = req.params;
     if (!validId(stationId)) return invalidId(res, 'station');
+
+    const station = await Station.exists({
+      _id: stationId,
+      isDeleted: false,
+      isPublic: true,
+    });
+    if (!station) {
+      return res.status(404).json({
+        error: { code: 'NOT_FOUND', message: 'Station not found' },
+      });
+    }
 
     const [relationship, followerCount] = await Promise.all([
       StationFollow.exists({ follower: req.userId, station: stationId }),
@@ -399,9 +427,11 @@ export async function getMyFollowedStations(req, res, next) {
     const rows = await StationFollow.find({ follower: req.userId })
       .populate({
         path: 'station',
+        match: { isDeleted: false, isPublic: true },
         select: stationSummary,
         populate: {
           path: 'owner',
+          match: { isActive: true },
           select: userSummary,
         },
       })
@@ -409,7 +439,9 @@ export async function getMyFollowedStations(req, res, next) {
 
     return res.status(200).json({
       data: {
-        stations: rows.map((row) => row.station).filter(Boolean),
+        stations: rows
+          .map((row) => row.station)
+          .filter((station) => station && station.owner),
       },
       timestamp: new Date().toISOString(),
     });
