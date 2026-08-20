@@ -1,0 +1,1145 @@
+/* Listener visual migration: Creator Studio is the source of truth. */
+
+.echoo-app-shell--listener {
+  --studio-sidebar-width: 78px;
+  --studio-canvas: #f7f9fc;
+  --studio-surface: #fff;
+  --studio-ink: #0b1730;
+  --studio-soft: #40516b;
+  --studio-muted: #7b8798;
+  --studio-line: #e3e9f1;
+  --studio-blue: #246bfe;
+  --studio-blue-soft: #edf4ff;
+  font-family: Inter, "SF Pro Text", "Segoe UI Variable", "Helvetica Neue", Arial, ui-sans-serif, system-ui, sans-serif;
+  color: var(--studio-ink);
+  background: var(--studio-canvas);
+}
+
+.echoo-app-shell--listener .studio-sidebar {
+  padding: 22px 12px 14px;
+  background: rgba(255, 255, 255, .985);
+  border-right-color: var(--studio-line);
+}
+
+.echoo-app-shell--listener .studio-brand {
+  justify-content: center;
+  padding: 3px 0 20px;
+}
+
+.echoo-app-shell--listener .studio-brand .studio-logo {
+  width: 42px;
+  height: 42px;
+  object-fit: cover;
+  object-position: left center;
+}
+
+.echoo-app-shell--listener .studio-nav-item {
+  justify-content: center;
+  gap: 0;
+  padding: 0;
+}
+
+.echoo-app-shell--listener .studio-nav-item > .studio-nav-label {
+  display: none;
+}
+
+.echoo-app-shell--listener .studio-nav-icon {
+  width: auto;
+  flex-basis: auto;
+}
+
+.echoo-app-shell--listener .echoo-app-navigation {
+  gap: 5px;
+}
+
+.echoo-app-shell--listener .echoo-app-nav-group {
+  display: contents;
+}
+
+.echoo-app-shell--listener .echoo-app-nav-group-label {
+  display: none;
+}
+
+.echoo-app-shell--listener .listener-profile-menu-wrap {
+  position: relative;
+  z-index: 70;
+  flex: 0 0 auto;
+  margin-top: auto;
+  padding-top: 12px;
+}
+
+.echoo-app-shell--listener .listener-profile-menu-wrap .layout-profile {
+  width: 48px;
+  min-height: 48px;
+  display: grid;
+  grid-template-columns: 1fr;
+  justify-items: center;
+  align-items: center;
+  margin: 0 auto;
+  padding: 4px;
+  border: 1px solid var(--studio-line);
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 5px 16px rgba(20, 42, 76, .035);
+}
+
+.echoo-app-shell--listener .listener-profile-menu-wrap .layout-profile-image {
+  width: 38px;
+  height: 38px;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px #dbe4ef;
+  border-radius: 50%;
+  background: var(--studio-blue-soft);
+  color: var(--studio-blue);
+  font-size: 11px;
+  font-weight: 760;
+}
+
+.echoo-app-shell--listener .listener-profile-menu-wrap .layout-profile-info,
+.echoo-app-shell--listener .listener-profile-menu-wrap .listener-profile-chevron {
+  display: none;
+}
+
+.echoo-app-shell--listener .listener-profile-dropdown {
+  left: calc(100% + 12px);
+  bottom: 0;
+  width: 190px;
+  padding: 6px;
+  border: 1px solid var(--studio-line);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 20px 48px rgba(15, 23, 42, .16);
+}
+
+.echoo-app-shell--listener .listener-profile-logout {
+  min-height: 36px;
+  padding: 0 9px;
+  border-radius: 7px;
+  gap: 8px;
+}
+
+.echoo-app-shell--listener .listener-profile-logout:hover {
+  background: #f5f8fc;
+}
+
+.echoo-app-shell--listener .listener-profile-logout-icon {
+  width: 26px;
+  height: 26px;
+  flex-basis: 26px;
+  border-radius: 7px;
+  background: #fff5f4;
+  color: #b42318;
+}
+
+.echoo-app-shell--listener .listener-profile-logout-content strong {
+  color: #40516b;
+  font-size: 9px;
+}
+
+.echoo-app-shell--listener .listener-profile-logout-content small {
+  color: #8793a4;
+  font-size: 8px;
+}
+
+.echoo-app-shell--listener .beautiful-search-wrapper {
+  position: relative;
+  width: min(100%, 540px);
+  min-width: 180px;
+  margin-right: auto;
+}
+
+.echoo-app-shell--listener .beautiful-search {
+  width: 100%;
+  height: 44px;
+  padding: 0 14px;
+  border: 1px solid #dfe6ef;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, .96);
+  box-shadow: 0 4px 14px rgba(22, 42, 72, .025);
+}
+
+.echoo-app-shell--listener .beautiful-search:focus-within,
+.echoo-app-shell--listener .beautiful-search.active {
+  border-color: #a8c5ff;
+  box-shadow: 0 0 0 4px rgba(36, 107, 254, .07);
+}
+
+.echoo-app-shell--listener .beautiful-search input {
+  font-family: inherit;
+  color: #344054;
+  font-size: 10px;
+}
+
+.echoo-app-shell--listener .beautiful-search input::placeholder {
+  color: #98a2b3;
+}
+
+.echoo-app-shell--listener .beautiful-search-panel {
+  top: 52px;
+  border-color: var(--studio-line);
+  border-radius: 10px;
+  box-shadow: 0 20px 48px rgba(15, 23, 42, .16);
+}
+
+.echoo-app-shell--listener .beautiful-search-shortcut,
+.echoo-app-shell--listener .beautiful-search-clear {
+  color: #7b8798;
+}
+
+.echoo-app-shell--listener .notification-button {
+  position: relative;
+}
+
+.echoo-app-shell--listener .notification-button > span {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--studio-blue);
+}
+
+.echoo-app-shell--listener .studio-account-button {
+  min-width: 172px;
+}
+
+.echoo-app-shell--listener .studio-view {
+  padding-bottom: 120px;
+}
+
+.echoo-app-shell--listener .layout-content {
+  width: 100%;
+  min-width: 0;
+}
+
+.echoo-app-shell--listener .layout-player {
+  left: var(--studio-sidebar-width);
+  right: 0;
+  width: auto;
+  height: 82px;
+  padding: 0 28px;
+  border-top: 1px solid var(--studio-line);
+  background: rgba(255, 255, 255, .98);
+  box-shadow: 0 -8px 24px rgba(20, 42, 76, .04);
+}
+
+.echoo-app-shell--listener .layout-player-controls button,
+.echoo-app-shell--listener .layout-player-volume button {
+  border-radius: 50%;
+  transition: background .16s ease, color .16s ease, transform .16s ease;
+}
+
+.echoo-app-shell--listener .layout-player-controls button:hover,
+.echoo-app-shell--listener .layout-player-volume button:hover {
+  background: var(--studio-blue-soft);
+  color: var(--studio-blue);
+}
+
+.echoo-app-shell--listener .layout-player-main-button {
+  background: var(--studio-blue);
+  color: #fff;
+  box-shadow: 0 8px 18px rgba(36, 107, 254, .22);
+}
+
+.echoo-app-shell--listener .layout-player-main-button:hover {
+  background: #1859df;
+  color: #fff;
+}
+
+.echoo-app-shell--listener .layout-player-progress {
+  background: #e8eef6;
+}
+
+.echoo-app-shell--listener .layout-player-progress > div {
+  background: var(--studio-blue);
+}
+
+.echoo-app-shell--listener .layout-player-info strong,
+.echoo-app-shell--listener .layout-player-info span {
+  font-family: inherit;
+}
+
+/* Listener Home adopts the Creator page rhythm and surfaces. */
+.echoo-app-shell--listener .echoo-home {
+  width: 100%;
+  min-width: 0;
+  color: var(--studio-ink);
+  font-family: inherit;
+}
+
+.echoo-app-shell--listener .echoo-home-welcome {
+  margin: 0 0 22px;
+}
+
+.echoo-app-shell--listener .echoo-home-greeting {
+  margin: 0;
+  color: var(--studio-ink);
+  font-size: 32px;
+  font-weight: 820;
+  letter-spacing: -.045em;
+  line-height: 1.05;
+}
+
+.echoo-app-shell--listener .echoo-home-subtitle {
+  margin: 8px 0 0;
+  color: var(--studio-soft);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.echoo-app-shell--listener .echoo-home-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(260px, .75fr);
+  min-height: 238px;
+  margin: 0 0 24px;
+  overflow: hidden;
+  border: 1px solid #dfe6ef;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(20, 42, 76, .04);
+}
+
+.echoo-app-shell--listener .echoo-home-hero-art {
+  min-height: 238px;
+  position: relative;
+  overflow: hidden;
+  background: #eef3f9;
+}
+
+.echoo-app-shell--listener .echoo-home-hero-art img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.echoo-app-shell--listener .echoo-home-hero-content {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  padding: 30px;
+}
+
+.echoo-app-shell--listener .echoo-home-hero-label,
+.echoo-app-shell--listener .echoo-home-hero-chip {
+  color: var(--studio-blue);
+  font-size: 9px;
+  font-weight: 760;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.echoo-app-shell--listener .echoo-home-hero-title {
+  max-width: 100%;
+  margin: 10px 0 6px;
+  color: var(--studio-ink);
+  font-size: 28px;
+  font-weight: 820;
+  letter-spacing: -.035em;
+  line-height: 1.05;
+}
+
+.echoo-app-shell--listener .echoo-home-hero-station {
+  color: var(--studio-soft);
+  font-size: 12px;
+}
+
+.echoo-app-shell--listener .echoo-home-hero-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 16px;
+}
+
+.echoo-app-shell--listener .echoo-home-hero-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 9px;
+  border: 1px solid #dbe7ff;
+  border-radius: 999px;
+  background: var(--studio-blue-soft);
+  color: #3563aa;
+  font-size: 9px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.echoo-app-shell--listener .echoo-home-hero-play,
+.echoo-app-shell--listener .echoo-home-follow-button {
+  width: fit-content;
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 18px;
+  padding: 0 14px;
+  border: 1px solid var(--studio-blue);
+  border-radius: 9px;
+  background: var(--studio-blue);
+  color: #fff;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 760;
+  cursor: pointer;
+  transition: background .16s ease, transform .16s ease;
+}
+
+.echoo-app-shell--listener .echoo-home-hero-play:hover,
+.echoo-app-shell--listener .echoo-home-follow-button:hover {
+  background: #1859df;
+}
+
+.echoo-app-shell--listener .echoo-home-section {
+  margin-top: 24px;
+}
+
+.echoo-app-shell--listener .echoo-home-section-head {
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
+.echoo-app-shell--listener .echoo-home-section-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  color: var(--studio-ink);
+  font-size: 16px;
+  font-weight: 780;
+  letter-spacing: -.02em;
+}
+
+.echoo-app-shell--listener .echoo-home-view-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 0;
+  border: 0;
+  background: transparent;
+  color: var(--studio-blue);
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 720;
+  cursor: pointer;
+}
+
+.echoo-app-shell--listener .echoo-home-live-grid,
+.echoo-app-shell--listener .echoo-home-discover-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.echoo-app-shell--listener .echoo-home-live-card,
+.echoo-app-shell--listener .echoo-home-discover-card,
+.echoo-app-shell--listener .echoo-home-continue-card,
+.echoo-app-shell--listener .echoo-home-history-row {
+  min-width: 0;
+  border: 1px solid var(--studio-line);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 5px 16px rgba(20, 42, 76, .035);
+}
+
+.echoo-app-shell--listener .echoo-home-live-card,
+.echoo-app-shell--listener .echoo-home-continue-card {
+  overflow: hidden;
+  text-align: left;
+}
+
+.echoo-app-shell--listener .echoo-home-live-card:hover,
+.echoo-app-shell--listener .echoo-home-discover-card:hover,
+.echoo-app-shell--listener .echoo-home-continue-card:hover,
+.echoo-app-shell--listener .echoo-home-history-row:hover {
+  border-color: #bfd2f4;
+  box-shadow: 0 10px 24px rgba(20, 42, 76, .08);
+}
+
+.echoo-app-shell--listener .echoo-home-live-art,
+.echoo-app-shell--listener .echoo-home-discover-art {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: #eef3f9;
+}
+
+.echoo-app-shell--listener .echoo-home-discover-art {
+  border: 0;
+  border-radius: 0;
+  cursor: pointer;
+}
+
+.echoo-app-shell--listener .echoo-home-live-art img,
+.echoo-app-shell--listener .echoo-home-discover-art img,
+.echoo-app-shell--listener .echoo-home-continue-art img,
+.echoo-app-shell--listener .echoo-home-history-art {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.echoo-app-shell--listener .echoo-home-live-info,
+.echoo-app-shell--listener .echoo-home-discover-info,
+.echoo-app-shell--listener .echoo-home-continue-info {
+  min-width: 0;
+  padding: 12px;
+}
+
+.echoo-app-shell--listener .echoo-home-live-name,
+.echoo-app-shell--listener .echoo-home-discover-name,
+.echoo-app-shell--listener .echoo-home-continue-name,
+.echoo-app-shell--listener .echoo-home-history-name {
+  display: block;
+  overflow: hidden;
+  color: var(--studio-ink);
+  font-size: 12px;
+  font-weight: 760;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.echoo-app-shell--listener .echoo-home-live-meta,
+.echoo-app-shell--listener .echoo-home-discover-sub,
+.echoo-app-shell--listener .echoo-home-continue-sub,
+.echoo-app-shell--listener .echoo-home-history-sub {
+  display: block;
+  margin-top: 5px;
+  overflow: hidden;
+  color: var(--studio-muted);
+  font-size: 10px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.echoo-app-shell--listener .echoo-home-discover-card {
+  overflow: hidden;
+}
+
+.echoo-app-shell--listener .echoo-home-follow-button {
+  width: calc(100% - 24px);
+  min-height: 32px;
+  margin: 0 12px 12px;
+  border-color: #dbe7ff;
+  background: var(--studio-blue-soft);
+  color: var(--studio-blue);
+}
+
+.echoo-app-shell--listener .echoo-home-follow-button:hover,
+.echoo-app-shell--listener .echoo-home-follow-button--following {
+  background: #dfeaff;
+  color: #1859df;
+}
+
+.echoo-app-shell--listener .echoo-home-continue-row,
+.echoo-app-shell--listener .echoo-home-live-row {
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.echoo-app-shell--listener .echoo-home-continue-row-track,
+.echoo-app-shell--listener .echoo-home-live-row-track {
+  display: grid;
+  grid-auto-columns: minmax(240px, 1fr);
+  grid-auto-flow: column;
+  gap: 14px;
+}
+
+.echoo-app-shell--listener .echoo-home-continue-art {
+  position: relative;
+  width: 92px;
+  height: 92px;
+  flex: 0 0 92px;
+  overflow: hidden;
+  background: #eef3f9;
+}
+
+.echoo-app-shell--listener .echoo-home-continue-card {
+  display: flex;
+  align-items: center;
+  text-align: left;
+}
+
+.echoo-app-shell--listener .echoo-home-continue-info {
+  flex: 1;
+}
+
+.echoo-app-shell--listener .echoo-home-empty {
+  min-height: 92px;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: 20px;
+  border: 1px dashed #d8e2ef;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, .68);
+  color: var(--studio-muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.echoo-app-shell--listener .echoo-home-category-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.echoo-app-shell--listener .echoo-home-category-pill {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 12px;
+  border: 1px solid #dbe7ff;
+  border-radius: 9px;
+  background: #fff;
+  color: #40516b;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 680;
+  cursor: pointer;
+}
+
+.echoo-app-shell--listener .echoo-home-category-pill:hover {
+  border-color: #a8c5ff;
+  background: var(--studio-blue-soft);
+  color: var(--studio-blue);
+}
+
+.echoo-app-shell--listener .echoo-home-history-list {
+  display: grid;
+  gap: 9px;
+}
+
+.echoo-app-shell--listener .echoo-home-history-row {
+  min-height: 64px;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto 28px;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.echoo-app-shell--listener .echoo-home-history-art {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  background: #eef3f9;
+}
+
+.echoo-app-shell--listener .echoo-home-history-duration {
+  color: var(--studio-muted);
+  font-size: 10px;
+}
+
+.echoo-app-shell--listener .echoo-home-history-play {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--studio-blue-soft);
+  color: var(--studio-blue);
+  font-size: 10px;
+}
+
+/* Shared page-level surfaces for Listener routes that keep their business markup. */
+.echoo-app-shell--listener :is(.echoo-reference-page, .ls-page, .pl-page, .lh-page, .ld-page, .ln-page, .set-page, .lcp-page) {
+  width: 100%;
+  min-width: 0;
+  color: var(--studio-ink);
+  font-family: inherit;
+}
+
+.echoo-app-shell--listener :is(.ls-header, .al-page-heading, .pl-page-header, .lh-header, .ld-header, .ln-header, .set-header, .lcp-hero) {
+  margin: 0 0 20px;
+  padding: 0 0 18px;
+  border-bottom: 1px solid var(--studio-line);
+  background: transparent;
+}
+
+.echoo-app-shell--listener :is(.ls-header h1, .al-page-heading h1, .pl-page-header h1, .lh-header h1, .ld-header h1, .ln-header h1, .set-header h1, .lcp-hero h1, .ref-section-heading h2) {
+  margin: 0;
+  color: var(--studio-ink);
+  font-size: 28px;
+  font-weight: 820;
+  letter-spacing: -.035em;
+  line-height: 1.08;
+}
+
+.echoo-app-shell--listener :is(.ls-header p, .al-page-heading p, .pl-page-header p, .lh-header p, .ld-header p, .ln-header p, .set-header p, .lcp-hero p) {
+  margin: 7px 0 0;
+  color: var(--studio-soft);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.echoo-app-shell--listener :is(.ls-card, .al-card, .pl-card, .lh-card, .ld-storage-card, .ln-row, .set-card, .ref-state-card, .ref-audio-detail-hero, .ref-audio-detail-body, .lcp-section) {
+  border: 1px solid var(--studio-line);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 5px 16px rgba(20, 42, 76, .035);
+}
+
+.echoo-app-shell--listener :is(.ls-card, .al-card, .pl-card, .lh-card, .ld-storage-card, .set-card, .ref-state-card, .ref-audio-detail-hero, .ref-audio-detail-body, .lcp-section) {
+  padding: 18px;
+}
+
+.echoo-app-shell--listener :is(.ls-section-header, .al-section-header, .pl-section-header, .lh-section-header, .ld-section-header, .ln-tabs-row, .set-card-title, .ref-section-heading) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.echoo-app-shell--listener :is(.ls-section-header h2, .al-section-title h2, .pl-section-header h2, .lh-card-header h2, .ld-section-header h2, .set-card-title, .ref-section-heading h2) {
+  margin: 0;
+  color: var(--studio-ink);
+  font-size: 16px;
+  font-weight: 780;
+  letter-spacing: -.02em;
+}
+
+.echoo-app-shell--listener :is(button.primary, .ls-header-actions button, .set-save-btn, .ld-manage, .ln-mark-all, .ref-audio-actions button) {
+  min-height: 36px;
+  border: 1px solid var(--studio-blue);
+  border-radius: 9px;
+  background: var(--studio-blue);
+  color: #fff;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 760;
+  box-shadow: 0 7px 16px rgba(36, 107, 254, .16);
+}
+
+.echoo-app-shell--listener :is(button.primary, .ls-header-actions button, .set-save-btn, .ld-manage, .ln-mark-all, .ref-audio-actions button):hover {
+  background: #1859df;
+}
+
+.echoo-app-shell--listener :is(.ls-page-btn, .al-page-btn, .ld-tab, .ln-tab, .set-nav-item, .ref-back-link) {
+  border-radius: 8px;
+  font-family: inherit;
+}
+
+@media (max-width: 980px) {
+  .echoo-app-shell--listener .echoo-home-live-grid,
+  .echoo-app-shell--listener .echoo-home-discover-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .echoo-app-shell--listener .echoo-home-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .echoo-app-shell--listener .echoo-home-hero-art {
+    min-height: 190px;
+  }
+}
+
+@media (max-width: 760px) {
+  .echoo-app-shell--listener .studio-sidebar {
+    position: fixed;
+    width: 64px;
+    padding: 16px 8px 10px;
+  }
+
+  .echoo-app-shell--listener .studio-main {
+    grid-column: 1;
+    padding-left: 64px;
+  }
+
+  .echoo-app-shell--listener .studio-topbar-final {
+    min-height: 64px;
+    padding: 0 14px;
+  }
+
+  .echoo-app-shell--listener .studio-view {
+    padding: 22px 16px 120px;
+  }
+
+  .echoo-app-shell--listener .beautiful-search-wrapper {
+    min-width: 0;
+  }
+
+  .echoo-app-shell--listener .studio-account-button {
+    min-width: 44px;
+    width: 44px;
+    grid-template-columns: 38px;
+    padding: 2px;
+  }
+
+  .echoo-app-shell--listener .studio-account-button > div:nth-child(2),
+  .echoo-app-shell--listener .studio-account-button > svg {
+    display: none;
+  }
+
+  .echoo-app-shell--listener .layout-player {
+    left: 64px;
+    grid-template-columns: 1fr auto;
+    height: 72px;
+    padding: 0 12px;
+  }
+
+  .echoo-app-shell--listener .layout-player-volume {
+    display: none;
+  }
+}
+
+/* Legacy listener player rules pinned the player to the former 205px rail. */
+.echoo-app-shell--listener .layout-player {
+  left: var(--studio-sidebar-width) !important;
+  right: 0 !important;
+  width: auto !important;
+}
+
+/* Match the legacy listener-reference selector specificity and replace its 205px offset. */
+#root .echoo-app-shell--listener > .echoo-persistent-player {
+  left: var(--studio-sidebar-width) !important;
+  right: 0 !important;
+  width: auto !important;
+}
+
+/* Final specificity guard for the legacy `#root .echoo-listener-shell > .echoo-persistent-player` rule. */
+#root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener > div.layout-player.echoo-persistent-player {
+  left: 78px !important;
+  right: 0 !important;
+  width: auto !important;
+}
+
+/* Data-page migration: keep Listener controls, but use Creator card rhythm. */
+.echoo-app-shell--listener :is(.ls-page, .al-page, .pl-page, .lh-page, .ld-page, .ln-page, .set-page, .lcp-page) {
+  padding: 0;
+  gap: 20px;
+}
+
+.echoo-app-shell--listener .ls-hero,
+.echoo-app-shell--listener .al-hero {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  align-items: center;
+  gap: 20px;
+  padding: 24px;
+  border: 1px solid var(--studio-line);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(20, 42, 76, .04);
+}
+
+.echoo-app-shell--listener .ls-hero-content,
+.echoo-app-shell--listener .al-hero-copy {
+  max-width: 520px;
+}
+
+.echoo-app-shell--listener .ls-hero-content h2,
+.echoo-app-shell--listener .al-hero-copy h2 {
+  margin-bottom: 8px;
+  color: var(--studio-ink) !important;
+  font-size: 22px;
+  line-height: 1.1;
+}
+
+.echoo-app-shell--listener .ls-hero-content p,
+.echoo-app-shell--listener .al-hero-copy p {
+  margin-bottom: 14px;
+  color: var(--studio-soft);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.echoo-app-shell--listener .ls-hero-cluster,
+.echoo-app-shell--listener .al-hero-visual {
+  position: relative;
+  inset: auto;
+  min-height: 120px;
+  display: grid;
+  place-items: center;
+}
+
+.echoo-app-shell--listener .ls-cluster-circle {
+  position: relative;
+  width: 110px !important;
+  height: 74px !important;
+  border: 0;
+  border-radius: 10px;
+  box-shadow: none;
+}
+
+.echoo-app-shell--listener .ls-cluster-circle:not(:first-child) {
+  display: none;
+}
+
+.echoo-app-shell--listener .al-waveform {
+  height: 54px;
+  opacity: .72;
+}
+
+.echoo-app-shell--listener .al-headphones-card {
+  width: 88px;
+  height: 88px;
+  border-radius: 12px;
+  background: var(--studio-blue-soft);
+  color: #8bb1f5;
+  font-size: 34px;
+}
+
+.echoo-app-shell--listener .ls-body,
+.echoo-app-shell--listener .al-layout {
+  grid-template-columns: minmax(0, 1fr) 288px;
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.echoo-app-shell--listener :is(.ls-filters-card, .ls-top-card, .ls-create-card, .al-card) {
+  border-color: var(--studio-line);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 5px 16px rgba(20, 42, 76, .035);
+}
+
+.echoo-app-shell--listener :is(.ls-section-header h2, .ls-top-header h3, .al-section-title h2) {
+  color: var(--studio-ink);
+  font-size: 16px;
+  font-weight: 780;
+}
+
+.echoo-app-shell--listener :is(.ls-row, .al-row, .lh-row, .ld-row, .ln-row) {
+  border-color: var(--studio-line);
+  background: #fff;
+}
+
+.echoo-app-shell--listener :is(.ls-row:hover, .al-row:hover, .lh-row:hover, .ld-row:hover, .ln-row:hover) {
+  border-color: #bfd2f4;
+  background: #fbfdff;
+}
+
+.echoo-app-shell--listener :is(.ls-row-art, .al-row-art, .ld-row-art, .lh-row-art) {
+  overflow: hidden;
+  border-radius: 8px;
+  background: #eef3f9;
+}
+
+.echoo-app-shell--listener :is(.ls-row-art img, .al-row-art img, .ld-row-art img, .lh-row-art img) {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.echoo-app-shell--listener :is(.ls-row-name, .al-row-info strong, .lh-row-title, .ld-row-title, .ln-title) {
+  color: var(--studio-ink);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.echoo-app-shell--listener :is(.ls-row-category, .ls-row-description, .al-row-sub, .lh-row-sub, .ld-row-sub, .ln-message, .ln-when) {
+  color: var(--studio-muted);
+  font-size: 10px;
+}
+
+.echoo-app-shell--listener :is(.ls-follow-btn, .ls-top-follow, .al-offline-btn, .al-apply-btn, .ls-apply-btn) {
+  min-height: 32px;
+  border: 1px solid #dbe7ff;
+  border-radius: 8px;
+  background: var(--studio-blue-soft);
+  color: var(--studio-blue);
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 720;
+}
+
+.echoo-app-shell--listener :is(.ls-follow-btn:hover, .ls-top-follow:hover, .al-offline-btn:hover, .al-apply-btn:hover, .ls-apply-btn:hover) {
+  border-color: #a8c5ff;
+  background: #dfeaff;
+  color: #1859df;
+}
+
+.echoo-app-shell--listener :is(.ls-select, .al-select-wrap select, .al-list-search, .ls-search-field, .set-input, .set-readonly) {
+  min-height: 36px;
+  border: 1px solid #dfe6ef;
+  border-radius: 8px;
+  background: #fff;
+  color: #344054;
+  font-family: inherit;
+  font-size: 10px;
+}
+
+.echoo-app-shell--listener :is(.ls-select:focus, .al-select-wrap select:focus, .al-list-search:focus-within, .ls-search-field:focus-within, .set-input:focus) {
+  border-color: #a8c5ff;
+  box-shadow: 0 0 0 3px rgba(36, 107, 254, .07);
+  outline: 0;
+}
+
+@media (max-width: 980px) {
+  .echoo-app-shell--listener .ls-hero,
+  .echoo-app-shell--listener .al-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .echoo-app-shell--listener .ls-hero-cluster,
+  .echoo-app-shell--listener .al-hero-visual {
+    display: none;
+  }
+
+  .echoo-app-shell--listener .ls-body,
+  .echoo-app-shell--listener .al-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Final desktop parity guard: Creator Studio remains the source of truth.
+   This intentionally overrides the legacy Listener Home redesign layer. */
+@media (min-width: 761px) {
+  #root .studio-final-shell.echoo-app-shell--listener .studio-topbar-final {
+    min-height: 82px !important;
+    padding: 0 30px 0 34px !important;
+    gap: 16px !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell--listener .studio-account-button {
+    min-width: 172px !important;
+    min-height: 44px !important;
+    grid-template-columns: 36px minmax(0, 1fr) 14px !important;
+    gap: 8px !important;
+    padding-right: 7px !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell--listener .studio-account-button .top-avatar {
+    width: 36px !important;
+    height: 36px !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell--listener .studio-account-button strong {
+    font-size: 13px !important;
+    line-height: 1.25 !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell--listener .studio-account-button span {
+    margin-top: 3px !important;
+    font-size: 11px !important;
+    line-height: 1.3 !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell--listener .listener-profile-menu-wrap {
+    width: 58px !important;
+    margin: auto auto 0 !important;
+    padding-top: 12px !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell--listener .listener-profile-menu-wrap .layout-profile {
+    width: 50px !important;
+    min-width: 50px !important;
+    max-width: 50px !important;
+    height: 50px !important;
+    min-height: 50px !important;
+    padding: 5px !important;
+    border-radius: 50% !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell--listener .listener-profile-menu-wrap .layout-profile-image {
+    width: 38px !important;
+    height: 38px !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell--listener .echoo-home {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 100% !important;
+    gap: 0 !important;
+    padding: 0 !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell--listener .echoo-home-welcome {
+    display: block !important;
+    margin: 0 0 22px !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell--listener .echoo-home-greeting {
+    margin: 0 !important;
+    font-family: inherit !important;
+    color: var(--studio-ink) !important;
+    line-height: 1.1 !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell--listener .echoo-home-subtitle {
+    margin: 8px 0 0 !important;
+    color: var(--studio-soft) !important;
+    line-height: 1.55 !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell--listener .echoo-home-section {
+    margin-top: 24px !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell--listener .echoo-home-section-head {
+    min-height: 32px !important;
+    margin-bottom: 12px !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell--listener .echoo-home-section-title {
+    font-size: 17px !important;
+    font-weight: 650 !important;
+    line-height: 1.25 !important;
+    letter-spacing: -0.02em !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell--listener .echoo-home-view-all {
+    min-height: 32px !important;
+    padding: 5px 0 !important;
+    font-size: 10px !important;
+    line-height: 1.25 !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell--listener .echoo-home-empty {
+    min-height: 92px !important;
+    padding: 20px !important;
+    border-radius: 10px !important;
+    font-size: 12px !important;
+    line-height: 1.4 !important;
+  }
+}
+
+/* Creator's compact desktop main column reserves the 10px scrollbar gutter.
+   Mirror that width and keep the Listener search in the same left origin. */
+@media (min-width: 761px) {
+  #root .studio-final-shell.echoo-app-shell--listener > .studio-main {
+    width: 100% !important;
+    max-width: calc(100vw - 78px) !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell--listener .studio-topbar-final,
+  #root .studio-final-shell.echoo-app-shell--listener .studio-view {
+    width: calc(100% - 10px) !important;
+    max-width: calc(100% - 10px) !important;
+    margin-left: 0 !important;
+    margin-right: auto !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell--listener .beautiful-search-wrapper {
+    width: 460px !important;
+    min-width: 460px !important;
+    margin: 0 auto 0 8px !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell--listener .beautiful-search {
+    width: 100% !important;
+    max-width: none !important;
+    box-sizing: border-box !important;
+    height: 44px !important;
+    border-radius: 12px !important;
+  }
+}
