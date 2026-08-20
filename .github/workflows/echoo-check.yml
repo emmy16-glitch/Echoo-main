@@ -76,6 +76,8 @@ jobs:
           node --check src/controllers/playlistController.js
           node --check src/controllers/searchController.js
           node --check src/controllers/authController.js
+          node --check src/controllers/contentController.js
+          node --check src/controllers/followController.js
           node --check src/models/Audio.js
           node --check src/models/Playlist.js
           node --check src/providers/livekit.js
