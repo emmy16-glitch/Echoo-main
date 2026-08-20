@@ -104,22 +104,16 @@ export async function updatePlaybackProgress(req, res, next) {
 
     const progressPercent = clampProgress(progress, completed === true);
     const isCompleted = completed === true || progressPercent >= 99.5;
-    const clientDuration = Math.max(0, Number(duration) || 0);
-    const totalDuration = clientDuration || Math.max(0, Number(track.duration) || 0);
+    const canonicalDuration = Math.max(0, Number(track.duration) || 0);
+    const reportedDuration = Math.max(0, Number(duration) || 0);
+    // Client media metadata is useful only as a per-user fallback for legacy
+    // records with no duration. A listener must never be able to rewrite or
+    // override the creator-owned Audio.duration field.
+    const totalDuration = canonicalDuration || reportedDuration;
     const remaining = totalDuration > 0
       ? Math.max(0, totalDuration * (1 - progressPercent / 100))
       : 0;
     const now = new Date();
-
-    // Older uploads may not have duration metadata. Once a browser has loaded
-    // the real media metadata, use it to repair the canonical Audio record.
-    if (
-      clientDuration > 0 &&
-      Math.abs((Number(track.duration) || 0) - clientDuration) > 0.5
-    ) {
-      track.duration = clientDuration;
-      await track.save();
-    }
 
     let historyEntry = null;
     for (let index = user.listeningHistory.length - 1; index >= 0; index -= 1) {
