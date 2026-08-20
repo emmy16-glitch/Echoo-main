@@ -51,7 +51,9 @@ export function generateRefreshToken(payload) {
 
 export function verifyAccessToken(token) {
   try {
-    const decoded = jwt.verify(token, jwtConfig.access.secret);
+    const decoded = jwt.verify(token, jwtConfig.access.secret, {
+      algorithms: [jwtConfig.access.algorithm],
+    });
     if (decoded.type !== 'access') {
       throw new Error('Invalid token type');
     }
@@ -60,7 +62,7 @@ export function verifyAccessToken(token) {
     if (error.name === 'TokenExpiredError') {
       throw new Error('Access token expired');
     }
-    if (error.name === 'JsonWebTokenError') {
+    if (error.name === 'JsonWebTokenError' || error.message === 'Invalid token type') {
       throw new Error('Invalid access token');
     }
     throw error;
@@ -69,7 +71,9 @@ export function verifyAccessToken(token) {
 
 export function verifyRefreshToken(token) {
   try {
-    const decoded = jwt.verify(token, jwtConfig.refresh.secret);
+    const decoded = jwt.verify(token, jwtConfig.refresh.secret, {
+      algorithms: [jwtConfig.refresh.algorithm],
+    });
     if (decoded.type !== 'refresh') {
       throw new Error('Invalid token type');
     }
@@ -78,7 +82,7 @@ export function verifyRefreshToken(token) {
     if (error.name === 'TokenExpiredError') {
       throw new Error('Refresh token expired');
     }
-    if (error.name === 'JsonWebTokenError') {
+    if (error.name === 'JsonWebTokenError' || error.message === 'Invalid token type') {
       throw new Error('Invalid refresh token');
     }
     throw error;
