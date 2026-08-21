@@ -654,17 +654,6 @@ const ListenerLayout = () => {
       navItems={navigation}
       navGroups={[{ key: 'library', items: navigationLibrary }]}
       activeKey={location.pathname}
-      sidebarFooter={(
-        <ProfileMenu
-          displayName={displayName}
-          email={userEmail}
-          profileImage={profileImage}
-          roleLabel="Listener"
-          placement="sidebar"
-          onSettings={() => navigate('/listen/settings')}
-          onLogout={handleLogout}
-        />
-      )}
       search={(
         <SearchBar
           ref={searchAreaRef}

@@ -22,13 +22,14 @@
 }
 
 .echoo-app-shell--listener .studio-brand {
-  justify-content: center;
-  padding: 3px 0 20px;
+  justify-content: flex-start;
+  padding: 0 0 20px;
 }
 
 .echoo-app-shell--listener .studio-brand .studio-logo {
   width: 42px;
   height: 42px;
+  margin-left: 3px;
   object-fit: cover;
   object-position: left center;
 }

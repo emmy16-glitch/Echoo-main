@@ -279,25 +279,6 @@ const ListenerDownloadsConnected = () => {
         </div>
       )}
 
-      <div className="ld-storage-card">
-        <div className="ld-storage-title">Storage</div>
-        <div className="ld-storage-caption">
-          {items.length > 0 ? storage.usedLabel : `0 GB of ${STORAGE_LIMIT_GB} GB used`}
-        </div>
-        <div className="ld-storage-track">
-          <span className="ld-storage-fill" style={{ width: `${storage.percent}%` }} />
-          <span className="ld-storage-pct">{storage.percent}%</span>
-        </div>
-        <button
-          type="button"
-          className="ld-storage-manage"
-          onClick={() =>
-            notify('Offline storage is managed by your browser cache.', 'info')
-          }
-        >
-          Manage storage
-        </button>
-      </div>
 
       <Toast
         open={toast.open}
