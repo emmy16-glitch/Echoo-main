@@ -10,11 +10,11 @@ const normalizeAudio = (track) => {
   const artistName =
     typeof track.artist === 'string'
       ? track.artist
-      : track.artist?.creatorProfile?.artistName ||
-        track.artist?.creatorProfile?.organizationName ||
-        track.artist?.displayName ||
+      : track.artist?.displayName ||
         track.artist?.username ||
         track.artistName ||
+        track.artist?.creatorProfile?.artistName ||
+        track.artist?.creatorProfile?.organizationName ||
         'Echoo Creator';
 
   const normalized = {
@@ -44,7 +44,10 @@ export const audioService = {
     if (params.userId) query.append('userId', params.userId);
 
     const queryString = query.toString();
-    const response = await apiRequest(`/audio${queryString ? `?${queryString}` : ''}`);
+    const response = await apiRequest(
+      `/audio${queryString ? `?${queryString}` : ''}`,
+      params.cache ? { cache: params.cache } : {}
+    );
 
     return {
       ...response,

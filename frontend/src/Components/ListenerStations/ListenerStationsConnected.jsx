@@ -18,6 +18,7 @@ import {
 import { buildGeneratedStationBrandCoverUrl } from '../../stationBranding/stationBranding.js';
 
 import batch2Service from '../../services/batch2Service';
+import realtimeService from '../../services/realtimeService';
 import followService from '../../services/followService';
 import './ListenerStations.css';
 
@@ -132,6 +133,30 @@ const ListenerStationsConnected = () => {
     return () => {
       window.clearInterval(interval);
       window.removeEventListener('focus', sync);
+    };
+  }, [load]);
+
+  useEffect(() => {
+    let active = true;
+    let unsubscribe = () => {};
+    const onCatalogChanged = (event) => {
+      if (!event?.entity || ['broadcast', 'station'].includes(event.entity)) {
+        void load({ silent: true });
+      }
+    };
+
+    realtimeService.subscribeToCatalog(onCatalogChanged)
+      .then((cleanup) => {
+        if (active) unsubscribe = cleanup;
+        else cleanup();
+      })
+      .catch(() => {
+        // The existing interval and focus refresh remain the fallback.
+      });
+
+    return () => {
+      active = false;
+      unsubscribe();
     };
   }, [load]);
 

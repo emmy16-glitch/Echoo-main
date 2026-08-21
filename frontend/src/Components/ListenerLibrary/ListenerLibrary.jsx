@@ -17,6 +17,7 @@ import {
 } from 'react-icons/fa';
 
 import audioService from '../../services/audioService';
+import realtimeService from '../../services/realtimeService';
 import batch6Service from '../../services/batch6Service';
 import playlistService from '../../services/playlistService';
 import ListenerToast from '../ListenerUI/ListenerToast';
@@ -126,10 +127,11 @@ const ListenerLibrary = () => {
           limit: PAGE_SIZE,
           search: listSearch.trim() || undefined,
           genre: genreFilter || undefined,
+          cache: 'no-store',
         }),
         playlistService.getMine(),
         batch6Service.getDownloads({ page: 1, limit: 100 }),
-        audioService.getAll({ public: true, page: 1, limit: 100 }),
+        audioService.getAll({ public: true, page: 1, limit: 100, cache: 'no-store' }),
       ]);
 
       if (audioResult.status === 'fulfilled') {
@@ -165,6 +167,30 @@ const ListenerLibrary = () => {
     return () => {
       window.clearInterval(interval);
       window.removeEventListener('focus', sync);
+    };
+  }, [load]);
+
+  useEffect(() => {
+    let active = true;
+    let unsubscribe = () => {};
+    const onCatalogChanged = (event) => {
+      if (!event?.entity || ['audio', 'profile', 'station'].includes(event.entity)) {
+        void load({ silent: true });
+      }
+    };
+
+    realtimeService.subscribeToCatalog(onCatalogChanged)
+      .then((cleanup) => {
+        if (active) unsubscribe = cleanup;
+        else cleanup();
+      })
+      .catch(() => {
+        // The existing interval and focus refresh remain the fallback.
+      });
+
+    return () => {
+      active = false;
+      unsubscribe();
     };
   }, [load]);
 

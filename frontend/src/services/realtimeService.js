@@ -210,10 +210,22 @@ const leaveBroadcast = async (broadcastId) => {
   sharedSocket.emit('broadcast:leave', { broadcastId });
 };
 
+const subscribeToCatalog = async (handler) => {
+  if (typeof handler !== 'function') return () => {};
+
+  const socket = await connect();
+  socket.on('catalog:changed', handler);
+
+  return () => {
+    socket.off('catalog:changed', handler);
+  };
+};
+
 const realtimeService = {
   connect,
   joinBroadcast,
   leaveBroadcast,
+  subscribeToCatalog,
   getSocket: () => sharedSocket,
   disconnect: () => {
     sharedSocket?.disconnect();

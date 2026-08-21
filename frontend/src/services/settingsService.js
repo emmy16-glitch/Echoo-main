@@ -8,11 +8,18 @@ const settingsService = {
     return response;
   },
 
-  updateProfile: async (payload) =>
-    apiRequest('/settings/profile', {
+  updateProfile: async (payload) => {
+    const response = await apiRequest('/settings/profile', {
       method: 'PATCH',
       body: JSON.stringify(payload),
-    }),
+    });
+    window.dispatchEvent(
+      new CustomEvent('echoo-profile-updated', {
+        detail: response?.data?.profile || payload || {},
+      })
+    );
+    return response;
+  },
 
   updatePreferences: async (payload) => {
     const response = await apiRequest('/settings/preferences', {

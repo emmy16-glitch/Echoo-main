@@ -36,14 +36,30 @@ const emitStatus = (req, broadcast) => {
   const io = req.app.get('io');
   if (!io || !broadcast) return;
 
-  io.to(`broadcast:${broadcast.id || broadcast._id}`).emit('broadcast:status', {
+  const payload = {
     broadcastId: String(broadcast.id || broadcast._id),
     status: broadcast.status,
     startedAt: broadcast.startedAt || null,
     endedAt: broadcast.endedAt || null,
     listenerCount: Number(broadcast.listenerCount || 0),
     peakListeners: Number(broadcast.peakListeners || 0),
-  });
+  };
+
+  io.to(`broadcast:${broadcast.id || broadcast._id}`).emit(
+    'broadcast:status',
+    payload
+  );
+
+  // Public discovery screens do not join every broadcast room. Notify all
+  // authenticated clients that a public catalog item changed; clients then
+  // re-fetch through their normal permission-filtered API path.
+  if (broadcast.isPublic !== false) {
+    io.emit('catalog:changed', {
+      entity: 'broadcast',
+      action: 'status',
+      ...payload,
+    });
+  }
 };
 
 const findOwnedBroadcast = (broadcastId, userId) =>

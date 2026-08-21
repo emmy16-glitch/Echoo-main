@@ -26,10 +26,10 @@ const normalizeTrack = (item) => {
     nestedTrack?.artistName ||
     (typeof artist === 'string'
       ? artist
-      : artist?.creatorProfile?.artistName ||
-        artist?.creatorProfile?.organizationName ||
-        artist?.displayName ||
-        artist?.username) ||
+      : artist?.displayName ||
+        artist?.username ||
+        artist?.creatorProfile?.artistName ||
+        artist?.creatorProfile?.organizationName) ||
     'Echoo Creator';
 
   const normalized = {
@@ -82,7 +82,7 @@ const normalizeDashboard = (data = {}) => ({
 
 const listenerService = {
   getDashboard: async () => {
-    const response = await apiRequest('/listener/dashboard');
+    const response = await apiRequest('/listener/dashboard', { cache: 'no-store' });
     return {
       ...response,
       data: normalizeDashboard(response?.data || {}),

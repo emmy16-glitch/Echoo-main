@@ -48,17 +48,27 @@ function emitStatus(req, broadcast) {
   const io = req.app.get('io');
   if (!io) return;
 
+  const payload = {
+    broadcastId: String(broadcast.id || broadcast._id),
+    status: broadcast.status,
+    startedAt: broadcast.startedAt || null,
+    endedAt: broadcast.endedAt || null,
+    listenerCount: Number(broadcast.listenerCount || 0),
+    peakListeners: Number(broadcast.peakListeners || 0),
+  };
+
   io.to(`broadcast:${broadcast.id || broadcast._id}`).emit(
     'broadcast:status',
-    {
-      broadcastId: String(broadcast.id || broadcast._id),
-      status: broadcast.status,
-      startedAt: broadcast.startedAt || null,
-      endedAt: broadcast.endedAt || null,
-      listenerCount: Number(broadcast.listenerCount || 0),
-      peakListeners: Number(broadcast.peakListeners || 0),
-    }
+    payload
   );
+
+  if (broadcast.isPublic !== false) {
+    io.emit('catalog:changed', {
+      entity: 'broadcast',
+      action: 'status',
+      ...payload,
+    });
+  }
 }
 
 async function findOwnedBroadcast(broadcastId, userId) {
