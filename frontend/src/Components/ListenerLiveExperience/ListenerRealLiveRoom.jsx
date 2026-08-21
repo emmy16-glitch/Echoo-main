@@ -639,7 +639,7 @@ const ListenerRealLiveRoom = () => {
       <div className="llr-grid">
         <section className="llr-main">
           <article className="llr-player-card">
-            <div className="llr-player-visual">
+              <div className="llr-player-visual">
               {stationArtwork ? (
                 <img className="llr-player-bg" src={stationArtwork} alt="" />
               ) : (
@@ -656,10 +656,7 @@ const ListenerRealLiveRoom = () => {
                   {broadcast.description || 'Live audio on Echoo.'}
                 </span>
               </div>
-            </div>
-
-              <div className="llr-player-controls">
-            {isLive && (
+              {isLive && (
                 <LiveKitListenerPlayer
                   broadcastId={broadcast.id}
                   isLive
@@ -671,6 +668,9 @@ const ListenerRealLiveRoom = () => {
                   onStateChange={handleLiveStateChange}
                 />
               )}
+            </div>
+
+              <div className="llr-player-controls">
                 <button
                   type="button"
                   className="llr-ctrl-pause"
