@@ -161,6 +161,14 @@ export async function createStation(req, res, next) {
 
     const populated = await populateOwner(Station.findById(station._id));
 
+    if (station.isPublic) {
+      req.app.get('io')?.emit('catalog:changed', {
+        entity: 'station',
+        action: 'created',
+        stationId: String(station._id),
+      });
+    }
+
     return res.status(201).json({
       data: populated,
       timestamp: new Date().toISOString(),
@@ -309,6 +317,7 @@ export async function updateStation(req, res, next) {
       });
     }
 
+    const wasPublic = Boolean(station.isPublic);
     const {
       name,
       description,
@@ -392,6 +401,14 @@ export async function updateStation(req, res, next) {
 
     const populated = await populateOwner(Station.findById(station._id));
 
+    if (wasPublic || station.isPublic) {
+      req.app.get('io')?.emit('catalog:changed', {
+        entity: 'station',
+        action: wasPublic === Boolean(station.isPublic) ? 'updated' : 'visibility',
+        stationId: String(station._id),
+      });
+    }
+
     return res.status(200).json({
       data: populated,
       timestamp: new Date().toISOString(),
@@ -446,10 +463,19 @@ export async function deleteStation(req, res, next) {
       });
     }
 
+    const wasPublic = Boolean(station.isPublic);
     station.isDeleted = true;
     station.isLive = false;
     station.listenerCount = 0;
     await station.save();
+
+    if (wasPublic) {
+      req.app.get('io')?.emit('catalog:changed', {
+        entity: 'station',
+        action: 'deleted',
+        stationId: String(station._id),
+      });
+    }
 
     return res.status(200).json({
       data: { message: 'Station deleted successfully' },

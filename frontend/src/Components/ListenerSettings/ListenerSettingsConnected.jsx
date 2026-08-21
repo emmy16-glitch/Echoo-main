@@ -129,12 +129,13 @@ const ListenerSettingsConnected = () => {
 
   return (
     <div className="set-page">
-      <div className="set-header">
-        <div>
-          <h1>Settings</h1>
-          <p className="set-subtitle">Manage your account and preferences.</p>
-        </div>
-      </div>
+      <header className="set-header">
+        <span>SETTINGS</span>
+        <h1>Your account.</h1>
+        <p className="set-subtitle">
+          Manage how you appear on Echoo, what reaches you, and how your account is protected.
+        </p>
+      </header>
 
       <div className="set-layout">
         <nav className="set-nav" aria-label="Settings categories">

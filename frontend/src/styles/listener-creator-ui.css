@@ -1427,3 +1427,271 @@
     display: none !important;
   }
 }
+
+
+/* === EXACT CREATOR PARITY: final shared shell authority ===
+   Listener keeps its role-specific navigation and persistent player, but the
+   application shell itself must compute like Creator at every breakpoint. */
+#root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener {
+  display: grid !important;
+  position: static !important;
+  padding: 0 !important;
+}
+
+#root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener .studio-nav-item {
+  display: flex !important;
+  padding: 0 !important;
+  gap: 0 !important;
+  letter-spacing: normal !important;
+  line-height: 1.25 !important;
+}
+
+@media (max-width: 760px) {
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener,
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener.sidebar-collapsed,
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener.sidebar-expanded {
+    display: grid !important;
+    position: static !important;
+    height: auto !important;
+    min-height: 100vh !important;
+    padding: 0 !important;
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Creator removes the wide command search at compact widths. */
+  #root .studio-final-shell.echoo-app-shell--listener .beautiful-search-wrapper,
+  #root .studio-final-shell.echoo-app-shell--listener .studio-command-search {
+    display: none !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell--listener .studio-top-actions {
+    margin-left: auto !important;
+  }
+
+  /* The Creator reference distributes its compact rail across the viewport;
+     Listener uses the same geometry even though it has role-specific links. */
+  #root .studio-final-shell.echoo-app-shell--listener .studio-navigation {
+    display: flex !important;
+    flex: 1 1 auto !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    gap: 3px !important;
+    overflow-x: hidden !important;
+    overflow-y: hidden !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell--listener .studio-nav-item,
+  #root .studio-final-shell.echoo-app-shell--listener.sidebar-collapsed .studio-nav-item {
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    min-height: 48px !important;
+    height: 48px !important;
+    flex: 1 1 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 0 !important;
+    padding: 0 !important;
+    border-radius: 9px !important;
+    line-height: 1.1 !important;
+    letter-spacing: normal !important;
+    text-align: center !important;
+    white-space: normal !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell--listener .studio-nav-item.active {
+    border: 0 !important;
+    border-radius: 9px !important;
+    background: transparent !important;
+    color: #1769ee !important;
+    box-shadow: none !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell--listener .studio-account-button {
+    width: 42px !important;
+    min-width: 42px !important;
+    height: 42px !important;
+    min-height: 42px !important;
+  }
+}
+
+
+/* === EXACT PARITY: neutralize generic shared-shell offsets ===
+   Several older product/responsive layers target `.studio-*` globally. These
+   Listener-only counters keep the shared shell on the Creator geometry. */
+#root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener {
+  grid-template-columns: 78px minmax(0, 1fr) !important;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif !important;
+}
+
+#root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener,
+#root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener * {
+  font-family: inherit;
+}
+
+@media (min-width: 761px) {
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener > .studio-sidebar {
+    position: sticky !important;
+    top: 0 !important;
+    grid-column: 1 !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener > .studio-main {
+    grid-column: 2 !important;
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell--listener .studio-topbar-final,
+  #root .studio-final-shell.echoo-app-shell--listener .studio-view {
+    width: 100% !important;
+    max-width: 1440px !important;
+    margin-inline: auto !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell--listener .studio-topbar-final {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+}
+
+@media (max-width: 760px) {
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener {
+    grid-template-columns: 1fr !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener > .studio-main {
+    grid-column: 1 !important;
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding-left: 0 !important;
+  }
+
+  /* Match Creator’s compact active tile exactly; role-specific destinations
+     remain unchanged. */
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener > .studio-sidebar .studio-nav-item.active {
+    display: flex !important;
+    padding: 0 !important;
+    gap: 0 !important;
+    letter-spacing: normal !important;
+    background: transparent !important;
+    color: #1769ee !important;
+  }
+}
+
+
+/* === EXACT CREATOR PARITY: final mobile computed geometry === */
+@media (max-width: 760px) {
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener {
+    display: block !important;
+    position: static !important;
+    grid-template-columns: none !important;
+    padding: 0 !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener .studio-navigation {
+    height: 56px !important;
+    display: grid !important;
+    grid-template-columns: repeat(9, minmax(0, 1fr)) !important;
+    align-items: center !important;
+    gap: 2px !important;
+    overflow: hidden !important;
+    padding: 8px 0 0 !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener .studio-nav-item,
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener.sidebar-collapsed .studio-nav-item,
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener.sidebar-expanded .studio-nav-item {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    min-height: 48px !important;
+    height: 48px !important;
+    flex: none !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 !important;
+    gap: 0 !important;
+    border-radius: 9px !important;
+    letter-spacing: normal !important;
+    line-height: 1.1 !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener .studio-nav-item > span:last-child,
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener .studio-nav-item > .studio-nav-label {
+    display: none !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener .studio-account-button {
+    width: 48px !important;
+    min-width: 48px !important;
+    height: 42px !important;
+    min-height: 42px !important;
+  }
+}
+
+
+/* === CONTENT SAFETY: never hide real Listener metadata ===
+   Long creator-provided names and identifiers must remain readable. Allow the
+   containing card/row to grow instead of clipping words behind ellipses. */
+#root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener :is(
+  .echoo-home-discover-name,
+  .echoo-home-history-sub,
+  .ls-row-name,
+  .ls-row-description,
+  .ls-top-name,
+  .ld-row-sub
+) {
+  max-width: 100% !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+  word-break: break-word !important;
+}
+
+#root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener :is(
+  .echoo-home-discover-card,
+  .echoo-home-history-row,
+  .ls-row,
+  .ls-top-row,
+  .ld-row
+) {
+  min-width: 0 !important;
+  height: auto !important;
+}
+
+@media (max-width: 760px) {
+  /* Stations: move actions below the two-column content instead of allowing
+     their intrinsic button width to collapse `.ls-row-info` to a few pixels. */
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener .ls-list.list .ls-row {
+    grid-template-columns: 48px minmax(0, 1fr) !important;
+    grid-template-rows: auto auto !important;
+    align-items: start !important;
+    row-gap: 10px !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener .ls-list.list .ls-row-actions {
+    grid-column: 1 / -1 !important;
+    justify-content: flex-end !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    margin-top: 0 !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener .ls-list.list .ls-row-info {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+}

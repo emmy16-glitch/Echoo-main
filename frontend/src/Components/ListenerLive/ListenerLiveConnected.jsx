@@ -13,6 +13,7 @@ import {
 } from 'react-icons/fa';
 
 import batch3Service from '../../services/batch3Service';
+import realtimeService from '../../services/realtimeService';
 import notificationService from '../../services/notificationService';
 import { buildMediaUrl } from '../../services/api';
 import './ListenerLive.css';
@@ -101,6 +102,31 @@ const ListenerLiveConnected = () => {
     return () => {
       window.clearInterval(interval);
       window.removeEventListener('focus', sync);
+    };
+  }, [load]);
+
+  useEffect(() => {
+    let active = true;
+    let unsubscribe = () => {};
+    const onCatalogChanged = (event) => {
+      if (!event?.entity || ['broadcast', 'station'].includes(event.entity)) {
+        void load({ silent: true });
+      }
+    };
+
+    realtimeService.subscribeToCatalog(onCatalogChanged)
+      .then((cleanup) => {
+        if (active) unsubscribe = cleanup;
+        else cleanup();
+      })
+      .catch(() => {
+        // Polling and focus refresh remain the compatibility fallback when
+        // realtime transport is unavailable.
+      });
+
+    return () => {
+      active = false;
+      unsubscribe();
     };
   }, [load]);
 

@@ -197,6 +197,7 @@ const makeRequest = async (
         options.method || 'GET',
       body: options.body,
       headers,
+      ...(options.cache ? { cache: options.cache } : {}),
     }
   );
 };

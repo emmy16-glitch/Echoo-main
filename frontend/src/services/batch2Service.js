@@ -268,7 +268,11 @@ const batch2Service = {
         featured: options.featured,
         live: options.live,
       })}`,
-      { skipAuth: true, skipRefresh: true }
+      {
+        skipAuth: true,
+        skipRefresh: true,
+        ...(options.cache ? { cache: options.cache } : {}),
+      }
     );
     return { ...response, data: normalizeStationList(response) };
   },
@@ -281,7 +285,11 @@ const batch2Service = {
   getStation: async (stationId) => {
     const response = await apiRequest(
       `/stations/${encodeURIComponent(stationId)}`,
-      { skipAuth: true, skipRefresh: true }
+      {
+        skipAuth: true,
+        skipRefresh: true,
+        cache: 'no-store',
+      }
     );
     return { ...response, data: normalizeStation(response?.data) };
   },
@@ -327,7 +335,11 @@ const batch2Service = {
         type: options.type,
         isRecurring: options.isRecurring,
       })}`,
-      { skipAuth: true, skipRefresh: true }
+      {
+        skipAuth: true,
+        skipRefresh: true,
+        ...(options.cache ? { cache: options.cache } : {}),
+      }
     );
     return { ...response, data: normalizeBroadcastList(response) };
   },

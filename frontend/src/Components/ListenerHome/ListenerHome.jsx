@@ -14,6 +14,7 @@ import {
   FiUsers,
 } from 'react-icons/fi';
 import listenerService from '../../services/listenerService';
+import realtimeService from '../../services/realtimeService';
 import notificationService from '../../services/notificationService';
 import batch2Service from '../../services/batch2Service';
 import followService from '../../services/followService';
@@ -360,6 +361,31 @@ const ListenerHome = () => {
     return () => {
       if (syncTimerRef.current) window.clearInterval(syncTimerRef.current);
       window.removeEventListener('focus', sync);
+    };
+  }, [load]);
+
+  useEffect(() => {
+    let active = true;
+    let unsubscribe = () => {};
+    const onCatalogChanged = (event) => {
+      if (!event?.entity || ['audio', 'broadcast', 'profile', 'station'].includes(event.entity)) {
+        void load({ silent: true });
+      }
+    };
+
+    realtimeService.subscribeToCatalog(onCatalogChanged)
+      .then((cleanup) => {
+        if (active) unsubscribe = cleanup;
+        else cleanup();
+      })
+      .catch(() => {
+        // Polling and focus refresh remain the compatibility fallback when
+        // realtime transport is unavailable.
+      });
+
+    return () => {
+      active = false;
+      unsubscribe();
     };
   }, [load]);
 

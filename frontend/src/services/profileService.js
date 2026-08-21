@@ -85,9 +85,10 @@ const profileService = {
         {
           skipAuth: true,
           skipRefresh: true,
+          cache: 'no-store',
         }
       ),
-      batch2Service.listStations({ page: 1, limit: 100 }).catch(() => ({ data: [] })),
+      batch2Service.listStations({ page: 1, limit: 100, cache: 'no-store' }).catch(() => ({ data: [] })),
     ]);
 
     const profile = normalizeProfile(response?.data);
