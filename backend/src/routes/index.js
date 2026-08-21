@@ -57,16 +57,24 @@ router.get('/health/ready', (req, res) => {
 });
 
 router.get('/health/livekit', async (req, res) => {
-  // EMERGENCY BYPASS: Always return OK for presentation
-  return res.status(200).json({
-    status: 'ok',
-    service: 'livekit',
-    reachable: true,
-    cloud: true,
-    publicUrl: process.env.LIVEKIT_PUBLIC_URL || process.env.LIVEKIT_URL,
-    mediaMode: 'livekit-only',
-    timestamp: new Date().toISOString(),
-  });
+  try {
+    const health = await LiveKitProvider.checkHealth();
+    return res.status(200).json({
+      status: 'ok',
+      service: 'livekit',
+      ...health,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('LiveKit health check failed:', error.message);
+    return res.status(error.status || 503).json({
+      status: 'error',
+      service: 'livekit',
+      message: error.message,
+      code: error.code,
+      timestamp: new Date().toISOString(),
+    });
+  }
 });
 
 router.use('/auth', authRoutes);
