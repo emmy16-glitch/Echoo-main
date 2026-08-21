@@ -6,9 +6,12 @@
 # (backend -> 5001, frontend -> 5174) using a unified config file.
 #
 # Usage (from repo root):
-#   ./scripts/dev-ngrok.sh
+#   ./scripts/dev-ngrok.sh [YOUR_NGROK_AUTHTOKEN]
 # =============================================
 set -u
+
+# Capture token from argument if provided
+TOKEN="${1:-}"
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 BACKEND_DIR="$ROOT_DIR/backend"
@@ -64,8 +67,11 @@ fi
 # ngrok tunnels (using config file)
 # --------------------------------------------------
 echo "[dev-ngrok] Starting ngrok tunnels..."
+
+# If token provided, add it to the config file directly
 cat > "$NGROK_CONFIG" <<EOF
 version: "2"
+$( [ -n "$TOKEN" ] && echo "authtoken: $TOKEN" )
 tunnels:
   echoo-backend:
     proto: http
@@ -80,7 +86,8 @@ USER_CONFIG_PATH=$(ngrok config check 2>&1 | grep "stat " | awk '{print $2}' | t
 [ -z "$USER_CONFIG_PATH" ] && USER_CONFIG_PATH="$HOME/.config/ngrok/ngrok.yml"
 
 NGROK_CMD="ngrok start --all --config $NGROK_CONFIG"
-if [ -f "$USER_CONFIG_PATH" ]; then
+# Only merge with user config if we don't have a direct token in our custom config
+if [ -z "$TOKEN" ] && [ -f "$USER_CONFIG_PATH" ]; then
     NGROK_CMD="ngrok start --all --config $USER_CONFIG_PATH --config $NGROK_CONFIG"
 fi
 
