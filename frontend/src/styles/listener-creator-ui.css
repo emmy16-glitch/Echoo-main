@@ -1843,3 +1843,52 @@
     flex: 0 0 15px !important;
   }
 }
+
+
+/* Final Listener artwork containment: never let uploaded or generated art escape its frame. */
+#root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener :is(
+  .ls-cluster-circle,
+  .ls-row-art,
+  .ls-top-art,
+  .b3-profile-art,
+  .b3-profile-live
+) {
+  min-width: 0 !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+}
+
+#root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener :is(
+  .ls-cluster-circle img,
+  .ls-row-art img,
+  .ls-top-art img,
+  .b3-profile-art img
+) {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  object-fit: cover !important;
+  object-position: 50% 50% !important;
+}
+
+#root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener .ls-cluster-circle {
+  transform: translateX(-50%) !important;
+}
+
+
+/* Give the Listener Stations hero artwork a deliberate inner gutter. */
+@media (min-width: 761px) {
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener .ls-cluster-circle {
+    left: calc(55% - 24px) !important;
+  }
+}
+
+@media (max-width: 760px) {
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener .ls-cluster-circle {
+    left: calc(55% - 16px) !important;
+  }
+}

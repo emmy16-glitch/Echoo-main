@@ -279,17 +279,10 @@ const ListenerStationsConnected = () => {
   };
 
   const openStation = (station) => {
-    if (station.isLive) {
-      batch2Service
-        .getLiveBroadcast(station.id)
-        .then((response) => {
-          if (response?.data?.id) navigate(`/listen/live/${response.data.id}`);
-          else navigate(`/listen/stations/${station.id}`);
-        })
-        .catch(() => navigate(`/listen/stations/${station.id}`));
-    } else {
-      navigate(`/listen/stations/${station.id}`);
-    }
+    if (!station?.id) return;
+    // Navigate immediately. The station detail page resolves live status in the
+    // background, so a network lookup must never make the first click feel dead.
+    navigate(`/listen/stations/${station.id}`);
   };
 
   const scrollToExplore = () => {
@@ -770,14 +763,6 @@ const ListenerStationsConnected = () => {
             )}
           </section>
 
-          <section className="ls-create-card">
-            <FaHeadphones className="ls-create-icon" aria-hidden />
-            <h3>Create your own station</h3>
-            <p>Share your voice with the world. It only takes a few minutes.</p>
-            <button type="button" className="ls-btn-outline" onClick={() => navigate('/creator-studio')}>
-              Start broadcasting
-            </button>
-          </section>
         </aside>
       </section>
 
