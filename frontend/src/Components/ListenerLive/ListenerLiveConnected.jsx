@@ -63,7 +63,6 @@ const ListenerLiveConnected = () => {
   const [error, setError] = useState('');
   const [category, setCategory] = useState('All');
   const [sortBy, setSortBy] = useState('most');
-  const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOpen, setSortOpen] = useState(false);
 
@@ -157,10 +156,6 @@ const ListenerLiveConnected = () => {
     [featured, filteredLive]
   );
 
-  const totalListeners = useMemo(
-    () => live.reduce((total, item) => total + (Number(item.listenerCount) || 0), 0),
-    [live]
-  );
 
   const categoryOptions = useMemo(() => {
     const available = new Set(live.map(categoryOf).filter(Boolean));

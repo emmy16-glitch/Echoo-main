@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   FaBell,
   FaBroadcastTower,
@@ -10,7 +10,6 @@ import {
   FaHome,
   FaImage,
   FaMicrophone,
-  FaSearch,
   FaTimes,
   FaUsers,
 } from 'react-icons/fa';

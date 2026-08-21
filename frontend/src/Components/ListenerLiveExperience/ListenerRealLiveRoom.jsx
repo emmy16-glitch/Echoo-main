@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import {
   FaBell,
-  FaBellSlash,
   FaComments,
   FaExpand,
   FaHeart,
@@ -11,7 +10,6 @@ import {
   FaShieldAlt,
   FaShare,
   FaSmile,
-  FaSyncAlt,
   FaTimes,
   FaUsers,
   FaCalendar,
@@ -77,6 +75,14 @@ const formatListeners = (count) => {
   return String(value);
 };
 
+const BROADCAST_STATUS_RANK = {
+  scheduled: 0,
+  live: 1,
+  completed: 2,
+  cancelled: 2,
+  failed: 2,
+};
+
 const upcomingLabel = (startTime, fallbackLabel) => {
   if (!startTime) return fallbackLabel || '';
   const date = new Date(startTime);
@@ -119,6 +125,7 @@ const ListenerRealLiveRoom = () => {
   const [sending, setSending] = useState(false);
   const [actionId, setActionId] = useState('');
   const [realtimeState, setRealtimeState] = useState('connecting');
+  const [clockTick, setClockTick] = useState(0);
   const [error, setError] = useState('');
   const [shareState, setShareState] = useState('');
   const chatEndRef = useRef(null);
@@ -133,7 +140,7 @@ const ListenerRealLiveRoom = () => {
     setLivePlayerState(state);
   }, [setLivePlayerState]);
   const ended = broadcast
-    ? ['completed', 'cancelled', 'failed'].includes(broadcast.status)
+    ? !['live', 'scheduled'].includes(String(broadcast.status || '').toLowerCase())
     : false;
 
   const stationId = broadcast?.stationId || broadcast?.station?.id || null;
@@ -149,6 +156,14 @@ const ListenerRealLiveRoom = () => {
       broadcast?.station?.followers ??
       0
   ) || 0;
+  const livePlayerTrack = useMemo(
+    () => ({
+      title: broadcast?.title || '',
+      subtitle: broadcast?.stationName || broadcast?.creatorName || 'Live station',
+      coverArt: stationArtwork,
+    }),
+    [broadcast?.title, broadcast?.stationName, broadcast?.creatorName, stationArtwork]
+  );
 
   const mergeMessage = useCallback((incoming) => {
     const normalized = normalizeChatMessage(incoming);
@@ -165,7 +180,6 @@ const ListenerRealLiveRoom = () => {
 
   useEffect(() => {
     if (!broadcast?.id) return undefined;
-    let active = true;
     let interval = null;
 
     const snapshot = () => {
@@ -184,7 +198,6 @@ const ListenerRealLiveRoom = () => {
     interval = window.setInterval(snapshot, 10000);
 
     return () => {
-      active = false;
       if (interval) window.clearInterval(interval);
     };
   }, [broadcast?.id, broadcast?.listenerCount, presence.listenerCount]);
@@ -351,19 +364,21 @@ const ListenerRealLiveRoom = () => {
         const onPinned = () => loadChat({ silent: true });
         const onStatus = (payload) => {
           if (!sameId(payload?.broadcastId, broadcast.id)) return;
-          setBroadcast((current) =>
-            current
-              ? {
-                  ...current,
-                  status: payload.status || current.status,
-                  startedAt: payload.startedAt ?? current.startedAt,
-                  endedAt: payload.endedAt ?? current.endedAt,
-                  listenerCount:
-                    payload.listenerCount ?? current.listenerCount,
-                  peakListeners: payload.peakListeners ?? current.peakListeners,
-                }
-              : current
-          );
+          setBroadcast((current) => {
+            if (!current) return current;
+            const incomingStatus = String(payload.status || current.status || '').toLowerCase();
+            const currentStatus = String(current.status || '').toLowerCase();
+            const incomingRank = BROADCAST_STATUS_RANK[incomingStatus] ?? -1;
+            const currentRank = BROADCAST_STATUS_RANK[currentStatus] ?? -1;
+            return {
+              ...current,
+              status: incomingRank >= currentRank ? incomingStatus : current.status,
+              startedAt: payload.startedAt ?? current.startedAt,
+              endedAt: payload.endedAt ?? current.endedAt,
+              listenerCount: payload.listenerCount ?? current.listenerCount,
+              peakListeners: payload.peakListeners ?? current.peakListeners,
+            };
+          });
         };
         const onPresence = () => refreshPresence();
         const onDisconnect = () => {
@@ -521,12 +536,20 @@ const ListenerRealLiveRoom = () => {
     broadcast?.startedAt || broadcast?.startTime
   );
 
+  useEffect(() => {
+    if (!isLive) return undefined;
+    const updateClock = () => setClockTick(Date.now());
+    updateClock();
+    const interval = window.setInterval(updateClock, 1000);
+    return () => window.clearInterval(interval);
+  }, [isLive]);
+
   const elapsedLabel = useMemo(() => {
     const started = broadcast?.startedAt || broadcast?.startTime;
     if (!started || !isLive) return '';
     const start = new Date(started).getTime();
     if (Number.isNaN(start)) return '';
-    const seconds = Math.floor((Date.now() - start) / 1000);
+    const seconds = Math.floor((clockTick - start) / 1000);
     if (seconds < 0) return '';
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
@@ -535,7 +558,7 @@ const ListenerRealLiveRoom = () => {
     return hours > 0
       ? `${pad(hours)}:${pad(minutes)}:${pad(remainder)}`
       : `${pad(minutes)}:${pad(remainder)}`;
-  }, [broadcast?.startedAt, broadcast?.startTime, isLive, presence.listenerCount]);
+  }, [broadcast?.startedAt, broadcast?.startTime, isLive, clockTick]);
 
   const listenersCount = Number(
     presence.listenerCount || broadcast?.listenerCount || 0
@@ -605,7 +628,9 @@ const ListenerRealLiveRoom = () => {
           <h1 className="llr-room-title">{broadcast.title}</h1>
         </div>
         <div className="llr-topbar-meta">
-          <span className="llr-live-pill"><i /> LIVE NOW</span>
+          <span className={`llr-live-pill${isLive ? '' : ' llr-live-pill-ended'}`}>
+            <i /> {isLive ? 'LIVE NOW' : ended ? 'ENDED' : 'SCHEDULED'}
+          </span>
           <span className="llr-meta-item">
             <FaUsers /> {listenersCount} listening
           </span>
@@ -647,8 +672,8 @@ const ListenerRealLiveRoom = () => {
                   <FaHeadphones />
                 </div>
               )}
-              <span className="llr-player-live">
-                <i /> LIVE
+              <span className={`llr-player-live${isLive ? '' : ' llr-player-live-ended'}`}>
+                <i /> {isLive ? 'LIVE' : ended ? 'ENDED' : 'SCHEDULED'}
               </span>
               <div className="llr-player-overlay">
                 <span className="llr-player-title">{broadcast.title}</span>
@@ -660,11 +685,7 @@ const ListenerRealLiveRoom = () => {
                 <LiveKitListenerPlayer
                   broadcastId={broadcast.id}
                   isLive
-                  track={{
-                    title: broadcast.title,
-                    subtitle: broadcast.stationName || broadcast.creatorName || 'Live station',
-                    coverArt: stationArtwork,
-                  }}
+                  track={livePlayerTrack}
                   onStateChange={handleLiveStateChange}
                 />
               )}

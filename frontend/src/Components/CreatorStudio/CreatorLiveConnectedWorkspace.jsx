@@ -251,6 +251,11 @@ const CreatorLiveConnectedWorkspace = ({
   );
 
   const microphoneReady = Boolean(mixerState?.channels?.host?.connected);
+  const audioSourceReady = Boolean(
+    mixerState?.channels?.host?.connected ||
+    mixerState?.channels?.guest?.connected ||
+    mixerState?.channels?.media?.connected
+  );
   const formReady = Boolean(stationId && title.trim());
 
   const changeMode = (nextMode) => {
@@ -327,7 +332,7 @@ const CreatorLiveConnectedWorkspace = ({
   const goLive = async () => {
     if (goingLive || currentLiveBroadcast) return;
     if (!formReady) return setError('Choose a station and add a broadcast title.');
-    if (!microphoneReady) return setError('Connect and test your host microphone first.');
+    if (!audioSourceReady) return setError('Connect at least one audio source before going live.');
 
     const mediaTrack = getEchooMixerOutputTrack();
     if (!mediaTrack) return setError('The studio mixer output is not ready.');
@@ -444,7 +449,7 @@ const CreatorLiveConnectedWorkspace = ({
     try {
       setGoingLive(true);
       setError('');
-      if (!microphoneReady) {
+      if (!audioSourceReady) {
         await ensureHostInput();
         setMixerState(getEchooMixerState());
       }
@@ -691,7 +696,8 @@ const CreatorLiveConnectedWorkspace = ({
               <div className="ebsx-activity-stats">
                 <div><span>Peak listeners</span><strong>{presence.peakListeners || 0}</strong></div>
                 <div><span>Live time</span><strong>{formatTimer(elapsed)}</strong></div>
-                <div><span>Studio output</span><strong>{mixerState?.channels?.host?.connected ? 'Ready' : 'Check mic'}</strong></div>
+                                  <div><span>Studio output</span><strong>{audioSourceReady ? 'Ready' : 'Check audio'}</strong></div>
+
               </div>
             </section>
 
@@ -739,7 +745,7 @@ const CreatorLiveConnectedWorkspace = ({
   return (
     <section className="ebsx setup-page">
       <header className="ebsx-setup-header">
-        <div><h1>Your studio is <span className="ebsx-title-accent">{microphoneReady ? 'ready' : 'getting ready'}</span></h1><p>Set up your broadcast, test your audio, and go live with confidence.</p></div>
+        <div><h1>Your studio is <span className="ebsx-title-accent">{audioSourceReady ? 'ready' : 'getting ready'}</span></h1><p>Set up your broadcast, test your audio, and go live with confidence.</p></div>
       </header>
 
       {message && <div className="ebsx-message success">{message}</div>}
@@ -759,7 +765,7 @@ const CreatorLiveConnectedWorkspace = ({
             </div>
             <div className="ebsx-quality">
               <span>Studio status</span>
-              <strong><i /> {microphoneReady ? 'Audio ready' : 'Waiting for microphone'}</strong>
+              <strong><i /> {audioSourceReady ? 'Audio ready' : 'Waiting for an audio source'}</strong>
               <p>Your live mix is sent to LiveKit when you start the broadcast.</p>
             </div>
             <div className="ebsx-hero-mic"><FaMicrophone /></div>
@@ -771,7 +777,7 @@ const CreatorLiveConnectedWorkspace = ({
               <div className="ebsx-preview-wave"><EchoWave state={microphoneReady ? 'playing' : 'idle'} /></div>
               <div className="ebsx-mic-source"><FaMicrophone /><div><strong>{mixerState?.channels?.host?.sourceLabel || 'Host microphone'}</strong><small>Primary input</small></div></div>
               <button type="button" className="ebsx-outline-button" onClick={testMicrophone}><FaMicrophone /> {microphoneReady ? 'Test again' : 'Test microphone'}</button>
-              <div className="ebsx-checks"><span className={microphoneReady ? 'done' : ''}><FaCheck /> Microphone detected</span><span className={stationId ? 'done' : ''}><FaCheck /> Station selected</span><span className={formReady ? 'done' : ''}><FaCheck /> Broadcast details</span></div>
+              <div className="ebsx-checks"><span className={audioSourceReady ? 'done' : ''}><FaCheck /> Audio source connected</span><span className={stationId ? 'done' : ''}><FaCheck /> Station selected</span><span className={formReady ? 'done' : ''}><FaCheck /> Broadcast details</span></div>
             </section>
 
             <CreatorAudioMixer onStateChange={setMixerState} />
@@ -801,9 +807,9 @@ const CreatorLiveConnectedWorkspace = ({
 
           {mode === 'now' ? (
             <>
-              <div className={`ebsx-step ${microphoneReady ? 'done' : ''}`}><b>3</b><div><strong>Test microphone</strong><p>Make sure the host input is ready.</p><button type="button" className="ebsx-outline-button full" onClick={testMicrophone}><FaMicrophone /> {microphoneReady ? 'Mic ready — test again' : 'Test microphone'}</button></div></div>
-              <div className={`ebsx-step ${formReady && microphoneReady ? 'done' : ''}`}><b>4</b><div><strong>Ready</strong><p>Station, details and microphone must be ready.</p></div></div>
-              <div className="ebsx-step final"><b>5</b><div><strong>Go live</strong><p>Your mixer output will be published to listeners.</p><button type="button" className="ebsx-blue-button full" onClick={goLive} disabled={!formReady || !microphoneReady || goingLive || saving}><FaBroadcastTower /> {goingLive || saving ? 'Starting...' : savedBroadcast?.status === 'starting' ? 'Resume going live' : 'Go live now'}</button><button type="button" className="ebsx-schedule-button full" onClick={() => changeMode('later')}><FaCalendarAlt /> Schedule for later</button></div></div>
+              <div className={`ebsx-step ${audioSourceReady ? 'done' : ''}`}><b>3</b><div><strong>{microphoneReady ? 'Test microphone' : 'Connect an audio source'}</strong><p>{microphoneReady ? 'Make sure the host input is ready.' : 'Connect a microphone or share tab audio for your audience.'}</p><button type="button" className="ebsx-outline-button full" onClick={testMicrophone}><FaMicrophone /> {microphoneReady ? 'Mic ready — test again' : 'Test microphone'}</button></div></div>
+              <div className={`ebsx-step ${formReady && audioSourceReady ? 'done' : ''}`}><b>4</b><div><strong>Ready</strong><p>Station, details and at least one audio source must be ready.</p></div></div>
+              <div className="ebsx-step final"><b>5</b><div><strong>Go live</strong><p>Your mixer output will be published to listeners.</p><button type="button" className="ebsx-blue-button full" onClick={goLive} disabled={!formReady || !audioSourceReady || goingLive || saving}><FaBroadcastTower /> {goingLive || saving ? 'Starting...' : savedBroadcast?.status === 'starting' ? 'Resume going live' : 'Go live now'}</button><button type="button" className="ebsx-schedule-button full" onClick={() => changeMode('later')}><FaCalendarAlt /> Schedule for later</button></div></div>
             </>
           ) : (
             <>

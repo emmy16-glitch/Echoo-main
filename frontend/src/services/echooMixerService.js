@@ -5,6 +5,7 @@ const CLIP_DB = -1;
 const PCM_CAPTURE_WORKLET_URL = '/echoo-pcm-capture-worklet.js';
 const PCM_CAPTURE_CHANNELS = 2;
 const PREFERRED_SAMPLE_RATE = 48000;
+const DISPLAY_CAPTURE_TIMEOUT_MS = 45000;
 
 const DEFAULT_MIC_CONSTRAINTS = Object.freeze({
   echoCancellation: true,
@@ -519,12 +520,43 @@ export const connectSystemAudio = async () => {
     throw new Error('System-audio sharing is not supported by this browser.');
   }
 
-  const stream = await navigator.mediaDevices.getDisplayMedia({
+  const capturePromise = navigator.mediaDevices.getDisplayMedia({
     video: true,
     audio: true,
   });
+  let timeoutId;
 
-  const audioTrack = stream.getAudioTracks()[0];
+  const timeoutPromise = new Promise((resolve, reject) => {
+    timeoutId = window.setTimeout(() => {
+      reject(new Error(
+        'Share audio timed out. Choose a browser tab or screen and enable Share audio, then try again.'
+      ));
+    }, DISPLAY_CAPTURE_TIMEOUT_MS);
+  });
+
+  let stream;
+  try {
+    stream = await Promise.race([capturePromise, timeoutPromise]);
+  } catch (error) {
+    // getDisplayMedia cannot be aborted in every supported browser. If the
+    // native picker resolves after our timeout, stop the late stream so it
+    // cannot silently attach itself to the mixer after the UI has recovered.
+    capturePromise.then(stopStreamTracks).catch(() => {});
+    if (error?.name === 'NotAllowedError') {
+      throw new Error(
+        'Share audio was cancelled or blocked. Choose a tab or screen and enable Share audio.',
+        { cause: error }
+      );
+    }
+    if (error?.name === 'NotFoundError') {
+      throw new Error('No screen or tab was selected for Share audio.', { cause: error });
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+
+  const audioTrack = stream?.getAudioTracks?.()[0];
   if (!audioTrack) {
     stopStreamTracks(stream);
     throw new Error('No shared audio was selected. Choose a tab or screen with audio enabled.');

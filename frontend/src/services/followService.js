@@ -48,6 +48,15 @@ const followService = {
     return response?.data || { isFollowing: false, isFollowedBy: false };
   },
 
+  // Real follower/following totals from the existing
+  // GET /follows/users/:userId/count endpoint.
+  getCreatorCount: async (creatorId) => {
+    const response = await apiRequest(
+      `/follows/users/${encodeURIComponent(creatorId)}/count`
+    );
+    return response?.data || { followerCount: 0, followingCount: 0 };
+  },
+
   followCreator: async (creatorId) => {
     const response = await apiRequest(
       `/follows/users/${encodeURIComponent(creatorId)}`,

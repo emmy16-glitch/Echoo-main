@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Room, RoomEvent, Track } from 'livekit-client';
 import { FaHeadphones, FaRedoAlt, FaVolumeUp } from 'react-icons/fa';
 
@@ -139,15 +139,33 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       }
     };
 
+    const subscribeToProgramPublication = async (publication, room) => {
+      if (!publication || !isEchooProgramPublication(publication)) return;
+
+      if (publication.track?.kind === Track.Kind.Audio) {
+        await attachAudio(publication.track, publication, room);
+        return;
+      }
+
+      // A Creator may already be live before this Listener joins. With
+      // autoSubscribe enabled LiveKit normally handles this, but explicitly
+      // requesting the subscription also covers publications announced during
+      // the initial participant snapshot and avoids a silent waiting state.
+      if (
+        publication.kind === Track.Kind.Audio &&
+        !publication.isSubscribed &&
+        typeof publication.setSubscribed === 'function'
+      ) {
+        await publication.setSubscribed(true);
+      }
+    };
+
     const attachExisting = async (room) => {
       const tasks = [];
       room.remoteParticipants.forEach((participant) => {
         participant.trackPublications.forEach((publication) => {
-          if (
-            publication.track?.kind === Track.Kind.Audio &&
-            isEchooProgramPublication(publication)
-          ) {
-            tasks.push(attachAudio(publication.track, publication, room));
+          if (isEchooProgramPublication(publication)) {
+            tasks.push(subscribeToProgramPublication(publication, room));
           }
         });
       });
@@ -174,6 +192,15 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
 
       const room = new Room({ adaptiveStream: false, dynacast: false });
       roomRef.current = room;
+
+      room.on(RoomEvent.TrackPublished, (publication) => {
+        if (roomRef.current !== room || !isEchooProgramPublication(publication)) return;
+        subscribeToProgramPublication(publication, room).catch((subscriptionError) => {
+          if (!disposed && roomRef.current === room) {
+            setError(subscriptionError?.message || 'Could not subscribe to live audio.');
+          }
+        });
+      });
 
       room.on(RoomEvent.TrackSubscribed, (track, publication) => {
         if (roomRef.current !== room) return;
@@ -223,7 +250,10 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       });
       room.on(RoomEvent.AudioPlaybackStatusChanged, () => {
         if (!disposed && roomRef.current === room) {
-          setNeedsAudioStart(!room.canPlaybackAudio);
+          const hasAudio = attachedRef.current.size > 0;
+          const canPlay = room.canPlaybackAudio;
+          setNeedsAudioStart(hasAudio && !canPlay);
+          if (hasAudio && canPlay) setStatus('listening');
         }
       });
       room.on(RoomEvent.MediaDevicesChanged, loadOutputs);
@@ -236,8 +266,17 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
 
       await loadOutputs();
       await attachExisting(room);
-      setStatus(attachedRef.current.size ? 'listening' : 'connected');
-      setNeedsAudioStart(!room.canPlaybackAudio);
+
+      const audioElements = Array.from(
+        audioHostRef.current?.querySelectorAll('audio') || []
+      );
+      const hasPlayingAudio = audioElements.some(
+        (element) => !element.paused && !element.ended
+      );
+      setStatus(hasPlayingAudio ? 'listening' : 'connected');
+      setNeedsAudioStart(
+        attachedRef.current.size > 0 && !hasPlayingAudio
+      );
     };
 
     connect().catch(async (connectError) => {
@@ -267,7 +306,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
     };
   }, [broadcastId, isLive, retryVersion]);
 
-  const startAudio = async () => {
+  const startAudio = useCallback(async () => {
     const room = roomRef.current;
     if (!room) return;
     try {
@@ -281,9 +320,9 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       setNeedsAudioStart(true);
       setError(startError?.message || 'Tap again to start the live audio.');
     }
-  };
+  }, []);
 
-  const togglePlayback = async () => {
+  const togglePlayback = useCallback(async () => {
     if (needsAudioStart) {
       await startAudio();
       return;
@@ -299,16 +338,16 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       setNeedsAudioStart(true);
       setError(playError?.message || 'Tap again to start the live audio.');
     }
-  };
+  }, [needsAudioStart, startAudio]);
 
-  const toggleMute = () => {
+  const toggleMute = useCallback(() => {
     const elements = Array.from(audioHostRef.current?.querySelectorAll('audio') || []);
     const nextMuted = elements.some((element) => !element.muted);
     elements.forEach((element) => { element.muted = nextMuted; });
     setLiveMuted(nextMuted);
-  };
+  }, []);
 
-  const changeVolume = (value) => {
+  const changeVolume = useCallback((value) => {
     const nextVolume = Math.max(0, Math.min(1, Number(value) || 0));
     const nextMuted = nextVolume === 0;
     const elements = Array.from(audioHostRef.current?.querySelectorAll('audio') || []);
@@ -318,7 +357,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
     });
     setLiveVolume(nextVolume);
     setLiveMuted(nextMuted);
-  };
+  }, []);
 
   const changeOutput = async (deviceId) => {
     setOutputDeviceId(deviceId);
@@ -353,7 +392,19 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
     return () => {
       onStateChange?.({ active: false, track: null, isPlaying: false, playerError: '' });
     };
-  }, [isLive, track, status, error, needsAudioStart, liveVolume, liveMuted]);
+  }, [
+    onStateChange,
+    isLive,
+    track,
+    status,
+    error,
+    needsAudioStart,
+    liveVolume,
+    liveMuted,
+    togglePlayback,
+    toggleMute,
+    changeVolume,
+  ]);
 
   if (!isLive) return null;
 

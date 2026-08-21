@@ -62,7 +62,7 @@ const SOURCE_COPY = Object.freeze({
   },
   media: {
     helper: 'Music and sound from your computer',
-    empty: 'Share a browser tab or screen that includes audio.',
+    empty: 'Choose a browser tab or window, then enable Share audio.',
   },
 });
 
@@ -425,6 +425,11 @@ const CreatorAudioMixer = ({ compact = false, onStateChange }) => {
         <small className="eam-source-device">
           {channel.connected ? channel.sourceLabel : copy.empty}
         </small>
+        {channelId === 'media' && !channel.connected && (
+          <small className="eam-source-tip">
+            In the browser picker, select a tab or window and turn on Share audio before confirming.
+          </small>
+        )}
 
         {(channelId === 'host' || channelId === 'guest') && !channel.connected && (
           <select

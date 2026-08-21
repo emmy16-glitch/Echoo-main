@@ -1,0 +1,16 @@
+/* ─────────────────────────────────────────────────────────────
+   Echoo Design System — main stylesheet
+   Import once (app entry) to make every page resolve the same
+   colors, typography, spacing, buttons, cards, badges, section
+   headers, search input, sidebar navigation and player styles.
+   ───────────────────────────────────────────────────────────── */
+@import "./tokens.css";
+@import "./button.css";
+@import "./card.css";
+@import "./badge.css";
+@import "./section-header.css";
+@import "./avatar.css";
+@import "./progress.css";
+@import "./search-input.css";
+@import "./sidebar.css";
+@import "./player.css";
