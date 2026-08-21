@@ -75,11 +75,16 @@ tunnels:
     addr: 5174
 EOF
 
-# Use both the custom tunnel config AND the user's default config (for the authtoken)
-USER_CONFIG=$(ngrok config check 2>&1 | grep "stat " | awk '{print $2}' | tr -d ':')
-[ -z "$USER_CONFIG" ] && USER_CONFIG="$HOME/.config/ngrok/ngrok.yml"
+# Use the user's default config if it exists, otherwise rely on NGROK_AUTHTOKEN env var
+USER_CONFIG_PATH=$(ngrok config check 2>&1 | grep "stat " | awk '{print $2}' | tr -d ':' | head -1)
+[ -z "$USER_CONFIG_PATH" ] && USER_CONFIG_PATH="$HOME/.config/ngrok/ngrok.yml"
 
-( exec ngrok start --all --config "$USER_CONFIG" --config "$NGROK_CONFIG" ) > "$PID_DIR/ngrok.log" 2>&1 &
+NGROK_CMD="ngrok start --all --config $NGROK_CONFIG"
+if [ -f "$USER_CONFIG_PATH" ]; then
+    NGROK_CMD="ngrok start --all --config $USER_CONFIG_PATH --config $NGROK_CONFIG"
+fi
+
+( exec $NGROK_CMD ) > "$PID_DIR/ngrok.log" 2>&1 &
 echo $! > "$PID_DIR/ngrok.pid"
 
 # --------------------------------------------------
