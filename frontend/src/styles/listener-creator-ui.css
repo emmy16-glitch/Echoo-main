@@ -1816,3 +1816,30 @@
 .echoo-listener-shell .studio-nav-item.active:focus-visible {
   box-shadow: inset 3px 0 0 var(--echoo-color-brand), 0 0 0 2px var(--echoo-color-focus) !important;
 }
+
+
+/* Shared desktop icon column: Listener mirrors Creator’s aligned sidebar geometry. */
+@media (min-width: 761px) {
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener .studio-navigation .studio-nav-item {
+    justify-content: flex-start !important;
+    gap: 12px !important;
+    height: 44px !important;
+    min-height: 44px !important;
+    flex-basis: 44px !important;
+    padding: 0 12px !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener .studio-navigation .studio-nav-icon {
+    width: 20px !important;
+    min-width: 20px !important;
+    height: 20px !important;
+    flex: 0 0 20px !important;
+    margin: 0 !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener .studio-navigation .studio-nav-icon svg {
+    width: 15px !important;
+    height: 15px !important;
+    flex: 0 0 15px !important;
+  }
+}

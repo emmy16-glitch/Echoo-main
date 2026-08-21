@@ -388,3 +388,72 @@ textarea:focus-visible,
   min-width: 0 !important;
   margin: 0 !important;
 }
+
+
+/* Shared desktop sidebar alignment: one icon column, one label start line. */
+@media (min-width: 701px) {
+  #root .echoo-app-shell .studio-nav-item {
+    justify-content: flex-start !important;
+    gap: 12px !important;
+    min-height: 44px !important;
+    height: 44px !important;
+    padding: 0 12px !important;
+    box-sizing: border-box !important;
+  }
+
+  #root .echoo-app-shell .studio-nav-icon {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex: 0 0 20px !important;
+    width: 20px !important;
+    min-width: 20px !important;
+    margin: 0 !important;
+  }
+
+  #root .echoo-app-shell .studio-nav-label {
+    display: block !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    text-align: left !important;
+  }
+
+  #root .echoo-app-shell--creator .studio-brand {
+    width: 100% !important;
+    min-width: 0 !important;
+    height: auto !important;
+    min-height: 52px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 10px !important;
+    margin: 0 0 18px !important;
+    padding: 0 12px 20px !important;
+    box-sizing: border-box !important;
+    overflow: visible !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  #root .echoo-app-shell--creator .studio-brand .studio-logo {
+    width: 42px !important;
+    height: 42px !important;
+    min-width: 42px !important;
+    flex: 0 0 42px !important;
+    margin: 0 !important;
+    object-fit: contain !important;
+    object-position: 50% 50% !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+  }
+
+  #root .echoo-app-shell--creator .studio-brand > div {
+    display: flex !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    flex-direction: column !important;
+  }
+}
