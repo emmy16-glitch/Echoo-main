@@ -9,6 +9,7 @@ import {
   FaVolumeMute,
   FaVolumeUp,
 } from 'react-icons/fa';
+import { FiFileText } from 'react-icons/fi';
 
 import EchoSignal from '../EchooSystem/EchoSignal';
 import { Thumbnail } from './ImagePrimitives';
@@ -59,7 +60,14 @@ const PlayerBar = ({
       </div>
       <div className="echoo-player-bar__info">
         <strong>{currentTrack?.title || 'Choose something to play'}</strong>
-        <span>{playerError || (currentTrack?.isLive ? 'LIVE' : currentTrack?.subtitle || 'Echoo')}</span>
+        <span>
+          {playerError ? playerError : currentTrack?.isLive ? 'LIVE' : currentTrack?.subtitle || 'Echoo'}
+          {currentTrack && !playerError && (currentTrack.hasTranscript || currentTrack.transcriptAvailable || currentTrack.station?.hasTranscript) && (
+            <span className="echoo-player-bar__transcript" aria-label="Transcript available">
+              <FiFileText aria-hidden="true" /> Transcript
+            </span>
+          )}
+        </span>
       </div>
     </div>
 

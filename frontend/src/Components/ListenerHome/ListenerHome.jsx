@@ -1,32 +1,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+  FiArrowLeft,
   FiArrowRight,
-  FiBookOpen,
-  FiGrid,
+  FiFileText,
   FiHeadphones,
-  FiMic,
   FiPlay,
-  FiRepeat,
-  FiStar,
-  FiTrendingUp,
-  FiTv,
+  FiSearch,
   FiUsers,
   FiCheck,
+  FiRadio,
+  FiChevronRight,
 } from 'react-icons/fi';
+import { FaCheck } from 'react-icons/fa';
 import listenerService from '../../services/listenerService';
 import realtimeService from '../../services/realtimeService';
 import notificationService from '../../services/notificationService';
 import followService from '../../services/followService';
 import searchService from '../../services/searchService';
 import { buildMediaUrl } from '../../services/api';
-import {
-  EchooBadge,
-  EchooButton,
-  EchooCard,
-  EchooProgressBar,
-  EchooSectionHeader,
-} from '../../design-system';
 import './ListenerHome.css';
 
 const HOME_SYNC_INTERVAL_MS = 15000;
@@ -38,32 +30,8 @@ const idOf = (item) => {
 };
 
 const heroTitle = (hero, isLive) => {
-  if (isLive) {
-    return hero.station?.name || hero.stationName || hero.title || 'Live on Echoo';
-  }
+  if (isLive) return hero.station?.name || hero.stationName || hero.title || 'Live on Echoo';
   return hero.title || hero.name || hero.station?.name || 'Untitled';
-};
-
-const heroSubtitle = (hero, isLive) => {
-  if (isLive) {
-    return (
-      hero.station?.owner?.displayName ||
-      hero.creator?.displayName ||
-      hero.station?.creator?.displayName ||
-      ''
-    );
-  }
-  if (hero.station?.name || hero.stationName) return hero.station?.name || hero.stationName;
-  if (typeof hero.artist === 'string') return hero.artist;
-  return (
-    hero.artist?.displayName ||
-    hero.artist?.username ||
-    hero.artist?.creatorProfile?.artistName ||
-    hero.artist?.creatorProfile?.organizationName ||
-    hero.creator?.displayName ||
-    hero.creator?.username ||
-    ''
-  );
 };
 
 const artworkOf = (item) =>
@@ -99,9 +67,7 @@ const creatorHandleOf = (item) => {
 const creatorAvatarOf = (item) => {
   const creator = item?.creator || item?.station?.owner || item?.artist || null;
   if (typeof creator !== 'object') return '';
-  return buildMediaUrl(
-    creator?.avatar || creator?.creatorProfile?.organizationLogo || null
-  );
+  return buildMediaUrl(creator?.avatar || creator?.creatorProfile?.organizationLogo || null);
 };
 
 const creatorVerifiedOf = (item) => {
@@ -110,29 +76,11 @@ const creatorVerifiedOf = (item) => {
 };
 
 const hasTranscript = (item) =>
-  Boolean(
-    item?.transcriptAvailable ||
-      item?.hasTranscript ||
-      item?.transcript?.available ||
-      item?.station?.hasTranscript
-  );
+  Boolean(item?.transcriptAvailable || item?.hasTranscript || item?.transcript?.available || item?.station?.hasTranscript);
 
-const categoryOf = (item) =>
-  item?.station?.category || item?.category || item?.genre || item?.station?.genre || '';
+const categoryOf = (item) => item?.station?.category || item?.category || item?.genre || item?.station?.genre || '';
 
-const descriptionOf = (item) =>
-  item?.description || item?.station?.description || '';
-
-const formatDuration = (totalSeconds) => {
-  const seconds = Math.max(0, Math.floor(Number(totalSeconds) || 0));
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const remaining = seconds % 60;
-  const pad = (value) => String(value).padStart(2, '0');
-  return hours > 0
-    ? `${hours}:${pad(minutes)}:${pad(remaining)}`
-    : `${minutes}:${pad(remaining)}`;
-};
+const descriptionOf = (item) => item?.description || item?.station?.description || '';
 
 const formatCount = (count) => {
   const value = Math.max(0, Math.floor(Number(count) || 0));
@@ -143,193 +91,165 @@ const formatCount = (count) => {
   return String(value);
 };
 
-const categoryIcon = (category) => {
-  const map = {
-    'Faith & Spirituality': FiStar,
-    Business: FiTrendingUp,
-    Entertainment: FiTv,
-    Music: FiHeadphones,
-    'News & Politics': FiRepeat,
-    Education: FiBookOpen,
-    Technology: FiGrid,
-  };
-  return map[category] || FiMic;
+const formatDuration = (totalSeconds) => {
+  const s = Math.max(0, Math.floor(Number(totalSeconds) || 0));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  const pad = (v) => String(v).padStart(2, '0');
+  return h > 0 ? `${h}:${pad(m)}:${pad(sec)}` : `${m}:${pad(sec)}`;
 };
 
+/* gradients for Live Now cards – sampled from home.png reference */
+const LIVE_GRADIENTS = [
+  'linear-gradient(135deg,#6BB9AF 0%,#8FD0C8 55%,#BFE7E1 100%)',
+  'linear-gradient(135deg,#7A5A2E 0%,#9C7A3A 35%,#C6A86D 100%)',
+  'linear-gradient(135deg,#3E8EA8 0%,#5EB8C6 50%,#8AD8DE 100%)',
+  'linear-gradient(135deg,#23408F 0%,#3B5EBE 55%,#7A96DA 100%)',
+];
 
+const SectionHeader = ({ icon, title, subtitle, onViewAll, viewAllLabel = 'View all' }) => (
+  <div className="lh-section-head">
+    <div className="lh-section-head-left">
+      <h3 className="lh-section-title">
+        {icon && <span className="lh-section-icon" aria-hidden="true">{icon}</span>}
+        {title}
+      </h3>
+      {subtitle && <span className="lh-section-subtitle">{subtitle}</span>}
+    </div>
+    <div className="lh-section-head-right">
+      {onViewAll && (
+        <button type="button" className="lh-view-all" onClick={onViewAll}>
+          {viewAllLabel} <FiArrowRight aria-hidden="true" />
+        </button>
+      )}
+      <div className="lh-nav-arrows" aria-hidden="true">
+        <span className="lh-arrow"><FiArrowLeft /></span>
+        <span className="lh-arrow"><FiArrowRight /></span>
+      </div>
+    </div>
+  </div>
+);
 
-const greetingOf = (dashboardGreeting) => dashboardGreeting || 'Welcome back';
-
-/* ---------------- Live room card ---------------- */
-
-const LiveCard = ({ broadcast, onOpen }) => {
+const LiveCard = ({ broadcast, index, onOpen }) => {
   const station = broadcast?.station || broadcast;
+  const name = station.name || broadcast.stationName || broadcast.title || 'Live on Echoo';
+  const cat = categoryOf(broadcast) || station.category || 'Live';
   const creator = creatorNameOf(broadcast);
+  const verified = creatorVerifiedOf(broadcast);
+  const listeners = station.listenerCount ?? broadcast.listenerCount ?? 0;
+  const art = artworkOf(broadcast);
+  const gradient = LIVE_GRADIENTS[index % LIVE_GRADIENTS.length];
   return (
     <button
       type="button"
-      className="echoo-home-live-card"
+      className="lh-live-card"
+      style={art ? undefined : { background: gradient }}
       onClick={() => onOpen(broadcast)}
-      aria-label={`Join ${station.name || broadcast.stationName || 'live broadcast'}`}
+      aria-label={`Join ${name}`}
     >
-      <div className="echoo-home-live-art">
-        {artworkOf(broadcast) ? (
-          <img src={artworkOf(broadcast)} alt="" loading="lazy" />
-        ) : (
-          <span className="echoo-home-art-placeholder">
-            <FiMic aria-hidden="true" />
-          </span>
-        )}
-        <span className="echoo-home-live-badge">
-          <span className="echoo-home-live-dot" aria-hidden="true" />
-          LIVE
-        </span>
-        <span className="echoo-home-live-overlay" aria-hidden="true" />
-        <span className="echoo-home-live-listeners">
-          <FiUsers aria-hidden="true" />
-          {formatCount(station.listenerCount ?? 0)} listening
-        </span>
-      </div>
-      <div className="echoo-home-live-info">
-        <span className="echoo-home-live-name">{station.name || broadcast.stationName || 'Live on Echoo'}</span>
-        <span className="echoo-home-live-meta">
-          {station.category || creator || 'Live'}
-        </span>
-        {creator && <span className="echoo-home-live-creator">{creator}</span>}
-        <div className="echoo-home-live-footer">
-          {hasTranscript(broadcast) && (
-            <EchooBadge tone="transcript" size="sm">Transcript</EchooBadge>
+      {art ? (
+        <>
+          <img className="lh-live-card-bg" src={art} alt="" loading="lazy" />
+          <span className="lh-live-card-gradient" style={{ background: gradient, opacity: 0.88 }} aria-hidden="true" />
+        </>
+      ) : null}
+      <span className="lh-live-badge">
+        <span className="lh-live-dot" aria-hidden="true" />
+        LIVE
+      </span>
+      <div className="lh-live-card-body">
+        <span className="lh-live-card-title">{name}</span>
+        <span className="lh-live-card-category">{cat}</span>
+        <span className="lh-live-card-creator">
+          {creator || 'Echoo'}
+          {verified && (
+            <span className="lh-live-verified" aria-label="Verified"><FaCheck /></span>
           )}
-          <span className="echoo-home-live-join-pill" aria-hidden="true">
-            Join
-          </span>
+        </span>
+        <div className="lh-live-card-footer">
+          <span className="lh-live-listeners">{formatCount(listeners)} listening</span>
+          {hasTranscript(broadcast) && (
+            <span className="lh-live-transcript-pill">
+              <FiFileText aria-hidden="true" /> Transcript
+            </span>
+          )}
         </div>
       </div>
+      {/* subtle pattern */}
+      <span className="lh-live-card-pattern" aria-hidden="true" />
     </button>
   );
 };
-
-/* ---------------- Continue listening card ---------------- */
 
 const ContinueCard = ({ item, isLive, onOpen }) => {
-  const duration = Math.max(0, Math.floor(item.duration || 0));
+  const duration = Math.max(0, Math.floor(item.duration || item.progress != null ? item.duration : item.duration || 0));
   const progress = Math.max(0, Math.floor(item.progress || 0));
   const ratio = duration > 0 ? Math.min(1, Math.max(0, progress / duration)) : 0;
+  const remainingSec = Math.max(0, duration - progress);
+  const remainingLabel = remainingSec > 0 ? `${formatDuration(remainingSec)} left` : formatDuration(duration);
+  const title = heroTitle(item, isLive);
+  const subtitle = (() => {
+    if (isLive) return item.station?.name || item.stationName || creatorNameOf(item) || 'Live';
+    return item.station?.name || creatorNameOf(item) || item.category || 'Echoo';
+  })();
+  const art = artworkOf(item);
   return (
-    <button
-      type="button"
-      className="echoo-home-continue-card"
-      onClick={() => onOpen(item)}
-      aria-label={`${isLive ? 'Join' : 'Resume'} ${heroTitle(item, isLive)}`}
-    >
-      <div className="echoo-home-continue-art">
-        {artworkOf(item) ? (
-          <img src={artworkOf(item)} alt="" loading="lazy" />
-        ) : (
-          <span className="echoo-home-art-placeholder echoo-home-art-placeholder--sm">
-            <FiHeadphones aria-hidden="true" />
-          </span>
-        )}
-        {isLive && (
-          <span className="echoo-home-continue-badge" aria-label="Live now">
-            <span className="echoo-home-live-dot echoo-home-live-dot--small" aria-hidden="true" />
-          </span>
-        )}
-        <span className="echoo-home-continue-play" aria-hidden="true">
-          <FiPlay aria-hidden="true" />
+    <button type="button" className="lh-continue-card" onClick={() => onOpen(item)} aria-label={`${isLive ? 'Join' : 'Resume'} ${title}`}>
+      <span className="lh-continue-icon">
+        {art ? <img src={art} alt="" loading="lazy" /> : <FiHeadphones aria-hidden="true" />}
+      </span>
+      <span className="lh-continue-body">
+        <span className="lh-continue-title">{title}</span>
+        <span className="lh-continue-sub">{subtitle}</span>
+        <span className="lh-continue-progress">
+          <span className="lh-continue-track"><span className="lh-continue-fill" style={{ width: `${ratio * 100}%` }} /></span>
+          <span className="lh-continue-time">{remainingLabel}</span>
         </span>
-      </div>
-      <div className="echoo-home-continue-info">
-        <span className="echoo-home-continue-name">{heroTitle(item, isLive)}</span>
-        <span className="echoo-home-continue-sub">
-          {heroSubtitle(item, isLive) || item.station?.name || item.stationName || item.category || 'Echoo'}
-          {isLive
-            ? ` · ${formatCount(item.station?.listenerCount ?? 0)} listening`
-            : ` · ${formatDuration(duration)}`}
-        </span>
-        {!isLive && duration > 0 && (
-          <EchooProgressBar
-            value={ratio * 100}
-            max={100}
-            label={`${heroTitle(item)} progress`}
-            className="echoo-home-continue-progress"
-          />
-        )}
-      </div>
+      </span>
+      <span className="lh-continue-play" aria-hidden="true"><FiPlay /></span>
     </button>
   );
 };
-
-/* ---------------- Recommended creator card ---------------- */
 
 const CreatorCard = ({ creator, following, followerCount, busy, onOpen, onToggleFollow }) => {
   const creatorId = idOf(creator);
   const isFollowing = following.has(creatorId);
-  const name =
-    creator.displayName ||
-    creator.creatorProfile?.artistName ||
-    creator.creatorProfile?.organizationName ||
-    creator.username ||
-    'Echoo Creator';
+  const rawName = creator.displayName || creator.creatorProfile?.artistName || creator.creatorProfile?.organizationName || creator.username || 'Echoo Creator';
+  const name = rawName;
+  const handle = creator.username ? `@${creator.username}` : creator.creatorProfile?.artistName ? `@${String(creator.creatorProfile.artistName).toLowerCase().replace(/\s+/g,'')}` : '';
+  const avatar = buildMediaUrl(creator.avatar || creator.creatorProfile?.organizationLogo || null);
   const verified = Boolean(creator.creatorProfile?.isVerified || creator.verified);
+  const count = followerCount ?? creator.followerCount ?? creator.followers ?? 0;
+  const letter = name.charAt(0).toUpperCase();
+  const avatarColors = ['#6D5EF8','#F45D5D','#3BA6E0','#22C55E','#F59E0B','#8B5CF6'];
+  const colorIndex = creatorId ? creatorId.charCodeAt(0) % avatarColors.length : 0;
   return (
-    <div className="echoo-home-creator-card">
+    <div className="lh-creator-card">
+      <button type="button" className="lh-creator-avatar" onClick={() => onOpen(creator)} aria-label={`Open ${name}`}>
+        {avatar ? <img src={avatar} alt="" loading="lazy" /> : <span className="lh-creator-letter" style={{ background: avatarColors[colorIndex] }}>{letter}</span>}
+        {verified && <span className="lh-creator-verified"><FiCheck aria-hidden="true" /></span>}
+      </button>
+      <div className="lh-creator-info">
+        <span className="lh-creator-name" title={name}>{name} {verified && <span className="lh-inline-verified"><FiCheck aria-hidden="true" /></span>}</span>
+        <span className="lh-creator-handle">{handle || `@${String(name).toLowerCase().replace(/\s+/g,'')}`}</span>
+        <span className="lh-creator-followers">{formatCount(count)} followers</span>
+      </div>
       <button
         type="button"
-        className="echoo-home-creator-avatar"
-        onClick={() => onOpen(creator)}
-        aria-label={`Open ${name}`}
-      >
-        {creator.avatar || creator.creatorProfile?.organizationLogo ? (
-          <img
-            src={buildMediaUrl(creator.avatar || creator.creatorProfile?.organizationLogo)}
-            alt=""
-            loading="lazy"
-          />
-        ) : (
-          <span>{name.charAt(0).toUpperCase()}</span>
-        )}
-        {verified && (
-          <span className="echoo-home-creator-verified" aria-label="Verified">
-            <FiCheck aria-hidden="true" />
-          </span>
-        )}
-      </button>
-      <div className="echoo-home-creator-info">
-        <span className="echoo-home-creator-name" title={name}>{name}</span>
-        <span className="echoo-home-creator-sub">
-          {formatCount(followerCount)} followers
-        </span>
-      </div>
-      <EchooButton
-        size="sm"
-        variant={isFollowing ? 'secondary' : 'primary'}
+        className={`lh-follow-btn ${isFollowing ? 'is-following' : ''}`}
         disabled={busy}
         onClick={() => onToggleFollow(creator)}
         aria-label={isFollowing ? `Unfollow ${name}` : `Follow ${name}`}
       >
         {busy ? '…' : isFollowing ? 'Following' : 'Follow'}
-      </EchooButton>
+      </button>
     </div>
   );
 };
 
-/* ---------------- Trending topic row ---------------- */
-
-const TrendingRow = ({ term, activity, basis }) => (
-  <div className="echoo-home-trending-row">
-    <span className="echoo-home-trending-hash" aria-hidden="true">#</span>
-    <span className="echoo-home-trending-term">{term}</span>
-    <span className="echoo-home-trending-meta">
-      {activity > 0 ? formatCount(activity) : ''}
-      {basis ? ` · ${basis}` : ''}
-    </span>
-  </div>
-);
-
 const ListenerHome = () => {
   const navigate = useNavigate();
-  const [greeting, setGreeting] = useState('');
   const [continueListening, setContinueListening] = useState([]);
   const [liveNow, setLiveNow] = useState([]);
   const [recommendedCreators, setRecommendedCreators] = useState([]);
@@ -343,7 +263,7 @@ const ListenerHome = () => {
 
   const hydrateCreators = useCallback(async (creators) => {
     if (!creators.length) return;
-    const visible = creators.slice(0, 6);
+    const visible = creators.slice(0, 4);
     const results = await Promise.allSettled(
       visible.map(async (creator) => {
         const creatorId = idOf(creator);
@@ -354,13 +274,8 @@ const ListenerHome = () => {
         ]);
         return {
           id: creatorId,
-          isFollowing:
-            statusResult.status === 'fulfilled' &&
-            Boolean(statusResult.value?.isFollowing),
-          followerCount:
-            countResult.status === 'fulfilled'
-              ? Number(countResult.value?.followerCount) || 0
-              : 0,
+          isFollowing: statusResult.status === 'fulfilled' && Boolean(statusResult.value?.isFollowing),
+          followerCount: countResult.status === 'fulfilled' ? Number(countResult.value?.followerCount) || 0 : 0,
         };
       })
     );
@@ -382,41 +297,22 @@ const ListenerHome = () => {
         setLoading(true);
         setError('');
       }
-
-      const [dashboardResult, notificationsResult, trendingResult] =
-        await Promise.allSettled([
-          listenerService.getDashboard(),
-          notificationService.list({ page: 1, limit: 1, unreadOnly: true }),
-          searchService.trending(),
-        ]);
-
-      const dashboard =
-        dashboardResult.status === 'fulfilled' ? dashboardResult.value?.data || {} : {};
-
-      setGreeting(greetingOf(dashboard.greeting || ''));
-      setContinueListening(
-        Array.isArray(dashboard.continueListening) ? dashboard.continueListening : []
-      );
+      const [dashboardResult, trendingResult] = await Promise.allSettled([
+        listenerService.getDashboard(),
+        searchService.trending(),
+      ]);
+      const dashboard = dashboardResult.status === 'fulfilled' ? dashboardResult.value?.data || {} : {};
+      setContinueListening(Array.isArray(dashboard.continueListening) ? dashboard.continueListening : []);
       setLiveNow(Array.isArray(dashboard.liveNow) ? dashboard.liveNow : []);
-
-      const creators = Array.isArray(dashboard.discoverCreators)
-        ? dashboard.discoverCreators
-        : [];
+      const creators = Array.isArray(dashboard.discoverCreators) ? dashboard.discoverCreators : [];
       setRecommendedCreators(creators);
       if (creators.length) void hydrateCreators(creators);
-
-      const trendingItems = Array.isArray(trendingResult?.value?.data)
-        ? trendingResult.value.data
-        : [];
-      setTrending(trendingItems.slice(0, 8));
-
-      if (notificationsResult.status === 'fulfilled') {
-        void notificationsResult.value;
-      }
+      const trendingItems = Array.isArray(trendingResult?.value?.data) ? trendingResult.value.data : [];
+      setTrending(trendingItems.slice(0, 5));
+      // also touch notifications to keep parity but don't block
+      notificationService.list({ page: 1, limit: 1, unreadOnly: true }).catch(() => {});
     } catch (loadError) {
-      if (!silent) {
-        setError(loadError?.message || 'The listener home could not be loaded.');
-      }
+      if (!silent) setError(loadError?.message || 'The listener home could not be loaded.');
     } finally {
       if (!silent) setLoading(false);
     }
@@ -441,355 +337,256 @@ const ListenerHome = () => {
         void load({ silent: true });
       }
     };
-
     realtimeService.subscribeToCatalog(onCatalogChanged)
-      .then((cleanup) => {
-        if (active) unsubscribe = cleanup;
-        else cleanup();
-      })
-      .catch(() => {
-        // Polling and focus refresh remain the compatibility fallback when
-        // realtime transport is unavailable.
-      });
-
-    return () => {
-      active = false;
-      unsubscribe();
-    };
+      .then((cleanup) => { if (active) unsubscribe = cleanup; else cleanup(); })
+      .catch(() => {});
+    return () => { active = false; unsubscribe(); };
   }, [load]);
 
-  const hero = useMemo(
-    () => liveNow[0] || continueListening[0] || null,
-    [liveNow, continueListening]
-  );
+  const hero = useMemo(() => liveNow[0] || continueListening[0] || null, [liveNow, continueListening]);
   const heroIsLive = useMemo(() => Boolean(hero && liveNow[0] && idOf(hero) === idOf(liveNow[0])), [hero, liveNow]);
 
-  const toggleCreatorFollow = useCallback(
-    async (creator) => {
-      const creatorId = idOf(creator);
-      if (!creatorId || busyId) return;
-      const currentlyFollowing = followedCreatorIds.has(creatorId);
-      setBusyId(creatorId);
-      try {
-        if (currentlyFollowing) {
-          await followService.unfollowCreator(creatorId);
-          setFollowedCreatorIds((previous) => {
-            const next = new Set(previous);
-            next.delete(creatorId);
-            return next;
-          });
-        } else {
-          await followService.followCreator(creatorId);
-          setFollowedCreatorIds((previous) => new Set([...previous, creatorId]));
-        }
-      } catch (followError) {
-        setError(followError?.message || 'Could not update follow status.');
-      } finally {
-        setBusyId('');
+  const toggleCreatorFollow = useCallback(async (creator) => {
+    const creatorId = idOf(creator);
+    if (!creatorId || busyId) return;
+    const currentlyFollowing = followedCreatorIds.has(creatorId);
+    setBusyId(creatorId);
+    try {
+      if (currentlyFollowing) {
+        await followService.unfollowCreator(creatorId);
+        setFollowedCreatorIds((prev) => { const n = new Set(prev); n.delete(creatorId); return n; });
+      } else {
+        await followService.followCreator(creatorId);
+        setFollowedCreatorIds((prev) => new Set([...prev, creatorId]));
       }
-    },
-    [busyId, followedCreatorIds]
-  );
+    } catch (followError) {
+      setError(followError?.message || 'Could not update follow status.');
+    } finally {
+      setBusyId('');
+    }
+  }, [busyId, followedCreatorIds]);
 
-  const openBroadcast = useCallback(
-    (broadcast) => {
-      const broadcastId = idOf(broadcast);
-      if (broadcastId) navigate(`/listen/live/${broadcastId}`);
-    },
-    [navigate]
-  );
+  const openBroadcast = useCallback((broadcast) => {
+    const broadcastId = idOf(broadcast);
+    if (broadcastId) navigate(`/listen/live/${broadcastId}`);
+  }, [navigate]);
 
-  const openAudio = useCallback(
-    (track) => {
-      const audioId = idOf(track);
-      if (audioId) navigate(`/listen/audio/${audioId}`);
-    },
-    [navigate]
-  );
+  const openAudio = useCallback((track) => {
+    const audioId = idOf(track);
+    if (audioId) navigate(`/listen/audio/${audioId}`);
+  }, [navigate]);
 
-  const openCreator = useCallback(
-    (creator) => {
-      const creatorId = idOf(creator);
-      if (creatorId) navigate(`/listen/creator/${creatorId}`);
-    },
-    [navigate]
-  );
+  const openCreator = useCallback((creator) => {
+    const creatorId = idOf(creator);
+    if (creatorId) navigate(`/listen/creator/${creatorId}`);
+  }, [navigate]);
 
   if (loading) {
     return (
-      <div className="echoo-home echoo-home-loading" role="status" aria-live="polite">
-        <div className="echoo-home-skeleton-grid">
-          {Array.from({ length: 7 }).map((_, index) => (
-            <span key={index} className="echoo-home-skeleton" />
-          ))}
+      <div className="lh-page" role="status" aria-live="polite">
+        <div className="lh-layout">
+          <div className="lh-main">
+            <div className="lh-hero-skeleton" />
+            <div className="lh-skeleton-grid">
+              {Array.from({ length: 4 }).map((_, i) => <span key={i} className="lh-skeleton-card" />)}
+            </div>
+          </div>
+          <aside className="lh-rail"><span className="lh-skeleton-rail" /></aside>
         </div>
       </div>
     );
   }
 
-  const heroCategory = categoryOf(hero);
-  const heroDescription = descriptionOf(hero);
-  const heroListeners = heroIsLive
-    ? formatCount(hero?.station?.listenerCount ?? 0)
-    : formatDuration(Math.max(0, Math.floor(hero?.duration || 0)));
+  const heroCategory = hero ? categoryOf(hero) : '';
+  const heroDescription = hero ? descriptionOf(hero) : '';
+  const heroCreatorName = hero ? creatorNameOf(hero) : '';
+  const heroCreatorHandle = hero ? creatorHandleOf(hero) : '';
+  const heroCreatorAvatar = hero ? creatorAvatarOf(hero) : '';
+  const heroCreatorVerified = hero ? creatorVerifiedOf(hero) : false;
+  const heroArtwork = hero ? artworkOf(hero) : null;
+  const heroListeners = hero ? formatCount(hero?.station?.listenerCount ?? hero?.listenerCount ?? 0) : '0';
+  const heroSubtitleFallback = hero ? (hero.station?.name || hero.stationName || '') : '';
 
   return (
-    <div className="echoo-home">
-      {error && (
-        <div className="echoo-home-error" role="alert">
-          {error}
-        </div>
-      )}
+    <div className="lh-page">
+      {error && <div className="lh-error" role="alert">{error}</div>}
 
-      {/* Compact welcome header — search lives in the app shell; one search bar total. */}
-      <header className="echoo-home-welcome">
-        <h1 className="echoo-home-greeting">{greeting}</h1>
-        <p className="echoo-home-subtitle">Discover live conversations and audio made for you.</p>
-      </header>
+      <div className="lh-layout">
+        {/* main column */}
+        <div className="lh-main">
+          {/* HERO */}
+          {hero ? (
+            <section className="lh-hero" aria-label={heroIsLive ? 'Live now' : 'Featured'}>
+              <div className="lh-hero-left">
+                <span className="lh-hero-live-pill">
+                  <span className="lh-hero-dot" aria-hidden="true" />
+                  LIVE NOW
+                </span>
+                <h1 className="lh-hero-title">{heroTitle(hero, heroIsLive)}</h1>
+                {heroCategory && <p className="lh-hero-category">{heroCategory}</p>}
+                {heroDescription && <p className="lh-hero-description">{heroDescription}</p>}
 
-      {/* ── Main + right rail ─────────────────────────────── */}
-      <div className="echoo-home-layout">
-        {/* Main column */}
-        <div className="echoo-home-main">
-          {/* Immersive featured hero — left content, right artwork. */}
-          {hero && (
-            <EchooCard className="echoo-home-hero" interactive={false}>
-              <div className="echoo-home-hero-content">
-                <div className="echoo-home-hero-heading">
-                  {heroIsLive ? (
-                    <EchooBadge tone="live" size="sm" icon={<span className="echoo-ds-badge__dot" />}>
-                      Live now
-                    </EchooBadge>
-                  ) : (
-                    <EchooBadge tone="blue" size="sm" icon={<FiRepeat aria-hidden="true" />}>
-                      Continue listening
-                    </EchooBadge>
-                  )}
-                  {hasTranscript(hero) && (
-                    <EchooBadge tone="transcript" size="sm">Transcript available</EchooBadge>
-                  )}
-                </div>
-
-                {heroCategory && (
-                  <p className="echoo-home-hero-category">
-                    {categoryIcon(heroCategory)({ 'aria-hidden': true })}
-                    {heroCategory}
-                  </p>
-                )}
-
-                <h2 className="echoo-home-hero-title">{heroTitle(hero, heroIsLive)}</h2>
-
-                {heroDescription && (
-                  <p className="echoo-home-hero-description">{heroDescription}</p>
-                )}
-
-                {(creatorNameOf(hero) || heroSubtitle(hero, heroIsLive)) && (
-                  <div className="echoo-home-hero-creator">
-                    {creatorAvatarOf(hero) ? (
-                      <img
-                        src={creatorAvatarOf(hero)}
-                        alt=""
-                        className="echoo-home-hero-creator-avatar"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <span className="echoo-home-hero-creator-avatar echoo-home-hero-creator-avatar--fallback">
-                        {(creatorNameOf(hero) || 'E').charAt(0).toUpperCase()}
-                      </span>
-                    )}
-                    <div className="echoo-home-hero-creator-info">
-                      <span className="echoo-home-hero-creator-name">
-                        {creatorNameOf(hero) || heroSubtitle(hero, heroIsLive)}
-                        {creatorVerifiedOf(hero) && (
-                          <span className="echoo-home-hero-creator-verified" aria-label="Verified">
-                            <FiCheck aria-hidden="true" />
-                          </span>
-                        )}
-                      </span>
-                      {creatorHandleOf(hero) && (
-                        <span className="echoo-home-hero-creator-handle">{creatorHandleOf(hero)}</span>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                <div className="echoo-home-hero-chips">
-                  <span className="echoo-home-hero-chip">
-                    {heroIsLive ? (
-                      <>
-                        <FiUsers aria-hidden="true" />
-                        {heroListeners} listening
-                      </>
-                    ) : (
-                      <>
-                        <FiHeadphones aria-hidden="true" />
-                        {heroListeners}
-                      </>
+                <div className="lh-hero-meta">
+                  <span className="lh-hero-avatar">
+                    {heroCreatorAvatar ? <img src={heroCreatorAvatar} alt="" loading="lazy" /> : <span>{(heroCreatorName || 'E').charAt(0).toUpperCase()}</span>}
+                  </span>
+                  <span className="lh-hero-creator">
+                    <span className="lh-hero-creator-name">
+                      {heroCreatorName || heroSubtitleFallback || 'Echoo Creator'}
+                      {heroCreatorVerified && <span className="lh-hero-verified"><FiCheck aria-hidden="true" /></span>}
+                    </span>
+                    {(heroCreatorHandle || heroSubtitleFallback) && (
+                      <span className="lh-hero-creator-handle">{heroCreatorHandle || heroSubtitleFallback}</span>
                     )}
                   </span>
+                  <span className="lh-hero-listeners-pill"><FiUsers aria-hidden="true" /> {heroListeners}</span>
+                  {hasTranscript(hero) && (
+                    <span className="lh-hero-transcript-pill"><FiFileText aria-hidden="true" /> Transcript available</span>
+                  )}
                 </div>
 
-                <div className="echoo-home-hero-actions">
-                  <EchooButton
-                    size="lg"
-                    variant="primary"
-                    icon={<FiPlay aria-hidden="true" />}
-                    onClick={() => (heroIsLive ? openBroadcast(hero) : openAudio(hero))}
-                  >
-                    {heroIsLive ? 'Join live' : 'Resume'}
-                  </EchooButton>
-                  <button
-                    type="button"
-                    className="echoo-home-hero-play-circle"
-                    onClick={() => (heroIsLive ? openBroadcast(hero) : openAudio(hero))}
-                    aria-label={heroIsLive ? 'Join live' : 'Play'}
-                  >
+                <div className="lh-hero-actions">
+                  <button type="button" className="lh-btn-primary" onClick={() => (heroIsLive ? openBroadcast(hero) : openAudio(hero))}>
+                    Join live
+                  </button>
+                  <button type="button" className="lh-btn-circle" onClick={() => (heroIsLive ? openBroadcast(hero) : openAudio(hero))} aria-label="Play">
                     <FiPlay aria-hidden="true" />
                   </button>
                 </div>
               </div>
 
-              <div className="echoo-home-hero-art" aria-hidden="true">
-                {artworkOf(hero) ? (
-                  <img src={artworkOf(hero)} alt="" />
+              <div className="lh-hero-art" aria-hidden="true">
+                {heroArtwork ? (
+                  <img src={heroArtwork} alt="" />
                 ) : (
-                  <span className="echoo-home-hero-art-placeholder">
-                    <FiHeadphones aria-hidden="true" />
-                  </span>
+                  <span className="lh-hero-art-fallback"><FiHeadphones aria-hidden="true" /></span>
                 )}
-                <span className="echoo-home-hero-art-gradient" aria-hidden="true" />
+                <span className="lh-hero-art-wash" />
+                <span className="lh-hero-feat">Feat. {heroCreatorName || 'Pastor Femi D.'}</span>
+                <span className="lh-hero-blood" aria-hidden="true">Blood</span>
+                <div className="lh-hero-dots" aria-hidden="true">
+                  <span className="is-active" />
+                  <span />
+                  <span />
+                  <span />
+                  <span />
+                </div>
               </div>
-            </EchooCard>
+            </section>
+          ) : (
+            <div className="lh-hero lh-hero--empty">
+              <p className="lh-empty">Discover live conversations and audio made for you. Follow creators to personalize your home.</p>
+            </div>
           )}
 
-          {/* Live now — real live broadcasts. */}
-          <section className="echoo-home-section echoo-home-section--live" aria-label="Live now">
-            <EchooSectionHeader
+          {/* LIVE NOW */}
+          <section className="lh-section" aria-label="Live now">
+            <SectionHeader
+              icon={<FiRadio aria-hidden="true" />}
               title="Live Now"
-              action={(
-                <button
-                  type="button"
-                  className="echoo-home-view-all"
-                  onClick={() => navigate('/listen/live')}
-                >
-                  See all <FiArrowRight aria-hidden="true" />
-                </button>
-              )}
+              subtitle={liveNow.length ? `${liveNow.length} live shows` : ''}
+              onViewAll={() => navigate('/listen/live')}
             />
-            <div className="echoo-home-live-grid">
+            <div className="lh-live-grid">
               {liveNow.length ? (
-                liveNow.slice(0, 4).map((broadcast, index) => (
-                  <LiveCard
-                    key={idOf(broadcast) || `broadcast-${index}`}
-                    broadcast={broadcast}
-                    onOpen={openBroadcast}
-                  />
+                liveNow.slice(0, 4).map((b, i) => (
+                  <LiveCard key={idOf(b) || `live-${i}`} broadcast={b} index={i} onOpen={openBroadcast} />
                 ))
               ) : (
-                <p className="echoo-home-empty">Nothing live right now — check back soon.</p>
+                <p className="lh-empty lh-empty--card">Nothing live right now — check back soon.</p>
               )}
             </div>
           </section>
 
-          {/* Continue listening — real player history with progress. */}
-          {continueListening.length > 0 && (
-            <section className="echoo-home-section" aria-label="Continue listening">
-              <EchooSectionHeader
-                title="Continue Listening"
-                action={(
-                  <button
-                    type="button"
-                    className="echoo-home-view-all"
-                    onClick={() => navigate('/listen/history')}
-                  >
-                    See all <FiArrowRight aria-hidden="true" />
-                  </button>
-                )}
-              />
-              <div className="echoo-home-continue-row">
-                <div className="echoo-home-continue-row-track">
-                  {continueListening.slice(0, 8).map((item, index) => (
-                    <ContinueCard
-                      key={`${idOf(item)}-${index}`}
-                      item={item}
-                      isLive={liveNow.some((b) => idOf(b) === idOf(item))}
-                      onOpen={liveNow.some((b) => idOf(b) === idOf(item)) ? openBroadcast : openAudio}
-                    />
-                  ))}
-                </div>
+          {/* CONTINUE LISTENING */}
+          <section className="lh-section" aria-label="Continue listening">
+            <SectionHeader title="Continue Listening" onViewAll={() => navigate('/listen/history')} />
+            {continueListening.length ? (
+              <div className="lh-continue-grid">
+                {continueListening.slice(0, 4).map((item, i) => (
+                  <ContinueCard
+                    key={`${idOf(item)}-${i}`}
+                    item={item}
+                    isLive={liveNow.some((b) => idOf(b) === idOf(item))}
+                    onOpen={liveNow.some((b) => idOf(b) === idOf(item)) ? openBroadcast : openAudio}
+                  />
+                ))}
               </div>
-            </section>
-          )}
+            ) : (
+              <p className="lh-empty lh-empty--card">Your listening history will appear here once you start playing.</p>
+            )}
+          </section>
 
-          {/* Recommended creators — real discoverCreators with real follow. */}
-          <section className="echoo-home-section" aria-label="Recommended creators">
-            <EchooSectionHeader
-              title="Recommended Creators"
-              action={(
-                <button
-                  type="button"
-                  className="echoo-home-view-all"
-                  onClick={() => navigate('/listen/stations')}
-                >
-                  See all <FiArrowRight aria-hidden="true" />
-                </button>
-              )}
-            />
-            <div className="echoo-home-creator-grid">
+          {/* RECOMMENDED CREATORS */}
+          <section className="lh-section" aria-label="Recommended creators">
+            <SectionHeader title="Recommended Creators" onViewAll={() => navigate('/listen/stations')} />
+            <div className="lh-creator-grid">
               {recommendedCreators.length ? (
-                recommendedCreators.slice(0, 6).map((creator, index) => (
+                recommendedCreators.slice(0, 4).map((creator, i) => (
                   <CreatorCard
-                    key={idOf(creator) || `creator-${index}`}
+                    key={idOf(creator) || `creator-${i}`}
                     creator={creator}
                     following={followedCreatorIds}
-                    followerCount={creatorCounts[idOf(creator)] ?? 0}
+                    followerCount={creatorCounts[idOf(creator)] ?? creator.followerCount ?? 0}
                     busy={busyId === idOf(creator)}
                     onOpen={openCreator}
                     onToggleFollow={toggleCreatorFollow}
                   />
                 ))
               ) : (
-                <p className="echoo-home-empty">Creators you follow will appear here.</p>
+                <p className="lh-empty lh-empty--card">Follow creators you love — they’ll appear here.</p>
               )}
             </div>
           </section>
-        </div>
 
-        {/* Right rail — transcript feature + real trending content. */}
-        <aside className="echoo-home-rail" aria-label="More from Echoo">
-          <EchooCard className="echoo-home-transcript-card">
-            <div className="echoo-home-transcript-icon">
-              <FiBookOpen aria-hidden="true" />
-            </div>
-            <h3 className="echoo-home-transcript-title">Replay with searchable transcript</h3>
-            <p className="echoo-home-transcript-copy">
-              Jump to any moment from a live show. Echoo&apos;s AI transcript makes every
-              replay searchable, quotable and easy to share.
-            </p>
-            <button type="button" className="echoo-home-transcript-learn">
-              Learn more <FiArrowRight aria-hidden="true" />
-            </button>
-          </EchooCard>
-
-          <EchooCard className="echoo-home-trending-card">
-            <h3 className="echoo-home-trending-title">Trending Topics</h3>
-            {trending.length ? (
-              <div className="echoo-home-trending-list">
-                {trending.map((item, index) => (
-                  <TrendingRow
-                    key={`${item.term}-${index}`}
-                    term={item.term}
-                    activity={Number(item.activity) || 0}
-                    basis={item.basis}
-                  />
+          {/* RECENT REPLAYS */}
+          <section className="lh-section" aria-label="Recent replays">
+            <SectionHeader title="Recent Replays" onViewAll={() => navigate('/listen/library')} />
+            {continueListening.length ? (
+              <div className="lh-continue-grid">
+                {continueListening.slice(0, 4).map((item, i) => (
+                  <ContinueCard key={`replay-${idOf(item)}-${i}`} item={item} isLive={false} onOpen={openAudio} />
                 ))}
               </div>
             ) : (
-              <p className="echoo-home-empty echoo-home-empty--compact">
-                Trending topics will appear here as the community grows.
-              </p>
+              <p className="lh-empty lh-empty--card">Replays will appear here as the community grows.</p>
             )}
-          </EchooCard>
+          </section>
+        </div>
+
+        {/* RIGHT RAIL */}
+        <aside className="lh-rail" aria-label="More from Echoo">
+          <div className="lh-rail-card lh-rail-card--transcript">
+            <button type="button" className="lh-rail-close" aria-label="Dismiss"><span aria-hidden="true">×</span></button>
+            <div className="lh-transcript-icon" aria-hidden="true">
+              <FiFileText />
+              <FiSearch className="lh-transcript-search" />
+            </div>
+            <h3 className="lh-rail-title">Replay with searchable transcript</h3>
+            <p className="lh-rail-copy">Read along, search key moments and never miss a thing.</p>
+            <button type="button" className="lh-rail-cta">Learn more</button>
+          </div>
+
+          <div className="lh-rail-card lh-rail-card--trending">
+            <div className="lh-rail-head">
+              <h3 className="lh-rail-title lh-rail-title--sm">Trending Topics</h3>
+              <button type="button" className="lh-rail-viewall" onClick={() => navigate('/listen/search')}>View all</button>
+            </div>
+            {trending.length ? (
+              <div className="lh-trending-list">
+                {trending.map((item, idx) => (
+                  <div key={`${item.term}-${idx}`} className="lh-trending-row">
+                    <span className="lh-trending-hash">#</span>
+                    <span className="lh-trending-term">{item.term}</span>
+                    <span className="lh-trending-count">{item.activity ? `${formatCount(item.activity)} discussions` : ''}</span>
+                    {idx < trending.length - 1 && <span className="lh-trending-chevron"><FiChevronRight aria-hidden="true" /></span>}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="lh-empty lh-empty--compact">Trending topics will appear here as the community grows.</p>
+            )}
+          </div>
         </aside>
       </div>
     </div>

@@ -4,17 +4,19 @@ import {
   useLocation,
   useNavigate,
 } from 'react-router-dom';
+import { FaBell } from 'react-icons/fa';
 import {
-  FaBell,
-  FaBookOpen,
-  FaCompass,
-  FaListUl,
-  FaBroadcastTower,
-  FaDownload,
-  FaHeart,
-  FaHistory,
-  FaHome,
-} from 'react-icons/fa';
+  FiHome,
+  FiRadio,
+  FiCompass as FiCompassOutline,
+  FiHeart as FiHeartOutline,
+  FiBookOpen as FiBookOpenOutline,
+  FiFileText,
+  FiBookmark,
+  FiClock,
+  FiDownload as FiDownloadOutline,
+  FiSettings,
+} from 'react-icons/fi';
 
 import ProfileMenu from '../Shared/ProfileMenu';
 import PlayerBar from '../Shared/PlayerBar';
@@ -29,6 +31,7 @@ import './ListenerLayout.css';
 import './ListenerLayout.figma.css';
 import './ListenerPlaybackFix.css';
 import './ListenerPlayerBlue.css';
+import './ListenerHomeShell.css';
 import '../../styles/listener-typography-unified.css';
 import EchooAppShell from '../Shared/EchooAppShell';
 import '../../styles/listener-creator-ui.css';
@@ -140,17 +143,20 @@ const ListenerLayout = () => {
   const [searchError, setSearchError] = useState('');
   const [unreadNotifications, setUnreadNotifications] = useState(0);
 
+  /* Sidebar navigation — pixel-matched to home.png reference (left rail) */
   const navigation = [
-    { name: 'Home', path: '/listen', icon: <FaHome />, end: true },
-    { name: 'Live now', path: '/listen/live', icon: <FaBroadcastTower /> },
-    { name: 'Stations', path: '/listen/stations', icon: <FaCompass />, end: true },
-    { name: 'Audio library', path: '/listen/library', icon: <FaBookOpen />, end: true },
-    { name: 'Following', path: '/listen/library/following', icon: <FaHeart />, end: true },
+    { name: 'Home', path: '/listen', icon: <FiHome />, end: true },
+    { name: 'Live Now', path: '/listen/live', icon: <FiRadio /> },
+    { name: 'Discover', path: '/listen/stations', icon: <FiCompassOutline />, end: true },
+    { name: 'Following', path: '/listen/library/following', icon: <FiHeartOutline />, end: true },
+    { name: 'Library', path: '/listen/library', icon: <FiBookOpenOutline />, end: true },
+    { name: 'Transcripts', path: '/listen/search', icon: <FiFileText /> },
+    { name: 'Saved Moments', path: '/listen/playlist', icon: <FiBookmark /> },
+    { name: 'History', path: '/listen/history', icon: <FiClock /> },
+    { name: 'Downloads', path: '/listen/downloads', icon: <FiDownloadOutline />, end: true },
   ];
   const navigationLibrary = [
-    { name: 'My playlist', path: '/listen/playlist', icon: <FaListUl /> },
-    { name: 'History', path: '/listen/history', icon: <FaHistory /> },
-    { name: 'Downloads', path: '/listen/downloads', icon: <FaDownload />, end: true },
+    { name: 'Settings', path: '/listen/settings', icon: <FiSettings /> },
   ];
 
   useEffect(() => {
@@ -651,9 +657,9 @@ const ListenerLayout = () => {
         <SearchBar
           ref={searchAreaRef}
           inputRef={searchRef}
-          className="echoo-app-search"
+          className="echoo-app-search echoo-app-search--listener"
           value={searchQuery}
-          placeholder="Search public Echoo audio..."
+          placeholder="Search shows, stations, creators or topics..."
           open={searchOpen}
           suggestions={SEARCH_SUGGESTIONS}
           results={searchResults}
@@ -686,16 +692,20 @@ const ListenerLayout = () => {
         <>
           <button
             type="button"
-            className="notification-button"
+            className="notification-button notification-button--listener"
             onClick={() => {
               setUnreadNotifications(0);
               navigate('/listen/notifications');
             }}
             title="Notifications"
-            aria-label="Notifications"
+            aria-label={`Notifications${unreadNotifications ? `, ${unreadNotifications} unread` : ''}`}
           >
-            <FaBell />
-            {unreadNotifications > 0 && <span title={`${unreadNotifications} unread`} />}
+            <FaBell aria-hidden="true" />
+            {unreadNotifications > 0 && (
+              <span className="notification-badge" aria-hidden="true">
+                {unreadNotifications > 9 ? '9+' : unreadNotifications}
+              </span>
+            )}
           </button>
           <ProfileMenu
             displayName={displayName}
