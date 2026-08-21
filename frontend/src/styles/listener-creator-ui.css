@@ -1892,3 +1892,13 @@
     left: calc(55% - 16px) !important;
   }
 }
+
+
+/* Single-scroll-owner contract: the shell main owns vertical scrolling. */
+#root .echoo-listener-shell .layout-content {
+  width: 100% !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: visible !important;
+}

@@ -794,7 +794,7 @@ const ListenerLayout = () => {
         />
       )}
     >
-      <div className="layout-content echoo-listener-scroll">
+      <div className="layout-content">
         <Outlet
           context={{
             playTrack,
