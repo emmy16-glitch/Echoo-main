@@ -25,6 +25,7 @@ const ProfileMenu = ({
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState(null);
   const rootRef = useRef(null);
+  const menuRef = useRef(null);
   const triggerRef = useRef(null);
   const firstName = String(displayName || 'Echoo user').trim().split(/\s+/)[0] || 'Echoo';
 
@@ -66,7 +67,12 @@ const ProfileMenu = ({
   useEffect(() => {
     if (!open) return undefined;
     const handleOutside = (event) => {
-      if (!rootRef.current?.contains(event.target)) setOpen(false);
+      if (
+        !rootRef.current?.contains(event.target) &&
+        !menuRef.current?.contains(event.target)
+      ) {
+        setOpen(false);
+      }
     };
     const handleKey = (event) => {
       if (event.key === 'Escape') {
@@ -90,6 +96,7 @@ const ProfileMenu = ({
   const menu = open && position && typeof document !== 'undefined'
     ? createPortal(
       <div
+        ref={menuRef}
         className={`echoo-profile-menu echoo-profile-menu--${placement}`}
         role="menu"
         aria-label={`${roleLabel} account menu`}
