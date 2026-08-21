@@ -1902,3 +1902,19 @@
   max-height: none !important;
   overflow: visible !important;
 }
+
+
+/* Listener navigation hit-area contract: links must remain directly interactive. */
+#root .echoo-app-shell--listener .studio-sidebar,
+#root .echoo-app-shell--listener .studio-navigation,
+#root .echoo-app-shell--listener .studio-nav-item,
+#root .echoo-app-shell--listener .studio-nav-item > * {
+  pointer-events: auto !important;
+}
+
+#root .echoo-app-shell--listener .studio-nav-item {
+  cursor: pointer !important;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
