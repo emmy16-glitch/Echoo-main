@@ -20,10 +20,20 @@ const isEchooProgramPublication = (publication) => {
     publication?.trackName || publication?.name || publication?.track?.name || ''
   ).toLowerCase();
 
-  return (
+  // Primary match for our high-quality studio mix
+  const isStudioMix =
     name === 'echoo-studio-mix' ||
-    (import.meta.env.DEV && name === 'echoo-dev-test-audio')
-  );
+    (import.meta.env.DEV && name === 'echoo-dev-test-audio');
+
+  // Fallback: accept any audio track if it's the only one published by a participant,
+  // to prevent total silence if naming fails or if using standard LiveKit tools.
+  const isFallback = !isStudioMix && publication?.kind === 'audio';
+
+  if (publication) {
+    console.log(`[Echoo LiveKit] Track "${name}": studioMix=${isStudioMix}, fallback=${isFallback}`);
+  }
+  
+  return isStudioMix || isFallback;
 };
 
 const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChange }) => {
@@ -86,12 +96,14 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       if (attachedRef.current.has(id)) return;
       attachedRef.current.add(id);
 
+      console.log(`[Echoo LiveKit] Attaching track: ${id}`);
       const element = track.attach();
       element.autoplay = true;
       element.controls = false;
       element.muted = false;
       element.volume = 1;
       element.setAttribute('playsinline', '');
+      element.style.display = 'block'; // Ensure it's not display:none
 
       if (outputRef.current && typeof element.setSinkId === 'function') {
         try { await element.setSinkId(outputRef.current); } catch { /* use system default */ }
@@ -108,12 +120,15 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       setTrackCount((current) => current + 1);
 
       try {
+        console.log(`[Echoo LiveKit] Attempting autoplay for track: ${id}`);
         await element.play();
+        console.log(`[Echoo LiveKit] Autoplay SUCCESS for track: ${id}`);
         if (!disposed && roomRef.current === room) {
           setNeedsAudioStart(false);
           setStatus('listening');
         }
       } catch (playError) {
+        console.warn(`[Echoo LiveKit] Autoplay BLOCKED for track: ${id}`, playError);
         if (!disposed && roomRef.current === room) {
           setNeedsAudioStart(true);
           setStatus('connected');

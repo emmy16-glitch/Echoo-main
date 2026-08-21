@@ -108,9 +108,12 @@
   position: fixed;
   width: 1px;
   height: 1px;
-  overflow: hidden;
-  opacity: 0;
+  overflow: visible;
+  opacity: 0.01;
   pointer-events: none;
+  left: -100px;
+  top: -100px;
+  z-index: -1;
 }
 
 @media (max-width: 760px) {
