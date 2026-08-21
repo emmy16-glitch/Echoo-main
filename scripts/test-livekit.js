@@ -1,10 +1,42 @@
-import 'dotenv/config';
-import LiveKitProvider from '../backend/src/providers/livekit.js';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+import fs from 'fs';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const backendPath = join(__dirname, '..', 'backend');
+
+// Manually load env from backend/.env to avoid dependency issues in root
+function loadEnv() {
+  const envPath = join(backendPath, '.env');
+  if (!fs.existsSync(envPath)) {
+    console.error(`❌ FAILED: .env file not found at ${envPath}`);
+    process.exit(1);
+  }
+  
+  const envContent = fs.readFileSync(envPath, 'utf8');
+  envContent.split('\n').forEach(line => {
+    const match = line.match(/^\s*([\w.-]+)\s*=\s*(.*)?\s*$/);
+    if (match) {
+      const key = match[1];
+      let value = match[2] || '';
+      if (value.startsWith('"') && value.endsWith('"')) value = value.slice(1, -1);
+      if (value.startsWith("'") && value.endsWith("'")) value = value.slice(1, -1);
+      process.env[key] = value;
+    }
+  });
+}
+
+loadEnv();
+
+// Dynamically import the provider from the backend
+const providerPath = join(backendPath, 'src', 'providers', 'livekit.js');
+const { default: LiveKitProvider } = await import(providerPath);
 
 async function test() {
-  console.log('--- LiveKit Diagnostic ---');
+  console.log('--- Echoo LiveKit Diagnostic ---');
   console.log('URL:', process.env.LIVEKIT_URL);
   console.log('API Key:', process.env.LIVEKIT_API_KEY);
+  console.log('------------------------------');
   
   try {
     const health = await LiveKitProvider.checkHealth();
