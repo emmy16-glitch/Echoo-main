@@ -47,6 +47,7 @@ import "./styles/creator-ui-harmony-2026.css";
 // Shared design system is loaded last so Creator and Listener resolve the same shell contract.
 import "./theme/EchooDesignSystem.css";
 import "./Components/Shared/SharedPrimitives.css";
+import "./design-system/design-system.css";
 
 initializeEchooTheme();
 
