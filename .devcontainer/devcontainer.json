@@ -1,0 +1,28 @@
+{
+  "name": "Echoo Dev Environment",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:20",
+  "features": {
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+  "forwardPorts": [5001, 5174],
+  "portsAttributes": {
+    "5174": {
+      "label": "Echoo Web App",
+      "onAutoForward": "openBrowser",
+      "visibility": "public"
+    },
+    "5001": {
+      "label": "Echoo API",
+      "visibility": "public"
+    }
+  },
+  "postCreateCommand": "cd backend && npm install && cd ../frontend && npm install",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "esbenp.prettier-vscode",
+        "dbaeumer.vscode-eslint"
+      ]
+    }
+  }
+}
