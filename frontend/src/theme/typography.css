@@ -1,0 +1,48 @@
+/* Echoo Design System — typography */
+:root {
+  --echoo-font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --echoo-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  --echoo-type-display-size: clamp(2.55rem, 4vw, 4.25rem);
+  --echoo-type-display-line: .98;
+  --echoo-type-display-weight: 760;
+  --echoo-type-display-tracking: -.055em;
+
+  --echoo-type-h1-size: clamp(2rem, 3vw, 3rem);
+  --echoo-type-h1-line: 1.05;
+  --echoo-type-h1-weight: 740;
+  --echoo-type-h1-tracking: -.045em;
+
+  --echoo-type-h2-size: 1.5rem;
+  --echoo-type-h2-line: 1.15;
+  --echoo-type-h2-weight: 720;
+  --echoo-type-h2-tracking: -.03em;
+
+  --echoo-type-h3-size: 1.0625rem;
+  --echoo-type-h3-line: 1.3;
+  --echoo-type-h3-weight: 720;
+  --echoo-type-h3-tracking: -.02em;
+
+  --echoo-type-body-size: 1rem;
+  --echoo-type-body-line: 1.5;
+  --echoo-type-body-weight: 400;
+  --echoo-type-body-tracking: 0;
+
+  --echoo-type-small-size: .875rem;
+  --echoo-type-small-line: 1.4;
+  --echoo-type-small-weight: 500;
+  --echoo-type-small-tracking: 0;
+
+  --echoo-type-caption-size: .75rem;
+  --echoo-type-caption-line: 1.35;
+  --echoo-type-caption-weight: 600;
+  --echoo-type-caption-tracking: .01em;
+}
+
+.echoo-type-display { font: var(--echoo-type-display-weight) var(--echoo-type-display-size)/var(--echoo-type-display-line) var(--echoo-font-sans); letter-spacing: var(--echoo-type-display-tracking); }
+.echoo-type-h1 { font: var(--echoo-type-h1-weight) var(--echoo-type-h1-size)/var(--echoo-type-h1-line) var(--echoo-font-sans); letter-spacing: var(--echoo-type-h1-tracking); }
+.echoo-type-h2 { font: var(--echoo-type-h2-weight) var(--echoo-type-h2-size)/var(--echoo-type-h2-line) var(--echoo-font-sans); letter-spacing: var(--echoo-type-h2-tracking); }
+.echoo-type-h3 { font: var(--echoo-type-h3-weight) var(--echoo-type-h3-size)/var(--echoo-type-h3-line) var(--echoo-font-sans); letter-spacing: var(--echoo-type-h3-tracking); }
+.echoo-type-body { font: var(--echoo-type-body-weight) var(--echoo-type-body-size)/var(--echoo-type-body-line) var(--echoo-font-sans); letter-spacing: var(--echoo-type-body-tracking); }
+.echoo-type-small { font: var(--echoo-type-small-weight) var(--echoo-type-small-size)/var(--echoo-type-small-line) var(--echoo-font-sans); letter-spacing: var(--echoo-type-small-tracking); }
+.echoo-type-caption { font: var(--echoo-type-caption-weight) var(--echoo-type-caption-size)/var(--echoo-type-caption-line) var(--echoo-font-sans); letter-spacing: var(--echoo-type-caption-tracking); }

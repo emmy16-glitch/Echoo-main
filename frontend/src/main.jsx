@@ -44,6 +44,10 @@ import "./styles/creator-broadcast-strict-audit.css";
 import "./styles/creator-audio-interaction-fix.css";
 import "./styles/creator-ui-harmony-2026.css";
 
+// Shared design system is loaded last so Creator and Listener resolve the same shell contract.
+import "./theme/EchooDesignSystem.css";
+import "./Components/Shared/SharedPrimitives.css";
+
 initializeEchooTheme();
 
 if (localStorage.getItem("accessToken")) {

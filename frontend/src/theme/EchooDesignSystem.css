@@ -1,0 +1,390 @@
+@import "./colors.css";
+@import "./typography.css";
+@import "./spacing.css";
+@import "./radius.css";
+@import "./shadows.css";
+@import "./breakpoints.css";
+
+:root {
+  --studio-sidebar-width: var(--echoo-sidebar-width);
+  --studio-canvas: var(--echoo-color-canvas);
+  --studio-surface: var(--echoo-color-surface);
+  --studio-ink: var(--echoo-color-ink);
+  --studio-soft: var(--echoo-color-text);
+  --studio-muted: var(--echoo-color-muted);
+  --studio-line: var(--echoo-color-line);
+  --studio-blue: var(--echoo-color-brand);
+  --studio-blue-soft: var(--echoo-color-brand-soft);
+  --echoo-sans: var(--echoo-font-sans);
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  min-width: 320px;
+  min-height: 100%;
+  margin: 0;
+  background: var(--echoo-color-canvas);
+  color: var(--echoo-color-text);
+  font-family: var(--echoo-font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+button,
+a,
+select,
+input[type="button"],
+input[type="submit"] {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--echoo-color-focus);
+  outline-offset: 2px;
+}
+
+.echoo-app-shell {
+  --echoo-shell-sidebar-width: var(--echoo-sidebar-width);
+  --echoo-shell-header-height: var(--echoo-header-height);
+  --echoo-shell-player-height: var(--echoo-player-height);
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--echoo-shell-sidebar-width) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  align-items: start;
+  width: 100%;
+  min-width: 0;
+  min-height: 100vh;
+  overflow: clip;
+  padding: 0;
+  background: var(--echoo-color-canvas);
+  color: var(--echoo-color-ink);
+  font-family: var(--echoo-font-sans);
+}
+
+.echoo-app-shell .studio-sidebar {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  grid-column: 1;
+  width: 100%;
+  min-width: 0;
+  height: 100vh;
+  overflow: visible;
+  padding: var(--echoo-space-6) var(--echoo-space-3) var(--echoo-space-4);
+  border-right: 1px solid var(--echoo-color-line);
+  background: rgba(255, 255, 255, .985);
+  box-shadow: 10px 0 30px rgba(20, 42, 76, .025);
+}
+
+.echoo-app-shell .studio-main {
+  position: relative;
+  grid-column: 2;
+  min-width: 0;
+  min-height: 100vh;
+  overflow: auto;
+  padding-bottom: var(--echoo-shell-player-height);
+  background: var(--echoo-color-canvas);
+}
+
+.echoo-app-shell .studio-topbar-final {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  min-height: var(--echoo-shell-header-height);
+  height: var(--echoo-shell-header-height);
+  padding: 0 var(--echoo-page-padding-x);
+  border-bottom: 1px solid var(--echoo-color-line);
+  background: rgba(255, 255, 255, .98);
+  box-shadow: var(--echoo-shadow-xs);
+  backdrop-filter: blur(14px);
+}
+
+.echoo-app-shell .studio-view {
+  width: 100%;
+  max-width: var(--echoo-content-max-width);
+  min-width: 0;
+  margin: 0 auto;
+  padding: var(--echoo-page-padding-y) var(--echoo-page-padding-x) var(--echoo-page-padding-bottom);
+}
+
+.echoo-app-shell .studio-footer {
+  display: none;
+}
+
+.echoo-app-shell .studio-top-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--echoo-space-2);
+}
+
+.echoo-app-shell .studio-navigation {
+  display: grid;
+  gap: var(--echoo-space-1);
+}
+
+.echoo-app-shell .studio-nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  min-height: var(--echoo-nav-item-height);
+  gap: var(--echoo-space-3);
+  padding: 0 var(--echoo-space-3);
+  border: 1px solid transparent;
+  border-radius: var(--echoo-radius-md);
+  background: transparent;
+  color: var(--echoo-color-muted);
+  font: 560 var(--echoo-type-caption-size)/1.25 var(--echoo-font-sans);
+  letter-spacing: 0;
+  text-decoration: none;
+  transition: background 160ms cubic-bezier(.23, 1, .32, 1), color 160ms cubic-bezier(.23, 1, .32, 1), transform 160ms cubic-bezier(.23, 1, .32, 1);
+}
+
+.echoo-app-shell .studio-nav-item:hover {
+  background: var(--echoo-color-surface-hover);
+  color: var(--echoo-color-text);
+}
+
+.echoo-app-shell .studio-nav-item:active,
+.echoo-app-shell button:active {
+  transform: scale(.98);
+}
+
+.echoo-app-shell .studio-nav-item.active {
+  border-color: var(--echoo-color-brand-border);
+  background: var(--echoo-color-brand-soft);
+  color: var(--echoo-color-brand);
+  box-shadow: inset 3px 0 0 var(--echoo-color-brand);
+}
+
+.echoo-app-shell .studio-nav-icon {
+  display: inline-flex;
+  flex: 0 0 18px;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  color: currentColor;
+  font-size: 15px;
+}
+
+.echoo-app-shell .studio-nav-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.echoo-app-shell .beautiful-search-wrapper,
+.echoo-app-shell .studio-command-search {
+  position: relative;
+  z-index: 70;
+}
+
+.echoo-app-shell .beautiful-search-panel,
+.echoo-app-shell .creator-account-popover,
+.echoo-app-shell .echoo-profile-menu {
+  z-index: 9999;
+}
+
+.echoo-app-shell .layout-content,
+.echoo-app-shell .echoo-listener-scroll {
+  min-width: 0;
+  padding-bottom: var(--echoo-space-4);
+}
+
+.echoo-app-shell .echoo-persistent-player,
+.echoo-app-shell .layout-player {
+  z-index: 100;
+}
+
+@media (max-width: 1120px) {
+  .echoo-app-shell {
+    --echoo-shell-sidebar-width: var(--echoo-sidebar-width);
+  }
+
+  .echoo-app-shell .studio-view {
+    padding-right: var(--echoo-space-5);
+    padding-left: var(--echoo-space-5);
+  }
+}
+
+@media (max-width: 700px) {
+  .echoo-app-shell {
+    display: block;
+    min-height: 100vh;
+    overflow: visible;
+  }
+
+  .echoo-app-shell .studio-sidebar {
+    position: fixed;
+    inset: auto 0 0;
+    z-index: 200;
+    width: 100%;
+    height: calc(62px + env(safe-area-inset-bottom, 0px));
+    min-height: 0;
+    padding: 5px 8px env(safe-area-inset-bottom, 0px);
+    border: 0;
+    border-top: 1px solid var(--echoo-color-line);
+    background: rgba(255, 255, 255, .98);
+    box-shadow: 0 -6px 22px rgba(15, 23, 42, .06);
+    backdrop-filter: blur(14px);
+  }
+
+  .echoo-app-shell .studio-main {
+    width: 100%;
+    min-height: 100vh;
+    padding-bottom: calc(var(--echoo-shell-player-height-compact) + 62px);
+    overflow: visible;
+  }
+
+  .echoo-app-shell .studio-topbar-final {
+    min-height: var(--echoo-header-height-compact);
+    height: var(--echoo-header-height-compact);
+    padding: 0 var(--echoo-space-3);
+  }
+
+  .echoo-app-shell .studio-navigation {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    align-items: center;
+    gap: var(--echoo-space-1);
+    height: 56px;
+    overflow: hidden;
+  }
+
+  .echoo-app-shell .studio-nav-item {
+    justify-content: center;
+    width: 100%;
+    min-width: 0;
+    min-height: 48px;
+    height: 48px;
+    padding: 0;
+    border-radius: var(--echoo-radius-md);
+  }
+
+  .echoo-app-shell .studio-nav-item.active {
+    box-shadow: none;
+  }
+
+  .echoo-app-shell .studio-nav-icon {
+    flex-basis: auto;
+    width: auto;
+    font-size: 15px;
+  }
+
+  .echoo-app-shell .studio-nav-label,
+  .echoo-app-shell .studio-sidebar-head,
+  .echoo-app-shell .studio-sidebar-profile,
+  .echoo-app-shell .sidebar-profile-text {
+    display: none;
+  }
+
+  .echoo-app-shell .studio-view {
+    padding: var(--echoo-space-4) var(--echoo-space-3) 94px;
+  }
+
+  .echoo-app-shell .studio-top-actions {
+    margin-left: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+/* Final shared contract: page-level CSS may style content, but not redefine shell geometry. */
+.echoo-app-shell .studio-view {
+  width: 100%;
+  max-width: var(--echoo-content-max-width) !important;
+  margin-inline: auto;
+}
+
+.echoo-app-shell .studio-view h1,
+.echoo-app-shell .studio-view .echoo-type-h1 {
+  font-size: var(--echoo-type-h1-size) !important;
+  line-height: var(--echoo-type-h1-line-height);
+  letter-spacing: var(--echoo-type-h1-letter-spacing);
+}
+
+.echoo-app-shell .studio-view h2,
+.echoo-app-shell .studio-view .echoo-type-h2 {
+  font-size: var(--echoo-type-h2-size) !important;
+  line-height: var(--echoo-type-h2-line-height);
+}
+
+.echoo-app-shell .studio-view h3,
+.echoo-app-shell .studio-view .echoo-type-h3 {
+  font-size: var(--echoo-type-h3-size) !important;
+  line-height: var(--echoo-type-h3-line-height);
+}
+
+.echoo-app-shell .studio-view article,
+.echoo-app-shell .studio-view [class*="-card"],
+.echoo-app-shell .studio-view [class*="-row"] {
+  border-radius: var(--echoo-radius-lg);
+  box-shadow: var(--echoo-shadow-xs);
+}
+
+.echoo-app-shell .studio-view img {
+  max-width: 100%;
+}
+
+.echoo-app-shell .studio-main {
+  padding-bottom: calc(var(--echoo-shell-player-height) + var(--echoo-space-4));
+}
+
+@media (max-width: 700px) {
+  .echoo-app-shell .studio-main {
+    padding-bottom: calc(var(--echoo-shell-player-height-compact) + 62px + var(--echoo-space-4));
+  }
+}
+
+/* Legacy theme compatibility: the shared contract is authoritative. */
+:root {
+  --echoo-sidebar-width: 244px !important;
+  --echoo-player-height: 82px !important;
+}
+
+/* The legacy Creator CSS uses important shell declarations; out-rank only those legacy selectors. */
+#root .echoo-app-shell.echoo-app-shell {
+  display: grid !important;
+  grid-template-columns: var(--echoo-shell-sidebar-width) minmax(0, 1fr) !important;
+  grid-template-rows: minmax(0, 1fr) !important;
+  width: 100% !important;
+  min-height: 100vh !important;
+  padding: 0 !important;
+  background: var(--echoo-color-canvas) !important;
+}
+
+#root .echoo-app-shell.echoo-app-shell .studio-sidebar {
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+#root .echoo-app-shell.echoo-app-shell .studio-main {
+  width: auto !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+}
