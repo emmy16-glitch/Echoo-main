@@ -8,7 +8,6 @@ import {
   FaChevronRight,
   FaDownload,
   FaHeadphones,
-  FaMusic,
   FaPause,
   FaPlay,
   FaSearch,
@@ -89,7 +88,6 @@ const ListenerLibrary = () => {
   const { playTrack, currentTrack, isPlaying, togglePlay } = useOutletContext();
 
   const [page, setPage] = useState(1);
-  const [search, setSearch] = useState('');
   const [listSearch, setListSearch] = useState('');
   const [sort, setSort] = useState('recent');
   const [chip, setChip] = useState('All audio');
@@ -235,13 +233,11 @@ const ListenerLibrary = () => {
   );
 
   const applySearch = () => {
-    setSearch(listSearch);
     setPage(1);
   };
 
   const clearFilters = () => {
     setListSearch('');
-    setSearch('');
     setChip('All audio');
     setSort('recent');
     setPage(1);
@@ -338,7 +334,7 @@ const ListenerLibrary = () => {
                   onKeyDown={(event) => { if (event.key === 'Enter') applySearch(); }}
                 />
                 {listSearch && (
-                  <button type="button" aria-label="Clear search" onClick={() => { setListSearch(''); setSearch(''); setPage(1); }}>×</button>
+                  <button type="button" aria-label="Clear search" onClick={() => { setListSearch(''); setPage(1); }}>×</button>
                 )}
               </span>
               <span className="al-sort-select">

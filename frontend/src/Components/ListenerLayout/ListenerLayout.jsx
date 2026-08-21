@@ -40,13 +40,6 @@ const SEARCH_SUGGESTIONS = [
   'Education',
 ];
 
-const formatTime = (seconds) => {
-  const safe = Number.isFinite(Number(seconds)) ? Number(seconds) : 0;
-  const minutes = Math.floor(safe / 60);
-  const remaining = Math.floor(safe % 60);
-  return `${minutes}:${String(remaining).padStart(2, '0')}`;
-};
-
 const backendTrackId = (id) => /^[a-f\d]{24}$/i.test(String(id || ''));
 
 const getRandomQueueIndex = (length, currentIndex) => {

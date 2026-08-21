@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Room, RoomEvent, Track } from 'livekit-client';
 import { FaHeadphones, FaRedoAlt, FaVolumeUp } from 'react-icons/fa';
 
@@ -252,7 +252,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
     };
   }, [broadcastId, isLive, retryVersion]);
 
-  const startAudio = async () => {
+  const startAudio = useCallback(async () => {
     const room = roomRef.current;
     if (!room) return;
     try {
@@ -266,9 +266,9 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       setNeedsAudioStart(true);
       setError(startError?.message || 'Tap again to start the live audio.');
     }
-  };
+  }, []);
 
-  const togglePlayback = async () => {
+  const togglePlayback = useCallback(async () => {
     if (needsAudioStart) {
       await startAudio();
       return;
@@ -284,16 +284,16 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       setNeedsAudioStart(true);
       setError(playError?.message || 'Tap again to start the live audio.');
     }
-  };
+  }, [needsAudioStart, startAudio]);
 
-  const toggleMute = () => {
+  const toggleMute = useCallback(() => {
     const elements = Array.from(audioHostRef.current?.querySelectorAll('audio') || []);
     const nextMuted = elements.some((element) => !element.muted);
     elements.forEach((element) => { element.muted = nextMuted; });
     setLiveMuted(nextMuted);
-  };
+  }, []);
 
-  const changeVolume = (value) => {
+  const changeVolume = useCallback((value) => {
     const nextVolume = Math.max(0, Math.min(1, Number(value) || 0));
     const nextMuted = nextVolume === 0;
     const elements = Array.from(audioHostRef.current?.querySelectorAll('audio') || []);
@@ -303,7 +303,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
     });
     setLiveVolume(nextVolume);
     setLiveMuted(nextMuted);
-  };
+  }, []);
 
   const changeOutput = async (deviceId) => {
     setOutputDeviceId(deviceId);
@@ -338,7 +338,19 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
     return () => {
       onStateChange?.({ active: false, track: null, isPlaying: false, playerError: '' });
     };
-  }, [isLive, track, status, error, needsAudioStart, liveVolume, liveMuted]);
+  }, [
+    onStateChange,
+    isLive,
+    track,
+    status,
+    error,
+    needsAudioStart,
+    liveVolume,
+    liveMuted,
+    togglePlayback,
+    toggleMute,
+    changeVolume,
+  ]);
 
   if (!isLive) return null;
 

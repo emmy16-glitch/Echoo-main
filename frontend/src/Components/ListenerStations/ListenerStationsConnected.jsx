@@ -54,7 +54,6 @@ const ListenerStationsConnected = () => {
     (station?.branding?.mode === 'generated' ? buildGeneratedStationBrandCoverUrl(station) : null);
 
   const [allStations, setAllStations] = useState([]);
-  const [total, setTotal] = useState(0);
   const [topStations, setTopStations] = useState([]);
   const [followingIds, setFollowingIds] = useState(new Set());
   const [loading, setLoading] = useState(true);
@@ -63,7 +62,6 @@ const ListenerStationsConnected = () => {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('All');
-  const [status, setStatus] = useState('all');
   const [sortBy, setSortBy] = useState('followers');
   const [view, setView] = useState('list');
 
@@ -71,7 +69,6 @@ const ListenerStationsConnected = () => {
   const [pendingStatus, setPendingStatus] = useState('all');
   const [pendingSort, setPendingSort] = useState('followers');
   const [pendingSearch, setPendingSearch] = useState('');
-  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const [actionId, setActionId] = useState('');
   const [error, setError] = useState('');
@@ -95,7 +92,6 @@ const ListenerStationsConnected = () => {
           )
         : [];
       setAllStations(realStations);
-      setTotal(Number(stationResult.value?.pagination?.total) || realStations.length);
 
       if (topResult.status === 'fulfilled' && Array.isArray(topResult.value?.data)) {
         const ordered = [...topResult.value.data]
@@ -224,9 +220,7 @@ const ListenerStationsConnected = () => {
 
   const applyFilters = () => {
     setCategory(pendingCategory);
-    setStatus(pendingStatus);
     setSortBy(pendingSort);
-    setFiltersOpen(false);
     setPage(1);
     if (listRef.current) {
       listRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
