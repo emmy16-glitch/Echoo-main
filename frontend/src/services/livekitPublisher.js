@@ -261,8 +261,11 @@ export const startLiveKitPublishing = async ({
   }
 };
 
+export const getActiveLiveKitRoom = () => activeRoom;
+
 export default {
   startLiveKitPublishing,
   stopLiveKitPublishing,
   getLiveKitPublishingState,
+  getActiveLiveKitRoom,
 };

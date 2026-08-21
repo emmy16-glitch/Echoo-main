@@ -26,6 +26,7 @@ import {
 import {
   startLiveKitPublishing,
   stopLiveKitPublishing,
+  getActiveLiveKitRoom,
 } from '../../services/livekitPublisher';
 import './CreatorBroadcastStudioExact.css';
 import './CreatorLiveBroadcastConsole.css';
@@ -589,7 +590,11 @@ const CreatorLiveConnectedWorkspace = ({
     const liveStation = stations.find(
       (station) => String(station.id) === String(currentLiveBroadcast.stationId)
     ) || selectedStation;
-    const connectionLabel = presence.creatorConnected ? 'Stable' : 'Checking';
+    // creatorConnected comes from LiveKit room participant list.
+    // If we are in the room, we are connected.
+    const activeRoom = getActiveLiveKitRoom();
+    const isConnected = presence.creatorConnected || Boolean(activeRoom);
+    const connectionLabel = isConnected ? 'Stable' : 'Checking';
 
     return (
       <section className="ebsx live-page">
@@ -634,8 +639,8 @@ const CreatorLiveConnectedWorkspace = ({
                 <small>{studioName}</small>
                 <div className="ebsx-live-summary-health">
                   <span><FaUsers /> Public</span>
-                  <span className={presence.creatorConnected ? 'good' : ''}>
-                    <i /> {presence.creatorConnected ? 'Good connection' : 'Checking connection'}
+                  <span className={isConnected ? 'good' : ''}>
+                    <i /> {isConnected ? 'Good connection' : 'Checking connection'}
                   </span>
                 </div>
               </div>

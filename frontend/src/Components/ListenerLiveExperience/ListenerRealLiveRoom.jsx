@@ -18,7 +18,9 @@ import {
   FaEllipsisH,
   FaHeadphones,
   FaPause,
+  FaPlay,
   FaVolumeUp,
+  FaVolumeMute,
 } from 'react-icons/fa';
 
 import batch3Service from '../../services/batch3Service';
@@ -124,6 +126,12 @@ const ListenerRealLiveRoom = () => {
   const isLive = broadcast?.status === 'live';
   const isScheduled = broadcast?.status === 'scheduled';
   const chatAvailable = isLive || isScheduled;
+  const [liveState, setLiveState] = useState(null);
+
+  const handleLiveStateChange = useCallback((state) => {
+    setLiveState(state);
+    setLivePlayerState(state);
+  }, [setLivePlayerState]);
   const ended = broadcast
     ? ['completed', 'cancelled', 'failed'].includes(broadcast.status)
     : false;
@@ -660,20 +668,27 @@ const ListenerRealLiveRoom = () => {
                     subtitle: broadcast.stationName || broadcast.creatorName || 'Live station',
                     coverArt: stationArtwork,
                   }}
-                  onStateChange={setLivePlayerState}
+                  onStateChange={handleLiveStateChange}
                 />
               )}
                 <button
                   type="button"
                   className="llr-ctrl-pause"
-                  aria-label={isLive ? 'Pause broadcast audio' : 'Broadcast ended'}
-                  disabled={!isLive}
+                  aria-label={liveState?.isPlaying ? 'Pause' : 'Play'}
+                  disabled={!isLive || !!liveState?.playerError}
+                  onClick={liveState?.onTogglePlay}
                 >
-                  <FaPause />
+                  {liveState?.isPlaying ? <FaPause /> : <FaPlay />}
                 </button>
-                <span className="llr-ctrl-volume" aria-label="Volume">
-                  <FaVolumeUp />
-                </span>
+                <button
+                  type="button"
+                  className="llr-ctrl-volume"
+                  aria-label={liveState?.isMuted ? 'Unmute' : 'Mute'}
+                  onClick={liveState?.onToggleMute}
+                  style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '16px' }}
+                >
+                  {liveState?.isMuted ? <FaVolumeMute /> : <FaVolumeUp />}
+                </button>
                 {isLive && (
                   <span className="llr-controls-live-label">
                     <i /> LIVE

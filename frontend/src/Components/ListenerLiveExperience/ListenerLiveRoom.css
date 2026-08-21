@@ -246,13 +246,35 @@
 }
 
 .llr-player-controls .echoo-livekit-listener {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  clip-path: inset(50%);
-  white-space: nowrap;
+  flex: 1;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  min-width: 0;
+}
+
+.llr-player-controls .echoo-livekit-listener-icon,
+.llr-player-controls .echoo-livekit-output-select {
+  display: none;
+}
+
+.llr-player-controls .echoo-livekit-listener-copy strong {
+  color: #ffffff;
+  font-size: 13px;
+}
+
+.llr-player-controls .echoo-livekit-listener-copy span {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 11px;
+}
+
+.llr-player-controls .echoo-livekit-start-audio {
+  background: #1265c7;
+  height: 36px;
+  padding: 0 12px;
+  font-size: 12px;
+  border-radius: 8px;
 }
 
 .llr-ctrl-pause {
