@@ -233,6 +233,7 @@
 
 .ls-cluster-circle {
   position: absolute;
+  transform: translateX(-50%);
   border-radius: 50%;
   background-size: cover;
   background-position: center;
@@ -622,8 +623,7 @@
 }
 
 .ls-filters-card,
-.ls-top-card,
-.ls-create-card {
+.ls-top-card {
   background: var(--echoo-surface);
   border: 1px solid var(--echoo-border);
   border-radius: 12px;
@@ -904,31 +904,6 @@
   cursor: not-allowed;
 }
 
-/* ---------- Create card ---------- */
-.ls-create-card {
-  text-align: center;
-  background: linear-gradient(160deg, #f4f8ff 0%, #e9f1fd 100%);
-}
-
-.ls-create-icon {
-  font-size: 30px;
-  color: var(--echoo-blue);
-  margin-bottom: 10px;
-}
-
-.ls-create-card h3 {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--echoo-text-h) !important;
-  margin: 0 0 6px;
-}
-
-.ls-create-card p {
-  font-size: 12px;
-  color: var(--echoo-text-soft);
-  margin: 0 0 14px;
-}
-
 /* ---------- States ---------- */
 .ls-state-card {
   display: grid;
@@ -1000,9 +975,6 @@
     gap: 16px;
   }
 
-  .ls-create-card {
-    grid-column: 1 / -1;
-  }
 }
 
 @media (max-width: 760px) {

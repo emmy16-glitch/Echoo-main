@@ -14,24 +14,45 @@ import ChooseRole from './Components/ChooseRole/ChooseRole';
 import CreatorSetup from './Components/CreatorSetup/CreatorSetup';
 
 // The logged-in shells are lazy-loaded so each role downloads only its own
-// experience instead of one monolithic bundle.
+// experience instead of one monolithic bundle. Listener chunks are cached by
+// routePreloaders so the first navigation click is not a cold import.
+import {
+  loadListenerAudioDetail,
+  loadListenerCreatorProfile,
+  loadListenerDownloads,
+  loadListenerFollowing,
+  loadListenerHistory,
+  loadListenerHome,
+  loadListenerLayout,
+  loadListenerLibrary,
+  loadListenerLive,
+  loadListenerLiveRoom,
+  loadListenerNotifications,
+  loadListenerSearch,
+  loadListenerSettings,
+  loadListenerStationProfile,
+  loadListenerStations,
+  loadListenerPlaylist,
+  preloadListenerRoutes,
+} from './routing/routePreloaders';
+
 const CreatorStudio = lazy(() => import('./Components/CreatorStudio/CreatorStudio'));
-const ListenerLayout = lazy(() => import('./Components/ListenerLayout/ListenerLayout'));
-const ListenerHome = lazy(() => import('./Components/ListenerHome/ListenerHome'));
-const ListenerSearch = lazy(() => import('./Components/ListenerSearch/ListenerSearch'));
-const ListenerLive = lazy(() => import('./Components/ListenerLive/ListenerLiveConnected'));
-const ListenerStations = lazy(() => import('./Components/ListenerStations/ListenerStationsConnected'));
-const ListenerLibrary = lazy(() => import('./Components/ListenerLibrary/ListenerLibrary'));
-const ListenerFollowing = lazy(() => import('./Components/ListenerLibrary/ListenerFollowing'));
-const ListenerPlaylist = lazy(() => import('./Components/ListenerPlaylist/ListenerPlaylist'));
-const ListenerHistory = lazy(() => import('./Components/ListenerHistory/ListenerHistoryConnected'));
-const ListenerDownloads = lazy(() => import('./Components/ListenerDownloads/ListenerDownloadsConnected'));
-const ListenerCreatorProfile = lazy(() => import('./Components/ListenerCreatorProfile/ListenerCreatorProfile'));
-const ListenerNotifications = lazy(() => import('./Components/ListenerNotifications/ListenerNotificationsConnected'));
-const ListenerSettings = lazy(() => import('./Components/ListenerSettings/ListenerSettingsConnected'));
-const ListenerAudioDetail = lazy(() => import('./Components/ListenerAudioDetail/ListenerAudioDetail'));
-const ListenerRealLiveRoom = lazy(() => import('./Components/ListenerLiveExperience/ListenerRealLiveRoom'));
-const ListenerRealStationProfile = lazy(() => import('./Components/ListenerLiveExperience/ListenerRealStationProfile'));
+const ListenerLayout = lazy(loadListenerLayout);
+const ListenerHome = lazy(loadListenerHome);
+const ListenerSearch = lazy(loadListenerSearch);
+const ListenerLive = lazy(loadListenerLive);
+const ListenerStations = lazy(loadListenerStations);
+const ListenerLibrary = lazy(loadListenerLibrary);
+const ListenerFollowing = lazy(loadListenerFollowing);
+const ListenerPlaylist = lazy(loadListenerPlaylist);
+const ListenerHistory = lazy(loadListenerHistory);
+const ListenerDownloads = lazy(loadListenerDownloads);
+const ListenerCreatorProfile = lazy(loadListenerCreatorProfile);
+const ListenerNotifications = lazy(loadListenerNotifications);
+const ListenerSettings = lazy(loadListenerSettings);
+const ListenerAudioDetail = lazy(loadListenerAudioDetail);
+const ListenerRealLiveRoom = lazy(loadListenerLiveRoom);
+const ListenerRealStationProfile = lazy(loadListenerStationProfile);
 
 import EchooExperienceOrchestrator from './Components/EchooSystem/EchooExperienceOrchestrator';
 import EchooMobileNavigation from './Components/EchooSystem/EchooMobileNavigation';
@@ -246,7 +267,12 @@ const RequireRole = ({ role, children }) => {
     return <Navigate to={roleHome(currentRole)} replace />;
   }
 
-  return children;
+  return (
+    <>
+      {role === 'listener' && <ListenerRoutePrefetch />}
+      {children}
+    </>
+  );
 };
 
 const DefaultRedirect = () => {
@@ -261,6 +287,31 @@ const DefaultRedirect = () => {
 
   if (!onboardingComplete || !role) return <Navigate to="/" replace />;
   return <Navigate to={roleHome(role)} replace />;
+};
+
+const ListenerRoutePrefetch = () => {
+  useEffect(() => {
+    let cancelled = false;
+    const prefetch = () => {
+      if (!cancelled) void preloadListenerRoutes();
+    };
+
+    if (typeof window.requestIdleCallback === 'function') {
+      const idleId = window.requestIdleCallback(prefetch, { timeout: 1200 });
+      return () => {
+        cancelled = true;
+        window.cancelIdleCallback?.(idleId);
+      };
+    }
+
+    const timeoutId = window.setTimeout(prefetch, 700);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, []);
+
+  return null;
 };
 
 function App() {

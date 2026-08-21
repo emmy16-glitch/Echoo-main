@@ -986,3 +986,142 @@
     padding: 2px 18px 8px;
   }
 }
+
+
+/* Listener Home refinement: compact artwork-first hero with grouped metadata. */
+#root .echoo-app-shell--listener .echoo-home {
+  gap: 28px;
+  padding-top: 22px;
+  padding-bottom: 32px;
+}
+
+#root .echoo-app-shell--listener .echoo-home-hero {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-height: 272px !important;
+  height: 272px;
+  overflow: hidden;
+  border-radius: 22px;
+  background: #171233;
+  box-shadow: 0 18px 42px -18px rgba(17, 24, 39, .28);
+}
+
+#root .echoo-app-shell--listener .echoo-home-hero-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+#root .echoo-app-shell--listener .echoo-home-hero-art img,
+#root .echoo-app-shell--listener .echoo-home-hero-art-placeholder {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+#root .echoo-app-shell--listener .echoo-home-hero-art-gradient {
+  background:
+    linear-gradient(90deg, rgba(15, 10, 43, .94) 0%, rgba(20, 12, 54, .77) 37%, rgba(20, 12, 54, .20) 76%, rgba(15, 10, 43, .34) 100%),
+    linear-gradient(0deg, rgba(15, 10, 43, .30), transparent 52%);
+}
+
+#root .echoo-app-shell--listener .echoo-home-hero-content {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  justify-content: flex-end;
+  width: min(100%, 590px);
+  max-width: 590px;
+  padding: 28px 32px;
+  color: #ffffff;
+}
+
+#root .echoo-app-shell--listener .echoo-home-hero-title {
+  max-width: 100%;
+  font-size: clamp(26px, 3vw, 38px) !important;
+  line-height: 1.08;
+  text-wrap: balance;
+}
+
+#root .echoo-app-shell--listener .echoo-home-hero-station {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#root .echoo-app-shell--listener .echoo-home-hero-chips {
+  max-width: 100%;
+  gap: 8px;
+}
+
+#root .echoo-app-shell--listener .echoo-home-hero-play {
+  min-height: 44px;
+  height: 46px;
+  margin-top: 4px;
+  padding-inline: 22px;
+}
+
+#root .echoo-app-shell--listener .echoo-home-section-head {
+  margin-bottom: 14px;
+}
+
+#root .echoo-app-shell--listener .echoo-home-section-title {
+  font-size: 18px;
+}
+
+@media (max-width: 900px) and (min-width: 701px) {
+  #root .echoo-app-shell--listener .echoo-home-hero {
+    min-height: 248px !important;
+    height: 248px;
+  }
+
+  #root .echoo-app-shell--listener .echoo-home-hero-content {
+    width: min(100%, 540px);
+    padding: 24px 26px;
+  }
+}
+
+@media (max-width: 700px) {
+  #root .echoo-app-shell--listener .echoo-home {
+    gap: 24px;
+    padding-top: 16px;
+  }
+
+  #root .echoo-app-shell--listener .echoo-home-hero {
+    min-height: 238px !important;
+    height: 238px;
+    border-radius: 18px;
+  }
+
+  #root .echoo-app-shell--listener .echoo-home-hero-content {
+    width: 100%;
+    max-width: 100%;
+    justify-content: flex-end;
+    padding: 22px 20px;
+  }
+
+  #root .echoo-app-shell--listener .echoo-home-hero-title {
+    font-size: clamp(24px, 8vw, 32px) !important;
+  }
+}
+
+@media (max-width: 414px) {
+  #root .echoo-app-shell--listener .echoo-home-hero {
+    min-height: 220px !important;
+    height: 220px;
+  }
+
+  #root .echoo-app-shell--listener .echoo-home-hero-content {
+    padding: 18px 16px;
+  }
+
+  #root .echoo-app-shell--listener .echoo-home-hero-label,
+  #root .echoo-app-shell--listener .echoo-home-hero-chip {
+    font-size: 11px;
+  }
+}

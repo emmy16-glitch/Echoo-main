@@ -442,18 +442,6 @@ const CreatorStudio = () => {
             />
           </>
         )}
-        sidebarFooter={(
-          <ProfileMenu
-            displayName={studioName}
-            email={userEmail}
-            profileImage={profileImage}
-            roleLabel={studioType}
-            placement="sidebar"
-            onAccount={() => navigateStudio('Settings')}
-            onSettings={() => navigateStudio('Settings')}
-            onLogout={handleCreatorLogout}
-          />
-        )}
         alerts={(
           <>
             {error && <div className="studio-alert error"><FaExclamationCircle /><span>{error}</span><button type="button" onClick={() => setError('')}><FaTimes /></button></div>}
