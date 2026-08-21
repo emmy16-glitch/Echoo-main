@@ -61,6 +61,12 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
     formData.confirmPassword.length > 0 &&
     formData.password !== formData.confirmPassword;
 
+  const fullNamePattern = /^[\p{L}]+(?:[\s'-][\p{L}]+)*$/u;
+  const fullNameInvalid =
+    action === "Sign Up" &&
+    formData.fullname.trim() !== "" &&
+    !fullNamePattern.test(formData.fullname.trim());
+
   const handleChange = (event) => {
     const { name, value } = event.target;
     setFormData((previousData) => ({ ...previousData, [name]: value }));
@@ -80,6 +86,7 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
     if (action === "Sign Up") {
       return (
         formData.fullname.trim() !== "" &&
+        !fullNameInvalid &&
         formData.username.trim() !== "" &&
         formData.email.trim() !== "" &&
         formData.password.length >= 8 &&
@@ -113,7 +120,9 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
     if (loading) return;
 
     if (action === "Sign Up" && !formIsComplete()) {
-      if (formData.password.length < 8) {
+      if (fullNameInvalid) {
+        setSignupError("Full name can contain letters, spaces, apostrophes, or hyphens only.");
+      } else if (formData.password.length < 8) {
         setSignupError("Password must be at least 8 characters.");
       } else if (formData.password !== formData.confirmPassword) {
         setSignupError("Passwords do not match. Please check both password fields.");
@@ -137,7 +146,7 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
           username: formData.username.trim(),
           email: formData.email.trim(),
           password: formData.password,
-          displayName: formData.fullname.trim(),
+          displayName: formData.username.trim(),
         });
 
         const user = saveSession(response);
@@ -455,9 +464,15 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
               value={formData.fullname}
               onChange={handleChange}
               autoComplete="name"
+              aria-invalid={fullNameInvalid ? "true" : "false"}
               required
             />
           </div>
+          {fullNameInvalid && (
+            <p className="eor-inline-error" role="alert">
+              Full name can contain letters, spaces, apostrophes, or hyphens only.
+            </p>
+          )}
         </div>
 
         <div className="eor-field">

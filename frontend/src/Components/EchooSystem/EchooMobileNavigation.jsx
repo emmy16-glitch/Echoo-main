@@ -93,7 +93,7 @@ const EchooMobileNavigation = () => {
   if (!isListenerRoute) return null;
 
   const displayName =
-    user.displayName || user.fullname || user.username || 'Echoo Listener';
+    user.username || user.displayName || user.fullname || 'Echoo Listener';
   const initial = displayName.trim().charAt(0).toUpperCase() || 'E';
   const profileImage =
     user.profileImage || user.avatar || localStorage.getItem('profileImage') || '';
