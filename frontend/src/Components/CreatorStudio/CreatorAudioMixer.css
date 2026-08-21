@@ -248,6 +248,14 @@
   line-height: 1.4;
 }
 
+.eam-source-tip {
+  display: block;
+  margin-top: 4px;
+  color: #536f99;
+  font-size: 9px;
+  line-height: 1.4;
+}
+
 .eam-device-select,
 .eam-output-select select {
   width: 100%;
