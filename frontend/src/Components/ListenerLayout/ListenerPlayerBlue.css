@@ -1,0 +1,24 @@
+/* Last-loaded override in the listener shell: persistent player uses
+   the reference blue accent (matches listener-reference-pages design).
+   Must stay below ListenerPlaybackFix.css in the import order. */
+#root .echoo-listener-shell .layout-player-controls > .layout-player-main-button {
+  background: #155eef !important;
+  color: #fff !important;
+  box-shadow: 0 2px 6px rgba(21, 94, 239, 0.35) !important;
+}
+#root .echoo-listener-shell .layout-player-controls > .layout-player-main-button:hover:not(:disabled) {
+  background: #1252d3 !important;
+}
+#root .echoo-listener-shell .layout-player-controls > button {
+  color: #101828 !important;
+}
+#root .echoo-listener-shell .layout-player-volume,
+#root .echoo-listener-shell .layout-player-volume svg {
+  color: #64748b !important;
+}
+#root .echoo-listener-shell .layout-player-cover {
+  background: #eef3fa !important;
+}
+#root .echoo-listener-shell .layout-player-volume input[type="range"] {
+  accent-color: #155eef !important;
+}

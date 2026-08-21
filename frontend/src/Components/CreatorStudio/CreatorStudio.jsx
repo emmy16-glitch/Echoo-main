@@ -19,7 +19,7 @@ import {
 import './CreatorStudio.css';
 import './CreatorStudio.identity.css';
 import './CreatorStudioShellFinal.css';
-import echooLogo from '../Assets/logo_optimized.jpg';
+import echooLogo from '../Assets/creator-logo.png';
 import studioService from '../../services/studioService';
 import { buildGeneratedAudioCoverUrl } from '../../audioCover/audioCover';
 import ListenerLiveConnected from '../ListenerLive/ListenerLiveConnected';
@@ -32,6 +32,7 @@ import CreatorAnalyticsWorkspace from './CreatorAnalyticsConnectedWorkspace';
 import CreatorSettingsWorkspace from './CreatorSettingsWorkspace';
 import CreatorNotificationsWorkspace from './CreatorNotificationsWorkspace';
 import CreatorAccountMenuPortal from './CreatorAccountMenuPortal';
+import EchooAppShell from '../Shared/EchooAppShell';
 
 const GENRES = [
   'Pop', 'Rock', 'Hip-Hop', 'Electronic', 'Jazz', 'Classical', 'R&B',
@@ -424,56 +425,28 @@ const CreatorStudio = () => {
   };
 
   return (
-    <div className="studio-page studio-final-shell">
-      <aside className="studio-sidebar">
-        <div className="studio-sidebar-head">
+    <>
+      <EchooAppShell
+        role="creator"
+        roleLabel="Creator Studio"
+        className="studio-page"
+        navItems={navItems}
+        activeKey={activeNav}
+        onNavigate={navigateStudio}
+        brand={(
           <button type="button" className="studio-brand" onClick={() => navigateStudio('Home')} aria-label="Echoo Creator Studio home">
             <img src={echooLogo} alt="Echoo" className="studio-logo" />
             <div><h2>Echoo</h2><span>Creator Studio</span></div>
           </button>
-        </div>
-
-        <nav className="studio-navigation" aria-label="Creator Studio">
-          {navItems.map((item) => (
-            <button
-              type="button"
-              key={item.name}
-              className={`studio-nav-item ${activeNav === item.name ? 'active' : ''}`}
-              onClick={() => navigateStudio(item.name)}
-              title={item.label}
-              aria-label={item.label}
-            >
-              <span className="studio-nav-icon">{item.icon}</span><span>{item.label}</span>
-            </button>
-          ))}
-        </nav>
-
-        <div className="studio-sidebar-profile-wrap" data-creator-profile-menu>
-          <button
-            ref={sidebarProfileRef}
-            type="button"
-            className="studio-sidebar-profile"
-            aria-expanded={profileMenuOpen === 'sidebar'}
-            aria-haspopup="menu"
-            aria-label={`${studioName} profile menu`}
-            title={studioName}
-            onClick={() => setProfileMenuOpen((current) => current === 'sidebar' ? '' : 'sidebar')}
-          >
-            <div className="sidebar-avatar">{profileImage ? <img src={profileImage} alt="" /> : initial}</div>
-            <div className="sidebar-profile-text"><strong>{studioName}</strong><span>{studioType}</span></div>
-            <FaChevronDown />
-          </button>
-        </div>
-      </aside>
-
-      <main id="echoo-main-content" tabIndex="-1" className="studio-main">
-        <header className="studio-topbar studio-topbar-final">
+        )}
+        search={(
           <form className="studio-command-search" onSubmit={handleSearchSubmit}>
             <FaSearch />
             <input value={studioSearch} onChange={(event) => setStudioSearch(event.target.value)} placeholder="Search Creator Studio..." aria-label="Search Creator Studio" />
           </form>
-
-          <div className="studio-top-actions">
+        )}
+        topActions={(
+          <>
             <button type="button" className="notification-button" onClick={() => navigateStudio('Notifications')} title="Notifications" aria-label="Notifications"><FaBell /></button>
             <div className="studio-top-profile-wrap" data-creator-profile-menu>
               <button
@@ -489,30 +462,53 @@ const CreatorStudio = () => {
                 <FaChevronDown />
               </button>
             </div>
+          </>
+        )}
+        sidebarFooter={(
+          <div className="studio-sidebar-profile-wrap" data-creator-profile-menu>
+            <button
+              ref={sidebarProfileRef}
+              type="button"
+              className="studio-sidebar-profile"
+              aria-expanded={profileMenuOpen === 'sidebar'}
+              aria-haspopup="menu"
+              aria-label={studioName + ' profile menu'}
+              title={studioName}
+              onClick={() => setProfileMenuOpen((current) => current === 'sidebar' ? '' : 'sidebar')}
+            >
+              <div className="sidebar-avatar">{profileImage ? <img src={profileImage} alt="" /> : initial}</div>
+              <div className="sidebar-profile-text"><strong>{studioName}</strong><span>{studioType}</span></div>
+              <FaChevronDown />
+            </button>
           </div>
-        </header>
-
-        {error && <div className="studio-alert error"><FaExclamationCircle /><span>{error}</span><button type="button" onClick={() => setError('')}><FaTimes /></button></div>}
-        {notice && <div className="studio-alert success"><FaCloudUploadAlt /><span>{notice}</span><button type="button" onClick={() => setNotice('')}><FaTimes /></button></div>}
-
-        <div className="studio-view">{renderWorkspace()}</div>
-        <footer className="studio-footer"><span>© 2026 Echoo.</span><span>Audio-first creator platform</span></footer>
-      </main>
-
-      <CreatorAccountMenuPortal
-        open={profileMenuOpen === 'sidebar'}
-        anchorRef={sidebarProfileRef}
-        placement="sidebar"
-        onSettings={() => navigateStudio('Settings')}
-        onLogout={handleCreatorLogout}
-      />
-      <CreatorAccountMenuPortal
-        open={profileMenuOpen === 'top'}
-        anchorRef={topProfileRef}
-        placement="top"
-        onSettings={() => navigateStudio('Settings')}
-        onLogout={handleCreatorLogout}
-      />
+        )}
+        alerts={(
+          <>
+            {error && <div className="studio-alert error"><FaExclamationCircle /><span>{error}</span><button type="button" onClick={() => setError('')}><FaTimes /></button></div>}
+            {notice && <div className="studio-alert success"><FaCloudUploadAlt /><span>{notice}</span><button type="button" onClick={() => setNotice('')}><FaTimes /></button></div>}
+          </>
+        )}
+        overlaySlot={(
+          <>
+            <CreatorAccountMenuPortal
+              open={profileMenuOpen === 'sidebar'}
+              anchorRef={sidebarProfileRef}
+              placement="sidebar"
+              onSettings={() => navigateStudio('Settings')}
+              onLogout={handleCreatorLogout}
+            />
+            <CreatorAccountMenuPortal
+              open={profileMenuOpen === 'top'}
+              anchorRef={topProfileRef}
+              placement="top"
+              onSettings={() => navigateStudio('Settings')}
+              onLogout={handleCreatorLogout}
+            />
+          </>
+        )}
+      >
+        {renderWorkspace()}
+      </EchooAppShell>
 
       {uploadOpen && (
         <div className="studio-modal-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) closeUpload(); }}>
@@ -617,7 +613,7 @@ const CreatorStudio = () => {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 };
 

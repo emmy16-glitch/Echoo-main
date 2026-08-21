@@ -72,6 +72,15 @@ export async function updateProfile(req, res, next) {
 
     await user.save();
 
+    if (user.userType === 'creator') {
+      req.app.get('io')?.emit('catalog:changed', {
+        entity: 'profile',
+        action: 'updated',
+        userId: String(user._id),
+        username: user.username,
+      });
+    }
+
     return res.status(200).json({
       data: {
         profile: {

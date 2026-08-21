@@ -23,11 +23,12 @@ const ListenerLive = lazy(() => import('./Components/ListenerLive/ListenerLiveCo
 const ListenerStations = lazy(() => import('./Components/ListenerStations/ListenerStationsConnected'));
 const ListenerLibrary = lazy(() => import('./Components/ListenerLibrary/ListenerLibrary'));
 const ListenerFollowing = lazy(() => import('./Components/ListenerLibrary/ListenerFollowing'));
+const ListenerPlaylist = lazy(() => import('./Components/ListenerPlaylist/ListenerPlaylist'));
 const ListenerHistory = lazy(() => import('./Components/ListenerHistory/ListenerHistoryConnected'));
 const ListenerDownloads = lazy(() => import('./Components/ListenerDownloads/ListenerDownloadsConnected'));
 const ListenerCreatorProfile = lazy(() => import('./Components/ListenerCreatorProfile/ListenerCreatorProfile'));
-const ListenerNotifications = lazy(() => import('./Components/ListenerNotifications/ListenerNotifications'));
-const ListenerSettings = lazy(() => import('./Components/ListenerSettings/ListenerSettings'));
+const ListenerNotifications = lazy(() => import('./Components/ListenerNotifications/ListenerNotificationsConnected'));
+const ListenerSettings = lazy(() => import('./Components/ListenerSettings/ListenerSettingsConnected'));
 const ListenerAudioDetail = lazy(() => import('./Components/ListenerAudioDetail/ListenerAudioDetail'));
 const ListenerRealLiveRoom = lazy(() => import('./Components/ListenerLiveExperience/ListenerRealLiveRoom'));
 const ListenerRealStationProfile = lazy(() => import('./Components/ListenerLiveExperience/ListenerRealStationProfile'));
@@ -303,6 +304,7 @@ function App() {
               <Route path="audio/:audioId" element={<ListenerAudioDetail />} />
               <Route path="library" element={<ListenerLibrary />} />
               <Route path="library/following" element={<ListenerFollowing />} />
+              <Route path="playlist" element={<ListenerPlaylist />} />
               <Route path="history" element={<ListenerHistory />} />
               <Route path="downloads" element={<ListenerDownloads />} />
               <Route path="creator/:creatorId" element={<ListenerCreatorProfile />} />

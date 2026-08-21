@@ -149,6 +149,14 @@ export async function uploadAudio(req, res, next) {
 
     await audio.save();
 
+    if (audio.isPublic) {
+      req.app.get('io')?.emit('catalog:changed', {
+        entity: 'audio',
+        action: 'published',
+        audioId: String(audio._id),
+      });
+    }
+
     // From this point the media bytes and Mongo record belong together. The
     // upload error middleware must not delete files merely because a secondary
     // populate/notification step failed after the authoritative save.
@@ -347,6 +355,14 @@ export async function updateAudio(req, res, next) {
 
     await audio.save();
 
+    if (wasPublic || audio.isPublic) {
+      req.app.get('io')?.emit('catalog:changed', {
+        entity: 'audio',
+        action: wasPublic === Boolean(audio.isPublic) ? 'updated' : 'visibility',
+        audioId: String(audio._id),
+      });
+    }
+
     if (!wasPublic && audio.isPublic) {
       await notifyFollowersOfRelease(req.user, audio);
     }
@@ -375,8 +391,17 @@ export async function deleteAudio(req, res, next) {
       });
     }
 
+    const wasPublic = Boolean(audio.isPublic);
     audio.isDeleted = true;
     await audio.save();
+
+    if (wasPublic) {
+      req.app.get('io')?.emit('catalog:changed', {
+        entity: 'audio',
+        action: 'deleted',
+        audioId: String(audio._id),
+      });
+    }
 
     const audioPath = safeLocalMediaPath(
       'audio',

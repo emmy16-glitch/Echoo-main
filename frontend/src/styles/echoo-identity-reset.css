@@ -1,4 +1,5 @@
 @import "./echoo-figma-tokens.css";
+:root{--echoo-sidebar-width:205px!important}
 
 /* ==========================================================
    ECHOO IDENTITY RESET
@@ -50,7 +51,7 @@
   bottom: 0 !important;
 
   width:
-    var(--echoo-sidebar-width) !important;
+    205px !important;
 
   height: 100vh !important;
   max-height: none !important;
@@ -60,7 +61,7 @@
   flex-direction:
     column !important;
 
-  align-items: center !important;
+  align-items: stretch !important;
 
   padding:
     18px
@@ -78,35 +79,7 @@
   box-shadow: none !important;
 }
 
-/* BRAND */
-
-#root .echoo-listener-shell
-.layout-brand {
-  width: 52px !important;
-  height: 52px !important;
-
-  display: grid !important;
-
-  place-items: center !important;
-
-  margin: 0 !important;
-  padding: 0 !important;
-
-  border-radius: 12px !important;
-}
-
-#root .echoo-listener-shell
-.layout-brand img {
-  width: 42px !important;
-  height: 42px !important;
-
-  object-fit: contain !important;
-}
-
-#root .echoo-listener-shell
-.layout-brand > span {
-  display: none !important;
-}
+/* BRAND — full brand bar (logo + ECHOO label), let later stylesheets set the details */
 
 /* ==========================================================
    SLIM NAVIGATION RAIL
@@ -126,35 +99,7 @@
   margin-top: 31px !important;
 }
 
-#root .echoo-listener-shell
-.layout-nav-item {
-  position: relative !important;
-
-  width: 56px !important;
-  height: 50px !important;
-
-  min-height: 50px !important;
-
-  display: grid !important;
-
-  place-items: center !important;
-
-  padding: 0 !important;
-
-  border-radius: 10px !important;
-
-  background:
-    transparent !important;
-
-  color:
-    var(--echoo-text-secondary) !important;
-
-  transition:
-    background
-    var(--echoo-transition),
-    color
-    var(--echoo-transition) !important;
-}
+/* Nav items keep their full-row shape defined by later stylesheets. */
 
 #root .echoo-listener-shell
 .layout-nav-item:hover {
@@ -186,84 +131,7 @@
   font-size: 18px !important;
 }
 
-#root .echoo-listener-shell
-.layout-nav-label {
-  position: absolute !important;
-
-  z-index: 13000 !important;
-
-  left: 66px !important;
-  top: 50% !important;
-
-  transform:
-    translate(
-      -5px,
-      -50%
-    ) !important;
-
-  min-width: max-content !important;
-
-  padding:
-    8px
-    11px !important;
-
-  border:
-    1px solid
-    var(--echoo-border) !important;
-
-  border-radius: 8px !important;
-
-  background:
-    var(--echoo-surface) !important;
-
-  color:
-    var(--echoo-text) !important;
-
-  box-shadow:
-    var(--echoo-shadow-popover) !important;
-
-  opacity: 0 !important;
-
-  visibility:
-    hidden !important;
-
-  pointer-events:
-    none !important;
-
-  font-size: 13px !important;
-  font-weight: 600 !important;
-
-  white-space: nowrap !important;
-
-  transition:
-    opacity
-    140ms
-    ease,
-    transform
-    140ms
-    ease,
-    visibility
-    140ms
-    ease !important;
-}
-
-#root .echoo-listener-shell
-.layout-nav-item:hover
-.layout-nav-label,
-#root .echoo-listener-shell
-.layout-nav-item:focus-visible
-.layout-nav-label {
-  opacity: 1 !important;
-
-  visibility:
-    visible !important;
-
-  transform:
-    translate(
-      0,
-      -50%
-    ) !important;
-}
+/* Nav labels render inline as part of each nav item (full sidebar). */
 
 /* Old sidebar playlist section is intentionally removed */
 
@@ -272,65 +140,19 @@
   display: none !important;
 }
 
-/* PROFILE BECOMES ONE QUIET AVATAR */
-
-#root .echoo-listener-shell
-.listener-profile-menu-wrap {
-  width: 48px !important;
-
-  margin:
-    auto
-    auto
-    5px !important;
-}
-
-#root .echoo-listener-shell
-.layout-profile {
-  width: 48px !important;
-  height: 48px !important;
-
-  min-height: 48px !important;
-
-  display: grid !important;
-
-  place-items: center !important;
-
-  padding: 0 !important;
-
-  border:
-    1px solid
-    var(--echoo-border) !important;
-
-  border-radius: 50% !important;
-
-  background:
-    var(--echoo-surface) !important;
-}
-
-#root .echoo-listener-shell
-.layout-profile-image {
-  width: 38px !important;
-  height: 38px !important;
-
-  margin: 0 !important;
-
-  border-radius: 50% !important;
-}
-
-#root .echoo-listener-shell
-.layout-profile-info,
-#root .echoo-listener-shell
-.listener-profile-chevron {
-  display: none !important;
-}
+/* PROFILE FOOTER — full width row with avatar, name and role (bottom of sidebar). */
 
 #root .echoo-listener-shell
 .listener-profile-dropdown {
-  left: 58px !important;
-  bottom: 0 !important;
+  left: 12px !important;
+  bottom: auto !important;
+  top: 100% !important;
 
-  width: 190px !important;
+  width: 100% !important;
+
+  max-width: 240px !important;
 }
+
 
 /* ==========================================================
    MAIN + TOP BAR
@@ -351,7 +173,7 @@
     ) !important;
 
   margin-left:
-    var(--echoo-sidebar-width) !important;
+    205px !important;
 
   background:
     var(--echoo-canvas) !important;
@@ -593,7 +415,7 @@
   z-index: 11000 !important;
 
   left:
-    var(--echoo-sidebar-width) !important;
+    205px !important;
 
   right: 0 !important;
   bottom: 0 !important;
@@ -1026,3 +848,13 @@ article {
     font-size: 32px !important;
   }
 }
+
+/* ---------- FINAL: full-label listener sidebar (stations.png reference layout) — absolute last rules ---------- */
+:root{--echoo-sidebar-width:205px!important}
+#root .echoo-listener-shell .layout-sidebar{width:205px!important;align-items:stretch!important}
+#root .echoo-listener-shell .echoo-listener-main{width:calc(100% - 205px)!important;margin-left:205px!important}
+#root .echoo-listener-shell>.echoo-persistent-player{left:205px!important}
+/* Brand bar vertical breathing room — logo was sitting too high in the sidebar */
+#root .echoo-listener-shell .layout-brand{margin-top:14px!important;margin-bottom:26px!important}
+/* Secondary library group divider in the sidebar (matches reference layout) */
+#root .echoo-listener-shell .layout-nav-divider{width:100%!important;height:1px!important;background:#e3eaf3!important;margin:9px 0!important;flex:0 0 auto!important}

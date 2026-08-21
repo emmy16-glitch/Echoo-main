@@ -734,7 +734,7 @@ const CreatorLiveConnectedWorkspace = ({
   return (
     <section className="ebsx setup-page">
       <header className="ebsx-setup-header">
-        <div><h1>Broadcast Studio <span>PRE-LIVE SETUP</span></h1><p>Set up your broadcast, test your audio, and go live with confidence.</p></div>
+        <div><h1>Your studio is <span className="ebsx-title-accent">{microphoneReady ? 'ready' : 'getting ready'}</span></h1><p>Set up your broadcast, test your audio, and go live with confidence.</p></div>
       </header>
 
       {message && <div className="ebsx-message success">{message}</div>}

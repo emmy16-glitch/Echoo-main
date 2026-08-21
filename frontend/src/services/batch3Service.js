@@ -145,16 +145,18 @@ const batch3Service = {
   getDiscovery: async () => {
     const [stationsResult, liveResult, scheduledResult] =
       await Promise.all([
-        batch2Service.listStations({ page: 1, limit: 100 }),
+        batch2Service.listStations({ page: 1, limit: 100, cache: 'no-store' }),
         batch2Service.listBroadcasts({
           status: 'live',
           page: 1,
           limit: 100,
+          cache: 'no-store',
         }),
         batch2Service.listBroadcasts({
           status: 'scheduled',
           page: 1,
           limit: 100,
+          cache: 'no-store',
         }),
       ]);
 

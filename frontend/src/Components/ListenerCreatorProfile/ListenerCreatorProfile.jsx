@@ -14,6 +14,7 @@ import {
 } from 'react-icons/fa';
 
 import profileService from '../../services/profileService';
+import realtimeService from '../../services/realtimeService';
 import followService from '../../services/followService';
 import './ListenerCreatorProfile.css';
 
@@ -67,6 +68,30 @@ const ListenerCreatorProfile = () => {
     return () => {
       window.clearInterval(interval);
       window.removeEventListener('focus', sync);
+    };
+  }, [load]);
+
+  useEffect(() => {
+    let active = true;
+    let unsubscribe = () => {};
+    const onCatalogChanged = (event) => {
+      if (!event?.entity || ['audio', 'broadcast', 'profile', 'station'].includes(event.entity)) {
+        void load({ silent: true });
+      }
+    };
+
+    realtimeService.subscribeToCatalog(onCatalogChanged)
+      .then((cleanup) => {
+        if (active) unsubscribe = cleanup;
+        else cleanup();
+      })
+      .catch(() => {
+        // The existing 15-second polling and focus refresh remain the fallback.
+      });
+
+    return () => {
+      active = false;
+      unsubscribe();
     };
   }, [load]);
 
@@ -130,9 +155,9 @@ const ListenerCreatorProfile = () => {
   }
 
   const name =
+    profile.displayName ||
     profile.creatorProfile?.artistName ||
     profile.creatorProfile?.organizationName ||
-    profile.displayName ||
     profile.username;
   const live = profile.liveBroadcast;
 
