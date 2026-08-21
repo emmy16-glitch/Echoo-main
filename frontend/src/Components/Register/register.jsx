@@ -183,16 +183,25 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
           error?.status === 403 ||
           ["INVALID_CREDENTIALS", "AUTH_INVALID", "LOGIN_FAILED"].includes(error?.code);
 
+        const isNetworkError = error?.message?.toLowerCase() === "failed to fetch";
+
         setLoginError(
           isCredentialError
             ? "Incorrect username or password. Please check your details and try again."
-            : error?.message || "We couldn't sign you in. Please try again."
+            : isNetworkError
+              ? "We couldn't reach the Echoo sign-in service. Please check your connection and try again."
+              : error?.message || "We couldn't sign you in. Please try again."
         );
         return;
       }
 
       if (action === "Sign Up") {
-        setSignupError(error?.message || "We couldn't create your account. Please try again.");
+        const isNetworkError = error?.message?.toLowerCase() === "failed to fetch";
+        setSignupError(
+          isNetworkError
+            ? "We couldn't reach the Echoo account service. Please check your connection and try again."
+            : error?.message || "We couldn't create your account. Please try again."
+        );
         return;
       }
 
