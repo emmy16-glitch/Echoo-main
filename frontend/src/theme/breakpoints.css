@@ -1,0 +1,9 @@
+/* Echoo Design System — responsive breakpoints */
+:root {
+  --echoo-breakpoint-wide: 1200px;
+  --echoo-breakpoint-rail: 1120px;
+  --echoo-breakpoint-tablet: 980px;
+  --echoo-breakpoint-compact: 760px;
+  --echoo-breakpoint-mobile: 700px;
+  --echoo-breakpoint-small: 520px;
+}

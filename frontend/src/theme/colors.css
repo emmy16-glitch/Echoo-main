@@ -1,0 +1,50 @@
+/* Echoo Design System — colors */
+:root {
+  --echoo-color-canvas: #f7f9fc;
+  --echoo-color-canvas-subtle: #f3f6fa;
+  --echoo-color-surface: #ffffff;
+  --echoo-color-surface-soft: #fbfcfe;
+  --echoo-color-surface-hover: #f7f9fc;
+
+  --echoo-color-ink: #0b1730;
+  --echoo-color-text: #40516b;
+  --echoo-color-muted: #7b8798;
+  --echoo-color-faint: #98a2b3;
+
+  --echoo-color-brand: #246bfe;
+  --echoo-color-brand-hover: #1f5fe0;
+  --echoo-color-brand-soft: #edf4ff;
+  --echoo-color-brand-border: #cfe0ff;
+
+  --echoo-color-line: #e3e9f1;
+  --echoo-color-line-strong: #d7e0eb;
+  --echoo-color-focus: #94b8ff;
+  --echoo-color-success: #087443;
+  --echoo-color-success-soft: #f1fbf5;
+  --echoo-color-danger: #b42318;
+  --echoo-color-danger-soft: #fff6f5;
+  --echoo-color-live: #e5484d;
+  --echoo-color-white: #ffffff;
+  --echoo-color-black: #000000;
+
+  /* Compatibility aliases for existing route styles. */
+  --echoo-bg: var(--echoo-color-canvas);
+  --echoo-bg-soft: var(--echoo-color-canvas-subtle);
+  --echoo-surface: var(--echoo-color-surface);
+  --echoo-surface-soft: var(--echoo-color-surface-soft);
+  --echoo-text-h: var(--echoo-color-ink);
+  --echoo-text-strong: var(--echoo-color-ink);
+  --echoo-text: var(--echoo-color-text);
+  --echoo-text-soft: var(--echoo-color-muted);
+  --echoo-text-muted: var(--echoo-color-faint);
+  --echoo-blue: var(--echoo-color-brand);
+  --echoo-blue-hover: var(--echoo-color-brand-hover);
+  --echoo-blue-soft: var(--echoo-color-brand-soft);
+  --echoo-blue-border: var(--echoo-color-brand-border);
+  --echoo-border: var(--echoo-color-line);
+  --echoo-border-strong: var(--echoo-color-line-strong);
+  --text: var(--echoo-color-text);
+  --text-h: var(--echoo-color-ink);
+  --accent: var(--echoo-color-brand);
+  --accent-hover: var(--echoo-color-brand-hover);
+}

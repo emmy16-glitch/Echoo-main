@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  FaBell,
   FaFilter,
   FaHeadphones,
   FaList,
@@ -14,7 +13,6 @@ import {
 
 import batch3Service from '../../services/batch3Service';
 import realtimeService from '../../services/realtimeService';
-import notificationService from '../../services/notificationService';
 import { buildMediaUrl } from '../../services/api';
 import './ListenerLive.css';
 
@@ -65,7 +63,6 @@ const ListenerLiveConnected = () => {
   const [error, setError] = useState('');
   const [category, setCategory] = useState('All');
   const [sortBy, setSortBy] = useState('most');
-  const [unreadCount, setUnreadCount] = useState(0);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOpen, setSortOpen] = useState(false);
@@ -79,12 +76,6 @@ const ListenerLiveConnected = () => {
       const discovery = await batch3Service.getDiscovery();
       const liveList = Array.isArray(discovery?.live) ? discovery.live : [];
       setLive(liveList);
-      const notifications = await notificationService.list({
-        page: 1,
-        limit: 1,
-        unreadOnly: true,
-      });
-      setUnreadCount(Number(notifications?.unreadCount) || 0);
     } catch (loadError) {
       if (!silent) {
         setError(loadError?.message || 'Live broadcasts could not be loaded.');
@@ -207,15 +198,6 @@ const ListenerLiveConnected = () => {
             />
             <span className="listener-live-search-kbd">⌘ K</span>
           </div>
-          <button
-            type="button"
-            className="listener-live-notifications"
-            aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`}
-            onClick={() => navigate('/listen/notifications')}
-          >
-            <FaBell aria-hidden="true" />
-            {unreadCount > 0 && <span className="listener-live-badge">{unreadCount}</span>}
-          </button>
         </div>
       </header>
 
@@ -422,22 +404,6 @@ const ListenerLiveConnected = () => {
             )}
           </section>
 
-          <section className="listener-live-promo">
-            <span className="listener-live-promo-icon" aria-hidden="true">
-              <FaHeadphones />
-            </span>
-            <div className="listener-live-promo-copy">
-              <h3>Don't miss a live broadcast</h3>
-              <p>Follow your favorite stations and get notified when they go live.</p>
-            </div>
-            <button
-              type="button"
-              className="listener-live-promo-button"
-              onClick={() => navigate('/listen/stations')}
-            >
-              Explore stations
-            </button>
-          </section>
         </>
       )}
     </main>

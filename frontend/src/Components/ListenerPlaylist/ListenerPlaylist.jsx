@@ -14,6 +14,7 @@ import {
 import batch6Service from '../../services/batch6Service';
 import listenerService from '../../services/listenerService';
 import playlistService from '../../services/playlistService';
+import downloadService from '../../services/downloadService';
 import ListenerToast from '../ListenerUI/ListenerToast';
 import '../../styles/listener-reference-pages.css';
 import './ListenerPlaylist.css';
@@ -131,6 +132,18 @@ export default function ListenerPlaylist() {
       handlePlay(track);
     },
     [handlePlay],
+  );
+
+  const handleDownloadedPlay = useCallback(
+    async (track) => {
+      try {
+        const playableUrl = await downloadService.getPlayableUrl(track.id);
+        handlePlay({ ...track, fileUrl: playableUrl, storageMode: 'offline' });
+      } catch {
+        showToast('error', 'Could not play download', 'This downloaded audio is no longer available offline.');
+      }
+    },
+    [handlePlay, showToast],
   );
 
   const handleCreatePlaylist = useCallback(async () => {
@@ -302,7 +315,7 @@ export default function ListenerPlaylist() {
                         type="button"
                         className="pl-download-play"
                         aria-label="Play"
-                        onClick={() => handlePlay(track)}
+                        onClick={() => handleDownloadedPlay(track)}
                       >
                         <FaPlay />
                       </button>
@@ -495,9 +508,9 @@ export default function ListenerPlaylist() {
               <p className="pl-empty-note">No recent plays yet.</p>
             ) : (
               <div className="pl-recent-list">
-                {recentlyPlayed.map((track) => (
+                {recentlyPlayed.map((track, index) => (
                   <button
-                    key={idOf(track)}
+                    key={`${idOf(track)}-${track.playedAt || index}`}
                     type="button"
                     className="pl-recent-row"
                     onClick={() => handlePlay(track)}

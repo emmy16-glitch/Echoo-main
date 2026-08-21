@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import {
   FaBell,
   FaBellSlash,
@@ -91,6 +91,7 @@ const upcomingLabel = (startTime, fallbackLabel) => {
 const ListenerRealLiveRoom = () => {
   const { broadcastId } = useParams();
   const navigate = useNavigate();
+  const { setLivePlayerState } = useOutletContext();
   const user = useMemo(() => currentUser(), []);
 
   const [broadcast, setBroadcast] = useState(null);
@@ -651,7 +652,16 @@ const ListenerRealLiveRoom = () => {
 
               <div className="llr-player-controls">
             {isLive && (
-                <LiveKitListenerPlayer broadcastId={broadcast.id} isLive />
+                <LiveKitListenerPlayer
+                  broadcastId={broadcast.id}
+                  isLive
+                  track={{
+                    title: broadcast.title,
+                    subtitle: broadcast.stationName || broadcast.creatorName || 'Live station',
+                    coverArt: stationArtwork,
+                  }}
+                  onStateChange={setLivePlayerState}
+                />
               )}
                 <button
                   type="button"

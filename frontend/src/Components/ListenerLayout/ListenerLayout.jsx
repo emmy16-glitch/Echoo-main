@@ -10,27 +10,15 @@ import {
   FaCompass,
   FaListUl,
   FaBroadcastTower,
-  FaCog,
-  FaChevronDown,
   FaDownload,
   FaHeart,
   FaHistory,
   FaHome,
-  FaPause,
-  FaPlay,
-  FaRandom,
-  FaRedoAlt,
-  FaSearch,
-  FaStepBackward,
-  FaStepForward,
-  FaTimes,
-  FaVolumeMute,
-  FaVolumeUp,
-  FaHeadphones,
 } from 'react-icons/fa';
 
-import ListenerProfileMenu from './ListenerProfileMenu';
-import EchoSignal from '../EchooSystem/EchoSignal';
+import ProfileMenu from '../Shared/ProfileMenu';
+import PlayerBar from '../Shared/PlayerBar';
+import SearchBar from '../Shared/SearchBar';
 import audioService from '../../services/audioService';
 import listenerService from '../../services/listenerService';
 import notificationService from '../../services/notificationService';
@@ -127,15 +115,16 @@ const ListenerLayout = () => {
   const [user, setUser] = useState(readUser);
   const displayName =
     user.displayName || user.fullname || user.username || 'Listener';
+  const userEmail = user.email || user.emailAddress || '';
   const profileImage =
     buildMediaUrl(user.profileImage || user.avatar || localStorage.getItem('profileImage'));
-  const initial = displayName.charAt(0).toUpperCase() || 'L';
 
   const audioRef = useRef(null);
   const searchRef = useRef(null);
   const searchAreaRef = useRef(null);
   const progressSyncRef = useRef(false);
   const pendingSeekRef = useRef(null);
+  const streamRequestRef = useRef(0);
   const playerPreferencesReadyRef = useRef(false);
 
   const [currentTrack, setCurrentTrack] = useState(null);
@@ -149,6 +138,7 @@ const ListenerLayout = () => {
   const [shuffle, setShuffle] = useState(false);
   const [repeatMode, setRepeatMode] = useState('off');
   const [playerError, setPlayerError] = useState('');
+  const [livePlayerState, setLivePlayerState] = useState({ active: false, track: null, isPlaying: false, playerError: '' });
 
   const [searchQuery, setSearchQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
@@ -161,14 +151,13 @@ const ListenerLayout = () => {
     { name: 'Home', path: '/listen', icon: <FaHome />, end: true },
     { name: 'Live now', path: '/listen/live', icon: <FaBroadcastTower /> },
     { name: 'Stations', path: '/listen/stations', icon: <FaCompass />, end: true },
-    { name: 'Audio library', path: '/listen/library', icon: <FaBookOpen /> },
-    { name: 'Following', path: '/listen/library/following', icon: <FaHeart /> },
+    { name: 'Audio library', path: '/listen/library', icon: <FaBookOpen />, end: true },
+    { name: 'Following', path: '/listen/library/following', icon: <FaHeart />, end: true },
   ];
   const navigationLibrary = [
     { name: 'My playlist', path: '/listen/playlist', icon: <FaListUl /> },
     { name: 'History', path: '/listen/history', icon: <FaHistory /> },
-    { name: 'Downloads', path: '/listen/downloads', icon: <FaDownload /> },
-    { name: 'Notifications', path: '/listen/notifications', icon: <FaBell /> },
+    { name: 'Downloads', path: '/listen/downloads', icon: <FaDownload />, end: true },
   ];
 
   useEffect(() => {
@@ -290,7 +279,7 @@ const ListenerLayout = () => {
     pendingSeekRef.current = null;
   };
 
-  const loadAndPlay = (track) => {
+  const loadAndPlay = async (track) => {
     const audio = audioRef.current;
     if (!audio || !track?.fileUrl) {
       setPlayerError('This audio does not have a playable file attached to it.');
@@ -298,10 +287,24 @@ const ListenerLayout = () => {
       return false;
     }
 
+    const requestId = streamRequestRef.current + 1;
+    streamRequestRef.current = requestId;
+    let sourceUrl = track.fileUrl;
+
     try {
-      const requestedUrl = new URL(track.fileUrl, window.location.href).href;
+      // Audio records store a private upload path. Public Listener playback must
+      // use a fresh short-lived stream grant so stale catalog responses and raw
+      // /uploads/audio URLs can never reach the media element.
+      if (backendTrackId(track.id)) {
+        const stream = await audioService.getStreamUrl(track.id);
+        sourceUrl = stream.streamUrl;
+      }
+
+      if (requestId !== streamRequestRef.current) return false;
+
+      const requestedUrl = new URL(sourceUrl, window.location.href).href;
       if (audio.src !== requestedUrl) {
-        audio.src = track.fileUrl;
+        audio.src = sourceUrl;
         audio.load();
       }
 
@@ -309,25 +312,18 @@ const ListenerLayout = () => {
       audio.muted = isMuted;
       setPlayerError('');
 
-      const playPromise = audio.play();
-      if (playPromise?.then) {
-        playPromise
-          .then(() => {
-            setIsPlaying(true);
-            setPlayerError('');
-          })
-          .catch((error) => {
-            console.warn('Audio playback:', error);
-            setIsPlaying(false);
-            setPlayerError(playbackErrorMessage(error));
-          });
+      await audio.play();
+      if (requestId === streamRequestRef.current) {
+        setIsPlaying(true);
+        setPlayerError('');
       }
-
       return true;
     } catch (error) {
       console.warn('Audio playback:', error);
-      setIsPlaying(false);
-      setPlayerError(playbackErrorMessage(error));
+      if (requestId === streamRequestRef.current) {
+        setIsPlaying(false);
+        setPlayerError(playbackErrorMessage(error));
+      }
       return false;
     }
   };
@@ -627,6 +623,26 @@ const ListenerLayout = () => {
     return () => window.removeEventListener('beforeunload', unload);
   });
 
+  const handleLogout = () => {
+    [
+      'accessToken', 'refreshToken', 'token', 'user', 'profileImage', 'profileBio',
+      'echooRole', 'echooProfileCompleted', 'echooOnboardingCompleted', 'creatorSetup',
+    ].forEach((key) => localStorage.removeItem(key));
+    sessionStorage.clear();
+    window.location.replace('/');
+  };
+
+  const livePlayerActive = Boolean(livePlayerState?.active && livePlayerState?.track);
+  const renderedPlayerTrack = livePlayerActive ? livePlayerState.track : currentTrack;
+  const renderedPlayerPlaying = livePlayerActive ? Boolean(livePlayerState.isPlaying) : isPlaying;
+  const renderedPlayerError = livePlayerActive ? livePlayerState.playerError : playerError;
+
+  useEffect(() => {
+    if (!livePlayerActive || !audioRef.current) return;
+    audioRef.current.pause();
+    setIsPlaying(false);
+  }, [livePlayerActive]);
+
   const progressPercentage =
     duration > 0 ? Math.max(0, Math.min(100, (currentTime / duration) * 100)) : 0;
 
@@ -639,111 +655,51 @@ const ListenerLayout = () => {
       navGroups={[{ key: 'library', items: navigationLibrary }]}
       activeKey={location.pathname}
       sidebarFooter={(
-        <ListenerProfileMenu displayName={displayName} profileImage={profileImage} />
+        <ProfileMenu
+          displayName={displayName}
+          email={userEmail}
+          profileImage={profileImage}
+          roleLabel="Listener"
+          placement="sidebar"
+          onSettings={() => navigate('/listen/settings')}
+          onLogout={handleLogout}
+        />
       )}
       search={(
-          <div className="beautiful-search-wrapper echoo-app-search" ref={searchAreaRef}>
-            <div className={`beautiful-search ${searchOpen ? 'active' : ''}`}>
-              <FaSearch className="beautiful-search-icon" />
-              <input
-                ref={searchRef}
-                type="text"
-                placeholder="Search public Echoo audio..."
-                value={searchQuery}
-                onFocus={() => setSearchOpen(true)}
-                onChange={(event) => {
-                  setSearchQuery(event.target.value);
-                  setSearchOpen(true);
-                }}
-              />
-              {searchQuery ? (
-                <button
-                  type="button"
-                  className="beautiful-search-clear"
-                  onClick={() => {
-                    setSearchQuery('');
-                    setSearchResults([]);
-                    setSearchError('');
-                    searchRef.current?.focus();
-                  }}
-                  aria-label="Clear search"
-                >
-                  <FaTimes />
-                </button>
-              ) : (
-                <span className="beautiful-search-shortcut">/</span>
-              )}
-            </div>
-
-            {searchOpen && (
-              <div className="beautiful-search-panel">
-                {!searchQuery.trim() ? (
-                  <div className="search-panel-section">
-                    <span className="search-panel-label">Try searching</span>
-                    <div className="search-suggestion-list">
-                      {SEARCH_SUGGESTIONS.map((suggestion) => (
-                        <button
-                          key={suggestion}
-                          type="button"
-                          onClick={() => setSearchQuery(suggestion)}
-                        >
-                          <FaSearch /> <span>{suggestion}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ) : searchLoading ? (
-                  <div className="beautiful-search-empty">
-                    <strong>Searching Echoo...</strong>
-                  </div>
-                ) : searchError ? (
-                  <div className="beautiful-search-empty">
-                    <strong>Search unavailable</strong>
-                    <span>{searchError}</span>
-                  </div>
-                ) : searchResults.length ? (
-                  <div className="beautiful-results">
-                    {searchResults.slice(0, 8).map((item) => (
-                      <button
-                        key={item.id}
-                        type="button"
-                        className="beautiful-result-row"
-                        onClick={() => {
-                          playTrack(item, searchResults);
-                          setSearchOpen(false);
-                          setSearchQuery('');
-                        }}
-                      >
-                        <div className="beautiful-result-art">
-                          {item.coverArt ? (
-                            <img
-                              src={item.coverArt}
-                              alt=""
-                              style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }}
-                            />
-                          ) : (
-                            <FaHeadphones />
-                          )}
-                        </div>
-                        <div className="beautiful-result-info">
-                          <strong>{item.title}</strong>
-                          <span>{item.subtitle}</span>
-                        </div>
-                        <span className="beautiful-result-type">{item.genre || 'Audio'}</span>
-                        <span className="beautiful-result-play"><FaPlay /></span>
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="beautiful-search-empty">
-                    <strong>No results found</strong>
-                    <span>No public audio matches “{searchQuery}”.</span>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
+        <SearchBar
+          ref={searchAreaRef}
+          inputRef={searchRef}
+          className="echoo-app-search"
+          value={searchQuery}
+          placeholder="Search public Echoo audio..."
+          open={searchOpen}
+          suggestions={SEARCH_SUGGESTIONS}
+          results={searchResults}
+          loading={searchLoading}
+          error={searchError}
+          onFocus={() => setSearchOpen(true)}
+          onChange={(event) => {
+            setSearchQuery(event.target.value);
+            setSearchOpen(true);
+          }}
+          onSuggestion={(suggestion) => {
+            setSearchQuery(suggestion);
+            setSearchOpen(true);
+            searchRef.current?.focus();
+          }}
+          onResult={(item) => {
+            playTrack(item, searchResults);
+            setSearchOpen(false);
+            setSearchQuery('');
+          }}
+          onClear={() => {
+            setSearchQuery('');
+            setSearchResults([]);
+            setSearchError('');
+            searchRef.current?.focus();
+          }}
+        />
+      )}
       topActions={(
         <>
           <button
@@ -759,185 +715,95 @@ const ListenerLayout = () => {
             <FaBell />
             {unreadNotifications > 0 && <span title={`${unreadNotifications} unread`} />}
           </button>
-          <button
-            type="button"
-            className="studio-account-button"
-            title="Listener settings"
-            aria-label="Listener settings"
-            onClick={() => navigate('/listen/settings')}
-          >
-            <div className="top-avatar">{profileImage ? <img src={profileImage} alt="" /> : initial}</div>
-            <div><strong>{displayName}</strong><span>Listener</span></div>
-            <FaChevronDown />
-          </button>
+          <ProfileMenu
+            displayName={displayName}
+            email={userEmail}
+            profileImage={profileImage}
+            roleLabel="Listener"
+            placement="top"
+            onSettings={() => navigate('/listen/settings')}
+            onLogout={handleLogout}
+          />
         </>
       )}
       persistentSlot={(
-      <div className={`layout-player echoo-persistent-player ${playerError ? 'has-playback-error' : ''}`}>
-        <audio
-          ref={audioRef}
-          preload="metadata"
-          onTimeUpdate={() => setCurrentTime(audioRef.current?.currentTime || 0)}
-          onLoadedMetadata={() => {
-            const nextDuration = Number.isFinite(audioRef.current?.duration)
-              ? audioRef.current.duration
-              : currentTrack?.duration || 0;
-            setDuration(nextDuration);
-            applyPendingSeek();
+        <PlayerBar
+          audioRef={audioRef}
+          audioProps={{
+            onTimeUpdate: () => setCurrentTime(audioRef.current?.currentTime || 0),
+            onLoadedMetadata: () => {
+              const nextDuration = Number.isFinite(audioRef.current?.duration)
+                ? audioRef.current.duration
+                : currentTrack?.duration || 0;
+              setDuration(nextDuration);
+              applyPendingSeek();
+            },
+            onDurationChange: () => {
+              const nextDuration = Number.isFinite(audioRef.current?.duration)
+                ? audioRef.current.duration
+                : currentTrack?.duration || 0;
+              setDuration(nextDuration);
+              applyPendingSeek();
+            },
+            onCanPlay: () => {
+              setPlayerError('');
+              applyPendingSeek();
+            },
+            onEnded: () => {
+              syncProgress(true);
+              if (repeatMode === 'one' && audioRef.current) {
+                audioRef.current.currentTime = 0;
+                audioRef.current.play().catch((error) => {
+                  setPlayerError(playbackErrorMessage(error));
+                });
+              } else {
+                playNext();
+              }
+            },
+            onPlay: () => {
+              setIsPlaying(true);
+              setPlayerError('');
+            },
+            onPause: () => setIsPlaying(false),
+            onError: () => {
+              setIsPlaying(false);
+              setPlayerError('Echoo could not load this uploaded audio file.');
+            },
           }}
-          onDurationChange={() => {
-            const nextDuration = Number.isFinite(audioRef.current?.duration)
-              ? audioRef.current.duration
-              : currentTrack?.duration || 0;
-            setDuration(nextDuration);
-            applyPendingSeek();
+          currentTrack={renderedPlayerTrack}
+          isPlaying={renderedPlayerPlaying}
+          currentTime={currentTime}
+          duration={duration}
+          volume={livePlayerActive ? (livePlayerState.volume ?? volume) : volume}
+          isMuted={livePlayerActive ? (livePlayerState.isMuted ?? isMuted) : isMuted}
+          queue={queue}
+          shuffle={shuffle}
+          repeatMode={repeatMode}
+          playerError={renderedPlayerError}
+          progressPercentage={livePlayerActive ? 0 : progressPercentage}
+          onTogglePlay={livePlayerActive ? livePlayerState.onTogglePlay : togglePlay}
+          onPlayNext={playNext}
+          onPlayPrevious={playPrevious}
+          onSeek={seekTo}
+          onToggleShuffle={() => setShuffle((value) => !value)}
+          onToggleRepeat={() => setRepeatMode((current) => (
+            current === 'off' ? 'all' : current === 'all' ? 'one' : 'off'
+          ))}
+          onToggleMute={livePlayerActive ? livePlayerState.onToggleMute : () => {
+            const next = !isMuted;
+            setIsMuted(next);
+            if (audioRef.current) audioRef.current.muted = next;
           }}
-          onCanPlay={() => {
-            setPlayerError('');
-            applyPendingSeek();
-          }}
-          onEnded={() => {
-            syncProgress(true);
-            if (repeatMode === 'one' && audioRef.current) {
-              audioRef.current.currentTime = 0;
-              audioRef.current.play().catch((error) => {
-                setPlayerError(playbackErrorMessage(error));
-              });
-            } else {
-              playNext();
+          onVolumeChange={livePlayerActive ? livePlayerState.onVolumeChange : (next) => {
+            setVolume(next);
+            setIsMuted(next === 0);
+            if (audioRef.current) {
+              audioRef.current.volume = next;
+              audioRef.current.muted = next === 0;
             }
-          }}
-          onPlay={() => {
-            setIsPlaying(true);
-            setPlayerError('');
-          }}
-          onPause={() => setIsPlaying(false)}
-          onError={() => {
-            setIsPlaying(false);
-            setPlayerError('Echoo could not load this uploaded audio file.');
           }}
         />
-
-        <div className="layout-player-track">
-          <EchoSignal
-            size="sm"
-            active={isPlaying}
-            className="layout-player-signal"
-            label={isPlaying ? 'Echoo playback active' : 'Echoo playback signal'}
-          />
-
-          <div className="layout-player-cover">
-            {currentTrack?.coverArt ? (
-              <img
-                src={currentTrack.coverArt}
-                alt=""
-                style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }}
-              />
-            ) : (
-              <FaHeadphones />
-            )}
-          </div>
-
-          <div className="layout-player-info">
-            <strong>{currentTrack?.title || 'Choose something to play'}</strong>
-            <span className={playerError ? 'layout-player-error-copy' : ''}>
-              {playerError || currentTrack?.subtitle || 'Echoo'}
-            </span>
-          </div>
-        </div>
-
-        <div className="layout-player-controls">
-          <button
-            type="button"
-            className={shuffle ? 'active' : ''}
-            onClick={() => setShuffle((value) => !value)}
-            disabled={!queue.length}
-            aria-label="Shuffle"
-          >
-            <FaRandom />
-          </button>
-          <button type="button" onClick={playPrevious} disabled={!queue.length} aria-label="Previous">
-            <FaStepBackward />
-          </button>
-          <button
-            type="button"
-            className="layout-player-main-button"
-            onClick={togglePlay}
-            disabled={!currentTrack?.fileUrl}
-            aria-label={isPlaying ? 'Pause' : 'Play'}
-          >
-            {isPlaying ? <FaPause /> : <FaPlay />}
-          </button>
-          <button type="button" onClick={playNext} disabled={!queue.length} aria-label="Next">
-            <FaStepForward />
-          </button>
-          <button
-            type="button"
-            className={repeatMode !== 'off' ? 'active' : ''}
-            onClick={() =>
-              setRepeatMode((current) =>
-                current === 'off' ? 'all' : current === 'all' ? 'one' : 'off'
-              )
-            }
-            disabled={!queue.length}
-            aria-label={`Repeat ${repeatMode}`}
-          >
-            <FaRedoAlt />
-          </button>
-        </div>
-
-        <div className="layout-player-volume">
-          <span>{formatTime(currentTime)}</span>
-          <div
-            className="layout-player-progress"
-            onClick={(event) => {
-              if (!duration) return;
-              const rect = event.currentTarget.getBoundingClientRect();
-              seekTo(((event.clientX - rect.left) / rect.width) * duration);
-            }}
-            role="slider"
-            aria-label="Audio progress"
-            aria-valuemin="0"
-            aria-valuemax={duration}
-            aria-valuenow={currentTime}
-            tabIndex={0}
-          >
-            <div style={{ width: `${progressPercentage}%` }} />
-          </div>
-          <span>{formatTime(duration)}</span>
-
-          <button
-            type="button"
-            onClick={() => {
-              const next = !isMuted;
-              setIsMuted(next);
-              if (audioRef.current) audioRef.current.muted = next;
-            }}
-            aria-label={isMuted ? 'Unmute' : 'Mute'}
-          >
-            {isMuted || volume === 0 ? <FaVolumeMute /> : <FaVolumeUp />}
-          </button>
-
-          <input
-            type="range"
-            min="0"
-            max="1"
-            step="0.01"
-            value={isMuted ? 0 : volume}
-            onChange={(event) => {
-              const next = Number(event.target.value);
-              setVolume(next);
-              setIsMuted(next === 0);
-              if (audioRef.current) {
-                audioRef.current.volume = next;
-                audioRef.current.muted = next === 0;
-              }
-            }}
-            aria-label="Volume"
-          />
-        </div>
-      </div>
-        )}
+      )}
     >
       <div className="layout-content echoo-listener-scroll">
         <Outlet
@@ -954,6 +820,7 @@ const ListenerLayout = () => {
             playNext,
             playPrevious,
             playerError,
+            setLivePlayerState,
           }}
         />
       </div>

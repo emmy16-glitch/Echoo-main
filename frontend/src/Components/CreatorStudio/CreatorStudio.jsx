@@ -3,7 +3,6 @@ import {
   FaBell,
   FaBroadcastTower,
   FaChartBar,
-  FaChevronDown,
   FaCloudUploadAlt,
   FaCog,
   FaExclamationCircle,
@@ -31,8 +30,9 @@ import CreatorAudienceWorkspace from './CreatorAudienceWorkspace';
 import CreatorAnalyticsWorkspace from './CreatorAnalyticsConnectedWorkspace';
 import CreatorSettingsWorkspace from './CreatorSettingsWorkspace';
 import CreatorNotificationsWorkspace from './CreatorNotificationsWorkspace';
-import CreatorAccountMenuPortal from './CreatorAccountMenuPortal';
 import EchooAppShell from '../Shared/EchooAppShell';
+import ProfileMenu from '../Shared/ProfileMenu';
+import SearchBar from '../Shared/SearchBar';
 
 const GENRES = [
   'Pop', 'Rock', 'Hip-Hop', 'Electronic', 'Jazz', 'Classical', 'R&B',
@@ -88,10 +88,6 @@ const CreatorStudio = () => {
     () => sessionStorage.getItem('echooPreparedBroadcastId') || ''
   );
   const [studioSearch, setStudioSearch] = useState('');
-  const [profileMenuOpen, setProfileMenuOpen] = useState('');
-
-  const sidebarProfileRef = useRef(null);
-  const topProfileRef = useRef(null);
 
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -110,7 +106,7 @@ const CreatorStudio = () => {
 
   const studioType = isOrganization ? 'Organization' : 'Individual Creator';
   const profileImage = user.avatar || user.profileImage || localStorage.getItem('profileImage') || null;
-  const initial = studioName.charAt(0).toUpperCase() || 'E';
+  const userEmail = user.email || user.emailAddress || '';
 
   const generatedUploadArtwork = useMemo(
     () => buildGeneratedAudioCoverUrl({
@@ -164,24 +160,6 @@ const CreatorStudio = () => {
     return () => window.removeEventListener('echoo:creator-audio-changed', onCreatorAudioChanged);
   }, []);
 
-  useEffect(() => {
-    const closeProfileMenu = (event) => {
-      const insideTrigger = event.target.closest?.('[data-creator-profile-menu]');
-      const insidePopover = event.target.closest?.('[data-creator-profile-popover]');
-      if (!insideTrigger && !insidePopover) setProfileMenuOpen('');
-    };
-    const closeOnEscape = (event) => {
-      if (event.key === 'Escape') setProfileMenuOpen('');
-    };
-
-    document.addEventListener('pointerdown', closeProfileMenu);
-    document.addEventListener('keydown', closeOnEscape);
-    return () => {
-      document.removeEventListener('pointerdown', closeProfileMenu);
-      document.removeEventListener('keydown', closeOnEscape);
-    };
-  }, []);
-
   const navigateStudio = (page) => {
     let target = page;
     if (page === 'Live') {
@@ -192,7 +170,6 @@ const CreatorStudio = () => {
       sessionStorage.setItem('echooBroadcastMode', 'later');
       target = 'Broadcast';
     }
-    setProfileMenuOpen('');
     setError('');
     setNotice('');
     setActiveNav(target);
@@ -440,47 +417,42 @@ const CreatorStudio = () => {
           </button>
         )}
         search={(
-          <form className="studio-command-search" onSubmit={handleSearchSubmit}>
-            <FaSearch />
-            <input value={studioSearch} onChange={(event) => setStudioSearch(event.target.value)} placeholder="Search Creator Studio..." aria-label="Search Creator Studio" />
-          </form>
+          <SearchBar
+            className="studio-command-search"
+            value={studioSearch}
+            placeholder="Search Creator Studio..."
+            aria-label="Search Creator Studio"
+            onChange={(event) => setStudioSearch(event.target.value)}
+            onKeyDown={handleSearchSubmit}
+            onClear={() => setStudioSearch('')}
+          />
         )}
         topActions={(
           <>
             <button type="button" className="notification-button" onClick={() => navigateStudio('Notifications')} title="Notifications" aria-label="Notifications"><FaBell /></button>
-            <div className="studio-top-profile-wrap" data-creator-profile-menu>
-              <button
-                ref={topProfileRef}
-                type="button"
-                className="studio-account-button"
-                aria-expanded={profileMenuOpen === 'top'}
-                aria-haspopup="menu"
-                onClick={() => setProfileMenuOpen((current) => current === 'top' ? '' : 'top')}
-              >
-                <div className="top-avatar">{profileImage ? <img src={profileImage} alt="" /> : initial}</div>
-                <div><strong>{studioName}</strong><span>Creator</span></div>
-                <FaChevronDown />
-              </button>
-            </div>
+            <ProfileMenu
+              displayName={studioName}
+              email={userEmail}
+              profileImage={profileImage}
+              roleLabel={studioType}
+              placement="top"
+              onAccount={() => navigateStudio('Settings')}
+              onSettings={() => navigateStudio('Settings')}
+              onLogout={handleCreatorLogout}
+            />
           </>
         )}
         sidebarFooter={(
-          <div className="studio-sidebar-profile-wrap" data-creator-profile-menu>
-            <button
-              ref={sidebarProfileRef}
-              type="button"
-              className="studio-sidebar-profile"
-              aria-expanded={profileMenuOpen === 'sidebar'}
-              aria-haspopup="menu"
-              aria-label={studioName + ' profile menu'}
-              title={studioName}
-              onClick={() => setProfileMenuOpen((current) => current === 'sidebar' ? '' : 'sidebar')}
-            >
-              <div className="sidebar-avatar">{profileImage ? <img src={profileImage} alt="" /> : initial}</div>
-              <div className="sidebar-profile-text"><strong>{studioName}</strong><span>{studioType}</span></div>
-              <FaChevronDown />
-            </button>
-          </div>
+          <ProfileMenu
+            displayName={studioName}
+            email={userEmail}
+            profileImage={profileImage}
+            roleLabel={studioType}
+            placement="sidebar"
+            onAccount={() => navigateStudio('Settings')}
+            onSettings={() => navigateStudio('Settings')}
+            onLogout={handleCreatorLogout}
+          />
         )}
         alerts={(
           <>
@@ -488,24 +460,7 @@ const CreatorStudio = () => {
             {notice && <div className="studio-alert success"><FaCloudUploadAlt /><span>{notice}</span><button type="button" onClick={() => setNotice('')}><FaTimes /></button></div>}
           </>
         )}
-        overlaySlot={(
-          <>
-            <CreatorAccountMenuPortal
-              open={profileMenuOpen === 'sidebar'}
-              anchorRef={sidebarProfileRef}
-              placement="sidebar"
-              onSettings={() => navigateStudio('Settings')}
-              onLogout={handleCreatorLogout}
-            />
-            <CreatorAccountMenuPortal
-              open={profileMenuOpen === 'top'}
-              anchorRef={topProfileRef}
-              placement="top"
-              onSettings={() => navigateStudio('Settings')}
-              onLogout={handleCreatorLogout}
-            />
-          </>
-        )}
+
       >
         {renderWorkspace()}
       </EchooAppShell>

@@ -682,13 +682,13 @@ const ListenerHome = () => {
             </button>
           </div>
           <div className="echoo-home-history-list">
-            {recentHistory.slice(0, 4).map((entry) => {
+            {recentHistory.slice(0, 4).map((entry, index) => {
               const track = entry?.track || entry;
               const audioId = idOf(track);
               const isLive = liveNow.some((b) => idOf(b) === audioId);
               return (
                 <button
-                  key={`${audioId}-${entry?.playedAt || ''}`}
+                  key={`${audioId}-${entry?.playedAt || index}`}
                   type="button"
                   className="echoo-home-history-row"
                   onClick={() => (isLive ? openBroadcast(track) : openAudio(track))}

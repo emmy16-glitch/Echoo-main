@@ -916,3 +916,155 @@ body,
     height: 42px;
   }
 }
+
+/* Listener shell correction: one expanded desktop rail, one scroll owner, and one aligned player. */
+@media (min-width: 701px) {
+  #root .echoo-app-shell--listener.echoo-app-shell {
+    grid-template-columns: 244px minmax(0, 1fr) !important;
+    grid-template-rows: minmax(0, 1fr) !important;
+    height: 100vh !important;
+    min-height: 100vh !important;
+    overflow: hidden !important;
+  }
+  #root .echoo-app-shell--listener .studio-sidebar {
+    width: 244px !important;
+    height: 100vh !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    padding: 22px 14px 18px !important;
+  }
+  #root .echoo-app-shell--listener .studio-sidebar-head {
+    display: block !important;
+    min-height: 52px;
+    margin: 0 0 18px;
+  }
+  #root .echoo-app-shell--listener .studio-brand {
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    padding: 0 8px !important;
+    text-decoration: none !important;
+  }
+  #root .echoo-app-shell--listener .studio-logo {
+    display: block !important;
+    flex: 0 0 42px !important;
+    width: 42px !important;
+    height: 42px !important;
+    padding: 5px !important;
+    box-sizing: border-box !important;
+    border-radius: 10px !important;
+    background: #fff !important;
+    object-fit: contain !important;
+    object-position: center !important;
+  }
+  #root .echoo-app-shell--listener .studio-brand > div {
+    display: grid !important;
+    min-width: 0 !important;
+    gap: 1px !important;
+  }
+  #root .echoo-app-shell--listener .studio-brand h2,
+  #root .echoo-app-shell--listener .studio-brand span {
+    display: block !important;
+    margin: 0 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+  #root .echoo-app-shell--listener .studio-navigation {
+    display: grid !important;
+    gap: 8px !important;
+  }
+  #root .echoo-app-shell--listener .studio-nav-item {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    width: 100% !important;
+    height: 44px !important;
+    min-height: 44px !important;
+    padding: 0 12px !important;
+    gap: 12px !important;
+  }
+  #root .echoo-app-shell--listener .studio-nav-label {
+    display: block !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+  #root .echoo-app-shell--listener .studio-main {
+    grid-column: 2 !important;
+    width: auto !important;
+    height: 100vh !important;
+    min-height: 0 !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    padding-bottom: calc(var(--echoo-player-height) + 24px) !important;
+    scrollbar-gutter: stable;
+  }
+  #root .echoo-app-shell--listener .studio-view {
+    min-height: 0 !important;
+    padding-bottom: calc(var(--echoo-player-height) + 32px) !important;
+  }
+  #root .echoo-app-shell--listener .echoo-player-bar {
+    left: 244px !important;
+    width: auto !important;
+  }
+}
+@media (max-width: 700px) {
+  #root .echoo-app-shell--listener .studio-main {
+    height: auto !important;
+    min-height: 100vh !important;
+    overflow: visible !important;
+    padding-bottom: calc(var(--echoo-player-height-compact) + 78px) !important;
+  }
+  #root .echoo-app-shell--listener .echoo-player-bar {
+    left: 0 !important;
+    width: 100% !important;
+  }
+}
+.echoo-listener-shell img[src=""],
+.echoo-listener-shell img:not([src]) {
+  visibility: hidden;
+}
+.echoo-listener-shell .pl-recent-art,
+.echoo-listener-shell .pl-top-art,
+.echoo-listener-shell .pl-popular-art,
+.echoo-listener-shell .pl-playlist-art,
+.echoo-listener-shell .pl-download-art,
+.echoo-listener-shell .ld-row-art {
+  background: var(--echoo-color-brand-soft, #eef4ff);
+}
+.echoo-listener-shell .pl-recent-art img,
+.echoo-listener-shell .pl-top-art img,
+.echoo-listener-shell .pl-popular-art img,
+.echoo-listener-shell .pl-playlist-art img,
+.echoo-listener-shell .pl-download-art img,
+.echoo-listener-shell .ld-row-art img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.echoo-listener-shell .al-row-more {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+}
+.echoo-listener-shell .al-row-more svg {
+  width: 13px;
+  height: 13px;
+}
+.echoo-listener-shell .studio-nav-item.active {
+  outline: none !important;
+}
+.echoo-listener-shell .studio-nav-item:focus-visible {
+  outline: 2px solid var(--echoo-color-focus) !important;
+  outline-offset: 2px !important;
+}
+.echoo-listener-shell .studio-nav-item.active:focus-visible {
+  box-shadow: inset 3px 0 0 var(--echoo-color-brand), 0 0 0 2px var(--echoo-color-focus) !important;
+}

@@ -1,0 +1,12 @@
+/* Echoo Design System — radius */
+:root {
+  --echoo-radius-none: 0;
+  --echoo-radius-xs: .375rem;
+  --echoo-radius-sm: .5rem;
+  --echoo-radius-md: .75rem;
+  --echoo-radius-lg: 1rem;
+  --echoo-radius-xl: 1.125rem;
+  --echoo-radius-2xl: 1.25rem;
+  --echoo-radius-pill: 999px;
+  --echoo-radius-circle: 50%;
+}
