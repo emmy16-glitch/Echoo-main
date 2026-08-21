@@ -59,16 +59,16 @@ const PlayerBar = ({
       </div>
       <div className="echoo-player-bar__info">
         <strong>{currentTrack?.title || 'Choose something to play'}</strong>
-        <span>{playerError || currentTrack?.subtitle || 'Echoo'}</span>
+        <span>{playerError || (currentTrack?.isLive ? 'LIVE' : currentTrack?.subtitle || 'Echoo')}</span>
       </div>
     </div>
 
     <div className="echoo-player-bar__controls" aria-label="Playback controls">
-      <button type="button" className={shuffle ? 'active' : ''} onClick={onToggleShuffle} disabled={!queue.length} aria-label="Shuffle"><FaRandom /></button>
-      <button type="button" onClick={onPlayPrevious} disabled={!queue.length} aria-label="Previous"><FaStepBackward /></button>
-      <button type="button" className="echoo-player-bar__play" onClick={onTogglePlay} disabled={!currentTrack?.fileUrl} aria-label={isPlaying ? 'Pause' : 'Play'}>{isPlaying ? <FaPause /> : <FaPlay />}</button>
-      <button type="button" onClick={onPlayNext} disabled={!queue.length} aria-label="Next"><FaStepForward /></button>
-      <button type="button" className={repeatMode !== 'off' ? 'active' : ''} onClick={onToggleRepeat} disabled={!queue.length} aria-label={`Repeat ${repeatMode}`}><FaRedoAlt /></button>
+      <button type="button" className={shuffle ? 'active' : ''} onClick={onToggleShuffle} disabled={currentTrack?.isLive || !queue.length} aria-label="Shuffle"><FaRandom /></button>
+      <button type="button" onClick={onPlayPrevious} disabled={currentTrack?.isLive || !queue.length} aria-label="Previous"><FaStepBackward /></button>
+      <button type="button" className="echoo-player-bar__play" onClick={onTogglePlay} disabled={!currentTrack?.fileUrl && !currentTrack?.isLive} aria-label={isPlaying ? 'Pause' : 'Play'}>{isPlaying ? <FaPause /> : <FaPlay />}</button>
+      <button type="button" onClick={onPlayNext} disabled={currentTrack?.isLive || !queue.length} aria-label="Next"><FaStepForward /></button>
+      <button type="button" className={repeatMode !== 'off' ? 'active' : ''} onClick={onToggleRepeat} disabled={currentTrack?.isLive || !queue.length} aria-label={`Repeat ${repeatMode}`}><FaRedoAlt /></button>
     </div>
 
     <div className="echoo-player-bar__progress-wrap">
@@ -81,7 +81,7 @@ const PlayerBar = ({
           const rect = event.currentTarget.getBoundingClientRect();
           onSeek?.(((event.clientX - rect.left) / rect.width) * duration);
         }}
-        aria-label="Audio progress"
+        aria-label={currentTrack?.isLive ? 'Live stream progress' : 'Audio progress'}
         aria-valuemin="0"
         aria-valuemax={duration}
         aria-valuenow={currentTime}

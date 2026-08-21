@@ -7,7 +7,6 @@ import {
   FaChevronLeft,
   FaChevronRight,
   FaDownload,
-  FaEllipsisV,
   FaHeadphones,
   FaMusic,
   FaPause,
@@ -385,11 +384,12 @@ const ListenerLibrary = () => {
                   <button
                     type="button"
                     className="al-row-more"
-                    title={downloaded ? 'Already downloading' : 'Download'}
+                    title={downloaded ? 'Already downloaded' : 'Download'}
+                    aria-label={downloaded ? 'Already downloaded' : `Download ${track.title || 'audio'}`}
                     disabled={busyId === id || downloaded}
                     onClick={() => requestDownload(track)}
                   >
-                    <FaEllipsisV />
+                    <FaDownload />
                   </button>
                 </article>
               );

@@ -344,10 +344,10 @@ const downloadService = {
   },
 
   getPlayableUrl: async (trackId) => {
+    if (!trackId) throw new Error('Downloaded track does not have an ID.');
     const target = readDownloads().find((item) => String(item.id) === String(trackId));
-    if (!target) throw new Error('Downloaded track not found.');
 
-    if (cacheStorageAvailable()) {
+    if (target && cacheStorageAvailable()) {
       try {
         const cache = await caches.open(CACHE_NAME);
         const preferredKey = target.cacheUrl || offlineCacheUrl(trackId);
@@ -370,7 +370,7 @@ const downloadService = {
       }
     }
 
-    if (indexedDbAvailable()) {
+    if (target && indexedDbAvailable()) {
       try {
         const blob = await getIndexedDbBlob(trackId);
         if (blob?.size) return URL.createObjectURL(blob);
@@ -382,8 +382,9 @@ const downloadService = {
       }
     }
 
-    // If local browser storage was evicted, obtain a fresh online stream rather
-    // than returning an expired signed URL saved months earlier.
+    // Backend download rows can exist without a browser-local copy (for example
+    // after a fresh login, cleared site storage, or another device). In that
+    // case, obtain a fresh protected stream rather than failing before playback.
     const { streamUrl } = await audioService.getStreamUrl(trackId);
     return streamUrl;
   },

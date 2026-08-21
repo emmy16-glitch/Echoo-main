@@ -1,4 +1,5 @@
 import { apiRequest, buildMediaUrl } from './api.js';
+import { buildGeneratedAudioCoverUrl } from '../audioCover/audioCover.js';
 
 const normalizeTrack = (entry) => {
   if (!entry) return null;
@@ -29,7 +30,15 @@ const normalizeTrack = (entry) => {
         : artist?.displayName || artist?.username) ||
       'Echoo Creator',
     fileUrl: buildMediaUrl(track.fileUrl || null),
-    coverArt: buildMediaUrl(track.coverArt || null),
+    coverArt:
+      buildMediaUrl(track.coverArt || null) ||
+      buildGeneratedAudioCoverUrl({
+        ...track,
+        artistName:
+          track.artistName ||
+          (typeof artist === 'string' ? artist : artist?.displayName || artist?.username) ||
+          'Echoo Creator',
+      }),
     duration: Number(track.duration) || 0,
     genre: track.genre || 'Audio',
   };
@@ -39,6 +48,10 @@ const normalizePlaylist = (playlist) => {
   if (!playlist) return null;
 
   const owner = playlist.owner;
+  const ownerName =
+    typeof owner === 'string'
+      ? 'Echoo User'
+      : owner?.displayName || owner?.username || 'Echoo User';
   const tracks = Array.isArray(playlist.tracks)
     ? playlist.tracks.map(normalizeTrack).filter(Boolean)
     : [];
@@ -50,11 +63,15 @@ const normalizePlaylist = (playlist) => {
     description: playlist.description || '',
     ownerId:
       typeof owner === 'string' ? owner : owner?._id || owner?.id || null,
-    ownerName:
-      typeof owner === 'string'
-        ? 'Echoo User'
-        : owner?.displayName || owner?.username || 'Echoo User',
-    coverArt: buildMediaUrl(playlist.coverArt || null),
+    ownerName,
+    coverArt:
+      buildMediaUrl(playlist.coverArt || null) ||
+      tracks[0]?.coverArt ||
+      buildGeneratedAudioCoverUrl({
+        title: playlist.name || 'Echoo Playlist',
+        artistName: ownerName,
+        genre: 'Playlist',
+      }),
     tracks,
     trackCount: tracks.length,
     isPublic: Boolean(playlist.isPublic),

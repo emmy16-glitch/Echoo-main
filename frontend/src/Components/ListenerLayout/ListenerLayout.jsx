@@ -138,6 +138,7 @@ const ListenerLayout = () => {
   const [shuffle, setShuffle] = useState(false);
   const [repeatMode, setRepeatMode] = useState('off');
   const [playerError, setPlayerError] = useState('');
+  const [livePlayerState, setLivePlayerState] = useState({ active: false, track: null, isPlaying: false, playerError: '' });
 
   const [searchQuery, setSearchQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
@@ -150,14 +151,13 @@ const ListenerLayout = () => {
     { name: 'Home', path: '/listen', icon: <FaHome />, end: true },
     { name: 'Live now', path: '/listen/live', icon: <FaBroadcastTower /> },
     { name: 'Stations', path: '/listen/stations', icon: <FaCompass />, end: true },
-    { name: 'Audio library', path: '/listen/library', icon: <FaBookOpen /> },
-    { name: 'Following', path: '/listen/library/following', icon: <FaHeart /> },
+    { name: 'Audio library', path: '/listen/library', icon: <FaBookOpen />, end: true },
+    { name: 'Following', path: '/listen/library/following', icon: <FaHeart />, end: true },
   ];
   const navigationLibrary = [
     { name: 'My playlist', path: '/listen/playlist', icon: <FaListUl /> },
     { name: 'History', path: '/listen/history', icon: <FaHistory /> },
-    { name: 'Downloads', path: '/listen/downloads', icon: <FaDownload /> },
-    { name: 'Notifications', path: '/listen/notifications', icon: <FaBell /> },
+    { name: 'Downloads', path: '/listen/downloads', icon: <FaDownload />, end: true },
   ];
 
   useEffect(() => {
@@ -632,6 +632,17 @@ const ListenerLayout = () => {
     window.location.replace('/');
   };
 
+  const livePlayerActive = Boolean(livePlayerState?.active && livePlayerState?.track);
+  const renderedPlayerTrack = livePlayerActive ? livePlayerState.track : currentTrack;
+  const renderedPlayerPlaying = livePlayerActive ? Boolean(livePlayerState.isPlaying) : isPlaying;
+  const renderedPlayerError = livePlayerActive ? livePlayerState.playerError : playerError;
+
+  useEffect(() => {
+    if (!livePlayerActive || !audioRef.current) return;
+    audioRef.current.pause();
+    setIsPlaying(false);
+  }, [livePlayerActive]);
+
   const progressPercentage =
     duration > 0 ? Math.max(0, Math.min(100, (currentTime / duration) * 100)) : 0;
 
@@ -759,18 +770,18 @@ const ListenerLayout = () => {
               setPlayerError('Echoo could not load this uploaded audio file.');
             },
           }}
-          currentTrack={currentTrack}
-          isPlaying={isPlaying}
+          currentTrack={renderedPlayerTrack}
+          isPlaying={renderedPlayerPlaying}
           currentTime={currentTime}
           duration={duration}
-          volume={volume}
-          isMuted={isMuted}
+          volume={livePlayerActive ? (livePlayerState.volume ?? volume) : volume}
+          isMuted={livePlayerActive ? (livePlayerState.isMuted ?? isMuted) : isMuted}
           queue={queue}
           shuffle={shuffle}
           repeatMode={repeatMode}
-          playerError={playerError}
-          progressPercentage={progressPercentage}
-          onTogglePlay={togglePlay}
+          playerError={renderedPlayerError}
+          progressPercentage={livePlayerActive ? 0 : progressPercentage}
+          onTogglePlay={livePlayerActive ? livePlayerState.onTogglePlay : togglePlay}
           onPlayNext={playNext}
           onPlayPrevious={playPrevious}
           onSeek={seekTo}
@@ -778,12 +789,12 @@ const ListenerLayout = () => {
           onToggleRepeat={() => setRepeatMode((current) => (
             current === 'off' ? 'all' : current === 'all' ? 'one' : 'off'
           ))}
-          onToggleMute={() => {
+          onToggleMute={livePlayerActive ? livePlayerState.onToggleMute : () => {
             const next = !isMuted;
             setIsMuted(next);
             if (audioRef.current) audioRef.current.muted = next;
           }}
-          onVolumeChange={(next) => {
+          onVolumeChange={livePlayerActive ? livePlayerState.onVolumeChange : (next) => {
             setVolume(next);
             setIsMuted(next === 0);
             if (audioRef.current) {
@@ -809,6 +820,7 @@ const ListenerLayout = () => {
             playNext,
             playPrevious,
             playerError,
+            setLivePlayerState,
           }}
         />
       </div>

@@ -26,7 +26,7 @@ const isEchooProgramPublication = (publication) => {
   );
 };
 
-const LiveKitListenerPlayer = ({ broadcastId, isLive }) => {
+const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChange }) => {
   const roomRef = useRef(null);
   const audioHostRef = useRef(null);
   const outputRef = useRef('');
@@ -38,6 +38,8 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive }) => {
   const [outputs, setOutputs] = useState([]);
   const [outputDeviceId, setOutputDeviceId] = useState('');
   const [trackCount, setTrackCount] = useState(0);
+  const [liveVolume, setLiveVolume] = useState(1);
+  const [liveMuted, setLiveMuted] = useState(false);
 
   useEffect(() => {
     outputRef.current = outputDeviceId;
@@ -266,6 +268,43 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive }) => {
     }
   };
 
+  const togglePlayback = async () => {
+    if (needsAudioStart) {
+      await startAudio();
+      return;
+    }
+
+    const elements = Array.from(audioHostRef.current?.querySelectorAll('audio') || []);
+    if (!elements.length) return;
+    const shouldPlay = elements.every((element) => element.paused);
+    try {
+      await Promise.all(elements.map((element) => (shouldPlay ? element.play() : element.pause())));
+      setStatus(shouldPlay ? 'listening' : 'connected');
+    } catch (playError) {
+      setNeedsAudioStart(true);
+      setError(playError?.message || 'Tap again to start the live audio.');
+    }
+  };
+
+  const toggleMute = () => {
+    const elements = Array.from(audioHostRef.current?.querySelectorAll('audio') || []);
+    const nextMuted = elements.some((element) => !element.muted);
+    elements.forEach((element) => { element.muted = nextMuted; });
+    setLiveMuted(nextMuted);
+  };
+
+  const changeVolume = (value) => {
+    const nextVolume = Math.max(0, Math.min(1, Number(value) || 0));
+    const nextMuted = nextVolume === 0;
+    const elements = Array.from(audioHostRef.current?.querySelectorAll('audio') || []);
+    elements.forEach((element) => {
+      element.volume = nextVolume;
+      element.muted = nextMuted;
+    });
+    setLiveVolume(nextVolume);
+    setLiveMuted(nextMuted);
+  };
+
   const changeOutput = async (deviceId) => {
     setOutputDeviceId(deviceId);
     outputRef.current = deviceId;
@@ -282,6 +321,24 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive }) => {
       setError(outputError?.message || 'Could not switch the listening output.');
     }
   };
+
+  useEffect(() => {
+    onStateChange?.({
+      active: Boolean(isLive),
+      isPlaying: status === 'listening',
+      track: isLive && track ? { ...track, isLive: true } : null,
+      playerError: error,
+      volume: liveVolume,
+      isMuted: liveMuted,
+      onTogglePlay: togglePlayback,
+      onToggleMute: toggleMute,
+      onVolumeChange: changeVolume,
+    });
+
+    return () => {
+      onStateChange?.({ active: false, track: null, isPlaying: false, playerError: '' });
+    };
+  }, [isLive, track, status, error, needsAudioStart, liveVolume, liveMuted]);
 
   if (!isLive) return null;
 

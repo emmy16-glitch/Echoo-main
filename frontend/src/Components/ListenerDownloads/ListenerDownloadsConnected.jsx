@@ -11,6 +11,7 @@ import {
 import Toast from '../ListenerUI/ListenerToast';
 import audioService from '../../services/audioService';
 import batch6Service from '../../services/batch6Service';
+import downloadService from '../../services/downloadService';
 import '../../styles/listener-reference-pages.css';
 import './ListenerDownloads.css';
 
@@ -93,6 +94,7 @@ const ListenerDownloadsConnected = () => {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('all');
   const [busyId, setBusyId] = useState('');
+  const [playingId, setPlayingId] = useState('');
 
   const load = useCallback(async ({ silent = false } = {}) => {
     try {
@@ -152,12 +154,21 @@ const ListenerDownloadsConnected = () => {
   const isCurrent = (track) =>
     Boolean(currentTrack && currentTrack.id && String(currentTrack.id) === String(track.id));
 
-  const handleRowClick = (track) => {
+  const handleRowClick = async (track) => {
     if (isCurrent(track)) {
       togglePlay();
       return;
     }
-    playTrack(track);
+
+    try {
+      setPlayingId(String(track.id));
+      const playableUrl = await downloadService.getPlayableUrl(track.id);
+      playTrack({ ...track, fileUrl: playableUrl, storageMode: 'offline' });
+    } catch (error) {
+      notify(error?.message || 'This downloaded audio is no longer available offline.', 'error');
+    } finally {
+      setPlayingId('');
+    }
   };
 
   return (
@@ -221,7 +232,7 @@ const ListenerDownloadsConnected = () => {
                 <span className="ld-row-art">
                   <img src={track.coverArt} alt="" loading="lazy" />
                   <span className="ld-row-art-icon">
-                    {current && isPlaying ? <FaPause /> : <FaPlay />}
+                    {current && isPlaying ? <FaPause /> : playingId === String(track.id) ? <FaClock /> : <FaPlay />}
                   </span>
                 </span>
                 <span className="ld-row-info">
