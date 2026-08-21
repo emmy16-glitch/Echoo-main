@@ -550,3 +550,92 @@
     grid-column: auto;
   }
 }
+
+
+/* Create Station modal: keep the complete form reachable at every viewport size. */
+#root .est-modal-backdrop {
+  align-items: center;
+  min-height: 100dvh;
+  overflow-y: auto;
+  padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+  overscroll-behavior: contain;
+}
+
+#root .est-form {
+  width: min(780px, 100%);
+  max-height: min(900px, calc(100dvh - 32px));
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+#root .est-form-grid,
+#root .est-form-actions,
+#root .est-form-head {
+  min-width: 0;
+}
+
+#root .est-form-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  box-shadow: 0 -8px 18px rgba(16, 24, 40, .05);
+}
+
+@media (max-width: 680px) {
+  #root .est-modal-backdrop {
+    align-items: flex-start;
+    padding: max(12px, env(safe-area-inset-top)) 10px max(12px, env(safe-area-inset-bottom));
+  }
+
+  #root .est-form {
+    max-height: calc(100dvh - 24px);
+    border-radius: 14px;
+  }
+
+  #root .est-form-head {
+    padding: 18px 16px 15px;
+  }
+
+  #root .est-form-head h2 {
+    font-size: 21px;
+  }
+
+  #root .est-form-grid {
+    gap: 14px;
+    padding: 16px;
+  }
+
+  #root .est-brand-editor {
+    gap: 14px !important;
+    padding: 12px;
+  }
+
+  #root .est-brand-preview {
+    aspect-ratio: 1.5 / 1;
+  }
+
+  #root .est-brand-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  #root .est-brand-actions button {
+    width: 100%;
+    min-height: 42px;
+    font-size: 9px;
+  }
+
+  #root .est-form-actions {
+    gap: 8px;
+    padding: 12px 16px max(16px, env(safe-area-inset-bottom));
+  }
+
+  #root .est-form-actions > button {
+    flex: 1 1 0;
+    min-height: 44px;
+  }
+}
