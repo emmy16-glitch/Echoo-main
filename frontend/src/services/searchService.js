@@ -99,6 +99,14 @@ const searchService = {
 
   clearHistory: async () =>
     apiRequest('/search/history', { method: 'DELETE' }),
+
+  // Real trending content from the existing public /search/trending
+  // endpoint (live stations + recent public tracks with activity).
+  trending: async () => {
+    const response = await apiRequest('/search/trending');
+    const raw = Array.isArray(response?.data) ? response.data : [];
+    return { ...response, data: raw };
+  },
 };
 
 export default searchService;

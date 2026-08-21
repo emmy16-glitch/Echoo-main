@@ -1,0 +1,131 @@
+/* ─────────────────────────────────────────────────────────────
+   Echoo Design System — persistent player
+   Reference-driven styling for the fixed bottom player bar.
+   Scoped to the shared `.echoo-player-bar` markup so behavior
+   (audio element, queue, shuffle, seek) is untouched.
+   ───────────────────────────────────────────────────────────── */
+.echoo-player-bar {
+  background: var(--echoo-ds-surface);
+  border-top: 1px solid var(--echoo-ds-line);
+  box-shadow: 0 -8px 24px -12px rgba(11, 23, 48, 0.12);
+}
+
+.echoo-player-bar__track {
+  display: flex;
+  align-items: center;
+  gap: var(--echoo-space-3, 0.75rem);
+  min-width: 0;
+}
+
+.echoo-player-bar__art {
+  width: 52px;
+  height: 52px;
+  flex: 0 0 52px;
+  border-radius: var(--echoo-ds-radius-md);
+  overflow: hidden;
+  background: var(--echoo-ds-brand-soft);
+  color: var(--echoo-ds-brand);
+  display: grid;
+  place-items: center;
+  font-size: 1.25rem;
+}
+
+.echoo-player-bar__info {
+  min-width: 0;
+  display: grid;
+  gap: 0.125rem;
+}
+
+.echoo-player-bar__info strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--echoo-ds-ink);
+  font-size: var(--echoo-ds-small-size);
+  font-weight: 600;
+}
+
+.echoo-player-bar__info span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--echoo-ds-muted);
+  font-size: var(--echoo-ds-caption-size);
+}
+
+.echoo-player-bar__controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--echoo-space-3, 0.75rem);
+}
+
+.echoo-player-bar__controls button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: var(--echoo-ds-radius-pill);
+  background: transparent;
+  color: var(--echoo-ds-muted);
+  font-size: 0.9375rem;
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease;
+}
+
+.echoo-player-bar__controls button:hover:not(:disabled) {
+  background: var(--echoo-ds-surface-hover);
+  color: var(--echoo-ds-ink);
+}
+
+.echoo-player-bar__controls button.active { color: var(--echoo-ds-brand); }
+
+.echoo-player-bar__controls .echoo-player-bar__play {
+  width: 46px;
+  height: 46px;
+  background: var(--echoo-ds-brand);
+  color: #ffffff;
+  font-size: 1.0625rem;
+  box-shadow: 0 6px 16px -6px color-mix(in srgb, var(--echoo-ds-brand) 55%, transparent);
+}
+
+.echoo-player-bar__controls .echoo-player-bar__play:hover:not(:disabled) {
+  background: var(--echoo-ds-brand-hover);
+  color: #ffffff;
+}
+
+.echoo-player-bar__progress-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--echoo-space-3, 0.75rem);
+  color: var(--echoo-ds-muted);
+  font-size: var(--echoo-ds-caption-size);
+  font-variant-numeric: tabular-nums;
+}
+
+.echoo-player-bar__progress {
+  position: relative;
+  height: 4px;
+  flex: 1;
+  min-width: 120px;
+  border: 0;
+  border-radius: var(--echoo-ds-radius-pill);
+  background: var(--echoo-ds-line);
+  cursor: pointer;
+  padding: 0;
+  overflow: hidden;
+}
+
+.echoo-player-bar__progress span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: var(--echoo-ds-brand);
+}
+
+.echoo-player-bar__progress-wrap input[type="range"] {
+  width: 84px;
+  accent-color: var(--echoo-ds-brand);
+}

@@ -1,0 +1,32 @@
+/* EchooSectionHeader */
+.echoo-ds-section-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--echoo-space-4, 1rem);
+  margin-bottom: var(--echoo-space-5, 1.25rem);
+}
+
+.echoo-ds-section-header__titles { min-width: 0; }
+
+.echoo-ds-section-header__kicker {
+  display: block;
+  margin-bottom: 0.25rem;
+  color: var(--echoo-ds-brand);
+  font-size: var(--echoo-ds-caption-size);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.echoo-ds-section-header__title {
+  margin: 0;
+  color: var(--echoo-ds-ink);
+  font-family: var(--echoo-ds-font);
+  font-size: var(--echoo-ds-h2-size);
+  font-weight: 720;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+
+.echoo-ds-section-header__action { flex: 0 0 auto; }
