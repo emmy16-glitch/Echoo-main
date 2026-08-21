@@ -1204,3 +1204,226 @@
     letter-spacing: -0.04em !important;
   }
 }
+
+/* Final mobile parity guard: use the Creator shell mode below 761px.
+   Listener keeps its role-specific links and player, but the shell geometry,
+   wrapping behavior, type scale, and stacking order must remain shared. */
+@media (max-width: 760px) {
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener,
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener.sidebar-collapsed,
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener.sidebar-expanded {
+    --studio-sidebar-width: 0px !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 100vh !important;
+    display: block !important;
+    grid-template-columns: 1fr !important;
+    overflow-x: hidden !important;
+    overflow-y: visible !important;
+    padding-bottom: calc(66px + env(safe-area-inset-bottom)) !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener > .studio-main {
+    grid-column: 1 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: 100vh !important;
+    margin: 0 !important;
+    padding-left: 0 !important;
+    overflow-x: hidden !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener > .studio-sidebar {
+    position: fixed !important;
+    inset: auto 0 0 0 !important;
+    z-index: 1000 !important;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    height: auto !important;
+    display: block !important;
+    padding: 5px max(7px, env(safe-area-inset-right)) calc(5px + env(safe-area-inset-bottom)) max(7px, env(safe-area-inset-left)) !important;
+    border: 0 !important;
+    border-top: 1px solid var(--studio-line) !important;
+    background: rgba(255, 255, 255, .97) !important;
+    backdrop-filter: blur(18px) !important;
+    box-shadow: 0 -10px 30px rgba(20, 42, 76, .05) !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener .studio-sidebar-head,
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener .studio-sidebar-profile-wrap,
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener .listener-profile-menu-wrap {
+    display: none !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener .studio-navigation {
+    width: 100% !important;
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    gap: 3px !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    padding: 0 !important;
+    scrollbar-width: none !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener .studio-navigation::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener .studio-nav-item,
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener.sidebar-collapsed .studio-nav-item {
+    width: auto !important;
+    min-width: 72px !important;
+    max-width: none !important;
+    min-height: 52px !important;
+    height: 52px !important;
+    flex: 0 0 72px !important;
+    display: grid !important;
+    justify-items: center !important;
+    align-content: center !important;
+    gap: 4px !important;
+    padding: 4px 3px !important;
+    border: 0 !important;
+    border-radius: 9px !important;
+    text-align: center !important;
+    white-space: normal !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener .studio-nav-item > span:last-child,
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener .studio-nav-item > .studio-nav-label {
+    display: block !important;
+    font-size: 7px !important;
+    line-height: 1.2 !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener .studio-nav-icon {
+    width: auto !important;
+    height: auto !important;
+    font-size: 15px !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener .studio-nav-item.active {
+    border: 0 !important;
+    border-radius: 9px !important;
+    background: #edf4ff !important;
+    color: var(--studio-blue) !important;
+    box-shadow: none !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener .studio-topbar-final {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: 62px !important;
+    height: 62px !important;
+    padding: 0 14px !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener .studio-view {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 22px 16px 120px !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener .echoo-home-greeting {
+    font-size: clamp(34px, 10.5vw, 44px) !important;
+    font-weight: 760 !important;
+    line-height: 1.02 !important;
+    letter-spacing: -.045em !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener .echoo-home-section-title {
+    font-size: 14px !important;
+    font-weight: 760 !important;
+    line-height: 1.25 !important;
+    letter-spacing: -.012em !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener :is(
+    .listener-live h1,
+    .ls-page h1,
+    .al-page h1,
+    .fl-page h1,
+    .pl-page h1,
+    .lh-page h1,
+    .ld-page h1,
+    .set-page h1
+  ) {
+    font-size: 28px !important;
+    font-weight: 760 !important;
+    line-height: 1.08 !important;
+    letter-spacing: -.035em !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener .ln-page h1 {
+    font-size: 30px !important;
+    font-weight: 760 !important;
+    line-height: 1.1 !important;
+    letter-spacing: -.04em !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener :is(
+    .listener-live h2,
+    .ls-page h2,
+    .al-page h2,
+    .fl-page h2,
+    .pl-page h2,
+    .lh-page h2,
+    .ld-page h2,
+    .set-page h2,
+    .ln-page h2
+  ) {
+    font-size: 16px !important;
+    font-weight: 760 !important;
+    line-height: 1.25 !important;
+    letter-spacing: -.018em !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener > .layout-player,
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener > .echoo-persistent-player {
+    position: fixed !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: calc(63px + env(safe-area-inset-bottom)) !important;
+    width: 100% !important;
+    height: 72px !important;
+    min-height: 72px !important;
+    max-height: 72px !important;
+    padding: 0 12px !important;
+    z-index: 999 !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+  }
+
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener .layout-player-volume,
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener .layout-player-progress-area {
+    display: none !important;
+  }
+}
+
+/* Mobile player specificity guard: supersede the desktop 78px ancestry rule. */
+@media (max-width: 760px) {
+  #root .studio-final-shell.echoo-app-shell.echoo-app-shell--listener > div.layout-player.echoo-persistent-player {
+    left: 0 !important;
+    right: 0 !important;
+    bottom: calc(63px + env(safe-area-inset-bottom)) !important;
+    width: 100% !important;
+    height: 72px !important;
+    min-height: 72px !important;
+    max-height: 72px !important;
+    padding: 0 12px !important;
+    z-index: 999 !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+  }
+}
+
+/* The refactored Listener shell owns mobile navigation. The older global
+   five-item + More navigation must not render over the shared rail. */
+@media (max-width: 760px) {
+  #root > .echoo-mobile-nav,
+  #root > .echoo-mobile-sheet {
+    display: none !important;
+  }
+}
