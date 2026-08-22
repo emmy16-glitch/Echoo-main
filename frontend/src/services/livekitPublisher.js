@@ -197,10 +197,9 @@ export const startLiveKitPublishing = async ({
         audioPreset: { maxBitrate: ECHOO_LIVE_AUDIO_BITRATE },
         forceStereo: true,
         dtx: false,
-        // Stereo RED is intentionally left off for the primary quality profile.
-        // Network resilience can be A/B tested separately without changing the
-        // clean source/mastering path.
-        red: false,
+        // Redundant Opus audio packets improve concealment during brief packet
+        // loss. This adds modest overhead but is appropriate for live broadcast.
+        red: true,
       });
     } else {
       const nativeTrack = await createSyntheticTrack();
