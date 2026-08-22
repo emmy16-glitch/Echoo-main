@@ -3,6 +3,7 @@ import {
   AccessToken,
   RoomServiceClient,
   EgressClient,
+  IngressClient,
 } from 'livekit-server-sdk';
 
 // LiveKit participant JWT lifetime. Kept short enough that a leaked token is

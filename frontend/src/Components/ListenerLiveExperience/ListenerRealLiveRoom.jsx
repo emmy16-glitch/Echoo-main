@@ -1,1189 +1,306 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
-import {
-  FaBell,
-  FaComments,
-  FaExpand,
-  FaHeart,
-  FaPaperPlane,
-  FaTv,
-  FaShieldAlt,
-  FaShare,
-  FaSmile,
-  FaTimes,
-  FaUsers,
-  FaCalendar,
-  FaEllipsisH,
-  FaHeadphones,
-  FaPause,
-  FaVolumeUp,
-} from 'react-icons/fa';
+import { useLocation, useNavigate, useOutletContext, useParams } from 'react-router-dom';
+import { FiArrowLeft, FiRadio, FiUsers } from 'react-icons/fi';
 
 import batch3Service from '../../services/batch3Service';
-import batch4Service, {
-  normalizeChatMessage,
-} from '../../services/batch4Service';
+import batch4Service, { normalizeChatMessage } from '../../services/batch4Service';
 import followService from '../../services/followService';
 import realtimeService from '../../services/realtimeService';
-import { CHAT_EMOJIS, REACTION_EMOJIS } from '../../constants/liveChatEmoji';
+import { buildMediaUrl } from '../../services/api';
+import { buildGeneratedStationBrandCoverUrl } from '../../stationBranding/stationBranding';
+import { ChatPanel, LiveRoomHeader, Waveform } from '../../design-system';
+import { referenceChat, referenceLiveShows } from '../ListenerExperience/listenerExperienceData';
 import LiveKitListenerPlayer from './LiveKitListenerPlayer';
 import './ListenerLiveRoom.css';
-import '../../styles/live-chat-interactions.css';
 
-const currentUser = () => {
-  try {
-    const raw = JSON.parse(localStorage.getItem('user') || '{}');
-    return {
-      ...raw,
-      id: raw.id || raw._id || raw.userId || null,
-      displayName:
-        raw.displayName || raw.fullname || raw.username || 'Echoo Listener',
-    };
-  } catch {
-    return { id: null, displayName: 'Echoo Listener' };
-  }
-};
+const sameId = (first, second) => Boolean(first && second && String(first) === String(second));
 
-const sameId = (first, second) =>
-  Boolean(first && second && String(first) === String(second));
+const normalizeBroadcast = (item) => ({
+  ...item,
+  id: item?.id || item?._id || item?.broadcastId,
+  title: item?.title || item?.stationName || item?.station?.name || 'Live on Echoo',
+  category: item?.category || item?.station?.category || 'Live',
+  creator: item?.creatorName || item?.creator?.displayName || (typeof item?.creator === 'string' ? item.creator : '') || item?.station?.owner?.displayName || 'Echoo Creator',
+  handle: item?.handle || (item?.creatorHandle || item?.creator?.username ? `@${item?.creator?.username || item?.creatorHandle}` : ''),
+  verified: Boolean(item?.verified ?? item?.creatorVerified ?? item?.station?.owner?.creatorProfile?.isVerified),
+  listenerCount: Number(item?.listenerCount ?? item?.station?.listenerCount) || 0,
+  artwork: buildMediaUrl(item?.artwork || item?.coverArt || item?.station?.brandCover || item?.station?.coverArt) || buildGeneratedStationBrandCoverUrl(item?.station || { name: item?.title || item?.stationName, category: item?.category }),
+  description: item?.description || 'Join the conversation and listen live on Echoo.',
+  stationId: item?.stationId || item?.station?.id || item?.station?._id || null,
+  status: String(item?.status || 'live').toLowerCase(),
+  replayAudioId: item?.replayAudio?.id || item?.replayAudio?._id || item?.replayAudio || null,
+});
 
-const timeLabel = (value) => {
-  if (!value) return '';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-};
+const chatView = (message) => ({
+  ...message,
+  id: message.id,
+  name: message.displayName || message.username || message.user?.displayName || 'Echoo Listener',
+  text: message.content || '',
+  time: message.createdAt
+    ? new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : 'Now',
+  reaction: Array.isArray(message.reactions) && message.reactions.length
+    ? message.reactions.length
+    : '',
+});
 
-const clockLabel = (value) => {
-  if (!value) return 'Not started';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return 'Not started';
-  return date.toLocaleTimeString([], {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-  });
-};
-
-const formatListeners = (count) => {
-  const value = Number(count) || 0;
-  if (value >= 1000) {
-    return `${(value / 1000).toFixed(1).replace(/\.0$/, '')}K`;
-  }
-  return String(value);
-};
-
-const BROADCAST_STATUS_RANK = {
-  scheduled: 0,
-  live: 1,
-  completed: 2,
-  cancelled: 2,
-  failed: 2,
-};
-
-const upcomingLabel = (startTime, fallbackLabel) => {
-  if (!startTime) return fallbackLabel || '';
-  const date = new Date(startTime);
-  if (Number.isNaN(date.getTime())) return fallbackLabel || '';
-  const day = date.toLocaleString([], { weekday: 'short' });
-  const time = date.toLocaleTimeString([], {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-  });
-  return `${day} · ${time}`;
+const mergeById = (items, incoming) => {
+  if (!incoming?.id) return items;
+  const index = items.findIndex((item) => sameId(item.id, incoming.id));
+  if (index < 0) return [...items, incoming];
+  const next = [...items];
+  next[index] = { ...next[index], ...incoming };
+  return next;
 };
 
 const ListenerRealLiveRoom = () => {
   const { broadcastId } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
-  const { setLivePlayerState } = useOutletContext();
-  const user = useMemo(() => currentUser(), []);
-
-  const [broadcast, setBroadcast] = useState(null);
-  const [messages, setMessages] = useState([]);
-  const [pinned, setPinned] = useState([]);
-  const [presence, setPresence] = useState({
-    listenerCount: 0,
-    peakListeners: 0,
-    creatorConnected: false,
-  });
-  const [upcoming, setUpcoming] = useState([]);
-  const [followingState, setFollowingState] = useState({
-    loading: true,
-    following: false,
-  });
-  const [chatTab, setChatTab] = useState('chat');
-  const [history, setHistory] = useState([]);
-  const [text, setText] = useState('');
-  const [emojiOpen, setEmojiOpen] = useState(false);
-  const [reactionMessageId, setReactionMessageId] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [chatLoading, setChatLoading] = useState(true);
-  const [sending, setSending] = useState(false);
-  const [actionId, setActionId] = useState('');
-  const [realtimeState, setRealtimeState] = useState('connecting');
-  const [clockTick, setClockTick] = useState(0);
-  const [error, setError] = useState('');
-  const [shareState, setShareState] = useState('');
-  const chatEndRef = useRef(null);
-
-  const isLive = broadcast?.status === 'live';
-  const isScheduled = broadcast?.status === 'scheduled';
-  const chatAvailable = isLive || isScheduled;
-  const ended = broadcast
-    ? !['live', 'scheduled'].includes(String(broadcast.status || '').toLowerCase())
-    : false;
-
-  const stationId = broadcast?.stationId || broadcast?.station?.id || null;
-  const stationArtwork =
-    broadcast?.coverArt ||
-    broadcast?.artwork ||
-    broadcast?.station?.coverArt ||
-    broadcast?.station?.brandCover ||
-    null;
-  const stationFollowers = Number(
-    broadcast?.followers ??
-      broadcast?.station?.followerCount ??
-      broadcast?.station?.followers ??
-      0
-  ) || 0;
-  const livePlayerTrack = useMemo(
-    () => ({
-      title: broadcast?.title || '',
-      subtitle: broadcast?.stationName || broadcast?.creatorName || 'Live station',
-      coverArt: stationArtwork,
-    }),
-    [broadcast?.title, broadcast?.stationName, broadcast?.creatorName, stationArtwork]
-  );
-
-  const mergeMessage = useCallback((incoming) => {
-    const normalized = normalizeChatMessage(incoming);
-    if (!normalized?.id) return;
-
-    setMessages((current) => {
-      const index = current.findIndex((item) => sameId(item.id, normalized.id));
-      if (index === -1) return [...current, normalized];
-      const next = [...current];
-      next[index] = { ...current[index], ...normalized };
-      return next;
-    });
-  }, []);
+  const { setLivePlayerState = () => {} } = useOutletContext() || {};
+  const previewMode = import.meta.env.DEV && new URLSearchParams(location.search).get('preview') === 'reference';
+  const initialShow = location.state?.show || (previewMode ? referenceLiveShows.find((item) => item.id === broadcastId) || referenceLiveShows[0] : null);
+  const [show, setShow] = useState(initialShow ? normalizeBroadcast(initialShow) : null);
+  const [messages, setMessages] = useState(previewMode ? referenceChat : []);
+  const [loading, setLoading] = useState(!initialShow);
+  const [chatLoading, setChatLoading] = useState(!previewMode);
+  const [loadError, setLoadError] = useState('');
+  const [chatError, setChatError] = useState('');
+  const [joined, setJoined] = useState(true);
+  const [following, setFollowing] = useState(false);
+  const [shareMessage, setShareMessage] = useState('');
+  const [realtimeState, setRealtimeState] = useState(previewMode ? 'preview' : 'connecting');
+  const [audioState, setAudioState] = useState(previewMode ? 'listening' : 'connecting');
+  const statusRef = useRef(show?.status || '');
 
   useEffect(() => {
-    if (!broadcast?.id) return undefined;
-    let interval = null;
+    statusRef.current = show?.status || '';
+  }, [show?.status]);
 
-    const snapshot = () => {
-      const count = Number(
-        presence.listenerCount || broadcast.listenerCount || 0
-      ) || 0;
-      setHistory((current) => {
-        const last = current[current.length - 1];
-        if (last && last.n === count) return current;
-        const next = [...current, { t: Date.now(), n: count }];
-        return next.slice(-30);
-      });
-    };
-
-    snapshot();
-    interval = window.setInterval(snapshot, 10000);
-
-    return () => {
-      if (interval) window.clearInterval(interval);
-    };
-  }, [broadcast?.id, broadcast?.listenerCount, presence.listenerCount]);
-
-  const loadBroadcast = useCallback(async () => {
-    const response = await batch3Service.getBroadcast(broadcastId);
-    if (!response?.data) throw new Error('Broadcast not found.');
-    setBroadcast(response.data);
-    return response.data;
-  }, [broadcastId]);
+  const isLive = show?.status === 'live';
+  const handleLivePlayerState = useCallback((state) => {
+    if (state?.status) setAudioState(state.status);
+    setLivePlayerState(state);
+  }, [setLivePlayerState]);
+  const playerTrack = useMemo(() => show ? ({
+    id: show.id,
+    title: show.title,
+    subtitle: show.creator,
+    coverArt: show.artwork,
+    isLive: true,
+  }) : null, [show]);
 
   const refreshPresence = useCallback(async () => {
+    if (previewMode || !broadcastId) return;
     try {
-      const next = await batch3Service.getPresence(broadcastId);
-      setPresence(next);
-      setBroadcast((current) =>
-        current
-          ? {
-              ...current,
-              listenerCount: Number(next.listenerCount) || 0,
-              peakListeners: Number(next.peakListeners) || 0,
-            }
-          : current
-      );
+      const presence = await batch3Service.getPresence(broadcastId);
+      setShow((current) => current ? ({
+        ...current,
+        status: presence.status || current.status,
+        listenerCount: Number(presence.listenerCount) || 0,
+        mediaState: presence.mediaState || current.mediaState,
+      }) : current);
     } catch {
-      // Live audio should continue if a metadata refresh fails.
+      // Presence metadata must not interrupt a healthy LiveKit audio session.
     }
-  }, [broadcastId]);
+  }, [broadcastId, previewMode]);
 
-  const loadChat = useCallback(
-    async ({ silent = false } = {}) => {
-      if (!silent) setChatLoading(true);
+  const loadChat = useCallback(async ({ silent = false } = {}) => {
+    if (previewMode || !broadcastId) return;
+    if (!silent) setChatLoading(true);
+    try {
+      const response = await batch4Service.getMessages(broadcastId, { limit: 100 });
+      setMessages(Array.isArray(response?.data) ? response.data.map(chatView) : []);
+      setChatError('');
+    } catch (error) {
+      if (!silent) setChatError(error?.message || 'Live chat is unavailable.');
+    } finally {
+      if (!silent) setChatLoading(false);
+    }
+  }, [broadcastId, previewMode]);
 
-      try {
-        const [messageResult, pinnedResult] = await Promise.all([
-          batch4Service.getMessages(broadcastId, { limit: 100 }),
-          batch4Service.getPinned(broadcastId),
-        ]);
-
-        setMessages(Array.isArray(messageResult?.data) ? messageResult.data : []);
-        setPinned(Array.isArray(pinnedResult?.data) ? pinnedResult.data : []);
-      } catch (chatError) {
-        if (!silent) {
-          setError(chatError?.message || 'Could not load Live Chat.');
-        }
-      } finally {
-        if (!silent) setChatLoading(false);
+  const load = useCallback(async () => {
+    if (!broadcastId || previewMode) return;
+    try {
+      setLoading(true);
+      const response = await batch3Service.getBroadcast(broadcastId);
+      if (!response?.data) throw new Error('This live show could not be found.');
+      const next = normalizeBroadcast(response.data);
+      setShow(next);
+      setLoadError('');
+      await Promise.all([loadChat(), refreshPresence()]);
+      if (next.stationId) {
+        followService.getStationStatus(next.stationId)
+          .then((status) => setFollowing(Boolean(status?.isFollowing)))
+          .catch(() => {});
       }
-    },
-    [broadcastId]
-  );
+    } catch (error) {
+      setLoadError(error?.message || 'This live show is unavailable.');
+    } finally {
+      setLoading(false);
+    }
+  }, [broadcastId, loadChat, previewMode, refreshPresence]);
 
-  const loadFollowingState = useCallback(async () => {
-    if (!stationId) {
-      setFollowingState({ loading: false, following: false });
-      return;
-    }
-    try {
-      const response = await followService.getFollowingStations();
-      const list = Array.isArray(response?.data) ? response.data : [];
-      const following = list.some((item) => sameId(item.id, stationId));
-      setFollowingState({ loading: false, following });
-    } catch {
-      setFollowingState({ loading: false, following: false });
-    }
-  }, [stationId]);
-
-  const loadUpcoming = useCallback(async () => {
-    if (!stationId) {
-      setUpcoming([]);
-      return;
-    }
-    try {
-      const response = await batch3Service.getUpcomingForStation(stationId);
-      const list = Array.isArray(response?.data) ? response.data : [];
-      setUpcoming(
-        list
-          .filter((item) => !sameId(item.id, broadcastId))
-          .slice(0, 5)
-      );
-    } catch {
-      setUpcoming([]);
-    }
-  }, [broadcastId, stationId]);
-
+  useEffect(() => { load(); }, [load]);
   useEffect(() => {
-    let active = true;
-
-    const load = async () => {
-      try {
-        setLoading(true);
-        setError('');
-        const next = await loadBroadcast();
-
-        if (!active) return;
-
-        if (['live', 'scheduled'].includes(next.status)) {
-          await Promise.all([loadChat(), refreshPresence()]);
-        } else {
-          setChatLoading(false);
-        }
-
-        await Promise.all([loadFollowingState(), loadUpcoming()]);
-      } catch (loadError) {
-        if (active) {
-          setError(loadError?.message || 'Could not load this broadcast.');
-        }
-      } finally {
-        if (active) setLoading(false);
-      }
-    };
-
-    load();
-    return () => {
-      active = false;
-    };
-  }, [
-    loadBroadcast,
-    loadChat,
-    loadFollowingState,
-    loadUpcoming,
-    refreshPresence,
-  ]);
-
-  useEffect(() => {
-    if (!broadcast?.id || !chatAvailable) return undefined;
-
+    if (
+      previewMode ||
+      !show?.id ||
+      ['completed', 'cancelled', 'failed'].includes(statusRef.current)
+    ) return undefined;
     let active = true;
     let socket = null;
-    let fallbackInterval = null;
+    let fallbackTimer = null;
 
-    const startFallback = () => {
-      if (fallbackInterval) return;
-      fallbackInterval = window.setInterval(() => {
+    const fallback = () => {
+      if (fallbackTimer) return;
+      fallbackTimer = window.setInterval(() => {
         loadChat({ silent: true });
-        loadBroadcast().catch(() => {});
         refreshPresence();
       }, 15000);
     };
 
-    const connectRealtime = async () => {
-      try {
-        setRealtimeState('connecting');
-        socket = await realtimeService.joinBroadcast(broadcast.id);
-        if (!active) return;
+    realtimeService.joinBroadcast(show.id).then((connectedSocket) => {
+      if (!active) return;
+      socket = connectedSocket;
+      setRealtimeState('connected');
 
+      const onMessage = (payload) => {
+        const normalized = normalizeChatMessage(payload);
+        if (normalized) setMessages((current) => mergeById(current, chatView(normalized)));
+      };
+      const onDeleted = ({ messageId } = {}) => setMessages((current) => current.filter((item) => !sameId(item.id, messageId)));
+      const onReaction = ({ messageId, reactions } = {}) => setMessages((current) => current.map((item) => sameId(item.id, messageId) ? { ...item, reactions, reaction: reactions?.length || '' } : item));
+      const onStatus = (payload) => {
+        if (!sameId(payload?.broadcastId, show.id)) return;
+        setShow((current) => current ? normalizeBroadcast({ ...current, ...payload }) : current);
+      };
+      const onDisconnect = () => { setRealtimeState('fallback'); fallback(); };
+      const onConnect = () => {
         setRealtimeState('connected');
+        if (fallbackTimer) window.clearInterval(fallbackTimer);
+        fallbackTimer = null;
+        connectedSocket.emit('broadcast:join', { broadcastId: show.id });
+      };
 
-        const onMessage = (payload) => mergeMessage(payload);
-        const onDeleted = ({ messageId }) => {
-          setMessages((current) =>
-            current.filter((item) => !sameId(item.id, messageId))
-          );
-          setPinned((current) =>
-            current.filter((item) => !sameId(item.id, messageId))
-          );
-        };
-        const onReaction = ({ messageId, reactions } = {}) => {
-          if (!messageId || !Array.isArray(reactions)) return;
-          setMessages((current) => current.map((item) =>
-            sameId(item.id, messageId) ? { ...item, reactions } : item
-          ));
-        };
-        const onPinned = () => loadChat({ silent: true });
-        const onStatus = (payload) => {
-          if (!sameId(payload?.broadcastId, broadcast.id)) return;
-          setBroadcast((current) => {
-            if (!current) return current;
-            const incomingStatus = String(payload.status || current.status || '').toLowerCase();
-            const currentStatus = String(current.status || '').toLowerCase();
-            const incomingRank = BROADCAST_STATUS_RANK[incomingStatus] ?? -1;
-            const currentRank = BROADCAST_STATUS_RANK[currentStatus] ?? -1;
-            return {
-              ...current,
-              status: incomingRank >= currentRank ? incomingStatus : current.status,
-              startedAt: payload.startedAt ?? current.startedAt,
-              endedAt: payload.endedAt ?? current.endedAt,
-              listenerCount: payload.listenerCount ?? current.listenerCount,
-              peakListeners: payload.peakListeners ?? current.peakListeners,
-            };
-          });
-        };
-        const onPresence = () => refreshPresence();
-        const onDisconnect = () => {
-          if (!active) return;
-          setRealtimeState('reconnecting');
-          startFallback();
-        };
-        const onConnect = () => {
-          if (!active) return;
-          setRealtimeState('connected');
-          if (fallbackInterval) {
-            window.clearInterval(fallbackInterval);
-            fallbackInterval = null;
-          }
-          socket.emit('broadcast:join', { broadcastId: broadcast.id });
-          loadChat({ silent: true });
-          refreshPresence();
-        };
-
-        socket.on('chat:message', onMessage);
-        socket.on('chat:messageDeleted', onDeleted);
-        socket.on('chat:reaction', onReaction);
-        socket.on('chat:messagePinned', onPinned);
-        socket.on('broadcast:status', onStatus);
-        socket.on('presence:changed', onPresence);
-        socket.on('disconnect', onDisconnect);
-        socket.on('connect', onConnect);
-
-        socket.__echooCleanup = () => {
-          socket.off('chat:message', onMessage);
-          socket.off('chat:messageDeleted', onDeleted);
-          socket.off('chat:reaction', onReaction);
-          socket.off('chat:messagePinned', onPinned);
-          socket.off('broadcast:status', onStatus);
-          socket.off('presence:changed', onPresence);
-          socket.off('disconnect', onDisconnect);
-          socket.off('connect', onConnect);
-        };
-      } catch (realtimeError) {
-        if (!active) return;
-        console.warn('Echoo realtime fallback:', realtimeError);
-        setRealtimeState('fallback');
-        startFallback();
-      }
-    };
-
-    connectRealtime();
+      connectedSocket.on('chat:message', onMessage);
+      connectedSocket.on('chat:messageDeleted', onDeleted);
+      connectedSocket.on('chat:reaction', onReaction);
+      connectedSocket.on('broadcast:status', onStatus);
+      connectedSocket.on('presence:changed', refreshPresence);
+      connectedSocket.on('disconnect', onDisconnect);
+      connectedSocket.on('connect', onConnect);
+      onStatus(connectedSocket.__echooBroadcastSnapshots?.get(String(show.id)));
+      socket.__echooRoomCleanup = () => {
+        connectedSocket.off('chat:message', onMessage);
+        connectedSocket.off('chat:messageDeleted', onDeleted);
+        connectedSocket.off('chat:reaction', onReaction);
+        connectedSocket.off('broadcast:status', onStatus);
+        connectedSocket.off('presence:changed', refreshPresence);
+        connectedSocket.off('disconnect', onDisconnect);
+        connectedSocket.off('connect', onConnect);
+      };
+    }).catch((error) => {
+      if (!active) return;
+      console.warn('Echoo realtime fallback:', error?.message || error);
+      setRealtimeState('fallback');
+      fallback();
+    });
 
     return () => {
       active = false;
-      if (fallbackInterval) window.clearInterval(fallbackInterval);
-      socket?.__echooCleanup?.();
-      realtimeService.leaveBroadcast(broadcast.id).catch(() => {});
+      if (fallbackTimer) window.clearInterval(fallbackTimer);
+      socket?.__echooRoomCleanup?.();
+      realtimeService.leaveBroadcast(show.id).catch(() => {});
     };
-  }, [
-    broadcast?.id,
-    chatAvailable,
-    loadBroadcast,
-    loadChat,
-    mergeMessage,
-    refreshPresence,
-  ]);
+  }, [loadChat, previewMode, refreshPresence, show?.id]);
 
-  useEffect(() => {
-    if (chatLoading) return;
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  }, [messages.length, chatLoading]);
-
-  const appendEmoji = (emoji) => {
-    setText((current) => {
-      const next = `${current}${emoji}`;
-      return next.length <= 500 ? next : current;
-    });
-    setEmojiOpen(false);
+  const share = async () => {
+    try {
+      await navigator.clipboard?.writeText(window.location.href);
+      setShareMessage('Link copied');
+    } catch {
+      setShareMessage('Could not copy link');
+    }
+    window.setTimeout(() => setShareMessage(''), 1800);
   };
 
-  const send = async (event) => {
-    event.preventDefault();
-    const content = text.trim();
-    if (!content || sending || !chatAvailable) return;
-
+  const toggleFollow = async () => {
+    if (previewMode || !show?.stationId) return setFollowing((value) => !value);
+    const wasFollowing = following;
+    setFollowing(!wasFollowing);
     try {
-      setSending(true);
-      setError('');
+      if (wasFollowing) await followService.unfollowStation(show.stationId);
+      else await followService.followStation(show.stationId);
+    } catch (error) {
+      setFollowing(wasFollowing);
+      setLoadError(error?.message || 'Could not update your follow status.');
+    }
+  };
+
+  const sendMessage = async (content) => {
+    if (previewMode) {
+      setMessages((current) => [...current, { id: `local-${Date.now()}`, name: 'You', time: 'Now', text: content, reaction: '' }]);
+      return true;
+    }
+    try {
       const response = await batch4Service.sendMessage(broadcastId, content);
-      if (response?.data) mergeMessage(response.data);
-      setText('');
-      setEmojiOpen(false);
-    } catch (sendError) {
-      setError(sendError?.message || 'Could not send your message.');
-    } finally {
-      setSending(false);
+      if (response?.data) setMessages((current) => mergeById(current, chatView(response.data)));
+      setChatError('');
+      return true;
+    } catch (error) {
+      setChatError(error?.message || 'Could not send your message.');
+      return false;
     }
   };
 
   const react = async (message, emoji) => {
-    if (!message?.id || actionId) return;
+    if (previewMode || !message?.id) return;
     try {
-      setActionId(`reaction:${message.id}`);
       const response = await batch4Service.react(message.id, emoji);
-      const reactions = response?.data?.reactions;
-      if (Array.isArray(reactions)) {
-        setMessages((current) => current.map((item) =>
-          sameId(item.id, message.id) ? { ...item, reactions } : item
-        ));
-      } else if (realtimeState !== 'connected') {
-        await loadChat({ silent: true });
-      }
-      setReactionMessageId('');
-    } catch (reactionError) {
-      setError(reactionError?.message || 'Could not update the reaction.');
-    } finally {
-      setActionId('');
+      const reactions = response?.data?.reactions || [];
+      setMessages((current) => current.map((item) => sameId(item.id, message.id) ? { ...item, reactions, reaction: reactions.length || '' } : item));
+    } catch (error) {
+      setChatError(error?.message || 'Could not update that reaction.');
     }
   };
 
-  const toggleFollow = async () => {
-    if (!stationId || followingState.loading || actionId) return;
-    try {
-      setActionId('follow');
-      const wasFollowing = followingState.following;
-      setFollowingState((current) => ({ ...current, following: !wasFollowing }));
-      if (wasFollowing) {
-        await followService.unfollowStation(stationId);
-      } else {
-        await followService.followStation(stationId);
-      }
-    } catch {
-      setFollowingState((current) => ({
-        ...current,
-        following: current.following,
-      }));
-      setError('Could not update your follow status.');
-    } finally {
-      setActionId('');
-    }
-  };
+  const audioStatusLabel = !isLive
+    ? 'Audio disconnected'
+    : show.mediaState === 'audio_paused'
+      ? 'Broadcast paused'
+    : audioState === 'listening'
+      ? 'Audio live'
+      : audioState === 'connecting' || show.mediaState === 'creator_connecting'
+        ? 'Creator connecting'
+        : audioState === 'connected' || show.mediaState === 'waiting_for_creator'
+          ? 'Waiting for creator'
+          : 'Audio disconnected';
 
-  const shareBroadcast = async () => {
-    if (actionId) return;
-    try {
-      setActionId('share');
-      await navigator.clipboard.writeText(window.location.href);
-      setShareState('Link copied');
-      window.setTimeout(() => setShareState(''), 2000);
-    } catch {
-      setShareState('Could not copy the link');
-      window.setTimeout(() => setShareState(''), 2000);
-    } finally {
-      setActionId('');
-    }
-  };
-
-  const startedAtLabel = clockLabel(
-    broadcast?.startedAt || broadcast?.startTime
-  );
-
-  useEffect(() => {
-    if (!isLive) return undefined;
-    const updateClock = () => setClockTick(Date.now());
-    updateClock();
-    const interval = window.setInterval(updateClock, 1000);
-    return () => window.clearInterval(interval);
-  }, [isLive]);
-
-  const elapsedLabel = useMemo(() => {
-    const started = broadcast?.startedAt || broadcast?.startTime;
-    if (!started || !isLive) return '';
-    const start = new Date(started).getTime();
-    if (Number.isNaN(start)) return '';
-    const seconds = Math.floor((clockTick - start) / 1000);
-    if (seconds < 0) return '';
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const remainder = seconds % 60;
-    const pad = (value) => String(value).padStart(2, '0');
-    return hours > 0
-      ? `${pad(hours)}:${pad(minutes)}:${pad(remainder)}`
-      : `${pad(minutes)}:${pad(remainder)}`;
-  }, [broadcast?.startedAt, broadcast?.startTime, isLive, clockTick]);
-
-  const listenersCount = Number(
-    presence.listenerCount || broadcast?.listenerCount || 0
-  );
-
-  const sparklinePoints = useMemo(() => {
-    const samples = history.length > 1 ? history : [{ n: listenersCount }];
-    const values = samples.map((sample) => sample.n);
-    const max = Math.max(...values, 1);
-    const width = 260;
-    const height = 72;
-    const step = width / (values.length - 1 || 1);
-    return values
-      .map((value, index) => {
-        const x = index * step;
-        const y = height - (value / max) * (height - 8) - 4;
-        return `${x.toFixed(1)},${y.toFixed(1)}`;
-      })
-      .join(' ');
-  }, [history, listenersCount]);
-
-  const sparklineArea = useMemo(() => {
-    const samples = history.length > 1 ? history : [{ n: listenersCount }];
-    const values = samples.map((sample) => sample.n);
-    const max = Math.max(...values, 1);
-    const width = 260;
-    const height = 72;
-    const step = width / (values.length - 1 || 1);
-    const points = values.map((value, index) => {
-      const x = index * step;
-      const y = height - (value / max) * (height - 8) - 4;
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    });
-    return `M0,${height} ${points.map((point) => `L${point}`).join(' ')} L${width},${height} Z`;
-  }, [history, listenersCount]);
-
-  if (loading) {
-    return (
-      <main className="llr-page">
-        <div className="llr-state">Loading broadcast...</div>
-      </main>
-    );
-  }
-
-  if (!broadcast) {
-    return (
-      <main className="llr-page">
-        <button
-          type="button"
-          className="llr-back"
-          onClick={() => navigate('/listen/live')}
-        >
-          <FaTimes /> Live
-        </button>
-        <div className="llr-state">
-          <strong>Broadcast unavailable</strong>
-          <span>{error || 'This broadcast could not be loaded.'}</span>
-        </div>
-      </main>
-    );
-  }
+  if (loading) return <main className="listener-room-page"><div className="listener-room-state">Preparing the live room...</div></main>;
+  if (!show) return <main className="listener-room-page"><button type="button" className="listener-room-back" onClick={() => navigate('/listen/live')}><FiArrowLeft /> Back to Live Now</button><div className="listener-room-state">{loadError || 'This live show is unavailable.'}</div></main>;
 
   return (
-    <main className="llr-page">
-      <header className="llr-topbar">
-        <div className="llr-topbar-left">
-          <h1 className="llr-room-title">{broadcast.title}</h1>
-        </div>
-        <div className="llr-topbar-meta">
-          <span className={`llr-live-pill${isLive ? '' : ' llr-live-pill-ended'}`}>
-            <i /> {isLive ? 'LIVE NOW' : ended ? 'ENDED' : 'SCHEDULED'}
-          </span>
-          <span className="llr-meta-item">
-            <FaUsers /> {listenersCount} listening
-          </span>
-          <span className="llr-category-pill">
-            {broadcast.category || 'Other'}
-          </span>
-        </div>
-        <div className="llr-topbar-actions">
-          <button
-            type="button"
-            className="llr-action-btn"
-            onClick={shareBroadcast}
-            disabled={Boolean(actionId)}
-          >
-            <FaShare /> {shareState || 'Share'}
-          </button>
-          <button
-            type="button"
-            className="llr-action-btn llr-icon-only"
-            title="More options"
-            aria-label="More options"
-            disabled
-          >
-            <FaEllipsisH />
-          </button>
-        </div>
-      </header>
+    <main className="listener-room-page">
+      <button type="button" className="listener-room-back" onClick={() => navigate('/listen/live')}><FiArrowLeft /> Back to Live Now</button>
+      {(shareMessage || loadError) && <div className="listener-room-notice" role="status">{shareMessage || loadError}</div>}
+      <LiveRoomHeader show={show} joined={joined && isLive} following={following} onJoin={() => setJoined((value) => !value)} onFollow={toggleFollow} onShare={share} />
 
-      {error && <div className="llr-message error">{error}</div>}
+      <section className="listener-room-audio" aria-label="Live audio status">
+        <div className="listener-room-audio__meta"><span><i /> {isLive ? 'LIVE' : show.status.toUpperCase()}</span><strong>{isLive ? (joined ? 'You are listening live' : 'Playback paused') : 'This broadcast has ended'}</strong><small><FiUsers /> {show.listenerCount.toLocaleString()} listeners</small></div>
+        <Waveform live label="Live audio waveform" />
+        <div className="listener-room-audio__state"><FiRadio aria-hidden="true" /><span><strong>{audioStatusLabel}</strong><small>{isLive ? `Live room ${realtimeState}` : 'The replay is being prepared'}</small></span></div>
+      </section>
 
-      <div className="llr-grid">
-        <section className="llr-main">
-          <article className="llr-player-card">
-            <div className="llr-player-visual">
-              {stationArtwork ? (
-                <img className="llr-player-bg" src={stationArtwork} alt="" />
-              ) : (
-                <div className="llr-player-placeholder">
-                  <FaHeadphones />
-                </div>
-              )}
-              <span className={`llr-player-live${isLive ? '' : ' llr-player-live-ended'}`}>
-                <i /> {isLive ? 'LIVE' : ended ? 'ENDED' : 'SCHEDULED'}
-              </span>
-              <div className="llr-player-overlay">
-                <span className="llr-player-title">{broadcast.title}</span>
-                <span className="llr-player-subtitle">
-                  {broadcast.description || 'Live audio on Echoo.'}
-                </span>
-              </div>
-            </div>
+      {!previewMode && <LiveKitListenerPlayer broadcastId={show.id} isLive={isLive && joined} track={playerTrack} onStateChange={handleLivePlayerState} />}
 
-              <div className="llr-player-controls">
-            {isLive && (
-                <LiveKitListenerPlayer
-                  broadcastId={broadcast.id}
-                  isLive
-                  track={livePlayerTrack}
-                  onStateChange={setLivePlayerState}
-                />
-              )}
-                <button
-                  type="button"
-                  className="llr-ctrl-pause"
-                  aria-label={isLive ? 'Pause broadcast audio' : 'Broadcast ended'}
-                  disabled={!isLive}
-                >
-                  <FaPause />
-                </button>
-                <span className="llr-ctrl-volume" aria-label="Volume">
-                  <FaVolumeUp />
-                </span>
-                {isLive && (
-                  <span className="llr-controls-live-label">
-                    <i /> LIVE
-                  </span>
-                )}
-                <div
-                  className="llr-controls-progress"
-                  aria-label="Live stream progress"
-                  role="progressbar"
-                  aria-valuenow={isLive ? 100 : 0}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                >
-                  <span className="llr-controls-progress-bar" />
-                </div>
-                <div className="llr-controls-icons">
-                  <button type="button" className="llr-ctrl-icon" title="Picture in picture" aria-label="Picture in picture">
-                    <FaTv />
-                  </button>
-                  <button type="button" className="llr-ctrl-icon llr-ctrl-icon-heart" title="Like this broadcast" aria-label="Like this broadcast">
-                    <FaHeart />
-                  </button>
-                  <button type="button" className="llr-ctrl-icon" title="Fullscreen" aria-label="Fullscreen">
-                    <FaExpand />
-                  </button>
-                </div>
-              </div>
-          </article>
+      {!isLive && show.replayAudioId && show.assetVisibility?.audio !== 'private' && <button type="button" className="listener-room-replay" onClick={() => navigate(`/listen/audio/${show.replayAudioId}`)}>Open replay</button>}
 
-          <section className="llr-tabs-shell">
-            <nav className="llr-tabs" aria-label="Broadcast details">
-              <button type="button" className="llr-tab llr-tab-active">
-                Details
-              </button>
-              <button type="button" className="llr-tab">
-                Schedule
-              </button>
-              <button type="button" className="llr-tab">
-                About station
-              </button>
-            </nav>
+      <div className="listener-room-intro"><strong>Live Audio + Community</strong><span>Listen to the show and join the listener conversation in one focused room.</span></div>
 
-            <div className="llr-details-grid">
-              <article className="llr-card llr-station-card">
-                <div className="llr-station-head">
-                  <img
-                    className="llr-station-art"
-                    src={stationArtwork}
-                    alt=""
-                    onError={(event) => {
-                      event.currentTarget.style.display = 'none';
-                    }}
-                  />
-                  <div className="llr-station-info">
-                    <div className="llr-station-name-row">
-                      <strong>{broadcast.stationName}</strong>
-                    </div>
-                    <span className="llr-station-category">
-                      {broadcast.category || 'Other'}
-                    </span>
-                    <span className="llr-station-followers">
-                      {formatListeners(stationFollowers)} followers
-                    </span>
-                  </div>
-                  <div className="llr-station-actions">
-                    <button
-                      type="button"
-                      className={`llr-follow-btn ${followingState.following ? 'llr-following' : ''}`}
-                      onClick={toggleFollow}
-                      disabled={followingState.loading || Boolean(actionId)}
-                    >
-                      {followingState.loading
-                        ? '...'
-                        : followingState.following
-                          ? 'Following'
-                          : 'Follow'}
-                    </button>
-                    <button
-                      type="button"
-                      className="llr-follow-btn llr-follow-btn-icon"
-                      title="Live notifications for this station — coming soon"
-                      aria-label="Station notifications"
-                      disabled
-                    >
-                      <FaBell />
-                    </button>
-                  </div>
-                </div>
-
-                <p className="llr-station-lead">
-                  {broadcast.description || 'Live audio on Echoo.'}
-                </p>
-                <p className="llr-station-body">
-                  {broadcast.description
-                    ? broadcast.description
-                    : 'Join the conversation and be part of this live broadcast on Echoo.'}
-                </p>
-
-                {Array.isArray(broadcast.tags) && broadcast.tags.length > 0 && (
-                  <div className="llr-tags">
-                    {broadcast.tags.slice(0, 6).map((tag) => (
-                      <span key={tag} className="llr-tag">
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </article>
-
-              <article className="llr-card llr-listeners-card">
-                <span className="llr-card-label">Listeners</span>
-                <div className="llr-listeners-big">
-                  {listenersCount}
-                  <span>Listening now</span>
-                </div>
-
-                <div className="llr-sparkline" aria-label="Listeners over time">
-                  <svg
-                    viewBox="0 0 260 72"
-                    preserveAspectRatio="none"
-                    aria-hidden="true"
-                  >
-                    <defs>
-                      <linearGradient
-                        id="llr-sparkline-fill"
-                        x1="0"
-                        y1="0"
-                        x2="0"
-                        y2="1"
-                      >
-                        <stop offset="0%" stopColor="var(--echoo-blue)" stopOpacity=".28" />
-                        <stop offset="100%" stopColor="var(--echoo-blue)" stopOpacity=".02" />
-                      </linearGradient>
-                    </defs>
-                    <path
-                      d={sparklineArea}
-                      fill="url(#llr-sparkline-fill)"
-                    />
-                    <polyline
-                      points={sparklinePoints}
-                      fill="none"
-                      stroke="var(--echoo-blue)"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </div>
-
-                <div className="llr-listeners-stats">
-                  <div className="llr-stat">
-                    <span>Peak today</span>
-                    <strong>
-                      {Number(presence.peakListeners || broadcast?.peakListeners) || listenersCount}
-                    </strong>
-                  </div>
-                  <div className="llr-stat-grid">
-                    <div className="llr-stat">
-                      <span>Started</span>
-                      <strong>{startedAtLabel}</strong>
-                    </div>
-                    <div className="llr-stat llr-stat-duration">
-                      <span className="llr-stat-label">Duration</span>
-                      <strong>{elapsedLabel || '—'}</strong>
-                    </div>
-                  </div>
-                </div>
-              </article>
-            </div>
-
-            <section className="llr-up-next">
-              <div className="llr-up-next-head">
-                <h2>Up next on this station</h2>
-                {stationId && (
-                  <button
-                    type="button"
-                    className="llr-view-schedule"
-                    onClick={() =>
-                      navigate(
-                        `/listen/stations${stationId ? `?station=${encodeURIComponent(stationId)}` : ''}`
-                      )
-                    }
-                  >
-                    View schedule →
-                  </button>
-                )}
-              </div>
-
-              {upcoming.length === 0 ? (
-                <div className="llr-up-next-empty">
-                  No upcoming broadcasts scheduled on this station yet.
-                </div>
-              ) : (
-                <ul className="llr-up-next-list">
-                  {upcoming.map((item) => (
-                    <li key={item.id} className="llr-up-next-row">
-                      <img
-                        className="llr-up-next-art"
-                        src={item.coverArt || item.artwork || stationArtwork}
-                        alt=""
-                        onError={(event) => {
-                          event.currentTarget.style.display = 'none';
-                        }}
-                      />
-                      <div className="llr-up-next-copy">
-                        <strong>{item.title}</strong>
-                        <span>
-                          {upcomingLabel(
-                            item.startTime || item.startAt,
-                            'Time not set'
-                          )}
-                        </span>
-                      </div>
-                      <div className="llr-up-next-actions">
-                        <button
-                          type="button"
-                          className="llr-up-next-icon"
-                          title="Add to calendar"
-                          aria-label="Add to calendar"
-                          disabled
-                        >
-                          <FaCalendar />
-                        </button>
-                        <button
-                          type="button"
-                          className="llr-up-next-icon"
-                          title="More options"
-                          aria-label="More options"
-                          disabled
-                        >
-                          <FaEllipsisH />
-                        </button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-          </section>
-        </section>
-
-        <aside className="llr-chat-panel">
-          <nav className="llr-chat-tabs" aria-label="Live chat views">
-            <button
-              type="button"
-              className={`llr-chat-tab ${chatTab === 'chat' ? 'llr-chat-tab-active' : ''}`}
-              onClick={() => setChatTab('chat')}
-            >
-              Live chat
-            </button>
-            <button
-              type="button"
-              className={`llr-chat-tab ${chatTab === 'listeners' ? 'llr-chat-tab-active' : ''}`}
-              onClick={() => setChatTab('listeners')}
-            >
-              Listeners ({listenersCount})
-            </button>
-          </nav>
-
-          {chatTab === 'listeners' ? (
-            <div className="llr-listeners-view">
-              <div className="llr-listeners-view-empty">
-                <FaUsers />
-                <strong>{listenersCount} listening now</strong>
-                <span>
-                  The full listeners directory will appear as more listeners join.
-                </span>
-              </div>
-            </div>
-          ) : (
-            <>
-              <div className="llr-messages">
-                {chatLoading ? (
-                  <div className="llr-chat-empty">Loading messages...</div>
-                ) : messages.length === 0 ? (
-                  <div className="llr-chat-empty">
-                    <FaComments />
-                    <strong>No messages yet</strong>
-                    <span>Be the first to join the conversation.</span>
-                  </div>
-                ) : (
-                  <>
-                    {pinned.length > 0 && (
-                      <article className="llr-message-row llr-pinned">
-                        <div className="llr-message-body">
-                          <div className="llr-message-topline">
-                            <strong>Pinned</strong>
-                            <span className="llr-pin-label">
-                              {pinned[0].displayName}: {pinned[0].content}
-                            </span>
-                          </div>
-                        </div>
-                      </article>
-                    )}
-                    {messages.map((message) => {
-                      const own = sameId(message.userId, user.id);
-                      const reactionGroups = REACTION_EMOJIS.map((emoji) => {
-                        const matching = (message.reactions || []).filter(
-                          (reaction) => reaction.emoji === emoji
-                        );
-                        return {
-                          emoji,
-                          count: matching.length,
-                          reacted: matching.some((reaction) =>
-                            sameId(reaction.userId, user.id)
-                          ),
-                        };
-                      }).filter((reaction) => reaction.count > 0);
-
-                      return (
-                        <article
-                          key={message.id}
-                          className={`llr-message-row ${own ? 'own' : ''}`}
-                        >
-                          <div className="llr-avatar">
-                            {message.avatar ? (
-                              <img src={message.avatar} alt="" />
-                            ) : (
-                              <span>
-                                {String(
-                                  message.displayName || 'E'
-                                )
-                                  .charAt(0)
-                                  .toUpperCase()}
-                              </span>
-                            )}
-                          </div>
-
-                          <div className="llr-message-body">
-                            <div className="llr-message-topline">
-                              <strong>{own ? 'You' : message.displayName}</strong>
-                              <time>{timeLabel(message.createdAt)}</time>
-                              {message.isPinned && (
-                                <span className="llr-pin-label">PINNED</span>
-                              )}
-                            </div>
-                            <p>{message.content}</p>
-
-                            <div className="echoo-message-footer">
-                              {reactionGroups.length > 0 && (
-                                <div
-                                  className="echoo-reaction-summary"
-                                  aria-label="Message reactions"
-                                >
-                                  {reactionGroups.map(
-                                    ({ emoji, count, reacted }) => (
-                                      <button
-                                        type="button"
-                                        key={emoji}
-                                        className={
-                                          reacted ? 'active-reaction' : ''
-                                        }
-                                        disabled={Boolean(actionId)}
-                                        onClick={() => react(message, emoji)}
-                                        title={
-                                          reacted
-                                            ? `Remove ${emoji} reaction`
-                                            : `React ${emoji}`
-                                        }
-                                      >
-                                        {emoji} <span>{count}</span>
-                                      </button>
-                                    )
-                                  )}
-                                </div>
-                              )}
-
-                              <div className="echoo-message-tools">
-                                <button
-                                  type="button"
-                                  className="echoo-react-trigger"
-                                  title="React to message"
-                                  aria-label="React to message"
-                                  onClick={() =>
-                                    setReactionMessageId((current) =>
-                                      sameId(current, message.id)
-                                        ? ''
-                                        : message.id
-                                    )
-                                  }
-                                >
-                                  <FaSmile />
-                                  <span>+</span>
-                                </button>
-
-                                {sameId(reactionMessageId, message.id) && (
-                                  <div
-                                    className={`echoo-reaction-picker ${own ? 'align-right' : ''}`}
-                                    role="dialog"
-                                    aria-label="Choose a reaction"
-                                  >
-                                    {REACTION_EMOJIS.map((emoji) => (
-                                      <button
-                                        type="button"
-                                        key={emoji}
-                                        disabled={Boolean(actionId)}
-                                        onClick={() => react(message, emoji)}
-                                        aria-label={`React ${emoji}`}
-                                      >
-                                        {emoji}
-                                      </button>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </article>
-                      );
-                    })}
-                  </>
-                )}
-                <div ref={chatEndRef} />
-              </div>
-
-              <div className="llr-chat-footer">
-                <form className="llr-composer" onSubmit={send}>
-                  <div className="echoo-emoji-wrap">
-                    <button
-                      type="button"
-                      className={`echoo-emoji-trigger ${emojiOpen ? 'active' : ''}`}
-                      aria-label="Add emoji"
-                      title="Add emoji"
-                      onClick={() => setEmojiOpen((open) => !open)}
-                    >
-                      <FaSmile />
-                    </button>
-                    {emojiOpen && (
-                      <div
-                        className="echoo-emoji-picker"
-                        role="dialog"
-                        aria-label="Choose an emoji"
-                      >
-                        {CHAT_EMOJIS.map((emoji) => (
-                          <button
-                            type="button"
-                            className="echoo-emoji-option"
-                            key={emoji}
-                            aria-label={`Add ${emoji}`}
-                            onClick={() => appendEmoji(emoji)}
-                          >
-                            {emoji}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <input
-                    value={text}
-                    maxLength={500}
-                    placeholder={
-                      isScheduled
-                        ? 'Chat before the broadcast starts...'
-                        : 'Type a message...'
-                    }
-                    onChange={(event) => setText(event.target.value)}
-                  />
-                  <button
-                    type="submit"
-                    className="echoo-chat-send"
-                    title="Send message"
-                    aria-label="Send message"
-                    disabled={!text.trim() || sending}
-                  >
-                    <FaPaperPlane />
-                  </button>
-                </form>
-
-                <div className="llr-chat-rules">
-                  <FaShieldAlt />
-                  <div>
-                    <strong>Welcome to the live chat!</strong>
-                    <span>
-                      Be respectful and kind to other listeners. Let's keep the
-                      conversation uplifting.
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-        </aside>
+      <div className="listener-room-columns listener-room-columns--chat-only">
+        <ChatPanel messages={messages} loading={chatLoading} disabled={!isLive} error={chatError} onSend={sendMessage} onReact={react} />
       </div>
-
-      {ended && (
-        <div className="llr-ended-banner">
-          This broadcast has ended. Explore more live broadcasts on Echoo.
-        </div>
-      )}
     </main>
   );
 };

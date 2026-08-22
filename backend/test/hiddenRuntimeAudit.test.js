@@ -41,7 +41,7 @@ test('Audio comment counters exist and use atomic updates', async () => {
     assert.deepEqual(calls[0].update, { $inc: { commentCount: 1 } });
     assert.deepEqual(calls[1].update, { $inc: { commentCount: -1 } });
     assert.deepEqual(calls[1].filter.commentCount, { $gt: 0 });
-    assert.equal(calls[0].options.new, true);
+    assert.equal(calls[0].options.returnDocument, 'after');
   } finally {
     Audio.findOneAndUpdate = original;
   }

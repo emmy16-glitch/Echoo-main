@@ -1,18 +1,22 @@
+import {
+  applyCreatorCaptureSettings,
+  createEchooVoiceProcessingEngine,
+  getCreatorCaptureConstraints,
+} from './echooAudioProcessingEngine.js';
+import {
+  getCachedCreatorAudioSettings,
+  normalizeCreatorAudioSettings,
+} from './creatorAudioPreferences.js';
+
 const MIN_DB = -60;
 const MAX_CHANNEL_DB = 6;
 const MAX_MASTER_DB = 3;
 const CLIP_DB = -1;
 const PCM_CAPTURE_WORKLET_URL = '/echoo-pcm-capture-worklet.js';
+const MASTER_LIMITER_WORKLET_URL = '/echoo-master-limiter-worklet.js';
 const PCM_CAPTURE_CHANNELS = 2;
 const PREFERRED_SAMPLE_RATE = 48000;
 const DISPLAY_CAPTURE_TIMEOUT_MS = 45000;
-
-const DEFAULT_MIC_CONSTRAINTS = Object.freeze({
-  echoCancellation: true,
-  noiseSuppression: true,
-  autoGainControl: true,
-  channelCount: 1,
-});
 
 const dbToGain = (db) => {
   const value = Number(db);
@@ -56,7 +60,20 @@ const channelDefaults = {
   media: {
     id: 'media',
     name: 'Music / FX',
-    sourceLabel: 'System audio',
+    sourceLabel: 'No audio selected',
+    deviceId: '',
+    gain: 0.8,
+    muted: false,
+    solo: false,
+    level: 0,
+    rmsDb: MIN_DB,
+    peakDb: MIN_DB,
+    connected: false,
+  },
+  screen: {
+    id: 'screen',
+    name: 'Screen / Tab',
+    sourceLabel: 'Not sharing',
     deviceId: '',
     gain: 0.8,
     muted: false,
@@ -77,6 +94,8 @@ let audioContext = null;
 let destinationNode = null;
 let masterGainNode = null;
 let masterLimiterNode = null;
+let masterDirectGainNode = null;
+let masterProtectedGainNode = null;
 let masterAnalyser = null;
 let masterMeterData = null;
 let monitorGainNode = null;
@@ -85,12 +104,20 @@ let monitorAudioElement = null;
 let animationFrame = null;
 let pcmCaptureModuleContext = null;
 let activeMasterCapture = null;
+let voiceInputNode = null;
+let voiceOutputNode = null;
+let voiceProcessingEngine = null;
 
 const sources = new Map();
 const listeners = new Set();
 let channels = cloneChannels();
+let creatorAudioSettings = getCachedCreatorAudioSettings();
+let processingStatus = {
+  noiseReduction: 'idle',
+  error: '',
+};
 let master = {
-  gain: 1,
+  gain: creatorAudioSettings.masterVolume / 100,
   muted: false,
   level: 0,
   rmsDb: MIN_DB,
@@ -133,6 +160,10 @@ const getSnapshot = () => ({
     ...monitoring,
     outputSelectionSupported: supportsOutputSelection(),
   },
+  processing: {
+    settings: { ...creatorAudioSettings },
+    status: { ...processingStatus },
+  },
 });
 
 const notify = () => {
@@ -167,7 +198,7 @@ const ensureMonitorElement = () => {
 };
 
 // Monitoring has its own routing. With no Listen-only channel selected the
-// creator hears the exact post-limiter Audience Output. When one or more channels
+// creator hears the exact Audience Output. When one or more channels
 // are selected for Listen only, only the headphones change; the audience program
 // bus is never altered by a monitoring action.
 const applyMonitorState = () => {
@@ -198,22 +229,57 @@ const ensureContext = async () => {
     destinationNode = audioContext.createMediaStreamDestination();
     monitorDestinationNode = audioContext.createMediaStreamDestination();
     masterGainNode = audioContext.createGain();
-    masterLimiterNode = audioContext.createDynamicsCompressor();
+    try {
+      if (!audioContext.audioWorklet?.addModule || typeof AudioWorkletNode === 'undefined') {
+        throw new Error('AudioWorklet is unavailable');
+      }
+      await audioContext.audioWorklet.addModule(MASTER_LIMITER_WORKLET_URL);
+      masterLimiterNode = new AudioWorkletNode(audioContext, 'echoo-master-limiter', {
+        numberOfInputs: 1,
+        numberOfOutputs: 1,
+        outputChannelCount: [2],
+        channelCount: 2,
+        channelCountMode: 'explicit',
+        channelInterpretation: 'speakers',
+      });
+    } catch (error) {
+      // Older Web Audio implementations keep the established compressor fallback.
+      console.warn('[Echoo Audio] peak protection worklet unavailable; using browser fallback:', error);
+      masterLimiterNode = audioContext.createDynamicsCompressor();
+      masterLimiterNode.threshold.value = -1;
+      masterLimiterNode.knee.value = 0;
+      masterLimiterNode.ratio.value = 20;
+      masterLimiterNode.attack.value = 0.003;
+      masterLimiterNode.release.value = 0.18;
+    }
+    masterDirectGainNode = audioContext.createGain();
+    masterProtectedGainNode = audioContext.createGain();
     masterAnalyser = audioContext.createAnalyser();
     monitorGainNode = audioContext.createGain();
-
-    masterLimiterNode.threshold.value = -1;
-    masterLimiterNode.knee.value = 0;
-    masterLimiterNode.ratio.value = 20;
-    masterLimiterNode.attack.value = 0.003;
-    masterLimiterNode.release.value = 0.18;
+    voiceInputNode = audioContext.createGain();
+    voiceOutputNode = audioContext.createGain();
 
     masterAnalyser.fftSize = 512;
     masterAnalyser.smoothingTimeConstant = 0.72;
     masterMeterData = new Float32Array(masterAnalyser.fftSize);
 
+    masterGainNode.connect(masterDirectGainNode);
+    masterDirectGainNode.connect(masterAnalyser);
     masterGainNode.connect(masterLimiterNode);
-    masterLimiterNode.connect(masterAnalyser);
+    masterLimiterNode.connect(masterProtectedGainNode);
+    masterProtectedGainNode.connect(masterAnalyser);
+
+    voiceOutputNode.connect(masterGainNode);
+    voiceProcessingEngine = createEchooVoiceProcessingEngine({
+      audioContext,
+      inputNode: voiceInputNode,
+      outputNode: voiceOutputNode,
+      initialSettings: creatorAudioSettings,
+      onStatus: (status) => {
+        processingStatus = { ...processingStatus, ...status };
+        notify();
+      },
+    });
 
     // One post-master program bus feeds LiveKit and recording. The normal
     // headphone monitor branches from exactly the same point.
@@ -269,6 +335,12 @@ const disconnectSource = (channelId, stopTracks = true) => {
     });
   }
 
+  try {
+    current.bufferSource?.stop();
+  } catch {
+    // A decoded media source may already have ended.
+  }
+
   sources.delete(channelId);
 
   if (channels[channelId]) {
@@ -285,7 +357,9 @@ const disconnectSource = (channelId, stopTracks = true) => {
           channelId === 'host'
             ? 'Default input'
             : channelId === 'media'
-              ? 'System audio'
+              ? 'No audio selected'
+              : channelId === 'screen'
+                ? 'Not sharing'
               : 'Not connected',
       },
     };
@@ -303,6 +377,14 @@ const applyMixState = () => {
 
   if (masterGainNode) {
     masterGainNode.gain.value = master.muted ? 0 : master.gain;
+  }
+
+  if (masterDirectGainNode && masterProtectedGainNode && audioContext) {
+    const protect = creatorAudioSettings.audioMode === 'enhanced' &&
+      creatorAudioSettings.protectLoudSounds;
+    const now = audioContext.currentTime;
+    masterDirectGainNode.gain.setTargetAtTime(protect ? 0 : 1, now, 0.018);
+    masterProtectedGainNode.gain.setTargetAtTime(protect ? 1 : 0, now, 0.018);
   }
 
   applyMonitorState();
@@ -341,7 +423,7 @@ const connectStream = async (channelId, stream, sourceLabel, deviceId = '') => {
   // that signal is reaching the Studio. Audience gain is applied afterwards.
   source.connect(analyser);
   analyser.connect(gainNode);
-  gainNode.connect(masterGainNode);
+  gainNode.connect(['media', 'screen'].includes(channelId) ? masterGainNode : voiceInputNode);
 
   // Separate headphone audition path. It never reaches the master/LiveKit bus.
   source.connect(soloMonitorGainNode);
@@ -457,7 +539,7 @@ function startMeterLoop() {
 }
 
 const normalizedMicConstraints = (audioConstraints) => ({
-  ...DEFAULT_MIC_CONSTRAINTS,
+  ...getCreatorCaptureConstraints(creatorAudioSettings),
   ...(audioConstraints && typeof audioConstraints === 'object' ? audioConstraints : {}),
 });
 
@@ -515,6 +597,43 @@ export const connectGuestInput = async (deviceId, audioConstraints = null) => {
   return connectAcquiredStream('guest', stream, track?.label || 'Guest microphone', deviceId);
 };
 
+export const connectMediaFile = async (file) => {
+  if (!(file instanceof File) || !file.type.startsWith('audio/')) {
+    throw new Error('Choose an audio file for Music / FX.');
+  }
+  if (file.size > 100 * 1024 * 1024) {
+    throw new Error('Music / FX files must be 100 MB or smaller.');
+  }
+
+  const context = await ensureContext();
+  let buffer;
+  try {
+    buffer = await context.decodeAudioData(await file.arrayBuffer());
+  } catch {
+    throw new Error('Echoo could not decode that audio file. Choose MP3, WAV, M4A, or OGG audio.');
+  }
+
+  const bufferSource = context.createBufferSource();
+  const mediaDestination = context.createMediaStreamDestination();
+  bufferSource.buffer = buffer;
+  bufferSource.loop = true;
+  bufferSource.connect(mediaDestination);
+
+  try {
+    const track = await connectStream('media', mediaDestination.stream, file.name);
+    const sourceState = sources.get('media');
+    if (sourceState) {
+      sourceState.bufferSource = bufferSource;
+      sourceState.mediaDestination = mediaDestination;
+    }
+    bufferSource.start();
+    return track;
+  } catch (error) {
+    try { bufferSource.stop(); } catch { /* Source was not started. */ }
+    throw error;
+  }
+};
+
 export const connectSystemAudio = async () => {
   if (!navigator.mediaDevices?.getDisplayMedia) {
     throw new Error('System-audio sharing is not supported by this browser.');
@@ -566,7 +685,7 @@ export const connectSystemAudio = async () => {
     stream.removeTrack(track);
     track.stop();
   });
-  return connectAcquiredStream('media', stream, audioTrack.label || 'Shared system audio');
+  return connectAcquiredStream('screen', stream, audioTrack.label || 'Shared screen audio');
 };
 
 export const disconnectMixerChannel = (channelId) => {
@@ -626,10 +745,46 @@ export const setMasterGainDb = (db) => {
   setMasterGain(dbToGain(safeDb));
 };
 
+export const setCreatorAudioSettings = async (value) => {
+  const previousSettings = creatorAudioSettings;
+  creatorAudioSettings = normalizeCreatorAudioSettings({
+    ...creatorAudioSettings,
+    ...value,
+  });
+  master = {
+    ...master,
+    gain: creatorAudioSettings.masterVolume / 100,
+  };
+
+  voiceProcessingEngine?.update(creatorAudioSettings);
+  applyMixState();
+  notify();
+
+  const captureSettingsChanged =
+    previousSettings.audioMode !== creatorAudioSettings.audioMode ||
+    previousSettings.echoRemoval !== creatorAudioSettings.echoRemoval;
+  if (!captureSettingsChanged) return { ...creatorAudioSettings };
+
+  const activeVoiceTracks = ['host', 'guest']
+    .map((channelId) => sources.get(channelId)?.audioTrack)
+    .filter((track) => track?.readyState === 'live');
+  await Promise.allSettled(
+    activeVoiceTracks.map((track) => applyCreatorCaptureSettings(track, creatorAudioSettings))
+  );
+  return { ...creatorAudioSettings };
+};
+
 export const toggleMasterMute = () => {
   master = { ...master, muted: !master.muted };
   applyMixState();
   notify();
+};
+
+export const setMasterMuted = (muted) => {
+  master = { ...master, muted: Boolean(muted) };
+  applyMixState();
+  notify();
+  return getSnapshot();
 };
 
 export const setMonitorGain = (value) => {
@@ -733,7 +888,7 @@ export const resetEchooMixer = () => {
     channels[key] = { ...channels[key], ...value };
   });
   master = {
-    gain: 1,
+    gain: creatorAudioSettings.masterVolume / 100,
     muted: false,
     level: master.level,
     rmsDb: master.rmsDb,
@@ -895,6 +1050,10 @@ export const getEchooMixerDiagnostics = () => {
     recordingTapActive: Boolean(activeMasterCapture),
     recordingSampleRate: activeMasterCapture?.sampleRate || null,
     monitoring: { ...monitoring },
+    processing: {
+      settings: { ...creatorAudioSettings },
+      status: { ...processingStatus },
+    },
   };
 };
 
@@ -909,6 +1068,8 @@ export const stopEchooMixer = async () => {
 
   sources.forEach((_, channelId) => disconnectSource(channelId));
   sources.clear();
+  voiceProcessingEngine?.destroy();
+  voiceProcessingEngine = null;
 
   if (animationFrame) {
     window.cancelAnimationFrame(animationFrame);
@@ -936,14 +1097,25 @@ export const stopEchooMixer = async () => {
   destinationNode = null;
   masterGainNode = null;
   masterLimiterNode = null;
+  masterDirectGainNode = null;
+  masterProtectedGainNode = null;
   masterAnalyser = null;
   masterMeterData = null;
   monitorGainNode = null;
   monitorDestinationNode = null;
   pcmCaptureModuleContext = null;
   activeMasterCapture = null;
+  voiceInputNode = null;
+  voiceOutputNode = null;
+  processingStatus = { noiseReduction: 'idle', error: '' };
   channels = cloneChannels();
-  master = { gain: 1, muted: false, level: 0, rmsDb: MIN_DB, peakDb: MIN_DB };
+  master = {
+    gain: creatorAudioSettings.masterVolume / 100,
+    muted: false,
+    level: 0,
+    rmsDb: MIN_DB,
+    peakDb: MIN_DB,
+  };
   monitoring = {
     enabled: false,
     gain: 0.72,
@@ -968,6 +1140,7 @@ export default {
   getMixerChannelTrack,
   ensureHostInput,
   connectGuestInput,
+  connectMediaFile,
   connectSystemAudio,
   disconnectMixerChannel,
   setMixerChannelGain,
@@ -976,7 +1149,9 @@ export default {
   toggleMixerChannelSolo,
   setMasterGain,
   setMasterGainDb,
+  setCreatorAudioSettings,
   toggleMasterMute,
+  setMasterMuted,
   setMonitorGain,
   setMonitorEnabled,
   setMonitorOutputDevice,

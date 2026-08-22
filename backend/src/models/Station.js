@@ -147,7 +147,6 @@ const stationSchema = new mongoose.Schema(
   }
 );
 
-stationSchema.index({ slug: 1 }, { unique: true });
 stationSchema.index({ owner: 1, createdAt: -1 });
 stationSchema.index({ isPublic: 1, isLive: 1 });
 stationSchema.index({ name: 'text', description: 'text', tags: 'text' });

@@ -7,6 +7,11 @@ import OvenMediaProvider from '../providers/ovenmedia.js';
 import { clearBroadcastPresenceCache } from './broadcastPresenceController.js';
 import { waitForCreatorProgramAudio } from '../services/broadcastAudioReadiness.js';
 import {
+  flushBroadcastTranscription,
+  isTranscriptionConfigured,
+} from '../services/transcriptionGateway.js';
+import { enqueueBroadcastProcessing } from '../services/broadcastProcessingService.js';
+import {
   acquireCreatorBroadcastLease,
   refreshCreatorBroadcastLease,
   releaseCreatorBroadcastLease,
@@ -43,12 +48,24 @@ const emitStatus = (req, broadcast) => {
     endedAt: broadcast.endedAt || null,
     listenerCount: Number(broadcast.listenerCount || 0),
     peakListeners: Number(broadcast.peakListeners || 0),
+    mediaState: broadcast.mediaState || 'waiting_for_creator',
+    transcriptState: broadcast.transcriptState || 'disabled',
+    programTrackSid: broadcast.programTrackSid || null,
+    programTrackName: broadcast.programTrackName || null,
   };
 
   io.to(`broadcast:${broadcast.id || broadcast._id}`).emit(
     'broadcast:status',
     payload
   );
+  if (broadcast.status === 'live') {
+    io.to(`broadcast:${broadcast.id || broadcast._id}`).emit('broadcast_started', payload);
+  }
+  if (['completed', 'cancelled', 'failed'].includes(broadcast.status)) {
+    io.to(`broadcast:${broadcast.id || broadcast._id}`).emit('broadcast_ended', payload);
+  }
+  io.to(`broadcast:${broadcast.id || broadcast._id}`).emit('listener_count_updated', payload);
+  io.to(`broadcast:${broadcast.id || broadcast._id}`).emit('peak_listener_updated', payload);
 
   // Public discovery screens do not join every broadcast room. Notify all
   // authenticated clients that a public catalog item changed; clients then
@@ -92,7 +109,18 @@ const releaseLeaseBestEffort = async (creatorId, broadcastId) => {
   }
 };
 
-const stopLiveResourcesBestEffort = async ({ broadcastId, egressId }) => {
+const stopLiveResourcesBestEffort = async ({ broadcastId, egressId, ingressId }) => {
+  if (ingressId) {
+    try {
+      await LiveKitProvider.stopIngress(ingressId);
+    } catch (error) {
+      console.warn(
+        `LiveKit ingress cleanup warning for ${broadcastId}:`,
+        error?.message || error
+      );
+    }
+  }
+
   if (egressId) {
     try {
       await LiveKitProvider.stopEgress(egressId);
@@ -190,12 +218,24 @@ export async function startBroadcast(req, res, next) {
     broadcast.startedAt = null;
     broadcast.endedAt = null;
     broadcast.listenerCount = 0;
+    broadcast.listenerSeconds = 0;
+    broadcast.lastPresenceSampleAt = new Date();
     broadcast.livekitEgressId = null;
     broadcast.livekitRoomName = null;
+    broadcast.mediaState = 'creator_connecting';
+    broadcast.transcriptState = 'disabled';
+    broadcast.programTrackSid = null;
+    broadcast.programTrackName = null;
     await broadcast.save();
 
     clearBroadcastPresenceCache(broadcastId);
     emitStatus(req, broadcast);
+    console.info('[Echoo Broadcast] creator start accepted', {
+      broadcastId: String(broadcast._id),
+      creatorId: String(req.userId),
+      status: broadcast.status,
+      mediaState: broadcast.mediaState,
+    });
 
     const room = await LiveKitProvider.createRoom(broadcastId);
     roomPrepared = true;
@@ -251,6 +291,7 @@ export async function startBroadcast(req, res, next) {
       await stopLiveResourcesBestEffort({
         broadcastId: req.params.broadcastId,
         egressId: egressId || broadcast?.livekitEgressId,
+        ingressId: broadcast?.livekitIngressId,
       });
     }
 
@@ -262,6 +303,11 @@ export async function startBroadcast(req, res, next) {
       broadcast.listenerCount = 0;
       broadcast.livekitRoomName = null;
       broadcast.livekitEgressId = null;
+      broadcast.livekitIngressId = null;
+      broadcast.mediaState = 'audio_disconnected';
+      broadcast.transcriptState = 'failed';
+      broadcast.programTrackSid = null;
+      broadcast.programTrackName = null;
       await broadcast.save().catch((saveError) => {
         console.error(
           'Could not persist failed broadcast state:',
@@ -269,6 +315,7 @@ export async function startBroadcast(req, res, next) {
         );
       });
       clearBroadcastPresenceCache(broadcast._id);
+      emitStatus(req, broadcast);
     }
 
     if (leaseAcquired && broadcast) {
@@ -335,7 +382,19 @@ export async function confirmBroadcastLive(req, res, next) {
     broadcast.status = 'live';
     broadcast.startedAt = broadcast.startedAt || new Date();
     broadcast.failureReason = null;
+    broadcast.mediaState = 'audio_live';
+    broadcast.programTrackSid = publisher.trackSid || null;
+    broadcast.programTrackName = publisher.trackName || 'echoo-studio-mix';
     await broadcast.save();
+
+    console.info('[Echoo Broadcast] live state confirmed', {
+      broadcastId: String(broadcast._id),
+      creatorId: String(req.userId),
+      status: broadcast.status,
+      mediaState: broadcast.mediaState,
+      trackSid: broadcast.programTrackSid,
+      trackName: broadcast.programTrackName,
+    });
 
     clearBroadcastPresenceCache(broadcastId);
     await updateStationBestEffort(
@@ -421,6 +480,51 @@ export async function getLiveKitToken(req, res, next) {
   }
 }
 
+async function setBroadcastPauseState(req, res, next, paused) {
+  try {
+    const { broadcastId } = req.params;
+    if (!isValidId(broadcastId)) return invalidId(res);
+
+    const broadcast = await findOwnedBroadcast(broadcastId, req.userId);
+    if (!broadcast) {
+      return res.status(404).json({
+        error: { code: 'NOT_FOUND', message: 'Broadcast not found' },
+      });
+    }
+    if (broadcast.status !== 'live') {
+      return res.status(409).json({
+        error: { code: 'NOT_LIVE', message: 'Only a live broadcast can be paused or resumed' },
+      });
+    }
+
+    broadcast.mediaState = paused ? 'audio_paused' : 'audio_live';
+    await broadcast.save();
+    clearBroadcastPresenceCache(broadcastId);
+    emitStatus(req, broadcast);
+
+    console.info(`[Echoo Broadcast] ${paused ? 'paused' : 'resumed'}`, {
+      broadcastId: String(broadcast._id),
+      creatorId: String(req.userId),
+      mediaState: broadcast.mediaState,
+    });
+
+    return res.status(200).json({
+      data: broadcast,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export function pauseBroadcast(req, res, next) {
+  return setBroadcastPauseState(req, res, next, true);
+}
+
+export function resumeBroadcast(req, res, next) {
+  return setBroadcastPauseState(req, res, next, false);
+}
+
 export async function cancelBroadcast(req, res, next) {
   try {
     const { broadcastId } = req.params;
@@ -460,10 +564,12 @@ export async function cancelBroadcast(req, res, next) {
       });
     }
 
-    if (broadcast.livekitRoomName || broadcast.livekitEgressId) {
+    if (broadcast.livekitRoomName || broadcast.livekitEgressId || broadcast.livekitIngressId) {
+      await flushBroadcastTranscription(broadcastId).catch(() => null);
       await stopLiveResourcesBestEffort({
         broadcastId,
         egressId: broadcast.livekitEgressId,
+        ingressId: broadcast.livekitIngressId,
       });
     }
 
@@ -472,6 +578,11 @@ export async function cancelBroadcast(req, res, next) {
     broadcast.listenerCount = 0;
     broadcast.livekitRoomName = null;
     broadcast.livekitEgressId = null;
+    broadcast.livekitIngressId = null;
+    broadcast.mediaState = 'audio_disconnected';
+    broadcast.transcriptState = 'completed';
+    broadcast.programTrackSid = null;
+    broadcast.programTrackName = null;
     await broadcast.save();
 
     clearBroadcastPresenceCache(broadcastId);
@@ -542,6 +653,7 @@ export async function endBroadcast(req, res, next) {
     await stopLiveResourcesBestEffort({
       broadcastId,
       egressId: broadcast.livekitEgressId,
+      ingressId: broadcast.livekitIngressId,
     });
 
     // Finalize the authoritative broadcast document before updating the Station
@@ -552,7 +664,26 @@ export async function endBroadcast(req, res, next) {
     broadcast.listenerCount = 0;
     broadcast.livekitRoomName = null;
     broadcast.livekitEgressId = null;
+    broadcast.livekitIngressId = null;
+    broadcast.mediaState = 'audio_disconnected';
+    // Live ends immediately. The durable processing worker owns transcript,
+    // replay, highlight, and chapter completion from this point forward.
+    broadcast.transcriptState = isTranscriptionConfigured() ? 'reconnecting' : 'disabled';
+    broadcast.processingStartedAt = new Date();
+    broadcast.assetStatus.audio = 'processing';
+    broadcast.assetStatus.transcript = isTranscriptionConfigured() ? 'processing' : 'disabled';
+    broadcast.assetStatus.highlights = isTranscriptionConfigured() ? 'pending' : 'failed';
+    broadcast.assetStatus.chapters = isTranscriptionConfigured() ? 'pending' : 'failed';
+    broadcast.programTrackSid = null;
+    broadcast.programTrackName = null;
     await broadcast.save();
+
+    console.info('[Echoo Broadcast] stopped', {
+      broadcastId: String(broadcast._id),
+      creatorId: String(req.userId),
+      status: broadcast.status,
+      mediaState: broadcast.mediaState,
+    });
 
     clearBroadcastPresenceCache(broadcastId);
     await updateStationBestEffort(
@@ -563,11 +694,20 @@ export async function endBroadcast(req, res, next) {
     await releaseLeaseBestEffort(req.userId, broadcastId);
     emitStatus(req, broadcast);
 
+    await enqueueBroadcastProcessing(broadcast._id, {
+      transcriptionEnabled: isTranscriptionConfigured(),
+    }).catch((error) => {
+      console.error('[Echoo Processing] enqueue failed:', {
+        broadcastId: String(broadcast._id),
+        message: error?.message || error,
+      });
+    });
+
     return res.status(200).json({
       data: {
         broadcast,
         message: wasLive
-          ? 'Broadcast ended successfully'
+          ? 'Broadcast ended. Recording and transcript processing will continue in the background.'
           : 'Broadcast startup cancelled',
       },
       timestamp: new Date().toISOString(),

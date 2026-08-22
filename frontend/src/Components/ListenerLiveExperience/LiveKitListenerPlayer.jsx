@@ -7,12 +7,12 @@ import { resolveLiveKitUrl } from '../../services/livekitUrl';
 import './LiveKitListenerPlayer.css';
 
 const STATUS_COPY = {
-  connecting: 'Connecting live audio...',
-  connected: 'Connected — waiting for creator audio',
-  listening: 'Listening live',
-  reconnecting: 'Reconnecting live audio...',
-  disconnected: 'Live audio disconnected',
-  error: 'Could not connect to live audio',
+  connecting: 'Creator connecting',
+  connected: 'Waiting for creator',
+  listening: 'Audio live',
+  reconnecting: 'Audio disconnected',
+  disconnected: 'Audio disconnected',
+  error: 'Audio disconnected',
 };
 
 const isEchooProgramPublication = (publication) => {
@@ -367,6 +367,9 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       isPlaying: status === 'listening',
       track: isLive && track ? { ...track, isLive: true } : null,
       playerError: error,
+      status,
+      trackCount,
+      needsAudioStart,
       volume: liveVolume,
       isMuted: liveMuted,
       onTogglePlay: togglePlayback,
@@ -386,6 +389,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
     needsAudioStart,
     liveVolume,
     liveMuted,
+    trackCount,
     togglePlayback,
     toggleMute,
     changeVolume,

@@ -74,3 +74,5 @@ backup/
 backups/
 **/backup/
 **/backups/
+backend/artifacts/
+frontend/artifacts/

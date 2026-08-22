@@ -28,9 +28,18 @@ import {
   cancelBroadcast,
   startBroadcast,
   confirmBroadcastLive,
+  pauseBroadcast,
+  resumeBroadcast,
   endBroadcast,
   getLiveKitToken,
 } from '../controllers/broadcastLifecycleController.js';
+import {
+  beginTranscriptReview,
+  getProcessingStatus,
+  publishReplay,
+  publishTranscript,
+  updateAssetVisibility,
+} from '../controllers/broadcastProcessingController.js';
 
 const router = express.Router();
 
@@ -69,7 +78,14 @@ router.post(
   startBroadcast
 );
 router.post('/:broadcastId/confirm-live', authenticate, confirmBroadcastLive);
+router.post('/:broadcastId/pause', authenticate, pauseBroadcast);
+router.post('/:broadcastId/resume', authenticate, resumeBroadcast);
 router.post('/:broadcastId/end', authenticate, endBroadcast);
+router.get('/:broadcastId/processing', authenticate, getProcessingStatus);
+router.patch('/:broadcastId/asset-visibility', authenticate, updateAssetVisibility);
+router.post('/:broadcastId/publish-replay', authenticate, publishReplay);
+router.post('/:broadcastId/transcript/review', authenticate, beginTranscriptReview);
+router.post('/:broadcastId/transcript/publish', authenticate, publishTranscript);
 
 // LiveKit participant credentials. Token issuance is rate-limited per IP to
 // prevent token-spam abuse (spawning cheap listener participants), while

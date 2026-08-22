@@ -334,6 +334,12 @@ const batch4Service = {
       )}/stats`
     );
   },
+
+  muteUser: async (broadcastId, userId) =>
+    apiRequest(
+      `/chat/broadcast/${encodeURIComponent(broadcastId)}/users/${encodeURIComponent(userId)}/mute`,
+      { method: 'POST' }
+    ),
 };
 
 export default batch4Service;

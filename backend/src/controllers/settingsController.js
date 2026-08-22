@@ -1,6 +1,44 @@
 import User from '../models/User.js';
 import bcrypt from 'bcryptjs';
 
+const CREATOR_AUDIO_DEFAULTS = Object.freeze({
+  audioMode: 'enhanced',
+  noiseReduction: 45,
+  echoRemoval: true,
+  voiceWarmth: 35,
+  voiceClarity: 45,
+  deEsser: 30,
+  volumeBalance: 45,
+  protectLoudSounds: true,
+  masterVolume: 100,
+});
+
+const clampPercent = (value, fallback) => {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.max(0, Math.min(100, Math.round(number))) : fallback;
+};
+
+export const normalizeCreatorAudioPreferences = (value = {}) => ({
+  audioMode: value.audioMode === 'raw' ? 'raw' : 'enhanced',
+  noiseReduction: clampPercent(value.noiseReduction, CREATOR_AUDIO_DEFAULTS.noiseReduction),
+  echoRemoval: typeof value.echoRemoval === 'boolean'
+    ? value.echoRemoval
+    : CREATOR_AUDIO_DEFAULTS.echoRemoval,
+  voiceWarmth: clampPercent(value.voiceWarmth, CREATOR_AUDIO_DEFAULTS.voiceWarmth),
+  voiceClarity: clampPercent(value.voiceClarity, CREATOR_AUDIO_DEFAULTS.voiceClarity),
+  deEsser: clampPercent(value.deEsser, CREATOR_AUDIO_DEFAULTS.deEsser),
+  volumeBalance: clampPercent(value.volumeBalance, CREATOR_AUDIO_DEFAULTS.volumeBalance),
+  protectLoudSounds: typeof value.protectLoudSounds === 'boolean'
+    ? value.protectLoudSounds
+    : CREATOR_AUDIO_DEFAULTS.protectLoudSounds,
+  masterVolume: clampPercent(value.masterVolume, CREATOR_AUDIO_DEFAULTS.masterVolume),
+});
+
+const normalizeCreatorTranscriptPreferences = (value = {}) => ({
+  language: ['en', 'yo', 'pcm', 'ha'].includes(value.language) ? value.language : 'en',
+  showCaptions: value.showCaptions !== false,
+});
+
 // Get user settings
 export async function getSettings(req, res, next) {
   try {
@@ -32,6 +70,8 @@ export async function getSettings(req, res, next) {
             newReleases: true,
           },
           categories: user.preferences?.categories || [],
+          creatorAudio: normalizeCreatorAudioPreferences(user.preferences?.creatorAudio),
+          creatorTranscript: normalizeCreatorTranscriptPreferences(user.preferences?.creatorTranscript),
         },
         privacy: {
           isActive: user.isActive,
@@ -101,7 +141,7 @@ export async function updateProfile(req, res, next) {
 export async function updatePreferences(req, res, next) {
   try {
     const userId = req.userId;
-    const { language, theme, notifications, categories } = req.body;
+    const { language, theme, notifications, categories, creatorAudio, creatorTranscript } = req.body;
 
     const user = await User.findById(userId);
     if (!user) {
@@ -123,6 +163,29 @@ export async function updatePreferences(req, res, next) {
       };
     }
     if (categories !== undefined) user.preferences.categories = categories;
+    if (creatorAudio !== undefined) {
+      if (user.userType !== 'creator') {
+        return res.status(403).json({
+          error: { code: 'CREATOR_REQUIRED', message: 'Creator audio settings require a creator account' },
+        });
+      }
+      const current = user.preferences.creatorAudio?.toObject?.() ||
+        user.preferences.creatorAudio || {};
+      user.preferences.creatorAudio = normalizeCreatorAudioPreferences({ ...current, ...creatorAudio });
+    }
+    if (creatorTranscript !== undefined) {
+      if (user.userType !== 'creator') {
+        return res.status(403).json({
+          error: { code: 'CREATOR_REQUIRED', message: 'Creator transcript settings require a creator account' },
+        });
+      }
+      const current = user.preferences.creatorTranscript?.toObject?.() ||
+        user.preferences.creatorTranscript || {};
+      user.preferences.creatorTranscript = normalizeCreatorTranscriptPreferences({
+        ...current,
+        ...creatorTranscript,
+      });
+    }
 
     await user.save();
 

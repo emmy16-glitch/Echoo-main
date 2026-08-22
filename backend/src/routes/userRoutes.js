@@ -138,7 +138,7 @@ router.patch('/:id', authenticate, async (req, res, next) => {
     const user = await User.findByIdAndUpdate(
       req.userId,
       updateData,
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     );
 
     if (!user) {

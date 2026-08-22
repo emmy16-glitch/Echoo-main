@@ -1,9 +1,11 @@
 export { default as AppShell } from './EchooAppShell';
 export { default as Sidebar } from './Sidebar';
 export { default as Header } from './Header';
+export { TopBar } from './Header';
 export { default as ProfileMenu } from './ProfileMenu';
 export { default as SearchBar } from './SearchBar';
 export { default as PlayerBar } from './PlayerBar';
+export { PersistentAudioPlayer } from './PlayerBar';
 export { default as Card } from './Card';
 export { AudioCard, StationCard } from './MediaCards';
 export { default as ListItem } from './ListItem';

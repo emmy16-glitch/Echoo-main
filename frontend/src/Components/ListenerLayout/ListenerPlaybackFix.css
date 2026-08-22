@@ -155,3 +155,33 @@
     padding: 12px;
   }
 }
+
+/* ListenerLayout's lazy CSS is injected after the global responsive layer.
+   Keep the dedicated mobile navigation authoritative at phone widths. */
+@media (max-width: 760px) {
+  #root .echoo-listener-shell .layout-sidebar {
+    display: none !important;
+  }
+
+  #root .echoo-listener-shell .echoo-listener-main {
+    width: 100% !important;
+    height: calc(100svh - 128px) !important;
+    margin-left: 0 !important;
+  }
+
+  #root .echoo-listener-shell .echoo-listener-scroll {
+    width: 100% !important;
+    height: calc(100svh - 186px) !important;
+    padding-bottom: 24px !important;
+  }
+
+  #root .echoo-listener-shell.echoo-listener-shell > .echoo-persistent-player.echoo-persistent-player {
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 64px !important;
+    width: 100% !important;
+    height: 64px !important;
+    min-height: 64px !important;
+    max-height: 64px !important;
+  }
+}

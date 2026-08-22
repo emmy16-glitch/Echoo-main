@@ -2,6 +2,7 @@ import User from '../models/User.js';
 import Audio from '../models/Audio.js';
 import Playlist from '../models/Playlist.js';
 import Station from '../models/Station.js';
+import TranscriptSegment from '../models/TranscriptSegment.js';
 import {
   boundedSearchText,
   escapeRegexLiteral,
@@ -142,7 +143,7 @@ export async function globalSearch(req, res, next) {
     const skip = (page - 1) * limit;
     const searchTypes = req.query.type
       ? String(req.query.type).split(',').map((item) => item.trim())
-      : ['tracks', 'creators', 'stations', 'playlists'];
+      : ['tracks', 'creators', 'stations', 'playlists', 'transcripts'];
     const results = {};
     const counts = {};
 
@@ -236,6 +237,39 @@ export async function globalSearch(req, res, next) {
       ]);
       results.playlists = playlists.map(playlistResult);
       counts.playlists = total;
+    }
+
+    if (searchTypes.includes('transcripts')) {
+      const segments = await TranscriptSegment.find({
+        isFinal: true,
+        isHidden: { $ne: true },
+        audioId: { $ne: null },
+        $text: { $search: query },
+      })
+        .populate({
+          path: 'audioId',
+          match: { isPublic: true, isDeleted: false },
+          select: 'title coverArt coverArtMode coverArtVariant duration artist sourceBroadcast',
+          populate: { path: 'artist', select: 'username displayName avatar creatorProfile.artistName creatorProfile.organizationName' },
+        })
+        .sort({ score: { $meta: 'textScore' }, startMs: 1 })
+        .limit(limit)
+        .select('audioId broadcastId startMs endMs speaker text confidence language');
+      results.transcripts = segments
+        .filter((segment) => segment.audioId)
+        .map((segment) => ({
+          id: segment._id,
+          audioId: segment.audioId._id,
+          broadcastId: segment.broadcastId,
+          timestampMs: segment.startMs,
+          endMs: segment.endMs,
+          speaker: segment.speaker,
+          text: segment.text,
+          confidence: segment.confidence,
+          language: segment.language,
+          audio: trackResult(segment.audioId),
+        }));
+      counts.transcripts = results.transcripts.length;
     }
 
     const suggestions = [];

@@ -45,10 +45,17 @@ function makeDoc(fields) {
     endedAt: null,
     updatedAt: new Date(Date.now() - 60 * 60 * 1000), // 1 hour old by default
     saveCalled: 0,
+    saveSnapshots: [],
     ...fields,
   };
   doc.save = async () => {
     doc.saveCalled += 1;
+    doc.saveSnapshots.push({
+      status: doc.status,
+      livekitRoomName: doc.livekitRoomName,
+      livekitIngressId: doc.livekitIngressId,
+      livekitEgressId: doc.livekitEgressId,
+    });
     return doc;
   };
   Object.setPrototypeOf(doc, events);
@@ -91,7 +98,7 @@ function installBroadcastMock(docs) {
   const originalFindMethod = realBroadcast.find.bind(realBroadcast);
   const originalFindByIdMethod = realBroadcast.findById.bind(realBroadcast);
   realBroadcast.find = async (filter) => {
-    assert.deepEqual(filter, { status: { $in: ['starting', 'ending'] } });
+    assert.deepEqual(filter, { status: { $in: ['starting', 'ending', 'live'] } });
     return [...docs];
   };
   realBroadcast.findById = async (id) => {
@@ -179,6 +186,32 @@ test('stuck broadcasts are detected by their age against the threshold', { concu
   assert.equal(sweepModule.isStuck(recent), false);
 });
 
+test('stale live broadcasts are reaped only while still waiting for the creator program track', { concurrency: 1 }, async () => {
+  const staleConnecting = makeDoc({
+    status: 'live',
+    mediaState: 'creator_connecting',
+    startedAt: new Date(Date.now() - 45 * 60 * 1000),
+    updatedAt: new Date(),
+  });
+  const healthyPublished = makeDoc({
+    status: 'live',
+    mediaState: 'audio_published',
+    updatedAt: new Date(Date.now() - 45 * 60 * 1000),
+  });
+  const provider = makeLivekitProviderMock();
+  const { sweepModule, teardown } = await loadSweepWithMocks([staleConnecting, healthyPublished], provider);
+  try {
+    const result = await sweepModule.sweep();
+    assert.equal(result.swept, 1);
+    assert.equal(staleConnecting.status, 'failed');
+    assert.match(staleConnecting.failureReason, /never published/);
+    assert.equal(healthyPublished.status, 'live');
+    assert.equal(healthyPublished.saveCalled, 0);
+  } finally {
+    teardown();
+  }
+});
+
 test('stuck starting broadcasts are failed with a reason and endedAt', { concurrency: 1 }, async () => {
   const doc = makeDoc({
     status: 'starting',
@@ -197,6 +230,12 @@ test('stuck starting broadcasts are failed with a reason and endedAt', { concurr
     assert.match(doc.failureReason, /^Orphan sweep:/);
     assert.ok(doc.endedAt instanceof Date);
     assert.equal(doc.saveCalled, 1);
+    assert.deepEqual(doc.saveSnapshots[0], {
+      status: 'failed',
+      livekitRoomName: null,
+      livekitIngressId: null,
+      livekitEgressId: null,
+    });
     assert.equal(provider.calls[0].op, 'stopIngress');
     assert.equal(provider.calls[0].id, 'IN_ingress-1');
     assert.equal(provider.calls[1].op, 'endRoom');
@@ -221,6 +260,7 @@ test('stuck ending broadcasts are completed with endedAt and cleaned up', { conc
     assert.equal(doc.status, 'completed');
     assert.equal(doc.failureReason, null);
     assert.ok(doc.endedAt instanceof Date);
+    assert.equal(doc.saveSnapshots[0].status, 'completed');
     assert.equal(provider.calls.map((c) => c.op).join(','), 'stopEgress,endRoom');
     assert.equal(provider.calls[0].id, 'EG_egress-1');
     // The provider derives the room name from the broadcast id, not the

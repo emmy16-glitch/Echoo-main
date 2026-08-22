@@ -4,6 +4,7 @@ import {
   getAnalyticsOverview,
   getAudienceAnalytics,
   getContentAnalytics,
+  getLiveBroadcastAnalytics,
 } from '../controllers/analyticsController.js';
 
 const router = express.Router();
@@ -13,6 +14,7 @@ router.use(authenticate);
 
 // Get analytics overview
 router.get('/overview', getAnalyticsOverview);
+router.get('/live/:broadcastId', getLiveBroadcastAnalytics);
 
 // Get audience analytics
 router.get('/audience', getAudienceAnalytics);

@@ -5,9 +5,12 @@ import batch2Service, {
 } from './batch2Service.js';
 import {
   announceFinishedBroadcastRecording,
+  clearPendingBroadcastRecording,
   discardBroadcastRecording,
   finishBroadcastRecording,
 } from './broadcastRecordingService.js';
+import { stopWhisperFlowTranscription } from './whisperFlowService.js';
+import studioService from './studioService.js';
 
 const PENDING_RECORDING_DECISION_KEY = '__echooPendingBroadcastRecording';
 
@@ -312,7 +315,15 @@ const batch3Service = {
     };
   },
 
+  getLiveAnalytics: async (broadcastId) =>
+    apiRequest(`/analytics/live/${encodeURIComponent(broadcastId)}`),
+
   endBroadcast: async (broadcastId) => {
+    // The backend owns transcript finalization after the live state ends. Stop
+    // only the browser PCM producer here; never make ending live wait on AI.
+    void stopWhisperFlowTranscription({ finalize: false }).catch((error) => {
+      console.warn('[Echoo Transcript] background handoff warning:', error?.message || error);
+    });
     const response = await apiRequest(
       `/broadcasts/${encodeURIComponent(broadcastId)}/end`,
       { method: 'POST' }
@@ -325,15 +336,39 @@ const batch3Service = {
     // transition and before the caller tears down the mixer. The decision is
     // also held on window memory so a React remount or a very narrow event-listener
     // race cannot make a completed recording disappear without a creator choice.
+    void (async () => {
     try {
       const recording = await finishBroadcastRecording(broadcastId);
       if (recording?.blob?.size) {
-        const decision = {
-          recording,
-          broadcast: normalized,
-        };
-        rememberPendingRecordingDecision(decision);
-        announceFinishedBroadcastRecording(decision);
+        try {
+          const extension = recording.mimeType === 'audio/wav'
+            ? 'wav'
+            : String(recording.mimeType || '').includes('ogg') ? 'ogg' : 'webm';
+          const file = new File(
+            [recording.blob],
+            `echoo-live-${String(broadcastId)}.${extension}`,
+            { type: recording.mimeType || recording.blob.type || 'audio/wav' }
+          );
+          const replay = await studioService.uploadAudio({
+            file,
+            title: normalized?.title || 'Echoo live replay',
+            description: normalized?.description || 'Recorded live on Echoo.',
+            genre: normalized?.category || 'Other',
+            tags: ['live-recording', 'broadcast', recording.lossless ? 'lossless-master' : 'recording-fallback'],
+            isPublic: false,
+            broadcastId,
+          });
+          clearPendingBroadcastRecording(broadcastId);
+          forgetPendingRecordingDecision();
+          response.replay = replay?.data || replay;
+        } catch (uploadError) {
+          // Preserve the local master and the existing recovery prompt when an
+          // upload cannot complete. A replay is never exposed without media.
+          const decision = { recording, broadcast: normalized };
+          rememberPendingRecordingDecision(decision);
+          announceFinishedBroadcastRecording(decision);
+          console.warn('[Echoo Recording] automatic replay upload failed:', uploadError?.message || uploadError);
+        }
       }
     } catch (recordingError) {
       console.warn(
@@ -341,11 +376,54 @@ const batch3Service = {
         recordingError?.message || recordingError
       );
     }
+    })();
 
     return {
       ...response,
       data: normalized,
     };
+  },
+
+  getProcessing: async (broadcastId) =>
+    apiRequest(`/broadcasts/${encodeURIComponent(broadcastId)}/processing`),
+
+  updateAssetVisibility: async (broadcastId, values) =>
+    apiRequest(`/broadcasts/${encodeURIComponent(broadcastId)}/asset-visibility`, {
+      method: 'PATCH',
+      body: JSON.stringify(values),
+    }),
+
+  publishReplay: async (broadcastId, visibility) =>
+    apiRequest(`/broadcasts/${encodeURIComponent(broadcastId)}/publish-replay`, {
+      method: 'POST',
+      body: JSON.stringify({ visibility }),
+    }),
+
+  beginTranscriptReview: async (broadcastId) =>
+    apiRequest(`/broadcasts/${encodeURIComponent(broadcastId)}/transcript/review`, {
+      method: 'POST',
+    }),
+
+  publishTranscript: async (broadcastId, visibility) =>
+    apiRequest(`/broadcasts/${encodeURIComponent(broadcastId)}/transcript/publish`, {
+      method: 'POST',
+      body: JSON.stringify({ visibility }),
+    }),
+
+  pauseBroadcast: async (broadcastId) => {
+    const response = await apiRequest(
+      `/broadcasts/${encodeURIComponent(broadcastId)}/pause`,
+      { method: 'POST' }
+    );
+    return { ...response, data: normalizeBroadcast(response?.data) };
+  },
+
+  resumeBroadcast: async (broadcastId) => {
+    const response = await apiRequest(
+      `/broadcasts/${encodeURIComponent(broadcastId)}/resume`,
+      { method: 'POST' }
+    );
+    return { ...response, data: normalizeBroadcast(response?.data) };
   },
 
   normalizeStation,

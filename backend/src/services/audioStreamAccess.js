@@ -38,7 +38,7 @@ export const createAudioStreamToken = ({
 }) => {
   const id = String(audioId || '').trim();
   if (!id) throw new Error('audioId is required for an audio stream token');
-  if (!['public', 'owner'].includes(access)) {
+  if (!['public', 'account', 'owner'].includes(access)) {
     throw new Error('Invalid audio stream access scope');
   }
 
@@ -56,6 +56,7 @@ export const createAudioStreamToken = ({
     audioId: id,
     access,
     ...(access === 'owner' ? { ownerId: String(ownerId || '') } : {}),
+    ...(access === 'account' ? { userId: String(ownerId || '') } : {}),
   };
 
   const token = jwt.sign(payload, secret, {
@@ -88,7 +89,7 @@ export const verifyAudioStreamToken = (token, audioId) => {
     if (
       decoded?.type !== 'audio-stream' ||
       String(decoded?.audioId || '') !== String(audioId || '') ||
-      !['public', 'owner'].includes(decoded?.access)
+      !['public', 'account', 'owner'].includes(decoded?.access)
     ) {
       const error = new Error('Invalid audio stream token');
       error.code = 'INVALID_AUDIO_STREAM_TOKEN';

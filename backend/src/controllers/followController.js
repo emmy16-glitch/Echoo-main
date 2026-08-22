@@ -341,7 +341,7 @@ export async function followStation(req, res, next) {
     const relationship = await StationFollow.findOneAndUpdate(
       { follower: req.userId, station: stationId },
       { $setOnInsert: { follower: req.userId, station: stationId } },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
+      { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
     );
 
     const followerCount = await StationFollow.countDocuments({ station: stationId });

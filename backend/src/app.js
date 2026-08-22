@@ -15,6 +15,21 @@ import { startOrphanSweep } from './services/livekitOrphanSweep.js';
 import { verifyAccessToken } from './config/jwt.js';
 import User from './models/User.js';
 import Broadcast from './models/Broadcast.js';
+import {
+  clearLiveKitWebhookTimers,
+  handleLiveKitWebhook,
+} from './services/livekitWebhookService.js';
+import {
+  attachTranscriptionSession,
+  configureTranscriptionGateway,
+  detachTranscriptionSocket,
+  flushTranscriptionSession,
+  ingestTranscriptionFrame,
+} from './services/transcriptionGateway.js';
+import {
+  startBroadcastProcessingWorker,
+  stopBroadcastProcessingWorker,
+} from './services/broadcastProcessingService.js';
 
 const app = express();
 const PORT = env.port || 5001;
@@ -102,6 +117,13 @@ app.use(
 );
 
 app.use(compression());
+// LiveKit signs the exact raw webhook body. Register this endpoint before the
+// general JSON parser so signature verification cannot be invalidated.
+app.post(
+  '/api/webhooks/livekit',
+  express.raw({ type: 'application/webhook+json', limit: '1mb' }),
+  handleLiveKitWebhook
+);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -203,6 +225,7 @@ const io = new Server(server, {
 });
 
 app.set('io', io);
+configureTranscriptionGateway(io);
 
 const SOCKET_BROADCAST_CACHE_MS = 2000;
 const PRESENCE_EVENT_COALESCE_MS = 400;
@@ -219,7 +242,9 @@ const getSocketBroadcast = async (broadcastId) => {
   const broadcast = await Broadcast.findOne({
     _id: broadcastId,
     isDeleted: false,
-  }).select('_id status isPublic creator');
+  }).select(
+    '_id status isPublic creator startedAt endedAt listenerCount peakListeners mediaState transcriptState programTrackSid programTrackName'
+  );
 
   if (broadcast) {
     socketBroadcastCache.set(key, {
@@ -309,7 +334,7 @@ io.on('connection', (socket) => {
       // cancelled and failed broadcasts cannot accept new realtime participants.
       const allowedStatuses = isOwner
         ? ['scheduled', 'starting', 'live', 'ending']
-        : ['scheduled', 'live'];
+        : ['scheduled', 'starting', 'live'];
 
       if (!allowedStatuses.includes(broadcast.status)) {
         throw new Error('Broadcast realtime room is not active');
@@ -317,10 +342,36 @@ io.on('connection', (socket) => {
 
       const room = `broadcast:${broadcastId}`;
       await socket.join(room);
+      if (isOwner) await socket.join(`${room}:creator`);
+      socket.data.broadcastRooms ||= new Set();
+      socket.data.broadcastRooms.add(String(broadcastId));
       schedulePresenceChanged(broadcastId);
 
+      if (!isOwner) {
+        io.to(room).emit('listener_joined', {
+          broadcastId: String(broadcastId),
+          userId: socket.data.userId,
+          joinedAt: new Date().toISOString(),
+        });
+      }
+
       if (typeof acknowledge === 'function') {
-        acknowledge({ ok: true, broadcastId: String(broadcastId) });
+        acknowledge({
+          ok: true,
+          broadcastId: String(broadcastId),
+          status: {
+            broadcastId: String(broadcastId),
+            status: broadcast.status,
+            startedAt: broadcast.startedAt || null,
+            endedAt: broadcast.endedAt || null,
+            listenerCount: Number(broadcast.listenerCount) || 0,
+            peakListeners: Number(broadcast.peakListeners) || 0,
+            mediaState: broadcast.mediaState || 'waiting_for_creator',
+            transcriptState: broadcast.transcriptState || 'disabled',
+            programTrackSid: broadcast.programTrackSid || null,
+            programTrackName: broadcast.programTrackName || null,
+          },
+        });
       }
     } catch (error) {
       if (typeof acknowledge === 'function') {
@@ -334,12 +385,81 @@ io.on('connection', (socket) => {
 
     if (room) {
       await socket.leave(room);
+      socket.data.broadcastRooms?.delete(String(broadcastId));
       schedulePresenceChanged(broadcastId);
+      io.to(room).emit('listener_left', {
+        broadcastId: String(broadcastId),
+        userId: socket.data.userId,
+        leftAt: new Date().toISOString(),
+      });
     }
 
     if (typeof acknowledge === 'function') {
       acknowledge({ ok: true });
     }
+  });
+
+  socket.on('transcription:attach', async ({ sessionId } = {}, acknowledge) => {
+    try {
+      if (!sessionId || !mongoose.isValidObjectId(sessionId)) {
+        throw new Error('A valid transcript session ID is required');
+      }
+      const session = await attachTranscriptionSession({
+        sessionId,
+        userId: socket.data.userId,
+        socketId: socket.id,
+      });
+      if (typeof acknowledge === 'function') acknowledge({ ok: true, session });
+    } catch (error) {
+      if (typeof acknowledge === 'function') {
+        acknowledge({ ok: false, error: error.message, code: error.code || 'TRANSCRIPTION_ATTACH_FAILED' });
+      }
+    }
+  });
+
+  socket.on('transcription:pcm', ({ sessionId, frameIndex, data } = {}, acknowledge) => {
+    try {
+      const result = ingestTranscriptionFrame({
+        sessionId,
+        userId: socket.data.userId,
+        socketId: socket.id,
+        frameIndex,
+        data,
+      });
+      if (typeof acknowledge === 'function') acknowledge({ ok: true, ...result });
+    } catch (error) {
+      if (typeof acknowledge === 'function') {
+        acknowledge({ ok: false, error: error.message, code: error.code || 'TRANSCRIPTION_FRAME_FAILED' });
+      }
+    }
+  });
+
+  socket.on('transcription:flush', async ({ sessionId } = {}, acknowledge) => {
+    try {
+      const owned = await attachTranscriptionSession({
+        sessionId,
+        userId: socket.data.userId,
+        socketId: socket.id,
+      });
+      const session = await flushTranscriptionSession(owned.id, { reason: 'creator-requested' });
+      if (typeof acknowledge === 'function') acknowledge({ ok: true, session });
+    } catch (error) {
+      if (typeof acknowledge === 'function') {
+        acknowledge({ ok: false, error: error.message, code: error.code || 'TRANSCRIPTION_FLUSH_FAILED' });
+      }
+    }
+  });
+
+  socket.on('disconnect', () => {
+    for (const broadcastId of socket.data.broadcastRooms || []) {
+      schedulePresenceChanged(broadcastId);
+      io.to(`broadcast:${broadcastId}`).emit('listener_left', {
+        broadcastId,
+        userId: socket.data.userId,
+        leftAt: new Date().toISOString(),
+      });
+    }
+    detachTranscriptionSocket(socket.id);
   });
 });
 
@@ -357,6 +477,7 @@ async function startServer() {
     // lingering LiveKit resources. It self-guards when LiveKit is not
     // configured, so test and no-livekit environments skip it silently.
     startOrphanSweep();
+    startBroadcastProcessingWorker(io);
 
     server.listen(PORT, () => {
       console.log('Echoo API listening on port', PORT);
@@ -376,6 +497,8 @@ const shutdown = async (signal) => {
   for (const timer of presenceEventTimers.values()) clearTimeout(timer);
   presenceEventTimers.clear();
   socketBroadcastCache.clear();
+  clearLiveKitWebhookTimers();
+  stopBroadcastProcessingWorker();
 
   server.close(async () => {
     await disconnectDatabase();

@@ -1,6 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import creatorLogo from '../Assets/creator-logo.png';
-import echooOfficialLogo from '../Assets/echoo-logo-official.svg';
+import echooLogo from '../Assets/echoo-brand-logo.png';
 import '../CreatorStudio/CreatorStudioShellFinal.css';
 import '../../theme/EchooDesignSystem.css';
 import './EchooAppShell.css';
@@ -10,7 +9,7 @@ import Sidebar from './Sidebar';
 const DefaultBrand = ({ role, roleLabel }) => {
   const homePath = role === 'listener' ? '/listen' : '/creator-studio';
   const isListener = role === 'listener';
-  const logoSrc = isListener ? echooOfficialLogo : creatorLogo;
+  const logoSrc = echooLogo;
 
   return (
     <NavLink

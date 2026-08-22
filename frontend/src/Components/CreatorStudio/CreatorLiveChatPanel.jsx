@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FaComments,
+  FaBan,
   FaEllipsisH,
   FaPaperPlane,
   FaSmile,
@@ -35,7 +36,7 @@ const formatTime = (value) => {
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
-const CreatorLiveChatPanel = ({ broadcastId }) => {
+const CreatorLiveChatPanel = ({ broadcastId, listenerCount = 0 }) => {
   const user = useMemo(() => readCurrentUser(), []);
   const [messages, setMessages] = useState([]);
   const [pinned, setPinned] = useState([]);
@@ -247,6 +248,20 @@ const CreatorLiveChatPanel = ({ broadcastId }) => {
     }
   };
 
+  const muteUser = async (message) => {
+    if (!message?.userId || actionId) return;
+    try {
+      setActionId(`mute:${message.id}`);
+      await batch4Service.muteUser(broadcastId, message.userId);
+      setMenuMessageId('');
+      setError('');
+    } catch (muteError) {
+      setError(muteError?.message || 'Could not update this listener.');
+    } finally {
+      setActionId('');
+    }
+  };
+
   return (
     <section className="ebsx-chat-card echoo-premium-live-chat">
       <div className="ebsx-card-head echoo-live-chat-head">
@@ -254,7 +269,7 @@ const CreatorLiveChatPanel = ({ broadcastId }) => {
           <FaComments />
           <div>
             <h2>Live Chat</h2>
-            <small>Real conversations happening now</small>
+            <small>{Number(listenerCount).toLocaleString()} online</small>
           </div>
         </div>
         <div className={`ebsx-chat-realtime ${realtimeState === 'connected' ? 'connected' : ''}`}>
@@ -365,6 +380,7 @@ const CreatorLiveChatPanel = ({ broadcastId }) => {
                           <button type="button" className="danger" disabled={Boolean(actionId)} onClick={() => remove(chat)}>
                             <FaTrash /> Remove message
                           </button>
+                          {!own && <button type="button" disabled={Boolean(actionId)} onClick={() => muteUser(chat)}><FaBan /> Mute listener</button>}
                         </div>
                       )}
                     </div>

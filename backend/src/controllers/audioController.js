@@ -1,10 +1,15 @@
 import fs from 'fs';
 import path from 'path';
+import mongoose from 'mongoose';
 import Audio from '../models/Audio.js';
+import Broadcast from '../models/Broadcast.js';
+import SavedMoment from '../models/SavedMoment.js';
+import TranscriptSegment from '../models/TranscriptSegment.js';
 import Follow from '../models/Follow.js';
 import User from '../models/User.js';
 import { createNotification } from './notificationController.js';
 import { createGeneratedAudioCover } from '../utils/audioCover.js';
+import { canAccessReplayAudio } from '../services/assetAccessService.js';
 
 const safeDuration = (value) => {
   const duration = Number(value);
@@ -92,7 +97,7 @@ export async function uploadAudio(req, res, next) {
       });
     }
 
-    const { title, description, genre, tags, isPublic, duration } = req.body;
+    const { title, description, genre, tags, isPublic, duration, broadcastId } = req.body;
     const cleanTitle = String(title || audioFile.originalname || 'Untitled Audio').trim();
     const cleanGenre = genre || 'Other';
 
@@ -128,6 +133,28 @@ export async function uploadAudio(req, res, next) {
       coverArtVariant = generated.variant;
     }
 
+    let sourceBroadcast = null;
+    if (broadcastId) {
+      if (!mongoose.isValidObjectId(broadcastId)) {
+        const error = new Error('Invalid broadcast ID');
+        error.status = 400;
+        error.code = 'INVALID_BROADCAST_ID';
+        throw error;
+      }
+      sourceBroadcast = await Broadcast.findOne({
+        _id: broadcastId,
+        creator: req.userId,
+        isDeleted: false,
+        status: 'completed',
+      });
+      if (!sourceBroadcast) {
+        const error = new Error('The completed broadcast could not be linked to this replay.');
+        error.status = 409;
+        error.code = 'BROADCAST_NOT_READY_FOR_REPLAY';
+        throw error;
+      }
+    }
+
     const audio = new Audio({
       title: cleanTitle,
       description: description || '',
@@ -144,10 +171,64 @@ export async function uploadAudio(req, res, next) {
       coverArtVariant,
       genre: cleanGenre,
       tags: parsedTags,
-      isPublic: isPublic === 'true' || isPublic === true,
+      isPublic: sourceBroadcast ? false : (isPublic === 'true' || isPublic === true),
+      visibility: sourceBroadcast ? 'private' : ((isPublic === 'true' || isPublic === true) ? 'public' : 'private'),
+      publicationStatus: sourceBroadcast ? 'draft' : ((isPublic === 'true' || isPublic === true) ? 'published' : 'draft'),
+      publishedAt: sourceBroadcast ? null : ((isPublic === 'true' || isPublic === true) ? new Date() : null),
+      sourceBroadcast: sourceBroadcast?._id || null,
     });
 
     await audio.save();
+
+    if (sourceBroadcast) {
+      const previousReplayAudio = sourceBroadcast.replayAudio || null;
+      const previousRecordingUrl = sourceBroadcast.recordingUrl || null;
+      try {
+        if (previousReplayAudio) {
+          const error = new Error('This broadcast already has a replay recording.');
+          error.status = 409;
+          error.code = 'REPLAY_ALREADY_EXISTS';
+          throw error;
+        }
+        sourceBroadcast.replayAudio = audio._id;
+        sourceBroadcast.recordingUrl = String(audio._id);
+        sourceBroadcast.assetStatus.audio = 'ready';
+        sourceBroadcast.assetVisibility.audio = 'private';
+        await sourceBroadcast.save();
+        await TranscriptSegment.updateMany(
+          { broadcastId: sourceBroadcast._id, isFinal: true },
+          { $set: { audioId: audio._id } }
+        );
+        await SavedMoment.updateMany(
+          { broadcastId: sourceBroadcast._id, audioId: null },
+          { $set: { audioId: audio._id } }
+        );
+        req.app.get('io')?.to(`broadcast:${sourceBroadcast._id}:creator`).emit('replay:ready', {
+          broadcastId: String(sourceBroadcast._id),
+          audioId: String(audio._id),
+        });
+      } catch (linkError) {
+        await Broadcast.updateOne(
+          { _id: sourceBroadcast._id, replayAudio: audio._id },
+          {
+            $set: {
+              replayAudio: previousReplayAudio,
+              recordingUrl: previousRecordingUrl,
+            },
+          }
+        ).catch(() => null);
+        await TranscriptSegment.updateMany(
+          { broadcastId: sourceBroadcast._id, audioId: audio._id },
+          { $set: { audioId: previousReplayAudio } }
+        ).catch(() => null);
+        await SavedMoment.updateMany(
+          { broadcastId: sourceBroadcast._id, audioId: audio._id },
+          { $set: { audioId: previousReplayAudio } }
+        ).catch(() => null);
+        await Audio.deleteOne({ _id: audio._id }).catch(() => {});
+        throw linkError;
+      }
+    }
 
     if (audio.isPublic) {
       req.app.get('io')?.emit('catalog:changed', {
@@ -156,7 +237,6 @@ export async function uploadAudio(req, res, next) {
         audioId: String(audio._id),
       });
     }
-
     // From this point the media bytes and Mongo record belong together. The
     // upload error middleware must not delete files merely because a secondary
     // populate/notification step failed after the authoritative save.
@@ -166,10 +246,12 @@ export async function uploadAudio(req, res, next) {
 
     let responseAudio = audio;
     try {
-      responseAudio = await Audio.findById(audio._id).populate(
-        'artist',
-        'username displayName avatar creatorProfile.artistName creatorProfile.organizationName userType'
-      ) || audio;
+      responseAudio = await Audio.findById(audio._id)
+        .populate(
+          'artist',
+          'username displayName avatar creatorProfile.artistName creatorProfile.organizationName userType'
+        )
+        .populate('sourceBroadcast', 'title description startedAt endedAt station creator assetStatus assetVisibility generatedHighlights generatedChapters') || audio;
     } catch (populateError) {
       console.warn(
         'Audio upload populate warning:',
@@ -236,10 +318,16 @@ export async function getAudio(req, res, next) {
 
 export async function getAudioById(req, res, next) {
   try {
-    const audio = await Audio.findById(req.params.id).populate(
-      'artist',
-      'username displayName bio avatar creatorProfile.artistName creatorProfile.organizationName userType'
-    );
+    const audio = await Audio.findById(req.params.id)
+      .populate(
+        'artist',
+        'username displayName bio avatar creatorProfile.artistName creatorProfile.organizationName userType'
+      )
+      .populate({
+        path: 'sourceBroadcast',
+        select: 'title description startedAt endedAt station creator listenerCount peakListeners assetStatus assetVisibility generatedHighlights generatedChapters',
+        populate: { path: 'station', select: 'name category coverArt' },
+      });
 
     if (!audio || audio.isDeleted) {
       return res.status(404).json({
@@ -247,7 +335,7 @@ export async function getAudioById(req, res, next) {
       });
     }
 
-    if (!audio.isPublic && audio.artist._id.toString() !== req.userId.toString()) {
+    if (!await canAccessReplayAudio(audio, req.userId)) {
       return res.status(403).json({
         error: { code: 'FORBIDDEN', message: 'You do not have access to this audio' },
       });
@@ -355,14 +443,6 @@ export async function updateAudio(req, res, next) {
 
     await audio.save();
 
-    if (wasPublic || audio.isPublic) {
-      req.app.get('io')?.emit('catalog:changed', {
-        entity: 'audio',
-        action: wasPublic === Boolean(audio.isPublic) ? 'updated' : 'visibility',
-        audioId: String(audio._id),
-      });
-    }
-
     if (!wasPublic && audio.isPublic) {
       await notifyFollowersOfRelease(req.user, audio);
     }
@@ -391,17 +471,8 @@ export async function deleteAudio(req, res, next) {
       });
     }
 
-    const wasPublic = Boolean(audio.isPublic);
     audio.isDeleted = true;
     await audio.save();
-
-    if (wasPublic) {
-      req.app.get('io')?.emit('catalog:changed', {
-        entity: 'audio',
-        action: 'deleted',
-        audioId: String(audio._id),
-      });
-    }
 
     const audioPath = safeLocalMediaPath(
       'audio',

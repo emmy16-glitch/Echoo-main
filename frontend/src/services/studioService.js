@@ -224,6 +224,7 @@ const studioService = {
     genre = "Other",
     tags = [],
     isPublic = true,
+    broadcastId = null,
   }) => {
     if (!file) throw new Error("Please choose an audio file.");
 
@@ -238,6 +239,7 @@ const studioService = {
     formData.append("tags", JSON.stringify(Array.isArray(tags) ? tags : []));
     formData.append("isPublic", isPublic ? "true" : "false");
     if (duration > 0) formData.append("duration", String(duration));
+    if (broadcastId) formData.append("broadcastId", String(broadcastId));
 
     const response = await apiFetch("/audio/upload", {
       method: "POST",
