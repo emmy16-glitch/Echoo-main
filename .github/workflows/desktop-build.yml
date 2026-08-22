@@ -24,15 +24,12 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@v4
         with:
-          node-corepack: true
           node-version: 20
-          cache: 'npm'
-          cache-dependency-path: desktop/package-lock.json
 
       - name: Install dependencies
         run: |
           cd desktop
-          npm install
+          npm install --no-package-lock
 
       - name: Build/release Electron app
         uses: samuelmeuli/action-electron-builder@v1
