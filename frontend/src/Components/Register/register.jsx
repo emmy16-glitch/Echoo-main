@@ -178,12 +178,12 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
       }
 
       if (action === "Forgot Password") {
+        const response = await api.auth.forgotPassword(formData.email.trim());
         setToast({
           open: true,
-          type: "info",
-          title: "Password recovery is not available yet",
-          message:
-            "Echoo has not enabled password-reset email yet. Please contact support or your administrator if you cannot access your account.",
+          type: "success",
+          title: "Reset link sent",
+          message: response?.data?.message || "Check your email for a password-reset link.",
         });
       }
     } catch (error) {
@@ -212,6 +212,13 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
             ? "We couldn't reach the Echoo account service. Please check your connection and try again."
             : error?.message || "We couldn't create your account. Please try again."
         );
+        return;
+      }
+
+      if (action === "Forgot Password" && error?.status === 404 && error?.code === "USER_NOT_REGISTERED") {
+        setAction("Sign Up");
+        setSignupError("This email is not registered. Please create an Echoo account.");
+        setSignupNotice("");
         return;
       }
 
@@ -303,7 +310,7 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
           <div className="auth-header forgot-header"><h1>Forgot Password</h1></div>
           <form onSubmit={handleSubmit} className="auth-form compact-form">
             <p className="forgot-description">
-              Enter the email address associated with your account, and we'll send you a verification code.
+              Enter the email address associated with your account, and we'll send you a password-reset link.
             </p>
             <div className="input-container">
               <div className="input">

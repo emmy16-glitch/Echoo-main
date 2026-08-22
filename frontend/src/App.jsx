@@ -9,6 +9,7 @@ import {
 } from 'react-router-dom';
 
 import Register from './Components/Register/register';
+import ResetPassword from './Components/Register/ResetPassword';
 import ProfileSetup from './Components/ProfileSetup/ProfileSetup';
 import ChooseRole from './Components/ChooseRole/ChooseRole';
 import CreatorSetup from './Components/CreatorSetup/CreatorSetup';
@@ -328,6 +329,7 @@ function App() {
         <div id="echoo-main-content" tabIndex={-1}>
           <Routes>
             <Route path="/" element={<OnboardingFlow />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
 
             <Route
               path="/creator-studio"

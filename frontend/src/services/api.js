@@ -432,6 +432,19 @@ export const api = {
           }
         );
       },
+
+    resetPassword:
+      async ({ token, password }) => {
+        return apiRequest(
+          '/auth/reset-password',
+          {
+            method: 'POST',
+            body: JSON.stringify({ token, password }),
+            skipAuth: true,
+            skipRefresh: true,
+          }
+        );
+      },
   },
 
   users: {

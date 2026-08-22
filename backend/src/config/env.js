@@ -78,4 +78,11 @@ export const env = Object.freeze({
   jwtAccessExpiresIn: requireValue('JWT_ACCESS_EXPIRES_IN', '15m'),
   jwtRefreshExpiresIn: requireValue('JWT_REFRESH_EXPIRES_IN', '7d'),
   logLevel: requireValue('LOG_LEVEL', 'info'),
+  frontendUrl: requireValue('FRONTEND_URL', 'http://localhost:5174'),
+  smtpHost: requireValue('SMTP_HOST', ''),
+  smtpPort: parsePort(process.env.SMTP_PORT || '587'),
+  smtpSecure: String(process.env.SMTP_SECURE || 'false').toLowerCase() === 'true',
+  smtpUser: requireValue('SMTP_USER', ''),
+  smtpPassword: requireValue('SMTP_PASSWORD', ''),
+  mailFrom: requireValue('MAIL_FROM', ''),
 });
