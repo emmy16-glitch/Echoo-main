@@ -34,6 +34,34 @@ const upload = multer({
   },
 });
 
+const uploadChunkFile = (req, res, next) => {
+  upload.single('chunk')(req, res, (error) => {
+    if (!error) return next();
+
+    if (error instanceof multer.MulterError) {
+      const status = error.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
+      const message =
+        error.code === 'LIMIT_FILE_SIZE'
+          ? 'Upload chunks must be 5 MB or smaller.'
+          : error.message;
+
+      return res.status(status).json({
+        error: {
+          code: error.code || 'UPLOAD_ERROR',
+          message,
+        },
+      });
+    }
+
+    return res.status(400).json({
+      error: {
+        code: error.code || 'UPLOAD_REJECTED',
+        message: error.message || 'This upload chunk could not be accepted.',
+      },
+    });
+  });
+};
+
 // All upload routes require authentication
 router.use(authenticate);
 
@@ -41,7 +69,7 @@ router.use(authenticate);
 router.post('/initiate', initiateUpload);
 
 // Upload chunk
-router.post('/:uploadId/chunk', upload.single('chunk'), uploadChunk);
+router.post('/:uploadId/chunk', uploadChunkFile, uploadChunk);
 
 // Complete upload
 router.post('/:uploadId/complete', completeUpload);

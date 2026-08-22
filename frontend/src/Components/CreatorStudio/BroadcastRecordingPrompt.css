@@ -1,7 +1,7 @@
 .echoo-recording-decision-overlay {
   position: fixed;
   inset: 0;
-  z-index: 5000;
+  z-index: 200000;
   padding: 24px;
   background: rgba(16, 24, 40, .56);
   display: grid;

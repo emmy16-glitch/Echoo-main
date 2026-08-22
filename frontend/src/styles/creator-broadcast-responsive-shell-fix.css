@@ -10,12 +10,57 @@
    SHELL GEOMETRY
 ========================================================== */
 
-#root .studio-final-shell .studio-main {
-  width: calc(100% - var(--studio-sidebar-width)) !important;
-  max-width: calc(100% - var(--studio-sidebar-width)) !important;
-  min-width: 0 !important;
-  margin-left: var(--studio-sidebar-width) !important;
+#root .studio-final-shell.sidebar-expanded {
+  --studio-sidebar-width: 320px !important;
+}
+
+#root .studio-final-shell.sidebar-collapsed {
+  --studio-sidebar-width: 82px !important;
+}
+
+#root .studio-final-shell {
+  display: grid !important;
+  grid-template-columns: var(--studio-sidebar-width) minmax(0, 1fr) !important;
+  width: 100% !important;
+  max-width: 100vw !important;
   overflow-x: clip !important;
+}
+
+#root .studio-final-shell .studio-sidebar {
+  position: sticky !important;
+  top: 0 !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+  grid-column: 1 !important;
+  grid-row: 1 !important;
+  width: var(--studio-sidebar-width) !important;
+  box-sizing: border-box !important;
+}
+
+#root .studio-final-shell .studio-main {
+  grid-column: 2 !important;
+  grid-row: 1 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  margin-left: 0 !important;
+  overflow-x: clip !important;
+}
+
+#root .studio-final-shell .studio-view {
+  width: 100% !important;
+  max-width: 1320px !important;
+  min-width: 0 !important;
+  padding: 30px 36px 54px !important;
+  box-sizing: border-box !important;
+  overflow-x: clip !important;
+}
+
+#root .studio-final-shell .studio-view > *,
+#root .studio-final-shell .studio-view :where(.ehome-reference, .ehome, .est, .ebsx, .eca, .eau, .ean, .creator-settings-real) {
+  max-width: 100% !important;
+  min-width: 0 !important;
 }
 
 #root .studio-final-shell .studio-topbar-final {
@@ -353,7 +398,7 @@
 ========================================================== */
 
 @media (max-width: 1180px) and (min-width: 761px) {
-  #root .studio-final-shell.sidebar-expanded { --studio-sidebar-width: 220px !important; }
+  #root .studio-final-shell.sidebar-expanded { --studio-sidebar-width: 276px !important; }
   #root .studio-final-shell.sidebar-collapsed { --studio-sidebar-width: 78px !important; }
 
   #root .studio-final-shell .studio-topbar-final {
@@ -397,6 +442,18 @@
 }
 
 @media (max-width: 760px) {
+  #root .studio-final-shell {
+    display: block !important;
+    max-width: 100% !important;
+  }
+
+  #root .studio-final-shell .studio-sidebar {
+    position: fixed !important;
+    inset: auto 0 0 0 !important;
+    width: 100% !important;
+    height: calc(62px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
   #root .studio-final-shell .studio-main {
     width: 100% !important;
     max-width: 100% !important;

@@ -31,6 +31,15 @@
 
 .studio-final-shell.sidebar-collapsed { --studio-sidebar-width: 78px; }
 
+/* The shell owns the desktop geometry, so the old .studio-page grid cannot
+   pull the workspace back underneath the sidebar. */
+.studio-final-shell.studio-page {
+  display: grid;
+  grid-template-columns: var(--studio-sidebar-width) minmax(0, 1fr);
+  gap: 0;
+  padding: 0;
+}
+
 .studio-final-shell button,
 .studio-final-shell input,
 .studio-final-shell select,
@@ -316,6 +325,12 @@
   margin-left: 0;
   overflow-x: clip;
   background: var(--studio-canvas);
+}
+
+.studio-final-shell .studio-view,
+.studio-final-shell .studio-alert,
+.studio-final-shell .studio-footer {
+  min-width: 0;
 }
 
 .studio-topbar-final {

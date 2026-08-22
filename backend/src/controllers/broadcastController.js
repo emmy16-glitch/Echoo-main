@@ -37,11 +37,7 @@ function mediaRelayMode() {
 }
 
 function publicLiveKitUrl() {
-  return (
-    process.env.LIVEKIT_PUBLIC_URL ||
-    process.env.LIVEKIT_URL ||
-    ''
-  );
+  return LiveKitProvider.getPublicUrl();
 }
 
 function emitStatus(req, broadcast) {
