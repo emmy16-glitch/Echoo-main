@@ -55,6 +55,14 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
     action === "Sign Up" &&
     formData.password.length > 0 &&
     formData.password.length < 8;
+  const passwordMissingCombination =
+    action === "Sign Up" &&
+    formData.password.length > 0 &&
+    !(/[a-z]/.test(formData.password) &&
+      /[A-Z]/.test(formData.password) &&
+      /\d/.test(formData.password) &&
+      /[^A-Za-z0-9]/.test(formData.password));
+  const passwordInvalid = passwordTooShort || passwordMissingCombination;
 
   const passwordsMismatch =
     action === "Sign Up" &&
@@ -89,7 +97,7 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
         !fullNameInvalid &&
         formData.username.trim() !== "" &&
         formData.email.trim() !== "" &&
-        formData.password.length >= 8 &&
+        !passwordInvalid &&
         formData.confirmPassword !== "" &&
         formData.password === formData.confirmPassword
       );
@@ -122,8 +130,10 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
     if (action === "Sign Up" && !formIsComplete()) {
       if (fullNameInvalid) {
         setSignupError("Full name can contain letters, spaces, apostrophes, or hyphens only.");
-      } else if (formData.password.length < 8) {
+      } else if (passwordTooShort) {
         setSignupError("Password must be at least 8 characters.");
+      } else if (passwordMissingCombination) {
+        setSignupError("Password must include uppercase and lowercase letters, a number, and a special character.");
       } else if (formData.password !== formData.confirmPassword) {
         setSignupError("Passwords do not match. Please check both password fields.");
       } else {
@@ -522,7 +532,7 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
 
         <div className="eor-field">
           <label htmlFor="echoo-signup-password">Password</label>
-          <div className={`eor-input-shell ${passwordTooShort ? "has-error" : ""}`}>
+          <div className={`eor-input-shell ${passwordInvalid ? "has-error" : ""}`}>
             <FaLock className="eor-field-icon" aria-hidden="true" />
             <input
               id="echoo-signup-password"
@@ -532,7 +542,7 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
               value={formData.password}
               onChange={handleChange}
               autoComplete="new-password"
-              aria-invalid={passwordTooShort ? "true" : "false"}
+              aria-invalid={passwordInvalid ? "true" : "false"}
               required
             />
             <button
@@ -545,6 +555,9 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
             </button>
           </div>
           {passwordTooShort && <p className="eor-inline-error">Password must be at least 8 characters.</p>}
+          {!passwordTooShort && passwordMissingCombination && (
+            <p className="eor-inline-error">Use uppercase and lowercase letters, a number, and a special character.</p>
+          )}
         </div>
 
         <div className="eor-field">
@@ -572,7 +585,7 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
             </button>
           </div>
           {passwordsMismatch && <p className="eor-inline-error">Passwords do not match.</p>}
-          {!passwordsMismatch && <p className="eor-helper">Use 8+ characters. A mix of letters, numbers and symbols is recommended.</p>}
+          {!passwordsMismatch && !passwordInvalid && <p className="eor-helper">Use 8+ characters, including uppercase and lowercase letters, a number, and a special character.</p>}
         </div>
 
         {signupError && <p className="eor-inline-error" role="alert">{signupError}</p>}

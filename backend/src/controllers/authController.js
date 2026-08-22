@@ -13,9 +13,20 @@ export async function register(req, res, next) {
       });
     }
 
-    if (String(password).length < 6) {
+    const passwordValue = String(password);
+    const hasPasswordCombination =
+      passwordValue.length >= 8 &&
+      /[a-z]/.test(passwordValue) &&
+      /[A-Z]/.test(passwordValue) &&
+      /\d/.test(passwordValue) &&
+      /[^A-Za-z0-9]/.test(passwordValue);
+
+    if (!hasPasswordCombination) {
       return res.status(400).json({
-        error: { code: 'VALIDATION_ERROR', message: 'Password must be at least 6 characters' }
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Password must be at least 8 characters and include uppercase and lowercase letters, a number, and a special character',
+        },
       });
     }
 
