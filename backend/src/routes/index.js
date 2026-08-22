@@ -25,6 +25,7 @@ import downloadsRoutes from './downloadsRoutes.js';
 import advancedPlayerRoutes from './advancedPlayerRoutes.js';
 import notificationRoutes from './notificationRoutes.js';
 import LiveKitProvider from '../providers/livekit.js';
+import livekitWebhookRoutes from './livekitWebhookRoutes.js';
 import { uploadLimiter } from '../middleware/rateLimiter.js';
 
 const router = express.Router();
@@ -83,6 +84,7 @@ router.get('/health/livekit', async (req, res) => {
   }
 });
 
+router.use('/livekit/webhook', livekitWebhookRoutes);
 router.use('/auth', authRoutes);
 router.use('/users', userRoutes);
 // Audio uploads can be multi-gigabyte local-disk writes, so throttle the upload

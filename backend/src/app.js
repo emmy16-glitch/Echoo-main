@@ -102,6 +102,9 @@ app.use(
 );
 
 app.use(compression());
+// LiveKit signs the exact raw webhook payload. Capture it before the global JSON
+// parser transforms the body.
+app.use('/api/livekit/webhook', express.raw({ type: '*/*', limit: '1mb' }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 

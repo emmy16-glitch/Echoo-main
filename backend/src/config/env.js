@@ -84,4 +84,6 @@ export const env = Object.freeze({
   gmailClientSecret: requireValue('GMAIL_CLIENT_SECRET', ''),
   gmailRefreshToken: requireValue('GMAIL_REFRESH_TOKEN', ''),
   mailFrom: requireValue('MAIL_FROM', ''),
+  livekitApiKey: requireValue('LIVEKIT_API_KEY', ''),
+  livekitApiSecret: requireValue('LIVEKIT_API_SECRET', ''),
 });
