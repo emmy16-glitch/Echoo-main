@@ -349,7 +349,7 @@ const ListenerRealLiveRoom = () => {
                   broadcastId={show?.id}
                   isLive={isLive && joined}
                   track={playerTrack}
-                  onStateChange={handleLiveStateChange}
+                  onStateChange={handleLivePlayerState}
                 />
               )}
             </div>
