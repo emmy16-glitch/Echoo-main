@@ -429,7 +429,7 @@ export async function likeComment(req, res, next) {
           $pull: { likes: userId },
           $inc: { likeCount: -1 },
         },
-        { new: true }
+        { returnDocument: 'after' }
       );
     } else {
       updated = await Comment.findOneAndUpdate(
@@ -442,7 +442,7 @@ export async function likeComment(req, res, next) {
           $addToSet: { likes: userId },
           $inc: { likeCount: 1 },
         },
-        { new: true }
+        { returnDocument: 'after' }
       );
     }
 

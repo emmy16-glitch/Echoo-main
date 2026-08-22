@@ -4,8 +4,10 @@ import Audio from '../models/Audio.js';
 import { verifyAccessToken } from '../config/jwt.js';
 import {
   buildAudioStreamUrl,
+  createAudioStreamToken,
   verifyAudioStreamToken,
 } from '../services/audioStreamAccess.js';
+import { canAccessReplayAudio } from '../services/assetAccessService.js';
 
 const safeLocalAudioPath = (audio) => {
   const storedFilename = path.basename(
@@ -40,13 +42,14 @@ const streamGrantForRequest = (req, audioId) => {
   };
 };
 
-const authorizeGrant = (audio, grant) => {
+const authorizeGrant = async (audio, grant) => {
   const ownerId = String(audio.artist?._id || audio.artist || '');
 
   if (grant?.type === 'access') {
-    if (audio.isPublic || String(grant.userId || '') === ownerId) return;
+    if (await canAccessReplayAudio(audio, grant.userId)) return;
   } else if (grant?.type === 'audio-stream') {
     if (grant.access === 'public' && audio.isPublic) return;
+    if (grant.access === 'account' && await canAccessReplayAudio(audio, grant.userId)) return;
     if (
       grant.access === 'owner' &&
       ownerId &&
@@ -103,7 +106,7 @@ export async function issueAudioStreamUrl(req, res, next) {
     const audio = await Audio.findOne({
       _id: req.params.id,
       isDeleted: false,
-    }).select('_id artist isPublic duration');
+    }).select('_id artist isPublic visibility publicationStatus sourceBroadcast duration');
 
     if (!audio) {
       return res.status(404).json({
@@ -113,14 +116,21 @@ export async function issueAudioStreamUrl(req, res, next) {
 
     const ownerId = String(audio.artist || '');
     const isOwner = ownerId === String(req.userId || '');
-    if (!audio.isPublic && !isOwner) {
+    if (!await canAccessReplayAudio(audio, req.userId)) {
       return res.status(403).json({
         error: { code: 'FORBIDDEN', message: 'You do not have access to this audio' },
       });
     }
 
-    const access = isOwner ? 'owner' : 'public';
-    const signed = buildAudioStreamUrl(audio, { access });
+    const access = isOwner ? 'owner' : audio.isPublic ? 'public' : 'account';
+    let signed = buildAudioStreamUrl(audio, { access });
+    if (access === 'account') {
+      const grant = createAudioStreamToken({ audioId: audio._id, access, ownerId: req.userId, duration: audio.duration });
+      signed = {
+        url: `/api/audio/${encodeURIComponent(String(audio._id))}/stream?token=${encodeURIComponent(grant.token)}`,
+        expiresIn: grant.ttl,
+      };
+    }
     if (!signed?.url) {
       return res.status(503).json({
         error: {
@@ -155,7 +165,7 @@ export async function streamAudio(req, res, next) {
       _id: audioId,
       isDeleted: false,
     }).select(
-      '_id artist isPublic filename fileKey mimeType originalName duration fileSize'
+      '_id artist isPublic visibility publicationStatus sourceBroadcast filename fileKey mimeType originalName duration fileSize'
     );
 
     if (!audio) {
@@ -164,7 +174,7 @@ export async function streamAudio(req, res, next) {
       });
     }
 
-    authorizeGrant(audio, grant);
+    await authorizeGrant(audio, grant);
 
     const absolutePath = safeLocalAudioPath(audio);
     if (!absolutePath) {

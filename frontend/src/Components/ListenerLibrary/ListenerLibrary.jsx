@@ -90,6 +90,9 @@ const ListenerLibrary = () => {
   const [page, setPage] = useState(1);
   const [listSearch, setListSearch] = useState('');
   const [sort, setSort] = useState('recent');
+  const [durationFilter, setDurationFilter] = useState('');
+  const [dateFilter, setDateFilter] = useState('');
+  const [filterReferenceTime] = useState(() => Date.now());
   const [chip, setChip] = useState('All audio');
   const [audio, setAudio] = useState([]);
   const [total, setTotal] = useState(0);
@@ -240,8 +243,37 @@ const ListenerLibrary = () => {
     setListSearch('');
     setChip('All audio');
     setSort('recent');
+    setDurationFilter('');
+    setDateFilter('');
     setPage(1);
   };
+
+  const visibleAudio = useMemo(() => {
+    const now = filterReferenceTime;
+    const dateThreshold = dateFilter === 'today'
+      ? now - 24 * 60 * 60 * 1000
+      : dateFilter === 'week'
+        ? now - 7 * 24 * 60 * 60 * 1000
+        : dateFilter === 'month'
+          ? now - 30 * 24 * 60 * 60 * 1000
+          : 0;
+    const durationMatches = (track) => {
+      const seconds = Number(track.duration) || 0;
+      if (durationFilter === 'short') return seconds < 15 * 60;
+      if (durationFilter === 'medium') return seconds >= 15 * 60 && seconds <= 45 * 60;
+      if (durationFilter === 'long') return seconds > 45 * 60;
+      return true;
+    };
+
+    return audio
+      .filter((track) => durationMatches(track))
+      .filter((track) => !dateThreshold || new Date(track.createdAt || 0).getTime() >= dateThreshold)
+      .sort((first, second) => {
+        if (sort === 'longest') return (Number(second.duration) || 0) - (Number(first.duration) || 0);
+        if (sort === 'shortest') return (Number(first.duration) || 0) - (Number(second.duration) || 0);
+        return new Date(second.createdAt || 0).getTime() - new Date(first.createdAt || 0).getTime();
+      });
+  }, [audio, dateFilter, durationFilter, filterReferenceTime, sort]);
 
   const scrollToMain = () => {
     const section = document.getElementById('al-main-section');
@@ -348,14 +380,14 @@ const ListenerLibrary = () => {
           </div>
 
           <section className="al-list" id="al-main-section">
-            {audio.length === 0 && (
+            {visibleAudio.length === 0 && (
               <div className="ref-state-card compact">
                 <FaHeadphones />
                 <strong>No audio matches your filters.</strong>
                 <span>Try a different search or clear the filters.</span>
               </div>
             )}
-            {audio.map((track) => {
+            {visibleAudio.map((track) => {
               const id = idOf(track);
               const playing = isPlaying && idOf(currentTrack) === id;
               const downloaded = downloadIds.has(id);
@@ -479,7 +511,7 @@ const ListenerLibrary = () => {
             <label className="al-field">
               <span>Duration</span>
               <span className="al-select-wrap">
-                <select value="" aria-label="Duration">
+                <select value={durationFilter} onChange={(event) => setDurationFilter(event.target.value)} aria-label="Duration">
                   <option value="">Any duration</option>
                   <option value="short">Under 15 minutes</option>
                   <option value="medium">15–45 minutes</option>
@@ -491,7 +523,7 @@ const ListenerLibrary = () => {
             <label className="al-field">
               <span>Date added</span>
               <span className="al-select-wrap">
-                <select value="" aria-label="Date added">
+                <select value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} aria-label="Date added">
                   <option value="">Anytime</option>
                   <option value="today">Today</option>
                   <option value="week">This week</option>

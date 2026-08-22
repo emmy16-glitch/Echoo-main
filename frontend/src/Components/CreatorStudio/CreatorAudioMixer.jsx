@@ -4,9 +4,12 @@ import {
   FaDesktop,
   FaExclamationTriangle,
   FaHeadphones,
+  FaInfoCircle,
   FaMicrophone,
+  FaPlay,
   FaPlug,
   FaRedo,
+  FaStop,
   FaVolumeMute,
   FaVolumeUp,
 } from 'react-icons/fa';
@@ -19,12 +22,11 @@ import {
   ensureHostInput,
   gainToDb,
   getEchooMixerState,
-  getMixerChannelTrack,
   listAudioInputs,
   listAudioOutputs,
   playMonitorTestTone,
   resetEchooMixer,
-  setMasterGainDb,
+  setCreatorAudioSettings,
   setMixerChannelGainDb,
   setMonitorEnabled,
   setMonitorGain,
@@ -34,15 +36,13 @@ import {
   toggleMixerChannelMute,
   toggleMixerChannelSolo,
 } from '../../services/echooMixerService';
+import { applyProgramTrackQuality, audioQualityLabel } from '../../services/audioQualityProfile';
 import {
-  BROADCAST_CAPTURE_PROFILES,
-  applyBroadcastCaptureProfile,
-  applyProgramTrackQuality,
-  audioQualityLabel,
-  getBroadcastCaptureConstraints,
-  getBroadcastCaptureProfile,
-  saveBroadcastCaptureProfile,
-} from '../../services/audioQualityProfile';
+  getCachedCreatorAudioSettings,
+  loadCreatorAudioSettings,
+  normalizeCreatorAudioSettings,
+  saveCreatorAudioSettings,
+} from '../../services/creatorAudioPreferences';
 import './CreatorAudioMixer.css';
 
 const formatDb = (value) => {
@@ -65,6 +65,39 @@ const SOURCE_COPY = Object.freeze({
     empty: 'Choose a browser tab or window, then enable Share audio.',
   },
 });
+
+const InfoTip = ({ title, children }) => (
+  <span className="eam-info-tip">
+    <button type="button" aria-label={`About ${title}`} title={`${title}: ${children}`}>
+      <FaInfoCircle />
+    </button>
+    <span role="tooltip"><strong>{title}</strong>{children}</span>
+  </span>
+);
+
+const ProcessingSlider = ({ title, description, tooltip, value, disabled, onChange }) => (
+  <div className={`eam-processing-control ${disabled ? 'disabled' : ''}`}>
+    <span className="eam-processing-title">
+      <strong>{title}</strong>
+      <InfoTip title={title}>{tooltip}</InfoTip>
+    </span>
+    <small>{description}</small>
+    <span className="eam-processing-range">
+      <em>Less</em>
+      <input
+        type="range"
+        min="0"
+        max="100"
+        step="1"
+        value={value}
+        disabled={disabled}
+        onChange={(event) => onChange(Number(event.target.value))}
+        aria-label={title}
+      />
+      <em>More</em>
+    </span>
+  </div>
+);
 
 const getLevelState = ({ connected, peakDb, master = false }) => {
   if (!connected) {
@@ -135,11 +168,13 @@ const CreatorAudioMixer = ({ compact = false, onStateChange }) => {
   const [workingChannel, setWorkingChannel] = useState('');
   const [monitorWorking, setMonitorWorking] = useState(false);
   const [testingOutput, setTestingOutput] = useState(false);
-  const [captureProfile, setCaptureProfile] = useState(getBroadcastCaptureProfile);
+  const [testingAudio, setTestingAudio] = useState(false);
+  const [audioSettings, setAudioSettings] = useState(getCachedCreatorAudioSettings);
   const [qualitySummary, setQualitySummary] = useState({});
   const [error, setError] = useState('');
   const parentSignatureRef = useRef('');
-  const appliedProfileRef = useRef({});
+  const preferenceSaveTimerRef = useRef(null);
+  const monitorWasEnabledBeforeTestRef = useRef(false);
 
   useEffect(() =>
     subscribeEchooMixer((next) => {
@@ -168,6 +203,38 @@ const CreatorAudioMixer = ({ compact = false, onStateChange }) => {
     outputDeviceLabel: 'System default',
     outputSelectionSupported: false,
     playing: false,
+  };
+  const processingStatus = mixer?.processing?.status || { noiseReduction: 'idle', error: '' };
+
+  useEffect(() => {
+    let cancelled = false;
+    void setCreatorAudioSettings(audioSettings);
+
+    loadCreatorAudioSettings().then((loaded) => {
+      if (cancelled) return;
+      setAudioSettings(loaded);
+      void setCreatorAudioSettings(loaded);
+    });
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(preferenceSaveTimerRef.current);
+    };
+    // Load once; all later changes use updateAudioSetting.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const updateAudioSetting = (key, value) => {
+    setError('');
+    const next = normalizeCreatorAudioSettings({ ...audioSettings, [key]: value });
+    setAudioSettings(next);
+    void setCreatorAudioSettings(next);
+    window.clearTimeout(preferenceSaveTimerRef.current);
+    preferenceSaveTimerRef.current = window.setTimeout(() => {
+      saveCreatorAudioSettings(next).catch(() => {
+        setError('Your audio changes are active and saved on this device, but account sync is unavailable.');
+      });
+    }, 500);
   };
 
   const refreshDevices = async () => {
@@ -214,34 +281,17 @@ const CreatorAudioMixer = ({ compact = false, onStateChange }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const applyMicQuality = async (track, channelId, profileId = captureProfile) => {
-    if (!track || track.readyState !== 'live') return null;
-    const applicationKey = `${track.id}:${profileId}`;
-    if (appliedProfileRef.current[channelId] === applicationKey) {
-      return qualitySummary[channelId] || null;
-    }
-
-    const summary = await applyBroadcastCaptureProfile(track, profileId);
-    if (getMixerChannelTrack(channelId) !== track) return summary;
-
-    appliedProfileRef.current[channelId] = applicationKey;
-    setQualitySummary((current) => ({ ...current, [channelId]: summary }));
-    return summary;
-  };
-
   const connectHost = async () => {
     try {
       setWorkingChannel('host');
       setError('');
       const deviceId = hostDeviceId || channels.host?.deviceId || '';
-      const track = await ensureHostInput(
-        deviceId,
-        getBroadcastCaptureConstraints(captureProfile)
-      );
-      await applyMicQuality(track, 'host', captureProfile);
+      await ensureHostInput(deviceId);
       await refreshDevices();
+      return true;
     } catch (connectError) {
       setError(connectError?.message || 'Could not connect the host microphone.');
+      return false;
     } finally {
       setWorkingChannel('');
     }
@@ -266,11 +316,7 @@ const CreatorAudioMixer = ({ compact = false, onStateChange }) => {
         throw new Error('Host Mic and Guest Mic cannot use the same hardware input at the same time.');
       }
 
-      const track = await connectGuestInput(
-        nextDeviceId,
-        getBroadcastCaptureConstraints(captureProfile)
-      );
-      await applyMicQuality(track, 'guest', captureProfile);
+      await connectGuestInput(nextDeviceId);
     } catch (connectError) {
       setError(connectError?.message || 'Could not connect the guest microphone.');
     } finally {
@@ -287,49 +333,6 @@ const CreatorAudioMixer = ({ compact = false, onStateChange }) => {
       setQualitySummary((current) => ({ ...current, media: summary }));
     } catch (connectError) {
       setError(connectError?.message || 'Could not connect shared audio.');
-    } finally {
-      setWorkingChannel('');
-    }
-  };
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const applyToExisting = async () => {
-      const targets = ['host', 'guest'].filter((channelId) => channels[channelId]?.connected);
-      for (const channelId of targets) {
-        const track = getMixerChannelTrack(channelId);
-        if (!track || cancelled) continue;
-        try {
-          await applyMicQuality(track, channelId, captureProfile);
-        } catch (profileError) {
-          if (!cancelled) {
-            setError(profileError?.message || 'Could not apply the microphone sound profile.');
-          }
-        }
-      }
-    };
-
-    applyToExisting();
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [captureProfile, channels.host?.connected, channels.guest?.connected]);
-
-  const changeCaptureProfile = async (nextProfile) => {
-    if (!BROADCAST_CAPTURE_PROFILES[nextProfile] || nextProfile === captureProfile) return;
-    const savedProfile = saveBroadcastCaptureProfile(nextProfile);
-    setCaptureProfile(savedProfile);
-    setError('');
-
-    try {
-      setWorkingChannel('profile');
-      const targets = ['host', 'guest'].filter((channelId) => channels[channelId]?.connected);
-      await Promise.all(targets.map(async (channelId) => {
-        const track = getMixerChannelTrack(channelId);
-        if (track) await applyMicQuality(track, channelId, savedProfile);
-      }));
-    } catch (profileError) {
-      setError(profileError?.message || 'Could not apply the new microphone sound profile.');
     } finally {
       setWorkingChannel('');
     }
@@ -388,6 +391,31 @@ const CreatorAudioMixer = ({ compact = false, onStateChange }) => {
       setError(testError?.message || 'Could not test the monitoring output.');
     } finally {
       window.setTimeout(() => setTestingOutput(false), 450);
+    }
+  };
+
+  const testProcessedAudio = async () => {
+    try {
+      setMonitorWorking(true);
+      setError('');
+      if (testingAudio && monitoring.enabled) {
+        await setMonitorEnabled(monitorWasEnabledBeforeTestRef.current);
+        setTestingAudio(false);
+        return;
+      }
+
+      if (!channels.host?.connected) {
+        const connected = await connectHost();
+        if (!connected) return;
+      }
+      monitorWasEnabledBeforeTestRef.current = monitoring.enabled;
+      await setMonitorEnabled(true);
+      setTestingAudio(true);
+    } catch (testError) {
+      setError(testError?.message || 'Could not start your audio test.');
+      setTestingAudio(false);
+    } finally {
+      setMonitorWorking(false);
     }
   };
 
@@ -470,7 +498,12 @@ const CreatorAudioMixer = ({ compact = false, onStateChange }) => {
 
         <LevelMeter connected={channel.connected} level={channel.level} peakDb={channel.peakDb} />
 
-        {summary && channel.connected && (
+        {channel.connected && (channelId === 'host' || channelId === 'guest') && (
+          <div className="eam-quality-chip">
+            <FaCheckCircle /> {audioSettings.audioMode === 'raw' ? 'Raw audio' : 'Enhanced audio'}
+          </div>
+        )}
+        {summary && channel.connected && channelId === 'media' && (
           <div className="eam-quality-chip">
             <FaCheckCircle /> {audioQualityLabel(summary)}
           </div>
@@ -499,7 +532,7 @@ const CreatorAudioMixer = ({ compact = false, onStateChange }) => {
           <button
             type="button"
             className="primary source-connect"
-            disabled={isWorking || workingChannel === 'profile'}
+            disabled={isWorking}
             onClick={() => {
               if (channel.connected) {
                 if (channel.solo) toggleMixerChannelSolo(channelId);
@@ -527,7 +560,6 @@ const CreatorAudioMixer = ({ compact = false, onStateChange }) => {
     );
   };
 
-  const masterDb = gainToDb(master.gain);
   const masterState = getLevelState({ connected: true, peakDb: master.peakDb, master: true });
 
   const balanceAdvice = useMemo(() => {
@@ -588,30 +620,135 @@ const CreatorAudioMixer = ({ compact = false, onStateChange }) => {
         </button>
       </div>
 
-      <section className="eam-profile" aria-label="Microphone sound profile">
+      <section className="eam-profile" aria-label="Audio mode">
         <div>
-          <strong>Microphone sound</strong>
-          <span>Choose how Echoo treats voice inputs before they enter the mix.</span>
+          <strong>Audio mode</strong>
+          <span>Choose the sound that fits your microphone setup.</span>
         </div>
         <div className="eam-profile-options">
-          {Object.values(BROADCAST_CAPTURE_PROFILES).map((profile) => (
-            <button
-              type="button"
-              key={profile.id}
-              className={captureProfile === profile.id ? 'active' : ''}
-              onClick={() => changeCaptureProfile(profile.id)}
-              disabled={workingChannel === 'profile'}
-            >
-              <strong>{profile.label}</strong>
-              {!compact && <small>{profile.shortDescription}</small>}
-            </button>
-          ))}
+          <button
+            type="button"
+            className={audioSettings.audioMode === 'raw' ? 'active' : ''}
+            onClick={() => updateAudioSetting('audioMode', 'raw')}
+          >
+            <strong>Raw Audio</strong>
+            {!compact && <small>Your original microphone sound with only Master Volume applied.</small>}
+          </button>
+          <button
+            type="button"
+            className={audioSettings.audioMode === 'enhanced' ? 'active' : ''}
+            onClick={() => updateAudioSetting('audioMode', 'enhanced')}
+          >
+            <strong>Enhanced Audio</strong>
+            {!compact && <small>Cleaner, clearer and more even voice sound.</small>}
+          </button>
         </div>
         <p>
-          {captureProfile === 'studio'
-            ? 'Studio clean keeps your microphone natural. Use headphones to avoid speaker feedback.'
-            : 'Voice cleanup uses browser echo, noise and automatic level processing for everyday microphones.'}
+          {audioSettings.audioMode === 'raw'
+            ? 'Your microphone enters the mix without voice changes. Master Volume remains available.'
+            : 'Your selected voice improvements are applied before the final mix.'}
         </p>
+      </section>
+
+      <section className={`eam-processing ${audioSettings.audioMode === 'raw' ? 'raw' : ''}`}>
+        <div className="eam-processing-section">
+          <header>
+            <span>VOICE CLEAN</span>
+            <p>Improve your voice by reducing unwanted sounds and making speech clearer.</p>
+          </header>
+          <div className="eam-processing-grid">
+            <ProcessingSlider
+              title="Background Noise Removal"
+              description="Removes unwanted sounds like fans, traffic, keyboard sounds, and room noise."
+              tooltip="Controls how strongly Echoo removes unwanted background sounds while keeping your voice natural."
+              value={audioSettings.noiseReduction}
+              disabled={audioSettings.audioMode === 'raw' || processingStatus.noiseReduction === 'unavailable'}
+              onChange={(value) => updateAudioSetting('noiseReduction', value)}
+            />
+            <div className={`eam-processing-control ${audioSettings.audioMode === 'raw' ? 'disabled' : ''}`}>
+              <span className="eam-processing-title">
+                <strong>Echo Removal</strong>
+                <InfoTip title="Echo Removal">Reduces sound that returns from speakers or reflects around your room.</InfoTip>
+              </span>
+              <small>Reduces the bouncing sound created when your voice reflects around a room.</small>
+              <button
+                type="button"
+                className={`eam-switch ${audioSettings.echoRemoval ? 'active' : ''}`}
+                disabled={audioSettings.audioMode === 'raw'}
+                onClick={() => updateAudioSetting('echoRemoval', !audioSettings.echoRemoval)}
+                aria-pressed={audioSettings.echoRemoval}
+              >
+                <span /> {audioSettings.echoRemoval ? 'On' : 'Off'}
+              </button>
+            </div>
+          </div>
+          {audioSettings.audioMode === 'enhanced' && processingStatus.noiseReduction === 'loading' && (
+            <small className="eam-processing-status">Preparing Background Noise Removal...</small>
+          )}
+          {processingStatus.error && <small className="eam-processing-status error">{processingStatus.error}</small>}
+        </div>
+
+        <div className="eam-processing-section">
+          <header>
+            <span>AUDIO QUALITY</span>
+            <p>Make your audio sound richer, clearer, and more professional.</p>
+          </header>
+          <div className="eam-processing-grid quality">
+            <ProcessingSlider
+              title="Voice Warmth"
+              description="Adds more depth and fullness to your voice."
+              tooltip="Adds gentle depth to your voice without changing your natural speaking style."
+              value={audioSettings.voiceWarmth}
+              disabled={audioSettings.audioMode === 'raw'}
+              onChange={(value) => updateAudioSetting('voiceWarmth', value)}
+            />
+            <ProcessingSlider
+              title="Voice Clarity"
+              description="Makes your words easier to hear and understand."
+              tooltip="Brings forward the part of your voice that helps listeners understand each word."
+              value={audioSettings.voiceClarity}
+              disabled={audioSettings.audioMode === 'raw'}
+              onChange={(value) => updateAudioSetting('voiceClarity', value)}
+            />
+            <ProcessingSlider
+              title="Volume Balance"
+              description="Keeps your voice from becoming too quiet or suddenly too loud."
+              tooltip="Smooths large changes in speaking volume while keeping your voice expressive."
+              value={audioSettings.volumeBalance}
+              disabled={audioSettings.audioMode === 'raw'}
+              onChange={(value) => updateAudioSetting('volumeBalance', value)}
+            />
+            <div className={`eam-processing-control ${audioSettings.audioMode === 'raw' ? 'disabled' : ''}`}>
+              <span className="eam-processing-title">
+                <strong>Protect Loud Sounds</strong>
+                <InfoTip title="Protect Loud Sounds">Prevents sudden loud moments from becoming harsh or distorted.</InfoTip>
+              </span>
+              <small>Prevents distortion when your audio becomes too loud.</small>
+              <button
+                type="button"
+                className={`eam-switch ${audioSettings.protectLoudSounds ? 'active' : ''}`}
+                disabled={audioSettings.audioMode === 'raw'}
+                onClick={() => updateAudioSetting('protectLoudSounds', !audioSettings.protectLoudSounds)}
+                aria-pressed={audioSettings.protectLoudSounds}
+              >
+                <span /> {audioSettings.protectLoudSounds ? 'On' : 'Off'}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="eam-preview-row">
+          <div><strong>Test Audio</strong><span>Hear your current settings before you go live.</span></div>
+          <button
+            type="button"
+            className={testingAudio && monitoring.enabled ? 'active' : ''}
+            onClick={testProcessedAudio}
+            disabled={monitorWorking || workingChannel === 'host'}
+          >
+            {testingAudio && monitoring.enabled ? <FaStop /> : <FaPlay />}
+            {testingAudio && monitoring.enabled ? 'Stop Test Audio' : 'Test Audio'}
+          </button>
+        </div>
       </section>
 
       {error && <div className="eam-error" role="alert"><FaExclamationTriangle /> {error}</div>}
@@ -691,18 +828,19 @@ const CreatorAudioMixer = ({ compact = false, onStateChange }) => {
               <span><FaVolumeUp /></span>
               <div><strong>Audience Output</strong><small>What your listeners hear</small></div>
             </div>
-            <p className="eam-output-explainer">This is the final post-limiter mix that Echoo publishes to LiveKit.</p>
+            <p className="eam-output-explainer">This is the final mix Echoo sends to listeners, recording, and live transcription.</p>
 
             <label className="eam-master-control">
-              <span>Master level</span>
-              <strong>{formatDb(masterDb)}</strong>
+              <span>Master Volume</span>
+              <strong>{audioSettings.masterVolume}%</strong>
               <input
                 type="range"
-                min={ECHOO_MIXER_LIMITS.minDb}
-                max={ECHOO_MIXER_LIMITS.maxMasterDb}
-                step="0.5"
-                value={masterDb}
-                onChange={(event) => setMasterGainDb(event.target.value)}
+                min="0"
+                max="100"
+                step="1"
+                value={audioSettings.masterVolume}
+                onChange={(event) => updateAudioSetting('masterVolume', Number(event.target.value))}
+                aria-label="Master Volume"
               />
             </label>
 
@@ -728,7 +866,7 @@ const CreatorAudioMixer = ({ compact = false, onStateChange }) => {
 
       <div className="eam-path-note">
         <FaCheckCircle />
-        <span><strong>One clean program feed.</strong> Microphones and music are mixed here first, protected by the master safety limiter, then sent as one stereo LiveKit stream.</span>
+        <span><strong>One final program feed.</strong> Your selected audio mode and Master Volume create the single Echoo Studio Mix used by listeners, recording, and live transcription.</span>
       </div>
     </section>
   );

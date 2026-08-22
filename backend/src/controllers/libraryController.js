@@ -33,7 +33,7 @@ export async function saveTrack(req, res, next) {
     const result = await User.findByIdAndUpdate(
       req.userId,
       { $addToSet: { savedAudio: track._id } },
-      { new: true }
+      { returnDocument: 'after' }
     ).select('_id savedAudio');
 
     if (!result) {
@@ -63,7 +63,7 @@ export async function unsaveTrack(req, res, next) {
     const result = await User.findByIdAndUpdate(
       req.userId,
       { $pull: { savedAudio: trackId } },
-      { new: true }
+      { returnDocument: 'after' }
     ).select('_id');
 
     if (!result) {

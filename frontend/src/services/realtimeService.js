@@ -199,7 +199,11 @@ const joinBroadcast = async (broadcastId) => {
     }, 10000);
 
     socket.emit('broadcast:join', { broadcastId }, (response) => {
-      if (response?.ok) resolveOnce(socket);
+      if (response?.ok) {
+        socket.__echooBroadcastSnapshots = socket.__echooBroadcastSnapshots || new Map();
+        if (response.status) socket.__echooBroadcastSnapshots.set(String(broadcastId), response.status);
+        resolveOnce(socket);
+      }
       else rejectOnce(new Error(response?.error || 'Could not join realtime broadcast room.'));
     });
   });

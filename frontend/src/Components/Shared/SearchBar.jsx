@@ -30,7 +30,7 @@ const SearchBar = forwardRef(({
           <FaTimes />
         </button>
       ) : (
-        <span className="echoo-search-bar__shortcut" aria-hidden="true">/</span>
+        <span className="echoo-search-bar__shortcut" aria-hidden="true">⌘K</span>
       )}
     </div>
     {open && (suggestions.length > 0 || loading || error || results.length > 0) && (

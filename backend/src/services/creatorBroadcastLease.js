@@ -23,7 +23,6 @@ const creatorBroadcastLeaseSchema = new mongoose.Schema(
     expiresAt: {
       type: Date,
       required: true,
-      index: true,
     },
   },
   {
@@ -75,7 +74,7 @@ export async function acquireCreatorBroadcastLease(creatorId, broadcastId) {
         },
       },
       {
-        new: true,
+        returnDocument: 'after',
         upsert: true,
         setDefaultsOnInsert: true,
       }

@@ -60,15 +60,16 @@ const parseParticipantMetadata = (participant) => {
 
 const persistPresenceIfNeeded = ({ broadcast, listenerCount, peakListeners }) => {
   const broadcastId = String(broadcast._id);
-  const changed =
-    Number(broadcast.listenerCount || 0) !== listenerCount ||
-    Number(broadcast.peakListeners || 0) !== peakListeners;
-
-  if (!changed) return;
-
   const previous = lastPersistedAt.get(broadcastId) || 0;
   if (now() - previous < PRESENCE_DB_SYNC_MS) return;
   lastPersistedAt.set(broadcastId, now());
+  const sampledAt = new Date();
+  const priorSample = new Date(
+    broadcast.lastPresenceSampleAt || broadcast.startedAt || sampledAt
+  ).getTime();
+  const sampledSeconds = Math.max(0, Math.min(30, (sampledAt.getTime() - priorSample) / 1000));
+  const averageListeners = (Number(broadcast.listenerCount || 0) + listenerCount) / 2;
+  const listenerSeconds = Math.max(0, Math.round(sampledSeconds * averageListeners));
 
   // Do not hold the listener HTTP response open on analytics persistence. The
   // authoritative count remains LiveKit; these fields are dashboard snapshots.
@@ -83,8 +84,9 @@ const persistPresenceIfNeeded = ({ broadcast, listenerCount, peakListeners }) =>
           status: { $in: ['starting', 'live'] },
         },
         {
-          $set: { listenerCount },
+          $set: { listenerCount, lastPresenceSampleAt: sampledAt },
           $max: { peakListeners },
+          ...(listenerSeconds ? { $inc: { listenerSeconds } } : {}),
         }
       );
 
@@ -122,7 +124,7 @@ const resolvePresence = async (broadcastId) => {
       isDeleted: false,
       isPublic: true,
     }).select(
-      '_id station status listenerCount peakListeners livekitRoomName'
+      '_id station status listenerCount peakListeners listenerSeconds lastPresenceSampleAt startedAt livekitRoomName mediaState transcriptState programTrackSid programTrackName'
     );
 
     if (!broadcast) {
@@ -135,9 +137,14 @@ const resolvePresence = async (broadcastId) => {
     if (!['starting', 'live'].includes(broadcast.status)) {
       return remember(key, {
         broadcastId: key,
+        status: broadcast.status,
         listenerCount: 0,
         peakListeners: Number(broadcast.peakListeners || 0),
         creatorConnected: false,
+        mediaState: broadcast.mediaState || 'audio_disconnected',
+        transcriptState: broadcast.transcriptState || 'completed',
+        programTrackSid: broadcast.programTrackSid || null,
+        programTrackName: broadcast.programTrackName || null,
       });
     }
 
@@ -165,9 +172,14 @@ const resolvePresence = async (broadcastId) => {
 
     return remember(key, {
       broadcastId: key,
+      status: broadcast.status,
       listenerCount,
       peakListeners,
       creatorConnected,
+      mediaState: broadcast.mediaState || (creatorConnected ? 'creator_connecting' : 'waiting_for_creator'),
+      transcriptState: broadcast.transcriptState || 'disabled',
+      programTrackSid: broadcast.programTrackSid || null,
+      programTrackName: broadcast.programTrackName || null,
     });
   })();
 

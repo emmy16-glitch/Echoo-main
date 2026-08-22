@@ -7,7 +7,7 @@ import {
   FaSlidersH,
   FaUserFriends,
 } from "react-icons/fa";
-import echooLogo from "../Assets/creator-logo.png";
+import echooLogo from "../Assets/echoo-brand-logo.png";
 import "./onboarding-redesign.css";
 import "./onboarding-animation-fix.css";
 import "./onboarding-layout-audit.css";

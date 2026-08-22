@@ -1,15 +1,35 @@
 import {
   Room,
+  RoomEvent,
   Track,
 } from 'livekit-client';
 import { resolveLiveKitUrl } from './livekitUrl.js';
 import { ensureBroadcastRecording } from './broadcastRecordingService.js';
 import { applyProgramTrackQuality } from './audioQualityProfile.js';
+import {
+  startWhisperFlowTranscription,
+  stopWhisperFlowTranscription,
+} from './whisperFlowService.js';
 
 const ECHOO_LIVE_AUDIO_BITRATE = 256000;
 
 let activeRoom = null;
 let activeBroadcastId = null;
+let activePublication = null;
+let publisherHealth = {
+  mixer: 'idle',
+  livekit: 'disconnected',
+  audio: 'disconnected',
+  broadcastId: null,
+  trackSid: null,
+  trackName: null,
+};
+
+const publishHealth = (update) => {
+  publisherHealth = { ...publisherHealth, ...update, updatedAt: new Date().toISOString() };
+  window.dispatchEvent(new CustomEvent('echoo:publisher-health', { detail: publisherHealth }));
+  return publisherHealth;
+};
 
 let syntheticContext = null;
 let syntheticOscillator = null;
@@ -111,6 +131,7 @@ export const getLiveKitPublishingState = () => ({
   broadcastId: activeBroadcastId,
   roomName: activeRoom?.name || null,
   targetAudioBitsPerSecond: ECHOO_LIVE_AUDIO_BITRATE,
+  ...publisherHealth,
 });
 
 export const stopLiveKitPublishing = async () => {
@@ -118,6 +139,18 @@ export const stopLiveKitPublishing = async () => {
 
   activeRoom = null;
   activeBroadcastId = null;
+  activePublication = null;
+  publishHealth({
+    livekit: 'disconnected',
+    audio: 'disconnected',
+    broadcastId: null,
+    trackSid: null,
+    trackName: null,
+  });
+
+  await stopWhisperFlowTranscription().catch((error) => {
+    console.warn('[Echoo Transcript] cleanup warning:', error?.message || error);
+  });
 
   if (room) {
     try {
@@ -128,6 +161,23 @@ export const stopLiveKitPublishing = async () => {
   }
 
   await cleanupSyntheticAudio();
+};
+
+export const setLiveKitPublishingPaused = async (paused) => {
+  if (!activeRoom || !activePublication) {
+    throw new Error('The Echoo studio mix is not currently published.');
+  }
+
+  if (paused) await activePublication.mute();
+  else await activePublication.unmute();
+
+  publishHealth({ audio: paused ? 'paused' : 'published' });
+  console.info(`[Echoo LiveKit] studio mix ${paused ? 'paused' : 'resumed'}`, {
+    broadcastId: activeBroadcastId,
+    roomName: activeRoom.name,
+    trackSid: activePublication.trackSid || null,
+  });
+  return getLiveKitPublishingState();
 };
 
 export const startLiveKitPublishing = async ({
@@ -161,10 +211,34 @@ export const startLiveKitPublishing = async ({
 
   await stopLiveKitPublishing();
 
+  publishHealth({
+    mixer: mediaTrack ? 'ready' : 'synthetic-test',
+    livekit: 'connecting',
+    audio: 'waiting',
+    broadcastId: id,
+    trackSid: null,
+    trackName: mediaTrack ? 'echoo-studio-mix' : 'echoo-dev-test-audio',
+  });
+  console.info('[Echoo Studio] mixer ready', {
+    broadcastId: id,
+    trackId: mediaTrack?.id || null,
+    trackKind: mediaTrack?.kind || null,
+    trackState: mediaTrack?.readyState || null,
+  });
+
   // Echoo owns the mixer MediaStreamTrack. LiveKit must not stop it when a room
   // disconnects/unpublishes, otherwise a manual reconnect would kill the one
   // post-master program track before the new room can republish it.
   const room = new Room({ stopLocalTrackOnUnpublish: false });
+  room.on(RoomEvent.Reconnecting, () => {
+    publishHealth({ livekit: 'reconnecting', audio: 'reconnecting' });
+  });
+  room.on(RoomEvent.Reconnected, () => {
+    publishHealth({ livekit: 'connected', audio: publisherHealth.trackSid ? 'published' : 'waiting' });
+  });
+  room.on(RoomEvent.Disconnected, () => {
+    publishHealth({ livekit: 'disconnected', audio: 'disconnected' });
+  });
 
   try {
     await room.connect(resolvedUrl, token, {
@@ -172,6 +246,12 @@ export const startLiveKitPublishing = async ({
       maxRetries: 3,
       websocketTimeout: 15000,
       peerConnectionTimeout: 20000,
+    });
+    publishHealth({ livekit: 'connected' });
+    console.info('[Echoo LiveKit] connected', {
+      broadcastId: id,
+      roomName: room.name,
+      identity: room.localParticipant.identity,
     });
 
     let publication;
@@ -215,6 +295,20 @@ export const startLiveKitPublishing = async ({
 
     activeRoom = room;
     activeBroadcastId = id;
+    activePublication = publication;
+    publishHealth({
+      audio: 'published',
+      broadcastId: id,
+      trackSid: publication?.trackSid || null,
+      trackName: mode === 'studio-mix' ? 'echoo-studio-mix' : 'echoo-dev-test-audio',
+    });
+    console.info('[Echoo LiveKit] track published', {
+      broadcastId: id,
+      roomName: room.name,
+      trackSid: publication?.trackSid || null,
+      trackName: mode === 'studio-mix' ? 'echoo-studio-mix' : 'echoo-dev-test-audio',
+      source: mode === 'studio-mix' ? 'echoo-studio-mix' : 'echoo-dev-test-audio',
+    });
 
     // Local-first recording: tap the exact post-master mixer signal that is
     // being published to LiveKit. Recording is deliberately independent from
@@ -234,6 +328,18 @@ export const startLiveKitPublishing = async ({
           recordingError?.message || recordingError
         );
       }
+
+      // This is a second, independent branch from the post-master program.
+      // Listener audio remains a direct Creator -> LiveKit -> Listener path.
+      startWhisperFlowTranscription({
+        broadcastId: activeBroadcastId,
+        mediaTrack,
+      }).catch((transcriptionError) => {
+        console.warn(
+          '[Echoo Transcript] realtime transcription is unavailable; live audio continues:',
+          transcriptionError?.message || transcriptionError
+        );
+      });
     }
 
     const result = {
@@ -250,6 +356,7 @@ export const startLiveKitPublishing = async ({
     console.log('[Echoo LiveKit] publishing hi-fi studio mix', result);
     return result;
   } catch (error) {
+    publishHealth({ livekit: 'error', audio: 'error' });
     try {
       await room.disconnect();
     } catch {
@@ -268,4 +375,5 @@ export default {
   stopLiveKitPublishing,
   getLiveKitPublishingState,
   getActiveLiveKitRoom,
+  setLiveKitPublishingPaused,
 };

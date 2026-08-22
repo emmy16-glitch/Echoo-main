@@ -8,6 +8,7 @@ import {
   pinMessage,
   getPinnedMessages,
   getChatStats,
+  muteChatUser,
 } from '../controllers/chatController.js';
 
 const router = express.Router();
@@ -26,6 +27,7 @@ router.get('/broadcast/:broadcastId/pinned', getPinnedMessages);
 
 // Get chat stats
 router.get('/broadcast/:broadcastId/stats', getChatStats);
+router.post('/broadcast/:broadcastId/users/:userId/mute', muteChatUser);
 
 // Delete message
 router.delete('/messages/:messageId', deleteMessage);

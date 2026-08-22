@@ -199,6 +199,7 @@ const BroadcastRecordingPrompt = () => {
           recording.lossless ? 'lossless-master' : 'recording-fallback',
         ],
         isPublic,
+        broadcastId: recording.broadcastId,
       });
 
       closeAfterSave(mode);

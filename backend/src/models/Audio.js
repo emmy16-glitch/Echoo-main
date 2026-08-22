@@ -40,6 +40,11 @@ const audioSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    sourceBroadcast: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Broadcast',
+      default: null,
+    },
     filename: {
       type: String,
       required: true,
@@ -104,9 +109,22 @@ const audioSchema = new mongoose.Schema(
     ],
     isPublic: {
       type: Boolean,
-      default: true,
+      default: false,
       index: true,
     },
+    visibility: {
+      type: String,
+      enum: ['public', 'followers', 'private'],
+      default: 'private',
+      index: true,
+    },
+    publicationStatus: {
+      type: String,
+      enum: ['draft', 'published'],
+      default: 'draft',
+      index: true,
+    },
+    publishedAt: { type: Date, default: null },
     playCount: {
       type: Number,
       default: 0,
@@ -147,7 +165,18 @@ const audioSchema = new mongoose.Schema(
 audioSchema.index({ artist: 1, createdAt: -1 });
 audioSchema.index({ title: 'text', description: 'text', tags: 'text' });
 audioSchema.index({ isPublic: 1, createdAt: -1 });
+audioSchema.index({ publicationStatus: 1, visibility: 1, createdAt: -1 });
 audioSchema.index({ playCount: -1 });
+audioSchema.index(
+  { sourceBroadcast: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      sourceBroadcast: { $type: 'objectId' },
+      isDeleted: false,
+    },
+  }
+);
 
 audioSchema.virtual('fileSizeMB').get(function fileSizeMB() {
   return (this.fileSize / (1024 * 1024)).toFixed(2);
@@ -159,7 +188,7 @@ audioSchema.methods.incrementPlays = async function incrementPlays() {
   const updated = await this.constructor.findOneAndUpdate(
     { _id: this._id, isDeleted: false },
     { $inc: { playCount: 1 } },
-    { new: true }
+    { returnDocument: 'after' }
   );
   if (updated) this.playCount = updated.playCount;
   return updated || this;
@@ -169,7 +198,7 @@ audioSchema.methods.incrementLikes = async function incrementLikes() {
   const updated = await this.constructor.findOneAndUpdate(
     { _id: this._id, isDeleted: false },
     { $inc: { likeCount: 1 } },
-    { new: true }
+    { returnDocument: 'after' }
   );
   if (updated) this.likeCount = updated.likeCount;
   return updated || this;
@@ -179,7 +208,7 @@ audioSchema.methods.decrementLikes = async function decrementLikes() {
   const updated = await this.constructor.findOneAndUpdate(
     { _id: this._id, isDeleted: false, likeCount: { $gt: 0 } },
     { $inc: { likeCount: -1 } },
-    { new: true }
+    { returnDocument: 'after' }
   );
   if (updated) this.likeCount = updated.likeCount;
   return updated || this;
@@ -193,7 +222,7 @@ audioSchema.methods.incrementComments = async function incrementComments() {
   const updated = await this.constructor.findOneAndUpdate(
     { _id: this._id, isDeleted: false },
     { $inc: { commentCount: 1 } },
-    { new: true }
+    { returnDocument: 'after' }
   );
   if (updated) this.commentCount = updated.commentCount;
   return updated || this;
@@ -203,7 +232,7 @@ audioSchema.methods.decrementComments = async function decrementComments() {
   const updated = await this.constructor.findOneAndUpdate(
     { _id: this._id, isDeleted: false, commentCount: { $gt: 0 } },
     { $inc: { commentCount: -1 } },
-    { new: true }
+    { returnDocument: 'after' }
   );
   if (updated) this.commentCount = updated.commentCount;
   return updated || this;

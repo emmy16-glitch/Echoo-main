@@ -33,6 +33,7 @@ import {
   loadListenerStationProfile,
   loadListenerStations,
   loadListenerPlaylist,
+  loadListenerSavedMoments,
   preloadListenerRoutes,
 } from './routing/routePreloaders';
 
@@ -45,6 +46,7 @@ const ListenerStations = lazy(loadListenerStations);
 const ListenerLibrary = lazy(loadListenerLibrary);
 const ListenerFollowing = lazy(loadListenerFollowing);
 const ListenerPlaylist = lazy(loadListenerPlaylist);
+const ListenerSavedMoments = lazy(loadListenerSavedMoments);
 const ListenerHistory = lazy(loadListenerHistory);
 const ListenerDownloads = lazy(loadListenerDownloads);
 const ListenerCreatorProfile = lazy(loadListenerCreatorProfile);
@@ -356,6 +358,7 @@ function App() {
               <Route path="library" element={<ListenerLibrary />} />
               <Route path="library/following" element={<ListenerFollowing />} />
               <Route path="playlist" element={<ListenerPlaylist />} />
+              <Route path="saved-moments" element={<ListenerSavedMoments />} />
               <Route path="history" element={<ListenerHistory />} />
               <Route path="downloads" element={<ListenerDownloads />} />
               <Route path="creator/:creatorId" element={<ListenerCreatorProfile />} />

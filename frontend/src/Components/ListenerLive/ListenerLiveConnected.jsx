@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+  FaBell,
   FaFilter,
   FaHeadphones,
   FaList,
@@ -12,7 +13,7 @@ import {
 } from 'react-icons/fa';
 
 import batch3Service from '../../services/batch3Service';
-import realtimeService from '../../services/realtimeService';
+import notificationService from '../../services/notificationService';
 import { buildMediaUrl } from '../../services/api';
 import './ListenerLive.css';
 
@@ -63,6 +64,7 @@ const ListenerLiveConnected = () => {
   const [error, setError] = useState('');
   const [category, setCategory] = useState('All');
   const [sortBy, setSortBy] = useState('most');
+  const [unreadCount, setUnreadCount] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOpen, setSortOpen] = useState(false);
 
@@ -75,6 +77,12 @@ const ListenerLiveConnected = () => {
       const discovery = await batch3Service.getDiscovery();
       const liveList = Array.isArray(discovery?.live) ? discovery.live : [];
       setLive(liveList);
+      const notifications = await notificationService.list({
+        page: 1,
+        limit: 1,
+        unreadOnly: true,
+      });
+      setUnreadCount(Number(notifications?.unreadCount) || 0);
     } catch (loadError) {
       if (!silent) {
         setError(loadError?.message || 'Live broadcasts could not be loaded.');
@@ -92,31 +100,6 @@ const ListenerLiveConnected = () => {
     return () => {
       window.clearInterval(interval);
       window.removeEventListener('focus', sync);
-    };
-  }, [load]);
-
-  useEffect(() => {
-    let active = true;
-    let unsubscribe = () => {};
-    const onCatalogChanged = (event) => {
-      if (!event?.entity || ['broadcast', 'station'].includes(event.entity)) {
-        void load({ silent: true });
-      }
-    };
-
-    realtimeService.subscribeToCatalog(onCatalogChanged)
-      .then((cleanup) => {
-        if (active) unsubscribe = cleanup;
-        else cleanup();
-      })
-      .catch(() => {
-        // Polling and focus refresh remain the compatibility fallback when
-        // realtime transport is unavailable.
-      });
-
-    return () => {
-      active = false;
-      unsubscribe();
     };
   }, [load]);
 
@@ -156,7 +139,6 @@ const ListenerLiveConnected = () => {
     [featured, filteredLive]
   );
 
-
   const categoryOptions = useMemo(() => {
     const available = new Set(live.map(categoryOf).filter(Boolean));
     return CATEGORY_OPTIONS.filter(
@@ -193,6 +175,15 @@ const ListenerLiveConnected = () => {
             />
             <span className="listener-live-search-kbd">⌘ K</span>
           </div>
+          <button
+            type="button"
+            className="listener-live-notifications"
+            aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`}
+            onClick={() => navigate('/listen/notifications')}
+          >
+            <FaBell aria-hidden="true" />
+            {unreadCount > 0 && <span className="listener-live-badge">{unreadCount}</span>}
+          </button>
         </div>
       </header>
 
@@ -399,6 +390,22 @@ const ListenerLiveConnected = () => {
             )}
           </section>
 
+          <section className="listener-live-promo">
+            <span className="listener-live-promo-icon" aria-hidden="true">
+              <FaHeadphones />
+            </span>
+            <div className="listener-live-promo-copy">
+              <h3>Don't miss a live broadcast</h3>
+              <p>Follow your favorite stations and get notified when they go live.</p>
+            </div>
+            <button
+              type="button"
+              className="listener-live-promo-button"
+              onClick={() => navigate('/listen/stations')}
+            >
+              Explore stations
+            </button>
+          </section>
         </>
       )}
     </main>

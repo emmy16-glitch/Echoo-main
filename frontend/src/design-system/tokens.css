@@ -63,9 +63,18 @@
   --echoo-ds-shadow-sm: var(--echoo-shadow-sm, 0 1px 3px rgba(11, 23, 48, 0.08));
   --echoo-ds-shadow-md: var(--echoo-shadow-md, 0 8px 24px -8px rgba(11, 23, 48, 0.14));
   --echoo-ds-shadow-lg: var(--echoo-shadow-lg, 0 16px 40px -12px rgba(11, 23, 48, 0.18));
+  --echoo-ds-shadow-card: 0 4px 16px -8px rgba(16, 32, 66, 0.18);
+  --echoo-ds-shadow-card-hover: 0 8px 20px -10px rgba(16, 32, 66, 0.14);
+  --echoo-ds-shadow-brand: 0 2px 8px rgba(36, 107, 254, 0.24);
+  --echoo-ds-shadow-text: 0 1px 4px rgba(0, 0, 0, 0.2);
 
   /* Layout */
   --echoo-ds-card-gap: var(--echoo-card-gap, 16px);
   --echoo-ds-section-gap: var(--echoo-section-gap, 24px);
   --echoo-ds-page-pad-x: var(--echoo-page-padding-x, 28px);
+  --echoo-ds-sidebar-width: var(--echoo-sidebar-width, 244px);
+  --echoo-ds-topbar-height: var(--echoo-header-height, 82px);
+  --echoo-ds-player-height: var(--echoo-player-height, 82px);
+  --echoo-ds-content-max-width: var(--echoo-content-max-width, 1400px);
+  --echoo-ds-control-height: var(--echoo-control-height, 42px);
 }

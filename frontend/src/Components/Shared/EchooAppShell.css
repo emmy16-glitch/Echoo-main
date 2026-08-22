@@ -1,7 +1,7 @@
 .echoo-app-shell {
-  --echoo-app-sidebar-width: var(--studio-sidebar-width, 244px);
-  --echoo-app-canvas: var(--studio-canvas, #f7f9fc);
-  --echoo-app-surface: var(--studio-surface, #fff);
+  --echoo-app-sidebar-width: var(--studio-sidebar-width, var(--echoo-ds-sidebar-width));
+  --echoo-app-canvas: var(--studio-canvas, var(--echoo-ds-canvas));
+  --echoo-app-surface: var(--studio-surface, var(--echoo-ds-surface));
 }
 
 .echoo-app-shell .studio-brand,
@@ -16,8 +16,8 @@
 .echoo-app-shell .echoo-app-nav-group-label {
   display: block;
   margin: 12px 14px 2px;
-  color: #8793a4;
-  font-size: 9px;
+  color: var(--echoo-ds-faint);
+  font-size: var(--echoo-ds-tiny-size);
   font-weight: 760;
   letter-spacing: .08em;
   line-height: 1.3;
@@ -50,5 +50,22 @@
   .echoo-app-shell .echoo-app-nav-group-label {
     margin-left: 10px;
     margin-right: 10px;
+  }
+
+  #root .echoo-app-shell .studio-navigation {
+    grid-auto-flow: column !important;
+    grid-auto-columns: 48px !important;
+    grid-template-columns: none !important;
+    justify-content: start !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scrollbar-width: none;
+  }
+
+  #root .echoo-app-shell .studio-navigation::-webkit-scrollbar { display: none; }
+
+  #root .echoo-app-shell .studio-navigation .studio-nav-item {
+    width: 48px !important;
+    min-width: 48px !important;
   }
 }

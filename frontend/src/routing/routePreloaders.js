@@ -20,6 +20,7 @@ export const loadListenerStations = cachedLoader(() => import('../Components/Lis
 export const loadListenerLibrary = cachedLoader(() => import('../Components/ListenerLibrary/ListenerLibrary'));
 export const loadListenerFollowing = cachedLoader(() => import('../Components/ListenerLibrary/ListenerFollowing'));
 export const loadListenerPlaylist = cachedLoader(() => import('../Components/ListenerPlaylist/ListenerPlaylist'));
+export const loadListenerSavedMoments = cachedLoader(() => import('../Components/ListenerSavedMoments/ListenerSavedMoments'));
 export const loadListenerHistory = cachedLoader(() => import('../Components/ListenerHistory/ListenerHistoryConnected'));
 export const loadListenerDownloads = cachedLoader(() => import('../Components/ListenerDownloads/ListenerDownloadsConnected'));
 export const loadListenerCreatorProfile = cachedLoader(() => import('../Components/ListenerCreatorProfile/ListenerCreatorProfile'));
@@ -37,6 +38,7 @@ const LISTENER_ROUTE_LOADERS = [
   loadListenerLibrary,
   loadListenerFollowing,
   loadListenerPlaylist,
+  loadListenerSavedMoments,
   loadListenerHistory,
   loadListenerDownloads,
   loadListenerCreatorProfile,

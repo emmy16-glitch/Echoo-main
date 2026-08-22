@@ -18,6 +18,7 @@ const notificationSchema = new mongoose.Schema(
         'broadcast_live',
         'broadcast_reminder',
         'broadcast_ended',
+        'transcript_ready',
         'tip_received',
         'tip_sent',
         'achievement_unlocked',

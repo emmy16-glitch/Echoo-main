@@ -14,7 +14,8 @@ function broadcastPopulate(query) {
     .populate(
       'creator',
       'username displayName avatar'
-    );
+    )
+    .populate('replayAudio', 'title duration coverArt isPublic isDeleted');
 }
 
 function isValidId(value) {
@@ -40,6 +41,37 @@ function publicLiveKitUrl() {
   return LiveKitProvider.getPublicUrl();
 }
 
+const AUDIO_SOURCE_TYPES = new Set([
+  'microphone', 'guest_microphone', 'music', 'screen_share', 'system_audio',
+]);
+
+const clamp = (value, minimum, maximum, fallback) => {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.max(minimum, Math.min(maximum, number)) : fallback;
+};
+
+const sanitizeAudioConfiguration = (value = {}) => ({
+  audioMode: value.audioMode === 'raw' ? 'raw' : 'enhanced',
+  noiseReduction: clamp(value.noiseReduction, 0, 1, 0.45),
+  echoRemoval: value.echoRemoval !== false,
+  voiceWarmth: clamp(value.voiceWarmth, 0, 1, 0.35),
+  voiceClarity: clamp(value.voiceClarity, 0, 1, 0.45),
+  deEsser: clamp(value.deEsser, 0, 1, 0.3),
+  volumeBalance: clamp(value.volumeBalance, 0, 1, 0.45),
+  protectLoudSounds: value.protectLoudSounds !== false,
+  masterVolume: clamp(value.masterVolume, 0, 1.5, 1),
+});
+
+const sanitizeAudioSources = (sources) => (Array.isArray(sources) ? sources : [])
+  .filter((source) => AUDIO_SOURCE_TYPES.has(source?.type))
+  .slice(0, 8)
+  .map((source) => ({
+    type: source.type,
+    status: ['active', 'inactive', 'muted'].includes(source.status) ? source.status : 'inactive',
+    label: String(source.label || '').trim().slice(0, 80),
+    gain: clamp(source.gain, 0, 1.5, 1),
+  }));
+
 function emitStatus(req, broadcast) {
   const io = req.app.get('io');
   if (!io) return;
@@ -51,12 +83,17 @@ function emitStatus(req, broadcast) {
     endedAt: broadcast.endedAt || null,
     listenerCount: Number(broadcast.listenerCount || 0),
     peakListeners: Number(broadcast.peakListeners || 0),
+    mediaState: broadcast.mediaState || 'waiting_for_creator',
+    transcriptState: broadcast.transcriptState || 'disabled',
+    programTrackSid: broadcast.programTrackSid || null,
+    programTrackName: broadcast.programTrackName || null,
   };
 
-  io.to(`broadcast:${broadcast.id || broadcast._id}`).emit(
-    'broadcast:status',
-    payload
-  );
+  io.to(`broadcast:${broadcast.id || broadcast._id}`).emit('broadcast:status', payload);
+  if (broadcast.status === 'live') io.to(`broadcast:${broadcast.id || broadcast._id}`).emit('broadcast_started', payload);
+  if (['completed', 'cancelled', 'failed'].includes(broadcast.status)) {
+    io.to(`broadcast:${broadcast.id || broadcast._id}`).emit('broadcast_ended', payload);
+  }
 
   if (broadcast.isPublic !== false) {
     io.emit('catalog:changed', {
@@ -95,6 +132,9 @@ export async function createBroadcast(req, res, next) {
       tags = [],
       isPublic = true,
       notes = '',
+      captionSettings = {},
+      audioConfiguration = {},
+      audioSources = [],
     } = req.body;
 
     const resolvedStationId = stationId || stationFromBody;
@@ -173,7 +213,19 @@ export async function createBroadcast(req, res, next) {
       coverArt,
       tags: Array.isArray(tags) ? tags : [],
       isPublic: isPublic !== false,
+      visibility: isPublic !== false ? 'public' : 'private',
+      assetVisibility: { audio: 'private', transcript: 'private' },
       notes,
+      captionSettings: {
+        showToListeners: false,
+        language: ['en', 'yo', 'pcm', 'ha'].includes(captionSettings.language)
+          ? captionSettings.language
+          : 'en',
+        autoPublishCorrections: captionSettings.autoPublishCorrections !== false,
+        delayMs: Math.max(0, Math.min(10000, Number(captionSettings.delayMs) || 0)),
+      },
+      audioConfiguration: sanitizeAudioConfiguration(audioConfiguration),
+      audioSources: sanitizeAudioSources(audioSources),
     });
 
     await broadcast.save();
@@ -365,6 +417,26 @@ export async function updateBroadcast(req, res, next) {
       }
 
       broadcast[field] = req.body[field];
+    }
+
+    if (req.body.captionSettings && typeof req.body.captionSettings === 'object') {
+      const nextCaptionSettings = req.body.captionSettings;
+      broadcast.captionSettings = {
+        ...broadcast.captionSettings?.toObject?.(),
+        showToListeners: false,
+        language: ['en', 'yo', 'pcm', 'ha'].includes(nextCaptionSettings.language)
+          ? nextCaptionSettings.language
+          : broadcast.captionSettings?.language || 'en',
+        autoPublishCorrections: nextCaptionSettings.autoPublishCorrections !== false,
+        delayMs: Math.max(0, Math.min(10000, Number(nextCaptionSettings.delayMs) || 0)),
+      };
+    }
+
+    if (req.body.audioConfiguration && typeof req.body.audioConfiguration === 'object') {
+      broadcast.audioConfiguration = sanitizeAudioConfiguration(req.body.audioConfiguration);
+    }
+    if (req.body.audioSources !== undefined) {
+      broadcast.audioSources = sanitizeAudioSources(req.body.audioSources);
     }
 
     if (

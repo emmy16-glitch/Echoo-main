@@ -107,6 +107,61 @@ const broadcastSchema = new mongoose.Schema(
       default: true,
       index: true,
     },
+    visibility: {
+      type: String,
+      enum: ['public', 'followers', 'private'],
+      default: 'private',
+      index: true,
+    },
+    assetVisibility: {
+      audio: {
+        type: String,
+        enum: ['public', 'followers', 'private'],
+        default: 'private',
+      },
+      transcript: {
+        type: String,
+        enum: ['public', 'followers', 'private'],
+        default: 'private',
+      },
+    },
+    assetStatus: {
+      audio: {
+        type: String,
+        enum: ['pending', 'processing', 'ready', 'failed'],
+        default: 'pending',
+        index: true,
+      },
+      transcript: {
+        type: String,
+        enum: ['disabled', 'processing', 'ready_for_review', 'editing', 'published', 'failed'],
+        default: 'disabled',
+        index: true,
+      },
+      highlights: {
+        type: String,
+        enum: ['pending', 'processing', 'ready', 'failed'],
+        default: 'pending',
+      },
+      chapters: {
+        type: String,
+        enum: ['pending', 'processing', 'ready', 'failed'],
+        default: 'pending',
+      },
+    },
+    processingStartedAt: { type: Date, default: null },
+    processingCompletedAt: { type: Date, default: null },
+    generatedHighlights: [{
+      segmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'TranscriptSegment', required: true },
+      startMs: { type: Number, min: 0, required: true },
+      text: { type: String, trim: true, maxlength: 8000, required: true },
+    }],
+    generatedChapters: [{
+      title: { type: String, trim: true, maxlength: 160, required: true },
+      startMs: { type: Number, min: 0, required: true },
+      endMs: { type: Number, min: 0, required: true },
+      segmentIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'TranscriptSegment' }],
+    }],
     listenerCount: {
       type: Number,
       default: 0,
@@ -117,9 +172,17 @@ const broadcastSchema = new mongoose.Schema(
       default: 0,
       min: 0,
     },
+    listenerSeconds: { type: Number, default: 0, min: 0 },
+    lastPresenceSampleAt: { type: Date, default: null },
     recordingUrl: {
       type: String,
       default: null,
+    },
+    replayAudio: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Audio',
+      default: null,
+      index: true,
     },
     streamKey: {
       type: String,
@@ -138,6 +201,63 @@ const broadcastSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    mediaState: {
+      type: String,
+      enum: ['waiting_for_creator', 'creator_connecting', 'audio_live', 'audio_paused', 'audio_disconnected'],
+      default: 'waiting_for_creator',
+      index: true,
+    },
+    audioConfiguration: {
+      audioMode: { type: String, enum: ['raw', 'enhanced'], default: 'enhanced' },
+      noiseReduction: { type: Number, min: 0, max: 1, default: 0.45 },
+      echoRemoval: { type: Boolean, default: true },
+      voiceWarmth: { type: Number, min: 0, max: 1, default: 0.35 },
+      voiceClarity: { type: Number, min: 0, max: 1, default: 0.45 },
+      deEsser: { type: Number, min: 0, max: 1, default: 0.3 },
+      volumeBalance: { type: Number, min: 0, max: 1, default: 0.45 },
+      protectLoudSounds: { type: Boolean, default: true },
+      masterVolume: { type: Number, min: 0, max: 1.5, default: 1 },
+    },
+    audioSources: [{
+      type: {
+        type: String,
+        enum: ['microphone', 'guest_microphone', 'music', 'screen_share', 'system_audio'],
+        required: true,
+      },
+      status: { type: String, enum: ['active', 'inactive', 'muted'], default: 'inactive' },
+      label: { type: String, trim: true, maxlength: 80, default: '' },
+      gain: { type: Number, min: 0, max: 1.5, default: 1 },
+    }],
+    transcriptState: {
+      type: String,
+      enum: ['disabled', 'connecting', 'connected', 'reconnecting', 'failed', 'completed'],
+      default: 'disabled',
+    },
+    programTrackSid: {
+      type: String,
+      default: null,
+    },
+    programTrackName: {
+      type: String,
+      default: null,
+    },
+    captionSettings: {
+      // Retained for compatibility with creator settings. Live listeners never
+      // receive transcript data; replay publication is controlled separately.
+      showToListeners: { type: Boolean, default: false },
+      language: { type: String, trim: true, maxlength: 16, default: 'en' },
+      autoPublishCorrections: { type: Boolean, default: true },
+      delayMs: { type: Number, min: 0, max: 10000, default: 0 },
+    },
+    savedMoments: [{
+      segmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'TranscriptSegment', default: null },
+      label: { type: String, trim: true, maxlength: 160, required: true },
+      text: { type: String, trim: true, maxlength: 8000, default: '' },
+      startMs: { type: Number, min: 0, required: true },
+      endMs: { type: Number, min: 0, required: true },
+      createdAt: { type: Date, default: Date.now },
+    }],
+    mutedChatUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     startedAt: {
       type: Date,
       default: null,
@@ -197,6 +317,9 @@ broadcastSchema.index({ station: 1, startTime: -1 });
 broadcastSchema.index({ creator: 1, startTime: -1 });
 broadcastSchema.index({ status: 1, startTime: 1 });
 broadcastSchema.index({ startTime: 1, endTime: 1 });
+broadcastSchema.index({ status: 1, mediaState: 1, updatedAt: -1 });
+broadcastSchema.index({ creator: 1, 'assetStatus.transcript': 1, endedAt: -1 });
+broadcastSchema.index({ visibility: 1, status: 1, endedAt: -1 });
 
 broadcastSchema.pre('save', function prepareBroadcastSideEffects() {
   if (this.startTime && this.endTime) {
@@ -278,7 +401,7 @@ broadcastSchema.post('save', async function persistBroadcastSideEffects(doc) {
         },
         {
           upsert: true,
-          new: true,
+          returnDocument: 'after',
           setDefaultsOnInsert: true,
         }
       );

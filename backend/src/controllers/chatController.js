@@ -26,7 +26,7 @@ const requireBroadcastAccess = async (broadcastId, userId) => {
   const broadcast = await Broadcast.findOne({
     _id: broadcastId,
     isDeleted: false,
-  }).select('_id creator isPublic status');
+  }).select('_id creator isPublic status mutedChatUsers');
 
   if (!broadcast) {
     throw chatError(404, 'NOT_FOUND', 'Broadcast not found');
@@ -76,6 +76,9 @@ export async function sendMessage(req, res, next) {
 
     const { broadcast } = await requireBroadcastAccess(broadcastId, userId);
     requireOpenChat(broadcast);
+    if ((broadcast.mutedChatUsers || []).some((id) => String(id) === String(userId))) {
+      throw chatError(403, 'CHAT_MUTED', 'You have been muted in this live chat');
+    }
 
     const user = await User.findOne({ _id: userId, isActive: true }).select(
       '_id username displayName avatar'
@@ -120,6 +123,7 @@ export async function sendMessage(req, res, next) {
         ...message.toJSON(),
         sentAt: new Date().toISOString(),
       });
+      io.to(`broadcast:${broadcastId}`).emit('message_received', message.toJSON());
     }
 
     return res.status(201).json({
@@ -208,6 +212,7 @@ export async function deleteMessage(req, res, next) {
         messageId,
         deletedBy: userId,
       });
+      io.to(`broadcast:${message.broadcastId}`).emit('message_deleted', { messageId, deletedBy: userId });
     }
 
     return res.status(200).json({
@@ -304,12 +309,38 @@ export async function pinMessage(req, res, next) {
         isPinned: message.isPinned,
         pinnedBy: userId,
       });
+      io.to(`broadcast:${message.broadcastId}`).emit('message_pinned', { messageId, isPinned: message.isPinned, pinnedBy: userId });
     }
 
     return res.status(200).json({
       data: { message, isPinned: message.isPinned },
       timestamp: new Date().toISOString(),
     });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function muteChatUser(req, res, next) {
+  try {
+    const { broadcastId, userId: targetUserId } = req.params;
+    requireValidId(targetUserId, 'user');
+    const { broadcast, isOwner } = await requireBroadcastAccess(broadcastId, req.userId);
+    if (!isOwner) throw chatError(403, 'FORBIDDEN', 'Only the broadcast creator can mute chat users');
+    if (String(targetUserId) === String(req.userId)) throw chatError(400, 'INVALID_TARGET', 'You cannot mute yourself');
+    const isMuted = (broadcast.mutedChatUsers || []).some((id) => String(id) === String(targetUserId));
+    await Broadcast.updateOne(
+      { _id: broadcast._id },
+      isMuted
+        ? { $pull: { mutedChatUsers: targetUserId } }
+        : { $addToSet: { mutedChatUsers: targetUserId } }
+    );
+    req.app.get('io')?.to(`broadcast:${broadcast._id}`).emit('chat:userMuted', {
+      broadcastId: String(broadcast._id),
+      userId: String(targetUserId),
+      muted: !isMuted,
+    });
+    return res.status(200).json({ data: { userId: targetUserId, muted: !isMuted }, timestamp: new Date().toISOString() });
   } catch (error) {
     next(error);
   }

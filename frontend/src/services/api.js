@@ -72,6 +72,7 @@ const AUTH_LOCAL_STORAGE_KEYS = [
   'echooProfileCompleted',
   'echooOnboardingCompleted',
   'creatorSetup',
+  'echooCreatorAudioPreferencesV1',
 ];
 
 export const clearAuthTokens = () => {
@@ -286,6 +287,8 @@ export const buildMediaUrl = (
   }
 
   if (
+    fileUrl.startsWith('/assets/') ||
+    fileUrl.startsWith('/favicon') ||
     fileUrl.startsWith(
       'http://'
     ) ||

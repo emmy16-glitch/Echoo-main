@@ -24,8 +24,11 @@ import historyRoutes from './historyRoutes.js';
 import downloadsRoutes from './downloadsRoutes.js';
 import advancedPlayerRoutes from './advancedPlayerRoutes.js';
 import notificationRoutes from './notificationRoutes.js';
+import transcriptRoutes from './transcriptRoutes.js';
+import savedMomentRoutes from './savedMomentRoutes.js';
 import LiveKitProvider from '../providers/livekit.js';
 import { uploadLimiter } from '../middleware/rateLimiter.js';
+import { getTranscriptionGatewayDiagnostics } from '../services/transcriptionGateway.js';
 
 const router = express.Router();
 
@@ -77,6 +80,22 @@ router.get('/health/livekit', async (req, res) => {
   }
 });
 
+router.get('/health/transcription', (req, res) => {
+  const diagnostics = getTranscriptionGatewayDiagnostics();
+  return res.status(200).json({
+    status: diagnostics.configured ? 'ok' : 'disabled',
+    service: 'transcription-gateway',
+    configured: diagnostics.configured,
+    activeSessions: diagnostics.activeSessions,
+    limits: {
+      maxBufferBytes: diagnostics.maxBufferBytes,
+      maxBufferFrames: diagnostics.maxBufferFrames,
+      maxRetries: diagnostics.maxRetries,
+    },
+    timestamp: new Date().toISOString(),
+  });
+});
+
 router.use('/auth', authRoutes);
 router.use('/users', userRoutes);
 // Audio uploads can be multi-gigabyte local-disk writes, so throttle the upload
@@ -105,5 +124,7 @@ router.use('/history', historyRoutes);
 router.use('/downloads', downloadsRoutes);
 router.use('/player', advancedPlayerRoutes);
 router.use('/notifications', notificationRoutes);
+router.use('/transcripts', transcriptRoutes);
+router.use('/saved-moments', savedMomentRoutes);
 
 export default router;

@@ -4,32 +4,53 @@ import {
   FaCalendarAlt,
   FaCheck,
   FaClock,
+  FaDownload,
   FaMicrophone,
+  FaPause,
+  FaPlay,
+  FaSave,
   FaShareAlt,
   FaStop,
   FaTimesCircle,
   FaTrash,
-  FaUsers,
 } from 'react-icons/fa';
 
 import EchoWave from '../EchooSystem/EchoWave';
-import CreatorAudioMixer from './CreatorAudioMixer';
+import CreatorBroadcastAudioSurface from './CreatorBroadcastAudioSurface';
 import CreatorLiveChatPanel from './CreatorLiveChatPanel';
+import CreatorLiveInsights from './CreatorLiveInsights';
+import CreatorBroadcastProcessing from './CreatorBroadcastProcessing';
 import batch2Service from '../../services/batch2Service';
 import batch3Service from '../../services/batch3Service';
 import {
   getEchooMixerOutputTrack,
   getEchooMixerState,
   ensureHostInput,
+  resetEchooMixer,
+  setMasterMuted,
+  setCreatorAudioSettings,
   stopEchooMixer,
 } from '../../services/echooMixerService';
 import {
+  DEFAULT_CREATOR_AUDIO_SETTINGS,
+  saveCreatorAudioSettings,
+} from '../../services/creatorAudioPreferences';
+import {
+  getLiveKitPublishingState,
+  setLiveKitPublishingPaused,
   startLiveKitPublishing,
   stopLiveKitPublishing,
   getActiveLiveKitRoom,
 } from '../../services/livekitPublisher';
+import { getWhisperFlowState } from '../../services/whisperFlowService';
+import { getBroadcastRecordingState } from '../../services/broadcastRecordingService';
+import transcriptService from '../../services/transcriptService';
+import realtimeService from '../../services/realtimeService';
+import settingsService from '../../services/settingsService';
 import './CreatorBroadcastStudioExact.css';
 import './CreatorLiveBroadcastConsole.css';
+import './CreatorBroadcastStudioV2.css';
+import './CreatorBroadcastProcessing.css';
 
 const pad = (value) => String(value).padStart(2, '0');
 
@@ -67,6 +88,44 @@ const isMissingBroadcastError = (error) =>
     /broadcast not found/i.test(error?.message || '')
   );
 
+const percentToRatio = (value, fallback = 0) => {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.max(0, Math.min(1, number / 100)) : fallback;
+};
+
+const buildAudioSnapshot = (state) => {
+  const settings = state?.processing?.settings || DEFAULT_CREATOR_AUDIO_SETTINGS;
+  const sourceDefinitions = [
+    ['host', 'microphone', 'Host microphone'],
+    ['guest', 'guest_microphone', 'Guest microphone'],
+    ['media', 'music', 'Music / FX'],
+    ['screen', 'screen_share', 'Screen / tab audio'],
+  ];
+
+  return {
+    audioConfiguration: {
+      audioMode: settings.audioMode === 'raw' ? 'raw' : 'enhanced',
+      noiseReduction: percentToRatio(settings.noiseReduction, 0.45),
+      echoRemoval: settings.echoRemoval !== false,
+      voiceWarmth: percentToRatio(settings.voiceWarmth, 0.35),
+      voiceClarity: percentToRatio(settings.voiceClarity, 0.45),
+      deEsser: percentToRatio(settings.deEsser, 0.3),
+      volumeBalance: percentToRatio(settings.volumeBalance, 0.45),
+      protectLoudSounds: settings.protectLoudSounds !== false,
+      masterVolume: Math.max(0, Math.min(1.5, Number(state?.master?.gain) || 0)),
+    },
+    audioSources: sourceDefinitions.map(([key, type, fallbackLabel]) => {
+      const source = state?.channels?.[key] || {};
+      return {
+        type,
+        status: source.connected ? (source.muted ? 'muted' : 'active') : 'inactive',
+        label: source.label || fallbackLabel,
+        gain: Math.max(0, Math.min(1.5, Number(source.gain) || 0)),
+      };
+    }),
+  };
+};
+
 const CreatorLiveConnectedWorkspace = ({
   studioName = 'Creator',
   initialBroadcastId = '',
@@ -89,6 +148,8 @@ const CreatorLiveConnectedWorkspace = ({
   const [duration, setDuration] = useState('60');
   const [savedBroadcast, setSavedBroadcast] = useState(null);
   const [currentLiveBroadcast, setCurrentLiveBroadcast] = useState(null);
+  const [processingBroadcast, setProcessingBroadcast] = useState(null);
+  const [endConfirmationOpen, setEndConfirmationOpen] = useState(false);
   const [presence, setPresence] = useState({
     listenerCount: 0,
     peakListeners: 0,
@@ -99,10 +160,23 @@ const CreatorLiveConnectedWorkspace = ({
   const [saving, setSaving] = useState(false);
   const [goingLive, setGoingLive] = useState(false);
   const [ending, setEnding] = useState(false);
+  const [pausing, setPausing] = useState(false);
   const [actionId, setActionId] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [elapsed, setElapsed] = useState(0);
+  const [publisherHealth, setPublisherHealth] = useState(() => getLiveKitPublishingState());
+  const [whisperHealth, setWhisperHealth] = useState(() => getWhisperFlowState());
+  const [recordingHealth, setRecordingHealth] = useState(() => getBroadcastRecordingState());
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [transcriptPreferences, setTranscriptPreferences] = useState({
+    language: 'en',
+  });
+  const [transcriptionReadiness, setTranscriptionReadiness] = useState({
+    status: 'checking',
+    providerReady: false,
+    model: 'faster-whisper-large-v3-turbo',
+  });
 
   const clearPreparedBroadcast = useCallback(() => {
     sessionStorage.removeItem('echooPreparedBroadcastId');
@@ -155,6 +229,18 @@ const CreatorLiveConnectedWorkspace = ({
           return;
         }
 
+        const unfinishedProcessing = realBroadcasts.find((item) =>
+          item.status === 'completed' && (
+            ['pending', 'processing'].includes(item.assetStatus?.audio) ||
+            ['processing', 'ready_for_review', 'editing'].includes(item.assetStatus?.transcript)
+          )
+        );
+        if (unfinishedProcessing) {
+          setProcessingBroadcast(unfinishedProcessing);
+          setSavedBroadcast(unfinishedProcessing);
+          return;
+        }
+
         if (preparedBroadcastId) {
           let prepared = realBroadcasts.find(
             (item) => String(item.id) === String(preparedBroadcastId)
@@ -200,6 +286,46 @@ const CreatorLiveConnectedWorkspace = ({
   }, [preparedBroadcastId, clearPreparedBroadcast]);
 
   useEffect(() => {
+    let active = true;
+    Promise.allSettled([settingsService.get(), transcriptService.getReadiness()]).then((results) => {
+      if (!active) return;
+      const settings = results[0].status === 'fulfilled'
+        ? results[0].value?.data?.preferences?.creatorTranscript
+        : null;
+      if (settings) setTranscriptPreferences({
+        language: settings.language || 'en',
+      });
+      const readiness = results[1].status === 'fulfilled' ? results[1].value?.data : null;
+      setTranscriptionReadiness(readiness || {
+        status: 'unavailable', providerReady: false, model: 'medium',
+      });
+    });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!stations.length) return;
+    const stationExists = stations.some((station) => String(station.id) === String(stationId));
+    if (!stationExists) setStationId(stations[0].id);
+  }, [stations, stationId]);
+
+  useEffect(() => {
+    const onPublisherHealth = (event) => setPublisherHealth(event.detail);
+    const onWhisperHealth = (event) => setWhisperHealth(event.detail);
+    window.addEventListener('echoo:publisher-health', onPublisherHealth);
+    window.addEventListener('echoo:whisper-health', onWhisperHealth);
+    return () => {
+      window.removeEventListener('echoo:publisher-health', onPublisherHealth);
+      window.removeEventListener('echoo:whisper-health', onWhisperHealth);
+    };
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setRecordingHealth(getBroadcastRecordingState()), 1500);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
     if (!currentLiveBroadcast?.id) return undefined;
 
     let active = true;
@@ -218,6 +344,52 @@ const CreatorLiveConnectedWorkspace = ({
       active = false;
       window.clearTimeout(first);
       window.clearInterval(interval);
+    };
+  }, [currentLiveBroadcast?.id]);
+
+  useEffect(() => {
+    if (!currentLiveBroadcast?.id) return undefined;
+    let active = true;
+    let socket = null;
+
+    realtimeService.joinBroadcast(currentLiveBroadcast.id).then((connectedSocket) => {
+      if (!active) return;
+      socket = connectedSocket;
+      const onStatus = (payload) => {
+        if (String(payload?.broadcastId) !== String(currentLiveBroadcast.id)) return;
+        setCurrentLiveBroadcast((current) => current ? { ...current, ...payload } : current);
+        setPresence((current) => ({
+          ...current,
+          listenerCount: Number(payload.listenerCount ?? current.listenerCount) || 0,
+          peakListeners: Number(payload.peakListeners ?? current.peakListeners) || 0,
+        }));
+        console.info('[Echoo Broadcast] creator received authoritative state', payload);
+      };
+      const onTranscriptStatus = (payload) => {
+        if (String(payload?.broadcastId) !== String(currentLiveBroadcast.id)) return;
+        setWhisperHealth((current) => ({ ...current, status: payload?.state || current.status }));
+      };
+      const onPresence = (payload) => {
+        if (payload?.broadcastId && String(payload.broadcastId) !== String(currentLiveBroadcast.id)) return;
+        setPresence((current) => ({ ...current, ...payload }));
+      };
+      connectedSocket.on('broadcast:status', onStatus);
+      connectedSocket.on('transcript:status', onTranscriptStatus);
+      connectedSocket.on('presence:changed', onPresence);
+      onStatus(connectedSocket.__echooBroadcastSnapshots?.get(String(currentLiveBroadcast.id)));
+      socket.__echooCreatorHealthCleanup = () => {
+        connectedSocket.off('broadcast:status', onStatus);
+        connectedSocket.off('transcript:status', onTranscriptStatus);
+        connectedSocket.off('presence:changed', onPresence);
+      };
+    }).catch((realtimeError) => {
+      console.warn('[Echoo Broadcast] realtime health unavailable; presence polling continues:', realtimeError?.message || realtimeError);
+    });
+
+    return () => {
+      active = false;
+      socket?.__echooCreatorHealthCleanup?.();
+      realtimeService.leaveBroadcast(currentLiveBroadcast.id).catch(() => {});
     };
   }, [currentLiveBroadcast?.id]);
 
@@ -254,9 +426,42 @@ const CreatorLiveConnectedWorkspace = ({
   const audioSourceReady = Boolean(
     mixerState?.channels?.host?.connected ||
     mixerState?.channels?.guest?.connected ||
-    mixerState?.channels?.media?.connected
+    mixerState?.channels?.media?.connected ||
+    mixerState?.channels?.screen?.connected
   );
   const formReady = Boolean(stationId && title.trim());
+  const setupReady = formReady && audioSourceReady;
+
+  useEffect(() => {
+    if (!selectedStation || savedBroadcast?.id || title.trim()) return;
+    setTitle(selectedStation.name || '');
+    setDescription(selectedStation.description || '');
+  }, [savedBroadcast?.id, selectedStation, title]);
+
+  const updateTranscriptPreference = async (key, value) => {
+    const next = { ...transcriptPreferences, [key]: value };
+    setTranscriptPreferences(next);
+    try {
+      await settingsService.updatePreferences({ creatorTranscript: next });
+      setMessage('Transcript setup saved.');
+    } catch (preferenceError) {
+      setError(preferenceError?.message || 'Could not save transcript setup.');
+    }
+  };
+
+  const resetSetup = async () => {
+    setError('');
+    setMessage('Setup reset to Echoo defaults.');
+    setMode('now');
+    setSavedBroadcast(null);
+    setTitle(selectedStation?.name || '');
+    setDescription(selectedStation?.description || '');
+    setDetailsOpen(false);
+    clearPreparedBroadcast();
+    resetEchooMixer();
+    await setCreatorAudioSettings(DEFAULT_CREATOR_AUDIO_SETTINGS);
+    await saveCreatorAudioSettings(DEFAULT_CREATOR_AUDIO_SETTINGS).catch(() => null);
+  };
 
   const changeMode = (nextMode) => {
     setMode(nextMode);
@@ -265,23 +470,18 @@ const CreatorLiveConnectedWorkspace = ({
     setError('');
   };
 
-  const testMicrophone = async () => {
-    try {
-      setError('');
-      await ensureHostInput();
-      setMixerState(getEchooMixerState());
-      setMessage('Microphone ready.');
-    } catch (micError) {
-      setError(micError?.message || 'Could not connect your microphone.');
-    }
-  };
-
   const prepareImmediateBroadcast = async () => {
+    const audioSnapshot = buildAudioSnapshot(getEchooMixerState());
     if (savedBroadcast?.id && savedBroadcast.status !== 'live') {
       try {
         const response = await batch2Service.updateBroadcast(savedBroadcast.id, {
           title: title.trim(),
           description: description.trim(),
+          captionSettings: {
+            showToListeners: false,
+            language: transcriptPreferences.language,
+          },
+          ...audioSnapshot,
         });
         return response?.data || savedBroadcast;
       } catch (updateError) {
@@ -321,12 +521,34 @@ const CreatorLiveConnectedWorkspace = ({
       isPublic: true,
       tags: [],
       coverArt: writableStation.coverArt || null,
+      captionSettings: {
+        showToListeners: false,
+        language: transcriptPreferences.language,
+      },
+      ...audioSnapshot,
     });
 
     if (!response?.data?.id) throw new Error('Could not prepare this broadcast.');
     setSavedBroadcast(response.data);
     setBroadcasts((current) => [...current, response.data]);
     return response.data;
+  };
+
+  const saveDraft = async () => {
+    if (!formReady || saving) {
+      setError('Choose a station and add a broadcast title before saving.');
+      return;
+    }
+    try {
+      setSaving(true);
+      setError('');
+      await prepareImmediateBroadcast();
+      setMessage('Draft saved to your account.');
+    } catch (draftError) {
+      setError(draftError?.message || 'Could not save this draft.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const goLive = async () => {
@@ -381,6 +603,12 @@ const CreatorLiveConnectedWorkspace = ({
 
       const liveBroadcast = confirmed?.data || { ...broadcast, status: 'live', isLive: true };
 
+      console.info('[Echoo Broadcast] creator observed live state', {
+        broadcastId: liveBroadcast.id,
+        status: liveBroadcast.status,
+        mediaState: liveBroadcast.mediaState,
+      });
+
       setSavedBroadcast(liveBroadcast);
       setCurrentLiveBroadcast(liveBroadcast);
       setElapsed(0);
@@ -425,6 +653,11 @@ const CreatorLiveConnectedWorkspace = ({
         isPublic: true,
         tags: [],
         coverArt: selectedStation?.coverArt || null,
+        captionSettings: {
+          showToListeners: false,
+          language: transcriptPreferences.language,
+        },
+        ...buildAudioSnapshot(getEchooMixerState()),
       });
 
       if (!response?.data?.id) throw new Error('Could not schedule this broadcast.');
@@ -474,13 +707,40 @@ const CreatorLiveConnectedWorkspace = ({
     }
   };
 
+  const toggleBroadcastPause = async () => {
+    if (!currentLiveBroadcast?.id || pausing) return;
+    const paused = currentLiveBroadcast.mediaState === 'audio_paused';
+    try {
+      setPausing(true);
+      setError('');
+      // Pause the post-master program itself so LiveKit, recording and Whisper
+      // observe the same silence and remain synchronized.
+      setMasterMuted(!paused);
+      await setLiveKitPublishingPaused(!paused);
+      const response = paused
+        ? await batch3Service.resumeBroadcast(currentLiveBroadcast.id)
+        : await batch3Service.pauseBroadcast(currentLiveBroadcast.id);
+      setCurrentLiveBroadcast(response?.data || {
+        ...currentLiveBroadcast,
+        mediaState: paused ? 'audio_live' : 'audio_paused',
+      });
+      setMessage(paused ? 'Broadcast audio resumed.' : 'Broadcast audio paused.');
+    } catch (pauseError) {
+      setMasterMuted(paused);
+      await setLiveKitPublishingPaused(paused).catch(() => null);
+      setError(pauseError?.message || 'Could not change the broadcast audio state.');
+    } finally {
+      setPausing(false);
+    }
+  };
+
   const endBroadcast = async () => {
     if (!currentLiveBroadcast?.id || ending) return;
-    if (!window.confirm(`End “${currentLiveBroadcast.title}” now?`)) return;
 
     try {
       setEnding(true);
       setError('');
+      setEndConfirmationOpen(false);
 
       const endedResponse = await batch3Service.endBroadcast(currentLiveBroadcast.id);
       const endedBroadcast = endedResponse?.data || currentLiveBroadcast;
@@ -503,6 +763,11 @@ const CreatorLiveConnectedWorkspace = ({
           ? { ...item, ...endedBroadcast, status: endedBroadcast.status || 'completed' }
           : item
       ));
+      setProcessingBroadcast({
+        ...currentLiveBroadcast,
+        ...endedBroadcast,
+        status: endedBroadcast.status || 'completed',
+      });
       setCurrentLiveBroadcast(null);
       setSavedBroadcast(null);
       setElapsed(0);
@@ -580,6 +845,23 @@ const CreatorLiveConnectedWorkspace = ({
     }
   };
 
+  const exportTranscript = async () => {
+    if (!currentLiveBroadcast?.id) return;
+    try {
+      const response = await transcriptService.getBroadcast(currentLiveBroadcast.id, { final: true, limit: 200 });
+      const lines = (response?.data || []).map((segment) => `${formatTimer((segment.startMs || 0) / 1000)}  ${segment.speaker || 'Creator'}\n${segment.text}`).join('\n\n');
+      const blob = new Blob([lines || 'No confirmed transcript is available yet.'], { type: 'text/plain;charset=utf-8' });
+      const href = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = href;
+      anchor.download = `echoo-${currentLiveBroadcast.id}-transcript.txt`;
+      anchor.click();
+      URL.revokeObjectURL(href);
+    } catch (downloadError) {
+      setError(downloadError?.message || 'Could not export the transcript.');
+    }
+  };
+
   if (loading) {
     return <div className="ebsx-loading">Loading Broadcast Studio...</div>;
   }
@@ -595,6 +877,18 @@ const CreatorLiveConnectedWorkspace = ({
     );
   }
 
+  if (processingBroadcast) {
+    return <CreatorBroadcastProcessing broadcast={processingBroadcast} onStartAnother={() => {
+      setProcessingBroadcast(null);
+      setSavedBroadcast(null);
+      setTitle(selectedStation?.name || '');
+      setDescription(selectedStation?.description || '');
+      clearPreparedBroadcast();
+      setMessage('');
+      setError('');
+    }} />;
+  }
+
   if (currentLiveBroadcast) {
     const liveStation = stations.find(
       (station) => String(station.id) === String(currentLiveBroadcast.stationId)
@@ -603,226 +897,116 @@ const CreatorLiveConnectedWorkspace = ({
     // If we are in the room, we are connected.
     const activeRoom = getActiveLiveKitRoom();
     const isConnected = presence.creatorConnected || Boolean(activeRoom);
-    const connectionLabel = isConnected ? 'Stable' : 'Checking';
+
+    const liveKitLabel = isConnected ? 'Connected' : publisherHealth.livekit || 'Disconnected';
+    const audioLabel = currentLiveBroadcast.mediaState === 'audio_paused' || publisherHealth.audio === 'paused'
+      ? 'Paused'
+      : currentLiveBroadcast.mediaState === 'audio_live' || publisherHealth.audio === 'published'
+      ? 'Published'
+      : currentLiveBroadcast.mediaState === 'creator_connecting'
+        ? 'Connecting'
+        : 'Disconnected';
+    const whisperLabel = currentLiveBroadcast.transcriptState === 'disabled' && whisperHealth.status === 'disabled'
+      ? 'Disabled'
+      : whisperHealth.status === 'connected' || currentLiveBroadcast.transcriptState === 'connected'
+        ? 'Connected'
+        : whisperHealth.status === 'reconnecting' || currentLiveBroadcast.transcriptState === 'reconnecting'
+          ? 'Reconnecting'
+          : whisperHealth.status === 'failed' || currentLiveBroadcast.transcriptState === 'failed'
+            ? 'Unavailable'
+            : 'Connecting';
+    const connectionHealthy = isConnected && audioLabel === 'Published';
 
     return (
-      <section className="ebsx live-page">
-        <div className="ebsx-live-console">
-          <div className="ebsx-live-primary">
-            <section className="ebsx-live-now-strip" aria-label="Broadcast live status">
-              <div className="ebsx-live-now-copy">
-                <span className="ebsx-live-now-dot" aria-hidden="true" />
-                <div>
-                  <strong>LIVE NOW</strong>
-                  <span>You&apos;re broadcasting to your listeners.</span>
-                </div>
-              </div>
-              <div className="ebsx-live-now-right">
-                <div className="ebsx-live-now-wave" aria-hidden="true">
-                  <EchoWave state="playing" />
-                </div>
-                <div className="ebsx-live-timer">
-                  <span>Live timer</span>
-                  <strong>{formatTimer(elapsed)}</strong>
-                </div>
-              </div>
-            </section>
-
-            {message && message !== 'You are live.' && (
-              <div className="ebsx-message success">{message}</div>
-            )}
-            {error && <div className="ebsx-message error">{error}</div>}
-
-            <section className="ebsx-live-summary">
-              <div className="ebsx-live-summary-art">
-                {liveStation?.coverArt
-                  ? <img src={liveStation.coverArt} alt="" />
-                  : <FaBroadcastTower />}
-                <span>LIVE</span>
-              </div>
-
-              <div className="ebsx-live-summary-copy">
-                <span>ON AIR</span>
-                <h1>{currentLiveBroadcast.title}</h1>
-                <p>{liveStation?.name || currentLiveBroadcast.stationName || 'Echoo Station'}</p>
-                <small>{studioName}</small>
-                <div className="ebsx-live-summary-health">
-                  <span><FaUsers /> Public</span>
-                  <span className={isConnected ? 'good' : ''}>
-                    <i /> {isConnected ? 'Good connection' : 'Checking connection'}
-                  </span>
-                </div>
-              </div>
-
-              <div className="ebsx-live-summary-right">
-                <div className="ebsx-live-summary-metrics">
-                  <div>
-                    <strong>{presence.listenerCount || 0}</strong>
-                    <span>Listening now</span>
-                  </div>
-                  <div>
-                    <strong>{presence.peakListeners || 0}</strong>
-                    <span>Peak listeners</span>
-                  </div>
-                  <div>
-                    <strong>{connectionLabel}</strong>
-                    <span>Connection</span>
-                  </div>
-                </div>
-                <div className="ebsx-live-summary-actions">
-                  <button type="button" onClick={reconnectMicrophone} disabled={goingLive}>
-                    <FaMicrophone /> {goingLive ? 'Reconnecting...' : 'Reconnect studio mix'}
-                  </button>
-                  <button type="button" onClick={shareBroadcast}>
-                    <FaShareAlt /> Share
-                  </button>
-                  <button type="button" className="danger" onClick={endBroadcast} disabled={ending}>
-                    <FaStop /> {ending ? 'Ending...' : 'End broadcast'}
-                  </button>
-                </div>
-              </div>
-            </section>
-
-            <div className="ebsx-live-mixer-stage">
-              <CreatorAudioMixer onStateChange={setMixerState} />
-            </div>
+      <section className="ebsx ecbs ecbs-live-page">
+        <section className="ecbs-live-hero">
+          <header><div><span className="ecbs-live-dot" /> <strong>LIVE NOW</strong><small>You&apos;re broadcasting to your listeners.</small></div><div className="ecbs-hero-timer"><span><EchoWave state="playing" /></span><small>Elapsed time</small><strong>{formatTimer(elapsed)}</strong></div></header>
+          <div className="ecbs-live-hero-body">
+            <div className="ecbs-live-art">{liveStation?.coverArt ? <img src={liveStation.coverArt} alt="" /> : <FaBroadcastTower />}</div>
+            <div className="ecbs-live-identity"><h1>{currentLiveBroadcast.title}</h1><p>with {studioName}</p><div><span>Public</span><span className={connectionHealthy ? 'good' : ''}><i /> {connectionHealthy ? 'Good connection' : 'Checking connection'}</span></div></div>
+            <dl><div><dt>{presence.listenerCount || 0}</dt><dd>Listeners now</dd></div><div><dt>{presence.peakListeners || 0}</dt><dd>Peak listeners</dd></div><div><dt className={connectionHealthy ? 'good' : ''}>{connectionHealthy ? 'Excellent' : 'Checking'}</dt><dd>Connection quality</dd></div></dl>
+            <div className="ecbs-live-actions"><button type="button" onClick={shareBroadcast}><FaShareAlt /> Share</button><button type="button" onClick={toggleBroadcastPause} disabled={pausing}>{audioLabel === 'Paused' ? <FaPlay /> : <FaPause />} {pausing ? 'Updating...' : audioLabel === 'Paused' ? 'Resume' : 'Pause'}</button><button type="button" onClick={exportTranscript}><FaDownload /> Export transcript</button><button type="button" className="danger" onClick={() => setEndConfirmationOpen(true)} disabled={ending}><FaStop /> {ending ? 'Ending...' : 'End broadcast'}</button></div>
           </div>
+        </section>
 
-          <aside className="ebsx-live-chat-rail" aria-label="Live chat">
-            <CreatorLiveChatPanel broadcastId={currentLiveBroadcast.id} />
-          </aside>
+        {(message && message !== 'You are live.') && <div className="ebsx-message success">{message}</div>}
+        {error && <div className="ebsx-message error">{error}</div>}
 
-          <div className="ebsx-live-secondary">
-            <section className="ebsx-activity-card">
-              <div className="ebsx-card-head"><h2>Listener activity</h2></div>
-              <strong className="ebsx-activity-big">{presence.listenerCount || 0}</strong>
-              <span className="ebsx-activity-live"><i /> Listening now</span>
-              <div className="ebsx-activity-stats">
-                <div><span>Peak listeners</span><strong>{presence.peakListeners || 0}</strong></div>
-                <div><span>Live time</span><strong>{formatTimer(elapsed)}</strong></div>
-                                  <div><span>Studio output</span><strong>{audioSourceReady ? 'Ready' : 'Check audio'}</strong></div>
+        <section className="ecbs-health-bar">
+          <article className={audioLabel === 'Published' ? 'healthy' : ''}><i /><div><strong>Audio {audioLabel}</strong><small>{audioLabel === 'Published' ? 'Audience mix is live' : audioLabel === 'Paused' ? 'Program track is muted' : 'Reconnect the studio mix'}</small></div></article>
+          <article className={liveKitLabel === 'Connected' ? 'healthy' : ''}><i /><div><strong>LiveKit {liveKitLabel}</strong><small>Real-time streaming</small></div></article>
+          <article className={whisperLabel === 'Connected' ? 'healthy' : ''}><i /><div><strong>Transcript {whisperLabel}</strong><small>Background draft processing</small></div></article>
+          <article className={recordingHealth.recording ? 'healthy' : ''}><i /><div><strong>Recording {recordingHealth.recording ? 'Active' : 'Checking'}</strong><small>{recordingHealth.recording ? 'Saving the audience mix' : 'Local recording status'}</small></div></article>
+          <article className={mixerState?.channels?.screen?.connected ? 'healthy' : ''}><i /><div><strong>Screen/Tab {mixerState?.channels?.screen?.connected ? 'Active' : 'Inactive'}</strong><small>{mixerState?.channels?.screen?.connected ? 'Shared audio is in the mix' : 'No shared audio'}</small></div></article>
+          <button type="button" onClick={reconnectMicrophone} disabled={goingLive}><FaMicrophone /> {goingLive ? 'Reconnecting...' : 'Reconnect'}</button>
+        </section>
 
-              </div>
-            </section>
-
-            <section className="ebsx-live-controls">
-              <div className="ebsx-card-head"><h2>Live controls</h2></div>
-              <div className="ebsx-live-quick-actions">
-                <button type="button" onClick={shareBroadcast}>
-                  <FaShareAlt />
-                  <span><strong>Share broadcast</strong><small>Copy or share the live link</small></span>
-                </button>
-                <button type="button" onClick={() => onNavigate?.('Stations')}>
-                  <FaBroadcastTower />
-                  <span><strong>Station page</strong><small>Manage this station</small></span>
-                </button>
-                <button type="button" onClick={() => changeMode('later')}>
-                  <FaCalendarAlt />
-                  <span><strong>Plan another</strong><small>Schedule while this stays live</small></span>
-                </button>
-                <button type="button" onClick={() => onNavigate?.('Analytics')}>
-                  <FaUsers />
-                  <span><strong>View analytics</strong><small>Open creator performance</small></span>
-                </button>
-              </div>
-            </section>
-          </div>
+        <div className="ecbs-live-grid">
+          <main><CreatorBroadcastAudioSurface variant="live" onStateChange={setMixerState} /></main>
+          <aside><CreatorLiveChatPanel broadcastId={currentLiveBroadcast.id} listenerCount={presence.listenerCount} /><CreatorLiveInsights broadcastId={currentLiveBroadcast.id} presence={presence} onOpenAnalytics={() => onNavigate?.('Analytics')} /></aside>
         </div>
-
-        {mode === 'later' && (
-          <section className="ebsx-live-schedule">
-            <div className="ebsx-section-title"><div><span>SCHEDULE</span><h2>Plan another broadcast</h2><p>Your current broadcast stays live while you schedule this one.</p></div><button type="button" onClick={() => changeMode('now')}>Close</button></div>
-            <div className="ebsx-fields inline">
-              <label><span>Station</span><select value={stationId} onChange={(event) => setStationId(event.target.value)}>{stations.map((station) => <option key={station.id} value={station.id}>{station.name}</option>)}</select></label>
-              <label><span>Title</span><input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Broadcast title" /></label>
-              <label><span>Date</span><input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label>
-              <label><span>Time</span><input type="time" value={time} onChange={(event) => setTime(event.target.value)} /></label>
-              <label><span>Duration</span><select value={duration} onChange={(event) => setDuration(event.target.value)}><option value="30">30 min</option><option value="60">1 hour</option><option value="90">1.5 hours</option><option value="120">2 hours</option></select></label>
-            </div>
-            <button type="button" className="ebsx-blue-button" onClick={scheduleBroadcast} disabled={!formReady || saving}><FaCalendarAlt /> {saving ? 'Scheduling...' : 'Schedule broadcast'}</button>
+        {endConfirmationOpen && <div className="ecbs-end-dialog" role="presentation" onMouseDown={() => setEndConfirmationOpen(false)}>
+          <section role="dialog" aria-modal="true" aria-labelledby="end-broadcast-title" onMouseDown={(event) => event.stopPropagation()}>
+            <h2 id="end-broadcast-title">End Broadcast?</h2>
+            <p>Your live session will end for listeners.</p>
+            <ul><li>Recording will be saved</li><li>Transcript will continue processing</li><li>Highlights will be generated</li><li>You can publish when ready</li></ul>
+            <footer><button type="button" onClick={() => setEndConfirmationOpen(false)}>Cancel</button><button type="button" className="danger" onClick={endBroadcast} disabled={ending}><FaStop /> {ending ? 'Ending...' : 'End Broadcast'}</button></footer>
           </section>
-        )}
+        </div>}
       </section>
     );
   }
 
   return (
     <section className="ebsx setup-page">
-      <header className="ebsx-setup-header">
-        <div><h1>Your studio is <span className="ebsx-title-accent">{audioSourceReady ? 'ready' : 'getting ready'}</span></h1><p>Set up your broadcast, test your audio, and go live with confidence.</p></div>
+      <header className="ebsx-setup-header ecbs-setup-title">
+        <div><span>BROADCAST STUDIO</span><h1>Get ready to <strong>go live</strong></h1><p>You&apos;re almost live. Complete the steps to share your voice with the world.</p></div>
+        <div><button type="button" onClick={saveDraft} disabled={saving}><FaSave /> {saving ? 'Saving...' : 'Save draft'}</button><button type="button" onClick={resetSetup}><FaClock /> Reset setup</button></div>
       </header>
 
+      <div className={`ecbs-studio-status ${setupReady ? 'ready' : 'attention'}`}>
+        {setupReady ? <FaCheck /> : <FaMicrophone />}
+        <strong>{setupReady ? 'Studio ready.' : 'Setup needs attention.'}</strong>
+        <span>{setupReady ? 'Finish the final checks before you go live.' : !formReady ? 'Choose a station and complete the broadcast details.' : 'Connect at least one audio source before you go live.'}</span>
+      </div>
       {message && <div className="ebsx-message success">{message}</div>}
       {error && <div className="ebsx-message error">{error}</div>}
 
       <div className="ebsx-setup-layout">
         <main className="ebsx-setup-main">
-          <section className="ebsx-station-hero">
+          <section className="ebsx-station-hero ecbs-station-card">
+            <b className="ecbs-section-number">1</b>
             <div className="ebsx-station-art">
               {selectedStation?.coverArt ? <img src={selectedStation.coverArt} alt="" /> : <FaBroadcastTower />}
             </div>
             <div className="ebsx-station-copy">
-              <span>STATION SELECTED <FaCheck /></span>
+              <span>READY TO BROADCAST <FaCheck /></span>
               <h2>{selectedStation?.name || 'Choose a station'}</h2>
-              <p>{selectedStation?.category || 'Station'}</p>
-              <small>{Number(selectedStation?.followerCount || 0).toLocaleString()} followers</small>
+              <p>{selectedStation?.category || 'Station'} · {studioName}</p>
+              <small>{Number(selectedStation?.followerCount || 0).toLocaleString()} followers · {selectedStation?.isLive ? 'Live now' : 'Ready'}</small>
             </div>
-            <div className="ebsx-quality">
-              <span>Studio status</span>
-              <strong><i /> {audioSourceReady ? 'Audio ready' : 'Waiting for an audio source'}</strong>
-              <p>Your live mix is sent to LiveKit when you start the broadcast.</p>
-            </div>
-            <div className="ebsx-hero-mic"><FaMicrophone /></div>
+            <div className="ecbs-station-actions"><button type="button" className="ecbs-change-station" onClick={() => onNavigate?.('Stations')}>Change station</button><button type="button" className="ecbs-change-station" onClick={() => setDetailsOpen((value) => !value)}>Edit broadcast details</button></div>
           </section>
 
-          <div className="ebsx-preflight-grid">
-            <section className="ebsx-mic-preview">
-              <div className="ebsx-card-head"><h2>Microphone preview</h2><span className={microphoneReady ? 'ready' : ''}>{microphoneReady ? 'Mic ready' : 'Not connected'}</span></div>
-              <div className="ebsx-preview-wave"><EchoWave state={microphoneReady ? 'playing' : 'idle'} /></div>
-              <div className="ebsx-mic-source"><FaMicrophone /><div><strong>{mixerState?.channels?.host?.sourceLabel || 'Host microphone'}</strong><small>Primary input</small></div></div>
-              <button type="button" className="ebsx-outline-button" onClick={testMicrophone}><FaMicrophone /> {microphoneReady ? 'Test again' : 'Test microphone'}</button>
-              <div className="ebsx-checks"><span className={audioSourceReady ? 'done' : ''}><FaCheck /> Audio source connected</span><span className={stationId ? 'done' : ''}><FaCheck /> Station selected</span><span className={formReady ? 'done' : ''}><FaCheck /> Broadcast details</span></div>
-            </section>
+          {detailsOpen && <section className="ecbs-broadcast-details"><header><b>2</b><div><h2>Broadcast details</h2><p>Set the title and description listeners will see.</p></div></header><label>Title<input value={title} maxLength={200} placeholder="Broadcast title" onChange={(event) => { setTitle(event.target.value); setSavedBroadcast(null); }} /></label><label>Description<textarea value={description} maxLength={2000} placeholder="Describe this broadcast" onChange={(event) => setDescription(event.target.value)} /></label></section>}
 
-            <CreatorAudioMixer onStateChange={setMixerState} />
-          </div>
-
-          <section className="ebsx-planned-card">
-            <div className="ebsx-section-title"><div><span>UPCOMING</span><h2>Planned broadcasts</h2><p>Scheduled sessions return to this same studio when it is time.</p></div><button type="button" onClick={() => changeMode('later')}><FaCalendarAlt /> Schedule for later</button></div>
-            {planned.length ? (
-              <div className="ebsx-planned-list">
-                {planned.map((broadcast) => (
-                  <article key={broadcast.id}>
-                    <div><span>SCHEDULED</span><small>{broadcast.stationName || 'Station'}</small><h3>{broadcast.title}</h3><p><FaClock /> {formatDateTime(broadcast.startTime)} · {broadcast.duration || '—'} min</p></div>
-                    <div><button type="button" className="primary" onClick={() => enterScheduled(broadcast)}><FaMicrophone /> Enter studio</button><button type="button" disabled={actionId === broadcast.id} onClick={() => cancelBroadcast(broadcast)}><FaTimesCircle /> Cancel</button><button type="button" className="danger" disabled={actionId === broadcast.id} onClick={() => deleteBroadcast(broadcast)}><FaTrash /></button></div>
-                  </article>
-                ))}
-              </div>
-            ) : <div className="ebsx-empty-line"><FaCalendarAlt /> Nothing scheduled yet.</div>}
-          </section>
+          <CreatorBroadcastAudioSurface variant="setup" showMonitoring={false} onStateChange={setMixerState} />
         </main>
 
-        <aside className="ebsx-workflow">
-          <div className="ebsx-workflow-head"><h2>Setup workflow</h2><span>{mode === 'now' ? 'Go live now' : 'Schedule for later'}</span></div>
+        <aside className="ecbs-setup-rail">
+          <CreatorBroadcastAudioSurface variant="monitor" onStateChange={setMixerState} />
 
-          <div className="ebsx-step done"><b>1</b><div><strong>Choose station</strong><p>Select the station this broadcast belongs to.</p><select value={stationId} disabled={Boolean(savedBroadcast?.id)} onChange={(event) => { setStationId(event.target.value); setSavedBroadcast(null); }}><option value="">Select station</option>{stations.map((station) => <option key={station.id} value={station.id}>{station.name}</option>)}</select><small>Need another station? <button type="button" onClick={() => onNavigate?.('Stations')}>Create it in Stations</button>.</small></div></div>
+          <section className="ecbs-transcript-ready-card"><header><b>6</b><div><h2>Transcript readiness</h2><p>A private draft will be prepared from the final studio mix.</p></div><span className={transcriptionReadiness.providerReady ? 'ready' : 'waiting'}>{transcriptionReadiness.status === 'checking' ? 'Checking' : transcriptionReadiness.providerReady ? 'Ready' : 'Unavailable'}</span></header><label>Language<select value={transcriptPreferences.language} onChange={(event) => updateTranscriptPreference('language', event.target.value)}><option value="en">English</option><option value="yo">Yoruba</option><option value="pcm">Nigerian Pidgin</option><option value="ha">Hausa</option></select></label><small>{transcriptionReadiness.providerReady ? `${transcriptionReadiness.model} is ready to prepare a private transcript draft.` : 'Live audio continues even when transcription is unavailable.'}</small></section>
 
-          <div className={`ebsx-step ${title.trim() ? 'done' : ''}`}><b>2</b><div><strong>Broadcast details</strong><p>Add the title listeners will see.</p><input value={title} maxLength={200} placeholder="Broadcast title" onChange={(event) => setTitle(event.target.value)} /><textarea value={description} maxLength={2000} placeholder="Description" onChange={(event) => setDescription(event.target.value)} /></div></div>
-
-          {mode === 'now' ? (
-            <>
-              <div className={`ebsx-step ${audioSourceReady ? 'done' : ''}`}><b>3</b><div><strong>{microphoneReady ? 'Test microphone' : 'Connect an audio source'}</strong><p>{microphoneReady ? 'Make sure the host input is ready.' : 'Connect a microphone or share tab audio for your audience.'}</p><button type="button" className="ebsx-outline-button full" onClick={testMicrophone}><FaMicrophone /> {microphoneReady ? 'Mic ready — test again' : 'Test microphone'}</button></div></div>
-              <div className={`ebsx-step ${formReady && audioSourceReady ? 'done' : ''}`}><b>4</b><div><strong>Ready</strong><p>Station, details and at least one audio source must be ready.</p></div></div>
-              <div className="ebsx-step final"><b>5</b><div><strong>Go live</strong><p>Your mixer output will be published to listeners.</p><button type="button" className="ebsx-blue-button full" onClick={goLive} disabled={!formReady || !audioSourceReady || goingLive || saving}><FaBroadcastTower /> {goingLive || saving ? 'Starting...' : savedBroadcast?.status === 'starting' ? 'Resume going live' : 'Go live now'}</button><button type="button" className="ebsx-schedule-button full" onClick={() => changeMode('later')}><FaCalendarAlt /> Schedule for later</button></div></div>
-            </>
-          ) : (
-            <>
-              <div className="ebsx-step done"><b>3</b><div><strong>Date and time</strong><p>Choose when this broadcast should begin.</p><div className="ebsx-workflow-date"><input type="date" value={date} onChange={(event) => setDate(event.target.value)} /><input type="time" value={time} onChange={(event) => setTime(event.target.value)} /></div><select value={duration} onChange={(event) => setDuration(event.target.value)}><option value="30">30 minutes</option><option value="45">45 minutes</option><option value="60">1 hour</option><option value="90">1 hour 30 minutes</option><option value="120">2 hours</option><option value="240">4 hours</option></select></div></div>
-              <div className="ebsx-step final"><b>4</b><div><strong>Schedule</strong><p>Save this broadcast and return when it is time.</p><button type="button" className="ebsx-blue-button full" onClick={scheduleBroadcast} disabled={!formReady || saving || !date || !time}><FaCalendarAlt /> {saving ? 'Scheduling...' : 'Schedule broadcast'}</button><button type="button" className="ebsx-schedule-button full" onClick={() => changeMode('now')}><FaMicrophone /> Go live instead</button></div></div>
-            </>
-          )}
+          <section className="ebsx-planned-card ecbs-planned-rail">
+            <div className="ebsx-section-title"><div><span>UPCOMING</span><h2>Planned broadcasts</h2><p>Scheduled sessions return to this studio.</p></div><button type="button" onClick={() => changeMode(mode === 'later' ? 'now' : 'later')}><FaCalendarAlt /> {mode === 'later' ? 'Close' : 'Schedule for later'}</button></div>
+            {mode === 'later' && <div className="ecbs-schedule-form"><div><label>Date<input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label><label>Time<input type="time" value={time} onChange={(event) => setTime(event.target.value)} /></label></div><label>Duration<select value={duration} onChange={(event) => setDuration(event.target.value)}><option value="30">30 minutes</option><option value="45">45 minutes</option><option value="60">1 hour</option><option value="90">1 hour 30 minutes</option><option value="120">2 hours</option><option value="240">4 hours</option></select></label></div>}
+            {planned.length ? <div className="ebsx-planned-list">{planned.slice(0, 3).map((broadcast) => <article key={broadcast.id}><div><span>SCHEDULED</span><h3>{broadcast.title}</h3><p><FaClock /> {formatDateTime(broadcast.startTime)}</p></div><div><button type="button" className="primary" onClick={() => enterScheduled(broadcast)}><FaMicrophone /></button><button type="button" disabled={actionId === broadcast.id} onClick={() => cancelBroadcast(broadcast)}><FaTimesCircle /></button><button type="button" className="danger" disabled={actionId === broadcast.id} onClick={() => deleteBroadcast(broadcast)}><FaTrash /></button></div></article>)}</div> : <div className="ebsx-empty-line"><FaCalendarAlt /> Nothing scheduled yet.</div>}
+          </section>
         </aside>
       </div>
+
+      <footer className="ecbs-setup-action"><div>{setupReady ? <FaCheck /> : <FaMicrophone />}<span><strong>{setupReady ? 'Ready to broadcast' : 'Complete your setup'}</strong><small>{setupReady ? `${microphoneReady ? 'Microphone' : 'Shared/media audio'} and studio mix are ready.` : !formReady ? 'Choose a station and complete broadcast details.' : 'Connect at least one audio source before going live.'}</small></span></div><button type="button" className="ebsx-blue-button" onClick={mode === 'later' ? scheduleBroadcast : goLive} disabled={mode === 'later' ? (!formReady || saving || !date || !time) : (!setupReady || goingLive || saving)}>{mode === 'later' ? <FaCalendarAlt /> : <FaBroadcastTower />} {mode === 'later' ? (saving ? 'Scheduling...' : 'Schedule broadcast') : (goingLive || saving ? 'Starting...' : savedBroadcast?.status === 'starting' ? 'Resume going live' : 'Go live now')}</button></footer>
     </section>
   );
 };

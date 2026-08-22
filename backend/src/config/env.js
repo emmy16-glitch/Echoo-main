@@ -51,6 +51,14 @@ if (nodeEnv === 'production') {
       throw new Error(`${name} must use wss:// in production.`);
     }
   }
+
+  const whisperFlowUrl = process.env.WHISPER_FLOW_URL?.trim() || '';
+  if (whisperFlowUrl && !whisperFlowUrl.startsWith('wss://')) {
+    throw new Error('WHISPER_FLOW_URL must use wss:// in production.');
+  }
+  if (whisperFlowUrl && !process.env.WHISPER_FLOW_API_KEY?.trim()) {
+    throw new Error('WHISPER_FLOW_API_KEY is required when Whisper Flow is enabled.');
+  }
 }
 
 const configuredClientOrigins = parseList(
@@ -78,4 +86,8 @@ export const env = Object.freeze({
   jwtAccessExpiresIn: requireValue('JWT_ACCESS_EXPIRES_IN', '15m'),
   jwtRefreshExpiresIn: requireValue('JWT_REFRESH_EXPIRES_IN', '7d'),
   logLevel: requireValue('LOG_LEVEL', 'info'),
+  whisperFlowUrl: String(process.env.WHISPER_FLOW_URL || '').trim(),
+  whisperFlowApiKey: String(process.env.WHISPER_FLOW_API_KEY || '').trim(),
+  whisperModel: String(process.env.WHISPER_MODEL || 'faster-whisper-large-v3-turbo').trim(),
+  whisperLanguage: String(process.env.WHISPER_LANGUAGE || 'en').trim(),
 });

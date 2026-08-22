@@ -5,4 +5,5 @@ const Header = ({ search, actions, className = '', ...props }) => (
   </header>
 );
 
+export { Header as TopBar };
 export default Header;

@@ -52,6 +52,14 @@ const normalizePlaylist = (playlist) => {
   };
 };
 
+const normalizeTranscript = (segment) => segment ? ({
+  ...segment,
+  id: segment.id || segment._id,
+  audioId: segment.audioId || segment.audio?.id || segment.audio?._id,
+  timestampMs: Number(segment.timestampMs) || 0,
+  audio: normalizeTrack(segment.audio),
+}) : null;
+
 const searchService = {
   search: async (query, { type = 'all', limit = 20, genre = '' } = {}) => {
     const params = new URLSearchParams({
@@ -83,6 +91,9 @@ const searchService = {
             : [],
           playlists: Array.isArray(results.playlists)
             ? results.playlists.map(normalizePlaylist).filter(Boolean)
+            : [],
+          transcripts: Array.isArray(results.transcripts)
+            ? results.transcripts.map(normalizeTranscript).filter(Boolean)
             : [],
         },
       },

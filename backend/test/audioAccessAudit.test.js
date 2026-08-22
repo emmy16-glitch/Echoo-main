@@ -70,7 +70,7 @@ test('Audio play/like counter methods use atomic database updates', async () => 
 
     assert.deepEqual(calls[0].update, { $inc: { playCount: 1 } });
     assert.deepEqual(calls[1].update, { $inc: { likeCount: 1 } });
-    assert.equal(calls[0].options.new, true);
+    assert.equal(calls[0].options.returnDocument, 'after');
     assert.equal(audio.playCount, 5);
     assert.equal(audio.likeCount, 3);
   } finally {

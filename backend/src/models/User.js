@@ -161,6 +161,29 @@ const userSchema = new mongoose.Schema(
           default: 'none',
         },
       },
+      creatorAudio: {
+        audioMode: {
+          type: String,
+          enum: ['raw', 'enhanced'],
+          default: 'enhanced',
+        },
+        noiseReduction: { type: Number, min: 0, max: 100, default: 45 },
+        echoRemoval: { type: Boolean, default: true },
+        voiceWarmth: { type: Number, min: 0, max: 100, default: 35 },
+        voiceClarity: { type: Number, min: 0, max: 100, default: 45 },
+        deEsser: { type: Number, min: 0, max: 100, default: 30 },
+        volumeBalance: { type: Number, min: 0, max: 100, default: 45 },
+        protectLoudSounds: { type: Boolean, default: true },
+        masterVolume: { type: Number, min: 0, max: 100, default: 100 },
+      },
+      creatorTranscript: {
+        language: {
+          type: String,
+          enum: ['en', 'yo', 'pcm', 'ha'],
+          default: 'en',
+        },
+        showCaptions: { type: Boolean, default: true },
+      },
     },
     listeningHistory: [{
       trackId: {
@@ -239,8 +262,6 @@ const userSchema = new mongoose.Schema(
 );
 
 // Indexes
-userSchema.index({ username: 1 }, { unique: true });
-userSchema.index({ email: 1 }, { unique: true });
 userSchema.index({ userType: 1 });
 userSchema.index({ 'creatorProfile.isVerified': 1 });
 userSchema.index({ 'listeningHistory.playedAt': -1 });

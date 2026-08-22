@@ -9,6 +9,7 @@ import {
   FaVolumeMute,
   FaVolumeUp,
 } from 'react-icons/fa';
+import { FiFileText } from 'react-icons/fi';
 
 import EchoSignal from '../EchooSystem/EchoSignal';
 import { Thumbnail } from './ImagePrimitives';
@@ -59,7 +60,14 @@ const PlayerBar = ({
       </div>
       <div className="echoo-player-bar__info">
         <strong>{currentTrack?.title || 'Choose something to play'}</strong>
-        <span>{playerError || (currentTrack?.isLive ? 'LIVE' : currentTrack?.subtitle || 'Echoo')}</span>
+        <span>
+          {playerError ? playerError : currentTrack?.isLive ? 'LIVE' : currentTrack?.subtitle || 'Echoo'}
+          {currentTrack && !playerError && (currentTrack.hasTranscript || currentTrack.transcriptAvailable || currentTrack.station?.hasTranscript) && (
+            <span className="echoo-player-bar__transcript" aria-label="Transcript available">
+              <FiFileText aria-hidden="true" /> Transcript
+            </span>
+          )}
+        </span>
       </div>
     </div>
 
@@ -81,10 +89,34 @@ const PlayerBar = ({
           const rect = event.currentTarget.getBoundingClientRect();
           onSeek?.(((event.clientX - rect.left) / rect.width) * duration);
         }}
+        onKeyDown={(event) => {
+          if (!duration || currentTrack?.isLive) return;
+          const step = Math.max(5, Math.round(duration * 0.01));
+          if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') {
+            event.preventDefault();
+            onSeek?.(Math.max(0, currentTime - step));
+          }
+          if (event.key === 'ArrowRight' || event.key === 'ArrowUp') {
+            event.preventDefault();
+            onSeek?.(Math.min(duration, currentTime + step));
+          }
+          if (event.key === 'Home') {
+            event.preventDefault();
+            onSeek?.(0);
+          }
+          if (event.key === 'End') {
+            event.preventDefault();
+            onSeek?.(duration);
+          }
+        }}
+        role="slider"
+        tabIndex={duration && !currentTrack?.isLive ? 0 : -1}
         aria-label={currentTrack?.isLive ? 'Live stream progress' : 'Audio progress'}
         aria-valuemin="0"
         aria-valuemax={duration}
         aria-valuenow={currentTime}
+        aria-valuetext={`${formatTime(currentTime)} of ${formatTime(duration)}`}
+        aria-disabled={!duration || currentTrack?.isLive}
       >
         <span style={{ width: `${progressPercentage}%` }} />
       </button>
@@ -95,4 +127,5 @@ const PlayerBar = ({
   </div>
 );
 
+export { PlayerBar as PersistentAudioPlayer };
 export default PlayerBar;

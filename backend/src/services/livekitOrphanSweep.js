@@ -12,10 +12,15 @@
 // are best-effort: a transient provider failure must never crash the app
 // startup path or leave the database in an inconsistent state.
 
+import mongoose from 'mongoose';
 import Broadcast from '../models/Broadcast.js';
+import Station from '../models/Station.js';
 import LiveKitProvider from '../providers/livekit.js';
+import { clearBroadcastPresenceCache } from '../controllers/broadcastPresenceController.js';
+import { releaseCreatorBroadcastLease } from './creatorBroadcastLease.js';
+import { flushBroadcastTranscription } from './transcriptionGateway.js';
 
-const STUCK_STATES = ['starting', 'ending'];
+const STUCK_STATES = ['starting', 'ending', 'live'];
 const REASON_PREFIX = 'Orphan sweep: ';
 
 function getStuckMinutes() {
@@ -28,11 +33,21 @@ function isLiveKitConfigured() {
 }
 
 function isStuck(doc) {
-  // Compare against updatedAt, not startedAt/endedAt: those are set by the
-  // controller that initiated the transition, and updatedAt is the freshest
-  // timestamp the database itself maintains.
-  const ageMinutes = (Date.now() - doc.updatedAt.getTime()) / 60000;
+  // Transitional rows use updatedAt because it is the freshest timestamp the
+  // database maintains while start/end controllers are still working.
+  // A live row that never published audio is the exception: unrelated
+  // migrations or metadata edits can refresh updatedAt, while startedAt is the
+  // authoritative beginning of that abandoned connection attempt.
+  const referenceTime = doc.status === 'live' && doc.mediaState === 'creator_connecting'
+    ? doc.startedAt || doc.startTime || doc.updatedAt
+    : doc.updatedAt;
+  const ageMinutes = (Date.now() - referenceTime.getTime()) / 60000;
   return ageMinutes > getStuckMinutes();
+}
+
+function isRecoverableState(doc) {
+  return STUCK_STATES.includes(doc.status)
+    && (doc.status !== 'live' || doc.mediaState === 'creator_connecting');
 }
 
 async function reapLiveKitResources(doc) {
@@ -75,23 +90,45 @@ async function reapLiveKitResources(doc) {
 }
 
 async function resolveStuckBroadcast(doc) {
-  // State fields are only committed once the save succeeds, so a database
-  // failure never leaves the document half-transitioned.
-  if (doc.status === 'starting') {
-    const endedAt = new Date();
-    const failureReason = `${REASON_PREFIX}broadcast remained in starting state for more than ${getStuckMinutes()} minutes.`;
+  const previous = {
+    status: doc.status,
+    failureReason: doc.failureReason,
+    endedAt: doc.endedAt,
+    listenerCount: doc.listenerCount,
+    livekitRoomName: doc.livekitRoomName,
+    livekitIngressId: doc.livekitIngressId,
+    livekitEgressId: doc.livekitEgressId,
+  };
+  const wasStarting = doc.status === 'starting';
+  const wasUnpublishedLive = doc.status === 'live' && doc.mediaState === 'creator_connecting';
+  if (!wasStarting && !wasUnpublishedLive && doc.status !== 'ending') return doc;
+
+  doc.status = wasStarting || wasUnpublishedLive ? 'failed' : 'completed';
+  doc.failureReason = wasStarting || wasUnpublishedLive
+    ? `${REASON_PREFIX}broadcast never published the creator program track within ${getStuckMinutes()} minutes.`
+    : doc.failureReason;
+  doc.endedAt = doc.endedAt || new Date();
+  doc.listenerCount = 0;
+  doc.livekitRoomName = null;
+  doc.livekitIngressId = null;
+  doc.livekitEgressId = null;
+
+  try {
     await doc.save();
-    doc.status = 'failed';
-    doc.failureReason = failureReason;
-    doc.endedAt = endedAt;
-    return doc;
+  } catch (error) {
+    Object.assign(doc, previous);
+    throw error;
   }
-  if (doc.status === 'ending') {
-    const endedAt = new Date();
-    await doc.save();
-    doc.status = 'completed';
-    doc.endedAt = endedAt;
-    return doc;
+
+  clearBroadcastPresenceCache(doc._id);
+  if (doc.station) {
+    await Station.updateOne(
+      { _id: doc.station },
+      { $set: { isLive: false, listenerCount: 0 } }
+    ).catch(() => null);
+  }
+  if (doc.creator) {
+    await releaseCreatorBroadcastLease(doc.creator, doc._id).catch(() => null);
   }
   return doc;
 }
@@ -112,7 +149,7 @@ async function sweep() {
     if (!fresh || !stuckIds.has(String(fresh._id))) {
       continue;
     }
-    if (!STUCK_STATES.includes(fresh.status)) {
+    if (!isRecoverableState(fresh)) {
       continue;
     }
 
@@ -121,6 +158,14 @@ async function sweep() {
     }
     
     try {
+      if (mongoose.connection.readyState === 1) {
+        await flushBroadcastTranscription(fresh._id).catch((error) => {
+          console.warn(
+            `[orphan-sweep] transcript flush failed for ${fresh._id}:`,
+            error?.message || error
+          );
+        });
+      }
       await reapLiveKitResources(fresh);
       await resolveStuckBroadcast(fresh);
       results.swept += 1;
@@ -143,6 +188,11 @@ async function sweep() {
 // Non-blocking startup hook. The sweep runs once after boot; it must never
 // reject in a way that affects process startup or the express app.
 function startOrphanSweep() {
+  // Startup smoke tests and degraded boot paths may expose a connection-like
+  // object without a real database handle. Do not queue a buffered query in
+  // that state; the next healthy process boot will perform the sweep.
+  if (mongoose.connection.readyState !== 1 || !mongoose.connection.db) return;
+
   sweep()
     .then((results) => {
       if (results.swept > 0) {
@@ -161,6 +211,7 @@ export {
   STUCK_STATES,
   getStuckMinutes,
   isStuck,
+  isRecoverableState,
   sweep,
   startOrphanSweep,
 };
@@ -169,6 +220,7 @@ export default {
   STUCK_STATES,
   getStuckMinutes,
   isStuck,
+  isRecoverableState,
   sweep,
   startOrphanSweep,
 };

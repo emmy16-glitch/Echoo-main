@@ -3,6 +3,8 @@ import User from '../models/User.js';
 import Audio from '../models/Audio.js';
 import Follow from '../models/Follow.js';
 import Broadcast from '../models/Broadcast.js';
+import ChatMessage from '../models/ChatMessage.js';
+import TranscriptSegment from '../models/TranscriptSegment.js';
 
 const periodDates = (period = '30d') => {
   const endDate = new Date();
@@ -239,6 +241,45 @@ export async function getAnalyticsOverview(req, res, next) {
     });
   } catch (error) {
     console.error('Analytics overview error:', error);
+    next(error);
+  }
+}
+
+export async function getLiveBroadcastAnalytics(req, res, next) {
+  try {
+    const broadcast = await Broadcast.findOne({
+      _id: req.params.broadcastId,
+      creator: req.userId,
+      isDeleted: false,
+    }).select('_id status listenerCount peakListeners listenerSeconds startedAt');
+    if (!broadcast) {
+      return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Broadcast not found' } });
+    }
+    const [chatMessages, uniqueChatters, transcriptTotals] = await Promise.all([
+      ChatMessage.countDocuments({ broadcastId: broadcast._id, isDeleted: false }),
+      ChatMessage.distinct('userId', { broadcastId: broadcast._id, isDeleted: false }),
+      TranscriptSegment.aggregate([
+        { $match: { broadcastId: broadcast._id, isFinal: true } },
+        { $group: { _id: null, words: { $sum: { $size: { $split: ['$text', ' '] } } }, segments: { $sum: 1 } } },
+      ]),
+    ]);
+    const audienceBase = Math.max(1, Number(broadcast.peakListeners) || Number(broadcast.listenerCount) || 1);
+    const engagementRate = Number(Math.min(100, (uniqueChatters.length / audienceBase) * 100).toFixed(1));
+    return res.status(200).json({
+      data: {
+        currentListeners: Number(broadcast.listenerCount) || 0,
+        peakListeners: Number(broadcast.peakListeners) || 0,
+        totalListeningSeconds: Number(broadcast.listenerSeconds) || 0,
+        chatMessages,
+        uniqueChatters: uniqueChatters.length,
+        engagementRate,
+        transcriptWords: Number(transcriptTotals[0]?.words) || 0,
+        transcriptSegments: Number(transcriptTotals[0]?.segments) || 0,
+        status: broadcast.status,
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
     next(error);
   }
 }
