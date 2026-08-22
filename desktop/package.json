@@ -1,0 +1,42 @@
+{
+  "name": "desktop",
+  "version": "1.0.0",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "NODE_ENV=development electron .",
+    "build": "electron-builder"
+  },
+  "build": {
+    "appId": "com.echoo.studio",
+    "productName": "Echoo Studio",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "../logo.png"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "../logo.png"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "../logo.png"
+    }
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "electron": "^43.4.1",
+    "electron-builder": "^26.15.3"
+  }
+}
