@@ -195,7 +195,7 @@ if (!publisher.includes("name: 'echoo-studio-mix'") || !publisher.includes('medi
 }
 
 const broadcastStudio = read('frontend/src/Components/CreatorStudio/CreatorLiveConnectedWorkspace.jsx');
-for (const requiredStudioFeature of ['CreatorAudioMixer', 'Go live now', 'Schedule for later']) {
+for (const requiredStudioFeature of ['CreatorBroadcastAudioSurface', 'Go live now', 'Schedule for later']) {
   if (!broadcastStudio.includes(requiredStudioFeature)) {
     failures.push(`Broadcast Studio is missing: ${requiredStudioFeature}`);
   }
