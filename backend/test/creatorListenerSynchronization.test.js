@@ -69,5 +69,5 @@ test('listener consumes real LiveKit states without receiving live transcript da
   assert.doesNotMatch(room, /transcript:finalized/);
   assert.doesNotMatch(room, /TranscriptPanel/);
   assert.match(room, /Live Audio \+ Community/);
-  assert.match(room, /onStateChange=\{handleLivePlayerState\}/);
+  assert.match(room, /onStateChange=\{handleLiveStateChange\}/);
 });

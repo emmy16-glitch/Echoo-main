@@ -1,19 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import {
-  FaBell,
-  FaComments,
   FaExpand,
   FaHeart,
-  FaPaperPlane,
   FaTv,
-  FaShieldAlt,
-  FaShare,
-  FaSmile,
-  FaTimes,
-  FaUsers,
-  FaCalendar,
-  FaEllipsisH,
   FaHeadphones,
   FaPause,
   FaPlay,
@@ -110,10 +100,6 @@ const ListenerRealLiveRoom = () => {
   }, [show?.status]);
 
   const isLive = show?.status === 'live';
-  const handleLivePlayerState = useCallback((state) => {
-    if (state?.status) setAudioState(state.status);
-    setLivePlayerState(state);
-  }, [setLivePlayerState]);
   const playerTrack = useMemo(() => show ? ({
     id: show.id,
     title: show.title,
@@ -407,6 +393,8 @@ const ListenerRealLiveRoom = () => {
 
       <div className="listener-room-columns listener-room-columns--chat-only">
         <ChatPanel messages={messages} loading={chatLoading} disabled={!isLive} error={chatError} onSend={sendMessage} onReact={react} />
+      </div>
+        </section>
       </div>
     </main>
   );
