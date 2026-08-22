@@ -1,14 +1,23 @@
 import nodemailer from 'nodemailer';
 import { env } from '../config/env.js';
 
-const transporter = env.smtpHost
+const gmailConfigured = Boolean(
+  env.gmailUser &&
+    env.gmailClientId &&
+    env.gmailClientSecret &&
+    env.gmailRefreshToken
+);
+
+const transporter = gmailConfigured
   ? nodemailer.createTransport({
-      host: env.smtpHost,
-      port: env.smtpPort,
-      secure: env.smtpSecure,
-      auth: env.smtpUser
-        ? { user: env.smtpUser, pass: env.smtpPassword }
-        : undefined,
+      service: 'gmail',
+      auth: {
+        type: 'OAuth2',
+        user: env.gmailUser,
+        clientId: env.gmailClientId,
+        clientSecret: env.gmailClientSecret,
+        refreshToken: env.gmailRefreshToken,
+      },
     })
   : null;
 
