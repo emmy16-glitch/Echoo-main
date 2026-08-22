@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
+import { rateLimit } from 'express-rate-limit';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer } from 'http';
@@ -102,6 +103,24 @@ app.use(
 );
 
 app.use(compression());
+
+// Rate limiting to prevent 502s under heavy load
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per window
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: {
+      code: 'TOO_MANY_REQUESTS',
+      message: 'Too many requests from this IP, please try again after 15 minutes',
+    },
+  },
+});
+
+// Apply limiter to all API routes
+app.use('/api', limiter);
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
