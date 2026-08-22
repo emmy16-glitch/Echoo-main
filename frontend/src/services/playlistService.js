@@ -113,6 +113,8 @@ const playlistService = {
   create: async ({
     name,
     description = '',
+    mode = 'playlist',
+    seasons = [],
     isPublic = false,
     isCollaborative = false,
   }) => {
@@ -121,6 +123,8 @@ const playlistService = {
       body: JSON.stringify({
         name,
         description,
+        mode,
+        seasons,
         isPublic,
         isCollaborative,
       }),

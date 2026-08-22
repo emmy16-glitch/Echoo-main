@@ -15,6 +15,21 @@ function invalidId(res) {
   });
 }
 
+function normalizeMode(value) {
+  return value === 'series' ? 'series' : 'playlist';
+}
+
+function normalizeSeasons(value) {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 50).map((season, index) => ({
+    id: String(season?.id || `season-${index + 1}`).slice(0, 100),
+    name: String(season?.name || `Season ${index + 1}`).trim().slice(0, 100),
+    trackIds: Array.isArray(season?.trackIds)
+      ? season.trackIds.filter(validId)
+      : [],
+  })).filter((season) => season.name);
+}
+
 function populatePlaylist(query) {
   return query
     .populate('owner', OWNER_FIELDS)
@@ -57,6 +72,8 @@ export async function createPlaylist(req, res, next) {
     const {
       name,
       description = '',
+      mode = 'playlist',
+      seasons = [],
       isPublic = false,
       isCollaborative = false,
     } = req.body;
@@ -71,6 +88,8 @@ export async function createPlaylist(req, res, next) {
     const playlist = await Playlist.create({
       name: cleanName,
       description,
+      mode: normalizeMode(mode),
+      seasons: normalizeSeasons(seasons),
       owner: req.userId,
       isPublic: Boolean(isPublic),
       isCollaborative: Boolean(isCollaborative),
@@ -191,7 +210,7 @@ export async function updatePlaylist(req, res, next) {
       });
     }
 
-    const { name, description, isPublic, isCollaborative, coverArt } = req.body;
+    const { name, description, mode, seasons, isPublic, isCollaborative, coverArt } = req.body;
     if (name !== undefined) {
       const cleanName = String(name).trim();
       if (!cleanName) {
@@ -202,6 +221,8 @@ export async function updatePlaylist(req, res, next) {
       playlist.name = cleanName;
     }
     if (description !== undefined) playlist.description = description;
+    if (mode !== undefined) playlist.mode = normalizeMode(mode);
+    if (seasons !== undefined) playlist.seasons = normalizeSeasons(seasons);
     if (isPublic !== undefined) playlist.isPublic = Boolean(isPublic);
     if (isCollaborative !== undefined) playlist.isCollaborative = Boolean(isCollaborative);
     if (coverArt !== undefined) playlist.coverArt = coverArt || null;
