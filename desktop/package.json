@@ -33,7 +33,7 @@
         "snap",
         "dir"
       ],
-      "icon": "../logo.png",
+      "icon": "build/icons",
       "category": "AudioVideo"
     }
   },
