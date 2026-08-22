@@ -408,6 +408,8 @@ const ListenerRealLiveRoom = () => {
       <div className="listener-room-columns listener-room-columns--chat-only">
         <ChatPanel messages={messages} loading={chatLoading} disabled={!isLive} error={chatError} onSend={sendMessage} onReact={react} />
       </div>
+        </section>
+      </div>
     </main>
   );
 };

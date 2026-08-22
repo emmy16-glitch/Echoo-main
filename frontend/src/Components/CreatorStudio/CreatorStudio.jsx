@@ -10,6 +10,7 @@ import {
   FaHeadphones,
   FaHome,
   FaImage,
+  FaList,
   FaMicrophone,
   FaSearch,
   FaTimes,
@@ -31,6 +32,7 @@ import CreatorAudienceWorkspace from './CreatorAudienceWorkspace';
 import CreatorAnalyticsWorkspace from './CreatorAnalyticsConnectedWorkspace';
 import CreatorSettingsWorkspace from './CreatorSettingsWorkspace';
 import CreatorNotificationsWorkspace from './CreatorNotificationsWorkspace';
+import CreatorCollectionsWorkspace from './CreatorCollectionsWorkspace';
 import CreatorAccountMenuPortal from './CreatorAccountMenuPortal';
 
 const GENRES = [
@@ -127,6 +129,7 @@ const CreatorStudio = () => {
     { name: 'Stations', label: 'Stations', icon: <FaBroadcastTower /> },
     { name: 'Broadcast', label: 'Broadcast Studio', icon: <FaMicrophone /> },
     { name: 'Audio', label: 'Audio', icon: <FaHeadphones /> },
+    { name: 'Collections', label: 'Collections', icon: <FaList /> },
     { name: 'Audience', label: 'Audience', icon: <FaUsers /> },
     { name: 'Analytics', label: 'Analytics', icon: <FaChartBar /> },
     { name: 'Settings', label: 'Settings', icon: <FaCog /> },
@@ -135,12 +138,12 @@ const CreatorStudio = () => {
   useEffect(() => {
     let active = true;
     const load = async () => {
-      if (!['Audio', 'Audience'].includes(activeNav)) return;
+      if (!['Audio', 'Collections', 'Audience'].includes(activeNav)) return;
       try {
         setLoading(true);
         setError('');
-        if (activeNav === 'Audio') {
-          const response = await studioService.getContent({ page: contentPage, limit: 20 });
+        if (activeNav === 'Audio' || activeNav === 'Collections') {
+          const response = await studioService.getContent({ page: contentPage, limit: 50 });
           if (active) setContent(response?.data || { tracks: [], pagination: {} });
         }
         if (activeNav === 'Audience') {
@@ -219,12 +222,12 @@ const CreatorStudio = () => {
       setStudioSearch('');
       return;
     }
-    if (query.includes('content') || query.includes('recording')) {
-      navigateStudio('Audio');
+    if (query.includes('content') || query.includes('recording') || query.includes('collection') || query.includes('playlist') || query.includes('series')) {
+      navigateStudio(query.includes('collection') || query.includes('playlist') || query.includes('series') ? 'Collections' : 'Audio');
       setStudioSearch('');
       return;
     }
-    setNotice('Try Home, Stations, Broadcast Studio, Audio, Audience, Analytics, or Settings.');
+    setNotice('Try Home, Stations, Broadcast Studio, Audio, Collections, Audience, Analytics, or Settings.');
   };
 
   const handleCreatorLogout = () => {
@@ -388,6 +391,14 @@ const CreatorStudio = () => {
         );
       case 'Stations':
         return <CreatorStationsWorkspace studioName={studioName} onNavigate={navigateStudio} />;
+      case 'Collections':
+        return (
+          <CreatorCollectionsWorkspace
+            tracks={Array.isArray(content?.tracks) ? content.tracks : []}
+            studioName={studioName}
+            onChanged={() => setRefreshKey((value) => value + 1)}
+          />
+        );
       case 'Broadcast':
         return (
           <CreatorBroadcastWorkspace

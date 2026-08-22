@@ -14,6 +14,33 @@ const playlistSchema = new mongoose.Schema(
       maxlength: [500, 'Description cannot exceed 500 characters'],
       default: '',
     },
+    mode: {
+      type: String,
+      enum: ['playlist', 'series'],
+      default: 'playlist',
+      index: true,
+    },
+    seasons: [
+      {
+        _id: false,
+        id: {
+          type: String,
+          required: true,
+        },
+        name: {
+          type: String,
+          required: true,
+          trim: true,
+          maxlength: 100,
+        },
+        trackIds: [
+          {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Audio',
+          },
+        ],
+      },
+    ],
     owner: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
