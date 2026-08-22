@@ -95,7 +95,7 @@ const ListenerRealLiveRoom = () => {
   const statusRef = useRef(show?.status || '');
   
   const [liveState, setLiveState] = useState(null);
-  const handleLiveStateChange = useCallback((state) => {
+  const handleLivePlayerState = useCallback((state) => {
     setLiveState(state);
     if (state?.status) setAudioState(state.status);
     setLivePlayerState(state);
@@ -110,10 +110,6 @@ const ListenerRealLiveRoom = () => {
   }, [show?.status]);
 
   const isLive = show?.status === 'live';
-  const handleLivePlayerState = useCallback((state) => {
-    if (state?.status) setAudioState(state.status);
-    setLivePlayerState(state);
-  }, [setLivePlayerState]);
   const playerTrack = useMemo(() => show ? ({
     id: show.id,
     title: show.title,
@@ -349,7 +345,7 @@ const ListenerRealLiveRoom = () => {
                   broadcastId={show?.id}
                   isLive={isLive && joined}
                   track={playerTrack}
-                  onStateChange={handleLiveStateChange}
+                  onStateChange={handleLivePlayerState}
                 />
               )}
             </div>
