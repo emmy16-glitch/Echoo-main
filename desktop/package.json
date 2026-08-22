@@ -27,16 +27,34 @@
       "icon": "build/icon.icns"
     },
     "linux": {
-      "target": "AppImage",
-      "icon": "build/icon.ico"
+      "target": [
+        "AppImage",
+        "deb",
+        "snap",
+        "dir"
+      ],
+      "icon": "../logo.png",
+      "category": "AudioVideo"
     }
   },
   "keywords": [],
-  "author": "",
+  "author": {
+    "name": "Echoo Team",
+    "email": "support@echoo.com"
+  },
+  "homepage": "https://echoo.com",
   "license": "ISC",
-  "description": "",
+  "description": "Echoo Studio - Real-time Audio Broadcasting Desktop App",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/effiukp/Echoo-main.git"
+  },
   "devDependencies": {
     "electron": "^43.4.1",
     "electron-builder": "^26.15.3"
+  },
+  "dependencies": {
+    "@playwright/test": "^1.62.1",
+    "playwright": "^1.62.1"
   }
 }
