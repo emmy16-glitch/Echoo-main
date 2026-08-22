@@ -509,7 +509,11 @@ const CreatorLiveConnectedWorkspace = ({
       setMixerState(getEchooMixerState());
       setTitle('');
       setDescription('');
-      setMessage('Broadcast ended.');
+      setMessage(
+        endedResponse?.recordingReady
+          ? 'Broadcast ended. Choose whether to save unpublished, save & publish, or discard the local recording.'
+          : 'Broadcast ended. No local recording was captured for this session.'
+      );
       clearPreparedBroadcast();
 
       if (cleanupWarnings.length) {

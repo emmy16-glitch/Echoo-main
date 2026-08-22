@@ -325,9 +325,12 @@ const batch3Service = {
     // transition and before the caller tears down the mixer. The decision is
     // also held on window memory so a React remount or a very narrow event-listener
     // race cannot make a completed recording disappear without a creator choice.
+    let recordingReady = false;
+
     try {
       const recording = await finishBroadcastRecording(broadcastId);
       if (recording?.blob?.size) {
+        recordingReady = true;
         const decision = {
           recording,
           broadcast: normalized,
@@ -345,6 +348,7 @@ const batch3Service = {
     return {
       ...response,
       data: normalized,
+      recordingReady,
     };
   },
 

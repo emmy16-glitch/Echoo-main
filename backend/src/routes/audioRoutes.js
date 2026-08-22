@@ -101,6 +101,37 @@ const upload = multer({
   },
 });
 
+const uploadAudioFields = (req, res, next) => {
+  upload.fields([
+    { name: 'audio', maxCount: 1 },
+    { name: 'cover', maxCount: 1 },
+  ])(req, res, (error) => {
+    if (!error) return next();
+
+    if (error instanceof multer.MulterError) {
+      const status = error.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
+      const message =
+        error.code === 'LIMIT_FILE_SIZE'
+          ? 'This upload is too large for the current Echoo backend.'
+          : error.message;
+
+      return res.status(status).json({
+        error: {
+          code: error.code || 'UPLOAD_ERROR',
+          message,
+        },
+      });
+    }
+
+    return res.status(400).json({
+      error: {
+        code: error.code || 'UPLOAD_REJECTED',
+        message: error.message || 'This upload could not be accepted.',
+      },
+    });
+  });
+};
+
 const requireCreator = (req, res, next) => {
   const creator =
     req.user?.userType === 'creator' || req.userRoles?.includes('creator');
@@ -310,10 +341,7 @@ router.post(
   '/upload',
   authenticate,
   requireCreator,
-  upload.fields([
-    { name: 'audio', maxCount: 1 },
-    { name: 'cover', maxCount: 1 },
-  ]),
+  uploadAudioFields,
   validateUploadedFileSignatures,
   uploadAudio,
   cleanupUploadError
