@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import Comment from '../models/Comment.js';
 import Audio from '../models/Audio.js';
+import { validateHumanText } from '../utils/humanTextValidation.js';
 
 const MAX_COMMENT_PAGE_SIZE = 100;
 const INLINE_REPLY_LIMIT = 10;
@@ -78,16 +79,23 @@ const decrementCommentCountBestEffort = async (audioId, amount = 1) => {
 // read API could never display under the intended thread.
 export async function addComment(req, res, next) {
   try {
-    const content = String(req.body?.content || '').trim();
+    const content = req.body?.content;
     const parentCommentId = req.body?.parentCommentId || null;
     const { audioId } = req.params;
 
     if (!validId(audioId)) return invalidId(res, 'audio');
-    if (!content) {
+
+    const contentError = validateHumanText(content, {
+      maxLength: 2000,
+      requiredMessage: 'Comment content is required',
+      codeMessage: 'Code cannot be submitted as a comment',
+    });
+    if (contentError) {
       return res.status(400).json({
-        error: { code: 'VALIDATION_ERROR', message: 'Comment content is required' },
+        error: { code: 'VALIDATION_ERROR', message: contentError },
       });
     }
+    const cleanContent = content.trim();
 
     const audio = await accessibleAudio(audioId, req.userId);
     if (!audio) {
@@ -125,7 +133,7 @@ export async function addComment(req, res, next) {
     }
 
     const comment = await Comment.create({
-      content,
+      content: cleanContent,
       author: req.userId,
       audioId,
       parentCommentId,
