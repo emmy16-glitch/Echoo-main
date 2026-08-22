@@ -20,15 +20,15 @@
     ],
     "win": {
       "target": "nsis",
-      "icon": "../logo.png"
+      "icon": "build/icon.ico"
     },
     "mac": {
       "target": "dmg",
-      "icon": "../logo.png"
+      "icon": "build/icon.icns"
     },
     "linux": {
       "target": "AppImage",
-      "icon": "../logo.png"
+      "icon": "build/icon.ico"
     }
   },
   "keywords": [],
