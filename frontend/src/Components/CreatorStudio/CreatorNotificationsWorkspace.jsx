@@ -73,15 +73,17 @@ const CreatorNotificationsWorkspace = ({ onNavigate }) => {
     const broadcastId = broadcastIdFromNotification(notification);
 
     if (notification.type === 'transcript_ready' || /\/creator\/broadcasts\/[^/]+\/processing\/?$/i.test(link)) {
-      if (broadcastId) {
-        sessionStorage.setItem('echooPreparedBroadcastId', broadcastId);
-        sessionStorage.setItem('echooProcessingBroadcastId', broadcastId);
-      }
+      // Prepared broadcast is the single source of truth for a notification
+      // deep-link. Remove the old processing key so it cannot survive and keep
+      // reordering future Broadcast Studio opens after this click is handled.
+      sessionStorage.removeItem('echooProcessingBroadcastId');
+      if (broadcastId) sessionStorage.setItem('echooPreparedBroadcastId', broadcastId);
       onNavigate?.('Broadcast');
       return;
     }
 
     if (notification.type === 'broadcast_live') {
+      sessionStorage.removeItem('echooProcessingBroadcastId');
       if (broadcastId) sessionStorage.setItem('echooPreparedBroadcastId', broadcastId);
       sessionStorage.setItem('echooBroadcastMode', 'now');
       onNavigate?.('Live');
