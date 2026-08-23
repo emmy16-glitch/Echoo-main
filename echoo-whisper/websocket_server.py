@@ -8,7 +8,7 @@ from typing import Any
 
 from fastapi import WebSocket, WebSocketDisconnect, status
 
-from model_loader import model_runtime
+from model_loader import model_runtime, quality_model_runtime
 from whisper_worker import AudioFrame, FRAME_BYTES, StreamingTranscriptSession
 
 logger = logging.getLogger("echoo-whisper.websocket")
@@ -74,6 +74,7 @@ async def transcription_websocket(websocket: WebSocket) -> None:
                     session_id=session_id,
                     language=language,
                     model=model_runtime,
+                    quality_model=quality_model_runtime,
                     emit=emit,
                 )
                 generation = 1
@@ -83,6 +84,8 @@ async def transcription_websocket(websocket: WebSocket) -> None:
             "broadcastId": broadcast_id,
             "sessionId": session_id,
             "model": model_runtime.model_name,
+            "qualityModel": quality_model_runtime.model_name,
+            "qualityPassEnabled": session.quality_enabled,
             "sampleRate": 16000,
             "lastSequence": session.last_sequence,
         })
@@ -122,6 +125,8 @@ async def transcription_websocket(websocket: WebSocket) -> None:
                     "sessionId": session_id,
                     "lastSequence": session.last_sequence,
                     "droppedFrames": session.dropped_frames,
+                    "qualityPasses": session.quality_passes,
+                    "qualityFailures": session.quality_failures,
                 })
                 flushed = True
                 async with _session_lock:
