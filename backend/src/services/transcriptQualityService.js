@@ -153,7 +153,6 @@ const transcribeChunk = async ({ chunk, pcm }) => {
           sampleRate: SAMPLE_RATE,
           channels: 1,
           encoding: 'pcm_s16le',
-          offsetMs: Number(chunk.startMs) || 0,
           qualityPass: true,
           inlineQuality: false,
         }));
@@ -244,8 +243,14 @@ const reconcileSegments = async ({ chunk, qualitySegments }) => {
 
   for (let index = 0; index < qualitySegments.length; index += 1) {
     const quality = qualitySegments[index];
-    const qualityStart = Math.max(chunk.startMs, quality.startMs);
-    const qualityEnd = Math.max(qualityStart, quality.endMs);
+    const qualityStart = Math.min(
+      chunk.endMs,
+      Math.max(chunk.startMs, quality.startMs)
+    );
+    const qualityEnd = Math.min(
+      chunk.endMs,
+      Math.max(qualityStart, quality.endMs)
+    );
     const marker = `${chunk._id}:${index}`;
     const existingQuality = await TranscriptSegment.findOne({
       broadcastId: chunk.broadcastId,
@@ -267,7 +272,14 @@ const reconcileSegments = async ({ chunk, qualitySegments }) => {
 
     const target = existingQuality || (draft?.score >= 0.18 ? draft.candidate : null);
     const now = new Date();
-    if (target) {
+
+    // At-least-once job recovery may re-run a chunk after its segment update
+    // committed but before the chunk/job status did. qualityChunkId + index is
+    // the durable idempotency marker: never manufacture another revision or
+    // duplicate quality-history entry for an already-applied segment.
+    if (existingQuality) {
+      claimedDraftIds.add(String(existingQuality._id));
+    } else if (target) {
       claimedDraftIds.add(String(target._id));
       const previousText = String(target.text || '').trim();
       const creatorEdited = Boolean(target.correctedAt || target.editedText);
@@ -308,7 +320,7 @@ const reconcileSegments = async ({ chunk, qualitySegments }) => {
       const createdSegment = await TranscriptSegment.findOneAndUpdate(
         { broadcastId: chunk.broadcastId, qualityChunkId: chunk._id, qualitySegmentIndex: index },
         {
-          $set: {
+          $setOnInsert: {
             audioId: null,
             sessionId: null,
             providerSegmentId: `quality-${marker}`,
@@ -352,10 +364,6 @@ const reconcileSegments = async ({ chunk, qualitySegments }) => {
       created += 1;
     }
 
-    // A long live-draft line can overlap several durable 10-second windows.
-    // Keep the quality-derived canonical line visible and hide only untouched
-    // draft rows that are substantially covered by it. Creator edits and rows
-    // already owned by another quality chunk are never hidden here.
     const superseded = drafts.filter((candidate) => {
       if (candidate.isHidden || candidate.qualityChunkId || candidate.correctedAt || candidate.editedText) return false;
       if (claimedDraftIds.has(String(candidate._id))) return false;
@@ -377,11 +385,25 @@ const reconcileSegments = async ({ chunk, qualitySegments }) => {
 export async function processTranscriptQualityChunk(chunkId) {
   const chunk = await BroadcastAudioChunk.findById(chunkId);
   if (!chunk) throw new Error('Transcript quality chunk not found');
+
+  // If the chunk body was already reconciled and persisted before a worker
+  // crash, recovering the job must not transcribe/apply it a second time.
+  if (chunk.status === 'completed') {
+    await fs.rm(chunk.filePath, { force: true }).catch(() => null);
+    return { updated: 0, created: 0, hidden: 0, segments: 0, recovered: true, chunkId: String(chunk._id) };
+  }
+
   const buffer = await fs.readFile(chunk.filePath);
   const pcm = wavToPcm16Mono16k(buffer);
   const segments = await transcribeChunk({ chunk, pcm });
-  if (!segments.length) throw asRetryable(new Error('Whisper quality provider returned no transcript segments'));
-  const summary = await reconcileSegments({ chunk, qualitySegments: segments });
+
+  // No speech is a valid high-quality result. Treating a silent window as a
+  // provider error caused ordinary pauses to retry repeatedly and eventually
+  // fail an otherwise healthy broadcast transcript.
+  const summary = segments.length
+    ? await reconcileSegments({ chunk, qualitySegments: segments })
+    : { updated: 0, created: 0, hidden: 0, segments: 0, silent: true };
+
   chunk.status = 'completed';
   chunk.error = null;
   chunk.processedAt = new Date();
