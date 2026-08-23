@@ -1,0 +1,358 @@
+/*
+ * Active Creator page integrity layer.
+ * Loaded last after all historical Creator styles. It intentionally corrects
+ * operational readability, touch target and mobile reflow issues without
+ * replacing page identity or business logic.
+ */
+
+/* ---------- Collections ---------- */
+#root .studio-final-shell .ecc-kicker {
+  font-size: 11px !important;
+  line-height: 1.35 !important;
+}
+
+#root .studio-final-shell .ecc-header p {
+  font-size: 14px !important;
+  line-height: 1.55 !important;
+}
+
+#root .studio-final-shell :is(.ecc-guide-card p, .ecc-empty p, .ecc-content-empty p, .ecc-panel-heading p, .ecc-modal-heading p, .ecc-modal-empty p) {
+  font-size: 12.5px !important;
+  line-height: 1.5 !important;
+}
+
+#root .studio-final-shell .ecc-guide-link {
+  font-size: 12px !important;
+  line-height: 1.35 !important;
+}
+
+#root .studio-final-shell :is(.ecc-summary small, .ecc-summary em, .ecc-library-heading span, .ecc-panel-count, .ecc-card-meta, .ecc-card-footer, .ecc-detail-stats, .ecc-detail-footer, .ecc-selected-count) {
+  font-size: 11.5px !important;
+  line-height: 1.4 !important;
+}
+
+#root .studio-final-shell .ecc-summary strong {
+  font-size: 22px !important;
+}
+
+#root .studio-final-shell .ecc-search {
+  min-height: 42px !important;
+}
+
+#root .studio-final-shell .ecc-search input {
+  font-size: 13px !important;
+  line-height: 1.3 !important;
+}
+
+#root .studio-final-shell .ecc-filter-tabs button {
+  min-height: 38px !important;
+  font-size: 12px !important;
+  padding-inline: 11px !important;
+}
+
+#root .studio-final-shell :is(.ecc-primary-button, .ecc-secondary-button, .ecc-preview-button, .ecc-back-button, .ecc-danger-button, .ecc-add-season) {
+  min-height: 42px !important;
+  font-size: 12.5px !important;
+}
+
+#root .studio-final-shell :is(.ecc-type-badge, .ecc-visibility) {
+  min-height: 24px !important;
+  font-size: 11px !important;
+  line-height: 1 !important;
+}
+
+#root .studio-final-shell .ecc-icon-button,
+#root .studio-final-shell .ecc-season-menu-trigger,
+#root .studio-final-shell .ecc-modal-close,
+#root .studio-final-shell .ecc-track-actions button {
+  width: 40px !important;
+  height: 40px !important;
+  min-width: 40px !important;
+  min-height: 40px !important;
+  padding: 0 !important;
+}
+
+#root .studio-final-shell .ecc-cover > span {
+  width: 30px !important;
+  height: 30px !important;
+  font-size: 11px !important;
+}
+
+#root .studio-final-shell .ecc-card-copy h3 {
+  display: -webkit-box !important;
+  overflow: hidden !important;
+  white-space: normal !important;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  font-size: 14px !important;
+  line-height: 1.3 !important;
+}
+
+#root .studio-final-shell .ecc-card-copy p {
+  min-height: 0 !important;
+  font-size: 12px !important;
+  line-height: 1.45 !important;
+}
+
+#root .studio-final-shell .ecc-inline-alert {
+  font-size: 12.5px !important;
+  line-height: 1.45 !important;
+}
+
+#root .studio-final-shell .ecc-inline-alert button {
+  min-width: 40px !important;
+  min-height: 40px !important;
+  font-size: 12px !important;
+}
+
+#root .studio-final-shell .ecc-detail-copy p {
+  font-size: 13px !important;
+  line-height: 1.55 !important;
+}
+
+#root .studio-final-shell .ecc-detail-stats strong {
+  font-size: 13px !important;
+}
+
+#root .studio-final-shell .ecc-season-tab > button {
+  min-height: 42px !important;
+  padding: 8px 11px !important;
+}
+
+#root .studio-final-shell .ecc-season-tab span {
+  font-size: 12px !important;
+}
+
+#root .studio-final-shell .ecc-season-tab small {
+  font-size: 11px !important;
+  line-height: 1.3 !important;
+}
+
+#root .studio-final-shell .ecc-season-menu {
+  min-width: 170px !important;
+  max-width: calc(100vw - 24px) !important;
+  max-height: min(60svh, 420px);
+  overflow-y: auto;
+}
+
+#root .studio-final-shell .ecc-season-menu button {
+  min-height: 40px !important;
+  font-size: 12px !important;
+}
+
+#root .studio-final-shell .ecc-drag-handle,
+#root .studio-final-shell .ecc-track-number {
+  font-size: 11px !important;
+}
+
+#root .studio-final-shell .ecc-track-copy strong {
+  font-size: 13px !important;
+  line-height: 1.35 !important;
+}
+
+#root .studio-final-shell .ecc-track-copy span {
+  font-size: 11.5px !important;
+  line-height: 1.35 !important;
+}
+
+#root .studio-final-shell .ecc-modal {
+  max-height: min(760px, calc(100svh - 24px)) !important;
+}
+
+#root .studio-final-shell :is(.ecc-form-field label, .ecc-format-field legend) {
+  font-size: 12px !important;
+  line-height: 1.35 !important;
+}
+
+#root .studio-final-shell .ecc-form-field label span,
+#root .studio-final-shell .ecc-form-field small,
+#root .studio-final-shell .ecc-format-option small,
+#root .studio-final-shell .ecc-public-toggle small,
+#root .studio-final-shell .ecc-add-copy small {
+  font-size: 11.5px !important;
+  line-height: 1.4 !important;
+}
+
+#root .studio-final-shell :is(.ecc-form-field input, .ecc-form-field textarea) {
+  min-height: 44px !important;
+  font-size: 13px !important;
+  line-height: 1.35 !important;
+}
+
+#root .studio-final-shell :is(.ecc-format-option strong, .ecc-public-toggle strong, .ecc-add-copy strong) {
+  font-size: 13px !important;
+  line-height: 1.35 !important;
+}
+
+#root .studio-final-shell .ecc-format-option {
+  min-height: 70px !important;
+}
+
+#root .studio-final-shell .ecc-add-row {
+  min-height: 58px !important;
+}
+
+/* ---------- Creator live console ---------- */
+#root .studio-final-shell .ebsx-live-now-copy span {
+  font-size: 12.5px !important;
+  line-height: 1.45 !important;
+}
+
+#root .studio-final-shell .ebsx-live-timer span,
+#root .studio-final-shell .ebsx-live-summary-copy > span,
+#root .studio-final-shell .ebsx-live-summary-copy small,
+#root .studio-final-shell .ebsx-live-summary-metrics span {
+  font-size: 11.5px !important;
+  line-height: 1.35 !important;
+}
+
+#root .studio-final-shell .ebsx-live-summary-copy p {
+  font-size: 13px !important;
+  line-height: 1.5 !important;
+}
+
+#root .studio-final-shell .ebsx-live-summary-health span {
+  min-height: 32px !important;
+  font-size: 12px !important;
+  line-height: 1.25 !important;
+}
+
+#root .studio-final-shell :is(.ebsx-live-summary-actions button, .ebsx-live-quick-actions button) {
+  min-height: 44px !important;
+  font-size: 13px !important;
+}
+
+#root .studio-final-shell .ebsx-live-quick-actions button strong {
+  font-size: 13px !important;
+  line-height: 1.35 !important;
+}
+
+#root .studio-final-shell .ebsx-live-quick-actions button small {
+  font-size: 12px !important;
+  line-height: 1.4 !important;
+}
+
+/* Creator tables/cards should wrap long generated titles instead of clipping them. */
+#root .studio-final-shell :is(.ean-broadcast-name b, .est-row-identity strong, .eca-title-button, .eca-copy strong) {
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Responsive Creator integrity ---------- */
+@media (max-width: 760px) {
+  #root .studio-final-shell .ecc-toolbar {
+    width: 100%;
+  }
+
+  #root .studio-final-shell .ecc-filter-tabs {
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    justify-content: flex-start;
+  }
+
+  #root .studio-final-shell .ecc-filter-tabs button {
+    flex: 0 0 auto !important;
+    white-space: nowrap;
+  }
+
+  #root .studio-final-shell .ecc-detail-actions {
+    width: 100%;
+  }
+
+  #root .studio-final-shell .ecc-track-row {
+    grid-template-columns: 18px 24px 44px minmax(0, 1fr) !important;
+    row-gap: 8px !important;
+  }
+
+  #root .studio-final-shell .ecc-track-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+
+  #root .studio-final-shell .ecc-season-tab-list {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+
+  #root .studio-final-shell .ecc-season-tab {
+    flex: 0 0 auto;
+  }
+
+  #root .studio-final-shell .ebsx-live-summary-actions,
+  #root .studio-final-shell .ebsx-live-quick-actions {
+    gap: 10px !important;
+  }
+}
+
+@media (max-width: 540px) {
+  /* Do not delete collection descriptions on phones. Keep two readable lines. */
+  #root .studio-final-shell .ecc-card-copy p {
+    display: -webkit-box !important;
+    overflow: hidden !important;
+    white-space: normal !important;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    font-size: 12px !important;
+  }
+
+  #root .studio-final-shell .ecc-card-copy h3 {
+    font-size: 13px !important;
+  }
+
+  #root .studio-final-shell .ecc-detail-copy p {
+    font-size: 12.5px !important;
+  }
+
+  #root .studio-final-shell .ecc-collection-card {
+    grid-template-columns: 84px minmax(0, 1fr) !important;
+    gap: 11px !important;
+  }
+
+  #root .studio-final-shell .ecc-cover {
+    width: 84px !important;
+    height: 84px !important;
+  }
+
+  #root .studio-final-shell .ecc-card-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  #root .studio-final-shell .ecc-modal-backdrop {
+    align-items: end;
+    padding: 8px !important;
+  }
+
+  #root .studio-final-shell .ecc-modal {
+    width: 100% !important;
+    max-height: calc(100svh - 16px) !important;
+    border-radius: 16px 16px 10px 10px !important;
+  }
+
+  #root .studio-final-shell .ebsx-live-now-right {
+    gap: 10px !important;
+  }
+
+  #root .studio-final-shell .ebsx-live-summary {
+    grid-template-columns: 72px minmax(0, 1fr) !important;
+  }
+
+  #root .studio-final-shell .ebsx-live-summary-art {
+    width: 72px !important;
+    height: 72px !important;
+  }
+
+  #root .studio-final-shell .ebsx-live-summary-copy h1 {
+    font-size: clamp(20px, 7vw, 26px) !important;
+    line-height: 1.12 !important;
+  }
+
+  #root .studio-final-shell .ebsx-live-chat-rail .ebsx-chat-card {
+    min-height: min(500px, 70svh) !important;
+    height: min(560px, 74svh) !important;
+  }
+}
