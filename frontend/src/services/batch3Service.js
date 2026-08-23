@@ -5,12 +5,10 @@ import batch2Service, {
 } from './batch2Service.js';
 import {
   announceFinishedBroadcastRecording,
-  clearPendingBroadcastRecording,
   discardBroadcastRecording,
   finishBroadcastRecording,
 } from './broadcastRecordingService.js';
 import { stopWhisperFlowTranscription } from './whisperFlowService.js';
-import studioService from './studioService.js';
 
 const PENDING_RECORDING_DECISION_KEY = '__echooPendingBroadcastRecording';
 
@@ -319,11 +317,13 @@ const batch3Service = {
     apiRequest(`/analytics/live/${encodeURIComponent(broadcastId)}`),
 
   endBroadcast: async (broadcastId) => {
-    // The backend owns transcript finalization after the live state ends. Stop
-    // only the browser PCM producer here; never make ending live wait on AI.
-    void stopWhisperFlowTranscription({ finalize: false }).catch((error) => {
+    // Stop only the browser PCM producer and drain already-captured frames to
+    // the backend. This bounded handoff is not AI finalization: the backend
+    // processing worker and Whisper quality pass continue after End Live.
+    await stopWhisperFlowTranscription({ finalize: false }).catch((error) => {
       console.warn('[Echoo Transcript] background handoff warning:', error?.message || error);
     });
+
     const response = await apiRequest(
       `/broadcasts/${encodeURIComponent(broadcastId)}/end`,
       { method: 'POST' }
@@ -332,53 +332,26 @@ const batch3Service = {
     const raw = response?.data?.broadcast || response?.data;
     const normalized = normalizeBroadcast(raw);
 
-    // End the browser-local recorder only after the backend accepts the end
-    // transition and before the caller tears down the mixer. The decision is
-    // also held on window memory so a React remount or a very narrow event-listener
-    // race cannot make a completed recording disappear without a creator choice.
+    // Finalize the local post-master file before the caller tears down the
+    // mixer. The previous fire-and-forget version returned recordingReady=false
+    // before this work completed and could race mixer shutdown against the WAV
+    // capture worklet. File finalization is local I/O only; transcript/AI work
+    // continues independently on the backend.
     let recordingReady = false;
-    void (async () => {
-      try {
-        const recording = await finishBroadcastRecording(broadcastId);
-        if (recording?.blob?.size) {
-          recordingReady = true;
-          try {
-            const extension = recording.mimeType === 'audio/wav'
-              ? 'wav'
-              : String(recording.mimeType || '').includes('ogg') ? 'ogg' : 'webm';
-            const file = new File(
-              [recording.blob],
-              `echoo-live-${String(broadcastId)}.${extension}`,
-              { type: recording.mimeType || recording.blob.type || 'audio/wav' }
-            );
-            const replay = await studioService.uploadAudio({
-              file,
-              title: normalized?.title || 'Echoo live replay',
-              description: normalized?.description || 'Recorded live on Echoo.',
-              genre: normalized?.category || 'Other',
-              tags: ['live-recording', 'broadcast', recording.lossless ? 'lossless-master' : 'recording-fallback'],
-              isPublic: false,
-              broadcastId,
-            });
-            clearPendingBroadcastRecording(broadcastId);
-            forgetPendingRecordingDecision();
-            response.replay = replay?.data || replay;
-          } catch (uploadError) {
-            // Preserve the local master and the existing recovery prompt when an
-            // upload cannot complete. A replay is never exposed without media.
-            const decision = { recording, broadcast: normalized };
-            rememberPendingRecordingDecision(decision);
-            announceFinishedBroadcastRecording(decision);
-            console.warn('[Echoo Recording] automatic replay upload failed:', uploadError?.message || uploadError);
-          }
-        }
-      } catch (recordingError) {
-        console.warn(
-          '[Echoo Recording] could not finalize local recording:',
-          recordingError?.message || recordingError
-        );
+    try {
+      const recording = await finishBroadcastRecording(broadcastId);
+      if (recording?.blob?.size) {
+        recordingReady = true;
+        const decision = { recording, broadcast: normalized };
+        rememberPendingRecordingDecision(decision);
+        announceFinishedBroadcastRecording(decision);
       }
-    })();
+    } catch (recordingError) {
+      console.warn(
+        '[Echoo Recording] could not finalize local recording:',
+        recordingError?.message || recordingError
+      );
+    }
 
     return {
       ...response,
