@@ -95,28 +95,47 @@
 #root .studio-final-shell .ln-item {
   min-width: 0;
   display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) 44px;
-  gap: 13px;
-  align-items: center;
-  padding: 14px 14px;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  gap: 10px;
+  align-items: stretch;
+  padding: 10px;
   border: 1px solid #dce5f0;
   border-radius: 13px;
   background: #fff;
   color: #10213f;
-  cursor: pointer;
   transition: border-color .15s ease, background .15s ease, box-shadow .15s ease;
 }
 
 #root .studio-final-shell .ln-item:hover,
-#root .studio-final-shell .ln-item:focus-visible {
+#root .studio-final-shell .ln-item:focus-within {
   border-color: #c4d2e4;
   box-shadow: 0 4px 14px rgba(16, 33, 63, .06);
-  outline: none;
 }
 
 #root .studio-final-shell .ln-item.unread {
   border-color: rgba(36, 107, 254, .28);
   background: #f8fbff;
+}
+
+#root .studio-final-shell .ln-open {
+  min-width: 0;
+  min-height: 52px;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 13px;
+  align-items: center;
+  padding: 4px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+#root .studio-final-shell .ln-open:focus-visible {
+  outline: 2px solid rgba(36, 107, 254, .35);
+  outline-offset: 2px;
 }
 
 #root .studio-final-shell .ln-icon {
@@ -136,7 +155,7 @@
   gap: 4px;
 }
 
-#root .studio-final-shell .ln-copy > div {
+#root .studio-final-shell .ln-copy-title {
   min-width: 0;
   display: flex;
   align-items: center;
@@ -152,7 +171,7 @@
   overflow-wrap: anywhere;
 }
 
-#root .studio-final-shell .ln-copy > div > span {
+#root .studio-final-shell .ln-new-badge {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
@@ -167,8 +186,7 @@
   letter-spacing: .04em;
 }
 
-#root .studio-final-shell .ln-copy p {
-  margin: 0;
+#root .studio-final-shell .ln-copy-message {
   color: #50617a;
   font-size: 13px !important;
   line-height: 1.5 !important;
@@ -183,6 +201,7 @@
 }
 
 #root .studio-final-shell .ln-delete {
+  align-self: center;
   width: 44px;
   height: 44px;
   min-width: 44px;
@@ -249,10 +268,9 @@
     width: 100%;
   }
 
-  #root .studio-final-shell .ln-item {
-    grid-template-columns: 40px minmax(0, 1fr) 44px;
+  #root .studio-final-shell .ln-open {
+    grid-template-columns: 40px minmax(0, 1fr);
     gap: 10px;
-    padding: 12px;
   }
 
   #root .studio-final-shell .ln-icon {
@@ -263,11 +281,11 @@
 
 @media (max-width: 420px) {
   #root .studio-final-shell .ln-item {
-    grid-template-columns: 40px minmax(0, 1fr);
+    grid-template-columns: 1fr;
   }
 
   #root .studio-final-shell .ln-delete {
-    grid-column: 2;
-    justify-self: start;
+    width: 100%;
+    justify-self: stretch;
   }
 }
