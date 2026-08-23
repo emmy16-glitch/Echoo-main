@@ -316,6 +316,10 @@ async function connectProvider(runtime, { allowFlushing = false } = {}) {
       encoding: 'pcm_s16le',
       offsetMs: Number(runtime.session.offsetMs || 0),
       resumeAfterSequence: runtime.lastAcknowledgedFrame,
+      // The durable recording-chunk pipeline is authoritative when it started
+      // successfully. Keep the original inline quality pass only as a fallback
+      // for browsers where lossless recording/chunking could not start.
+      inlineQuality: runtime.inlineQuality !== false,
     }));
   });
   provider.on('message', (data) => handleProviderMessage(runtime, provider, data));
@@ -331,13 +335,17 @@ async function connectProvider(runtime, { allowFlushing = false } = {}) {
   });
 }
 
-const runtimeForSession = (session, broadcastStartedAt = null) => {
+const runtimeForSession = (session, broadcastStartedAt = null, inlineQuality = true) => {
   const key = String(session._id);
   let runtime = runtimes.get(key);
-  if (runtime) return runtime;
+  if (runtime) {
+    runtime.inlineQuality = inlineQuality;
+    return runtime;
+  }
   runtime = {
     session,
     broadcastStartedAt: broadcastStartedAt ? new Date(broadcastStartedAt).getTime() : Date.now() - Number(session.offsetMs || 0),
+    inlineQuality,
     provider: null,
     providerReady: false,
     socketIds: new Set(),
@@ -376,8 +384,16 @@ const loadOwnedSession = async (sessionId, userId) => {
     creator: userId,
     status: { $in: ['starting', 'live', 'ending'] },
     isDeleted: false,
-  }).select('startedAt');
-  return broadcast ? { session, startedAt: broadcast.startedAt } : null;
+  }).select('startedAt qualityChunkingStartedAt qualityChunkingCompletedAt');
+  if (!broadcast) return null;
+  const durableQualityActive = Boolean(
+    broadcast.qualityChunkingStartedAt && !broadcast.qualityChunkingCompletedAt
+  );
+  return {
+    session,
+    startedAt: broadcast.startedAt,
+    inlineQuality: !durableQualityActive,
+  };
 };
 
 export const isTranscriptionConfigured = () => Boolean(providerUrl() && providerApiKey());
@@ -385,7 +401,7 @@ export const isTranscriptionConfigured = () => Boolean(providerUrl() && provider
 export async function attachTranscriptionSession({ sessionId, userId, socketId }) {
   const owned = await loadOwnedSession(sessionId, userId);
   if (!owned) throw Object.assign(new Error('Transcript session is unavailable'), { code: 'SESSION_NOT_FOUND' });
-  const runtime = runtimeForSession(owned.session, owned.startedAt);
+  const runtime = runtimeForSession(owned.session, owned.startedAt, owned.inlineQuality);
   runtime.socketIds.add(socketId);
   if (runtime.abandonTimer) clearTimeout(runtime.abandonTimer);
   runtime.abandonTimer = null;
