@@ -33,9 +33,6 @@ const enhanceCollectionDialog = (modal) => {
     dialogOpeners.set(modal, active);
   }
 
-  // React's autoFocus normally wins for create/edit forms. This fallback keeps
-  // non-form modal surfaces keyboard reachable without stealing focus from an
-  // element that is already correctly focused inside the dialog.
   queueMicrotask(() => {
     if (!document.contains(modal) || modal.contains(document.activeElement)) return;
     const first = focusableIn(modal)[0];
@@ -46,10 +43,6 @@ const enhanceCollectionDialog = (modal) => {
 const repairKnownUiSemantics = (root = document) => {
   if (typeof document === 'undefined') return;
 
-  // Creator Studio already lives inside the application shell's main landmark.
-  // These legacy inner <main> elements are content regions, not page-level
-  // landmarks. An explicit ARIA role removes duplicate-main semantics without
-  // changing the visual component contract.
   root.querySelectorAll?.('.ebsx-setup-main, .ecbs-live-grid > main').forEach((node) => {
     node.setAttribute('role', 'region');
     if (!node.getAttribute('aria-label')) {
@@ -60,22 +53,26 @@ const repairKnownUiSemantics = (root = document) => {
     }
   });
 
-  // Following artwork is itself an audio play control. Give icon/art-only
-  // buttons the same accessible identity as the adjacent track title.
   root.querySelectorAll?.('button.fl-show-art:not([aria-label])').forEach((button) => {
     const row = button.closest('.fl-show-row');
     const title = textOf(row?.querySelector('.fl-show-info strong')) || 'audio';
     button.setAttribute('aria-label', `Play ${title}`);
   });
 
-  // Broadcast Studio's compact boolean tools are rendered as visual switches
-  // with only a thumb <i>. Preserve the compact UI while naming the control for
-  // screen readers, voice control and automated accessibility checks.
   root.querySelectorAll?.('.ecbs-tool > button:not([aria-label])').forEach((button) => {
     const tool = button.closest('.ecbs-tool');
     const label = textOf(tool?.querySelector(':scope > span')) || 'audio setting';
     const on = button.getAttribute('aria-pressed') === 'true' || button.classList.contains('on');
     button.setAttribute('aria-label', `${label}: ${on ? 'on' : 'off'}`);
+  });
+
+  // The Listener Stations sidebar used visual labels next to selects without a
+  // for/id association. Give the active controls a programmatic name while
+  // preserving the existing markup and layout.
+  root.querySelectorAll?.('.ls-filter-group .ls-select:not([aria-label])').forEach((select) => {
+    const group = select.closest('.ls-filter-group');
+    const label = textOf(group?.querySelector(':scope > label'));
+    if (label) select.setAttribute('aria-label', label);
   });
 
   root.querySelectorAll?.('.ecc-modal-backdrop .ecc-modal').forEach(enhanceCollectionDialog);
@@ -128,7 +125,7 @@ if (typeof document !== 'undefined') {
     for (const mutation of mutations) {
       for (const node of mutation.addedNodes) {
         if (node?.nodeType !== Node.ELEMENT_NODE) continue;
-        repairKnownUiSemantics(node.matches?.('.ebsx-setup-main, .ecbs-live-grid > main, button.fl-show-art, .ecbs-tool, .ecc-modal-backdrop, .ecc-modal') ? node.parentElement || node : node);
+        repairKnownUiSemantics(node.matches?.('.ebsx-setup-main, .ecbs-live-grid > main, button.fl-show-art, .ecbs-tool, .ls-filter-group, .ecc-modal-backdrop, .ecc-modal') ? node.parentElement || node : node);
       }
       if (mutation.type === 'attributes' && mutation.target?.nodeType === Node.ELEMENT_NODE) {
         repairKnownUiSemantics(mutation.target.parentElement || mutation.target);
