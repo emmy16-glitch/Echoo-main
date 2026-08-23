@@ -99,7 +99,7 @@ test('silent quality chunks are valid and quality reconciliation is restart-idem
   assert.match(quality, /qualityChunkId:\s*chunk\._id/);
   assert.match(quality, /qualitySegmentIndex:\s*index/);
   assert.match(quality, /existingQuality/);
-  assert.match(quality, /qualityEnd\s*=\s*Math\.min\(chunk\.endMs/);
+  assert.match(quality, /const qualityEnd\s*=\s*Math\.min\([\s\S]*?chunk\.endMs/);
 });
 
 test('prerequisite waiting does not burn processing retry attempts', async () => {
