@@ -1,6 +1,7 @@
 const textOf = (node) => String(node?.textContent || '').replace(/\s+/g, ' ').trim();
 
 let generatedDialogId = 0;
+let lastDialogTrigger = null;
 const dialogOpeners = new WeakMap();
 
 const focusableIn = (root) => [...root.querySelectorAll(
@@ -29,8 +30,11 @@ const enhanceCollectionDialog = (modal) => {
   }
 
   const active = document.activeElement;
-  if (active && active !== document.body && !modal.contains(active)) {
-    dialogOpeners.set(modal, active);
+  const opener = active && active !== document.body && !modal.contains(active)
+    ? active
+    : lastDialogTrigger;
+  if (opener?.isConnected && !modal.contains(opener)) {
+    dialogOpeners.set(modal, opener);
   }
 
   queueMicrotask(() => {
@@ -66,9 +70,6 @@ const repairKnownUiSemantics = (root = document) => {
     button.setAttribute('aria-label', `${label}: ${on ? 'on' : 'off'}`);
   });
 
-  // The Listener Stations sidebar used visual labels next to selects without a
-  // for/id association. Give the active controls a programmatic name while
-  // preserving the existing markup and layout.
   root.querySelectorAll?.('.ls-filter-group .ls-select:not([aria-label])').forEach((select) => {
     const group = select.closest('.ls-filter-group');
     const label = textOf(group?.querySelector(':scope > label'));
@@ -86,6 +87,17 @@ if (typeof document !== 'undefined') {
     run();
   }
 
+  document.addEventListener('focusin', (event) => {
+    const target = event.target;
+    if (
+      target?.nodeType === Node.ELEMENT_NODE &&
+      !target.closest?.('.ecc-modal-backdrop') &&
+      target.matches?.('button, [role="button"], a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])')
+    ) {
+      lastDialogTrigger = target;
+    }
+  }, true);
+
   document.addEventListener('keydown', (event) => {
     const dialogs = [...document.querySelectorAll('.ecc-modal-backdrop .ecc-modal[aria-modal="true"]')];
     const modal = dialogs.at(-1);
@@ -95,7 +107,7 @@ if (typeof document !== 'undefined') {
       const closeButton = modal.querySelector('.ecc-modal-close');
       if (closeButton && !closeButton.disabled) {
         event.preventDefault();
-        const opener = dialogOpeners.get(modal);
+        const opener = dialogOpeners.get(modal) || lastDialogTrigger;
         closeButton.click();
         queueMicrotask(() => opener?.isConnected && opener.focus?.());
       }
