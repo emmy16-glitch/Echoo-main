@@ -51,17 +51,13 @@ class QualityChunk:
 
 
 class StreamingTranscriptSession:
-    """Turns acknowledged 20 ms PCM frames into revisable utterance segments.
+    """Turns acknowledged 20 ms PCM frames into revisable transcript segments.
 
-    Echoo deliberately has two transcription passes over the same post-master
-    program feed:
-      1. a low-latency draft pass for continuous progress while live;
-      2. a slower background verification pass over each finalized PCM chunk.
-
-    The quality pass starts while the broadcast is still running. It never
-    modifies audio; it only decides the final draft text/timing persisted for
-    creator review. A quality failure falls back to the fast result so a replay
-    transcript is never lost just because the second pass is unavailable.
+    Normal creator sessions are the low-latency draft path. They may run an
+    inline quality fallback only when the durable browser recording-chunk path
+    is unavailable. Dedicated ``qualityPass`` sessions are different: they use
+    the quality decoder directly over a persisted recording chunk and never
+    schedule another nested quality pass.
     """
 
     def __init__(
@@ -74,6 +70,7 @@ class StreamingTranscriptSession:
         quality_model,
         emit: Callable[[dict], Awaitable[None]],
         quality_pass: bool = False,
+        quality_enabled: bool | None = None,
     ) -> None:
         self.broadcast_id = broadcast_id
         self.session_id = session_id
@@ -81,7 +78,7 @@ class StreamingTranscriptSession:
         self.model = model
         self.quality_model = quality_model
         self.emit = emit
-        self.quality_pass = quality_pass
+        self.quality_pass = bool(quality_pass)
         self.partial_interval_ms = _env_int("WHISPER_PARTIAL_INTERVAL_MS", 1000, 400, 5000)
         self.silence_finalize_ms = _env_int("WHISPER_SILENCE_FINALIZE_MS", 700, 300, 3000)
         self.min_utterance_ms = _env_int("WHISPER_MIN_UTTERANCE_MS", 300, 100, 3000)
@@ -90,7 +87,10 @@ class StreamingTranscriptSession:
             "WHISPER_MAX_SESSION_BUFFER_BYTES", 2 * 1024 * 1024, 64 * 1024, 16 * 1024 * 1024
         )
         self.energy_threshold = float(os.getenv("WHISPER_SPEECH_RMS_THRESHOLD", "0.008"))
-        self.quality_enabled = _env_bool("WHISPER_QUALITY_PASS_ENABLED", True)
+        configured_quality = _env_bool("WHISPER_QUALITY_PASS_ENABLED", True)
+        self.quality_enabled = configured_quality if quality_enabled is None else bool(quality_enabled)
+        if self.quality_pass:
+            self.quality_enabled = False
         self.quality_max_pending = _env_int("WHISPER_QUALITY_MAX_PENDING", 16, 1, 64)
         self.frames: list[AudioFrame] = []
         self.buffer_bytes = 0
@@ -152,7 +152,8 @@ class StreamingTranscriptSession:
                 and self.silence_ms >= self.silence_finalize_ms
             ) or duration_ms >= self.max_utterance_ms
             should_partial = (
-                duration_ms >= self.min_utterance_ms
+                not self.quality_pass
+                and duration_ms >= self.min_utterance_ms
                 and frame.timestamp_ms - self.last_partial_at_ms >= self.partial_interval_ms
             )
 
@@ -166,9 +167,6 @@ class StreamingTranscriptSession:
             if self.frames:
                 await self._transcribe_locked(final=True)
 
-        # The HTTP/backend end request never waits here. This is reached by the
-        # durable backend processing worker after live has already ended. Wait
-        # for only the outstanding quality chunks before Whisper confirms flush.
         if self._quality_tasks:
             await asyncio.gather(*list(self._quality_tasks), return_exceptions=True)
 
@@ -186,9 +184,6 @@ class StreamingTranscriptSession:
         previous: asyncio.Task | None,
         chunk: QualityChunk,
     ) -> None:
-        # Keep final emissions in audio order. The backend advances its canonical
-        # transcript sequence only on final segments, so a later chunk must never
-        # overtake an earlier quality pass and distort timestamps/sequence state.
         if previous is not None:
             await asyncio.gather(previous, return_exceptions=True)
         await self._run_quality_pass(chunk)
@@ -302,7 +297,9 @@ class StreamingTranscriptSession:
         samples = np.frombuffer(pcm, dtype="<i2").astype(np.float32) / 32768.0
         if self.quality_pass:
             result: TranscriptResult = await asyncio.to_thread(
-                self.model.transcribe, samples, self.language, True
+                self.model.transcribe_quality,
+                samples,
+                self.language,
             )
         else:
             result = await asyncio.to_thread(self.model.transcribe, samples, self.language)
@@ -315,10 +312,6 @@ class StreamingTranscriptSession:
         last_sequence = self.frames[-1].sequence
 
         if final:
-            # Snapshot the same immutable post-master PCM chunk used by the live
-            # draft. The slower verifier starts immediately while the broadcast
-            # continues. It is the only final emission for this segment, so the
-            # backend sees one canonical final sequence instead of duplicates.
             chunk = QualityChunk(
                 segment_id=segment_id,
                 pcm=pcm,
@@ -328,7 +321,16 @@ class StreamingTranscriptSession:
                 provider_revision=self.revision,
                 fast_result=result,
             )
-            await self._schedule_quality_pass(chunk)
+            if self.quality_pass:
+                await self._emit_final(
+                    result,
+                    chunk,
+                    quality=True,
+                    processing_ms=processing_ms,
+                )
+                self.quality_passes += 1
+            else:
+                await self._schedule_quality_pass(chunk)
         elif result.text:
             await self._emit({
                 "type": "segment",
