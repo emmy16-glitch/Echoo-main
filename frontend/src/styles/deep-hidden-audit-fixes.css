@@ -23,3 +23,171 @@ button.pl-top-row:focus-visible,
 .ecc-collection-card[role="button"] {
   cursor: pointer;
 }
+
+/* Deep browser-audit hardening. These rules load last and exist to keep legacy
+   reference layers from re-introducing micro-text or unusable touch controls. */
+.studio-brand span,
+.studio-topbar p,
+.sidebar-profile-text strong,
+.sidebar-profile-text span,
+.studio-account-button strong,
+.studio-account-button span,
+.studio-alert,
+.studio-footer,
+.studio-upload-drop span,
+.studio-form-field > label,
+.studio-cover-picker,
+.studio-cover-remove,
+.studio-upload-artwork-help {
+  font-size: 11px !important;
+  line-height: 1.35;
+}
+
+.studio-nav-item {
+  min-height: 44px !important;
+  font-size: 12px !important;
+  line-height: 1.25;
+}
+
+/* Broadcast Studio operational text must remain readable on desktop and touch
+   layouts. It used to contain 7-9px status copy even though it carries state
+   creators need while live. */
+.ecbs-audio-modes small,
+.ecbs-tool > span,
+.ecbs-tool small,
+.ecbs-source header small,
+.ecbs-source-name,
+.ecbs-source-controls strong,
+.ecbs-connect,
+.ecbs-live-hero > header small,
+.ecbs-hero-timer small,
+.ecbs-live-identity span,
+.ecbs-live-hero dd,
+.ecbs-live-actions button,
+.ecbs-health-bar strong,
+.ecbs-health-bar small,
+.ecbs-live-audio header p,
+.ecbs-insights header p,
+.ecbs-panel-title p,
+.ecbs-transcript-health header p,
+.ecbs-caption-settings header p,
+.ecbs-master,
+.ecbs-output-label,
+.ecbs-loudness,
+.ecbs-transcript-ready-card small,
+.ecbs-monitor-card small,
+.ecbs-studio-status,
+.ebsx-message {
+  font-size: 11px !important;
+  line-height: 1.4;
+}
+
+.ecbs-tool > span,
+.ecbs-source header strong,
+.ecbs-health-bar strong {
+  font-size: 12px !important;
+}
+
+.ecbs-tool button {
+  min-width: 38px;
+  min-height: 28px;
+}
+
+.ecbs-connect,
+.ecbs-source-controls button,
+.ecbs-live-actions button,
+.ecbs-health-bar > button,
+.ecbs-change-station,
+.ecbs-reset-tools {
+  min-height: 36px !important;
+}
+
+/* Listener state badges and persistent-player timing are operational labels,
+   not decorative micro-copy. */
+.b3-live-pill,
+.fl-live-badge {
+  font-size: 11px !important;
+}
+
+.layout-player-volume > span {
+  min-width: 34px;
+  font-size: 11px !important;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+.fl-more-btn,
+.fl-show-play-btn,
+.fl-creator-avatar--sm {
+  min-width: 36px;
+  min-height: 36px;
+  flex: 0 0 36px;
+}
+
+.fl-show-art {
+  flex: 0 0 48px;
+  min-width: 48px;
+  min-height: 48px;
+}
+
+/* The Settings category rail becomes a genuine horizontal scroller at tablet
+   sizes instead of compressing labelled buttons into 20-30px slivers. */
+@media (max-width: 900px) {
+  .set-layout {
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-areas:
+      "nav"
+      "main" !important;
+  }
+
+  .set-nav {
+    position: static !important;
+    width: 100% !important;
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 8px;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: thin;
+    padding: 8px;
+  }
+
+  .set-nav-item {
+    flex: 0 0 auto;
+    width: auto !important;
+    min-width: max-content !important;
+    padding-inline: 14px !important;
+  }
+
+  .ecbs-source-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .ecbs-tool-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px;
+  }
+
+  .ecbs-tool {
+    border: 1px solid var(--bs-line, #e4eaf2) !important;
+    border-radius: 8px;
+    padding: 10px 12px !important;
+  }
+}
+
+@media (max-width: 560px) {
+  .ecbs-source-grid,
+  .ecbs-tool-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .ecbs-connect {
+    width: 100%;
+    padding-inline: 12px;
+    white-space: normal;
+  }
+
+  .studio-nav-item {
+    font-size: 11px !important;
+  }
+}
