@@ -101,6 +101,7 @@ class StreamingTranscriptSession:
         self.quality_passes = 0
         self.quality_failures = 0
         self._quality_tasks: set[asyncio.Task] = set()
+        self._quality_tail: asyncio.Task | None = None
         self._lock = asyncio.Lock()
         self._emit_lock = asyncio.Lock()
 
@@ -178,13 +179,27 @@ class StreamingTranscriptSession:
             for task in done:
                 self._quality_tasks.discard(task)
 
+    async def _run_quality_after(
+        self,
+        previous: asyncio.Task | None,
+        chunk: QualityChunk,
+    ) -> None:
+        # Keep final emissions in audio order. The backend advances its canonical
+        # transcript sequence only on final segments, so a later chunk must never
+        # overtake an earlier quality pass and distort timestamps/sequence state.
+        if previous is not None:
+            await asyncio.gather(previous, return_exceptions=True)
+        await self._run_quality_pass(chunk)
+
     async def _schedule_quality_pass(self, chunk: QualityChunk) -> None:
         if not self.quality_enabled or self.quality_model is None:
             await self._emit_final(chunk.fast_result, chunk, quality=False)
             return
 
         await self._wait_for_quality_capacity()
-        task = asyncio.create_task(self._run_quality_pass(chunk))
+        previous = self._quality_tail
+        task = asyncio.create_task(self._run_quality_after(previous, chunk))
+        self._quality_tail = task
         self._quality_tasks.add(task)
         task.add_done_callback(self._quality_tasks.discard)
 
