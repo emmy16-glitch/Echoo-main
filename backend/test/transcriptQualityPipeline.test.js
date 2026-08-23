@@ -79,7 +79,7 @@ test('raw and enhanced modes still converge on one audience/recording/transcript
   assert.match(engine, /inputNode\.connect\(enhancedGain\)/);
   assert.match(mixer, /masterAnalyser\.connect\(destinationNode\)/);
   assert.match(publisher, /name:\s*'echoo-studio-mix'/);
-  assert.match(publisher, /startBroadcastRecording\(\{[\s\S]*mediaTrack/);
+  assert.match(publisher, /ensureBroadcastRecording\(\{[\s\S]*mediaTrack/);
   assert.match(publisher, /startWhisperFlowTranscription\(\{[\s\S]*mediaTrack/);
   assert.match(creatorMixer, /Raw Audio/);
   assert.match(creatorMixer, /Enhanced Audio/);
