@@ -19,6 +19,13 @@ const configuredTtl = (name, fallback) => {
   return Math.max(MIN_TTL_SECONDS, Math.min(MAX_TTL_SECONDS, parsed));
 };
 
+export const isCanonicalPublicAudio = (audio) => Boolean(
+  audio &&
+  audio.isPublic === true &&
+  audio.visibility === 'public' &&
+  audio.publicationStatus === 'published'
+);
+
 export const audioStreamTtlSeconds = ({ access = 'public', duration = 0 } = {}) => {
   const base = access === 'owner'
     ? configuredTtl('AUDIO_PRIVATE_STREAM_TOKEN_TTL_SECONDS', DEFAULT_OWNER_TTL_SECONDS)
@@ -116,13 +123,12 @@ export const buildAudioStreamUrl = (audio, { access = 'public' } = {}) => {
 
   const artistId = audio?.artist?._id || audio?.artist;
 
-  // Some public list/search projections intentionally omit isPublic because the
-  // Mongo query already enforces it. Only an explicit false blocks issuance.
-  // The stream controller still reloads the record and re-checks current
-  // visibility on every Range request, so a public token can never open a
-  // private track after the creator unpublishes it.
-  if (access === 'public' && audio?.isPublic === false) return null;
+  // A bearer-free URL is shareable by definition, so issue a public token only
+  // when every canonical publication field says the asset is public. Do not let
+  // the legacy isPublic boolean alone broaden a private/followers-only asset.
+  if (access === 'public' && !isCanonicalPublicAudio(audio)) return null;
   if (access === 'owner' && !artistId) return null;
+  if (access === 'account' && !artistId) return null;
 
   const { token, ttl } = createAudioStreamToken({
     audioId,
@@ -142,4 +148,5 @@ export default {
   createAudioStreamToken,
   verifyAudioStreamToken,
   audioStreamTtlSeconds,
+  isCanonicalPublicAudio,
 };
