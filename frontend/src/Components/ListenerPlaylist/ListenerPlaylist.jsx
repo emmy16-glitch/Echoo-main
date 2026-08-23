@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useNavigate, useOutletContext } from 'react-router-dom';
 import {
   FaAngleRight,
   FaHeadphones,
@@ -49,7 +49,8 @@ const compactNumber = (value) =>
   }).format(Number(value) || 0);
 
 export default function ListenerPlaylist() {
-  const { playTrack, currentTrack, isPlaying } = useOutletContext();
+  const navigate = useNavigate();
+  const { playTrack, currentTrack, isPlaying, togglePlay } = useOutletContext();
   const [tab, setTab] = useState('All');
   const [sort, setSort] = useState('recent');
   const [playlists, setPlaylists] = useState([]);
@@ -57,6 +58,7 @@ export default function ListenerPlaylist() {
   const [publicPlaylists, setPublicPlaylists] = useState([]);
   const [recentlyPlayed, setRecentlyPlayed] = useState([]);
   const [downloads, setDownloads] = useState([]);
+  const [showAllPublic, setShowAllPublic] = useState(false);
   const [toast, setToast] = useState({ open: false, type: 'info', title: '', message: '' });
   const [busyId, setBusyId] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
@@ -112,7 +114,8 @@ export default function ListenerPlaylist() {
   const handlePlay = useCallback(
     (track) => {
       if (!track?.id) return;
-      if (currentTrack?.id === track.id && isPlaying) {
+      if (String(currentTrack?.id || '') === String(track.id)) {
+        togglePlay();
         return;
       }
       playTrack({
@@ -124,7 +127,7 @@ export default function ListenerPlaylist() {
         duration: track.duration,
       });
     },
-    [playTrack, currentTrack, isPlaying],
+    [playTrack, currentTrack, togglePlay],
   );
 
   const handleContinuePlay = useCallback(
@@ -136,6 +139,10 @@ export default function ListenerPlaylist() {
 
   const handleDownloadedPlay = useCallback(
     async (track) => {
+      if (String(currentTrack?.id || '') === String(track?.id || '')) {
+        togglePlay();
+        return;
+      }
       try {
         const playableUrl = await downloadService.getPlayableUrl(track.id);
         handlePlay({ ...track, fileUrl: playableUrl, storageMode: 'offline' });
@@ -143,7 +150,7 @@ export default function ListenerPlaylist() {
         showToast('error', 'Could not play download', 'This downloaded audio is no longer available offline.');
       }
     },
-    [handlePlay, showToast],
+    [currentTrack, handlePlay, showToast, togglePlay],
   );
 
   const handleCreatePlaylist = useCallback(async () => {
@@ -165,6 +172,7 @@ export default function ListenerPlaylist() {
         setCreateName('');
         setCreateDesc('');
         setCreateOpen(false);
+        setTab('My playlists');
         await load();
       } else {
         showToast('error', 'Could not create', 'Something went wrong creating the playlist.');
@@ -197,7 +205,7 @@ export default function ListenerPlaylist() {
   const sortLists = (list) => {
     if (sort === 'name') return [...list].sort((a, b) => String(a.name || '').localeCompare(b.name || ''));
     if (sort === 'tracks') return [...list].sort((a, b) => (b.tracks?.length || 0) - (a.tracks?.length || 0));
-    return list; // recently updated (server order)
+    return list;
   };
 
   const downloadedTracks = useMemo(() => {
@@ -208,7 +216,13 @@ export default function ListenerPlaylist() {
   }, [downloads]);
 
   const myPlaylists = sortLists(playlists);
-  const topPublic = sortLists(publicPlaylists).slice(0, 5);
+  const sortedPublic = sortLists(publicPlaylists);
+  const topPublic = sortedPublic.slice(0, 5);
+  const visiblePublic = showAllPublic ? sortedPublic : topPublic;
+
+  const scrollToPopular = () => {
+    document.getElementById('pl-popular-playlists')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   return (
     <div className="pl-page">
@@ -232,12 +246,14 @@ export default function ListenerPlaylist() {
               <input
                 type="text"
                 placeholder="Playlist name"
+                aria-label="Playlist name"
                 value={createName}
                 onChange={(e) => setCreateName(e.target.value)}
               />
               <input
                 type="text"
                 placeholder="Description (optional)"
+                aria-label="Playlist description"
                 value={createDesc}
                 onChange={(e) => setCreateDesc(e.target.value)}
               />
@@ -247,7 +263,7 @@ export default function ListenerPlaylist() {
                 disabled={busyId === 'create'}
                 onClick={handleCreatePlaylist}
               >
-                Create
+                {busyId === 'create' ? 'Creating…' : 'Create'}
               </button>
             </div>
           )}
@@ -302,25 +318,28 @@ export default function ListenerPlaylist() {
                 </div>
               ) : (
                 <div className="pl-download-grid">
-                  {downloadedTracks.map((track) => (
-                    <div key={idOf(track)} className="pl-download-card">
-                      <div className="pl-download-art">
-                        <img src={track.coverArt || track.artwork} alt={track.title || 'Audio'} />
+                  {downloadedTracks.map((track) => {
+                    const playing = String(currentTrack?.id || '') === String(track.id) && isPlaying;
+                    return (
+                      <div key={idOf(track)} className="pl-download-card">
+                        <div className="pl-download-art">
+                          <img src={track.coverArt || track.artwork} alt={track.title || 'Audio'} />
+                        </div>
+                        <div className="pl-download-info">
+                          <strong>{track.title || 'Untitled audio'}</strong>
+                          <span>{track.artistName || track.genre || 'Audio'}</span>
+                        </div>
+                        <button
+                          type="button"
+                          className="pl-download-play"
+                          aria-label={playing ? `Pause ${track.title || 'audio'}` : `Play ${track.title || 'audio'}`}
+                          onClick={() => handleDownloadedPlay(track)}
+                        >
+                          {playing ? <FaPause /> : <FaPlay />}
+                        </button>
                       </div>
-                      <div className="pl-download-info">
-                        <strong>{track.title || 'Untitled audio'}</strong>
-                        <span>{track.artistName || track.genre || 'Audio'}</span>
-                      </div>
-                      <button
-                        type="button"
-                        className="pl-download-play"
-                        aria-label="Play"
-                        onClick={() => handleDownloadedPlay(track)}
-                      >
-                        <FaPlay />
-                      </button>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </section>
@@ -328,10 +347,12 @@ export default function ListenerPlaylist() {
             <>
               <section className="pl-section">
                 <div className="pl-section-header">
-                  <h2>{tab === 'My playlists' ? 'My playlists' : 'My playlists'}</h2>
-                  <button type="button" className="pl-view-all">
-                    View all <FaAngleRight />
-                  </button>
+                  <h2>My playlists</h2>
+                  {tab === 'All' && (
+                    <button type="button" className="pl-view-all" onClick={() => setTab('My playlists')}>
+                      View all <FaAngleRight />
+                    </button>
+                  )}
                 </div>
                 {myPlaylists.length === 0 ? (
                   <div className="pl-empty">
@@ -344,6 +365,7 @@ export default function ListenerPlaylist() {
                     {myPlaylists.map((playlist) => {
                       const trackCount = Array.isArray(playlist.tracks) ? playlist.tracks.length : 0;
                       const firstTrack = Array.isArray(playlist.tracks) ? playlist.tracks[0] : null;
+                      const playing = firstTrack && String(currentTrack?.id || '') === String(firstTrack.id) && isPlaying;
                       return (
                         <div key={idOf(playlist)} className="pl-playlist-card">
                           <div className="pl-playlist-art">
@@ -358,10 +380,11 @@ export default function ListenerPlaylist() {
                             <button
                               type="button"
                               className="pl-playlist-art-play"
-                              aria-label="Play playlist"
+                              aria-label={`${playing ? 'Pause' : 'Play'} ${playlist.name || 'playlist'}`}
+                              disabled={!firstTrack}
                               onClick={() => firstTrack && handlePlay(firstTrack)}
                             >
-                              <FaPlay />
+                              {playing ? <FaPause /> : <FaPlay />}
                             </button>
                           </div>
                           <div className="pl-playlist-info">
@@ -374,7 +397,8 @@ export default function ListenerPlaylist() {
                               <button
                                 type="button"
                                 className="pl-more-btn"
-                                aria-label="More options"
+                                aria-label={`Delete ${playlist.name || 'playlist'}`}
+                                disabled={busyId === idOf(playlist)}
                                 onClick={() => handleDeletePlaylist(playlist)}
                               >
                                 <FaTrash />
@@ -388,110 +412,117 @@ export default function ListenerPlaylist() {
                 )}
               </section>
 
-              <section className="pl-section">
-                <div className="pl-section-header">
-                  <h2>Continue listening</h2>
-                  <button type="button" className="pl-view-all">
-                    View all <FaAngleRight />
-                  </button>
-                </div>
-                {continueListening.length === 0 ? (
-                  <div className="pl-empty">
-                    <FaHeadphones />
-                    <strong>Nothing in progress.</strong>
-                    <p>Play some audio and your listening progress will appear here.</p>
-                  </div>
-                ) : (
-                  <div className="pl-continue-list">
-                    {continueListening.map((track) => {
-                      const playing = currentTrack?.id === track.id;
-                      const elapsed = Number(track.progress) || 0;
-                      const total = Number(track.duration) || 0;
-                      const percent = total > 0 ? Math.min(100, (elapsed / total) * 100) : 0;
-                      return (
-                        <div key={idOf(track)} className="pl-continue-row">
-                          <div className="pl-continue-art">
-                            <img src={track.coverArt || track.artwork} alt={track.title || 'Audio'} />
-                            <button
-                              type="button"
-                              className="pl-continue-art-play"
-                              aria-label={playing && isPlaying ? 'Pause' : 'Play'}
-                              onClick={() => handleContinuePlay(track)}
-                            >
-                              {playing && isPlaying ? <FaPause /> : <FaPlay />}
-                            </button>
-                          </div>
-                          <div className="pl-continue-info">
-                            <strong>{track.title || 'Untitled audio'}</strong>
-                            <span>{track.artistName || track.genre || 'Audio'}</span>
-                          </div>
-                          <div className="pl-continue-progress">
-                            <div className="pl-progress-track">
-                              <span className="pl-progress-fill" style={{ width: `${percent}%` }} />
+              {tab === 'All' && (
+                <>
+                  <section className="pl-section">
+                    <div className="pl-section-header">
+                      <h2>Continue listening</h2>
+                      <button type="button" className="pl-view-all" onClick={() => navigate('/listen/history')}>
+                        View history <FaAngleRight />
+                      </button>
+                    </div>
+                    {continueListening.length === 0 ? (
+                      <div className="pl-empty">
+                        <FaHeadphones />
+                        <strong>Nothing in progress.</strong>
+                        <p>Play some audio and your listening progress will appear here.</p>
+                      </div>
+                    ) : (
+                      <div className="pl-continue-list">
+                        {continueListening.map((track) => {
+                          const playing = String(currentTrack?.id || '') === String(track.id);
+                          const elapsed = Number(track.progress) || 0;
+                          const total = Number(track.duration) || 0;
+                          const percent = total > 0 ? Math.min(100, (elapsed / total) * 100) : 0;
+                          return (
+                            <div key={idOf(track)} className="pl-continue-row">
+                              <div className="pl-continue-art">
+                                <img src={track.coverArt || track.artwork} alt={track.title || 'Audio'} />
+                                <button
+                                  type="button"
+                                  className="pl-continue-art-play"
+                                  aria-label={playing && isPlaying ? 'Pause' : 'Play'}
+                                  onClick={() => handleContinuePlay(track)}
+                                >
+                                  {playing && isPlaying ? <FaPause /> : <FaPlay />}
+                                </button>
+                              </div>
+                              <div className="pl-continue-info">
+                                <strong>{track.title || 'Untitled audio'}</strong>
+                                <span>{track.artistName || track.genre || 'Audio'}</span>
+                              </div>
+                              <div className="pl-continue-progress">
+                                <div className="pl-progress-track">
+                                  <span className="pl-progress-fill" style={{ width: `${percent}%` }} />
+                                </div>
+                                <span className="pl-progress-times">
+                                  {formatDuration(elapsed)} / {formatDuration(total)}
+                                </span>
+                              </div>
+                              <span className="pl-continue-when">{relativeTime(track.playedAt)}</span>
+                              <button
+                                type="button"
+                                className="pl-continue-play"
+                                aria-label={playing && isPlaying ? 'Pause' : 'Play'}
+                                onClick={() => handleContinuePlay(track)}
+                              >
+                                {playing && isPlaying ? <FaPause /> : <FaPlay />}
+                              </button>
                             </div>
-                            <span className="pl-progress-times">
-                              {formatDuration(elapsed)} / {formatDuration(total)}
-                            </span>
-                          </div>
-                          <span className="pl-continue-when">{relativeTime(track.playedAt)}</span>
-                          <button
-                            type="button"
-                            className="pl-continue-play"
-                            aria-label={playing && isPlaying ? 'Pause' : 'Play'}
-                            onClick={() => handleContinuePlay(track)}
-                          >
-                            {playing && isPlaying ? <FaPause /> : <FaPlay />}
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </section>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </section>
 
-              <section className="pl-section">
-                <div className="pl-section-header">
-                  <h2>Popular playlists</h2>
-                  <button type="button" className="pl-view-all">
-                    View all <FaAngleRight />
-                  </button>
-                </div>
-                {topPublic.length === 0 ? (
-                  <div className="pl-empty">
-                    <FaHeart />
-                    <strong>No public playlists yet.</strong>
-                    <p>When creators publish playlists, they will show up here.</p>
-                  </div>
-                ) : (
-                  <div className="pl-popular-grid">
-                    {topPublic.map((playlist) => {
-                      const trackCount = Array.isArray(playlist.tracks) ? playlist.tracks.length : 0;
-                      const listens = Number(playlist.listenerCount || playlist.listens || 0);
-                      return (
-                        <button
-                          key={idOf(playlist)}
-                          type="button"
-                          className="pl-popular-card"
-                          onClick={() => {
-                            const first = Array.isArray(playlist.tracks) ? playlist.tracks[0] : null;
-                            if (first) handlePlay(first);
-                          }}
-                        >
-                          <span className="pl-popular-art">
-                            <img src={playlist.coverArt} alt={playlist.name || 'Playlist'} />
-                            <span className="pl-popular-art-play" aria-hidden="true"><FaPlay /></span>
-                          </span>
-                          <strong>{playlist.name || 'Untitled Playlist'}</strong>
-                          <span className="pl-popular-meta">
-                            {trackCount} {trackCount === 1 ? 'track' : 'tracks'}
-                            {listens > 0 ? ` • ${compactNumber(listens)} listens` : ''}
-                          </span>
+                  <section className="pl-section" id="pl-popular-playlists">
+                    <div className="pl-section-header">
+                      <h2>Popular playlists</h2>
+                      {sortedPublic.length > 5 && (
+                        <button type="button" className="pl-view-all" onClick={() => setShowAllPublic((value) => !value)}>
+                          {showAllPublic ? 'Show less' : 'View all'} <FaAngleRight />
                         </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </section>
+                      )}
+                    </div>
+                    {visiblePublic.length === 0 ? (
+                      <div className="pl-empty">
+                        <FaHeart />
+                        <strong>No public playlists yet.</strong>
+                        <p>When creators publish playlists, they will show up here.</p>
+                      </div>
+                    ) : (
+                      <div className="pl-popular-grid">
+                        {visiblePublic.map((playlist) => {
+                          const trackCount = Array.isArray(playlist.tracks) ? playlist.tracks.length : 0;
+                          const listens = Number(playlist.listenerCount || playlist.listens || 0);
+                          const first = Array.isArray(playlist.tracks) ? playlist.tracks[0] : null;
+                          const playing = first && String(currentTrack?.id || '') === String(first.id) && isPlaying;
+                          return (
+                            <button
+                              key={idOf(playlist)}
+                              type="button"
+                              className="pl-popular-card"
+                              disabled={!first}
+                              onClick={() => first && handlePlay(first)}
+                              aria-label={`${playing ? 'Pause' : 'Play'} ${playlist.name || 'playlist'}`}
+                            >
+                              <span className="pl-popular-art">
+                                <img src={playlist.coverArt} alt={playlist.name || 'Playlist'} />
+                                <span className="pl-popular-art-play" aria-hidden="true">{playing ? <FaPause /> : <FaPlay />}</span>
+                              </span>
+                              <strong>{playlist.name || 'Untitled Playlist'}</strong>
+                              <span className="pl-popular-meta">
+                                {trackCount} {trackCount === 1 ? 'track' : 'tracks'}
+                                {listens > 0 ? ` • ${compactNumber(listens)} listens` : ''}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </section>
+                </>
+              )}
             </>
           )}
         </div>
@@ -500,8 +531,8 @@ export default function ListenerPlaylist() {
           <div className="pl-card">
             <div className="pl-card-header">
               <strong>Recently played</strong>
-              <button type="button" className="pl-view-all">
-                View all <FaAngleRight />
+              <button type="button" className="pl-view-all" onClick={() => navigate('/listen/history')}>
+                View history <FaAngleRight />
               </button>
             </div>
             {recentlyPlayed.length === 0 ? (
@@ -532,8 +563,8 @@ export default function ListenerPlaylist() {
           <div className="pl-card">
             <div className="pl-card-header">
               <strong>Top playlists</strong>
-              <button type="button" className="pl-view-all">
-                View all <FaAngleRight />
+              <button type="button" className="pl-view-all" onClick={scrollToPopular}>
+                Browse <FaAngleRight />
               </button>
             </div>
             {topPublic.length === 0 ? (
@@ -543,8 +574,16 @@ export default function ListenerPlaylist() {
                 {topPublic.map((playlist, index) => {
                   const trackCount = Array.isArray(playlist.tracks) ? playlist.tracks.length : 0;
                   const listens = Number(playlist.listenerCount || playlist.listens || 0);
+                  const first = Array.isArray(playlist.tracks) ? playlist.tracks[0] : null;
                   return (
-                    <div key={idOf(playlist)} className="pl-top-row">
+                    <button
+                      type="button"
+                      key={idOf(playlist)}
+                      className="pl-top-row"
+                      disabled={!first}
+                      onClick={() => first && handlePlay(first)}
+                      aria-label={`Play ${playlist.name || 'playlist'}`}
+                    >
                       <span className="pl-top-rank">{index + 1}</span>
                       <span className="pl-top-art">
                         <img src={playlist.coverArt} alt={playlist.name || 'Playlist'} />
@@ -556,7 +595,7 @@ export default function ListenerPlaylist() {
                           {listens > 0 ? ` • ${compactNumber(listens)} listens` : ''}
                         </span>
                       </span>
-                    </div>
+                    </button>
                   );
                 })}
               </div>
