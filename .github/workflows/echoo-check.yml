@@ -42,6 +42,19 @@ jobs:
       - run: npm run lint
       - run: npx tsc --noEmit
 
+  whisper:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: echoo-whisper
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile Whisper service modules
+        run: python -m py_compile app.py model_loader.py websocket_server.py whisper_worker.py
+
   backend:
     runs-on: ubuntu-latest
     defaults:
@@ -94,6 +107,8 @@ jobs:
           node --check src/services/audioAccess.js
           node --check src/services/audioStreamAccess.js
           node --check src/services/broadcastAudioReadiness.js
+          node --check src/services/broadcastProcessingService.js
+          node --check src/services/transcriptionGateway.js
           node --check src/services/creatorBroadcastLease.js
           node --check src/middleware/auth.js
           node --check src/middleware/rateLimiter.js
