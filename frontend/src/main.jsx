@@ -6,6 +6,7 @@ import BroadcastRecordingPrompt from "./Components/CreatorStudio/BroadcastRecord
 import settingsService from "./services/settingsService.js";
 import { initializeEchooTheme } from "./theme/themePreference.js";
 import "./accessibility/installPlayerKeyboardAccess.js";
+import "./accessibility/installUiSemanticRepairs.js";
 import "./index.css";
 import "./theme/EchooTheme.css";
 
