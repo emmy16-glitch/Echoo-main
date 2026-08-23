@@ -89,7 +89,11 @@ const completeTranscript = async (broadcast) => {
     }),
   ]);
   if (qualityPending) throw retryable(`Waiting for ${qualityPending} transcript quality chunk job(s)`);
-  if (Number(broadcast.qualityChunkCount) > 0 && !broadcast.qualityChunkingCompletedAt) {
+
+  // Once the browser has successfully opened durable quality chunking, review
+  // must not race ahead merely because the first chunk has not arrived yet.
+  // This also catches a lost final chunk/complete acknowledgement after End Live.
+  if (broadcast.qualityChunkingStartedAt && !broadcast.qualityChunkingCompletedAt) {
     throw retryable('Waiting for the browser to close live quality chunking');
   }
   if (qualityFailed) throw new Error(`${qualityFailed} transcript quality chunk job(s) failed`);
@@ -97,10 +101,10 @@ const completeTranscript = async (broadcast) => {
     throw new Error(`${broadcast.qualityChunkUploadErrors} live quality chunk upload(s) were not recovered`);
   }
 
-  // The Whisper service performs its slower quality pass continuously over
-  // finalized post-master PCM chunks while the broadcast is still live. On end,
-  // flush waits only for any outstanding quality chunks. It runs here in the
-  // background worker, never in the creator's End Live request.
+  // Durable lossless recording chunks are the authoritative quality path when
+  // available. Browsers that could not start that path keep the inline Whisper
+  // quality fallback. In both cases, the remaining live draft tail is flushed
+  // here in the background worker rather than in the creator's End Live request.
   const summary = await flushBroadcastTranscription(broadcast._id);
   if (!summary.finalCount) throw retryable('Waiting for confirmed transcript segments');
 
@@ -145,6 +149,7 @@ const improveTranscript = async (broadcast) => {
   const finalCount = await TranscriptSegment.countDocuments({
     broadcastId: broadcast._id,
     isFinal: true,
+    isHidden: false,
   });
   if (!finalCount) throw retryable('Waiting for verified transcript segments');
 
