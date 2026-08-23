@@ -21,6 +21,15 @@ export default defineConfig({
   },
   projects: [
     {
+      name: 'mobile-360',
+      use: {
+        browserName: 'chromium',
+        viewport: { width: 360, height: 800 },
+        isMobile: true,
+        hasTouch: true,
+      },
+    },
+    {
       name: 'mobile-390',
       use: {
         browserName: 'chromium',
@@ -52,6 +61,13 @@ export default defineConfig({
         browserName: 'chromium',
         viewport: { width: 1024, height: 768 },
         hasTouch: true,
+      },
+    },
+    {
+      name: 'desktop-1280',
+      use: {
+        browserName: 'chromium',
+        viewport: { width: 1280, height: 900 },
       },
     },
     {
