@@ -13,6 +13,7 @@ import audioService from '../../services/audioService';
 import batch6Service from '../../services/batch6Service';
 import '../../styles/listener-reference-pages.css';
 import './ListenerHistory.css';
+import './ListenerHistoryInteractionFix.css';
 
 const TABS = [
   { id: 'all', label: 'All' },
@@ -136,11 +137,12 @@ const ListenerHistoryConnected = () => {
 
   useEffect(() => {
     load();
-    const interval = window.setInterval(() => load({ silent: true }), 20000);
-    window.addEventListener('focus', () => load({ silent: true }));
+    const sync = () => load({ silent: true });
+    const interval = window.setInterval(sync, 20000);
+    window.addEventListener('focus', sync);
     return () => {
       window.clearInterval(interval);
-      window.removeEventListener('focus', load);
+      window.removeEventListener('focus', sync);
     };
   }, [load]);
 
@@ -304,26 +306,34 @@ const ListenerHistoryConnected = () => {
             <div className="lh-list">
               {filtered.map((track) => {
                 const current = isCurrent(track);
+                const removing = busyId === String(track.entryId);
                 return (
-                  <button
+                  <div
                     key={track.entryId}
-                    type="button"
                     className={`lh-row ${current && isPlaying ? 'lh-row-current' : ''}`}
-                    onClick={() => handleRowClick(track)}
                   >
-                    <span className="lh-row-art">
+                    <button
+                      type="button"
+                      className="lh-row-art lh-row-art-button"
+                      onClick={() => handleRowClick(track)}
+                      aria-label={`${current && isPlaying ? 'Pause' : 'Play'} ${track.title || 'history item'}`}
+                    >
                       <img src={track.coverArt} alt="" loading="lazy" />
-                      <span className="lh-row-art-icon">
+                      <span className="lh-row-art-icon" aria-hidden="true">
                         {current && isPlaying ? <FaPause /> : <FaPlay />}
                       </span>
-                    </span>
-                    <span className="lh-row-info">
+                    </button>
+                    <button
+                      type="button"
+                      className="lh-row-info lh-row-info-button"
+                      onClick={() => handleRowClick(track)}
+                    >
                       <span className="lh-row-title">{track.title}</span>
                       <span className="lh-row-sub">
                         {track.artistName || 'Unknown creator'}
                         {track.genre ? ` · ${track.genre}` : ''}
                       </span>
-                    </span>
+                    </button>
                     <span className="lh-row-meta">
                       <span className="lh-row-duration">{formatTime(track.duration)}</span>
                       <span className="lh-row-when">{relativeTime(track.playedAt)}</span>
@@ -334,28 +344,18 @@ const ListenerHistoryConnected = () => {
                           <FaCheck />
                         </span>
                       )}
-                      <span
-                        role="button"
-                        tabIndex={0}
-                        className={`lh-row-more ${busyId === track.entryId ? 'lh-more-busy' : ''}`}
-                        title={
-                          busyId === track.entryId ? 'Removing…' : 'Remove from history'
-                        }
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRemove(track.entryId);
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.stopPropagation();
-                            handleRemove(track.entryId);
-                          }
-                        }}
+                      <button
+                        type="button"
+                        className={`lh-row-more ${removing ? 'lh-more-busy' : ''}`}
+                        title={removing ? 'Removing…' : 'Remove from history'}
+                        aria-label={removing ? `Removing ${track.title || 'history item'}` : `Remove ${track.title || 'history item'} from history`}
+                        disabled={removing}
+                        onClick={() => handleRemove(track.entryId)}
                       >
                         <FaEllipsisV />
-                      </span>
+                      </button>
                     </span>
-                  </button>
+                  </div>
                 );
               })}
             </div>
