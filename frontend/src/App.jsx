@@ -323,11 +323,11 @@ function App() {
         <EchooExperienceOrchestrator />
         <EchooMobileNavigation />
 
-        <a className="echoo-skip-to-content" href="#echoo-main-content">
+        <a className="echoo-skip-to-content" href="#echoo-route-content">
           Skip to content
         </a>
 
-        <div id="echoo-main-content" tabIndex={-1}>
+        <div id="echoo-route-content" tabIndex={-1}>
           <Routes>
             <Route path="/" element={<OnboardingFlow />} />
 
