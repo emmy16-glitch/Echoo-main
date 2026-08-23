@@ -102,6 +102,48 @@ button.pl-top-row:focus-visible,
   min-height: 36px !important;
 }
 
+/* Creator Stations also inherited image-reference microcopy. Status, ranking,
+   detail and form copy are operational and remain at a readable minimum. */
+.est-featured-label,
+.est-featured-art > span,
+.est-status,
+.est-status.compact,
+.est-category-pill,
+.est-featured-stats span,
+.est-featured-actions > button,
+.est-featured-more-wrap > button,
+.est-more-menu button,
+.est-search input,
+.est-sort select,
+.est-row-identity small,
+.est-row-stat span,
+.est-more-button,
+.est-show-more,
+.est-details-identity span,
+.est-details-dates,
+.est-details-about p,
+.est-details-about button,
+.est-brand-preview > span,
+.est-brand-actions button,
+.est-brand-actions small,
+.est-form-actions > button {
+  font-size: 11px !important;
+  line-height: 1.35;
+}
+
+.est-row-identity strong,
+.est-row-stat strong,
+.est-details-about h3,
+.est-recent-activity h3 {
+  font-size: 12px !important;
+}
+
+.est-more-button {
+  width: 40px !important;
+  min-width: 40px;
+  min-height: 40px !important;
+}
+
 /* Creator Audience originally copied reference-image micro typography down to
    6-9px. These values are actual metrics/status text and must stay readable. */
 .eau-header > div:first-child > span,
@@ -204,6 +246,19 @@ button.pl-top-row:focus-visible,
     border-radius: 8px;
     padding: 10px 12px !important;
   }
+
+  /* Tablet station rows use the same concise structure as phone rows rather
+     than squeezing six desktop columns and pushing the overflow action away. */
+  .est-station-row {
+    grid-template-columns: minmax(0, 1fr) auto auto !important;
+    grid-template-areas: "identity status more" !important;
+    min-height: 76px;
+  }
+
+  .est-row-identity { grid-area: identity; }
+  .est-row-stat { display: none !important; }
+  .est-station-row > .est-status { grid-area: status; }
+  .est-station-row > .est-more-wrap { grid-area: more; }
 }
 
 @media (max-width: 560px) {
