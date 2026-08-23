@@ -8,7 +8,7 @@ import {
 } from 'react-icons/fa';
 
 import notificationService from '../../services/notificationService';
-import '../ListenerNotifications/ListenerNotifications.css';
+import './CreatorNotificationsWorkspace.css';
 
 const iconFor = (type) => {
   if (type === 'new_follower') return <FaUserPlus />;
@@ -135,25 +135,31 @@ const CreatorNotificationsWorkspace = ({ onNavigate }) => {
             <article
               key={notification.id}
               className={`ln-item ${notification.read ? '' : 'unread'}`}
-              onClick={() => openNotification(notification)}
             >
-              <div className="ln-icon">{iconFor(notification.type)}</div>
-              <div className="ln-copy">
-                <div>
-                  <strong>{notification.title}</strong>
-                  {!notification.read && <span>NEW</span>}
-                </div>
-                <p>{notification.message}</p>
-                <time>
-                  {notification.createdAt
-                    ? new Date(notification.createdAt).toLocaleString()
-                    : ''}
-                </time>
-              </div>
+              <button
+                type="button"
+                className="ln-open"
+                onClick={() => openNotification(notification)}
+                aria-label={`Open notification: ${notification.title || 'Echoo notification'}`}
+              >
+                <span className="ln-icon" aria-hidden="true">{iconFor(notification.type)}</span>
+                <span className="ln-copy">
+                  <span className="ln-copy-title">
+                    <strong>{notification.title}</strong>
+                    {!notification.read && <span className="ln-new-badge">NEW</span>}
+                  </span>
+                  <span className="ln-copy-message">{notification.message}</span>
+                  <time>
+                    {notification.createdAt
+                      ? new Date(notification.createdAt).toLocaleString()
+                      : ''}
+                  </time>
+                </span>
+              </button>
               <button
                 type="button"
                 className="ln-delete"
-                aria-label="Delete notification"
+                aria-label={`Delete ${notification.title || 'notification'}`}
                 disabled={busyId === notification.id}
                 onClick={(event) => remove(event, notification)}
               >
