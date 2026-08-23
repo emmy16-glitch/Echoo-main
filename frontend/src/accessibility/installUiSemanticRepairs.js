@@ -4,6 +4,18 @@ let generatedDialogId = 0;
 let lastDialogTrigger = null;
 const dialogOpeners = new WeakMap();
 
+const DIALOG_SELECTOR = [
+  '.ecc-modal-backdrop .ecc-modal',
+  '.studio-modal-overlay .studio-upload-modal',
+  '.creator-audio-modal-overlay .creator-audio-modal',
+].join(', ');
+
+const DIALOG_CLOSE_SELECTOR = [
+  '.ecc-modal-close',
+  '.upload-close-button',
+  '.creator-audio-modal-close',
+].join(', ');
+
 const focusableIn = (root) => [...root.querySelectorAll(
   'button:not([disabled]), [href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
 )].filter((node) => {
@@ -12,7 +24,7 @@ const focusableIn = (root) => [...root.querySelectorAll(
   return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
 });
 
-const enhanceCollectionDialog = (modal) => {
+const enhanceDialog = (modal) => {
   if (!modal || modal.dataset.echooDialogEnhanced === 'true') return;
   modal.dataset.echooDialogEnhanced = 'true';
   modal.setAttribute('role', 'dialog');
@@ -76,7 +88,7 @@ const repairKnownUiSemantics = (root = document) => {
     if (label) select.setAttribute('aria-label', label);
   });
 
-  root.querySelectorAll?.('.ecc-modal-backdrop .ecc-modal').forEach(enhanceCollectionDialog);
+  root.querySelectorAll?.(DIALOG_SELECTOR).forEach(enhanceDialog);
 };
 
 if (typeof document !== 'undefined') {
@@ -91,7 +103,7 @@ if (typeof document !== 'undefined') {
     const target = event.target;
     if (
       target?.nodeType === Node.ELEMENT_NODE &&
-      !target.closest?.('.ecc-modal-backdrop') &&
+      !target.closest?.(DIALOG_SELECTOR) &&
       target.matches?.('button, [role="button"], a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])')
     ) {
       lastDialogTrigger = target;
@@ -99,14 +111,20 @@ if (typeof document !== 'undefined') {
   }, true);
 
   document.addEventListener('keydown', (event) => {
-    const dialogs = [...document.querySelectorAll('.ecc-modal-backdrop .ecc-modal[aria-modal="true"]')];
+    const dialogs = [...document.querySelectorAll(`${DIALOG_SELECTOR}[aria-modal="true"]`)]
+      .filter((modal) => {
+        const style = getComputedStyle(modal);
+        const rect = modal.getBoundingClientRect();
+        return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+      });
     const modal = dialogs.at(-1);
     if (!modal) return;
 
     if (event.key === 'Escape') {
-      const closeButton = modal.querySelector('.ecc-modal-close');
+      const closeButton = modal.querySelector(DIALOG_CLOSE_SELECTOR);
       if (closeButton && !closeButton.disabled) {
         event.preventDefault();
+        event.stopPropagation();
         const opener = dialogOpeners.get(modal) || lastDialogTrigger;
         closeButton.click();
         queueMicrotask(() => opener?.isConnected && opener.focus?.());
@@ -137,7 +155,7 @@ if (typeof document !== 'undefined') {
     for (const mutation of mutations) {
       for (const node of mutation.addedNodes) {
         if (node?.nodeType !== Node.ELEMENT_NODE) continue;
-        repairKnownUiSemantics(node.matches?.('.ebsx-setup-main, .ecbs-live-grid > main, button.fl-show-art, .ecbs-tool, .ls-filter-group, .ecc-modal-backdrop, .ecc-modal') ? node.parentElement || node : node);
+        repairKnownUiSemantics(node.matches?.('.ebsx-setup-main, .ecbs-live-grid > main, button.fl-show-art, .ecbs-tool, .ls-filter-group, .ecc-modal-backdrop, .ecc-modal, .studio-modal-overlay, .studio-upload-modal, .creator-audio-modal-overlay, .creator-audio-modal') ? node.parentElement || node : node);
       }
       if (mutation.type === 'attributes' && mutation.target?.nodeType === Node.ELEMENT_NODE) {
         repairKnownUiSemantics(mutation.target.parentElement || mutation.target);
