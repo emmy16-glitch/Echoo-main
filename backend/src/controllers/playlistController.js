@@ -35,7 +35,7 @@ function populatePlaylist(query) {
     .populate('owner', OWNER_FIELDS)
     .populate(
       'tracks.trackId',
-      'title artist duration fileUrl coverArt genre isPublic isDeleted'
+      'title artist duration fileUrl coverArt genre isPublic visibility publicationStatus isDeleted'
     )
     .populate('tracks.addedBy', OWNER_FIELDS);
 }
