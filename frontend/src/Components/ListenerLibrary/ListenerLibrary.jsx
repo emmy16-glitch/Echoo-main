@@ -24,9 +24,6 @@ import './ListenerLibrary.css';
 
 const PAGE_SIZE = 10;
 
-// Reference chips (audio-library.png type row). Filtering maps each chip to
-// backend genres; chips whose mapped genres exist in the real dataset become
-// selectable, the rest remain visible for fidelity but match nothing.
 const LIBRARY_CHIPS = [
   { label: 'All audio', genres: [] },
   { label: 'Episodes', genres: ['News & Politics', 'Business'] },
@@ -45,9 +42,7 @@ const formatDuration = (seconds) => {
   const hours = Math.floor(total / 3600);
   const minutes = Math.floor((total % 3600) / 60);
   const secs = Math.floor(total % 60);
-  if (hours > 0) {
-    return `${hours}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-  }
+  if (hours > 0) return `${hours}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   return `${minutes}:${String(secs).padStart(2, '0')}`;
 };
 
@@ -57,7 +52,6 @@ const formatDate = (value) => {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 };
 
-// Real backend genre → reference-style type pill label.
 const typeLabelFor = (genre) => {
   switch (String(genre || '').trim()) {
     case 'Faith & Spirituality': return 'Message';
@@ -107,31 +101,29 @@ const ListenerLibrary = () => {
 
   const showToast = useCallback((type, title, message) => setToast({ open: true, type, title, message }), []);
 
+  const chipAvailable = useCallback((item) =>
+    item.label === 'All audio' || item.genres.some((genre) => genres.includes(genre)), [genres]);
+
   const chipGenres = useMemo(() => {
     const match = LIBRARY_CHIPS.find((item) => item.label === chip);
     return match ? (match.genres || []).filter((genre) => genres.includes(genre)) : [];
   }, [chip, genres]);
 
-  const genreFilter = useMemo(() => {
-    if (chipGenres.length) return chipGenres[0];
-    return '';
-  }, [chipGenres]);
+  const genreFilter = chipGenres[0] || '';
 
   const load = useCallback(async ({ silent = false } = {}) => {
     try {
       if (!silent) setLoading(true);
       const [audioResult, playlistsResult, downloadsResult, genresResult] = await Promise.allSettled([
         audioService.getAll({
-          public: true,
           page,
           limit: PAGE_SIZE,
           search: listSearch.trim() || undefined,
           genre: genreFilter || undefined,
-          cache: 'no-store',
         }),
         playlistService.getMine(),
         batch6Service.getDownloads({ page: 1, limit: 100 }),
-        audioService.getAll({ public: true, page: 1, limit: 100, cache: 'no-store' }),
+        audioService.getAll({ page: 1, limit: 100 }),
       ]);
 
       if (audioResult.status === 'fulfilled') {
@@ -230,14 +222,16 @@ const ListenerLibrary = () => {
     }
   };
 
-  const downloadIds = useMemo(
-    () => new Set(downloads.map((item) => idOf(item))),
+  const downloadTrackIds = useMemo(
+    () => new Set(
+      downloads
+        .map((item) => String(item?.trackId || item?.track?.id || item?.track?._id || ''))
+        .filter(Boolean)
+    ),
     [downloads]
   );
 
-  const applySearch = () => {
-    setPage(1);
-  };
+  const applySearch = () => setPage(1);
 
   const clearFilters = () => {
     setListSearch('');
@@ -275,10 +269,7 @@ const ListenerLibrary = () => {
       });
   }, [audio, dateFilter, durationFilter, filterReferenceTime, sort]);
 
-  const scrollToMain = () => {
-    const section = document.getElementById('al-main-section');
-    if (section) section.scrollIntoView({ block: 'start' });
-  };
+  const scrollToMain = () => document.getElementById('al-main-section')?.scrollIntoView({ block: 'start' });
 
   const pageNumbers = useMemo(() => {
     const pages = [];
@@ -288,11 +279,11 @@ const ListenerLibrary = () => {
   }, [totalPages]);
 
   if (loading) {
-    return <main className="echoo-reference-page ref-library-page"><div className="ref-state-card"><strong>Loading your Library...</strong></div></main>;
+    return <div className="echoo-reference-page ref-library-page"><div className="ref-state-card"><strong>Loading your Library...</strong></div></div>;
   }
 
   return (
-    <main className="echoo-reference-page ref-library-page al-page">
+    <div className="echoo-reference-page ref-library-page al-page">
       <ListenerToast {...toast} onClose={() => setToast((current) => ({ ...current, open: false }))} />
 
       <header className="al-page-heading">
@@ -304,15 +295,21 @@ const ListenerLibrary = () => {
 
       <div className="al-chips" role="tablist" aria-label="Audio types">
         {LIBRARY_CHIPS.map((item) => {
-          const hasMatchingGenre = item.label === 'All audio' || item.genres.some((genre) => genres.includes(genre));
+          const available = chipAvailable(item);
           return (
             <button
               type="button"
               role="tab"
               key={item.label}
               aria-selected={chip === item.label}
+              aria-disabled={!available}
+              disabled={!available}
+              title={available ? undefined : `${item.label} are not available in the current library yet`}
               className={`al-chip${chip === item.label ? ' al-chip-active' : ''}`}
-              onClick={() => { if (hasMatchingGenre || item.label === 'All audio') { setChip(item.label); setPage(1); } }}
+              onClick={() => {
+                setChip(item.label);
+                setPage(1);
+              }}
             >
               {item.label}
             </button>
@@ -322,27 +319,17 @@ const ListenerLibrary = () => {
 
       <section className="al-hero">
         <div className="al-hero-copy">
-          <h2>
-            Audio that <span>inspires.</span>
-            <br />
-            Anytime, anywhere.
-          </h2>
+          <h2>Audio that <span>inspires.</span><br />Anytime, anywhere.</h2>
           <p>Stream or download your favorite shows and messages.</p>
           <button type="button" className="al-hero-cta" onClick={scrollToMain}>Explore audio</button>
         </div>
         <div className="al-hero-visual" aria-hidden>
           <span className="al-waveform al-waveform-left">
-            {waveSeed.slice(0, 7).map((value, index) => (
-              <i key={`l${index}`} style={{ height: `${value * 34 + 6}px` }} />
-            ))}
+            {waveSeed.slice(0, 7).map((value, index) => <i key={`l${index}`} style={{ height: `${value * 34 + 6}px` }} />)}
           </span>
-          <span className="al-headphones-card">
-            <FaHeadphones />
-          </span>
+          <span className="al-headphones-card"><FaHeadphones /></span>
           <span className="al-waveform al-waveform-right">
-            {waveSeed.slice(7).map((value, index) => (
-              <i key={`r${index}`} style={{ height: `${value * 34 + 6}px` }} />
-            ))}
+            {waveSeed.slice(7).map((value, index) => <i key={`r${index}`} style={{ height: `${value * 34 + 6}px` }} />)}
           </span>
         </div>
       </section>
@@ -350,10 +337,7 @@ const ListenerLibrary = () => {
       <div className="al-layout">
         <div className="al-main">
           <div className="al-section-header">
-            <div className="al-section-title">
-              <h2>All audio</h2>
-              <span className="al-count">{total.toLocaleString()} items</span>
-            </div>
+            <div className="al-section-title"><h2>All audio</h2><span className="al-count">{total.toLocaleString()} items</span></div>
             <div className="al-section-tools">
               <span className="al-list-search">
                 <FaSearch />
@@ -362,12 +346,11 @@ const ListenerLibrary = () => {
                   value={listSearch}
                   placeholder="Search audio..."
                   maxLength={100}
+                  aria-label="Search audio library"
                   onChange={(event) => setListSearch(event.target.value)}
                   onKeyDown={(event) => { if (event.key === 'Enter') applySearch(); }}
                 />
-                {listSearch && (
-                  <button type="button" aria-label="Clear search" onClick={() => { setListSearch(''); setPage(1); }}>×</button>
-                )}
+                {listSearch && <button type="button" aria-label="Clear search" onClick={() => { setListSearch(''); setPage(1); }}>×</button>}
               </span>
               <span className="al-sort-select">
                 <select value={sort} onChange={(event) => setSort(event.target.value)} aria-label="Sort audio">
@@ -390,30 +373,39 @@ const ListenerLibrary = () => {
             {visibleAudio.map((track) => {
               const id = idOf(track);
               const playing = isPlaying && idOf(currentTrack) === id;
-              const downloaded = downloadIds.has(id);
+              const downloaded = downloadTrackIds.has(id);
+              const title = track.title || 'Untitled Audio';
               return (
                 <article className="al-row" key={id}>
-                  <button type="button" className="al-row-play" aria-label={playing ? 'Pause' : 'Play'} onClick={() => playAudio(track)}>
+                  <button type="button" className="al-row-play" aria-label={`${playing ? 'Pause' : 'Play'} ${title}`} onClick={() => playAudio(track)}>
                     {playing ? <FaPause /> : <FaPlay />}
                   </button>
-                  <button type="button" className="al-row-art" onClick={() => navigate(`/listen/audio/${id}`)}>
+                  <button type="button" className="al-row-art" onClick={() => navigate(`/listen/audio/${id}`)} aria-label={`Open ${title}`}>
                     {track.coverArt ? <img src={track.coverArt} alt="" /> : <span>{initials(track.title)}</span>}
                   </button>
-                  <div className="al-row-info" onClick={() => navigate(`/listen/audio/${id}`)}>
-                    <strong>{track.title || 'Untitled Audio'}</strong>
+                  <div
+                    className="al-row-info"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => navigate(`/listen/audio/${id}`)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        navigate(`/listen/audio/${id}`);
+                      }
+                    }}
+                  >
+                    <strong>{title}</strong>
                     <ArtistName track={track} />
                   </div>
                   <span className="al-type-pill">{typeLabelFor(track.genre)}</span>
                   <span className="al-category">{track.genre || 'Audio'}</span>
-                  <div className="al-row-meta">
-                    <strong>{formatDuration(track.duration)}</strong>
-                    <span>{formatDate(track.createdAt)}</span>
-                  </div>
+                  <div className="al-row-meta"><strong>{formatDuration(track.duration)}</strong><span>{formatDate(track.createdAt)}</span></div>
                   <button
                     type="button"
                     className="al-row-more"
                     title={downloaded ? 'Already downloaded' : 'Download'}
-                    aria-label={downloaded ? 'Already downloaded' : `Download ${track.title || 'audio'}`}
+                    aria-label={downloaded ? `${title} is already downloaded` : `Download ${title}`}
                     disabled={busyId === id || downloaded}
                     onClick={() => requestDownload(track)}
                   >
@@ -426,64 +418,26 @@ const ListenerLibrary = () => {
 
           {totalPages > 1 && (
             <nav className="al-pagination" aria-label="Audio pages">
-              <button
-                type="button"
-                className="al-page-btn"
-                disabled={page <= 1}
-                aria-label="Previous page"
-                onClick={() => setPage((current) => Math.max(1, current - 1))}
-              >
-                <FaChevronLeft />
-              </button>
+              <button type="button" className="al-page-btn" disabled={page <= 1} aria-label="Previous page" onClick={() => setPage((current) => Math.max(1, current - 1))}><FaChevronLeft /></button>
               {pageNumbers.map((number) => (
-                <button
-                  type="button"
-                  key={number}
-                  className={`al-page-btn${page === number ? ' al-page-active' : ''}`}
-                  onClick={() => setPage(number)}
-                >
-                  {number}
-                </button>
+                <button type="button" key={number} className={`al-page-btn${page === number ? ' al-page-active' : ''}`} onClick={() => setPage(number)}>{number}</button>
               ))}
               {totalPages > 5 && <span className="al-page-ellipsis">…</span>}
-              {totalPages > 5 && (
-                <button
-                  type="button"
-                  className={`al-page-btn${page === totalPages ? ' al-page-active' : ''}`}
-                  onClick={() => setPage(totalPages)}
-                >
-                  {totalPages}
-                </button>
-              )}
-              <button
-                type="button"
-                className="al-page-btn"
-                disabled={page >= totalPages}
-                aria-label="Next page"
-                onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
-              >
-                <FaChevronRight />
-              </button>
+              {totalPages > 5 && <button type="button" className={`al-page-btn${page === totalPages ? ' al-page-active' : ''}`} onClick={() => setPage(totalPages)}>{totalPages}</button>}
+              <button type="button" className="al-page-btn" disabled={page >= totalPages} aria-label="Next page" onClick={() => setPage((current) => Math.min(totalPages, current + 1))}><FaChevronRight /></button>
             </nav>
           )}
         </div>
 
         <aside className="al-sidebar">
           <section className="al-card al-filters-card">
-            <div className="al-card-header">
-              <strong><FaSlidersH /> Filters</strong>
-              <button type="button" className="al-clear" onClick={clearFilters}>Clear all</button>
-            </div>
+            <div className="al-card-header"><strong><FaSlidersH /> Filters</strong><button type="button" className="al-clear" onClick={clearFilters}>Clear all</button></div>
             <label className="al-field">
               <span>Audio type</span>
               <span className="al-select-wrap">
-                <select
-                  value={chip}
-                  onChange={(event) => { setChip(event.target.value); setPage(1); }}
-                  aria-label="Audio type"
-                >
+                <select value={chip} onChange={(event) => { setChip(event.target.value); setPage(1); }} aria-label="Audio type">
                   {LIBRARY_CHIPS.map((item) => (
-                    <option key={item.label} value={item.label}>{item.label === 'All audio' ? 'All types' : item.label}</option>
+                    <option key={item.label} value={item.label} disabled={!chipAvailable(item)}>{item.label === 'All audio' ? 'All types' : item.label}</option>
                   ))}
                 </select>
                 <FaChevronDown />
@@ -501,9 +455,7 @@ const ListenerLibrary = () => {
                   aria-label="Category"
                 >
                   <option value="">All categories</option>
-                  {genres.map((genre) => (
-                    <option key={genre} value={genre}>{genre}</option>
-                  ))}
+                  {genres.map((genre) => <option key={genre} value={genre}>{genre}</option>)}
                 </select>
                 <FaChevronDown />
               </span>
@@ -512,10 +464,7 @@ const ListenerLibrary = () => {
               <span>Duration</span>
               <span className="al-select-wrap">
                 <select value={durationFilter} onChange={(event) => setDurationFilter(event.target.value)} aria-label="Duration">
-                  <option value="">Any duration</option>
-                  <option value="short">Under 15 minutes</option>
-                  <option value="medium">15–45 minutes</option>
-                  <option value="long">Over 45 minutes</option>
+                  <option value="">Any duration</option><option value="short">Under 15 minutes</option><option value="medium">15–45 minutes</option><option value="long">Over 45 minutes</option>
                 </select>
                 <FaChevronDown />
               </span>
@@ -524,46 +473,32 @@ const ListenerLibrary = () => {
               <span>Date added</span>
               <span className="al-select-wrap">
                 <select value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} aria-label="Date added">
-                  <option value="">Anytime</option>
-                  <option value="today">Today</option>
-                  <option value="week">This week</option>
-                  <option value="month">This month</option>
+                  <option value="">Anytime</option><option value="today">Today</option><option value="week">This week</option><option value="month">This month</option>
                 </select>
                 <FaChevronDown />
               </span>
             </label>
             <div className="al-field al-radios">
               <span>Show only</span>
-              <label className="al-radio">
-                <input type="radio" name="al-show-only" value="downloaded" disabled title="Downloaded audio only" />
-                <span>Downloaded</span>
-              </label>
-              <label className="al-radio">
-                <input type="radio" name="al-show-only" value="not-playlisted" disabled title="Audio not in your playlist" />
-                <span>Not in my playlist</span>
-              </label>
-              <small className="al-radio-note">Live filters update as you browse. Downloaded and playlist filters are read-only in this preview.</small>
+              <label className="al-radio"><input type="radio" name="al-show-only" value="downloaded" disabled title="Downloaded audio only" /><span>Downloaded</span></label>
+              <label className="al-radio"><input type="radio" name="al-show-only" value="not-playlisted" disabled title="Audio not in your playlist" /><span>Not in my playlist</span></label>
+              <small className="al-radio-note">These filters are not available yet.</small>
             </div>
             <button type="button" className="al-apply-btn" onClick={() => { applySearch(); scrollToMain(); }}>Apply filters</button>
           </section>
 
           <section className="al-card al-playlist-card">
             <div className="al-card-header">
-              <strong>My playlist</strong>
-              <button type="button" className="al-clear" onClick={() => navigate('/listen/library/following')}>View all <FaAngleDoubleRight /></button>
+              <strong>My playlists</strong>
+              <button type="button" className="al-clear" onClick={() => navigate('/listen/playlist')}>View all <FaAngleDoubleRight /></button>
             </div>
-            {playlists.length === 0 && (
-              <p className="al-empty-note">No playlists yet. Create one to organize your audio.</p>
-            )}
+            {playlists.length === 0 && <p className="al-empty-note">No playlists yet. Create one to organize your audio.</p>}
             {playlists.slice(0, 3).map((playlist) => {
               const count = Number(playlist.trackCount) || Number(playlist.tracks?.length) || 0;
               return (
                 <article className="al-playlist-row" key={idOf(playlist)}>
                   <span className="al-playlist-art"><FaHeadphones /></span>
-                  <div className="al-playlist-info">
-                    <strong>{playlist.name}</strong>
-                    <span>{count} items</span>
-                  </div>
+                  <div className="al-playlist-info"><strong>{playlist.name}</strong><span>{count} items</span></div>
                 </article>
               );
             })}
@@ -577,7 +512,7 @@ const ListenerLibrary = () => {
           </section>
         </aside>
       </div>
-    </main>
+    </div>
   );
 };
 
