@@ -102,6 +102,37 @@ button.pl-top-row:focus-visible,
   min-height: 36px !important;
 }
 
+/* Creator Audience originally copied reference-image micro typography down to
+   6-9px. These values are actual metrics/status text and must stay readable. */
+.eau-header > div:first-child > span,
+.eau-header-actions select,
+.eau-header-actions button,
+.eau-alert,
+.eau-alert button,
+.eau-metrics small,
+.eau-metrics span,
+.eau-card > header > span,
+.eau-chart-legend,
+.eau-chart-axis,
+.eau-overview-stats span,
+.eau-wide-link,
+.eau-station-list > div > strong,
+.eau-station-list b,
+.eau-station-list small,
+.eau-empty-row,
+.eau-donut small,
+.eau-donut span,
+.eau-engagement-legend > div,
+.eau-activity-list strong,
+.eau-activity-list small,
+.eau-activity-list time,
+.eau-snapshot-columns h3,
+.eau-snapshot-columns small,
+.eau-snapshot-note {
+  font-size: 11px !important;
+  line-height: 1.35;
+}
+
 /* Listener state badges and persistent-player timing are operational labels,
    not decorative micro-copy. */
 .b3-live-pill,
