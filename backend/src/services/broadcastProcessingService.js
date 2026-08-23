@@ -3,6 +3,7 @@ import BroadcastProcessingJob from '../models/BroadcastProcessingJob.js';
 import BroadcastAudioChunk from '../models/BroadcastAudioChunk.js';
 import Notification from '../models/Notification.js';
 import TranscriptSegment from '../models/TranscriptSegment.js';
+import TranscriptSession from '../models/TranscriptSession.js';
 import { flushBroadcastTranscription } from './transcriptionGateway.js';
 import {
   markTranscriptQualityChunkFailed,
@@ -95,9 +96,6 @@ const completeTranscript = async (broadcast) => {
     throw waiting(`Waiting for ${qualityPending} transcript quality chunk job(s)`);
   }
 
-  // Once durable live chunking started, the final browser tail/close marker is
-  // a prerequisite, not a processing failure. Do not exhaust the worker retry
-  // budget simply because the final upload chain is still draining.
   if (broadcast.qualityChunkingStartedAt && !broadcast.qualityChunkingCompletedAt) {
     throw waiting('Waiting for the browser to close live quality chunking');
   }
@@ -106,10 +104,33 @@ const completeTranscript = async (broadcast) => {
     throw new Error(`${broadcast.qualityChunkUploadErrors} live quality chunk upload(s) were not recovered`);
   }
 
-  // A broadcast may legitimately contain no detectable speech. Flushing an
-  // empty transcript is still a successful completion after the quality queue
-  // and final chunk marker have drained.
+  // The gateway intentionally uses allSettled so one provider session cannot
+  // abort cleanup of its siblings. Review readiness must therefore verify the
+  // durable session records after the flush rather than trusting that helper's
+  // summary alone.
   await flushBroadcastTranscription(broadcast._id);
+
+  const [unfinishedSessions, failedSessions] = await Promise.all([
+    TranscriptSession.countDocuments({
+      broadcastId: broadcast._id,
+      state: { $in: ['starting', 'connecting', 'connected', 'reconnecting', 'flushing'] },
+    }),
+    TranscriptSession.countDocuments({
+      broadcastId: broadcast._id,
+      state: { $in: ['failed', 'abandoned'] },
+    }),
+  ]);
+
+  if (unfinishedSessions) {
+    throw waiting(`Waiting for ${unfinishedSessions} transcript session(s) to finish finalization`);
+  }
+
+  // Durable post-master quality chunks are the authoritative recovery path.
+  // Without them, a failed/abandoned live session means audio frames were lost
+  // and the transcript must not be presented as review-complete.
+  if (!broadcast.qualityChunkingStartedAt && failedSessions) {
+    throw new Error(`${failedSessions} live transcript session(s) failed without a durable quality recording path`);
+  }
 
   await Broadcast.updateOne(
     { _id: broadcast._id, 'assetStatus.transcript': { $ne: 'published' } },
@@ -149,8 +170,6 @@ const improveTranscript = async (broadcast) => {
     throw waiting('Waiting for background transcript quality verification');
   }
 
-  // Preserve the earliest generated wording for creator audit/review. Empty
-  // transcripts are also valid, so this update may intentionally touch zero rows.
   await TranscriptSegment.updateMany(
     { broadcastId: broadcast._id, isFinal: true, originalText: '' },
     [{ $set: { originalText: '$text' } }]
@@ -305,8 +324,6 @@ async function processNextJob() {
       job.availableAt = new Date(Date.now() + RETRY_MS);
       job.error = String(error?.message || error).slice(0, 2000);
       if (prerequisiteWait) {
-        // Claiming a job increments attempts atomically. A normal dependency
-        // wait is not an execution failure, so put that attempt back.
         job.attempts = Math.max(0, Number(job.attempts || 0) - 1);
       }
       if (!canRetry) job.completedAt = new Date();
