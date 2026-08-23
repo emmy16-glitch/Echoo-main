@@ -131,6 +131,22 @@ export default defineConfig({
         viewport: { width: 1440, height: 1000 },
       },
     },
+    {
+      name: 'webkit-390',
+      use: {
+        browserName: 'webkit',
+        viewport: { width: 390, height: 844 },
+        isMobile: true,
+        hasTouch: true,
+      },
+    },
+    {
+      name: 'webkit-1440',
+      use: {
+        browserName: 'webkit',
+        viewport: { width: 1440, height: 1000 },
+      },
+    },
   ],
   webServer: [
     {
