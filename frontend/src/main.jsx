@@ -52,6 +52,7 @@ import "./Components/Shared/SharedPrimitives.css";
 import "./design-system/design-system.css";
 import "./styles/echoo-ui-integrity-audit-2026.css";
 import "./styles/echoo-ui-page-integrity-2026.css";
+import "./styles/listener-ui-deep-integrity-2026.css";
 import "./styles/creator-ui-page-integrity-2026.css";
 
 initializeEchooTheme();
