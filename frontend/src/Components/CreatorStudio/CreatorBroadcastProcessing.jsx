@@ -56,7 +56,7 @@ const CreatorBroadcastProcessing = ({ broadcast: initialBroadcast, onStartAnothe
   useEffect(() => {
     if (!transcriptReady || !broadcastId) return;
     transcriptService.getBroadcast(broadcastId, { final: true, limit: 200 })
-      .then((response) => setSegments(response?.data || []))
+      .then((response) => setSegments((response?.data || []).filter((segment) => !segment.isHidden)))
       .catch((loadError) => setError(loadError?.message || 'Could not load the transcript draft.'));
   }, [broadcastId, transcriptReady]);
 
