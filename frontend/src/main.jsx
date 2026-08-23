@@ -5,6 +5,7 @@ import AppErrorBoundary from "./Components/System/AppErrorBoundary.jsx";
 import BroadcastRecordingPrompt from "./Components/CreatorStudio/BroadcastRecordingPrompt.jsx";
 import settingsService from "./services/settingsService.js";
 import { initializeEchooTheme } from "./theme/themePreference.js";
+import "./accessibility/installPlayerKeyboardAccess.js";
 import "./index.css";
 import "./theme/EchooTheme.css";
 
