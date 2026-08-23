@@ -37,11 +37,18 @@ const emitProcessing = async (broadcastId) => {
 export async function enqueueBroadcastProcessing(broadcastId, { transcriptionEnabled = true } = {}) {
   const now = new Date();
   const jobs = transcriptionEnabled ? JOB_TYPES : ['audio_finalization'];
-  await Promise.all(jobs.map((jobType) => BroadcastProcessingJob.updateOne(
-    { broadcastId, jobType },
-    { $setOnInsert: { broadcastId, jobType, status: 'queued', progress: 0, availableAt: now } },
-    { upsert: true }
-  )));
+
+  // Preserve a deterministic dependency order. Jobs can still retry
+  // independently, but transcript_completion is always created before the
+  // quality/review gate and both precede highlights/chapters.
+  for (const jobType of jobs) {
+    await BroadcastProcessingJob.updateOne(
+      { broadcastId, jobType },
+      { $setOnInsert: { broadcastId, jobType, status: 'queued', progress: 0, availableAt: now } },
+      { upsert: true }
+    );
+  }
+
   await Broadcast.updateOne({ _id: broadcastId }, {
     $set: {
       processingStartedAt: now,
@@ -63,13 +70,63 @@ const completeAudio = async (broadcast) => {
 
 const completeTranscript = async (broadcast) => {
   if (broadcast.assetStatus?.transcript === 'published') return;
+
+  // The Whisper service performs its slower quality pass continuously over
+  // finalized post-master PCM chunks while the broadcast is still live. On end,
+  // flush waits only for any outstanding quality chunks. It runs here in the
+  // background worker, never in the creator's End Live request.
   const summary = await flushBroadcastTranscription(broadcast._id);
   if (!summary.finalCount) throw retryable('Waiting for confirmed transcript segments');
-  const result = await Broadcast.updateOne(
+
+  // Do not expose ready_for_review yet. The transcript_improvement job is the
+  // explicit quality/review gate so creator notification cannot race ahead of
+  // second-pass verification.
+  await Broadcast.updateOne(
     { _id: broadcast._id, 'assetStatus.transcript': { $ne: 'published' } },
-    { $set: { 'assetStatus.transcript': 'ready_for_review' } }
+    { $set: { transcriptState: 'completed' } }
   );
+};
+
+const improveTranscript = async (broadcast) => {
+  if (broadcast.assetStatus?.transcript === 'published') return;
+
+  const completionJob = await BroadcastProcessingJob.findOne({
+    broadcastId: broadcast._id,
+    jobType: 'transcript_completion',
+  }).select('status');
+
+  if (completionJob?.status !== 'completed') {
+    throw retryable('Waiting for background transcript quality verification');
+  }
+
+  const finalCount = await TranscriptSegment.countDocuments({
+    broadcastId: broadcast._id,
+    isFinal: true,
+  });
+  if (!finalCount) throw retryable('Waiting for verified transcript segments');
+
+  // Preserve the earliest generated wording for creator audit/review. The
+  // quality pass updates the same provider segment before this gate completes.
+  await TranscriptSegment.updateMany(
+    { broadcastId: broadcast._id, isFinal: true, originalText: '' },
+    [{ $set: { originalText: '$text' } }]
+  );
+
+  const result = await Broadcast.updateOne(
+    { _id: broadcast._id, 'assetStatus.transcript': 'processing' },
+    {
+      $set: {
+        'assetStatus.transcript': 'ready_for_review',
+        transcriptState: 'completed',
+      },
+    }
+  );
+
+  // Atomic state transition makes this notification idempotent across worker
+  // restarts/retries. If another run already moved the transcript forward,
+  // there is nothing left to notify.
   if (!result.modifiedCount) return;
+
   await Notification.create({
     userId: broadcast.creator,
     type: 'transcript_ready',
@@ -78,16 +135,6 @@ const completeTranscript = async (broadcast) => {
     link: `/creator/broadcasts/${broadcast._id}/processing`,
     metadata: { broadcastId: String(broadcast._id), asset: 'transcript' },
   });
-};
-
-const improveTranscript = async (broadcast) => {
-  if (!['ready_for_review', 'editing', 'published'].includes(broadcast.assetStatus.transcript)) {
-    throw retryable('Waiting for transcript completion');
-  }
-  await TranscriptSegment.updateMany(
-    { broadcastId: broadcast._id, isFinal: true, originalText: '' },
-    [{ $set: { originalText: '$text' } }]
-  );
 };
 
 const detectHighlights = async (broadcast) => {
