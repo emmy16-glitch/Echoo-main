@@ -127,11 +127,11 @@ const CreatorNotificationsWorkspace = ({ onNavigate }) => {
   };
 
   return (
-    <main className="ln-page">
+    <section className="ln-page" aria-labelledby="creator-notifications-title">
       <header className="ln-header">
         <div>
           <span>CREATOR NOTIFICATIONS</span>
-          <h1>What needs your attention.</h1>
+          <h1 id="creator-notifications-title">What needs your attention.</h1>
           <p>Real Echoo activity for your creator account and broadcasts.</p>
         </div>
         <button
@@ -155,12 +155,9 @@ const CreatorNotificationsWorkspace = ({ onNavigate }) => {
           <p>New creator activity will appear here.</p>
         </div>
       ) : (
-        <section className="ln-list">
+        <div className="ln-list">
           {notifications.map((notification) => (
-            <article
-              key={notification.id}
-              className={`ln-item ${notification.read ? '' : 'unread'}`}
-            >
+            <article key={notification.id} className={`ln-item ${notification.read ? '' : 'unread'}`}>
               <button
                 type="button"
                 className="ln-open"
@@ -174,11 +171,7 @@ const CreatorNotificationsWorkspace = ({ onNavigate }) => {
                     {!notification.read && <span className="ln-new-badge">NEW</span>}
                   </span>
                   <span className="ln-copy-message">{notification.message}</span>
-                  <time>
-                    {notification.createdAt
-                      ? new Date(notification.createdAt).toLocaleString()
-                      : ''}
-                  </time>
+                  <time>{notification.createdAt ? new Date(notification.createdAt).toLocaleString() : ''}</time>
                 </span>
               </button>
               <button
@@ -192,9 +185,9 @@ const CreatorNotificationsWorkspace = ({ onNavigate }) => {
               </button>
             </article>
           ))}
-        </section>
+        </div>
       )}
-    </main>
+    </section>
   );
 };
 
