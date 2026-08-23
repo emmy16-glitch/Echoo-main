@@ -8,14 +8,23 @@ import {
 } from 'react-icons/fa';
 
 import notificationService from '../../services/notificationService';
-import '../ListenerNotifications/ListenerNotifications.css';
+import './CreatorNotificationsWorkspace.css';
 
 const iconFor = (type) => {
   if (type === 'new_follower') return <FaUserPlus />;
-  if (type === 'broadcast_live' || type === 'broadcast_ended') {
+  if (type === 'broadcast_live' || type === 'broadcast_ended' || type === 'transcript_ready') {
     return <FaBroadcastTower />;
   }
   return <FaBell />;
+};
+
+const broadcastIdFromNotification = (notification) => {
+  const metadataId = notification?.metadata?.broadcastId;
+  if (metadataId) return String(metadataId);
+
+  const link = String(notification?.link || '');
+  const match = link.match(/^\/creator\/broadcasts\/([^/]+)(?:\/processing)?\/?$/i);
+  return match?.[1] ? decodeURIComponent(match[1]) : '';
 };
 
 const CreatorNotificationsWorkspace = ({ onNavigate }) => {
@@ -61,10 +70,26 @@ const CreatorNotificationsWorkspace = ({ onNavigate }) => {
     }
 
     const link = String(notification.link || '');
+    const broadcastId = broadcastIdFromNotification(notification);
+
+    if (notification.type === 'transcript_ready' || /\/creator\/broadcasts\/[^/]+\/processing\/?$/i.test(link)) {
+      if (broadcastId) {
+        sessionStorage.setItem('echooPreparedBroadcastId', broadcastId);
+        sessionStorage.setItem('echooProcessingBroadcastId', broadcastId);
+      }
+      onNavigate?.('Broadcast');
+      return;
+    }
+
+    if (notification.type === 'broadcast_live') {
+      if (broadcastId) sessionStorage.setItem('echooPreparedBroadcastId', broadcastId);
+      sessionStorage.setItem('echooBroadcastMode', 'now');
+      onNavigate?.('Live');
+      return;
+    }
+
     if (link.startsWith('/creator-studio')) {
       onNavigate?.('Home');
-    } else if (notification.type === 'broadcast_live') {
-      onNavigate?.('Live');
     }
   };
 
@@ -135,25 +160,31 @@ const CreatorNotificationsWorkspace = ({ onNavigate }) => {
             <article
               key={notification.id}
               className={`ln-item ${notification.read ? '' : 'unread'}`}
-              onClick={() => openNotification(notification)}
             >
-              <div className="ln-icon">{iconFor(notification.type)}</div>
-              <div className="ln-copy">
-                <div>
-                  <strong>{notification.title}</strong>
-                  {!notification.read && <span>NEW</span>}
-                </div>
-                <p>{notification.message}</p>
-                <time>
-                  {notification.createdAt
-                    ? new Date(notification.createdAt).toLocaleString()
-                    : ''}
-                </time>
-              </div>
+              <button
+                type="button"
+                className="ln-open"
+                onClick={() => openNotification(notification)}
+                aria-label={`Open notification: ${notification.title || 'Echoo notification'}`}
+              >
+                <span className="ln-icon" aria-hidden="true">{iconFor(notification.type)}</span>
+                <span className="ln-copy">
+                  <span className="ln-copy-title">
+                    <strong>{notification.title}</strong>
+                    {!notification.read && <span className="ln-new-badge">NEW</span>}
+                  </span>
+                  <span className="ln-copy-message">{notification.message}</span>
+                  <time>
+                    {notification.createdAt
+                      ? new Date(notification.createdAt).toLocaleString()
+                      : ''}
+                  </time>
+                </span>
+              </button>
               <button
                 type="button"
                 className="ln-delete"
-                aria-label="Delete notification"
+                aria-label={`Delete ${notification.title || 'notification'}`}
                 disabled={busyId === notification.id}
                 onClick={(event) => remove(event, notification)}
               >

@@ -11,8 +11,11 @@ const navigationContent = (item) => (
 
 const SharedNavItem = ({ item, activeKey, onNavigate }) => {
   const destination = item.to || item.path;
-  const active = Boolean(item.active) || item.key === activeKey || item.name === activeKey || destination === activeKey;
-  const className = `studio-nav-item${active ? ' active' : ''}`;
+  const explicitActive =
+    Boolean(item.active) ||
+    item.key === activeKey ||
+    item.name === activeKey ||
+    destination === activeKey;
   const label = item.label || item.name;
 
   if (destination) {
@@ -20,7 +23,9 @@ const SharedNavItem = ({ item, activeKey, onNavigate }) => {
       <NavLink
         to={destination}
         end={item.end}
-        className={className}
+        className={({ isActive }) =>
+          `studio-nav-item${isActive || explicitActive ? ' active' : ''}`
+        }
         aria-label={label}
         title={label}
         onClick={item.onClick}
@@ -33,7 +38,7 @@ const SharedNavItem = ({ item, activeKey, onNavigate }) => {
   return (
     <button
       type="button"
-      className={className}
+      className={`studio-nav-item${explicitActive ? ' active' : ''}`}
       aria-label={label}
       title={label}
       onClick={() => onNavigate?.(item.key || item.name)}
