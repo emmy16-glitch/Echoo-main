@@ -1,0 +1,292 @@
+/*
+ * Active Listener page integrity layer.
+ * Keeps meaningful actions/metadata reachable on touch layouts while allowing
+ * decorative/duplicated controls to disappear. Loaded after shell integrity.
+ */
+
+/* Search / Batch 1: remove tiny helper type and keep Save usable on phones. */
+#root .echoo-app-shell--listener :is(
+  .batch1-kicker,
+  .batch1-search-heading > span,
+  .batch1-creator-copy small,
+  .batch1-creator-copy em,
+  .batch1-open-profile,
+  .batch1-playlist-result small,
+  .batch1-playlist-result p,
+  .batch1-search-guidance span,
+  .batch1-settings-notice,
+  .batch1-field > span,
+  .batch1-toggle-row > span,
+  .batch1-settings-savebar > span
+) {
+  font-size: 11.5px !important;
+  line-height: 1.4 !important;
+}
+
+#root .echoo-app-shell--listener .batch1-search-heading p {
+  font-size: 12.5px !important;
+  line-height: 1.45 !important;
+}
+
+#root .echoo-app-shell--listener :is(.batch1-field input, .batch1-field textarea, .batch1-field select) {
+  font-size: 13px !important;
+}
+
+#root .echoo-app-shell--listener :is(.batch1-save-track, .batch1-settings-savebar > button) {
+  min-height: 40px !important;
+  font-size: 11.5px !important;
+}
+
+/* Library: row metadata and filters are functionality, not decoration. */
+#root .echoo-app-shell--listener .al-row-more {
+  width: 40px !important;
+  height: 40px !important;
+}
+
+#root .echoo-app-shell--listener :is(.al-type-pill, .al-category, .al-row-meta) {
+  font-size: 12px !important;
+}
+
+/* Downloads / History three-dot controls execute removal, so keep them large and visible. */
+#root .echoo-app-shell--listener :is(.ld-row-more, .lh-row-more) {
+  width: 40px !important;
+  height: 40px !important;
+  min-width: 40px !important;
+  min-height: 40px !important;
+}
+
+/* Stations: the ellipsis only duplicated the already-visible Open station action.
+   Remove that misleading affordance rather than pretending there is an overflow menu. */
+#root .echoo-app-shell--listener .ls-more-btn {
+  display: none !important;
+}
+
+#root .echoo-app-shell--listener :is(.ls-live-chip, .ls-k-chip) {
+  font-size: 10.5px !important;
+}
+
+#root .echoo-app-shell--listener .ls-search-clear {
+  width: 34px !important;
+  height: 34px !important;
+}
+
+/* Saved Moments: snippets are content, so allow two readable lines. */
+#root .echoo-app-shell--listener .lsm-copy p {
+  display: -webkit-box !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: normal !important;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  line-height: 1.45 !important;
+}
+
+/* Hover-only media actions must remain discoverable on touch hardware. */
+@media (hover: none), (pointer: coarse) {
+  #root .echoo-app-shell--listener :is(.pl-continue-art-play, .lh-row-art-icon, .ld-row-art-icon) {
+    opacity: 1 !important;
+  }
+}
+
+@media (max-width: 960px) {
+  /* Preserve file/listening metadata instead of dropping it at tablet width. */
+  #root .echoo-app-shell--listener :is(.ld-row, .lh-row) {
+    grid-template-columns: 48px minmax(0, 1fr) auto !important;
+    row-gap: 7px !important;
+  }
+
+  #root .echoo-app-shell--listener :is(.ld-row-meta, .lh-row-meta) {
+    grid-column: 2;
+    display: flex !important;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 6px 12px !important;
+  }
+
+  #root .echoo-app-shell--listener :is(.ld-row-actions, .lh-row-actions) {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+  }
+}
+
+@media (max-width: 900px) {
+  /* The Library sidebar owns Duration/Date filters. Move it below the list rather
+     than making those filters impossible to reach on tablets/phones. */
+  #root .echoo-app-shell--listener .al-layout {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 18px !important;
+  }
+
+  #root .echoo-app-shell--listener .al-sidebar {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+  }
+}
+
+@media (max-width: 700px) {
+  /* Search result actions get a second row instead of disappearing. */
+  #root .echoo-app-shell--listener .batch1-track-result {
+    display: grid !important;
+    grid-template-columns: 44px minmax(0, 1fr) auto !important;
+    grid-template-rows: auto auto !important;
+    gap: 8px 10px !important;
+  }
+
+  #root .echoo-app-shell--listener .batch1-track-result .search-result-cover {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+  }
+
+  #root .echoo-app-shell--listener .batch1-track-result .search-result-main {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  #root .echoo-app-shell--listener .batch1-track-result .search-result-play {
+    grid-column: 3;
+    grid-row: 1;
+    min-width: 40px !important;
+    width: 40px !important;
+    min-height: 40px !important;
+    height: 40px !important;
+  }
+
+  #root .echoo-app-shell--listener .batch1-track-result .search-result-genre {
+    grid-column: 2;
+    grid-row: 2;
+    display: inline-flex !important;
+    width: fit-content;
+    align-items: center;
+    white-space: normal !important;
+  }
+
+  #root .echoo-app-shell--listener .batch1-track-result .batch1-save-track {
+    grid-column: 3;
+    grid-row: 2;
+    display: inline-flex !important;
+    min-width: 64px !important;
+    min-height: 36px !important;
+    padding-inline: 8px !important;
+  }
+
+  /* Library rows wrap metadata below title instead of deleting it. */
+  #root .echoo-app-shell--listener .al-row {
+    display: grid !important;
+    grid-template-columns: 40px 48px minmax(0, 1fr) 40px !important;
+    gap: 8px 10px !important;
+    align-items: center !important;
+  }
+
+  #root .echoo-app-shell--listener .al-row-play { grid-column: 1; grid-row: 1 / span 2; }
+  #root .echoo-app-shell--listener .al-row-art { grid-column: 2; grid-row: 1 / span 2; width: 48px !important; height: 48px !important; }
+  #root .echoo-app-shell--listener .al-row-info { grid-column: 3; grid-row: 1; }
+  #root .echoo-app-shell--listener .al-row-more { grid-column: 4; grid-row: 1 / span 2; }
+
+  #root .echoo-app-shell--listener .al-type-pill {
+    grid-column: 3;
+    grid-row: 2;
+    display: inline-flex !important;
+    width: fit-content;
+    white-space: normal !important;
+  }
+
+  #root .echoo-app-shell--listener .al-category {
+    grid-column: 3;
+    grid-row: 3;
+    display: block !important;
+    white-space: normal !important;
+  }
+
+  #root .echoo-app-shell--listener .al-row-meta {
+    grid-column: 3;
+    grid-row: 4;
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: wrap;
+    gap: 5px 12px !important;
+    text-align: left !important;
+  }
+
+  /* Station stats remain readable below the station identity instead of vanishing. */
+  #root .echoo-app-shell--listener .ls-list.list .ls-row {
+    grid-template-columns: 52px minmax(0, 1fr) auto !important;
+    row-gap: 10px !important;
+  }
+
+  #root .echoo-app-shell--listener .ls-list.list .ls-row-art {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+  }
+
+  #root .echoo-app-shell--listener .ls-list.list .ls-row-info {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  #root .echoo-app-shell--listener .ls-list.list .ls-row-actions {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  #root .echoo-app-shell--listener .ls-list.list .ls-row-stats {
+    grid-column: 2 / 4;
+    grid-row: 2;
+    display: flex !important;
+    justify-content: flex-start !important;
+    gap: 18px !important;
+  }
+
+  #root .echoo-app-shell--listener .ls-list.list .ls-row-description {
+    grid-column: 2 / 4;
+    display: -webkit-box !important;
+    white-space: normal !important;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+  }
+
+  #root .echoo-app-shell--listener :is(.ld-row-title, .lh-row-title) {
+    display: -webkit-box !important;
+    white-space: normal !important;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+  }
+
+  #root .echoo-app-shell--listener :is(.ld-row-sub, .lh-row-sub) {
+    white-space: normal !important;
+  }
+
+  #root .echoo-app-shell--listener .lsm-list article {
+    grid-template-columns: 64px minmax(0, 1fr) 40px !important;
+    gap: 10px !important;
+  }
+}
+
+@media (max-width: 420px) {
+  #root .echoo-app-shell--listener .batch1-track-result {
+    grid-template-columns: 40px minmax(0, 1fr) auto !important;
+  }
+
+  #root .echoo-app-shell--listener .batch1-track-result .batch1-save-track {
+    min-width: 58px !important;
+    font-size: 11px !important;
+  }
+
+  #root .echoo-app-shell--listener .ls-list.list .ls-row {
+    grid-template-columns: 48px minmax(0, 1fr) !important;
+  }
+
+  #root .echoo-app-shell--listener .ls-list.list .ls-row-actions {
+    grid-column: 2;
+    grid-row: 3;
+    justify-content: flex-start !important;
+  }
+
+  #root .echoo-app-shell--listener .ls-list.list .ls-row-stats {
+    grid-column: 2;
+  }
+}
