@@ -44,14 +44,14 @@ const ListenerSavedMoments = () => {
   };
 
   return (
-    <main className="lsm-page">
+    <div className="lsm-page">
       <header><span>YOUR LIBRARY</span><h1>Saved Moments</h1><p>Return to the words and audio worth keeping.</p></header>
       {error && <div className="lsm-error" role="alert">{error}</div>}
       {loading ? <div className="lsm-state">Loading saved moments...</div> : moments.length ? (
         <section className="lsm-list" aria-label="Saved moments">
           {moments.map((moment) => (
             <article key={moment.id}>
-              <button type="button" className="lsm-cover" onClick={() => open(moment)}>{moment.coverArt ? <img src={moment.coverArt} alt="" /> : <FiBookmark />}</button>
+              <button type="button" className="lsm-cover" onClick={() => open(moment)} aria-label={`Open ${moment.title || 'saved moment'}`}>{moment.coverArt ? <img src={moment.coverArt} alt="" /> : <FiBookmark />}</button>
               <div className="lsm-copy"><span>{moment.status === 'live' ? 'LIVE' : 'REPLAY'} · {moment.category}</span><h2>{moment.title}</h2><p>&ldquo;{moment.transcriptSnippet || 'Saved audio moment'}&rdquo;</p><small>{moment.creatorName} · {moment.stationName}</small></div>
               <time><FiClock /> {formatTime(moment.timestampMs)}</time>
               <button type="button" className="lsm-play" onClick={() => open(moment)} aria-label={`Play ${moment.title} from ${formatTime(moment.timestampMs)}`}><FiPlay /></button>
@@ -60,7 +60,7 @@ const ListenerSavedMoments = () => {
           ))}
         </section>
       ) : <div className="lsm-state"><FiBookmark /><h2>No saved moments yet</h2><p>Save a transcript line or replay timestamp and it will appear here.</p><button type="button" onClick={() => navigate('/listen/live')}>Explore live shows</button></div>}
-    </main>
+    </div>
   );
 };
 
