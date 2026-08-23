@@ -1,19 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import {
-  FaBell,
-  FaComments,
   FaExpand,
   FaHeart,
-  FaPaperPlane,
   FaTv,
-  FaShieldAlt,
-  FaShare,
-  FaSmile,
-  FaTimes,
-  FaUsers,
-  FaCalendar,
-  FaEllipsisH,
   FaHeadphones,
   FaPause,
   FaPlay,
@@ -93,13 +83,7 @@ const ListenerRealLiveRoom = () => {
   const [realtimeState, setRealtimeState] = useState(previewMode ? 'connecting' : 'connecting');
   const [audioState, setAudioState] = useState(previewMode ? 'connecting' : 'connecting');
   const statusRef = useRef(show?.status || '');
-  
   const [liveState, setLiveState] = useState(null);
-  const handleLiveStateChange = useCallback((state) => {
-    setLiveState(state);
-    if (state?.status) setAudioState(state.status);
-    setLivePlayerState(state);
-  }, [setLivePlayerState]);
 
   const ended = show
     ? !['live', 'scheduled'].includes(String(show.status || '').toLowerCase())
@@ -111,6 +95,7 @@ const ListenerRealLiveRoom = () => {
 
   const isLive = show?.status === 'live';
   const handleLivePlayerState = useCallback((state) => {
+    setLiveState(state);
     if (state?.status) setAudioState(state.status);
     setLivePlayerState(state);
   }, [setLivePlayerState]);

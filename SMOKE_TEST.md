@@ -228,3 +228,18 @@ Repository CI cannot prove physical audio/network capacity. Before claiming a li
 - LiveKit subscriber load test at the intended concurrency
 
 Record the exact deployment, browser/device matrix and test result instead of inferring capacity from `maxParticipants` or CI alone.
+
+## 17. Continuous transcript quality pipeline
+
+1. Start a broadcast with a creator account and verify the browser records the post-master mix.
+2. Confirm the backend receives authenticated `POST /api/broadcasts/:broadcastId/recording-chunks/start` before the first live chunk.
+3. Speak continuously for at least 30 seconds and verify 10-second WAV chunks are uploaded while the broadcast remains live.
+4. Confirm each chunk creates one `BroadcastAudioChunk` and one `BroadcastProcessingJob` with `jobType=transcript_quality_chunk`.
+5. Confirm the quality worker starts before the broadcast ends and uses the Whisper quality pass.
+6. End the broadcast and verify the browser calls the chunk completion endpoint after its final chunk.
+7. Confirm only queued or incomplete chunks are processed after the end event; already completed quality jobs are not duplicated.
+8. Confirm the transcript remains private during live audio and becomes `ready_for_review` only after quality jobs, live Whisper flush, and final reconciliation complete.
+9. Confirm a creator notification is generated, creator edits preserve `originalText`, `editedText`, `qualityHistory`, and revision metadata, and publishing still uses the existing replay/transcript flow.
+10. Confirm listeners see no live transcript events and can search the final transcript only on the published replay.
+
+Expected failure behavior: provider downtime, backend restart, worker crash, or network interruption retries queued chunks without duplicating completed chunks. An unrecovered browser chunk upload prevents the transcript from being marked reviewable and is surfaced as processing failure rather than silently publishing an incomplete quality pass.

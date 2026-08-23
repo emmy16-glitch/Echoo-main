@@ -182,3 +182,11 @@ LiveKit Egress and OvenMediaEngine code may remain for later recording/export/la
 Production routes and connected product screens must not substitute fake broadcasts, listeners, followers, creators, recommendations, bundled sample audio or synthetic analytics when the backend is empty or unavailable.
 
 Use honest empty states instead.
+
+## Continuous transcript quality pipeline
+
+Fast Whisper Flow transcription remains the live draft path from the post-master program. The browser recording branch also emits short PCM/WAV chunks while the broadcast is live. Each completed chunk is persisted as a `BroadcastAudioChunk` and queued through the existing `BroadcastProcessingJob` worker using `transcript_quality_chunk`.
+
+The quality worker runs the existing Whisper Flow protocol in quality mode, reconciles verified segments into the canonical `TranscriptSegment` model, preserves `originalText`, `editedText`, `qualityHistory`, revision numbers, confidence and processing provenance, and never overwrites creator-edited text. Broadcast finalization waits for queued quality chunks before marking the transcript `ready_for_review`; ending a show therefore flushes only the remaining live work rather than starting the quality pass from zero.
+
+The current product decision is deliberately private processing: no live transcript text is rendered to creators or listeners. The creator reviews and publishes the final transcript on the processing screen, and listeners see/search it only on the published replay.

@@ -190,6 +190,7 @@ export async function moderateTranscriptSegment(req, res, next) {
       const speaker = String(req.body?.speaker || segment.speaker || 'Speaker').trim();
       if (!text || text.length > 8000) throw transcriptError(400, 'VALIDATION_ERROR', 'Corrected transcript text is required');
       update.text = text;
+      update.editedText = text;
       update.speaker = speaker.slice(0, 120) || 'Speaker';
       update.correctedAt = new Date();
       update.correctedBy = req.userId;
@@ -211,7 +212,7 @@ export async function moderateTranscriptSegment(req, res, next) {
 
     const updated = await TranscriptSegment.findByIdAndUpdate(
       segment._id,
-      { $set: update, $inc: { revision: 1 } },
+      { $set: update, $inc: { revision: 1, revisionNumber: 1 } },
       { returnDocument: 'after', runValidators: true }
     );
     const payload = updated.toJSON();
