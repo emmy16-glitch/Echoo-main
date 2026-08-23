@@ -8,6 +8,7 @@ import {
 } from '../services/broadcastProcessingService.js';
 
 const VISIBILITIES = new Set(['public', 'followers', 'private']);
+const VISIBILITY_RANK = { private: 0, followers: 1, public: 2 };
 
 const errorWith = (status, code, message) => Object.assign(new Error(message), { status, code });
 
@@ -16,6 +17,16 @@ const ownedBroadcast = async (broadcastId, userId) => {
   const broadcast = await Broadcast.findOne({ _id: broadcastId, creator: userId, isDeleted: false });
   if (!broadcast) throw errorWith(404, 'NOT_FOUND', 'Broadcast not found');
   return broadcast;
+};
+
+const assertTranscriptWithinReplayVisibility = (audioVisibility, transcriptVisibility) => {
+  if (VISIBILITY_RANK[transcriptVisibility] > VISIBILITY_RANK[audioVisibility]) {
+    throw errorWith(
+      400,
+      'TRANSCRIPT_VISIBILITY_TOO_BROAD',
+      'Transcript visibility cannot be broader than replay visibility'
+    );
+  }
 };
 
 export async function getProcessingStatus(req, res, next) {
@@ -34,11 +45,10 @@ export async function updateAssetVisibility(req, res, next) {
     if (!VISIBILITIES.has(audio) || !VISIBILITIES.has(transcript)) {
       throw errorWith(400, 'INVALID_VISIBILITY', 'Visibility must be public, followers, or private');
     }
+    assertTranscriptWithinReplayVisibility(audio, transcript);
+
     broadcast.assetVisibility = { audio, transcript };
     broadcast.visibility = audio;
-    // Processing controls run after the live session. Keep completed-broadcast
-    // discovery synchronized with the replay visibility instead of leaving a
-    // private replay discoverable because the live event used to be public.
     if (broadcast.status === 'completed') {
       broadcast.isPublic = audio === 'public';
     }
@@ -80,6 +90,16 @@ export async function publishReplay(req, res, next) {
     }
     const visibility = String(req.body?.visibility || broadcast.assetVisibility?.audio || 'public');
     if (!VISIBILITIES.has(visibility)) throw errorWith(400, 'INVALID_VISIBILITY', 'Invalid replay visibility');
+
+    // If a transcript is already published, narrowing replay access must not
+    // leave the transcript broader than the audio it belongs to.
+    if (broadcast.assetStatus?.transcript === 'published') {
+      assertTranscriptWithinReplayVisibility(
+        visibility,
+        broadcast.assetVisibility?.transcript || 'private'
+      );
+    }
+
     const audio = await Audio.findOneAndUpdate(
       { _id: broadcast.replayAudio, artist: req.userId, isDeleted: false },
       { $set: { visibility, publicationStatus: 'published', publishedAt: new Date(), isPublic: visibility === 'public' } },
@@ -121,13 +141,15 @@ export async function publishTranscript(req, res, next) {
       _id: broadcast.replayAudio,
       artist: req.userId,
       isDeleted: false,
-    }).select('_id publicationStatus');
+    }).select('_id publicationStatus visibility');
     if (!replay || replay.publicationStatus !== 'published') {
       throw errorWith(409, 'REPLAY_NOT_PUBLISHED', 'Publish the replay recording before publishing its transcript');
     }
 
     const visibility = String(req.body?.visibility || broadcast.assetVisibility?.transcript || 'public');
     if (!VISIBILITIES.has(visibility)) throw errorWith(400, 'INVALID_VISIBILITY', 'Invalid transcript visibility');
+    assertTranscriptWithinReplayVisibility(replay.visibility || 'private', visibility);
+
     const now = new Date();
     await TranscriptSegment.updateMany(
       { broadcastId: broadcast._id, isFinal: true, isHidden: false },
