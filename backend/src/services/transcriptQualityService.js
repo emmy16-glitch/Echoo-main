@@ -20,6 +20,12 @@ const providerModel = () => String(
 ).trim() || 'faster-whisper-large-v3-turbo';
 const providerLanguage = () => String(process.env.WHISPER_LANGUAGE || 'en').trim() || 'en';
 
+const asRetryable = (error, fallback = 'Whisper quality provider is unavailable') => {
+  const next = error instanceof Error ? error : new Error(String(error || fallback));
+  next.retryable = true;
+  return next;
+};
+
 const parseWav = (buffer) => {
   if (!Buffer.isBuffer(buffer) || buffer.length < 44 || buffer.toString('ascii', 0, 4) !== 'RIFF' || buffer.toString('ascii', 8, 12) !== 'WAVE') {
     throw new Error('Quality chunk is not a valid RIFF/WAVE file');
@@ -62,6 +68,7 @@ const wavToPcm16Mono16k = (buffer) => {
   const wav = parseWav(buffer);
   const bytesPerSample = wav.bitsPerSample / 8;
   const sourceFrames = Math.floor(wav.data.length / (bytesPerSample * wav.channels));
+  if (!sourceFrames) throw new Error('Quality chunk contains no PCM samples');
   const targetFrames = Math.max(1, Math.round(sourceFrames * SAMPLE_RATE / wav.sampleRate));
   const mono = new Float32Array(sourceFrames);
   for (let frame = 0; frame < sourceFrames; frame += 1) {
@@ -102,7 +109,7 @@ const parseSegment = (value) => {
 const transcribeChunk = async ({ chunk, pcm }) => {
   const url = providerUrl();
   const apiKey = providerApiKey();
-  if (!url || !apiKey) throw Object.assign(new Error('Whisper quality provider is not configured'), { retryable: true });
+  if (!url || !apiKey) throw asRetryable(new Error('Whisper quality provider is not configured'));
 
   const sessionId = `quality-${String(chunk._id)}`;
   const segments = [];
@@ -110,76 +117,113 @@ const transcribeChunk = async ({ chunk, pcm }) => {
   let ready = false;
   let flushed = false;
   let resolveFlush;
-  let rejectProvider;
-  const flushPromise = new Promise((resolve, reject) => { resolveFlush = resolve; rejectProvider = reject; });
+  let rejectFlush;
+  const flushPromise = new Promise((resolve, reject) => {
+    resolveFlush = resolve;
+    rejectFlush = reject;
+  });
   const close = () => {
     try { provider?.close(1000, 'quality-chunk-complete'); } catch { /* already closed */ }
   };
 
-  await new Promise((resolve, reject) => {
-    const options = { handshakeTimeout: READY_TIMEOUT_MS, maxPayload: 1024 * 1024 };
-    if (apiKey) options.headers = { Authorization: `Bearer ${apiKey}` };
-    provider = new WebSocket(url, options);
-    provider.once('open', () => {
+  try {
+    await new Promise((resolve, reject) => {
+      let settled = false;
+      const finish = (error = null) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        if (error) reject(asRetryable(error));
+        else resolve(true);
+      };
+      const timer = setTimeout(
+        () => finish(new Error('Whisper quality provider did not become ready in time')),
+        READY_TIMEOUT_MS
+      );
+      const options = { handshakeTimeout: READY_TIMEOUT_MS, maxPayload: 1024 * 1024 };
+      options.headers = { Authorization: `Bearer ${apiKey}` };
+      provider = new WebSocket(url, options);
+      provider.once('open', () => {
+        provider.send(JSON.stringify({
+          type: 'start',
+          broadcastId: String(chunk.broadcastId),
+          sessionId,
+          model: providerModel(),
+          language: providerLanguage(),
+          sampleRate: SAMPLE_RATE,
+          channels: 1,
+          encoding: 'pcm_s16le',
+          offsetMs: Number(chunk.startMs) || 0,
+          qualityPass: true,
+          inlineQuality: false,
+        }));
+      });
+      provider.on('message', (raw) => {
+        let value;
+        try { value = JSON.parse(String(raw)); } catch { return; }
+        if (value.type === 'ready') {
+          ready = true;
+          finish();
+        } else if (value.type === 'segment') {
+          const parsed = parseSegment(value);
+          if (parsed) segments.push(parsed);
+        } else if (value.type === 'flushed') {
+          flushed = true;
+          resolveFlush(value);
+        }
+      });
+      provider.once('error', (error) => {
+        if (!ready) finish(error);
+        else rejectFlush(asRetryable(error));
+      });
+      provider.once('close', (code, reason) => {
+        const message = `Whisper quality provider closed before completion (${code}${reason?.length ? `: ${String(reason)}` : ''})`;
+        if (!ready) finish(new Error(message));
+        else if (!flushed) rejectFlush(asRetryable(new Error(message)));
+      });
+    });
+
+    const frameCount = Math.ceil(pcm.length / FRAME_BYTES);
+    for (let index = 0; index < frameCount; index += 1) {
+      const start = index * FRAME_BYTES;
+      const available = pcm.subarray(start, Math.min(pcm.length, start + FRAME_BYTES));
+      const frame = available.length === FRAME_BYTES
+        ? available
+        : Buffer.concat([available, Buffer.alloc(FRAME_BYTES - available.length)]);
       provider.send(JSON.stringify({
-        type: 'start',
+        type: 'audio',
         broadcastId: String(chunk.broadcastId),
         sessionId,
-        model: providerModel(),
-        language: providerLanguage(),
-        sampleRate: SAMPLE_RATE,
-        channels: 1,
-        encoding: 'pcm_s16le',
-        offsetMs: Number(chunk.startMs) || 0,
-        qualityPass: true,
+        sequence: index,
+        timestamp: Number(chunk.startMs) + index * 20,
+        audioChunk: frame.toString('base64'),
       }));
-    });
-    provider.on('message', (raw) => {
-      let value;
-      try { value = JSON.parse(String(raw)); } catch { return; }
-      if (value.type === 'ready') {
-        ready = true;
-        resolve(true);
-      } else if (value.type === 'segment') {
-        const parsed = parseSegment(value);
-        if (parsed) segments.push(parsed);
-      } else if (value.type === 'flushed') {
-        flushed = true;
-        resolveFlush(value);
-      }
-    });
-    provider.once('error', (error) => {
-      if (!ready) reject(error);
-      else rejectProvider(error);
-    });
-    provider.once('close', () => {
-      if (!flushed && ready) rejectProvider(Object.assign(new Error('Whisper quality provider closed before flush'), { retryable: true }));
-    });
-  });
-
-  const frameCount = Math.floor(pcm.length / FRAME_BYTES);
-  for (let index = 0; index < frameCount; index += 1) {
-    const frame = pcm.subarray(index * FRAME_BYTES, (index + 1) * FRAME_BYTES);
+    }
     provider.send(JSON.stringify({
-      type: 'audio',
+      type: 'flush',
       broadcastId: String(chunk.broadcastId),
       sessionId,
-      sequence: index,
-      timestamp: Number(chunk.startMs) + index * 20,
-      audioChunk: frame.toString('base64'),
+      reason: 'quality-chunk-complete',
+      lastSequence: frameCount - 1,
     }));
+    await Promise.race([
+      flushPromise,
+      new Promise((_, reject) => setTimeout(
+        () => reject(asRetryable(new Error('Whisper quality chunk flush timed out'))),
+        FLUSH_TIMEOUT_MS
+      )),
+    ]);
+    return segments;
+  } finally {
+    close();
   }
-  provider.send(JSON.stringify({ type: 'flush', broadcastId: String(chunk.broadcastId), sessionId, reason: 'quality-chunk-complete', lastSequence: frameCount - 1 }));
-  await Promise.race([
-    flushPromise,
-    new Promise((_, reject) => setTimeout(() => reject(Object.assign(new Error('Whisper quality chunk flush timed out'), { retryable: true })), FLUSH_TIMEOUT_MS)),
-  ]);
-  close();
-  return segments;
 };
 
+const overlapDuration = (left, right) =>
+  Math.max(0, Math.min(left.endMs, right.endMs) - Math.max(left.startMs, right.startMs));
+
 const overlapScore = (left, right) => {
-  const overlap = Math.max(0, Math.min(left.endMs, right.endMs) - Math.max(left.startMs, right.startMs));
+  const overlap = overlapDuration(left, right);
   const union = Math.max(left.endMs, right.endMs) - Math.min(left.startMs, right.startMs);
   return union ? overlap / union : 0;
 };
@@ -188,12 +232,16 @@ const reconcileSegments = async ({ chunk, qualitySegments }) => {
   const drafts = await TranscriptSegment.find({
     broadcastId: chunk.broadcastId,
     isFinal: true,
+    publicationStatus: 'draft',
     startMs: { $lt: chunk.endMs + 1200 },
     endMs: { $gt: Math.max(0, chunk.startMs - 1200) },
   }).sort({ startMs: 1 });
 
+  const claimedDraftIds = new Set();
   let updated = 0;
   let created = 0;
+  let hidden = 0;
+
   for (let index = 0; index < qualitySegments.length; index += 1) {
     const quality = qualitySegments[index];
     const qualityStart = Math.max(chunk.startMs, quality.startMs);
@@ -204,22 +252,33 @@ const reconcileSegments = async ({ chunk, qualitySegments }) => {
       qualityChunkId: chunk._id,
       qualitySegmentIndex: index,
     });
+
     const draft = drafts
-      .filter((candidate) => !candidate.qualityChunkId || String(candidate.qualityChunkId) !== String(chunk._id))
-      .map((candidate) => ({ candidate, score: overlapScore({ startMs: qualityStart, endMs: qualityEnd }, candidate) }))
+      .filter((candidate) => (
+        !candidate.qualityChunkId &&
+        !candidate.isHidden &&
+        !claimedDraftIds.has(String(candidate._id))
+      ))
+      .map((candidate) => ({
+        candidate,
+        score: overlapScore({ startMs: qualityStart, endMs: qualityEnd }, candidate),
+      }))
       .sort((a, b) => b.score - a.score)[0];
+
     const target = existingQuality || (draft?.score >= 0.18 ? draft.candidate : null);
     const now = new Date();
     if (target) {
+      claimedDraftIds.add(String(target._id));
       const previousText = String(target.text || '').trim();
       const creatorEdited = Boolean(target.correctedAt || target.editedText);
+      const nextRevision = Number(target.revisionNumber || target.revision || 1) + 1;
       const history = [...(target.qualityHistory || []), {
         text: quality.text,
         speaker: quality.speaker,
         startMs: qualityStart,
         endMs: qualityEnd,
         confidence: quality.confidence,
-        revision: Number(target.revisionNumber || target.revision || 1) + 1,
+        revision: nextRevision,
         processedBy: QUALITY_PROVIDER,
         processedAt: now,
       }].slice(-20);
@@ -231,7 +290,8 @@ const reconcileSegments = async ({ chunk, qualitySegments }) => {
         qualityChunkId: chunk._id,
         qualitySegmentIndex: index,
         confidence: quality.confidence ?? target.confidence,
-        revisionNumber: Number(target.revisionNumber || target.revision || 1) + 1,
+        revisionNumber: nextRevision,
+        isHidden: false,
       };
       if (!creatorEdited) {
         update.text = quality.text;
@@ -245,7 +305,7 @@ const reconcileSegments = async ({ chunk, qualitySegments }) => {
       await TranscriptSegment.updateOne({ _id: target._id }, { $set: update });
       updated += 1;
     } else {
-      await TranscriptSegment.findOneAndUpdate(
+      const createdSegment = await TranscriptSegment.findOneAndUpdate(
         { broadcastId: chunk.broadcastId, qualityChunkId: chunk._id, qualitySegmentIndex: index },
         {
           $set: {
@@ -273,6 +333,7 @@ const reconcileSegments = async ({ chunk, qualitySegments }) => {
             processedAt: now,
             qualityChunkId: chunk._id,
             qualitySegmentIndex: index,
+            isHidden: false,
             qualityHistory: [{
               text: quality.text,
               speaker: quality.speaker,
@@ -287,10 +348,30 @@ const reconcileSegments = async ({ chunk, qualitySegments }) => {
         },
         { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
       );
+      claimedDraftIds.add(String(createdSegment._id));
       created += 1;
     }
+
+    // A long live-draft line can overlap several durable 10-second windows.
+    // Keep the quality-derived canonical line visible and hide only untouched
+    // draft rows that are substantially covered by it. Creator edits and rows
+    // already owned by another quality chunk are never hidden here.
+    const superseded = drafts.filter((candidate) => {
+      if (candidate.isHidden || candidate.qualityChunkId || candidate.correctedAt || candidate.editedText) return false;
+      if (claimedDraftIds.has(String(candidate._id))) return false;
+      const duration = Math.max(1, Number(candidate.endMs) - Number(candidate.startMs));
+      return overlapDuration({ startMs: qualityStart, endMs: qualityEnd }, candidate) / duration >= 0.6;
+    });
+    if (superseded.length) {
+      await TranscriptSegment.updateMany(
+        { _id: { $in: superseded.map((candidate) => candidate._id) } },
+        { $set: { isHidden: true } }
+      );
+      for (const candidate of superseded) candidate.isHidden = true;
+      hidden += superseded.length;
+    }
   }
-  return { updated, created, segments: qualitySegments.length };
+  return { updated, created, hidden, segments: qualitySegments.length };
 };
 
 export async function processTranscriptQualityChunk(chunkId) {
@@ -299,6 +380,7 @@ export async function processTranscriptQualityChunk(chunkId) {
   const buffer = await fs.readFile(chunk.filePath);
   const pcm = wavToPcm16Mono16k(buffer);
   const segments = await transcribeChunk({ chunk, pcm });
+  if (!segments.length) throw asRetryable(new Error('Whisper quality provider returned no transcript segments'));
   const summary = await reconcileSegments({ chunk, qualitySegments: segments });
   chunk.status = 'completed';
   chunk.error = null;
