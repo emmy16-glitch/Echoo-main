@@ -6,11 +6,11 @@ import mongoose from 'mongoose';
 import { randomUUID } from 'crypto';
 import { authenticate } from '../middleware/auth.js';
 import { requireAudioDownloadAccess } from '../middleware/audioDownloadAccess.js';
+import { downloadAuthorizedAudio } from '../controllers/audioDownloadController.js';
 import {
   uploadAudio,
   getAudio,
   getAudioById,
-  downloadAudio,
   updateAudio,
   deleteAudio,
   incrementPlays,
@@ -332,7 +332,7 @@ router.get(
   validateAudioId,
   authenticate,
   requireAudioDownloadAccess,
-  downloadAudio
+  downloadAuthorizedAudio
 );
 router.get('/:id', validateAudioId, authenticate, getAudioById);
 router.post(
