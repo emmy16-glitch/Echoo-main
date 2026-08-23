@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  NavLink,
   Outlet,
+  useLocation,
   useNavigate,
 } from 'react-router-dom';
 import {
@@ -11,6 +11,7 @@ import {
   FaListUl,
   FaBroadcastTower,
   FaCog,
+  FaChevronDown,
   FaDownload,
   FaHeart,
   FaHistory,
@@ -28,7 +29,6 @@ import {
   FaHeadphones,
 } from 'react-icons/fa';
 
-import echooLogo from '../Assets/echoo-brand-logo.png';
 import ListenerProfileMenu from './ListenerProfileMenu';
 import EchoSignal from '../EchooSystem/EchoSignal';
 import audioService from '../../services/audioService';
@@ -42,6 +42,8 @@ import './ListenerLayout.figma.css';
 import './ListenerPlaybackFix.css';
 import './ListenerPlayerBlue.css';
 import '../../styles/listener-typography-unified.css';
+import EchooAppShell from '../Shared/EchooAppShell';
+import '../../styles/listener-creator-ui.css';
 
 const SEARCH_SUGGESTIONS = [
   'Podcast',
@@ -121,11 +123,13 @@ const playbackErrorMessage = (error) => {
 
 const ListenerLayout = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [user, setUser] = useState(readUser);
   const displayName =
     user.displayName || user.fullname || user.username || 'Listener';
   const profileImage =
     buildMediaUrl(user.profileImage || user.avatar || localStorage.getItem('profileImage'));
+  const initial = displayName.charAt(0).toUpperCase() || 'L';
 
   const audioRef = useRef(null);
   const searchRef = useRef(null);
@@ -627,56 +631,18 @@ const ListenerLayout = () => {
     duration > 0 ? Math.max(0, Math.min(100, (currentTime / duration) * 100)) : 0;
 
   return (
-    <div className="listener-layout echoo-listener-shell">
-      <aside className="layout-sidebar">
-        <button
-          type="button"
-          className="layout-brand"
-          onClick={() => navigate('/listen')}
-          style={{ border: 0, background: 'transparent', cursor: 'pointer' }}
-        >
-          <img src={echooLogo} alt="Echoo" />
-          <span>Echoo</span>
-        </button>
-
-        <nav className="layout-navigation">
-          {navigation.map((item) => (
-            <NavLink
-              key={item.name}
-              to={item.path}
-              end={item.end}
-              className={({ isActive }) =>
-                isActive ? 'layout-nav-item active' : 'layout-nav-item'
-              }
-            >
-              <span className="layout-nav-icon">{item.icon}</span>
-              <span className="layout-nav-label">{item.name}</span>
-            </NavLink>
-          ))}
-          <div className="layout-nav-divider" aria-hidden />
-          {navigationLibrary.map((item) => (
-            <NavLink
-              key={item.name}
-              to={item.path}
-              className={({ isActive }) =>
-                isActive ? 'layout-nav-item active' : 'layout-nav-item'
-              }
-            >
-              <span className="layout-nav-icon">{item.icon}</span>
-              <span className="layout-nav-label">{item.name}</span>
-            </NavLink>
-          ))}
-        </nav>
-
-        <ListenerProfileMenu
-          displayName={displayName}
-          profileImage={profileImage}
-        />
-      </aside>
-
-      <div className="layout-main echoo-listener-main">
-        <header className="layout-topbar">
-          <div className="beautiful-search-wrapper" ref={searchAreaRef}>
+    <EchooAppShell
+      role="listener"
+      roleLabel="Listener"
+      className="listener-layout echoo-listener-shell"
+      navItems={navigation}
+      navGroups={[{ key: 'library', items: navigationLibrary }]}
+      activeKey={location.pathname}
+      sidebarFooter={(
+        <ListenerProfileMenu displayName={displayName} profileImage={profileImage} />
+      )}
+      search={(
+          <div className="beautiful-search-wrapper echoo-app-search" ref={searchAreaRef}>
             <div className={`beautiful-search ${searchOpen ? 'active' : ''}`}>
               <FaSearch className="beautiful-search-icon" />
               <input
@@ -777,54 +743,36 @@ const ListenerLayout = () => {
               </div>
             )}
           </div>
-
-          <div className="layout-top-actions">
-            <button
-              type="button"
-              className="layout-top-button notification"
-              onClick={() => {
-                setUnreadNotifications(0);
-                navigate('/listen/notifications');
-              }}
-              title="Notifications"
-            >
-              <FaBell />
-              {unreadNotifications > 0 && (
-                <span title={`${unreadNotifications} unread`} />
-              )}
-            </button>
-
-            <button
-              type="button"
-              className="layout-top-button"
-              title="Settings"
-              onClick={() => navigate('/listen/settings')}
-            >
-              <FaCog />
-            </button>
-          </div>
-        </header>
-
-        <main className="layout-content echoo-listener-scroll">
-          <Outlet
-            context={{
-              playTrack,
-              currentTrack,
-              isPlaying,
-              togglePlay,
-              seekTo,
-              playTrackAt,
-              currentTime,
-              duration,
-              queue,
-              playNext,
-              playPrevious,
-              playerError,
+        )}
+      topActions={(
+        <>
+          <button
+            type="button"
+            className="notification-button"
+            onClick={() => {
+              setUnreadNotifications(0);
+              navigate('/listen/notifications');
             }}
-          />
-        </main>
-      </div>
-
+            title="Notifications"
+            aria-label="Notifications"
+          >
+            <FaBell />
+            {unreadNotifications > 0 && <span title={`${unreadNotifications} unread`} />}
+          </button>
+          <button
+            type="button"
+            className="studio-account-button"
+            title="Listener settings"
+            aria-label="Listener settings"
+            onClick={() => navigate('/listen/settings')}
+          >
+            <div className="top-avatar">{profileImage ? <img src={profileImage} alt="" /> : initial}</div>
+            <div><strong>{displayName}</strong><span>Listener</span></div>
+            <FaChevronDown />
+          </button>
+        </>
+      )}
+      persistentSlot={(
       <div className={`layout-player echoo-persistent-player ${playerError ? 'has-playback-error' : ''}`}>
         <audio
           ref={audioRef}
@@ -989,7 +937,27 @@ const ListenerLayout = () => {
           />
         </div>
       </div>
-    </div>
+        )}
+    >
+      <div className="layout-content echoo-listener-scroll">
+        <Outlet
+          context={{
+            playTrack,
+            currentTrack,
+            isPlaying,
+            togglePlay,
+            seekTo,
+            playTrackAt,
+            currentTime,
+            duration,
+            queue,
+            playNext,
+            playPrevious,
+            playerError,
+          }}
+        />
+      </div>
+    </EchooAppShell>
   );
 };
 
