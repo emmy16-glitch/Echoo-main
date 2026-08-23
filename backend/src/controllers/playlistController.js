@@ -280,16 +280,7 @@ export async function addTrackToPlaylist(req, res, next) {
       });
     }
 
-    const [track, playlist] = await Promise.all([
-      Audio.findOne({ _id: trackId, isDeleted: false, isPublic: true }).select('_id'),
-      Playlist.findOne({ _id: id, isDeleted: false }),
-    ]);
-
-    if (!track) {
-      return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Public track not found' },
-      });
-    }
+    const playlist = await Playlist.findOne({ _id: id, isDeleted: false });
     if (!playlist) {
       return res.status(404).json({
         error: { code: 'NOT_FOUND', message: 'Playlist not found' },
@@ -298,6 +289,23 @@ export async function addTrackToPlaylist(req, res, next) {
     if (!playlist.canEdit(req.userId)) {
       return res.status(403).json({
         error: { code: 'FORBIDDEN', message: 'You cannot edit this playlist' },
+      });
+    }
+
+    // A creator/editor may organize their own private or draft audio in a
+    // collection. Other people's audio must be canonically public+published.
+    const track = await Audio.findOne({
+      _id: trackId,
+      isDeleted: false,
+      $or: [
+        { artist: req.userId },
+        { isPublic: true, visibility: 'public', publicationStatus: 'published' },
+      ],
+    }).select('_id artist isPublic visibility publicationStatus');
+
+    if (!track) {
+      return res.status(404).json({
+        error: { code: 'NOT_FOUND', message: 'Accessible track not found' },
       });
     }
 
