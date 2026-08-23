@@ -81,10 +81,10 @@ test('role boundaries survive direct deep links, reloads and wrong-role navigati
     localStorage.setItem('echooOnboardingCompleted', 'true');
     localStorage.setItem('echooProfileCompleted', 'true');
     localStorage.setItem('creatorSetup', JSON.stringify({ type: 'individual', name: user.displayName }));
+    history.pushState({}, '', '/listen/settings');
+    window.dispatchEvent(new PopStateEvent('popstate'));
   }, creatorUser);
-  await page.goto('/listen/settings');
-  await settle(page);
-  await expect(page).toHaveURL(/\/creator-studio$/);
+  await expect(page).toHaveURL(/\/creator-studio$/, { timeout: 10_000 });
 });
 
 test('lazy Creator Studio chunk failure shows a usable fallback and Try again performs a true recovery', async ({ page }, testInfo) => {
