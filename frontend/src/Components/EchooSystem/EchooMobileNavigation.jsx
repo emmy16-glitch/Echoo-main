@@ -8,7 +8,6 @@ import {
   FaCog,
   FaCompass,
   FaDownload,
-  FaHeadphones,
   FaHistory,
   FaHome,
   FaSearch,
@@ -42,12 +41,14 @@ const clearEchooSession = () => {
   sessionStorage.clear();
 };
 
+// Keep exactly four persistent listener destinations. Together with More this
+// matches the five-column mobile bar in the product stylesheet, so no control
+// wraps below the fixed navigation viewport.
 const primaryItems = [
   { label: 'Home', path: '/listen', icon: FaHome, end: true },
   { label: 'Live now', path: '/listen/live', icon: FaBroadcastTower },
-  { label: 'Discover', path: '/listen/stations', icon: FaCompass },
-  { label: 'Stations', path: '/listen/stations', icon: FaHeadphones },
-  { label: 'Audio library', path: '/listen/library', icon: FaBookOpen, end: true },
+  { label: 'Stations', path: '/listen/stations', icon: FaCompass },
+  { label: 'Library', path: '/listen/library', icon: FaBookOpen, end: true },
 ];
 
 const moreItems = [
