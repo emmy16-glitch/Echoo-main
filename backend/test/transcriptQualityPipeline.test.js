@@ -13,10 +13,11 @@ test('Whisper runs a second quality pass over finalized post-master PCM while li
   ]);
 
   assert.match(worker, /quality_model/);
-  assert.match(worker, /asyncio\.create_task\(self\._run_quality_pass\(chunk\)\)/);
+  assert.match(worker, /asyncio\.create_task\(self\._run_quality_after\(previous, chunk\)\)/);
   assert.match(worker, /self\.quality_model\.transcribe_quality/);
   assert.match(worker, /await asyncio\.gather\(\*list\(self\._quality_tasks\)/);
   assert.match(worker, /quality transcript chunk failed; keeping fast transcript/);
+  assert.match(worker, /if previous is not None:[\s\S]*await asyncio\.gather\(previous/);
   assert.match(websocket, /quality_model=quality_model_runtime/);
   assert.match(websocket, /"qualityPasses": session\.quality_passes/);
   assert.match(model, /def transcribe_quality/);
