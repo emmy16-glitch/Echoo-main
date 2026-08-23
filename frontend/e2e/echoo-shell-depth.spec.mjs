@@ -95,7 +95,14 @@ test('Listener persistent transport and Stations geometry stay usable', async ({
   if (await stationName.count()) {
     const rect = await stationName.boundingBox();
     expect(rect?.width || 0, `${testInfo.project.name}: top station name was squeezed into a sliver`).toBeGreaterThanOrEqual(80);
-    expect(rect?.height || 0, `${testInfo.project.name}: top station name wrapped into an unusably tall control`).toBeLessThanOrEqual(160);
+    expect(rect?.height || 0, `${testInfo.project.name}: top station name wrapped into an unusably tall control`).toBeLessThanOrEqual(80);
+  }
+
+  const topRows = page.locator('.ls-top-row:visible');
+  for (let index = 0; index < await topRows.count(); index += 1) {
+    const rect = await topRows.nth(index).boundingBox();
+    expect(rect?.width || 0, `${testInfo.project.name}: top station row collapsed`).toBeGreaterThanOrEqual(Math.min(220, viewportWidth - 40));
+    expect(rect?.height || 0, `${testInfo.project.name}: top station row became excessively tall`).toBeLessThanOrEqual(110);
   }
 });
 
@@ -133,5 +140,14 @@ test('Creator shell navigation and operational labels remain readable', async ({
     for (let index = 0; index < await nodes.count(); index += 1) {
       expect(await fontPx(nodes.nth(index)), `${testInfo.project.name}: ${selector} below 10px`).toBeGreaterThanOrEqual(10);
     }
+  }
+
+  const sourceActions = page.locator('.ecbs-source > .ecbs-connect:visible');
+  for (let index = 0; index < await sourceActions.count(); index += 1) {
+    const action = sourceActions.nth(index);
+    const label = (await action.textContent())?.trim() || `source action ${index + 1}`;
+    const rect = await action.boundingBox();
+    expect(rect?.width || 0, `${testInfo.project.name}: Broadcast Studio action "${label}" is too narrow`).toBeGreaterThanOrEqual(80);
+    expect(rect?.height || 0, `${testInfo.project.name}: Broadcast Studio action "${label}" is too short`).toBeGreaterThanOrEqual(36);
   }
 });
