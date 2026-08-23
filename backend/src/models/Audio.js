@@ -61,10 +61,9 @@ const audioSchema = new mongoose.Schema(
       type: String,
       required: true,
       get() {
-        // Public API surfaces never receive the permanent local-storage path.
-        // Public tracks get a scoped, expiring playback URL; private tracks
-        // deliberately return null unless an authenticated creator controller
-        // explicitly issues an owner-scoped stream URL.
+        // Never expose the permanent local-storage path. A bearer-free media
+        // URL exists only for canonically public + published audio; followers,
+        // private and draft assets must obtain an account-bound URL instead.
         return buildAudioStreamUrl(this, { access: 'public' })?.url || null;
       },
     },
@@ -152,8 +151,6 @@ const audioSchema = new mongoose.Schema(
         delete ret.__v;
         ret.id = ret._id;
         delete ret._id;
-        // Physical storage identifiers are backend-only. Playback is always
-        // through /api/audio/:id/stream.
         delete ret.filename;
         delete ret.fileKey;
         return ret;
@@ -177,6 +174,31 @@ audioSchema.index(
     },
   }
 );
+
+// `isPublic` remains for compatibility with older clients/indexes, but it must
+// never become an independent authorization switch. Any query explicitly asking
+// for public audio is tightened to the canonical publication fields as well.
+const enforceCanonicalPublicQuery = function enforceCanonicalPublicQuery() {
+  const filter = this.getFilter?.() || {};
+  if (filter.isPublic !== true) return;
+  if (filter.visibility === undefined) this.where({ visibility: 'public' });
+  if (filter.publicationStatus === undefined) this.where({ publicationStatus: 'published' });
+};
+
+audioSchema.pre(/^find/, enforceCanonicalPublicQuery);
+audioSchema.pre('countDocuments', enforceCanonicalPublicQuery);
+
+// Keep future document saves internally consistent. Followers-only/private
+// published replay assets deliberately use isPublic=false and are unaffected.
+audioSchema.pre('save', function keepPublicationFieldsAligned() {
+  if (this.isPublic === true) {
+    this.visibility = 'public';
+    this.publicationStatus = 'published';
+    this.publishedAt = this.publishedAt || new Date();
+  } else if (this.visibility === 'public') {
+    this.visibility = 'private';
+  }
+});
 
 audioSchema.virtual('fileSizeMB').get(function fileSizeMB() {
   return (this.fileSize / (1024 * 1024)).toFixed(2);
@@ -214,10 +236,6 @@ audioSchema.methods.decrementLikes = async function decrementLikes() {
   return updated || this;
 };
 
-// Comment controllers historically called these methods even though they were
-// missing from the model, which meant a comment could be saved/deleted and the
-// HTTP request would still fail afterward. Keep the denormalized counter atomic
-// and never allow it to move below zero.
 audioSchema.methods.incrementComments = async function incrementComments() {
   const updated = await this.constructor.findOneAndUpdate(
     { _id: this._id, isDeleted: false },
