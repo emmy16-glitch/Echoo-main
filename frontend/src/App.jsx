@@ -74,7 +74,11 @@ class LazyPageErrorBoundary extends Component {
   }
 
   retry = () => {
-    this.setState({ hasError: false });
+    // React.lazy caches a rejected import promise. Merely clearing the boundary
+    // state re-renders the same rejected promise and can trap the user in an
+    // immediate error loop. Reload the current route so the browser performs a
+    // fresh chunk request after the connection recovers.
+    window.location.reload();
   };
 
   render() {
