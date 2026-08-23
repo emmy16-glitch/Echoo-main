@@ -11,10 +11,10 @@ import {
   getSavedMoments,
   getTranscriptionReadiness,
   moderateTranscriptSegment,
-  searchReplayTranscripts,
   upsertBroadcastTranscriptSegment,
   updateCaptionSettings,
 } from '../controllers/transcriptController.js';
+import { searchReplayTranscriptsSecure } from '../controllers/transcriptSearchController.js';
 
 const router = express.Router();
 
@@ -31,7 +31,7 @@ const enforcePrivateLiveTranscript = (req, res, next) => {
 
 router.use(authenticate);
 router.get('/readiness', getTranscriptionReadiness);
-router.get('/search', searchReplayTranscripts);
+router.get('/search', searchReplayTranscriptsSecure);
 router.get('/broadcast/:broadcastId', getBroadcastTranscript);
 router.get('/broadcast/:broadcastId/moments', getSavedMoments);
 router.post('/broadcast/:broadcastId/moments', createSavedMoment);
