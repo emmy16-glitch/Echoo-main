@@ -36,7 +36,7 @@ test('canonical public audio requires all publication fields to agree', () => {
   assert.equal(isAudioAccessibleToUser({ ...base, visibility: 'private', publicationStatus: 'draft' }, 'creator-1'), true);
 });
 
-test('creator authorization rejects listener credentials before controller logic', async () => {
+test('shared role authorization rejects listener credentials before controller logic', async () => {
   const creatorOnly = authorize('creator', 'admin');
   const listenerResult = await runMiddleware(creatorOnly, {
     user: { id: 'listener-1' },
@@ -55,12 +55,14 @@ test('creator authorization rejects listener credentials before controller logic
 
 test('broadcast mutation routes are creator-only while listener media token stays listener-accessible', async () => {
   const routes = await source('src/routes/broadcastRoutes.js');
-  assert.match(routes, /const creatorOnly = authorize\('creator', 'admin'\)/);
+  assert.match(routes, /const requireCreator = \(req, res, next\) =>/);
+  assert.match(routes, /req\.user\?\.userType === 'creator'/);
+  assert.match(routes, /req\.userRoles\?\.includes\('creator'\)/);
   for (const fragment of [
-    "router.post('/', authenticate, creatorOnly, createBroadcast)",
-    "router.patch('/:broadcastId', authenticate, creatorOnly, updateBroadcast)",
-    "router.delete('/:broadcastId', authenticate, creatorOnly, deleteBroadcast)",
-    "router.post('/:broadcastId/discard-replay', authenticate, creatorOnly, discardReplay)",
+    "router.post('/', authenticate, requireCreator, createBroadcast)",
+    "router.patch('/:broadcastId', authenticate, requireCreator, updateBroadcast)",
+    "router.delete('/:broadcastId', authenticate, requireCreator, deleteBroadcast)",
+    "router.post('/:broadcastId/discard-replay', authenticate, requireCreator, discardReplay)",
   ]) assert.ok(routes.includes(fragment), `missing creator-only route contract: ${fragment}`);
   assert.match(routes, /'\/:broadcastId\/listener-token'[\s\S]*authenticate,[\s\S]*livekitTokenLimiter,[\s\S]*getListenerLiveKitToken/);
 });
@@ -75,8 +77,8 @@ test('live transcript settings cannot be re-enabled for listeners by a stale cli
 test('global transcript search is permission-aware and excludes hidden rows', async () => {
   const routes = await source('src/routes/transcriptRoutes.js');
   const controller = await source('src/controllers/transcriptSearchController.js');
-  assert.match(routes, /searchReplayTranscripts as searchReplayTranscriptsWithAccess/);
-  assert.match(routes, /router\.get\('\/search', searchReplayTranscriptsWithAccess\)/);
+  assert.match(routes, /searchReplayTranscriptsSecure/);
+  assert.match(routes, /router\.get\('\/search', searchReplayTranscriptsSecure\)/);
   assert.match(controller, /isHidden:\s*false/);
   assert.match(controller, /assetVisibility\?\.transcript/);
   assert.match(controller, /StationFollow/);
@@ -93,8 +95,7 @@ test('transcript publication cannot become broader than its replay', async () =>
 
 test('silent quality chunks are valid and quality reconciliation is restart-idempotent', async () => {
   const quality = await source('src/services/transcriptQualityService.js');
-  assert.match(quality, /qualitySegments\.length === 0/);
-  assert.match(quality, /silence/i);
+  assert.match(quality, /segments\.length[\s\S]*silent:\s*true/);
   assert.match(quality, /qualityChunkId:\s*chunk\._id/);
   assert.match(quality, /qualitySegmentIndex:\s*index/);
   assert.match(quality, /existingQuality/);
@@ -116,8 +117,8 @@ test('recording completion acknowledgement retries and pending recording preserv
   assert.match(recording, /QUALITY_CHUNK_COMPLETE_RETRIES/);
   assert.match(recording, /completeQualityChunks/);
   assert.match(recording, /qualityCompletionPending/);
-  assert.match(recording, /retryPendingQualityCompletion/);
-  assert.match(prompt, /retryPendingQualityCompletion/);
+  assert.match(recording, /retryBroadcastQualityCompletion/);
+  assert.match(prompt, /retryBroadcastQualityCompletion/);
   assert.match(prompt, /discard-replay/);
 });
 
@@ -128,7 +129,7 @@ test('protected downloads use one canonical authorization boundary from route to
   assert.match(routes, /requireAudioDownloadAccess/);
   assert.match(routes, /downloadAuthorizedAudio/);
   assert.match(middleware, /canAccessReplayAudio/);
-  assert.match(controller, /req\.authorizedAudio/);
+  assert.match(controller, /req\.audioAccessRecord/);
   assert.doesNotMatch(routes, /downloadAudio\)/);
 });
 
