@@ -17,8 +17,8 @@ class TranscriptResult:
 class WhisperModelRuntime:
     """Loads one Faster-Whisper model and serializes access to its runtime."""
 
-    def __init__(self) -> None:
-        self.model_name = os.getenv("WHISPER_MODEL", "faster-whisper-large-v3-turbo").strip() or "faster-whisper-large-v3-turbo"
+    def __init__(self, model_name: str | None = None) -> None:
+        self.model_name = (model_name or os.getenv("WHISPER_MODEL", "faster-whisper-large-v3-turbo")).strip() or "faster-whisper-large-v3-turbo"
         self.language = os.getenv("WHISPER_LANGUAGE", "en").strip() or "en"
         self.device = os.getenv("WHISPER_DEVICE", "auto").strip() or "auto"
         self.compute_type = os.getenv("WHISPER_COMPUTE_TYPE", "auto").strip() or "auto"
@@ -46,7 +46,7 @@ class WhisperModelRuntime:
                 extra={"model": self.model_name, "device": self.device},
             )
             self._model = WhisperModel(
-                self.model_path or "large-v3-turbo",
+                self.model_path or self.model_name.removeprefix("faster-whisper-"),
                 device=self.device,
                 compute_type=self.compute_type,
                 cpu_threads=self.cpu_threads,
@@ -54,16 +54,16 @@ class WhisperModelRuntime:
             )
             logger.info("Whisper model ready", extra={"model": self.model_name})
 
-    def transcribe(self, samples, language: str | None = None) -> TranscriptResult:
+    def transcribe(self, samples, language: str | None = None, quality: bool = False) -> TranscriptResult:
         self.load()
         with self._inference_lock:
             segments, info = self._model.transcribe(
                 samples,
                 language=language or self.language,
-                beam_size=1,
-                best_of=1,
-                condition_on_previous_text=False,
-                vad_filter=False,
+                beam_size=5 if quality else 1,
+                best_of=5 if quality else 1,
+                condition_on_previous_text=quality,
+                vad_filter=quality,
                 word_timestamps=False,
             )
             materialized = list(segments)
@@ -80,3 +80,9 @@ class WhisperModelRuntime:
 
 
 model_runtime = WhisperModelRuntime()
+_quality_model_name = os.getenv("WHISPER_QUALITY_MODEL", "").strip()
+quality_model_runtime = (
+    WhisperModelRuntime(model_name=_quality_model_name)
+    if _quality_model_name and _quality_model_name != model_runtime.model_name
+    else model_runtime
+)

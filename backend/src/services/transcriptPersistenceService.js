@@ -96,7 +96,7 @@ export async function persistTranscriptSegment({
         originalText: normalized.text,
         publicationStatus: 'draft',
       },
-      $inc: { revision: 1 },
+      $inc: { revision: 1, revisionNumber: 1 },
     },
     { upsert: true, returnDocument: 'after', runValidators: true, setDefaultsOnInsert: true }
   );

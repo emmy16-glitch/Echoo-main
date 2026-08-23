@@ -8,7 +8,7 @@ from typing import Any
 
 from fastapi import WebSocket, WebSocketDisconnect, status
 
-from model_loader import model_runtime
+from model_loader import model_runtime, quality_model_runtime
 from whisper_worker import AudioFrame, FRAME_BYTES, StreamingTranscriptSession
 
 logger = logging.getLogger("echoo-whisper.websocket")
@@ -56,6 +56,7 @@ async def transcription_websocket(websocket: WebSocket) -> None:
         broadcast_id = _required_string(start, "broadcastId")
         session_id = _required_string(start, "sessionId")
         language = str(start.get("language") or os.getenv("WHISPER_LANGUAGE", "en")).strip()[:16] or "en"
+        quality_pass = bool(start.get("qualityPass"))
 
         async def emit(payload: dict) -> None:
             await websocket.send_json(payload)
@@ -73,8 +74,9 @@ async def transcription_websocket(websocket: WebSocket) -> None:
                     broadcast_id=broadcast_id,
                     session_id=session_id,
                     language=language,
-                    model=model_runtime,
+                    model=quality_model_runtime if quality_pass else model_runtime,
                     emit=emit,
+                    quality_pass=quality_pass,
                 )
                 generation = 1
             _sessions[session_id] = {"session": session, "generation": generation}
@@ -82,7 +84,7 @@ async def transcription_websocket(websocket: WebSocket) -> None:
             "type": "ready",
             "broadcastId": broadcast_id,
             "sessionId": session_id,
-            "model": model_runtime.model_name,
+            "model": (quality_model_runtime if quality_pass else model_runtime).model_name,
             "sampleRate": 16000,
             "lastSequence": session.last_sequence,
         })

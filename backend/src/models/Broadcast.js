@@ -151,6 +151,10 @@ const broadcastSchema = new mongoose.Schema(
     },
     processingStartedAt: { type: Date, default: null },
     processingCompletedAt: { type: Date, default: null },
+    qualityChunkingStartedAt: { type: Date, default: null },
+    qualityChunkingCompletedAt: { type: Date, default: null },
+    qualityChunkCount: { type: Number, min: 0, default: 0 },
+    qualityChunkUploadErrors: { type: Number, min: 0, default: 0 },
     generatedHighlights: [{
       segmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'TranscriptSegment', required: true },
       startMs: { type: Number, min: 0, required: true },

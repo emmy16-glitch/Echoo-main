@@ -1,4 +1,5 @@
 import express from 'express';
+import multer from 'multer';
 import {
   livekitTokenLimiter,
 } from '../middleware/rateLimiter.js';
@@ -34,6 +35,11 @@ import {
   getLiveKitToken,
 } from '../controllers/broadcastLifecycleController.js';
 import {
+  completeBroadcastAudioChunks,
+  startBroadcastAudioChunks,
+  uploadBroadcastAudioChunk,
+} from '../controllers/broadcastChunkController.js';
+import {
   beginTranscriptReview,
   getProcessingStatus,
   publishReplay,
@@ -42,6 +48,22 @@ import {
 } from '../controllers/broadcastProcessingController.js';
 
 const router = express.Router();
+const chunkUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+});
+const chunkUploadFile = (req, res, next) => {
+  chunkUpload.single('chunk')(req, res, (error) => {
+    if (!error) return next();
+    const status = error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
+    return res.status(status).json({
+      error: {
+        code: error.code || 'UPLOAD_REJECTED',
+        message: status === 413 ? 'Quality chunks must be 5 MB or smaller.' : error.message || 'This quality chunk could not be accepted.',
+      },
+    });
+  });
+};
 
 // Public discovery uses only public broadcasts. Validate IDs/dates and treat
 // search as literal text before it reaches MongoDB regex matching.
@@ -65,6 +87,9 @@ router.get('/mine/all', authenticate, getCreatorBroadcasts);
 // Authenticated single-broadcast access.
 router.get('/:broadcastId', authenticate, getBroadcastById);
 router.post('/', authenticate, createBroadcast);
+router.post('/:broadcastId/recording-chunks/start', authenticate, startBroadcastAudioChunks);
+router.post('/:broadcastId/recording-chunks/complete', authenticate, completeBroadcastAudioChunks);
+router.post('/:broadcastId/recording-chunks', authenticate, chunkUploadFile, uploadBroadcastAudioChunk);
 router.patch('/:broadcastId', authenticate, updateBroadcast);
 router.delete('/:broadcastId', authenticate, deleteBroadcast);
 

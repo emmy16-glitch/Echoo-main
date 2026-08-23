@@ -1,8 +1,10 @@
 import Broadcast from '../models/Broadcast.js';
 import BroadcastProcessingJob from '../models/BroadcastProcessingJob.js';
+import BroadcastAudioChunk from '../models/BroadcastAudioChunk.js';
 import Notification from '../models/Notification.js';
 import TranscriptSegment from '../models/TranscriptSegment.js';
 import { flushBroadcastTranscription } from './transcriptionGateway.js';
+import { markTranscriptQualityChunkFailed, processTranscriptQualityChunk } from './transcriptQualityService.js';
 
 const JOB_TYPES = [
   'audio_finalization',
@@ -63,6 +65,26 @@ const completeAudio = async (broadcast) => {
 
 const completeTranscript = async (broadcast) => {
   if (broadcast.assetStatus?.transcript === 'published') return;
+  const [qualityPending, qualityFailed] = await Promise.all([
+    BroadcastProcessingJob.countDocuments({
+      broadcastId: broadcast._id,
+      jobType: 'transcript_quality_chunk',
+      status: { $in: ['queued', 'processing'] },
+    }),
+    BroadcastProcessingJob.countDocuments({
+      broadcastId: broadcast._id,
+      jobType: 'transcript_quality_chunk',
+      status: 'failed',
+    }),
+  ]);
+  if (qualityPending) throw retryable(`Waiting for ${qualityPending} transcript quality chunk job(s)`);
+  if (Number(broadcast.qualityChunkCount) > 0 && !broadcast.qualityChunkingCompletedAt) {
+    throw retryable('Waiting for the browser to close live quality chunking');
+  }
+  if (qualityFailed) throw new Error(`${qualityFailed} transcript quality chunk job(s) failed`);
+  if (Number(broadcast.qualityChunkUploadErrors) > 0) {
+    throw new Error(`${broadcast.qualityChunkUploadErrors} live quality chunk upload(s) were not recovered`);
+  }
   const summary = await flushBroadcastTranscription(broadcast._id);
   if (!summary.finalCount) throw retryable('Waiting for confirmed transcript segments');
   const result = await Broadcast.updateOne(
@@ -78,6 +100,23 @@ const completeTranscript = async (broadcast) => {
     link: `/creator/broadcasts/${broadcast._id}/processing`,
     metadata: { broadcastId: String(broadcast._id), asset: 'transcript' },
   });
+};
+
+const processQualityChunk = async (job) => {
+  if (!job.chunkId) throw new Error('Transcript quality job is missing chunkId');
+  await BroadcastAudioChunk.updateOne(
+    { _id: job.chunkId },
+    { $set: { status: 'processing', error: null }, $inc: { attempts: 1 } }
+  );
+  try {
+    return await processTranscriptQualityChunk(job.chunkId);
+  } catch (error) {
+    await BroadcastAudioChunk.updateOne(
+      { _id: job.chunkId },
+      { $set: { status: error?.retryable ? 'pending' : 'failed', error: String(error?.message || error).slice(0, 2000) } }
+    ).catch(() => null);
+    throw error;
+  }
 };
 
 const improveTranscript = async (broadcast) => {
@@ -137,6 +176,7 @@ const handlers = {
   audio_finalization: completeAudio,
   transcript_completion: completeTranscript,
   transcript_improvement: improveTranscript,
+  transcript_quality_chunk: processQualityChunk,
   highlight_detection: detectHighlights,
   chapter_generation: generateChapters,
 };
@@ -162,7 +202,7 @@ async function processNextJob() {
     if (!job) return;
     const broadcast = await Broadcast.findById(job.broadcastId);
     if (!broadcast) throw new Error('Broadcast no longer exists');
-    await handlers[job.jobType](broadcast);
+    await handlers[job.jobType](job.jobType === 'transcript_quality_chunk' ? job : broadcast);
     job.status = 'completed';
     job.progress = 100;
     job.completedAt = new Date();
@@ -177,9 +217,12 @@ async function processNextJob() {
       if (!canRetry) job.completedAt = new Date();
       await job.save().catch(() => null);
       if (!canRetry) {
+        if (job.jobType === 'transcript_quality_chunk') {
+          await markTranscriptQualityChunkFailed(job.chunkId, error).catch(() => null);
+        }
         const field = job.jobType === 'audio_finalization'
           ? 'assetStatus.audio'
-          : job.jobType === 'transcript_completion' || job.jobType === 'transcript_improvement'
+          : job.jobType === 'transcript_completion' || job.jobType === 'transcript_improvement' || job.jobType === 'transcript_quality_chunk'
             ? 'assetStatus.transcript'
             : job.jobType === 'highlight_detection'
               ? 'assetStatus.highlights'
@@ -204,6 +247,12 @@ export function startBroadcastProcessingWorker(io) {
     { status: 'processing' },
     { $set: { status: 'queued', availableAt: new Date(), error: 'Recovered after backend restart' } }
   ).catch(() => null);
+  BroadcastAudioChunk.updateMany(
+    { status: 'processing' },
+    { $set: { status: 'pending', error: 'Recovered after backend restart' } }
+  ).catch(() => null);
+  BroadcastProcessingJob.syncIndexes().catch(() => null);
+  BroadcastAudioChunk.syncIndexes().catch(() => null);
   workerTimer = setInterval(() => void processNextJob(), POLL_MS);
   workerTimer.unref?.();
   void processNextJob();

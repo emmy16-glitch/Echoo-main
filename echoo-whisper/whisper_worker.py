@@ -43,12 +43,14 @@ class StreamingTranscriptSession:
         language: str,
         model,
         emit: Callable[[dict], Awaitable[None]],
+        quality_pass: bool = False,
     ) -> None:
         self.broadcast_id = broadcast_id
         self.session_id = session_id
         self.language = language
         self.model = model
         self.emit = emit
+        self.quality_pass = quality_pass
         self.partial_interval_ms = _env_int("WHISPER_PARTIAL_INTERVAL_MS", 1000, 400, 5000)
         self.silence_finalize_ms = _env_int("WHISPER_SILENCE_FINALIZE_MS", 700, 300, 3000)
         self.min_utterance_ms = _env_int("WHISPER_MIN_UTTERANCE_MS", 300, 100, 3000)
@@ -128,9 +130,12 @@ class StreamingTranscriptSession:
         started = time.perf_counter()
         pcm = b"".join(frame.pcm for frame in self.frames)
         samples = np.frombuffer(pcm, dtype="<i2").astype(np.float32) / 32768.0
-        result: TranscriptResult = await asyncio.to_thread(
-            self.model.transcribe, samples, self.language
-        )
+        if self.quality_pass:
+            result: TranscriptResult = await asyncio.to_thread(
+                self.model.transcribe, samples, self.language, True
+            )
+        else:
+            result = await asyncio.to_thread(self.model.transcribe, samples, self.language)
         processing_ms = round((time.perf_counter() - started) * 1000)
         start_ms = self.frames[0].timestamp_ms
         end_ms = self.frames[-1].timestamp_ms + FRAME_DURATION_MS

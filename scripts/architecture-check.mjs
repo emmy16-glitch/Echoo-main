@@ -50,7 +50,9 @@ const forbidFile = (relative) => {
   'frontend/src/styles/echoo-responsive-2026.css',
   'frontend/src/services/echooMixerService.js',
   'frontend/src/services/livekitPublisher.js',
-  'frontend/src/services/realtimeService.js',
+  'backend/src/models/BroadcastAudioChunk.js',
+  'backend/src/controllers/broadcastChunkController.js',
+  'backend/src/services/transcriptQualityService.js',
   'backend/src/controllers/broadcastController.js',
   'backend/src/providers/livekit.js',
   'backend/src/middleware/enforceSingleLiveCreator.js',
@@ -187,6 +189,19 @@ for (const mixerChannel of ["name: 'Host Mic'", "name: 'Guest Mic'", "name: 'Mus
 }
 if (!mixerService.includes('createMediaStreamDestination')) {
   failures.push('Studio mixer is not producing a real mixed MediaStream output.');
+}
+
+const qualityJobModel = read('backend/src/models/BroadcastProcessingJob.js');
+if (!qualityJobModel.includes("'transcript_quality_chunk'") || !qualityJobModel.includes('chunkId')) {
+  failures.push('BroadcastProcessingJob is missing durable transcript quality chunk support.');
+}
+const qualityService = read('backend/src/services/transcriptQualityService.js');
+for (const qualityToken of ['qualityHistory', 'originalText', 'processedBy', 'processedAt']) {
+  if (!qualityService.includes(qualityToken)) failures.push(`Transcript quality reconciliation is missing: ${qualityToken}`);
+}
+const recordingService = read('frontend/src/services/broadcastRecordingService.js');
+for (const chunkToken of ['recording-chunks', 'QUALITY_CHUNK_SECONDS', 'qualityChunkErrors']) {
+  if (!recordingService.includes(chunkToken)) failures.push(`Live recording chunk pipeline is missing: ${chunkToken}`);
 }
 
 const publisher = read('frontend/src/services/livekitPublisher.js');
