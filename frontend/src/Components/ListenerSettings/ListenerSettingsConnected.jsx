@@ -70,10 +70,11 @@ const ListenerSettingsConnected = () => {
       setBio(typeof profile.bio === 'string' ? profile.bio : '');
       setUsername(profile.username || '');
       setLanguage(String(preferences.language || 'en'));
-      setEmailNotifications(Boolean(notifications.email));
-      setPushNotifications(Boolean(notifications.push));
+      setEmailNotifications(notifications.email !== false);
+      setPushNotifications(notifications.push !== false);
       setLocation(profile.location || '');
       setWebsite(profile.website || '');
+      setDirty(false);
     } catch (error) {
       console.error('Settings load failed', error);
       setToast({ open: true, title: 'Something went wrong', message: 'Could not load your settings.' });
@@ -86,12 +87,8 @@ const ListenerSettingsConnected = () => {
     load();
   }, [load]);
 
-  useEffect(() => {
-    setDirty(true);
-  }, [displayName, bio, language, emailNotifications, pushNotifications]);
-
   const save = async () => {
-    if (saving) return;
+    if (saving || !dirty) return;
     try {
       setSaving(true);
       await settingsService.updateProfile({
@@ -156,9 +153,7 @@ const ListenerSettingsConnected = () => {
           {nav !== 'profile' ? (
             <div className="set-panel set-panel-coming">
               <h2>{NAV_GROUPS.find((g) => g.id === nav)?.label || 'Settings'}</h2>
-              <p>
-                This section is managed through your account profile for now.
-              </p>
+              <p>This section is managed through your account profile for now.</p>
               <button type="button" className="set-back-btn" onClick={() => setNav('profile')}>
                 Back to profile settings
               </button>
@@ -176,9 +171,7 @@ const ListenerSettingsConnected = () => {
                       <button
                         type="button"
                         className="set-change-photo"
-                        onClick={() =>
-                          notify('Photo uploads are managed from your profile page.', false)
-                        }
+                        onClick={() => notify('Photo uploads are managed from your profile page.', false)}
                       >
                         Change photo
                       </button>
@@ -193,13 +186,16 @@ const ListenerSettingsConnected = () => {
                       className="set-input"
                       value={displayName}
                       maxLength={50}
-                      onChange={(e) => setDisplayName(e.target.value)}
+                      onChange={(event) => {
+                        setDisplayName(event.target.value);
+                        setDirty(true);
+                      }}
                       placeholder="Your display name"
                     />
                   </div>
 
                   <div className="set-field">
-                    <label className="set-label" htmlFor="set-username">Username</label>
+                    <span className="set-label">Username</span>
                     <div className="set-readonly">{usernameFor(username)}</div>
                   </div>
 
@@ -211,13 +207,16 @@ const ListenerSettingsConnected = () => {
                       rows={4}
                       maxLength={500}
                       value={bio}
-                      onChange={(e) => setBio(e.target.value)}
+                      onChange={(event) => {
+                        setBio(event.target.value);
+                        setDirty(true);
+                      }}
                       placeholder="Tell listeners a little about yourself…"
                     />
                   </div>
 
                   <div className="set-field">
-                    <label className="set-label" htmlFor="set-location">Location</label>
+                    <span className="set-label">Location</span>
                     {location ? (
                       <div className="set-readonly">{location}</div>
                     ) : (
@@ -226,7 +225,7 @@ const ListenerSettingsConnected = () => {
                   </div>
 
                   <div className="set-field">
-                    <label className="set-label" htmlFor="set-website">Website</label>
+                    <span className="set-label">Website</span>
                     {website ? (
                       <div className="set-readonly">{website}</div>
                     ) : (
@@ -256,31 +255,36 @@ const ListenerSettingsConnected = () => {
                         id="set-language"
                         className="set-select"
                         value={language}
-                        onChange={(e) => setLanguage(e.target.value)}
+                        onChange={(event) => {
+                          setLanguage(event.target.value);
+                          setDirty(true);
+                        }}
                       >
                         {LANGUAGES.map((lang) => (
-                          <option key={lang.code} value={lang.code}>
-                            {lang.label}
-                          </option>
+                          <option key={lang.code} value={lang.code}>{lang.label}</option>
                         ))}
                       </select>
-                      <FaChevronDown className="set-select-chevron" />
+                      <FaChevronDown className="set-select-chevron" aria-hidden="true" />
                     </div>
                   </div>
 
                   <div className="set-toggle-row">
                     <div className="set-toggle-info">
-                      <strong className="set-toggle-title">Content recommendations</strong>
+                      <strong className="set-toggle-title">Email notifications</strong>
                       <span className="set-toggle-desc">
-                        Get personalized recommendations based on your listening.
+                        Receive important Echoo account and content updates by email.
                       </span>
                     </div>
                     <button
                       type="button"
                       role="switch"
+                      aria-label="Email notifications"
                       aria-checked={emailNotifications}
                       className={`set-toggle ${emailNotifications ? 'set-toggle-on' : ''}`}
-                      onClick={() => setEmailNotifications((v) => !v)}
+                      onClick={() => {
+                        setEmailNotifications((value) => !value);
+                        setDirty(true);
+                      }}
                     >
                       <span className="set-toggle-thumb" />
                     </button>
@@ -288,17 +292,21 @@ const ListenerSettingsConnected = () => {
 
                   <div className="set-toggle-row">
                     <div className="set-toggle-info">
-                      <strong className="set-toggle-title">Autoplay next</strong>
+                      <strong className="set-toggle-title">Push notifications</strong>
                       <span className="set-toggle-desc">
-                        Automatically play the next item in a series.
+                        Receive Echoo alerts in supported browsers and apps.
                       </span>
                     </div>
                     <button
                       type="button"
                       role="switch"
+                      aria-label="Push notifications"
                       aria-checked={pushNotifications}
                       className={`set-toggle ${pushNotifications ? 'set-toggle-on' : ''}`}
-                      onClick={() => setPushNotifications((v) => !v)}
+                      onClick={() => {
+                        setPushNotifications((value) => !value);
+                        setDirty(true);
+                      }}
                     >
                       <span className="set-toggle-thumb" />
                     </button>
