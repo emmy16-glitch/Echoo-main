@@ -220,7 +220,7 @@ const CreatorContentWorkspace = ({
       </header>
 
       <div className="eca-toolbar">
-        <label className="eca-search"><FaSearch /><input type="search" value={search} placeholder="Search your audio..." onChange={(event) => setSearch(event.target.value)} /></label>
+        <label className="eca-search"><FaSearch /><input type="search" value={search} placeholder="Search your audio..." aria-label="Search your audio" onChange={(event) => setSearch(event.target.value)} /></label>
         <div className="eca-toolbar-right">
           <div className="eca-tabs" aria-label="Audio visibility filter">
             {['All', 'Public', 'Private'].map((item) => (
@@ -247,7 +247,7 @@ const CreatorContentWorkspace = ({
           <div><h2>Your audio library</h2><span>{totalItems} {totalItems === 1 ? 'item' : 'items'}</span></div>
         </div>
 
-        {actionError && <div className="eca-action-error">{actionError}<button type="button" onClick={() => setActionError('')}>Dismiss</button></div>}
+        {actionError && <div className="eca-action-error">{actionError}<button type="button" onClick={() => setActionError('')} aria-label="Dismiss audio action error">Dismiss</button></div>}
 
         {loading ? (
           <div className="eca-loading"><span /><span /><span /></div>
@@ -268,19 +268,7 @@ const CreatorContentWorkspace = ({
 
               return (
                 <article key={id}>
-                  <div
-                    className="eca-art"
-                    role="button"
-                    tabIndex="0"
-                    onClick={() => openTrack(track)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault();
-                        openTrack(track);
-                      }
-                    }}
-                    aria-label={`Open ${track.title || 'audio'} details`}
-                  >
+                  <div className="eca-art" onClick={() => openTrack(track)}>
                     {artwork ? <img src={artwork} alt="" /> : <span>{track.title || 'Echoo audio'}</span>}
                     <button
                       type="button"
