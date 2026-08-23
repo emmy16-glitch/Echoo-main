@@ -324,12 +324,12 @@ function App() {
   return (
     <BrowserRouter>
       <ImageCropProvider>
-        <EchooExperienceOrchestrator />
-        <EchooMobileNavigation />
-
         <a className="echoo-skip-to-content" href="#echoo-route-content">
           Skip to content
         </a>
+
+        <EchooExperienceOrchestrator />
+        <EchooMobileNavigation />
 
         <div id="echoo-route-content" tabIndex={-1}>
           <Routes>
