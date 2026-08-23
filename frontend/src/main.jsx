@@ -58,6 +58,7 @@ import "./styles/listener-ui-deep-integrity-2026.css";
 import "./styles/creator-ui-page-integrity-2026.css";
 import "./styles/deep-hidden-audit-fixes.css";
 import "./styles/playwright-run4-hardening.css";
+import "./styles/playwright-run5-hardening.css";
 
 initializeEchooTheme();
 
