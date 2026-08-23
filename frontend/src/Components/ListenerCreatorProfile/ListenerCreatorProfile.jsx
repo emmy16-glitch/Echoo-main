@@ -137,12 +137,12 @@ const ListenerCreatorProfile = () => {
   };
 
   if (loading) {
-    return <main className="lcp-page"><div className="lcp-empty">Loading creator...</div></main>;
+    return <div className="lcp-page"><div className="lcp-empty">Loading creator...</div></div>;
   }
 
   if (!profile) {
     return (
-      <main className="lcp-page">
+      <div className="lcp-page">
         <button type="button" className="lcp-back" onClick={() => navigate('/listen')}>
           <FaArrowLeft /> Home
         </button>
@@ -150,7 +150,7 @@ const ListenerCreatorProfile = () => {
           <h2>Creator unavailable</h2>
           <p>{error || 'This creator could not be loaded.'}</p>
         </div>
-      </main>
+      </div>
     );
   }
 
@@ -162,7 +162,7 @@ const ListenerCreatorProfile = () => {
   const live = profile.liveBroadcast;
 
   return (
-    <main className="lcp-page">
+    <div className="lcp-page">
       <button type="button" className="lcp-back" onClick={() => navigate(-1)}>
         <FaArrowLeft /> Back
       </button>
@@ -276,7 +276,12 @@ const ListenerCreatorProfile = () => {
                     <strong>{track.title}</strong>
                     <span>{Number(track.playCount || 0).toLocaleString()} plays</span>
                   </div>
-                  <button type="button" onClick={() => playTrack(track)} disabled={!track.fileUrl}>
+                  <button
+                    type="button"
+                    onClick={() => playTrack(track)}
+                    disabled={!track.fileUrl}
+                    aria-label={`${playing ? 'Pause' : 'Play'} ${track.title || 'audio'}`}
+                  >
                     {playing ? <FaPause /> : <FaPlay />}
                   </button>
                 </article>
@@ -285,7 +290,7 @@ const ListenerCreatorProfile = () => {
           </div>
         )}
       </section>
-    </main>
+    </div>
   );
 };
 
