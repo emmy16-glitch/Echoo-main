@@ -2,7 +2,10 @@ import mongoose from 'mongoose';
 import Audio from '../models/Audio.js';
 import Broadcast from '../models/Broadcast.js';
 import TranscriptSegment from '../models/TranscriptSegment.js';
-import { getBroadcastProcessing } from '../services/broadcastProcessingService.js';
+import {
+  getBroadcastProcessing,
+  markBroadcastReplayDiscarded,
+} from '../services/broadcastProcessingService.js';
 
 const VISIBILITIES = new Set(['public', 'followers', 'private']);
 
@@ -33,6 +36,12 @@ export async function updateAssetVisibility(req, res, next) {
     }
     broadcast.assetVisibility = { audio, transcript };
     broadcast.visibility = audio;
+    // Processing controls run after the live session. Keep completed-broadcast
+    // discovery synchronized with the replay visibility instead of leaving a
+    // private replay discoverable because the live event used to be public.
+    if (broadcast.status === 'completed') {
+      broadcast.isPublic = audio === 'public';
+    }
     await broadcast.save();
     if (broadcast.replayAudio) {
       await Audio.updateOne({ _id: broadcast.replayAudio, artist: req.userId }, {
@@ -40,6 +49,26 @@ export async function updateAssetVisibility(req, res, next) {
       });
     }
     return res.status(200).json({ data: broadcast.assetVisibility, timestamp: new Date().toISOString() });
+  } catch (error) { next(error); }
+}
+
+export async function discardReplay(req, res, next) {
+  try {
+    const broadcast = await ownedBroadcast(req.params.broadcastId, req.userId);
+    if (broadcast.status !== 'completed') {
+      throw errorWith(409, 'BROADCAST_NOT_COMPLETED', 'Replay discard is only available after a completed broadcast');
+    }
+    if (broadcast.replayAudio) {
+      throw errorWith(409, 'REPLAY_ALREADY_SAVED', 'This broadcast already has a saved replay');
+    }
+
+    await markBroadcastReplayDiscarded(broadcast._id);
+    const updated = await Broadcast.findById(broadcast._id);
+    return res.status(200).json({
+      data: updated,
+      message: 'Local replay recording discarded.',
+      timestamp: new Date().toISOString(),
+    });
   } catch (error) { next(error); }
 }
 
@@ -84,7 +113,19 @@ export async function publishTranscript(req, res, next) {
     if (!['ready_for_review', 'editing', 'published'].includes(broadcast.assetStatus?.transcript)) {
       throw errorWith(409, 'TRANSCRIPT_NOT_READY', 'The transcript is not ready to publish');
     }
-    if (!broadcast.replayAudio) throw errorWith(409, 'REPLAY_NOT_READY', 'Publish the replay recording first');
+    if (!broadcast.replayAudio) {
+      throw errorWith(409, 'REPLAY_NOT_READY', 'Publish the replay recording first');
+    }
+
+    const replay = await Audio.findOne({
+      _id: broadcast.replayAudio,
+      artist: req.userId,
+      isDeleted: false,
+    }).select('_id publicationStatus');
+    if (!replay || replay.publicationStatus !== 'published') {
+      throw errorWith(409, 'REPLAY_NOT_PUBLISHED', 'Publish the replay recording before publishing its transcript');
+    }
+
     const visibility = String(req.body?.visibility || broadcast.assetVisibility?.transcript || 'public');
     if (!VISIBILITIES.has(visibility)) throw errorWith(400, 'INVALID_VISIBILITY', 'Invalid transcript visibility');
     const now = new Date();
