@@ -44,10 +44,13 @@ import "./styles/creator-broadcast-strict-audit.css";
 import "./styles/creator-audio-interaction-fix.css";
 import "./styles/creator-ui-harmony-2026.css";
 
-// Shared design system is loaded last so Creator and Listener resolve the same shell contract.
+// Shared design system is loaded after feature layers so Creator and Listener
+// resolve the same shell primitives. The integrity contract is deliberately
+// last: it contains only cross-page accessibility/responsive invariants.
 import "./theme/EchooDesignSystem.css";
 import "./Components/Shared/SharedPrimitives.css";
 import "./design-system/design-system.css";
+import "./styles/echoo-ui-integrity-audit-2026.css";
 
 initializeEchooTheme();
 
