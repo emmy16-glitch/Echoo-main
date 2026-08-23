@@ -8,39 +8,67 @@ import {
 } from '../src/services/audioAccess.js';
 import Audio from '../src/models/Audio.js';
 
-test('audio visibility permits public media and private owner media only', () => {
+const publishedPublic = (artist) => ({
+  artist,
+  isPublic: true,
+  visibility: 'public',
+  publicationStatus: 'published',
+  isDeleted: false,
+});
+
+test('audio visibility permits canonical public media and private owner media only', () => {
   const ownerId = new mongoose.Types.ObjectId();
   const otherId = new mongoose.Types.ObjectId();
 
   assert.equal(
-    isAudioAccessibleToUser({ artist: ownerId, isPublic: true, isDeleted: false }, otherId),
+    isAudioAccessibleToUser(publishedPublic(ownerId), otherId),
     true
   );
   assert.equal(
-    isAudioAccessibleToUser({ artist: ownerId, isPublic: false, isDeleted: false }, ownerId),
-    true
-  );
-  assert.equal(
-    isAudioAccessibleToUser({ artist: ownerId, isPublic: false, isDeleted: false }, otherId),
+    isAudioAccessibleToUser({ ...publishedPublic(ownerId), visibility: 'private' }, otherId),
     false
   );
   assert.equal(
-    isAudioAccessibleToUser({ artist: ownerId, isPublic: true, isDeleted: true }, ownerId),
+    isAudioAccessibleToUser({ ...publishedPublic(ownerId), publicationStatus: 'draft' }, otherId),
+    false
+  );
+  assert.equal(
+    isAudioAccessibleToUser({ ...publishedPublic(ownerId), isPublic: false }, otherId),
+    false
+  );
+  assert.equal(
+    isAudioAccessibleToUser({ artist: ownerId, isPublic: false, visibility: 'private', publicationStatus: 'draft', isDeleted: false }, ownerId),
+    true
+  );
+  assert.equal(
+    isAudioAccessibleToUser({ artist: ownerId, isPublic: false, visibility: 'private', publicationStatus: 'draft', isDeleted: false }, otherId),
+    false
+  );
+  assert.equal(
+    isAudioAccessibleToUser({ ...publishedPublic(ownerId), isDeleted: true }, ownerId),
     false
   );
   assert.equal(isAudioAccessibleToUser(null, ownerId), false);
 });
 
-test('audio access query always excludes deleted media and scopes private owner access', () => {
+test('audio access query always excludes deleted media and requires canonical public state', () => {
   const userId = new mongoose.Types.ObjectId();
   const filter = audioAccessFilter(userId);
 
   assert.equal(filter.isDeleted, false);
-  assert.deepEqual(filter.$or[0], { isPublic: true });
+  assert.deepEqual(filter.$or[0], {
+    isPublic: true,
+    visibility: 'public',
+    publicationStatus: 'published',
+  });
   assert.deepEqual(filter.$or[1], { artist: userId });
 
   const publicOnly = audioAccessFilter();
-  assert.deepEqual(publicOnly.$or, [{ isPublic: true }]);
+  assert.deepEqual(publicOnly.$or, [{
+    isPublic: true,
+    visibility: 'public',
+    publicationStatus: 'published',
+  }]);
 });
 
 test('Audio play/like counter methods use atomic database updates', async () => {
