@@ -136,16 +136,23 @@ const ListenerDownloadsConnected = () => {
     };
   }, [items]);
 
-  const handleDelete = async (downloadId) => {
-    if (busyId) return;
+  const handleDelete = async (track) => {
+    if (busyId || !track?.id) return;
+    const key = String(track.downloadId || track.id);
     try {
-      setBusyId(String(downloadId));
-      await batch6Service.deleteDownload(String(downloadId));
-      setItems((prev) => prev.filter((t) => String(t.downloadId) !== String(downloadId)));
+      setBusyId(key);
+      // Remove both the browser's actual offline bytes/metadata and the backend
+      // download record. Deleting only the backend row leaves a ghost download
+      // in Cache Storage/IndexedDB that can reappear on the next reconciliation.
+      await downloadService.remove(track.id);
+      setItems((prev) => prev.filter((item) => String(item.downloadId) !== String(track.downloadId)));
       notify('Download removed', 'success');
     } catch (error) {
       console.error('Delete download failed', error);
-      notify('Could not remove download', 'error');
+      // The local cache is removed before the backend cleanup attempt. Reload so
+      // the UI reflects whichever canonical backend state remains after failure.
+      await load({ silent: true }).catch(() => {});
+      notify('Could not fully remove download. Please try again.', 'error');
     } finally {
       setBusyId('');
     }
@@ -221,27 +228,36 @@ const ListenerDownloadsConnected = () => {
           {filtered.map((track) => {
             const current = isCurrent(track);
             const ready = track.status === 'completed' && track.fileSize > 0;
+            const removing = busyId === String(track.downloadId || track.id);
             return (
-              <button
+              <div
                 key={track.downloadId}
-                type="button"
-                className={`ld-row ${current && isPlaying ? 'ld-row-current' : ''}`}
-                onClick={() => handleRowClick(track)}
-                disabled={!ready}
+                className={`ld-row ${current && isPlaying ? 'ld-row-current' : ''} ${ready ? '' : 'ld-row-disabled'}`}
               >
-                <span className="ld-row-art">
+                <button
+                  type="button"
+                  className="ld-row-art ld-row-play-target"
+                  onClick={() => handleRowClick(track)}
+                  disabled={!ready}
+                  aria-label={`${current && isPlaying ? 'Pause' : 'Play'} ${track.title || 'downloaded audio'}`}
+                >
                   <img src={track.coverArt} alt="" loading="lazy" />
-                  <span className="ld-row-art-icon">
+                  <span className="ld-row-art-icon" aria-hidden="true">
                     {current && isPlaying ? <FaPause /> : playingId === String(track.id) ? <FaClock /> : <FaPlay />}
                   </span>
-                </span>
-                <span className="ld-row-info">
+                </button>
+                <button
+                  type="button"
+                  className="ld-row-info ld-row-info-button"
+                  onClick={() => handleRowClick(track)}
+                  disabled={!ready}
+                >
                   <span className="ld-row-title">{track.title}</span>
                   <span className="ld-row-sub">
                     {track.artistName || 'Unknown creator'}
                     {track.genre ? ` · ${track.genre}` : ''}
                   </span>
-                </span>
+                </button>
                 <span className="ld-row-meta">
                   <span className="ld-row-size">
                     {ready ? formatBytes(track.fileSize) : '—'}
@@ -254,31 +270,22 @@ const ListenerDownloadsConnected = () => {
                       <FaCheck />
                     </span>
                   )}
-                  <span
-                    role="button"
-                    tabIndex={0}
-                    className={`ld-row-more ${busyId === track.downloadId ? 'ld-more-busy' : ''}`}
-                    title={busyId === track.downloadId ? 'Removing…' : 'Remove download'}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDelete(track.downloadId);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.stopPropagation();
-                        handleDelete(track.downloadId);
-                      }
-                    }}
+                  <button
+                    type="button"
+                    className={`ld-row-more ${removing ? 'ld-more-busy' : ''}`}
+                    title={removing ? 'Removing…' : 'Remove download'}
+                    aria-label={removing ? `Removing ${track.title || 'download'}` : `Remove ${track.title || 'download'}`}
+                    disabled={removing}
+                    onClick={() => handleDelete(track)}
                   >
-                    {busyId === track.downloadId ? <FaTrash /> : <FaEllipsisV />}
-                  </span>
+                    {removing ? <FaTrash /> : <FaEllipsisV />}
+                  </button>
                 </span>
-              </button>
+              </div>
             );
           })}
         </div>
       )}
-
 
       <Toast
         open={toast.open}
