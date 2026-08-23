@@ -6,7 +6,9 @@ export async function requireAudioDownloadAccess(req, res, next) {
     const audio = await Audio.findOne({
       _id: req.params.id,
       isDeleted: false,
-    }).select('_id artist isPublic visibility publicationStatus sourceBroadcast');
+    }).select(
+      '_id artist isPublic visibility publicationStatus sourceBroadcast filename fileKey mimeType originalName'
+    );
 
     if (!audio) {
       return res.status(404).json({
@@ -20,6 +22,7 @@ export async function requireAudioDownloadAccess(req, res, next) {
       });
     }
 
+    req.audioAccessRecord = audio;
     return next();
   } catch (error) {
     return next(error);
