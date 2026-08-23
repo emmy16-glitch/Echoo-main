@@ -13,6 +13,7 @@ import { apiRequest } from '../../services/api.js';
 import {
   BROADCAST_RECORDING_READY_EVENT,
   clearPendingBroadcastRecording,
+  retryBroadcastQualityCompletion,
 } from '../../services/broadcastRecordingService.js';
 import './BroadcastRecordingPrompt.css';
 
@@ -171,6 +172,13 @@ const BroadcastRecordingPrompt = () => {
     }, 1200);
   };
 
+  const ensureQualityFinalized = async () => {
+    if (!recording.qualityCompletionPending) return;
+    await retryBroadcastQualityCompletion(recording);
+    // Persist the cleared pending flag in the in-memory recovery detail too.
+    rememberPendingDecision({ ...pending, recording });
+  };
+
   const saveRecording = async (isPublic) => {
     if (savingMode || savedMode) return;
 
@@ -179,6 +187,8 @@ const BroadcastRecordingPrompt = () => {
     setError('');
 
     try {
+      await ensureQualityFinalized();
+
       const file = new File(
         [recording.blob],
         safeFilename(title, recording),
@@ -203,7 +213,11 @@ const BroadcastRecordingPrompt = () => {
 
       closeAfterSave(mode);
     } catch (saveError) {
-      setError(saveError?.message || 'Echoo could not save this local recording.');
+      setError(
+        recording.qualityCompletionPending
+          ? saveError?.message || 'Echoo is still confirming the transcript quality upload. The local master is protected; try again.'
+          : saveError?.message || 'Echoo could not save this local recording.'
+      );
     } finally {
       setSavingMode('');
     }
@@ -214,6 +228,7 @@ const BroadcastRecordingPrompt = () => {
     setSavingMode('discard');
     setError('');
     try {
+      await ensureQualityFinalized();
       await apiRequest(
         `/broadcasts/${encodeURIComponent(recording.broadcastId)}/discard-replay`,
         { method: 'POST' }
@@ -222,10 +237,11 @@ const BroadcastRecordingPrompt = () => {
       clearPendingBroadcastRecording(recording.broadcastId);
       setPending(null);
     } catch (discardError) {
-      // Keep the OPFS master and pending decision until the server records the
-      // terminal choice. This prevents an offline click from creating an
-      // unrecoverable backend wait with no local file left to save.
-      setError(discardError?.message || 'Echoo could not confirm the discard. The local recording is still protected; try again.');
+      setError(
+        recording.qualityCompletionPending
+          ? discardError?.message || 'Echoo is still confirming the transcript quality upload. The local recording is protected; try again.'
+          : discardError?.message || 'Echoo could not confirm the discard. The local recording is still protected; try again.'
+      );
     } finally {
       setSavingMode('');
     }
@@ -272,6 +288,12 @@ const BroadcastRecordingPrompt = () => {
         {recording.limitReached && (
           <div className="echoo-recording-error">
             This master reached the classic WAV file-size limit. Save this segment before recording another session.
+          </div>
+        )}
+
+        {recording.qualityCompletionPending && (
+          <div className="echoo-recording-error">
+            Echoo is still confirming the final transcript-quality upload. Saving or discarding will retry that confirmation first.
           </div>
         )}
 
