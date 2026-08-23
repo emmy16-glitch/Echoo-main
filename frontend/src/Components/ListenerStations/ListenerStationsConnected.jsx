@@ -4,7 +4,6 @@ import {
   FaBell,
   FaChevronLeft,
   FaChevronRight,
-  FaEllipsisH,
   FaHeadphones,
   FaList,
   FaPlus,
@@ -16,16 +15,14 @@ import {
 } from 'react-icons/fa';
 
 import { buildGeneratedStationBrandCoverUrl } from '../../stationBranding/stationBranding.js';
-
 import batch2Service from '../../services/batch2Service';
 import realtimeService from '../../services/realtimeService';
 import followService from '../../services/followService';
+import notificationService from '../../services/notificationService';
 import './ListenerStations.css';
 
 const PAGE_SIZE = 8;
 const CLUSTER_COUNT = 6;
-// Cluster lives entirely in the right half of the hero banner (reference: stations.png).
-// Left boundary at 54% keeps a clear margin from the text block (max-width 380px).
 const HERO_CLUSTER_CIRCLE = {
   0: { size: 54, top: '12%', left: '55%' },
   1: { size: 48, top: '2%', left: '77%' },
@@ -47,6 +44,7 @@ const formatCount = (value) => {
 const ListenerStationsConnected = () => {
   const navigate = useNavigate();
   const listRef = useRef(null);
+  const searchInputRef = useRef(null);
 
   const stationCover = (station) =>
     station?.brandCover ||
@@ -56,19 +54,20 @@ const ListenerStationsConnected = () => {
   const [allStations, setAllStations] = useState([]);
   const [topStations, setTopStations] = useState([]);
   const [followingIds, setFollowingIds] = useState(new Set());
+  const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
 
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('All');
+  const [status, setStatus] = useState('all');
   const [sortBy, setSortBy] = useState('followers');
   const [view, setView] = useState('list');
 
   const [pendingCategory, setPendingCategory] = useState('All');
   const [pendingStatus, setPendingStatus] = useState('all');
   const [pendingSort, setPendingSort] = useState('followers');
-  const [pendingSearch, setPendingSearch] = useState('');
 
   const [actionId, setActionId] = useState('');
   const [error, setError] = useState('');
@@ -79,26 +78,23 @@ const ListenerStationsConnected = () => {
       setFailed(false);
       if (!silent) setError('');
 
-      const [stationResult, topResult, followedResult] = await Promise.allSettled([
+      const [stationResult, topResult, followedResult, notificationResult] = await Promise.allSettled([
         batch2Service.listStations({ page: 1, limit: 100 }),
         batch2Service.listStations({ page: 1, limit: 8 }),
         followService.getFollowingStations(),
+        notificationService.list({ page: 1, limit: 1, unreadOnly: true }),
       ]);
 
       if (stationResult.status !== 'fulfilled') throw stationResult.reason;
       const realStations = Array.isArray(stationResult.value?.data)
-        ? stationResult.value.data.filter(
-            (station) => station?.id && station.isPublic !== false
-          )
+        ? stationResult.value.data.filter((station) => station?.id && station.isPublic !== false)
         : [];
       setAllStations(realStations);
 
       if (topResult.status === 'fulfilled' && Array.isArray(topResult.value?.data)) {
         const ordered = [...topResult.value.data]
           .filter((station) => station?.id)
-          .sort(
-            (a, b) => Number(b.followerCount || 0) - Number(a.followerCount || 0)
-          )
+          .sort((a, b) => Number(b.followerCount || 0) - Number(a.followerCount || 0))
           .slice(0, 5);
         setTopStations(ordered);
       }
@@ -111,6 +107,10 @@ const ListenerStationsConnected = () => {
               .map((station) => String(station.id))
           )
         );
+      }
+
+      if (notificationResult.status === 'fulfilled') {
+        setUnreadCount(Number(notificationResult.value?.data?.unreadCount) || 0);
       }
     } catch (loadError) {
       console.error('Real stations:', loadError);
@@ -131,6 +131,18 @@ const ListenerStationsConnected = () => {
       window.removeEventListener('focus', sync);
     };
   }, [load]);
+
+  useEffect(() => {
+    const focusSearch = (event) => {
+      if ((event.ctrlKey || event.metaKey) && String(event.key).toLowerCase() === 'k') {
+        event.preventDefault();
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+      }
+    };
+    window.addEventListener('keydown', focusSearch);
+    return () => window.removeEventListener('keydown', focusSearch);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -164,11 +176,14 @@ const ListenerStationsConnected = () => {
   }, [allStations]);
 
   useEffect(() => {
-    if (!categories.includes(category)) setCategory('All');
+    if (!categories.includes(category)) {
+      setCategory('All');
+      setPendingCategory('All');
+    }
   }, [categories, category]);
 
   const applied = useMemo(() => {
-    const term = pendingSearch.trim().toLowerCase();
+    const term = search.trim().toLowerCase();
     const list = allStations.filter((station) => {
       const matchesTerm =
         !term ||
@@ -176,26 +191,25 @@ const ListenerStationsConnected = () => {
         station.description?.toLowerCase().includes(term) ||
         station.category?.toLowerCase().includes(term) ||
         station.tags?.some((tag) => String(tag).toLowerCase().includes(term));
-      const matchesCategory =
-        pendingCategory === 'All' || station.category === pendingCategory;
+      const matchesCategory = category === 'All' || station.category === category;
       const matchesStatus =
-        pendingStatus === 'all' ||
-        (pendingStatus === 'live' && station.isLive) ||
-        (pendingStatus === 'offline' && !station.isLive);
+        status === 'all' ||
+        (status === 'live' && station.isLive) ||
+        (status === 'offline' && !station.isLive);
       return matchesTerm && matchesCategory && matchesStatus;
     });
 
     return [...list].sort((a, b) => {
-      if (pendingSort === 'followers') {
+      if (sortBy === 'followers') {
         return Number(b.followerCount || 0) - Number(a.followerCount || 0);
       }
-      if (pendingSort === 'listening') {
+      if (sortBy === 'listening') {
         return Number(b.listenerCount || 0) - Number(a.listenerCount || 0);
       }
       return Number(b.isLive) - Number(a.isLive) ||
         Number(b.listenerCount || 0) - Number(a.listenerCount || 0);
     });
-  }, [allStations, pendingSearch, pendingCategory, pendingStatus, pendingSort]);
+  }, [allStations, search, category, status, sortBy]);
 
   const totalPages = Math.max(1, Math.ceil(applied.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -220,19 +234,21 @@ const ListenerStationsConnected = () => {
 
   const applyFilters = () => {
     setCategory(pendingCategory);
+    setStatus(pendingStatus);
     setSortBy(pendingSort);
     setPage(1);
-    if (listRef.current) {
-      listRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
+    listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   const clearAll = () => {
+    setCategory('All');
+    setStatus('all');
+    setSortBy('followers');
+    setSearch('');
     setPendingCategory('All');
     setPendingStatus('all');
     setPendingSort('followers');
-    setPendingSearch('');
-    setSearch('');
+    setPage(1);
   };
 
   const toggleFollow = async (station) => {
@@ -254,14 +270,11 @@ const ListenerStationsConnected = () => {
         return next;
       });
 
-      const followerCount = Number(
-        response?.station?.followerCount ?? response?.followerCount
-      );
+      const followerCount = Number(response?.station?.followerCount ?? response?.followerCount);
       if (Number.isFinite(followerCount)) {
-        const patch = (list) =>
-          list.map((item) =>
-            String(item.id) === key ? { ...item, followerCount } : item
-          );
+        const patch = (list) => list.map((item) =>
+          String(item.id) === key ? { ...item, followerCount } : item
+        );
         setAllStations(patch);
         setTopStations(patch);
       }
@@ -274,15 +287,11 @@ const ListenerStationsConnected = () => {
 
   const openStation = (station) => {
     if (!station?.id) return;
-    // Navigate immediately. The station detail page resolves live status in the
-    // background, so a network lookup must never make the first click feel dead.
     navigate(`/listen/stations/${station.id}`);
   };
 
   const scrollToExplore = () => {
-    if (listRef.current) {
-      listRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
+    listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   const pageNumbers = useMemo(() => {
@@ -303,7 +312,7 @@ const ListenerStationsConnected = () => {
 
   if (!loading && failed) {
     return (
-      <main className="ls-page">
+      <div className="ls-page">
         <div className="ls-state-card">
           <FaHeadphones />
           <strong>Stations could not be loaded.</strong>
@@ -312,12 +321,12 @@ const ListenerStationsConnected = () => {
             Try again
           </button>
         </div>
-      </main>
+      </div>
     );
   }
 
   return (
-    <main className="ls-page">
+    <div className="ls-page">
       <header className="ls-header">
         <div className="ls-header-text">
           <h1>Stations</h1>
@@ -327,34 +336,39 @@ const ListenerStationsConnected = () => {
           <label className="ls-search-field ls-search-large">
             <FaSearch className="ls-search-icon" />
             <input
+              ref={searchInputRef}
               type="text"
-              value={pendingSearch}
+              value={search}
               placeholder="Search stations, shows or audio..."
               aria-label="Search stations"
-              onChange={(event) => setPendingSearch(event.target.value)}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setPage(1);
+              }}
             />
-            {pendingSearch && (
+            {search && (
               <button
                 type="button"
                 className="ls-search-clear"
                 aria-label="Clear search"
-                onClick={() => setPendingSearch('')}
+                onClick={() => {
+                  setSearch('');
+                  setPage(1);
+                }}
               >
                 <FaTimes />
               </button>
             )}
-            <span className="ls-k-chip" aria-hidden>
-              K
-            </span>
+            <span className="ls-k-chip" aria-hidden>Ctrl/⌘ K</span>
           </label>
           <button
             type="button"
             className="ls-icon-btn"
-            aria-label="Notifications"
+            aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ''}`}
             onClick={() => navigate('/listen/notifications')}
           >
             <FaBell />
-            <span className="ls-badge" aria-hidden />
+            {unreadCount > 0 && <span className="ls-badge" aria-hidden />}
           </button>
         </div>
       </header>
@@ -365,55 +379,33 @@ const ListenerStationsConnected = () => {
             type="button"
             key={item}
             className={`ls-chip ${category === item ? 'active' : ''}`}
-            onClick={() => setCategory(item)}
+            onClick={() => {
+              setCategory(item);
+              setPendingCategory(item);
+              setPage(1);
+            }}
           >
             {item === 'All' ? 'All stations' : item}
           </button>
         ))}
-        <button
-          type="button"
-          className="ls-chip ls-chip-more"
-          aria-label="More categories"
-          onClick={() => {
-            if (listRef.current) {
-              listRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }
-          }}
-        >
+        <button type="button" className="ls-chip ls-chip-more" aria-label="Jump to station list" onClick={scrollToExplore}>
           <FaChevronRight />
         </button>
       </div>
 
       <section className="ls-hero" aria-label="Explore stations">
         <div className="ls-hero-content">
-          <h2>
-            Your next favorite voice is <span>here.</span>
-          </h2>
+          <h2>Your next favorite voice is <span>here.</span></h2>
           <p>Follow stations and get notified when they go live.</p>
-          <button type="button" className="ls-btn-primary" onClick={scrollToExplore}>
-            Explore stations
-          </button>
+          <button type="button" className="ls-btn-primary" onClick={scrollToExplore}>Explore stations</button>
         </div>
         <div className="ls-hero-cluster" aria-hidden>
           {heroCluster.map((station, index) => {
             const style = HERO_CLUSTER_CIRCLE[index % CLUSTER_COUNT];
             const art = stationCover(station);
             return (
-              <span
-                key={station.id}
-                className="ls-cluster-circle"
-                style={{
-                  width: style.size,
-                  height: style.size,
-                  top: style.top,
-                  left: style.left,
-                }}
-              >
-                {art ? (
-                  <img src={art} alt="" aria-hidden loading="lazy" />
-                ) : (
-                  <FaHeadphones />
-                )}
+              <span key={station.id} className="ls-cluster-circle" style={{ width: style.size, height: style.size, top: style.top, left: style.left }}>
+                {art ? <img src={art} alt="" aria-hidden loading="lazy" /> : <FaHeadphones />}
               </span>
             );
           })}
@@ -438,12 +430,7 @@ const ListenerStationsConnected = () => {
                   }}
                 />
                 {search && (
-                  <button
-                    type="button"
-                    className="ls-search-clear"
-                    aria-label="Clear search"
-                    onClick={() => setSearch('')}
-                  >
+                  <button type="button" className="ls-search-clear" aria-label="Clear search" onClick={() => { setSearch(''); setPage(1); }}>
                     <FaTimes />
                   </button>
                 )}
@@ -452,50 +439,32 @@ const ListenerStationsConnected = () => {
                 className="ls-select"
                 value={sortBy}
                 aria-label="Sort stations"
-                onChange={(event) => setSortBy(event.target.value)}
+                onChange={(event) => {
+                  setSortBy(event.target.value);
+                  setPendingSort(event.target.value);
+                  setPage(1);
+                }}
               >
                 <option value="followers">Most followers</option>
                 <option value="listening">Most listening now</option>
                 <option value="live">Live &amp; popular</option>
               </select>
               <div className="ls-view-toggle" role="group" aria-label="View style">
-                <button
-                  type="button"
-                  className={view === 'list' ? 'active' : ''}
-                  aria-pressed={view === 'list'}
-                  aria-label="List view"
-                  onClick={() => setView('list')}
-                >
-                  <FaList />
-                </button>
-                <button
-                  type="button"
-                  className={view === 'grid' ? 'active' : ''}
-                  aria-pressed={view === 'grid'}
-                  aria-label="Grid view"
-                  onClick={() => setView('grid')}
-                >
-                  <FaThLarge />
-                </button>
+                <button type="button" className={view === 'list' ? 'active' : ''} aria-pressed={view === 'list'} aria-label="List view" onClick={() => setView('list')}><FaList /></button>
+                <button type="button" className={view === 'grid' ? 'active' : ''} aria-pressed={view === 'grid'} aria-label="Grid view" onClick={() => setView('grid')}><FaThLarge /></button>
               </div>
             </div>
           </header>
 
           {loading ? (
             <div className={`ls-list ${view}`}>
-              {Array.from({ length: PAGE_SIZE }).map((_, index) => (
-                <div className="ls-row ls-row-skeleton" key={index} />
-              ))}
+              {Array.from({ length: PAGE_SIZE }).map((_, index) => <div className="ls-row ls-row-skeleton" key={index} />)}
             </div>
           ) : paged.length === 0 ? (
             <div className="ls-state-card compact">
               <FaSearch />
               <strong>No stations found.</strong>
-              <span>
-                {allStations.length === 0
-                  ? 'There are no public stations available yet.'
-                  : 'Try another category, search term, or filter.'}
-              </span>
+              <span>{allStations.length === 0 ? 'There are no public stations available yet.' : 'Try another category, search term, or filter.'}</span>
             </div>
           ) : (
             <div className={`ls-list ${view}`}>
@@ -503,74 +472,28 @@ const ListenerStationsConnected = () => {
                 const key = String(station.id);
                 const isFollowing = followingIds.has(key);
                 const art = stationCover(station);
-                const description =
-                  station.description?.trim() ||
-                  (station.owner?.displayName
-                    ? `Public station by ${station.owner.displayName}.`
-                    : 'Public Echoo station.');
+                const description = station.description?.trim() || (station.owner?.displayName ? `Public station by ${station.owner.displayName}.` : 'Public Echoo station.');
                 return (
                   <article className="ls-row" key={station.id}>
-                    <button
-                      type="button"
-                      className="ls-row-art"
-                      aria-label={`Open ${station.name}`}
-                      onClick={() => openStation(station)}
-                    >
-                      {art ? (
-                        <img src={art} alt="" aria-hidden loading="lazy" />
-                      ) : (
-                        <FaHeadphones />
-                      )}
-                      {station.isLive && (
-                        <span className="ls-live-chip" aria-hidden>
-                          <i /> LIVE
-                        </span>
-                      )}
+                    <button type="button" className="ls-row-art" aria-label={`Open ${station.name}`} onClick={() => openStation(station)}>
+                      {art ? <img src={art} alt="" aria-hidden loading="lazy" /> : <FaHeadphones />}
+                      {station.isLive && <span className="ls-live-chip" aria-hidden><i /> LIVE</span>}
                     </button>
                     <div className="ls-row-info">
-                      <button
-                        type="button"
-                        className="ls-row-name"
-                        onClick={() => openStation(station)}
-                      >
-                        {station.name}
-                      </button>
-                      <span className="ls-row-category">
-                        {station.category || 'Other'}
-                      </span>
+                      <button type="button" className="ls-row-name" onClick={() => openStation(station)}>{station.name}</button>
+                      <span className="ls-row-category">{station.category || 'Other'}</span>
                       <span className="ls-row-description">{description}</span>
                     </div>
                     <div className="ls-row-stats">
-                      <span className="ls-stat">
-                        <strong>{formatCount(station.followerCount)}</strong>
-                        <span>Followers</span>
-                      </span>
-                      <span className="ls-stat">
-                        <strong>{formatCount(station.listenerCount)}</strong>
-                        <span>Listening now</span>
-                      </span>
+                      <span className="ls-stat"><strong>{formatCount(station.followerCount)}</strong><span>Followers</span></span>
+                      <span className="ls-stat"><strong>{formatCount(station.listenerCount)}</strong><span>Listening now</span></span>
                     </div>
                     <div className="ls-row-actions">
-                      <button
-                        type="button"
-                        className="ls-follow-btn"
-                        disabled={actionId === key}
-                        onClick={() => toggleFollow(station)}
-                      >
-                        <FaPlus />
-                        {actionId === key
-                          ? 'Updating...'
-                          : isFollowing
-                            ? 'Following'
-                            : 'Follow'}
+                      <button type="button" className="ls-follow-btn" disabled={actionId === key} onClick={() => toggleFollow(station)}>
+                        <FaPlus />{actionId === key ? 'Updating...' : isFollowing ? 'Following' : 'Follow'}
                       </button>
-                      <button
-                        type="button"
-                        className="ls-more-btn"
-                        aria-label={`More options for ${station.name}`}
-                        onClick={() => openStation(station)}
-                      >
-                        <FaEllipsisH />
+                      <button type="button" className="ls-more-btn" aria-label={`Open ${station.name} details`} onClick={() => openStation(station)}>
+                        <FaChevronRight />
                       </button>
                     </div>
                   </article>
@@ -581,41 +504,15 @@ const ListenerStationsConnected = () => {
 
           {!loading && totalPages > 1 && (
             <nav className="ls-pagination" aria-label="Stations pages">
-              <button
-                type="button"
-                className="ls-page-btn"
-                aria-label="Previous page"
-                disabled={safePage <= 1}
-                onClick={() => setPage((value) => Math.max(1, value - 1))}
-              >
-                <FaChevronLeft />
-              </button>
-              {pageNumbers.map((value) =>
+              <button type="button" className="ls-page-btn" aria-label="Previous page" disabled={safePage <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))}><FaChevronLeft /></button>
+              {pageNumbers.map((value, index) =>
                 value === '...' ? (
-                  <span className="ls-page-ellipsis" key="ellipsis">
-                    ...
-                  </span>
+                  <span className="ls-page-ellipsis" key={`ellipsis-${index}`}>...</span>
                 ) : (
-                  <button
-                    type="button"
-                    key={value}
-                    className={`ls-page-btn ${value === safePage ? 'active' : ''}`}
-                    aria-current={value === safePage ? 'page' : undefined}
-                    onClick={() => setPage(value)}
-                  >
-                    {value}
-                  </button>
+                  <button type="button" key={value} className={`ls-page-btn ${value === safePage ? 'active' : ''}`} aria-current={value === safePage ? 'page' : undefined} onClick={() => setPage(value)}>{value}</button>
                 )
               )}
-              <button
-                type="button"
-                className="ls-page-btn"
-                aria-label="Next page"
-                disabled={safePage >= totalPages}
-                onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
-              >
-                <FaChevronRight />
-              </button>
+              <button type="button" className="ls-page-btn" aria-label="Next page" disabled={safePage >= totalPages} onClick={() => setPage((value) => Math.min(totalPages, value + 1))}><FaChevronRight /></button>
             </nav>
           )}
         </div>
@@ -623,33 +520,14 @@ const ListenerStationsConnected = () => {
         <aside className="ls-sidebar">
           <section className="ls-filters-card">
             <header className="ls-filters-header">
-              <span>
-                <FaSlidersH /> Filters
-              </span>
-              <button type="button" className="ls-clear-all" onClick={clearAll}>
-                Clear all
-              </button>
+              <span><FaSlidersH /> Filters</span>
+              <button type="button" className="ls-clear-all" onClick={clearAll}>Clear all</button>
             </header>
 
             <div className="ls-filter-group">
               <label>Category</label>
-              <select
-                className="ls-select"
-                value={pendingCategory}
-                onChange={(event) => setPendingCategory(event.target.value)}
-              >
-                {categories.map((item) => (
-                  <option key={item} value={item}>
-                    {item === 'All' ? 'All categories' : item}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="ls-filter-group">
-              <label>Language</label>
-              <select className="ls-select" defaultValue="all" aria-label="Language">
-                <option value="all">All languages</option>
+              <select className="ls-select" value={pendingCategory} onChange={(event) => setPendingCategory(event.target.value)}>
+                {categories.map((item) => <option key={item} value={item}>{item === 'All' ? 'All categories' : item}</option>)}
               </select>
             </div>
 
@@ -661,48 +539,39 @@ const ListenerStationsConnected = () => {
                 { value: 'offline', label: 'Offline' },
               ].map((option) => (
                 <label key={option.value} className="ls-radio">
-                  <input
-                    type="radio"
-                    name="ls-status"
-                    checked={pendingStatus === option.value}
-                    onChange={() => setPendingStatus(option.value)}
-                  />
-                  <span className="ls-radio-mark" />
-                  {option.label}
+                  <input type="radio" name="ls-status" checked={pendingStatus === option.value} onChange={() => setPendingStatus(option.value)} />
+                  <span className="ls-radio-mark" />{option.label}
                 </label>
               ))}
             </div>
 
             <div className="ls-filter-group">
               <label>Sort by</label>
-              <select
-                className="ls-select"
-                value={pendingSort}
-                onChange={(event) => setPendingSort(event.target.value)}
-              >
+              <select className="ls-select" value={pendingSort} onChange={(event) => setPendingSort(event.target.value)}>
                 <option value="followers">Most followers</option>
                 <option value="listening">Most listening now</option>
                 <option value="live">Live &amp; popular</option>
               </select>
             </div>
 
-            <button type="button" className="ls-btn-primary ls-apply-btn" onClick={applyFilters}>
-              Apply filters
-            </button>
+            <button type="button" className="ls-btn-primary ls-apply-btn" onClick={applyFilters}>Apply filters</button>
           </section>
 
           <section className="ls-top-card">
             <header className="ls-top-header">
-              <h3>
-                <FaTrophy /> Top stations
-              </h3>
+              <h3><FaTrophy /> Top stations</h3>
               <button
                 type="button"
                 className="ls-view-all"
                 aria-label="View all stations"
                 onClick={() => {
                   setCategory('All');
+                  setPendingCategory('All');
+                  setStatus('all');
+                  setPendingStatus('all');
                   setSortBy('followers');
+                  setPendingSort('followers');
+                  setPage(1);
                   scrollToExplore();
                 }}
               >
@@ -720,34 +589,14 @@ const ListenerStationsConnected = () => {
                   return (
                     <li className="ls-top-row" key={station.id}>
                       <span className="ls-rank">{index + 1}</span>
-                      <button
-                        type="button"
-                        className="ls-top-art"
-                        aria-label={`Open ${station.name}`}
-                        onClick={() => openStation(station)}
-                      >
-                        {art ? (
-                          <img src={art} alt="" aria-hidden loading="lazy" />
-                        ) : (
-                          <FaHeadphones />
-                        )}
+                      <button type="button" className="ls-top-art" aria-label={`Open ${station.name}`} onClick={() => openStation(station)}>
+                        {art ? <img src={art} alt="" aria-hidden loading="lazy" /> : <FaHeadphones />}
                       </button>
                       <div className="ls-top-info">
-                        <button
-                          type="button"
-                          className="ls-top-name"
-                          onClick={() => openStation(station)}
-                        >
-                          {station.name}
-                        </button>
+                        <button type="button" className="ls-top-name" onClick={() => openStation(station)}>{station.name}</button>
                         <span>{formatCount(station.followerCount)} followers</span>
                       </div>
-                      <button
-                        type="button"
-                        className={`ls-top-follow ${isFollowing ? 'following' : ''}`}
-                        disabled={actionId === key}
-                        onClick={() => toggleFollow(station)}
-                      >
+                      <button type="button" className={`ls-top-follow ${isFollowing ? 'following' : ''}`} disabled={actionId === key} onClick={() => toggleFollow(station)}>
                         {isFollowing ? 'Following' : '+ Follow'}
                       </button>
                     </li>
@@ -756,12 +605,11 @@ const ListenerStationsConnected = () => {
               </ul>
             )}
           </section>
-
         </aside>
       </section>
 
       {error && <div className="ls-inline-error">{error}</div>}
-    </main>
+    </div>
   );
 };
 
