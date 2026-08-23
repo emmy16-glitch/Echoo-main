@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   FaBell,
@@ -59,6 +59,7 @@ const sortBroadcasts = (list, sortBy) => {
 
 const ListenerLiveConnected = () => {
   const navigate = useNavigate();
+  const searchInputRef = useRef(null);
   const [live, setLive] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -82,7 +83,7 @@ const ListenerLiveConnected = () => {
         limit: 1,
         unreadOnly: true,
       });
-      setUnreadCount(Number(notifications?.unreadCount) || 0);
+      setUnreadCount(Number(notifications?.data?.unreadCount) || 0);
     } catch (loadError) {
       if (!silent) {
         setError(loadError?.message || 'Live broadcasts could not be loaded.');
@@ -102,6 +103,18 @@ const ListenerLiveConnected = () => {
       window.removeEventListener('focus', sync);
     };
   }, [load]);
+
+  useEffect(() => {
+    const focusSearch = (event) => {
+      if ((event.metaKey || event.ctrlKey) && String(event.key).toLowerCase() === 'k') {
+        event.preventDefault();
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+      }
+    };
+    window.addEventListener('keydown', focusSearch);
+    return () => window.removeEventListener('keydown', focusSearch);
+  }, []);
 
   const filteredLive = useMemo(() => {
     let list = live;
@@ -154,7 +167,7 @@ const ListenerLiveConnected = () => {
   };
 
   return (
-    <main className="listener-live">
+    <div className="listener-live">
       <header className="listener-live-header">
         <div className="listener-live-header-left">
           <h1>Live now</h1>
@@ -164,6 +177,7 @@ const ListenerLiveConnected = () => {
           <div className="listener-live-search">
             <FaSearch className="listener-live-search-icon" aria-hidden="true" />
             <input
+              ref={searchInputRef}
               type="text"
               placeholder="Search stations, shows or audio..."
               aria-label="Search live broadcasts"
@@ -173,7 +187,7 @@ const ListenerLiveConnected = () => {
                 if (event.key === 'Enter') handleSearch();
               }}
             />
-            <span className="listener-live-search-kbd">⌘ K</span>
+            <span className="listener-live-search-kbd" aria-hidden="true">Ctrl/⌘ K</span>
           </div>
           <button
             type="button"
@@ -244,6 +258,7 @@ const ListenerLiveConnected = () => {
               type="button"
               className="listener-live-featured"
               onClick={() => navigate(`/listen/live/${featured.id}`)}
+              aria-label={`Join ${featured.title}`}
             >
               <div className="listener-live-featured-copy">
                 <span className="listener-live-featured-label">FEATURED LIVE</span>
@@ -265,14 +280,7 @@ const ListenerLiveConnected = () => {
                     {featured.description}
                   </p>
                 )}
-                <span
-                  type="button"
-                  className="listener-live-featured-join"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    navigate(`/listen/live/${featured.id}`);
-                  }}
-                >
+                <span className="listener-live-featured-join">
                   <FaPlay aria-hidden="true" /> Join live
                 </span>
               </div>
@@ -300,38 +308,17 @@ const ListenerLiveConnected = () => {
           <section className="listener-live-section">
             <div className="listener-live-section-heading">
               <h2>All live broadcasts</h2>
-              <div className="listener-live-view-controls">
-                <span
-                  className="listener-live-view-control"
-                  title="Shuffle view"
-                  aria-hidden="true"
-                >
-                  <FaRandom aria-hidden="true" />
-                </span>
-                <span
-                  className="listener-live-view-control active"
-                  title="Grid view"
-                  aria-hidden="true"
-                >
-                  <FaThLarge aria-hidden="true" />
-                </span>
-                <span
-                  className="listener-live-view-control"
-                  title="List view"
-                  aria-hidden="true"
-                >
-                  <FaList aria-hidden="true" />
-                </span>
+              <div className="listener-live-view-controls" aria-hidden="true">
+                <span className="listener-live-view-control" title="Shuffle view"><FaRandom /></span>
+                <span className="listener-live-view-control active" title="Grid view"><FaThLarge /></span>
+                <span className="listener-live-view-control" title="List view"><FaList /></span>
               </div>
             </div>
 
             {gridBroadcasts.length > 0 ? (
               <div className="listener-live-grid">
                 {gridBroadcasts.map((broadcast) => (
-                  <article
-                    key={broadcast.id}
-                    className="listener-live-card"
-                  >
+                  <article key={broadcast.id} className="listener-live-card">
                     <button
                       type="button"
                       className="listener-live-card-art"
@@ -343,28 +330,15 @@ const ListenerLiveConnected = () => {
                       ) : (
                         <FaHeadphones />
                       )}
-                      <span className="listener-live-card-live">
-                        <i aria-hidden="true" /> LIVE
-                      </span>
-                      <span className="listener-live-card-listeners">
-                        <FaUsers aria-hidden="true" />{' '}
-                        {Number(broadcast.listenerCount) || 0}
-                      </span>
+                      <span className="listener-live-card-live"><i aria-hidden="true" /> LIVE</span>
+                      <span className="listener-live-card-listeners"><FaUsers aria-hidden="true" /> {Number(broadcast.listenerCount) || 0}</span>
                     </button>
                     <div className="listener-live-card-body">
                       <h3>{broadcast.title}</h3>
-                      <span className="listener-live-card-category">
-                        {categoryOf(broadcast)}
-                      </span>
-                      {broadcast.description && (
-                        <p className="listener-live-card-description">
-                          {broadcast.description}
-                        </p>
-                      )}
+                      <span className="listener-live-card-category">{categoryOf(broadcast)}</span>
+                      {broadcast.description && <p className="listener-live-card-description">{broadcast.description}</p>}
                       <div className="listener-live-card-bottom">
-                        <span className="listener-live-card-now">
-                          <i aria-hidden="true" /> Live now
-                        </span>
+                        <span className="listener-live-card-now"><i aria-hidden="true" /> Live now</span>
                         <button
                           type="button"
                           className="listener-live-card-play"
@@ -381,34 +355,24 @@ const ListenerLiveConnected = () => {
             ) : (
               <div className="listener-live-empty">
                 <FaHeadphones aria-hidden="true" />
-                <p>
-                  {category === 'All'
-                    ? 'No live broadcasts match your search.'
-                    : `No live broadcasts in ${category} right now.`}
-                </p>
+                <p>{category === 'All' ? 'No live broadcasts match your search.' : `No live broadcasts in ${category} right now.`}</p>
               </div>
             )}
           </section>
 
           <section className="listener-live-promo">
-            <span className="listener-live-promo-icon" aria-hidden="true">
-              <FaHeadphones />
-            </span>
+            <span className="listener-live-promo-icon" aria-hidden="true"><FaHeadphones /></span>
             <div className="listener-live-promo-copy">
               <h3>Don't miss a live broadcast</h3>
               <p>Follow your favorite stations and get notified when they go live.</p>
             </div>
-            <button
-              type="button"
-              className="listener-live-promo-button"
-              onClick={() => navigate('/listen/stations')}
-            >
+            <button type="button" className="listener-live-promo-button" onClick={() => navigate('/listen/stations')}>
               Explore stations
             </button>
           </section>
         </>
       )}
-    </main>
+    </div>
   );
 };
 
