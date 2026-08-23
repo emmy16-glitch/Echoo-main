@@ -59,7 +59,6 @@ const enrichBroadcasts = (broadcasts, stations) => {
       category:
         station?.category || broadcast.category || 'Other',
       stationBranding: station?.branding || broadcast.stationBranding || null,
-      // The current Station brand is authoritative for every listener surface.
       coverArt: artwork,
       artwork,
       image: artwork,
@@ -71,6 +70,22 @@ const enrichBroadcasts = (broadcasts, stations) => {
 const normalizeList = (response) => {
   const data = Array.isArray(response?.data) ? response.data : [];
   return data.map(normalizeBroadcast).filter(Boolean);
+};
+
+const prioritizeRequestedCreatorBroadcast = (broadcasts) => {
+  if (typeof sessionStorage === 'undefined') return broadcasts;
+  const requestedId =
+    sessionStorage.getItem('echooProcessingBroadcastId') ||
+    sessionStorage.getItem('echooPreparedBroadcastId') ||
+    '';
+  if (!requestedId) return broadcasts;
+
+  const index = broadcasts.findIndex((item) => String(item?.id || '') === String(requestedId));
+  if (index <= 0) return broadcasts;
+  const ordered = [...broadcasts];
+  const [requested] = ordered.splice(index, 1);
+  ordered.unshift(requested);
+  return ordered;
 };
 
 const checkLiveKitReadiness = async () => {
@@ -123,8 +138,6 @@ const batch3Service = {
     const normalized = normalizeBroadcast(response?.data);
     let canonical = normalized;
 
-    // Broadcast records can carry older copied artwork. Re-resolve the Station so
-    // a creator's latest uploaded/generated Station brand is what listeners see.
     if (normalized?.stationId) {
       try {
         const stationResult = await batch2Service.getStation(normalized.stationId);
@@ -192,15 +205,13 @@ const batch3Service = {
 
     return {
       ...response,
-      data: normalizeList(response),
+      data: prioritizeRequestedCreatorBroadcast(normalizeList(response)),
     };
   },
 
   checkLiveKitReadiness,
 
   startBroadcast: async (broadcastId) => {
-    // Fail before changing the broadcast lifecycle if this machine's backend
-    // cannot actually reach/authenticate to LiveKit.
     await checkLiveKitReadiness();
 
     const response = await apiRequest(
@@ -251,9 +262,6 @@ const batch3Service = {
           throw error;
         }
 
-        // LiveKit client connection can complete slightly before the server API
-        // participant list reflects it. Give Cloud/WebRTC propagation a bounded
-        // window rather than incorrectly cancelling a healthy publisher.
         await sleep(250 + attempt * 250);
       }
     }
@@ -273,7 +281,6 @@ const batch3Service = {
         data: normalizeBroadcast(response?.data),
       };
     } finally {
-      // Cancelled/failed starts must never surface a save-recording prompt.
       await discardBroadcastRecording(broadcastId).catch(() => {});
       forgetPendingRecordingDecision();
     }
@@ -317,9 +324,6 @@ const batch3Service = {
     apiRequest(`/analytics/live/${encodeURIComponent(broadcastId)}`),
 
   endBroadcast: async (broadcastId) => {
-    // Stop only the browser PCM producer and drain already-captured frames to
-    // the backend. This bounded handoff is not AI finalization: the backend
-    // processing worker and Whisper quality pass continue after End Live.
     await stopWhisperFlowTranscription({ finalize: false }).catch((error) => {
       console.warn('[Echoo Transcript] background handoff warning:', error?.message || error);
     });
@@ -332,11 +336,6 @@ const batch3Service = {
     const raw = response?.data?.broadcast || response?.data;
     const normalized = normalizeBroadcast(raw);
 
-    // Finalize the local post-master file before the caller tears down the
-    // mixer. The previous fire-and-forget version returned recordingReady=false
-    // before this work completed and could race mixer shutdown against the WAV
-    // capture worklet. File finalization is local I/O only; transcript/AI work
-    // continues independently on the backend.
     let recordingReady = false;
     try {
       const recording = await finishBroadcastRecording(broadcastId);
