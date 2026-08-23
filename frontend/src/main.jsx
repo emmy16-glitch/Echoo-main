@@ -55,8 +55,18 @@ import "./styles/echoo-ui-integrity-audit-2026.css";
 import "./styles/echoo-ui-page-integrity-2026.css";
 import "./styles/listener-ui-deep-integrity-2026.css";
 import "./styles/creator-ui-page-integrity-2026.css";
+import "./styles/deep-hidden-audit-fixes.css";
 
 initializeEchooTheme();
+
+// Older builds used this as a persistent transcript-processing selector. It is
+// now a one-shot notification concept represented by echooPreparedBroadcastId;
+// clear any stale value left in an existing tab/session before the app starts.
+try {
+  sessionStorage.removeItem("echooProcessingBroadcastId");
+} catch {
+  // Storage can be unavailable in hardened/private browser contexts.
+}
 
 if (localStorage.getItem("accessToken")) {
   settingsService.get().catch(() => {
