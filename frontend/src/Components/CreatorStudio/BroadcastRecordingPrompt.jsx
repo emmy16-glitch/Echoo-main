@@ -9,6 +9,7 @@ import {
 } from 'react-icons/fa';
 
 import studioService from '../../services/studioService.js';
+import { apiRequest } from '../../services/api.js';
 import {
   BROADCAST_RECORDING_READY_EVENT,
   clearPendingBroadcastRecording,
@@ -120,8 +121,6 @@ const BroadcastRecordingPrompt = () => {
       if (recovered) applyPendingDecision(recovered);
     };
 
-    // Recover first in case the recording event was emitted during a component
-    // remount. This is especially useful during Creator Studio navigation/HMR.
     recoverPendingDecision();
 
     window.addEventListener(BROADCAST_RECORDING_READY_EVENT, onRecordingReady);
@@ -210,11 +209,26 @@ const BroadcastRecordingPrompt = () => {
     }
   };
 
-  const discard = () => {
+  const discard = async () => {
     if (savingMode || savedMode) return;
-    forgetPendingDecision();
-    clearPendingBroadcastRecording(recording.broadcastId);
-    setPending(null);
+    setSavingMode('discard');
+    setError('');
+    try {
+      await apiRequest(
+        `/broadcasts/${encodeURIComponent(recording.broadcastId)}/discard-replay`,
+        { method: 'POST' }
+      );
+      forgetPendingDecision();
+      clearPendingBroadcastRecording(recording.broadcastId);
+      setPending(null);
+    } catch (discardError) {
+      // Keep the OPFS master and pending decision until the server records the
+      // terminal choice. This prevents an offline click from creating an
+      // unrecoverable backend wait with no local file left to save.
+      setError(discardError?.message || 'Echoo could not confirm the discard. The local recording is still protected; try again.');
+    } finally {
+      setSavingMode('');
+    }
   };
 
   const savedLabel = recording.lossless
@@ -314,7 +328,7 @@ const BroadcastRecordingPrompt = () => {
             onClick={discard}
             disabled={Boolean(savingMode || savedMode)}
           >
-            <FaTrash /> Discard recording
+            <FaTrash /> {savingMode === 'discard' ? 'Discarding…' : 'Discard recording'}
           </button>
           <span>
             <FaCloudUploadAlt /> Local testing: completed recordings are uploaded to this Echoo backend, not cloud storage.
