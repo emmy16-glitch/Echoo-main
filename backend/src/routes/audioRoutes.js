@@ -5,6 +5,7 @@ import fs from 'fs';
 import mongoose from 'mongoose';
 import { randomUUID } from 'crypto';
 import { authenticate } from '../middleware/auth.js';
+import { requireAudioDownloadAccess } from '../middleware/audioDownloadAccess.js';
 import {
   uploadAudio,
   getAudio,
@@ -91,9 +92,6 @@ const upload = multer({
   storage,
   fileFilter,
   limits: {
-    // A 4-hour 48 kHz / 24-bit stereo PCM WAV is ~3.86 GiB. Keep the local
-    // development path consistent with Echoo's four-hour scheduling option and
-    // classic RIFF/WAV's 4 GiB ceiling. Multer streams bytes directly to disk.
     fileSize: MAX_LOCAL_AUDIO_UPLOAD_BYTES,
     files: 2,
     fields: 20,
@@ -292,10 +290,6 @@ const validateUploadedFileSignatures = async (req, res, next) => {
   }
 };
 
-// Multer writes to disk before the controller creates the Mongo record. Only
-// remove temporary files when the authoritative Audio record has NOT committed.
-// A later notification/populate failure must never orphan a durable record by
-// deleting the media bytes it already owns.
 const cleanupUploadError = async (err, req, res, next) => {
   if (!req.audioUploadCommitted) {
     await removeUploadedFiles(req);
@@ -329,13 +323,17 @@ const cleanupUploadError = async (err, req, res, next) => {
 
 router.get('/', validateAudioListQuery, getAudio);
 
-// Playback is never served from /uploads/audio. Browser media elements use a
-// scoped signed URL; API clients may alternatively send a normal Bearer token.
 router.post('/:id/stream-token', validateAudioId, authenticate, issueAudioStreamUrl);
 router.get('/:id/stream', validateAudioId, streamAudio);
 router.head('/:id/stream', validateAudioId, streamAudio);
 
-router.get('/:id/download', validateAudioId, authenticate, downloadAudio);
+router.get(
+  '/:id/download',
+  validateAudioId,
+  authenticate,
+  requireAudioDownloadAccess,
+  downloadAudio
+);
 router.get('/:id', validateAudioId, authenticate, getAudioById);
 router.post(
   '/upload',
