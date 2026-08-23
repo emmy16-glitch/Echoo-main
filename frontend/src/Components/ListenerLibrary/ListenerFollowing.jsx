@@ -22,6 +22,7 @@ import followService from '../../services/followService';
 import listenerService from '../../services/listenerService';
 import notificationService from '../../services/notificationService';
 import searchService from '../../services/searchService';
+import { getCreatorProfilePath } from '../../services/profileIdentifier';
 import ListenerToast from '../ListenerUI/ListenerToast';
 import { buildGeneratedStationBrandCoverUrl } from '../../stationBranding/stationBranding';
 import '../../styles/listener-reference-pages.css';
@@ -115,7 +116,7 @@ const ListenerFollowing = () => {
         setActivity(Array.isArray(activityResult.value?.data?.notifications) ? activityResult.value.data.notifications : []);
       }
     } finally {
-      // intentionally empty
+      // The individual sections keep their last good data if one source is unavailable.
     }
   }, []);
 
@@ -133,7 +134,7 @@ const ListenerFollowing = () => {
   useEffect(() => {
     if (!categorySearch.trim()) {
       setCreatorSuggestions([]);
-      return;
+      return undefined;
     }
     let cancelled = false;
     const timer = window.setTimeout(async () => {
@@ -171,6 +172,11 @@ const ListenerFollowing = () => {
   }, [stations]);
 
   const followingCount = stations.length + shows.length + creators.length;
+
+  const openCreator = (creator) => {
+    const path = getCreatorProfilePath(creator);
+    if (path) navigate(path);
+  };
 
   const playShow = (track) => {
     const id = idOf(track);
@@ -228,7 +234,7 @@ const ListenerFollowing = () => {
   const filteredCreators = tab === 'All' || tab === 'Creators' ? creators : [];
 
   return (
-    <main className="echoo-reference-page ref-following-page fl-page">
+    <div className="echoo-reference-page ref-following-page fl-page">
       <ListenerToast {...toast} onClose={() => setToast((current) => ({ ...current, open: false }))} />
 
       <header className="fl-heading">
@@ -321,7 +327,12 @@ const ListenerFollowing = () => {
                           >
                             <FaCheck /> {busyId === id ? 'Updating' : 'Following'}
                           </button>
-                          <button type="button" className="fl-more-btn" aria-label={`More options for ${station.name}`}>
+                          <button
+                            type="button"
+                            className="fl-more-btn"
+                            aria-label={`Open ${station.name}`}
+                            onClick={() => navigate(`/listen/stations/${id}`)}
+                          >
                             <FaEllipsisV />
                           </button>
                         </div>
@@ -375,7 +386,7 @@ const ListenerFollowing = () => {
             <section className="fl-section">
               <div className="fl-section-header">
                 <h2>Creators you follow</h2>
-                <button type="button" className="fl-view-all" onClick={() => navigate('/listen/library')}>View all <FaAngleDoubleRight /></button>
+                <button type="button" className="fl-view-all" onClick={() => setTab('Creators')}>View all <FaAngleDoubleRight /></button>
               </div>
               {filteredCreators.length === 0 && (
                 <div className="ref-state-card compact">
@@ -389,7 +400,7 @@ const ListenerFollowing = () => {
                   const id = idOf(creator);
                   return (
                     <article className="fl-creator-row" key={id}>
-                      <button type="button" className="fl-creator-avatar" onClick={() => navigate(`/creator/${creator.username || id}`)}>
+                      <button type="button" className="fl-creator-avatar" onClick={() => openCreator(creator)} aria-label={`Open ${creator.name || creator.username || 'creator'} profile`}>
                         {creator.avatar ? <img src={creator.avatar} alt="" /> : creator.name?.[0]?.toUpperCase()}
                       </button>
                       <div className="fl-creator-info">
@@ -454,14 +465,14 @@ const ListenerFollowing = () => {
           <section className="fl-card fl-creators-card">
             <div className="fl-card-header">
               <strong>Creators you follow</strong>
-              <button type="button" className="fl-view-all" onClick={() => navigate('/listen/discover')}>View all <FaAngleDoubleRight /></button>
+              <button type="button" className="fl-view-all" onClick={() => navigate('/listen/search')}>Find creators <FaAngleDoubleRight /></button>
             </div>
             {creators.length === 0 && (
               <p className="fl-empty-note">No creators followed yet.</p>
             )}
             {creators.slice(0, 4).map((creator) => (
               <article className="fl-creator-row fl-creator-row--compact" key={idOf(creator)}>
-                <button type="button" className="fl-creator-avatar fl-creator-avatar--sm" onClick={() => navigate(`/creator/${creator.username || idOf(creator)}`)}>
+                <button type="button" className="fl-creator-avatar fl-creator-avatar--sm" onClick={() => openCreator(creator)} aria-label={`Open ${creator.name || creator.username || 'creator'} profile`}>
                   {creator.avatar ? <img src={creator.avatar} alt="" /> : creator.name?.[0]?.toUpperCase()}
                 </button>
                 <div className="fl-creator-info">
@@ -484,7 +495,7 @@ const ListenerFollowing = () => {
                 <ul className="fl-creator-suggestions">
                   {creatorSuggestions.map((creator) => (
                     <li key={idOf(creator)}>
-                      <button type="button" onClick={() => { setCategorySearch(''); setCreatorSuggestions([]); navigate(`/creator/${creator.username || idOf(creator)}`); }}>
+                      <button type="button" onClick={() => { setCategorySearch(''); setCreatorSuggestions([]); openCreator(creator); }}>
                         {creator.avatar ? <img src={creator.avatar} alt="" /> : null}
                         <span>{creator.name}</span>
                       </button>
@@ -496,7 +507,7 @@ const ListenerFollowing = () => {
           </section>
         </aside>
       </div>
-    </main>
+    </div>
   );
 };
 
