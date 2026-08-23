@@ -89,6 +89,7 @@ jobs:
           node --check src/controllers/broadcastController.js
           node --check src/controllers/broadcastLifecycleController.js
           node --check src/controllers/broadcastPresenceController.js
+          node --check src/controllers/broadcastChunkController.js
           node --check src/controllers/advancedPlayerController.js
           node --check src/controllers/playerController.js
           node --check src/controllers/historyController.js
@@ -103,11 +104,15 @@ jobs:
           node --check src/models/Audio.js
           node --check src/models/Comment.js
           node --check src/models/Playlist.js
+          node --check src/models/BroadcastAudioChunk.js
+          node --check src/models/BroadcastProcessingJob.js
+          node --check src/models/TranscriptSegment.js
           node --check src/providers/livekit.js
           node --check src/services/audioAccess.js
           node --check src/services/audioStreamAccess.js
           node --check src/services/broadcastAudioReadiness.js
           node --check src/services/broadcastProcessingService.js
+          node --check src/services/transcriptQualityService.js
           node --check src/services/transcriptionGateway.js
           node --check src/services/creatorBroadcastLease.js
           node --check src/middleware/auth.js

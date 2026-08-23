@@ -6,6 +6,7 @@ import BroadcastProcessingJob from '../models/BroadcastProcessingJob.js';
 
 const CHUNK_DIR = path.join(process.cwd(), 'uploads', 'transcript-chunks');
 const MAX_CHUNK_DURATION_MS = 60_000;
+const QUALITY_JOB_MAX_ATTEMPTS = 8;
 
 const safeChunkName = (value) => String(value || '')
   .trim()
@@ -23,21 +24,59 @@ const numberField = (value, name, { min = 0, max = Number.MAX_SAFE_INTEGER } = {
   return number;
 };
 
+const validWavUpload = (file) => Boolean(
+  file?.buffer?.length >= 44 &&
+  file.buffer.toString('ascii', 0, 4) === 'RIFF' &&
+  file.buffer.toString('ascii', 8, 12) === 'WAVE'
+);
+
+const ensureQualityJob = async (broadcastId, chunk) => {
+  await BroadcastProcessingJob.updateOne(
+    { broadcastId, jobType: 'transcript_quality_chunk', chunkId: chunk._id },
+    {
+      $setOnInsert: {
+        broadcastId,
+        jobType: 'transcript_quality_chunk',
+        chunkId: chunk._id,
+        status: 'queued',
+        progress: 0,
+        maxAttempts: Number(chunk.maxAttempts) || QUALITY_JOB_MAX_ATTEMPTS,
+        availableAt: new Date(),
+      },
+    },
+    { upsert: true }
+  );
+};
+
 export async function startBroadcastAudioChunks(req, res, next) {
   try {
     const broadcast = await Broadcast.findOne({
       _id: req.params.broadcastId,
       creator: req.userId,
       isDeleted: false,
-    }).select('_id status');
+    }).select('_id status qualityChunkingStartedAt qualityChunkingCompletedAt');
     if (!broadcast) return res.status(404).json({ error: { code: 'BROADCAST_NOT_FOUND', message: 'Broadcast not found.' } });
     if (!['starting', 'live'].includes(broadcast.status)) {
       return res.status(409).json({ error: { code: 'INVALID_BROADCAST_STATE', message: 'Quality chunking can only start for a running broadcast.' } });
     }
-    await Broadcast.updateOne(
-      { _id: broadcast._id },
-      { $set: { qualityChunkingStartedAt: new Date(), qualityChunkingCompletedAt: null, qualityChunkCount: 0, qualityChunkUploadErrors: 0 } }
-    );
+
+    // Idempotent start: a lost HTTP response must not reset counters or strand
+    // the live transcript. Retrying the handshake simply returns the active
+    // durable quality session.
+    if (!broadcast.qualityChunkingStartedAt || broadcast.qualityChunkingCompletedAt) {
+      const existingCount = await BroadcastAudioChunk.countDocuments({ broadcastId: broadcast._id });
+      await Broadcast.updateOne(
+        { _id: broadcast._id },
+        {
+          $set: {
+            qualityChunkingStartedAt: new Date(),
+            qualityChunkingCompletedAt: null,
+            qualityChunkCount: existingCount,
+            qualityChunkUploadErrors: 0,
+          },
+        }
+      );
+    }
     return res.status(200).json({ data: { broadcastId: String(broadcast._id), started: true }, timestamp: new Date().toISOString() });
   } catch (error) {
     next(error);
@@ -50,8 +89,11 @@ export async function completeBroadcastAudioChunks(req, res, next) {
       _id: req.params.broadcastId,
       creator: req.userId,
       isDeleted: false,
-    }).select('_id status');
+    }).select('_id status qualityChunkingStartedAt qualityChunkingCompletedAt');
     if (!broadcast) return res.status(404).json({ error: { code: 'BROADCAST_NOT_FOUND', message: 'Broadcast not found.' } });
+    if (!broadcast.qualityChunkingStartedAt) {
+      return res.status(409).json({ error: { code: 'QUALITY_CHUNKING_NOT_STARTED', message: 'Quality chunking was not started for this broadcast.' } });
+    }
     const qualityChunkCount = Math.max(0, Number(req.body?.qualityChunkCount) || 0);
     const qualityChunkUploadErrors = Math.max(0, Number(req.body?.qualityChunkUploadErrors) || 0);
     const chunkCount = await BroadcastAudioChunk.countDocuments({ broadcastId: broadcast._id });
@@ -59,7 +101,7 @@ export async function completeBroadcastAudioChunks(req, res, next) {
       { _id: broadcast._id },
       {
         $set: {
-          qualityChunkingCompletedAt: new Date(),
+          qualityChunkingCompletedAt: broadcast.qualityChunkingCompletedAt || new Date(),
           qualityChunkCount: Math.max(chunkCount, qualityChunkCount),
           qualityChunkUploadErrors,
         },
@@ -76,6 +118,7 @@ export async function completeBroadcastAudioChunks(req, res, next) {
 
 export async function uploadBroadcastAudioChunk(req, res, next) {
   let filePath = null;
+  let createdChunkId = null;
   try {
     const { broadcastId } = req.params;
     const broadcast = await Broadcast.findOne({
@@ -92,6 +135,9 @@ export async function uploadBroadcastAudioChunk(req, res, next) {
     }
     if (!req.file?.buffer?.length) {
       return res.status(400).json({ error: { code: 'NO_CHUNK', message: 'A recording chunk is required.' } });
+    }
+    if (!validWavUpload(req.file)) {
+      return res.status(400).json({ error: { code: 'INVALID_CHUNK_AUDIO', message: 'Quality chunks must be valid RIFF/WAVE audio.' } });
     }
 
     const chunkId = String(req.body.chunkId || '').trim();
@@ -113,6 +159,9 @@ export async function uploadBroadcastAudioChunk(req, res, next) {
 
     const existing = await BroadcastAudioChunk.findOne({ broadcastId, chunkId });
     if (existing) {
+      // Repair a historical/partial ingest where the chunk row exists but job
+      // creation was interrupted. This makes upload retries self-healing.
+      await ensureQualityJob(broadcastId, existing);
       return res.status(200).json({ data: existing, duplicate: true, timestamp: new Date().toISOString() });
     }
 
@@ -128,39 +177,36 @@ export async function uploadBroadcastAudioChunk(req, res, next) {
       startMs,
       endMs,
       filePath,
-      mimeType: req.file.mimetype || 'audio/wav',
+      mimeType: 'audio/wav',
       sizeBytes: req.file.size,
       sampleRate,
       channels,
       bitDepth,
       status: 'pending',
+      maxAttempts: QUALITY_JOB_MAX_ATTEMPTS,
     });
+    createdChunkId = chunk._id;
 
     await Broadcast.updateOne(
       { _id: broadcast._id, qualityChunkingStartedAt: null },
       { $set: { qualityChunkingStartedAt: new Date() } }
     );
 
-    await BroadcastProcessingJob.updateOne(
-      { broadcastId, jobType: 'transcript_quality_chunk', chunkId: chunk._id },
-      {
-        $setOnInsert: {
-          broadcastId,
-          jobType: 'transcript_quality_chunk',
-          chunkId: chunk._id,
-          status: 'queued',
-          progress: 0,
-          availableAt: new Date(),
-        },
-      },
-      { upsert: true }
-    );
+    await ensureQualityJob(broadcastId, chunk);
 
     return res.status(201).json({ data: chunk, timestamp: new Date().toISOString() });
   } catch (error) {
+    if (createdChunkId) {
+      // Do not leave a DB row pointing at a removed file if job creation or the
+      // surrounding ingest transaction fails. The browser retry can recreate it.
+      await BroadcastAudioChunk.deleteOne({ _id: createdChunkId, status: 'pending' }).catch(() => null);
+    }
     if (error?.code === 11000) {
       const existing = await BroadcastAudioChunk.findOne({ broadcastId: req.params.broadcastId, chunkId: String(req.body.chunkId || '') });
-      if (existing) return res.status(200).json({ data: existing, duplicate: true, timestamp: new Date().toISOString() });
+      if (existing) {
+        await ensureQualityJob(req.params.broadcastId, existing).catch(() => null);
+        return res.status(200).json({ data: existing, duplicate: true, timestamp: new Date().toISOString() });
+      }
     }
     if (filePath) await fs.rm(filePath, { force: true }).catch(() => null);
     next(error);

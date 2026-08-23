@@ -44,7 +44,19 @@ const broadcastAudioChunkSchema = new mongoose.Schema(
     error: { type: String, trim: true, maxlength: 2000, default: null },
     processedAt: { type: Date, default: null },
   },
-  { timestamps: true, versionKey: false }
+  {
+    timestamps: true,
+    versionKey: false,
+    toJSON: {
+      transform(doc, ret) {
+        ret.id = ret._id;
+        delete ret._id;
+        delete ret.creatorId;
+        delete ret.filePath;
+        return ret;
+      },
+    },
+  }
 );
 
 broadcastAudioChunkSchema.index({ broadcastId: 1, chunkId: 1 }, { unique: true });

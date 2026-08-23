@@ -20,6 +20,7 @@ const QUALITY_CHUNK_SECONDS = 10;
 const QUALITY_CHUNK_BIT_DEPTH = 24;
 const QUALITY_CHUNK_CHANNELS = 2;
 const QUALITY_CHUNK_UPLOAD_RETRIES = 5;
+const QUALITY_CHUNK_START_RETRIES = 3;
 
 let activeRecording = null;
 let pendingRecording = null;
@@ -134,6 +135,7 @@ const uploadQualityChunk = async ({ recording, samples, startMs, endMs, chunkInd
 
   let lastError = null;
   for (let attempt = 0; attempt < QUALITY_CHUNK_UPLOAD_RETRIES; attempt += 1) {
+    if (recording.qualityChunkDisabled) throw new Error('Quality chunk upload was cancelled');
     try {
       const response = await apiFetch(`/broadcasts/${recording.broadcastId}/recording-chunks`, {
         method: 'POST',
@@ -151,6 +153,7 @@ const uploadQualityChunk = async ({ recording, samples, startMs, endMs, chunkInd
       return data?.data || data;
     } catch (error) {
       lastError = error;
+      if (recording.qualityChunkDisabled) throw error;
       if (attempt < QUALITY_CHUNK_UPLOAD_RETRIES - 1) await sleep(Math.min(15_000, 500 * (2 ** attempt)));
     }
   }
@@ -158,6 +161,7 @@ const uploadQualityChunk = async ({ recording, samples, startMs, endMs, chunkInd
 };
 
 const flushQualityChunk = async (recording, { force = false } = {}) => {
+  if (!recording.qualityChunkStarted || recording.qualityChunkDisabled) return;
   const targetSamples = Math.max(1, Math.round(recording.sampleRate * QUALITY_CHUNK_SECONDS * QUALITY_CHUNK_CHANNELS));
   while (recording.qualitySampleCount >= targetSamples || (force && recording.qualitySampleCount > 0)) {
     const take = recording.qualitySampleCount >= targetSamples ? targetSamples : recording.qualitySampleCount;
@@ -181,6 +185,7 @@ const flushQualityChunk = async (recording, { force = false } = {}) => {
     recording.qualityChain = recording.qualityChain
       .then(() => uploadQualityChunk({ recording, samples, startMs, endMs, chunkIndex }))
       .catch((error) => {
+        if (recording.qualityChunkDisabled) return;
         recording.qualityChunkErrors.push({ chunkIndex, message: error?.message || String(error) });
         console.error('[Echoo Recording] quality chunk upload failed', { broadcastId: recording.broadcastId, chunkIndex, error: error?.message || error });
       });
@@ -188,17 +193,32 @@ const flushQualityChunk = async (recording, { force = false } = {}) => {
 };
 
 const startQualityChunking = async (recording) => {
-  const response = await apiFetch(`/broadcasts/${recording.broadcastId}/recording-chunks/start`, {
-    method: 'POST',
-  });
-  if (!response.ok) {
-    const data = await response.json().catch(() => null);
-    throw new Error(data?.error?.message || `Could not start quality chunking (${response.status})`);
+  let lastError = null;
+  for (let attempt = 0; attempt < QUALITY_CHUNK_START_RETRIES; attempt += 1) {
+    try {
+      const response = await apiFetch(`/broadcasts/${recording.broadcastId}/recording-chunks/start`, {
+        method: 'POST',
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.error?.message || `Could not start quality chunking (${response.status})`);
+      }
+      recording.qualityChunkStarted = true;
+      // PCM capture begins before the network handshake. Flush anything that
+      // accumulated while the idempotent start request was in flight so chunk
+      // timestamps still begin at the first post-master sample.
+      void flushQualityChunk(recording);
+      return true;
+    } catch (error) {
+      lastError = error;
+      if (attempt < QUALITY_CHUNK_START_RETRIES - 1) await sleep(300 + attempt * 700);
+    }
   }
+  throw lastError || new Error('Could not start quality chunking');
 };
 
 const completeQualityChunks = async (recording) => {
-  if (!recording?.broadcastId || !recording.qualityChunkIndex) return;
+  if (!recording?.broadcastId || !recording.qualityChunkStarted || recording.qualityChunkDisabled) return;
   const response = await apiFetch(`/broadcasts/${recording.broadcastId}/recording-chunks/complete`, {
     method: 'POST',
     body: JSON.stringify({
@@ -218,7 +238,7 @@ const appendQualityPcm = (recording, buffer) => {
   if (!samples.length) return;
   recording.qualityBuffers.push(samples);
   recording.qualitySampleCount += samples.length;
-  void flushQualityChunk(recording);
+  if (recording.qualityChunkStarted) void flushQualityChunk(recording);
 };
 
 const safeRemoveOpfsEntry = async (directory, name) => {
@@ -290,14 +310,24 @@ const stopLosslessRecording = async (recording, { keep = true } = {}) => {
       recording.capture = null;
     }
 
-    await flushQualityChunk(recording, { force: true });
-    await recording.qualityChain;
-    try {
-      await completeQualityChunks(recording);
-    } catch (error) {
-      recording.qualityChunkErrors.push({ chunkIndex: -1, message: error?.message || String(error) });
-      console.error('[Echoo Recording] quality chunk completion acknowledgement failed', error?.message || error);
+    if (keep) {
+      await flushQualityChunk(recording, { force: true });
+      await recording.qualityChain;
+      try {
+        await completeQualityChunks(recording);
+      } catch (error) {
+        recording.qualityChunkErrors.push({ chunkIndex: -1, message: error?.message || String(error) });
+        console.error('[Echoo Recording] quality chunk completion acknowledgement failed', error?.message || error);
+      }
+    } else {
+      // A cancelled/failed live start must tear down immediately. Do not spend
+      // seconds retrying transcript chunks for a broadcast that will never be
+      // published or reviewed.
+      recording.qualityChunkDisabled = true;
+      recording.qualityBuffers = [];
+      recording.qualitySampleCount = 0;
     }
+
     await recording.writeChain;
 
     if (recording.writeError) throw recording.writeError;
@@ -389,6 +419,7 @@ const startLosslessRecording = async ({ broadcastId, title }) => {
     qualityChain: Promise.resolve(),
     qualityChunkErrors: [],
     qualityChunkDisabled: false,
+    qualityChunkStarted: false,
     ...storage,
   };
 
@@ -588,6 +619,7 @@ const activeRecordingSnapshot = (recording) => ({
   sampleRate: recording?.sampleRate || null,
   channels: recording?.mode === 'lossless-wav' ? WAV_CHANNELS : 2,
   bitDepth: recording?.mode === 'lossless-wav' ? WAV_BIT_DEPTH : null,
+  qualityChunking: Boolean(recording?.qualityChunkStarted && !recording?.qualityChunkDisabled),
 });
 
 export const getBroadcastRecordingState = () => ({
@@ -614,6 +646,7 @@ export const getBroadcastRecordingState = () => ({
   sampleRate: activeRecording?.sampleRate || null,
   channels: activeRecording?.mode === 'lossless-wav' ? WAV_CHANNELS : null,
   bitDepth: activeRecording?.mode === 'lossless-wav' ? WAV_BIT_DEPTH : null,
+  qualityChunking: Boolean(activeRecording?.qualityChunkStarted && !activeRecording?.qualityChunkDisabled),
 });
 
 export const ensureBroadcastRecording = async ({
@@ -648,6 +681,8 @@ export const ensureBroadcastRecording = async ({
       await startQualityChunking(activeRecording);
     } catch (error) {
       activeRecording.qualityChunkDisabled = true;
+      activeRecording.qualityBuffers = [];
+      activeRecording.qualitySampleCount = 0;
       console.warn('[Echoo Recording] live quality chunking is disabled for this take:', error?.message || error);
     }
   } catch (losslessError) {
