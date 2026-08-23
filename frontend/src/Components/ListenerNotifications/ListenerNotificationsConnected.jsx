@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
-  FaArrowRight,
   FaBell,
   FaBroadcastTower,
   FaCheck,
@@ -87,6 +87,7 @@ const relativeTime = (value) => {
 };
 
 const ListenerNotificationsConnected = () => {
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -135,7 +136,7 @@ const ListenerNotificationsConnected = () => {
   }, [notifications, tab]);
 
   const markRead = async (notificationId) => {
-    if (busyId) return;
+    if (busyId) return false;
     try {
       setBusyId(String(notificationId));
       await notificationService.markRead(notificationId);
@@ -145,10 +146,22 @@ const ListenerNotificationsConnected = () => {
         )
       );
       setUnreadCount((value) => Math.max(0, value - 1));
+      return true;
     } catch (error) {
       console.error('Mark read failed', error);
+      return false;
     } finally {
       setBusyId('');
+    }
+  };
+
+  const openNotification = async (notification) => {
+    if (!notification) return;
+    if (!notification.read) await markRead(notification.id);
+
+    const link = String(notification.link || '').trim();
+    if (link === '/listen' || link.startsWith('/listen/')) {
+      navigate(link);
     }
   };
 
@@ -178,11 +191,13 @@ const ListenerNotificationsConnected = () => {
       </div>
 
       <div className="ln-tabs-row">
-        <div className="ln-tabs">
+        <div className="ln-tabs" role="tablist" aria-label="Notification categories">
           {TABS.map((t) => (
             <button
               key={t.id}
               type="button"
+              role="tab"
+              aria-selected={tab === t.id}
               className={`ln-tab ${tab === t.id ? 'ln-tab-active' : ''}`}
               onClick={() => setTab(t.id)}
             >
@@ -221,12 +236,14 @@ const ListenerNotificationsConnected = () => {
           {filtered.map((notification) => {
             const style =
               TYPE_STYLE[notification.type] || { color: '#5f6f85' };
+            const hasDestination = String(notification.link || '').startsWith('/listen');
             return (
               <button
                 key={notification.id}
                 type="button"
                 className={`ln-row ${notification.read ? '' : 'ln-row-unread'}`}
-                onClick={() => markRead(notification.id)}
+                onClick={() => openNotification(notification)}
+                aria-label={`${hasDestination ? 'Open' : 'Read'} notification: ${notification.title || 'Notification'}`}
               >
                 <span className="ln-icon" style={{ color: style.color }}>
                   {iconFor(notification.type)}
@@ -245,16 +262,6 @@ const ListenerNotificationsConnected = () => {
           })}
         </div>
       )}
-
-      <button
-        type="button"
-        className="ln-view-all"
-        disabled={loading || notifications.length === 0}
-        onClick={() => notify('These are all of your notifications.', 'info')}
-      >
-        View all notifications
-        <FaArrowRight />
-      </button>
 
       <Toast
         open={toast.open}
