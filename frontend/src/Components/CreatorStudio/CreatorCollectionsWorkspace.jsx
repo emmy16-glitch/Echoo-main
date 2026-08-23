@@ -77,9 +77,6 @@ const formatDate = (value) => {
   return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 };
 
-// Local metadata remains only as a migration/fallback for old browser data.
-// Canonical server fields always win so another device/browser cannot be
-// overwritten by stale localStorage mode/season metadata.
 const mergeMeta = (collection, meta) => {
   const local = meta[String(getId(collection))] || {};
   return {
@@ -287,8 +284,8 @@ const CreatorCollectionsWorkspace = ({ tracks = [], studioName = 'Echoo Creator'
     setAddContentOpen(true);
   };
 
-  const closeAddContent = () => {
-    if (saving) return;
+  const closeAddContent = ({ force = false } = {}) => {
+    if (saving && !force) return;
     setAddContentOpen(false);
     setSelectedTrackIds([]);
     setContentSearch('');
@@ -328,7 +325,7 @@ const CreatorCollectionsWorkspace = ({ tracks = [], studioName = 'Echoo Creator'
         }
       }
       updateSelected(nextCollection);
-      closeAddContent();
+      closeAddContent({ force: true });
       setNotice(`${selectedTrackIds.length} ${selectedTrackIds.length === 1 ? 'item was' : 'items were'} added.`);
       onChanged?.();
     } catch (addError) {
