@@ -21,10 +21,28 @@ export default defineConfig({
   },
   projects: [
     {
+      name: 'mobile-320',
+      use: {
+        browserName: 'chromium',
+        viewport: { width: 320, height: 568 },
+        isMobile: true,
+        hasTouch: true,
+      },
+    },
+    {
       name: 'mobile-360',
       use: {
         browserName: 'chromium',
         viewport: { width: 360, height: 800 },
+        isMobile: true,
+        hasTouch: true,
+      },
+    },
+    {
+      name: 'mobile-375',
+      use: {
+        browserName: 'chromium',
+        viewport: { width: 375, height: 812 },
         isMobile: true,
         hasTouch: true,
       },
@@ -56,6 +74,14 @@ export default defineConfig({
       },
     },
     {
+      name: 'tablet-820',
+      use: {
+        browserName: 'chromium',
+        viewport: { width: 820, height: 1180 },
+        hasTouch: true,
+      },
+    },
+    {
       name: 'tablet-1024',
       use: {
         browserName: 'chromium',
@@ -71,9 +97,37 @@ export default defineConfig({
       },
     },
     {
+      name: 'desktop-1366',
+      use: {
+        browserName: 'chromium',
+        viewport: { width: 1366, height: 768 },
+      },
+    },
+    {
       name: 'desktop-1440',
       use: {
         browserName: 'chromium',
+        viewport: { width: 1440, height: 1000 },
+      },
+    },
+    {
+      name: 'desktop-1920',
+      use: {
+        browserName: 'chromium',
+        viewport: { width: 1920, height: 1080 },
+      },
+    },
+    {
+      name: 'firefox-1024',
+      use: {
+        browserName: 'firefox',
+        viewport: { width: 1024, height: 768 },
+      },
+    },
+    {
+      name: 'firefox-1440',
+      use: {
+        browserName: 'firefox',
         viewport: { width: 1440, height: 1000 },
       },
     },
