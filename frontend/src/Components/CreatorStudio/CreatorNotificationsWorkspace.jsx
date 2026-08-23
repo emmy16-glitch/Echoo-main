@@ -12,10 +12,19 @@ import './CreatorNotificationsWorkspace.css';
 
 const iconFor = (type) => {
   if (type === 'new_follower') return <FaUserPlus />;
-  if (type === 'broadcast_live' || type === 'broadcast_ended') {
+  if (type === 'broadcast_live' || type === 'broadcast_ended' || type === 'transcript_ready') {
     return <FaBroadcastTower />;
   }
   return <FaBell />;
+};
+
+const broadcastIdFromNotification = (notification) => {
+  const metadataId = notification?.metadata?.broadcastId;
+  if (metadataId) return String(metadataId);
+
+  const link = String(notification?.link || '');
+  const match = link.match(/^\/creator\/broadcasts\/([^/]+)(?:\/processing)?\/?$/i);
+  return match?.[1] ? decodeURIComponent(match[1]) : '';
 };
 
 const CreatorNotificationsWorkspace = ({ onNavigate }) => {
@@ -61,10 +70,26 @@ const CreatorNotificationsWorkspace = ({ onNavigate }) => {
     }
 
     const link = String(notification.link || '');
+    const broadcastId = broadcastIdFromNotification(notification);
+
+    if (notification.type === 'transcript_ready' || /\/creator\/broadcasts\/[^/]+\/processing\/?$/i.test(link)) {
+      if (broadcastId) {
+        sessionStorage.setItem('echooPreparedBroadcastId', broadcastId);
+        sessionStorage.setItem('echooProcessingBroadcastId', broadcastId);
+      }
+      onNavigate?.('Broadcast');
+      return;
+    }
+
+    if (notification.type === 'broadcast_live') {
+      if (broadcastId) sessionStorage.setItem('echooPreparedBroadcastId', broadcastId);
+      sessionStorage.setItem('echooBroadcastMode', 'now');
+      onNavigate?.('Live');
+      return;
+    }
+
     if (link.startsWith('/creator-studio')) {
       onNavigate?.('Home');
-    } else if (notification.type === 'broadcast_live') {
-      onNavigate?.('Live');
     }
   };
 
