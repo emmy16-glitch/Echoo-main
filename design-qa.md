@@ -1,85 +1,85 @@
-# Echoo Listener redesign — design QA
+# Echoo authentication rebuild — design QA
 
 ## Comparison target
 
-- Source visual truth paths:
-  - `/home/okunlola/Downloads/ChatGPT Image Aug 24, 2026, 03_16_13 AM (1).png` — desktop Home
-  - `/home/okunlola/Downloads/ChatGPT Image Aug 24, 2026, 03_16_14 AM (2).png` — desktop Following
-  - `/home/okunlola/Downloads/ChatGPT Image Aug 24, 2026, 03_16_14 AM (3).png` — desktop Stations
-  - `/home/okunlola/Downloads/ChatGPT Image Aug 24, 2026, 03_16_15 AM (4).png` — mobile Home
-- Implementation screenshot paths:
-  - `frontend/design-qa-evidence/home-implementation-1672x941.png`
-  - `frontend/design-qa-evidence/following-implementation-1672x941.png`
-  - `frontend/design-qa-evidence/stations-implementation-1672x941.png`
-  - `frontend/design-qa-evidence/home-mobile-implementation-390x844.png`
+- Source visual truth: `/home/okunlola/Downloads/0e50fa06-446e-48c6-be47-3b05dbbfa61a.png` (`1329 x 1183` pixels), containing desktop signup, desktop login, and mobile reference compositions.
+- Browser-rendered implementation evidence:
+  - `frontend/design-qa-evidence/auth/signup-desktop-1440x900.png`
+  - `frontend/design-qa-evidence/auth/login-desktop-1440x900.png`
+  - `frontend/design-qa-evidence/auth/signup-mobile-390x844-full.png`
+  - `frontend/design-qa-evidence/auth/login-mobile-390x844-full.png`
 - Combined comparison evidence:
-  - `frontend/design-qa-evidence/home-comparison.png`
-  - `frontend/design-qa-evidence/following-comparison.png`
-  - `frontend/design-qa-evidence/stations-comparison.png`
-  - `frontend/design-qa-evidence/mobile-home-comparison.png`
-- State: authenticated listener (`Lola`) with deterministic API data, light theme, default player state.
-- Desktop viewport: `1672 x 941` CSS pixels, device scale factor `1`. Source and implementation are both `1672 x 941` pixels; no density normalization was required.
-- Mobile viewport: `390 x 844` CSS pixels, device scale factor `1`. The source phone-content region was cropped from `780 x 1602` pixels and downsampled to `390 x 801`, then placed on a `390 x 844` white canvas. The implementation is `390 x 844` pixels. The source includes a simulated iOS status/device frame; the implementation is the unframed responsive web viewport.
+  - `frontend/design-qa-evidence/auth/signup-comparison.png`
+  - `frontend/design-qa-evidence/auth/login-comparison.png`
+  - `frontend/design-qa-evidence/auth/mobile-signup-comparison.png`
+- State: logged-out, light theme; signup step 1 and login default states.
+- Desktop capture: `1440 x 900` CSS pixels at device scale factor `1`; implementation screenshots are `1440 x 900` pixels.
+- Mobile capture: `390 x 844` CSS pixels at device scale factor `1`; full-page implementation captures are `390 x 1273` (signup) and `390 x 987` (login). The `390 x 844` top viewport was used for the normalized mobile comparison.
+- Source normalization: the supplied image is a composite board rather than one viewport capture. Its signup, login, and phone regions were cropped without density scaling, then implementation images were proportionally resized to a common comparison height. No browser/device chrome was included in the implementation.
 
 ## Full-view comparison evidence
 
-The final combined images show the same core hierarchy as the targets: persistent desktop sidebar and top search, Home/Following/Stations content order, crisp white surfaces with blue active states, bottom desktop player, and the mobile greeting/search/content/player/navigation stack. The implementation uses the repository’s official Echoo mark instead of reproducing the reference’s circular “E” mark, as required by the brief.
+The implementation reproduces the supplied product hierarchy: a pale split canvas, real Echoo logo at the top, serif brand storytelling with blue emphasis, interactive audio preview on signup, microphone-and-audience artwork on login, a compact elevated form card, and a genuine stacked mobile layout. Desktop proportions remain stable at the requested widths and mobile content keeps the logo, story, audio/artwork, then auth card order without horizontal overflow.
 
-The source contains a fuller editorial data set than the deterministic API fixture. The implementation intentionally renders fewer cards when fewer API records are returned; the grid and horizontal-scroller geometry remain ready for the denser production state. This is a state difference, not hardcoded visual drift.
+The source board shows only the first mobile viewport, while the working mobile flow continues below it to expose the full accessible form. That added scroll depth is required for a functional auth journey and preserves the source's above-the-fold hierarchy.
 
 ## Focused region comparison evidence
 
-- Mobile header and carousels were compared in `mobile-home-comparison.png`: the greeting is now a single line, search occupies the next row, two live cards are visible, station cards use a compact horizontal rail, and the mini-player sits immediately above the five-item bottom navigation.
-- Following navigation and section hierarchy were compared in `following-comparison.png`: only Following is active, no unrelated right rail is present, and creators/stations/latest content retain the source ordering.
-- Stations filters and ranked-card geometry were compared in `stations-comparison.png`: the category rail, search/status/sort controls, top-card overlay, Explore grid, and fixed player align with the source structure.
+- Signup form and stepper: compared in `signup-comparison.png`; labels, five-field order, progress geometry, blue CTA, auth switch, radii, and restrained elevation match the source structure.
+- Audio card: compared in `signup-comparison.png` and `mobile-signup-comparison.png`; status badge, animated waveform, microphone pulse rings, input meter, and 72% readout are present at both sizes.
+- Login artwork and card: compared in `login-comparison.png`; the generated studio microphone, blue sound rings, crowd, social-proof badges, Google/Apple actions, and compact form hierarchy match the supplied art direction.
+- Mobile top viewport: compared in `mobile-signup-comparison.png`; headline wrapping, left alignment, description spacing, and full-width audio card match the phone reference without recreating device chrome.
 
 ## Findings
 
 No actionable P0, P1, or P2 findings remain.
 
-- [P3] Editorial density depends on available API records
-  - Location: Home, Following, and Stations grids.
-  - Evidence: the source shows four to eight unique records per section; the deterministic API state provides one or two records for several sections.
-  - Impact: comparison captures contain more whitespace, but production behavior remains honest and data-driven.
-  - Follow-up: enrich test fixtures only when denser visual-regression coverage is useful; do not add production mock cards.
+- [P3] Generated login artwork is compositionally faithful rather than pixel-identical.
+  - Location: login hero artwork.
+  - Evidence: both designs use a centered black studio microphone, concentric blue sound rings, and a crowd silhouette; the generated crowd and microphone hardware differ in fine detail from the reference.
+  - Impact: the intended premium audio story is preserved, with minor photographic variance only.
+  - Follow-up: replace the generated asset only if the original production artwork becomes available.
 
-- [P3] Mobile source includes device chrome
-  - Location: mobile Home comparison.
-  - Evidence: the source includes a status bar, rounded device mask, and home indicator; Echoo is a responsive web surface and captures only application content.
-  - Impact: the very top and bottom framing differ without changing app hierarchy or usability.
-  - Follow-up: none; the content region was normalized before judging.
+- [P3] Mobile signup continues to the form below the reference crop.
+  - Location: signup mobile full-page capture.
+  - Evidence: the source phone mock ends after the audio card and CTA; the implementation exposes the real step-one form immediately below the hero.
+  - Impact: the page is taller, but the source-like first viewport and required signup functionality are both retained.
+  - Follow-up: none unless product direction calls for a separate mobile intro step.
 
 ## Required fidelity surfaces
 
-- Fonts and typography: Inter/system-sans hierarchy, dark navy headings, medium UI labels, truncation, and readable small text match the reference intent. Automated route checks enforce a 10px minimum for meaningful small text.
-- Spacing and layout rhythm: desktop content uses a stable sidebar/header/player frame; sections are horizontally aligned and mobile rails are compact enough to reveal adjacent content. No tested viewport has horizontal document overflow.
-- Colors and visual tokens: white, navy, muted gray, Echoo blue, pale active blue, and red live states are mapped through listener-scoped tokens. Gradients and decorative CSS art were not introduced.
-- Image quality and asset fidelity: the official repository SVG is used for the brand. Runtime artwork remains API-driven with the existing repository mark as a deterministic empty-art fallback; no new fake production imagery was added.
-- Copy and content: source-like labels are retained while names, counts, verification, follow state, and playback metadata come from services/local storage.
-- Icons and controls: the existing icon library supplies navigation, search, notification, filtering, playback, and action icons. Focus rings, semantic buttons, labels, and practical target sizes remain present.
+- Fonts and typography: Georgia provides the editorial serif display treatment; Inter/system sans handles UI. Navy/blue hierarchy, weights, line heights, letter spacing, and responsive wrapping match the reference intent.
+- Spacing and layout rhythm: desktop uses a balanced two-track split, centered cards, measured form density, soft 19–20px radii, and light elevation. Tablet and mobile stack cleanly; automated checks found no horizontal overflow at any requested width.
+- Colors and visual tokens: Echoo blue `#0B63F6`, navy `#0B1633`, pale blue-white canvases, muted labels, subtle borders, focus rings, errors, and disabled states are consistently scoped to the auth experience.
+- Image quality and asset fidelity: the repository's official Echoo SVG is used. The missing login hero was generated as a real raster asset from the reference art direction; the existing signal-wave SVG supplies the atmospheric signup pattern. No placeholder logo or fake microphone artwork remains.
+- Copy and content: the reference headline, signup title/subtitle, login title/subtitle, step names, field labels, helper copy, social actions, and auth switches are implemented.
+- Icons and controls: React Icons provides consistent user, email, lock, eye, microphone, signal, social, shield, and arrow icons. Inputs remain labelled, password visibility controls are semantic, and mobile fields use practical touch heights.
 
 ## Comparison history
 
-1. Initial comparison found P2 mobile hierarchy drift: the greeting was clipped by a legacy 60px header rule and old player rules exposed obsolete controls. The listener-scoped compatibility bridge now enforces the intended header height and mobile Play/Next transport. Post-fix evidence: `mobile-home-comparison-pass2.png`.
-2. The next comparison found P2 mobile density drift and a double-active Following navigation state. Live and station cards were resized to match the source rails, the mobile heading was reduced to a single-line optical size, and Audio library now uses exact route matching. Post-fix evidence: `mobile-home-comparison.png` and `following-comparison.png`.
-3. Keyboard geometry testing found a focused mobile station control could remain below the player-safe viewport. Listener focus now scrolls into the safe visible region, and the serial mobile geometry test passes.
+1. Initial comparison found P2 signup atmosphere drift: the large circular background lacked the reference's quiet audio-wave texture. The repository's existing `signal-wave.svg` was added at low opacity. Post-fix evidence: `signup-comparison.png`.
+2. Initial login captures occurred during the 600ms artwork entrance, making the microphone and audience appear too faint. The visual test now waits for both image decoding and the completed entrance state before capturing. Post-fix evidence: `login-comparison.png`.
+3. The reference login artwork had a softer top transition than the first implementation capture. A restrained alpha mask now blends the real raster artwork into the page atmosphere while preserving microphone contrast. Post-fix evidence: `login-desktop-1440x900.png`.
 
 ## Interactions and runtime checks
 
-- Tested: navigation, route-active states, global search, filters, categories, sorting, follow/unfollow controls, card playback handoff, persistent transport geometry, mobile bottom navigation, keyboard focus visibility, and error/empty-state structure.
-- Console/runtime checks: the isolated listener route audit passed at mobile `390` and desktop `1440`; no listener runtime or overflow violations remained.
-- Cross-engine: the new reference suite passed in Chromium across all configured widths and passed at Firefox `1024` and `1440`. WebKit is blocked on this host because `libavif13` cannot be installed without an interactive sudo password.
+- Primary interactions tested: signup-to-login switch, labelled input entry, password field, primary sign-in submission, session persistence, and continuation into the existing onboarding/profile flow.
+- Animation tested: the waveform's computed transform changes over time; the microphone control, pulse rings, ambient background, badges, logo, and entrance transitions remain motion-enabled with a reduced-motion fallback.
+- Console checks: no console errors or uncaught page errors in the nine-project auth reference suite.
+- Responsive checks passed at `1280 x 720`, `1366 x 768`, `1440 x 900`, `1920 x 1080`, `768 x 1024`, `320 x 800`, `375 x 812`, `390 x 844`, and `430 x 932`.
+- Existing auth flow regression check passed on desktop `1440 x 900` and mobile `390 x 844`: signup persisted the mocked session and continued through profile setup.
 
 ## Implementation checklist
 
-- [x] Desktop Home, Following, and Stations match the supplied structure.
-- [x] Mobile Home uses compact horizontal rails and fixed player/navigation stacking.
-- [x] Shared listener shell and official logo are consistent across routes.
-- [x] Real services, routing, follow state, playback, notifications, and realtime subscriptions are preserved.
-- [x] Listener-only responsive, keyboard, overflow, and runtime checks pass in isolated runs.
+- [x] Shared signup/login visual system matches the supplied reference.
+- [x] Real Echoo logo and generated microphone hero are integrated.
+- [x] Animated waveform, input level, microphone states, pulse rings, and ambient motion are present.
+- [x] Existing API calls, validation, error handling, loading, session storage, and onboarding callbacks are preserved.
+- [x] Desktop, tablet, and mobile responsive checks pass with no horizontal overflow.
+- [x] Changed source lint, production build, auth visual suite, and existing signup continuation test pass.
 
 ## Follow-up polish
 
-- Enrich deterministic E2E artwork/data if pixel-level comparisons need the exact editorial density of the supplied screenshots.
+- Swap in the original production microphone/crowd artwork if it becomes available for pixel-identical photography.
 
 final result: passed

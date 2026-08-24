@@ -24,6 +24,15 @@ export default defineConfig({
   },
   projects: [
     {
+      name: 'mobile-320x800',
+      use: {
+        browserName: 'chromium',
+        viewport: { width: 320, height: 800 },
+        isMobile: true,
+        hasTouch: true,
+      },
+    },
+    {
       name: 'mobile-320',
       use: {
         browserName: 'chromium',
@@ -100,6 +109,13 @@ export default defineConfig({
       },
     },
     {
+      name: 'desktop-1280x720',
+      use: {
+        browserName: 'chromium',
+        viewport: { width: 1280, height: 720 },
+      },
+    },
+    {
       name: 'desktop-1366',
       use: {
         browserName: 'chromium',
@@ -111,6 +127,13 @@ export default defineConfig({
       use: {
         browserName: 'chromium',
         viewport: { width: 1440, height: 1000 },
+      },
+    },
+    {
+      name: 'desktop-1440x900',
+      use: {
+        browserName: 'chromium',
+        viewport: { width: 1440, height: 900 },
       },
     },
     {
