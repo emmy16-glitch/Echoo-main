@@ -6,12 +6,12 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
   ListenerEmptyState,
@@ -83,9 +83,9 @@ export default function LiveScreen() {
   const liveAudience = live.reduce((sum, item) => sum + (item.listenerCount || 0), 0);
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      <ListenerTopBar />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <ListenerTopBar />
         <ListenerPageHeader
           eyebrow="ON AIR"
           title="Live on Echoo"

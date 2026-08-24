@@ -10,16 +10,16 @@ import {
   UserRound,
   Volume2,
 } from 'lucide-react-native';
-import { useEffect, useMemo, useState } from 'react';
+import { ReactNode, useEffect, useMemo, useState } from 'react';
 import {
   Linking,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
   ListenerAuthCard,
@@ -29,11 +29,19 @@ import {
 } from '@/src/components/ListenerV2';
 import { EchooUser, getCurrentUser, hasEchooSession } from '@/src/services/echooApi';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { ThemePreference, useThemePreference } from '@/src/theme/ThemePreference';
 import { EchooColors, getEchooColors } from '@/src/theme/echooTheme';
+
+const themeOptions: { label: string; value: ThemePreference }[] = [
+  { label: 'System', value: 'system' },
+  { label: 'Light', value: 'light' },
+  { label: 'Dark', value: 'dark' },
+];
 
 export default function SettingsScreen() {
   const router = useRouter();
   const scheme = useColorScheme();
+  const { preference, setPreference } = useThemePreference();
   const palette = getEchooColors(scheme);
   const styles = useMemo(() => createStyles(palette), [palette]);
   const [signedIn, setSignedIn] = useState(false);
@@ -52,7 +60,7 @@ export default function SettingsScreen() {
   }, []);
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'right', 'bottom', 'left']}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <ListenerBackHeader title="Settings" />
         <ListenerPageHeader
@@ -72,7 +80,7 @@ export default function SettingsScreen() {
         {signedIn && user ? (
           <View style={styles.accountStrip}>
             <View style={styles.accountIcon}>
-              <UserRound color={palette.blue} size={21} />
+              <UserRound color={palette.muted} size={20} strokeWidth={2} />
             </View>
             <View style={styles.accountCopy}>
               <Text style={styles.accountName}>{user.displayName}</Text>
@@ -84,28 +92,50 @@ export default function SettingsScreen() {
         <ListenerSectionHeader title="Experience" />
         <View style={styles.group}>
           <SettingRow
-            icon={<MoonStar color={palette.blue} size={20} />}
+            icon={<MoonStar color={palette.muted} size={19} strokeWidth={2} />}
             title="Appearance"
-            subtitle="Echoo follows your phone's system appearance"
-            value={scheme === 'dark' ? 'Dark' : 'Light'}
+            subtitle="Choose Echoo's app theme"
+            value={
+              preference === 'system'
+                ? `System ${scheme === 'dark' ? 'Dark' : 'Light'}`
+                : preference === 'dark' ? 'Dark' : 'Light'
+            }
             palette={palette}
           />
+          <View style={styles.themePicker}>
+            {themeOptions.map((option) => {
+              const active = preference === option.value;
+              return (
+                <Pressable
+                  key={option.value}
+                  style={[styles.themeOption, active && styles.themeOptionActive]}
+                  onPress={() => setPreference(option.value)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                >
+                  <Text style={[styles.themeOptionText, active && styles.themeOptionTextActive]}>
+                    {option.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
           <SettingRow
-            icon={<Volume2 color={palette.blue} size={20} />}
+            icon={<Volume2 color={palette.muted} size={19} strokeWidth={2} />}
             title="Playback"
             subtitle="Normal speed · device volume"
             value="Default"
             palette={palette}
           />
           <SettingRow
-            icon={<Download color={palette.blue} size={20} />}
+            icon={<Download color={palette.muted} size={19} strokeWidth={2} />}
             title="Downloads"
             subtitle="Offline media remains on this device"
             value="Device"
             palette={palette}
           />
           <SettingRow
-            icon={<Languages color={palette.blue} size={20} />}
+            icon={<Languages color={palette.muted} size={19} strokeWidth={2} />}
             title="Language"
             subtitle="Interface language"
             value="English"
@@ -117,7 +147,7 @@ export default function SettingsScreen() {
         <ListenerSectionHeader title="Notifications & privacy" />
         <View style={styles.group}>
           <SettingRow
-            icon={<Bell color={palette.blue} size={20} />}
+            icon={<Bell color={palette.muted} size={19} strokeWidth={2} />}
             title="Notifications"
             subtitle="Manage Echoo's device notification permission"
             value="Device"
@@ -125,7 +155,7 @@ export default function SettingsScreen() {
             onPress={() => Linking.openSettings()}
           />
           <SettingRow
-            icon={<Shield color={palette.blue} size={20} />}
+            icon={<Shield color={palette.muted} size={19} strokeWidth={2} />}
             title="Privacy & security"
             subtitle="Secure mobile session storage and account controls"
             value={signedIn ? 'Protected' : 'Guest'}
@@ -135,7 +165,7 @@ export default function SettingsScreen() {
         </View>
 
         <View style={styles.securityCard}>
-          <Headphones color={palette.blue} size={22} />
+          <Headphones color={palette.muted} size={20} strokeWidth={2} />
           <View style={styles.securityCopy}>
             <Text style={styles.securityTitle}>Mobile session security</Text>
             <Text style={styles.securityText}>
@@ -157,7 +187,7 @@ function SettingRow({
   onPress,
   last = false,
 }: {
-  icon: React.ReactNode;
+  icon: ReactNode;
   title: string;
   subtitle: string;
   value: string;
@@ -183,18 +213,44 @@ const createStyles = (palette: EchooColors) => StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: palette.background },
   content: { paddingHorizontal: 18, paddingTop: 8, paddingBottom: 50 },
   accountStrip: { minHeight: 72, backgroundColor: palette.surface, borderRadius: 17, borderWidth: 1, borderColor: palette.line, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 11 },
-  accountIcon: { width: 44, height: 44, borderRadius: 14, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
+  accountIcon: { width: 22, alignItems: 'center', justifyContent: 'center' },
   accountCopy: { flex: 1 },
   accountName: { color: palette.ink, fontSize: 14, fontWeight: '900' },
   accountMeta: { color: palette.muted, fontSize: 11, marginTop: 3 },
   group: { backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line, borderRadius: 20, overflow: 'hidden' },
   row: { minHeight: 72, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 13, borderBottomWidth: 1, borderBottomColor: palette.line },
   rowLast: { borderBottomWidth: 0 },
-  rowIcon: { width: 40, height: 40, borderRadius: 13, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
+  rowIcon: { width: 22, alignItems: 'center', justifyContent: 'center' },
   rowCopy: { flex: 1, paddingHorizontal: 10 },
   rowTitle: { color: palette.ink, fontSize: 13.5, fontWeight: '900' },
   rowSubtitle: { color: palette.muted, fontSize: 10.5, lineHeight: 15, marginTop: 2 },
   rowValue: { color: palette.blue, fontSize: 11, fontWeight: '800', marginRight: 3 },
+  themePicker: {
+    minHeight: 58,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 13,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: palette.line,
+  },
+  themeOption: {
+    flex: 1,
+    minHeight: 36,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: palette.line,
+    backgroundColor: palette.surfaceRaised,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  themeOptionActive: {
+    borderColor: palette.blue,
+    backgroundColor: palette.blue,
+  },
+  themeOptionText: { color: palette.muted, fontSize: 12, fontWeight: '800' },
+  themeOptionTextActive: { color: '#FFFFFF' },
   securityCard: { marginTop: 18, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line, borderRadius: 18, padding: 15, flexDirection: 'row', alignItems: 'flex-start', gap: 11 },
   securityCopy: { flex: 1 },
   securityTitle: { color: palette.ink, fontSize: 13, fontWeight: '900' },

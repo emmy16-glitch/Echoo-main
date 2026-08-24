@@ -7,13 +7,13 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ListenerBackHeader } from '@/src/components/ListenerV2';
 import { loginEchoo, registerEchoo } from '@/src/services/echooApi';
@@ -67,7 +67,7 @@ export default function AuthScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'right', 'bottom', 'left']}>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -80,7 +80,7 @@ export default function AuthScreen() {
           <ListenerBackHeader title="Echoo account" />
 
           <View style={styles.hero}>
-            <LinearGradient colors={['#4B7BFF', '#2457E9']} style={styles.heroIcon}>
+            <LinearGradient colors={[palette.blue, palette.blueDeep]} style={styles.heroIcon}>
               <Headphones color="#FFFFFF" size={34} strokeWidth={2.5} />
             </LinearGradient>
             <Text style={styles.heroTitle}>

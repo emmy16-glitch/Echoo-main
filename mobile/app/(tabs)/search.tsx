@@ -3,6 +3,7 @@ import {
   BookOpenText,
   Headphones,
   MessageCircleMore,
+  Mic2,
   Music2,
   Newspaper,
   Radio,
@@ -11,17 +12,16 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
   ListenerEmptyState,
   ListenerListRow,
-  ListenerPageHeader,
   ListenerSearchInput,
   ListenerSectionHeader,
   ListenerTopBar,
@@ -36,11 +36,18 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { EchooColors, getEchooColors } from '@/src/theme/echooTheme';
 
 const categorySuggestions = [
-  { label: 'Worship', icon: BookOpenText },
-  { label: 'Talk', icon: MessageCircleMore },
-  { label: 'Music', icon: Music2 },
-  { label: 'News', icon: Newspaper },
+  { label: 'Music', query: 'Music', icon: Music2 },
+  { label: 'Talk shows', query: 'Talk', icon: MessageCircleMore },
+  { label: 'Worship', query: 'Worship', icon: BookOpenText },
+  { label: 'Podcasts', query: 'Podcast', icon: Mic2 },
+  { label: 'News', query: 'News', icon: Newspaper },
+  { label: 'Live now', query: 'Live', icon: Radio },
 ];
+
+const categoryRows = Array.from(
+  { length: Math.ceil(categorySuggestions.length / 2) },
+  (_, index) => categorySuggestions.slice(index * 2, index * 2 + 2)
+);
 
 export default function SearchScreen() {
   const router = useRouter();
@@ -52,7 +59,7 @@ export default function SearchScreen() {
   const [query, setQuery] = useState(() => String(params.q || ''));
   const [audio, setAudio] = useState<EchooAudio[]>([]);
   const [stations, setStations] = useState<EchooStation[]>([]);
-  const [live, setLive] = useState<EchooBroadcast[]>([]);
+  const [live, setLive] = useState<Awaited<ReturnType<typeof searchEchoo>>['live']>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -121,53 +128,43 @@ export default function SearchScreen() {
   const hasResults = audio.length + stations.length + live.length > 0;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      <ListenerTopBar />
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <ListenerTopBar />
-        <ListenerPageHeader
-          eyebrow="DISCOVER"
-          title="Search Echoo"
-          subtitle="Find live stations, creators, shows, podcasts and published audio."
-        />
+        <Text style={styles.pageTitle}>Search</Text>
 
         <ListenerSearchInput
           value={query}
           onChangeText={setQuery}
-          placeholder="Search stations, shows, podcasts..."
-          autoFocus={!params.q}
+          placeholder="Artists, stations, shows or audio"
+          autoFocus={false}
         />
 
         {!query.trim() ? (
           <>
-            <ListenerSectionHeader title="Browse categories" />
+            <ListenerSectionHeader title="Browse all" />
             <View style={styles.categoryGrid}>
-              {categorySuggestions.map(({ label, icon: Icon }) => (
-                <Pressable
-                  key={label}
-                  style={styles.categoryCard}
-                  onPress={() => setQuery(label)}
-                >
-                  <View style={styles.categoryIcon}>
-                    <Icon color={palette.blue} size={22} />
-                  </View>
-                  <Text style={styles.categoryTitle}>{label}</Text>
-                  <Text style={styles.categorySubtitle}>Explore {label.toLowerCase()} on Echoo</Text>
-                </Pressable>
+              {categoryRows.map((row, rowIndex) => (
+                <View key={rowIndex} style={styles.categoryRow}>
+                  {row.map(({ label, query: categoryQuery, icon: Icon }) => (
+                    <Pressable
+                      key={label}
+                      style={({ pressed }) => [
+                        styles.categoryTile,
+                        pressed && styles.categoryTilePressed,
+                      ]}
+                      onPress={() => setQuery(categoryQuery)}
+                    >
+                      <Icon color={palette.muted} size={21} strokeWidth={2} />
+                      <Text style={styles.categoryTitle} numberOfLines={1}>{label}</Text>
+                    </Pressable>
+                  ))}
+                </View>
               ))}
-            </View>
-
-            <View style={styles.tipCard}>
-              <Headphones color={palette.blue} size={22} />
-              <View style={styles.tipCopy}>
-                <Text style={styles.tipTitle}>Search stays real</Text>
-                <Text style={styles.tipText}>
-                  Echoo only shows published stations, live broadcasts and audio that actually exist.
-                </Text>
-              </View>
             </View>
           </>
         ) : null}
@@ -190,22 +187,39 @@ export default function SearchScreen() {
         {!loading && query.trim() && !error && !hasResults ? (
           <ListenerEmptyState
             title="No results found"
-            subtitle={`Nothing public on Echoo matched “${query.trim()}”. Try another title, creator or station.`}
+            subtitle={`Nothing public matched "${query.trim()}". Try another title, creator, or station.`}
           />
         ) : null}
 
         {live.length ? (
           <>
             <ListenerSectionHeader title="Live now" action="View all" onAction={() => router.push('/live')} />
-            {live.map((item) => (
+            {live.map((item: EchooBroadcast) => (
               <ListenerListRow
                 key={item.id}
                 title={item.title}
                 subtitle={item.stationName || 'Echoo Station'}
                 meta={`${item.listenerCount || 0} live`}
                 image={item.coverArt}
-                fallback={<Radio color={palette.red} size={21} />}
+                fallback={<Headphones color={palette.red} size={21} />}
                 onPress={() => router.push('/live')}
+              />
+            ))}
+          </>
+        ) : null}
+
+        {audio.length ? (
+          <>
+            <ListenerSectionHeader title="Audio" />
+            {audio.map((track) => (
+              <ListenerListRow
+                key={track.id}
+                title={track.title}
+                subtitle={track.subtitle || track.artistName || track.genre || 'Echoo Audio'}
+                meta={track.genre || 'Audio'}
+                image={track.coverArt}
+                fallback={<Music2 color={palette.blue} size={21} />}
+                onPress={() => openAudio(track)}
               />
             ))}
           </>
@@ -227,23 +241,6 @@ export default function SearchScreen() {
             ))}
           </>
         ) : null}
-
-        {audio.length ? (
-          <>
-            <ListenerSectionHeader title="Audio" />
-            {audio.map((track) => (
-              <ListenerListRow
-                key={track.id}
-                title={track.title}
-                subtitle={track.subtitle || track.genre || 'Echoo Audio'}
-                meta={track.genre || 'Audio'}
-                image={track.coverArt}
-                fallback={<Music2 color={palette.blue} size={21} />}
-                onPress={() => openAudio(track)}
-              />
-            ))}
-          </>
-        ) : null}
       </ScrollView>
     </SafeAreaView>
   );
@@ -251,16 +248,42 @@ export default function SearchScreen() {
 
 const createStyles = (palette: EchooColors) => StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: palette.background },
-  content: { paddingHorizontal: 18, paddingTop: 8, paddingBottom: 120 },
-  categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  categoryCard: { width: '48.5%', minHeight: 126, backgroundColor: palette.surface, borderRadius: 18, borderWidth: 1, borderColor: palette.line, padding: 14 },
-  categoryIcon: { width: 42, height: 42, borderRadius: 13, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
-  categoryTitle: { color: palette.ink, fontSize: 15, fontWeight: '900', marginTop: 10 },
-  categorySubtitle: { color: palette.muted, fontSize: 11.5, lineHeight: 16, marginTop: 3 },
-  tipCard: { marginTop: 18, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line, borderRadius: 17, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  tipCopy: { flex: 1 },
-  tipTitle: { color: palette.ink, fontSize: 13.5, fontWeight: '900' },
-  tipText: { color: palette.muted, fontSize: 11.5, lineHeight: 17, marginTop: 3 },
-  loadingRow: { minHeight: 90, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 9 },
+  content: { paddingHorizontal: 18, paddingTop: 4, paddingBottom: 150 },
+  pageTitle: {
+    color: palette.ink,
+    fontSize: 31,
+    lineHeight: 36,
+    fontWeight: '900',
+    marginTop: 18,
+    marginBottom: 18,
+  },
+  categoryGrid: { gap: 10 },
+  categoryRow: { flexDirection: 'row', gap: 10 },
+  categoryTile: {
+    flex: 1,
+    minWidth: 0,
+    height: 78,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    backgroundColor: palette.surface,
+    borderWidth: 1,
+    borderColor: palette.line,
+    justifyContent: 'center',
+    gap: 10,
+  },
+  categoryTilePressed: { opacity: 0.58 },
+  categoryTitle: {
+    color: palette.ink,
+    fontSize: 13.5,
+    lineHeight: 18,
+    fontWeight: '800',
+  },
+  loadingRow: {
+    minHeight: 110,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 9,
+  },
   loadingText: { color: palette.muted, fontSize: 12.5, fontWeight: '700' },
 });

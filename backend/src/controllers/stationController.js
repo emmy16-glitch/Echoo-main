@@ -10,6 +10,7 @@ import {
   ensureStationBranding,
   normalizeStationBrandVariant,
 } from '../utils/stationBranding.js';
+import { sendGeneratedCover } from '../utils/generatedCoverResponse.js';
 
 const OWNER_FIELDS =
   'username displayName avatar bio userType creatorProfile.category creatorProfile.artistName creatorProfile.organizationName creatorProfile.organizationLogo creatorProfile.isVerified';
@@ -26,6 +27,28 @@ function invalidId(res) {
 
 function populateOwner(query) {
   return query.populate('owner', OWNER_FIELDS);
+}
+
+export async function getStationCover(req, res, next) {
+  try {
+    if (!validId(req.params.stationId)) return invalidId(res);
+
+    const station = await Station.findOne({
+      _id: req.params.stationId,
+      isDeleted: false,
+      isPublic: true,
+    }).select('coverArt');
+
+    if (!station || !sendGeneratedCover(res, station.coverArt)) {
+      return res.status(404).json({
+        error: { code: 'COVER_NOT_FOUND', message: 'Station cover not found' },
+      });
+    }
+
+    return undefined;
+  } catch (error) {
+    return next(error);
+  }
 }
 
 function parseTags(value) {

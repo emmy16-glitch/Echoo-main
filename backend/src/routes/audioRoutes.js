@@ -14,6 +14,7 @@ import {
   updateAudio,
   deleteAudio,
   incrementPlays,
+  getAudioCover,
 } from '../controllers/audioController.js';
 import { toggleAudioLike } from '../controllers/audioLikeController.js';
 import {
@@ -322,6 +323,7 @@ const cleanupUploadError = async (err, req, res, next) => {
 };
 
 router.get('/', validateAudioListQuery, getAudio);
+router.get('/:id/cover-art', validateAudioId, getAudioCover);
 
 router.post('/:id/stream-token', validateAudioId, authenticate, issueAudioStreamUrl);
 router.get('/:id/stream', validateAudioId, streamAudio);

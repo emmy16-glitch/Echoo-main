@@ -208,7 +208,7 @@ export default function StationScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'right', 'bottom', 'left']}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <ListenerBackHeader title="Station" />
 
@@ -235,7 +235,7 @@ export default function StationScreen() {
               {station.coverArt ? (
                 <Image source={{ uri: station.coverArt }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
               ) : (
-                <LinearGradient colors={['#2457E9', '#071126']} style={StyleSheet.absoluteFillObject} />
+                <LinearGradient colors={[palette.blue, palette.night2]} style={StyleSheet.absoluteFillObject} />
               )}
               <LinearGradient
                 colors={['rgba(4,9,22,0.03)', 'rgba(4,9,22,0.82)']}

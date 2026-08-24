@@ -10,18 +10,18 @@ import {
 import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  SafeAreaView,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
   ListenerAuthCard,
   ListenerEmptyState,
   ListenerListRow,
-  ListenerPageHeader,
   ListenerSectionHeader,
   ListenerTopBar,
 } from '@/src/components/ListenerV2';
@@ -118,19 +118,11 @@ export default function LibraryScreen() {
     });
   };
 
-  const openStation = (station: EchooStation) => {
-    router.push({ pathname: '/station', params: { stationId: station.id } });
-  };
-
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      <ListenerTopBar />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <ListenerTopBar />
-        <ListenerPageHeader
-          eyebrow="YOUR ECHOO"
-          title="Library"
-          subtitle="Everything you save, follow and listen to—organized around your account."
-        />
+        <Text style={styles.pageTitle}>Your Library</Text>
 
         {!signedIn && !loading ? (
           <ListenerAuthCard onPress={() => router.push('/auth')} />
@@ -145,11 +137,39 @@ export default function LibraryScreen() {
 
         {signedIn && !loading ? (
           <>
-            <View style={styles.statGrid}>
-              <LibraryStat icon={<Heart color={palette.blue} size={20} />} value={stats.savedTracks} label="Saved audio" palette={palette} />
-              <LibraryStat icon={<Radio color={palette.blue} size={20} />} value={stations.length} label="Stations" palette={palette} />
-              <LibraryStat icon={<ListMusic color={palette.blue} size={20} />} value={stats.playlists} label="Playlists" palette={palette} />
-              <LibraryStat icon={<History color={palette.blue} size={20} />} value={stats.listeningHistory} label="History" palette={palette} />
+            <View style={styles.quickList}>
+              <LibraryShortcut
+                color={palette.blueDeep}
+                icon={<Heart color="#FFFFFF" fill="#FFFFFF" size={23} />}
+                title="Liked audio"
+                subtitle={`${stats.savedTracks} saved tracks`}
+                onPress={() => router.push('/favorites')}
+                palette={palette}
+              />
+              <LibraryShortcut
+                color="#BE185D"
+                icon={<Radio color="#FFFFFF" size={23} />}
+                title="Followed stations"
+                subtitle={`${stations.length} stations`}
+                onPress={() => undefined}
+                palette={palette}
+              />
+              <LibraryShortcut
+                color="#047857"
+                icon={<History color="#FFFFFF" size={23} />}
+                title="Listening history"
+                subtitle={`${stats.listeningHistory} recent plays`}
+                onPress={() => undefined}
+                palette={palette}
+              />
+              <LibraryShortcut
+                color="#1D4ED8"
+                icon={<ListMusic color="#FFFFFF" size={23} />}
+                title="Playlists"
+                subtitle={`${stats.playlists} playlists`}
+                onPress={() => undefined}
+                palette={palette}
+              />
             </View>
 
             {error ? (
@@ -161,13 +181,13 @@ export default function LibraryScreen() {
               />
             ) : null}
 
-            <ListenerSectionHeader title="Saved audio" action="Favorites" onAction={() => router.push('/favorites')} />
+            <ListenerSectionHeader title="Saved audio" action="See all" onAction={() => router.push('/favorites')} />
             {saved.length ? (
-              saved.slice(0, 8).map((track) => (
+              saved.slice(0, 10).map((track) => (
                 <ListenerListRow
                   key={track.id}
                   title={track.title}
-                  subtitle={track.subtitle || track.genre || 'Echoo Audio'}
+                  subtitle={track.subtitle || track.artistName || track.genre || 'Echoo Audio'}
                   meta={track.genre || 'Saved'}
                   image={track.coverArt}
                   onPress={() => openAudio(track)}
@@ -176,30 +196,8 @@ export default function LibraryScreen() {
             ) : (
               <ListenerEmptyState
                 title="No saved audio yet"
-                subtitle="Save music, podcasts, teachings and other published audio to build your library."
+                subtitle="Tap the heart on any track to keep it in your library."
                 action="Find audio"
-                onAction={() => router.push('/search')}
-              />
-            )}
-
-            <ListenerSectionHeader title="Followed stations" />
-            {stations.length ? (
-              stations.slice(0, 6).map((station) => (
-                <ListenerListRow
-                  key={station.id}
-                  title={station.name}
-                  subtitle={station.category || 'Echoo Station'}
-                  meta={station.isLive ? 'LIVE' : `${station.followerCount || 0} followers`}
-                  image={station.coverArt}
-                  fallback={<Radio color={palette.blue} size={21} />}
-                  onPress={() => openStation(station)}
-                />
-              ))
-            ) : (
-              <ListenerEmptyState
-                title="No followed stations"
-                subtitle="Follow stations you enjoy so their live and published content is easier to find."
-                action="Discover stations"
                 onAction={() => router.push('/search')}
               />
             )}
@@ -210,31 +208,29 @@ export default function LibraryScreen() {
                 <ListenerListRow
                   key={item.id}
                   title={item.track?.title || 'Unavailable audio'}
-                  subtitle={item.track?.subtitle || item.track?.genre || 'Echoo'}
+                  subtitle={item.track?.subtitle || item.track?.artistName || item.track?.genre || 'Echoo'}
                   meta={item.playedAt ? new Date(item.playedAt).toLocaleDateString() : 'History'}
                   image={item.track?.coverArt}
                   onPress={() => openAudio(item.track)}
                 />
               ))
             ) : (
-              <ListenerEmptyState
-                title="No listening history yet"
-                subtitle="Once you start listening, your recent activity will appear here."
-              />
+              <View style={styles.inlineEmpty}>
+                <History color={palette.faint} size={20} />
+                <Text style={styles.inlineEmptyText}>Your recent plays will appear here.</Text>
+              </View>
             )}
 
-            <ListenerSectionHeader title="Offline" />
-            <View style={styles.offlineCard}>
-              <View style={styles.offlineIcon}>
-                <Download color={palette.blue} size={21} />
+            <Pressable style={styles.downloadRow}>
+              <View style={styles.downloadIcon}>
+                <Download color={palette.ink} size={20} />
               </View>
-              <View style={styles.offlineCopy}>
-                <Text style={styles.offlineTitle}>Downloads stay on this device</Text>
-                <Text style={styles.offlineText}>
-                  Offline media will be shown here when the mobile download flow is enabled for a published track.
-                </Text>
+              <View style={styles.downloadCopy}>
+                <Text style={styles.downloadTitle}>Downloads</Text>
+                <Text style={styles.downloadText}>Offline audio on this device</Text>
               </View>
-            </View>
+              <Text style={styles.downloadCount}>0</Text>
+            </Pressable>
           </>
         ) : null}
       </ScrollView>
@@ -242,40 +238,87 @@ export default function LibraryScreen() {
   );
 }
 
-function LibraryStat({
+function LibraryShortcut({
+  color,
   icon,
-  value,
-  label,
+  title,
+  subtitle,
+  onPress,
   palette,
 }: {
+  color: string;
   icon: React.ReactNode;
-  value: number;
-  label: string;
+  title: string;
+  subtitle: string;
+  onPress: () => void;
   palette: EchooColors;
 }) {
-  const styles = useMemo(() => createStyles(palette), [palette]);
+  const shortcutStyles = useMemo(() => createStyles(palette), [palette]);
   return (
-    <View style={styles.statCard}>
-      <View style={styles.statIcon}>{icon}</View>
-      <Text style={styles.statValue}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
-    </View>
+    <Pressable style={shortcutStyles.shortcutRow} onPress={onPress}>
+      <View style={[shortcutStyles.shortcutArt, { backgroundColor: color }]}>{icon}</View>
+      <View style={shortcutStyles.shortcutCopy}>
+        <Text style={shortcutStyles.shortcutTitle}>{title}</Text>
+        <Text style={shortcutStyles.shortcutSubtitle}>{subtitle}</Text>
+      </View>
+    </Pressable>
   );
 }
 
 const createStyles = (palette: EchooColors) => StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: palette.background },
-  content: { paddingHorizontal: 18, paddingTop: 8, paddingBottom: 120 },
-  loadingState: { minHeight: 150, alignItems: 'center', justifyContent: 'center', gap: 10 },
+  content: { paddingHorizontal: 18, paddingTop: 4, paddingBottom: 150 },
+  pageTitle: {
+    color: palette.ink,
+    fontSize: 31,
+    lineHeight: 36,
+    fontWeight: '900',
+    marginTop: 18,
+    marginBottom: 20,
+  },
+  loadingState: { minHeight: 170, alignItems: 'center', justifyContent: 'center', gap: 10 },
   loadingText: { color: palette.muted, fontSize: 12.5, fontWeight: '700' },
-  statGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  statCard: { width: '48.5%', minHeight: 112, backgroundColor: palette.surface, borderRadius: 18, borderWidth: 1, borderColor: palette.line, padding: 13 },
-  statIcon: { width: 38, height: 38, borderRadius: 12, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
-  statValue: { color: palette.ink, fontSize: 22, fontWeight: '900', marginTop: 8 },
-  statLabel: { color: palette.muted, fontSize: 11.5, fontWeight: '700', marginTop: 1 },
-  offlineCard: { backgroundColor: palette.surface, borderRadius: 17, borderWidth: 1, borderColor: palette.line, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  offlineIcon: { width: 44, height: 44, borderRadius: 14, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
-  offlineCopy: { flex: 1 },
-  offlineTitle: { color: palette.ink, fontSize: 13.5, fontWeight: '900' },
-  offlineText: { color: palette.muted, fontSize: 11.5, lineHeight: 17, marginTop: 3 },
+  quickList: { gap: 4 },
+  shortcutRow: { minHeight: 66, flexDirection: 'row', alignItems: 'center', paddingVertical: 5 },
+  shortcutArt: {
+    width: 56,
+    height: 56,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  shortcutCopy: { flex: 1, paddingHorizontal: 12 },
+  shortcutTitle: { color: palette.ink, fontSize: 14, fontWeight: '900' },
+  shortcutSubtitle: { color: palette.muted, fontSize: 11.5, marginTop: 4 },
+  inlineEmpty: {
+    minHeight: 58,
+    borderRadius: 8,
+    backgroundColor: palette.surfaceRaised,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+  },
+  inlineEmptyText: { color: palette.muted, fontSize: 12 },
+  downloadRow: {
+    minHeight: 70,
+    marginTop: 26,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: palette.line,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  downloadIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    backgroundColor: palette.surfaceRaised,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  downloadCopy: { flex: 1, paddingHorizontal: 12 },
+  downloadTitle: { color: palette.ink, fontSize: 14, fontWeight: '900' },
+  downloadText: { color: palette.muted, fontSize: 11.5, marginTop: 4 },
+  downloadCount: { color: palette.muted, fontSize: 12, fontWeight: '800' },
 });

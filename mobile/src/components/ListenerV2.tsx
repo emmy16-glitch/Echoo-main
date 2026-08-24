@@ -1,13 +1,17 @@
 import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
+import { useRouter, useSegments } from 'expo-router';
 import {
   Bell,
+  ChevronLeft,
   ChevronRight,
   Headphones,
   Menu,
   Music2,
+  Pause,
   Play,
+  Radio,
   Search,
+  X,
 } from 'lucide-react-native';
 import { ReactNode, useEffect, useMemo, useState } from 'react';
 import {
@@ -17,9 +21,12 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { EchooAudio } from '@/src/services/echooApi';
+import { EchooBrand } from '@/src/components/EchooBrand';
+import { getListenerTabBarMetrics } from '@/src/navigation/listenerLayout';
+import { usePlayback } from '@/src/playback/PlaybackProvider';
 import { getUnreadNotificationCount } from '@/src/services/notificationService';
 import { EchooColors, getEchooColors } from '@/src/theme/echooTheme';
 
@@ -72,14 +79,7 @@ export function ListenerTopBar({
         <Menu color={palette.ink} size={25} strokeWidth={2.1} />
       </Pressable>
 
-      <View style={styles.brand}>
-        <View style={styles.brandMark}>
-          <View style={[styles.brandDot, styles.dotOne]} />
-          <View style={[styles.brandDot, styles.dotTwo]} />
-          <View style={[styles.brandDot, styles.dotThree]} />
-        </View>
-        <Text style={styles.brandText}>echoo</Text>
-      </View>
+      <EchooBrand markSize={46} textSize={23} textColor={palette.ink} gap={0} />
 
       <Pressable
         style={styles.notificationButton}
@@ -276,56 +276,81 @@ export function ListenerListRow({
   );
 }
 
-export function ListenerMiniPlayer({
-  audio,
-  title,
-  subtitle,
-}: {
-  audio?: EchooAudio | null;
-  title?: string;
-  subtitle?: string;
-}) {
+export function ListenerMiniPlayer() {
   const router = useRouter();
+  const segments = useSegments();
+  const insets = useSafeAreaInsets();
   const palette = useListenerPalette();
   const styles = useMemo(() => makeStyles(palette), [palette]);
+  const { current, duration, isLoading, isPlaying, position, stop, toggle } = usePlayback();
 
-  const resolvedTitle = audio?.title || title;
-  if (!resolvedTitle) return null;
+  const rootRoute = String(segments[0] || '');
+  if (!current || rootRoute === 'audio-player' || rootRoute === 'live-room') return null;
+  const bottomOffset = rootRoute === '(tabs)'
+    ? getListenerTabBarMetrics(insets.bottom).height
+    : insets.bottom + 12;
 
   const openPlayer = () => {
-    if (!audio) return;
-    router.push({
-      pathname: '/audio-player',
-      params: {
-        audioId: audio.id,
-        title: audio.title,
-        subtitle: audio.subtitle || audio.artistName || audio.genre || 'Echoo Audio',
-        coverArt: audio.coverArt || '',
-        fileUrl: audio.fileUrl || '',
-        genre: audio.genre || '',
-      },
-    });
+    if (current.kind === 'audio') router.push('/audio-player');
+    else {
+      router.push({
+        pathname: '/live-room',
+        params: {
+          broadcastId: current.id,
+          title: current.title,
+          stationName: current.subtitle,
+          coverArt: current.coverArt || '',
+        },
+      });
+    }
   };
 
+  const progress = current.kind === 'audio' && duration > 0
+    ? Math.max(0, Math.min(100, (position / duration) * 100))
+    : 0;
+
   return (
-    <Pressable style={styles.miniPlayer} onPress={openPlayer} disabled={!audio}>
-      <View style={styles.miniArt}>
-        {audio?.coverArt ? (
-          <Image source={{ uri: audio.coverArt }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
+    <View style={[styles.miniPlayer, { bottom: bottomOffset }]}>
+      <Pressable style={styles.miniOpenArea} onPress={openPlayer} accessibilityLabel="Open player">
+        <View style={styles.miniArt}>
+          {current.coverArt ? (
+            <Image source={{ uri: current.coverArt }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
+          ) : current.kind === 'live' ? (
+            <Radio color="#FFFFFF" size={19} />
+          ) : (
+            <Music2 color="#FFFFFF" size={18} />
+          )}
+        </View>
+        <View style={styles.miniCopy}>
+          <Text style={styles.miniTitle} numberOfLines={1}>{current.title}</Text>
+          <Text style={styles.miniSubtitle} numberOfLines={1}>
+            {current.kind === 'live' ? `LIVE · ${current.subtitle}` : current.subtitle}
+          </Text>
+        </View>
+      </Pressable>
+      <Pressable
+        style={styles.miniPlayButton}
+        onPress={toggle}
+        disabled={isLoading}
+        accessibilityLabel={isPlaying ? 'Pause' : 'Play'}
+      >
+        {isPlaying ? (
+          <Pause color="#FFFFFF" fill="#FFFFFF" size={18} />
         ) : (
-          <Music2 color="#FFFFFF" size={18} />
+          <Play color="#FFFFFF" fill="#FFFFFF" size={18} />
         )}
-      </View>
-      <View style={styles.miniCopy}>
-        <Text style={styles.miniTitle} numberOfLines={1}>{resolvedTitle}</Text>
-        <Text style={styles.miniSubtitle} numberOfLines={1}>
-          {audio?.subtitle || subtitle || 'Echoo'}
-        </Text>
-      </View>
-      <View style={styles.miniPlayButton}>
-        <Play color="#FFFFFF" fill="#FFFFFF" size={17} />
-      </View>
-    </Pressable>
+      </Pressable>
+      <Pressable style={styles.miniCloseButton} onPress={stop} accessibilityLabel="Stop playback">
+        <X color={palette.muted} size={18} />
+      </Pressable>
+      {current.kind === 'audio' ? (
+        <View style={styles.miniProgressTrack}>
+          <View style={[styles.miniProgressFill, { width: `${progress}%` }]} />
+        </View>
+      ) : (
+        <View style={[styles.miniProgressTrack, styles.miniLiveTrack]} />
+      )}
+    </View>
   );
 }
 
@@ -336,7 +361,7 @@ export function ListenerBackHeader({ title }: { title: string }) {
   return (
     <View style={styles.backHeader}>
       <Pressable onPress={() => router.back()} style={styles.backButton}>
-        <Text style={styles.backGlyph}>‹</Text>
+        <ChevronLeft color={palette.ink} size={25} />
       </Pressable>
       <Text style={styles.backTitle}>{title}</Text>
       <View style={styles.backSpacer} />
@@ -346,56 +371,53 @@ export function ListenerBackHeader({ title }: { title: string }) {
 
 const makeStyles = (palette: EchooColors) =>
   StyleSheet.create({
-    topBar: { height: 58, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    iconButton: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
-    brand: { flexDirection: 'row', alignItems: 'center', gap: 9 },
-    brandMark: { width: 26, height: 26 },
-    brandDot: { position: 'absolute', width: 13, height: 13, borderRadius: 7 },
-    dotOne: { left: 1, top: 6, backgroundColor: '#2F63F6' },
-    dotTwo: { right: 1, top: 2, backgroundColor: '#4B7BFF' },
-    dotThree: { right: 3, bottom: 1, backgroundColor: '#7E9DFF', opacity: 0.78 },
-    brandText: { color: palette.ink, fontSize: 22, fontWeight: '900', letterSpacing: -0.8 },
-    notificationButton: { width: 40, height: 40, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.surfaceRaised, borderWidth: 1, borderColor: palette.line },
+    topBar: { height: 58, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: palette.background, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.line, zIndex: 20, elevation: 2 },
+    iconButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+    notificationButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
     notificationBadge: { position: 'absolute', top: -3, right: -3, minWidth: 17, height: 17, borderRadius: 9, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },
     notificationBadgeText: { color: '#FFFFFF', fontSize: 9, fontWeight: '900' },
     pageHeader: { paddingTop: 16, paddingBottom: 18 },
-    eyebrow: { color: palette.blue, fontSize: 11, fontWeight: '900', letterSpacing: 1.2 },
-    pageTitle: { color: palette.ink, fontSize: 31, lineHeight: 35, fontWeight: '900', letterSpacing: -1, marginTop: 5 },
+    eyebrow: { color: palette.blue, fontSize: 11, fontWeight: '900', letterSpacing: 0 },
+    pageTitle: { color: palette.ink, fontSize: 31, lineHeight: 35, fontWeight: '900', letterSpacing: 0, marginTop: 5 },
     pageSubtitle: { color: palette.muted, fontSize: 14, lineHeight: 21, marginTop: 6, maxWidth: 350 },
     sectionHeader: { marginTop: 26, marginBottom: 11, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     sectionTitle: { color: palette.ink, fontSize: 16, fontWeight: '900' },
     sectionActionWrap: { flexDirection: 'row', alignItems: 'center', gap: 2 },
     sectionAction: { color: palette.blue, fontSize: 12, fontWeight: '800' },
-    searchBox: { minHeight: 52, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line, borderRadius: 15, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10 },
+    searchBox: { minHeight: 52, backgroundColor: 'rgba(255,255,255,0.09)', borderWidth: 1, borderColor: palette.line, borderRadius: 16, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10 },
     searchInput: { flex: 1, color: palette.ink, fontSize: 14, fontWeight: '600', paddingVertical: 13 },
-    emptyCard: { backgroundColor: palette.surface, borderRadius: 20, borderWidth: 1, borderColor: palette.line, padding: 22, alignItems: 'center' },
+    emptyCard: { backgroundColor: palette.surfaceRaised, borderRadius: 20, borderWidth: 1, borderColor: palette.line, padding: 22, alignItems: 'center' },
     emptyIcon: { width: 54, height: 54, borderRadius: 18, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
     emptyTitle: { color: palette.ink, fontSize: 16, fontWeight: '900', textAlign: 'center' },
     emptySubtitle: { color: palette.muted, fontSize: 12.5, lineHeight: 19, textAlign: 'center', marginTop: 5, maxWidth: 300 },
     primaryButton: { marginTop: 15, height: 42, borderRadius: 13, backgroundColor: palette.blue, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center' },
     primaryButtonText: { color: '#FFFFFF', fontSize: 13, fontWeight: '900' },
-    authCard: { backgroundColor: palette.surface, borderRadius: 20, borderWidth: 1, borderColor: palette.line, padding: 16, alignItems: 'center', gap: 12 },
+    authCard: { backgroundColor: palette.surfaceRaised, borderRadius: 20, borderWidth: 1, borderColor: palette.line, padding: 16, alignItems: 'center', gap: 12 },
     authIcon: { width: 54, height: 54, borderRadius: 18, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
     authCopy: { alignItems: 'center' },
     authTitle: { color: palette.ink, fontSize: 16, fontWeight: '900', textAlign: 'center' },
     authSubtitle: { color: palette.muted, fontSize: 12.5, lineHeight: 19, textAlign: 'center', marginTop: 4, maxWidth: 315 },
     authButton: { height: 42, minWidth: 112, borderRadius: 13, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18 },
     authButtonText: { color: '#FFFFFF', fontSize: 13, fontWeight: '900' },
-    listRow: { minHeight: 72, backgroundColor: palette.surface, borderRadius: 16, borderWidth: 1, borderColor: palette.line, padding: 10, flexDirection: 'row', alignItems: 'center', marginBottom: 9 },
-    listArt: { width: 50, height: 50, borderRadius: 13, backgroundColor: palette.blueSoft, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
+    listRow: { minHeight: 68, backgroundColor: 'transparent', borderRadius: 14, borderWidth: 0, paddingVertical: 8, paddingHorizontal: 2, flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
+    listArt: { width: 54, height: 54, borderRadius: 10, backgroundColor: palette.blueSoft, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
     listCopy: { flex: 1, paddingHorizontal: 11 },
     listTitle: { color: palette.ink, fontSize: 14, fontWeight: '900' },
     listSubtitle: { color: palette.muted, fontSize: 11.5, marginTop: 3 },
     listMeta: { color: palette.muted, fontSize: 11, fontWeight: '700', marginRight: 6 },
-    miniPlayer: { position: 'absolute', left: 12, right: 12, bottom: 7, minHeight: 62, borderRadius: 18, backgroundColor: palette.glass, borderWidth: 1, borderColor: palette.lineStrong, flexDirection: 'row', alignItems: 'center', padding: 8, shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 18, shadowOffset: { width: 0, height: 7 }, elevation: 7 },
-    miniArt: { width: 46, height: 46, borderRadius: 13, backgroundColor: palette.blueDeep, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
+    miniPlayer: { position: 'absolute', left: 8, right: 8, minHeight: 64, borderRadius: 8, backgroundColor: palette.glass, borderWidth: 1, borderColor: palette.lineStrong, flexDirection: 'row', alignItems: 'center', padding: 8, paddingBottom: 10, shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 18, shadowOffset: { width: 0, height: 7 }, elevation: 14 },
+    miniOpenArea: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center' },
+    miniArt: { width: 46, height: 46, borderRadius: 8, backgroundColor: palette.blueDeep, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
     miniCopy: { flex: 1, paddingHorizontal: 10 },
     miniTitle: { color: palette.ink, fontSize: 13, fontWeight: '900' },
     miniSubtitle: { color: palette.muted, fontSize: 11, marginTop: 2 },
-    miniPlayButton: { width: 40, height: 40, borderRadius: 20, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
+    miniPlayButton: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
+    miniCloseButton: { width: 34, height: 38, alignItems: 'center', justifyContent: 'center' },
+    miniProgressTrack: { position: 'absolute', left: 8, right: 8, bottom: 0, height: 2, borderRadius: 1, backgroundColor: palette.lineStrong, overflow: 'hidden' },
+    miniProgressFill: { height: '100%', borderRadius: 1, backgroundColor: palette.blue },
+    miniLiveTrack: { backgroundColor: palette.red },
     backHeader: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    backButton: { width: 42, height: 42, borderRadius: 14, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line, alignItems: 'center', justifyContent: 'center' },
-    backGlyph: { color: palette.ink, fontSize: 34, lineHeight: 35, marginTop: -3 },
+    backButton: { width: 42, height: 42, borderRadius: 21, backgroundColor: 'transparent', alignItems: 'center', justifyContent: 'center' },
     backTitle: { color: palette.ink, fontSize: 16, fontWeight: '900' },
     backSpacer: { width: 42 },
   });

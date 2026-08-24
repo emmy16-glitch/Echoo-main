@@ -15,7 +15,7 @@ export function EchooHomeHero({ onSearch }: { onSearch?: () => void }) {
 
       <View style={styles.waveCard}>
         <LinearGradient
-          colors={['#2457E9', '#4B7BFF']}
+          colors={['#4F7EC3', '#244A86']}
           style={styles.icon}
         >
           <Headphones color="#fff" size={28} />
@@ -42,7 +42,7 @@ const styles = StyleSheet.create({
   waveCard: { marginTop: 22, height: 92, borderRadius: 24, backgroundColor: '#F1F5FF', flexDirection: 'row', alignItems: 'center', padding: 16 },
   icon: { width: 58, height: 58, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   waveText: { marginLeft: 14 },
-  live: { color: '#2457E9', fontSize: 11, fontWeight: '900' },
+  live: { color: '#4F7EC3', fontSize: 11, fontWeight: '900' },
   show: { color: '#101828', marginTop: 5, fontSize: 15, fontWeight: '800' },
   search: { height: 54, marginTop: 16, borderRadius: 16, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E4E7EC', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16 },
   placeholder: { marginLeft: 10, color: '#98A2B3', fontSize: 14 },
