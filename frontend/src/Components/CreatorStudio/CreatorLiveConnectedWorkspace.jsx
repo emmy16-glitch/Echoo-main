@@ -232,8 +232,10 @@ const CreatorLiveConnectedWorkspace = ({
 
         const unfinishedProcessing = realBroadcasts.find((item) =>
           item.status === 'completed' && (
-            ['pending', 'processing'].includes(item.assetStatus?.audio) ||
-            ['processing', 'ready_for_review', 'editing'].includes(item.assetStatus?.transcript)
+            ['pending', 'processing', 'failed'].includes(item.assetStatus?.audio) ||
+            ['processing', 'ready_for_review', 'editing', 'failed'].includes(item.assetStatus?.transcript) ||
+            ['pending', 'processing', 'failed'].includes(item.assetStatus?.highlights) ||
+            ['pending', 'processing', 'failed'].includes(item.assetStatus?.chapters)
           )
         );
         if (unfinishedProcessing) {

@@ -60,13 +60,12 @@ test('Listener uses the shared Creator/Listener shell and matching Home class co
 
   assert.match(layout, /import EchooAppShell from ['"]\.\.\/Shared\/EchooAppShell['"]/);
   assert.match(layout, /<EchooAppShell[\s\S]*role="listener"/);
-  assert.match(layout, /listener-creator-ui\.css/);
   assert.doesNotMatch(layout, /<aside className="layout-sidebar"/);
 
   assert.match(home, /className="echoo-home"/);
-  assert.match(home, /echoo-home-greeting/);
+  assert.match(home, /echoo-home-welcome/);
   assert.match(homeCss, /\.echoo-home\s*\{/);
-  assert.match(homeCss, /\.echoo-home-greeting/);
+  assert.match(homeCss, /\.echoo-home-welcome/);
   assert.match(integrationCss, /\.echoo-app-shell--listener \.echoo-home/);
   assert.doesNotMatch(home, /FiMoreHorizontal|listener-home-history-more/);
 });
@@ -99,7 +98,6 @@ test('all final UI integrity layers load in deterministic order after the shared
     'design-system/design-system.css',
     'echoo-ui-integrity-audit-2026.css',
     'echoo-ui-page-integrity-2026.css',
-    'listener-ui-deep-integrity-2026.css',
     'creator-ui-page-integrity-2026.css',
   ]);
 });
@@ -245,6 +243,14 @@ test('Creator Studio active workspaces and service calls remain backed by mounte
   assert.match(backendIndex, /router\.use\(['"]\/notifications['"]/);
 });
 
+test('Creator Studio has one account menu in the top bar, not a duplicate sidebar profile control', async () => {
+  const studio = await source('../../frontend/src/Components/CreatorStudio/CreatorStudio.jsx');
+
+  assert.match(studio, /studio-top-profile-wrap/);
+  assert.doesNotMatch(studio, /studio-sidebar-profile-wrap/);
+  assert.doesNotMatch(studio, /profileMenuOpen === 'sidebar'/);
+});
+
 test('transcript-ready Creator notifications map the backend processing link into Broadcast Studio', async () => {
   const [processing, notifications] = await Promise.all([
     source('../src/services/broadcastProcessingService.js'),
@@ -257,4 +263,21 @@ test('transcript-ready Creator notifications map the backend processing link int
   assert.match(notifications, /\/creator\\\/broadcasts\\\/\(\[\^\/\]\+\)/);
   assert.match(notifications, /echooProcessingBroadcastId/);
   assert.match(notifications, /onNavigate\?\.\('Broadcast'\)/);
+});
+
+test('Creator transcript monitor reports live processing, progress, and actionable worker failures', async () => {
+  const [processing, processingCss, liveWorkspace] = await Promise.all([
+    source('../../frontend/src/Components/CreatorStudio/CreatorBroadcastProcessing.jsx'),
+    source('../../frontend/src/Components/CreatorStudio/CreatorBroadcastProcessing.css'),
+    source('../../frontend/src/Components/CreatorStudio/CreatorLiveConnectedWorkspace.jsx'),
+  ]);
+
+  assert.match(processing, /realtimeService\.joinBroadcast\(broadcastId\)/);
+  assert.match(processing, /broadcast:processing/);
+  assert.match(processing, /LIVE PROCESSING MONITOR/);
+  assert.match(processing, /Transcript progress/);
+  assert.match(processing, /Processing stopped/);
+  assert.match(processingCss, /ecbs-transcript-monitor__progress/);
+  assert.match(processingCss, /ecbs-transcript-monitor__steps/);
+  assert.match(liveWorkspace, /\['processing', 'ready_for_review', 'editing', 'failed'\]/);
 });

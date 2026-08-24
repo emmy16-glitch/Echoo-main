@@ -422,7 +422,7 @@ const CreatorCollectionsWorkspace = ({ tracks = [], studioName = 'Echoo Creator'
   const handleAddSeason = async () => {
     if (!selectedCollection || selectedCollection.mode !== 'series' || saving) return;
     const seasons = [...(selectedCollection.seasons || [])];
-    const nextSeason = { id: `season-${Date.now()}`, name: `Season ${seasons.length + 1}`, trackIds: [] };
+    const nextSeason = { id: `season-${crypto.randomUUID()}`, name: `Season ${seasons.length + 1}`, trackIds: [] };
     const nextSeasons = [...seasons, nextSeason];
     let nextCollection = { ...selectedCollection, seasons: nextSeasons };
     try {

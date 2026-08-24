@@ -91,7 +91,6 @@ const CreatorStudio = () => {
   const [studioSearch, setStudioSearch] = useState('');
   const [profileMenuOpen, setProfileMenuOpen] = useState('');
 
-  const sidebarProfileRef = useRef(null);
   const topProfileRef = useRef(null);
 
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -459,22 +458,6 @@ const CreatorStudio = () => {
           ))}
         </nav>
 
-        <div className="studio-sidebar-profile-wrap" data-creator-profile-menu>
-          <button
-            ref={sidebarProfileRef}
-            type="button"
-            className="studio-sidebar-profile"
-            aria-expanded={profileMenuOpen === 'sidebar'}
-            aria-haspopup="menu"
-            aria-label={`${studioName} profile menu`}
-            title={studioName}
-            onClick={() => setProfileMenuOpen((current) => current === 'sidebar' ? '' : 'sidebar')}
-          >
-            <div className="sidebar-avatar">{profileImage ? <img src={profileImage} alt="" /> : initial}</div>
-            <div className="sidebar-profile-text"><strong>{studioName}</strong><span>{studioType}</span></div>
-            <FaChevronDown />
-          </button>
-        </div>
       </aside>
 
       <main id="echoo-main-content" tabIndex="-1" className="studio-main">
@@ -510,13 +493,6 @@ const CreatorStudio = () => {
         <footer className="studio-footer"><span>© 2026 Echoo.</span><span>Audio-first creator platform</span></footer>
       </main>
 
-      <CreatorAccountMenuPortal
-        open={profileMenuOpen === 'sidebar'}
-        anchorRef={sidebarProfileRef}
-        placement="sidebar"
-        onSettings={() => navigateStudio('Settings')}
-        onLogout={handleCreatorLogout}
-      />
       <CreatorAccountMenuPortal
         open={profileMenuOpen === 'top'}
         anchorRef={topProfileRef}

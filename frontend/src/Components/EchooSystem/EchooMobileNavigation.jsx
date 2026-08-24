@@ -47,7 +47,7 @@ const clearEchooSession = () => {
 // wraps below the fixed navigation viewport.
 const primaryItems = [
   { label: 'Home', path: '/listen', icon: FaHome, end: true },
-  { label: 'Live', path: '/listen/live', icon: FaBroadcastTower },
+  { label: 'Live now', path: '/listen/live', icon: FaBroadcastTower },
   { label: 'Stations', path: '/listen/stations', icon: FaCompass },
   { label: 'Library', path: '/listen/library', icon: FaBookOpen, end: true },
 ];
