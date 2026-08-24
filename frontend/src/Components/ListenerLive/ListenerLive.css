@@ -95,7 +95,9 @@
   align-items: center;
   justify-content: center;
   width: 42px;
+  min-width: 42px;
   height: 42px;
+  flex: 0 0 42px;
   border: 1px solid var(--echoo-border);
   border-radius: 12px;
   background: var(--echoo-surface);

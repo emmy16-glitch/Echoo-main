@@ -10,6 +10,7 @@ import {
   FaDownload,
   FaHistory,
   FaHome,
+  FaListUl,
   FaSearch,
   FaSignOutAlt,
   FaTimes,
@@ -46,7 +47,7 @@ const clearEchooSession = () => {
 // wraps below the fixed navigation viewport.
 const primaryItems = [
   { label: 'Home', path: '/listen', icon: FaHome, end: true },
-  { label: 'Live now', path: '/listen/live', icon: FaBroadcastTower },
+  { label: 'Live', path: '/listen/live', icon: FaBroadcastTower },
   { label: 'Stations', path: '/listen/stations', icon: FaCompass },
   { label: 'Library', path: '/listen/library', icon: FaBookOpen, end: true },
 ];
@@ -54,6 +55,7 @@ const primaryItems = [
 const moreItems = [
   { label: 'Search', path: '/listen/search', icon: FaSearch },
   { label: 'Following', path: '/listen/library/following', icon: FaUsers },
+  { label: 'Playlist', path: '/listen/playlist', icon: FaListUl },
   { label: 'History', path: '/listen/history', icon: FaHistory },
   { label: 'Downloads', path: '/listen/downloads', icon: FaDownload },
   { label: 'Notifications', path: '/listen/notifications', icon: FaBell },

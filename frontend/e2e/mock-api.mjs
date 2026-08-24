@@ -135,6 +135,16 @@ const json = (res, status, body) => {
 const data = (value, extra = {}) => ({ data: value, timestamp: new Date().toISOString(), ...extra });
 const listPage = (items, key) => data(key ? { [key]: items, pagination: { page: 1, limit: 100, total: items.length, pages: 1, hasMore: false } } : items, { pagination: { page: 1, limit: 100, total: items.length, pages: 1, hasMore: false } });
 
+const readJson = async (req) => {
+  const chunks = [];
+  for await (const chunk of req) chunks.push(chunk);
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
+  } catch {
+    return {};
+  }
+};
+
 const tokenUser = (req) => String(req.headers.authorization || '').includes('creator-token') ? creator : listener;
 
 const settingsFor = (user) => data({
@@ -162,6 +172,21 @@ const server = http.createServer(async (req, res) => {
   const user = tokenUser(req);
 
   if (path === '/health') return json(res, 200, { status: 'ok' });
+  if (path === '/auth/register' && req.method === 'POST') {
+    const payload = await readJson(req);
+    const registeredUser = {
+      ...listener,
+      username: String(payload.username || listener.username),
+      email: String(payload.email || listener.email),
+      displayName: String(payload.displayName || listener.displayName),
+      profileCompleted: false,
+      onboardingCompleted: false,
+    };
+    return json(res, 201, data({ user: registeredUser, accessToken: 'listener-token', refreshToken: 'listener-refresh-token' }));
+  }
+  if (path === '/auth/login' && req.method === 'POST') {
+    return json(res, 200, data({ user: listener, accessToken: 'listener-token', refreshToken: 'listener-refresh-token' }));
+  }
   if (path === '/auth/me') return json(res, 200, data({ user }));
   if (path === '/settings' && req.method === 'GET') return json(res, 200, settingsFor(user));
   if (path.startsWith('/settings/') && ['PATCH', 'POST'].includes(req.method)) return json(res, 200, settingsFor(user));
@@ -175,6 +200,14 @@ const server = http.createServer(async (req, res) => {
   if (path === '/studio/content') return json(res, 200, data({ tracks: [replayAudio], pagination: { page: 1, limit: 50, total: 1, pages: 1 } }));
   if (path === '/studio/audience') return json(res, 200, data({ stats: { totalFollowers: 5501, totalListeners: 12500, returningListeners: 4200 }, followers: [listener], recentFollowers: [listener], topLocations: [{ name: 'Lagos', count: 3400 }] }));
   if (path === '/studio/analytics') return json(res, 200, data({ summary: { plays: 12450, listeners: 5501, followers: 5501, avgListenTime: 1800 }, trend: [], topContent: [replayAudio], locations: [] }));
+
+  if (path === '/listener/dashboard') return json(res, 200, data({
+    greeting: 'Good morning, Lola',
+    liveNow: [broadcastLive, { ...broadcastLive, id: '507f1f77bcf86cd799439033', _id: '507f1f77bcf86cd799439033', title: 'Deep Focus Beats' }],
+    discoverStations: [station, { ...station, id: '507f1f77bcf86cd799439022', _id: '507f1f77bcf86cd799439022', name: 'Design Talks', category: 'Design' }],
+    continueListening: [{ ...replayAudio, progress: 120 }],
+    topCategories: ['Technology'],
+  }));
 
   if (path === '/stations/mine/all') return json(res, 200, listPage([station], 'stations'));
   if (path === '/stations') return json(res, 200, listPage([station], 'stations'));
@@ -225,6 +258,7 @@ const server = http.createServer(async (req, res) => {
   if (/^\/notifications\//.test(path)) return json(res, 200, data({ ...notification, isRead: true }));
 
   if (path === '/follows/me/stations') return json(res, 200, data({ stations: [station] }));
+  if (path === '/follows/me/creators') return json(res, 200, data({ creators: [creator] }));
   if (/^\/follows\/stations\//.test(path)) return json(res, 200, data({ following: req.method !== 'DELETE' }));
   if (/^\/follows\/[^/]+\/status$/.test(path)) return json(res, 200, data({ following: true }));
   if (/^\/follows\/[^/]+\/follow$/.test(path)) return json(res, 200, data({ following: req.method !== 'DELETE' }));

@@ -66,6 +66,7 @@ const assertKeyboardFocusInsideViewport = async (page, projectName, presses = 28
   const viewport = page.viewportSize();
   for (let index = 0; index < presses; index += 1) {
     await page.keyboard.press('Tab');
+    await page.waitForTimeout(30);
     const focused = await page.evaluate(() => {
       const node = document.activeElement;
       if (!node || node === document.body || node === document.documentElement) return null;
@@ -94,31 +95,42 @@ const assertKeyboardFocusInsideViewport = async (page, projectName, presses = 28
   }
 };
 
-test('run6: Top Stations title and Follow action never compete for geometry', async ({ page }, testInfo) => {
+test('run6: Top Stations titles and station actions never compete for geometry', async ({ page }, testInfo) => {
   await authenticate(page, 'listener');
   await page.goto('/listen/stations');
   await settle(page);
 
-  const rows = page.locator('.ls-top-row:visible');
-  expect(await rows.count(), `${testInfo.project.name}: expected Top Stations rows`).toBeGreaterThan(0);
+  const rows = page.locator('.stations-top-card:visible');
+  expect(await rows.count(), `${testInfo.project.name}: expected Top Stations cards`).toBeGreaterThan(0);
 
   for (let index = 0; index < await rows.count(); index += 1) {
     const row = rows.nth(index);
-    const name = row.locator('.ls-top-name:visible');
-    const follow = row.locator('.ls-top-follow:visible');
-    if (!(await name.count()) || !(await follow.count())) continue;
+    const name = row.locator('.stations-top-overlay strong:visible');
+    const play = row.locator('.stations-top-play:visible');
+    if (!(await name.count()) || !(await play.count())) continue;
 
     const rowRect = await rectOf(row);
     const nameRect = await rectOf(name);
-    const followRect = await rectOf(follow);
+    const playRect = await rectOf(play);
 
-    expect(rowRect.display, `${testInfo.project.name}: Top Stations row must use the repaired grid`).toBe('grid');
     expect(nameRect.width, `${testInfo.project.name}: station title collapsed`).toBeGreaterThanOrEqual(80);
     expect(nameRect.height, `${testInfo.project.name}: station title became vertical text`).toBeLessThanOrEqual(48);
+    expect(playRect.width, `${testInfo.project.name}: Play action collapsed`).toBeGreaterThanOrEqual(32);
+    expect(playRect.left, `${testInfo.project.name}: Play action overlaps the station title`).toBeGreaterThanOrEqual(nameRect.right - 2);
+    expect(rowRect.height, `${testInfo.project.name}: Top Stations card became excessively tall`).toBeLessThanOrEqual(240);
+  }
+
+  const stationCards = page.locator('.station-card:visible');
+  for (let index = 0; index < await stationCards.count(); index += 1) {
+    const card = stationCards.nth(index);
+    const title = card.locator('.station-card-copy strong:visible');
+    const follow = card.locator('.station-follow:visible');
+    if (!(await title.count()) || !(await follow.count())) continue;
+    const titleRect = await rectOf(title);
+    const followRect = await rectOf(follow);
+    expect(titleRect.width, `${testInfo.project.name}: station title collapsed`).toBeGreaterThanOrEqual(70);
     expect(followRect.width, `${testInfo.project.name}: Follow action collapsed`).toBeGreaterThanOrEqual(70);
     expect(followRect.height, `${testInfo.project.name}: Follow action too short`).toBeGreaterThanOrEqual(32);
-    expect(followRect.top + 2, `${testInfo.project.name}: Follow action still competes with title row`).toBeGreaterThanOrEqual(nameRect.bottom);
-    expect(rowRect.height, `${testInfo.project.name}: Top Stations row became excessively tall`).toBeLessThanOrEqual(100);
   }
 
   await assertKeyboardFocusInsideViewport(page, `${testInfo.project.name} Listener Stations`, 24);

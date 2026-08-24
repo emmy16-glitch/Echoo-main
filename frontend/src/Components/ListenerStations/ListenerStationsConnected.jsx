@@ -1,74 +1,40 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import {
-  FaBell,
-  FaChevronLeft,
-  FaChevronRight,
-  FaHeadphones,
-  FaList,
-  FaPlus,
-  FaSearch,
-  FaSlidersH,
-  FaTimes,
-  FaThLarge,
-  FaTrophy,
-} from 'react-icons/fa';
-
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { FaChevronLeft, FaChevronRight, FaHeadphones, FaPlay, FaSearch, FaSlidersH, FaTimes, FaUsers } from 'react-icons/fa';
 import { buildGeneratedStationBrandCoverUrl } from '../../stationBranding/stationBranding.js';
+import { buildMediaUrl } from '../../services/api';
 import batch2Service from '../../services/batch2Service';
 import realtimeService from '../../services/realtimeService';
 import followService from '../../services/followService';
-import notificationService from '../../services/notificationService';
+import echooMark from '../Assets/echoo-logo-official.svg';
 import './ListenerStations.css';
 
 const PAGE_SIZE = 8;
-const CLUSTER_COUNT = 6;
-const HERO_CLUSTER_CIRCLE = {
-  0: { size: 54, top: '12%', left: '55%' },
-  1: { size: 48, top: '2%', left: '77%' },
-  2: { size: 66, top: '26%', left: '72%' },
-  3: { size: 52, top: '54%', left: '57%' },
-  4: { size: 46, top: '40%', left: '87%' },
-  5: { size: 40, top: '68%', left: '77%' },
-};
-
 const formatCount = (value) => {
-  const n = Number(value) || 0;
-  if (n >= 1000) {
-    const k = n / 1000;
-    return `${k % 1 === 0 ? k.toFixed(0) : k.toFixed(1)}K`;
-  }
-  return String(n);
+  const count = Math.max(0, Number(value) || 0);
+  return count >= 1000 ? `${Number((count / 1000).toFixed(1))}K` : String(Math.floor(count));
 };
+const idOf = (station) => String(station?.id || station?._id || '');
+const coverOf = (station) => buildMediaUrl(station?.brandCover || station?.coverArt || buildGeneratedStationBrandCoverUrl(station));
+
+const Artwork = ({ station }) => coverOf(station)
+  ? <img src={coverOf(station)} alt="" loading="lazy" />
+  : <img src={echooMark} alt="" className="stations-fallback-mark" />;
 
 const ListenerStationsConnected = () => {
   const navigate = useNavigate();
-  const listRef = useRef(null);
+  const [searchParams] = useSearchParams();
   const searchInputRef = useRef(null);
-
-  const stationCover = (station) =>
-    station?.brandCover ||
-    station?.coverArt ||
-    (station?.branding?.mode === 'generated' ? buildGeneratedStationBrandCoverUrl(station) : null);
-
-  const [allStations, setAllStations] = useState([]);
+  const [stations, setStations] = useState([]);
   const [topStations, setTopStations] = useState([]);
   const [followingIds, setFollowingIds] = useState(new Set());
-  const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
-
-  const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
-  const [category, setCategory] = useState('All');
+  const [category, setCategory] = useState(searchParams.get('category') || 'All');
   const [status, setStatus] = useState('all');
   const [sortBy, setSortBy] = useState('followers');
-  const [view, setView] = useState('list');
-
-  const [pendingCategory, setPendingCategory] = useState('All');
-  const [pendingStatus, setPendingStatus] = useState('all');
-  const [pendingSort, setPendingSort] = useState('followers');
-
+  const [page, setPage] = useState(1);
   const [actionId, setActionId] = useState('');
   const [error, setError] = useState('');
 
@@ -76,44 +42,17 @@ const ListenerStationsConnected = () => {
     try {
       if (!silent) setLoading(true);
       setFailed(false);
-      if (!silent) setError('');
-
-      const [stationResult, topResult, followedResult, notificationResult] = await Promise.allSettled([
+      const [stationResult, followedResult] = await Promise.allSettled([
         batch2Service.listStations({ page: 1, limit: 100 }),
-        batch2Service.listStations({ page: 1, limit: 8 }),
         followService.getFollowingStations(),
-        notificationService.list({ page: 1, limit: 1, unreadOnly: true }),
       ]);
-
-      if (stationResult.status !== 'fulfilled') throw stationResult.reason;
-      const realStations = Array.isArray(stationResult.value?.data)
-        ? stationResult.value.data.filter((station) => station?.id && station.isPublic !== false)
-        : [];
-      setAllStations(realStations);
-
-      if (topResult.status === 'fulfilled' && Array.isArray(topResult.value?.data)) {
-        const ordered = [...topResult.value.data]
-          .filter((station) => station?.id)
-          .sort((a, b) => Number(b.followerCount || 0) - Number(a.followerCount || 0))
-          .slice(0, 5);
-        setTopStations(ordered);
-      }
-
-      if (followedResult.status === 'fulfilled') {
-        setFollowingIds(
-          new Set(
-            (followedResult.value?.data || [])
-              .filter((station) => station?.id)
-              .map((station) => String(station.id))
-          )
-        );
-      }
-
-      if (notificationResult.status === 'fulfilled') {
-        setUnreadCount(Number(notificationResult.value?.data?.unreadCount) || 0);
-      }
+      if (stationResult.status === 'rejected') throw stationResult.reason;
+      const list = (Array.isArray(stationResult.value?.data) ? stationResult.value.data : [])
+        .filter((station) => idOf(station) && station.isPublic !== false);
+      setStations(list);
+      setTopStations([...list].sort((a, b) => Number(b.followerCount || 0) - Number(a.followerCount || 0)).slice(0, 4));
+      if (followedResult.status === 'fulfilled') setFollowingIds(new Set((followedResult.value?.data || []).map(idOf).filter(Boolean)));
     } catch (loadError) {
-      console.error('Real stations:', loadError);
       if (!silent) setFailed(true);
       setError(loadError?.message || 'Stations could not be loaded.');
     } finally {
@@ -126,489 +65,145 @@ const ListenerStationsConnected = () => {
     const sync = () => load({ silent: true });
     const interval = window.setInterval(sync, 15000);
     window.addEventListener('focus', sync);
-    return () => {
-      window.clearInterval(interval);
-      window.removeEventListener('focus', sync);
-    };
+    return () => { window.clearInterval(interval); window.removeEventListener('focus', sync); };
+  }, [load]);
+
+  useEffect(() => {
+    let active = true;
+    let unsubscribe = () => {};
+    realtimeService.subscribeToCatalog((event) => {
+      if (!event?.entity || ['broadcast', 'station'].includes(event.entity)) load({ silent: true });
+    }).then((cleanup) => { if (active) unsubscribe = cleanup; else cleanup(); }).catch(() => {});
+    return () => { active = false; unsubscribe(); };
   }, [load]);
 
   useEffect(() => {
     const focusSearch = (event) => {
       if ((event.ctrlKey || event.metaKey) && String(event.key).toLowerCase() === 'k') {
-        event.preventDefault();
-        searchInputRef.current?.focus();
-        searchInputRef.current?.select();
+        event.preventDefault(); searchInputRef.current?.focus();
       }
     };
     window.addEventListener('keydown', focusSearch);
     return () => window.removeEventListener('keydown', focusSearch);
   }, []);
 
-  useEffect(() => {
-    let active = true;
-    let unsubscribe = () => {};
-    const onCatalogChanged = (event) => {
-      if (!event?.entity || ['broadcast', 'station'].includes(event.entity)) {
-        void load({ silent: true });
-      }
-    };
-
-    realtimeService.subscribeToCatalog(onCatalogChanged)
-      .then((cleanup) => {
-        if (active) unsubscribe = cleanup;
-        else cleanup();
-      })
-      .catch(() => {
-        // The existing interval and focus refresh remain the fallback.
-      });
-
-    return () => {
-      active = false;
-      unsubscribe();
-    };
-  }, [load]);
-
-  const categories = useMemo(() => {
-    const values = Array.from(
-      new Set(allStations.map((station) => station.category).filter(Boolean))
-    ).sort((a, b) => a.localeCompare(b));
-    return ['All', ...values];
-  }, [allStations]);
-
-  useEffect(() => {
-    if (!categories.includes(category)) {
-      setCategory('All');
-      setPendingCategory('All');
-    }
-  }, [categories, category]);
-
-  const applied = useMemo(() => {
+  const categories = useMemo(() => ['All', ...Array.from(new Set(stations.map((station) => station.category).filter(Boolean))).sort()], [stations]);
+  const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
-    const list = allStations.filter((station) => {
-      const matchesTerm =
-        !term ||
-        station.name?.toLowerCase().includes(term) ||
-        station.description?.toLowerCase().includes(term) ||
-        station.category?.toLowerCase().includes(term) ||
-        station.tags?.some((tag) => String(tag).toLowerCase().includes(term));
+    const list = stations.filter((station) => {
+      const matchesTerm = !term || [station.name, station.description, station.category, ...(station.tags || [])].some((value) => String(value || '').toLowerCase().includes(term));
       const matchesCategory = category === 'All' || station.category === category;
-      const matchesStatus =
-        status === 'all' ||
-        (status === 'live' && station.isLive) ||
-        (status === 'offline' && !station.isLive);
+      const matchesStatus = status === 'all' || (status === 'live' ? station.isLive : !station.isLive);
       return matchesTerm && matchesCategory && matchesStatus;
     });
+    return [...list].sort((a, b) => sortBy === 'listeners'
+      ? Number(b.listenerCount || 0) - Number(a.listenerCount || 0)
+      : sortBy === 'live'
+        ? Number(b.isLive) - Number(a.isLive)
+        : Number(b.followerCount || 0) - Number(a.followerCount || 0));
+  }, [stations, search, category, status, sortBy]);
 
-    return [...list].sort((a, b) => {
-      if (sortBy === 'followers') {
-        return Number(b.followerCount || 0) - Number(a.followerCount || 0);
-      }
-      if (sortBy === 'listening') {
-        return Number(b.listenerCount || 0) - Number(a.listenerCount || 0);
-      }
-      return Number(b.isLive) - Number(a.isLive) ||
-        Number(b.listenerCount || 0) - Number(a.listenerCount || 0);
-    });
-  }, [allStations, search, category, status, sortBy]);
-
-  const totalPages = Math.max(1, Math.ceil(applied.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
-  const paged = useMemo(
-    () => applied.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
-    [applied, safePage]
-  );
+  const visible = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
-  useEffect(() => {
-    if (page > totalPages) setPage(1);
-  }, [totalPages, page]);
-
-  const heroCluster = useMemo(
-    () =>
-      [...topStations]
-        .concat([...allStations])
-        .filter((station, index, self) => index === self.findIndex((item) => item.id === station.id))
-        .filter((station) => station?.id)
-        .slice(0, CLUSTER_COUNT),
-    [topStations, allStations]
-  );
-
-  const applyFilters = () => {
-    setCategory(pendingCategory);
-    setStatus(pendingStatus);
-    setSortBy(pendingSort);
-    setPage(1);
-    listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
-
-  const clearAll = () => {
-    setCategory('All');
-    setStatus('all');
-    setSortBy('followers');
-    setSearch('');
-    setPendingCategory('All');
-    setPendingStatus('all');
-    setPendingSort('followers');
-    setPage(1);
-  };
+  useEffect(() => { setPage(1); }, [search, category, status, sortBy]);
 
   const toggleFollow = async (station) => {
-    if (!station?.id || actionId) return;
-    const key = String(station.id);
+    const key = idOf(station);
+    if (!key || actionId) return;
     const isFollowing = followingIds.has(key);
-
     try {
       setActionId(key);
       setError('');
-      const response = isFollowing
-        ? await followService.unfollowStation(station.id)
-        : await followService.followStation(station.id);
-
+      const response = isFollowing ? await followService.unfollowStation(key) : await followService.followStation(key);
       setFollowingIds((current) => {
         const next = new Set(current);
-        if (isFollowing) next.delete(key);
-        else next.add(key);
+        if (isFollowing) next.delete(key); else next.add(key);
         return next;
       });
-
       const followerCount = Number(response?.station?.followerCount ?? response?.followerCount);
       if (Number.isFinite(followerCount)) {
-        const patch = (list) => list.map((item) =>
-          String(item.id) === key ? { ...item, followerCount } : item
-        );
-        setAllStations(patch);
-        setTopStations(patch);
+        const patch = (list) => list.map((item) => idOf(item) === key ? { ...item, followerCount } : item);
+        setStations(patch); setTopStations(patch);
       }
     } catch (followError) {
-      setError(followError?.message || 'Could not update station follow status.');
-    } finally {
-      setActionId('');
-    }
+      setError(followError?.message || 'Could not update follow status.');
+    } finally { setActionId(''); }
   };
-
-  const openStation = (station) => {
-    if (!station?.id) return;
-    navigate(`/listen/stations/${station.id}`);
-  };
-
-  const scrollToExplore = () => {
-    listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
-
-  const pageNumbers = useMemo(() => {
-    const numbers = [];
-    if (totalPages <= 7) {
-      for (let index = 1; index <= totalPages; index += 1) numbers.push(index);
-    } else {
-      numbers.push(1);
-      if (safePage > 3) numbers.push('...');
-      const start = Math.max(2, safePage - 1);
-      const end = Math.min(totalPages - 1, safePage + 1);
-      for (let index = start; index <= end; index += 1) numbers.push(index);
-      if (safePage < totalPages - 2) numbers.push('...');
-      numbers.push(totalPages);
-    }
-    return numbers;
-  }, [totalPages, safePage]);
 
   if (!loading && failed) {
-    return (
-      <div className="ls-page">
-        <div className="ls-state-card">
-          <FaHeadphones />
-          <strong>Stations could not be loaded.</strong>
-          <span>{error || 'Echoo could not reach the Station service.'}</span>
-          <button type="button" className="ls-btn-primary" onClick={() => load()}>
-            Try again
-          </button>
-        </div>
-      </div>
-    );
+    return <div className="stations-page"><div className="stations-empty"><FaHeadphones /><strong>Stations could not be loaded</strong><p>{error}</p><button type="button" onClick={() => load()}>Try again</button></div></div>;
   }
 
   return (
-    <div className="ls-page">
-      <header className="ls-header">
-        <div className="ls-header-text">
-          <h1>Stations</h1>
-          <p>Browse and follow stations from creators across Echoo.</p>
-        </div>
-        <div className="ls-header-actions">
-          <label className="ls-search-field ls-search-large">
-            <FaSearch className="ls-search-icon" />
-            <input
-              ref={searchInputRef}
-              type="text"
-              value={search}
-              placeholder="Search stations, shows or audio..."
-              aria-label="Search stations"
-              onChange={(event) => {
-                setSearch(event.target.value);
-                setPage(1);
-              }}
-            />
-            {search && (
-              <button
-                type="button"
-                className="ls-search-clear"
-                aria-label="Clear search"
-                onClick={() => {
-                  setSearch('');
-                  setPage(1);
-                }}
-              >
-                <FaTimes />
-              </button>
-            )}
-            <span className="ls-k-chip" aria-hidden>Ctrl/⌘ K</span>
-          </label>
-          <button
-            type="button"
-            className="ls-icon-btn"
-            aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ''}`}
-            onClick={() => navigate('/listen/notifications')}
-          >
-            <FaBell />
-            {unreadCount > 0 && <span className="ls-badge" aria-hidden />}
-          </button>
-        </div>
+    <div className="stations-page">
+      <header className="stations-heading">
+        <h1>Stations</h1>
+        <p>Discover live stations and incredible creators around the world.</p>
       </header>
 
-      <div className="ls-chips" aria-label="Station categories">
-        {categories.map((item) => (
-          <button
-            type="button"
-            key={item}
-            className={`ls-chip ${category === item ? 'active' : ''}`}
-            onClick={() => {
-              setCategory(item);
-              setPendingCategory(item);
-              setPage(1);
-            }}
-          >
-            {item === 'All' ? 'All stations' : item}
-          </button>
-        ))}
-        <button type="button" className="ls-chip ls-chip-more" aria-label="Jump to station list" onClick={scrollToExplore}>
-          <FaChevronRight />
-        </button>
+      <div className="stations-categories" aria-label="Station categories">
+        {categories.map((item) => <button type="button" key={item} className={category === item ? 'active' : ''} onClick={() => setCategory(item)} aria-pressed={category === item}>{item === 'All' ? 'All stations' : item}</button>)}
       </div>
 
-      <section className="ls-hero" aria-label="Explore stations">
-        <div className="ls-hero-content">
-          <h2>Your next favorite voice is <span>here.</span></h2>
-          <p>Follow stations and get notified when they go live.</p>
-          <button type="button" className="ls-btn-primary" onClick={scrollToExplore}>Explore stations</button>
-        </div>
-        <div className="ls-hero-cluster" aria-hidden>
-          {heroCluster.map((station, index) => {
-            const style = HERO_CLUSTER_CIRCLE[index % CLUSTER_COUNT];
-            const art = stationCover(station);
-            return (
-              <span key={station.id} className="ls-cluster-circle" style={{ width: style.size, height: style.size, top: style.top, left: style.left }}>
-                {art ? <img src={art} alt="" aria-hidden loading="lazy" /> : <FaHeadphones />}
-              </span>
-            );
-          })}
-        </div>
+      <div className="stations-filter-row">
+        <label className="stations-search">
+          <FaSearch aria-hidden="true" />
+          <span className="sr-only">Search stations</span>
+          <input ref={searchInputRef} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search stations" />
+          {search && <button type="button" onClick={() => setSearch('')} aria-label="Clear station search"><FaTimes /></button>}
+        </label>
+        <label className="stations-select"><FaSlidersH /><span className="sr-only">Station status</span><select value={status} onChange={(event) => setStatus(event.target.value)}><option value="all">All stations</option><option value="live">Live now</option><option value="offline">Not live</option></select></label>
+        <label className="stations-select"><span className="sr-only">Sort stations</span><select value={sortBy} onChange={(event) => setSortBy(event.target.value)}><option value="followers">Top stations</option><option value="listeners">Most listeners</option><option value="live">Live first</option></select></label>
+      </div>
+
+      <section className="stations-section">
+        <header className="stations-section-header"><h2>Top stations</h2><button type="button" onClick={() => { setSortBy('followers'); setCategory('All'); }}>View all</button></header>
+        {loading ? <div className="stations-top-skeleton"><span /><span /><span /><span /></div> : topStations.length ? (
+          <div className="stations-top-grid">
+            {topStations.map((station, index) => (
+              <article className="stations-top-card" key={idOf(station)}>
+                <button type="button" className="stations-top-art" onClick={() => navigate(`/listen/stations/${idOf(station)}`)}>
+                  <Artwork station={station} />
+                  <span className="stations-rank">{index + 1}</span>
+                  <span className="stations-top-overlay"><strong>{station.name || 'Unnamed station'}</strong><small>{station.category || 'Station'} · {formatCount(station.followerCount)} followers</small></span>
+                  <i className="stations-top-play" aria-hidden="true"><FaPlay /></i>
+                </button>
+              </article>
+            ))}
+          </div>
+        ) : <div className="stations-empty stations-empty-compact"><FaHeadphones /><strong>Top stations will appear here</strong></div>}
       </section>
 
-      <section className="ls-body" ref={listRef}>
-        <div className="ls-main">
-          <header className="ls-section-header">
-            <h2>All stations</h2>
-            <div className="ls-section-tools">
-              <label className="ls-search-field">
-                <FaSearch className="ls-search-icon" />
-                <input
-                  type="text"
-                  value={search}
-                  placeholder="Search stations..."
-                  aria-label="Search stations"
-                  onChange={(event) => {
-                    setSearch(event.target.value);
-                    setPage(1);
-                  }}
-                />
-                {search && (
-                  <button type="button" className="ls-search-clear" aria-label="Clear search" onClick={() => { setSearch(''); setPage(1); }}>
-                    <FaTimes />
+      <section className="stations-section">
+        <header className="stations-section-header"><h2>Explore stations</h2><span>{filtered.length} station{filtered.length === 1 ? '' : 's'}</span></header>
+        {error && <div className="stations-error" role="alert">{error}</div>}
+        {loading ? <div className="stations-grid stations-card-skeleton">{Array.from({ length: 8 }, (_, index) => <span key={index} />)}</div> : visible.length ? (
+          <div className="stations-grid">
+            {visible.map((station) => {
+              const following = followingIds.has(idOf(station));
+              return (
+                <article className="station-card" key={idOf(station)}>
+                  <button type="button" className="station-card-art" onClick={() => navigate(`/listen/stations/${idOf(station)}`)}>
+                    <Artwork station={station} />
+                    {station.isLive && <span className="station-live"><i /> LIVE</span>}
                   </button>
-                )}
-              </label>
-              <select
-                className="ls-select"
-                value={sortBy}
-                aria-label="Sort stations"
-                onChange={(event) => {
-                  setSortBy(event.target.value);
-                  setPendingSort(event.target.value);
-                  setPage(1);
-                }}
-              >
-                <option value="followers">Most followers</option>
-                <option value="listening">Most listening now</option>
-                <option value="live">Live &amp; popular</option>
-              </select>
-              <div className="ls-view-toggle" role="group" aria-label="View style">
-                <button type="button" className={view === 'list' ? 'active' : ''} aria-pressed={view === 'list'} aria-label="List view" onClick={() => setView('list')}><FaList /></button>
-                <button type="button" className={view === 'grid' ? 'active' : ''} aria-pressed={view === 'grid'} aria-label="Grid view" onClick={() => setView('grid')}><FaThLarge /></button>
-              </div>
-            </div>
-          </header>
+                  <div className="station-card-copy">
+                    <strong>{station.name || 'Unnamed station'}</strong>
+                    <span>{station.creator?.displayName || station.owner?.displayName || station.category || 'Echoo creator'}</span>
+                    <small>{station.category || 'Station'} · {formatCount(station.followerCount)} followers</small>
+                    {station.isLive && <small className="station-listeners"><FaUsers /> {formatCount(station.listenerCount)} listening</small>}
+                  </div>
+                  <button type="button" className={following ? 'station-follow following' : 'station-follow'} onClick={() => toggleFollow(station)} disabled={actionId === idOf(station)} aria-pressed={following}>{following ? 'Following' : 'Follow'}</button>
+                </article>
+              );
+            })}
+          </div>
+        ) : <div className="stations-empty"><FaSearch /><strong>No stations found</strong><p>Try another search or clear the filters.</p><button type="button" onClick={() => { setSearch(''); setCategory('All'); setStatus('all'); }}>Clear filters</button></div>}
 
-          {loading ? (
-            <div className={`ls-list ${view}`}>
-              {Array.from({ length: PAGE_SIZE }).map((_, index) => <div className="ls-row ls-row-skeleton" key={index} />)}
-            </div>
-          ) : paged.length === 0 ? (
-            <div className="ls-state-card compact">
-              <FaSearch />
-              <strong>No stations found.</strong>
-              <span>{allStations.length === 0 ? 'There are no public stations available yet.' : 'Try another category, search term, or filter.'}</span>
-            </div>
-          ) : (
-            <div className={`ls-list ${view}`}>
-              {paged.map((station) => {
-                const key = String(station.id);
-                const isFollowing = followingIds.has(key);
-                const art = stationCover(station);
-                const description = station.description?.trim() || (station.owner?.displayName ? `Public station by ${station.owner.displayName}.` : 'Public Echoo station.');
-                return (
-                  <article className="ls-row" key={station.id}>
-                    <button type="button" className="ls-row-art" aria-label={`Open ${station.name}`} onClick={() => openStation(station)}>
-                      {art ? <img src={art} alt="" aria-hidden loading="lazy" /> : <FaHeadphones />}
-                      {station.isLive && <span className="ls-live-chip" aria-hidden><i /> LIVE</span>}
-                    </button>
-                    <div className="ls-row-info">
-                      <button type="button" className="ls-row-name" onClick={() => openStation(station)}>{station.name}</button>
-                      <span className="ls-row-category">{station.category || 'Other'}</span>
-                      <span className="ls-row-description">{description}</span>
-                    </div>
-                    <div className="ls-row-stats">
-                      <span className="ls-stat"><strong>{formatCount(station.followerCount)}</strong><span>Followers</span></span>
-                      <span className="ls-stat"><strong>{formatCount(station.listenerCount)}</strong><span>Listening now</span></span>
-                    </div>
-                    <div className="ls-row-actions">
-                      <button type="button" className="ls-follow-btn" disabled={actionId === key} onClick={() => toggleFollow(station)}>
-                        <FaPlus />{actionId === key ? 'Updating...' : isFollowing ? 'Following' : 'Follow'}
-                      </button>
-                      <button type="button" className="ls-more-btn" aria-label={`Open ${station.name} details`} onClick={() => openStation(station)}>
-                        <FaChevronRight />
-                      </button>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          )}
-
-          {!loading && totalPages > 1 && (
-            <nav className="ls-pagination" aria-label="Stations pages">
-              <button type="button" className="ls-page-btn" aria-label="Previous page" disabled={safePage <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))}><FaChevronLeft /></button>
-              {pageNumbers.map((value, index) =>
-                value === '...' ? (
-                  <span className="ls-page-ellipsis" key={`ellipsis-${index}`}>...</span>
-                ) : (
-                  <button type="button" key={value} className={`ls-page-btn ${value === safePage ? 'active' : ''}`} aria-current={value === safePage ? 'page' : undefined} onClick={() => setPage(value)}>{value}</button>
-                )
-              )}
-              <button type="button" className="ls-page-btn" aria-label="Next page" disabled={safePage >= totalPages} onClick={() => setPage((value) => Math.min(totalPages, value + 1))}><FaChevronRight /></button>
-            </nav>
-          )}
-        </div>
-
-        <aside className="ls-sidebar">
-          <section className="ls-filters-card">
-            <header className="ls-filters-header">
-              <span><FaSlidersH /> Filters</span>
-              <button type="button" className="ls-clear-all" onClick={clearAll}>Clear all</button>
-            </header>
-
-            <div className="ls-filter-group">
-              <label>Category</label>
-              <select className="ls-select" value={pendingCategory} onChange={(event) => setPendingCategory(event.target.value)}>
-                {categories.map((item) => <option key={item} value={item}>{item === 'All' ? 'All categories' : item}</option>)}
-              </select>
-            </div>
-
-            <div className="ls-filter-group ls-radio-group">
-              <label>Status</label>
-              {[
-                { value: 'all', label: 'All stations' },
-                { value: 'live', label: 'Live now' },
-                { value: 'offline', label: 'Offline' },
-              ].map((option) => (
-                <label key={option.value} className="ls-radio">
-                  <input type="radio" name="ls-status" checked={pendingStatus === option.value} onChange={() => setPendingStatus(option.value)} />
-                  <span className="ls-radio-mark" />{option.label}
-                </label>
-              ))}
-            </div>
-
-            <div className="ls-filter-group">
-              <label>Sort by</label>
-              <select className="ls-select" value={pendingSort} onChange={(event) => setPendingSort(event.target.value)}>
-                <option value="followers">Most followers</option>
-                <option value="listening">Most listening now</option>
-                <option value="live">Live &amp; popular</option>
-              </select>
-            </div>
-
-            <button type="button" className="ls-btn-primary ls-apply-btn" onClick={applyFilters}>Apply filters</button>
-          </section>
-
-          <section className="ls-top-card">
-            <header className="ls-top-header">
-              <h3><FaTrophy /> Top stations</h3>
-              <button
-                type="button"
-                className="ls-view-all"
-                aria-label="View all stations"
-                onClick={() => {
-                  setCategory('All');
-                  setPendingCategory('All');
-                  setStatus('all');
-                  setPendingStatus('all');
-                  setSortBy('followers');
-                  setPendingSort('followers');
-                  setPage(1);
-                  scrollToExplore();
-                }}
-              >
-                View all
-              </button>
-            </header>
-            {topStations.length === 0 ? (
-              <p className="ls-top-empty">Top stations will appear here.</p>
-            ) : (
-              <ul className="ls-top-list">
-                {topStations.map((station, index) => {
-                  const key = String(station.id);
-                  const isFollowing = followingIds.has(key);
-                  const art = stationCover(station);
-                  return (
-                    <li className="ls-top-row" key={station.id}>
-                      <span className="ls-rank">{index + 1}</span>
-                      <button type="button" className="ls-top-art" aria-label={`Open ${station.name}`} onClick={() => openStation(station)}>
-                        {art ? <img src={art} alt="" aria-hidden loading="lazy" /> : <FaHeadphones />}
-                      </button>
-                      <div className="ls-top-info">
-                        <button type="button" className="ls-top-name" onClick={() => openStation(station)}>{station.name}</button>
-                        <span>{formatCount(station.followerCount)} followers</span>
-                      </div>
-                      <button type="button" className={`ls-top-follow ${isFollowing ? 'following' : ''}`} disabled={actionId === key} onClick={() => toggleFollow(station)}>
-                        {isFollowing ? 'Following' : '+ Follow'}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </section>
-        </aside>
+        {totalPages > 1 && <nav className="stations-pagination" aria-label="Stations pages"><button type="button" disabled={safePage === 1} onClick={() => setPage((value) => value - 1)} aria-label="Previous page"><FaChevronLeft /></button><span>Page {safePage} of {totalPages}</span><button type="button" disabled={safePage === totalPages} onClick={() => setPage((value) => value + 1)} aria-label="Next page"><FaChevronRight /></button></nav>}
       </section>
-
-      {error && <div className="ls-inline-error">{error}</div>}
     </div>
   );
 };

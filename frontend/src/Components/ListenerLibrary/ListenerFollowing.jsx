@@ -1,512 +1,183 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
-import {
-  FaAngleDoubleRight,
-  FaBars,
-  FaBroadcastTower,
-  FaCheck,
-  FaCheckCircle,
-  FaEllipsisV,
-  FaHeadphones,
-  FaHeart,
-  FaMusic,
-  FaPause,
-  FaPlay,
-  FaPodcast,
-  FaSearch,
-  FaTv,
-  FaUsers,
-} from 'react-icons/fa';
-
+import { FaCheckCircle, FaEllipsisH, FaHeadphones, FaPause, FaPlay, FaUsers } from 'react-icons/fa';
 import followService from '../../services/followService';
 import listenerService from '../../services/listenerService';
-import notificationService from '../../services/notificationService';
-import searchService from '../../services/searchService';
 import { getCreatorProfilePath } from '../../services/profileIdentifier';
-import ListenerToast from '../ListenerUI/ListenerToast';
+import { buildMediaUrl } from '../../services/api';
 import { buildGeneratedStationBrandCoverUrl } from '../../stationBranding/stationBranding';
-import '../../styles/listener-reference-pages.css';
+import ListenerToast from '../ListenerUI/ListenerToast';
+import echooMark from '../Assets/echoo-logo-official.svg';
 import './ListenerFollowing.css';
 
-const TABS = ['All', 'Stations', 'Shows', 'Creators'];
-
 const idOf = (item) => String(item?.id || item?._id || '');
-
-const relativeTime = (value) => {
-  const date = value ? new Date(value) : null;
-  if (!date || Number.isNaN(date.getTime())) return '';
-  const seconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
-  if (seconds < 60) return `${Math.max(1, seconds)}s ago`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes} min ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return days === 1 ? 'Yesterday' : `${days}d ago`;
+const formatCount = (value) => {
+  const count = Math.max(0, Number(value) || 0);
+  return count >= 1000 ? `${Number((count / 1000).toFixed(1))}K` : String(Math.floor(count));
 };
-
 const formatDuration = (seconds) => {
-  const total = Number(seconds) || 0;
-  const minutes = Math.floor((total % 3600) / 60);
-  const secs = Math.floor(total % 60);
-  return `${minutes}:${String(secs).padStart(2, '0')}`;
+  const value = Math.max(0, Number(seconds) || 0);
+  if (!value) return '';
+  return `${Math.max(1, Math.ceil(value / 60))} min`;
 };
+const creatorName = (creator) => creator?.displayName || creator?.name || creator?.username || 'Echoo creator';
+const creatorHandle = (creator) => creator?.username ? `@${String(creator.username).replace(/^@/, '')}` : 'Creator';
+const trackCreator = (track) => track?.artist?.displayName || track?.artist?.username || track?.artistName || track?.station?.name || 'Echoo creator';
+const trackArt = (track) => buildMediaUrl(track?.coverArt || track?.artwork || track?.station?.coverArt || null);
+const stationArt = (station) => buildMediaUrl(station?.brandCover || station?.coverArt || buildGeneratedStationBrandCoverUrl(station));
 
-const activityMeta = {
-  new_release: { label: 'New audio uploaded', icon: FaHeadphones, tone: '#1769d3' },
-  new_live_broadcast: { label: 'Started a live broadcast', icon: FaBroadcastTower, tone: '#e0245e' },
-  new_follower: { label: 'You followed this creator', icon: FaUsers, tone: '#1769d3' },
-  new_like: { label: 'New like on your audio', icon: FaHeart, tone: '#e0245e' },
-  new_comment: { label: 'New comment on your audio', icon: FaBars, tone: '#344054' },
-  live_started: { label: 'Started a live broadcast', icon: FaBroadcastTower, tone: '#e0245e' },
-  station_went_live: { label: 'Started a live broadcast', icon: FaBroadcastTower, tone: '#e0245e' },
-};
+const Artwork = ({ src }) => src
+  ? <img src={src} alt="" loading="lazy" />
+  : <img src={echooMark} alt="" className="following-fallback-mark" />;
 
-const categoryIcon = (category) => {
-  const text = String(category || '').toLowerCase();
-  if (text.includes('faith') || text.includes('religion')) return FaPodcast;
-  if (text.includes('business') || text.includes('finance')) return FaMusic;
-  if (text.includes('entertainment') || text.includes('music')) return FaMusic;
-  if (text.includes('news')) return FaTv;
-  if (text.includes('education') || text.includes('learning')) return FaPodcast;
-  return FaPodcast;
-};
-
-const artistOf = (track) => {
-  const artist = track?.artist && typeof track.artist === 'object' ? track.artist : null;
-  return artist?.displayName || artist?.username || track?.artistName || 'Echoo Creator';
-};
+const SectionHeader = ({ title, onViewAll }) => (
+  <header className="following-section-header">
+    <h2>{title}</h2>
+    <button type="button" onClick={onViewAll}>View all</button>
+  </header>
+);
 
 const ListenerFollowing = () => {
   const navigate = useNavigate();
   const { playTrack, currentTrack, isPlaying, togglePlay } = useOutletContext();
-
-  const [tab, setTab] = useState('All');
   const [stations, setStations] = useState([]);
   const [creators, setCreators] = useState([]);
-  const [shows, setShows] = useState([]);
-  const [activity, setActivity] = useState([]);
-  const [categorySearch, setCategorySearch] = useState('');
-  const [creatorSuggestions, setCreatorSuggestions] = useState([]);
+  const [latest, setLatest] = useState([]);
   const [busyId, setBusyId] = useState('');
+  const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState({ open: false, type: 'info', title: '', message: '' });
-
-  const showToast = useCallback((type, title, message) => setToast({ open: true, type, title, message }), []);
 
   const load = useCallback(async () => {
     try {
-      const [stationResult, creatorResult, historyResult, activityResult] = await Promise.allSettled([
+      setLoading(true);
+      const [stationResult, creatorResult, historyResult] = await Promise.allSettled([
         followService.getFollowingStations(),
         followService.getFollowingCreators(),
-        listenerService.getHistory(1, 100),
-        notificationService.list({ page: 1, limit: 10 }),
+        listenerService.getHistory(1, 12),
       ]);
-
-      if (stationResult.status === 'fulfilled') {
-        setStations(Array.isArray(stationResult.value?.data) ? stationResult.value.data : []);
-      }
-      if (creatorResult.status === 'fulfilled') {
-        setCreators(Array.isArray(creatorResult.value?.data) ? creatorResult.value.data : []);
-      }
-      if (historyResult.status === 'fulfilled') {
-        const history = historyResult.value?.data?.history || [];
-        setShows(history.map((entry) => entry.track).filter(Boolean));
-      }
-      if (activityResult.status === 'fulfilled') {
-        setActivity(Array.isArray(activityResult.value?.data?.notifications) ? activityResult.value.data.notifications : []);
-      }
+      if (stationResult.status === 'fulfilled') setStations(Array.isArray(stationResult.value?.data) ? stationResult.value.data : []);
+      if (creatorResult.status === 'fulfilled') setCreators(Array.isArray(creatorResult.value?.data) ? creatorResult.value.data : []);
+      if (historyResult.status === 'fulfilled') setLatest((historyResult.value?.data?.history || []).map((entry) => entry.track).filter(Boolean));
     } finally {
-      // The individual sections keep their last good data if one source is unavailable.
+      setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     load();
-    const sync = () => load();
-    const interval = window.setInterval(sync, 20000);
-    window.addEventListener('focus', sync);
-    return () => {
-      window.clearInterval(interval);
-      window.removeEventListener('focus', sync);
-    };
+    const interval = window.setInterval(load, 20000);
+    window.addEventListener('focus', load);
+    return () => { window.clearInterval(interval); window.removeEventListener('focus', load); };
   }, [load]);
-
-  useEffect(() => {
-    if (!categorySearch.trim()) {
-      setCreatorSuggestions([]);
-      return undefined;
-    }
-    let cancelled = false;
-    const timer = window.setTimeout(async () => {
-      try {
-        const result = await searchService.search(categorySearch.trim(), { type: 'creators', limit: 4 });
-        if (!cancelled) {
-          setCreatorSuggestions(Array.isArray(result?.data?.results?.creators) ? result.data.results.creators : []);
-        }
-      } catch {
-        if (!cancelled) setCreatorSuggestions([]);
-      }
-    }, 350);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-    };
-  }, [categorySearch]);
-
-  const liveStationIds = useMemo(
-    () => new Set(stations.filter((station) => station.isLive).map((station) => idOf(station))),
-    [stations]
-  );
-
-  const listeningOf = (station) => Number(station.listenersOnline ?? station.listenerCount ?? 0);
-
-  const categories = useMemo(() => {
-    const map = new Map();
-    stations.forEach((station) => {
-      const key = String(station.category || 'Other').trim();
-      map.set(key, (map.get(key) || 0) + 1);
-    });
-    return Array.from(map.entries())
-      .map(([name, count]) => ({ name, count }))
-      .sort((left, right) => right.count - left.count);
-  }, [stations]);
-
-  const followingCount = stations.length + shows.length + creators.length;
-
-  const openCreator = (creator) => {
-    const path = getCreatorProfilePath(creator);
-    if (path) navigate(path);
-  };
-
-  const playShow = (track) => {
-    const id = idOf(track);
-    if (!id) return;
-    if (idOf(currentTrack) === id) {
-      togglePlay();
-      return;
-    }
-    playTrack({
-      id,
-      title: track.title || 'Untitled Audio',
-      subtitle: artistOf(track),
-      fileUrl: track.fileUrl,
-      coverArt: track.coverArt || null,
-      duration: Number(track.duration) || 0,
-      genre: track.genre || 'Audio',
-    });
-  };
 
   const unfollowStation = async (station) => {
     const key = idOf(station);
-    if (busyId || !key) return;
+    if (!key || busyId) return;
     try {
       setBusyId(key);
       await followService.unfollowStation(key);
       setStations((current) => current.filter((item) => idOf(item) !== key));
-      showToast('success', 'Unfollowed', `${station.name || 'Station'} removed from your following.`);
+      setToast({ open: true, type: 'success', title: 'Unfollowed', message: `${station.name || 'Station'} was removed.` });
     } catch (error) {
-      showToast('error', 'Could not unfollow', error?.message || 'Please try again.');
-    } finally {
-      setBusyId('');
-    }
+      setToast({ open: true, type: 'error', title: 'Could not unfollow', message: error?.message || 'Please try again.' });
+    } finally { setBusyId(''); }
   };
 
   const unfollowCreator = async (creator) => {
     const key = idOf(creator);
-    if (busyId || !key) return;
+    if (!key || busyId) return;
     try {
       setBusyId(key);
       await followService.unfollowCreator(key);
       setCreators((current) => current.filter((item) => idOf(item) !== key));
-      showToast('success', 'Unfollowed', `${creator.name || 'Creator'} removed from your following.`);
+      setToast({ open: true, type: 'success', title: 'Unfollowed', message: `${creatorName(creator)} was removed.` });
     } catch (error) {
-      showToast('error', 'Could not unfollow', error?.message || 'Please try again.');
-    } finally {
-      setBusyId('');
-    }
+      setToast({ open: true, type: 'error', title: 'Could not unfollow', message: error?.message || 'Please try again.' });
+    } finally { setBusyId(''); }
   };
 
-  const stationArt = (station) =>
-    (station.brandCover || station.coverArt) || buildGeneratedStationBrandCoverUrl(station);
-
-  const filteredStations = tab === 'All' || tab === 'Stations' ? stations : [];
-  const filteredShows = tab === 'All' || tab === 'Shows' ? shows : [];
-  const filteredCreators = tab === 'All' || tab === 'Creators' ? creators : [];
+  const play = (track) => {
+    const key = idOf(track);
+    if (!key) return;
+    if (idOf(currentTrack) === key) { togglePlay(); return; }
+    playTrack({ id: key, title: track.title || 'Untitled audio', subtitle: trackCreator(track), fileUrl: track.fileUrl, coverArt: track.coverArt, duration: Number(track.duration) || 0, genre: track.genre || 'Audio' }, latest);
+  };
 
   return (
-    <div className="echoo-reference-page ref-following-page fl-page">
-      <ListenerToast {...toast} onClose={() => setToast((current) => ({ ...current, open: false }))} />
-
-      <header className="fl-heading">
-        <div className="fl-heading-text">
-          <h1>Following</h1>
-          <p>Stations, shows and creators you follow.</p>
-        </div>
+    <div className="following-page">
+      <header className="following-heading">
+        <h1>Following</h1>
+        <p>People and stations you care about, in one place.</p>
       </header>
 
-      <div className="fl-tabs" role="tablist">
-        {TABS.map((item) => (
-          <button
-            type="button"
-            role="tab"
-            key={item}
-            aria-selected={tab === item}
-            className={`fl-tab${tab === item ? ' fl-tab-active' : ''}`}
-            onClick={() => setTab(item)}
-          >
-            {item}
-          </button>
-        ))}
-      </div>
-
-      <div className="fl-stats">
-        <article className="fl-stat">
-          <span className="fl-stat-icon fl-stat-icon--blue"><FaBroadcastTower /></span>
-          <span className="fl-stat-value">{stations.length}</span>
-          <span className="fl-stat-label">Stations</span>
-          <span className="fl-stat-sub">You follow</span>
-        </article>
-        <article className="fl-stat">
-          <span className="fl-stat-icon fl-stat-icon--purple"><FaHeadphones /></span>
-          <span className="fl-stat-value">{shows.length}</span>
-          <span className="fl-stat-label">Shows</span>
-          <span className="fl-stat-sub">You follow</span>
-        </article>
-        <article className="fl-stat">
-          <span className="fl-stat-icon fl-stat-icon--green"><FaUsers /></span>
-          <span className="fl-stat-value">{creators.length}</span>
-          <span className="fl-stat-label">Creators</span>
-          <span className="fl-stat-sub">You follow</span>
-        </article>
-        <article className="fl-stat">
-          <span className="fl-stat-icon fl-stat-icon--orange"><FaHeart /></span>
-          <span className="fl-stat-value">{followingCount}</span>
-          <span className="fl-stat-label">Total items</span>
-          <span className="fl-stat-sub">In your following</span>
-        </article>
-      </div>
-
-      <div className="fl-layout">
-        <div className="fl-main">
-          {(tab === 'All' || tab === 'Stations') && (
-            <section className="fl-section">
-              <div className="fl-section-header">
-                <h2>Followed stations</h2>
-                <button type="button" className="fl-view-all" onClick={() => navigate('/listen/stations')}>View all stations <FaAngleDoubleRight /></button>
-              </div>
-              {filteredStations.length === 0 && (
-                <div className="ref-state-card compact">
-                  <FaBroadcastTower />
-                  <strong>No stations followed yet.</strong>
-                  <span>Browse the stations page and follow the voices you want to keep up with.</span>
-                </div>
-              )}
-              <div className="fl-station-grid">
-                {filteredStations.map((station) => {
-                  const id = idOf(station);
-                  const live = liveStationIds.has(id);
-                  return (
-                    <article className="fl-station-card" key={id}>
-                      <button type="button" className="fl-station-art" onClick={() => navigate(`/listen/stations/${id}`)}>
-                        <img src={stationArt(station)} alt="" />
-                        {live && <span className="fl-live-badge">LIVE</span>}
-                      </button>
-                      <div className="fl-station-body">
-                        <strong>{station.name}</strong>
-                        <span className="fl-station-category">{station.category || 'Echoo'}</span>
-                        <span className="fl-listening">
-                          <i className={`fl-listening-dot${live ? ' fl-listening-dot--live' : ''}`} />
-                          {listeningOf(station)} listening
-                        </span>
-                        <div className="fl-station-actions">
-                          <button
-                            type="button"
-                            className="fl-following-pill"
-                            disabled={busyId === id}
-                            onClick={() => unfollowStation(station)}
-                          >
-                            <FaCheck /> {busyId === id ? 'Updating' : 'Following'}
-                          </button>
-                          <button
-                            type="button"
-                            className="fl-more-btn"
-                            aria-label={`Open ${station.name}`}
-                            onClick={() => navigate(`/listen/stations/${id}`)}
-                          >
-                            <FaEllipsisV />
-                          </button>
-                        </div>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            </section>
-          )}
-
-          {(tab === 'All' || tab === 'Shows') && (
-            <section className="fl-section">
-              <div className="fl-section-header">
-                <h2>Followed shows</h2>
-                <button type="button" className="fl-view-all" onClick={() => navigate('/listen/history')}>View all shows <FaAngleDoubleRight /></button>
-              </div>
-              {filteredShows.length === 0 && (
-                <div className="ref-state-card compact">
-                  <FaHeadphones />
-                  <strong>No shows in your history yet.</strong>
-                  <span>Shows you listen to will appear here.</span>
-                </div>
-              )}
-              <div className="fl-show-grid">
-                {filteredShows.map((track) => {
-                  const id = idOf(track);
-                  const playing = isPlaying && idOf(currentTrack) === id;
-                  return (
-                    <article className="fl-show-row" key={`${id}-${idOf(track.playlist || {})}`}>
-                      <button type="button" className="fl-show-art" onClick={() => playShow(track)}>
-                        {track.coverArt ? <img src={track.coverArt} alt="" /> : <FaHeadphones />}
-                        <span className="fl-show-play">{playing ? <FaPause /> : <FaPlay />}</span>
-                      </button>
-                      <div className="fl-show-info">
-                        <strong>{track.title || 'Untitled Audio'}</strong>
-                        <span>{artistOf(track)}{track.playedAt || track.createdAt ? ` • ${relativeTime(track.playedAt || track.createdAt)}` : ''}</span>
-                      </div>
-                      <span className="fl-show-duration">{formatDuration(track.duration)}</span>
-                      <button type="button" className="fl-show-play-btn" aria-label={playing ? 'Pause' : 'Play'} onClick={() => playShow(track)}>
-                        {playing ? <FaPause /> : <FaPlay />}
-                      </button>
-                    </article>
-                  );
-                })}
-              </div>
-            </section>
-          )}
-
-          {(tab === 'All' || tab === 'Creators') && (
-            <section className="fl-section">
-              <div className="fl-section-header">
-                <h2>Creators you follow</h2>
-                <button type="button" className="fl-view-all" onClick={() => setTab('Creators')}>View all <FaAngleDoubleRight /></button>
-              </div>
-              {filteredCreators.length === 0 && (
-                <div className="ref-state-card compact">
-                  <FaUsers />
-                  <strong>You're not following any creators yet.</strong>
-                  <span>Follow creators from their profiles to see them here.</span>
-                </div>
-              )}
-              <div className="fl-creator-list">
-                {filteredCreators.map((creator) => {
-                  const id = idOf(creator);
-                  return (
-                    <article className="fl-creator-row" key={id}>
-                      <button type="button" className="fl-creator-avatar" onClick={() => openCreator(creator)} aria-label={`Open ${creator.name || creator.username || 'creator'} profile`}>
-                        {creator.avatar ? <img src={creator.avatar} alt="" /> : creator.name?.[0]?.toUpperCase()}
-                      </button>
-                      <div className="fl-creator-info">
-                        <strong>{creator.name} <FaCheckCircle className="fl-verified" /></strong>
-                        <span>@{creator.username || 'creator'}</span>
-                      </div>
-                      <button
-                        type="button"
-                        className="fl-following-pill"
-                        disabled={busyId === id}
-                        onClick={() => unfollowCreator(creator)}
-                      >
-                        <FaCheck /> {busyId === id ? 'Updating' : 'Following'}
-                      </button>
-                    </article>
-                  );
-                })}
-              </div>
-            </section>
-          )}
-        </div>
-
-        <aside className="fl-sidebar">
-          <section className="fl-card fl-activity-card">
-            <strong>Recent activity</strong>
-            {activity.length === 0 && (
-              <p className="fl-empty-note">No recent activity.</p>
-            )}
-            {activity.slice(0, 5).map((item) => {
-              const meta = activityMeta[item.type] || { label: item.type || 'Activity', icon: FaHeadphones, tone: '#344054' };
-              const Icon = meta.icon;
-              return (
-                <article className="fl-activity-row" key={idOf(item)}>
-                  <span className="fl-activity-icon" style={{ color: meta.tone }}><Icon /></span>
-                  <div className="fl-activity-info">
-                    <strong>{item.fromUser?.displayName || item.fromUser?.username || 'Echoo'}</strong>
-                    <span>{meta.label}</span>
-                    <span className="fl-activity-time">{relativeTime(item.createdAt)}</span>
-                  </div>
-                </article>
-              );
-            })}
-            <button type="button" className="fl-view-all" onClick={() => navigate('/listen/notifications')}>View all activity <FaAngleDoubleRight /></button>
-          </section>
-
-          <section className="fl-card fl-categories-card">
-            <strong>Categories</strong>
-            {categories.length === 0 && <p className="fl-empty-note">Categories appear once you follow stations.</p>}
-            {categories.map(({ name, count }) => {
-              const Icon = categoryIcon(name);
-              return (
-                <article className="fl-category-row" key={name}>
-                  <span className="fl-category-icon"><Icon /></span>
-                  <span className="fl-category-name">{name}</span>
-                  <span className="fl-category-count">{count}</span>
-                </article>
-              );
-            })}
-            <button type="button" className="fl-view-all" onClick={() => navigate('/listen/stations')}>View all categories <FaAngleDoubleRight /></button>
-          </section>
-
-          <section className="fl-card fl-creators-card">
-            <div className="fl-card-header">
-              <strong>Creators you follow</strong>
-              <button type="button" className="fl-view-all" onClick={() => navigate('/listen/search')}>Find creators <FaAngleDoubleRight /></button>
-            </div>
-            {creators.length === 0 && (
-              <p className="fl-empty-note">No creators followed yet.</p>
-            )}
+      <section className="following-section">
+        <SectionHeader title="Creators you follow" onViewAll={() => navigate('/listen/search')} />
+        {loading ? <div className="following-skeleton-row"><span /><span /><span /></div> : creators.length ? (
+          <div className="following-creators">
             {creators.slice(0, 4).map((creator) => (
-              <article className="fl-creator-row fl-creator-row--compact" key={idOf(creator)}>
-                <button type="button" className="fl-creator-avatar fl-creator-avatar--sm" onClick={() => openCreator(creator)} aria-label={`Open ${creator.name || creator.username || 'creator'} profile`}>
-                  {creator.avatar ? <img src={creator.avatar} alt="" /> : creator.name?.[0]?.toUpperCase()}
+              <article className="following-creator-card" key={idOf(creator)}>
+                <button type="button" className="following-creator-avatar" onClick={() => navigate(getCreatorProfilePath(creator))} aria-label={`Open ${creatorName(creator)}`}>
+                  <Artwork src={buildMediaUrl(creator.profileImage || creator.avatar)} />
                 </button>
-                <div className="fl-creator-info">
-                  <strong>{creator.name} <FaCheckCircle className="fl-verified" /></strong>
-                  <span>@{creator.username || 'creator'}</span>
+                <div className="following-creator-copy">
+                  <strong>{creatorName(creator)} {Boolean(creator.verified || creator.isVerified) && <FaCheckCircle aria-label="Verified" />}</strong>
+                  <span>{creatorHandle(creator)}</span>
+                  {Number(creator.followerCount) > 0 && <small>{formatCount(creator.followerCount)} followers</small>}
                 </div>
+                <button type="button" className="following-button" onClick={() => unfollowCreator(creator)} disabled={busyId === idOf(creator)}>Following</button>
+                <button type="button" className="following-more" aria-label={`More options for ${creatorName(creator)}`}><FaEllipsisH /></button>
               </article>
             ))}
-            <div className="fl-creator-search">
-              <FaSearch />
-              <input
-                type="text"
-                placeholder="Find more creators"
-                value={categorySearch}
-                maxLength={60}
-                onChange={(event) => setCategorySearch(event.target.value)}
-                aria-label="Find more creators"
-              />
-              {creatorSuggestions.length > 0 && (
-                <ul className="fl-creator-suggestions">
-                  {creatorSuggestions.map((creator) => (
-                    <li key={idOf(creator)}>
-                      <button type="button" onClick={() => { setCategorySearch(''); setCreatorSuggestions([]); openCreator(creator); }}>
-                        {creator.avatar ? <img src={creator.avatar} alt="" /> : null}
-                        <span>{creator.name}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </section>
-        </aside>
-      </div>
+          </div>
+        ) : <div className="following-empty"><FaUsers /><strong>No creators followed yet</strong><p>Find creators you enjoy and their latest work will appear here.</p></div>}
+      </section>
+
+      <section className="following-section">
+        <SectionHeader title="Stations you follow" onViewAll={() => navigate('/listen/stations')} />
+        {loading ? <div className="following-skeleton-row"><span /><span /><span /></div> : stations.length ? (
+          <div className="following-stations">
+            {stations.slice(0, 5).map((station) => (
+              <article className="following-station-card" key={idOf(station)}>
+                <button type="button" className="following-station-art" onClick={() => navigate(`/listen/stations/${idOf(station)}`)}>
+                  <Artwork src={stationArt(station)} />
+                  {station.isLive && <span><i /> LIVE</span>}
+                </button>
+                <div className="following-station-copy">
+                  <strong>{station.name || 'Unnamed station'}</strong>
+                  <span>{station.category || 'Station'} · {formatCount(station.followerCount)} followers</span>
+                </div>
+                <button type="button" className="following-button following-station-action" onClick={() => unfollowStation(station)} disabled={busyId === idOf(station)}>Following</button>
+              </article>
+            ))}
+          </div>
+        ) : <div className="following-empty"><FaHeadphones /><strong>No stations followed yet</strong><p>Explore stations and follow the voices you want to hear again.</p></div>}
+      </section>
+
+      <section className="following-section">
+        <SectionHeader title="Latest from people you follow" onViewAll={() => navigate('/listen/library')} />
+        {latest.length ? (
+          <div className="following-latest">
+            {latest.slice(0, 4).map((track, index) => {
+              const playing = idOf(currentTrack) === idOf(track) && isPlaying;
+              return (
+                <article className="following-latest-card" key={`${idOf(track)}-${index}`}>
+                  <span className="following-latest-art"><Artwork src={trackArt(track)} /></span>
+                  <div className="following-latest-copy">
+                    <small>New episode</small>
+                    <strong>{track.title || 'Untitled audio'}</strong>
+                    <span>{trackCreator(track)}{track.duration ? ` · ${formatDuration(track.duration)}` : ''}</span>
+                  </div>
+                  <button type="button" onClick={() => play(track)} aria-label={playing ? `Pause ${track.title}` : `Play ${track.title}`}>
+                    {playing ? <FaPause /> : <FaPlay />}
+                  </button>
+                </article>
+              );
+            })}
+          </div>
+        ) : <div className="following-empty following-empty-compact"><FaPlay /><strong>No recent audio yet</strong></div>}
+      </section>
+
+      <ListenerToast {...toast} onClose={() => setToast((current) => ({ ...current, open: false }))} />
     </div>
   );
 };

@@ -218,6 +218,7 @@ const OnboardingFlow = () => {
           localStorage.setItem('echooProfileCompleted', 'true');
           setStage('role');
         }}
+        onSessionInvalid={() => setStage('register')}
       />
     );
   }

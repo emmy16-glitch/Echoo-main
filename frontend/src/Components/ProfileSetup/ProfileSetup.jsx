@@ -7,6 +7,7 @@ import LoadingButton from "../UI/LoadingButton";
 import SuccessState from "../UI/SuccessState";
 import Toast from "../UI/Toast";
 import onboardingService from "../../services/onboardingService";
+import { clearAuthTokens } from "../../services/api";
 import "../../styles/echoo-onboarding.css";
 import EchoAmbient from "../EchooSystem/EchoAmbient";
 
@@ -44,7 +45,7 @@ const getStoredUser = () => {
   }
 };
 
-const ProfileSetup = ({ onProfileCompleted }) => {
+const ProfileSetup = ({ onProfileCompleted, onSessionInvalid }) => {
   const storedUser = getStoredUser();
 
   const [displayName, setDisplayName] = useState(
@@ -107,7 +108,8 @@ const ProfileSetup = ({ onProfileCompleted }) => {
     const userId = currentUser.id || currentUser._id;
 
     if (!userId) {
-      showError("Your account session is missing. Please sign in again.");
+      clearAuthTokens();
+      onSessionInvalid?.();
       return;
     }
 

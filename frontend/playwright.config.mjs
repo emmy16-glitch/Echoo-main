@@ -1,5 +1,8 @@
 import { defineConfig } from 'playwright/test';
 
+const e2eApiPort = Number(process.env.ECHOO_E2E_API_PORT || 5001);
+const e2eApiUrl = `http://127.0.0.1:${e2eApiPort}`;
+
 export default defineConfig({
   testDir: './e2e',
   timeout: 45_000,
@@ -151,11 +154,12 @@ export default defineConfig({
   webServer: [
     {
       command: 'node e2e/mock-api.mjs',
-      url: 'http://127.0.0.1:5001/api/health',
+      url: `${e2eApiUrl}/api/health`,
       reuseExistingServer: !process.env.CI,
       timeout: 20_000,
       stdout: 'pipe',
       stderr: 'pipe',
+      env: { ECHOO_E2E_API_PORT: String(e2eApiPort) },
     },
     {
       command: 'npm run dev -- --host 127.0.0.1 --port 4173',
@@ -163,7 +167,7 @@ export default defineConfig({
       reuseExistingServer: !process.env.CI,
       timeout: 30_000,
       env: {
-        VITE_API_URL: 'http://127.0.0.1:5001/api',
+        VITE_API_URL: `${e2eApiUrl}/api`,
       },
       stdout: 'pipe',
       stderr: 'pipe',

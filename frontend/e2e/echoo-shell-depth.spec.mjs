@@ -75,34 +75,34 @@ test('Listener persistent transport and Stations geometry stay usable', async ({
   await settle(page);
 
   const viewportWidth = page.viewportSize()?.width || 0;
-  const transport = page.locator('.echoo-listener-shell .layout-player-controls').first();
+  const transport = page.locator('.echoo-listener-v2-shell .layout-player-controls').first();
   await expect(transport).toBeVisible();
 
   const visibleTransportButtons = transport.locator('button:visible');
   const visibleCount = await visibleTransportButtons.count();
-  expect(visibleCount, `${testInfo.project.name}: expected at least Previous/Play/Next transport controls`).toBeGreaterThanOrEqual(3);
+  expect(visibleCount, `${testInfo.project.name}: expected usable transport controls`).toBeGreaterThanOrEqual(viewportWidth <= 760 ? 2 : 3);
 
   for (let index = 0; index < visibleCount; index += 1) {
     await assertInsideViewport(visibleTransportButtons.nth(index), viewportWidth);
   }
 
-  const timeLabels = page.locator('.echoo-listener-shell .layout-player-volume > span:visible');
+  const timeLabels = page.locator('.echoo-listener-v2-shell .layout-player-volume > span:visible');
   for (let index = 0; index < await timeLabels.count(); index += 1) {
     expect(await fontPx(timeLabels.nth(index)), `${testInfo.project.name}: player time label must be >=10px`).toBeGreaterThanOrEqual(10);
   }
 
-  const stationName = page.locator('.ls-top-name:visible').first();
+  const stationName = page.locator('.stations-top-overlay strong:visible').first();
   if (await stationName.count()) {
     const rect = await stationName.boundingBox();
     expect(rect?.width || 0, `${testInfo.project.name}: top station name was squeezed into a sliver`).toBeGreaterThanOrEqual(80);
     expect(rect?.height || 0, `${testInfo.project.name}: top station name wrapped into an unusably tall control`).toBeLessThanOrEqual(80);
   }
 
-  const topRows = page.locator('.ls-top-row:visible');
+  const topRows = page.locator('.stations-top-card:visible');
   for (let index = 0; index < await topRows.count(); index += 1) {
     const rect = await topRows.nth(index).boundingBox();
     expect(rect?.width || 0, `${testInfo.project.name}: top station row collapsed`).toBeGreaterThanOrEqual(Math.min(220, viewportWidth - 40));
-    expect(rect?.height || 0, `${testInfo.project.name}: top station row became excessively tall`).toBeLessThanOrEqual(110);
+    expect(rect?.height || 0, `${testInfo.project.name}: top station card became excessively tall`).toBeLessThanOrEqual(240);
   }
 });
 

@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import echooLogo from '../Assets/echoo-brand-logo.png';
+import echooLogo from '../Assets/echoo-logo-official.svg';
 import '../CreatorStudio/CreatorStudioShellFinal.css';
 import '../../theme/EchooDesignSystem.css';
 import './EchooAppShell.css';
@@ -22,7 +22,7 @@ const DefaultBrand = ({ role, roleLabel }) => {
       </span>
       <span className="studio-brand-copy">
         <strong>Echoo</strong>
-        <small>{roleLabel}</small>
+        {role !== 'listener' && <small>{roleLabel}</small>}
       </span>
     </NavLink>
   );
