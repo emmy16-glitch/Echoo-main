@@ -60,6 +60,7 @@ import "./styles/deep-hidden-audit-fixes.css";
 import "./styles/playwright-run4-hardening.css";
 import "./styles/playwright-run5-hardening.css";
 import "./styles/playwright-run6-root-layout-hardening.css";
+import "./styles/playwright-run7-final-gate-fixes.css";
 
 initializeEchooTheme();
 
