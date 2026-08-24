@@ -1,8 +1,14 @@
 import Broadcast from '../models/Broadcast.js';
 import BroadcastProcessingJob from '../models/BroadcastProcessingJob.js';
+import BroadcastAudioChunk from '../models/BroadcastAudioChunk.js';
 import Notification from '../models/Notification.js';
 import TranscriptSegment from '../models/TranscriptSegment.js';
+import TranscriptSession from '../models/TranscriptSession.js';
 import { flushBroadcastTranscription } from './transcriptionGateway.js';
+import {
+  markTranscriptQualityChunkFailed,
+  processTranscriptQualityChunk,
+} from './transcriptQualityService.js';
 
 const JOB_TYPES = [
   'audio_finalization',
@@ -18,6 +24,10 @@ let socketServer = null;
 let workerBusy = false;
 
 const retryable = (message) => Object.assign(new Error(message), { retryable: true });
+const waiting = (message) => Object.assign(new Error(message), {
+  retryable: true,
+  waiting: true,
+});
 
 const emitProcessing = async (broadcastId) => {
   if (!socketServer) return;
@@ -37,11 +47,15 @@ const emitProcessing = async (broadcastId) => {
 export async function enqueueBroadcastProcessing(broadcastId, { transcriptionEnabled = true } = {}) {
   const now = new Date();
   const jobs = transcriptionEnabled ? JOB_TYPES : ['audio_finalization'];
-  await Promise.all(jobs.map((jobType) => BroadcastProcessingJob.updateOne(
-    { broadcastId, jobType },
-    { $setOnInsert: { broadcastId, jobType, status: 'queued', progress: 0, availableAt: now } },
-    { upsert: true }
-  )));
+
+  for (const jobType of jobs) {
+    await BroadcastProcessingJob.updateOne(
+      { broadcastId, jobType },
+      { $setOnInsert: { broadcastId, jobType, status: 'queued', progress: 0, availableAt: now } },
+      { upsert: true }
+    );
+  }
+
   await Broadcast.updateOne({ _id: broadcastId }, {
     $set: {
       processingStartedAt: now,
@@ -56,20 +70,123 @@ export async function enqueueBroadcastProcessing(broadcastId, { transcriptionEna
 }
 
 const completeAudio = async (broadcast) => {
-  if (!broadcast.replayAudio) throw retryable('Waiting for the final audience-mix recording upload');
+  if (!broadcast.replayAudio) {
+    throw waiting('Waiting for the final audience-mix recording upload or discard decision');
+  }
   broadcast.assetStatus.audio = 'ready';
   await broadcast.save();
 };
 
 const completeTranscript = async (broadcast) => {
   if (broadcast.assetStatus?.transcript === 'published') return;
-  const summary = await flushBroadcastTranscription(broadcast._id);
-  if (!summary.finalCount) throw retryable('Waiting for confirmed transcript segments');
-  const result = await Broadcast.updateOne(
+
+  const [qualityPending, qualityFailed] = await Promise.all([
+    BroadcastProcessingJob.countDocuments({
+      broadcastId: broadcast._id,
+      jobType: 'transcript_quality_chunk',
+      status: { $in: ['queued', 'processing'] },
+    }),
+    BroadcastProcessingJob.countDocuments({
+      broadcastId: broadcast._id,
+      jobType: 'transcript_quality_chunk',
+      status: 'failed',
+    }),
+  ]);
+  if (qualityPending) {
+    throw waiting(`Waiting for ${qualityPending} transcript quality chunk job(s)`);
+  }
+
+  if (broadcast.qualityChunkingStartedAt && !broadcast.qualityChunkingCompletedAt) {
+    throw waiting('Waiting for the browser to close live quality chunking');
+  }
+  if (qualityFailed) throw new Error(`${qualityFailed} transcript quality chunk job(s) failed`);
+  if (Number(broadcast.qualityChunkUploadErrors) > 0) {
+    throw new Error(`${broadcast.qualityChunkUploadErrors} live quality chunk upload(s) were not recovered`);
+  }
+
+  // The gateway intentionally uses allSettled so one provider session cannot
+  // abort cleanup of its siblings. Review readiness must therefore verify the
+  // durable session records after the flush rather than trusting that helper's
+  // summary alone.
+  await flushBroadcastTranscription(broadcast._id);
+
+  const [unfinishedSessions, failedSessions] = await Promise.all([
+    TranscriptSession.countDocuments({
+      broadcastId: broadcast._id,
+      state: { $in: ['starting', 'connecting', 'connected', 'reconnecting', 'flushing'] },
+    }),
+    TranscriptSession.countDocuments({
+      broadcastId: broadcast._id,
+      state: { $in: ['failed', 'abandoned'] },
+    }),
+  ]);
+
+  if (unfinishedSessions) {
+    throw waiting(`Waiting for ${unfinishedSessions} transcript session(s) to finish finalization`);
+  }
+
+  // Durable post-master quality chunks are the authoritative recovery path.
+  // Without them, a failed/abandoned live session means audio frames were lost
+  // and the transcript must not be presented as review-complete.
+  if (!broadcast.qualityChunkingStartedAt && failedSessions) {
+    throw new Error(`${failedSessions} live transcript session(s) failed without a durable quality recording path`);
+  }
+
+  await Broadcast.updateOne(
     { _id: broadcast._id, 'assetStatus.transcript': { $ne: 'published' } },
-    { $set: { 'assetStatus.transcript': 'ready_for_review' } }
+    { $set: { transcriptState: 'completed' } }
   );
+};
+
+const processQualityChunk = async (job) => {
+  if (!job.chunkId) throw new Error('Transcript quality job is missing chunkId');
+  await BroadcastAudioChunk.updateOne(
+    { _id: job.chunkId, status: { $ne: 'completed' } },
+    { $set: { status: 'processing', error: null }, $inc: { attempts: 1 } }
+  );
+  try {
+    return await processTranscriptQualityChunk(job.chunkId);
+  } catch (error) {
+    await BroadcastAudioChunk.updateOne(
+      { _id: job.chunkId, status: { $ne: 'completed' } },
+      { $set: { status: error?.retryable ? 'pending' : 'failed', error: String(error?.message || error).slice(0, 2000) } }
+    ).catch(() => null);
+    throw error;
+  }
+};
+
+const improveTranscript = async (broadcast) => {
+  if (broadcast.assetStatus?.transcript === 'published') return;
+
+  const completionJob = await BroadcastProcessingJob.findOne({
+    broadcastId: broadcast._id,
+    jobType: 'transcript_completion',
+  }).select('status error');
+
+  if (completionJob?.status === 'failed') {
+    throw new Error(completionJob.error || 'Background transcript completion failed');
+  }
+  if (completionJob?.status !== 'completed') {
+    throw waiting('Waiting for background transcript quality verification');
+  }
+
+  await TranscriptSegment.updateMany(
+    { broadcastId: broadcast._id, isFinal: true, originalText: '' },
+    [{ $set: { originalText: '$text' } }]
+  );
+
+  const result = await Broadcast.updateOne(
+    { _id: broadcast._id, 'assetStatus.transcript': 'processing' },
+    {
+      $set: {
+        'assetStatus.transcript': 'ready_for_review',
+        transcriptState: 'completed',
+      },
+    }
+  );
+
   if (!result.modifiedCount) return;
+
   await Notification.create({
     userId: broadcast.creator,
     type: 'transcript_ready',
@@ -80,20 +197,17 @@ const completeTranscript = async (broadcast) => {
   });
 };
 
-const improveTranscript = async (broadcast) => {
-  if (!['ready_for_review', 'editing', 'published'].includes(broadcast.assetStatus.transcript)) {
-    throw retryable('Waiting for transcript completion');
+const ensureTranscriptUsable = (broadcast, purpose) => {
+  if (broadcast.assetStatus?.transcript === 'failed') {
+    throw new Error(`Cannot ${purpose} because transcript processing failed`);
   }
-  await TranscriptSegment.updateMany(
-    { broadcastId: broadcast._id, isFinal: true, originalText: '' },
-    [{ $set: { originalText: '$text' } }]
-  );
+  if (!['ready_for_review', 'editing', 'published'].includes(broadcast.assetStatus?.transcript)) {
+    throw waiting(`Waiting for transcript review draft before ${purpose}`);
+  }
 };
 
 const detectHighlights = async (broadcast) => {
-  if (!['ready_for_review', 'editing', 'published'].includes(broadcast.assetStatus.transcript)) {
-    throw retryable('Waiting for transcript review draft');
-  }
+  ensureTranscriptUsable(broadcast, 'detecting highlights');
   broadcast.assetStatus.highlights = 'processing';
   const candidates = await TranscriptSegment.find({
     broadcastId: broadcast._id,
@@ -110,9 +224,7 @@ const detectHighlights = async (broadcast) => {
 };
 
 const generateChapters = async (broadcast) => {
-  if (!['ready_for_review', 'editing', 'published'].includes(broadcast.assetStatus.transcript)) {
-    throw retryable('Waiting for transcript review draft');
-  }
+  ensureTranscriptUsable(broadcast, 'generating chapters');
   broadcast.assetStatus.chapters = 'processing';
   const segments = await TranscriptSegment.find({ broadcastId: broadcast._id, isFinal: true, isHidden: false })
     .sort({ startMs: 1 });
@@ -137,6 +249,7 @@ const handlers = {
   audio_finalization: completeAudio,
   transcript_completion: completeTranscript,
   transcript_improvement: improveTranscript,
+  transcript_quality_chunk: processQualityChunk,
   highlight_detection: detectHighlights,
   chapter_generation: generateChapters,
 };
@@ -146,8 +259,43 @@ const finishBroadcastProcessingIfReady = async (broadcastId) => {
     broadcastId,
     status: { $in: ['queued', 'processing'] },
   });
-  if (!remaining) await Broadcast.updateOne({ _id: broadcastId }, { $set: { processingCompletedAt: new Date() } });
+  if (!remaining) {
+    await Broadcast.updateOne(
+      { _id: broadcastId },
+      { $set: { processingCompletedAt: new Date() } }
+    );
+  }
 };
+
+export async function markBroadcastReplayDiscarded(broadcastId) {
+  const now = new Date();
+  await Broadcast.updateOne(
+    { _id: broadcastId, replayAudio: null },
+    {
+      $set: {
+        'assetStatus.audio': 'failed',
+        'assetVisibility.audio': 'private',
+      },
+    }
+  );
+  await BroadcastProcessingJob.updateOne(
+    {
+      broadcastId,
+      jobType: 'audio_finalization',
+      status: { $in: ['queued', 'processing'] },
+    },
+    {
+      $set: {
+        status: 'failed',
+        progress: 100,
+        completedAt: now,
+        error: 'Creator discarded the local replay recording',
+      },
+    }
+  );
+  await finishBroadcastProcessingIfReady(broadcastId);
+  await emitProcessing(broadcastId);
+}
 
 async function processNextJob() {
   if (workerBusy) return;
@@ -162,7 +310,7 @@ async function processNextJob() {
     if (!job) return;
     const broadcast = await Broadcast.findById(job.broadcastId);
     if (!broadcast) throw new Error('Broadcast no longer exists');
-    await handlers[job.jobType](broadcast);
+    await handlers[job.jobType](job.jobType === 'transcript_quality_chunk' ? job : broadcast);
     job.status = 'completed';
     job.progress = 100;
     job.completedAt = new Date();
@@ -170,16 +318,23 @@ async function processNextJob() {
     await finishBroadcastProcessingIfReady(job.broadcastId);
   } catch (error) {
     if (job) {
-      const canRetry = error?.retryable && job.attempts < job.maxAttempts;
+      const prerequisiteWait = Boolean(error?.waiting);
+      const canRetry = prerequisiteWait || (error?.retryable && job.attempts < job.maxAttempts);
       job.status = canRetry ? 'queued' : 'failed';
       job.availableAt = new Date(Date.now() + RETRY_MS);
       job.error = String(error?.message || error).slice(0, 2000);
+      if (prerequisiteWait) {
+        job.attempts = Math.max(0, Number(job.attempts || 0) - 1);
+      }
       if (!canRetry) job.completedAt = new Date();
       await job.save().catch(() => null);
       if (!canRetry) {
+        if (job.jobType === 'transcript_quality_chunk') {
+          await markTranscriptQualityChunkFailed(job.chunkId, error).catch(() => null);
+        }
         const field = job.jobType === 'audio_finalization'
           ? 'assetStatus.audio'
-          : job.jobType === 'transcript_completion' || job.jobType === 'transcript_improvement'
+          : job.jobType === 'transcript_completion' || job.jobType === 'transcript_improvement' || job.jobType === 'transcript_quality_chunk'
             ? 'assetStatus.transcript'
             : job.jobType === 'highlight_detection'
               ? 'assetStatus.highlights'
@@ -189,6 +344,7 @@ async function processNextJob() {
           { _id: job.broadcastId, [field]: { $ne: terminalValue } },
           { $set: { [field]: 'failed' } }
         ).catch(() => null);
+        await finishBroadcastProcessingIfReady(job.broadcastId).catch(() => null);
       }
     }
   } finally {
@@ -202,8 +358,21 @@ export function startBroadcastProcessingWorker(io) {
   if (workerTimer) return;
   BroadcastProcessingJob.updateMany(
     { status: 'processing' },
-    { $set: { status: 'queued', availableAt: new Date(), error: 'Recovered after backend restart' } }
+    {
+      $set: {
+        status: 'queued',
+        availableAt: new Date(),
+        startedAt: null,
+        error: 'Recovered after backend restart',
+      },
+    }
   ).catch(() => null);
+  BroadcastAudioChunk.updateMany(
+    { status: 'processing' },
+    { $set: { status: 'pending', error: 'Recovered after backend restart' } }
+  ).catch(() => null);
+  BroadcastProcessingJob.syncIndexes().catch(() => null);
+  BroadcastAudioChunk.syncIndexes().catch(() => null);
   workerTimer = setInterval(() => void processNextJob(), POLL_MS);
   workerTimer.unref?.();
   void processNextJob();

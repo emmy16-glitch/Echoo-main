@@ -1,0 +1,32 @@
+.lh-row-art-button {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.lh-row-info-button {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.lh-row-art-button:focus-visible,
+.lh-row-info-button:focus-visible,
+.lh-row-more:focus-visible {
+  outline: 2px solid var(--echoo-blue, #1769d3);
+  outline-offset: 2px;
+}
+
+.lh-row-art-button:focus-visible .lh-row-art-icon {
+  opacity: 1;
+}
+
+.lh-row-more:disabled,
+.lh-more-busy {
+  opacity: 0.5;
+  cursor: wait;
+}

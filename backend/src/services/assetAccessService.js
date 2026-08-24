@@ -6,10 +6,16 @@ export async function canAccessReplayAudio(audio, userId) {
   if (!audio || audio.isDeleted) return false;
   const ownerId = audio.artist?._id || audio.artist;
   if (userId && ownerId && String(ownerId) === String(userId)) return true;
-  if (audio.publicationStatus && audio.publicationStatus !== 'published') return false;
+
+  // Non-owners may only consume deliberately published assets. `isPublic` is a
+  // legacy compatibility flag and must never override the canonical publication
+  // and visibility fields on its own.
+  if (audio.publicationStatus !== 'published') return false;
+
   const visibility = audio.visibility || (audio.isPublic ? 'public' : 'private');
-  if (visibility === 'public') return true;
+  if (visibility === 'public') return audio.isPublic === true;
   if (visibility !== 'followers' || !userId || !ownerId) return false;
+
   const broadcast = audio.sourceBroadcast
     ? await Broadcast.findById(audio.sourceBroadcast).select('station creator')
     : null;

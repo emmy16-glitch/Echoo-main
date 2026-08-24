@@ -74,7 +74,11 @@ class LazyPageErrorBoundary extends Component {
   }
 
   retry = () => {
-    this.setState({ hasError: false });
+    // React.lazy caches a rejected import promise. Merely clearing the boundary
+    // state re-renders the same rejected promise and can trap the user in an
+    // immediate error loop. Reload the current route so the browser performs a
+    // fresh chunk request after the connection recovers.
+    window.location.reload();
   };
 
   render() {
@@ -214,6 +218,7 @@ const OnboardingFlow = () => {
           localStorage.setItem('echooProfileCompleted', 'true');
           setStage('role');
         }}
+        onSessionInvalid={() => setStage('register')}
       />
     );
   }
@@ -320,14 +325,14 @@ function App() {
   return (
     <BrowserRouter>
       <ImageCropProvider>
-        <EchooExperienceOrchestrator />
-        <EchooMobileNavigation />
-
-        <a className="echoo-skip-to-content" href="#echoo-main-content">
+        <a className="echoo-skip-to-content" href="#echoo-route-content">
           Skip to content
         </a>
 
-        <div id="echoo-main-content" tabIndex={-1}>
+        <EchooExperienceOrchestrator />
+        <EchooMobileNavigation />
+
+        <div id="echoo-route-content" tabIndex={-1}>
           <Routes>
             <Route path="/" element={<OnboardingFlow />} />
 

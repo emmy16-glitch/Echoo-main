@@ -1,0 +1,237 @@
+/* Seventh-pass exact-head browser-gate fixes.
+   This file is intentionally imported after every previous integrity layer.
+   Selectors are deliberately shell-scoped and high-specificity so lazy-loaded
+   reference CSS cannot re-introduce the failures found by the real Chromium
+   responsive sweep. */
+
+/* --------------------------------------------------------------------------
+   LISTENER — persistent player readability
+   -------------------------------------------------------------------------- */
+html body #root .echoo-listener-shell.echoo-app-shell .echoo-persistent-player .layout-player-volume > span,
+html body #root .echoo-listener-shell.echoo-app-shell .echoo-persistent-player .layout-player-time,
+html body #root .echoo-listener-shell.echoo-app-shell .echoo-persistent-player [class*="player-time"] {
+  min-width: 36px !important;
+  font-size: 11px !important;
+  line-height: 1.25 !important;
+  font-variant-numeric: tabular-nums !important;
+}
+
+/* Phone player: the previous responsive layer correctly reduced the transport
+   set to Previous / Play / Next, but the parent retained a desktop grid column.
+   That placed the third classless transport button beyond the 390px viewport.
+   Own the parent grid as well so all three controls stay physically in-view. */
+@media (max-width: 620px) {
+  html body #root .echoo-listener-shell.echoo-app-shell > .echoo-persistent-player.echoo-persistent-player {
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 148px !important;
+    grid-template-rows: 64px !important;
+    column-gap: 8px !important;
+    align-items: center !important;
+    padding: 0 8px !important;
+    overflow: hidden !important;
+  }
+
+  html body #root .echoo-listener-shell.echoo-app-shell > .echoo-persistent-player .layout-player-track {
+    grid-column: 1 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    overflow: hidden !important;
+  }
+
+  html body #root .echoo-listener-shell.echoo-app-shell > .echoo-persistent-player .layout-player-info {
+    min-width: 0 !important;
+    overflow: hidden !important;
+  }
+
+  html body #root .echoo-listener-shell.echoo-app-shell > .echoo-persistent-player .layout-player-controls {
+    grid-column: 2 !important;
+    justify-self: end !important;
+    width: 148px !important;
+    min-width: 148px !important;
+    max-width: 148px !important;
+    display: grid !important;
+    grid-template-columns: 40px 52px 40px !important;
+    gap: 8px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    transform: none !important;
+    overflow: hidden !important;
+  }
+
+  html body #root .echoo-listener-shell.echoo-app-shell > .echoo-persistent-player .layout-player-controls > button:nth-child(1),
+  html body #root .echoo-listener-shell.echoo-app-shell > .echoo-persistent-player .layout-player-controls > button:nth-child(5) {
+    display: none !important;
+  }
+
+  html body #root .echoo-listener-shell.echoo-app-shell > .echoo-persistent-player .layout-player-controls > button:nth-child(2),
+  html body #root .echoo-listener-shell.echoo-app-shell > .echoo-persistent-player .layout-player-controls > button:nth-child(3),
+  html body #root .echoo-listener-shell.echoo-app-shell > .echoo-persistent-player .layout-player-controls > button:nth-child(4) {
+    position: static !important;
+    display: grid !important;
+    place-items: center !important;
+    width: 40px !important;
+    min-width: 40px !important;
+    max-width: 40px !important;
+    height: 40px !important;
+    min-height: 40px !important;
+    max-height: 40px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    transform: none !important;
+  }
+
+  html body #root .echoo-listener-shell.echoo-app-shell > .echoo-persistent-player .layout-player-controls > button:nth-child(3) {
+    width: 52px !important;
+    min-width: 52px !important;
+    max-width: 52px !important;
+    height: 52px !important;
+    min-height: 52px !important;
+    max-height: 52px !important;
+  }
+
+  html body #root .echoo-listener-shell.echoo-app-shell > .echoo-persistent-player .layout-player-volume {
+    display: none !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   LISTENER — tablet Top Stations
+   -------------------------------------------------------------------------- */
+@media (min-width: 621px) and (max-width: 900px) {
+  html body #root .echoo-listener-shell.echoo-app-shell .ls-body,
+  html body #root .echoo-listener-shell.echoo-app-shell .ls-sidebar,
+  html body #root .echoo-listener-shell.echoo-app-shell .ls-top-card,
+  html body #root .echoo-listener-shell.echoo-app-shell .ls-top-list {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  html body #root .echoo-listener-shell.echoo-app-shell .ls-body {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  html body #root .echoo-listener-shell.echoo-app-shell .ls-sidebar {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  html body #root .echoo-listener-shell.echoo-app-shell .ls-top-row {
+    display: grid !important;
+    grid-template-columns: 22px 44px minmax(160px, 1fr) !important;
+    grid-template-rows: auto auto !important;
+    column-gap: 10px !important;
+    row-gap: 5px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    align-items: center !important;
+  }
+
+  html body #root .echoo-listener-shell.echoo-app-shell .ls-top-row > .ls-rank {
+    grid-column: 1 !important;
+    grid-row: 1 / span 2 !important;
+  }
+
+  html body #root .echoo-listener-shell.echoo-app-shell .ls-top-row > .ls-top-art {
+    grid-column: 2 !important;
+    grid-row: 1 / span 2 !important;
+  }
+
+  html body #root .echoo-listener-shell.echoo-app-shell .ls-top-row > .ls-top-info {
+    grid-column: 3 !important;
+    grid-row: 1 !important;
+    width: 100% !important;
+    min-width: 160px !important;
+    max-width: 100% !important;
+    overflow: hidden !important;
+  }
+
+  html body #root .echoo-listener-shell.echoo-app-shell .ls-top-row .ls-top-name {
+    display: block !important;
+    width: 100% !important;
+    min-width: 160px !important;
+    max-width: 100% !important;
+    min-height: 32px !important;
+    height: 32px !important;
+    padding: 0 !important;
+    writing-mode: horizontal-tb !important;
+    text-orientation: mixed !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    overflow-wrap: normal !important;
+    word-break: normal !important;
+    line-height: 32px !important;
+  }
+
+  html body #root .echoo-listener-shell.echoo-app-shell .ls-top-row > .ls-top-follow {
+    grid-column: 3 !important;
+    grid-row: 2 !important;
+    justify-self: start !important;
+    width: auto !important;
+    min-width: 78px !important;
+    max-width: 100% !important;
+    min-height: 34px !important;
+    margin: 0 !important;
+    white-space: nowrap !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   CREATOR — mobile navigation
+   -------------------------------------------------------------------------- */
+@media (max-width: 760px) {
+  html body #root .studio-final-shell.studio-page .studio-navigation .studio-nav-item,
+  html body #root .studio-final-shell.echoo-app-shell .studio-navigation .studio-nav-item {
+    min-width: 76px !important;
+    flex: 0 0 76px !important;
+    min-height: 54px !important;
+    font-size: 11px !important;
+    line-height: 1.15 !important;
+  }
+
+  html body #root .studio-final-shell.studio-page .studio-navigation .studio-nav-item > span:last-child,
+  html body #root .studio-final-shell.echoo-app-shell .studio-navigation .studio-nav-item > span:last-child {
+    display: block !important;
+    max-width: 72px !important;
+    font-size: 11px !important;
+    line-height: 1.15 !important;
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+  }
+}
+
+/* Creator Home LIVE badge is operational state, not decorative microcopy. */
+html body #root .studio-final-shell .studio-view .ehome.ehome-reference .ehome-primary-station-art > span {
+  display: inline-flex !important;
+  align-items: center !important;
+  min-height: 24px !important;
+  font-size: 11px !important;
+  line-height: 1.2 !important;
+}
+
+/* --------------------------------------------------------------------------
+   CREATOR — Broadcast Studio readiness/monitoring status
+   -------------------------------------------------------------------------- */
+html body #root .studio-final-shell .studio-view .ebsx.ecbs .ecbs-monitor-card .ecbs-monitor-actions span > strong,
+html body #root .studio-final-shell .studio-view .ebsx.ecbs .ecbs-monitor-card .ecbs-monitor-actions span > small,
+html body #root .studio-final-shell .studio-view .ebsx.ecbs .ecbs-transcript-ready-card > header > span,
+html body #root .studio-final-shell .studio-view .ebsx.ecbs .ecbs-studio-status > strong,
+html body #root .studio-final-shell .studio-view .ebsx.ecbs .ecbs-studio-status > span,
+html body #root .studio-final-shell .studio-view .ebsx.ecbs .ecbs-setup-action small {
+  font-size: 11px !important;
+  line-height: 1.4 !important;
+}
+
+html body #root .studio-final-shell .studio-view .ebsx.ecbs .ecbs-transcript-ready-card > header > span {
+  min-height: 28px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  white-space: nowrap !important;
+}

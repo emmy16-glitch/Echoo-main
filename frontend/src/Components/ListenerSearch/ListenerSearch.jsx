@@ -191,6 +191,7 @@ const ListenerSearch = () => {
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Search voices, stations, audio, playlists..."
+          aria-label="Search Echoo"
           autoFocus
         />
       </div>
@@ -297,9 +298,9 @@ const ListenerSearch = () => {
           <div className="listener-search-results">
             {data.tracks.map((item) => {
               const id = String(item.id || item._id || '');
-              const playing =
-                isPlaying && String(currentTrack?.id || '') === id;
+              const playing = isPlaying && String(currentTrack?.id || '') === id;
               const saved = savedIds.has(id);
+              const title = item.title || 'Untitled Audio';
 
               return (
                 <article className="listener-search-result batch1-track-result" key={id}>
@@ -307,12 +308,13 @@ const ListenerSearch = () => {
                     type="button"
                     className="search-result-cover"
                     onClick={() => handlePlay(item)}
+                    aria-label={`${playing ? 'Pause' : 'Play'} ${title}`}
                   >
                     {item.coverArt ? <img src={item.coverArt} alt="" /> : <FaHeadphones />}
                   </button>
 
                   <div className="search-result-main">
-                    <h3>{item.title}</h3>
+                    <h3>{title}</h3>
                     <p>
                       {item.artistName ||
                         item.artist?.displayName ||
@@ -337,6 +339,7 @@ const ListenerSearch = () => {
                     type="button"
                     className="search-result-play"
                     onClick={() => handlePlay(item)}
+                    aria-label={`${playing ? 'Pause' : 'Play'} ${title}`}
                   >
                     {playing ? <FaPause /> : <FaPlay />}
                   </button>
@@ -365,11 +368,17 @@ const ListenerSearch = () => {
                 </div>
                 <div>
                   <strong>{playlist.name}</strong>
-                  <small>
-                    {playlist.owner?.displayName || playlist.owner?.username || 'Echoo'}
-                  </small>
+                  <small>{playlist.owner?.displayName || playlist.owner?.username || 'Echoo'}</small>
                   <p>{playlist.description || `${playlist.trackCount || 0} tracks`}</p>
                 </div>
+                <button
+                  type="button"
+                  className="batch1-open-profile"
+                  onClick={() => navigate('/listen/playlist')}
+                  aria-label={`Open playlists to find ${playlist.name || 'this playlist'}`}
+                >
+                  Open playlists
+                </button>
               </article>
             ))}
           </div>

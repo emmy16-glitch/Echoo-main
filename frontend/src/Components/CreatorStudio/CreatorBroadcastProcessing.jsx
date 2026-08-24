@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { FaCheck, FaClock, FaExclamationTriangle, FaPen, FaSave } from 'react-icons/fa';
+import { FaCheck, FaClock, FaExclamationTriangle, FaPen, FaSave, FaSyncAlt } from 'react-icons/fa';
 import batch3Service from '../../services/batch3Service';
 import transcriptService from '../../services/transcriptService';
+import realtimeService from '../../services/realtimeService';
 
 const labels = {
   pending: 'Waiting',
@@ -18,6 +19,19 @@ const StatusIcon = ({ status }) => status === 'ready' || status === 'ready_for_r
   ? <FaCheck />
   : status === 'failed' ? <FaExclamationTriangle /> : <FaClock />;
 
+const transcriptJobLabel = (jobType) => ({
+  transcript_completion: 'Preparing the transcript draft',
+  transcript_improvement: 'Checking and preparing the draft',
+  transcript_quality_chunk: 'Processing the final audio',
+}[jobType] || 'Preparing transcript assets');
+
+const activityTime = (value) => {
+  if (!value) return 'Waiting for an update';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Waiting for an update';
+  return `Updated ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
+};
+
 const CreatorBroadcastProcessing = ({ broadcast: initialBroadcast, onStartAnother }) => {
   const [processing, setProcessing] = useState({ broadcast: initialBroadcast, jobs: [] });
   const [segments, setSegments] = useState([]);
@@ -27,6 +41,7 @@ const CreatorBroadcastProcessing = ({ broadcast: initialBroadcast, onStartAnothe
   const [busy, setBusy] = useState('');
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
+  const [realtimeState, setRealtimeState] = useState('connecting');
   const broadcastId = initialBroadcast?.id || initialBroadcast?._id;
   const broadcast = processing.broadcast || initialBroadcast || {};
   const status = broadcast.assetStatus || {};
@@ -52,11 +67,60 @@ const CreatorBroadcastProcessing = ({ broadcast: initialBroadcast, onStartAnothe
     return () => window.clearInterval(timer);
   }, [refresh]);
 
+  useEffect(() => {
+    if (!broadcastId) return undefined;
+    let active = true;
+    let socket = null;
+
+    realtimeService.joinBroadcast(broadcastId).then((connectedSocket) => {
+      if (!active) return;
+      socket = connectedSocket;
+      setRealtimeState('live');
+      const onProcessing = (payload) => {
+        if (String(payload?.broadcastId) !== String(broadcastId)) return;
+        setProcessing((current) => ({
+          ...current,
+          broadcast: {
+            ...(current.broadcast || initialBroadcast),
+            assetStatus: payload.assetStatus || current.broadcast?.assetStatus,
+            assetVisibility: payload.assetVisibility || current.broadcast?.assetVisibility,
+            replayAudio: payload.replayAudioId ?? current.broadcast?.replayAudio,
+          },
+          jobs: Array.isArray(payload.jobs) ? payload.jobs : current.jobs,
+        }));
+      };
+      const onTranscriptStatus = (payload) => {
+        if (String(payload?.broadcastId) !== String(broadcastId)) return;
+        setProcessing((current) => ({
+          ...current,
+          broadcast: {
+            ...(current.broadcast || initialBroadcast),
+            transcriptState: payload.state || current.broadcast?.transcriptState,
+          },
+        }));
+      };
+      connectedSocket.on('broadcast:processing', onProcessing);
+      connectedSocket.on('transcript:status', onTranscriptStatus);
+      socket.__echooProcessingMonitorCleanup = () => {
+        connectedSocket.off('broadcast:processing', onProcessing);
+        connectedSocket.off('transcript:status', onTranscriptStatus);
+      };
+    }).catch(() => {
+      if (active) setRealtimeState('polling');
+    });
+
+    return () => {
+      active = false;
+      socket?.__echooProcessingMonitorCleanup?.();
+      realtimeService.leaveBroadcast(broadcastId).catch(() => {});
+    };
+  }, [broadcastId, initialBroadcast]);
+
   const transcriptReady = ['ready_for_review', 'editing', 'published'].includes(status.transcript);
   useEffect(() => {
     if (!transcriptReady || !broadcastId) return;
     transcriptService.getBroadcast(broadcastId, { final: true, limit: 200 })
-      .then((response) => setSegments(response?.data || []))
+      .then((response) => setSegments((response?.data || []).filter((segment) => !segment.isHidden)))
       .catch((loadError) => setError(loadError?.message || 'Could not load the transcript draft.'));
   }, [broadcastId, transcriptReady]);
 
@@ -65,6 +129,39 @@ const CreatorBroadcastProcessing = ({ broadcast: initialBroadcast, onStartAnothe
     ['ready_for_review', 'editing', 'published', 'disabled', 'failed'].includes(status.transcript) &&
     !processing.jobs?.some((job) => ['queued', 'processing'].includes(job.status))
   ), [processing.jobs, status.audio, status.transcript]);
+
+  const transcriptJobs = useMemo(
+    () => (processing.jobs || []).filter((job) => String(job?.jobType || '').startsWith('transcript_')),
+    [processing.jobs]
+  );
+  const activeTranscriptJob = transcriptJobs.find((job) => ['processing', 'queued'].includes(job.status));
+  const failedTranscriptJob = transcriptJobs.find((job) => job.status === 'failed');
+  const transcriptProgress = transcriptJobs.length
+    ? Math.round(transcriptJobs.reduce((total, job) => total + Math.max(0, Math.min(100, Number(job.progress) || 0)), 0) / transcriptJobs.length)
+    : status.transcript === 'ready_for_review' || status.transcript === 'editing' || status.transcript === 'published'
+      ? 100
+      : 0;
+  const transcriptActivity = failedTranscriptJob
+    ? failedTranscriptJob.error || 'Transcript processing needs attention.'
+    : activeTranscriptJob
+      ? transcriptJobLabel(activeTranscriptJob.jobType)
+      : status.transcript === 'ready_for_review'
+        ? 'Your transcript draft is ready to review.'
+        : status.transcript === 'editing'
+          ? 'Your transcript is open for edits.'
+          : status.transcript === 'published'
+            ? 'Your transcript is published.'
+            : 'Waiting for the final recording to be available.';
+  const transcriptLastUpdated = [...transcriptJobs]
+    .map((job) => job.completedAt || job.startedAt || job.updatedAt || job.createdAt)
+    .filter(Boolean)
+    .sort((first, second) => new Date(second).getTime() - new Date(first).getTime())[0];
+  const transcriptSteps = [
+    ['recording', 'Final recording', status.audio === 'ready' ? 'complete' : status.audio === 'failed' ? 'failed' : 'active'],
+    ['draft', 'Transcript draft', failedTranscriptJob ? 'failed' : transcriptJobs.some((job) => job.jobType === 'transcript_completion' && job.status === 'completed') ? 'complete' : activeTranscriptJob?.jobType === 'transcript_completion' ? 'active' : 'pending'],
+    ['review', 'Quality check', failedTranscriptJob ? 'failed' : ['ready_for_review', 'editing', 'published'].includes(status.transcript) ? 'complete' : activeTranscriptJob?.jobType === 'transcript_improvement' ? 'active' : 'pending'],
+    ['ready', 'Ready to review', status.transcript === 'failed' ? 'failed' : ['ready_for_review', 'editing', 'published'].includes(status.transcript) ? 'complete' : 'pending'],
+  ];
 
   const updateVisibility = async () => {
     try {
@@ -136,6 +233,28 @@ const CreatorBroadcastProcessing = ({ broadcast: initialBroadcast, onStartAnothe
       </section>
 
       <p className="ecbs-processing-note">{status.audio === 'ready' ? 'Your recording is safely stored. You can close this page; processing will continue.' : 'Keep this page open while the browser finishes saving the final recording. Transcript processing continues on the backend.'}</p>
+
+      <section className={`ecbs-transcript-monitor ${status.transcript === 'failed' ? 'has-error' : ''}`} aria-labelledby="transcript-monitor-title" aria-live="polite">
+        <header>
+          <div>
+            <span>LIVE PROCESSING MONITOR</span>
+            <h2 id="transcript-monitor-title">Transcript progress</h2>
+            <p>{transcriptActivity}</p>
+          </div>
+          <div className="ecbs-transcript-monitor__meta">
+            <span className={`ecbs-transcript-monitor__connection ${realtimeState}`}>{realtimeState === 'live' ? 'Live updates' : realtimeState === 'polling' ? 'Checking every 3s' : 'Connecting'}</span>
+            <button type="button" onClick={refresh} disabled={busy === 'refresh'} aria-label="Refresh transcript processing status"><FaSyncAlt /> Refresh</button>
+          </div>
+        </header>
+        <div className="ecbs-transcript-monitor__progress" role="progressbar" aria-label="Transcript processing progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow={transcriptProgress}>
+          <span style={{ width: `${transcriptProgress}%` }} />
+        </div>
+        <div className="ecbs-transcript-monitor__summary"><strong>{transcriptProgress}% complete</strong><span>{activityTime(transcriptLastUpdated)}</span></div>
+        <ol className="ecbs-transcript-monitor__steps">
+          {transcriptSteps.map(([id, label, state]) => <li key={id} className={state}><i>{state === 'complete' ? <FaCheck /> : state === 'failed' ? <FaExclamationTriangle /> : <FaClock />}</i><span>{label}</span></li>)}
+        </ol>
+        {failedTranscriptJob && <div className="ecbs-transcript-monitor__error"><FaExclamationTriangle /><div><strong>Processing stopped</strong><p>{failedTranscriptJob.error || 'The transcript worker reported an error. Keep this panel open or refresh after resolving the worker issue.'}</p></div></div>}
+      </section>
 
       <section className="ecbs-publish-panel">
         <div><h2>Your replay</h2><p>Audio can be published before the transcript is finished.</p></div>

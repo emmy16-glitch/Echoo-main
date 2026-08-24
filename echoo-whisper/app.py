@@ -10,7 +10,7 @@ load_dotenv(BASE_DIR / ".env")
 from fastapi import FastAPI, WebSocket
 from pythonjsonlogger.json import JsonFormatter
 
-from model_loader import model_runtime
+from model_loader import model_runtime, quality_model_runtime
 from websocket_server import transcription_websocket
 
 handler = logging.StreamHandler()
@@ -26,6 +26,9 @@ app = FastAPI(title="Echoo Whisper Flow", docs_url=None, redoc_url=None)
 
 @app.on_event("startup")
 async def load_model_once() -> None:
+    # Load only the low-latency model eagerly. A dedicated quality model is
+    # intentionally lazy so deployments do not pay the extra memory cost unless
+    # the second-pass worker actually needs it.
     model_runtime.load()
 
 
@@ -39,6 +42,8 @@ async def readiness() -> dict:
     return {
         "status": "ready" if model_runtime.ready else "loading",
         "model": model_runtime.model_name,
+        "qualityModel": quality_model_runtime.model_name,
+        "qualityModelReady": quality_model_runtime.ready,
         "ready": model_runtime.ready,
     }
 
@@ -46,4 +51,3 @@ async def readiness() -> dict:
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket) -> None:
     await transcription_websocket(websocket)
-

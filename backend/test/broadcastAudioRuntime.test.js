@@ -330,6 +330,9 @@ test('audio JSON hides storage keys and returns only scoped playback URLs', () =
     mimeType: 'audio/wav',
     duration: 300,
     isPublic: true,
+    visibility: 'public',
+    publicationStatus: 'published',
+    publishedAt: new Date(),
   });
 
   const publicJson = publicAudio.toJSON();
@@ -352,6 +355,8 @@ test('audio JSON hides storage keys and returns only scoped playback URLs', () =
     mimeType: 'audio/wav',
     duration: 60,
     isPublic: false,
+    visibility: 'private',
+    publicationStatus: 'draft',
   });
 
   const privateJson = privateAudio.toJSON();

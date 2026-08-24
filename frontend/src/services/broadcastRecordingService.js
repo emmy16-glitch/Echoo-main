@@ -2,6 +2,7 @@ import {
   startEchooMasterPcmCapture,
   supportsEchooMasterPcmCapture,
 } from './echooMixerService.js';
+import { apiFetch } from './api.js';
 
 const RECORDING_EVENT = 'echoo:broadcast-recording-ready';
 
@@ -15,6 +16,12 @@ const OPFS_DIRECTORY = 'echoo-live-recordings';
 const STALE_OPFS_FILE_MS = 24 * 60 * 60 * 1000;
 
 const OPUS_FALLBACK_BITRATE = 256000;
+const QUALITY_CHUNK_SECONDS = 10;
+const QUALITY_CHUNK_BIT_DEPTH = 24;
+const QUALITY_CHUNK_CHANNELS = 2;
+const QUALITY_CHUNK_UPLOAD_RETRIES = 5;
+const QUALITY_CHUNK_START_RETRIES = 3;
+const QUALITY_CHUNK_COMPLETE_RETRIES = 5;
 
 let activeRecording = null;
 let pendingRecording = null;
@@ -107,6 +114,170 @@ export const createWavHeader = ({
   return new Uint8Array(buffer);
 };
 
+const sleep = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
+
+const uploadQualityChunk = async ({ recording, samples, startMs, endMs, chunkIndex }) => {
+  const pcm = floatToPcm24(samples);
+  const header = createWavHeader({
+    dataBytes: pcm.byteLength,
+    sampleRate: recording.sampleRate,
+    channels: QUALITY_CHUNK_CHANNELS,
+    bitDepth: QUALITY_CHUNK_BIT_DEPTH,
+  });
+  const form = new FormData();
+  form.append('chunk', new Blob([header, pcm], { type: WAV_MIME_TYPE }), `chunk-${chunkIndex}.wav`);
+  form.append('chunkId', `${recording.broadcastId}-${chunkIndex}`);
+  form.append('chunkIndex', String(chunkIndex));
+  form.append('startMs', String(Math.round(startMs)));
+  form.append('endMs', String(Math.round(endMs)));
+  form.append('sampleRate', String(recording.sampleRate));
+  form.append('channels', String(QUALITY_CHUNK_CHANNELS));
+  form.append('bitDepth', String(QUALITY_CHUNK_BIT_DEPTH));
+
+  let lastError = null;
+  for (let attempt = 0; attempt < QUALITY_CHUNK_UPLOAD_RETRIES; attempt += 1) {
+    if (recording.qualityChunkDisabled) throw new Error('Quality chunk upload was cancelled');
+    try {
+      const response = await apiFetch(`/broadcasts/${recording.broadcastId}/recording-chunks`, {
+        method: 'POST',
+        body: form,
+        isFormData: true,
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(data?.error?.message || `Chunk upload failed (${response.status})`);
+      console.info('[Echoo Recording] quality chunk uploaded', {
+        broadcastId: recording.broadcastId,
+        chunkIndex,
+        startMs,
+        endMs,
+      });
+      return data?.data || data;
+    } catch (error) {
+      lastError = error;
+      if (recording.qualityChunkDisabled) throw error;
+      if (attempt < QUALITY_CHUNK_UPLOAD_RETRIES - 1) await sleep(Math.min(15_000, 500 * (2 ** attempt)));
+    }
+  }
+  throw lastError || new Error('Quality chunk upload failed');
+};
+
+const flushQualityChunk = async (recording, { force = false } = {}) => {
+  if (!recording.qualityChunkStarted || recording.qualityChunkDisabled) return;
+  const targetSamples = Math.max(1, Math.round(recording.sampleRate * QUALITY_CHUNK_SECONDS * QUALITY_CHUNK_CHANNELS));
+  while (recording.qualitySampleCount >= targetSamples || (force && recording.qualitySampleCount > 0)) {
+    const take = recording.qualitySampleCount >= targetSamples ? targetSamples : recording.qualitySampleCount;
+    const samples = new Float32Array(take);
+    let written = 0;
+    while (written < take && recording.qualityBuffers.length) {
+      const current = recording.qualityBuffers[0];
+      const needed = take - written;
+      const copyCount = Math.min(needed, current.length);
+      samples.set(current.subarray(0, copyCount), written);
+      written += copyCount;
+      recording.qualitySampleCount -= copyCount;
+      if (copyCount === current.length) recording.qualityBuffers.shift();
+      else recording.qualityBuffers[0] = current.subarray(copyCount);
+    }
+    const chunkIndex = recording.qualityChunkIndex;
+    recording.qualityChunkIndex += 1;
+    const startMs = recording.qualityCursorMs;
+    const endMs = startMs + (take * 1000) / (recording.sampleRate * QUALITY_CHUNK_CHANNELS);
+    recording.qualityCursorMs = endMs;
+    recording.qualityChain = recording.qualityChain
+      .then(() => uploadQualityChunk({ recording, samples, startMs, endMs, chunkIndex }))
+      .catch((error) => {
+        if (recording.qualityChunkDisabled) return;
+        recording.qualityChunkErrors.push({ chunkIndex, message: error?.message || String(error) });
+        console.error('[Echoo Recording] quality chunk upload failed', { broadcastId: recording.broadcastId, chunkIndex, error: error?.message || error });
+      });
+  }
+};
+
+const startQualityChunking = async (recording) => {
+  let lastError = null;
+  for (let attempt = 0; attempt < QUALITY_CHUNK_START_RETRIES; attempt += 1) {
+    try {
+      const response = await apiFetch(`/broadcasts/${recording.broadcastId}/recording-chunks/start`, {
+        method: 'POST',
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.error?.message || `Could not start quality chunking (${response.status})`);
+      }
+      recording.qualityChunkStarted = true;
+      void flushQualityChunk(recording);
+      return true;
+    } catch (error) {
+      lastError = error;
+      if (attempt < QUALITY_CHUNK_START_RETRIES - 1) await sleep(300 + attempt * 700);
+    }
+  }
+  throw lastError || new Error('Could not start quality chunking');
+};
+
+const completeQualityChunks = async (
+  recording,
+  { force = false, uploadErrorsOverride = null } = {}
+) => {
+  if (!recording?.broadcastId || (!recording.qualityChunkStarted && !force)) return false;
+
+  const uploadErrors = uploadErrorsOverride == null
+    ? Number(recording.qualityChunkErrors?.length || 0)
+    : Math.max(0, Number(uploadErrorsOverride) || 0);
+  let lastError = null;
+
+  for (let attempt = 0; attempt < QUALITY_CHUNK_COMPLETE_RETRIES; attempt += 1) {
+    try {
+      const response = await apiFetch(`/broadcasts/${recording.broadcastId}/recording-chunks/complete`, {
+        method: 'POST',
+        body: JSON.stringify({
+          qualityChunkCount: Number(recording.qualityChunkIndex ?? recording.qualityChunkCount) || 0,
+          qualityChunkUploadErrors: uploadErrors,
+        }),
+      });
+      const data = await response.json().catch(() => null);
+
+      // A force-close is used after a possibly-lost start response. If the start
+      // never reached the backend, there is simply no durable session to close.
+      if (
+        force &&
+        response.status === 409 &&
+        data?.error?.code === 'QUALITY_CHUNKING_NOT_STARTED'
+      ) {
+        recording.qualityCompletionPending = false;
+        recording.qualityCompletionError = '';
+        return false;
+      }
+
+      if (!response.ok) {
+        throw new Error(data?.error?.message || `Could not close quality chunk uploads (${response.status})`);
+      }
+
+      recording.qualityCompletionPending = false;
+      recording.qualityCompletionError = '';
+      return true;
+    } catch (error) {
+      lastError = error;
+      if (attempt < QUALITY_CHUNK_COMPLETE_RETRIES - 1) {
+        await sleep(Math.min(15_000, 500 * (2 ** attempt)));
+      }
+    }
+  }
+
+  recording.qualityCompletionPending = true;
+  recording.qualityCompletionError = lastError?.message || 'Could not close quality chunk uploads';
+  throw lastError || new Error(recording.qualityCompletionError);
+};
+
+const appendQualityPcm = (recording, buffer) => {
+  if (!buffer || recording.qualityChunkDisabled) return;
+  const samples = new Float32Array(buffer);
+  if (!samples.length) return;
+  recording.qualityBuffers.push(samples);
+  recording.qualitySampleCount += samples.length;
+  if (recording.qualityChunkStarted) void flushQualityChunk(recording);
+};
+
 const safeRemoveOpfsEntry = async (directory, name) => {
   if (!directory || !name) return;
   try {
@@ -158,8 +329,6 @@ const openLosslessRecordingFile = async (broadcastId) => {
   const fileHandle = await directory.getFileHandle(storageName, { create: true });
   const writable = await fileHandle.createWritable();
 
-  // Reserve the RIFF header. The real sizes are patched after the final PCM
-  // worklet chunk has been flushed.
   await writable.write(new Uint8Array(44));
 
   return { directory, fileHandle, writable, storageName };
@@ -170,10 +339,28 @@ const stopLosslessRecording = async (recording, { keep = true } = {}) => {
 
   try {
     if (recording.capture) {
-      // stop() flushes the AudioWorklet's final PCM chunk before disconnecting
-      // the recorder branch from the SAME master bus used by LiveKit.
       await recording.capture.stop();
       recording.capture = null;
+    }
+
+    if (keep) {
+      await flushQualityChunk(recording, { force: true });
+      await recording.qualityChain;
+      try {
+        await completeQualityChunks(recording);
+      } catch (error) {
+        // Chunk audio has already been uploaded at this point. Keep completion
+        // acknowledgement separate from chunk-loss errors so a later retry can
+        // safely close the same idempotent server session without falsely
+        // reporting missing audio.
+        recording.qualityCompletionPending = true;
+        recording.qualityCompletionError = error?.message || String(error);
+        console.error('[Echoo Recording] quality chunk completion acknowledgement failed', error?.message || error);
+      }
+    } else {
+      recording.qualityChunkDisabled = true;
+      recording.qualityBuffers = [];
+      recording.qualitySampleCount = 0;
     }
 
     await recording.writeChain;
@@ -221,6 +408,10 @@ const stopLosslessRecording = async (recording, { keep = true } = {}) => {
       endedAt: new Date().toISOString(),
       filename: `${cleanFilenamePart(recording.title)}-${recordingDatePart(recording.startedAt)}.wav`,
       limitReached: Boolean(recording.limitReached),
+      qualityChunkCount: recording.qualityChunkIndex,
+      qualityChunkErrors: recording.qualityChunkErrors,
+      qualityCompletionPending: Boolean(recording.qualityCompletionPending),
+      qualityCompletionError: recording.qualityCompletionError || '',
       dispose: () =>
         safeRemoveOpfsEntry(recording.directory, recording.storageName),
     };
@@ -258,6 +449,16 @@ const startLosslessRecording = async ({ broadcastId, title }) => {
     limitReached: false,
     writeError: null,
     writeChain: Promise.resolve(),
+    qualityBuffers: [],
+    qualitySampleCount: 0,
+    qualityChunkIndex: 0,
+    qualityCursorMs: 0,
+    qualityChain: Promise.resolve(),
+    qualityChunkErrors: [],
+    qualityChunkDisabled: false,
+    qualityChunkStarted: false,
+    qualityCompletionPending: false,
+    qualityCompletionError: '',
     ...storage,
   };
 
@@ -278,6 +479,7 @@ const startLosslessRecording = async ({ broadcastId, title }) => {
         }
 
         recording.dataBytes += pcm.byteLength;
+        appendQualityPcm(recording, buffer);
         recording.writeChain = recording.writeChain
           .then(() => recording.writable.write(pcm))
           .catch((error) => {
@@ -365,6 +567,10 @@ const stopFallbackRecording = (recording, { keep = true } = {}) =>
         startedAt: new Date(recording.startedAt).toISOString(),
         endedAt: new Date().toISOString(),
         filename: `${cleanFilenamePart(recording.title)}-${recordingDatePart(recording.startedAt)}.${extension}`,
+        qualityChunkCount: 0,
+        qualityChunkErrors: [],
+        qualityCompletionPending: false,
+        qualityCompletionError: '',
       });
     };
 
@@ -454,6 +660,7 @@ const activeRecordingSnapshot = (recording) => ({
   sampleRate: recording?.sampleRate || null,
   channels: recording?.mode === 'lossless-wav' ? WAV_CHANNELS : 2,
   bitDepth: recording?.mode === 'lossless-wav' ? WAV_BIT_DEPTH : null,
+  qualityChunking: Boolean(recording?.qualityChunkStarted && !recording?.qualityChunkDisabled),
 });
 
 export const getBroadcastRecordingState = () => ({
@@ -480,6 +687,7 @@ export const getBroadcastRecordingState = () => ({
   sampleRate: activeRecording?.sampleRate || null,
   channels: activeRecording?.mode === 'lossless-wav' ? WAV_CHANNELS : null,
   bitDepth: activeRecording?.mode === 'lossless-wav' ? WAV_BIT_DEPTH : null,
+  qualityChunking: Boolean(activeRecording?.qualityChunkStarted && !activeRecording?.qualityChunkDisabled),
 });
 
 export const ensureBroadcastRecording = async ({
@@ -503,13 +711,35 @@ export const ensureBroadcastRecording = async ({
   }
 
   try {
-    // Primary path: capture PCM directly from Echoo's post-limiter master bus
-    // and stream it to Origin Private File System. Long broadcasts therefore do
-    // not accumulate raw 24-bit PCM in the JavaScript heap.
     activeRecording = await startLosslessRecording({
       broadcastId: id,
       title,
     });
+    try {
+      await startQualityChunking(activeRecording);
+    } catch (error) {
+      const startMessage = error?.message || String(error);
+      activeRecording.qualityChunkErrors.push({ chunkIndex: -2, message: startMessage });
+
+      // The server may have accepted the idempotent start while all responses
+      // were lost. Best-effort force-close records that ambiguous session as a
+      // failed quality path instead of leaving qualityChunkingStartedAt open
+      // forever. A 409 NOT_STARTED is treated as a harmless no-op.
+      try {
+        await completeQualityChunks(activeRecording, {
+          force: true,
+          uploadErrorsOverride: Math.max(1, activeRecording.qualityChunkErrors.length),
+        });
+      } catch (completionError) {
+        activeRecording.qualityCompletionPending = true;
+        activeRecording.qualityCompletionError = completionError?.message || String(completionError);
+      }
+
+      activeRecording.qualityChunkDisabled = true;
+      activeRecording.qualityBuffers = [];
+      activeRecording.qualitySampleCount = 0;
+      console.warn('[Echoo Recording] live quality chunking is disabled for this take:', startMessage);
+    }
   } catch (losslessError) {
     console.warn(
       '[Echoo Recording] disk-backed lossless master capture could not start:',
@@ -517,9 +747,6 @@ export const ensureBroadcastRecording = async ({
     );
 
     try {
-      // Compatibility path: if AudioWorklet or browser-backed file storage is
-      // unavailable, keep a 256 kbps Opus take rather than risking an enormous
-      // in-memory PCM buffer or losing the recording entirely.
       activeRecording = startFallbackRecording({
         broadcastId: id,
         mediaTrack,
@@ -552,6 +779,27 @@ export const finishBroadcastRecording = async (broadcastId) => {
 
   pendingRecording = finished;
   return finished;
+};
+
+export const retryBroadcastQualityCompletion = async (recording) => {
+  if (!recording?.qualityCompletionPending || !recording?.broadcastId) return true;
+
+  const retryState = {
+    broadcastId: recording.broadcastId,
+    qualityChunkStarted: true,
+    qualityChunkIndex: Number(recording.qualityChunkCount) || 0,
+    qualityChunkErrors: Array.isArray(recording.qualityChunkErrors) ? recording.qualityChunkErrors : [],
+    qualityCompletionPending: true,
+    qualityCompletionError: recording.qualityCompletionError || '',
+  };
+
+  await completeQualityChunks(retryState, {
+    force: true,
+    uploadErrorsOverride: retryState.qualityChunkErrors.length,
+  });
+  recording.qualityCompletionPending = false;
+  recording.qualityCompletionError = '';
+  return true;
 };
 
 export const announceFinishedBroadcastRecording = ({ recording, broadcast }) => {
@@ -589,8 +837,6 @@ export const clearPendingBroadcastRecording = (broadcastId = '') => {
   if (!id || pendingRecording?.broadcastId === id) {
     const recording = pendingRecording;
     pendingRecording = null;
-    // The caller only clears a pending recording after upload or explicit
-    // discard, so remove its OPFS temporary file without blocking UI cleanup.
     void recording?.dispose?.();
   }
 };
@@ -610,6 +856,7 @@ export const ECHOO_BROADCAST_MASTER_FORMAT = {
 export default {
   ensureBroadcastRecording,
   finishBroadcastRecording,
+  retryBroadcastQualityCompletion,
   announceFinishedBroadcastRecording,
   discardBroadcastRecording,
   clearPendingBroadcastRecording,

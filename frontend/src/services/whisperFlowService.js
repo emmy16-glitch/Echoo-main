@@ -177,32 +177,52 @@ export const getWhisperFlowState = () => ({
   lastAcknowledgedFrame: Number(activeSession?.lastAcknowledgedFrame ?? -1),
 });
 
+const drainForBackgroundHandoff = async (session, timeoutMs = 2000) => {
+  const deadline = Date.now() + timeoutMs;
+  while (session.frames.length && session.socket.connected && Date.now() < deadline) {
+    await drainFrames(session);
+    if (session.frames.length) {
+      await new Promise((resolve) => window.setTimeout(resolve, 50));
+    }
+  }
+
+  if (session.frames.length) {
+    console.warn('[Echoo Transcript] creator handoff left buffered PCM frames', {
+      broadcastId: session.broadcastId,
+      sessionId: session.id,
+      bufferedFrames: session.frames.length,
+    });
+  }
+};
+
 export const stopWhisperFlowTranscription = async ({ finalize = true } = {}) => {
   const session = activeSession;
   if (!session) return;
   session.stopping = true;
-  publishWhisperHealth({ status: finalize ? 'finalizing' : 'disabled' });
+  publishWhisperHealth({ status: finalize ? 'finalizing' : 'handoff' });
 
+  // Stop producing new PCM first, then deliver every already-captured frame we
+  // can acknowledge. The backend owns the long-running quality/finalization
+  // work after End Live; the creator must not lose the last seconds merely
+  // because the browser producer was detached.
   if (session.processor?.port) session.processor.port.onmessage = null;
   try { session.source.disconnect(); } catch { /* already disconnected */ }
   try { session.processor.disconnect(); } catch { /* already disconnected */ }
   try { session.silentGain.disconnect(); } catch { /* already disconnected */ }
   try { session.track.stop(); } catch { /* already stopped */ }
   try { await session.context.close(); } catch { /* already closed */ }
+
+  await drainForBackgroundHandoff(session);
+
   session.socket.off('connect', session.onConnect);
   session.socket.off('disconnect', session.onDisconnect);
 
   if (!finalize || !session.configured) {
     if (activeSession === session) activeSession = null;
     publishWhisperHealth({
-      status: 'disabled', broadcastId: null, sessionId: null, bufferedFrames: 0,
+      status: 'disabled', broadcastId: null, sessionId: null, bufferedFrames: session.frames.length,
     });
     return;
-  }
-  const deadline = Date.now() + 2000;
-  while (session.frames.length && session.socket.connected && Date.now() < deadline) {
-    await drainFrames(session);
-    if (session.frames.length) await new Promise((resolve) => window.setTimeout(resolve, 50));
   }
 
   try {

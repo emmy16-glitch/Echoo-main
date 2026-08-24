@@ -207,12 +207,23 @@ const ListenerAudioDetail = () => {
     catch { setError('Could not download this replay.'); }
   };
   const share = async () => {
-    try { await navigator.clipboard?.writeText(window.location.href); setNotice('Replay link copied.'); }
-    catch { setError('Could not copy this replay link.'); }
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: normalizedTrack?.title || 'Echoo replay', url: window.location.href });
+      } else if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(window.location.href);
+      } else {
+        throw new Error('Sharing is unavailable in this browser.');
+      }
+      setNotice(navigator.share ? 'Replay shared.' : 'Replay link copied.');
+    } catch (shareError) {
+      if (shareError?.name === 'AbortError') return;
+      setError('Could not share this replay.');
+    }
   };
 
-  if (loading) return <main className="replay-page"><div className="replay-state">Loading replay...</div></main>;
-  if (!normalizedTrack) return <main className="replay-page"><button type="button" className="replay-back" onClick={() => navigate('/listen')}><FiArrowLeft /> Back</button><div className="replay-state">{error || 'Replay unavailable.'}</div></main>;
+  if (loading) return <div className="replay-page"><div className="replay-state">Loading replay...</div></div>;
+  if (!normalizedTrack) return <div className="replay-page"><button type="button" className="replay-back" onClick={() => navigate('/listen')}><FiArrowLeft /> Back</button><div className="replay-state">{error || 'Replay unavailable.'}</div></div>;
 
   const tabs = [
     { value: 'overview', label: 'Overview' },
@@ -221,7 +232,7 @@ const ListenerAudioDetail = () => {
   ];
 
   return (
-    <main className="replay-page">
+    <div className="replay-page">
       <button type="button" className="replay-back" onClick={() => navigate(-1)}><FiArrowLeft /> Back to Replays</button>
       {notice && <div className="replay-notice" role="status">{notice}</div>}
       {error && <div className="replay-error" role="alert">{error}</div>}
@@ -242,7 +253,7 @@ const ListenerAudioDetail = () => {
       {activeTab === 'about' && <article className="replay-about replay-about--wide"><h2>About this replay</h2><p>{normalizedTrack.description || 'No description is available for this replay.'}</p><p>Recorded on {formatDate(normalizedTrack.sourceBroadcast?.endedAt || normalizedTrack.createdAt)}.</p></article>}
 
       {transcriptPublished && (chapters.length > 0 || moments.length > 0) && <div className="replay-discovery-grid">{chapters.length > 0 && <ChapterList chapters={chapters} onJump={jump} />}<section className="replay-moments"><div><h2>Key Moments</h2><button type="button" onClick={saveAllMoments}>Save all</button></div>{moments.map((moment) => <KeyMomentCard key={moment.id} moment={moment} onJump={jump} onSave={saveMoment} saved={savedMomentIds.has(`${Math.round(moment.seconds)}`)} />)}{!moments.length && <div className="lex-panel-empty">Key moments will appear with the transcript.</div>}</section></div>}
-    </main>
+    </div>
   );
 };
 

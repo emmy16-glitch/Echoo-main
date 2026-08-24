@@ -14,10 +14,17 @@ const broadcastProcessingJobSchema = new mongoose.Schema(
         'audio_finalization',
         'transcript_completion',
         'transcript_improvement',
+        'transcript_quality_chunk',
         'highlight_detection',
         'chapter_generation',
       ],
       required: true,
+      index: true,
+    },
+    chunkId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'BroadcastAudioChunk',
+      default: null,
       index: true,
     },
     status: {
@@ -37,7 +44,7 @@ const broadcastProcessingJobSchema = new mongoose.Schema(
   { timestamps: true, versionKey: false }
 );
 
-broadcastProcessingJobSchema.index({ broadcastId: 1, jobType: 1 }, { unique: true });
+broadcastProcessingJobSchema.index({ broadcastId: 1, jobType: 1, chunkId: 1 }, { unique: true });
 broadcastProcessingJobSchema.index({ status: 1, availableAt: 1, createdAt: 1 });
 
 export default mongoose.model(

@@ -5,12 +5,10 @@ import batch2Service, {
 } from './batch2Service.js';
 import {
   announceFinishedBroadcastRecording,
-  clearPendingBroadcastRecording,
   discardBroadcastRecording,
   finishBroadcastRecording,
 } from './broadcastRecordingService.js';
 import { stopWhisperFlowTranscription } from './whisperFlowService.js';
-import studioService from './studioService.js';
 
 const PENDING_RECORDING_DECISION_KEY = '__echooPendingBroadcastRecording';
 
@@ -61,7 +59,6 @@ const enrichBroadcasts = (broadcasts, stations) => {
       category:
         station?.category || broadcast.category || 'Other',
       stationBranding: station?.branding || broadcast.stationBranding || null,
-      // The current Station brand is authoritative for every listener surface.
       coverArt: artwork,
       artwork,
       image: artwork,
@@ -73,6 +70,22 @@ const enrichBroadcasts = (broadcasts, stations) => {
 const normalizeList = (response) => {
   const data = Array.isArray(response?.data) ? response.data : [];
   return data.map(normalizeBroadcast).filter(Boolean);
+};
+
+const prioritizeRequestedCreatorBroadcast = (broadcasts) => {
+  if (typeof sessionStorage === 'undefined') return broadcasts;
+  const requestedId =
+    sessionStorage.getItem('echooProcessingBroadcastId') ||
+    sessionStorage.getItem('echooPreparedBroadcastId') ||
+    '';
+  if (!requestedId) return broadcasts;
+
+  const index = broadcasts.findIndex((item) => String(item?.id || '') === String(requestedId));
+  if (index <= 0) return broadcasts;
+  const ordered = [...broadcasts];
+  const [requested] = ordered.splice(index, 1);
+  ordered.unshift(requested);
+  return ordered;
 };
 
 const checkLiveKitReadiness = async () => {
@@ -125,8 +138,6 @@ const batch3Service = {
     const normalized = normalizeBroadcast(response?.data);
     let canonical = normalized;
 
-    // Broadcast records can carry older copied artwork. Re-resolve the Station so
-    // a creator's latest uploaded/generated Station brand is what listeners see.
     if (normalized?.stationId) {
       try {
         const stationResult = await batch2Service.getStation(normalized.stationId);
@@ -194,15 +205,13 @@ const batch3Service = {
 
     return {
       ...response,
-      data: normalizeList(response),
+      data: prioritizeRequestedCreatorBroadcast(normalizeList(response)),
     };
   },
 
   checkLiveKitReadiness,
 
   startBroadcast: async (broadcastId) => {
-    // Fail before changing the broadcast lifecycle if this machine's backend
-    // cannot actually reach/authenticate to LiveKit.
     await checkLiveKitReadiness();
 
     const response = await apiRequest(
@@ -253,9 +262,6 @@ const batch3Service = {
           throw error;
         }
 
-        // LiveKit client connection can complete slightly before the server API
-        // participant list reflects it. Give Cloud/WebRTC propagation a bounded
-        // window rather than incorrectly cancelling a healthy publisher.
         await sleep(250 + attempt * 250);
       }
     }
@@ -275,7 +281,6 @@ const batch3Service = {
         data: normalizeBroadcast(response?.data),
       };
     } finally {
-      // Cancelled/failed starts must never surface a save-recording prompt.
       await discardBroadcastRecording(broadcastId).catch(() => {});
       forgetPendingRecordingDecision();
     }
@@ -319,11 +324,10 @@ const batch3Service = {
     apiRequest(`/analytics/live/${encodeURIComponent(broadcastId)}`),
 
   endBroadcast: async (broadcastId) => {
-    // The backend owns transcript finalization after the live state ends. Stop
-    // only the browser PCM producer here; never make ending live wait on AI.
-    void stopWhisperFlowTranscription({ finalize: false }).catch((error) => {
+    await stopWhisperFlowTranscription({ finalize: false }).catch((error) => {
       console.warn('[Echoo Transcript] background handoff warning:', error?.message || error);
     });
+
     const response = await apiRequest(
       `/broadcasts/${encodeURIComponent(broadcastId)}/end`,
       { method: 'POST' }
@@ -332,53 +336,21 @@ const batch3Service = {
     const raw = response?.data?.broadcast || response?.data;
     const normalized = normalizeBroadcast(raw);
 
-    // End the browser-local recorder only after the backend accepts the end
-    // transition and before the caller tears down the mixer. The decision is
-    // also held on window memory so a React remount or a very narrow event-listener
-    // race cannot make a completed recording disappear without a creator choice.
     let recordingReady = false;
-    void (async () => {
-      try {
-        const recording = await finishBroadcastRecording(broadcastId);
-        if (recording?.blob?.size) {
-          recordingReady = true;
-          try {
-            const extension = recording.mimeType === 'audio/wav'
-              ? 'wav'
-              : String(recording.mimeType || '').includes('ogg') ? 'ogg' : 'webm';
-            const file = new File(
-              [recording.blob],
-              `echoo-live-${String(broadcastId)}.${extension}`,
-              { type: recording.mimeType || recording.blob.type || 'audio/wav' }
-            );
-            const replay = await studioService.uploadAudio({
-              file,
-              title: normalized?.title || 'Echoo live replay',
-              description: normalized?.description || 'Recorded live on Echoo.',
-              genre: normalized?.category || 'Other',
-              tags: ['live-recording', 'broadcast', recording.lossless ? 'lossless-master' : 'recording-fallback'],
-              isPublic: false,
-              broadcastId,
-            });
-            clearPendingBroadcastRecording(broadcastId);
-            forgetPendingRecordingDecision();
-            response.replay = replay?.data || replay;
-          } catch (uploadError) {
-            // Preserve the local master and the existing recovery prompt when an
-            // upload cannot complete. A replay is never exposed without media.
-            const decision = { recording, broadcast: normalized };
-            rememberPendingRecordingDecision(decision);
-            announceFinishedBroadcastRecording(decision);
-            console.warn('[Echoo Recording] automatic replay upload failed:', uploadError?.message || uploadError);
-          }
-        }
-      } catch (recordingError) {
-        console.warn(
-          '[Echoo Recording] could not finalize local recording:',
-          recordingError?.message || recordingError
-        );
+    try {
+      const recording = await finishBroadcastRecording(broadcastId);
+      if (recording?.blob?.size) {
+        recordingReady = true;
+        const decision = { recording, broadcast: normalized };
+        rememberPendingRecordingDecision(decision);
+        announceFinishedBroadcastRecording(decision);
       }
-    })();
+    } catch (recordingError) {
+      console.warn(
+        '[Echoo Recording] could not finalize local recording:',
+        recordingError?.message || recordingError
+      );
+    }
 
     return {
       ...response,

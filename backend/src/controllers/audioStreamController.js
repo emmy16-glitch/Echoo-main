@@ -5,6 +5,7 @@ import { verifyAccessToken } from '../config/jwt.js';
 import {
   buildAudioStreamUrl,
   createAudioStreamToken,
+  isCanonicalPublicAudio,
   verifyAudioStreamToken,
 } from '../services/audioStreamAccess.js';
 import { canAccessReplayAudio } from '../services/assetAccessService.js';
@@ -48,8 +49,14 @@ const authorizeGrant = async (audio, grant) => {
   if (grant?.type === 'access') {
     if (await canAccessReplayAudio(audio, grant.userId)) return;
   } else if (grant?.type === 'audio-stream') {
-    if (grant.access === 'public' && audio.isPublic) return;
-    if (grant.access === 'account' && await canAccessReplayAudio(audio, grant.userId)) return;
+    // Public tokens are bearer-free/shareable, so every Range request must
+    // confirm the asset is still canonically public and published.
+    if (grant.access === 'public' && isCanonicalPublicAudio(audio)) return;
+    if (
+      grant.access === 'account' &&
+      grant.userId &&
+      await canAccessReplayAudio(audio, grant.userId)
+    ) return;
     if (
       grant.access === 'owner' &&
       ownerId &&
@@ -122,15 +129,26 @@ export async function issueAudioStreamUrl(req, res, next) {
       });
     }
 
-    const access = isOwner ? 'owner' : audio.isPublic ? 'public' : 'account';
-    let signed = buildAudioStreamUrl(audio, { access });
-    if (access === 'account') {
-      const grant = createAudioStreamToken({ audioId: audio._id, access, ownerId: req.userId, duration: audio.duration });
+    let signed = null;
+    if (isOwner) {
+      signed = buildAudioStreamUrl(audio, { access: 'owner' });
+    } else if (isCanonicalPublicAudio(audio)) {
+      signed = buildAudioStreamUrl(audio, { access: 'public' });
+    } else {
+      // Followers/private-account grants are bound to the requesting account so
+      // copying the signed URL cannot broaden access to another user.
+      const grant = createAudioStreamToken({
+        audioId: audio._id,
+        access: 'account',
+        ownerId: req.userId,
+        duration: audio.duration,
+      });
       signed = {
         url: `/api/audio/${encodeURIComponent(String(audio._id))}/stream?token=${encodeURIComponent(grant.token)}`,
         expiresIn: grant.ttl,
       };
     }
+
     if (!signed?.url) {
       return res.status(503).json({
         error: {
@@ -159,8 +177,8 @@ export async function streamAudio(req, res, next) {
     const grant = streamGrantForRequest(req, audioId);
 
     // Authorization and current visibility are checked for every range request.
-    // If a creator makes a track private, previously issued public links stop
-    // working immediately even if their token has not yet expired.
+    // A creator changing publication/visibility immediately invalidates the
+    // effective permission of an already-issued signed URL.
     const audio = await Audio.findOne({
       _id: audioId,
       isDeleted: false,

@@ -8,14 +8,23 @@ import {
 } from 'react-icons/fa';
 
 import notificationService from '../../services/notificationService';
-import '../ListenerNotifications/ListenerNotifications.css';
+import './CreatorNotificationsWorkspace.css';
 
 const iconFor = (type) => {
   if (type === 'new_follower') return <FaUserPlus />;
-  if (type === 'broadcast_live' || type === 'broadcast_ended') {
+  if (type === 'broadcast_live' || type === 'broadcast_ended' || type === 'transcript_ready') {
     return <FaBroadcastTower />;
   }
   return <FaBell />;
+};
+
+const broadcastIdFromNotification = (notification) => {
+  const metadataId = notification?.metadata?.broadcastId;
+  if (metadataId) return String(metadataId);
+
+  const link = String(notification?.link || '');
+  const match = link.match(/^\/creator\/broadcasts\/([^/]+)(?:\/processing)?\/?$/i);
+  return match?.[1] ? decodeURIComponent(match[1]) : '';
 };
 
 const CreatorNotificationsWorkspace = ({ onNavigate }) => {
@@ -61,10 +70,28 @@ const CreatorNotificationsWorkspace = ({ onNavigate }) => {
     }
 
     const link = String(notification.link || '');
+    const broadcastId = broadcastIdFromNotification(notification);
+
+    if (notification.type === 'transcript_ready' || /\/creator\/broadcasts\/[^/]+\/processing\/?$/i.test(link)) {
+      // Prepared broadcast is the single source of truth for a notification
+      // deep-link. Remove the old processing key so it cannot survive and keep
+      // reordering future Broadcast Studio opens after this click is handled.
+      sessionStorage.removeItem('echooProcessingBroadcastId');
+      if (broadcastId) sessionStorage.setItem('echooPreparedBroadcastId', broadcastId);
+      onNavigate?.('Broadcast');
+      return;
+    }
+
+    if (notification.type === 'broadcast_live') {
+      sessionStorage.removeItem('echooProcessingBroadcastId');
+      if (broadcastId) sessionStorage.setItem('echooPreparedBroadcastId', broadcastId);
+      sessionStorage.setItem('echooBroadcastMode', 'now');
+      onNavigate?.('Live');
+      return;
+    }
+
     if (link.startsWith('/creator-studio')) {
       onNavigate?.('Home');
-    } else if (notification.type === 'broadcast_live') {
-      onNavigate?.('Live');
     }
   };
 
@@ -102,11 +129,11 @@ const CreatorNotificationsWorkspace = ({ onNavigate }) => {
   };
 
   return (
-    <main className="ln-page">
+    <section className="ln-page" aria-labelledby="creator-notifications-title">
       <header className="ln-header">
         <div>
           <span>CREATOR NOTIFICATIONS</span>
-          <h1>What needs your attention.</h1>
+          <h1 id="creator-notifications-title">What needs your attention.</h1>
           <p>Real Echoo activity for your creator account and broadcasts.</p>
         </div>
         <button
@@ -130,30 +157,29 @@ const CreatorNotificationsWorkspace = ({ onNavigate }) => {
           <p>New creator activity will appear here.</p>
         </div>
       ) : (
-        <section className="ln-list">
+        <div className="ln-list">
           {notifications.map((notification) => (
-            <article
-              key={notification.id}
-              className={`ln-item ${notification.read ? '' : 'unread'}`}
-              onClick={() => openNotification(notification)}
-            >
-              <div className="ln-icon">{iconFor(notification.type)}</div>
-              <div className="ln-copy">
-                <div>
-                  <strong>{notification.title}</strong>
-                  {!notification.read && <span>NEW</span>}
-                </div>
-                <p>{notification.message}</p>
-                <time>
-                  {notification.createdAt
-                    ? new Date(notification.createdAt).toLocaleString()
-                    : ''}
-                </time>
-              </div>
+            <article key={notification.id} className={`ln-item ${notification.read ? '' : 'unread'}`}>
+              <button
+                type="button"
+                className="ln-open"
+                onClick={() => openNotification(notification)}
+                aria-label={`Open notification: ${notification.title || 'Echoo notification'}`}
+              >
+                <span className="ln-icon" aria-hidden="true">{iconFor(notification.type)}</span>
+                <span className="ln-copy">
+                  <span className="ln-copy-title">
+                    <strong>{notification.title}</strong>
+                    {!notification.read && <span className="ln-new-badge">NEW</span>}
+                  </span>
+                  <span className="ln-copy-message">{notification.message}</span>
+                  <time>{notification.createdAt ? new Date(notification.createdAt).toLocaleString() : ''}</time>
+                </span>
+              </button>
               <button
                 type="button"
                 className="ln-delete"
-                aria-label="Delete notification"
+                aria-label={`Delete ${notification.title || 'notification'}`}
                 disabled={busyId === notification.id}
                 onClick={(event) => remove(event, notification)}
               >
@@ -161,9 +187,9 @@ const CreatorNotificationsWorkspace = ({ onNavigate }) => {
               </button>
             </article>
           ))}
-        </section>
+        </div>
       )}
-    </main>
+    </section>
   );
 };
 

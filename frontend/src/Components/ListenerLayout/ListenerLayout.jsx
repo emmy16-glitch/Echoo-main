@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  NavLink,
   Outlet,
+  useLocation,
   useNavigate,
 } from 'react-router-dom';
 import {
@@ -11,6 +11,7 @@ import {
   FaListUl,
   FaBroadcastTower,
   FaCog,
+  FaChevronDown,
   FaDownload,
   FaHeart,
   FaHistory,
@@ -19,6 +20,7 @@ import {
   FaPlay,
   FaRandom,
   FaRedoAlt,
+  FaUndoAlt,
   FaSearch,
   FaStepBackward,
   FaStepForward,
@@ -28,20 +30,15 @@ import {
   FaHeadphones,
 } from 'react-icons/fa';
 
-import echooLogo from '../Assets/echoo-brand-logo.png';
-import ListenerProfileMenu from './ListenerProfileMenu';
 import EchoSignal from '../EchooSystem/EchoSignal';
 import audioService from '../../services/audioService';
 import listenerService from '../../services/listenerService';
 import notificationService from '../../services/notificationService';
-import { buildMediaUrl } from '../../services/api';
+import { buildMediaUrl, clearAuthTokens } from '../../services/api';
 import '../../styles/echoo-identity-reset.css';
 import '../../styles/echoo-asset-system.css';
 import './ListenerLayout.css';
-import './ListenerLayout.figma.css';
-import './ListenerPlaybackFix.css';
-import './ListenerPlayerBlue.css';
-import '../../styles/listener-typography-unified.css';
+import EchooAppShell from '../Shared/EchooAppShell';
 
 const SEARCH_SUGGESTIONS = [
   'Podcast',
@@ -121,15 +118,19 @@ const playbackErrorMessage = (error) => {
 
 const ListenerLayout = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [user, setUser] = useState(readUser);
   const displayName =
     user.displayName || user.fullname || user.username || 'Listener';
+  const listenerFirstName = displayName.trim().split(/\s+/)[0] || 'Listener';
   const profileImage =
     buildMediaUrl(user.profileImage || user.avatar || localStorage.getItem('profileImage'));
+  const initial = displayName.charAt(0).toUpperCase() || 'L';
 
   const audioRef = useRef(null);
   const searchRef = useRef(null);
   const searchAreaRef = useRef(null);
+  const profileMenuRef = useRef(null);
   const progressSyncRef = useRef(false);
   const pendingSeekRef = useRef(null);
   const playerPreferencesReadyRef = useRef(false);
@@ -152,12 +153,13 @@ const ListenerLayout = () => {
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState('');
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
 
   const navigation = [
     { name: 'Home', path: '/listen', icon: <FaHome />, end: true },
     { name: 'Live now', path: '/listen/live', icon: <FaBroadcastTower /> },
     { name: 'Stations', path: '/listen/stations', icon: <FaCompass />, end: true },
-    { name: 'Audio library', path: '/listen/library', icon: <FaBookOpen /> },
+    { name: 'Audio library', path: '/listen/library', icon: <FaBookOpen />, end: true },
     { name: 'Following', path: '/listen/library/following', icon: <FaHeart /> },
   ];
   const navigationLibrary = [
@@ -189,6 +191,46 @@ const ListenerLayout = () => {
       window.removeEventListener('storage', storageChanged);
     };
   }, []);
+
+  useEffect(() => {
+    const keepKeyboardFocusVisible = (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement) || !target.closest('.echoo-listener-v2-shell')) return;
+      window.requestAnimationFrame(() => {
+        const rect = target.getBoundingClientRect();
+        const bottomSafeArea = window.innerWidth <= 760 ? 150 : 96;
+        if (rect.top < 8 || rect.bottom > window.innerHeight - bottomSafeArea) {
+          target.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'auto' });
+        }
+      });
+    };
+
+    document.addEventListener('focusin', keepKeyboardFocusVisible);
+    return () => document.removeEventListener('focusin', keepKeyboardFocusVisible);
+  }, []);
+
+  useEffect(() => {
+    const closeProfileMenu = (event) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target)) {
+        setProfileMenuOpen(false);
+      }
+    };
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') setProfileMenuOpen(false);
+    };
+    document.addEventListener('mousedown', closeProfileMenu);
+    window.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('mousedown', closeProfileMenu);
+      window.removeEventListener('keydown', closeOnEscape);
+    };
+  }, []);
+
+  const handleLogout = () => {
+    clearAuthTokens();
+    setProfileMenuOpen(false);
+    navigate('/', { replace: true });
+  };
 
   useEffect(() => {
     let active = true;
@@ -627,62 +669,35 @@ const ListenerLayout = () => {
     duration > 0 ? Math.max(0, Math.min(100, (currentTime / duration) * 100)) : 0;
 
   return (
-    <div className="listener-layout echoo-listener-shell">
-      <aside className="layout-sidebar">
+    <EchooAppShell
+      role="listener"
+      roleLabel="Listener"
+      className="listener-layout echoo-listener-v2-shell"
+      navItems={navigation}
+      navGroups={[{ key: 'library', label: 'Your Echoo', items: navigationLibrary }]}
+      activeKey={location.pathname}
+      sidebarFooter={(
         <button
           type="button"
-          className="layout-brand"
-          onClick={() => navigate('/listen')}
-          style={{ border: 0, background: 'transparent', cursor: 'pointer' }}
+          className="listener-sidebar-settings"
+          onClick={() => navigate('/listen/settings')}
         >
-          <img src={echooLogo} alt="Echoo" />
-          <span>Echoo</span>
+          <FaCog aria-hidden="true" />
+          <span>Settings</span>
         </button>
-
-        <nav className="layout-navigation">
-          {navigation.map((item) => (
-            <NavLink
-              key={item.name}
-              to={item.path}
-              end={item.end}
-              className={({ isActive }) =>
-                isActive ? 'layout-nav-item active' : 'layout-nav-item'
-              }
-            >
-              <span className="layout-nav-icon">{item.icon}</span>
-              <span className="layout-nav-label">{item.name}</span>
-            </NavLink>
-          ))}
-          <div className="layout-nav-divider" aria-hidden />
-          {navigationLibrary.map((item) => (
-            <NavLink
-              key={item.name}
-              to={item.path}
-              className={({ isActive }) =>
-                isActive ? 'layout-nav-item active' : 'layout-nav-item'
-              }
-            >
-              <span className="layout-nav-icon">{item.icon}</span>
-              <span className="layout-nav-label">{item.name}</span>
-            </NavLink>
-          ))}
-        </nav>
-
-        <ListenerProfileMenu
-          displayName={displayName}
-          profileImage={profileImage}
-        />
-      </aside>
-
-      <div className="layout-main echoo-listener-main">
-        <header className="layout-topbar">
-          <div className="beautiful-search-wrapper" ref={searchAreaRef}>
+      )}
+      search={(
+          <div className="beautiful-search-wrapper echoo-app-search" ref={searchAreaRef}>
+            <div className="listener-mobile-welcome">
+              <h1>Good morning, {listenerFirstName}</h1>
+              <span>Here’s what’s live and new on Echoo.</span>
+            </div>
             <div className={`beautiful-search ${searchOpen ? 'active' : ''}`}>
               <FaSearch className="beautiful-search-icon" />
               <input
                 ref={searchRef}
                 type="text"
-                placeholder="Search public Echoo audio..."
+                placeholder="Search stations, audio, creators…"
                 value={searchQuery}
                 onFocus={() => setSearchOpen(true)}
                 onChange={(event) => {
@@ -777,54 +792,49 @@ const ListenerLayout = () => {
               </div>
             )}
           </div>
-
-          <div className="layout-top-actions">
-            <button
-              type="button"
-              className="layout-top-button notification"
-              onClick={() => {
-                setUnreadNotifications(0);
-                navigate('/listen/notifications');
-              }}
-              title="Notifications"
-            >
-              <FaBell />
-              {unreadNotifications > 0 && (
-                <span title={`${unreadNotifications} unread`} />
-              )}
-            </button>
-
-            <button
-              type="button"
-              className="layout-top-button"
-              title="Settings"
-              onClick={() => navigate('/listen/settings')}
-            >
-              <FaCog />
-            </button>
-          </div>
-        </header>
-
-        <main className="layout-content echoo-listener-scroll">
-          <Outlet
-            context={{
-              playTrack,
-              currentTrack,
-              isPlaying,
-              togglePlay,
-              seekTo,
-              playTrackAt,
-              currentTime,
-              duration,
-              queue,
-              playNext,
-              playPrevious,
-              playerError,
+        )}
+      topActions={(
+        <>
+          <button
+            type="button"
+            className="notification-button"
+            onClick={() => {
+              setUnreadNotifications(0);
+              navigate('/listen/notifications');
             }}
-          />
-        </main>
-      </div>
-
+            title="Notifications"
+            aria-label="Notifications"
+          >
+            <FaBell />
+            {unreadNotifications > 0 && <span title={`${unreadNotifications} unread`} />}
+          </button>
+          <div className="listener-account-menu" ref={profileMenuRef}>
+            <button
+              type="button"
+              className="studio-account-button"
+              aria-label="Open account menu"
+              aria-haspopup="menu"
+              aria-expanded={profileMenuOpen}
+              onClick={() => setProfileMenuOpen((open) => !open)}
+            >
+              <div className="top-avatar">{profileImage ? <img src={profileImage} alt="" /> : initial}</div>
+              <div><strong>{displayName}</strong><span>Listener</span></div>
+              <FaChevronDown className={profileMenuOpen ? 'account-menu-chevron-open' : ''} />
+            </button>
+            {profileMenuOpen && (
+              <div className="listener-account-dropdown" role="menu" aria-label="Account menu">
+                <button type="button" role="menuitem" onClick={() => { setProfileMenuOpen(false); navigate('/listen/settings'); }}>
+                  Profile settings
+                </button>
+                <button type="button" role="menuitem" className="listener-account-logout" onClick={handleLogout}>
+                  Log out
+                </button>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+      persistentSlot={(
       <div className={`layout-player echoo-persistent-player ${playerError ? 'has-playback-error' : ''}`}>
         <audio
           ref={audioRef}
@@ -899,17 +909,12 @@ const ListenerLayout = () => {
         </div>
 
         <div className="layout-player-controls">
-          <button
-            type="button"
-            className={shuffle ? 'active' : ''}
-            onClick={() => setShuffle((value) => !value)}
-            disabled={!queue.length}
-            aria-label="Shuffle"
-          >
-            <FaRandom />
-          </button>
           <button type="button" onClick={playPrevious} disabled={!queue.length} aria-label="Previous">
             <FaStepBackward />
+          </button>
+          <button type="button" onClick={() => seekTo(currentTime - 10)} disabled={!currentTrack?.fileUrl} aria-label="Rewind 10 seconds">
+            <FaUndoAlt />
+            <span className="layout-player-skip-label">10</span>
           </button>
           <button
             type="button"
@@ -920,21 +925,12 @@ const ListenerLayout = () => {
           >
             {isPlaying ? <FaPause /> : <FaPlay />}
           </button>
+          <button type="button" onClick={() => seekTo(currentTime + 10)} disabled={!currentTrack?.fileUrl} aria-label="Forward 10 seconds">
+            <FaRedoAlt />
+            <span className="layout-player-skip-label">10</span>
+          </button>
           <button type="button" onClick={playNext} disabled={!queue.length} aria-label="Next">
             <FaStepForward />
-          </button>
-          <button
-            type="button"
-            className={repeatMode !== 'off' ? 'active' : ''}
-            onClick={() =>
-              setRepeatMode((current) =>
-                current === 'off' ? 'all' : current === 'all' ? 'one' : 'off'
-              )
-            }
-            disabled={!queue.length}
-            aria-label={`Repeat ${repeatMode}`}
-          >
-            <FaRedoAlt />
           </button>
         </div>
 
@@ -987,9 +983,54 @@ const ListenerLayout = () => {
             }}
             aria-label="Volume"
           />
+          <button
+            type="button"
+            className={shuffle ? 'active' : ''}
+            onClick={() => setShuffle((value) => !value)}
+            disabled={!queue.length}
+            aria-label="Shuffle"
+          >
+            <FaRandom />
+          </button>
+          <button
+            type="button"
+            className={repeatMode !== 'off' ? 'active' : ''}
+            onClick={() =>
+              setRepeatMode((current) =>
+                current === 'off' ? 'all' : current === 'all' ? 'one' : 'off'
+              )
+            }
+            disabled={!queue.length}
+            aria-label={`Repeat ${repeatMode}`}
+          >
+            <FaRedoAlt />
+          </button>
+        </div>
+        <div className="layout-player-mobile-progress" aria-hidden="true">
+          <span style={{ width: `${progressPercentage}%` }} />
         </div>
       </div>
-    </div>
+        )}
+    >
+      <div className="layout-content echoo-listener-scroll">
+        <Outlet
+          context={{
+            playTrack,
+            currentTrack,
+            isPlaying,
+            togglePlay,
+            seekTo,
+            playTrackAt,
+            currentTime,
+            duration,
+            queue,
+            playNext,
+            playPrevious,
+            playerError,
+          }}
+        />
+      </div>
+    </EchooAppShell>
   );
 };
 

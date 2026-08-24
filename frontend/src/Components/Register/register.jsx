@@ -100,8 +100,16 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
   };
 
   const saveSession = (response) => {
-    const { user, accessToken, refreshToken } = response.data;
+    const { user, accessToken, refreshToken } = response?.data || {};
+
+    if (!user || !accessToken) {
+      throw new Error(
+        "Your account was created, but Echoo could not start a secure session. Please sign in again."
+      );
+    }
+
     localStorage.setItem("accessToken", accessToken);
+    localStorage.setItem("token", accessToken);
     localStorage.setItem("refreshToken", refreshToken);
     localStorage.setItem("user", JSON.stringify(user));
     return user;

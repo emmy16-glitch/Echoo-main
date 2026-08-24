@@ -1,0 +1,143 @@
+/* Fourth-pass browser hardening.
+   These selectors intentionally carry more specificity than lazy-loaded page
+   styles so responsive/accessibility guarantees remain true after route chunks
+   inject their own CSS. */
+
+/* Creator shell: lazy CreatorStudio CSS was shrinking every bottom-nav label to
+   8px with an !important child selector. Keep labels readable and let the rail
+   scroll instead of compressing or clipping destinations. */
+html body #root .studio-navigation .studio-nav-item > span:last-child {
+  font-size: 11px !important;
+  line-height: 1.15 !important;
+  max-width: 76px !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  white-space: normal !important;
+}
+
+html body #root .studio-navigation .studio-nav-item {
+  min-width: 68px !important;
+  min-height: 52px !important;
+  flex: 0 0 auto !important;
+}
+
+html body #root .studio-navigation {
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  overscroll-behavior-inline: contain;
+  scroll-snap-type: x proximity;
+}
+
+html body #root .studio-navigation .studio-nav-item {
+  scroll-snap-align: start;
+}
+
+/* Creator Home status badge. This is operational state, not decorative copy. */
+html body #root .ehome-primary-station-art > span {
+  font-size: 11px !important;
+  line-height: 1.2 !important;
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Broadcast Studio: target the exact nested elements the third trace showed.
+   Generic parent font rules were losing to lazy-loaded !important selectors. */
+html body #root .ecbs-monitor-card span > strong,
+html body #root .ecbs-monitor-card span > small,
+html body #root .ecbs-transcript-ready-card > header > span,
+html body #root .ecbs-setup-action small {
+  font-size: 11px !important;
+  line-height: 1.4 !important;
+}
+
+/* Persistent Listener player timing. The route sweep showed these two values at
+   9.5px on every page because a shell-specific rule beat the previous override. */
+html body #root .echoo-listener-shell .layout-player-volume > span,
+html body #root .echoo-listener-shell .layout-player-time,
+html body #root .echoo-listener-shell [class*="player-time"] {
+  font-size: 11px !important;
+  line-height: 1.2 !important;
+  min-width: 34px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Tablet Stations: do not squeeze the filter/top-stations sidebar into a tiny
+   column. Stack it below the station list and keep long station actions usable. */
+@media (max-width: 900px) {
+  html body #root .echoo-listener-shell .ls-body {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 18px !important;
+  }
+
+  html body #root .echoo-listener-shell .ls-main,
+  html body #root .echoo-listener-shell .ls-sidebar {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  html body #root .echoo-listener-shell .ls-sidebar {
+    position: static !important;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  html body #root .echoo-listener-shell .ls-top-name,
+  html body #root .echoo-listener-shell .ls-row-name {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    white-space: normal !important;
+    overflow-wrap: anywhere !important;
+  }
+}
+
+@media (max-width: 620px) {
+  html body #root .echoo-listener-shell .ls-sidebar {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  /* One unclipped, predictable transport group on phones. Older/lazy rules
+     alternated between hiding and redisplaying all five controls, which pushed
+     a classless transport button outside the 390px viewport on every route. */
+  html body #root .echoo-listener-shell .layout-player-controls {
+    width: 148px !important;
+    max-width: 148px !important;
+    min-width: 148px !important;
+    display: grid !important;
+    grid-template-columns: 40px 52px 40px !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 8px !important;
+    overflow: visible !important;
+  }
+
+  html body #root .echoo-listener-shell .layout-player-controls > button:nth-child(1),
+  html body #root .echoo-listener-shell .layout-player-controls > button:nth-child(5) {
+    display: none !important;
+  }
+
+  html body #root .echoo-listener-shell .layout-player-controls > button:nth-child(2),
+  html body #root .echoo-listener-shell .layout-player-controls > button:nth-child(3),
+  html body #root .echoo-listener-shell .layout-player-controls > button:nth-child(4) {
+    display: grid !important;
+    position: static !important;
+    transform: none !important;
+    margin: 0 !important;
+    min-width: 40px !important;
+    min-height: 40px !important;
+  }
+
+  html body #root .echoo-listener-shell .layout-player-controls > button:nth-child(3) {
+    width: 52px !important;
+    height: 52px !important;
+  }
+
+  /* Timeline/volume controls are intentionally omitted from the phone footer;
+     they must not remain laid out offscreen where automation/keyboard users can
+     still reach an invisible control. */
+  html body #root .echoo-listener-shell .layout-player-volume {
+    display: none !important;
+  }
+}

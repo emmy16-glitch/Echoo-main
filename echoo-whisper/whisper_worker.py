@@ -25,6 +25,13 @@ def _env_int(name: str, fallback: int, minimum: int, maximum: int) -> int:
     return max(minimum, min(maximum, value))
 
 
+def _env_bool(name: str, fallback: bool = True) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return fallback
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
 @dataclass(frozen=True)
 class AudioFrame:
     sequence: int
@@ -32,8 +39,26 @@ class AudioFrame:
     pcm: bytes
 
 
+@dataclass(frozen=True)
+class QualityChunk:
+    segment_id: str
+    pcm: bytes
+    start_ms: int
+    end_ms: int
+    last_sequence: int
+    provider_revision: int
+    fast_result: TranscriptResult
+
+
 class StreamingTranscriptSession:
-    """Turns acknowledged 20 ms PCM frames into revisable utterance segments."""
+    """Turns acknowledged 20 ms PCM frames into revisable transcript segments.
+
+    Normal creator sessions are the low-latency draft path. They may run an
+    inline quality fallback only when the durable browser recording-chunk path
+    is unavailable. Dedicated ``qualityPass`` sessions are different: they use
+    the quality decoder directly over a persisted recording chunk and never
+    schedule another nested quality pass.
+    """
 
     def __init__(
         self,
@@ -42,13 +67,18 @@ class StreamingTranscriptSession:
         session_id: str,
         language: str,
         model,
+        quality_model,
         emit: Callable[[dict], Awaitable[None]],
+        quality_pass: bool = False,
+        quality_enabled: bool | None = None,
     ) -> None:
         self.broadcast_id = broadcast_id
         self.session_id = session_id
         self.language = language
         self.model = model
+        self.quality_model = quality_model
         self.emit = emit
+        self.quality_pass = bool(quality_pass)
         self.partial_interval_ms = _env_int("WHISPER_PARTIAL_INTERVAL_MS", 1000, 400, 5000)
         self.silence_finalize_ms = _env_int("WHISPER_SILENCE_FINALIZE_MS", 700, 300, 3000)
         self.min_utterance_ms = _env_int("WHISPER_MIN_UTTERANCE_MS", 300, 100, 3000)
@@ -57,6 +87,11 @@ class StreamingTranscriptSession:
             "WHISPER_MAX_SESSION_BUFFER_BYTES", 2 * 1024 * 1024, 64 * 1024, 16 * 1024 * 1024
         )
         self.energy_threshold = float(os.getenv("WHISPER_SPEECH_RMS_THRESHOLD", "0.008"))
+        configured_quality = _env_bool("WHISPER_QUALITY_PASS_ENABLED", True)
+        self.quality_enabled = configured_quality if quality_enabled is None else bool(quality_enabled)
+        if self.quality_pass:
+            self.quality_enabled = False
+        self.quality_max_pending = _env_int("WHISPER_QUALITY_MAX_PENDING", 16, 1, 64)
         self.frames: list[AudioFrame] = []
         self.buffer_bytes = 0
         self.utterance_index = 0
@@ -65,7 +100,12 @@ class StreamingTranscriptSession:
         self.last_partial_at_ms = 0
         self.silence_ms = 0
         self.dropped_frames = 0
+        self.quality_passes = 0
+        self.quality_failures = 0
+        self._quality_tasks: set[asyncio.Task] = set()
+        self._quality_tail: asyncio.Task | None = None
         self._lock = asyncio.Lock()
+        self._emit_lock = asyncio.Lock()
 
     @property
     def provider_segment_id(self) -> str:
@@ -74,6 +114,10 @@ class StreamingTranscriptSession:
 
     def set_emitter(self, emit: Callable[[dict], Awaitable[None]]) -> None:
         self.emit = emit
+
+    async def _emit(self, payload: dict) -> None:
+        async with self._emit_lock:
+            await self.emit(payload)
 
     @staticmethod
     def _rms(pcm: bytes) -> float:
@@ -108,7 +152,8 @@ class StreamingTranscriptSession:
                 and self.silence_ms >= self.silence_finalize_ms
             ) or duration_ms >= self.max_utterance_ms
             should_partial = (
-                duration_ms >= self.min_utterance_ms
+                not self.quality_pass
+                and duration_ms >= self.min_utterance_ms
                 and frame.timestamp_ms - self.last_partial_at_ms >= self.partial_interval_ms
             )
 
@@ -122,28 +167,178 @@ class StreamingTranscriptSession:
             if self.frames:
                 await self._transcribe_locked(final=True)
 
+        if self._quality_tasks:
+            await asyncio.gather(*list(self._quality_tasks), return_exceptions=True)
+
+    async def _wait_for_quality_capacity(self) -> None:
+        while len(self._quality_tasks) >= self.quality_max_pending:
+            done, _ = await asyncio.wait(
+                self._quality_tasks,
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            for task in done:
+                self._quality_tasks.discard(task)
+
+    async def _run_quality_after(
+        self,
+        previous: asyncio.Task | None,
+        chunk: QualityChunk,
+    ) -> None:
+        if previous is not None:
+            await asyncio.gather(previous, return_exceptions=True)
+        await self._run_quality_pass(chunk)
+
+    async def _schedule_quality_pass(self, chunk: QualityChunk) -> None:
+        if not self.quality_enabled or self.quality_model is None:
+            await self._emit_final(chunk.fast_result, chunk, quality=False)
+            return
+
+        await self._wait_for_quality_capacity()
+        previous = self._quality_tail
+        task = asyncio.create_task(self._run_quality_after(previous, chunk))
+        self._quality_tail = task
+        self._quality_tasks.add(task)
+        task.add_done_callback(self._quality_tasks.discard)
+
+    async def _emit_final(
+        self,
+        result: TranscriptResult,
+        chunk: QualityChunk,
+        *,
+        quality: bool,
+        processing_ms: int = 0,
+    ) -> None:
+        if not result.text:
+            return
+
+        start_ms = chunk.start_ms
+        end_ms = chunk.end_ms
+        if quality:
+            start_ms = max(
+                chunk.start_ms,
+                min(chunk.end_ms, chunk.start_ms + round(max(0.0, result.start_seconds) * 1000)),
+            )
+            if result.end_seconds is not None:
+                end_ms = max(
+                    start_ms,
+                    min(chunk.end_ms, chunk.start_ms + round(max(0.0, result.end_seconds) * 1000)),
+                )
+
+        await self._emit({
+            "type": "segment",
+            "broadcastId": self.broadcast_id,
+            "sessionId": self.session_id,
+            "segmentId": chunk.segment_id,
+            "text": result.text,
+            "status": "final",
+            "startTimeMs": start_ms,
+            "endTimeMs": end_ms,
+            "timebase": "broadcast",
+            "confidence": result.confidence,
+            "language": result.language,
+            "speaker": "Creator",
+            "revision": chunk.provider_revision + (1 if quality else 0),
+            "processingMs": processing_ms,
+            "lastSequence": chunk.last_sequence,
+            "qualityPass": quality,
+        })
+
+    async def _run_quality_pass(self, chunk: QualityChunk) -> None:
+        started = time.perf_counter()
+        try:
+            samples = np.frombuffer(chunk.pcm, dtype="<i2").astype(np.float32) / 32768.0
+            result: TranscriptResult = await asyncio.to_thread(
+                self.quality_model.transcribe_quality,
+                samples,
+                self.language,
+            )
+            processing_ms = round((time.perf_counter() - started) * 1000)
+            final_result = result if result.text else chunk.fast_result
+            await self._emit_final(
+                final_result,
+                chunk,
+                quality=bool(result.text),
+                processing_ms=processing_ms,
+            )
+            self.quality_passes += 1
+            logger.info(
+                "quality transcript chunk completed",
+                extra={
+                    "broadcastId": self.broadcast_id,
+                    "sessionId": self.session_id,
+                    "segmentId": chunk.segment_id,
+                    "processingMs": processing_ms,
+                    "qualityConfidence": result.confidence,
+                },
+            )
+        except Exception as error:
+            self.quality_failures += 1
+            logger.exception(
+                "quality transcript chunk failed; keeping fast transcript",
+                extra={
+                    "broadcastId": self.broadcast_id,
+                    "sessionId": self.session_id,
+                    "segmentId": chunk.segment_id,
+                },
+            )
+            try:
+                await self._emit_final(chunk.fast_result, chunk, quality=False)
+            except Exception:
+                logger.exception(
+                    "could not emit fast transcript fallback",
+                    extra={"segmentId": chunk.segment_id, "error": str(error)},
+                )
+
     async def _transcribe_locked(self, *, final: bool) -> None:
         if not self.frames:
             return
         started = time.perf_counter()
         pcm = b"".join(frame.pcm for frame in self.frames)
         samples = np.frombuffer(pcm, dtype="<i2").astype(np.float32) / 32768.0
-        result: TranscriptResult = await asyncio.to_thread(
-            self.model.transcribe, samples, self.language
-        )
+        if self.quality_pass:
+            result: TranscriptResult = await asyncio.to_thread(
+                self.model.transcribe_quality,
+                samples,
+                self.language,
+            )
+        else:
+            result = await asyncio.to_thread(self.model.transcribe, samples, self.language)
         processing_ms = round((time.perf_counter() - started) * 1000)
         start_ms = self.frames[0].timestamp_ms
         end_ms = self.frames[-1].timestamp_ms + FRAME_DURATION_MS
         self.last_partial_at_ms = end_ms
         self.revision += 1
-        if result.text:
-            await self.emit({
+        segment_id = self.provider_segment_id
+        last_sequence = self.frames[-1].sequence
+
+        if final:
+            chunk = QualityChunk(
+                segment_id=segment_id,
+                pcm=pcm,
+                start_ms=start_ms,
+                end_ms=end_ms,
+                last_sequence=last_sequence,
+                provider_revision=self.revision,
+                fast_result=result,
+            )
+            if self.quality_pass:
+                await self._emit_final(
+                    result,
+                    chunk,
+                    quality=True,
+                    processing_ms=processing_ms,
+                )
+                self.quality_passes += 1
+            else:
+                await self._schedule_quality_pass(chunk)
+        elif result.text:
+            await self._emit({
                 "type": "segment",
                 "broadcastId": self.broadcast_id,
                 "sessionId": self.session_id,
-                "segmentId": self.provider_segment_id,
+                "segmentId": segment_id,
                 "text": result.text,
-                "status": "final" if final else "partial",
+                "status": "partial",
                 "startTimeMs": start_ms,
                 "endTimeMs": end_ms,
                 "timebase": "broadcast",
@@ -152,8 +347,10 @@ class StreamingTranscriptSession:
                 "speaker": "Creator",
                 "revision": self.revision,
                 "processingMs": processing_ms,
-                "lastSequence": self.last_sequence,
+                "lastSequence": last_sequence,
+                "qualityPass": False,
             })
+
         if final:
             self.frames.clear()
             self.buffer_bytes = 0

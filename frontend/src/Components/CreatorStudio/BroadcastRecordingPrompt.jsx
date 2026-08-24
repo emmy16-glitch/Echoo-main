@@ -9,9 +9,11 @@ import {
 } from 'react-icons/fa';
 
 import studioService from '../../services/studioService.js';
+import { apiRequest } from '../../services/api.js';
 import {
   BROADCAST_RECORDING_READY_EVENT,
   clearPendingBroadcastRecording,
+  retryBroadcastQualityCompletion,
 } from '../../services/broadcastRecordingService.js';
 import './BroadcastRecordingPrompt.css';
 
@@ -120,8 +122,6 @@ const BroadcastRecordingPrompt = () => {
       if (recovered) applyPendingDecision(recovered);
     };
 
-    // Recover first in case the recording event was emitted during a component
-    // remount. This is especially useful during Creator Studio navigation/HMR.
     recoverPendingDecision();
 
     window.addEventListener(BROADCAST_RECORDING_READY_EVENT, onRecordingReady);
@@ -172,6 +172,13 @@ const BroadcastRecordingPrompt = () => {
     }, 1200);
   };
 
+  const ensureQualityFinalized = async () => {
+    if (!recording.qualityCompletionPending) return;
+    await retryBroadcastQualityCompletion(recording);
+    // Persist the cleared pending flag in the in-memory recovery detail too.
+    rememberPendingDecision({ ...pending, recording });
+  };
+
   const saveRecording = async (isPublic) => {
     if (savingMode || savedMode) return;
 
@@ -180,6 +187,8 @@ const BroadcastRecordingPrompt = () => {
     setError('');
 
     try {
+      await ensureQualityFinalized();
+
       const file = new File(
         [recording.blob],
         safeFilename(title, recording),
@@ -204,17 +213,38 @@ const BroadcastRecordingPrompt = () => {
 
       closeAfterSave(mode);
     } catch (saveError) {
-      setError(saveError?.message || 'Echoo could not save this local recording.');
+      setError(
+        recording.qualityCompletionPending
+          ? saveError?.message || 'Echoo is still confirming the transcript quality upload. The local master is protected; try again.'
+          : saveError?.message || 'Echoo could not save this local recording.'
+      );
     } finally {
       setSavingMode('');
     }
   };
 
-  const discard = () => {
+  const discard = async () => {
     if (savingMode || savedMode) return;
-    forgetPendingDecision();
-    clearPendingBroadcastRecording(recording.broadcastId);
-    setPending(null);
+    setSavingMode('discard');
+    setError('');
+    try {
+      await ensureQualityFinalized();
+      await apiRequest(
+        `/broadcasts/${encodeURIComponent(recording.broadcastId)}/discard-replay`,
+        { method: 'POST' }
+      );
+      forgetPendingDecision();
+      clearPendingBroadcastRecording(recording.broadcastId);
+      setPending(null);
+    } catch (discardError) {
+      setError(
+        recording.qualityCompletionPending
+          ? discardError?.message || 'Echoo is still confirming the transcript quality upload. The local recording is protected; try again.'
+          : discardError?.message || 'Echoo could not confirm the discard. The local recording is still protected; try again.'
+      );
+    } finally {
+      setSavingMode('');
+    }
   };
 
   const savedLabel = recording.lossless
@@ -258,6 +288,12 @@ const BroadcastRecordingPrompt = () => {
         {recording.limitReached && (
           <div className="echoo-recording-error">
             This master reached the classic WAV file-size limit. Save this segment before recording another session.
+          </div>
+        )}
+
+        {recording.qualityCompletionPending && (
+          <div className="echoo-recording-error">
+            Echoo is still confirming the final transcript-quality upload. Saving or discarding will retry that confirmation first.
           </div>
         )}
 
@@ -314,7 +350,7 @@ const BroadcastRecordingPrompt = () => {
             onClick={discard}
             disabled={Boolean(savingMode || savedMode)}
           >
-            <FaTrash /> Discard recording
+            <FaTrash /> {savingMode === 'discard' ? 'Discarding…' : 'Discard recording'}
           </button>
           <span>
             <FaCloudUploadAlt /> Local testing: completed recordings are uploaded to this Echoo backend, not cloud storage.

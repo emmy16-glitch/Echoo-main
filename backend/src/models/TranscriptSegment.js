@@ -71,6 +71,22 @@ const transcriptSegmentSchema = new mongoose.Schema(
       maxlength: 8000,
       default: '',
     },
+    editedText: {
+      type: String,
+      trim: true,
+      maxlength: 8000,
+      default: '',
+    },
+    qualityHistory: [{
+      text: { type: String, trim: true, maxlength: 8000, required: true },
+      speaker: { type: String, trim: true, maxlength: 120, default: 'Speaker' },
+      startMs: { type: Number, min: 0, required: true },
+      endMs: { type: Number, min: 0, required: true },
+      confidence: { type: Number, min: 0, max: 1, default: null },
+      revision: { type: Number, min: 1, required: true },
+      processedBy: { type: String, trim: true, maxlength: 120, required: true },
+      processedAt: { type: Date, default: Date.now },
+    }],
     editHistory: [{
       text: { type: String, trim: true, maxlength: 8000, required: true },
       speaker: { type: String, trim: true, maxlength: 120, default: 'Speaker' },
@@ -122,6 +138,27 @@ const transcriptSegmentSchema = new mongoose.Schema(
     revision: {
       type: Number,
       min: 1,
+      default: 1,
+    },
+    revisionNumber: {
+      type: Number,
+      min: 1,
+    },
+    processedBy: {
+      type: String,
+      trim: true,
+      maxlength: 120,
+      default: null,
+    },
+    processedAt: { type: Date, default: null },
+    qualityChunkId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'BroadcastAudioChunk',
+      index: true,
+    },
+    qualitySegmentIndex: {
+      type: Number,
+      min: 0,
     },
     isHighlighted: { type: Boolean, default: false, index: true },
     isPinned: { type: Boolean, default: false, index: true },
@@ -159,6 +196,7 @@ transcriptSegmentSchema.index({ audioId: 1, startMs: 1, _id: 1 });
 transcriptSegmentSchema.index({ broadcastId: 1, sequence: 1, startMs: 1 });
 transcriptSegmentSchema.index({ audioId: 1, sequence: 1, startMs: 1 });
 transcriptSegmentSchema.index({ audioId: 1, isFinal: 1, startMs: 1, _id: 1 });
+transcriptSegmentSchema.index({ broadcastId: 1, qualityChunkId: 1, qualitySegmentIndex: 1 }, { unique: true, sparse: true });
 transcriptSegmentSchema.index({ broadcastId: 1, isHighlighted: 1, startMs: 1 });
 transcriptSegmentSchema.index({ text: 'text' });
 transcriptSegmentSchema.index({ broadcastId: 1, publicationStatus: 1, isFinal: 1, startMs: 1 });

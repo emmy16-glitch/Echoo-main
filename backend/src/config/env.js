@@ -53,11 +53,18 @@ if (nodeEnv === 'production') {
   }
 
   const whisperFlowUrl = process.env.WHISPER_FLOW_URL?.trim() || '';
+  const whisperQualityFlowUrl = process.env.WHISPER_QUALITY_FLOW_URL?.trim() || '';
   if (whisperFlowUrl && !whisperFlowUrl.startsWith('wss://')) {
     throw new Error('WHISPER_FLOW_URL must use wss:// in production.');
   }
+  if (whisperQualityFlowUrl && !whisperQualityFlowUrl.startsWith('wss://')) {
+    throw new Error('WHISPER_QUALITY_FLOW_URL must use wss:// in production.');
+  }
   if (whisperFlowUrl && !process.env.WHISPER_FLOW_API_KEY?.trim()) {
     throw new Error('WHISPER_FLOW_API_KEY is required when Whisper Flow is enabled.');
+  }
+  if (whisperQualityFlowUrl && !process.env.WHISPER_QUALITY_FLOW_API_KEY?.trim() && !process.env.WHISPER_FLOW_API_KEY?.trim()) {
+    throw new Error('WHISPER_QUALITY_FLOW_API_KEY or WHISPER_FLOW_API_KEY is required when the quality provider is enabled.');
   }
 }
 
@@ -88,6 +95,9 @@ export const env = Object.freeze({
   logLevel: requireValue('LOG_LEVEL', 'info'),
   whisperFlowUrl: String(process.env.WHISPER_FLOW_URL || '').trim(),
   whisperFlowApiKey: String(process.env.WHISPER_FLOW_API_KEY || '').trim(),
+  whisperQualityFlowUrl: String(process.env.WHISPER_QUALITY_FLOW_URL || '').trim(),
+  whisperQualityFlowApiKey: String(process.env.WHISPER_QUALITY_FLOW_API_KEY || '').trim(),
+  whisperQualityModel: String(process.env.WHISPER_QUALITY_MODEL || process.env.WHISPER_MODEL || 'faster-whisper-large-v3-turbo').trim(),
   whisperModel: String(process.env.WHISPER_MODEL || 'faster-whisper-large-v3-turbo').trim(),
   whisperLanguage: String(process.env.WHISPER_LANGUAGE || 'en').trim(),
 });

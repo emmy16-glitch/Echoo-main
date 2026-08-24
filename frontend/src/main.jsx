@@ -5,6 +5,8 @@ import AppErrorBoundary from "./Components/System/AppErrorBoundary.jsx";
 import BroadcastRecordingPrompt from "./Components/CreatorStudio/BroadcastRecordingPrompt.jsx";
 import settingsService from "./services/settingsService.js";
 import { initializeEchooTheme } from "./theme/themePreference.js";
+import "./accessibility/installPlayerKeyboardAccess.js";
+import "./accessibility/installUiSemanticRepairs.js";
 import "./index.css";
 import "./theme/EchooTheme.css";
 
@@ -15,12 +17,6 @@ import "./styles/echoo-home-final-fill.css";
 import "./styles/echoo-library-media-final.css";
 import "./styles/echoo-batch1-integration.css";
 import "./styles/station-brand-rendering.css";
-import "./styles/listener-premium-polish.css";
-import "./styles/listener-final-overrides.css";
-import "./styles/listener-reference-pages.css";
-import "./styles/listener-reference-pages-extended.css";
-import "./styles/listener-shell-unified.css";
-import "./styles/listener-reference-final.css";
 import "./styles/echoo-experience-2026.css";
 import "./styles/echoo-component-refinement-2026.css";
 import "./styles/echoo-auth-motion-2026.css";
@@ -44,12 +40,31 @@ import "./styles/creator-broadcast-strict-audit.css";
 import "./styles/creator-audio-interaction-fix.css";
 import "./styles/creator-ui-harmony-2026.css";
 
-// Shared design system is loaded last so Creator and Listener resolve the same shell contract.
+// Shared design system is loaded after feature layers so Creator and Listener
+// resolve the same shell primitives. Integrity layers are deliberately last and
+// contain only cross-page/responsive and active-page usability invariants.
 import "./theme/EchooDesignSystem.css";
 import "./Components/Shared/SharedPrimitives.css";
 import "./design-system/design-system.css";
+import "./styles/echoo-ui-integrity-audit-2026.css";
+import "./styles/echoo-ui-page-integrity-2026.css";
+import "./styles/creator-ui-page-integrity-2026.css";
+import "./styles/deep-hidden-audit-fixes.css";
+import "./styles/playwright-run4-hardening.css";
+import "./styles/playwright-run5-hardening.css";
+import "./styles/playwright-run6-root-layout-hardening.css";
+import "./styles/playwright-run7-final-gate-fixes.css";
 
 initializeEchooTheme();
+
+// Older builds used this as a persistent transcript-processing selector. It is
+// now a one-shot notification concept represented by echooPreparedBroadcastId;
+// clear any stale value left in an existing tab/session before the app starts.
+try {
+  sessionStorage.removeItem("echooProcessingBroadcastId");
+} catch {
+  // Storage can be unavailable in hardened/private browser contexts.
+}
 
 if (localStorage.getItem("accessToken")) {
   settingsService.get().catch(() => {

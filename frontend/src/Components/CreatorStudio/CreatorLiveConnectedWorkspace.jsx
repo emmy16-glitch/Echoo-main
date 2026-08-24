@@ -20,6 +20,7 @@ import CreatorBroadcastAudioSurface from './CreatorBroadcastAudioSurface';
 import CreatorLiveChatPanel from './CreatorLiveChatPanel';
 import CreatorLiveInsights from './CreatorLiveInsights';
 import CreatorBroadcastProcessing from './CreatorBroadcastProcessing';
+import CreatorAudioMixer from './CreatorAudioMixer';
 import batch2Service from '../../services/batch2Service';
 import batch3Service from '../../services/batch3Service';
 import {
@@ -231,8 +232,10 @@ const CreatorLiveConnectedWorkspace = ({
 
         const unfinishedProcessing = realBroadcasts.find((item) =>
           item.status === 'completed' && (
-            ['pending', 'processing'].includes(item.assetStatus?.audio) ||
-            ['processing', 'ready_for_review', 'editing'].includes(item.assetStatus?.transcript)
+            ['pending', 'processing', 'failed'].includes(item.assetStatus?.audio) ||
+            ['processing', 'ready_for_review', 'editing', 'failed'].includes(item.assetStatus?.transcript) ||
+            ['pending', 'processing', 'failed'].includes(item.assetStatus?.highlights) ||
+            ['pending', 'processing', 'failed'].includes(item.assetStatus?.chapters)
           )
         );
         if (unfinishedProcessing) {
@@ -942,7 +945,7 @@ const CreatorLiveConnectedWorkspace = ({
         </section>
 
         <div className="ecbs-live-grid">
-          <main><CreatorBroadcastAudioSurface variant="live" onStateChange={setMixerState} /></main>
+          <main><CreatorAudioMixer compact onStateChange={setMixerState} /></main>
           <aside><CreatorLiveChatPanel broadcastId={currentLiveBroadcast.id} listenerCount={presence.listenerCount} /><CreatorLiveInsights broadcastId={currentLiveBroadcast.id} presence={presence} onOpenAnalytics={() => onNavigate?.('Analytics')} /></aside>
         </div>
         {endConfirmationOpen && <div className="ecbs-end-dialog" role="presentation" onMouseDown={() => setEndConfirmationOpen(false)}>

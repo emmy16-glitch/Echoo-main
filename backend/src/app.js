@@ -2,7 +2,6 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
-import { rateLimit } from 'express-rate-limit';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer } from 'http';
@@ -14,6 +13,7 @@ import { env } from './config/env.js';
 import { connectDatabase, disconnectDatabase } from './config/database.js';
 import { startOrphanSweep } from './services/livekitOrphanSweep.js';
 import { verifyAccessToken } from './config/jwt.js';
+import { defaultLimiter } from './middleware/rateLimiter.js';
 import User from './models/User.js';
 import Broadcast from './models/Broadcast.js';
 import {
@@ -118,22 +118,11 @@ app.use(
 );
 
 app.use(compression());
-// Rate limiting to prevent 502s under heavy load
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per window
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: {
-    error: {
-      code: 'TOO_MANY_REQUESTS',
-      message: 'Too many requests from this IP, please try again after 15 minutes',
-    },
-  },
-});
-
-// Apply limiter to all API routes
-app.use('/api', limiter);
+// Use Echoo's centralized general API limiter. The previous hard-coded
+// 100-requests-per-15-minutes guard was lower than legitimate long-form live
+// traffic (including 10-second transcript quality chunks) and could corrupt a
+// healthy broadcast by returning 429s mid-session.
+app.use('/api', defaultLimiter);
 
 // LiveKit signs the exact raw webhook body. Register this endpoint before the
 // general JSON parser so signature verification cannot be invalidated.

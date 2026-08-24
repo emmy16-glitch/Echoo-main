@@ -1,0 +1,509 @@
+/*
+ * Echoo UI integrity contract — loaded after every legacy/page/design-system layer.
+ *
+ * This file intentionally fixes only cross-page invariants: readable typography,
+ * viewport-safe menus, honest text wrapping, one mobile navigation owner, usable
+ * player controls, and Creator/Listener responsive shell parity. Page-specific
+ * artwork, branding and content layout remain owned by their feature styles.
+ */
+
+:root {
+  --echoo-ui-touch: 44px;
+  --echoo-ui-readable-caption: 12px;
+  --echoo-ui-readable-small: 13px;
+}
+
+/* ---------- Shared shell readability ---------- */
+#root :is(.echoo-app-shell--listener, .studio-final-shell) {
+  font-family: var(--echoo-font-sans, Inter, ui-sans-serif, system-ui, sans-serif) !important;
+  min-width: 0;
+}
+
+#root :is(.echoo-app-shell--listener, .studio-final-shell) :is(button, input, select, textarea) {
+  font-family: inherit !important;
+}
+
+#root :is(.echoo-app-shell--listener, .studio-final-shell) .studio-nav-item {
+  font-size: 12.5px !important;
+  line-height: 1.25 !important;
+}
+
+#root :is(.echoo-app-shell--listener, .studio-final-shell) :is(.beautiful-search input, .studio-command-search input) {
+  font-size: 13px !important;
+  line-height: 1.35 !important;
+}
+
+#root .studio-final-shell :is(.sidebar-profile-text strong, .studio-account-button strong) {
+  font-size: 12px !important;
+  line-height: 1.25 !important;
+}
+
+#root .studio-final-shell :is(.sidebar-profile-text span, .studio-account-button span) {
+  font-size: 11px !important;
+  line-height: 1.3 !important;
+}
+
+#root .studio-final-shell .studio-profile-menu button {
+  min-height: 42px !important;
+  font-size: 12px !important;
+}
+
+#root .studio-final-shell .studio-alert {
+  font-size: 12px !important;
+  line-height: 1.4 !important;
+}
+
+#root .echoo-app-shell--listener :is(
+  .layout-profile-info strong,
+  .beautiful-result-info strong,
+  .search-suggestion-list button,
+  .beautiful-search-empty strong
+) {
+  font-size: 12px !important;
+}
+
+#root .echoo-app-shell--listener :is(
+  .layout-profile-info span,
+  .beautiful-result-info span,
+  .beautiful-search-empty span,
+  .search-panel-label,
+  .beautiful-result-type
+) {
+  font-size: 11px !important;
+  line-height: 1.35 !important;
+}
+
+/* ---------- Text must fail gracefully instead of disappearing ---------- */
+#root :is(.echoo-app-shell--listener, .studio-final-shell) :is(h1, h2, h3, h4, p, strong, span, small, dd) {
+  overflow-wrap: anywhere;
+}
+
+#root .echoo-app-shell--listener :is(
+  .pl-recent-row,
+  .pl-top-row,
+  .pl-popular-row,
+  .pl-playlist-row,
+  .al-row,
+  .ld-row,
+  .ln-item
+) :is(h3, h4, strong) {
+  min-width: 0 !important;
+  display: -webkit-box !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: normal !important;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  line-height: 1.35 !important;
+}
+
+#root .echoo-app-shell--listener :is(
+  .pl-recent-row,
+  .pl-top-row,
+  .pl-popular-row,
+  .pl-playlist-row,
+  .al-row,
+  .ld-row,
+  .ln-item
+) p {
+  min-width: 0 !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  white-space: normal !important;
+  line-height: 1.45 !important;
+}
+
+/* Metadata can truncate, but body copy and titles must not be forced into one line. */
+#root .echoo-app-shell--listener :is(.row-copy, .item-copy, .info, .body, .copy) {
+  min-width: 0 !important;
+}
+
+/* ---------- Viewport-safe menus / search results ---------- */
+#root :is(.echoo-app-shell--listener, .studio-final-shell) :is(
+  .beautiful-search-panel,
+  .echoo-profile-menu,
+  .listener-profile-dropdown,
+  .creator-account-popover,
+  .studio-profile-menu,
+  .echoo-message-menu,
+  .echoo-emoji-picker,
+  .echoo-reaction-picker
+) {
+  max-width: calc(100vw - 24px) !important;
+  max-height: min(72svh, 680px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* ---------- Listener replay ---------- */
+#root .echoo-app-shell--listener .replay-page {
+  min-width: 0;
+  max-width: 1120px;
+}
+
+#root .echoo-app-shell--listener .replay-copy h1 {
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
+#root .echoo-app-shell--listener .replay-copy > p,
+#root .echoo-app-shell--listener .replay-about p {
+  font-size: 13px !important;
+  line-height: 1.55 !important;
+}
+
+#root .echoo-app-shell--listener :is(.replay-creator small, .replay-facts dt, .replay-timeline > div:last-child) {
+  font-size: 11px !important;
+}
+
+/* The current More replay control has no action/menu behind it. Do not present a dead three-dot affordance. */
+#root .echoo-app-shell--listener [aria-label="More replay options"] {
+  display: none !important;
+}
+
+/* ---------- Listener settings ---------- */
+#root .echoo-app-shell--listener :is(.set-nav-item, .set-label, .set-section-title) {
+  font-size: 12.5px !important;
+}
+
+#root .echoo-app-shell--listener :is(.set-toggle-desc, .set-help, .set-description, .set-change-photo) {
+  font-size: 12px !important;
+  line-height: 1.45 !important;
+}
+
+#root .echoo-app-shell--listener :is(.set-nav-item, .set-action, .set-save, .set-button) {
+  min-height: 40px;
+}
+
+/* ---------- Listener live room ---------- */
+#root .echoo-app-shell--listener .llr-refresh {
+  min-height: 40px !important;
+  width: auto !important;
+  min-width: 40px !important;
+  padding-inline: 12px !important;
+  font-size: 12px !important;
+  line-height: 1 !important;
+}
+
+#root .echoo-app-shell--listener :is(.llr-message-body, .llr-hero-copy p, .llr-chat-empty) {
+  font-size: 13px !important;
+  line-height: 1.5 !important;
+}
+
+/* ---------- Accessible action controls ---------- */
+#root :is(.echoo-app-shell--listener, .studio-final-shell) :is(
+  .notification-button,
+  .layout-top-button,
+  .beautiful-search-clear,
+  .al-row-more,
+  .upload-close-button,
+  .studio-cover-remove
+) {
+  min-width: 40px;
+  min-height: 40px;
+}
+
+/* ---------- Tablet: keep labelled sidebars, never collapse to unlabeled icon rails ---------- */
+@media (min-width: 761px) and (max-width: 960px) {
+  #root .echoo-app-shell--listener.echoo-app-shell {
+    --echoo-shell-sidebar-width: 196px !important;
+    grid-template-columns: 196px minmax(0, 1fr) !important;
+  }
+
+  #root .echoo-app-shell--listener > .studio-sidebar {
+    width: 196px !important;
+  }
+
+  #root .echoo-app-shell--listener .echoo-player-bar,
+  #root .echoo-app-shell--listener .layout-player {
+    left: 196px !important;
+  }
+
+  #root .echoo-app-shell--listener .studio-nav-label {
+    display: block !important;
+  }
+
+  #root .studio-page.studio-final-shell {
+    --studio-sidebar-width: 196px !important;
+    grid-template-columns: 196px minmax(0, 1fr) !important;
+  }
+
+  #root .studio-page.studio-final-shell .studio-nav-item > span:last-child {
+    display: block !important;
+  }
+}
+
+/* ---------- Phones / small tablets ---------- */
+@media (max-width: 760px) {
+  /* Listener has one navigation owner: EchooMobileNavigation. The shared desktop
+     sidebar must not become a second bottom bar underneath/above it. */
+  #root .echoo-app-shell--listener.echoo-app-shell {
+    display: block !important;
+    grid-template-columns: none !important;
+    width: 100% !important;
+    min-height: 100svh !important;
+    overflow: visible !important;
+    padding: 0 !important;
+  }
+
+  #root .echoo-app-shell--listener > .studio-sidebar {
+    display: none !important;
+  }
+
+  #root .echoo-app-shell--listener > .studio-main {
+    grid-column: 1 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 100svh !important;
+    margin: 0 !important;
+    padding-bottom: calc(var(--echoo-product-mobile-nav, 70px) + var(--echoo-product-mobile-player, 68px) + 20px) !important;
+    overflow-x: clip !important;
+  }
+
+  #root .echoo-app-shell--listener .studio-topbar-final {
+    width: 100% !important;
+    min-height: 60px !important;
+    height: 60px !important;
+    gap: 7px !important;
+    padding-inline: 10px !important;
+  }
+
+  #root .echoo-app-shell--listener .beautiful-search-wrapper {
+    flex: 1 1 auto !important;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+
+  #root .echoo-app-shell--listener .beautiful-search {
+    height: 40px !important;
+  }
+
+  #root .echoo-app-shell--listener .beautiful-search-panel {
+    position: fixed !important;
+    top: 62px !important;
+    left: 10px !important;
+    right: 10px !important;
+    width: auto !important;
+  }
+
+  #root .echoo-app-shell--listener .studio-account-button {
+    min-width: 40px !important;
+    width: 40px !important;
+    min-height: 40px !important;
+    height: 40px !important;
+    padding: 1px !important;
+  }
+
+  /* Keep Previous / Play / Next visible. Shuffle and Repeat are secondary on
+     narrow phones, but core transport must never disappear. */
+  #root .echoo-app-shell--listener .layout-player-controls > button:nth-child(2),
+  #root .echoo-app-shell--listener .layout-player-controls > button.layout-player-main-button,
+  #root .echoo-app-shell--listener .layout-player-controls > button:nth-child(4) {
+    display: grid !important;
+    place-items: center;
+    min-width: 36px !important;
+    width: 36px !important;
+    min-height: 36px !important;
+    height: 36px !important;
+    padding: 0 !important;
+  }
+
+  #root .echoo-app-shell--listener .layout-player-controls > button.layout-player-main-button {
+    min-width: 42px !important;
+    width: 42px !important;
+    min-height: 42px !important;
+    height: 42px !important;
+  }
+
+  #root .echoo-app-shell--listener .layout-player-controls {
+    display: flex !important;
+    align-items: center !important;
+    gap: 2px !important;
+  }
+
+  /* Device volume remains available; Echoo still keeps a compact mute control. */
+  #root .echoo-app-shell--listener .layout-player-volume {
+    display: flex !important;
+    width: 36px !important;
+    min-width: 36px !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  #root .echoo-app-shell--listener .layout-player-volume > :is(span, input, .layout-player-progress) {
+    display: none !important;
+  }
+
+  #root .echoo-app-shell--listener .layout-player-volume > button {
+    display: grid !important;
+    place-items: center;
+    width: 36px !important;
+    height: 36px !important;
+    min-width: 36px !important;
+    min-height: 36px !important;
+    padding: 0 !important;
+  }
+
+  #root .echoo-app-shell--listener .echoo-persistent-player,
+  #root .echoo-app-shell--listener .layout-player {
+    bottom: var(--echoo-product-mobile-nav, 70px) !important;
+    min-height: 68px !important;
+    height: 68px !important;
+    max-height: 68px !important;
+    grid-template-columns: minmax(0, 1fr) auto 36px !important;
+    gap: 6px !important;
+    padding: 7px 10px !important;
+  }
+
+  #root .echoo-app-shell--listener .layout-player-info strong {
+    display: -webkit-box !important;
+    overflow: hidden !important;
+    white-space: normal !important;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    font-size: 12px !important;
+    line-height: 1.2 !important;
+  }
+
+  #root .echoo-app-shell--listener .layout-player-info span {
+    font-size: 11px !important;
+  }
+
+  .echoo-mobile-nav {
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    overflow: hidden !important;
+  }
+
+  .echoo-mobile-nav-item {
+    min-width: 0 !important;
+    min-height: 52px !important;
+    font-size: 11px !important;
+    line-height: 1.1 !important;
+  }
+
+  .echoo-mobile-nav-item > span {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Creator keeps every destination visible through a horizontally scrollable
+     labelled bottom rail instead of an icon-only rail. */
+  #root .studio-page.studio-final-shell {
+    display: block !important;
+    grid-template-columns: none !important;
+    width: 100% !important;
+    padding-bottom: calc(74px + env(safe-area-inset-bottom)) !important;
+  }
+
+  #root .studio-page.studio-final-shell .studio-sidebar {
+    height: calc(70px + env(safe-area-inset-bottom)) !important;
+    min-height: calc(70px + env(safe-area-inset-bottom)) !important;
+  }
+
+  #root .studio-page.studio-final-shell .studio-navigation {
+    height: 60px !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scroll-snap-type: x proximity;
+  }
+
+  #root .studio-page.studio-final-shell .studio-nav-item {
+    flex: 0 0 84px !important;
+    width: 84px !important;
+    min-width: 84px !important;
+    height: 58px !important;
+    min-height: 58px !important;
+    gap: 4px !important;
+    padding: 4px 6px !important;
+    font-size: 11px !important;
+    line-height: 1.15 !important;
+    scroll-snap-align: start;
+  }
+
+  #root .studio-page.studio-final-shell .studio-nav-item > span:last-child {
+    display: block !important;
+    max-width: 78px !important;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  #root .studio-page.studio-final-shell .studio-main {
+    width: 100% !important;
+    margin: 0 !important;
+    padding-bottom: 82px !important;
+  }
+
+  #root .studio-page.studio-final-shell .studio-topbar-final {
+    min-height: 60px !important;
+    height: 60px !important;
+  }
+
+  #root .studio-page.studio-final-shell .studio-command-search {
+    min-height: 40px !important;
+    height: 40px !important;
+  }
+
+  #root .studio-page.studio-final-shell .studio-view {
+    padding: 18px 12px 34px !important;
+  }
+
+  /* Do not hide meaningful replay descriptions just to save vertical space. */
+  #root .echoo-app-shell--listener .replay-copy > p {
+    display: block !important;
+  }
+
+  #root .echoo-app-shell--listener .replay-actions {
+    padding-left: 0 !important;
+  }
+
+  #root .echoo-app-shell--listener :is(.echoo-ui-button, .replay-back, .replay-about button, .replay-moments button) {
+    min-height: 40px;
+  }
+}
+
+@media (max-width: 520px) {
+  #root .echoo-app-shell--listener .replay-hero {
+    grid-template-columns: 1fr !important;
+  }
+
+  #root .echoo-app-shell--listener .replay-art {
+    width: min(74vw, 260px);
+    justify-self: center;
+  }
+
+  #root .echoo-app-shell--listener .replay-copy {
+    align-items: stretch;
+  }
+
+  #root .echoo-app-shell--listener .replay-copy h1 {
+    font-size: clamp(1.7rem, 9vw, 2.25rem) !important;
+  }
+
+  #root .echoo-app-shell--listener .replay-creator {
+    align-items: flex-start;
+  }
+
+  #root .echoo-app-shell--listener .replay-actions > * {
+    flex: 1 1 calc(50% - 6px);
+  }
+
+  #root .echoo-app-shell--listener .layout-player-cover {
+    width: 38px !important;
+    height: 38px !important;
+    min-width: 38px !important;
+  }
+
+  #root .echoo-app-shell--listener .layout-player-track {
+    gap: 7px !important;
+  }
+
+  #root .studio-page.studio-final-shell .studio-command-search input::placeholder {
+    color: transparent !important;
+  }
+}

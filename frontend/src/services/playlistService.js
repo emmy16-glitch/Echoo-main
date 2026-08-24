@@ -11,7 +11,11 @@ const normalizeTrack = (entry) => {
         ? entry.track
         : entry;
 
-  if (!track || track.isDeleted || track.isPublic === false) return null;
+  // The API already filters each playlist for the current viewer. Do not apply a
+  // second client-side `isPublic` authorization rule here: owners are allowed to
+  // organize their private/draft audio, and dropping it in normalization makes
+  // Creator Collections silently lose content after a successful save.
+  if (!track || track.isDeleted) return null;
 
   const artist = track.artist || null;
 

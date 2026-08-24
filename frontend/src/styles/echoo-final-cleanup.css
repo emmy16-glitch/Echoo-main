@@ -26,6 +26,12 @@
   outline-offset: 2px;
 }
 
+html body:has(.echoo-listener-v2-shell) .echoo-skip-to-content:focus,
+html body:has(.echoo-listener-v2-shell) .echoo-skip-to-content:focus-visible {
+  top: 12px;
+  transform: translateY(0) !important;
+}
+
 #echoo-main-content:focus {
   outline: none;
 }

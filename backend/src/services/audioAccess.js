@@ -1,18 +1,28 @@
 import Audio from '../models/Audio.js';
 
+const publicAudioClause = {
+  isPublic: true,
+  visibility: 'public',
+  publicationStatus: 'published',
+};
+
 export const audioAccessFilter = (userId) => ({
   isDeleted: false,
   $or: [
-    { isPublic: true },
+    publicAudioClause,
     ...(userId ? [{ artist: userId }] : []),
   ],
 });
 
 export const isAudioAccessibleToUser = (audio, userId) => {
   if (!audio || audio.isDeleted) return false;
-  if (audio.isPublic) return true;
   const artistId = audio.artist?._id || audio.artist;
-  return Boolean(userId && artistId && String(artistId) === String(userId));
+  if (userId && artistId && String(artistId) === String(userId)) return true;
+  return Boolean(
+    audio.isPublic === true &&
+    audio.visibility === 'public' &&
+    audio.publicationStatus === 'published'
+  );
 };
 
 export const findAccessibleAudio = (audioId, userId, projection = null) => {
