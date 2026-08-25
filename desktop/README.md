@@ -76,7 +76,7 @@ For a release-candidate Linux package, run the packaged-shell validation after `
 node verify-packaged-shell.mjs
 ```
 
-This launches `dist/linux-unpacked/echoo-studio`, verifies that an active room survives the native close-to-tray path, and exercises the tray action handlers for **Open Echoo**, **mute**, **unmute**, and **leave room**. Desktop notifications are disabled until a user enables **Desktop notifications** from the tray; enabled alerts use neutral Echoo status copy rather than room or message content.
+This launches `dist/linux-unpacked/echoo-studio`, verifies that an active room survives the native close-to-tray path, and exercises the tray action handlers for **Open Echoo**, **mute**, **unmute**, and **leave room**. It also verifies the packaged app’s persisted desktop-alert master switch, allowlisted per-event settings, event-disabled gate, and enabled-event path. Desktop notifications are disabled until a user enables **Desktop notifications** from the tray; enabled alerts use neutral Echoo status copy rather than room or message content.
 
 Users can also control the same device-local preference inside Echoo Desktop through **Settings → Notifications**. Listener and creator views expose a master **Show desktop alerts** switch and supported per-event options for **Live-room messages**, **Room started**, and **Room ended**. The in-app panels read and write only an allowlisted native preference through the restricted preload bridge; they never store notification choices in room or message data. Creator follower and release settings remain account preferences and do not imply native desktop alerts until the app emits corresponding events.
 
@@ -91,6 +91,8 @@ Generates a standalone NSIS installer:
 ```bash
 npm run build -- --win
 ```
+
+The v1.0.5 Windows release asset is `Echoo Studio Setup 1.0.5.exe`. On a Linux build host, install Wine with both 64-bit and 32-bit support before cross-building the NSIS package. The resulting installer can be statically verified as a Windows PE/NSIS archive; use a Windows environment or the Windows CI job for the native build validation.
 
 ### macOS (.dmg)
 Generates a Disk Image (requires a Mac for final signing/packaging):

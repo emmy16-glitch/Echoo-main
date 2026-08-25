@@ -37,6 +37,24 @@ try {
   const window = await electronApp.firstWindow();
   await window.getByText('Echoo packaged shell is ready').waitFor();
 
+  const disabledPreferences = await window.evaluate(() => window.echooDesktop.setNotificationPreferences({
+    notificationsEnabled: false,
+    notificationEvents: { message: true, roomStarted: true, roomEnded: true },
+  }));
+  assert.deepStrictEqual(disabledPreferences, {
+    notificationsEnabled: false,
+    notificationEvents: { message: true, roomStarted: true, roomEnded: true },
+  }, 'the packaged bridge should persist the desktop-alert master switch');
+
+  const eventPreferences = await window.evaluate(() => window.echooDesktop.setNotificationPreferences({
+    notificationsEnabled: true,
+    notificationEvents: { message: false, roomStarted: true, roomEnded: false, unknownEvent: true },
+  }));
+  assert.deepStrictEqual(eventPreferences, {
+    notificationsEnabled: true,
+    notificationEvents: { message: false, roomStarted: true, roomEnded: false },
+  }, 'the packaged bridge should retain only allowlisted event preferences');
+
   const initialState = await window.evaluate(() => window.echooDesktop.setRoomState({
     active: true,
     muted: false,
@@ -53,6 +71,22 @@ try {
   });
   assert.strictEqual(backgroundState.exists, true, 'packaged shell should retain the active room window');
   assert.strictEqual(backgroundState.visible, false, 'active room should continue after the window is hidden');
+
+  const eventDisabled = await window.evaluate(() => window.echooDesktop.notify({ type: 'message' }));
+  assert.deepStrictEqual(eventDisabled, { shown: false, reason: 'event-disabled' }, 'a disabled event must block its native alert');
+
+  const enabledEvent = await window.evaluate(async () => {
+    await window.echooDesktop.setNotificationPreferences({ notificationEvents: { message: true } });
+    return window.echooDesktop.notify({ type: 'message' });
+  });
+  assert.notStrictEqual(enabledEvent.reason, 'disabled', 'the enabled master switch must not block a selected event');
+  assert.notStrictEqual(enabledEvent.reason, 'event-disabled', 'the enabled event must not be blocked by the per-event gate');
+
+  const persistedPreferences = await window.evaluate(() => window.echooDesktop.getNotificationPreferences());
+  assert.deepStrictEqual(persistedPreferences, {
+    notificationsEnabled: true,
+    notificationEvents: { message: true, roomStarted: true, roomEnded: false },
+  }, 'the packaged preference state should remain available to the settings interface');
 
   async function expectTrayCommand(action, expectedCommand) {
     await window.evaluate(() => {
@@ -83,7 +117,7 @@ try {
   });
   assert.strictEqual(shown, true, 'the tray Open Echoo action should restore the packaged app window');
 
-  console.log('Packaged Linux shell verification passed: background room and reopen, mute, unmute, and leave-room tray actions are available.');
+  console.log('Packaged Linux shell verification passed: granular native notification preferences plus background room, reopen, mute, unmute, and leave-room tray actions are available.');
 } finally {
   await electronApp.close();
   await new Promise((resolve) => server.close(resolve));
