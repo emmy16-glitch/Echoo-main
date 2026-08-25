@@ -20,7 +20,7 @@ function createFixtureServer() {
 test('Echoo Desktop boots a secure shell with the native bridge', async (t) => {
   const { server, url } = await createFixtureServer();
   const electronApp = await electron.launch({
-    args: ['.'],
+    args: ['.', ...(process.env.ECHOO_TEST_NO_SANDBOX === '1' ? ['--no-sandbox'] : [])],
     env: {
       ...process.env,
       NODE_ENV: 'development',

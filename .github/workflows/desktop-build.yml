@@ -39,13 +39,15 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           cd desktop
-          npx electron --version
+          npx electron --no-sandbox --version
 
       - name: Verify Electron desktop shell
         if: runner.os == 'Linux'
         run: |
           cd desktop
           xvfb-run -a npm test
+        env:
+          ECHOO_TEST_NO_SANDBOX: '1'
 
       - name: Build Electron app
         run: |
