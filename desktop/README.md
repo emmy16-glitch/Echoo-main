@@ -1,5 +1,25 @@
 # Echoo Desktop Studio
 
+## Linux installation
+
+The **`.deb` file is an installer package, not a directly runnable program**. After downloading the current `Echoo-Studio-<version>-amd64.deb` asset, install it with your distribution’s software installer or run:
+
+```bash
+cd ~/Downloads
+sudo apt install ./Echoo-Studio-<version>-amd64.deb
+```
+
+Then open **Echoo Studio** from the application launcher, or run `echoo-studio` from a terminal. Do **not** use `chmod +x` or try to run the `.deb` file directly.
+
+For distributions that do not use Debian packages, download the AppImage instead and run:
+
+```bash
+chmod +x Echoo-Studio-<version>-x86_64.AppImage
+./Echoo-Studio-<version>-x86_64.AppImage
+```
+
+Maintainers can create the Linux distribution assets with `npm run build:linux`. This produces a `.deb` installer, an AppImage, and a compressed tarball in `desktop/dist/`.
+
 Echoo Desktop Studio is the secure native shell for the live Echoo audio platform. Built with **Electron**, it loads the production application at [echoo.digi02.org](https://echoo.digi02.org) by default while retaining the product’s web design language, WebRTC capabilities, and creator/listener workflows.
 
 ## 🚀 Features

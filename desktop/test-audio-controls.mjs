@@ -46,6 +46,19 @@ test('Echoo Desktop boots a secure shell with the native bridge', async (t) => {
     disabledNotification: await window.echooDesktop.notify({ type: 'message' }),
     notificationsEnabled: await window.echooDesktop.setNotificationPreference(true),
     enabledPreference: await window.echooDesktop.getNotificationPreference(),
+  }));
+
+  await electronApp.evaluate(({ BrowserWindow }) => {
+    const desktopWindow = BrowserWindow.getAllWindows()[0];
+    desktopWindow?.hide();
+    return {
+      exists: Boolean(desktopWindow),
+      visible: desktopWindow?.isVisible() ?? false,
+    };
+  });
+
+  const backgroundDesktop = await window.evaluate(async () => ({
+    roomState: await window.echooDesktop.getRoomState(),
     enabledNotification: await window.echooDesktop.notify({ type: 'message' }),
     restoredPreference: await window.echooDesktop.setNotificationPreference(false),
   }));
@@ -59,6 +72,7 @@ test('Echoo Desktop boots a secure shell with the native bridge', async (t) => {
   assert.deepStrictEqual(desktop.disabledNotification, { shown: false, reason: 'disabled' }, 'disabled notifications must not emit a native alert');
   assert.strictEqual(desktop.notificationsEnabled, true, 'notification opt-in should be persisted through the bridge');
   assert.strictEqual(desktop.enabledPreference, true, 'bridge should report the enabled notification preference');
-  assert.notStrictEqual(desktop.enabledNotification.reason, 'disabled', 'enabled notifications must pass the opt-in gate');
-  assert.strictEqual(desktop.restoredPreference, false, 'smoke test should restore the default-off notification preference');
+  assert.deepStrictEqual(backgroundDesktop.roomState, { active: true, muted: false, canToggleMute: true }, 'live-room state should remain available while the window is hidden');
+  assert.notStrictEqual(backgroundDesktop.enabledNotification.reason, 'disabled', 'enabled notifications must pass the opt-in gate');
+  assert.strictEqual(backgroundDesktop.restoredPreference, false, 'smoke test should restore the default-off notification preference');
 });
