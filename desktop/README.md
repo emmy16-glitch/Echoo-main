@@ -69,6 +69,14 @@ npm test
 
 The test starts Electron against a controlled local fixture and confirms that the secure bridge is available while Node remains unavailable to web content.
 
+For a release-candidate Linux package, run the packaged-shell validation after `npm run build:linux`:
+
+```bash
+node verify-packaged-shell.mjs
+```
+
+This launches `dist/linux-unpacked/echoo-studio`, verifies that an active room survives the native close-to-tray path, and confirms that the renderer receives the background room-command event used by the tray controls. Desktop notifications are disabled until a user enables **Desktop notifications** from the tray; enabled alerts use neutral Echoo status copy rather than room or message content.
+
 ---
 
 ## 📦 Building the Executables
@@ -101,6 +109,7 @@ npm run build -- --linux
 - `build/`: Contains platform-specific icons (`icon.ico`, `icon.icns`, and Linux PNG assets).
 - `offline.html`: Branded recovery page shown when Echoo cannot be reached.
 - `test-audio-controls.mjs`: Electron shell and secure-bridge smoke test.
+- `verify-packaged-shell.mjs`: Packaged Linux shell validation for background-room and tray-command paths.
 - `dist/`: The output folder for built executables.
 
 ## 🤝 Contributing
