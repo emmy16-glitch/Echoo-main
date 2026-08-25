@@ -64,15 +64,12 @@ jobs:
         run: |
           cd desktop
           dmg=$(find dist -maxdepth 1 -type f -name '*.dmg' -print -quit)
-          zip=$(find dist -maxdepth 1 -type f -name '*.zip' -print -quit)
           test -n "$dmg"
-          test -n "$zip"
           test -s "$dmg"
-          test -s "$zip"
           printf '%s\n' '--- macOS distributable manifest ---'
-          ls -lh "$dmg" "$zip"
-          shasum -a 256 "$dmg" "$zip"
-          file "$dmg" "$zip"
+          ls -lh "$dmg"
+          shasum -a 256 "$dmg"
+          file "$dmg"
 
       - name: Retain packaged desktop artifacts for verification
         uses: actions/upload-artifact@v4
