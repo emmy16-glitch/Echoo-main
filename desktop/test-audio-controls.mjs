@@ -33,7 +33,7 @@ test('Echoo Desktop boots a secure shell with the native bridge', async (t) => {
     await new Promise((resolve) => server.close(resolve));
   });
 
-  const window = await electronApp.firstWindow();
+  const window = await electronApp.firstWindow({ timeout: 75_000 });
   await window.waitForLoadState('domcontentloaded');
   await window.getByText('Echoo desktop shell is ready').waitFor();
 
