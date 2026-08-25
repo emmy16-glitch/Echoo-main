@@ -41,10 +41,14 @@ test('Echoo Desktop boots a secure shell with the native bridge', async (t) => {
     bridgeAvailable: typeof window.echooDesktop !== 'undefined',
     nodeIsHidden: typeof window.require === 'undefined',
     appInfo: await window.echooDesktop.getAppInfo(),
+    roomState: await window.echooDesktop.setRoomState({ active: true, muted: false, canToggleMute: true }),
+    notification: await window.echooDesktop.notify({ type: 'message' }),
   }));
 
   assert.strictEqual(desktop.bridgeAvailable, true, 'desktop bridge should be exposed');
   assert.strictEqual(desktop.nodeIsHidden, true, 'Node APIs should not be exposed to the renderer');
   assert.strictEqual(desktop.appInfo.platform, process.platform, 'bridge should report the native platform');
   assert.strictEqual(desktop.appInfo.startUrl, url, 'shell should load the explicitly configured Echoo URL');
+  assert.deepStrictEqual(desktop.roomState, { active: true, muted: false, canToggleMute: true }, 'bridge should retain only non-identifying room state');
+  assert.strictEqual(desktop.notification.shown, false, 'focused windows should not create duplicate native notifications');
 });

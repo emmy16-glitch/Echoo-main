@@ -17,6 +17,7 @@ import batch4Service, { normalizeChatMessage } from '../../services/batch4Servic
 import followService from '../../services/followService';
 import realtimeService from '../../services/realtimeService';
 import { buildMediaUrl } from '../../services/api';
+import { notifyDesktop, onDesktopRoomCommand, setDesktopRoomState } from '../../services/desktopBridge';
 import { buildGeneratedStationBrandCoverUrl } from '../../stationBranding/stationBranding';
 import { ChatPanel, LiveRoomHeader, Waveform } from '../../design-system';
 import { referenceChat, referenceLiveShows } from '../ListenerExperience/listenerExperienceData';
@@ -99,6 +100,27 @@ const ListenerRealLiveRoom = () => {
     if (state?.status) setAudioState(state.status);
     setLivePlayerState(state);
   }, [setLivePlayerState]);
+
+  useEffect(() => {
+    const active = Boolean(isLive && joined);
+    setDesktopRoomState({
+      active,
+      muted: Boolean(liveState?.isMuted),
+      canToggleMute: typeof liveState?.onToggleMute === 'function',
+    });
+
+    return () => {
+      setDesktopRoomState({ active: false, muted: false, canToggleMute: false });
+    };
+  }, [isLive, joined, liveState?.isMuted, liveState?.onToggleMute]);
+
+  useEffect(() => onDesktopRoomCommand((command) => {
+    if (command === 'toggle-mute') liveState?.onToggleMute?.();
+    if (command === 'leave-room') {
+      setJoined(false);
+      navigate('/listen/live');
+    }
+  }), [liveState?.onToggleMute, navigate]);
   const playerTrack = useMemo(() => show ? ({
     id: show.id,
     title: show.title,
@@ -184,12 +206,19 @@ const ListenerRealLiveRoom = () => {
 
       const onMessage = (payload) => {
         const normalized = normalizeChatMessage(payload);
-        if (normalized) setMessages((current) => mergeById(current, chatView(normalized)));
+        if (normalized) {
+          setMessages((current) => mergeById(current, chatView(normalized)));
+          notifyDesktop('message');
+        }
       };
       const onDeleted = ({ messageId } = {}) => setMessages((current) => current.filter((item) => !sameId(item.id, messageId)));
       const onReaction = ({ messageId, reactions } = {}) => setMessages((current) => current.map((item) => sameId(item.id, messageId) ? { ...item, reactions, reaction: reactions?.length || '' } : item));
       const onStatus = (payload) => {
         if (!sameId(payload?.broadcastId, show.id)) return;
+        const nextStatus = String(payload?.status || '').toLowerCase();
+        const previousStatus = String(statusRef.current || '').toLowerCase();
+        if (nextStatus !== previousStatus && nextStatus === 'live') notifyDesktop('room-started');
+        if (nextStatus !== previousStatus && ['completed', 'cancelled', 'failed'].includes(nextStatus)) notifyDesktop('room-ended');
         setShow((current) => current ? normalizeBroadcast({ ...current, ...payload }) : current);
       };
       const onDisconnect = () => { setRealtimeState('fallback'); fallback(); };
