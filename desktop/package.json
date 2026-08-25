@@ -1,6 +1,6 @@
 {
   "name": "echoo-studio",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "desktopName": "echoo-studio",
   "main": "main.js",
   "scripts": {

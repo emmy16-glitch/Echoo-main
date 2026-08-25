@@ -29,6 +29,7 @@ const electronApp = await electron.launch({
     ...process.env,
     NODE_ENV: 'development',
     ECHOO_URL: url,
+    ECHOO_DESKTOP_TEST: '1',
   },
 });
 
@@ -53,24 +54,36 @@ try {
   assert.strictEqual(backgroundState.exists, true, 'packaged shell should retain the active room window');
   assert.strictEqual(backgroundState.visible, false, 'active room should continue after the window is hidden');
 
-  await window.evaluate(() => {
-    window.__echooRoomCommand = new Promise((resolve) => {
-      const stop = window.echooDesktop.onRoomCommand((command) => {
-        stop();
-        resolve(command);
+  async function expectTrayCommand(action, expectedCommand) {
+    await window.evaluate(() => {
+      window.__echooRoomCommand = new Promise((resolve) => {
+        const stop = window.echooDesktop.onRoomCommand((command) => {
+          stop();
+          resolve(command);
+        });
       });
     });
-  });
 
-  const command = await electronApp.evaluate(({ BrowserWindow }) => {
-    BrowserWindow.getAllWindows()[0].webContents.send('desktop:room-command', 'toggle-mute');
-    return 'toggle-mute';
-  });
-  const commandResult = await window.evaluate(() => window.__echooRoomCommand);
-  assert.strictEqual(command, 'toggle-mute');
-  assert.strictEqual(commandResult, 'toggle-mute', 'packaged room command bridge should reach the renderer');
+    const invoked = await electronApp.evaluate((_electron, actionName) => (
+      globalThis.__echooDesktopTest.invokeTrayAction(actionName)
+    ), action);
+    assert.strictEqual(invoked, true, `${action} should map to a tray action`);
+    const command = await window.evaluate(() => window.__echooRoomCommand);
+    assert.strictEqual(command, expectedCommand, `${action} should send ${expectedCommand}`);
+  }
 
-  console.log('Packaged Linux shell verification passed: background room and tray-command event paths are available.');
+  await expectTrayCommand('toggleMute', 'toggle-mute');
+  await window.evaluate(() => window.echooDesktop.setRoomState({ active: true, muted: true, canToggleMute: true }));
+  await expectTrayCommand('toggleMute', 'toggle-mute');
+  await expectTrayCommand('leaveRoom', 'leave-room');
+
+  const shown = await electronApp.evaluate(({ BrowserWindow }) => {
+    globalThis.__echooDesktopTest.invokeTrayAction('open');
+    return BrowserWindow.getAllWindows()[0]?.isVisible() ?? false;
+  });
+  assert.strictEqual(shown, true, 'the tray Open Echoo action should restore the packaged app window');
+
+  console.log('Packaged Linux shell verification passed: background room and reopen, mute, unmute, and leave-room tray actions are available.');
 } finally {
   await electronApp.close();
   await new Promise((resolve) => server.close(resolve));

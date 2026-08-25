@@ -75,7 +75,7 @@ For a release-candidate Linux package, run the packaged-shell validation after `
 node verify-packaged-shell.mjs
 ```
 
-This launches `dist/linux-unpacked/echoo-studio`, verifies that an active room survives the native close-to-tray path, and confirms that the renderer receives the background room-command event used by the tray controls. Desktop notifications are disabled until a user enables **Desktop notifications** from the tray; enabled alerts use neutral Echoo status copy rather than room or message content.
+This launches `dist/linux-unpacked/echoo-studio`, verifies that an active room survives the native close-to-tray path, and exercises the tray action handlers for **Open Echoo**, **mute**, **unmute**, and **leave room**. Desktop notifications are disabled until a user enables **Desktop notifications** from the tray; enabled alerts use neutral Echoo status copy rather than room or message content.
 
 ---
 

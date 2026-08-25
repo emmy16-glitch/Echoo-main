@@ -97,6 +97,12 @@ function sendRoomCommand(command) {
   mainWindow.webContents.send('desktop:room-command', command);
 }
 
+const trayActions = {
+  open: showMainWindow,
+  toggleMute: () => sendRoomCommand('toggle-mute'),
+  leaveRoom: () => sendRoomCommand('leave-room'),
+};
+
 function updateTrayMenu() {
   if (!tray) return;
   tray.setToolTip(
@@ -110,15 +116,15 @@ function updateTrayMenu() {
         {
           label: roomState.muted ? 'Unmute live room' : 'Mute live room',
           enabled: roomState.canToggleMute,
-          click: () => sendRoomCommand('toggle-mute'),
+          click: trayActions.toggleMute,
         },
-        { label: 'Leave live room', click: () => sendRoomCommand('leave-room') },
+        { label: 'Leave live room', click: trayActions.leaveRoom },
         { type: 'separator' },
       ]
     : [];
 
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: 'Open Echoo', click: showMainWindow },
+    { label: 'Open Echoo', click: trayActions.open },
     ...(roomState.active ? [{ label: 'Keep room playing in background', enabled: false }] : []),
     ...roomItems,
     { type: 'separator' },
@@ -326,6 +332,16 @@ app.whenReady().then(() => {
   loadNotificationPreference();
   createTray();
   createWindow();
+
+  if (process.env.ECHOO_DESKTOP_TEST === '1') {
+    globalThis.__echooDesktopTest = {
+      invokeTrayAction(action) {
+        if (!Object.hasOwn(trayActions, action)) return false;
+        trayActions[action]();
+        return true;
+      },
+    };
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
