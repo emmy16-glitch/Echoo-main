@@ -405,7 +405,7 @@ ipcMain.handle('desktop:notify', (_event, payload) => showDesktopNotification(pa
 app.whenReady().then(() => {
   app.setAppUserModelId('org.echoo.desktop');
   loadNotificationPreference();
-  createTray();
+  if (process.env.ECHOO_TEST_HEADLESS !== '1') createTray();
   createWindow();
 
   if (process.env.ECHOO_DESKTOP_TEST === '1') {
