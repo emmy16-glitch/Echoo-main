@@ -59,6 +59,14 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_ENV: production
 
+      - name: Retain packaged desktop artifacts for verification
+        uses: actions/upload-artifact@v4
+        with:
+          name: echoo-desktop-${{ runner.os }}
+          path: desktop/dist/*
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v1
