@@ -1,12 +1,13 @@
 # Echoo Desktop Studio
 
-The Echoo Desktop Studio is a native desktop wrapper for the Echoo real-time audio broadcasting platform. Built with **Electron**, it provides a more integrated experience for creators, including native window management and improved performance for audio streaming.
+Echoo Desktop Studio is the secure native shell for the live Echoo audio platform. Built with **Electron**, it loads the production application at [echoo.digi02.org](https://echoo.digi02.org) by default while retaining the product’s web design language, WebRTC capabilities, and creator/listener workflows.
 
 ## 🚀 Features
-- **Native Experience**: Run Echoo as a standalone application outside the browser.
-- **Optimized Audio**: Built-in support for WebRTC and LiveKit streaming.
-- **Cross-Platform**: Support for Windows, macOS, and Linux.
-- **Branded**: Includes official Echoo icons and styling.
+- **Live by default**: Opens the production Echoo application without requiring a local frontend server.
+- **Secure shell**: Keeps Node APIs isolated from web content and only exposes a minimal native bridge.
+- **Resilient experience**: Shows a branded recovery view if the live service cannot be reached.
+- **Native controls**: Provides standard platform menus, zoom/full-screen support, and safe external-link handling.
+- **Cross-platform packaging**: Builds NSIS for Windows, DMG for macOS, and AppImage, DEB, Snap, and directory targets for Linux.
 
 ---
 
@@ -27,11 +28,26 @@ The Echoo Desktop Studio is a native desktop wrapper for the Echoo real-time aud
    ```
 
 ### Running in Development
-To launch the desktop app in development mode:
+To launch the desktop app against the live Echoo experience:
 ```bash
 npm start
 ```
-*Note: Ensure your Echoo web backend and frontend are running (e.g., via `scripts/dev-ngrok.sh`) so the desktop app can connect.*
+
+For local frontend development, point the shell at your Vite server explicitly:
+```bash
+NODE_ENV=development ECHOO_URL=http://localhost:5174 npm run dev
+```
+
+The desktop shell intentionally loads the website; it is not an offline broadcaster. A working internet connection is required for authentication and live audio rooms.
+
+### Desktop validation
+
+Run the native-shell smoke test before packaging:
+```bash
+npm test
+```
+
+The test starts Electron against a controlled local fixture and confirms that the secure bridge is available while Node remains unavailable to web content.
 
 ---
 
@@ -62,7 +78,9 @@ npm run build -- --linux
 ## 📂 Project Structure
 - `main.js`: The Electron main process (handles window management).
 - `preload.js`: The security bridge between native features and the web app.
-- `build/`: Contains platform-specific icons (`icon.ico`, `icon.icns`).
+- `build/`: Contains platform-specific icons (`icon.ico`, `icon.icns`, and Linux PNG assets).
+- `offline.html`: Branded recovery page shown when Echoo cannot be reached.
+- `test-audio-controls.mjs`: Electron shell and secure-bridge smoke test.
 - `dist/`: The output folder for built executables.
 
 ## 🤝 Contributing

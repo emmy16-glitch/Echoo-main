@@ -29,7 +29,13 @@ jobs:
       - name: Install dependencies
         run: |
           cd desktop
-          npm install --no-package-lock
+          npm ci
+
+      - name: Verify Electron desktop shell
+        if: runner.os == 'Linux'
+        run: |
+          cd desktop
+          xvfb-run -a npm test
 
       - name: Build Electron app
         run: |

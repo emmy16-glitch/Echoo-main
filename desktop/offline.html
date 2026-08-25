@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Echoo needs a connection</title>
+    <style>
+      :root { color-scheme: light; }
+      body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #f8fbff; color: #164f9d; font-family: Inter, Arial, sans-serif; }
+      main { width: min(480px, calc(100vw - 48px)); text-align: center; }
+      .mark { position: relative; width: 76px; height: 76px; margin: 0 auto 28px; border-radius: 28px; background: #164f9d; box-shadow: 0 18px 44px rgba(22, 79, 157, .20); }
+      .mark::before, .mark::after { content: ''; display: block; position: absolute; width: 25px; height: 44px; border-radius: 50%; transform: rotate(38deg); }
+      .mark::before { margin: 14px 0 0 16px; background: #fff; }
+      .mark::after { margin: 24px 0 0 37px; background: #9bb7d9; }
+      h1 { margin: 0; font-size: 34px; letter-spacing: -.04em; }
+      p { margin: 16px auto 28px; max-width: 420px; color: #597da9; font-size: 16px; line-height: 1.6; }
+      button { min-height: 48px; padding: 0 22px; border: 0; border-radius: 999px; background: #164f9d; color: #fff; cursor: pointer; font: 700 13px/1 Inter, Arial, sans-serif; letter-spacing: .12em; text-transform: uppercase; }
+      button:focus-visible { outline: 3px solid #9bb7d9; outline-offset: 4px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="mark" aria-hidden="true"></div>
+      <h1>Echoo needs a connection.</h1>
+      <p>Check your internet connection, then return to your live room when you are ready.</p>
+      <button type="button" id="retry">Retry Echoo</button>
+    </main>
+    <script>
+      document.getElementById('retry').addEventListener('click', () => window.echooDesktop.reload());
+    </script>
+  </body>
+</html>

@@ -1,11 +1,12 @@
 {
-  "name": "desktop",
+  "name": "echoo-studio-desktop",
   "version": "1.0.0",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
     "dev": "NODE_ENV=development electron .",
-    "build": "electron-builder"
+    "build": "electron-builder",
+    "test": "node --test test-audio-controls.mjs"
   },
   "build": {
     "appId": "com.echoo.studio",
@@ -16,6 +17,8 @@
     "files": [
       "main.js",
       "preload.js",
+      "offline.html",
+      "build/**/*",
       "package.json"
     ],
     "win": {
@@ -33,7 +36,7 @@
         "snap",
         "dir"
       ],
-      "icon": "build/icons",
+      "icon": "build/icons/512x512.png",
       "category": "AudioVideo"
     }
   },
@@ -42,8 +45,8 @@
     "name": "Echoo Team",
     "email": "support@echoo.com"
   },
-  "homepage": "https://echoo.com",
-  "license": "ISC",
+  "homepage": "https://echoo.digi02.org",
+  "license": "UNLICENSED",
   "description": "Echoo Studio - Real-time Audio Broadcasting Desktop App",
   "repository": {
     "type": "git",
