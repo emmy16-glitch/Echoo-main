@@ -42,7 +42,12 @@ test('Echoo Desktop boots a secure shell with the native bridge', async (t) => {
     nodeIsHidden: typeof window.require === 'undefined',
     appInfo: await window.echooDesktop.getAppInfo(),
     roomState: await window.echooDesktop.setRoomState({ active: true, muted: false, canToggleMute: true }),
-    notification: await window.echooDesktop.notify({ type: 'message' }),
+    notificationsDisabled: await window.echooDesktop.setNotificationPreference(false),
+    disabledNotification: await window.echooDesktop.notify({ type: 'message' }),
+    notificationsEnabled: await window.echooDesktop.setNotificationPreference(true),
+    enabledPreference: await window.echooDesktop.getNotificationPreference(),
+    enabledNotification: await window.echooDesktop.notify({ type: 'message' }),
+    restoredPreference: await window.echooDesktop.setNotificationPreference(false),
   }));
 
   assert.strictEqual(desktop.bridgeAvailable, true, 'desktop bridge should be exposed');
@@ -50,5 +55,10 @@ test('Echoo Desktop boots a secure shell with the native bridge', async (t) => {
   assert.strictEqual(desktop.appInfo.platform, process.platform, 'bridge should report the native platform');
   assert.strictEqual(desktop.appInfo.startUrl, url, 'shell should load the explicitly configured Echoo URL');
   assert.deepStrictEqual(desktop.roomState, { active: true, muted: false, canToggleMute: true }, 'bridge should retain only non-identifying room state');
-  assert.strictEqual(desktop.notification.shown, false, 'focused windows should not create duplicate native notifications');
+  assert.strictEqual(desktop.notificationsDisabled, false, 'notifications should default to an explicit opt-in state');
+  assert.deepStrictEqual(desktop.disabledNotification, { shown: false, reason: 'disabled' }, 'disabled notifications must not emit a native alert');
+  assert.strictEqual(desktop.notificationsEnabled, true, 'notification opt-in should be persisted through the bridge');
+  assert.strictEqual(desktop.enabledPreference, true, 'bridge should report the enabled notification preference');
+  assert.notStrictEqual(desktop.enabledNotification.reason, 'disabled', 'enabled notifications must pass the opt-in gate');
+  assert.strictEqual(desktop.restoredPreference, false, 'smoke test should restore the default-off notification preference');
 });

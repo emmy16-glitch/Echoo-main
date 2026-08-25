@@ -9,6 +9,8 @@ contextBridge.exposeInMainWorld('echooDesktop', {
   openExternal: (url) => ipcRenderer.invoke('desktop:open-external', url),
   setRoomState: (state) => ipcRenderer.invoke('desktop:set-room-state', state),
   getRoomState: () => ipcRenderer.invoke('desktop:get-room-state'),
+  getNotificationPreference: () => ipcRenderer.invoke('desktop:get-notification-preference'),
+  setNotificationPreference: (enabled) => ipcRenderer.invoke('desktop:set-notification-preference', enabled === true),
   notify: (event) => ipcRenderer.invoke('desktop:notify', event),
   onRoomCommand: (listener) => {
     const handler = (_event, command) => listener(command);

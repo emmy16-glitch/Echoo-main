@@ -1,5 +1,6 @@
 const { app, BrowserWindow, Menu, shell, ipcMain, Notification, Tray } = require('electron');
 const path = require('path');
+const fs = require('fs');
 
 const isDev = process.env.NODE_ENV === 'development';
 const LIVE_APP_URL = 'https://echoo.digi02.org';
@@ -14,11 +15,39 @@ const NOTIFICATION_COPY = {
 let mainWindow;
 let tray;
 let isQuitting = false;
+let notificationsEnabled = false;
 let roomState = {
   active: false,
   muted: false,
   canToggleMute: false,
 };
+
+function notificationPreferencePath() {
+  return path.join(app.getPath('userData'), 'desktop-preferences.json');
+}
+
+function loadNotificationPreference() {
+  try {
+    const stored = JSON.parse(fs.readFileSync(notificationPreferencePath(), 'utf8'));
+    notificationsEnabled = stored?.notificationsEnabled === true;
+  } catch {
+    notificationsEnabled = false;
+  }
+}
+
+function setNotificationPreference(enabled) {
+  notificationsEnabled = enabled === true;
+  try {
+    const preferencePath = notificationPreferencePath();
+    const temporaryPath = `${preferencePath}.tmp`;
+    fs.writeFileSync(temporaryPath, JSON.stringify({ notificationsEnabled }), 'utf8');
+    fs.renameSync(temporaryPath, preferencePath);
+  } catch {
+    notificationsEnabled = false;
+  }
+  updateTrayMenu();
+  return notificationsEnabled;
+}
 
 function getStartUrl() {
   return process.env.ECHOO_URL || LIVE_APP_URL;
@@ -94,6 +123,13 @@ function updateTrayMenu() {
     ...roomItems,
     { type: 'separator' },
     {
+      label: 'Desktop notifications',
+      type: 'checkbox',
+      checked: notificationsEnabled,
+      click: (item) => setNotificationPreference(item.checked),
+    },
+    { type: 'separator' },
+    {
       label: 'Quit Echoo',
       click: () => {
         isQuitting = true;
@@ -110,9 +146,10 @@ function createTray() {
 }
 
 function showDesktopNotification(type) {
-  if (!NOTIFICATION_COPY[type] || !Notification.isSupported() || mainWindow?.isFocused()) {
-    return { shown: false };
-  }
+  if (!notificationsEnabled) return { shown: false, reason: 'disabled' };
+  if (!NOTIFICATION_COPY[type]) return { shown: false, reason: 'unsupported-event' };
+  if (!Notification.isSupported()) return { shown: false, reason: 'unsupported' };
+  if (mainWindow?.isFocused()) return { shown: false, reason: 'window-focused' };
 
   const notification = new Notification({
     title: 'Echoo',
@@ -121,7 +158,7 @@ function showDesktopNotification(type) {
   });
   notification.on('click', showMainWindow);
   notification.show();
-  return { shown: true };
+  return { shown: true, reason: 'shown' };
 }
 
 function createWindow() {
@@ -280,10 +317,13 @@ ipcMain.handle('desktop:set-room-state', (_event, nextState) => {
 });
 
 ipcMain.handle('desktop:get-room-state', () => roomState);
+ipcMain.handle('desktop:get-notification-preference', () => notificationsEnabled);
+ipcMain.handle('desktop:set-notification-preference', (_event, enabled) => setNotificationPreference(enabled));
 ipcMain.handle('desktop:notify', (_event, payload) => showDesktopNotification(payload?.type));
 
 app.whenReady().then(() => {
   app.setAppUserModelId('org.echoo.desktop');
+  loadNotificationPreference();
   createTray();
   createWindow();
 
