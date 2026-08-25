@@ -19,8 +19,11 @@ function createFixtureServer() {
 
 test('Echoo Desktop boots a secure shell with the native bridge', async (t) => {
   const { server, url } = await createFixtureServer();
+  const ciGraphicsArgs = process.env.ECHOO_TEST_DISABLE_GPU === '1'
+    ? ['--disable-gpu', '--disable-software-rasterizer', '--disable-dev-shm-usage']
+    : [];
   const electronApp = await electron.launch({
-    args: ['.', ...(process.env.ECHOO_TEST_NO_SANDBOX === '1' ? ['--no-sandbox'] : [])],
+    args: ['.', ...(process.env.ECHOO_TEST_NO_SANDBOX === '1' ? ['--no-sandbox'] : []), ...ciGraphicsArgs],
     env: {
       ...process.env,
       NODE_ENV: 'development',

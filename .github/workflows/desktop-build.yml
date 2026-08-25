@@ -48,6 +48,7 @@ jobs:
           xvfb-run -a npm test
         env:
           ECHOO_TEST_NO_SANDBOX: '1'
+          ECHOO_TEST_DISABLE_GPU: '1'
 
       - name: Build Electron app
         run: |
