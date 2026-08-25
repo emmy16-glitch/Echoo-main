@@ -11,11 +11,24 @@ const NOTIFICATION_COPY = {
   'room-started': 'Your live room is now active.',
   'room-ended': 'Your live room has ended.',
 };
+const NOTIFICATION_EVENT_KEYS = Object.freeze({
+  message: 'message',
+  'room-started': 'roomStarted',
+  'room-ended': 'roomEnded',
+});
+const DEFAULT_NOTIFICATION_EVENTS = Object.freeze({
+  message: true,
+  roomStarted: true,
+  roomEnded: true,
+});
 
 let mainWindow;
 let tray;
 let isQuitting = false;
-let notificationsEnabled = false;
+let notificationPreferences = {
+  notificationsEnabled: false,
+  notificationEvents: { ...DEFAULT_NOTIFICATION_EVENTS },
+};
 let roomState = {
   active: false,
   muted: false,
@@ -26,27 +39,86 @@ function notificationPreferencePath() {
   return path.join(app.getPath('userData'), 'desktop-preferences.json');
 }
 
+function copyNotificationPreferences() {
+  return {
+    notificationsEnabled: notificationPreferences.notificationsEnabled,
+    notificationEvents: { ...notificationPreferences.notificationEvents },
+  };
+}
+
+function normalizeNotificationEvents(value) {
+  const events = { ...DEFAULT_NOTIFICATION_EVENTS };
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return events;
+
+  for (const key of Object.keys(DEFAULT_NOTIFICATION_EVENTS)) {
+    if (typeof value[key] === 'boolean') events[key] = value[key];
+  }
+  return events;
+}
+
 function loadNotificationPreference() {
   try {
     const stored = JSON.parse(fs.readFileSync(notificationPreferencePath(), 'utf8'));
-    notificationsEnabled = stored?.notificationsEnabled === true;
+    notificationPreferences = {
+      notificationsEnabled: stored?.notificationsEnabled === true,
+      notificationEvents: normalizeNotificationEvents(stored?.notificationEvents),
+    };
   } catch {
-    notificationsEnabled = false;
+    notificationPreferences = {
+      notificationsEnabled: false,
+      notificationEvents: { ...DEFAULT_NOTIFICATION_EVENTS },
+    };
   }
 }
 
-function setNotificationPreference(enabled) {
-  notificationsEnabled = enabled === true;
+function persistNotificationPreferences(nextPreferences) {
   try {
     const preferencePath = notificationPreferencePath();
     const temporaryPath = `${preferencePath}.tmp`;
-    fs.writeFileSync(temporaryPath, JSON.stringify({ notificationsEnabled }), 'utf8');
+    fs.writeFileSync(temporaryPath, JSON.stringify(nextPreferences), 'utf8');
     fs.renameSync(temporaryPath, preferencePath);
+    notificationPreferences = nextPreferences;
+    updateTrayMenu();
+    return true;
   } catch {
-    notificationsEnabled = false;
+    return false;
   }
-  updateTrayMenu();
-  return notificationsEnabled;
+}
+
+function setNotificationPreferences(update) {
+  const nextPreferences = copyNotificationPreferences();
+  if (typeof update?.notificationsEnabled === 'boolean') {
+    nextPreferences.notificationsEnabled = update.notificationsEnabled;
+  }
+
+  const requestedEvents = update?.notificationEvents;
+  if (requestedEvents && typeof requestedEvents === 'object' && !Array.isArray(requestedEvents)) {
+    for (const key of Object.keys(DEFAULT_NOTIFICATION_EVENTS)) {
+      if (typeof requestedEvents[key] === 'boolean') {
+        nextPreferences.notificationEvents[key] = requestedEvents[key];
+      }
+    }
+  }
+
+  persistNotificationPreferences(nextPreferences);
+  return copyNotificationPreferences();
+}
+
+function setNotificationPreference(enabled) {
+  return setNotificationPreferences({ notificationsEnabled: enabled === true }).notificationsEnabled;
+}
+
+function notificationsAreEnabled() {
+  return notificationPreferences.notificationsEnabled === true;
+}
+
+function isNotificationEventEnabled(type) {
+  const preferenceKey = NOTIFICATION_EVENT_KEYS[type];
+  return Boolean(preferenceKey && notificationPreferences.notificationEvents[preferenceKey] === true);
+}
+
+function getNotificationPreferences() {
+  return copyNotificationPreferences();
 }
 
 function getStartUrl() {
@@ -131,7 +203,7 @@ function updateTrayMenu() {
     {
       label: 'Desktop notifications',
       type: 'checkbox',
-      checked: notificationsEnabled,
+      checked: notificationsAreEnabled(),
       click: (item) => setNotificationPreference(item.checked),
     },
     { type: 'separator' },
@@ -152,8 +224,9 @@ function createTray() {
 }
 
 function showDesktopNotification(type) {
-  if (!notificationsEnabled) return { shown: false, reason: 'disabled' };
+  if (!notificationsAreEnabled()) return { shown: false, reason: 'disabled' };
   if (!NOTIFICATION_COPY[type]) return { shown: false, reason: 'unsupported-event' };
+  if (!isNotificationEventEnabled(type)) return { shown: false, reason: 'event-disabled' };
   if (!Notification.isSupported()) return { shown: false, reason: 'unsupported' };
   if (mainWindow?.isFocused()) return { shown: false, reason: 'window-focused' };
 
@@ -323,8 +396,10 @@ ipcMain.handle('desktop:set-room-state', (_event, nextState) => {
 });
 
 ipcMain.handle('desktop:get-room-state', () => roomState);
-ipcMain.handle('desktop:get-notification-preference', () => notificationsEnabled);
+ipcMain.handle('desktop:get-notification-preference', () => notificationsAreEnabled());
 ipcMain.handle('desktop:set-notification-preference', (_event, enabled) => setNotificationPreference(enabled));
+ipcMain.handle('desktop:get-notification-preferences', () => getNotificationPreferences());
+ipcMain.handle('desktop:set-notification-preferences', (_event, update) => setNotificationPreferences(update));
 ipcMain.handle('desktop:notify', (_event, payload) => showDesktopNotification(payload?.type));
 
 app.whenReady().then(() => {

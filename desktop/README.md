@@ -27,7 +27,7 @@ Echoo Desktop Studio is the secure native shell for the live Echoo audio platfor
 - **Secure shell**: Keeps Node APIs isolated from web content and only exposes a minimal native bridge.
 - **Resilient experience**: Shows a branded recovery view if the live service cannot be reached.
 - **Native controls**: Provides standard platform menus, zoom/full-screen support, and safe external-link handling.
-- **Notification settings**: The in-app **Settings → Notifications** panel mirrors the tray preference. Desktop alerts remain off until the user enables them and use neutral status copy only.
+- **Granular notification settings**: Listener and creator settings provide a device-local master switch plus separate controls for live-room messages, room-started, and room-ended alerts. Alerts remain off until enabled, use neutral status copy only, and never include room names or message text.
 - **Cross-platform packaging**: Builds NSIS for Windows, DMG for macOS, and AppImage, DEB, Snap, and directory targets for Linux.
 
 ---
@@ -78,7 +78,7 @@ node verify-packaged-shell.mjs
 
 This launches `dist/linux-unpacked/echoo-studio`, verifies that an active room survives the native close-to-tray path, and exercises the tray action handlers for **Open Echoo**, **mute**, **unmute**, and **leave room**. Desktop notifications are disabled until a user enables **Desktop notifications** from the tray; enabled alerts use neutral Echoo status copy rather than room or message content.
 
-Users can also control the same setting inside Echoo Desktop through **Settings → Notifications → Show desktop alerts**. The in-app panel reads and writes the persisted native preference through the restricted preload bridge; it never stores notification settings in room or message data.
+Users can also control the same device-local preference inside Echoo Desktop through **Settings → Notifications**. Listener and creator views expose a master **Show desktop alerts** switch and supported per-event options for **Live-room messages**, **Room started**, and **Room ended**. The in-app panels read and write only an allowlisted native preference through the restricted preload bridge; they never store notification choices in room or message data. Creator follower and release settings remain account preferences and do not imply native desktop alerts until the app emits corresponding events.
 
 ---
 
