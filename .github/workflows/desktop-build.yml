@@ -1,5 +1,8 @@
 name: Build/Release Desktop App
 
+permissions:
+  contents: write
+
 on:
   push:
     tags:
@@ -14,6 +17,7 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     strategy:
+      fail-fast: false
       matrix:
         os: [macos-latest, ubuntu-latest, windows-latest]
 
@@ -40,7 +44,7 @@ jobs:
       - name: Build Electron app
         run: |
           cd desktop
-          npm run build
+          npm run build -- --publish never
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_ENV: production
