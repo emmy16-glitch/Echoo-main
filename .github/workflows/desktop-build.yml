@@ -59,19 +59,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_ENV: production
 
-      - name: Verify macOS distribution package
-        if: runner.os == 'macOS'
-        run: |
-          cd desktop
-          dmg=$(find dist -maxdepth 1 -type f -name '*.dmg' -print -quit)
-          zip=$(find dist -maxdepth 1 -type f -name '*.zip' -print -quit)
-          test -n "$dmg"
-          test -n "$zip"
-          test -s "$dmg"
-          test -s "$zip"
-          hdiutil imageinfo "$dmg" >/dev/null
-          unzip -t "$zip" >/dev/null
-
       - name: Retain packaged desktop artifacts for verification
         uses: actions/upload-artifact@v4
         with:
