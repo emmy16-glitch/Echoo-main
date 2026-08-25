@@ -68,8 +68,9 @@ jobs:
           test -n "$dmg"
           test -n "$zip"
           hdiutil imageinfo "$dmg" >/dev/null
-          unzip -Z1 "$zip" | grep -F 'Echoo Studio.app/Contents/Info.plist'
-          unzip -p "$zip" 'Echoo Studio.app/Contents/Info.plist' | plutil -p - | grep -E 'CFBundle(Identifier|ShortVersionString)'
+          info_plist=$(unzip -Z1 "$zip" | grep -E '/Contents/Info\.plist$' | head -n 1)
+          test -n "$info_plist"
+          unzip -p "$zip" "$info_plist" | plutil -p - | grep -E 'CFBundle(Identifier|ShortVersionString)'
 
       - name: Retain packaged desktop artifacts for verification
         uses: actions/upload-artifact@v4
