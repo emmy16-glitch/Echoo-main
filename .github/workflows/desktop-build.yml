@@ -68,9 +68,9 @@ jobs:
           test -n "$dmg"
           test -n "$zip"
           hdiutil imageinfo "$dmg" >/dev/null
-          info_plist=$(unzip -Z1 "$zip" | grep -E '/Contents/Info\.plist$' | head -n 1)
-          test -n "$info_plist"
-          unzip -p "$zip" "$info_plist" | plutil -p - | grep -E 'CFBundle(Identifier|ShortVersionString)'
+          unzip -t "$zip" >/dev/null
+          app_executable=$(unzip -Z1 "$zip" | grep -E '\.app/Contents/MacOS/' | head -n 1 || true)
+          test -n "$app_executable"
 
       - name: Retain packaged desktop artifacts for verification
         uses: actions/upload-artifact@v4
