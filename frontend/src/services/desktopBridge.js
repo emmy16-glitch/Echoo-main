@@ -16,6 +16,16 @@ export const notifyDesktop = (type) => {
   return desktop().notify({ type });
 };
 
+export const getDesktopNotificationPreference = () => {
+  if (!isEchooDesktop()) return Promise.resolve(null);
+  return desktop().getNotificationPreference();
+};
+
+export const setDesktopNotificationPreference = (enabled) => {
+  if (!isEchooDesktop()) return Promise.resolve(null);
+  return desktop().setNotificationPreference(enabled === true);
+};
+
 export const onDesktopRoomCommand = (listener) => {
   if (!isEchooDesktop()) return () => {};
   return desktop().onRoomCommand(listener);

@@ -27,6 +27,7 @@ Echoo Desktop Studio is the secure native shell for the live Echoo audio platfor
 - **Secure shell**: Keeps Node APIs isolated from web content and only exposes a minimal native bridge.
 - **Resilient experience**: Shows a branded recovery view if the live service cannot be reached.
 - **Native controls**: Provides standard platform menus, zoom/full-screen support, and safe external-link handling.
+- **Notification settings**: The in-app **Settings → Notifications** panel mirrors the tray preference. Desktop alerts remain off until the user enables them and use neutral status copy only.
 - **Cross-platform packaging**: Builds NSIS for Windows, DMG for macOS, and AppImage, DEB, Snap, and directory targets for Linux.
 
 ---
@@ -76,6 +77,8 @@ node verify-packaged-shell.mjs
 ```
 
 This launches `dist/linux-unpacked/echoo-studio`, verifies that an active room survives the native close-to-tray path, and exercises the tray action handlers for **Open Echoo**, **mute**, **unmute**, and **leave room**. Desktop notifications are disabled until a user enables **Desktop notifications** from the tray; enabled alerts use neutral Echoo status copy rather than room or message content.
+
+Users can also control the same setting inside Echoo Desktop through **Settings → Notifications → Show desktop alerts**. The in-app panel reads and writes the persisted native preference through the restricted preload bridge; it never stores notification settings in room or message data.
 
 ---
 
