@@ -35,6 +35,12 @@ jobs:
           cd desktop
           npm ci
 
+      - name: Warm Electron runtime
+        if: runner.os == 'Linux'
+        run: |
+          cd desktop
+          npx electron --version
+
       - name: Verify Electron desktop shell
         if: runner.os == 'Linux'
         run: |
