@@ -94,24 +94,40 @@ const parseResponse = async (
   }
 };
 
+const USER_SAFE_ERROR_CODES = new Set([
+  'VALIDATION_ERROR',
+  'INVALID_CREDENTIALS',
+  'AUTH_INVALID',
+  'LOGIN_FAILED',
+  'EMAIL_EXISTS',
+  'USERNAME_TAKEN',
+  'USER_NOT_REGISTERED',
+  'INVALID_RESET_TOKEN',
+  'BROADCAST_NOT_LIVE',
+  'BROADCAST_PRIVATE',
+  'LIVEKIT_ROOM_UNAVAILABLE',
+  'SESSION_EXPIRED',
+  'REFRESH_TOKEN_REQUIRED',
+  'INVALID_REFRESH_TOKEN',
+]);
+
 const createError = (
   response,
   data
 ) => {
-  const error = new Error(
-    data?.error?.message ||
-      data?.message ||
-      `Request failed with status ${response.status}`
-  );
+  const status = response.status;
+  const code = data?.error?.code || null;
+  const isServerFailure = status >= 500;
+  const message = isServerFailure
+    ? 'The Echoo service is temporarily unavailable. Please try again in a moment.'
+    : USER_SAFE_ERROR_CODES.has(code)
+      ? data?.error?.message || data?.message || 'We could not complete that request.'
+      : 'We could not complete that request. Please check your details and try again.';
 
-  error.code =
-    data?.error?.code || null;
-
-  error.status =
-    response.status;
-
+  const error = new Error(message);
+  error.code = code;
+  error.status = status;
   error.data = data;
-
   return error;
 };
 
