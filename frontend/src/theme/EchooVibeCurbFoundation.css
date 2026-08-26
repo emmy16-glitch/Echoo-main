@@ -35,6 +35,29 @@
   --echoo-live: #dc4650;
 
   /* Compatibility aliases. New shared UI should use the semantic names above. */
+  --echoo-color-canvas: var(--echoo-bg);
+  --echoo-color-canvas-subtle: var(--echoo-bg-soft);
+  --echoo-color-surface: var(--echoo-surface);
+  --echoo-color-surface-soft: var(--echoo-surface-soft);
+  --echoo-color-surface-hover: var(--echoo-surface-raised);
+  --echoo-color-ink: var(--echoo-text);
+  --echoo-color-text: var(--echoo-text-secondary);
+  --echoo-color-muted: var(--echoo-text-muted);
+  --echoo-color-faint: #96a3b5;
+  --echoo-color-brand: var(--echoo-accent);
+  --echoo-color-brand-hover: var(--echoo-accent-hover);
+  --echoo-color-brand-soft: var(--echoo-accent-soft);
+  --echoo-color-brand-border: var(--echoo-accent-border);
+  --echoo-color-line: var(--echoo-border);
+  --echoo-color-line-strong: var(--echoo-border-strong);
+  --echoo-color-focus: #8ab9f7;
+  --echoo-color-success: var(--echoo-success);
+  --echoo-color-success-soft: #edf8f2;
+  --echoo-color-danger: var(--echoo-danger);
+  --echoo-color-danger-soft: #fff1f3;
+  --echoo-color-live: var(--echoo-live);
+  --echoo-color-white: #ffffff;
+  --echoo-color-black: #101828;
   --text: var(--echoo-text-secondary);
   --text-h: var(--echoo-text);
   --text-soft: var(--echoo-text-secondary);

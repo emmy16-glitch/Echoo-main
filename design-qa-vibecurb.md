@@ -256,6 +256,22 @@ the package script’s eslint binary link is absent in this environment, but dir
 pre-existing warnings: missing `liveState` effect dependency in `ListenerRealLiveRoom.jsx`, and two unused caught
 `error` variables in `ListenerSettingsConnected.jsx`.
 
+### Stage 1 validation evidence
+
+- Production build passed after the canonical foundation was imported.
+- Direct ESLint passed with the three pre-existing warnings above and no errors.
+- Playwright's configured headless-shell binary cannot start in this host because its downloaded resource/V8 snapshot
+  files are unavailable and Chromium repeatedly loses its GPU process. This is an environment failure before the app
+  runs, not a test assertion failure.
+- The `agent-browser` CLI is not installed in this host. As a safe fallback, full Playwright Chromium was launched
+  directly with the system-compatible full browser executable and `--disable-gpu`.
+- Visual/manual browser checks passed with no console errors and no horizontal overflow for:
+  - Auth register at 1440×900.
+  - Listener Home at 1440×900 and 390×844, using the existing mock API and listener auth fixture.
+  - Creator Home and Creator Broadcast pre-live at 1440×900, using the existing mock API and creator auth fixture.
+- The 390px Listener check confirms the fixed player and bottom navigation coexist and `scrollWidth === innerWidth`.
+  Future mobile work must preserve that relationship while ensuring lower card content has adequate player-safe space.
+
 ## Progress
 
 - [x] VibeCurb installed
