@@ -1,7 +1,9 @@
 import { useState } from "react";
 import {
   FaBuilding,
+  FaCheck,
   FaChevronDown,
+  FaMicrophone,
   FaUpload,
   FaUser,
 } from "react-icons/fa";
@@ -9,7 +11,6 @@ import "./CreatorSetup.css";
 
 import OnboardingFrame from "../Onboarding/OnboardingFrame";
 import LoadingButton from "../UI/LoadingButton";
-import SuccessState from "../UI/SuccessState";
 import Toast from "../UI/Toast";
 import onboardingService from "../../services/onboardingService";
 
@@ -71,6 +72,53 @@ const prepareImage = (file) =>
 
     reader.readAsDataURL(file);
   });
+
+const CreatorPublicPreview = ({
+  creatorType,
+  displayName,
+  username,
+  profileImage,
+  individualDetails,
+  organizationDetails,
+  organizationLogo,
+}) => {
+  const isOrganization = creatorType === "organization";
+  const name = isOrganization ? organizationDetails.name : displayName;
+  const category = isOrganization
+    ? organizationDetails.category
+    : individualDetails.category;
+  const description = isOrganization
+    ? organizationDetails.about || organizationDetails.content
+    : individualDetails.content;
+  const image = isOrganization ? organizationLogo : profileImage;
+
+  return (
+    <section className="eor-public-preview" aria-label="Your public creator profile preview">
+      <div className="eor-public-preview-cover">
+        <div className="eor-public-preview-avatar">
+          {image ? <img src={image} alt="" /> : <FaMicrophone aria-hidden="true" />}
+        </div>
+        <div>
+          <p>{category || "Creator"}</p>
+          <h2>{name || "Your creator space"}</h2>
+          <span>{isOrganization ? `@${(name || "creator").replace(/\s+/g, "").toLowerCase()}` : username}</span>
+        </div>
+      </div>
+      <p className="eor-public-preview-description">
+        {description || "Live conversations, thoughtful stories, and the audio your community will come back for."}
+      </p>
+      <div className="eor-public-preview-topics">
+        <span>Live conversations</span>
+        <span>Community shows</span>
+        <span>New broadcasts</span>
+      </div>
+      <div className="eor-public-preview-stats">
+        <strong>0 <span>followers</span></strong>
+        <strong>0 <span>broadcasts</span></strong>
+      </div>
+    </section>
+  );
+};
 
 const CreatorSetup = ({ onBackToRole, onCreatorReady }) => {
   const [step, setStep] = useState(1);
@@ -287,13 +335,35 @@ const CreatorSetup = ({ onBackToRole, onCreatorReady }) => {
           phaseLabel="Creator setup"
           hero="creator"
           panelClassName="eor-creator-panel eor-creator-ready-panel"
+          heroData={{
+            creatorName: creatorType === "organization" ? organizationDetails.name : displayName,
+            creatorHandle: creatorType === "organization" ? "Your public audio identity" : username,
+          }}
         >
-          <SuccessState
-            title="Your Creator Studio is ready"
-            message="Your creator details have been saved to Echoo. You're ready to start creating."
-            buttonText="Go to Creator Studio"
-            onContinue={() => onCreatorReady?.()}
+          <header className="eor-form-header eor-creator-ready-header">
+            <h1>Almost <span>ready!</span></h1>
+            <p>Review the public creator identity listeners will discover on Echoo.</p>
+          </header>
+          <CreatorPublicPreview
+            creatorType={creatorType}
+            displayName={displayName}
+            username={username}
+            profileImage={profileImage}
+            individualDetails={individualDetails}
+            organizationDetails={organizationDetails}
+            organizationLogo={organizationLogo}
           />
+          <div className="eor-public-preview-checklist" aria-label="Creator identity checklist">
+            <span><FaCheck aria-hidden="true" /> Profile identity ready</span>
+            <span><FaCheck aria-hidden="true" /> Category selected</span>
+            <span><FaCheck aria-hidden="true" /> Creator space configured</span>
+          </div>
+          <LoadingButton type="button" className="eor-primary" onClick={() => onCreatorReady?.()}>
+            Create my creator space
+          </LoadingButton>
+          <button type="button" className="eor-outline eor-creator-ready-back" onClick={() => setStep(2)}>
+            Back
+          </button>
         </OnboardingFrame>
       </>
     );
@@ -309,6 +379,7 @@ const CreatorSetup = ({ onBackToRole, onCreatorReady }) => {
           phaseLabel="Creator setup"
           hero="creator"
           panelClassName="eor-creator-panel"
+          heroData={{ creatorName: displayName, creatorHandle: username }}
         >
           <header className="eor-form-header">
             <h1>
@@ -378,6 +449,7 @@ const CreatorSetup = ({ onBackToRole, onCreatorReady }) => {
           phaseLabel="Creator setup"
           hero="creator"
           panelClassName="eor-creator-panel eor-creator-details-panel"
+          heroData={{ creatorName: displayName, creatorHandle: username }}
         >
           <header className="eor-form-header">
             <h1>
@@ -468,6 +540,10 @@ const CreatorSetup = ({ onBackToRole, onCreatorReady }) => {
         phaseLabel="Creator setup"
         hero="creator"
         panelClassName="eor-creator-panel eor-creator-details-panel eor-organization-panel"
+        heroData={{
+          creatorName: organizationDetails.name || "Your creator space",
+          creatorHandle: "Your public audio identity",
+        }}
       >
         <header className="eor-form-header">
           <h1>

@@ -8,7 +8,6 @@ import {
   Headphones,
   LogOut,
   MoonStar,
-  Settings,
   Shield,
   UserRound,
 } from 'lucide-react-native';
@@ -16,12 +15,12 @@ import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
   ListenerAuthCard,
@@ -38,6 +37,7 @@ import {
   logoutEchoo,
 } from '@/src/services/echooApi';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useThemePreference } from '@/src/theme/ThemePreference';
 import { EchooColors, getEchooColors } from '@/src/theme/echooTheme';
 
 const emptyStats: EchooLibraryStats = {
@@ -50,6 +50,7 @@ const emptyStats: EchooLibraryStats = {
 export default function ProfileScreen() {
   const router = useRouter();
   const scheme = useColorScheme();
+  const { preference } = useThemePreference();
   const palette = getEchooColors(scheme);
   const styles = useMemo(() => createStyles(palette), [palette]);
 
@@ -114,19 +115,23 @@ export default function ProfileScreen() {
   const settingsRows = [
     { title: 'Account', subtitle: 'Profile, username and account details', icon: UserRound },
     { title: 'Notifications', subtitle: 'Live, creator and release alerts', icon: Bell },
-    { title: 'Appearance', subtitle: `Following your device: ${scheme === 'dark' ? 'Dark' : 'Light'}`, icon: MoonStar },
+    {
+      title: 'Appearance',
+      subtitle: preference === 'system'
+        ? `System theme: ${scheme === 'dark' ? 'Dark' : 'Light'}`
+        : `App theme: ${preference === 'dark' ? 'Dark' : 'Light'}`,
+      icon: MoonStar,
+    },
     { title: 'Playback & downloads', subtitle: 'Audio quality, offline and player behavior', icon: Download },
     { title: 'Privacy & security', subtitle: 'Session, privacy and account controls', icon: Shield },
   ];
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      <ListenerTopBar />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <ListenerTopBar />
         <ListenerPageHeader
-          eyebrow="LISTENER"
           title="Profile"
-          subtitle="Your Echoo identity, preferences and account controls in one place."
         />
 
         {loading ? (
@@ -192,7 +197,7 @@ export default function ProfileScreen() {
           {settingsRows.map(({ title, subtitle, icon: Icon }) => (
             <Pressable key={title} style={styles.settingRow} onPress={() => router.push('/settings')}>
               <View style={styles.settingIcon}>
-                <Icon color={palette.blue} size={20} />
+                <Icon color={palette.muted} size={19} strokeWidth={2} />
               </View>
               <View style={styles.settingCopy}>
                 <Text style={styles.settingTitle}>{title}</Text>
@@ -201,14 +206,6 @@ export default function ProfileScreen() {
               <ChevronRight color={palette.faint} size={18} />
             </Pressable>
           ))}
-        </View>
-
-        <View style={styles.infoCard}>
-          <Settings color={palette.blue} size={20} />
-          <View style={styles.infoCopy}>
-            <Text style={styles.infoTitle}>Listener-first mobile</Text>
-            <Text style={styles.infoText}>Creator tools are intentionally kept outside this listener navigation while the listener experience is being completed.</Text>
-          </View>
         </View>
 
         {signedIn ? (
@@ -224,28 +221,28 @@ export default function ProfileScreen() {
 
 const createStyles = (palette: EchooColors) => StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: palette.background },
-  content: { paddingHorizontal: 18, paddingTop: 8, paddingBottom: 120 },
+  content: { paddingHorizontal: 18, paddingTop: 8, paddingBottom: 150 },
   loadingState: { minHeight: 150, alignItems: 'center', justifyContent: 'center', gap: 10 },
   loadingText: { color: palette.muted, fontSize: 12.5, fontWeight: '700' },
-  guestHero: { backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line, borderRadius: 22, padding: 20, alignItems: 'center', marginBottom: 12 },
-  guestAvatar: { width: 70, height: 70, borderRadius: 23, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
+  guestHero: { backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line, borderRadius: 8, padding: 20, alignItems: 'center', marginBottom: 12 },
+  guestAvatar: { width: 70, height: 70, borderRadius: 35, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
   guestTitle: { color: palette.ink, fontSize: 19, fontWeight: '900', marginTop: 13 },
   guestText: { color: palette.muted, fontSize: 12.5, lineHeight: 19, textAlign: 'center', marginTop: 5, maxWidth: 315 },
-  profileCard: { backgroundColor: palette.surface, borderRadius: 22, borderWidth: 1, borderColor: palette.line, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 14 },
-  avatar: { width: 76, height: 76, borderRadius: 24, backgroundColor: palette.blue, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
+  profileCard: { backgroundColor: palette.surface, borderRadius: 8, borderWidth: 1, borderColor: palette.line, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 14 },
+  avatar: { width: 76, height: 76, borderRadius: 38, backgroundColor: palette.blue, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
   avatarText: { color: '#FFFFFF', fontSize: 31, fontWeight: '900' },
   profileCopy: { flex: 1 },
   name: { color: palette.ink, fontSize: 20, fontWeight: '900' },
   handle: { color: palette.blue, fontSize: 12, fontWeight: '800', marginTop: 2 },
   bio: { color: palette.muted, fontSize: 11.5, lineHeight: 17, marginTop: 5 },
   statsRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
-  statCard: { flex: 1, minHeight: 78, backgroundColor: palette.surface, borderRadius: 16, borderWidth: 1, borderColor: palette.line, padding: 11, alignItems: 'center', justifyContent: 'center' },
+  statCard: { flex: 1, minHeight: 78, backgroundColor: palette.surface, borderRadius: 8, borderWidth: 1, borderColor: palette.line, padding: 11, alignItems: 'center', justifyContent: 'center' },
   statValue: { color: palette.ink, fontSize: 19, fontWeight: '900' },
   statLabel: { color: palette.muted, fontSize: 10.5, fontWeight: '700', marginTop: 2, textAlign: 'center' },
   errorText: { color: palette.red, fontSize: 11.5, marginTop: 8 },
-  settingsGroup: { backgroundColor: palette.surface, borderRadius: 20, borderWidth: 1, borderColor: palette.line, overflow: 'hidden' },
+  settingsGroup: { backgroundColor: palette.surface, borderRadius: 8, borderWidth: 1, borderColor: palette.line, overflow: 'hidden' },
   settingRow: { minHeight: 70, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 13, borderBottomWidth: 1, borderBottomColor: palette.line },
-  settingIcon: { width: 40, height: 40, borderRadius: 13, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
+  settingIcon: { width: 22, alignItems: 'center', justifyContent: 'center' },
   settingCopy: { flex: 1, paddingHorizontal: 11 },
   settingTitle: { color: palette.ink, fontSize: 13.5, fontWeight: '900' },
   settingSubtitle: { color: palette.muted, fontSize: 10.8, lineHeight: 15, marginTop: 2 },
@@ -253,6 +250,6 @@ const createStyles = (palette: EchooColors) => StyleSheet.create({
   infoCopy: { flex: 1 },
   infoTitle: { color: palette.ink, fontSize: 13, fontWeight: '900' },
   infoText: { color: palette.muted, fontSize: 11, lineHeight: 16, marginTop: 3 },
-  logoutButton: { minHeight: 50, marginTop: 18, borderRadius: 15, borderWidth: 1, borderColor: `${palette.red}55`, backgroundColor: `${palette.red}0D`, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  logoutButton: { minHeight: 50, marginTop: 18, borderRadius: 8, borderWidth: 1, borderColor: `${palette.red}55`, backgroundColor: `${palette.red}0D`, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   logoutText: { color: palette.red, fontSize: 13.5, fontWeight: '900' },
 });

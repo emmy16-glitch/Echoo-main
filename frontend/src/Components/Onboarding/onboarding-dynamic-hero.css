@@ -1,0 +1,336 @@
+.echoo-onboarding-redesign {
+  grid-template-columns: minmax(0, 1.1fr) minmax(480px, 0.9fr);
+}
+
+.eor-mobile-stepper {
+  display: none;
+}
+
+.eor-hero-copy,
+.eor-panel {
+  animation: eorStageEnter 420ms cubic-bezier(.2, .8, .2, 1) both;
+}
+
+.eor-panel {
+  animation-delay: 70ms;
+}
+
+.eor-profile-avatar {
+  overflow: hidden;
+}
+
+.eor-profile-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.eor-profile-lines {
+  gap: 4px;
+}
+
+.eor-profile-lines strong {
+  max-width: 160px;
+  overflow: hidden;
+  color: var(--eor-navy);
+  font-size: 16px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.eor-profile-lines small {
+  color: #6681a1;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.eor-profile-lines i {
+  width: 122px;
+  height: 6px;
+  margin-top: 6px;
+}
+
+.eor-role-hero-card,
+.eor-creator-hero-card {
+  position: relative;
+  z-index: 2;
+  width: min(620px, 100%);
+  min-height: 280px;
+  margin-top: clamp(34px, 5vh, 58px);
+  overflow: hidden;
+  border: 1px solid rgba(139, 181, 232, .48);
+  border-radius: 28px;
+  box-shadow: 0 26px 68px rgba(43, 83, 135, .13);
+}
+
+.eor-role-hero-card {
+  display: grid;
+  place-items: center;
+  background: rgba(244, 249, 255, .78);
+}
+
+.eor-role-hero-card > img {
+  width: 116%;
+  max-width: none;
+  mix-blend-mode: screen;
+  opacity: .88;
+  transform: translateY(9px) scale(1.02);
+  animation: eorRoleArtworkFloat 6s ease-in-out infinite;
+}
+
+.eor-role-hero-kicker,
+.eor-role-hero-card p {
+  position: absolute;
+  left: 26px;
+  z-index: 2;
+}
+
+.eor-role-hero-kicker {
+  top: 24px;
+  padding: 7px 10px;
+  border: 1px solid rgba(19, 107, 213, .14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .78);
+  color: var(--eor-blue);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .09em;
+}
+
+.eor-role-hero-card p {
+  right: 26px;
+  bottom: 20px;
+  margin: 0;
+  color: #40617f;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+.eor-creator-hero-card {
+  display: flex;
+  align-items: flex-end;
+  background: #0e1d38;
+  color: white;
+}
+
+.eor-creator-hero-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: .45;
+  mix-blend-mode: screen;
+}
+
+.eor-creator-hero-content {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  padding: 27px;
+}
+
+.eor-creator-hero-kicker {
+  color: #90bfff;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .1em;
+}
+
+.eor-creator-hero-identity {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-top: 13px;
+}
+
+.eor-creator-hero-identity > img {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  object-fit: cover;
+}
+
+.eor-creator-hero-identity strong,
+.eor-creator-hero-identity small {
+  display: block;
+}
+
+.eor-creator-hero-identity strong { font-size: 17px; }
+.eor-creator-hero-identity small { margin-top: 3px; color: #b9d3f8; font-size: 10px; }
+
+.eor-creator-hero-wave {
+  width: 67%;
+  height: 34px;
+  margin-top: 20px;
+  background-repeat: repeat-x;
+  background-position: center;
+  background-size: auto 34px;
+  filter: brightness(0) invert(1);
+  opacity: .72;
+  animation: eorWaveDrift 3.8s linear infinite;
+}
+
+.eor-creator-hero-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 13px;
+  color: #c2dcff;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.eor-creator-hero-live svg { color: #7eb8ff; }
+
+.eor-role-card.selected,
+.creator-type-card.selected {
+  transform: translateY(-4px);
+  border-color: var(--eor-blue);
+  box-shadow: 0 15px 34px rgba(19, 107, 213, .16), 0 0 0 4px rgba(19, 107, 213, .08);
+}
+
+.eor-role-card.selected:hover:not(:disabled) {
+  border-color: var(--eor-blue);
+  box-shadow: 0 15px 34px rgba(19, 107, 213, .16), 0 0 0 4px rgba(19, 107, 213, .08);
+}
+
+.eor-role-card.selected .eor-role-icon,
+.creator-type-card.selected .creator-type-icon {
+  animation: eorChoiceLift 420ms cubic-bezier(.2, .8, .2, 1) both;
+}
+
+.eor-public-preview {
+  overflow: hidden;
+  border: 1px solid #dfe9f5;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 16px 32px rgba(23, 59, 104, .08);
+}
+
+.eor-public-preview-cover {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 134px;
+  padding: 22px;
+  background: #0d1c36;
+  color: white;
+}
+
+.eor-public-preview-avatar {
+  width: 54px;
+  height: 54px;
+  flex: 0 0 54px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.22);
+  border-radius: 16px;
+  background: #176fdd;
+  color: white;
+}
+
+.eor-public-preview-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.eor-public-preview-cover p { margin: 0 0 4px; color: #96c4ff; font-size: 9px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+.eor-public-preview-cover h2 { margin: 0; color: #fff; font-size: 20px; letter-spacing: -.03em; }
+.eor-public-preview-cover span { display: block; margin-top: 4px; color: #c0d9fa; font-size: 10px; }
+
+.eor-public-preview-description {
+  min-height: 54px;
+  margin: 0;
+  padding: 16px 18px 5px;
+  color: #526985;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.eor-public-preview-topics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 18px 16px;
+}
+
+.eor-public-preview-topics span {
+  padding: 5px 7px;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #3170bd;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.eor-public-preview-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-top: 1px solid #e7eef6;
+}
+
+.eor-public-preview-stats strong {
+  padding: 13px 18px;
+  color: #193454;
+  font-size: 14px;
+}
+
+.eor-public-preview-stats strong + strong { border-left: 1px solid #e7eef6; }
+.eor-public-preview-stats span { color: #8395aa; font-size: 10px; font-weight: 600; }
+
+.eor-public-preview-checklist {
+  display: grid;
+  gap: 7px;
+  margin: 15px 0;
+  color: #57708d;
+  font-size: 10.5px;
+}
+
+.eor-public-preview-checklist span { display: flex; align-items: center; gap: 8px; }
+.eor-public-preview-checklist svg { color: #1da56f; }
+.eor-creator-ready-back { width: 100%; margin-top: 10px; }
+
+@keyframes eorStageEnter {
+  from { opacity: 0; transform: translateX(16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes eorRoleArtworkFloat {
+  0%, 100% { transform: translateY(9px) scale(1.02); }
+  50% { transform: translateY(1px) scale(1.04); }
+}
+
+@keyframes eorWaveDrift {
+  from { background-position: 0 center; }
+  to { background-position: 165px center; }
+}
+
+@keyframes eorChoiceLift {
+  0% { transform: scale(.92); }
+  100% { transform: scale(1); }
+}
+
+@media (min-width: 1121px) {
+  .echoo-onboarding-redesign { grid-template-columns: minmax(0, 1.1fr) minmax(480px, .9fr); }
+  .eor-form-side { padding-left: clamp(28px, 3vw, 48px); padding-right: clamp(28px, 3vw, 48px); }
+  .eor-panel { width: min(560px, 100%); }
+}
+
+@media (max-width: 760px) {
+  .eor-mobile-stepper { display: grid; width: min(480px, 100%); margin: 16px auto 0; }
+  .eor-form-side > .eor-panel > .eor-stepper:not(.eor-mobile-stepper),
+  .eor-mobile-brand { display: none; }
+  .eor-role-hero-card, .eor-creator-hero-card { min-height: 205px; margin-top: 18px; border-radius: 18px; }
+  .eor-role-hero-card > img { width: 128%; }
+  .eor-role-hero-kicker { top: 14px; left: 15px; font-size: 7.5px; }
+  .eor-role-hero-card p { right: 15px; bottom: 12px; left: 15px; font-size: 10px; }
+  .eor-creator-hero-content { padding: 19px; }
+  .eor-creator-hero-identity strong { font-size: 15px; }
+  .eor-creator-hero-wave { width: 78%; }
+  .eor-public-preview-cover { min-height: 118px; padding: 18px; }
+  .eor-public-preview-cover h2 { font-size: 18px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .eor-hero-copy, .eor-panel, .eor-role-hero-card > img, .eor-creator-hero-wave, .eor-role-card.selected .eor-role-icon, .creator-type-card.selected .creator-type-icon { animation: none; }
+}

@@ -106,17 +106,6 @@
   min-width: 0;
 }
 
-#root .studio-final-shell .ebsx.setup-page .ebsx-setup-header > div::before {
-  content: "BROADCAST STUDIO";
-  display: block;
-  margin-bottom: 13px;
-  color: var(--eb-blue);
-  font-size: 11px;
-  line-height: 1;
-  font-weight: 800;
-  letter-spacing: .14em;
-}
-
 /* Replace the legacy heading visually without touching the connected state
    machine. The microphone-ready state is detected from the existing checks. */
 #root .studio-final-shell .ebsx.setup-page .ebsx-setup-header h1 {
@@ -672,7 +661,7 @@
 
 /* Mixer and live chat are the two primary live work areas. */
 #root .studio-final-shell .ebsx.live-page .ebsx-live-side > .eam,
-#root .studio-final-shell .ebsx.live-page .eam.compact {
+#root .studio-final-shell .ebsx.live-page .eam.compact:not(.eam-live-mixer) {
   grid-column: 1 !important;
   grid-row: 2 !important;
   min-width: 0 !important;
@@ -701,11 +690,11 @@
   max-height: 440px !important;
 }
 
-#root .studio-final-shell .ebsx.live-page .eam.compact .eam-heading {
+#root .studio-final-shell .ebsx.live-page .eam.compact:not(.eam-live-mixer) .eam-heading {
   margin-bottom: 12px !important;
 }
 
-#root .studio-final-shell .ebsx.live-page .eam.compact .eam-heading h2,
+#root .studio-final-shell .ebsx.live-page .eam.compact:not(.eam-live-mixer) .eam-heading h2,
 #root .studio-final-shell .ebsx.live-page .ebsx-card-head h2,
 #root .studio-final-shell .ebsx.live-page .ebsx-live-controls h2 {
   color: #17223b !important;
@@ -714,7 +703,7 @@
   font-weight: 760 !important;
 }
 
-#root .studio-final-shell .ebsx.live-page .eam.compact .eam-heading > div > span {
+#root .studio-final-shell .ebsx.live-page .eam.compact:not(.eam-live-mixer) .eam-heading > div > span {
   display: none !important;
 }
 
@@ -974,7 +963,7 @@
 
   #root .studio-final-shell .ebsx.live-page .ebsx-onair-card,
   #root .studio-final-shell .ebsx.live-page .ebsx-live-side > .eam,
-  #root .studio-final-shell .ebsx.live-page .eam.compact,
+  #root .studio-final-shell .ebsx.live-page .eam.compact:not(.eam-live-mixer),
   #root .studio-final-shell .ebsx.live-page .ebsx-chat-card,
   #root .studio-final-shell .ebsx.live-page .ebsx-live-primary-actions,
   #root .studio-final-shell .ebsx.live-page .ebsx-activity-card,
@@ -984,7 +973,7 @@
 
   #root .studio-final-shell .ebsx.live-page .ebsx-onair-card { grid-row: 1 !important; }
   #root .studio-final-shell .ebsx.live-page .ebsx-live-side > .eam,
-  #root .studio-final-shell .ebsx.live-page .eam.compact { grid-row: 2 !important; }
+  #root .studio-final-shell .ebsx.live-page .eam.compact:not(.eam-live-mixer) { grid-row: 2 !important; }
   #root .studio-final-shell .ebsx.live-page .ebsx-chat-card { grid-row: 3 !important; }
   #root .studio-final-shell .ebsx.live-page .ebsx-live-primary-actions { grid-row: 4 !important; }
   #root .studio-final-shell .ebsx.live-page .ebsx-activity-card { grid-row: 5 !important; }

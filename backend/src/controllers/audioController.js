@@ -10,6 +10,7 @@ import User from '../models/User.js';
 import { createNotification } from './notificationController.js';
 import { createGeneratedAudioCover } from '../utils/audioCover.js';
 import { canAccessReplayAudio } from '../services/assetAccessService.js';
+import { sendGeneratedCover } from '../utils/generatedCoverResponse.js';
 
 const safeDuration = (value) => {
   const duration = Number(value);
@@ -28,6 +29,26 @@ const activeCreatorIds = () =>
     userType: 'creator',
     isActive: true,
   });
+
+export async function getAudioCover(req, res, next) {
+  try {
+    const audio = await Audio.findOne({
+      _id: req.params.id,
+      isDeleted: false,
+      isPublic: true,
+    }).select('coverArt');
+
+    if (!audio || !sendGeneratedCover(res, audio.coverArt)) {
+      return res.status(404).json({
+        error: { code: 'COVER_NOT_FOUND', message: 'Audio cover not found' },
+      });
+    }
+
+    return undefined;
+  } catch (error) {
+    return next(error);
+  }
+}
 
 const safeLocalMediaPath = (folder, filename) => {
   const basename = path.basename(String(filename || ''));

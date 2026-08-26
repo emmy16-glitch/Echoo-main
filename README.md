@@ -61,6 +61,20 @@ pnpm dev:design
 
 Open the local URL printed by the command, normally `http://localhost:5173`. See [`echoo-landing/LOCAL_DESIGN.md`](echoo-landing/LOCAL_DESIGN.md) for page entry points and design guidance. The `echoo-landing/` directory is the canonical marketing-site source within Echoo-main; the prior standalone checkout is retained locally only as a recovery copy during this migration.
 
+### Current web client
+
+The canonical web client contains both Listener and Creator experiences. Run it
+from the frontend directory and use the fixed development URL:
+
+```bash
+cd /home/Software_projects/echoo2.0/echoo-github-main/frontend
+npm run dev
+```
+
+Open `http://localhost:5174`. The Vite server uses `strictPort: true`, so a
+port conflict fails clearly instead of silently switching ports. The sibling
+`../../echoo` frontend is legacy source and is not the current UI target.
+
 Useful backend health endpoints:
 
 - `/api/health` — liveness

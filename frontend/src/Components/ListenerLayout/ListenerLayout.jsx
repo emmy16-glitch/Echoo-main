@@ -20,6 +20,7 @@ import {
   FaPlay,
   FaRandom,
   FaRedoAlt,
+  FaRegFileAlt,
   FaUndoAlt,
   FaSearch,
   FaStepBackward,
@@ -27,6 +28,7 @@ import {
   FaTimes,
   FaVolumeMute,
   FaVolumeUp,
+  FaShareAlt,
   FaHeadphones,
 } from 'react-icons/fa';
 
@@ -38,6 +40,7 @@ import { buildMediaUrl, clearAuthTokens } from '../../services/api';
 import '../../styles/echoo-identity-reset.css';
 import '../../styles/echoo-asset-system.css';
 import './ListenerLayout.css';
+import './ListenerStreamingShell.css';
 import EchooAppShell from '../Shared/EchooAppShell';
 
 const SEARCH_SUGGESTIONS = [
@@ -63,6 +66,16 @@ const getRandomQueueIndex = (length, currentIndex) => {
     next = Math.floor(Math.random() * length);
   }
   return next;
+};
+
+const PlayerArtwork = ({ src }) => {
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => setFailed(false), [src]);
+
+  return src && !failed
+    ? <img src={src} alt="" onError={() => setFailed(true)} />
+    : <FaHeadphones aria-hidden="true" />;
 };
 
 const normalizeTrack = (track) => {
@@ -146,6 +159,8 @@ const ListenerLayout = () => {
   const [shuffle, setShuffle] = useState(false);
   const [repeatMode, setRepeatMode] = useState('off');
   const [playerError, setPlayerError] = useState('');
+  const [playerExpanded, setPlayerExpanded] = useState(false);
+  const [playerPanel, setPlayerPanel] = useState('queue');
 
   const [searchQuery, setSearchQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
@@ -230,6 +245,20 @@ const ListenerLayout = () => {
     clearAuthTokens();
     setProfileMenuOpen(false);
     navigate('/', { replace: true });
+  };
+
+  const shareCurrentTrack = async () => {
+    const shareData = {
+      title: currentTrack?.title || 'Echoo audio',
+      text: currentTrack?.subtitle || 'Listen on Echoo',
+      url: window.location.href,
+    };
+    try {
+      if (navigator.share) await navigator.share(shareData);
+      else if (navigator.clipboard) await navigator.clipboard.writeText(shareData.url);
+    } catch (error) {
+      if (error?.name !== 'AbortError') console.warn('Share audio:', error);
+    }
   };
 
   useEffect(() => {
@@ -880,7 +909,7 @@ const ListenerLayout = () => {
           }}
         />
 
-        <div className="layout-player-track">
+        <button type="button" className="layout-player-track" onClick={() => setPlayerExpanded(true)} aria-label="Open full player">
           <EchoSignal
             size="sm"
             active={isPlaying}
@@ -889,15 +918,7 @@ const ListenerLayout = () => {
           />
 
           <div className="layout-player-cover">
-            {currentTrack?.coverArt ? (
-              <img
-                src={currentTrack.coverArt}
-                alt=""
-                style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }}
-              />
-            ) : (
-              <FaHeadphones />
-            )}
+            <PlayerArtwork src={currentTrack?.coverArt} />
           </div>
 
           <div className="layout-player-info">
@@ -906,7 +927,7 @@ const ListenerLayout = () => {
               {playerError || currentTrack?.subtitle || 'Echoo'}
             </span>
           </div>
-        </div>
+        </button>
 
         <div className="layout-player-controls">
           <button type="button" onClick={playPrevious} disabled={!queue.length} aria-label="Previous">
@@ -1005,10 +1026,47 @@ const ListenerLayout = () => {
           >
             <FaRedoAlt />
           </button>
+          <button type="button" onClick={() => { setPlayerPanel('queue'); setPlayerExpanded(true); }} aria-label="Open queue">
+            <FaListUl />
+          </button>
+          <button type="button" onClick={shareCurrentTrack} aria-label="Share current audio">
+            <FaShareAlt />
+          </button>
         </div>
         <div className="layout-player-mobile-progress" aria-hidden="true">
           <span style={{ width: `${progressPercentage}%` }} />
         </div>
+        {playerExpanded && (
+          <section className="echoo-full-player" role="dialog" aria-modal="true" aria-label="Full player">
+            <div className="echoo-full-player-backdrop" onClick={() => setPlayerExpanded(false)} aria-hidden="true" />
+            <div className="echoo-full-player-sheet">
+              <header>
+                <div>
+                  <span>Now playing</span>
+                  <strong>{currentTrack?.title || 'Choose something to play'}</strong>
+                </div>
+                <button type="button" onClick={() => setPlayerExpanded(false)} aria-label="Close full player"><FaTimes /></button>
+              </header>
+              <div className="echoo-full-player-body">
+                <div className="echoo-full-player-art">
+                  <PlayerArtwork src={currentTrack?.coverArt} />
+                </div>
+                <div className="echoo-full-player-actions">
+                  <button type="button" className={playerPanel === 'transcript' ? 'active' : ''} onClick={() => setPlayerPanel('transcript')}><FaRegFileAlt /> Transcript</button>
+                  <button type="button" className={playerPanel === 'queue' ? 'active' : ''} onClick={() => setPlayerPanel('queue')}><FaListUl /> Queue <span>{queue.length}</span></button>
+                  <button type="button" onClick={shareCurrentTrack}><FaShareAlt /> Share</button>
+                </div>
+                {playerPanel === 'transcript' ? (
+                  <p className="echoo-full-player-transcript">Transcript availability is shown for supported broadcasts. Keep listening while Echoo follows along with the conversation.</p>
+                ) : (
+                  <ol className="echoo-full-player-queue">
+                    {queue.length ? queue.map((track, index) => <li key={`${track.id || track.title}-${index}`}><button type="button" onClick={() => playTrackAt(index)}><span>{index + 1}</span><strong>{track.title}</strong><small>{track.subtitle}</small></button></li>) : <li className="empty">Your listening queue will appear here.</li>}
+                  </ol>
+                )}
+              </div>
+            </div>
+          </section>
+        )}
       </div>
         )}
     >

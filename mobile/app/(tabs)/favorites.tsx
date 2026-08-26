@@ -4,12 +4,12 @@ import { Heart, Music2, Radio } from 'lucide-react-native';
 import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
   ListenerAuthCard,
@@ -99,9 +99,9 @@ export default function FavoritesScreen() {
   const total = savedAudio.length + stations.length;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      <ListenerTopBar />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <ListenerTopBar />
         <ListenerPageHeader
           eyebrow="YOUR ECHOO"
           title="Favorites"

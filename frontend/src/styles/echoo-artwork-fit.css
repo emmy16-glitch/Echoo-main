@@ -1,0 +1,63 @@
+/*
+ * Canonical artwork rendering
+ *
+ * Audio and station covers often carry typography at their edges. Their
+ * component boxes remain fixed for a stable grid; only the source image is
+ * fitted inside that box. Avatars and true photographic hero backgrounds are
+ * deliberately excluded and retain their component-level `cover` rules.
+ */
+
+#root :is(
+  .echoo-home-station-art img,
+  .following-station-art img,
+  .stations-top-art > img,
+  .station-card-art img,
+  .b3-station-art img,
+  .b3-feature-art img,
+  .b3-live-card img,
+  .b3-profile-art img,
+  .b3-room-art img,
+  .llr-art img,
+  .layout-player-cover img,
+  .al-track-art img,
+  .al-playlist-art img,
+  .search-result-cover img,
+  .batch1-playlist-art img,
+  .replay-art img,
+  .pl-track-art img,
+  .pl-playlist-art img,
+  .lsm-cover img,
+  .eca-art img,
+  .ecc-cover img,
+  .ecc-track-art img,
+  .ecbs-live-art img,
+  .est-featured-art img,
+  .est-row-identity img,
+  .est-details-identity img,
+  .est-brand-preview img
+) {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain !important;
+  object-position: center;
+  background: var(--echoo-surface, #eef2f6);
+  padding: clamp(3px, 4%, 10px);
+}
+
+/* Preserve the compact player/card geometry on narrow displays. */
+@media (max-width: 720px) {
+  #root :is(
+    .echoo-home-station-art img,
+    .following-station-art img,
+    .stations-top-art > img,
+    .station-card-art img,
+    .b3-station-art img,
+    .layout-player-cover img,
+    .ecbs-live-art img,
+    .est-featured-art img
+  ) {
+    padding: 5px;
+  }
+}

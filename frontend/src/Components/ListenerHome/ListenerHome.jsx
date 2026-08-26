@@ -7,6 +7,7 @@ import followService from '../../services/followService';
 import { buildMediaUrl } from '../../services/api';
 import { buildGeneratedStationBrandCoverUrl } from '../../stationBranding/stationBranding';
 import echooMark from '../Assets/echoo-logo-official.svg';
+import listeningLounge from '../Assets/echoo-listener-listening-lounge.png';
 import './ListenerHome.css';
 
 const HOME_SYNC_INTERVAL_MS = 15000;
@@ -49,9 +50,15 @@ const readDisplayName = () => {
 const titleOf = (item) => item?.title || item?.station?.name || item?.stationName || item?.name || 'Echoo audio';
 const subtitleOf = (item) => item?.station?.owner?.displayName || item?.creator?.displayName || item?.station?.name || item?.stationName || item?.artistName || item?.artist?.displayName || item?.category || 'Echoo';
 
-const Artwork = ({ src, alt = '' }) => src
-  ? <img src={src} alt={alt} loading="lazy" />
-  : <img src={echooMark} alt="" className="echoo-home-fallback-mark" />;
+const Artwork = ({ src, alt = '' }) => {
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => setFailed(false), [src]);
+
+  return src && !failed
+    ? <img src={src} alt={alt} loading="lazy" onError={() => setFailed(true)} />
+    : <img src={echooMark} alt="" className="echoo-home-fallback-mark" />;
+};
 
 const LiveCard = ({ broadcast, onOpen }) => (
   <article className="echoo-home-live-card">
@@ -119,6 +126,39 @@ const SectionHeader = ({ title, onViewAll }) => (
     <button type="button" onClick={onViewAll}>View all</button>
   </header>
 );
+
+const NowPlayingHero = ({ item, onOpen }) => {
+  const duration = Number(item?.duration) || 0;
+  const progress = Number(item?.progress) || 0;
+  const ratio = duration > 0 ? Math.max(0, Math.min(100, (progress / duration) * 100)) : 38;
+
+  return (
+    <section className="echoo-home-now-playing" aria-label="Now playing">
+      <img src={listeningLounge} alt="A calm listening room" className="echoo-home-now-playing-scene" />
+      <div className="echoo-home-now-playing-shade" aria-hidden="true" />
+      <div className="echoo-home-now-playing-content">
+        <div className="echoo-home-now-playing-cover">
+          <Artwork src={artworkOf(item)} alt="" />
+        </div>
+        <div className="echoo-home-now-playing-copy">
+          <span className="echoo-home-now-playing-kicker"><i aria-hidden="true" /> Now playing</span>
+          <h2>{titleOf(item)}</h2>
+          <p>{subtitleOf(item)}</p>
+          <span className="echoo-home-now-playing-time">{formatRemaining(duration, progress) || 'Pick up where you left off'}</span>
+          <button type="button" onClick={() => onOpen(item)}>
+            <FiPlay aria-hidden="true" /> Continue listening
+          </button>
+        </div>
+      </div>
+      <div className="echoo-home-now-playing-wave" aria-hidden="true">
+        {Array.from({ length: 34 }, (_, index) => <i key={index} style={{ '--wave-height': `${18 + ((index * 17) % 46)}%`, '--wave-delay': `${index * -0.09}s` }} />)}
+      </div>
+      <div className="echoo-home-now-playing-progress" aria-label={`${Math.round(ratio)} percent complete`}>
+        <span style={{ width: `${ratio}%` }} />
+      </div>
+    </section>
+  );
+};
 
 const ListenerHome = () => {
   const navigate = useNavigate();
@@ -204,8 +244,13 @@ const ListenerHome = () => {
       {error && <div className="echoo-home-error" role="alert">{error}</div>}
       <header className="echoo-home-welcome">
         <h1>{greeting}</h1>
-        <p>Here’s what’s live and new on Echoo right now.</p>
+        <p>Let’s find the perfect sound for your day.</p>
       </header>
+
+      <NowPlayingHero
+        item={continueListening[0] || liveNow[0] || recommended[0]}
+        onOpen={(track) => navigate(`/listen/audio/${idOf(track)}`)}
+      />
 
       <section className="echoo-home-section" aria-labelledby="listener-home-live">
         <SectionHeader title="Live now" onViewAll={() => navigate('/listen/live')} />
@@ -224,7 +269,7 @@ const ListenerHome = () => {
       </section>
 
       <section className="echoo-home-section" aria-labelledby="listener-home-stations">
-        <SectionHeader title="Stations for you" onViewAll={() => navigate('/listen/stations')} />
+        <SectionHeader title="Recommended stations for you" onViewAll={() => navigate('/listen/stations')} />
         {recommended.length ? (
           <div className="echoo-home-station-grid" id="listener-home-stations">
             {recommended.slice(0, 5).map((station) => (
@@ -236,9 +281,9 @@ const ListenerHome = () => {
 
       {continueListening.length > 0 && (
         <section className="echoo-home-section" aria-labelledby="listener-home-continue">
-          <SectionHeader title="Continue listening" onViewAll={() => navigate('/listen/history')} />
+          <SectionHeader title="Recent replays" onViewAll={() => navigate('/listen/history')} />
           <div className="echoo-home-continue-grid" id="listener-home-continue">
-            {continueListening.slice(0, 4).map((item) => <ContinueCard key={idOf(item)} item={item} onOpen={(track) => navigate(`/listen/audio/${idOf(track)}`)} />)}
+            {continueListening.slice(1, 5).map((item) => <ContinueCard key={idOf(item)} item={item} onOpen={(track) => navigate(`/listen/audio/${idOf(track)}`)} />)}
           </div>
         </section>
       )}

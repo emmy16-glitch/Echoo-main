@@ -2,7 +2,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Headphones, Radio, Users, Volume2, X } from 'lucide-react-native';
-import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -15,32 +15,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ListenerAuthCard, ListenerBackHeader } from '@/src/components/ListenerV2';
 import {
   getBroadcastPresence,
-  getListenerLiveKitCredentials,
   hasEchooSession,
 } from '@/src/services/echooApi';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { LivePlaybackItem, usePlayback } from '@/src/playback/PlaybackProvider';
 import { EchooColors, getEchooColors } from '@/src/theme/echooTheme';
-
-type LiveKitNativeModule = typeof import('@livekit/react-native');
-
-type Credentials = {
-  token: string;
-  roomName: string;
-  livekitUrl: string;
-  broadcastId: string;
-  role?: string;
-};
-
-let liveKitGlobalsRegistered = false;
-
-async function loadLiveKitNativeModule() {
-  const liveKit = await import('@livekit/react-native');
-  if (!liveKitGlobalsRegistered) {
-    liveKit.registerGlobals();
-    liveKitGlobalsRegistered = true;
-  }
-  return liveKit;
-}
 
 export default function LiveRoomScreen() {
   const router = useRouter();
@@ -53,30 +32,40 @@ export default function LiveRoomScreen() {
   const scheme = useColorScheme();
   const palette = getEchooColors(scheme);
   const styles = useMemo(() => createStyles(palette), [palette]);
+  const playback = usePlayback();
+  const playLive = playback.playLive;
 
   const broadcastId = String(params.broadcastId || '');
   const title = String(params.title || 'Live broadcast');
   const stationName = String(params.stationName || 'Echoo Station');
   const coverArt = params.coverArt ? String(params.coverArt) : '';
+  const requestedLive = useMemo<LivePlaybackItem>(
+    () => ({
+      kind: 'live',
+      id: broadcastId,
+      title,
+      subtitle: stationName,
+      coverArt,
+    }),
+    [broadcastId, coverArt, stationName, title]
+  );
 
   const [signedIn, setSignedIn] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [credentials, setCredentials] = useState<Credentials | null>(null);
-  const [liveKit, setLiveKit] = useState<LiveKitNativeModule | null>(null);
-  const [reissueVersion, setReissueVersion] = useState(0);
-  const reissueInFlight = useRef(false);
-  const [nativeModuleUnavailable, setNativeModuleUnavailable] = useState(false);
+  const [preparing, setPreparing] = useState(true);
+  const [prepareError, setPrepareError] = useState('');
   const [listenerCount, setListenerCount] = useState(0);
-  const [error, setError] = useState('');
-  const [listening, setListening] = useState(true);
+  const isCurrentLive = playback.current?.kind === 'live' && playback.current.id === broadcastId;
+  const listening = isCurrentLive && playback.isPlaying;
+  const loading = preparing || (isCurrentLive && playback.isLoading);
+  const error = prepareError || (isCurrentLive ? playback.error : '');
+  const nativeModuleUnavailable = isCurrentLive && playback.liveNativeUnavailable;
 
   useEffect(() => {
     let active = true;
 
     const prepare = async () => {
-      setLoading(true);
-      setError('');
-      setNativeModuleUnavailable(false);
+      setPreparing(true);
+      setPrepareError('');
 
       try {
         const activeSession = await hasEchooSession();
@@ -86,31 +75,17 @@ export default function LiveRoomScreen() {
         if (!activeSession) return;
         if (!broadcastId) throw new Error('Broadcast ID is missing.');
 
-        let liveKitModule: LiveKitNativeModule;
-        try {
-          liveKitModule = await loadLiveKitNativeModule();
-        } catch {
-          if (!active) return;
-          setNativeModuleUnavailable(true);
-          return;
-        }
+        const presence = await getBroadcastPresence(broadcastId).catch(() => null);
 
         if (!active) return;
-        setLiveKit(liveKitModule);
-
-        const [nextCredentials, presence] = await Promise.all([
-          getListenerLiveKitCredentials(broadcastId),
-          getBroadcastPresence(broadcastId).catch(() => null),
-        ]);
-
-        if (!active) return;
-        setCredentials(nextCredentials);
         setListenerCount(Number(presence?.listenerCount) || 0);
+
+        if (!isCurrentLive) await playLive(requestedLive);
       } catch (prepareError: any) {
         if (!active) return;
-        setError(prepareError?.message || 'Could not join this live broadcast.');
+        setPrepareError(prepareError?.message || 'Could not join this live broadcast.');
       } finally {
-        if (active) setLoading(false);
+        if (active) setPreparing(false);
       }
     };
 
@@ -118,7 +93,7 @@ export default function LiveRoomScreen() {
     return () => {
       active = false;
     };
-  }, [broadcastId, reissueVersion]);
+  }, [broadcastId, isCurrentLive, playLive, requestedLive]);
 
   useEffect(() => {
     if (!broadcastId || !signedIn || nativeModuleUnavailable) return;
@@ -137,8 +112,11 @@ export default function LiveRoomScreen() {
       coverArt={coverArt}
       listenerCount={listenerCount}
       listening={listening}
-      onToggleListening={() => setListening((value) => !value)}
-      onClose={() => router.back()}
+      onToggleListening={playback.toggle}
+      onClose={() => {
+        playback.stop();
+        router.back();
+      }}
       palette={palette}
     />
   );
@@ -190,79 +168,11 @@ export default function LiveRoomScreen() {
           </View>
         ) : null}
 
-        {!loading && signedIn && !nativeModuleUnavailable && liveKit && credentials && !error ? (
-          listening ? (
-            <LiveAudioConnection
-              liveKit={liveKit}
-              serverUrl={credentials.livekitUrl}
-              token={credentials.token}
-              onError={(message) => {
-                // An expiring or revoked token surfaces as a LiveKit failure.
-                // Re-fetching fresh credentials gives the listener an
-                // automatic second wind instead of a hard error screen.
-                const looksLikeTokenFailure =
-                  /token|expired|unauthorized|authentication/i.test(
-                    String(message || '')
-                  );
-                if (looksLikeTokenFailure && !reissueInFlight.current) {
-                  reissueInFlight.current = true;
-                  setError('');
-                  setReissueVersion((version) => version + 1);
-                  setTimeout(() => {
-                    reissueInFlight.current = false;
-                  }, 15000);
-                } else {
-                  setError(message);
-                }
-              }}
-            >
-              {roomContent}
-            </LiveAudioConnection>
-          ) : (
-            roomContent
-          )
-        ) : null}
+        {!loading && signedIn && !nativeModuleUnavailable && isCurrentLive && !error
+          ? roomContent
+          : null}
       </View>
     </SafeAreaView>
-  );
-}
-
-function LiveAudioConnection({
-  liveKit,
-  serverUrl,
-  token,
-  children,
-  onError,
-}: {
-  liveKit: LiveKitNativeModule;
-  serverUrl: string;
-  token: string;
-  children: ReactNode;
-  onError: (message: string) => void;
-}) {
-  const { AudioSession, LiveKitRoom } = liveKit;
-
-  useEffect(() => {
-    AudioSession.startAudioSession().catch((error) => {
-      onError(error?.message || 'Could not start the device audio session.');
-    });
-    return () => {
-      AudioSession.stopAudioSession();
-    };
-  }, [AudioSession, onError]);
-
-  return (
-    <LiveKitRoom
-      serverUrl={serverUrl}
-      token={token}
-      connect
-      audio={false}
-      video={false}
-      options={{ adaptiveStream: true }}
-      onError={(roomError) => onError(roomError?.message || 'LiveKit connection failed.')}
-    >
-      {children}
-    </LiveKitRoom>
   );
 }
 
@@ -293,7 +203,7 @@ function LiveRoomContent({
         {coverArt ? (
           <Image source={{ uri: coverArt }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
         ) : (
-          <LinearGradient colors={['#2457E9', '#071126']} style={StyleSheet.absoluteFillObject} />
+          <LinearGradient colors={[palette.blue, palette.night2]} style={StyleSheet.absoluteFillObject} />
         )}
         <LinearGradient colors={['rgba(2,8,24,0.05)', 'rgba(2,8,24,0.68)']} style={StyleSheet.absoluteFillObject} />
         <View style={styles.liveBadge}>
