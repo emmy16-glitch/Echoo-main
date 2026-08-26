@@ -7,6 +7,8 @@ Echoo is an audio-first live streaming platform.
 - `frontend/` — React + Vite web client
 - `backend/` — Node.js/Express + MongoDB API/control plane
 - `mobile/` — mobile client
+- `desktop/` — Electron desktop client and packaging configuration
+- `echoo-landing/` — React/Vite public marketing and release site
 - Live media — LiveKit
 - Realtime product events — Socket.IO
 
@@ -46,18 +48,18 @@ Create frontend/backend environment files from their checked-in examples. Never 
 
 ### Landing site source
 
-The public marketing and release site is intentionally maintained in a **separate private repository** so it can evolve without being embedded in the live-audio application source. Clone it beside this repository when you want to run or redesign the landing site locally on Ubuntu:
+The public marketing and release site is maintained as the `echoo-landing/` subproject within this repository, alongside the web, mobile, and desktop sources. To run or redesign the landing site locally on Ubuntu:
 
 ```bash
 cd ~/Projects
-git clone https://github.com/effiukp/Echoo-landing.git echoo-landing
-cd echoo-landing
+gh repo clone effiukp/Echoo-main Echoo-main
+cd Echoo-main/echoo-landing
 corepack enable
 pnpm install
 pnpm dev:design
 ```
 
-Open the local URL printed by the command, normally `http://localhost:5173`. See [`LOCAL_DESIGN.md`](https://github.com/effiukp/Echoo-landing/blob/main/LOCAL_DESIGN.md) in the landing repository for page entry points and design guidance. The landing source uses its own repository; do not expect an `echoo-landing/` directory inside `Echoo-main`.
+Open the local URL printed by the command, normally `http://localhost:5173`. See [`echoo-landing/LOCAL_DESIGN.md`](echoo-landing/LOCAL_DESIGN.md) for page entry points and design guidance. The `echoo-landing/` directory is the canonical marketing-site source within Echoo-main; the prior standalone checkout is retained locally only as a recovery copy during this migration.
 
 Useful backend health endpoints:
 

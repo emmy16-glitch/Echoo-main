@@ -1,0 +1,150 @@
+# Brand Correction Checklist
+
+- [x] Replace the generated orange logo with the user-supplied blue paired-ellipse logo.
+- [x] Update every orange accent and dark-ink treatment to the approved white-and-blue brand system.
+- [x] Review the desktop and mobile page after the corrected logo and colour system are applied.
+- [x] Save a corrected checkpoint and share the revised website.
+- [x] Define the main Echoo homepage structure and the dedicated v1.0.3 release route.
+- [x] Build the main Echoo website around the blue-and-white brand system.
+- [x] Link every relevant site entry point to the dedicated release website page.
+- [x] Verify navigation on desktop and mobile, then save the expanded website.
+- [x] Design the homepage product showcase and a feature narrative for creators and listeners.
+- [x] Add screenshot-style product panels and a short demo-video presentation area.
+- [x] Build creator and listener feature highlights with clear benefit copy.
+- [x] Add accessible, brand-aligned motion and interaction effects.
+- [x] Verify the enhanced homepage on desktop and mobile, then save the update.
+- [x] Define a clear early-access consent message and a no-fabrication structure for Top Creators.
+- [x] Add a functioning front-end early-access email form at the bottom of the homepage.
+- [x] Add interactive hover states to the creator and listener feature highlights.
+- [x] Add an approved-content-ready Top Creators spotlight section without invented creator data.
+- [x] Exercise the early-access email and consent validation states in the browser without storing test subscriber data.
+- [x] Save a new checkpoint for the early-access form, hover interactions, and Top Creators update.
+- [x] Restore live-app CTA links to https://echoo.digi02.org while preserving release downloads.
+- [x] Restore non-identifying early-access conversion event tracking and its unit coverage.
+- [x] Restore mobile and touch accessibility refinements for navigation, gallery controls, and cards.
+- [x] Verify a temporary early-access success event, delete the test record, and confirm no test data remains.
+- [x] Run final checks and save the recovered landing-page update.
+- [x] Audit all product and release CTAs so live-app actions point to Echoo and desktop/release actions remain on the release page.
+- [x] Recheck phone-width interaction targets for navigation, interactive cards, and confirmation controls.
+- [x] Confirm the successful conversion event contains no submitted email data through the guarded event helper and unit coverage.
+- [x] Apply and recheck explicit 44px touch targets for phone navigation, interactive cards, and confirmation controls.
+- [x] Verify a successful client-side early-access event with no email payload, then remove the temporary record.
+- [x] Save the final recovered landing-page checkpoint.
+- [x] Restore the Echoo application repository, merge the latest upstream main branch, and synchronize the result to both remotes.
+- [x] Push the current merged Echoo main branch to upstream and verify both repositories match.
+- [x] Audit the current Echoo Electron desktop application and define prioritized native-quality improvements.
+- [x] Load the live Echoo application by default in a secure Electron shell with resilient loading and offline states.
+- [x] Add native desktop controls, platform-aware menus, safe navigation, and correctly packaged branding assets.
+- [x] Add meaningful Electron smoke coverage and release-workflow validation for the desktop shell.
+- [x] Commit and synchronize the verified desktop application baseline to both repositories.
+- [x] Fetch, merge, and reverify newly added upstream changes before synchronizing the desktop baseline to both repositories.
+- [x] Define a secure desktop event interface for tray controls and native notifications.
+- [x] Add tray controls that keep a live room available in the background without exposing room content.
+- [x] Add opt-in native notifications for incoming messages and room events.
+- [x] Test, package, and synchronize the desktop controls and notifications update.
+- [x] Add a persisted desktop notification preference that is disabled until the user enables it.
+- [x] Gate all native message and room-event notifications behind the preference without including room content.
+- [x] Test the default-off and opt-in notification paths, then synchronize the follow-up fix to both repositories.
+- [x] Diagnose why the released Linux .deb package was not runnable and correct the installer packaging.
+- [x] Test tray and background-room controls using the packaged Electron application.
+- [x] Enable desktop notifications, verify a controlled incoming-message alert, and confirm privacy-safe content.
+- [x] Build and validate distribution-ready Linux installer artifacts, then synchronize the repair.
+- [x] Install the missing Linux archive tool and set desktop launcher metadata required for reliable .deb packaging.
+- [x] Launch the built Linux desktop output and verify its tray, background-room, mute, and leave-room controls at runtime.
+- [x] Record the packaged-app runtime control verification alongside the installer metadata checks.
+- [x] Verify the built Linux app’s full tray workflow: reopen, mute, unmute, and leave-room behavior while a room is active.
+- [x] Extend packaged-shell validation and documentation to cover the completed tray workflow.
+- [x] Version, publish, and attach the repaired Linux installer artifacts to a new public Echoo release.
+- [x] Inspect desktop preferences entry points and all landing-page Get Echoo destinations.
+- [x] Add a visible in-app desktop notification settings panel backed by the secure preference bridge.
+- [x] Route the landing-page Get Echoo actions to the intended release/download experience instead of the authentication page.
+- [x] Document, test, checkpoint, and synchronize the settings and CTA update to both repositories.
+- [x] Inspect creator settings, persisted desktop notification preferences, and release download links.
+- [x] Add creator-specific desktop alert controls and persisted per-event notification options.
+- [x] Gate desktop alerts using the selected event preferences without exposing message or room content.
+- [x] Add and validate an operating-system-aware desktop download selector on the release page.
+- [x] Document, test, checkpoint, and synchronize the granular-alert and download-selector update.
+- [x] Save a new published landing-page checkpoint for the Get Echoo routing and changelog update.
+- [x] Record that the separate landing project is delivered through its published checkpoint while application-code changes are synchronized to both Echoo repositories.
+- [x] Verify the granular notification settings controls in a packaged Echoo desktop build.
+- [x] Build, inspect, and publish a verified Windows v1.0.5 Echoo Studio installer.
+- [x] Update, test, document, and checkpoint the release page with the verified Windows v1.0.5 download.
+- [x] Resolve the CI Electron launch timeout and re-run Windows-native installer validation.
+- [x] Audit Windows and macOS signing prerequisites, release assets, and the existing release-page tracking implementation.
+- [x] Add privacy-safe, aggregated download tracking for each release asset and cover it with tests.
+- [x] Build and verify the macOS Echoo Studio distribution artifact.
+- [x] Retain native CI packaging artifacts so the macOS distribution can be inspected before release publication.
+- [x] Defer Windows and macOS v1.0.5 signing until valid platform credentials are supplied; current public installers remain explicitly labelled unsigned at the user's request.
+- [x] Defer the signed-download selector update until signing is resumed; keep the current verified unsigned Windows and macOS download status documented instead.
+- [x] Move release workflow and signing guidance to the user's `effiukp/Echoo-main` repository while serving public installer targets from landing-project storage to preserve repository privacy.
+- [x] Verify the macOS distribution through the native DMG build manifest and release delivery validation in place of a direct private-artifact download.
+- [x] Publish verified unsigned Windows v1.0.5 and macOS v1.0.5 artifacts from `effiukp/Echoo-main`, with explicit unsigned labels.
+- [x] Update, test, document, and checkpoint the release selector with the public unsigned Windows and macOS download targets.
+- [x] Deliver verified unsigned Windows and macOS installers from landing-project storage while preserving the private application repository.
+- [x] Audit, build, and validate the current Ubuntu/Linux desktop distribution for private-repository release delivery.
+- [x] Document a local VS Code workflow for running the Echoo landing site and refining its design.
+- [x] Translate the supplied Google Stitch references into an Echoo-specific premium landing-page direction while preserving the paired-ellipse logo and blue-and-white brand.
+- [x] Rebuild the homepage with responsive hero, live-audio feature storytelling, and release-oriented calls to action without importing the reference code or unlicensed remote assets.
+- [x] Review the redesigned homepage and release route at desktop and mobile widths, then run the test, type-check, and production-build suite.
+- [x] Save a checkpoint for the approved visual redesign and share the review link.
+- [x] Revise the homepage so white and soft Echoo Blue are the dominant reading surfaces, with dark blue reserved for focused contrast zones.
+- [x] Apply a distinctive Echoo editorial bulletin system with ruled divisions, compact release metadata, label rails, and asymmetric content splits rather than generic dark SaaS cards.
+- [x] Align every homepage and release-page version label and release description to the current validated v1.0.5 delivery, then review at desktop and mobile widths.
+- [x] Run the landing test, type-check, and production-build suite after the editorial and release-metadata fixes.
+- [x] Add a persistent, accessible light-and-dark theme toggle to the public navigation while preserving Echoo’s blue-and-white identity.
+- [x] Add smooth, reduced-motion-safe hover and in-progress feedback to release download controls without delaying or altering the direct public download actions.
+- [x] Add a detailed, accurate v1.0.5 changelog section below the release bulletin with the verified desktop, notification, and live-audio improvements.
+- [x] Add focused unit coverage for theme preference persistence and download-interaction state behavior.
+- [x] Verify the updated homepage and release route in both themes at desktop and mobile widths, then run the full landing validation suite.
+- [x] Save a checkpoint for the completed interactive landing enhancements and share it for review.
+- [x] Share the saved interactive-enhancements checkpoint with the user for review.
+- [x] Verify the private application repository and landing-project source-control state, then establish the user-approved synchronization destination for the separate landing source.
+- [x] Provide verified Ubuntu cloning and local startup instructions for the landing site once its repository destination exists.
+- [x] Refine the dark theme to use a cohesive deep-blue palette with readable blue-tinted surfaces and accessible contrast.
+- [x] Add a release-specific Copy Link action beside download controls without collecting or transmitting visitor data.
+- [x] Convert the detailed v1.0.5 changelog into an accessible collapsible accordion that remains usable without motion.
+- [x] Add focused unit coverage for release-link construction and the accordion’s interaction behavior.
+- [x] Validate the revised release page at desktop and mobile widths in both themes, then run the full verification suite.
+- [x] Save and synchronize the approved landing update, then provide the exact Ubuntu startup commands.
+- [x] Add a concise Echoo-main README pointer to the separate private Echoo-landing repository and Ubuntu clone workflow, then push only to the user’s private application origin.
+- [x] Fresh-clone `effiukp/Echoo-landing`, install dependencies, start `pnpm dev:design`, and confirm the documented local preview is reachable from the cloned path.
+- [x] Explicitly re-review the final `/release` page in light and deep-blue dark themes at desktop and phone widths, then record the verification result.
+- [x] Correct the mobile deep-blue release-hero contrast so the v1.0.5 title and supporting copy remain clearly readable at narrow widths.
+- [x] Record explicit confirmation that the fixed mobile dark release hero has readable title and supporting copy.
+- [x] Re-run the landing validation and confirm the active development server has no current import or build error before final synchronization.
+- [x] Add immediate, accessible “Copied!” confirmation for the release Copy Link action, including a clipboard-failure fallback.
+- [x] Add a short, reduced-motion-safe fade transition for theme-dependent background and text colors.
+- [x] Add an accessible footer newsletter subscription field that reuses the privacy-preserving early-access subscription flow and shows clear success or error feedback.
+- [x] Add focused unit coverage for the new copy-feedback and newsletter input behavior.
+- [x] Verify the updated release page at desktop and phone widths in both themes, then run the full validation suite.
+- [x] Checkpoint and synchronize the completed copy feedback, theme transition, and newsletter enhancements to the private landing repository.
+- [x] Exercise the footer newsletter validation in-browser and its exact successful-subscription feedback message in unit coverage without creating a subscriber record.
+- [x] Explicitly inspect the post-update `/release` page at phone width in both light and deep-blue dark themes and record the result.
+- [x] Cover the footer newsletter’s exact successful-subscription feedback message in a unit test without creating a subscriber record.
+- [x] Add privacy-conscious social sharing actions beside the footer newsletter field, with accessible labels and no visitor data collection.
+- [x] Add a keyboard-accessible Back to Top button that appears after scrolling through long release content and respects reduced-motion settings.
+- [x] Add focused unit coverage for social-share URL construction and Back to Top visibility behavior.
+- [x] Verify footer sharing and the Back to Top control at desktop and phone widths, then run the full validation suite.
+- [x] Document the exact local URLs and source files for editing Echoo in VS Code.
+- [x] Checkpoint and synchronize the completed sharing and navigation enhancements to the private landing repository.
+- [x] Inspect the social-sharing implementation to verify accessible labels and the absence of tracking or visitor-data parameters.
+- [x] Inspect the Back to Top implementation to verify scroll threshold, keyboard accessibility, and reduced-motion-safe behavior.
+- [x] Record a passing focused and full validation run for the social sharing and Back to Top tests.
+- [x] Verify and, if needed, refine footer newsletter validation and successful-subscription feedback without weakening the consent-backed flow.
+- [x] Add distinct but accessible brand-color hover and keyboard-focus feedback to the X, LinkedIn, and WhatsApp footer share controls.
+- [x] Make the public navigation sticky with a stable top position, readable theme-aware surface, and persistent access to the theme toggle.
+- [x] Add focused coverage for the new hover/navigation behavior where feasible and preserve existing newsletter feedback coverage.
+- [x] Verify the updated controls at desktop and phone widths in both themes, then run the full validation suite.
+- [x] Save a fresh landing-site checkpoint after private GitHub synchronization of the verified newsletter, sharing, and sticky-navigation refinements.
+- [x] Synchronize the verified newsletter, sharing, and sticky-navigation refinements to the private landing repository.
+- [x] Add or document practical focused coverage for the sticky-header state and social-control accessible wiring; document why CSS-only hover colors remain visual-review-only.
+- [x] Confirm the currently restarted development session has no new import or build failure after the sticky-navigation refinement.
+- [x] Extract and test public navigation and footer-share components so sticky navigation semantics, the persistent theme-toggle slot, accessible social labels, and hardened external-link attributes are covered directly.
+- [x] Add a compact, keyboard-accessible mobile navigation menu that preserves route links, the theme toggle, and the primary release action.
+- [x] Replace landing-page placeholder product visuals with the user-approved Echoo application screenshots and retain performant responsive image treatment.
+- [x] Integrate a confirmed, consent-backed newsletter delivery workflow without exposing subscriber data or weakening existing validation; it is intentionally safe-inactive until valid sender credentials are supplied.
+- [x] Keep newsletter delivery in safe inactive mode until a valid Resend API key and verified sender domain are supplied; do not send or persist any test subscription.
+- [x] Add focused automated coverage for the mobile navigation and newsletter-delivery behavior, then validate the refreshed routes at desktop and phone widths.
+- [x] Copy the active landing source into `Echoo-main/echoo-landing` without nesting a Git repository, while retaining the current standalone checkout as a local recovery copy.
+- [x] Document the canonical in-repository landing workflow and adjust any outdated standalone-clone instructions.
+- [x] Save a refreshed landing checkpoint and synchronize the integrated mobile navigation, approved screenshot, and safe-inactive newsletter update to both requested `Echoo-main` remotes: `effiukp/Echoo-main` and `emmy16-glitch/Echoo-main`.
