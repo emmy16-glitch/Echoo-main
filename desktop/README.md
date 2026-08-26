@@ -100,6 +100,12 @@ Generates a Disk Image (requires a Mac for final signing/packaging):
 npm run build -- --mac
 ```
 
+### Release delivery and signing
+
+Echoo’s source repository remains private. Public installer downloads are delivered from the Echoo landing page rather than from unauthenticated GitHub release URLs. Current v1.0.5 Windows, macOS, and Linux downloads are **unsigned** and the release selector discloses that status before download; platform security prompts are expected until signed replacements are published.
+
+The GitHub Actions workflow in the user's repository builds and verifies the Windows installer and macOS DMG on native runners before retaining release artifacts. To replace the unsigned downloads, add platform credentials as repository Actions secrets: an Authenticode certificate and password for Windows, plus a Developer ID Application certificate and Apple notarization API credentials for macOS. The workflow can then sign and notarize the platform builds without committing credentials or publishing the private source repository.
+
 ### Linux (.AppImage)
 Generates a universal Linux executable:
 ```bash
