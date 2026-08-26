@@ -20,6 +20,18 @@ chmod +x Echoo-Studio-<version>-x86_64.AppImage
 
 Maintainers can create the Linux distribution assets with `npm run build:linux`. This produces a `.deb` installer, an AppImage, and a compressed tarball in `desktop/dist/`.
 
+### Verified Ubuntu release — v1.0.5
+
+The current Linux delivery was built and validated on Ubuntu. The packaged-shell check exercised the secure desktop bridge, persisted default-off desktop-alert preferences, background-room retention, and the tray actions for open, mute, unmute, and leave room.
+
+| Artifact | Intended use | SHA-256 |
+|---|---|---|
+| `Echoo-Studio-1.0.5-amd64.deb` | Recommended for Ubuntu and other Debian-based distributions | `7aa0978e21c9971b537ea747894fc6326058843bcd64f2b11f1e05489de83237` |
+| `Echoo-Studio-1.0.5-x86_64.AppImage` | Portable alternative for supported Linux distributions | `9cd6b5e0a1dc32a908ac31fe93ee4935058d9e0dbf4e86cd1a147f1931be63b8` |
+| `Echoo-Studio-1.0.5-x64.tar.gz` | Manual archive alternative | `895fec0f7e63242f40cbc12fc470624f70a613a4b311c5147a9ac901e2f5bb4a` |
+
+Check a downloaded file before installing it with `sha256sum <filename>` and compare the result with the matching value above. Linux artifacts are currently unsigned; the public download buttons are intentionally served by the Echoo landing page so the private source repository remains private.
+
 Echoo Desktop Studio is the secure native shell for the live Echoo audio platform. Built with **Electron**, it loads the production application at [echoo.digi02.org](https://echoo.digi02.org) by default while retaining the product’s web design language, WebRTC capabilities, and creator/listener workflows.
 
 ## 🚀 Features
@@ -28,7 +40,7 @@ Echoo Desktop Studio is the secure native shell for the live Echoo audio platfor
 - **Resilient experience**: Shows a branded recovery view if the live service cannot be reached.
 - **Native controls**: Provides standard platform menus, zoom/full-screen support, and safe external-link handling.
 - **Granular notification settings**: Listener and creator settings provide a device-local master switch plus separate controls for live-room messages, room-started, and room-ended alerts. Alerts remain off until enabled, use neutral status copy only, and never include room names or message text.
-- **Cross-platform packaging**: Builds NSIS for Windows, DMG for macOS, and AppImage, DEB, Snap, and directory targets for Linux.
+- **Cross-platform packaging**: Builds NSIS for Windows, DMG for macOS, and DEB, AppImage, and compressed archive targets for Linux.
 
 ---
 
@@ -102,14 +114,14 @@ npm run build -- --mac
 
 ### Release delivery and signing
 
-Echoo’s source repository remains private. Public installer downloads are delivered from the Echoo landing page rather than from unauthenticated GitHub release URLs. Current v1.0.5 Windows, macOS, and Linux downloads are **unsigned** and the release selector discloses that status before download; platform security prompts are expected until signed replacements are published.
+Echoo’s source repository remains private. Public installer downloads are delivered from the Echoo landing page rather than from unauthenticated GitHub release URLs. Current v1.0.5 Windows, macOS, and Linux downloads are **unsigned** and the release selector discloses that status before download; platform security prompts are expected until signed replacements are published. For Ubuntu, choose the `.deb` option from the release page; AppImage and `.tar.gz` remain available as manual alternatives.
 
 The GitHub Actions workflow in the user's repository builds and verifies the Windows installer and macOS DMG on native runners before retaining release artifacts. To replace the unsigned downloads, add platform credentials as repository Actions secrets: an Authenticode certificate and password for Windows, plus a Developer ID Application certificate and Apple notarization API credentials for macOS. The workflow can then sign and notarize the platform builds without committing credentials or publishing the private source repository.
 
-### Linux (.AppImage)
-Generates a universal Linux executable:
+### Linux (.deb, AppImage, and .tar.gz)
+Generates the supported Linux distribution artifacts:
 ```bash
-npm run build -- --linux
+npm run build:linux
 ```
 
 ---
