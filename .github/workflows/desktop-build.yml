@@ -1,5 +1,8 @@
 name: Build/Release Desktop App
 
+permissions:
+  contents: write
+
 on:
   push:
     tags:
@@ -14,6 +17,7 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     strategy:
+      fail-fast: false
       matrix:
         os: [macos-latest, ubuntu-latest, windows-latest]
 
@@ -24,20 +28,44 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Install dependencies
         run: |
           cd desktop
-          npm install --no-package-lock
+          npm ci
+
+      - name: Warm Electron runtime
+        if: runner.os == 'Linux'
+        run: |
+          cd desktop
+          npx electron --no-sandbox --version
+
+      - name: Verify Electron desktop shell
+        if: runner.os == 'Linux'
+        run: |
+          cd desktop
+          xvfb-run -a npm test
+        env:
+          ECHOO_TEST_NO_SANDBOX: '1'
+          ECHOO_TEST_DISABLE_GPU: '1'
+          ECHOO_TEST_HEADLESS: '1'
 
       - name: Build Electron app
         run: |
           cd desktop
-          npm run build
+          npm run build -- --publish never
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_ENV: production
+
+      - name: Retain packaged desktop artifacts for verification
+        uses: actions/upload-artifact@v4
+        with:
+          name: echoo-desktop-${{ runner.os }}
+          path: desktop/dist/*
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')

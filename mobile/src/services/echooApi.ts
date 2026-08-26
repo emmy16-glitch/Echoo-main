@@ -2,6 +2,12 @@ import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://127.0.0.1:5001/api';
+const isProductionRuntime = process.env.NODE_ENV === 'production';
+const localApiUrlPattern = /^https?:\/\/(localhost|127\.|0\.0\.0\.0|10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.|10\.0\.2\.2)(?::\d+)?(?:\/|$)/i;
+
+if (isProductionRuntime && localApiUrlPattern.test(API_URL)) {
+  throw new Error('Production Echoo mobile build is using a local API URL.');
+}
 const TOKEN_KEYS = {
   access: 'echoo.accessToken',
   refresh: 'echoo.refreshToken',
@@ -106,6 +112,12 @@ const normalizeUrl = (value?: string | null) => {
   if (/^(https?:|data:|blob:)/i.test(value)) return value;
   const origin = API_URL.replace(/\/api\/?$/, '');
   return `${origin}${value.startsWith('/') ? value : `/${value}`}`;
+};
+
+const normalizeCoverArt = (value: unknown, resourcePath: string) => {
+  if (typeof value !== 'string' || !value) return null;
+  if (value.startsWith('data:image/svg+xml')) return `${API_URL}${resourcePath}`;
+  return normalizeUrl(value);
 };
 
 const makeApiError = (payload: any, status: number) => {
@@ -259,60 +271,75 @@ async function apiRequest(path: string, options: RequestOptions = {}) {
   return payload;
 }
 
-export const normalizeStation = (station: any): EchooStation => ({
-  ...station,
-  id: station?.id || station?._id || '',
-  name: station?.name || 'Untitled Station',
-  coverArt: normalizeUrl(station?.brandCover || station?.coverArt || station?.logo || station?.image),
-  brandCover: normalizeUrl(station?.brandCover || station?.coverArt || station?.logo || station?.image),
-  followerCount: Number(station?.followerCount) || 0,
-  listenerCount: Number(station?.listenerCount) || 0,
-  isLive: Boolean(station?.isLive),
-  owner: station?.owner
-    ? {
-        id: station.owner?.id || station.owner?._id || '',
-        username: station.owner?.username || '',
-        displayName: station.owner?.displayName || station.owner?.username || 'Echoo Creator',
-        avatar: normalizeUrl(station.owner?.avatar),
-        bio: station.owner?.bio || '',
-      }
-    : null,
-});
+export const normalizeStation = (station: any): EchooStation => {
+  const id = station?.id || station?._id || '';
+  const rawCover = station?.brandCover || station?.coverArt || station?.logo || station?.image;
+  const coverArt = normalizeCoverArt(rawCover, `/stations/${id}/cover-art`);
 
-export const normalizeBroadcast = (broadcast: any): EchooBroadcast => ({
-  ...broadcast,
-  id: broadcast?.id || broadcast?._id || '',
-  title: broadcast?.title || 'Untitled Broadcast',
-  stationId:
-    typeof broadcast?.station === 'object'
-      ? broadcast.station?.id || broadcast.station?._id
-      : broadcast?.station || broadcast?.stationId || '',
-  stationName:
-    typeof broadcast?.station === 'object'
-      ? broadcast.station?.name || 'Echoo Station'
-      : broadcast?.stationName || 'Echoo Station',
-  listenerCount: Number(broadcast?.listenerCount) || 0,
-  peakListeners: Number(broadcast?.peakListeners) || 0,
-  coverArt: normalizeUrl(broadcast?.coverArt || broadcast?.station?.coverArt || broadcast?.station?.logo),
-});
+  return {
+    ...station,
+    id,
+    name: station?.name || 'Untitled Station',
+    coverArt,
+    brandCover: coverArt,
+    followerCount: Number(station?.followerCount) || 0,
+    listenerCount: Number(station?.listenerCount) || 0,
+    isLive: Boolean(station?.isLive),
+    owner: station?.owner
+      ? {
+          id: station.owner?.id || station.owner?._id || '',
+          username: station.owner?.username || '',
+          displayName: station.owner?.displayName || station.owner?.username || 'Echoo Creator',
+          avatar: normalizeUrl(station.owner?.avatar),
+          bio: station.owner?.bio || '',
+        }
+      : null,
+  };
+};
 
-export const normalizeAudio = (track: any): EchooAudio => ({
-  ...track,
-  id: track?.id || track?._id || '',
-  title: track?.title || 'Untitled Audio',
-  subtitle:
-    track?.subtitle ||
-    track?.artistName ||
-    track?.artist?.displayName ||
-    track?.artist?.username ||
-    'Echoo Audio',
-  artistName: track?.artistName || track?.artist?.displayName || track?.artist?.username || 'Echoo Creator',
-  coverArt: normalizeUrl(track?.coverArt || track?.artwork),
-  fileUrl: normalizeUrl(track?.fileUrl),
-  duration: Number(track?.duration) || 0,
-  playCount: Number(track?.playCount) || 0,
-  likeCount: Number(track?.likeCount) || 0,
-});
+export const normalizeBroadcast = (broadcast: any): EchooBroadcast => {
+  const stationId =
+    typeof broadcast?.station === 'object'
+      ? broadcast.station?.id || broadcast.station?._id || ''
+      : broadcast?.station || broadcast?.stationId || '';
+  const rawCover = broadcast?.coverArt || broadcast?.station?.coverArt || broadcast?.station?.logo;
+
+  return {
+    ...broadcast,
+    id: broadcast?.id || broadcast?._id || '',
+    title: broadcast?.title || 'Untitled Broadcast',
+    stationId,
+    stationName:
+      typeof broadcast?.station === 'object'
+        ? broadcast.station?.name || 'Echoo Station'
+        : broadcast?.stationName || 'Echoo Station',
+    listenerCount: Number(broadcast?.listenerCount) || 0,
+    peakListeners: Number(broadcast?.peakListeners) || 0,
+    coverArt: normalizeCoverArt(rawCover, `/stations/${stationId}/cover-art`),
+  };
+};
+
+export const normalizeAudio = (track: any): EchooAudio => {
+  const id = track?.id || track?._id || '';
+
+  return {
+    ...track,
+    id,
+    title: track?.title || 'Untitled Audio',
+    subtitle:
+      track?.subtitle ||
+      track?.artistName ||
+      track?.artist?.displayName ||
+      track?.artist?.username ||
+      'Echoo Audio',
+    artistName: track?.artistName || track?.artist?.displayName || track?.artist?.username || 'Echoo Creator',
+    coverArt: normalizeCoverArt(track?.coverArt || track?.artwork, `/audio/${id}/cover-art`),
+    fileUrl: normalizeUrl(track?.fileUrl),
+    duration: Number(track?.duration) || 0,
+    playCount: Number(track?.playCount) || 0,
+    likeCount: Number(track?.likeCount) || 0,
+  };
+};
 
 const normalizeUser = (user: any): EchooUser => ({
   id: user?.id || user?._id || '',

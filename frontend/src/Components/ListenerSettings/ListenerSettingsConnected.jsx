@@ -11,6 +11,12 @@ import {
   FaUser,
 } from 'react-icons/fa';
 import settingsService from '../../services/settingsService';
+import {
+  DESKTOP_NOTIFICATION_EVENTS,
+  getDesktopNotificationPreferences,
+  isEchooDesktop,
+  setDesktopNotificationPreferences,
+} from '../../services/desktopBridge';
 import '../../styles/listener-reference-pages.css';
 import './ListenerSettings.css';
 
@@ -49,6 +55,10 @@ const ListenerSettingsConnected = () => {
   const [website, setWebsite] = useState('');
   const [toast, setToast] = useState({ open: false, title: '', message: '' });
   const [dirty, setDirty] = useState(false);
+  const [desktopNotifications, setDesktopNotifications] = useState(false);
+  const [desktopNotificationEvents, setDesktopNotificationEvents] = useState(DESKTOP_NOTIFICATION_EVENTS);
+  const [desktopPreferenceLoading, setDesktopPreferenceLoading] = useState(isEchooDesktop());
+  const isDesktop = isEchooDesktop();
 
   const notify = useCallback((message, success = true) => {
     setToast({
@@ -86,6 +96,84 @@ const ListenerSettingsConnected = () => {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (!isDesktop) {
+      setDesktopPreferenceLoading(false);
+      return;
+    }
+
+    let active = true;
+    getDesktopNotificationPreferences()
+      .then((preferences) => {
+        if (!active) return;
+        setDesktopNotifications(preferences?.notificationsEnabled === true);
+        setDesktopNotificationEvents({
+          ...DESKTOP_NOTIFICATION_EVENTS,
+          ...(preferences?.notificationEvents || {}),
+        });
+      })
+      .catch(() => {
+        if (active) {
+          setToast({ open: true, title: 'Something went wrong', message: 'Could not load your desktop notification setting.' });
+        }
+      })
+      .finally(() => {
+        if (active) setDesktopPreferenceLoading(false);
+      });
+
+    return () => { active = false; };
+  }, [isDesktop]);
+
+  const toggleDesktopNotifications = async () => {
+    if (!isDesktop || desktopPreferenceLoading) return;
+
+    const next = !desktopNotifications;
+    try {
+      setDesktopPreferenceLoading(true);
+      const saved = await setDesktopNotificationPreferences({ notificationsEnabled: next });
+      setDesktopNotifications(saved?.notificationsEnabled === true);
+      setDesktopNotificationEvents({
+        ...DESKTOP_NOTIFICATION_EVENTS,
+        ...(saved?.notificationEvents || desktopNotificationEvents),
+      });
+      setToast({
+        open: true,
+        title: 'Desktop notifications updated',
+        message: saved?.notificationsEnabled
+          ? 'Echoo can now show neutral room and message alerts while the desktop app is in the background.'
+          : 'Desktop alerts are turned off. Your room and message content remains private.',
+      });
+    } catch (error) {
+      setToast({ open: true, title: 'Something went wrong', message: 'Could not update your desktop notification setting.' });
+    } finally {
+      setDesktopPreferenceLoading(false);
+    }
+  };
+
+  const toggleDesktopNotificationEvent = async (eventKey) => {
+    if (!isDesktop || desktopPreferenceLoading || !Object.hasOwn(DESKTOP_NOTIFICATION_EVENTS, eventKey)) return;
+
+    const nextEvents = { ...desktopNotificationEvents, [eventKey]: !desktopNotificationEvents[eventKey] };
+    try {
+      setDesktopPreferenceLoading(true);
+      const saved = await setDesktopNotificationPreferences({ notificationEvents: nextEvents });
+      setDesktopNotifications(saved?.notificationsEnabled === true);
+      setDesktopNotificationEvents({
+        ...DESKTOP_NOTIFICATION_EVENTS,
+        ...(saved?.notificationEvents || nextEvents),
+      });
+      setToast({
+        open: true,
+        title: 'Desktop alert type updated',
+        message: nextEvents[eventKey] ? 'This alert type is enabled for Echoo Desktop.' : 'This alert type is disabled for Echoo Desktop.',
+      });
+    } catch (error) {
+      setToast({ open: true, title: 'Something went wrong', message: 'Could not update that desktop alert type.' });
+    } finally {
+      setDesktopPreferenceLoading(false);
+    }
+  };
 
   const save = async () => {
     if (saving || !dirty) return;
@@ -150,7 +238,72 @@ const ListenerSettingsConnected = () => {
         </nav>
 
         <div className="set-main">
-          {nav !== 'profile' ? (
+          {nav === 'notifications' ? (
+            <div className="set-card">
+              <div className="set-card-inner">
+                <strong className="set-card-title">Desktop notifications</strong>
+                <p className="set-toggle-desc" style={{ marginTop: '0.5rem', maxWidth: '42rem' }}>
+                  Choose whether Echoo Desktop can show neutral alerts for incoming messages and room events while the app is in the background.
+                </p>
+
+                {isDesktop ? (
+                  <>
+                    <div className="set-toggle-row" style={{ marginTop: '1.5rem' }}>
+                      <div className="set-toggle-info">
+                        <strong className="set-toggle-title">Show desktop alerts</strong>
+                        <span className="set-toggle-desc">
+                          Alerts never include room names, message text, or other private conversation content.
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-label="Desktop notifications"
+                        aria-checked={desktopNotifications}
+                        aria-busy={desktopPreferenceLoading}
+                        disabled={desktopPreferenceLoading}
+                        className={`set-toggle ${desktopNotifications ? 'set-toggle-on' : ''}`}
+                        onClick={toggleDesktopNotifications}
+                      >
+                        <span className="set-toggle-thumb" />
+                      </button>
+                    </div>
+                    <div className="mt-5 border-t border-[#164F9D]/15 pt-2">
+                      <p className="mt-3 text-[0.68rem] font-bold tracking-[0.12em] text-[#164F9D]/60">CHOOSE ALERT TYPES</p>
+                      {[
+                        ['message', 'Live-room messages', 'A neutral alert when a new message reaches an active room.'],
+                        ['roomStarted', 'Room started', 'A neutral alert when your live room becomes active.'],
+                        ['roomEnded', 'Room ended', 'A neutral alert when your live room ends.'],
+                      ].map(([key, label, description]) => (
+                        <div className="set-toggle-row" key={key}>
+                          <div className="set-toggle-info">
+                            <strong className="set-toggle-title">{label}</strong>
+                            <span className="set-toggle-desc">{description}</span>
+                          </div>
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-label={label}
+                            aria-checked={desktopNotificationEvents[key] === true}
+                            aria-busy={desktopPreferenceLoading}
+                            disabled={desktopPreferenceLoading}
+                            className={`set-toggle ${desktopNotificationEvents[key] ? 'set-toggle-on' : ''}`}
+                            onClick={() => toggleDesktopNotificationEvent(key)}
+                          >
+                            <span className="set-toggle-thumb" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <div className="set-readonly set-readonly-empty" style={{ marginTop: '1.5rem' }}>
+                    Open Echoo Desktop to manage native desktop alerts.
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : nav !== 'profile' ? (
             <div className="set-panel set-panel-coming">
               <h2>{NAV_GROUPS.find((g) => g.id === nav)?.label || 'Settings'}</h2>
               <p>This section is managed through your account profile for now.</p>

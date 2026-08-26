@@ -10,6 +10,12 @@ import {
 } from 'react-icons/fa';
 
 import settingsService from '../../services/settingsService';
+import {
+  DESKTOP_NOTIFICATION_EVENTS,
+  getDesktopNotificationPreferences,
+  isEchooDesktop,
+  setDesktopNotificationPreferences,
+} from '../../services/desktopBridge';
 import './CreatorSettingsConnected.css';
 import './CreatorStudioRuntimeFixes.css';
 
@@ -42,7 +48,13 @@ const CreatorSettingsWorkspace = () => {
   const [busy, setBusy] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [desktopNotificationPreferences, setDesktopNotificationPreferencesState] = useState({
+    notificationsEnabled: false,
+    notificationEvents: DESKTOP_NOTIFICATION_EVENTS,
+  });
+  const [desktopPreferenceLoading, setDesktopPreferenceLoading] = useState(isEchooDesktop());
   const avatarInputRef = useRef(null);
+  const isDesktop = isEchooDesktop();
 
   useEffect(() => {
     let active = true;
@@ -80,6 +92,34 @@ const CreatorSettingsWorkspace = () => {
     load();
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    if (!isDesktop) {
+      setDesktopPreferenceLoading(false);
+      return undefined;
+    }
+
+    let active = true;
+    getDesktopNotificationPreferences()
+      .then((preferences) => {
+        if (!active) return;
+        setDesktopNotificationPreferencesState({
+          notificationsEnabled: preferences?.notificationsEnabled === true,
+          notificationEvents: {
+            ...DESKTOP_NOTIFICATION_EVENTS,
+            ...(preferences?.notificationEvents || {}),
+          },
+        });
+      })
+      .catch(() => {
+        if (active) setError('Could not load desktop notification preferences.');
+      })
+      .finally(() => {
+        if (active) setDesktopPreferenceLoading(false);
+      });
+
+    return () => { active = false; };
+  }, [isDesktop]);
 
   const run = async (name, action, success) => {
     try {
@@ -122,6 +162,27 @@ const CreatorSettingsWorkspace = () => {
       () => settingsService.updateNotifications(notifications),
       'Notification preferences updated.'
     );
+  };
+
+  const saveDesktopNotificationPreferences = async (update, success) => {
+    if (!isDesktop || desktopPreferenceLoading) return;
+    try {
+      setDesktopPreferenceLoading(true);
+      setError('');
+      const saved = await setDesktopNotificationPreferences(update);
+      setDesktopNotificationPreferencesState({
+        notificationsEnabled: saved?.notificationsEnabled === true,
+        notificationEvents: {
+          ...DESKTOP_NOTIFICATION_EVENTS,
+          ...(saved?.notificationEvents || desktopNotificationPreferences.notificationEvents),
+        },
+      });
+      setMessage(success);
+    } catch (saveError) {
+      setError(saveError?.message || 'Could not update the desktop alert preference.');
+    } finally {
+      setDesktopPreferenceLoading(false);
+    }
   };
 
   const saveEmail = async (event) => {
@@ -303,6 +364,63 @@ const CreatorSettingsWorkspace = () => {
               <FaSave /> {busy === 'notifications' ? 'Saving...' : 'Save preferences'}
             </button>
           </form>
+
+          <section className="creator-settings-real-card">
+            <h3><FaBell /> Creator desktop alerts</h3>
+            <p>
+              Choose the alert types Echoo Desktop may show for this device. Native alerts are opt-in and always use neutral wording.
+            </p>
+
+            {isDesktop ? (
+              <>
+                <label className="creator-settings-real-toggle">
+                  <span><strong>Show desktop alerts</strong><small>Turn native alerts on or off for this computer.</small></span>
+                  <input
+                    type="checkbox"
+                    checked={desktopNotificationPreferences.notificationsEnabled}
+                    disabled={desktopPreferenceLoading}
+                    onChange={(event) =>
+                      saveDesktopNotificationPreferences(
+                        { notificationsEnabled: event.target.checked },
+                        event.target.checked ? 'Desktop alerts enabled.' : 'Desktop alerts turned off.'
+                      )
+                    }
+                  />
+                </label>
+
+                {[
+                  ['message', 'Live-room messages', 'Neutral alerts for incoming live-room messages.'],
+                  ['roomStarted', 'Room started', 'Neutral alerts when a live room becomes active.'],
+                  ['roomEnded', 'Room ended', 'Neutral alerts when a live room ends.'],
+                ].map(([key, label, description]) => (
+                  <label className="creator-settings-real-toggle" key={key}>
+                    <span><strong>{label}</strong><small>{description}</small></span>
+                    <input
+                      type="checkbox"
+                      checked={desktopNotificationPreferences.notificationEvents[key] === true}
+                      disabled={desktopPreferenceLoading}
+                      onChange={(event) =>
+                        saveDesktopNotificationPreferences(
+                          {
+                            notificationEvents: {
+                              ...desktopNotificationPreferences.notificationEvents,
+                              [key]: event.target.checked,
+                            },
+                          },
+                          `${label} ${event.target.checked ? 'enabled' : 'disabled'} for Echoo Desktop.`
+                        )
+                      }
+                    />
+                  </label>
+                ))}
+                <p className="creator-settings-real-note">
+                  Follower and release preferences above are account settings. They are saved to your Echoo profile, but do not currently create native desktop alerts.
+                </p>
+              </>
+            ) : (
+              <p className="creator-settings-real-note">Open Echoo Desktop to manage native alerts for this device.</p>
+            )}
+          </section>
         </div>
       )}
 

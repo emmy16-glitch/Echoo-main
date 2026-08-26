@@ -16,10 +16,12 @@ import {
   Bell,
   ChevronRight,
   Headphones,
+  Music2,
   Play,
   Search,
-  Sparkles,
 } from 'lucide-react-native';
+
+import { EchooBrand } from '@/src/components/EchooBrand';
 import { colors, shadow } from '@/src/theme/echooTheme';
 
 export function Screen({ children }: { children: ReactNode }) {
@@ -48,9 +50,7 @@ export function AppTopBar({
 }) {
   return (
     <View style={styles.topBar}>
-      <View style={styles.logoMark}>
-        <Text style={styles.logoText}>E</Text>
-      </View>
+      <EchooBrand markSize={50} showText={false} />
       <View style={styles.topCopy}>
         <Text style={styles.topTitle}>{title}</Text>
         <Text style={styles.topSubtitle}>{subtitle}</Text>
@@ -103,7 +103,7 @@ export function FeaturedPlayer({
   const source = typeof image === 'string' ? { uri: image } : image;
 
   return (
-    <LinearGradient colors={['#10203a', '#173b9c', '#265dff']} style={styles.featured}>
+    <LinearGradient colors={['#0B0F17', '#244A86', '#4F7EC3']} style={styles.featured}>
       <View style={styles.featuredBackPlate} />
       <View style={styles.featuredArt}>
         {source ? <Image source={source} style={styles.imageFill} /> : <Text style={styles.featuredInitial}>E</Text>}
@@ -124,14 +124,14 @@ export function QuickCard({
   title,
   subtitle,
   tone = colors.blue,
-  icon = 'spark',
+  icon = 'music',
 }: {
   title: string;
   subtitle: string;
   tone?: string;
-  icon?: 'spark' | 'headphones';
+  icon?: 'music' | 'headphones';
 }) {
-  const Icon = icon === 'headphones' ? Headphones : Sparkles;
+  const Icon = icon === 'headphones' ? Headphones : Music2;
 
   return (
     <Pressable style={styles.quickCard}>
@@ -282,8 +282,6 @@ type EchooMobileStyles = {
   screen: ViewStyle;
   screenContent: ViewStyle;
   topBar: ViewStyle;
-  logoMark: ViewStyle;
-  logoText: TextStyle;
   topCopy: ViewStyle;
   topTitle: TextStyle;
   topSubtitle: TextStyle;
@@ -350,8 +348,6 @@ export const styles = StyleSheet.create<EchooMobileStyles>({
   screen: { flex: 1 },
   screenContent: { padding: 18, paddingTop: 56, paddingBottom: 104, gap: 18 },
   topBar: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  logoMark: { width: 42, height: 42, borderRadius: 12, backgroundColor: colors.blue, alignItems: 'center', justifyContent: 'center' },
-  logoText: { color: '#fff', fontWeight: '900', fontSize: 20 },
   topCopy: { flex: 1 },
   topTitle: { color: colors.ink, fontWeight: '900', fontSize: 22, letterSpacing: 0 },
   topSubtitle: { color: colors.muted, fontWeight: '700', fontSize: 12 },

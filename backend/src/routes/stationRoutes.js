@@ -16,6 +16,7 @@ import {
   getStationById,
   updateStation,
   deleteStation,
+  getStationCover,
 } from '../controllers/stationController.js';
 
 const router = express.Router();
@@ -106,6 +107,8 @@ router.get('/', validateStationListQuery, getStations);
 
 // Creator-owned collection must be declared before /:stationId.
 router.get('/mine/all', authenticate, getMyStations);
+
+router.get('/:stationId/cover-art', getStationCover);
 
 // Public station profile. Optional auth is required here so the controller can
 // distinguish an anonymous visitor from the owner of a private station.

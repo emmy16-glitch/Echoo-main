@@ -1,27 +1,31 @@
-import { Audio, AVPlaybackStatus } from 'expo-av';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
+  ChevronDown,
   Heart,
+  MoreHorizontal,
   Pause,
   Play,
-  RotateCcw,
-  RotateCw,
+  Repeat2,
   Share2,
+  Shuffle,
+  SkipBack,
+  SkipForward,
 } from 'lucide-react-native';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  LayoutChangeEvent,
   Pressable,
-  SafeAreaView,
+  ScrollView,
   Share,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ListenerBackHeader } from '@/src/components/ListenerV2';
 import {
   EchooAudio,
   getSavedAudio,
@@ -30,6 +34,7 @@ import {
   unsaveAudio,
 } from '@/src/services/echooApi';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { AudioPlaybackItem, usePlayback } from '@/src/playback/PlaybackProvider';
 import { EchooColors, getEchooColors } from '@/src/theme/echooTheme';
 
 export default function AudioPlayerScreen() {
@@ -45,30 +50,69 @@ export default function AudioPlayerScreen() {
   const scheme = useColorScheme();
   const palette = getEchooColors(scheme);
   const styles = useMemo(() => createStyles(palette), [palette]);
+  const playback = usePlayback();
+  const playAudio = playback.playAudio;
 
-  const audioId = String(params.audioId || '');
-  const title = String(params.title || 'Echoo Audio');
-  const subtitle = String(params.subtitle || params.genre || 'Echoo Creator');
-  const coverArt = params.coverArt ? String(params.coverArt) : '';
-  const fileUrl = params.fileUrl ? String(params.fileUrl) : '';
+  const requestedId = String(params.audioId || '');
+  const requestedFileUrl = String(params.fileUrl || '');
+  const requestedAudio = useMemo<AudioPlaybackItem | null>(
+    () =>
+      requestedId
+        ? {
+            kind: 'audio',
+            id: requestedId,
+            title: String(params.title || 'Echoo Audio'),
+            subtitle: String(params.subtitle || params.genre || 'Echoo Creator'),
+            coverArt: String(params.coverArt || ''),
+            fileUrl: requestedFileUrl,
+            genre: String(params.genre || ''),
+          }
+        : null,
+    [
+      params.coverArt,
+      params.genre,
+      params.subtitle,
+      params.title,
+      requestedFileUrl,
+      requestedId,
+    ]
+  );
+  const currentAudio = playback.current?.kind === 'audio' ? playback.current : null;
+  const activeAudio = requestedAudio || currentAudio;
+  const audioId = activeAudio?.id || '';
+  const title = activeAudio?.title || 'Echoo Audio';
+  const subtitle = activeAudio?.subtitle || 'Echoo Creator';
+  const coverArt = activeAudio?.coverArt || '';
+  const genre = activeAudio?.genre || '';
+  const canControl = currentAudio?.id === audioId;
+  const loading = playback.isLoading;
+  const playing = playback.isPlaying && canControl;
+  const position = canControl ? playback.position : 0;
+  const duration = canControl ? playback.duration : 0;
+  const repeatOn = playback.repeat;
 
-  const soundRef = useRef<Audio.Sound | null>(null);
-  const [loading, setLoading] = useState(Boolean(fileUrl));
-  const [playing, setPlaying] = useState(false);
-  const [position, setPosition] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [error, setError] = useState('');
+  const [progressWidth, setProgressWidth] = useState(1);
+  const [actionError, setActionError] = useState('');
   const [signedIn, setSignedIn] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+  const error = actionError || playback.error;
+
+  useEffect(() => {
+    if (!requestedAudio || !requestedFileUrl) return;
+    if (currentAudio?.id === requestedAudio.id) return;
+    playAudio(requestedAudio);
+  }, [currentAudio?.id, playAudio, requestedAudio, requestedFileUrl]);
 
   useEffect(() => {
     let active = true;
+    setSaved(false);
 
-    const prepare = async () => {
+    const loadSavedState = async () => {
       const session = await hasEchooSession();
       if (!active) return;
       setSignedIn(session);
+
       if (session && audioId) {
         getSavedAudio()
           .then((tracks) => {
@@ -76,67 +120,22 @@ export default function AudioPlayerScreen() {
           })
           .catch(() => undefined);
       }
-
-      if (!fileUrl) {
-        setLoading(false);
-        setError('This audio item does not have a playable media URL.');
-        return;
-      }
-
-      try {
-        await Audio.setAudioModeAsync({
-          playsInSilentModeIOS: true,
-          staysActiveInBackground: false,
-          shouldDuckAndroid: true,
-        });
-        const { sound } = await Audio.Sound.createAsync(
-          { uri: fileUrl },
-          { shouldPlay: true, progressUpdateIntervalMillis: 500 },
-          (status) => handleStatus(status)
-        );
-        if (!active) {
-          await sound.unloadAsync();
-          return;
-        }
-        soundRef.current = sound;
-        setPlaying(true);
-      } catch (loadError: any) {
-        if (active) setError(loadError?.message || 'Could not play this audio.');
-      } finally {
-        if (active) setLoading(false);
-      }
     };
 
-    const handleStatus = (status: AVPlaybackStatus) => {
-      if (!status.isLoaded) return;
-      setPlaying(status.isPlaying);
-      setPosition(status.positionMillis || 0);
-      setDuration(status.durationMillis || 0);
-      if (status.didJustFinish) setPlaying(false);
-    };
-
-    prepare();
+    loadSavedState();
 
     return () => {
       active = false;
-      const sound = soundRef.current;
-      soundRef.current = null;
-      if (sound) sound.unloadAsync().catch(() => undefined);
     };
-  }, [audioId, fileUrl]);
+  }, [audioId]);
 
-  const togglePlayback = async () => {
-    const sound = soundRef.current;
-    if (!sound) return;
-    if (playing) await sound.pauseAsync();
-    else await sound.playAsync();
-  };
+  const togglePlayback = () => playback.toggle();
+  const seekBy = (deltaMs: number) => playback.seekBy(deltaMs);
 
-  const seekBy = async (deltaMs: number) => {
-    const sound = soundRef.current;
-    if (!sound) return;
-    const next = Math.max(0, Math.min(duration || Number.MAX_SAFE_INTEGER, position + deltaMs));
-    await sound.setPositionAsync(next);
+  const seekToFraction = async (fraction: number) => {
+    if (!canControl || duration <= 0) return;
+    const clamped = Math.max(0, Math.min(1, fraction));
+    await playback.seekTo(Math.round(duration * clamped));
   };
 
   const toggleSaved = async () => {
@@ -145,6 +144,7 @@ export default function AudioPlayerScreen() {
       router.push('/auth');
       return;
     }
+
     setSaving(true);
     try {
       if (saved) {
@@ -155,62 +155,113 @@ export default function AudioPlayerScreen() {
         setSaved(true);
       }
     } catch (saveError: any) {
-      setError(saveError?.message || 'Could not update your library.');
+      setActionError(saveError?.message || 'Could not update your library.');
     } finally {
       setSaving(false);
     }
   };
 
-  const share = async () => {
+  const shareTrack = async () => {
     await Share.share({
-      message: `${title} — ${subtitle} on Echoo`,
+      message: `${title} - ${subtitle} on Echoo`,
     });
   };
 
   const progress = duration > 0 ? Math.min(1, position / duration) : 0;
+  const progressPercent = `${Math.max(0, Math.min(100, progress * 100))}%` as const;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.content}>
-        <ListenerBackHeader title="Now playing" />
+    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+      <LinearGradient
+        colors={[palette.night2, palette.night, palette.background, palette.background]}
+        locations={[0, 0.28, 0.62, 1]}
+        style={StyleSheet.absoluteFillObject}
+      />
 
+      <View style={styles.header}>
+        <Pressable
+          style={styles.headerButton}
+          onPress={() => router.back()}
+          accessibilityLabel="Close player"
+        >
+          <ChevronDown color={palette.ink} size={26} />
+        </Pressable>
+        <View style={styles.headerCopy}>
+          <Text style={styles.headerEyebrow}>NOW PLAYING</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>{genre || 'Echoo'}</Text>
+        </View>
+        <Pressable style={styles.headerButton} accessibilityLabel="More options">
+          <MoreHorizontal color={palette.ink} size={24} />
+        </Pressable>
+      </View>
+
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+      >
         <View style={styles.artwork}>
           {coverArt ? (
-            <Image source={{ uri: coverArt }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
+            <Image
+              source={{ uri: coverArt }}
+              style={StyleSheet.absoluteFillObject}
+              contentFit="cover"
+              transition={200}
+            />
           ) : (
-            <LinearGradient colors={['#2F63F6', '#071126']} style={StyleSheet.absoluteFillObject} />
+            <LinearGradient
+              colors={[palette.red, palette.blueDeep, palette.night]}
+              style={[StyleSheet.absoluteFillObject, styles.artworkFallback]}
+            >
+              <Play color="rgba(255,255,255,0.92)" fill="rgba(255,255,255,0.92)" size={54} />
+            </LinearGradient>
           )}
-          <LinearGradient colors={['rgba(0,0,0,0)', 'rgba(3,8,22,0.2)']} style={StyleSheet.absoluteFillObject} />
         </View>
 
-        <View style={styles.titleRow}>
-          <View style={styles.titleCopy}>
-            <Text style={styles.title} numberOfLines={2}>{title}</Text>
+        <View style={styles.metaRow}>
+          <View style={styles.metaCopy}>
+            <Text style={styles.title} numberOfLines={1}>{title}</Text>
             <Text style={styles.subtitle} numberOfLines={1}>{subtitle}</Text>
           </View>
-          <Pressable style={[styles.iconButton, saved && styles.iconButtonActive]} onPress={toggleSaved} disabled={saving}>
+          <Pressable
+            style={styles.actionButton}
+            onPress={toggleSaved}
+            disabled={saving}
+            accessibilityLabel={saved ? 'Remove from library' : 'Save to library'}
+          >
             {saving ? (
-              <ActivityIndicator color={palette.blue} />
+              <ActivityIndicator color={palette.ink} size="small" />
             ) : (
-              <Heart color={saved ? '#FFFFFF' : palette.blue} fill={saved ? '#FFFFFF' : 'transparent'} size={21} />
+              <Heart
+                color={saved ? palette.red : palette.ink}
+                fill={saved ? palette.red : 'transparent'}
+                size={25}
+              />
             )}
-          </Pressable>
-          <Pressable style={styles.iconButton} onPress={share}>
-            <Share2 color={palette.blue} size={20} />
           </Pressable>
         </View>
 
-        <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: `${Math.max(0, Math.min(100, progress * 100))}%` }]} />
-        </View>
+        <Pressable
+          style={styles.progressTouch}
+          onLayout={(event: LayoutChangeEvent) => setProgressWidth(event.nativeEvent.layout.width)}
+          onPress={(event) => seekToFraction(event.nativeEvent.locationX / progressWidth)}
+          accessibilityRole="adjustable"
+          accessibilityLabel="Playback position"
+        >
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: progressPercent }]} />
+            <View style={[styles.progressThumb, { left: progressPercent }]} />
+          </View>
+        </Pressable>
+
         <View style={styles.timeRow}>
           <Text style={styles.timeText}>{formatTime(position)}</Text>
-          <Text style={styles.timeText}>{formatTime(duration)}</Text>
+          <Text style={styles.timeText}>-{formatRemaining(duration, position)}</Text>
         </View>
 
         {loading ? (
           <View style={styles.statusRow}>
-            <ActivityIndicator color={palette.blue} />
+            <ActivityIndicator color={palette.ink} />
             <Text style={styles.statusText}>Loading audio...</Text>
           </View>
         ) : null}
@@ -218,30 +269,68 @@ export default function AudioPlayerScreen() {
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
         <View style={styles.controls}>
-          <Pressable style={styles.seekButton} onPress={() => seekBy(-15000)} disabled={!soundRef.current}>
-            <RotateCcw color={palette.ink} size={25} />
-            <Text style={styles.seekText}>15</Text>
+          <Pressable
+            style={[styles.secondaryControl, styles.controlDisabled]}
+            disabled
+            accessibilityLabel="Shuffle is unavailable for a single track"
+          >
+            <Shuffle color={palette.faint} size={21} />
           </Pressable>
-          <Pressable style={styles.playButton} onPress={togglePlayback} disabled={!soundRef.current}>
+          <Pressable
+            style={styles.transportButton}
+            onPress={() => seekBy(-15000)}
+            disabled={!canControl}
+            accessibilityLabel="Back 15 seconds"
+          >
+            <SkipBack color={palette.ink} fill={palette.ink} size={29} />
+          </Pressable>
+          <Pressable
+            style={[styles.playButton, !canControl && styles.controlDisabled]}
+            onPress={togglePlayback}
+            disabled={!canControl}
+            accessibilityLabel={playing ? 'Pause' : 'Play'}
+          >
             {playing ? (
-              <Pause color="#FFFFFF" fill="#FFFFFF" size={31} />
+              <Pause color={palette.background} fill={palette.background} size={31} />
             ) : (
-              <Play color="#FFFFFF" fill="#FFFFFF" size={31} />
+              <Play color={palette.background} fill={palette.background} size={31} />
             )}
           </Pressable>
-          <Pressable style={styles.seekButton} onPress={() => seekBy(15000)} disabled={!soundRef.current}>
-            <RotateCw color={palette.ink} size={25} />
-            <Text style={styles.seekText}>15</Text>
+          <Pressable
+            style={styles.transportButton}
+            onPress={() => seekBy(15000)}
+            disabled={!canControl}
+            accessibilityLabel="Forward 15 seconds"
+          >
+            <SkipForward color={palette.ink} fill={palette.ink} size={29} />
+          </Pressable>
+          <Pressable
+            style={styles.secondaryControl}
+            onPress={() => playback.setRepeat(!repeatOn)}
+            accessibilityLabel="Toggle repeat"
+          >
+            <Repeat2 color={repeatOn ? palette.red : palette.muted} size={21} />
+            {repeatOn ? <View style={styles.activeDot} /> : null}
           </Pressable>
         </View>
 
-        <View style={styles.infoCard}>
-          <Text style={styles.infoTitle}>Published audio</Text>
-          <Text style={styles.infoText}>
-            {"Echoo streams the creator's published media URL directly. Saving this item adds it to your account library when you are signed in."}
-          </Text>
+        <View style={styles.footerActions}>
+          <Pressable style={styles.footerAction} onPress={toggleSaved} disabled={saving}>
+            <Heart
+              color={saved ? palette.red : palette.muted}
+              fill={saved ? palette.red : 'transparent'}
+              size={20}
+            />
+            <Text style={[styles.footerLabel, saved && styles.footerLabelActive]}>
+              {saved ? 'Saved' : 'Save'}
+            </Text>
+          </Pressable>
+          <Pressable style={styles.footerAction} onPress={shareTrack}>
+            <Share2 color={palette.muted} size={20} />
+            <Text style={styles.footerLabel}>Share</Text>
+          </Pressable>
         </View>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -254,28 +343,135 @@ function formatTime(value: number) {
   return `${minutes}:${String(rest).padStart(2, '0')}`;
 }
 
+function formatRemaining(duration: number, position: number) {
+  return formatTime(Math.max(0, duration - position));
+}
+
 const createStyles = (palette: EchooColors) => StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: palette.background },
-  content: { flex: 1, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24 },
-  artwork: { width: '100%', aspectRatio: 1, maxHeight: 380, borderRadius: 28, overflow: 'hidden', borderWidth: 1, borderColor: palette.lineStrong, marginTop: 8 },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 20 },
-  titleCopy: { flex: 1 },
-  title: { color: palette.ink, fontSize: 25, lineHeight: 29, fontWeight: '900', letterSpacing: -0.7 },
-  subtitle: { color: palette.muted, fontSize: 12.5, marginTop: 5 },
-  iconButton: { width: 43, height: 43, borderRadius: 14, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line, alignItems: 'center', justifyContent: 'center' },
-  iconButtonActive: { backgroundColor: palette.blue, borderColor: palette.blue },
-  progressTrack: { height: 5, borderRadius: 3, backgroundColor: palette.lineStrong, overflow: 'hidden', marginTop: 24 },
-  progressFill: { height: '100%', backgroundColor: palette.blue, borderRadius: 3 },
-  timeRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 },
+  header: {
+    height: 58,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  headerButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerCopy: { flex: 1, alignItems: 'center', paddingHorizontal: 8 },
+  headerEyebrow: { color: palette.muted, fontSize: 9, fontWeight: '900' },
+  headerTitle: { color: palette.ink, fontSize: 12, fontWeight: '800', marginTop: 2, maxWidth: 220 },
+  content: { paddingHorizontal: 22, paddingTop: 8, paddingBottom: 22 },
+  artwork: {
+    width: '100%',
+    maxWidth: 430,
+    aspectRatio: 1,
+    borderRadius: 8,
+    overflow: 'hidden',
+    alignSelf: 'center',
+    backgroundColor: palette.surfaceRaised,
+    shadowColor: '#000000',
+    shadowOpacity: 0.35,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 14 },
+    elevation: 12,
+  },
+  artworkFallback: { alignItems: 'center', justifyContent: 'center' },
+  metaRow: { marginTop: 24, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  metaCopy: { flex: 1, minWidth: 0 },
+  title: { color: palette.ink, fontSize: 23, lineHeight: 28, fontWeight: '900' },
+  subtitle: { color: palette.muted, fontSize: 13, marginTop: 5 },
+  actionButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  progressTouch: { height: 30, justifyContent: 'center', marginTop: 18 },
+  progressTrack: {
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+  },
+  progressFill: { height: 4, borderRadius: 2, backgroundColor: palette.ink },
+  progressThumb: {
+    position: 'absolute',
+    top: -4,
+    width: 12,
+    height: 12,
+    marginLeft: -6,
+    borderRadius: 6,
+    backgroundColor: palette.ink,
+  },
+  timeRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: -6 },
   timeText: { color: palette.muted, fontSize: 10.5, fontWeight: '700' },
-  statusRow: { minHeight: 36, flexDirection: 'row', alignItems: 'center', gap: 8, justifyContent: 'center' },
+  statusRow: {
+    minHeight: 34,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    justifyContent: 'center',
+  },
   statusText: { color: palette.muted, fontSize: 11.5, fontWeight: '700' },
-  errorText: { color: palette.red, fontSize: 11.5, lineHeight: 16, textAlign: 'center', marginTop: 8 },
-  controls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 30, marginTop: 18 },
-  seekButton: { width: 52, height: 52, borderRadius: 18, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line, alignItems: 'center', justifyContent: 'center' },
-  seekText: { position: 'absolute', color: palette.ink, fontSize: 8, fontWeight: '900', marginTop: 1 },
-  playButton: { width: 70, height: 70, borderRadius: 35, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center', shadowColor: '#2F63F6', shadowOpacity: 0.25, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 8 },
-  infoCard: { marginTop: 'auto', borderRadius: 17, borderWidth: 1, borderColor: palette.line, backgroundColor: palette.surface, padding: 14 },
-  infoTitle: { color: palette.ink, fontSize: 12.5, fontWeight: '900' },
-  infoText: { color: palette.muted, fontSize: 10.8, lineHeight: 16, marginTop: 3 },
+  errorText: { color: palette.red, fontSize: 11.5, lineHeight: 16, textAlign: 'center', marginTop: 9 },
+  controls: {
+    height: 86,
+    marginTop: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  secondaryControl: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  transportButton: {
+    width: 48,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  playButton: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: palette.ink,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  controlDisabled: { opacity: 0.42 },
+  activeDot: {
+    position: 'absolute',
+    bottom: 2,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: palette.red,
+  },
+  footerActions: {
+    marginTop: 10,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: palette.line,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 44,
+  },
+  footerAction: {
+    minWidth: 64,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  footerLabel: { color: palette.muted, fontSize: 11, fontWeight: '800' },
+  footerLabelActive: { color: palette.red },
 });

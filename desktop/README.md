@@ -1,12 +1,34 @@
 # Echoo Desktop Studio
 
-The Echoo Desktop Studio is a native desktop wrapper for the Echoo real-time audio broadcasting platform. Built with **Electron**, it provides a more integrated experience for creators, including native window management and improved performance for audio streaming.
+## Linux installation
+
+The **`.deb` file is an installer package, not a directly runnable program**. After downloading the current `Echoo-Studio-<version>-amd64.deb` asset, install it with your distribution’s software installer or run:
+
+```bash
+cd ~/Downloads
+sudo apt install ./Echoo-Studio-<version>-amd64.deb
+```
+
+Then open **Echoo Studio** from the application launcher, or run `echoo-studio` from a terminal. Do **not** use `chmod +x` or try to run the `.deb` file directly.
+
+For distributions that do not use Debian packages, download the AppImage instead and run:
+
+```bash
+chmod +x Echoo-Studio-<version>-x86_64.AppImage
+./Echoo-Studio-<version>-x86_64.AppImage
+```
+
+Maintainers can create the Linux distribution assets with `npm run build:linux`. This produces a `.deb` installer, an AppImage, and a compressed tarball in `desktop/dist/`.
+
+Echoo Desktop Studio is the secure native shell for the live Echoo audio platform. Built with **Electron**, it loads the production application at [echoo.digi02.org](https://echoo.digi02.org) by default while retaining the product’s web design language, WebRTC capabilities, and creator/listener workflows.
 
 ## 🚀 Features
-- **Native Experience**: Run Echoo as a standalone application outside the browser.
-- **Optimized Audio**: Built-in support for WebRTC and LiveKit streaming.
-- **Cross-Platform**: Support for Windows, macOS, and Linux.
-- **Branded**: Includes official Echoo icons and styling.
+- **Live by default**: Opens the production Echoo application without requiring a local frontend server.
+- **Secure shell**: Keeps Node APIs isolated from web content and only exposes a minimal native bridge.
+- **Resilient experience**: Shows a branded recovery view if the live service cannot be reached.
+- **Native controls**: Provides standard platform menus, zoom/full-screen support, and safe external-link handling.
+- **Granular notification settings**: Listener and creator settings provide a device-local master switch plus separate controls for live-room messages, room-started, and room-ended alerts. Alerts remain off until enabled, use neutral status copy only, and never include room names or message text.
+- **Cross-platform packaging**: Builds NSIS for Windows, DMG for macOS, and AppImage, DEB, Snap, and directory targets for Linux.
 
 ---
 
@@ -27,11 +49,36 @@ The Echoo Desktop Studio is a native desktop wrapper for the Echoo real-time aud
    ```
 
 ### Running in Development
-To launch the desktop app in development mode:
+To launch the desktop app against the live Echoo experience:
 ```bash
 npm start
 ```
-*Note: Ensure your Echoo web backend and frontend are running (e.g., via `scripts/dev-ngrok.sh`) so the desktop app can connect.*
+
+For local frontend development, point the shell at your Vite server explicitly:
+```bash
+NODE_ENV=development ECHOO_URL=http://localhost:5174 npm run dev
+```
+
+The desktop shell intentionally loads the website; it is not an offline broadcaster. A working internet connection is required for authentication and live audio rooms.
+
+### Desktop validation
+
+Run the native-shell smoke test before packaging:
+```bash
+npm test
+```
+
+The test starts Electron against a controlled local fixture and confirms that the secure bridge is available while Node remains unavailable to web content.
+
+For a release-candidate Linux package, run the packaged-shell validation after `npm run build:linux`:
+
+```bash
+node verify-packaged-shell.mjs
+```
+
+This launches `dist/linux-unpacked/echoo-studio`, verifies that an active room survives the native close-to-tray path, and exercises the tray action handlers for **Open Echoo**, **mute**, **unmute**, and **leave room**. It also verifies the packaged app’s persisted desktop-alert master switch, allowlisted per-event settings, event-disabled gate, and enabled-event path. Desktop notifications are disabled until a user enables **Desktop notifications** from the tray; enabled alerts use neutral Echoo status copy rather than room or message content.
+
+Users can also control the same device-local preference inside Echoo Desktop through **Settings → Notifications**. Listener and creator views expose a master **Show desktop alerts** switch and supported per-event options for **Live-room messages**, **Room started**, and **Room ended**. The in-app panels read and write only an allowlisted native preference through the restricted preload bridge; they never store notification choices in room or message data. Creator follower and release settings remain account preferences and do not imply native desktop alerts until the app emits corresponding events.
 
 ---
 
@@ -44,6 +91,8 @@ Generates a standalone NSIS installer:
 ```bash
 npm run build -- --win
 ```
+
+The v1.0.5 Windows release asset is `Echoo Studio Setup 1.0.5.exe`. On a Linux build host, install Wine with both 64-bit and 32-bit support before cross-building the NSIS package. The resulting installer can be statically verified as a Windows PE/NSIS archive; use a Windows environment or the Windows CI job for the native build validation.
 
 ### macOS (.dmg)
 Generates a Disk Image (requires a Mac for final signing/packaging):
@@ -62,7 +111,10 @@ npm run build -- --linux
 ## 📂 Project Structure
 - `main.js`: The Electron main process (handles window management).
 - `preload.js`: The security bridge between native features and the web app.
-- `build/`: Contains platform-specific icons (`icon.ico`, `icon.icns`).
+- `build/`: Contains platform-specific icons (`icon.ico`, `icon.icns`, and Linux PNG assets).
+- `offline.html`: Branded recovery page shown when Echoo cannot be reached.
+- `test-audio-controls.mjs`: Electron shell and secure-bridge smoke test.
+- `verify-packaged-shell.mjs`: Packaged Linux shell validation for background-room and tray-command paths.
 - `dist/`: The output folder for built executables.
 
 ## 🤝 Contributing

@@ -15,12 +15,12 @@ import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
   ListenerAuthCard,
@@ -142,7 +142,7 @@ export default function NotificationsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'right', 'bottom', 'left']}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <ListenerBackHeader title="Notifications" />
         <ListenerPageHeader
@@ -170,7 +170,7 @@ export default function NotificationsScreen() {
           <>
             <View style={styles.summaryCard}>
               <View style={styles.summaryIcon}>
-                <Bell color="#FFFFFF" size={23} />
+                <Bell color={palette.muted} size={20} strokeWidth={2} />
               </View>
               <View style={styles.summaryCopy}>
                 <Text style={styles.summaryValue}>{unreadCount}</Text>
@@ -206,7 +206,7 @@ export default function NotificationsScreen() {
               <ListenerEmptyState
                 title="You are all caught up"
                 subtitle="New Echoo account notifications will appear here when there is something relevant to you."
-                icon={<Bell color={palette.blue} size={24} />}
+                icon={<Bell color={palette.muted} size={22} strokeWidth={2} />}
               />
             )}
           </>
@@ -255,19 +255,19 @@ function notificationIcon(type: string, palette: EchooColors): ReactNode {
     case 'broadcast_live':
     case 'broadcast_reminder':
     case 'broadcast_ended':
-      return <Radio color={palette.red} size={20} />;
+      return <Radio color={palette.muted} size={19} strokeWidth={2} />;
     case 'new_release':
-      return <Music2 color={palette.blue} size={20} />;
+      return <Music2 color={palette.muted} size={19} strokeWidth={2} />;
     case 'new_follower':
-      return <UserPlus color={palette.blue} size={20} />;
+      return <UserPlus color={palette.muted} size={19} strokeWidth={2} />;
     case 'new_like':
-      return <Heart color={palette.red} size={20} />;
+      return <Heart color={palette.muted} size={19} strokeWidth={2} />;
     case 'new_comment':
-      return <MessageCircleMore color={palette.blue} size={20} />;
+      return <MessageCircleMore color={palette.muted} size={19} strokeWidth={2} />;
     case 'system_announcement':
-      return <Megaphone color={palette.blue} size={20} />;
+      return <Megaphone color={palette.muted} size={19} strokeWidth={2} />;
     default:
-      return <BellRing color={palette.blue} size={20} />;
+      return <BellRing color={palette.muted} size={19} strokeWidth={2} />;
   }
 }
 
@@ -297,7 +297,7 @@ const createStyles = (palette: EchooColors) => StyleSheet.create({
   loadingState: { minHeight: 180, alignItems: 'center', justifyContent: 'center', gap: 10 },
   loadingText: { color: palette.muted, fontSize: 12.5, fontWeight: '700' },
   summaryCard: { minHeight: 78, borderRadius: 19, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line, padding: 13, flexDirection: 'row', alignItems: 'center', gap: 11 },
-  summaryIcon: { width: 48, height: 48, borderRadius: 15, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
+  summaryIcon: { width: 24, alignItems: 'center', justifyContent: 'center' },
   summaryCopy: { flex: 1 },
   summaryValue: { color: palette.ink, fontSize: 22, fontWeight: '900' },
   summaryLabel: { color: palette.muted, fontSize: 11.5, fontWeight: '700', marginTop: 1 },
@@ -307,8 +307,8 @@ const createStyles = (palette: EchooColors) => StyleSheet.create({
   notificationList: { marginTop: 16, gap: 9 },
   notificationRow: { minHeight: 88, borderRadius: 17, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line, flexDirection: 'row', alignItems: 'center', overflow: 'hidden' },
   notificationUnread: { borderColor: `${palette.blue}55`, backgroundColor: palette.surfaceRaised },
-  notificationMain: { flex: 1, minHeight: 88, padding: 11, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  notificationIcon: { width: 44, height: 44, borderRadius: 14, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
+  notificationMain: { flex: 1, minHeight: 88, padding: 11, flexDirection: 'row', alignItems: 'center', gap: 14 },
+  notificationIcon: { width: 22, alignItems: 'center', justifyContent: 'center' },
   notificationCopy: { flex: 1 },
   notificationTitleLine: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   notificationTitle: { flex: 1, color: palette.ink, fontSize: 13.5, fontWeight: '900' },
