@@ -7,6 +7,7 @@ import {
   FaMusic,
   FaRedo,
   FaTimes,
+  FaVolumeMute,
   FaVolumeUp,
 } from 'react-icons/fa';
 
@@ -19,8 +20,10 @@ import {
   getEchooMixerState,
   listAudioInputs,
   setCreatorAudioSettings,
+  setMixerChannelGain,
   setMonitorEnabled,
   subscribeEchooMixer,
+  toggleMixerChannelMute,
 } from '../../services/echooMixerService';
 import {
   getCachedCreatorAudioSettings,
@@ -191,8 +194,19 @@ const CreatorBroadcastAudioSurface = ({ variant = 'setup', onStateChange, showMo
         <AudioMeter level={channel.level} label={`${SOURCE_META[channelId].label} level`} />
         {channel.connected ? (
           <div className="ecbs-source-controls">
-            <span>Level and mute controls are available in the Live Mixer.</span>
-            <button type="button" onClick={() => disconnectMixerChannel(channelId)} title="Disconnect source"><FaTimes /></button>
+            {variant === 'live' ? (
+              <>
+                <input type="range" min="0" max="1.5" step="0.01" value={channel.gain ?? 1} onChange={(event) => setMixerChannelGain(channelId, event.target.value)} aria-label={`${SOURCE_META[channelId].label} volume`} />
+                <strong>{Math.round((channel.gain ?? 1) * 100)}%</strong>
+                <button type="button" className={channel.muted ? 'active' : ''} onClick={() => toggleMixerChannelMute(channelId)} title={channel.muted ? 'Unmute' : 'Mute'}>{channel.muted ? <FaVolumeMute /> : <FaVolumeUp />}</button>
+                <button type="button" onClick={() => disconnectMixerChannel(channelId)} title="Disconnect source"><FaTimes /></button>
+              </>
+            ) : (
+              <>
+                <span>Level and mute controls are available in the Live Mixer.</span>
+                <button type="button" onClick={() => disconnectMixerChannel(channelId)} title="Disconnect source"><FaTimes /></button>
+              </>
+            )}
           </div>
         ) : (
           <button type="button" className="ecbs-connect" onClick={() => channelId === 'media' ? mediaFileInput.current?.click() : connect(channelId)} disabled={Boolean(working)}>
