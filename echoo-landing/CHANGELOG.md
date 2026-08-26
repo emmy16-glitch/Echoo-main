@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Refined the compact phone navigation with a smooth top-sheet slide, a semi-transparent deep-cobalt overlay, focus-preserving dialog semantics, and reduced-motion-safe behavior. Direct public-control coverage verifies the panel and overlay treatment alongside the menu’s labelled trigger and routes.
+- Successful consent-backed newsletter submissions now show an accessible success toast through the existing notification provider. The toast makes no claim that email delivery is active; the double-opt-in delivery flow remains explicitly disabled until valid verified sender credentials are supplied.
+- Final validation for the interaction refinement: 17 test files passed with one credentials-health test intentionally skipped while delivery remains inactive (43 passing tests), followed by successful TypeScript checking, production build, and a restarted phone-width landing review.
+
 - Added a compact, accessible drawer navigation for phone widths. It preserves the public routes, the release action, and theme access without crowding the sticky header; rendered component coverage verifies its trigger, menu landmark, links, and action wiring.
 - Replaced the landing’s generic product panels with the user-approved Echoo listener dashboard, sign-in, and creator-studio screenshots, served as deployment-safe responsive assets.
 - Implemented a privacy-conscious double-opt-in newsletter architecture: explicit consent and email-format validation precede an opaque, time-limited confirmation link and a recipient confirmation destination. Delivery is deliberately **inactive** until a valid Resend API key, a verified sender domain, and the explicit `NEWSLETTER_DELIVERY_ENABLED=true` flag pass the non-delivery credentials check; no test subscription was stored or emailed.

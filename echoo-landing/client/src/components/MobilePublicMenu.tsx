@@ -20,6 +20,9 @@ export type PublicNavigationAction = {
   label: string;
 };
 
+export const MOBILE_PUBLIC_MENU_OVERLAY_CLASS = "mobile-public-menu-overlay bg-[#041A42]/58 backdrop-blur-[2px] data-[state=closed]:duration-200 data-[state=open]:duration-300 motion-reduce:backdrop-blur-none";
+export const MOBILE_PUBLIC_MENU_PANEL_CLASS = "mobile-public-menu-panel border-[#164F9D]/15 bg-[#F8FBFF] px-5 pb-7 pt-8 text-[#102E63] data-[state=closed]:duration-200 data-[state=open]:duration-300 sm:px-8 dark:bg-[#071736] dark:text-white";
+
 type MobileNavigationLinksProps = {
   action: PublicNavigationAction;
   links: readonly PublicNavigationLink[];
@@ -75,7 +78,8 @@ export function MobilePublicMenu({
       </SheetTrigger>
       <SheetContent
         side="top"
-        className="border-[#164F9D]/15 bg-[#F8FBFF] px-5 pb-7 pt-8 text-[#102E63] sm:px-8 dark:bg-[#071736] dark:text-white"
+        overlayClassName={MOBILE_PUBLIC_MENU_OVERLAY_CLASS}
+        className={MOBILE_PUBLIC_MENU_PANEL_CLASS}
       >
         <SheetHeader className="p-0 pr-10 text-left">
           <SheetTitle className="text-[0.72rem] font-black tracking-[0.16em] text-[#123F81] dark:text-white">

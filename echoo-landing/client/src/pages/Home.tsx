@@ -7,15 +7,16 @@ import { trpc } from "@/lib/trpc";
 import { trackEarlyAccess } from "@/lib/earlyAccessAnalytics";
 import {
   NEWSLETTER_EMAIL_MESSAGE,
-  NEWSLETTER_SUCCESS_MESSAGE,
   validateNewsletterEmail,
   validateNewsletterConsent,
 } from "@/lib/newsletterSubscription";
+import { showNewsletterSuccessToast } from "@/lib/newsletterToast";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { BackToTop } from "@/components/BackToTop";
 import { FooterSocialShare } from "@/components/FooterSocialShare";
 import { MobilePublicMenu } from "@/components/MobilePublicMenu";
 import { PublicNavShell } from "@/components/PublicNavShell";
+import { toast } from "sonner";
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -180,7 +181,8 @@ export default function Home() {
         onSuccess: () => {
           setNewsletterEmail("");
           setNewsletterConsent(false);
-          setNewsletterMessage(NEWSLETTER_SUCCESS_MESSAGE);
+          setNewsletterMessage("");
+          showNewsletterSuccessToast(toast.success);
         },
         onError: error => {
           setNewsletterMessage(error.message || "We could not save your subscription. Please try again.");
@@ -327,7 +329,7 @@ export default function Home() {
               <div className="mt-4 flex flex-col gap-3 sm:flex-row"><input id="footer-newsletter-email" name="newsletter-email" type="email" autoComplete="email" required aria-invalid={newsletterMessage === NEWSLETTER_EMAIL_MESSAGE ? true : undefined} value={newsletterEmail} onChange={event => { setNewsletterEmail(event.target.value); if (newsletterMessage === NEWSLETTER_EMAIL_MESSAGE) setNewsletterMessage(""); }} placeholder="you@example.com" className="min-h-11 flex-1 rounded-full border border-white/15 bg-[#071735] px-4 text-sm text-white outline-none placeholder:text-[#7890B9] focus:border-[#91B3FF] focus:ring-2 focus:ring-[#91B3FF]" /><button type="submit" disabled={newsletter.isPending} className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#3B78FF] px-5 text-[.62rem] font-black tracking-[.12em] text-white transition duration-200 hover:bg-[#5B8EFF] disabled:cursor-not-allowed disabled:opacity-60 active:scale-[.97]">{newsletter.isPending ? "JOINING..." : "NOTIFY ME"}</button></div>
               <label className="mt-4 flex cursor-pointer items-start gap-3 text-xs leading-5 text-[#A8BCE3]"><input type="checkbox" checked={newsletterConsent} onChange={event => setNewsletterConsent(event.target.checked)} className="mt-0.5 h-4 w-4 rounded border-white/40 bg-transparent accent-[#83ADFF]" /><span>I agree that Echoo may email me about future releases. No third-party sharing.</span></label>
               <p id="newsletter-privacy" className="mt-3 text-[.56rem] font-bold tracking-[.1em] text-[#7890B9]">UNSUBSCRIBE ANYTIME.</p>
-              {newsletterMessage && <p id="newsletter-message" role={newsletterMessage === NEWSLETTER_SUCCESS_MESSAGE ? "status" : "alert"} className="mt-3 text-sm leading-6 text-[#E4EEFF]">{newsletterMessage}</p>}
+              {newsletterMessage && <p id="newsletter-message" role="alert" className="mt-3 text-sm leading-6 text-[#E4EEFF]">{newsletterMessage}</p>}
             </form>
             <FooterSocialShare />
           </div>

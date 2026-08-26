@@ -5,7 +5,12 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { buildSocialShareUrl, SOCIAL_SHARE_MESSAGE } from "@/lib/socialShare";
 import { FooterSocialShare } from "./FooterSocialShare";
-import { MobileNavigationLinks, MobilePublicMenu } from "./MobilePublicMenu";
+import {
+  MOBILE_PUBLIC_MENU_OVERLAY_CLASS,
+  MOBILE_PUBLIC_MENU_PANEL_CLASS,
+  MobileNavigationLinks,
+  MobilePublicMenu,
+} from "./MobilePublicMenu";
 import { PublicNavShell } from "./PublicNavShell";
 import { Sheet } from "./ui/sheet";
 
@@ -56,6 +61,11 @@ describe("public navigation and sharing controls", () => {
 
     expect(triggerHtml).toContain('aria-label="Open main navigation menu"');
     expect(triggerHtml).toContain('min-h-11 min-w-11');
+    expect(MOBILE_PUBLIC_MENU_OVERLAY_CLASS).toContain('mobile-public-menu-overlay');
+    expect(MOBILE_PUBLIC_MENU_OVERLAY_CLASS).toContain('bg-[#041A42]/58');
+    expect(MOBILE_PUBLIC_MENU_OVERLAY_CLASS).toContain('data-[state=open]:duration-300');
+    expect(MOBILE_PUBLIC_MENU_PANEL_CLASS).toContain('mobile-public-menu-panel');
+    expect(MOBILE_PUBLIC_MENU_PANEL_CLASS).toContain('data-[state=open]:duration-300');
     expect(linksHtml).toContain('aria-label="Main navigation menu"');
     expect(linksHtml).toContain('href="#experience"');
     expect(linksHtml).toContain('href="/release"');

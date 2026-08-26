@@ -148,3 +148,6 @@
 - [x] Copy the active landing source into `Echoo-main/echoo-landing` without nesting a Git repository, while retaining the current standalone checkout as a local recovery copy.
 - [x] Document the canonical in-repository landing workflow and adjust any outdated standalone-clone instructions.
 - [x] Save a refreshed landing checkpoint and synchronize the integrated mobile navigation, approved screenshot, and safe-inactive newsletter update to both requested `Echoo-main` remotes: `effiukp/Echoo-main` and `emmy16-glitch/Echoo-main`.
+- [x] Add a compact-menu slide-in animation and semi-transparent overlay that preserve focus management, dismissal behavior, and reduced-motion preferences.
+- [x] Add a clear, accessible success toast when the consent-backed newsletter form submits successfully.
+- [x] Add focused interaction coverage, visually review the responsive menu and toast, then checkpoint and synchronize the refinement to both requested Echoo-main repositories.
