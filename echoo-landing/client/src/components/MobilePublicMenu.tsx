@@ -54,9 +54,9 @@ export function MobileNavigationLinks({
             <SheetClose asChild key={link.href}>
               <a
                 href={link.href}
-                className="flex min-h-12 items-center gap-3 rounded-2xl px-4 text-[0.72rem] font-black tracking-[0.13em] text-[#123F81] transition hover:bg-[#EAF1FF] focus-visible:bg-[#EAF1FF] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#3B78FF]"
+                className="group flex min-h-12 items-center gap-3 rounded-2xl px-4 text-[0.72rem] font-black tracking-[0.13em] text-[#123F81] transition-[background-color,color,transform] duration-150 ease-out hover:bg-[#EAF1FF] hover:text-[#0A326F] focus-visible:bg-[#EAF1FF] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#3B78FF] active:translate-y-px active:bg-[#DDEAFF] motion-reduce:transition-none motion-reduce:active:translate-y-0"
               >
-                <Icon className="h-4 w-4 shrink-0 text-[#3B78FF]" aria-hidden="true" />
+                <Icon className="h-4 w-4 shrink-0 text-[#3B78FF] transition-[color,transform] duration-150 ease-out group-hover:scale-110 group-hover:text-[#2466D7] group-focus-visible:scale-110 group-focus-visible:text-[#2466D7] group-active:scale-95 group-active:text-[#164F9D] motion-reduce:transition-none motion-reduce:group-hover:scale-100 motion-reduce:group-focus-visible:scale-100 motion-reduce:group-active:scale-100" aria-hidden="true" />
                 <span>{link.label}</span>
               </a>
             </SheetClose>
@@ -66,9 +66,9 @@ export function MobileNavigationLinks({
       <SheetClose asChild>
         <a
           href={action.href}
-          className="mt-3 inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#3B78FF] px-5 text-[0.68rem] font-black tracking-[0.12em] text-white shadow-[0_10px_26px_rgba(59,120,255,.3)] transition hover:bg-[#5B8EFF] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#3B78FF] active:scale-[.97]"
+          className="group mt-3 inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#3B78FF] px-5 text-[0.68rem] font-black tracking-[0.12em] text-white shadow-[0_10px_26px_rgba(59,120,255,.3)] transition-[background-color,transform] duration-150 ease-out hover:bg-[#5B8EFF] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#3B78FF] active:scale-[.97] motion-reduce:transition-none motion-reduce:active:scale-100"
         >
-          <Download className="h-4 w-4" aria-hidden="true" />
+          <Download className="h-4 w-4 transition-transform duration-150 ease-out group-hover:translate-x-0.5 group-focus-visible:translate-x-0.5 group-active:scale-95 motion-reduce:transition-none motion-reduce:group-hover:translate-x-0 motion-reduce:group-focus-visible:translate-x-0 motion-reduce:group-active:scale-100" aria-hidden="true" />
           <span>{action.label}</span>
         </a>
       </SheetClose>
@@ -87,10 +87,10 @@ export function MobilePublicMenu({
       <SheetTrigger asChild>
         <button
           type="button"
-          className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-full border border-[#164F9D]/15 bg-white text-[#123F81] shadow-[0_6px_18px_rgba(22,79,157,.08)] transition hover:border-[#164F9D]/35 hover:bg-[#EEF5FF] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#3B78FF] active:scale-[.97]"
+          className="group inline-flex min-h-11 min-w-11 items-center justify-center rounded-full border border-[#164F9D]/15 bg-white text-[#123F81] shadow-[0_6px_18px_rgba(22,79,157,.08)] transition-[background-color,border-color,transform] duration-150 ease-out hover:border-[#164F9D]/35 hover:bg-[#EEF5FF] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#3B78FF] active:scale-[.97] motion-reduce:transition-none motion-reduce:active:scale-100"
           aria-label={`Open ${navigationLabel.toLowerCase()} menu`}
         >
-          <Menu className="h-4 w-4" aria-hidden="true" />
+          <Menu className="h-4 w-4 transition-transform duration-150 ease-out group-hover:rotate-3 group-focus-visible:rotate-3 group-active:scale-95 motion-reduce:transition-none motion-reduce:group-hover:rotate-0 motion-reduce:group-focus-visible:rotate-0 motion-reduce:group-active:scale-100" aria-hidden="true" />
         </button>
       </SheetTrigger>
       <SheetContent

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Added restrained interaction feedback to compact-menu icon controls: hover and keyboard focus lightly elevate or tint the icon, while pointer press gives a compact active response. The same controls explicitly suppress non-essential transforms for reduced-motion users and retain their visible focus outlines.
+- Final validation for this refinement: 17 test files passed with one intentionally skipped inactive-credentials health test (44 passing tests), followed by successful TypeScript checking, production build, restarted phone-width review, and direct static coverage of the hover, active, and reduced-motion class wiring.
+
 - Added disabled, in-button newsletter submission feedback with a labelled spinner and `aria-busy` state, so an explicit consent-backed request has clear progress feedback without permitting duplicate submissions.
 - Added decorative, aria-hidden icons to every compact-menu destination and its release action while preserving each link’s existing accessible name, route, overlay, slide-in behavior, and reduced-motion handling.
 - Final validation for this refinement: 17 test files passed with one intentionally skipped inactive-credentials health test (44 passing tests), followed by successful TypeScript checking, production build, and a restarted phone-width landing review.

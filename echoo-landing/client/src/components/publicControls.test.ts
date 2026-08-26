@@ -75,6 +75,10 @@ describe("public navigation and sharing controls", () => {
     expect(linksHtml).toContain("min-h-12");
     expect(linksHtml).toContain('aria-hidden="true"');
     expect(linksHtml).toContain("text-[#3B78FF]");
+    expect(linksHtml).toContain("group-hover:scale-110");
+    expect(linksHtml).toContain("group-active:scale-95");
+    expect(linksHtml).toContain("motion-reduce:group-hover:scale-100");
+    expect(linksHtml).toContain("motion-reduce:active:translate-y-0");
   });
 
   it("renders an accessible disabled newsletter control while submission is in progress", () => {

@@ -154,3 +154,5 @@
 - [x] Add an accessible loading spinner and disabled state to the newsletter submit button while a consent-backed request is processing.
 - [x] Add decorative, aria-hidden visual icons to every compact mobile navigation label without changing its accessible link names or routes.
 - [x] Add focused coverage, review the loading and icon treatment at phone width, then checkpoint and synchronize the update to both requested Echoo-main repositories.
+- [x] Add subtle hover and active feedback to compact mobile-menu icon-and-label controls while retaining visible keyboard focus and reduced-motion safety.
+- [x] Add focused coverage, review the refined menu interaction at phone width, then checkpoint and synchronize the update to both requested Echoo-main repositories.
