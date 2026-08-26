@@ -179,7 +179,16 @@ const ProfileSetup = ({ onProfileCompleted, onSessionInvalid }) => {
         onClose={() => setToast((current) => ({ ...current, open: false }))}
       />
 
-      <OnboardingFrame step={2} hero="profile" panelClassName="eor-profile-panel">
+      <OnboardingFrame
+        step={2}
+        hero="profile"
+        panelClassName="eor-profile-panel"
+        heroData={{
+          profileName: displayName || "Your profile",
+          profileHandle: storedUser.username ? `@${storedUser.username}` : "@yourvoice",
+          profileImage,
+        }}
+      >
         <header className="eor-form-header">
           <h1>Set up your <span>profile</span></h1>
           <p>Add the details people will see when they discover you on Echoo.</p>

@@ -69,6 +69,31 @@
 
 .eam-reset:hover { border-color: #abc2e8; }
 
+.eam-advanced-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border: 1px solid #dce7f8;
+  border-radius: 12px;
+  background: #f8fbff;
+  color: #246bfe;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 750;
+  text-align: left;
+}
+
+.eam-advanced-toggle:hover { border-color: #9dbfff; background: #f1f6ff; }
+.eam-advanced-toggle > span { min-width: 0; }
+.eam-advanced-toggle strong,
+.eam-advanced-toggle small { display: block; }
+.eam-advanced-toggle strong { color: #172842; font-size: 12px; }
+.eam-advanced-toggle small { margin-top: 3px; color: #738198; font-size: 10px; font-weight: 500; line-height: 1.4; }
+
 .eam-profile {
   display: grid;
   grid-template-columns: minmax(180px, .7fr) minmax(360px, 1.3fr);
@@ -677,8 +702,10 @@
 }
 
 .eam-output-head strong,
+.eam-output-head h3,
 .eam-output-head small { display: block; }
-.eam-output-head strong { color: #182941; font-size: 12px; }
+.eam-output-head strong,
+.eam-output-head h3 { margin: 0; color: #182941; font-size: 12px; }
 .eam-output-head small {
   display: inline-block;
   margin-top: 3px;
@@ -779,6 +806,182 @@
 .eam.compact .eam-source-purpose { margin-top: 9px; }
 .eam.compact .eam-source-device { min-height: 20px; }
 .eam.compact .eam-path-note { margin-top: 10px; }
+
+/* Live Mixer is the same Broadcast Studio family as Sound Check: the
+   controls change once live, but the section rhythm, borders, type scale and
+   muted copy remain identical. This is intentionally scoped to live/compact
+   use so the standalone Audio workspace keeps its own layout. */
+.eam.compact.eam-live-mixer {
+  display: grid;
+  gap: 14px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.eam.compact.eam-live-mixer .eam-heading,
+.eam.compact.eam-live-mixer .eam-advanced-toggle,
+.eam.compact.eam-live-mixer .eam-sources,
+.eam.compact.eam-live-mixer .eam-output-card,
+.eam.compact.eam-live-mixer .eam-path-note {
+  margin: 0;
+  border: 1px solid var(--bs-line, #dfe7f0);
+  border-radius: 10px;
+  background: var(--echoo-ds-surface, #fff);
+  box-shadow: var(--echoo-ds-shadow-xs, 0 2px 8px rgba(20, 42, 76, .03));
+}
+
+.eam.compact.eam-live-mixer .eam-heading {
+  align-items: center;
+  padding: 16px;
+}
+
+.eam.compact.eam-live-mixer .eam-heading > div > span {
+  color: var(--echoo-ds-live, #d34b4b);
+  font-size: 10px;
+  letter-spacing: .12em;
+}
+
+.eam.compact.eam-live-mixer .eam-heading h2 { margin-top: 5px; font-size: 18px; }
+.eam.compact.eam-live-mixer .eam-heading p { margin-top: 4px; color: var(--bs-muted, #738198); font-size: 11px; }
+.eam.compact.eam-live-mixer .eam-reset,
+.eam.compact.eam-live-mixer .eam-source-actions button,
+.eam.compact.eam-live-mixer .eam-monitor-actions button,
+.eam.compact.eam-live-mixer .eam-master-mute {
+  min-height: 32px;
+  border-color: var(--bs-line, #dfe7f0);
+  border-radius: 7px;
+  color: var(--bs-soft, #40516b);
+  font-size: 10px;
+}
+
+.eam.compact.eam-live-mixer .eam-advanced-toggle {
+  min-height: 74px;
+  padding: 14px 16px;
+  color: var(--bs-blue, #246bfe);
+}
+.eam.compact.eam-live-mixer .eam-advanced-toggle strong { font-size: 13px; }
+.eam.compact.eam-live-mixer .eam-advanced-toggle small { color: var(--bs-muted, #738198); font-size: 10px; }
+
+.eam.compact.eam-live-mixer .eam-workspace { display: grid; grid-template-columns: 1fr; gap: 14px; }
+.eam.compact.eam-live-mixer .eam-sources { display: grid; gap: 14px; padding: 16px; }
+.eam-live-section-heading { display: flex; align-items: center; gap: 10px; }
+.eam-live-section-heading > span {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  border: 1px solid var(--bs-line-strong, #cfd9e6);
+  border-radius: 50%;
+  background: var(--bs-blue-soft, #eef4ff);
+}
+.eam-live-section-heading h3,
+.eam.compact.eam-live-mixer .eam-output-head h3 {
+  margin: 0;
+  color: var(--bs-ink, #172842);
+  font-size: 13px;
+}
+.eam-live-section-heading p { margin: 3px 0 0; color: var(--bs-muted, #738198); font-size: 10px; }
+
+.eam.compact.eam-live-mixer .eam-source-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.eam.compact.eam-live-mixer .eam-source-card {
+  padding: 12px;
+  border-color: var(--bs-line, #dfe7f0);
+  border-radius: 8px;
+  background: var(--echoo-ds-surface, #fff);
+  box-shadow: none;
+}
+.eam.compact.eam-live-mixer .eam-source-card.connected { border-color: var(--bs-line-strong, #cfd9e6); }
+.eam.compact.eam-live-mixer .eam-source-icon,
+.eam.compact.eam-live-mixer .eam-output-head > span {
+  width: 30px;
+  height: 30px;
+  flex-basis: 30px;
+  border-radius: 7px;
+  background: var(--bs-blue-soft, #eef4ff);
+  color: var(--bs-blue, #246bfe);
+  font-size: 12px;
+}
+.eam.compact.eam-live-mixer .eam-source-title > strong { font-size: 11px; }
+.eam.compact.eam-live-mixer .eam-source-title > span,
+.eam.compact.eam-live-mixer .eam-source-device,
+.eam.compact.eam-live-mixer .eam-source-tip,
+.eam.compact.eam-live-mixer .eam-level-copy span { color: var(--bs-muted, #738198); }
+.eam.compact.eam-live-mixer .eam-live-source-summary {
+  display: block;
+  min-height: 28px;
+  margin-top: 8px;
+  color: var(--bs-muted, #738198);
+  font-size: 9px;
+  line-height: 1.4;
+}
+.eam.compact.eam-live-mixer .eam-live-channel-body { display: grid; gap: 8px; margin-top: 2px; }
+.eam.compact.eam-live-mixer .eam-level-control { gap: 5px; margin-top: 0; }
+.eam.compact.eam-live-mixer .eam-control-label span,
+.eam.compact.eam-live-mixer .eam-control-label strong { font-size: 9px; }
+.eam.compact.eam-live-mixer .eam-level { margin-top: 0; }
+.eam.compact.eam-live-mixer .eam-level-copy { display: none; }
+.eam.compact.eam-live-mixer .eam-source-purpose { color: var(--bs-ink, #172842); font-size: 10px; }
+.eam.compact.eam-live-mixer .eam-device-select,
+.eam.compact.eam-live-mixer .eam-output-select select {
+  height: 32px;
+  border-color: var(--bs-line, #dfe7f0);
+  border-radius: 6px;
+  color: var(--bs-soft, #40516b);
+  font-size: 9px;
+}
+.eam.compact.eam-live-mixer input[type='range'] { accent-color: var(--bs-blue, #246bfe); }
+.eam.compact.eam-live-mixer .eam-level-track { height: 7px; border-radius: 2px; background: var(--bs-line, #e8edf4); }
+.eam.compact.eam-live-mixer .eam-level-copy strong { font-size: 9px; }
+.eam.compact.eam-live-mixer .eam-live-mix-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 58px;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--bs-line, #dfe7f0);
+  border-radius: 8px;
+  background: var(--echoo-ds-surface, #fff);
+}
+.eam.compact.eam-live-mixer .eam-live-mix-status > span {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  place-items: center;
+  border-radius: 7px;
+  background: var(--bs-blue-soft, #eef4ff);
+  color: var(--bs-blue, #246bfe);
+  font-size: 12px;
+}
+.eam.compact.eam-live-mixer .eam-live-mix-status strong { color: var(--bs-ink, #172842); font-size: 11px; }
+.eam.compact.eam-live-mixer .eam-live-mix-status p { margin: 3px 0 0; color: var(--bs-muted, #738198); font-size: 10px; }
+
+.eam.compact.eam-live-mixer .eam-output-column { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: none; gap: 14px; }
+.eam.compact.eam-live-mixer .eam-output-card { padding: 16px; }
+.eam.compact.eam-live-mixer .eam-output-card.monitor,
+.eam.compact.eam-live-mixer .eam-output-card.audience { background: var(--echoo-ds-surface, #fff); }
+.eam.compact.eam-live-mixer .eam-output-head small {
+  margin-top: 3px;
+  padding: 0;
+  background: transparent;
+  color: var(--bs-muted, #738198);
+  font-size: 10px;
+  font-weight: 400;
+}
+.eam.compact.eam-live-mixer .eam-output-explainer { color: var(--bs-muted, #738198); font-size: 10px; }
+.eam.compact.eam-live-mixer .eam-path-note { min-height: 58px; padding: 12px 14px; color: var(--bs-muted, #738198); font-size: 10px; }
+
+@media (max-width: 980px) {
+  .eam.compact.eam-live-mixer .eam-source-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 640px) {
+  .eam.compact.eam-live-mixer .eam-source-grid,
+  .eam.compact.eam-live-mixer .eam-output-column { grid-template-columns: 1fr; }
+}
 
 @media (max-width: 1280px) {
   .eam-workspace { grid-template-columns: 1fr; }

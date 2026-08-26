@@ -32,9 +32,13 @@
 .echoo-listener-v2-shell .echoo-app-sidebar {
   position: sticky;
   top: 0;
+  align-self: start;
   z-index: 50;
   width: var(--listener-sidebar);
   height: 100dvh;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 20px 12px 14px;
   border-right: 1px solid var(--listener-border);
   background: #fff;
@@ -167,6 +171,18 @@
   .echoo-listener-v2-shell .studio-account-button > svg { display: none; }
   .echoo-listener-v2-shell > .echoo-persistent-player { grid-template-columns: minmax(180px,1fr) minmax(260px,1fr); }
   .echoo-listener-v2-shell .layout-player-volume { display: none; }
+}
+
+/* Desktop and tablet shell children must be able to stick to the viewport.
+   Keep horizontal clipping confined to the mobile layout instead of making the
+   grid itself a scrolling/clipping ancestor. */
+@media (min-width: 761px) {
+  #root .echoo-listener-v2-shell.echoo-app-shell {
+    align-items: start;
+    overflow: visible !important;
+  }
+
+  #root .echoo-listener-v2-shell.echoo-app-shell .echoo-app-main { overflow: visible !important; }
 }
 
 @media (max-width: 760px) {

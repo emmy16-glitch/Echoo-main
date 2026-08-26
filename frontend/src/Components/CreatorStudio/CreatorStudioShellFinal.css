@@ -19,7 +19,7 @@
   display: grid;
   grid-template-columns: var(--studio-sidebar-width) minmax(0, 1fr);
   align-items: start;
-  overflow-x: clip;
+  overflow: visible;
   padding: 0;
   background: var(--studio-canvas);
   color: var(--studio-ink);
@@ -48,14 +48,15 @@
 .studio-final-shell .studio-sidebar {
   position: sticky;
   top: 0;
+  align-self: start;
   grid-column: 1;
   z-index: 60;
   width: 100%;
   min-width: 0;
-  height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
-  overflow: visible;
+  overflow: hidden;
   padding: 22px 12px 14px;
   border-right: 1px solid var(--studio-line);
   background: rgba(255,255,255,.985);
@@ -323,7 +324,7 @@
   min-width: 0;
   min-height: 100vh;
   margin-left: 0;
-  overflow-x: clip;
+  overflow: visible;
   background: var(--studio-canvas);
 }
 
@@ -604,7 +605,8 @@
     max-width: none !important;
     height: 100dvh !important;
     padding: var(--echoo-space-6) var(--echoo-space-3) var(--echoo-space-4) !important;
-    overflow: visible !important;
+    align-self: start !important;
+    overflow: hidden !important;
     z-index: 60 !important;
   }
 
@@ -612,7 +614,7 @@
     width: 100% !important;
     max-width: none !important;
     margin-left: 0 !important;
-    overflow-x: clip !important;
+    overflow: visible !important;
   }
 }
 

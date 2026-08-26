@@ -4,13 +4,18 @@ import {
   FaCheck,
   FaHeart,
   FaMicrophone,
+  FaPlay,
   FaSlidersH,
   FaUserFriends,
 } from "react-icons/fa";
 import echooLogo from "../Assets/echoo-brand-logo.png";
+import creatorArtwork from "../Assets/creator-logo.png";
+import roleArtwork from "../Assets/echoo-role-headphones-microphone.png";
+import signalWave from "../Assets/echoo-patterns/signal-wave.svg";
 import "./onboarding-redesign.css";
 import "./onboarding-animation-fix.css";
 import "./onboarding-layout-audit.css";
+import "./onboarding-dynamic-hero.css";
 
 const BASIC_STEPS = ["Account", "Profile", "Role"];
 const AUDIO_BAR_COUNT = 44;
@@ -240,7 +245,7 @@ const AudioHero = () => {
   );
 };
 
-const ProfileHero = () => {
+const ProfileHero = ({ profileName = "Your profile", profileHandle = "@echoo", profileImage }) => {
   const barRefs = useRef([]);
   const rafRef = useRef(0);
 
@@ -273,8 +278,14 @@ const ProfileHero = () => {
 
   return (
     <div className="eor-profile-hero-card" aria-hidden="true">
-      <div className="eor-profile-avatar"><span /></div>
-      <div className="eor-profile-lines"><i /><i /><i /></div>
+      <div className="eor-profile-avatar">
+        {profileImage ? <img src={profileImage} alt="" /> : <span />}
+      </div>
+      <div className="eor-profile-lines">
+        <strong>{profileName}</strong>
+        <small>{profileHandle}</small>
+        <i />
+      </div>
       <div className="eor-profile-wave">
         {Array.from({ length: PROFILE_BAR_COUNT }, (_, index) => (
           <span
@@ -293,6 +304,60 @@ const ProfileHero = () => {
   );
 };
 
+const RoleHero = () => (
+  <div className="eor-role-hero-card" aria-hidden="true">
+    <img src={roleArtwork} alt="" />
+    <span className="eor-role-hero-kicker">LISTEN OR CREATE</span>
+    <p>Find the way your voice belongs on Echoo.</p>
+  </div>
+);
+
+const CreatorHero = ({ creatorName = "Your creator space", creatorHandle = "@creator" }) => (
+  <div className="eor-creator-hero-card" aria-hidden="true">
+    <img className="eor-creator-hero-art" src={creatorArtwork} alt="" />
+    <div className="eor-creator-hero-content">
+      <span className="eor-creator-hero-kicker">CREATOR STUDIO</span>
+      <div className="eor-creator-hero-identity">
+        <img src={echooLogo} alt="" />
+        <div>
+          <strong>{creatorName}</strong>
+          <small>{creatorHandle}</small>
+        </div>
+      </div>
+      <div
+        className="eor-creator-hero-wave"
+        style={{ backgroundImage: `url(${signalWave})` }}
+      />
+      <span className="eor-creator-hero-live"><FaPlay /> Your audio home</span>
+    </div>
+  </div>
+);
+
+const StepProgress = ({ step, stepLabels, phaseLabel, className = "" }) => (
+  <div
+    className={`eor-stepper ${className}`}
+    aria-label={`${phaseLabel} step ${step} of ${stepLabels.length}`}
+    style={{ gridTemplateColumns: `repeat(${stepLabels.length}, minmax(0, 1fr))` }}
+  >
+    {stepLabels.map((label, index) => {
+      const number = index + 1;
+      const complete = number < step;
+      const current = number === step;
+
+      return (
+        <div
+          className={`eor-step ${complete ? "complete" : ""} ${current ? "current" : ""}`}
+          key={label}
+        >
+          <span className="eor-step-circle">{complete ? <FaCheck /> : number}</span>
+          <span className="eor-step-label">{label}</span>
+          {index < stepLabels.length - 1 && <span className="eor-step-line" />}
+        </div>
+      );
+    })}
+  </div>
+);
+
 const OnboardingFrame = ({
   step,
   hero = "broadcast",
@@ -300,10 +365,11 @@ const OnboardingFrame = ({
   panelClassName = "",
   steps: stepLabels = BASIC_STEPS,
   phaseLabel = "Basics",
+  heroData = {},
 }) => {
   const isProfile = hero === "profile";
   const isCreator = hero === "creator";
-  const totalSteps = stepLabels.length;
+  const isRole = hero === "role";
 
   return (
     <main className={`echoo-onboarding-redesign eor-step-${step}`}>
@@ -312,6 +378,13 @@ const OnboardingFrame = ({
           <img src={echooLogo} alt="" aria-hidden="true" />
           <span>Echoo</span>
         </div>
+
+        <StepProgress
+          step={step}
+          stepLabels={stepLabels}
+          phaseLabel={phaseLabel}
+          className="eor-mobile-stepper"
+        />
 
         <div className="eor-hero-copy">
           {isProfile ? (
@@ -325,6 +398,15 @@ const OnboardingFrame = ({
                 Build your profile so others can discover, connect, and listen.
                 Be authentic. Be you.
               </p>
+            </>
+          ) : isRole ? (
+            <>
+              <h1>
+                Your <em>platform.</em>
+                <br />
+                Your <em>way.</em>
+              </h1>
+              <p>Choose how you want to experience Echoo today. You can always grow into more later.</p>
             </>
           ) : isCreator ? (
             <>
@@ -353,47 +435,20 @@ const OnboardingFrame = ({
           )}
         </div>
 
-        {isProfile ? <ProfileHero /> : <AudioHero />}
+        {isProfile ? (
+          <ProfileHero {...heroData} />
+        ) : isRole ? (
+          <RoleHero />
+        ) : isCreator ? (
+          <CreatorHero {...heroData} />
+        ) : (
+          <AudioHero />
+        )}
       </section>
 
       <section className="eor-form-side">
         <div className={`eor-panel ${panelClassName}`}>
-          <div className="eor-mobile-brand">
-            <div className="eor-mobile-logo">
-              <img src={echooLogo} alt="" aria-hidden="true" />
-              <strong>Echoo</strong>
-            </div>
-            <span>{phaseLabel} · {step}/{totalSteps}</span>
-          </div>
-
-          <div
-            className="eor-stepper"
-            aria-label={`${phaseLabel} step ${step} of ${totalSteps}`}
-            style={{ gridTemplateColumns: `repeat(${totalSteps}, minmax(0, 1fr))` }}
-          >
-            {stepLabels.map((label, index) => {
-              const number = index + 1;
-              const complete = number < step;
-              const current = number === step;
-
-              return (
-                <div
-                  className={`eor-step ${complete ? "complete" : ""} ${
-                    current ? "current" : ""
-                  }`}
-                  key={label}
-                >
-                  <span className="eor-step-circle">
-                    {complete ? <FaCheck /> : number}
-                  </span>
-                  <span className="eor-step-label">{label}</span>
-                  {index < stepLabels.length - 1 && (
-                    <span className="eor-step-line" />
-                  )}
-                </div>
-              );
-            })}
-          </div>
+          <StepProgress step={step} stepLabels={stepLabels} phaseLabel={phaseLabel} />
 
           {children}
         </div>

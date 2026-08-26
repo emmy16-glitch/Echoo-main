@@ -155,7 +155,7 @@ const ChooseRole = ({
         }
       />
 
-      <OnboardingFrame step={3} hero="broadcast" panelClassName="eor-role-panel">
+      <OnboardingFrame step={3} hero="role" panelClassName="eor-role-panel">
         <header className="eor-form-header">
           <h1>
             Choose how you'll use <span>Echoo</span>

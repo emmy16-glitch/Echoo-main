@@ -7,7 +7,6 @@ import {
   FaMusic,
   FaRedo,
   FaTimes,
-  FaVolumeMute,
   FaVolumeUp,
 } from 'react-icons/fa';
 
@@ -20,10 +19,8 @@ import {
   getEchooMixerState,
   listAudioInputs,
   setCreatorAudioSettings,
-  setMixerChannelGain,
   setMonitorEnabled,
   subscribeEchooMixer,
-  toggleMixerChannelMute,
 } from '../../services/echooMixerService';
 import {
   getCachedCreatorAudioSettings,
@@ -177,7 +174,7 @@ const CreatorBroadcastAudioSurface = ({ variant = 'setup', onStateChange, showMo
       <article className={`ecbs-source ${channel.connected ? 'connected' : ''}`} key={channelId}>
         <header>
           <span className="ecbs-source-icon"><Icon /></span>
-          <div><strong>{SOURCE_META[channelId].label}</strong><small>{channel.connected ? 'Connected' : 'Not connected'}</small></div>
+          <div><strong>{SOURCE_META[channelId].label}</strong><small>{channel.connected ? (Number(channel.level) > 0.02 ? 'Connected · signal detected' : 'Connected · waiting for signal') : 'Not connected'}</small></div>
           <i aria-label={channel.connected ? 'Connected' : 'Disconnected'} />
         </header>
         {channelId === 'guest' && !channel.connected && inputs.length > 1 && (
@@ -194,10 +191,8 @@ const CreatorBroadcastAudioSurface = ({ variant = 'setup', onStateChange, showMo
         <AudioMeter level={channel.level} label={`${SOURCE_META[channelId].label} level`} />
         {channel.connected ? (
           <div className="ecbs-source-controls">
-            <input type="range" min="0" max="1.5" step="0.01" value={channel.gain ?? 1} onChange={(event) => setMixerChannelGain(channelId, event.target.value)} aria-label={`${SOURCE_META[channelId].label} volume`} />
-            <strong>{Math.round((channel.gain ?? 1) * 100)}%</strong>
-            <button type="button" className={channel.muted ? 'active' : ''} onClick={() => toggleMixerChannelMute(channelId)} title={channel.muted ? 'Unmute' : 'Mute'}>{channel.muted ? <FaVolumeMute /> : <FaVolumeUp />}</button>
-            <button type="button" onClick={() => disconnectMixerChannel(channelId)} title="Remove source"><FaTimes /></button>
+            <span>Level and mute controls are available in the Live Mixer.</span>
+            <button type="button" onClick={() => disconnectMixerChannel(channelId)} title="Disconnect source"><FaTimes /></button>
           </div>
         ) : (
           <button type="button" className="ecbs-connect" onClick={() => channelId === 'media' ? mediaFileInput.current?.click() : connect(channelId)} disabled={Boolean(working)}>
@@ -223,7 +218,7 @@ const CreatorBroadcastAudioSurface = ({ variant = 'setup', onStateChange, showMo
   if (variant === 'monitor') {
     return (
       <section className="ecbs-monitor-card">
-        <header><b>5</b><div><h2>Test Audio &amp; Monitoring</h2><p>Preview the exact final mix listeners will receive.</p></div></header>
+        <header><b>5</b><div><h2>Sound Check &amp; Monitoring</h2><p>Test your inputs and preview what listeners will receive.</p></div></header>
         <div className="ecbs-monitor-actions">
           <button type="button" className={monitoring.enabled ? 'active' : ''} onClick={toggleTestAudio} disabled={working === 'monitor'}><FaHeadphones /> {monitoring.enabled ? 'Stop monitoring' : 'Play test audio'}</button>
           <div><FaHeadphones /><span><strong>Monitoring</strong><small>{monitoring.enabled ? 'Final audience mix is playing.' : 'Use headphones before enabling.'}</small></span><i className={monitoring.enabled ? 'on' : ''} /></div>
@@ -254,22 +249,22 @@ const CreatorBroadcastAudioSurface = ({ variant = 'setup', onStateChange, showMo
   return (
     <div className="ecbs-setup-audio">
       <section className="ecbs-setup-section">
-        <header><b>2</b><div><h2>Audio setup</h2><p>Choose how you want your audio to be processed.</p></div></header>
+        <header><b>2</b><div><h2>Audio Setup &amp; Sound Check</h2><p>Choose how your voice should sound before you go live.</p></div></header>
         <div className="ecbs-audio-modes">
           <button type="button" className={settings.audioMode === 'raw' ? 'active' : ''} onClick={() => updateSetting('audioMode', 'raw')}><FaVolumeUp /><span><strong>Raw Audio</strong><small>Send only your original microphone sound.</small></span>{settings.audioMode === 'raw' && <FaCheck />}</button>
           <button type="button" className={settings.audioMode === 'enhanced' ? 'active' : ''} onClick={() => updateSetting('audioMode', 'enhanced')}><FaVolumeUp /><span><strong>Enhanced Audio</strong><small>Cleaner, clearer and more even voice sound.</small></span>{settings.audioMode === 'enhanced' && <FaCheck />}</button>
         </div>
       </section>
       <section className="ecbs-setup-section">
-        <header><b>3</b><div><h2>Voice tools</h2><p>Enhance your voice with simple tools.</p></div><button type="button" className="ecbs-reset-tools" onClick={resetTools}><FaRedo /> Reset tools</button></header>
+        <header><b>3</b><div><h2>Audio Processing</h2><p>Fine-tune the processing chain that stays active during your broadcast.</p></div><button type="button" className="ecbs-reset-tools" onClick={resetTools}><FaRedo /> Reset tools</button></header>
         <div className="ecbs-tool-grid">{compactTool('noiseReduction', 'Background Noise Removal')}{compactTool('echoRemoval', 'Echo Removal', true)}{compactTool('voiceWarmth', 'Voice Warmth')}{compactTool('voiceClarity', 'Voice Clarity')}{compactTool('deEsser', 'De-esser')}{compactTool('volumeBalance', 'Volume Balance')}{compactTool('protectLoudSounds', 'Protect Loud Sounds', true)}</div>
       </section>
       <section className="ecbs-setup-section">
-        <header><b>4</b><div><h2>Your audio sources</h2><p>Connect microphones and music that form the final studio mix.</p></div></header>
+        <header><b>4</b><div><h2>Audio Sources</h2><p>Connect each source and confirm that it is receiving a signal. Mixing happens after you go live.</p></div></header>
         <div className="ecbs-source-grid">{sourceCards}</div>
       </section>
       {showMonitoring && <section className="ecbs-test-row">
-        <div><b>5</b><span><strong>Test Audio</strong><small>Preview your processed voice before going live.</small></span></div>
+        <div><b>5</b><span><strong>Sound Check</strong><small>Preview your processed voice before going live.</small></span></div>
         <button type="button" className={monitoring.enabled ? 'active' : ''} onClick={toggleTestAudio} disabled={working === 'monitor'}><FaHeadphones /> {monitoring.enabled ? 'Stop test audio' : 'Play test audio'}</button>
         <div><FaHeadphones /><span><strong>Monitoring</strong><small>{monitoring.enabled ? 'You are hearing the final audience mix.' : 'Use headphones to hear what listeners will receive.'}</small></span></div>
       </section>}

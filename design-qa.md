@@ -82,4 +82,96 @@ No actionable P0, P1, or P2 findings remain.
 
 - Swap in the original production microphone/crowd artwork if it becomes available for pixel-identical photography.
 
+## Contextual onboarding extension — QA
+
+- Source visual truth: `/home/okunlola/Downloads/faea8efe-1a83-42e5-93f5-3110d3d24a64.png` (`1331 x 1181`), specifically the account, profile, role, creator setup, and final creator-review compositions.
+- Implementation evidence:
+  - `frontend/design-qa-evidence/onboarding-contextual/creator-ready-desktop-1440x900.png`
+  - `frontend/design-qa-evidence/onboarding-contextual/creator-ready-mobile-390x844.png`
+  - `frontend/design-qa-evidence/onboarding-contextual/creator-ready-comparison.png`
+- Desktop comparison normalized the source’s bottom-right `438 x 580` creator-review panel beside the implementation’s right-side panel from a `1440 x 900` browser capture. The same final state was captured at mobile `390 x 844` CSS pixels (full-page capture: `390 x 1201`).
+
+### Result
+
+- Account retains its interactive microphone waveform hero.
+- Profile uses identity-specific copy and a live profile-preview card that reflects the entered display name, handle, and uploaded image.
+- Role uses distinct headphone-and-microphone artwork, and selected roles now have a blue border, soft glow, and lift state.
+- Creator setup uses a studio-preview hero. Its final state is a mini public creator profile with category, handle, description, topics, follower/broadcast counts, verification checks, and a clear create-space action.
+- Desktop maintains the requested 55/45 split with a 480–560px form panel. On mobile the order is logo, progress, headline, illustration, then form; there is no side-by-side split.
+- Waveform/artwork movement, selected-card feedback, entrance motion, and reduced-motion behavior are present. Existing account creation, profile save, role save, and creator completion service calls remain unchanged.
+
+No actionable P0, P1, or P2 findings remain.
+
+- [P3] The generated role artwork uses a darker, more photographic studio treatment than the flat reference illustration. Its headphones, microphone, blue waveform, and visual placement preserve the requested role distinction without reusing the account hero.
+- [P3] A first-time creator correctly begins at `0 followers` and `0 broadcasts` instead of the illustrative non-zero sample values in the reference.
+
+### Verification
+
+- Changed-source ESLint: passed.
+- Production build: passed.
+- Existing account-to-profile regression at desktop `1440 x 900` and mobile `390 x 844`: passed.
+- New contextual creator journey at desktop `1440 x 900` and mobile `390 x 844`: passed.
+- Auth reference suite across nine desktop, tablet, and mobile projects: passed.
+
+final result: passed
+
+## Listener streaming redesign — QA
+
+### Comparison target
+
+- Source visual truth: `/home/okunlola/.codex/generated_images/01a034ae-78b2-7082-a9ce-76f611bc0ab1/exec-0374c53a-69d0-4ed4-b0a9-468becd09787.png` (`1487 x 1058` pixels), the selected calm listener-home reference.
+- Browser-rendered implementation evidence:
+  - `frontend/design-qa-evidence/listener-streaming/desktop-1440x900-home.png`
+  - `frontend/design-qa-evidence/listener-streaming/mobile-390-home.png`
+- Same-input comparison evidence: `frontend/design-qa-evidence/listener-streaming/desktop-source-vs-implementation.png`.
+- Desktop state: authenticated listener, home route, mock API data, light theme; `1440 x 900` CSS pixels at device scale factor `1` (`1440 x 900` output pixels).
+- Mobile state: authenticated listener, home route; `390 x 844` CSS pixels at device scale factor `1` (`390 x 844` output pixels).
+- Normalization: the selected source is a wider, taller board (`1487 x 1058`); both source and implementation were proportionally fitted into the `1440 x 512` comparison contact sheet. The implementation view retains the existing top search/account controls because routes and authentication logic were explicitly preserved.
+
+### Full-view and focused comparison
+
+- The fixed white navigation rail, calm editorial greeting, dark photographic now-playing surface, blue playback emphasis, pale content canvas, live/replay content, and dark fixed player are present in both images.
+- Focused review covered the navigation/player anchors, now-playing image crop and contrast, hero title/CTA hierarchy, live-card information density, and mobile player/navigation spacing. The media player drawer was also opened and verified for transcript, queue, and share actions.
+
+### Findings and iteration history
+
+1. [P1, fixed] Legacy shell rules made the navigation rail span the full viewport and prevented the main region from scrolling independently.
+   - Fix: added high-specificity listener-only shell rules with a fixed rail, scrollable `#echoo-main-content`, and fixed player geometry.
+   - Post-fix evidence: desktop capture plus shell assertions in `listener-streaming-shell.spec.mjs`.
+2. [P2, fixed] Global text-color rules made now-playing copy nearly unreadable against the generated listening-lounge image.
+   - Fix: scoped white hero type and dark-player foreground tokens; long mock titles are line-clamped.
+   - Post-fix evidence: latest desktop and mobile captures.
+3. [P2, fixed] Mobile waveform overlapped long real-data subtitle content.
+   - Fix: preserve the animated waveform on desktop, hide it on the compact mobile composition, and clamp text safely.
+   - Post-fix evidence: `mobile-390-home.png`.
+
+No actionable P0, P1, or P2 findings remain.
+
+- [P3] The deterministic API fixture has no real cover artwork, so it correctly falls back to the Echoo mark. Production station/broadcast artwork remains data-driven and fills the same media slots.
+- [P3] The selected source’s right-column live list is represented by the existing responsive live-card feed so current live-route navigation and server-backed fields stay intact.
+
+### Required fidelity surfaces
+
+- Fonts and typography: editorial Georgia display text is limited to greetings, section titles, and the playing title; existing Inter-like UI typography remains for navigation, controls, metadata, and forms. Long titles truncate rather than distort layout.
+- Spacing and layout rhythm: desktop has a fixed rail, roomy main canvas, 18px hero radius, balanced hero padding, and a player-safe bottom inset. Mobile stacks content full-width above the fixed compact player and bottom navigation.
+- Colors and tokens: Echoo blue remains the active/action color, pale blue stays in navigation and card surfaces, and deep navy is reserved for the listening surface/player with high-contrast foregrounds.
+- Image quality and asset fidelity: the implementation uses a generated `16:9` listening-lounge raster asset in the hero, matched to the selected calm-chair art direction. Existing data-backed cover images and the official Echoo logo remain real assets; React Icons supply control symbols.
+- Copy and content: greeting and audio/station metadata remain live-data driven; the source’s generic discovery copy is adapted to the existing listener content model without route or backend changes.
+
+### Verification
+
+- Production build: passed.
+- Desktop and mobile streaming-shell test: `4 passed`; confirms desktop fixed sidebar/main scroll/fixed player, mobile rail behavior, and expandable player transcript/queue/share surfaces.
+- Existing critical listener navigation regression: passed at desktop `1440 x 900`.
+- Console/page errors: none in the focused Playwright runs.
+
+### Implementation checklist
+
+- [x] Fixed listener sidebar, fixed bottom player, and independently scrolling main content.
+- [x] Responsive mobile navigation and compact fixed player preserved.
+- [x] Home reframed with personalized now-playing hero, live broadcasts, recommendations, and recent replays.
+- [x] Live, stations, history, and downloads receive the shared premium media-library styling without changing their APIs or routes.
+- [x] Expanded player supports transcript surface, queue selection, and Web Share/clipboard fallback.
+- [x] Desktop waveform has subtle continuous motion with reduced-motion support.
+
 final result: passed
