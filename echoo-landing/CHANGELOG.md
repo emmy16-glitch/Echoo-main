@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Added disabled, in-button newsletter submission feedback with a labelled spinner and `aria-busy` state, so an explicit consent-backed request has clear progress feedback without permitting duplicate submissions.
+- Added decorative, aria-hidden icons to every compact-menu destination and its release action while preserving each link’s existing accessible name, route, overlay, slide-in behavior, and reduced-motion handling.
+- Final validation for this refinement: 17 test files passed with one intentionally skipped inactive-credentials health test (44 passing tests), followed by successful TypeScript checking, production build, and a restarted phone-width landing review.
+
 - Refined the compact phone navigation with a smooth top-sheet slide, a semi-transparent deep-cobalt overlay, focus-preserving dialog semantics, and reduced-motion-safe behavior. Direct public-control coverage verifies the panel and overlay treatment alongside the menu’s labelled trigger and routes.
 - Successful consent-backed newsletter submissions now show an accessible success toast through the existing notification provider. The toast makes no claim that email delivery is active; the double-opt-in delivery flow remains explicitly disabled until valid verified sender credentials are supplied.
 - Final validation for the interaction refinement: 17 test files passed with one credentials-health test intentionally skipped while delivery remains inactive (43 passing tests), followed by successful TypeScript checking, production build, and a restarted phone-width landing review.

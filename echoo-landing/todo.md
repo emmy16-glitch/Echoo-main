@@ -151,3 +151,6 @@
 - [x] Add a compact-menu slide-in animation and semi-transparent overlay that preserve focus management, dismissal behavior, and reduced-motion preferences.
 - [x] Add a clear, accessible success toast when the consent-backed newsletter form submits successfully.
 - [x] Add focused interaction coverage, visually review the responsive menu and toast, then checkpoint and synchronize the refinement to both requested Echoo-main repositories.
+- [x] Add an accessible loading spinner and disabled state to the newsletter submit button while a consent-backed request is processing.
+- [x] Add decorative, aria-hidden visual icons to every compact mobile navigation label without changing its accessible link names or routes.
+- [x] Add focused coverage, review the loading and icon treatment at phone width, then checkpoint and synchronize the update to both requested Echoo-main repositories.

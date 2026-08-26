@@ -5,6 +5,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { buildSocialShareUrl, SOCIAL_SHARE_MESSAGE } from "@/lib/socialShare";
 import { FooterSocialShare } from "./FooterSocialShare";
+import { NewsletterSubmitButton } from "./NewsletterSubmitButton";
 import {
   MOBILE_PUBLIC_MENU_OVERLAY_CLASS,
   MOBILE_PUBLIC_MENU_PANEL_CLASS,
@@ -72,5 +73,19 @@ describe("public navigation and sharing controls", () => {
     expect(linksHtml).toContain('href="/release#downloads"');
     expect(linksHtml).toContain("GET ECHOO");
     expect(linksHtml).toContain("min-h-12");
+    expect(linksHtml).toContain('aria-hidden="true"');
+    expect(linksHtml).toContain("text-[#3B78FF]");
+  });
+
+  it("renders an accessible disabled newsletter control while submission is in progress", () => {
+    const idleHtml = renderToStaticMarkup(createElement(NewsletterSubmitButton, { isSubmitting: false }));
+    const submittingHtml = renderToStaticMarkup(createElement(NewsletterSubmitButton, { isSubmitting: true }));
+
+    expect(idleHtml).toContain("NOTIFY ME");
+    expect(idleHtml).not.toContain("SUBMITTING...");
+    expect(submittingHtml).toContain("disabled");
+    expect(submittingHtml).toContain('aria-busy="true"');
+    expect(submittingHtml).toContain('aria-label="Submitting newsletter subscription"');
+    expect(submittingHtml).toContain("SUBMITTING...");
   });
 });
