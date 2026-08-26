@@ -53,16 +53,20 @@ const formatDb = (value) => {
 
 const SOURCE_COPY = Object.freeze({
   host: {
-    helper: 'Your main microphone',
-    empty: 'Connect the microphone you will speak through.',
+    helper: 'Host microphone input',
+    empty: 'Connect a host microphone.',
   },
   guest: {
-    helper: 'Second microphone or guest input',
-    empty: 'Connect a second mic only when you need it.',
+    helper: 'Guest microphone input',
+    empty: 'Connect a guest microphone when needed.',
   },
   media: {
-    helper: 'Music and sound from your computer',
-    empty: 'Choose a browser tab or window, then enable Share audio.',
+    helper: 'Music and FX source',
+    empty: 'Add music or an FX source.',
+  },
+  screen: {
+    helper: 'Audio from a shared screen or browser tab',
+    empty: 'No screen or tab audio is being shared.',
   },
 });
 
@@ -158,8 +162,11 @@ const parentStateSignature = (snapshot = {}) => [
   snapshot.monitoring?.enabled ? '1' : '0',
 ].join('|');
 
-const CreatorAudioMixer = ({ compact = false, onStateChange }) => {
-  const [mixer, setMixer] = useState(() => getEchooMixerState());
+const CreatorAudioMixer = ({ compact = false, sessionState = null, onStateChange }) => {
+  // The pre-live Sound Check and Live Mixer share this exact snapshot. Browser
+  // tracks remain owned by echooMixerService, so entering live never asks the
+  // creator to choose or reconnect a source a second time.
+  const [mixer, setMixer] = useState(() => sessionState || getEchooMixerState());
   const [inputs, setInputs] = useState([]);
   const [outputs, setOutputs] = useState([]);
   const [hostDeviceId, setHostDeviceId] = useState('');
@@ -169,6 +176,7 @@ const CreatorAudioMixer = ({ compact = false, onStateChange }) => {
   const [monitorWorking, setMonitorWorking] = useState(false);
   const [testingOutput, setTestingOutput] = useState(false);
   const [testingAudio, setTestingAudio] = useState(false);
+  const [advancedProcessingOpen, setAdvancedProcessingOpen] = useState(false);
   const [audioSettings, setAudioSettings] = useState(getCachedCreatorAudioSettings);
   const [qualitySummary, setQualitySummary] = useState({});
   const [error, setError] = useState('');
@@ -449,11 +457,14 @@ const CreatorAudioMixer = ({ compact = false, onStateChange }) => {
           </div>
         </div>
 
-        <p className="eam-source-purpose">{copy.helper}</p>
-        <small className="eam-source-device">
-          {channel.connected ? channel.sourceLabel : copy.empty}
-        </small>
-        {channelId === 'media' && !channel.connected && (
+        {!compact && <>
+          <p className="eam-source-purpose">{copy.helper}</p>
+          <small className="eam-source-device">
+            {channel.connected ? channel.sourceLabel : copy.empty}
+          </small>
+        </>}
+        {compact && <small className="eam-live-source-summary">{channel.connected ? channel.sourceLabel : 'Connect a source to add it to the live mix.'}</small>}
+        {!compact && channelId === 'media' && !channel.connected && (
           <small className="eam-source-tip">
             In the browser picker, select a tab or window and turn on Share audio before confirming.
           </small>
@@ -478,83 +489,85 @@ const CreatorAudioMixer = ({ compact = false, onStateChange }) => {
           </select>
         )}
 
-        <div className="eam-level-control">
-          <div className="eam-control-label">
-            <span>Level</span>
-            <strong>{formatDb(faderDb)}</strong>
+        <div className={compact ? 'eam-live-channel-body' : ''}>
+          <div className="eam-level-control">
+            <div className="eam-control-label">
+              <span>{compact ? 'Channel level' : 'Level'}</span>
+              <strong>{formatDb(faderDb)}</strong>
+            </div>
+            <input
+              type="range"
+              min={ECHOO_MIXER_LIMITS.minDb}
+              max={ECHOO_MIXER_LIMITS.maxChannelDb}
+              step="0.5"
+              value={faderDb}
+              disabled={!channel.connected}
+              onChange={(event) => setMixerChannelGainDb(channelId, event.target.value)}
+              onDoubleClick={() => setMixerChannelGainDb(channelId, 0)}
+              aria-label={`${channel.name} level`}
+            />
           </div>
-          <input
-            type="range"
-            min={ECHOO_MIXER_LIMITS.minDb}
-            max={ECHOO_MIXER_LIMITS.maxChannelDb}
-            step="0.5"
-            value={faderDb}
-            disabled={!channel.connected}
-            onChange={(event) => setMixerChannelGainDb(channelId, event.target.value)}
-            onDoubleClick={() => setMixerChannelGainDb(channelId, 0)}
-            aria-label={`${channel.name} level`}
-          />
-        </div>
 
-        <LevelMeter connected={channel.connected} level={channel.level} peakDb={channel.peakDb} />
+          <LevelMeter connected={channel.connected} level={channel.level} peakDb={channel.peakDb} />
 
-        {channel.connected && (channelId === 'host' || channelId === 'guest') && (
-          <div className="eam-quality-chip">
-            <FaCheckCircle /> {audioSettings.audioMode === 'raw' ? 'Raw audio' : 'Enhanced audio'}
+          {!compact && channel.connected && (channelId === 'host' || channelId === 'guest') && (
+            <div className="eam-quality-chip">
+              <FaCheckCircle /> {audioSettings.audioMode === 'raw' ? 'Raw audio' : 'Enhanced audio'}
+            </div>
+          )}
+          {!compact && summary && channel.connected && channelId === 'media' && (
+            <div className="eam-quality-chip">
+              <FaCheckCircle /> {audioQualityLabel(summary)}
+            </div>
+          )}
+
+          <div className="eam-source-actions">
+            <button
+              type="button"
+              className={channel.muted ? 'active mute' : ''}
+              onClick={() => toggleMixerChannelMute(channelId)}
+              disabled={!channel.connected}
+              aria-pressed={channel.muted}
+            >
+              <FaVolumeMute /> {channel.muted ? 'Muted' : 'Mute'}
+            </button>
+            <button
+              type="button"
+              className={`listen-only ${channel.solo ? 'active' : ''}`}
+              onClick={() => handleListenOnly(channelId)}
+              disabled={!channel.connected || monitorWorking}
+              aria-pressed={Boolean(channel.solo)}
+              title="Headphones only — this never changes the audience mix"
+            >
+              <FaHeadphones /> {channel.solo ? 'Listening' : 'Listen only'}
+            </button>
+            <button
+              type="button"
+              className="primary source-connect"
+              disabled={isWorking}
+              onClick={() => {
+                if (channel.connected) {
+                  if (channel.solo) toggleMixerChannelSolo(channelId);
+                  disconnectMixerChannel(channelId);
+                  return;
+                }
+                if (channelId === 'host') connectHost();
+                else if (channelId === 'guest') connectGuest();
+                else connectMedia();
+              }}
+            >
+              <FaPlug />
+              {isWorking
+                ? 'Connecting...'
+                : channel.connected
+                  ? 'Disconnect'
+                  : channelId === 'media'
+                    ? 'Share audio'
+                    : channelId === 'guest'
+                      ? 'Connect guest'
+                      : 'Connect mic'}
+            </button>
           </div>
-        )}
-        {summary && channel.connected && channelId === 'media' && (
-          <div className="eam-quality-chip">
-            <FaCheckCircle /> {audioQualityLabel(summary)}
-          </div>
-        )}
-
-        <div className="eam-source-actions">
-          <button
-            type="button"
-            className={channel.muted ? 'active mute' : ''}
-            onClick={() => toggleMixerChannelMute(channelId)}
-            disabled={!channel.connected}
-            aria-pressed={channel.muted}
-          >
-            <FaVolumeMute /> {channel.muted ? 'Muted' : 'Mute'}
-          </button>
-          <button
-            type="button"
-            className={`listen-only ${channel.solo ? 'active' : ''}`}
-            onClick={() => handleListenOnly(channelId)}
-            disabled={!channel.connected || monitorWorking}
-            aria-pressed={Boolean(channel.solo)}
-            title="Headphones only — this never changes the audience mix"
-          >
-            <FaHeadphones /> {channel.solo ? 'Listening' : 'Listen only'}
-          </button>
-          <button
-            type="button"
-            className="primary source-connect"
-            disabled={isWorking}
-            onClick={() => {
-              if (channel.connected) {
-                if (channel.solo) toggleMixerChannelSolo(channelId);
-                disconnectMixerChannel(channelId);
-                return;
-              }
-              if (channelId === 'host') connectHost();
-              else if (channelId === 'guest') connectGuest();
-              else connectMedia();
-            }}
-          >
-            <FaPlug />
-            {isWorking
-              ? 'Connecting...'
-              : channel.connected
-                ? 'Disconnect'
-                : channelId === 'media'
-                  ? 'Share audio'
-                  : channelId === 'guest'
-                    ? 'Connect guest'
-                    : 'Connect mic'}
-          </button>
         </div>
       </article>
     );
@@ -568,8 +581,8 @@ const CreatorAudioMixer = ({ compact = false, onStateChange }) => {
     if (!host?.connected || !media?.connected) {
       return {
         tone: 'neutral',
-        title: 'Build your mix one source at a time',
-        copy: 'Connect your microphone first, then add music only when you need it.',
+        title: 'Set up your sources',
+        copy: 'Connect a microphone first, then add music only when you need it.',
       };
     }
 
@@ -608,18 +621,24 @@ const CreatorAudioMixer = ({ compact = false, onStateChange }) => {
   }, [channels.host, channels.media]);
 
   return (
-    <section className={`eam ${compact ? 'compact' : ''}`}>
+    <section className={`eam ${compact ? 'compact eam-live-mixer' : ''}`}>
       <div className="eam-heading">
         <div>
-          <span>BROADCAST AUDIO</span>
-          <h2>Studio Mixer</h2>
-          <p>Simple controls for the exact sound your audience receives.</p>
+          <span>{compact ? 'LIVE' : 'AUDIO'}</span>
+          <h2>{compact ? 'Live Mixer' : 'Studio Mixer'}</h2>
+          <p>{compact ? 'Control what your listeners hear right now.' : 'Simple controls for the exact sound your audience receives.'}</p>
         </div>
         <button type="button" className="eam-reset" onClick={resetEchooMixer}>
           <FaRedo /> Reset mix
         </button>
       </div>
 
+      {compact && <button type="button" className="eam-advanced-toggle" onClick={() => setAdvancedProcessingOpen((open) => !open)} aria-expanded={advancedProcessingOpen}>
+        <span><strong>Audio Processing</strong><small>Your Sound Check settings are active in this live mix.</small></span>
+        {advancedProcessingOpen ? 'Hide settings' : 'Adjust settings'}
+      </button>}
+
+      {(!compact || advancedProcessingOpen) && <>
       <section className="eam-profile" aria-label="Audio mode">
         <div>
           <strong>Audio mode</strong>
@@ -711,6 +730,14 @@ const CreatorAudioMixer = ({ compact = false, onStateChange }) => {
               onChange={(value) => updateAudioSetting('voiceClarity', value)}
             />
             <ProcessingSlider
+              title="De-esser"
+              description="Softens sharp S and T sounds without dulling your voice."
+              tooltip="Reduces harsh high-frequency consonants in the same voice-processing chain used before and during your broadcast."
+              value={audioSettings.deEsser}
+              disabled={audioSettings.audioMode === 'raw'}
+              onChange={(value) => updateAudioSetting('deEsser', value)}
+            />
+            <ProcessingSlider
               title="Volume Balance"
               description="Keeps your voice from becoming too quiet or suddenly too loud."
               tooltip="Smooths large changes in speaking volume while keeping your voice expressive."
@@ -750,28 +777,46 @@ const CreatorAudioMixer = ({ compact = false, onStateChange }) => {
           </button>
         </div>
       </section>
+      </>}
 
       {error && <div className="eam-error" role="alert"><FaExclamationTriangle /> {error}</div>}
 
       <div className="eam-workspace">
-        <div className="eam-sources">
+        <section className="eam-sources" aria-labelledby="live-audio-sources-title">
+          <header className="eam-live-section-heading">
+            <span aria-hidden="true" />
+            <div><h3 id="live-audio-sources-title">Audio Sources</h3><p>Adjust the channels that are in your live audience mix.</p></div>
+          </header>
           <div className="eam-source-grid">
             {renderChannel('host', <FaMicrophone />)}
             {renderChannel('guest', <FaMicrophone />)}
             {renderChannel('media', <FaDesktop />)}
+            {channels.screen?.connected && renderChannel('screen', <FaDesktop />)}
           </div>
 
-          <div className={`eam-guidance ${balanceAdvice.tone}`}>
-            <span>{balanceAdvice.tone === 'good' ? <FaCheckCircle /> : <FaVolumeUp />}</span>
-            <div><strong>{balanceAdvice.title}</strong><p>{balanceAdvice.copy}</p></div>
-          </div>
-        </div>
+          {compact ? (
+            <div className="eam-live-mix-status">
+              <span><FaCheckCircle /></span>
+              <div>
+                <strong>Live mix status</strong>
+                <p>{Object.values(channels).some((channel) => channel?.connected)
+                  ? 'Your Sound Check sources are ready for live control.'
+                  : 'No sources are connected. Return to Sound Check to add one.'}</p>
+              </div>
+            </div>
+          ) : (
+            <div className={`eam-guidance ${balanceAdvice.tone}`}>
+              <span>{balanceAdvice.tone === 'good' ? <FaCheckCircle /> : <FaVolumeUp />}</span>
+              <div><strong>{balanceAdvice.title}</strong><p>{balanceAdvice.copy}</p></div>
+            </div>
+          )}
+        </section>
 
         <aside className="eam-output-column">
           <section className="eam-output-card monitor" aria-label="Headphones and monitoring">
             <div className="eam-output-head">
               <span><FaHeadphones /></span>
-              <div><strong>Headphones / Monitor</strong><small>What you hear</small></div>
+              <div><h3>Monitoring</h3><small>What you hear</small></div>
             </div>
             <p className="eam-output-explainer">
               This does not change what your audience hears. Use it to listen privately while setting your mix.
@@ -826,7 +871,7 @@ const CreatorAudioMixer = ({ compact = false, onStateChange }) => {
           <section className="eam-output-card audience" aria-label="Audience output">
             <div className="eam-output-head">
               <span><FaVolumeUp /></span>
-              <div><strong>Audience Output</strong><small>What your listeners hear</small></div>
+              <div><h3>Audience Output</h3><small>What your listeners hear</small></div>
             </div>
             <p className="eam-output-explainer">This is the final mix Echoo sends to listeners, recording, and live transcription.</p>
 

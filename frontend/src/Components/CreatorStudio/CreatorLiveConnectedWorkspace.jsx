@@ -26,6 +26,7 @@ import batch3Service from '../../services/batch3Service';
 import {
   getEchooMixerOutputTrack,
   getEchooMixerState,
+  getMixerChannelTrack,
   ensureHostInput,
   resetEchooMixer,
   setMasterMuted,
@@ -120,12 +121,16 @@ const buildAudioSnapshot = (state) => {
       return {
         type,
         status: source.connected ? (source.muted ? 'muted' : 'active') : 'inactive',
-        label: source.label || fallbackLabel,
+        label: source.sourceLabel || fallbackLabel,
         gain: Math.max(0, Math.min(1.5, Number(source.gain) || 0)),
       };
     }),
   };
 };
+
+const getValidAudioSourceIds = (state) => ['host', 'guest', 'media', 'screen'].filter(
+  (channelId) => state?.channels?.[channelId]?.connected && Boolean(getMixerChannelTrack(channelId))
+);
 
 const CreatorLiveConnectedWorkspace = ({
   studioName = 'Creator',
@@ -425,13 +430,9 @@ const CreatorLiveConnectedWorkspace = ({
     [broadcasts]
   );
 
-  const microphoneReady = Boolean(mixerState?.channels?.host?.connected);
-  const audioSourceReady = Boolean(
-    mixerState?.channels?.host?.connected ||
-    mixerState?.channels?.guest?.connected ||
-    mixerState?.channels?.media?.connected ||
-    mixerState?.channels?.screen?.connected
-  );
+  const validAudioSourceIds = getValidAudioSourceIds(mixerState);
+  const microphoneReady = validAudioSourceIds.includes('host');
+  const audioSourceReady = validAudioSourceIds.length > 0;
   const formReady = Boolean(stationId && title.trim());
   const setupReady = formReady && audioSourceReady;
 
@@ -473,8 +474,8 @@ const CreatorLiveConnectedWorkspace = ({
     setError('');
   };
 
-  const prepareImmediateBroadcast = async () => {
-    const audioSnapshot = buildAudioSnapshot(getEchooMixerState());
+  const prepareImmediateBroadcast = async (mixerSnapshot = getEchooMixerState()) => {
+    const audioSnapshot = buildAudioSnapshot(mixerSnapshot);
     if (savedBroadcast?.id && savedBroadcast.status !== 'live') {
       try {
         const response = await batch2Service.updateBroadcast(savedBroadcast.id, {
@@ -557,7 +558,9 @@ const CreatorLiveConnectedWorkspace = ({
   const goLive = async () => {
     if (goingLive || currentLiveBroadcast) return;
     if (!formReady) return setError('Choose a station and add a broadcast title.');
-    if (!audioSourceReady) return setError('Connect at least one audio source before going live.');
+    const liveMixerSnapshot = getEchooMixerState();
+    const liveSourceIds = getValidAudioSourceIds(liveMixerSnapshot);
+    if (!liveSourceIds.length) return setError('Connect a microphone, music source, or shared tab with a live audio signal before going live.');
 
     const mediaTrack = getEchooMixerOutputTrack();
     if (!mediaTrack) return setError('The studio mixer output is not ready.');
@@ -569,8 +572,12 @@ const CreatorLiveConnectedWorkspace = ({
       setGoingLive(true);
       setError('');
       setMessage('Opening your live room...');
+      // This snapshot is the same singleton state used by the Live Mixer. Keep
+      // it at the workspace boundary so the live surface hydrates immediately
+      // with the selected devices, sources, processing and monitoring state.
+      setMixerState(liveMixerSnapshot);
 
-      broadcast = await prepareImmediateBroadcast();
+      broadcast = await prepareImmediateBroadcast(liveMixerSnapshot);
 
       let connection = null;
       if (broadcast.status === 'starting') {
@@ -945,7 +952,7 @@ const CreatorLiveConnectedWorkspace = ({
         </section>
 
         <div className="ecbs-live-grid">
-          <main><CreatorAudioMixer compact onStateChange={setMixerState} /></main>
+          <main><CreatorAudioMixer compact sessionState={mixerState} onStateChange={setMixerState} /></main>
           <aside><CreatorLiveChatPanel broadcastId={currentLiveBroadcast.id} listenerCount={presence.listenerCount} /><CreatorLiveInsights broadcastId={currentLiveBroadcast.id} presence={presence} onOpenAnalytics={() => onNavigate?.('Analytics')} /></aside>
         </div>
         {endConfirmationOpen && <div className="ecbs-end-dialog" role="presentation" onMouseDown={() => setEndConfirmationOpen(false)}>
@@ -963,7 +970,7 @@ const CreatorLiveConnectedWorkspace = ({
   return (
     <section className="ebsx setup-page">
       <header className="ebsx-setup-header ecbs-setup-title">
-        <div><span>BROADCAST STUDIO</span><h1>Get ready to <strong>go live</strong></h1><p>You&apos;re almost live. Complete the steps to share your voice with the world.</p></div>
+        <div><h1>Get ready to <strong>go live</strong></h1><p>Set up your audio and check everything before starting your broadcast.</p></div>
         <div><button type="button" onClick={saveDraft} disabled={saving}><FaSave /> {saving ? 'Saving...' : 'Save draft'}</button><button type="button" onClick={resetSetup}><FaClock /> Reset setup</button></div>
       </header>
 

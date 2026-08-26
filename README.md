@@ -44,6 +44,18 @@ LiveKit Egress and OvenMediaEngine are not required by the current direct LiveKi
 
 Create frontend/backend environment files from their checked-in examples. Never commit real secrets.
 
+The canonical web client contains both Listener and Creator experiences. Run it
+from the frontend directory and use the fixed development URL:
+
+```bash
+cd /home/Software_projects/echoo2.0/echoo-github-main/frontend
+npm run dev
+```
+
+Open `http://localhost:5174`. The Vite server uses `strictPort: true`, so a
+port conflict fails clearly instead of silently switching ports. The sibling
+`../../echoo` frontend is legacy source and is not the current UI target.
+
 Useful backend health endpoints:
 
 - `/api/health` — liveness

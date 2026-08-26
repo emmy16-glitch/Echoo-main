@@ -275,7 +275,7 @@
 }
 
 #root .studio-final-shell .ebsx.live-page .ebsx-live-side > .eam,
-#root .studio-final-shell .ebsx.live-page .eam.compact {
+#root .studio-final-shell .ebsx.live-page .eam.compact:not(.eam-live-mixer) {
   grid-column: auto !important;
   grid-row: auto !important;
   min-height: 0 !important;

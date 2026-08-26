@@ -1,26 +1,23 @@
-/* Creator Studio viewport lock.
-   Desktop/tablet chrome stays anchored to the viewport: only the workspace scrolls.
-   This keeps the sidebar profile, collapse control, search bar and top profile static. */
+/* Creator Studio desktop/tablet shell.
+   The document scrolls while the sidebar remains anchored to the viewport. */
 
 @media (min-width: 761px) {
   html body #root #echoo-main-content > .studio-page.studio-final-shell {
-    height: 100vh !important;
-    height: 100dvh !important;
-    min-height: 0 !important;
-    max-height: 100dvh !important;
-    align-items: stretch !important;
-    overflow: hidden !important;
-    overscroll-behavior: none;
+    height: auto !important;
+    min-height: 100dvh !important;
+    max-height: none !important;
+    align-items: start !important;
+    overflow: visible !important;
   }
 
   html body #root #echoo-main-content > .studio-page.studio-final-shell > .studio-sidebar {
-    position: relative !important;
+    position: sticky !important;
     inset: auto !important;
-    top: auto !important;
-    height: 100vh !important;
+    top: 0 !important;
     height: 100dvh !important;
-    min-height: 0 !important;
-    max-height: 100dvh !important;
+    min-height: 100dvh !important;
+    max-height: none !important;
+    align-self: start !important;
     overflow: hidden !important;
   }
 
@@ -43,14 +40,10 @@
   html body #root #echoo-main-content > .studio-page.studio-final-shell > .studio-main {
     position: relative !important;
     inset: auto !important;
-    height: 100vh !important;
-    height: 100dvh !important;
-    min-height: 0 !important;
-    max-height: 100dvh !important;
-    overflow-x: hidden !important;
-    overflow-y: auto !important;
-    overscroll-behavior: contain;
-    scrollbar-gutter: stable;
+    height: auto !important;
+    min-height: 100dvh !important;
+    max-height: none !important;
+    overflow: visible !important;
   }
 
   html body #root #echoo-main-content > .studio-page.studio-final-shell > .studio-main > .studio-topbar-final {
