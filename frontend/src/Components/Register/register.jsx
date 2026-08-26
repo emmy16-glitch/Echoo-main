@@ -207,9 +207,10 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
 
       if (action === "Sign Up") {
         const isNetworkError = error?.message?.toLowerCase() === "failed to fetch";
+        const isServiceUnavailable = [502, 503, 504].includes(error?.status);
         setSignupError(
-          isNetworkError
-            ? "We couldn't reach the Echoo account service. Please check your connection and try again."
+          isNetworkError || isServiceUnavailable
+            ? "The Echoo account service is temporarily unavailable. Please try again in a moment."
             : error?.message || "We couldn't create your account. Please try again."
         );
         return;
