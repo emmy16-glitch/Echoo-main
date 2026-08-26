@@ -44,6 +44,21 @@ LiveKit Egress and OvenMediaEngine are not required by the current direct LiveKi
 
 Create frontend/backend environment files from their checked-in examples. Never commit real secrets.
 
+### Landing site source
+
+The public marketing and release site is intentionally maintained in a **separate private repository** so it can evolve without being embedded in the live-audio application source. Clone it beside this repository when you want to run or redesign the landing site locally on Ubuntu:
+
+```bash
+cd ~/Projects
+git clone https://github.com/effiukp/Echoo-landing.git echoo-landing
+cd echoo-landing
+corepack enable
+pnpm install
+pnpm dev:design
+```
+
+Open the local URL printed by the command, normally `http://localhost:5173`. See [`LOCAL_DESIGN.md`](https://github.com/effiukp/Echoo-landing/blob/main/LOCAL_DESIGN.md) in the landing repository for page entry points and design guidance. The landing source uses its own repository; do not expect an `echoo-landing/` directory inside `Echoo-main`.
+
 Useful backend health endpoints:
 
 - `/api/health` — liveness
