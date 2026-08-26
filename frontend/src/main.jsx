@@ -57,6 +57,10 @@ import "./styles/playwright-run7-final-gate-fixes.css";
 import "./styles/echoo-artwork-fit.css";
 import "./Components/Register/auth-reference.css";
 
+// Canonical tokens and document-level typography load after legacy layers.
+// Component-level consolidation proceeds in controlled stages from this base.
+import "./theme/EchooVibeCurbFoundation.css";
+
 initializeEchooTheme();
 
 // Older builds used this as a persistent transcript-processing selector. It is

@@ -1,0 +1,185 @@
+/*
+ * ECHOO visual foundation
+ *
+ * This is the single canonical vocabulary for the redesign. It is intentionally
+ * limited to tokens, document typography and accessibility-safe global states.
+ * Component geometry stays in its existing owner until its controlled stage.
+ */
+
+:root {
+  /* Semantic color system */
+  --echoo-bg: #f5f8fc;
+  --echoo-bg-soft: #eef4fa;
+  --echoo-surface: #ffffff;
+  --echoo-surface-raised: #fbfdff;
+  --echoo-surface-soft: #f7faff;
+  --echoo-text: #15243d;
+  --echoo-text-secondary: #52627a;
+  --echoo-text-muted: #77859a;
+  --echoo-text-h: var(--echoo-text);
+  --echoo-text-strong: var(--echoo-text);
+  --echoo-text-soft: var(--echoo-text-secondary);
+  --echoo-border: #dfe7f1;
+  --echoo-border-strong: #c8d5e5;
+  --echoo-accent: #1769d3;
+  --echoo-accent-hover: #125fbe;
+  --echoo-accent-soft: #eaf3ff;
+  --echoo-accent-border: #bdd6fb;
+  --echoo-blue: var(--echoo-accent);
+  --echoo-blue-hover: var(--echoo-accent-hover);
+  --echoo-blue-soft: var(--echoo-accent-soft);
+  --echoo-blue-border: var(--echoo-accent-border);
+  --echoo-success: #187451;
+  --echoo-warning: #a86612;
+  --echoo-danger: #c43f48;
+  --echoo-live: #dc4650;
+
+  /* Compatibility aliases. New shared UI should use the semantic names above. */
+  --text: var(--echoo-text-secondary);
+  --text-h: var(--echoo-text);
+  --text-soft: var(--echoo-text-secondary);
+  --text-muted: var(--echoo-text-muted);
+  --bg: var(--echoo-bg);
+  --surface: var(--echoo-surface);
+  --border: var(--echoo-border);
+  --border-strong: var(--echoo-border-strong);
+  --accent: var(--echoo-accent);
+  --accent-hover: var(--echoo-accent-hover);
+  --accent-bg: var(--echoo-accent-soft);
+  --accent-border: var(--echoo-accent-border);
+
+  /* Typography */
+  --echoo-font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --echoo-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --echoo-sans: var(--echoo-font-sans);
+  --echoo-mono: var(--echoo-font-mono);
+  --sans: var(--echoo-font-sans);
+  --heading: var(--echoo-font-sans);
+  --mono: var(--echoo-font-mono);
+  --echoo-type-display-size: clamp(2.25rem, 3.8vw, 4rem);
+  --echoo-type-display-line: 0.98;
+  --echoo-type-display-weight: 720;
+  --echoo-type-display-tracking: -0.045em;
+  --echoo-type-h1-size: clamp(1.875rem, 2.7vw, 3rem);
+  --echoo-type-h1-line: 1.05;
+  --echoo-type-h1-weight: 700;
+  --echoo-type-h1-tracking: -0.035em;
+  --echoo-type-h2-size: clamp(1.375rem, 1.8vw, 1.75rem);
+  --echoo-type-h2-line: 1.16;
+  --echoo-type-h2-weight: 700;
+  --echoo-type-h2-tracking: -0.025em;
+  --echoo-type-h3-size: 1.0625rem;
+  --echoo-type-h3-line: 1.32;
+  --echoo-type-h3-weight: 680;
+  --echoo-type-h3-tracking: -0.012em;
+  --echoo-type-body-size: 1rem;
+  --echoo-type-body-line: 1.55;
+  --echoo-type-body-weight: 400;
+  --echoo-type-small-size: 0.875rem;
+  --echoo-type-small-line: 1.42;
+  --echoo-type-small-weight: 560;
+  --echoo-type-caption-size: 0.8125rem;
+  --echoo-type-caption-line: 1.42;
+  --echoo-type-caption-weight: 560;
+
+  /* Scale, depth and shell dimensions */
+  --echoo-space-0: 0;
+  --echoo-space-1: 0.25rem;
+  --echoo-space-2: 0.5rem;
+  --echoo-space-3: 0.75rem;
+  --echoo-space-4: 1rem;
+  --echoo-space-5: 1.25rem;
+  --echoo-space-6: 1.5rem;
+  --echoo-space-8: 2rem;
+  --echoo-space-10: 2.5rem;
+  --echoo-space-12: 3rem;
+  --echoo-space-16: 4rem;
+  --echoo-space-20: 5rem;
+  --echoo-space-28: 7rem;
+  --echoo-page-padding-x: clamp(1rem, 2.2vw, 2rem);
+  --echoo-page-padding-y: clamp(1.25rem, 2.2vw, 2rem);
+  --echoo-card-gap: 1rem;
+  --echoo-section-gap: clamp(2rem, 3.2vw, 3rem);
+  --echoo-radius-xs: 0.375rem;
+  --echoo-radius-sm: 0.5rem;
+  --echoo-radius-md: 0.75rem;
+  --echoo-radius-lg: 1rem;
+  --echoo-radius-xl: 1rem;
+  --echoo-radius-2xl: 1rem;
+  --echoo-radius-pill: 999px;
+  --echoo-shadow-xs: 0 1px 2px rgba(25, 49, 86, 0.04);
+  --echoo-shadow-sm: 0 5px 16px rgba(25, 49, 86, 0.06);
+  --echoo-shadow-md: 0 14px 32px rgba(25, 49, 86, 0.1);
+  --echoo-shadow-lg: 0 24px 52px rgba(25, 49, 86, 0.13);
+  --echoo-control-height: 2.75rem;
+  --echoo-control-height-compact: 2.5rem;
+
+  /* Surgical motion palette. Motion usage itself is deferred to Stage 11. */
+  --echoo-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --echoo-ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --echoo-ease-snap: cubic-bezier(0.22, 1, 0.36, 1);
+  --echoo-duration-fast: 140ms;
+  --echoo-duration-standard: 220ms;
+  --echoo-duration-slow: 360ms;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  font-family: var(--echoo-font-sans);
+  font-size: var(--echoo-type-body-size);
+  font-weight: var(--echoo-type-body-weight);
+  line-height: var(--echoo-type-body-line);
+  letter-spacing: 0;
+  color: var(--echoo-text-secondary);
+  background: var(--echoo-bg);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--echoo-font-sans);
+  color: var(--echoo-text);
+  text-wrap: balance;
+}
+
+h1 {
+  font-size: var(--echoo-type-h1-size);
+  font-weight: var(--echoo-type-h1-weight);
+  line-height: var(--echoo-type-h1-line);
+  letter-spacing: var(--echoo-type-h1-tracking);
+}
+
+h2 {
+  font-size: var(--echoo-type-h2-size);
+  font-weight: var(--echoo-type-h2-weight);
+  line-height: var(--echoo-type-h2-line);
+  letter-spacing: var(--echoo-type-h2-tracking);
+}
+
+h3 {
+  font-size: var(--echoo-type-h3-size);
+  font-weight: var(--echoo-type-h3-weight);
+  line-height: var(--echoo-type-h3-line);
+  letter-spacing: var(--echoo-type-h3-tracking);
+}
+
+:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--echoo-accent) 45%, transparent);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+  }
+}
