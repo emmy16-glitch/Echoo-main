@@ -3,7 +3,7 @@ import Broadcast from '../models/Broadcast.js';
 import TranscriptSegment from '../models/TranscriptSegment.js';
 import TranscriptSession from '../models/TranscriptSession.js';
 import { env } from '../config/env.js';
-import { createGeminiLiveEphemeralToken } from '../services/transcription/geminiService.js';
+import { createGeminiLiveEphemeralToken, getGeminiDiagnostics } from '../services/transcription/geminiService.js';
 
 const PROVIDERS = new Set(['parakeet', 'gemini-live']);
 
@@ -31,6 +31,24 @@ const requireOwnedLiveBroadcast = async (broadcastId, userId) => {
 const providerModel = (provider) => provider === 'gemini-live'
   ? env.geminiLiveModel
   : 'parakeet-tdt-0.6b-v3';
+
+export async function getTranscriptionProviderReadiness(req, res) {
+  const gemini = getGeminiDiagnostics();
+  return res.status(200).json({
+    data: {
+      parakeetEnabled: true,
+      geminiLiveEnabled: gemini.liveEnabled,
+      geminiQualityEnabled: gemini.qualityEnabled,
+      whisperFallbackEnabled: Boolean(env.whisperFlowUrl),
+      gemini: {
+        configured: gemini.configured,
+        liveEnabled: gemini.liveEnabled,
+        qualityEnabled: gemini.qualityEnabled,
+      },
+    },
+    timestamp: new Date().toISOString(),
+  });
+}
 
 export async function createProviderTranscriptSession(req, res, next) {
   try {
@@ -118,6 +136,7 @@ export async function createGeminiLiveToken(req, res, next) {
 }
 
 export default {
+  getTranscriptionProviderReadiness,
   createProviderTranscriptSession,
   flushProviderTranscriptSession,
   createGeminiLiveToken,
