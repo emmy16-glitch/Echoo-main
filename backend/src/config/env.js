@@ -24,6 +24,17 @@ function parseList(value = '') {
     .filter(Boolean);
 }
 
+function parseBoolean(value, fallback = false) {
+  if (value === undefined || value === null || value === '') return fallback;
+  return ['1', 'true', 'yes', 'on'].includes(String(value).trim().toLowerCase());
+}
+
+function parseBoundedInt(value, fallback, min, max) {
+  const parsed = Number.parseInt(value ?? fallback, 10);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(min, Math.min(max, parsed));
+}
+
 const nodeEnv = process.env.NODE_ENV || 'development';
 
 if (nodeEnv === 'production') {
@@ -66,6 +77,10 @@ if (nodeEnv === 'production') {
   if (whisperQualityFlowUrl && !process.env.WHISPER_QUALITY_FLOW_API_KEY?.trim() && !process.env.WHISPER_FLOW_API_KEY?.trim()) {
     throw new Error('WHISPER_QUALITY_FLOW_API_KEY or WHISPER_FLOW_API_KEY is required when the quality provider is enabled.');
   }
+  const geminiEnabled = parseBoolean(process.env.GEMINI_LIVE_ENABLED) || parseBoolean(process.env.GEMINI_QUALITY_ENABLED);
+  if (geminiEnabled && !process.env.GEMINI_API_KEY?.trim()) {
+    throw new Error('GEMINI_API_KEY is required when a Gemini transcription provider is enabled.');
+  }
 }
 
 const configuredClientOrigins = parseList(
@@ -100,4 +115,11 @@ export const env = Object.freeze({
   whisperQualityModel: String(process.env.WHISPER_QUALITY_MODEL || process.env.WHISPER_MODEL || 'faster-whisper-large-v3-turbo').trim(),
   whisperModel: String(process.env.WHISPER_MODEL || 'faster-whisper-large-v3-turbo').trim(),
   whisperLanguage: String(process.env.WHISPER_LANGUAGE || 'en').trim(),
+  geminiApiKey: String(process.env.GEMINI_API_KEY || '').trim(),
+  geminiLiveEnabled: parseBoolean(process.env.GEMINI_LIVE_ENABLED, false),
+  geminiQualityEnabled: parseBoolean(process.env.GEMINI_QUALITY_ENABLED, false),
+  geminiLiveModel: String(process.env.GEMINI_LIVE_MODEL || 'gemini-3.5-transcribe-live').trim(),
+  geminiTranscribeModel: String(process.env.GEMINI_TRANSCRIBE_MODEL || 'gemini-3.5-transcribe').trim(),
+  geminiLiveRotateSeconds: parseBoundedInt(process.env.GEMINI_LIVE_ROTATE_SECONDS, 560, 30, 590),
+  geminiLiveOverlapSeconds: parseBoundedInt(process.env.GEMINI_LIVE_OVERLAP_SECONDS, 5, 1, 20),
 });
