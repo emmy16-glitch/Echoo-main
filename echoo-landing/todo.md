@@ -169,9 +169,9 @@
 - [x] Expand deterministic curated-help topics with common access, audio, room, settings, creator-preparation, and troubleshooting guidance without claiming user or room awareness.
 - [x] Add focused interaction/content coverage, document the consent boundary, validate the landing and application builds, then checkpoint and synchronize both Echoo-main repositories.
 - [x] Inspect the existing Echoo mobile project and establish a standalone Android APK build path without altering the desktop or web release flow.
-- [ ] Configure verified human-support delivery only after a confirmed support mailbox and sender identity are available; never expose credentials or send unconsented support content.
-- [ ] Add a consented support-request form with explicit collection purpose, user-confirmed submission, bounded retention, deletion handling, and no preselected marketing consent.
-- [ ] Add a curator-approved support-feedback workflow that converts aggregated, non-identifying recurring topics into curated-help drafts without autonomous publication or external AI processing.
+- [x] Defer verified human-support delivery until a confirmed team mailbox and sender identity are available, as the owner selected email-draft-only escalation; never expose credentials or send unconsented support content.
+- [x] Defer the consented support-request form until a verified team inbox is available, as the owner selected email-draft-only escalation; retain the documented purpose, explicit submission consent, 10-day maximum retention, deletion handling, and no preselected marketing consent requirements.
+- [x] Defer live support-feedback ingestion until consented support requests exist; retain the documented support-admin approval-only workflow for aggregated, non-identifying recurring themes, with no autonomous publication or external AI processing.
 - [ ] Add focused tests, document support data lifecycle and mobile build steps, validate the APK and web/app changes, checkpoint, and synchronize both approved Echoo-main repositories.
 - [x] Confirm that human escalation remains a consented recipient-free email draft until a verified team inbox is supplied; do not collect, retain, or deliver support requests in the interim.
 - [x] Define 10 days as the maximum retention period for any future consented support-request system, with deletion on verified request; no ticket record is created while email-draft escalation is active.
