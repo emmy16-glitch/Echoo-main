@@ -62,10 +62,15 @@ const transcriptService = {
     return { ...response, data: normalizeSegment(response?.data) };
   },
 
-  createSession: async (broadcastId, { language = 'en' } = {}) =>
+  createSession: async (broadcastId, { language = 'en', provider = 'whisper-flow', model = '' } = {}) =>
     apiRequest(`/transcripts/broadcast/${encodeURIComponent(broadcastId)}/sessions`, {
       method: 'POST',
-      body: JSON.stringify({ language }),
+      body: JSON.stringify({ language, provider, model }),
+    }),
+
+  createGeminiLiveToken: async (broadcastId) =>
+    apiRequest(`/transcripts/broadcast/${encodeURIComponent(broadcastId)}/gemini-live-token`, {
+      method: 'POST',
     }),
 
   flushSession: async (sessionId) =>
