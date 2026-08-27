@@ -204,7 +204,17 @@
   .echoo-listener-v2-shell .beautiful-result-type { display: none; }
   .echoo-listener-v2-shell .beautiful-result-row { grid-template-columns: 42px minmax(0,1fr) 36px; }
   .echoo-listener-v2-shell .layout-content { padding: 10px 16px calc(70px + 68px + 28px); }
-  .echoo-listener-v2-shell > .echoo-persistent-player { left: 0; right: 0; bottom: 68px; height: 70px; grid-template-columns: minmax(0,1fr) auto; gap: 8px; padding: 8px 12px; border-top: 1px solid var(--listener-border); background: #fff; box-shadow: 0 -5px 16px rgba(13,27,51,.06); }
+  .echoo-listener-v2-shell > .echoo-persistent-player { left: 0; right: 0; bottom: 68px; height: 70px; grid-template-columns: minmax(0,1fr) auto; gap: 8px; padding: 8px 12px; border-top: 1px solid var(--listener-border); background: #fff; box-shadow: 0 -5px 16px rgba(13,27,51,.06); opacity: 1; transform: translateY(0); visibility: visible; transition: transform 220ms cubic-bezier(.23,1,.32,1), opacity 180ms cubic-bezier(.23,1,.32,1), visibility 0s linear 0s; }
+  .echoo-listener-v2-shell > .echoo-persistent-player > .layout-player-track,
+  .echoo-listener-v2-shell > .echoo-persistent-player > .layout-player-controls,
+  .echoo-listener-v2-shell > .echoo-persistent-player > .layout-player-volume,
+  .echoo-listener-v2-shell > .echoo-persistent-player > .layout-player-mobile-progress { opacity: 1; transform: translateY(0); visibility: visible; transition: transform 220ms cubic-bezier(.23,1,.32,1), opacity 180ms cubic-bezier(.23,1,.32,1), visibility 0s linear 0s; }
+  .echoo-listener-v2-shell > .echoo-persistent-player--hidden { background: transparent; border-top-color: transparent; box-shadow: none; }
+  .echoo-listener-v2-shell > .echoo-persistent-player--hidden > audio,
+  .echoo-listener-v2-shell > .echoo-persistent-player--hidden > .layout-player-track,
+  .echoo-listener-v2-shell > .echoo-persistent-player--hidden > .layout-player-controls,
+  .echoo-listener-v2-shell > .echoo-persistent-player--hidden > .layout-player-volume,
+  .echoo-listener-v2-shell > .echoo-persistent-player--hidden > .layout-player-mobile-progress { opacity: 0; transform: translateY(14px); visibility: hidden; pointer-events: none; transition-delay: 0s, 0s, 220ms; }
   .echoo-listener-v2-shell .layout-player-track { grid-template-columns: 48px minmax(0,1fr); gap: 10px; }
   .echoo-listener-v2-shell .layout-player-cover { width: 48px; height: 48px; border-radius: 7px; }
   .echoo-listener-v2-shell .layout-player-info strong { font-size: 13px; }

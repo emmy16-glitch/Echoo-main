@@ -11,7 +11,7 @@ import { GiClockwork } from 'react-icons/gi';
 import Toast from '../ListenerUI/ListenerToast';
 import audioService from '../../services/audioService';
 import batch6Service from '../../services/batch6Service';
-import { progressPercentToFraction } from './historyProgress';
+import { progressFractionToPercent, progressPercentToFraction } from './historyProgress';
 import '../../styles/listener-reference-pages.css';
 import './ListenerHistory.css';
 import './ListenerHistoryInteractionFix.css';
@@ -78,6 +78,7 @@ const normalizedTrack = (item) => {
   return {
     ...track,
     duration,
+    progress,
     listenedSeconds: duration > 0 ? Math.round(duration * progress) : 0,
     playedAt: item.playedAt,
     entryId: item.id,
@@ -308,6 +309,7 @@ const ListenerHistoryConnected = () => {
               {filtered.map((track) => {
                 const current = isCurrent(track);
                 const removing = busyId === String(track.entryId);
+                const progressPercent = progressFractionToPercent(track.progress);
                 return (
                   <div
                     key={track.entryId}
@@ -333,6 +335,20 @@ const ListenerHistoryConnected = () => {
                       <span className="lh-row-sub">
                         {track.artistName || 'Unknown creator'}
                         {track.genre ? ` · ${track.genre}` : ''}
+                      </span>
+                      <span className="lh-row-progress-wrap">
+                        <span
+                          className="lh-row-progress"
+                          role="progressbar"
+                          aria-label={`Listening progress for ${track.title || 'history item'}`}
+                          aria-valuemin="0"
+                          aria-valuemax="100"
+                          aria-valuenow={progressPercent}
+                          aria-valuetext={`${progressPercent}% listened`}
+                        >
+                          <span style={{ width: `${progressPercent}%` }} />
+                        </span>
+                        <span className="lh-row-progress-label">{progressPercent}% listened</span>
                       </span>
                     </button>
                     <span className="lh-row-meta">

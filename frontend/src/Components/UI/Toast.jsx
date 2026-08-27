@@ -62,6 +62,8 @@ const Toast = ({
   return (
     <div
       className={`echoo-toast echoo-toast-${type}`}
+      role="status"
+      aria-live="polite"
     >
       <div className="echoo-toast-icon">
         {icons[type] ||

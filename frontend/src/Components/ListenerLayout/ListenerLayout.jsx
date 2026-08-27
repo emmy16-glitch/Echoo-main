@@ -878,7 +878,11 @@ const ListenerLayout = () => {
         </>
       )}
       persistentSlot={(
-      <div className={`layout-player echoo-persistent-player ${playerError ? 'has-playback-error' : ''}`}>
+      <div
+        className={`layout-player echoo-persistent-player ${
+          playerError ? 'has-playback-error' : ''
+        } ${playerExpanded ? 'echoo-persistent-player--hidden' : ''}`.trim()}
+      >
         <audio
           ref={audioRef}
           preload="metadata"

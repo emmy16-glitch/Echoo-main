@@ -548,3 +548,93 @@
       1fr;
   }
 }
+
+/* Shared, non-blocking status feedback for creator and onboarding flows. */
+.echoo-toast {
+  position: fixed;
+  z-index: 1600;
+  right: 24px;
+  bottom: 24px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  width: min(390px, calc(100vw - 32px));
+  padding: 13px 14px;
+  border: 1px solid #d0d5dd;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 16px 42px rgba(16, 24, 40, .18);
+  color: #344054;
+}
+
+.echoo-toast-icon {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border-radius: 50%;
+  background: #edf5ff;
+  color: #1769d3;
+}
+
+.echoo-toast-content {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.echoo-toast-content strong {
+  color: #101828;
+  font-size: 13px;
+}
+
+.echoo-toast-content span {
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.echoo-toast-close {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #667085;
+  cursor: pointer;
+}
+
+.echoo-toast-close:hover,
+.echoo-toast-close:focus-visible {
+  background: #f2f4f7;
+  color: #101828;
+}
+
+.echoo-toast-success {
+  border-color: #a6f4c5;
+}
+
+.echoo-toast-success .echoo-toast-icon {
+  background: #ecfdf3;
+  color: #027a48;
+}
+
+.echoo-toast-error {
+  border-color: #fecdca;
+}
+
+.echoo-toast-error .echoo-toast-icon {
+  background: #fef3f2;
+  color: #b42318;
+}
+
+@media (max-width: 520px) {
+  .echoo-toast {
+    right: 16px;
+    bottom: calc(16px + env(safe-area-inset-bottom));
+  }
+}

@@ -192,3 +192,6 @@
 - [x] Install the remaining Firefox and WebKit Playwright runtimes so the full configured listener regression matrix can run without environmental browser omissions.
 - [x] Install the required local browser-system libraries reported by Playwright so Firefox and WebKit can execute the existing cross-browser listener tests.
 - [x] Correct the listener-shell browser test to assert sidebar visibility by viewport width rather than browser engine, then rerun the full regression matrix.
+- [x] Add a smooth, reduced-motion-safe transition when the compact persistent player appears or hides.
+- [x] Add an accessible visual playback-progress bar to each listening-history row.
+- [x] Add a creator-facing confirmation toast after a successful uploaded-audio rename.

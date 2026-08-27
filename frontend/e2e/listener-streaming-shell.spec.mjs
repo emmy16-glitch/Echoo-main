@@ -33,7 +33,9 @@ test('listener streaming shell keeps its navigation and player pinned', async ({
     await expect.poll(() => page.locator('.echoo-persistent-player').evaluate((node) => getComputedStyle(node).position)).toBe('fixed');
   } else {
     await expect(page.locator('.echoo-app-sidebar')).toBeHidden();
-    await expect(page.locator('.echoo-persistent-player')).toBeVisible();
+    const compactPlayer = page.locator('.echoo-persistent-player');
+    await expect(compactPlayer).toBeVisible();
+    await expect.poll(() => compactPlayer.evaluate((node) => getComputedStyle(node).transitionProperty)).toContain('transform');
   }
 
   await page.screenshot({ path: `design-qa-evidence/listener-streaming/${testInfo.project.name}-home.png`, fullPage: false });
@@ -44,8 +46,25 @@ test('player exposes queue, transcript and share surfaces', async ({ page }) => 
   await page.goto('/listen');
   await page.locator('.layout-player-track').click();
   await expect(page.getByRole('dialog', { name: 'Full player' })).toBeVisible();
+  if ((page.viewportSize()?.width || 0) < 768) {
+    await expect(page.locator('.echoo-persistent-player')).toHaveClass(/echoo-persistent-player--hidden/);
+  }
   await page.getByRole('button', { name: /transcript/i }).click();
   await expect(page.getByText(/Transcript availability/i)).toBeVisible();
   await page.getByRole('button', { name: /close full player/i }).click();
   await expect(page.getByRole('dialog', { name: 'Full player' })).toHaveCount(0);
+  if ((page.viewportSize()?.width || 0) < 768) {
+    await expect(page.locator('.echoo-persistent-player')).not.toHaveClass(/echoo-persistent-player--hidden/);
+  }
+});
+
+test('history rows show bounded listening progress with an accessible label', async ({ page }) => {
+  await authenticate(page);
+  await page.goto('/listen/history');
+
+  const progress = page.getByRole('progressbar', { name: /listening progress/i }).first();
+  await expect(progress).toBeVisible();
+  await expect(progress).toHaveAttribute('aria-valuenow', '100');
+  await expect(progress).toHaveAttribute('aria-valuetext', '100% listened');
+  await expect(page.getByText('100% listened').first()).toBeVisible();
 });

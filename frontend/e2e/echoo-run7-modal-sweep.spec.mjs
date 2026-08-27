@@ -99,3 +99,35 @@ test('Creator Audio Detail modal keeps keyboard focus inside and restores its De
   const dialog = page.locator('.creator-audio-modal').first();
   await assertModalKeyboardContract({ page, opener, dialog });
 });
+
+test('Creator audio rename confirms successful saves without closing the detail modal', async ({ page }, testInfo) => {
+  test.skip(!representative.has(testInfo.project.name));
+  await authenticate(page);
+  await page.goto('/creator-studio');
+  await settle(page);
+
+  const audioNav = page.getByRole('button', { name: /^Audio$/ }).first();
+  await expect(audioNav).toBeVisible();
+  await audioNav.click();
+  await page.waitForTimeout(500);
+
+  const opener = page.getByRole('button', { name: /^Details$/ }).first();
+  if (!(await opener.count())) {
+    test.skip(true, 'Mock Creator library has no audio detail row in this fixture.');
+    return;
+  }
+
+  await opener.click();
+  const dialog = page.locator('.creator-audio-modal').first();
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('button', { name: 'Rename audio' }).click();
+  const input = dialog.getByLabel('Audio title');
+  await input.fill('Verified rename feedback');
+  await dialog.getByRole('button', { name: 'Save' }).click();
+
+  const toast = page.locator('.echoo-toast');
+  await expect(toast).toBeVisible();
+  await expect(toast).toHaveText(/Audio renamed/);
+  await expect(toast).toHaveText(/Verified rename feedback/);
+  await expect(dialog).toBeVisible();
+});

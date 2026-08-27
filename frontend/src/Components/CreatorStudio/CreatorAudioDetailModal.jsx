@@ -15,6 +15,7 @@ import {
 
 import { buildMediaUrl } from '../../services/api.js';
 import studioService from '../../services/studioService.js';
+import Toast from '../UI/Toast';
 import './CreatorAudioDetailModal.css';
 
 const getId = (track) => track?.id || track?._id || null;
@@ -62,6 +63,7 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged }) => {
   const [titleDraft, setTitleDraft] = useState(track?.title || '');
   const [titleEditing, setTitleEditing] = useState(false);
   const [titleSaving, setTitleSaving] = useState(false);
+  const [renameToastOpen, setRenameToastOpen] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState('');
 
@@ -82,6 +84,7 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged }) => {
   useEffect(() => {
     setTitleDraft(track?.title || '');
     setTitleEditing(false);
+    setRenameToastOpen(false);
   }, [track?.id, track?._id, track?.title]);
 
   useEffect(() => {
@@ -242,6 +245,7 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged }) => {
       await studioService.updateAudio(id, { title });
       setTitleDraft(title);
       setTitleEditing(false);
+      setRenameToastOpen(true);
       window.dispatchEvent(new CustomEvent('echoo:creator-audio-changed'));
       onChanged?.();
     } catch (titleError) {
@@ -277,6 +281,13 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged }) => {
         if (event.target === event.currentTarget) onClose?.();
       }}
     >
+      <Toast
+        open={renameToastOpen}
+        type="success"
+        title="Audio renamed"
+        message={`“${titleDraft || 'Your audio'}” is updated in your library.`}
+        onClose={() => setRenameToastOpen(false)}
+      />
       <section
         className="creator-audio-modal"
         role="dialog"
