@@ -60,7 +60,6 @@ class TranscriptionOrchestrator {
     this.readiness = null;
     this.stopping = false;
     this.failoverInProgress = false;
-    this.parakeetFailures = 0;
   }
 
   publishState(update) {
@@ -97,10 +96,9 @@ class TranscriptionOrchestrator {
     };
   }
 
-  async createBrowserSession(provider, model) {
-    const response = await transcriptService.createSession(this.broadcastId, {
+  async createBrowserSession(provider) {
+    const response = await transcriptService.createProviderSession(this.broadcastId, {
       provider,
-      model,
       language: 'en',
     });
     const session = response?.data?.session;
@@ -117,7 +115,7 @@ class TranscriptionOrchestrator {
     if (!provider || !provider.ready) provider = new BrowserParakeetProvider();
     provider.callbacks = this.providerCallbacks('parakeet');
     const state = provider.ready ? provider.getState() : await provider.initialize({ offsetMs: 0 });
-    const session = await this.createBrowserSession('parakeet', state.model || 'parakeet-tdt-0.6b-v3');
+    const session = await this.createBrowserSession('parakeet');
     provider.offsetMs = Number(session.offsetMs) || 0;
     this.provider = provider;
     this.providerName = 'parakeet';
@@ -126,7 +124,7 @@ class TranscriptionOrchestrator {
       mediaTrack: this.mediaTrack,
       onAudio: (audio) => this.provider === provider && provider.pushAudio(audio),
     });
-    this.publishState({ status: 'live', provider: 'parakeet' });
+    this.publishState({ status: 'live', provider: 'parakeet', model: state.model });
     return { provider: 'parakeet', sessionId: session.id };
   }
 
@@ -135,7 +133,7 @@ class TranscriptionOrchestrator {
       broadcastId: this.broadcastId,
       ...this.providerCallbacks('gemini-live'),
     });
-    const session = await this.createBrowserSession('gemini-live', 'gemini-3.5-transcribe-live');
+    const session = await this.createBrowserSession('gemini-live');
     await provider.initialize({ offsetMs: Number(session.offsetMs) || 0 });
     this.provider = provider;
     this.providerName = 'gemini-live';
@@ -166,7 +164,6 @@ class TranscriptionOrchestrator {
 
     if (import.meta.env.VITE_PARAKEET_ENABLED !== 'false') {
       try { return await this.startParakeet(); } catch (error) {
-        this.parakeetFailures += 1;
         this.publishState({ status: 'degraded', provider: 'parakeet', message: error?.message || String(error) });
         await this.cleanupBrowserProvider({ flush: false });
       }
@@ -204,7 +201,7 @@ class TranscriptionOrchestrator {
       this.queue = null;
     }
     if (this.session?.id) {
-      await transcriptService.flushSession(this.session.id).catch(() => null);
+      await transcriptService.flushProviderSession(this.session.id).catch(() => null);
       this.session = null;
     }
   }
