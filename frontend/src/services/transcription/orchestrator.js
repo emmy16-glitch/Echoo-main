@@ -271,6 +271,18 @@ export const getEchooTranscriptionState = () => ({
   broadcastId: activeOrchestrator?.broadcastId || null,
 });
 
+// livekitPublisher imports this module only inside the Creator Studio bundle.
+// Start model preparation while that UI is idle so Go Live never waits on a
+// first model download. Listener routes do not import this module.
+if (typeof window !== 'undefined' && import.meta.env.VITE_PARAKEET_ENABLED !== 'false') {
+  const startPreload = () => void preloadCreatorTranscription();
+  if (typeof window.requestIdleCallback === 'function') {
+    window.requestIdleCallback(startPreload, { timeout: 3000 });
+  } else {
+    window.setTimeout(startPreload, 1200);
+  }
+}
+
 export default {
   preloadCreatorTranscription,
   startEchooTranscription,
