@@ -164,3 +164,7 @@
 - [x] Keep all curated-help resolution local and deterministic: no network request, no API key, no analytics event, and no persisted message or room/account data.
 - [x] Provide a keyboard-accessible, responsive assistant dialog in each context with a 44px trigger, visible focus, Escape dismissal, safe focus return, and reduced-motion behavior.
 - [x] Cover website, listener-support, creator-copilot, fallback, and privacy-boundary responses with direct automated tests before release.
+- [x] Add truthful local typing-feedback states and short reduced-motion-safe assistant panel/message transitions across website, listener, and creator contexts.
+- [x] Add a consent-first human-support escalation flow that never pre-fills, retains, or transmits a user question without an explicit visitor action.
+- [x] Expand deterministic curated-help topics with common access, audio, room, settings, creator-preparation, and troubleshooting guidance without claiming user or room awareness.
+- [ ] Add focused interaction/content coverage, document the consent boundary, validate the landing and application builds, then checkpoint and synchronize both Echoo-main repositories.

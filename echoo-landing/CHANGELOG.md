@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Enhanced the local curated assistants on the public landing pages, listener workspace, and creator studio with a brief truthful local typing indicator and reduced-motion-safe panel, answer, and consent-panel transitions. The feedback appears only while the browser selects a deterministic local response; it does not make an AI, analytics, API, or background request.
+- Added a consent-first human-support control to every assistant dialog. It requires an explicit opt-in before opening a recipient-free, empty email draft with only a fixed subject. The assistant never pre-fills or transmits a visitor question, account detail, room detail, chat data, or message body; the visitor chooses a verified Echoo support recipient and decides whether to send anything from their own mail application.
+- Expanded curated local guidance for unsigned desktop-installer warnings and web access issues; listener room-loading/reconnection and playback troubleshooting; and creator microphone permission, studio connection, echo/feedback, and audio-readiness support. All new responses retain the established no-account/no-room-state boundary.
+- Added direct deterministic resolver coverage for installer, listener-connection, creator-permission, and recipient-free escalation behavior in both the landing and authenticated application helpers.
+
 - Added a local, deterministic curated-help assistant to both public landing routes for product, web-app, download, release, installer, and early-access guidance. The assistant makes no AI-provider, analytics, or API call and retains guidance only in browser component state for the open session.
 - Added direct curated-response and public-control coverage for the public assistant’s key subjects, privacy-safe fallback, keyboard-reachable 44px trigger, and dialog-free initial render. The authenticated application now adds a separate listener-support assistant and creator copilot with equally local, context-specific guidance; they do not access account, room, chat, audience, or playback data.
 - Documented the exact managed landing image workflow: current landing URLs are constants in `Home.tsx` and `Release.tsx`, approved original screenshots are staged at `/home/ubuntu/webdev-static-assets/echoo-approved/`, and main-application visual assets remain under `frontend/src/Components/Assets/`.

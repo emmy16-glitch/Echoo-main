@@ -1,16 +1,21 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import {
   FaArrowUp,
   FaCommentDots,
+  FaEnvelope,
+  FaQuestionCircle,
   FaShieldAlt,
   FaTimes,
 } from 'react-icons/fa';
 import {
   curatedHelpSuggestions,
   getCuratedHelpWelcome,
+  humanSupportEmailDraft,
   resolveCuratedHelpResponse,
 } from './curatedHelp';
 import './CuratedHelpAssistant.css';
+
+const RESPONSE_DELAY_MS = 260;
 
 const labelsFor = (mode) => (
   mode === 'creator'
@@ -28,12 +33,38 @@ const CuratedHelpAssistant = ({ mode = 'listener' }) => {
   const [open, setOpen] = useState(false);
   const [question, setQuestion] = useState('');
   const [answers, setAnswers] = useState(() => [getCuratedHelpWelcome(mode)]);
+  const [isSelectingGuidance, setIsSelectingGuidance] = useState(false);
+  const [escalationOpen, setEscalationOpen] = useState(false);
+  const [hasEscalationConsent, setHasEscalationConsent] = useState(false);
   const triggerRef = useRef(null);
   const dialogRef = useRef(null);
   const questionRef = useRef(null);
+  const responseTimerRef = useRef(null);
   const titleId = useId();
   const descriptionId = useId();
+  const escalationId = useId();
+  const dialogId = useId();
   const labels = labelsFor(mode);
+
+  const clearResponseTimer = useCallback(() => {
+    if (responseTimerRef.current !== null) {
+      window.clearTimeout(responseTimerRef.current);
+      responseTimerRef.current = null;
+    }
+  }, []);
+
+  const close = useCallback(() => {
+    clearResponseTimer();
+    setOpen(false);
+    setQuestion('');
+    setAnswers([getCuratedHelpWelcome(mode)]);
+    setIsSelectingGuidance(false);
+    setEscalationOpen(false);
+    setHasEscalationConsent(false);
+    window.requestAnimationFrame(() => triggerRef.current?.focus());
+  }, [clearResponseTimer, mode]);
+
+  useEffect(() => () => clearResponseTimer(), [clearResponseTimer]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -42,8 +73,7 @@ const CuratedHelpAssistant = ({ mode = 'listener' }) => {
     const onKeyDown = (event) => {
       if (event.key === 'Escape') {
         event.preventDefault();
-        setOpen(false);
-        triggerRef.current?.focus();
+        close();
         return;
       }
 
@@ -64,25 +94,32 @@ const CuratedHelpAssistant = ({ mode = 'listener' }) => {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [open]);
-
-  const close = () => {
-    setOpen(false);
-    setQuestion('');
-    setAnswers([getCuratedHelpWelcome(mode)]);
-    window.requestAnimationFrame(() => triggerRef.current?.focus());
-  };
+  }, [close, open]);
 
   const ask = (value) => {
     const trimmed = value.trim();
-    if (!trimmed) return;
-    setAnswers((current) => [...current, resolveCuratedHelpResponse(trimmed, mode)]);
+    if (!trimmed || isSelectingGuidance) return;
+
     setQuestion('');
+    setIsSelectingGuidance(true);
+    clearResponseTimer();
+    responseTimerRef.current = window.setTimeout(() => {
+      setAnswers((current) => [...current, resolveCuratedHelpResponse(trimmed, mode)]);
+      setIsSelectingGuidance(false);
+      responseTimerRef.current = null;
+    }, RESPONSE_DELAY_MS);
   };
 
   const submit = (event) => {
     event.preventDefault();
     ask(question);
+  };
+
+  const openHumanSupportDraft = () => {
+    if (!hasEscalationConsent) return;
+    window.location.href = humanSupportEmailDraft;
+    setEscalationOpen(false);
+    setHasEscalationConsent(false);
   };
 
   return (
@@ -94,6 +131,7 @@ const CuratedHelpAssistant = ({ mode = 'listener' }) => {
         aria-label={labels.trigger}
         aria-haspopup="dialog"
         aria-expanded={open}
+        aria-controls={dialogId}
         onClick={() => setOpen(true)}
       >
         <FaCommentDots aria-hidden="true" />
@@ -110,6 +148,7 @@ const CuratedHelpAssistant = ({ mode = 'listener' }) => {
           />
           <section
             ref={dialogRef}
+            id={dialogId}
             className="echoo-curated-help__dialog"
             role="dialog"
             aria-modal="true"
@@ -126,13 +165,19 @@ const CuratedHelpAssistant = ({ mode = 'listener' }) => {
               </button>
             </header>
 
-            <div className="echoo-curated-help__answers" aria-live="polite">
+            <div className="echoo-curated-help__answers" aria-live="polite" aria-busy={isSelectingGuidance}>
               {answers.map((answer, index) => (
-                <article key={`${answer.topic}-${index}`} className="echoo-curated-help__answer">
+                <article key={`${answer.topic}-${index}`} className="echoo-curated-help__answer echoo-curated-help__answer--entering">
                   <p>{answer.topic}</p>
                   <span>{answer.answer}</span>
                 </article>
               ))}
+              {isSelectingGuidance && (
+                <div className="echoo-curated-help__typing" role="status">
+                  <span className="echoo-curated-help__typing-dots" aria-hidden="true"><i /><i /><i /></span>
+                  Selecting the most relevant curated guidance…
+                </div>
+              )}
             </div>
 
             <div className="echoo-curated-help__composer">
@@ -142,9 +187,32 @@ const CuratedHelpAssistant = ({ mode = 'listener' }) => {
               </p>
               <div className="echoo-curated-help__suggestions">
                 {curatedHelpSuggestions[mode].map((suggestion) => (
-                  <button key={suggestion} type="button" onClick={() => ask(suggestion)}>{suggestion}</button>
+                  <button key={suggestion} type="button" disabled={isSelectingGuidance} onClick={() => ask(suggestion)}>{suggestion}</button>
                 ))}
               </div>
+              <button
+                type="button"
+                className="echoo-curated-help__escalate"
+                aria-expanded={escalationOpen}
+                aria-controls={escalationId}
+                onClick={() => setEscalationOpen((current) => !current)}
+              >
+                <FaQuestionCircle aria-hidden="true" />
+                Need human support?
+              </button>
+              {escalationOpen && (
+                <section className="echoo-curated-help__escalation" id={escalationId} aria-label="Human support consent">
+                  <p>Echoo will not send your question. With your consent, this prepares an empty email draft in your mail app; you choose a verified Echoo support recipient, what to write, and whether to send it.</p>
+                  <label>
+                    <input type="checkbox" checked={hasEscalationConsent} onChange={(event) => setHasEscalationConsent(event.target.checked)} />
+                    <span>I understand that anything I add and send is handled by my email provider, not this assistant. I will not include passwords, codes, or private room details.</span>
+                  </label>
+                  <button type="button" disabled={!hasEscalationConsent} onClick={openHumanSupportDraft}>
+                    <FaEnvelope aria-hidden="true" />
+                    Prepare email draft
+                  </button>
+                </section>
+              )}
               <form onSubmit={submit}>
                 <label className="sr-only" htmlFor={`${titleId}-question`}>{labels.input}</label>
                 <input
@@ -156,7 +224,7 @@ const CuratedHelpAssistant = ({ mode = 'listener' }) => {
                   onChange={(event) => setQuestion(event.target.value)}
                   placeholder="Ask about Echoo…"
                 />
-                <button type="submit" disabled={!question.trim()} aria-label={labels.input}>
+                <button type="submit" disabled={!question.trim() || isSelectingGuidance} aria-label={labels.input}>
                   <FaArrowUp aria-hidden="true" />
                 </button>
               </form>

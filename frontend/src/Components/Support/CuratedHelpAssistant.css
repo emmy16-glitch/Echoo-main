@@ -6,9 +6,7 @@
 }
 
 .echoo-curated-help button,
-.echoo-curated-help input {
-  font: inherit;
-}
+.echoo-curated-help input { font: inherit; }
 
 .echoo-curated-help__trigger {
   display: inline-flex;
@@ -34,6 +32,8 @@
 .echoo-curated-help__trigger:active,
 .echoo-curated-help__close:active,
 .echoo-curated-help__suggestions button:active,
+.echoo-curated-help__escalate:active,
+.echoo-curated-help__escalation button:active,
 .echoo-curated-help__composer form button:active { transform: scale(0.97); }
 .echoo-curated-help button:focus-visible,
 .echoo-curated-help input:focus-visible { outline: 3px solid #9abaff; outline-offset: 3px; }
@@ -56,7 +56,7 @@
   bottom: 24px;
   display: flex;
   width: min(420px, calc(100vw - 32px));
-  max-height: min(640px, calc(100dvh - 32px));
+  max-height: min(660px, calc(100dvh - 32px));
   flex-direction: column;
   overflow: hidden;
   border: 1px solid rgba(214, 230, 255, 0.18);
@@ -100,12 +100,28 @@
 .echoo-curated-help__answer + .echoo-curated-help__answer { margin-top: 10px; }
 .echoo-curated-help__answer span { display: block; margin-top: 7px; color: #edf4ff; font-size: 0.87rem; line-height: 1.45; }
 
+.echoo-curated-help__typing { display: flex; align-items: center; gap: 10px; margin-top: 10px; padding: 12px 13px; border: 1px solid rgba(140, 183, 255, 0.28); border-radius: 16px; color: #dce8ff; background: #0b2a5b; font-size: 0.8rem; line-height: 1.35; }
+.echoo-curated-help__typing-dots { display: inline-flex; gap: 4px; flex: 0 0 auto; }
+.echoo-curated-help__typing-dots i { display: block; width: 6px; height: 6px; border-radius: 50%; background: #9fc2ff; }
+
 .echoo-curated-help__composer { padding: 14px 18px 16px; border-top: 1px solid rgba(255, 255, 255, 0.1); background: #06152f; }
 .echoo-curated-help__privacy { display: flex; align-items: flex-start; gap: 8px; margin: 0; color: #bdd0f2; font-size: 0.73rem; line-height: 1.4; }
 .echoo-curated-help__privacy svg { flex: 0 0 auto; margin-top: 2px; color: #8cb7ff; }
 .echoo-curated-help__suggestions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 11px; }
 .echoo-curated-help__suggestions button { min-height: 44px; border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 999px; padding: 7px 10px; color: #e0ebff; background: transparent; font-size: 0.68rem; font-weight: 700; line-height: 1.2; text-align: left; cursor: pointer; }
 .echoo-curated-help__suggestions button:hover { border-color: #99bcff; background: rgba(255, 255, 255, 0.1); }
+.echoo-curated-help__suggestions button:disabled { cursor: not-allowed; opacity: 0.5; }
+
+.echoo-curated-help__escalate { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; margin-top: 11px; border: 1px solid rgba(127, 170, 255, 0.62); border-radius: 999px; padding: 0 13px; color: #dce8ff; background: transparent; font-size: 0.72rem; font-weight: 800; cursor: pointer; }
+.echoo-curated-help__escalate:hover { border-color: #c0d4ff; background: rgba(255, 255, 255, 0.1); }
+.echoo-curated-help__escalation { margin-top: 10px; padding: 13px; border: 1px solid rgba(140, 183, 255, 0.34); border-radius: 16px; color: #eaf2ff; background: #0b2a5b; font-size: 0.79rem; line-height: 1.45; }
+.echoo-curated-help__escalation p { margin: 0; }
+.echoo-curated-help__escalation label { display: flex; align-items: flex-start; gap: 8px; margin-top: 10px; color: #d2e1ff; font-size: 0.72rem; line-height: 1.4; }
+.echoo-curated-help__escalation input { width: 16px; height: 16px; flex: 0 0 auto; margin-top: 2px; accent-color: #5b8eff; }
+.echoo-curated-help__escalation button { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; margin-top: 11px; border: 0; border-radius: 999px; padding: 0 14px; color: #fff; background: #3b78ff; font-size: 0.76rem; font-weight: 800; cursor: pointer; }
+.echoo-curated-help__escalation button:hover { background: #5b8eff; }
+.echoo-curated-help__escalation button:disabled { cursor: not-allowed; opacity: 0.5; }
+
 .echoo-curated-help__composer form { display: flex; gap: 8px; margin-top: 11px; }
 .echoo-curated-help__composer input { min-width: 0; min-height: 44px; flex: 1; border: 1px solid rgba(255, 255, 255, 0.17); border-radius: 999px; padding: 0 14px; color: #0a1c3f; background: #fff; font-size: 0.84rem; }
 .echoo-curated-help__composer form button { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; border: 0; border-radius: 50%; color: #fff; background: #3b78ff; cursor: pointer; }
@@ -122,8 +138,20 @@
   .echoo-curated-help__trigger,
   .echoo-curated-help__close,
   .echoo-curated-help__suggestions button,
-  .echoo-curated-help__composer form button { transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1), background-color 160ms cubic-bezier(0.23, 1, 0.32, 1), border-color 160ms cubic-bezier(0.23, 1, 0.32, 1); }
+  .echoo-curated-help__escalate,
+  .echoo-curated-help__escalation button,
+  .echoo-curated-help__composer form button { transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1), background-color 160ms cubic-bezier(0.23, 1, 0.32, 1), border-color 160ms cubic-bezier(0.23, 1, 0.32, 1), opacity 160ms cubic-bezier(0.23, 1, 0.32, 1); }
+  .echoo-curated-help__backdrop { animation: echoo-curated-help-fade-in 160ms cubic-bezier(0.23, 1, 0.32, 1); }
   .echoo-curated-help__dialog { animation: echoo-curated-help-enter 180ms cubic-bezier(0.23, 1, 0.32, 1); }
+  .echoo-curated-help__answer--entering,
+  .echoo-curated-help__typing,
+  .echoo-curated-help__escalation { animation: echoo-curated-help-item-in 160ms cubic-bezier(0.23, 1, 0.32, 1); }
+  .echoo-curated-help__typing-dots i { animation: echoo-curated-help-dot 900ms ease-in-out infinite; }
+  .echoo-curated-help__typing-dots i:nth-child(2) { animation-delay: 120ms; }
+  .echoo-curated-help__typing-dots i:nth-child(3) { animation-delay: 240ms; }
 }
 
+@keyframes echoo-curated-help-fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes echoo-curated-help-enter { from { opacity: 0; transform: translateY(12px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes echoo-curated-help-item-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes echoo-curated-help-dot { 0%, 60%, 100% { opacity: 0.35; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-3px); } }

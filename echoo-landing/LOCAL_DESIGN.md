@@ -61,7 +61,11 @@ That command starts the complete landing application, normally at `http://localh
 
 ## Curated help boundary
 
-The public help control is mounted in both `client/src/pages/Home.tsx` and `client/src/pages/Release.tsx`. It provides **local, deterministic product guidance** only: the question is matched against a small curated topic set in `client/src/lib/curatedHelp.ts`, and the result exists only in React component state for the open browser session. It makes no request to an AI provider, analytics endpoint, API, or database; it stores no message, visitor identity, account data, room data, or playback data. Keep that boundary intact unless a separately reviewed, consent-based support integration is introduced.
+The public help control is mounted in both `client/src/pages/Home.tsx` and `client/src/pages/Release.tsx`. It provides **local, deterministic product guidance** only: the question is matched against the curated topic set in `client/src/lib/curatedHelp.ts`, and the result exists only in React component state for the open browser session. The short “Selecting the most relevant curated guidance…” indicator is visual feedback for that local lookup; it does not indicate an AI, network, or background request.
+
+The public, listener, and creator dialogs now also provide a **consent-first human-support path**. The visitor must deliberately select a consent checkbox before the control opens a recipient-free, empty `mailto:` draft with a fixed subject. The assistant does not prefill a recipient, user question, account detail, room detail, or message body, and it cannot tell whether the visitor sends anything. The visitor chooses a verified Echoo support recipient and what to include from their own mail application. Do not replace this with a direct form submission or a prefilled personal-data draft without a separately reviewed consent and retention design.
+
+The topic set covers public downloads, unsigned installer warnings, web access troubleshooting, release notes, and early access; listener discovery, playback, connection, and settings help; and creator broadcast preparation, station copy, device permission, studio connection, audio readiness, and privacy-safe audience guidance. Keep new answers deterministic, locally resolved, and explicit about what the assistant cannot see or change.
 
 ## Logo and display-image locations
 
