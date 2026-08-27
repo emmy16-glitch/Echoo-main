@@ -43,10 +43,8 @@ export class TranscriptUploadQueue {
         try {
           const snapshot = current.segment;
           await this.upload(snapshot);
-          // If a newer revision arrived while this upload was in flight, keep
-          // the key queued and upload the newer snapshot instead of dropping it.
           const latest = this.items.get(key);
-          if (latest && latest.segment !== snapshot && latest.segment.providerRevision !== snapshot.providerRevision) {
+          if (latest && latest.segment !== snapshot) {
             latest.attempts = 0;
             continue;
           }
