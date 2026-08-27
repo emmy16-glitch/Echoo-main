@@ -181,3 +181,5 @@
 - [x] Add and validate the required `react-native-svg` peer dependency so the mobile app’s icon components remain safe in a standalone Android build.
 - [x] Document the active email-draft escalation boundary and the support-admin approval-only workflow for any future feedback-derived curated-help topic before an inbox is enabled.
 - [x] Submit, complete, and verify a standalone internal Echoo Android preview APK; record the artifact checksum and temporary EAS delivery link outside the repository.
+- [x] Replace the inherited placeholder Expo name, slug, and Android application ID with Echoo-branded mobile identifiers, then rebuild the standalone APK before final distribution.
+- [x] Correct the Android APK guide to document the user-approved standalone `@effiukp-dev/echoo` project identity and the completed Echoo-branded preview APK build.

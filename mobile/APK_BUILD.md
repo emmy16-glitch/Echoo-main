@@ -12,9 +12,9 @@ npm ci
 npx eas-cli whoami
 ```
 
-The EAS account must be authorized to access the configured Expo project. Do not add an Expo access token to source control, `app.json`, or any tracked file.
+The standalone Echoo mobile project is configured as `@effiukp-dev/echoo`. The EAS account must be authorized to access that project. Do not add an Expo access token to source control, `app.json`, or any tracked file.
 
-If EAS reports that the account is not authorized to read the configured project, stop the build. An existing Expo project owner or organization administrator must invite the build account with a role that permits project access and Android builds, or an authorized project account must be used. Do not change the project owner or project ID merely to bypass this control.
+If an inherited project is inaccessible, do not bypass its access controls. For this mobile delivery path, the project owner explicitly approved creating and linking a **new**, Echoo-branded standalone EAS project under `effiukp-dev`; it now uses the `Echoo` name, `echoo` slug, and `org.digi02.echoo` Android application ID. Reassigning an existing shared EAS project still requires the existing owner’s authorization.
 
 ## Build a standalone APK
 
@@ -24,7 +24,7 @@ Run the existing preview profile:
 npm run build:android:preview
 ```
 
-EAS prints a build URL. When the build completes, download the APK from that authenticated build page, transfer it only through a trusted channel, and install it on an Android test device after reviewing Android’s installation warning. The preview profile is intended for direct tester installation, not Play Store submission.
+EAS prints a build URL. When the build completes, download the APK from that authenticated build page, transfer it only through a trusted channel, and install it on an Android test device after reviewing Android’s installation warning. The preview profile is intended for direct tester installation, not Play Store submission. A completed Echoo-branded preview APK is an internal distribution artifact with Android package ID `org.digi02.echoo`; its EAS build page records the authoritative current artifact link and expiration date.
 
 ## Production checks
 
