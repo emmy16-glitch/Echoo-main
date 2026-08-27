@@ -2,12 +2,15 @@ import fs from 'node:fs/promises';
 import WebSocket from 'ws';
 import BroadcastAudioChunk from '../models/BroadcastAudioChunk.js';
 import TranscriptSegment from '../models/TranscriptSegment.js';
+import { env } from '../config/env.js';
+import { transcribeGeminiQuality } from './transcription/geminiService.js';
 
 const SAMPLE_RATE = 16_000;
 const FRAME_BYTES = SAMPLE_RATE * 0.02 * 2;
 const READY_TIMEOUT_MS = 15_000;
 const FLUSH_TIMEOUT_MS = 120_000;
-const QUALITY_PROVIDER = 'whisper-flow-quality';
+const WHISPER_QUALITY_PROVIDER = 'whisper-flow-quality';
+const GEMINI_QUALITY_PROVIDER = 'gemini-transcribe';
 
 const providerUrl = () => String(
   process.env.WHISPER_QUALITY_FLOW_URL || process.env.WHISPER_FLOW_URL || ''
@@ -106,7 +109,7 @@ const parseSegment = (value) => {
   };
 };
 
-const transcribeChunk = async ({ chunk, pcm }) => {
+const transcribeWhisperChunk = async ({ chunk, pcm }) => {
   const url = providerUrl();
   const apiKey = providerApiKey();
   if (!url || !apiKey) throw asRetryable(new Error('Whisper quality provider is not configured'));
@@ -227,7 +230,7 @@ const overlapScore = (left, right) => {
   return union ? overlap / union : 0;
 };
 
-const reconcileSegments = async ({ chunk, qualitySegments }) => {
+const reconcileSegments = async ({ chunk, qualitySegments, qualityProvider }) => {
   const drafts = await TranscriptSegment.find({
     broadcastId: chunk.broadcastId,
     isFinal: true,
@@ -243,14 +246,8 @@ const reconcileSegments = async ({ chunk, qualitySegments }) => {
 
   for (let index = 0; index < qualitySegments.length; index += 1) {
     const quality = qualitySegments[index];
-    const qualityStart = Math.min(
-      chunk.endMs,
-      Math.max(chunk.startMs, quality.startMs)
-    );
-    const qualityEnd = Math.min(
-      chunk.endMs,
-      Math.max(qualityStart, quality.endMs)
-    );
+    const qualityStart = Math.min(chunk.endMs, Math.max(chunk.startMs, quality.startMs));
+    const qualityEnd = Math.min(chunk.endMs, Math.max(qualityStart, quality.endMs));
     const marker = `${chunk._id}:${index}`;
     const existingQuality = await TranscriptSegment.findOne({
       broadcastId: chunk.broadcastId,
@@ -273,10 +270,6 @@ const reconcileSegments = async ({ chunk, qualitySegments }) => {
     const target = existingQuality || (draft?.score >= 0.18 ? draft.candidate : null);
     const now = new Date();
 
-    // At-least-once job recovery may re-run a chunk after its segment update
-    // committed but before the chunk/job status did. qualityChunkId + index is
-    // the durable idempotency marker: never manufacture another revision or
-    // duplicate quality-history entry for an already-applied segment.
     if (existingQuality) {
       claimedDraftIds.add(String(existingQuality._id));
     } else if (target) {
@@ -291,13 +284,13 @@ const reconcileSegments = async ({ chunk, qualitySegments }) => {
         endMs: qualityEnd,
         confidence: quality.confidence,
         revision: nextRevision,
-        processedBy: QUALITY_PROVIDER,
+        processedBy: qualityProvider,
         processedAt: now,
       }].slice(-20);
       const update = {
         originalText: target.originalText || previousText,
         qualityHistory: history,
-        processedBy: QUALITY_PROVIDER,
+        processedBy: qualityProvider,
         processedAt: now,
         qualityChunkId: chunk._id,
         qualitySegmentIndex: index,
@@ -310,7 +303,7 @@ const reconcileSegments = async ({ chunk, qualitySegments }) => {
         update.speaker = quality.speaker;
         update.startMs = qualityStart;
         update.endMs = qualityEnd;
-        update.provider = QUALITY_PROVIDER;
+        update.provider = qualityProvider;
         update.language = quality.language;
         update.revision = Number(target.revision || 1) + 1;
       }
@@ -334,14 +327,14 @@ const reconcileSegments = async ({ chunk, qualitySegments }) => {
             originalText: quality.text,
             confidence: quality.confidence,
             providerRevision: 1,
-            provider: QUALITY_PROVIDER,
+            provider: qualityProvider,
             language: quality.language,
             isFinal: true,
             status: 'final',
             publicationStatus: 'draft',
             revision: 1,
             revisionNumber: 1,
-            processedBy: QUALITY_PROVIDER,
+            processedBy: qualityProvider,
             processedAt: now,
             qualityChunkId: chunk._id,
             qualitySegmentIndex: index,
@@ -353,7 +346,7 @@ const reconcileSegments = async ({ chunk, qualitySegments }) => {
               endMs: qualityEnd,
               confidence: quality.confidence,
               revision: 1,
-              processedBy: QUALITY_PROVIDER,
+              processedBy: qualityProvider,
               processedAt: now,
             }],
           },
@@ -379,15 +372,83 @@ const reconcileSegments = async ({ chunk, qualitySegments }) => {
       hidden += superseded.length;
     }
   }
-  return { updated, created, hidden, segments: qualitySegments.length };
+  return { updated, created, hidden, segments: qualitySegments.length, provider: qualityProvider };
+};
+
+const originalDraftTextForChunk = async (chunk) => {
+  const rows = await TranscriptSegment.find({
+    broadcastId: chunk.broadcastId,
+    isFinal: true,
+    isHidden: false,
+    startMs: { $lt: chunk.endMs + 500 },
+    endMs: { $gt: Math.max(0, chunk.startMs - 500) },
+  }).sort({ startMs: 1 }).select('text originalText');
+  return rows
+    .map((row) => String(row.originalText || row.text || '').trim())
+    .filter(Boolean)
+    .join(' ')
+    .trim();
+};
+
+const transcribeWithConfiguredQualityProvider = async ({ chunk, wavBuffer, pcm }) => {
+  if (env.geminiQualityEnabled && env.geminiApiKey) {
+    const originalText = await originalDraftTextForChunk(chunk);
+    try {
+      const result = await transcribeGeminiQuality({
+        audio: wavBuffer,
+        mimeType: 'audio/wav',
+        originalText,
+        customVocabulary: [],
+      });
+      if (result.accepted && result.qualityText) {
+        return {
+          provider: GEMINI_QUALITY_PROVIDER,
+          segments: [{
+            text: result.qualityText,
+            startMs: Number(chunk.startMs) || 0,
+            endMs: Math.max(Number(chunk.startMs) || 0, Number(chunk.endMs) || Number(chunk.startMs) || 0),
+            speaker: 'Creator',
+            confidence: null,
+            language: providerLanguage(),
+          }],
+          validation: result.reason,
+        };
+      }
+      // A rejected candidate is not a provider failure. Preserve the raw live
+      // transcript and finish the durable chunk without destructive rewriting.
+      return { provider: GEMINI_QUALITY_PROVIDER, segments: [], preserveRaw: true, validation: result.reason };
+    } catch (error) {
+      if (providerUrl() && providerApiKey()) {
+        console.warn('[Echoo Transcript] Gemini quality unavailable; falling back to Whisper quality', {
+          chunkId: String(chunk._id),
+          code: error?.code || error?.status || 'GEMINI_QUALITY_FAILED',
+        });
+      } else if (originalText) {
+        return { provider: 'raw-live-transcript', segments: [], preserveRaw: true, fallbackReason: error?.code || 'gemini_failed' };
+      } else {
+        throw error;
+      }
+    }
+  }
+
+  if (providerUrl() && providerApiKey()) {
+    return {
+      provider: WHISPER_QUALITY_PROVIDER,
+      segments: await transcribeWhisperChunk({ chunk, pcm }),
+    };
+  }
+
+  const originalText = await originalDraftTextForChunk(chunk);
+  if (originalText) {
+    return { provider: 'raw-live-transcript', segments: [], preserveRaw: true, fallbackReason: 'no_quality_provider' };
+  }
+  throw asRetryable(new Error('No transcript quality provider is configured and no raw transcript is available'));
 };
 
 export async function processTranscriptQualityChunk(chunkId) {
   const chunk = await BroadcastAudioChunk.findById(chunkId);
   if (!chunk) throw new Error('Transcript quality chunk not found');
 
-  // If the chunk body was already reconciled and persisted before a worker
-  // crash, recovering the job must not transcribe/apply it a second time.
   if (chunk.status === 'completed') {
     await fs.rm(chunk.filePath, { force: true }).catch(() => null);
     return { updated: 0, created: 0, hidden: 0, segments: 0, recovered: true, chunkId: String(chunk._id) };
@@ -395,14 +456,21 @@ export async function processTranscriptQualityChunk(chunkId) {
 
   const buffer = await fs.readFile(chunk.filePath);
   const pcm = wavToPcm16Mono16k(buffer);
-  const segments = await transcribeChunk({ chunk, pcm });
+  const quality = await transcribeWithConfiguredQualityProvider({ chunk, wavBuffer: buffer, pcm });
 
-  // No speech is a valid high-quality result. Treating a silent window as a
-  // provider error caused ordinary pauses to retry repeatedly and eventually
-  // fail an otherwise healthy broadcast transcript.
-  const summary = segments.length
-    ? await reconcileSegments({ chunk, qualitySegments: segments })
-    : { updated: 0, created: 0, hidden: 0, segments: 0, silent: true };
+  const summary = quality.segments.length
+    ? await reconcileSegments({ chunk, qualitySegments: quality.segments, qualityProvider: quality.provider })
+    : {
+        updated: 0,
+        created: 0,
+        hidden: 0,
+        segments: 0,
+        silent: !quality.preserveRaw,
+        preservedRaw: Boolean(quality.preserveRaw),
+        provider: quality.provider,
+        validation: quality.validation || null,
+        fallbackReason: quality.fallbackReason || null,
+      };
 
   chunk.status = 'completed';
   chunk.error = null;
