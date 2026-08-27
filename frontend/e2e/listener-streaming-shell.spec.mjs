@@ -60,6 +60,16 @@ test('player exposes queue, transcript and share surfaces', async ({ page }) => 
 
 test('mobile full player dismisses with a deliberate downward swipe on its handle', async ({ page }) => {
   test.skip((page.viewportSize()?.width || 0) >= 768, 'Swipe dismissal is a compact mobile interaction.');
+  await page.addInitScript(() => {
+    window.__echooVibrations = [];
+    Object.defineProperty(navigator, 'vibrate', {
+      configurable: true,
+      value: (duration) => {
+        window.__echooVibrations.push(duration);
+        return true;
+      },
+    });
+  });
   await authenticate(page);
   await page.goto('/listen');
   await page.locator('.layout-player-track').click();
@@ -77,6 +87,7 @@ test('mobile full player dismisses with a deliberate downward swipe on its handl
 
   await expect(dialog).toHaveCount(0);
   await expect(page.locator('.echoo-persistent-player')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.__echooVibrations)).toEqual([10]);
 });
 
 test('history rows show bounded listening progress with exact position context', async ({ page }) => {
@@ -92,4 +103,10 @@ test('history rows show bounded listening progress with exact position context',
   const tooltip = page.locator('.lh-row-progress-tooltip').first();
   await expect(tooltip).toHaveText(/Left off at \d+(?::\d{2}){1,2} of \d+(?::\d{2}){1,2}/);
   await expect(tooltip).toHaveCSS('visibility', 'visible');
+  const trigger = page.locator('.lh-row-info-button').first();
+  await trigger.focus();
+  await page.keyboard.press('Escape');
+  await expect(tooltip).toHaveAttribute('aria-hidden', 'true');
+  await expect(tooltip).toHaveCSS('visibility', 'hidden');
+  await expect(trigger).toBeFocused();
 });

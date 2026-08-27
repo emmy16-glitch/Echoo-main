@@ -198,3 +198,6 @@
 - [x] Add an Undo action to successful creator audio-rename feedback that safely restores the prior title.
 - [x] Add an accessible history progress tooltip with the exact paused or last-listened timestamp.
 - [x] Add a touch-only swipe-down gesture that dismisses the mobile full player back to the compact player.
+- [x] Add a visible countdown that communicates the remaining Undo window after a creator rename.
+- [x] Add Escape-key dismissal and focus restoration for the listening-history progress tooltip.
+- [x] Add guarded haptic feedback after a successful mobile full-player swipe-down dismissal.

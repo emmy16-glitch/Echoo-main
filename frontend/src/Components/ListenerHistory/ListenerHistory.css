@@ -260,6 +260,14 @@
   visibility: visible;
 }
 
+.lh-row-info-button--tooltip-dismissed .lh-row-progress-tooltip,
+.lh-row-info-button--tooltip-dismissed:hover .lh-row-progress-tooltip,
+.lh-row-info-button--tooltip-dismissed:focus-visible .lh-row-progress-tooltip {
+  opacity: 0;
+  transform: translateY(4px);
+  visibility: hidden;
+}
+
 .lh-row-meta {
   display: flex;
   align-items: center;

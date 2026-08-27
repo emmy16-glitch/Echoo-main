@@ -101,6 +101,7 @@ const ListenerHistoryConnected = () => {
   const [tab, setTab] = useState('all');
   const [busyId, setBusyId] = useState('');
   const [clearing, setClearing] = useState(false);
+  const [dismissedTooltipEntryId, setDismissedTooltipEntryId] = useState('');
 
   const loadStats = useCallback(async () => {
     try {
@@ -310,6 +311,7 @@ const ListenerHistoryConnected = () => {
                 const current = isCurrent(track);
                 const removing = busyId === String(track.entryId);
                 const progressPercent = progressFractionToPercent(track.progress);
+                const tooltipDismissed = dismissedTooltipEntryId === String(track.entryId);
                 const listeningPosition = track.duration > 0
                   ? `Left off at ${formatTime(track.listenedSeconds)} of ${formatTime(track.duration)}`
                   : 'Listening position unavailable';
@@ -331,8 +333,20 @@ const ListenerHistoryConnected = () => {
                     </button>
                     <button
                       type="button"
-                      className="lh-row-info lh-row-info-button"
+                      className={`lh-row-info lh-row-info-button ${tooltipDismissed ? 'lh-row-info-button--tooltip-dismissed' : ''}`}
                       onClick={() => handleRowClick(track)}
+                      onMouseEnter={() => setDismissedTooltipEntryId('')}
+                      onFocus={() => setDismissedTooltipEntryId('')}
+                      onBlur={() => {
+                        if (tooltipDismissed) setDismissedTooltipEntryId('');
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key !== 'Escape') return;
+                        event.preventDefault();
+                        event.stopPropagation();
+                        setDismissedTooltipEntryId(String(track.entryId));
+                        event.currentTarget.focus({ preventScroll: true });
+                      }}
                     >
                       <span className="lh-row-title">{track.title}</span>
                       <span className="lh-row-sub">
@@ -353,7 +367,7 @@ const ListenerHistoryConnected = () => {
                           <span style={{ width: `${progressPercent}%` }} />
                         </span>
                         <span className="lh-row-progress-label">{progressPercent}% listened</span>
-                        <span className="lh-row-progress-tooltip" role="tooltip" aria-hidden="true">
+                        <span className="lh-row-progress-tooltip" role="tooltip" aria-hidden={tooltipDismissed}>
                           {listeningPosition}
                         </span>
                       </span>

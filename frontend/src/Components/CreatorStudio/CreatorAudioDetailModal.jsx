@@ -336,6 +336,7 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged }) => {
         actionLabel={renameToast.undoTitle ? 'Undo' : ''}
         onAction={renameToast.undoTitle ? undoTitleRename : undefined}
         actionDisabled={titleSaving}
+        showCountdown={Boolean(renameToast.undoTitle)}
         onClose={() => setRenameToast((current) => ({ ...current, open: false }))}
       />
       <section

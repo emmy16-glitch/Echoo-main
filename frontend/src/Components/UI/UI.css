@@ -599,6 +599,21 @@
   line-height: 1.4;
 }
 
+.echoo-toast-content .echoo-toast-countdown {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  margin-top: 3px;
+  color: #475467;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.echoo-toast-content .echoo-toast-countdown strong {
+  color: #125fbe;
+  font-size: 11px;
+}
+
 .echoo-toast-action {
   min-height: 32px;
   padding: 0 10px;

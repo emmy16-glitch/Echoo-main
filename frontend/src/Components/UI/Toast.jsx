@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useState,
 } from 'react';
 
 import {
@@ -32,7 +33,10 @@ const Toast = ({
   actionLabel = '',
   onAction,
   actionDisabled = false,
+  showCountdown = false,
 }) => {
+  const [remainingSeconds, setRemainingSeconds] = useState(0);
+
   useEffect(() => {
     if (
       !open ||
@@ -57,6 +61,22 @@ const Toast = ({
     duration,
     onClose,
   ]);
+
+  useEffect(() => {
+    if (!open || !showCountdown || duration <= 0) {
+      setRemainingSeconds(0);
+      return undefined;
+    }
+
+    const expiresAt = Date.now() + duration;
+    const updateCountdown = () => {
+      setRemainingSeconds(Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000)));
+    };
+
+    updateCountdown();
+    const interval = window.setInterval(updateCountdown, 250);
+    return () => window.clearInterval(interval);
+  }, [open, showCountdown, duration]);
 
   if (!open) {
     return null;
@@ -83,6 +103,12 @@ const Toast = ({
         {message && (
           <span>
             {message}
+          </span>
+        )}
+
+        {showCountdown && remainingSeconds > 0 && (
+          <span className="echoo-toast-countdown" aria-hidden="true">
+            Undo expires in <strong>{remainingSeconds}s</strong>
           </span>
         )}
       </div>

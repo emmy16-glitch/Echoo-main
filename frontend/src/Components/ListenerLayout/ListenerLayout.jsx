@@ -290,6 +290,9 @@ const ListenerLayout = () => {
     const horizontalDistance = Math.abs(touch.clientX - start.x);
     const verticalDistance = touch.clientY - start.y;
     if (verticalDistance >= 72 && verticalDistance > horizontalDistance * 1.4) {
+      if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+        navigator.vibrate(10);
+      }
       closeFullPlayer();
     }
   };
