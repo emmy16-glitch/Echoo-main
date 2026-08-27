@@ -21,8 +21,26 @@ const normalizeList = (response) =>
     .map(normalizeSegment)
     .filter(Boolean);
 
+const getMergedReadiness = async () => {
+  const [legacy, providers] = await Promise.allSettled([
+    apiRequest('/transcripts/readiness'),
+    apiRequest('/transcripts/provider-readiness'),
+  ]);
+  const legacyValue = legacy.status === 'fulfilled' ? legacy.value : { data: {} };
+  const providerValue = providers.status === 'fulfilled' ? providers.value : { data: {} };
+  if (legacy.status === 'rejected' && providers.status === 'rejected') throw legacy.reason;
+  return {
+    ...legacyValue,
+    data: {
+      ...(legacyValue?.data || {}),
+      ...(providerValue?.data || {}),
+    },
+    timestamp: providerValue?.timestamp || legacyValue?.timestamp,
+  };
+};
+
 const transcriptService = {
-  getReadiness: async () => apiRequest('/transcripts/readiness'),
+  getReadiness: getMergedReadiness,
   getProviderReadiness: async () => apiRequest('/transcripts/provider-readiness'),
 
   search: async ({ search, cursor = '', limit = 25 } = {}) => {
