@@ -167,4 +167,4 @@
 - [x] Add truthful local typing-feedback states and short reduced-motion-safe assistant panel/message transitions across website, listener, and creator contexts.
 - [x] Add a consent-first human-support escalation flow that never pre-fills, retains, or transmits a user question without an explicit visitor action.
 - [x] Expand deterministic curated-help topics with common access, audio, room, settings, creator-preparation, and troubleshooting guidance without claiming user or room awareness.
-- [ ] Add focused interaction/content coverage, document the consent boundary, validate the landing and application builds, then checkpoint and synchronize both Echoo-main repositories.
+- [x] Add focused interaction/content coverage, document the consent boundary, validate the landing and application builds, then checkpoint and synchronize both Echoo-main repositories.
