@@ -17,6 +17,7 @@ import { FooterSocialShare } from "@/components/FooterSocialShare";
 import { MobilePublicMenu } from "@/components/MobilePublicMenu";
 import { NewsletterSubmitButton } from "@/components/NewsletterSubmitButton";
 import { PublicNavShell } from "@/components/PublicNavShell";
+import { CuratedHelpAssistant } from "@/components/CuratedHelpAssistant";
 import { toast } from "sonner";
 import {
   ArrowDownRight,
@@ -337,6 +338,7 @@ export default function Home() {
         </div>
       </footer>
       <BackToTop />
+      <CuratedHelpAssistant mode="website" />
     </div>
   );
 }

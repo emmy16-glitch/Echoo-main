@@ -42,6 +42,7 @@ import '../../styles/echoo-asset-system.css';
 import './ListenerLayout.css';
 import './ListenerStreamingShell.css';
 import EchooAppShell from '../Shared/EchooAppShell';
+import CuratedHelpAssistant from '../Support/CuratedHelpAssistant';
 
 const SEARCH_SUGGESTIONS = [
   'Podcast',
@@ -1069,6 +1070,7 @@ const ListenerLayout = () => {
         )}
       </div>
         )}
+      overlaySlot={<CuratedHelpAssistant mode="listener" />}
     >
       <div className="layout-content echoo-listener-scroll">
         <Outlet

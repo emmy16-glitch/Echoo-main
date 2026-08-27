@@ -34,6 +34,7 @@ import CreatorSettingsWorkspace from './CreatorSettingsWorkspace';
 import CreatorNotificationsWorkspace from './CreatorNotificationsWorkspace';
 import CreatorCollectionsWorkspace from './CreatorCollectionsWorkspace';
 import CreatorAccountMenuPortal from './CreatorAccountMenuPortal';
+import CuratedHelpAssistant from '../Support/CuratedHelpAssistant';
 
 const GENRES = [
   'Pop', 'Rock', 'Hip-Hop', 'Electronic', 'Jazz', 'Classical', 'R&B',
@@ -500,6 +501,8 @@ const CreatorStudio = () => {
         onSettings={() => navigateStudio('Settings')}
         onLogout={handleCreatorLogout}
       />
+
+      <CuratedHelpAssistant mode="creator" />
 
       {uploadOpen && (
         <div className="studio-modal-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) closeUpload(); }}>

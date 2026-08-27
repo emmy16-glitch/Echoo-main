@@ -56,6 +56,20 @@ That command starts the complete landing application, normally at `http://localh
 | Double-opt-in confirmation flow | `server/newsletterDelivery.ts`, `server/routers.ts`, and `client/src/pages/NewsletterConfirmation.tsx` |
 | Platform recommendation logic | `client/src/lib/downloadSelector.ts` |
 | Anonymous download-event naming | `client/src/lib/releaseDownloadAnalytics.ts` |
+| Public product and download help assistant | `client/src/components/CuratedHelpAssistant.tsx` and `client/src/lib/curatedHelp.ts` |
+| Public curated-help test coverage | `client/src/lib/curatedHelp.test.ts` and `client/src/components/publicControls.test.ts` |
+
+## Curated help boundary
+
+The public help control is mounted in both `client/src/pages/Home.tsx` and `client/src/pages/Release.tsx`. It provides **local, deterministic product guidance** only: the question is matched against a small curated topic set in `client/src/lib/curatedHelp.ts`, and the result exists only in React component state for the open browser session. It makes no request to an AI provider, analytics endpoint, API, or database; it stores no message, visitor identity, account data, room data, or playback data. Keep that boundary intact unless a separately reviewed, consent-based support integration is introduced.
+
+## Logo and display-image locations
+
+The landing page intentionally has **no ordinary checked-in image folder**. The public landing image URL constants are maintained in `client/src/pages/Home.tsx`; the release logo constant is maintained in `client/src/pages/Release.tsx`. They currently reference managed `/manus-storage/...` paths so landing builds do not package large media.
+
+The original approved landing screenshots are staged outside the codebase at `/home/ubuntu/webdev-static-assets/echoo-approved/` in this environment: `echoo-listen-dashboard.png`, `echoo-sign-in.png`, and `echoo-creator-studio.png`. To replace a landing image, place the approved source in `/home/ubuntu/webdev-static-assets/`, upload it with `manus-upload-file --webdev`, then replace only the relevant `/manus-storage/...` constant. Do not move screenshots into `client/public/` or `client/src/assets/`.
+
+The main authenticated Echoo application has its own editable checked-in visual-assets directory at `frontend/src/Components/Assets/`. Its current application logo is `echoo-brand-logo.png`; shared logo artwork is `echoo-logo-official.svg`. That directory is distinct from the landing page’s managed media workflow.
 
 ## Design review loop
 

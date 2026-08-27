@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Added a local, deterministic curated-help assistant to both public landing routes for product, web-app, download, release, installer, and early-access guidance. The assistant makes no AI-provider, analytics, or API call and retains guidance only in browser component state for the open session.
+- Added direct curated-response and public-control coverage for the public assistant’s key subjects, privacy-safe fallback, keyboard-reachable 44px trigger, and dialog-free initial render. The authenticated application now adds a separate listener-support assistant and creator copilot with equally local, context-specific guidance; they do not access account, room, chat, audience, or playback data.
+- Documented the exact managed landing image workflow: current landing URLs are constants in `Home.tsx` and `Release.tsx`, approved original screenshots are staged at `/home/ubuntu/webdev-static-assets/echoo-approved/`, and main-application visual assets remain under `frontend/src/Components/Assets/`.
+
 - Added restrained interaction feedback to compact-menu icon controls: hover and keyboard focus lightly elevate or tint the icon, while pointer press gives a compact active response. The same controls explicitly suppress non-essential transforms for reduced-motion users and retain their visible focus outlines.
 - Final validation for this refinement: 17 test files passed with one intentionally skipped inactive-credentials health test (44 passing tests), followed by successful TypeScript checking, production build, restarted phone-width review, and direct static coverage of the hover, active, and reduced-motion class wiring.
 

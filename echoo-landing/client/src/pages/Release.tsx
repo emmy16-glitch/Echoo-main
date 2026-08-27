@@ -18,6 +18,7 @@ import {
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { MobilePublicMenu } from "@/components/MobilePublicMenu";
 import { PublicNavShell } from "@/components/PublicNavShell";
+import { CuratedHelpAssistant } from "@/components/CuratedHelpAssistant";
 import {
   Accordion,
   AccordionContent,
@@ -327,6 +328,7 @@ export default function Release() {
         <section id="install" className="border-t border-[#164F9D]/15 bg-[#DCE8F7]"><div className="mx-auto grid max-w-[1440px] lg:grid-cols-[142px_1fr]"><div className="hidden border-r border-[#164F9D]/15 lg:block" /><div className="grid lg:grid-cols-[1.08fr_.92fr]"><div className="px-5 py-14 sm:px-8 lg:px-12 lg:py-20"><p className="text-[.64rem] font-black tracking-[.17em] text-[#1D5FB4]">A NOTE ON THE DESKTOP APP / 03</p><h2 className="mt-5 max-w-2xl text-4xl font-black leading-[.94] tracking-[-.055em] sm:text-5xl">A desktop window for your Echoo workspace.</h2><p className="mt-7 max-w-xl font-serif text-xl leading-8 text-[#164F9D]/70">The desktop builds provide a dedicated Echoo Studio window, while the live experience continues to connect through Echoo’s web services.</p><a href="#downloads" className="mt-9 inline-flex min-h-11 items-center gap-2 text-[.66rem] font-black tracking-[.14em] text-[#164F9D] hover:text-[#0E3E82]">VIEW INSTALL OPTIONS <ArrowDownRight className="h-4 w-4" /></a></div><div className="flex items-end border-t border-[#164F9D]/15 p-5 sm:p-8 lg:border-l lg:border-t-0 lg:p-12"><div className="w-full rounded-2xl bg-[#164F9D] p-6 text-white shadow-[0_22px_60px_rgba(18,63,129,.2)] sm:p-8"><div className="flex items-center justify-between"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-[#164F9D]"><Radio className="h-3.5 w-3.5" /></span><span className="text-[.6rem] font-black tracking-[.15em] text-white/65">READY WHEN YOU ARE</span></div><div className="mt-12 flex h-14 items-end gap-1.5">{[20, 45, 30, 70, 42, 90, 55, 35, 76, 50, 66, 28].map((height, index) => <span key={index} className="flex-1 rounded-full bg-white/60" style={{ height: `${height}%` }} />)}</div><div className="mt-5 border-t border-white/20 pt-4"><p className="text-sm font-bold">Mix. Publish. Listen.</p><p className="mt-1 text-sm leading-5 text-white/70">The essential live path, arranged for a more reliable session.</p></div></div></div></div></div></section>
       </main>
       <footer className="border-t border-[#164F9D]/15 bg-white"><div className="mx-auto flex max-w-[1440px] flex-col gap-8 px-5 py-9 sm:px-8 md:flex-row md:items-end md:justify-between lg:px-12"><div className="flex items-center gap-3"><span className="flex h-8 w-8 overflow-hidden rounded-full"><BrandMark className="h-full w-full object-cover" /></span><span className="text-[.72rem] font-black tracking-[.18em]">ECHOO STUDIO</span></div><div className="flex items-center gap-3 text-[.62rem] font-black tracking-[.14em] text-[#164F9D]/55"><span>v1.0.5</span><span className="h-1 w-1 rounded-full bg-[#1D5FB4]" /><span>RELEASE PAGE</span><span>PRIVATE SOURCE REPO</span></div></div></footer>
+      <CuratedHelpAssistant mode="website" />
     </div>
   );
 }

@@ -8,7 +8,8 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:curated-help": "node --test src/Components/Support/curatedHelp.test.mjs"
   },
   "dependencies": {
     "deepfilternet3-noise-filter": "^1.3.0",

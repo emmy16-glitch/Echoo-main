@@ -13,6 +13,7 @@ import {
   MobilePublicMenu,
 } from "./MobilePublicMenu";
 import { PublicNavShell } from "./PublicNavShell";
+import { CuratedHelpAssistant } from "./CuratedHelpAssistant";
 import { Sheet } from "./ui/sheet";
 
 describe("public navigation and sharing controls", () => {
@@ -91,5 +92,15 @@ describe("public navigation and sharing controls", () => {
     expect(submittingHtml).toContain('aria-busy="true"');
     expect(submittingHtml).toContain('aria-label="Submitting newsletter subscription"');
     expect(submittingHtml).toContain("SUBMITTING...");
+  });
+
+  it("renders a keyboard-reachable local curated-help trigger without opening a dialog on first paint", () => {
+    const html = renderToStaticMarkup(createElement(CuratedHelpAssistant, { mode: "website" }));
+
+    expect(html).toContain('aria-label="Open Echoo product help"');
+    expect(html).toContain('aria-haspopup="dialog"');
+    expect(html).toContain("min-h-11 min-w-11");
+    expect(html).toContain("HELP");
+    expect(html).not.toContain('aria-modal="true"');
   });
 });

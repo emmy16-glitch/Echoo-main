@@ -156,3 +156,11 @@
 - [x] Add focused coverage, review the loading and icon treatment at phone width, then checkpoint and synchronize the update to both requested Echoo-main repositories.
 - [x] Add subtle hover and active feedback to compact mobile-menu icon-and-label controls while retaining visible keyboard focus and reduced-motion safety.
 - [x] Add focused coverage, review the refined menu interaction at phone width, then checkpoint and synchronize the update to both requested Echoo-main repositories.
+- [x] Assess the existing Echoo chatbot implementation and identify its user-facing purpose, data sources, privacy needs, and integration constraints before proposing changes.
+- [x] Build a shared curated-help chatbot architecture with no external AI call, preserving privacy and providing accurate fallback guidance.
+- [x] Add a public landing-site assistant, a listener/creator in-app support assistant, and a creator-copilot entry point using curated responses.
+- [x] Document the canonical Echoo landing asset locations for the paired-ellipse logo and approved product screenshots, including the managed public URLs used by the landing site.
+- [ ] Add focused automated coverage, validate each chatbot entry point, checkpoint, and synchronize the completed chatbot update to both requested Echoo-main repositories.
+- [x] Keep all curated-help resolution local and deterministic: no network request, no API key, no analytics event, and no persisted message or room/account data.
+- [x] Provide a keyboard-accessible, responsive assistant dialog in each context with a 44px trigger, visible focus, Escape dismissal, safe focus return, and reduced-motion behavior.
+- [ ] Cover website, listener-support, creator-copilot, fallback, and privacy-boundary responses with direct automated tests before release.
