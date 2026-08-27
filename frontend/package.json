@@ -8,11 +8,14 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "test:unit": "node --test test/*.test.js",
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@google/genai": "2.18.0",
     "deepfilternet3-noise-filter": "^1.3.0",
     "livekit-client": "^2.21.0",
+    "parakeet.js": "1.4.4",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-icons": "^5.7.0",
