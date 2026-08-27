@@ -18,6 +18,7 @@ import {
   createGeminiLiveToken,
   createProviderTranscriptSession,
   flushProviderTranscriptSession,
+  getTranscriptionProviderReadiness,
 } from '../controllers/transcriptionProviderController.js';
 import { searchReplayTranscriptsSecure } from '../controllers/transcriptSearchController.js';
 
@@ -33,6 +34,7 @@ const enforcePrivateLiveTranscript = (req, res, next) => {
 
 router.use(authenticate);
 router.get('/readiness', getTranscriptionReadiness);
+router.get('/provider-readiness', getTranscriptionProviderReadiness);
 router.get('/search', searchReplayTranscriptsSecure);
 router.get('/broadcast/:broadcastId', getBroadcastTranscript);
 router.get('/broadcast/:broadcastId/moments', getSavedMoments);
