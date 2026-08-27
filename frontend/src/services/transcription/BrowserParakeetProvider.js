@@ -1,6 +1,17 @@
 import { detectTranscriptionCapabilities, getParakeetEnvConfig } from './capabilities.js';
 
 const MAX_QUEUE = 8;
+const TARGET_BATCH_SAMPLES = 32000; // 2 seconds at 16 kHz.
+
+const concatFloat32 = (parts, length) => {
+  const output = new Float32Array(length);
+  let offset = 0;
+  for (const part of parts) {
+    output.set(part, offset);
+    offset += part.length;
+  }
+  return output;
+};
 
 export class BrowserParakeetProvider {
   constructor({ onStatus, onPartial, onFinal, onError, onMetrics } = {}) {
@@ -8,6 +19,8 @@ export class BrowserParakeetProvider {
     this.worker = null;
     this.ready = false;
     this.queue = [];
+    this.pendingParts = [];
+    this.pendingSamples = 0;
     this.processing = false;
     this.requestId = 0;
     this.pendingInit = null;
@@ -32,7 +45,7 @@ export class BrowserParakeetProvider {
     this.offsetMs = Math.max(0, Number(offsetMs) || 0);
     if (!(await this.isSupported())) throw new Error('Browser Parakeet is not supported in this browser.');
     if (this.ready) return this.getState();
-    if (this.pendingInit) return this.pendingInit;
+    if (this.pendingInit) return this.pendingInit.promise;
 
     this.emit('onStatus', { status: 'initializing', provider: 'parakeet' });
     this.worker = new Worker(new URL('../../workers/parakeet.worker.js', import.meta.url), { type: 'module' });
@@ -47,17 +60,16 @@ export class BrowserParakeetProvider {
     };
 
     this.pendingInit = {};
-    const promise = new Promise((resolve, reject) => {
+    this.pendingInit.promise = new Promise((resolve, reject) => {
       this.pendingInit.resolve = resolve;
       this.pendingInit.reject = reject;
-      const timer = window.setTimeout(() => {
+      this.pendingInit.timer = window.setTimeout(() => {
         if (!this.ready && this.pendingInit) {
           const error = new Error('Parakeet model preparation timed out.');
           this.pendingInit = null;
           reject(error);
         }
       }, 5 * 60 * 1000);
-      this.pendingInit.timer = timer;
     });
 
     this.worker.postMessage({
@@ -70,7 +82,7 @@ export class BrowserParakeetProvider {
         preprocessorBackend: this.config.preprocessorBackend,
       },
     });
-    return promise;
+    return this.pendingInit.promise;
   }
 
   handleMessage(message) {
@@ -149,9 +161,8 @@ export class BrowserParakeetProvider {
     }
   }
 
-  pushAudio(audio) {
-    if (!(audio instanceof Float32Array) || !audio.length) return;
-    const copy = audio.slice();
+  enqueueChunk(chunk) {
+    if (!chunk?.length) return;
     if (this.queue.length >= MAX_QUEUE) {
       this.queue.shift();
       this.droppedChunks += 1;
@@ -159,8 +170,20 @@ export class BrowserParakeetProvider {
         status: 'degraded', provider: 'parakeet', message: 'Local transcription is falling behind.',
       });
     }
-    this.queue.push(copy);
+    this.queue.push(chunk);
     this.drain();
+  }
+
+  pushAudio(audio) {
+    if (!(audio instanceof Float32Array) || !audio.length) return;
+    const copy = audio.slice();
+    this.pendingParts.push(copy);
+    this.pendingSamples += copy.length;
+    if (this.pendingSamples < TARGET_BATCH_SAMPLES) return;
+    const batch = concatFloat32(this.pendingParts, this.pendingSamples);
+    this.pendingParts = [];
+    this.pendingSamples = 0;
+    this.enqueueChunk(batch);
   }
 
   drain() {
@@ -173,7 +196,13 @@ export class BrowserParakeetProvider {
 
   async flush() {
     if (!this.worker || !this.ready) return;
-    const deadline = Date.now() + 8000;
+    if (this.pendingSamples) {
+      const tail = concatFloat32(this.pendingParts, this.pendingSamples);
+      this.pendingParts = [];
+      this.pendingSamples = 0;
+      this.enqueueChunk(tail);
+    }
+    const deadline = Date.now() + 10000;
     while ((this.processing || this.queue.length) && Date.now() < deadline) {
       await new Promise((resolve) => window.setTimeout(resolve, 25));
     }
@@ -194,6 +223,8 @@ export class BrowserParakeetProvider {
     this.worker = null;
     this.ready = false;
     this.queue = [];
+    this.pendingParts = [];
+    this.pendingSamples = 0;
     this.processing = false;
     this.emit('onStatus', { status: 'stopped', provider: 'parakeet' });
   }
