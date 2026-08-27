@@ -183,3 +183,12 @@
 - [x] Submit, complete, and verify a standalone internal Echoo Android preview APK; record the artifact checksum and temporary EAS delivery link outside the repository.
 - [x] Replace the inherited placeholder Expo name, slug, and Android application ID with Echoo-branded mobile identifiers, then rebuild the standalone APK before final distribution.
 - [x] Correct the Android APK guide to document the user-approved standalone `@effiukp-dev/echoo` project identity and the completed Echoo-branded preview APK build.
+- [x] Audit the listener history workflow to determine why played audio is not reflected in history and implement a tested repair.
+- [x] Correct the listener-history percentage normalization so persisted 0–100 playback progress produces accurate visible listening totals and patterns.
+- [x] Audit creator-upload audio editing to determine why uploaded audio cannot be renamed and implement a tested repair.
+- [x] Audit and correct the authenticated navigation player layout across practical desktop and mobile widths without affecting playback controls.
+- [x] Validate the repaired web-app flows, document the findings, checkpoint, and synchronize both approved Echoo-main repositories.
+- [x] Install the missing local Playwright Chromium runtime so the existing authenticated listener regression suite can exercise the repaired player layout and controls.
+- [x] Install the remaining Firefox and WebKit Playwright runtimes so the full configured listener regression matrix can run without environmental browser omissions.
+- [x] Install the required local browser-system libraries reported by Playwright so Firefox and WebKit can execute the existing cross-browser listener tests.
+- [x] Correct the listener-shell browser test to assert sidebar visibility by viewport width rather than browser engine, then rerun the full regression matrix.

@@ -11,6 +11,7 @@ import { GiClockwork } from 'react-icons/gi';
 import Toast from '../ListenerUI/ListenerToast';
 import audioService from '../../services/audioService';
 import batch6Service from '../../services/batch6Service';
+import { progressPercentToFraction } from './historyProgress';
 import '../../styles/listener-reference-pages.css';
 import './ListenerHistory.css';
 import './ListenerHistoryInteractionFix.css';
@@ -73,7 +74,7 @@ const normalizedTrack = (item) => {
   const track = audioService.normalize(raw);
   if (!track?.id) return null;
   const duration = Number(raw.duration) || 0;
-  const progress = Math.max(0, Math.min(1, Number(item.progress) || 0));
+  const progress = progressPercentToFraction(item.progress);
   return {
     ...track,
     duration,

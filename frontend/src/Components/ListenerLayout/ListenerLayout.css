@@ -209,12 +209,14 @@
   .echoo-listener-v2-shell .layout-player-cover { width: 48px; height: 48px; border-radius: 7px; }
   .echoo-listener-v2-shell .layout-player-info strong { font-size: 13px; }
   .echoo-listener-v2-shell .layout-player-info span { font-size: 11px; }
-  .echoo-listener-v2-shell .layout-player-controls { gap: 2px; }
+  .echoo-listener-v2-shell .layout-player-controls { gap: 4px; }
   .echoo-listener-v2-shell .layout-player-controls > button { display: none; }
+  .echoo-listener-v2-shell .layout-player-controls > button:first-child,
   .echoo-listener-v2-shell .layout-player-controls > .layout-player-main-button,
   .echoo-listener-v2-shell .layout-player-controls > button:last-child { display: grid; }
+  .echoo-listener-v2-shell .layout-player-controls > button:first-child,
+  .echoo-listener-v2-shell .layout-player-controls > button:last-child { width: 34px; height: 34px; flex-basis: 34px; }
   .echoo-listener-v2-shell .layout-player-controls .layout-player-main-button { width: 44px; height: 44px; flex-basis: 44px; }
-  .echoo-listener-v2-shell .layout-player-controls > button:last-child { width: 40px; height: 40px; flex-basis: 40px; }
   .echoo-listener-v2-shell .layout-player-volume { display: none; }
   .echoo-listener-v2-shell .layout-player-mobile-progress { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; display: block; background: #e3e8ef; }
   .echoo-listener-v2-shell .layout-player-mobile-progress span { height: 100%; display: block; background: var(--listener-blue); }
@@ -241,9 +243,9 @@
     left: 0 !important;
     right: 0 !important;
   }
-  html body #root .echoo-listener-v2-shell.echoo-app-shell--listener .layout-player-controls > button:nth-child(1),
   html body #root .echoo-listener-v2-shell.echoo-app-shell--listener .layout-player-controls > button:nth-child(2),
   html body #root .echoo-listener-v2-shell.echoo-app-shell--listener .layout-player-controls > button:nth-child(4) { display: none !important; }
+  html body #root .echoo-listener-v2-shell.echoo-app-shell--listener .layout-player-controls > button:nth-child(1),
   html body #root .echoo-listener-v2-shell.echoo-app-shell--listener .layout-player-controls > button:nth-child(3),
   html body #root .echoo-listener-v2-shell.echoo-app-shell--listener .layout-player-controls > button:nth-child(5) { display: grid !important; }
   html body #root .echoo-listener-v2-shell.echoo-app-shell--listener .layout-player-volume { display: none !important; }

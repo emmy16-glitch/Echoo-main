@@ -92,6 +92,84 @@
   letter-spacing: -.045em;
 }
 
+.creator-audio-title-display {
+  display: flex;
+  align-items: end;
+  gap: 10px;
+}
+
+.creator-audio-title-display h2 {
+  flex: 1;
+}
+
+.creator-audio-title-display button,
+.creator-audio-title-editor button {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid #d0d5dd;
+  border-radius: 10px;
+  background: #fff;
+  color: #344054;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.creator-audio-title-display button {
+  margin: 0 42px 1px 0;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
+.creator-audio-title-editor {
+  margin-top: 8px;
+}
+
+.creator-audio-title-editor label,
+.creator-audio-title-editor small {
+  display: block;
+  color: #667085;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.creator-audio-title-editor > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 7px;
+  margin-top: 5px;
+}
+
+.creator-audio-title-editor input {
+  min-width: 0;
+  min-height: 42px;
+  padding: 0 11px;
+  border: 1px solid #98a2b3;
+  border-radius: 10px;
+  color: #101828;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 750;
+}
+
+.creator-audio-title-editor button {
+  padding: 0 11px;
+}
+
+.creator-audio-title-editor button:first-of-type {
+  border-color: #265dff;
+  background: #265dff;
+  color: #fff;
+}
+
+.creator-audio-title-editor small {
+  margin-top: 5px;
+  font-weight: 500;
+}
+
 .creator-audio-modal-heading p {
   max-width: 620px;
   margin: 11px 0 0;
@@ -300,6 +378,15 @@
     margin-right: 0;
   }
 
+  .creator-audio-title-display {
+    align-items: center;
+    justify-content: center;
+  }
+
+  .creator-audio-title-display button {
+    margin-right: 0;
+  }
+
   .creator-audio-modal-tags,
   .creator-audio-modal-actions {
     justify-content: center;
@@ -326,6 +413,14 @@
   .creator-audio-skip-controls {
     width: 100%;
     justify-content: space-between;
+  }
+
+  .creator-audio-title-editor > div {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .creator-audio-title-editor input {
+    grid-column: 1 / -1;
   }
 
   .creator-audio-skip-controls button:not(.primary) span {

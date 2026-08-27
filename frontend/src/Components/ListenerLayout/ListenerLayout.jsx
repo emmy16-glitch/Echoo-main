@@ -146,6 +146,7 @@ const ListenerLayout = () => {
   const searchAreaRef = useRef(null);
   const profileMenuRef = useRef(null);
   const progressSyncRef = useRef(false);
+  const lastProgressSyncRef = useRef({ trackId: null, progress: -1 });
   const pendingSeekRef = useRef(null);
   const playerPreferencesReadyRef = useRef(false);
 
@@ -322,16 +323,28 @@ const ListenerLayout = () => {
       return;
     }
 
+    const progress = Math.max(0, Math.floor(audio.currentTime));
+    const reportedDuration = Math.max(
+      0,
+      Math.floor(audio.duration || duration || currentTrack.duration || 0)
+    );
+    const last = lastProgressSyncRef.current;
+    const shouldSkip =
+      !completed &&
+      last.trackId === currentTrack.id &&
+      progress - last.progress < 15;
+
+    if (shouldSkip) return;
+
     progressSyncRef.current = true;
     try {
       await listenerService.updateProgress({
         trackId: currentTrack.id,
-        progress: Math.floor(audio.currentTime),
-        duration: Math.floor(
-          audio.duration || duration || currentTrack.duration || 0
-        ),
+        progress,
+        duration: reportedDuration,
         completed,
       });
+      lastProgressSyncRef.current = { trackId: currentTrack.id, progress };
     } catch (error) {
       console.warn('Playback progress sync:', error);
     } finally {
@@ -869,7 +882,11 @@ const ListenerLayout = () => {
         <audio
           ref={audioRef}
           preload="metadata"
-          onTimeUpdate={() => setCurrentTime(audioRef.current?.currentTime || 0)}
+          onTimeUpdate={() => {
+            const nextTime = audioRef.current?.currentTime || 0;
+            setCurrentTime(nextTime);
+            syncProgress(false);
+          }}
           onLoadedMetadata={() => {
             const nextDuration = Number.isFinite(audioRef.current?.duration)
               ? audioRef.current.duration
@@ -902,8 +919,12 @@ const ListenerLayout = () => {
           onPlay={() => {
             setIsPlaying(true);
             setPlayerError('');
+            syncProgress(false);
           }}
-          onPause={() => setIsPlaying(false)}
+          onPause={() => {
+            setIsPlaying(false);
+            syncProgress(false);
+          }}
           onError={() => {
             setIsPlaying(false);
             setPlayerError('Echoo could not load this uploaded audio file.');
@@ -1061,7 +1082,7 @@ const ListenerLayout = () => {
                   <p className="echoo-full-player-transcript">Transcript availability is shown for supported broadcasts. Keep listening while Echoo follows along with the conversation.</p>
                 ) : (
                   <ol className="echoo-full-player-queue">
-                    {queue.length ? queue.map((track, index) => <li key={`${track.id || track.title}-${index}`}><button type="button" onClick={() => playTrackAt(index)}><span>{index + 1}</span><strong>{track.title}</strong><small>{track.subtitle}</small></button></li>) : <li className="empty">Your listening queue will appear here.</li>}
+                    {queue.length ? queue.map((track, index) => <li key={`${track.id || track.title}-${index}`}><button type="button" onClick={() => playQueueIndex(index)}><span>{index + 1}</span><strong>{track.title}</strong><small>{track.subtitle}</small></button></li>) : <li className="empty">Your listening queue will appear here.</li>}
                   </ol>
                 )}
               </div>

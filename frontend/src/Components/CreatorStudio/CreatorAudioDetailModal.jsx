@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   FaDownload,
+  FaEdit,
   FaGlobe,
   FaLock,
   FaPause,
@@ -58,6 +59,9 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged }) => {
   const [muted, setMuted] = useState(false);
   const [visibility, setVisibility] = useState(Boolean(track?.isPublic));
   const [visibilitySaving, setVisibilitySaving] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(track?.title || '');
+  const [titleEditing, setTitleEditing] = useState(false);
+  const [titleSaving, setTitleSaving] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState('');
 
@@ -74,6 +78,11 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged }) => {
   useEffect(() => {
     setVisibility(Boolean(track?.isPublic));
   }, [track?.isPublic]);
+
+  useEffect(() => {
+    setTitleDraft(track?.title || '');
+    setTitleEditing(false);
+  }, [track?.id, track?._id, track?.title]);
 
   useEffect(() => {
     let active = true;
@@ -212,6 +221,36 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged }) => {
     }
   };
 
+  const saveTitle = async () => {
+    const id = getId(track);
+    const title = titleDraft.trim();
+
+    if (!id || titleSaving) return;
+    if (!title) {
+      setError('Give this audio a title before saving.');
+      return;
+    }
+
+    if (title === (track.title || '').trim()) {
+      setTitleEditing(false);
+      return;
+    }
+
+    try {
+      setTitleSaving(true);
+      setError('');
+      await studioService.updateAudio(id, { title });
+      setTitleDraft(title);
+      setTitleEditing(false);
+      window.dispatchEvent(new CustomEvent('echoo:creator-audio-changed'));
+      onChanged?.();
+    } catch (titleError) {
+      setError(titleError?.message || 'Could not rename this audio.');
+    } finally {
+      setTitleSaving(false);
+    }
+  };
+
   const downloadOriginal = async () => {
     const id = getId(track);
     if (!id || downloading) return;
@@ -264,7 +303,49 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged }) => {
         <div className="creator-audio-modal-content">
           <div className="creator-audio-modal-heading">
             <span>AUDIO LIBRARY</span>
-            <h2 id="creator-audio-modal-title">{track.title || 'Untitled Audio'}</h2>
+            {titleEditing ? (
+              <div className="creator-audio-title-editor">
+                <label htmlFor="creator-audio-title">Audio title</label>
+                <div>
+                  <input
+                    id="creator-audio-title"
+                    value={titleDraft}
+                    onChange={(event) => setTitleDraft(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') saveTitle();
+                      if (event.key === 'Escape') {
+                        setTitleDraft(track.title || '');
+                        setTitleEditing(false);
+                      }
+                    }}
+                    maxLength="160"
+                    autoFocus
+                    aria-describedby="creator-audio-title-help"
+                  />
+                  <button type="button" onClick={saveTitle} disabled={titleSaving}>
+                    {titleSaving ? 'Saving…' : 'Save'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTitleDraft(track.title || '');
+                      setTitleEditing(false);
+                    }}
+                    disabled={titleSaving}
+                  >
+                    Cancel
+                  </button>
+                </div>
+                <small id="creator-audio-title-help">Press Enter to save or Escape to cancel.</small>
+              </div>
+            ) : (
+              <div className="creator-audio-title-display">
+                <h2 id="creator-audio-modal-title">{titleDraft || 'Untitled Audio'}</h2>
+                <button type="button" onClick={() => setTitleEditing(true)} aria-label="Rename audio">
+                  <FaEdit /> Rename
+                </button>
+              </div>
+            )}
             <p>{track.description || 'No description added.'}</p>
           </div>
 

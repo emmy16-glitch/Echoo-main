@@ -26,7 +26,8 @@ test('listener streaming shell keeps its navigation and player pinned', async ({
   await page.goto('/listen');
   await expect(page.locator('.echoo-home-now-playing')).toBeVisible();
 
-  if (testInfo.project.name.startsWith('desktop')) {
+  const viewportWidth = page.viewportSize()?.width ?? 0;
+  if (viewportWidth >= 768) {
     await expect.poll(() => page.locator('.echoo-app-sidebar').evaluate((node) => getComputedStyle(node).position)).toBe('fixed');
     await expect.poll(() => page.locator('.echoo-app-main').evaluate((node) => getComputedStyle(node).overflowY)).toBe('auto');
     await expect.poll(() => page.locator('.echoo-persistent-player').evaluate((node) => getComputedStyle(node).position)).toBe('fixed');
