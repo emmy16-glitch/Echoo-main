@@ -1,22 +1,22 @@
-# Welcome to your Expo app 👋
+# Echoo Mobile
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Echoo Mobile is the React Native/Expo companion application for Echoo live-audio experiences. It is kept as a separate subproject from `frontend`, `desktop`, and `echoo-landing`.
 
-## Get started
+## Run locally
 
 1. Install dependencies
 
    ```bash
-   npm install
+    npm ci
    ```
 
 2. Start the app
 
    ```bash
-   npx expo start
+    npm start
    ```
 
-In the output, you'll find options to open the app in a
+In the Expo output, choose an Android emulator, an Android development build, or Expo Go where the installed native dependencies are supported.
 
 - [development build](https://docs.expo.dev/develop/development-builds/introduction/)
 - [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
@@ -25,26 +25,17 @@ In the output, you'll find options to open the app in a
 
 You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
 
-## Get a fresh project
+## Build an installable Android APK
 
-When you're ready, run:
+The `preview` EAS profile is configured to output a standalone APK for internal testing. Read [APK_BUILD.md](./APK_BUILD.md) for the required account access, validation steps, and build command.
+
+## Key commands
 
 ```bash
-npm run reset-project
+npm run android
+npm run lint
+npm run build:android:preview
+npm run check:production-env
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
-
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+Keep credentials and production endpoint values out of tracked files. The mobile application depends on public HTTPS/WSS endpoints for production device access.

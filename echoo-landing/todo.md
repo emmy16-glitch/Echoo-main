@@ -168,3 +168,15 @@
 - [x] Add a consent-first human-support escalation flow that never pre-fills, retains, or transmits a user question without an explicit visitor action.
 - [x] Expand deterministic curated-help topics with common access, audio, room, settings, creator-preparation, and troubleshooting guidance without claiming user or room awareness.
 - [x] Add focused interaction/content coverage, document the consent boundary, validate the landing and application builds, then checkpoint and synchronize both Echoo-main repositories.
+- [x] Inspect the existing Echoo mobile project and establish a standalone Android APK build path without altering the desktop or web release flow.
+- [ ] Configure verified human-support delivery only after a confirmed support mailbox and sender identity are available; never expose credentials or send unconsented support content.
+- [ ] Add a consented support-request form with explicit collection purpose, user-confirmed submission, bounded retention, deletion handling, and no preselected marketing consent.
+- [ ] Add a curator-approved support-feedback workflow that converts aggregated, non-identifying recurring topics into curated-help drafts without autonomous publication or external AI processing.
+- [ ] Add focused tests, document support data lifecycle and mobile build steps, validate the APK and web/app changes, checkpoint, and synchronize both approved Echoo-main repositories.
+- [x] Confirm that human escalation remains a consented recipient-free email draft until a verified team inbox is supplied; do not collect, retain, or deliver support requests in the interim.
+- [x] Define 10 days as the maximum retention period for any future consented support-request system, with deletion on verified request; no ticket record is created while email-draft escalation is active.
+- [x] Configure and validate the existing EAS preview profile to produce a standalone installable Android APK without changing desktop artifacts or web releases.
+- [x] Replace the inaccessible Expo owner and project ID with a new standalone EAS project under the authenticated `effiukp-dev` owner, then revalidate the Android preview configuration.
+- [x] Set the required EAS application-version source explicitly so future standalone Android builds avoid the configuration warning.
+- [x] Add and validate the required `react-native-svg` peer dependency so the mobile app’s icon components remain safe in a standalone Android build.
+- [x] Document the active email-draft escalation boundary and the support-admin approval-only workflow for any future feedback-derived curated-help topic before an inbox is enabled.
