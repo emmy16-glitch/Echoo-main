@@ -4,6 +4,7 @@ import {
   FaCheck,
   FaClock,
   FaEllipsisV,
+  FaInfoCircle,
   FaPause,
   FaPlay,
 } from 'react-icons/fa';
@@ -102,6 +103,9 @@ const ListenerHistoryConnected = () => {
   const [busyId, setBusyId] = useState('');
   const [clearing, setClearing] = useState(false);
   const [dismissedTooltipEntryId, setDismissedTooltipEntryId] = useState('');
+  const [touchTooltipEntryId, setTouchTooltipEntryId] = useState('');
+  const [hoveredTooltipEntryId, setHoveredTooltipEntryId] = useState('');
+  const [focusedTooltipEntryId, setFocusedTooltipEntryId] = useState('');
 
   const loadStats = useCallback(async () => {
     try {
@@ -312,6 +316,14 @@ const ListenerHistoryConnected = () => {
                 const removing = busyId === String(track.entryId);
                 const progressPercent = progressFractionToPercent(track.progress);
                 const tooltipDismissed = dismissedTooltipEntryId === String(track.entryId);
+                const touchTooltipOpen = touchTooltipEntryId === String(track.entryId);
+                const tooltipExposed = touchTooltipOpen || (
+                  !tooltipDismissed && (
+                    hoveredTooltipEntryId === String(track.entryId) ||
+                    focusedTooltipEntryId === String(track.entryId)
+                  )
+                );
+                const tooltipId = `history-position-${track.entryId}`;
                 const listeningPosition = track.duration > 0
                   ? `Left off at ${formatTime(track.listenedSeconds)} of ${formatTime(track.duration)}`
                   : 'Listening position unavailable';
@@ -333,18 +345,25 @@ const ListenerHistoryConnected = () => {
                     </button>
                     <button
                       type="button"
-                      className={`lh-row-info lh-row-info-button ${tooltipDismissed ? 'lh-row-info-button--tooltip-dismissed' : ''}`}
+                      className={`lh-row-info lh-row-info-button ${tooltipDismissed ? 'lh-row-info-button--tooltip-dismissed' : ''} ${touchTooltipOpen ? 'lh-row-info-button--tooltip-open' : ''}`}
                       onClick={() => handleRowClick(track)}
-                      onMouseEnter={() => setDismissedTooltipEntryId('')}
-                      onFocus={() => setDismissedTooltipEntryId('')}
-                      onBlur={() => {
-                        if (tooltipDismissed) setDismissedTooltipEntryId('');
+                      onMouseEnter={() => {
+                        setDismissedTooltipEntryId('');
+                        setHoveredTooltipEntryId(String(track.entryId));
                       }}
+                      onMouseLeave={() => setHoveredTooltipEntryId('')}
+                      onFocus={() => {
+                        setDismissedTooltipEntryId('');
+                        setFocusedTooltipEntryId(String(track.entryId));
+                      }}
+                      onBlur={() => setFocusedTooltipEntryId('')}
                       onKeyDown={(event) => {
                         if (event.key !== 'Escape') return;
                         event.preventDefault();
                         event.stopPropagation();
                         setDismissedTooltipEntryId(String(track.entryId));
+                        setTouchTooltipEntryId('');
+                        setFocusedTooltipEntryId('');
                         event.currentTarget.focus({ preventScroll: true });
                       }}
                     >
@@ -367,10 +386,37 @@ const ListenerHistoryConnected = () => {
                           <span style={{ width: `${progressPercent}%` }} />
                         </span>
                         <span className="lh-row-progress-label">{progressPercent}% listened</span>
-                        <span className="lh-row-progress-tooltip" role="tooltip" aria-hidden={tooltipDismissed}>
+                        <span
+                          id={tooltipId}
+                          className="lh-row-progress-tooltip"
+                          role="tooltip"
+                          aria-hidden={!tooltipExposed}
+                        >
                           {listeningPosition}
                         </span>
                       </span>
+                    </button>
+                    <button
+                      type="button"
+                      className="lh-row-position-toggle"
+                      aria-label={`${touchTooltipOpen ? 'Hide' : 'Show'} listening position for ${track.title || 'history item'}`}
+                      aria-controls={tooltipId}
+                      aria-expanded={touchTooltipOpen}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setDismissedTooltipEntryId('');
+                        setTouchTooltipEntryId((currentEntryId) => (
+                          currentEntryId === String(track.entryId) ? '' : String(track.entryId)
+                        ));
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key !== 'Escape') return;
+                        event.preventDefault();
+                        setTouchTooltipEntryId('');
+                        setDismissedTooltipEntryId(String(track.entryId));
+                      }}
+                    >
+                      <FaInfoCircle aria-hidden="true" />
                     </button>
                     <span className="lh-row-meta">
                       <span className="lh-row-duration">{formatTime(track.duration)}</span>

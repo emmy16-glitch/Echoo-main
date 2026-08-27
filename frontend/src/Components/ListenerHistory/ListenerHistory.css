@@ -114,7 +114,7 @@
 
 .lh-row {
   display: grid;
-  grid-template-columns: 56px 1fr auto auto;
+  grid-template-columns: 56px minmax(0, 1fr) auto auto auto;
   align-items: center;
   gap: 14px;
   width: 100%;
@@ -254,7 +254,8 @@
 }
 
 .lh-row-info-button:hover .lh-row-progress-tooltip,
-.lh-row-info-button:focus-visible .lh-row-progress-tooltip {
+.lh-row-info-button:focus-visible .lh-row-progress-tooltip,
+.lh-row-info-button--tooltip-open .lh-row-progress-tooltip {
   opacity: 1;
   transform: translateY(0);
   visibility: visible;
@@ -266,6 +267,31 @@
   opacity: 0;
   transform: translateY(4px);
   visibility: hidden;
+}
+
+.lh-row-position-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--echoo-border, #e3eaf2);
+  border-radius: 50%;
+  color: var(--echoo-blue, #1769d3);
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.lh-row-position-toggle:focus-visible {
+  outline: 2px solid var(--echoo-blue, #1769d3);
+  outline-offset: 2px;
+}
+
+@media (hover: none), (pointer: coarse) {
+  .lh-row-position-toggle {
+    display: inline-flex;
+  }
 }
 
 .lh-row-meta {
@@ -478,13 +504,13 @@
     grid-template-columns: 1fr;
   }
   .lh-row {
-    grid-template-columns: 48px 1fr auto;
+    grid-template-columns: 48px minmax(0, 1fr) auto auto;
   }
   .lh-row-meta {
     display: none;
   }
   .lh-row-actions {
-    grid-column: 3;
+    grid-column: 4;
   }
 
   .lh-row-progress-wrap {

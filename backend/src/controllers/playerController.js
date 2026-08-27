@@ -61,6 +61,7 @@ export async function getPlaybackState(req, res, next) {
         isPlaying: false,
         volume: user.preferences?.player?.volume ?? 0.8,
         isMuted: Boolean(user.preferences?.player?.isMuted),
+        hapticsEnabled: user.preferences?.player?.hapticsEnabled !== false,
         playbackRate: user.preferences?.player?.playbackRate ?? 1.0,
         isShuffled: Boolean(user.preferences?.player?.isShuffled),
         repeatMode: user.preferences?.player?.repeatMode || 'none',
@@ -388,7 +389,7 @@ export async function getListeningHistory(req, res, next) {
 export async function updatePlayerPreferences(req, res, next) {
   try {
     const userId = req.userId;
-    const { volume, isMuted, playbackRate, isShuffled, repeatMode } = req.body;
+    const { volume, isMuted, hapticsEnabled, playbackRate, isShuffled, repeatMode } = req.body;
 
     const user = await User.findById(userId);
     if (!user) {
@@ -408,6 +409,9 @@ export async function updatePlayerPreferences(req, res, next) {
       }
     }
     if (isMuted !== undefined) user.preferences.player.isMuted = Boolean(isMuted);
+    if (hapticsEnabled !== undefined) {
+      user.preferences.player.hapticsEnabled = Boolean(hapticsEnabled);
+    }
     if (playbackRate !== undefined) {
       const nextRate = Number(playbackRate);
       if (Number.isFinite(nextRate) && nextRate >= 0.5 && nextRate <= 2) {

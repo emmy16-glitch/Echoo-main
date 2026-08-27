@@ -15,6 +15,7 @@ import {
 
 import { buildMediaUrl } from '../../services/api.js';
 import studioService from '../../services/studioService.js';
+import { CREATOR_RENAME_UNDO_WINDOW_MS } from '../../config/playerFeedback.js';
 import Toast from '../UI/Toast';
 import './CreatorAudioDetailModal.css';
 
@@ -332,7 +333,7 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged }) => {
         type="success"
         title={renameToast.title}
         message={renameToast.message}
-        duration={8000}
+        duration={CREATOR_RENAME_UNDO_WINDOW_MS}
         actionLabel={renameToast.undoTitle ? 'Undo' : ''}
         onAction={renameToast.undoTitle ? undoTitleRename : undefined}
         actionDisabled={titleSaving}

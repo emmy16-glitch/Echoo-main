@@ -201,3 +201,6 @@
 - [x] Add a visible countdown that communicates the remaining Undo window after a creator rename.
 - [x] Add Escape-key dismissal and focus restoration for the listening-history progress tooltip.
 - [x] Add guarded haptic feedback after a successful mobile full-player swipe-down dismissal.
+- [x] Move the creator rename Undo duration to a shared application configuration constant.
+- [x] Add an accessible compact info control beside history progress for touch users to show or dismiss the exact listening position.
+- [x] Add a listener settings toggle that persists the user’s haptic-feedback preference and honors it during mobile player dismissal.

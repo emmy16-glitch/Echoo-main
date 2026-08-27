@@ -158,6 +158,7 @@ const ListenerLayout = () => {
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
+  const [hapticsEnabled, setHapticsEnabled] = useState(true);
   const [queue, setQueue] = useState([]);
   const [queueIndex, setQueueIndex] = useState(-1);
   const [shuffle, setShuffle] = useState(false);
@@ -290,7 +291,11 @@ const ListenerLayout = () => {
     const horizontalDistance = Math.abs(touch.clientX - start.x);
     const verticalDistance = touch.clientY - start.y;
     if (verticalDistance >= 72 && verticalDistance > horizontalDistance * 1.4) {
-      if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+      if (
+        hapticsEnabled &&
+        typeof navigator !== 'undefined' &&
+        typeof navigator.vibrate === 'function'
+      ) {
         navigator.vibrate(10);
       }
       closeFullPlayer();
@@ -330,6 +335,7 @@ const ListenerLayout = () => {
           setVolume(Math.max(0, Math.min(1, savedVolume)));
         }
         setIsMuted(Boolean(state.isMuted));
+        setHapticsEnabled(state.hapticsEnabled !== false);
         setShuffle(Boolean(state.isShuffled));
         setRepeatMode(
           state.repeatMode === 'one' || state.repeatMode === 'all'
@@ -350,12 +356,23 @@ const ListenerLayout = () => {
   }, []);
 
   useEffect(() => {
+    const updateHapticPreference = (event) => {
+      const nextValue = event?.detail?.hapticsEnabled;
+      if (typeof nextValue === 'boolean') setHapticsEnabled(nextValue);
+    };
+
+    window.addEventListener('echoo-player-preferences-updated', updateHapticPreference);
+    return () => window.removeEventListener('echoo-player-preferences-updated', updateHapticPreference);
+  }, []);
+
+  useEffect(() => {
     if (!playerPreferencesReadyRef.current) return undefined;
 
     const timer = window.setTimeout(() => {
       listenerService.updatePreferences({
         volume,
         isMuted,
+        hapticsEnabled,
         isShuffled: shuffle,
         repeatMode: repeatMode === 'off' ? 'none' : repeatMode,
       }).catch((error) => {
@@ -364,7 +381,7 @@ const ListenerLayout = () => {
     }, 350);
 
     return () => window.clearTimeout(timer);
-  }, [volume, isMuted, shuffle, repeatMode]);
+  }, [volume, isMuted, hapticsEnabled, shuffle, repeatMode]);
 
   const syncProgress = async (completed = false) => {
     const audio = audioRef.current;
@@ -795,6 +812,7 @@ const ListenerLayout = () => {
                 ref={searchRef}
                 type="text"
                 placeholder="Search stations, audio, creators…"
+                aria-label="Search stations, audio, and creators"
                 value={searchQuery}
                 onFocus={() => setSearchOpen(true)}
                 onChange={(event) => {

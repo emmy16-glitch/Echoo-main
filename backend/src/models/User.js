@@ -153,6 +153,7 @@ const userSchema = new mongoose.Schema(
       player: {
         volume: { type: Number, min: 0, max: 1, default: 1 },
         isMuted: { type: Boolean, default: false },
+        hapticsEnabled: { type: Boolean, default: true },
         playbackRate: { type: Number, min: 0.5, max: 3, default: 1 },
         isShuffled: { type: Boolean, default: false },
         repeatMode: {

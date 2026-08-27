@@ -11,6 +11,7 @@ import {
   FaUser,
 } from 'react-icons/fa';
 import settingsService from '../../services/settingsService';
+import listenerService from '../../services/listenerService';
 import {
   DESKTOP_NOTIFICATION_EVENTS,
   getDesktopNotificationPreferences,
@@ -50,6 +51,8 @@ const ListenerSettingsConnected = () => {
   const [language, setLanguage] = useState('en');
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [pushNotifications, setPushNotifications] = useState(true);
+  const [hapticsEnabled, setHapticsEnabled] = useState(true);
+  const [hapticsSaving, setHapticsSaving] = useState(false);
   const [location, setLocation] = useState('');
   const [username, setUsername] = useState('');
   const [website, setWebsite] = useState('');
@@ -71,8 +74,12 @@ const ListenerSettingsConnected = () => {
   const load = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await settingsService.get();
+      const [response, playerResponse] = await Promise.all([
+        settingsService.get(),
+        listenerService.getPlayerState().catch(() => null),
+      ]);
       const settings = response?.data || {};
+      const playerSettings = playerResponse?.data || {};
       const profile = settings.profile || {};
       const preferences = settings.preferences || {};
       const notifications = preferences.notifications || {};
@@ -82,6 +89,7 @@ const ListenerSettingsConnected = () => {
       setLanguage(String(preferences.language || 'en'));
       setEmailNotifications(notifications.email !== false);
       setPushNotifications(notifications.push !== false);
+      setHapticsEnabled(playerSettings.hapticsEnabled !== false);
       setLocation(profile.location || '');
       setWebsite(profile.website || '');
       setDirty(false);
@@ -172,6 +180,33 @@ const ListenerSettingsConnected = () => {
       setToast({ open: true, title: 'Something went wrong', message: 'Could not update that desktop alert type.' });
     } finally {
       setDesktopPreferenceLoading(false);
+    }
+  };
+
+  const toggleHaptics = async () => {
+    if (hapticsSaving) return;
+
+    const nextValue = !hapticsEnabled;
+    setHapticsEnabled(nextValue);
+    setHapticsSaving(true);
+    try {
+      await listenerService.updatePreferences({ hapticsEnabled: nextValue });
+      window.dispatchEvent(new CustomEvent('echoo-player-preferences-updated', {
+        detail: { hapticsEnabled: nextValue },
+      }));
+      setToast({
+        open: true,
+        title: 'Haptic feedback updated',
+        message: nextValue
+          ? 'Echoo will confirm successful mobile player swipe dismissals with a brief vibration when your device supports it.'
+          : 'Haptic confirmation is turned off for mobile player swipe dismissals.',
+      });
+    } catch (error) {
+      console.error('Haptic preference update failed', error);
+      setHapticsEnabled(!nextValue);
+      setToast({ open: true, title: 'Something went wrong', message: 'Could not update your haptic feedback setting.' });
+    } finally {
+      setHapticsSaving(false);
     }
   };
 
@@ -460,6 +495,27 @@ const ListenerSettingsConnected = () => {
                         setPushNotifications((value) => !value);
                         setDirty(true);
                       }}
+                    >
+                      <span className="set-toggle-thumb" />
+                    </button>
+                  </div>
+
+                  <div className="set-toggle-row">
+                    <div className="set-toggle-info">
+                      <strong className="set-toggle-title">Haptic feedback</strong>
+                      <span className="set-toggle-desc">
+                        Briefly vibrate after you dismiss the full player with a swipe on supported mobile devices.
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-label="Haptic feedback"
+                      aria-checked={hapticsEnabled}
+                      aria-busy={hapticsSaving}
+                      disabled={hapticsSaving}
+                      className={`set-toggle ${hapticsEnabled ? 'set-toggle-on' : ''}`}
+                      onClick={toggleHaptics}
                     >
                       <span className="set-toggle-thumb" />
                     </button>

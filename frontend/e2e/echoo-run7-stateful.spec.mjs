@@ -216,7 +216,7 @@ test('History focus refresh does not multiply after repeated mounts', async ({ p
   page.on('request', (request) => {
     try {
       const url = new URL(request.url());
-      if (url.pathname.includes('/api/history')) historyRequests += 1;
+      if (url.pathname === '/api/history') historyRequests += 1;
     } catch {
       // Non-HTTP URLs are irrelevant to this leak check.
     }
@@ -301,4 +301,17 @@ test('visible form controls on critical settings/broadcast surfaces have program
   await settle(page);
   await clickCreatorWorkspace(page, 'Broadcast Studio');
   await auditControls(page.locator('#echoo-main-content'), 'Creator Broadcast Studio');
+});
+
+test('Listener settings saves the haptic feedback player preference', async ({ page }, testInfo) => {
+  test.skip(!['mobile-390', 'desktop-1440', 'webkit-390'].includes(testInfo.project.name));
+  await authenticate(page, 'listener');
+  await page.goto('/listen/settings');
+  await settle(page);
+
+  const hapticSwitch = page.getByRole('switch', { name: 'Haptic feedback' });
+  await expect(hapticSwitch).toHaveAttribute('aria-checked', 'true');
+  await hapticSwitch.click();
+  await expect(hapticSwitch).toHaveAttribute('aria-checked', 'false');
+  await expect(page.getByRole('status')).toContainText('Haptic feedback updated');
 });
