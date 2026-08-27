@@ -23,6 +23,7 @@ const normalizeList = (response) =>
 
 const transcriptService = {
   getReadiness: async () => apiRequest('/transcripts/readiness'),
+  getProviderReadiness: async () => apiRequest('/transcripts/provider-readiness'),
 
   search: async ({ search, cursor = '', limit = 25 } = {}) => {
     const query = new URLSearchParams({ search: String(search || ''), limit: String(limit) });
