@@ -7,9 +7,9 @@ import { resolveLiveKitUrl } from './livekitUrl.js';
 import { ensureBroadcastRecording } from './broadcastRecordingService.js';
 import { applyProgramTrackQuality } from './audioQualityProfile.js';
 import {
-  startWhisperFlowTranscription,
-  stopWhisperFlowTranscription,
-} from './whisperFlowService.js';
+  startEchooTranscription,
+  stopEchooTranscription,
+} from './transcription/orchestrator.js';
 
 const ECHOO_LIVE_AUDIO_BITRATE = 256000;
 
@@ -148,7 +148,7 @@ export const stopLiveKitPublishing = async () => {
     trackName: null,
   });
 
-  await stopWhisperFlowTranscription().catch((error) => {
+  await stopEchooTranscription().catch((error) => {
     console.warn('[Echoo Transcript] cleanup warning:', error?.message || error);
   });
 
@@ -202,8 +202,6 @@ export const startLiveKitPublishing = async ({
   }
 
   if (!mediaTrack && !syntheticModeEnabled()) {
-    // Never silently bypass the mixer with LiveKit's default microphone helper.
-    // Backend confirm-live accepts only this named post-master program track.
     throw new Error(
       'The Echoo post-master studio mix is not ready. Connect the Host Mic and confirm the Audience Output before going live.'
     );
@@ -226,9 +224,6 @@ export const startLiveKitPublishing = async ({
     trackState: mediaTrack?.readyState || null,
   });
 
-  // Echoo owns the mixer MediaStreamTrack. LiveKit must not stop it when a room
-  // disconnects/unpublishes, otherwise a manual reconnect would kill the one
-  // post-master program track before the new room can republish it.
   const room = new Room({ stopLocalTrackOnUnpublish: false });
   room.on(RoomEvent.Reconnecting, () => {
     publishHealth({ livekit: 'reconnecting', audio: 'reconnecting' });
@@ -263,23 +258,14 @@ export const startLiveKitPublishing = async ({
         throw new Error('The Echoo mixer output is not available.');
       }
 
-      // The destination track is a finished broadcast program, not a speech-call
-      // microphone. Mark it as music/program audio before WebRTC negotiates so
-      // browsers avoid speech-oriented handling where they support contentHint.
       programTrackQuality = applyProgramTrackQuality(mediaTrack);
 
       publication = await room.localParticipant.publishTrack(mediaTrack, {
         name: 'echoo-studio-mix',
         source: Track.Source.Microphone,
-        // Echoo is an audio-broadcast product, not a speech-call product. Keep
-        // continuous music/system audio in stereo and give Opus enough bitrate
-        // to preserve the post-master studio feed without speech-style DTX.
         audioPreset: { maxBitrate: ECHOO_LIVE_AUDIO_BITRATE },
         forceStereo: true,
         dtx: false,
-        // Stereo RED is intentionally left off for the primary quality profile.
-        // Network resilience can be A/B tested separately without changing the
-        // clean source/mastering path.
         red: false,
       });
     } else {
@@ -310,9 +296,6 @@ export const startLiveKitPublishing = async ({
       source: mode === 'studio-mix' ? 'echoo-studio-mix' : 'echoo-dev-test-audio',
     });
 
-    // Local-first recording: tap the exact post-master mixer signal that is
-    // being published to LiveKit. Recording is deliberately independent from
-    // the LiveKit Room so a reconnect does not split or lose the local take.
     if (mode === 'studio-mix' && mediaTrack) {
       try {
         await ensureBroadcastRecording({
@@ -321,17 +304,15 @@ export const startLiveKitPublishing = async ({
           title: `echoo-live-${activeBroadcastId}`,
         });
       } catch (recordingError) {
-        // Recording must never prevent the creator from going live. The end
-        // flow simply will not offer a recording if this browser cannot record.
         console.warn(
           '[Echoo Recording] could not start local recording:',
           recordingError?.message || recordingError
         );
       }
 
-      // This is a second, independent branch from the post-master program.
-      // Listener audio remains a direct Creator -> LiveKit -> Listener path.
-      startWhisperFlowTranscription({
+      // Transcription taps a clone of the exact same post-master track. It is a
+      // side-car only: a provider/model/API failure can never unwind LiveKit.
+      startEchooTranscription({
         broadcastId: activeBroadcastId,
         mediaTrack,
       }).catch((transcriptionError) => {
