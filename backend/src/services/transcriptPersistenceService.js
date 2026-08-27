@@ -7,6 +7,7 @@ const SOURCE_TYPES = new Set([
   'host_microphone', 'guest_microphone', 'music', 'screen_share',
   'system_audio', 'final_mix', 'unknown',
 ]);
+const PROVIDERS = new Set(['whisper-flow', 'parakeet', 'gemini-live', 'gemini-transcribe']);
 
 const transcriptError = (status, code, message) => {
   const error = new Error(message);
@@ -39,6 +40,10 @@ export const normalizeTranscriptSegmentInput = (input = {}) => {
   const confidenceValue = Number(input.confidence);
   const requestedSource = String(input.sourceType || '').trim().toLowerCase();
   const sourceType = SOURCE_TYPES.has(requestedSource) ? requestedSource : 'final_mix';
+  const requestedProvider = String(input.provider || 'whisper-flow').trim().toLowerCase();
+  if (!PROVIDERS.has(requestedProvider)) {
+    throw transcriptError(400, 'INVALID_PROVIDER', 'Unsupported transcript provider');
+  }
   return {
     providerSegmentId,
     sequence,
@@ -55,7 +60,7 @@ export const normalizeTranscriptSegmentInput = (input = {}) => {
       ? Math.max(0, Math.min(1, confidenceValue))
       : null,
     providerRevision: Math.max(0, Math.floor(Number(input.providerRevision) || 0)),
-    provider: String(input.provider || 'whisper-flow').trim().slice(0, 80),
+    provider: requestedProvider,
     language: String(input.language || 'en').trim().slice(0, 16),
   };
 };
@@ -71,13 +76,23 @@ export async function persistTranscriptSegment({
   const normalized = normalizeTranscriptSegmentInput(input);
 
   if (sessionObjectId) {
-    const ownsSession = await TranscriptSession.exists({
+    const session = await TranscriptSession.findOne({
       _id: sessionObjectId,
       broadcastId: broadcastObjectId,
-    });
-    if (!ownsSession) {
+    }).select('provider status');
+    if (!session) {
       throw transcriptError(409, 'SESSION_MISMATCH', 'Transcript session does not belong to this broadcast');
     }
+    if (session.provider !== normalized.provider) {
+      throw transcriptError(409, 'PROVIDER_MISMATCH', 'Transcript provider does not match its session');
+    }
+    if (session.status !== 'active') {
+      throw transcriptError(409, 'SESSION_CLOSED', 'Transcript session is no longer active');
+    }
+    await TranscriptSession.updateOne(
+      { _id: sessionObjectId },
+      { $set: { lastActivityAt: new Date(), lastProviderSequence: normalized.sequence } }
+    );
   }
 
   const segment = await TranscriptSegment.findOneAndUpdate(
