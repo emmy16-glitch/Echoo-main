@@ -58,13 +58,38 @@ test('player exposes queue, transcript and share surfaces', async ({ page }) => 
   }
 });
 
-test('history rows show bounded listening progress with an accessible label', async ({ page }) => {
+test('mobile full player dismisses with a deliberate downward swipe on its handle', async ({ page }) => {
+  test.skip((page.viewportSize()?.width || 0) >= 768, 'Swipe dismissal is a compact mobile interaction.');
+  await authenticate(page);
+  await page.goto('/listen');
+  await page.locator('.layout-player-track').click();
+
+  const dialog = page.getByRole('dialog', { name: 'Full player' });
+  await expect(dialog).toBeVisible();
+  const handle = page.locator('.echoo-full-player-swipe-handle');
+  await expect(handle).toBeVisible();
+  await handle.dispatchEvent('touchstart', {
+    touches: [{ identifier: 1, clientX: 160, clientY: 28 }],
+  });
+  await handle.dispatchEvent('touchend', {
+    changedTouches: [{ identifier: 1, clientX: 162, clientY: 128 }],
+  });
+
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator('.echoo-persistent-player')).toBeVisible();
+});
+
+test('history rows show bounded listening progress with exact position context', async ({ page }) => {
   await authenticate(page);
   await page.goto('/listen/history');
 
   const progress = page.getByRole('progressbar', { name: /listening progress/i }).first();
   await expect(progress).toBeVisible();
   await expect(progress).toHaveAttribute('aria-valuenow', '100');
-  await expect(progress).toHaveAttribute('aria-valuetext', '100% listened');
+  await expect(progress).toHaveAttribute('aria-valuetext', /100% listened\. Left off at \d+(?::\d{2}){1,2} of \d+(?::\d{2}){1,2}/);
   await expect(page.getByText('100% listened').first()).toBeVisible();
+  await progress.hover();
+  const tooltip = page.locator('.lh-row-progress-tooltip').first();
+  await expect(tooltip).toHaveText(/Left off at \d+(?::\d{2}){1,2} of \d+(?::\d{2}){1,2}/);
+  await expect(tooltip).toHaveCSS('visibility', 'visible');
 });

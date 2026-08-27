@@ -568,6 +568,10 @@
   color: #344054;
 }
 
+.echoo-toast--actionable {
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+}
+
 .echoo-toast-icon {
   display: grid;
   width: 26px;
@@ -593,6 +597,36 @@
   color: #667085;
   font-size: 12px;
   line-height: 1.4;
+}
+
+.echoo-toast-action {
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid #9dc8ff;
+  border-radius: 8px;
+  background: #edf5ff;
+  color: #125fbe;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 750;
+  transition: background 0.16s ease-out, border-color 0.16s ease-out, color 0.16s ease-out, transform 0.16s ease-out;
+}
+
+.echoo-toast-action:hover:not(:disabled),
+.echoo-toast-action:focus-visible {
+  border-color: #1769d3;
+  background: #dcecff;
+  color: #0d4f9d;
+}
+
+.echoo-toast-action:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.echoo-toast-action:disabled {
+  cursor: wait;
+  opacity: 0.7;
 }
 
 .echoo-toast-close {
@@ -636,5 +670,20 @@
   .echoo-toast {
     right: 16px;
     bottom: calc(16px + env(safe-area-inset-bottom));
+  }
+
+  .echoo-toast--actionable {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .echoo-toast--actionable .echoo-toast-action {
+    grid-column: 2;
+    grid-row: 2;
+    justify-self: start;
+  }
+
+  .echoo-toast--actionable .echoo-toast-close {
+    grid-column: 3;
+    grid-row: 1 / span 2;
   }
 }

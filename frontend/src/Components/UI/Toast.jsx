@@ -29,6 +29,9 @@ const Toast = ({
   message = '',
   duration = 4000,
   onClose,
+  actionLabel = '',
+  onAction,
+  actionDisabled = false,
 }) => {
   useEffect(() => {
     if (
@@ -61,7 +64,7 @@ const Toast = ({
 
   return (
     <div
-      className={`echoo-toast echoo-toast-${type}`}
+      className={`echoo-toast echoo-toast-${type} ${actionLabel && onAction ? 'echoo-toast--actionable' : ''}`}
       role="status"
       aria-live="polite"
     >
@@ -83,6 +86,17 @@ const Toast = ({
           </span>
         )}
       </div>
+
+      {actionLabel && onAction && (
+        <button
+          type="button"
+          className="echoo-toast-action"
+          onClick={onAction}
+          disabled={actionDisabled}
+        >
+          {actionDisabled ? 'Undoing…' : actionLabel}
+        </button>
+      )}
 
       <button
         type="button"

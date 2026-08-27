@@ -129,5 +129,10 @@ test('Creator audio rename confirms successful saves without closing the detail 
   await expect(toast).toBeVisible();
   await expect(toast).toHaveText(/Audio renamed/);
   await expect(toast).toHaveText(/Verified rename feedback/);
+  const undo = toast.getByRole('button', { name: 'Undo' });
+  await expect(undo).toBeVisible();
+  await undo.click();
+  await expect(toast).toHaveText(/Rename reverted/);
+  await expect(toast.getByRole('button', { name: 'Undo' })).toHaveCount(0);
   await expect(dialog).toBeVisible();
 });

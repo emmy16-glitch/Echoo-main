@@ -51,6 +51,7 @@ const formatType = (mimeType = '') => {
 
 const CreatorAudioDetailModal = ({ track, onClose, onChanged }) => {
   const audioRef = useRef(null);
+  const initializedTrackRef = useRef(null);
   const [fileUrl, setFileUrl] = useState('');
   const [streamLoading, setStreamLoading] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -61,9 +62,15 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged }) => {
   const [visibility, setVisibility] = useState(Boolean(track?.isPublic));
   const [visibilitySaving, setVisibilitySaving] = useState(false);
   const [titleDraft, setTitleDraft] = useState(track?.title || '');
+  const [savedTitle, setSavedTitle] = useState(track?.title || '');
   const [titleEditing, setTitleEditing] = useState(false);
   const [titleSaving, setTitleSaving] = useState(false);
-  const [renameToastOpen, setRenameToastOpen] = useState(false);
+  const [renameToast, setRenameToast] = useState({
+    open: false,
+    title: '',
+    message: '',
+    undoTitle: '',
+  });
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState('');
 
@@ -82,9 +89,14 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged }) => {
   }, [track?.isPublic]);
 
   useEffect(() => {
+    const trackKey = String(track?.id || track?._id || '');
+    if (initializedTrackRef.current === trackKey) return;
+
+    initializedTrackRef.current = trackKey;
     setTitleDraft(track?.title || '');
+    setSavedTitle(track?.title || '');
     setTitleEditing(false);
-    setRenameToastOpen(false);
+    setRenameToast({ open: false, title: '', message: '', undoTitle: '' });
   }, [track?.id, track?._id, track?.title]);
 
   useEffect(() => {
@@ -234,7 +246,7 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged }) => {
       return;
     }
 
-    if (title === (track.title || '').trim()) {
+    if (title === savedTitle.trim()) {
       setTitleEditing(false);
       return;
     }
@@ -244,12 +256,46 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged }) => {
       setError('');
       await studioService.updateAudio(id, { title });
       setTitleDraft(title);
+      setSavedTitle(title);
       setTitleEditing(false);
-      setRenameToastOpen(true);
+      setRenameToast({
+        open: true,
+        title: 'Audio renamed',
+        message: `“${title}” is updated in your library.`,
+        undoTitle: savedTitle,
+      });
       window.dispatchEvent(new CustomEvent('echoo:creator-audio-changed'));
       onChanged?.();
     } catch (titleError) {
       setError(titleError?.message || 'Could not rename this audio.');
+    } finally {
+      setTitleSaving(false);
+    }
+  };
+
+  const undoTitleRename = async () => {
+    const id = getId(track);
+    const priorTitle = String(renameToast.undoTitle || '').trim();
+
+    if (!id || !priorTitle || titleSaving) return;
+
+    try {
+      setTitleSaving(true);
+      setError('');
+      await studioService.updateAudio(id, { title: priorTitle });
+      setTitleDraft(priorTitle);
+      setSavedTitle(priorTitle);
+      setTitleEditing(false);
+      setRenameToast({
+        open: true,
+        title: 'Rename reverted',
+        message: `“${priorTitle}” is restored in your library.`,
+        undoTitle: '',
+      });
+      window.dispatchEvent(new CustomEvent('echoo:creator-audio-changed'));
+      onChanged?.();
+    } catch (titleError) {
+      setError(titleError?.message || 'Could not undo this audio rename.');
     } finally {
       setTitleSaving(false);
     }
@@ -282,11 +328,15 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged }) => {
       }}
     >
       <Toast
-        open={renameToastOpen}
+        open={renameToast.open}
         type="success"
-        title="Audio renamed"
-        message={`“${titleDraft || 'Your audio'}” is updated in your library.`}
-        onClose={() => setRenameToastOpen(false)}
+        title={renameToast.title}
+        message={renameToast.message}
+        duration={8000}
+        actionLabel={renameToast.undoTitle ? 'Undo' : ''}
+        onAction={renameToast.undoTitle ? undoTitleRename : undefined}
+        actionDisabled={titleSaving}
+        onClose={() => setRenameToast((current) => ({ ...current, open: false }))}
       />
       <section
         className="creator-audio-modal"

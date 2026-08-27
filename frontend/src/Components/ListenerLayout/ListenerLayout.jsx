@@ -149,6 +149,8 @@ const ListenerLayout = () => {
   const lastProgressSyncRef = useRef({ trackId: null, progress: -1 });
   const pendingSeekRef = useRef(null);
   const playerPreferencesReadyRef = useRef(false);
+  const fullPlayerDismissTimerRef = useRef(null);
+  const fullPlayerTouchStartRef = useRef(null);
 
   const [currentTrack, setCurrentTrack] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -162,6 +164,7 @@ const ListenerLayout = () => {
   const [repeatMode, setRepeatMode] = useState('off');
   const [playerError, setPlayerError] = useState('');
   const [playerExpanded, setPlayerExpanded] = useState(false);
+  const [playerDismissing, setPlayerDismissing] = useState(false);
   const [playerPanel, setPlayerPanel] = useState('queue');
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -248,6 +251,54 @@ const ListenerLayout = () => {
     setProfileMenuOpen(false);
     navigate('/', { replace: true });
   };
+
+  const openFullPlayer = (panel = null) => {
+    if (fullPlayerDismissTimerRef.current) {
+      window.clearTimeout(fullPlayerDismissTimerRef.current);
+      fullPlayerDismissTimerRef.current = null;
+    }
+    if (panel) setPlayerPanel(panel);
+    setPlayerDismissing(false);
+    setPlayerExpanded(true);
+  };
+
+  const closeFullPlayer = () => {
+    if (!playerExpanded || playerDismissing) return;
+    setPlayerDismissing(true);
+    fullPlayerDismissTimerRef.current = window.setTimeout(() => {
+      setPlayerExpanded(false);
+      setPlayerDismissing(false);
+      fullPlayerDismissTimerRef.current = null;
+    }, 180);
+  };
+
+  const beginFullPlayerSwipe = (event) => {
+    if (window.innerWidth > 760 || event.touches?.length !== 1) {
+      fullPlayerTouchStartRef.current = null;
+      return;
+    }
+    const touch = event.touches[0];
+    fullPlayerTouchStartRef.current = { x: touch.clientX, y: touch.clientY };
+  };
+
+  const finishFullPlayerSwipe = (event) => {
+    const start = fullPlayerTouchStartRef.current;
+    fullPlayerTouchStartRef.current = null;
+    const touch = event.changedTouches?.[0];
+    if (!start || !touch) return;
+
+    const horizontalDistance = Math.abs(touch.clientX - start.x);
+    const verticalDistance = touch.clientY - start.y;
+    if (verticalDistance >= 72 && verticalDistance > horizontalDistance * 1.4) {
+      closeFullPlayer();
+    }
+  };
+
+  useEffect(() => () => {
+    if (fullPlayerDismissTimerRef.current) {
+      window.clearTimeout(fullPlayerDismissTimerRef.current);
+    }
+  }, []);
 
   const shareCurrentTrack = async () => {
     const shareData = {
@@ -935,7 +986,7 @@ const ListenerLayout = () => {
           }}
         />
 
-        <button type="button" className="layout-player-track" onClick={() => setPlayerExpanded(true)} aria-label="Open full player">
+        <button type="button" className="layout-player-track" onClick={() => openFullPlayer()} aria-label="Open full player">
           <EchoSignal
             size="sm"
             active={isPlaying}
@@ -1052,7 +1103,7 @@ const ListenerLayout = () => {
           >
             <FaRedoAlt />
           </button>
-          <button type="button" onClick={() => { setPlayerPanel('queue'); setPlayerExpanded(true); }} aria-label="Open queue">
+          <button type="button" onClick={() => openFullPlayer('queue')} aria-label="Open queue">
             <FaListUl />
           </button>
           <button type="button" onClick={shareCurrentTrack} aria-label="Share current audio">
@@ -1063,15 +1114,21 @@ const ListenerLayout = () => {
           <span style={{ width: `${progressPercentage}%` }} />
         </div>
         {playerExpanded && (
-          <section className="echoo-full-player" role="dialog" aria-modal="true" aria-label="Full player">
-            <div className="echoo-full-player-backdrop" onClick={() => setPlayerExpanded(false)} aria-hidden="true" />
+          <section className={`echoo-full-player ${playerDismissing ? 'echoo-full-player--dismissing' : ''}`} role="dialog" aria-modal="true" aria-label="Full player">
+            <div className="echoo-full-player-backdrop" onClick={closeFullPlayer} aria-hidden="true" />
             <div className="echoo-full-player-sheet">
+              <div
+                className="echoo-full-player-swipe-handle"
+                aria-hidden="true"
+                onTouchStart={beginFullPlayerSwipe}
+                onTouchEnd={finishFullPlayerSwipe}
+              />
               <header>
                 <div>
                   <span>Now playing</span>
                   <strong>{currentTrack?.title || 'Choose something to play'}</strong>
                 </div>
-                <button type="button" onClick={() => setPlayerExpanded(false)} aria-label="Close full player"><FaTimes /></button>
+                <button type="button" onClick={closeFullPlayer} aria-label="Close full player"><FaTimes /></button>
               </header>
               <div className="echoo-full-player-body">
                 <div className="echoo-full-player-art">

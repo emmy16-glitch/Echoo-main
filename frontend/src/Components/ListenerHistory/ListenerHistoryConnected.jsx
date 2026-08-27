@@ -310,6 +310,9 @@ const ListenerHistoryConnected = () => {
                 const current = isCurrent(track);
                 const removing = busyId === String(track.entryId);
                 const progressPercent = progressFractionToPercent(track.progress);
+                const listeningPosition = track.duration > 0
+                  ? `Left off at ${formatTime(track.listenedSeconds)} of ${formatTime(track.duration)}`
+                  : 'Listening position unavailable';
                 return (
                   <div
                     key={track.entryId}
@@ -344,11 +347,15 @@ const ListenerHistoryConnected = () => {
                           aria-valuemin="0"
                           aria-valuemax="100"
                           aria-valuenow={progressPercent}
-                          aria-valuetext={`${progressPercent}% listened`}
+                          aria-valuetext={`${progressPercent}% listened. ${listeningPosition}`}
+                          title={listeningPosition}
                         >
                           <span style={{ width: `${progressPercent}%` }} />
                         </span>
                         <span className="lh-row-progress-label">{progressPercent}% listened</span>
+                        <span className="lh-row-progress-tooltip" role="tooltip" aria-hidden="true">
+                          {listeningPosition}
+                        </span>
                       </span>
                     </button>
                     <span className="lh-row-meta">

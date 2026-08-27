@@ -195,3 +195,6 @@
 - [x] Add a smooth, reduced-motion-safe transition when the compact persistent player appears or hides.
 - [x] Add an accessible visual playback-progress bar to each listening-history row.
 - [x] Add a creator-facing confirmation toast after a successful uploaded-audio rename.
+- [x] Add an Undo action to successful creator audio-rename feedback that safely restores the prior title.
+- [x] Add an accessible history progress tooltip with the exact paused or last-listened timestamp.
+- [x] Add a touch-only swipe-down gesture that dismisses the mobile full player back to the compact player.
