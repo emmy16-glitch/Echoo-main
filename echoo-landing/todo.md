@@ -172,7 +172,7 @@
 - [x] Defer verified human-support delivery until a confirmed team mailbox and sender identity are available, as the owner selected email-draft-only escalation; never expose credentials or send unconsented support content.
 - [x] Defer the consented support-request form until a verified team inbox is available, as the owner selected email-draft-only escalation; retain the documented purpose, explicit submission consent, 10-day maximum retention, deletion handling, and no preselected marketing consent requirements.
 - [x] Defer live support-feedback ingestion until consented support requests exist; retain the documented support-admin approval-only workflow for aggregated, non-identifying recurring themes, with no autonomous publication or external AI processing.
-- [ ] Add focused tests, document support data lifecycle and mobile build steps, validate the APK and web/app changes, checkpoint, and synchronize both approved Echoo-main repositories.
+- [x] Add focused tests, document support data lifecycle and mobile build steps, validate the APK and web/app changes, checkpoint, and synchronize both approved Echoo-main repositories.
 - [x] Confirm that human escalation remains a consented recipient-free email draft until a verified team inbox is supplied; do not collect, retain, or deliver support requests in the interim.
 - [x] Define 10 days as the maximum retention period for any future consented support-request system, with deletion on verified request; no ticket record is created while email-draft escalation is active.
 - [x] Configure and validate the existing EAS preview profile to produce a standalone installable Android APK without changing desktop artifacts or web releases.
@@ -180,3 +180,4 @@
 - [x] Set the required EAS application-version source explicitly so future standalone Android builds avoid the configuration warning.
 - [x] Add and validate the required `react-native-svg` peer dependency so the mobile app’s icon components remain safe in a standalone Android build.
 - [x] Document the active email-draft escalation boundary and the support-admin approval-only workflow for any future feedback-derived curated-help topic before an inbox is enabled.
+- [x] Submit, complete, and verify a standalone internal Echoo Android preview APK; record the artifact checksum and temporary EAS delivery link outside the repository.
