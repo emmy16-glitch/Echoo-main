@@ -337,7 +337,7 @@ function App() {
             <Route path="/" element={<OnboardingFlow />} />
 
             <Route
-              path="/creator-studio"
+              path="/creator-studio/*"
               element={
                 <RequireRole role="creator">
                   <LazyPage element={<CreatorStudio />} />

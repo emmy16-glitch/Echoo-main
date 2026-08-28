@@ -73,7 +73,7 @@ const configuredClientOrigins = parseList(
 );
 const defaultClientOrigins = nodeEnv === 'production'
   ? []
-  : ['http://localhost:5174', 'http://127.0.0.1:5174'];
+  : ['http://localhost:5173', 'http://127.0.0.1:5173'];
 const jwtSecret = requireValue('JWT_SECRET', 'dev-secret-key-change-in-production');
 
 export const env = Object.freeze({

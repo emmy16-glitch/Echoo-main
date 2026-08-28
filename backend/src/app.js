@@ -64,7 +64,11 @@ const isAllowedOrigin = (origin) => {
   if (env.isDevelopment) {
     try {
       const parsed = new URL(normalized);
-      return parsed.protocol === 'http:' && parsed.port === '5174';
+      return (
+        parsed.protocol === 'http:' &&
+        parsed.port === '5173' &&
+        ['localhost', '127.0.0.1'].includes(parsed.hostname)
+      );
     } catch {
       return false;
     }

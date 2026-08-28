@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   FaBell,
   FaBroadcastTower,
@@ -25,6 +26,8 @@ import studioService from '../../services/studioService';
 import { buildGeneratedAudioCoverUrl } from '../../audioCover/audioCover';
 import ListenerLiveConnected from '../ListenerLive/ListenerLiveConnected';
 import CreatorStudioHome from './CreatorStudioHome';
+import CreatorDiscoverWorkspace from './CreatorDiscoverWorkspace';
+import { CreatorStudioStateProvider, useCreatorStudioState } from './CreatorStudioState';
 import CreatorContentWorkspace from './CreatorContentWorkspace';
 import CreatorBroadcastWorkspace from './CreatorLiveConnectedWorkspace';
 import CreatorStationsWorkspace from './CreatorStationsWorkspace';
@@ -76,8 +79,13 @@ const isSupportedAudioFile = (file) => {
   ) && AUDIO_EXTENSIONS.has(extension);
 };
 
-const CreatorStudio = () => {
-  const [activeNav, setActiveNav] = useState('Home');
+const CreatorStudioBody = () => {
+  const location = useLocation();
+  const routerNavigate = useNavigate();
+  const creatorState = useCreatorStudioState();
+  const [activeNav, setActiveNav] = useState(() =>
+    location.pathname.endsWith('/discover') ? 'Discover' : 'Home'
+  );
   const [content, setContent] = useState({ tracks: [], pagination: {} });
   const [audience, setAudience] = useState(null);
   const [contentPage, setContentPage] = useState(1);
@@ -126,6 +134,7 @@ const CreatorStudio = () => {
 
   const navItems = [
     { name: 'Home', label: 'Home', icon: <FaHome /> },
+    { name: 'Discover', label: 'Discover', icon: <FaSearch /> },
     { name: 'Stations', label: 'Stations', icon: <FaBroadcastTower /> },
     { name: 'Broadcast', label: 'Broadcast Studio', icon: <FaMicrophone /> },
     { name: 'Audio', label: 'Audio', icon: <FaHeadphones /> },
@@ -134,6 +143,14 @@ const CreatorStudio = () => {
     { name: 'Analytics', label: 'Analytics', icon: <FaChartBar /> },
     { name: 'Settings', label: 'Settings', icon: <FaCog /> },
   ];
+
+  useEffect(() => {
+    if (location.pathname.endsWith('/discover')) {
+      setActiveNav('Discover');
+    } else if (activeNav === 'Discover') {
+      setActiveNav('Home');
+    }
+  }, [location.pathname, activeNav]);
 
   useEffect(() => {
     let active = true;
@@ -197,6 +214,11 @@ const CreatorStudio = () => {
     setProfileMenuOpen('');
     setError('');
     setNotice('');
+    if (target === 'Discover') {
+      routerNavigate('/creator-studio/discover');
+    } else if (location.pathname !== '/creator-studio') {
+      routerNavigate('/creator-studio');
+    }
     setActiveNav(target);
   };
 
@@ -339,6 +361,7 @@ const CreatorStudio = () => {
       setUploadOpen(false);
       setUploadForm({ ...EMPTY_UPLOAD });
       setNotice('Audio uploaded successfully.');
+      window.dispatchEvent(new CustomEvent('echoo:creator-state-changed'));
       setRefreshKey((value) => value + 1);
     } catch (uploadError) {
       setError(uploadError?.message || 'Could not upload audio.');
@@ -360,6 +383,7 @@ const CreatorStudio = () => {
         tracks: (current.tracks || []).filter((track) => String(track.id || track._id) !== String(audioId)),
       }));
       setNotice(`${title || 'Audio'} was deleted.`);
+      window.dispatchEvent(new CustomEvent('echoo:creator-state-changed'));
       setRefreshKey((value) => value + 1);
     } catch (deleteError) {
       setError(deleteError?.message || 'Could not delete audio.');
@@ -391,6 +415,8 @@ const CreatorStudio = () => {
         );
       case 'Stations':
         return <CreatorStationsWorkspace studioName={studioName} onNavigate={navigateStudio} />;
+      case 'Discover':
+        return <CreatorDiscoverWorkspace onNavigate={navigateStudio} />;
       case 'Collections':
         return (
           <CreatorCollectionsWorkspace
@@ -459,6 +485,14 @@ const CreatorStudio = () => {
           ))}
         </nav>
 
+        <section className="studio-copilot-sidebar-card" aria-label="Echoo Copilot guidance">
+          <span>{creatorState.ownedStationCount ? 'Need a hand preparing your next broadcast?' : 'Need help getting started?'}</span>
+          <p>{creatorState.ownedStationCount ? 'Echoo Copilot can help you plan, prepare, and improve your next session.' : 'Echoo Copilot can guide you through creating your first station and preparing your first broadcast.'}</p>
+          <button type="button" onClick={() => window.dispatchEvent(new CustomEvent('echoo:open-creator-copilot'))}>
+            {creatorState.ownedStationCount ? 'Ask Copilot' : 'Guide me'}
+          </button>
+        </section>
+
       </aside>
 
       <main id="echoo-main-content" tabIndex="-1" className="studio-main">
@@ -502,7 +536,7 @@ const CreatorStudio = () => {
         onLogout={handleCreatorLogout}
       />
 
-      <CuratedHelpAssistant mode="creator" />
+      <CuratedHelpAssistant mode="creator" page={activeNav} onNavigate={navigateStudio} />
 
       {uploadOpen && (
         <div className="studio-modal-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) closeUpload(); }}>
@@ -608,6 +642,15 @@ const CreatorStudio = () => {
         </div>
       )}
     </div>
+  );
+};
+
+const CreatorStudio = () => {
+  const user = useMemo(() => readJson('user', {}), []);
+  return (
+    <CreatorStudioStateProvider user={user}>
+      <CreatorStudioBody />
+    </CreatorStudioStateProvider>
   );
 };
 

@@ -21,6 +21,7 @@ import EchoAvatar from '../EchooSystem/EchoAvatar';
 import EchoSignal from '../EchooSystem/EchoSignal';
 import CreatorAudioDetailModal from './CreatorAudioDetailModal.jsx';
 import UnavailableState from '../UI/UnavailableState';
+import { useCreatorStudioState } from './CreatorStudioState';
 import './CreatorStudioHomeFinal.css';
 import './CreatorStudioHomeAudit.css';
 
@@ -74,11 +75,12 @@ export default function CreatorStudioHome({
   onUpload,
   onNavigate,
 }) {
-  const [dashboard, setDashboard] = useState(null);
-  const [analytics, setAnalytics] = useState(null);
-  const [stations, setStations] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [analyticsLoading, setAnalyticsLoading] = useState(true);
+  const creatorState = useCreatorStudioState();
+  const [loadedDashboard, setDashboard] = useState(null);
+  const [loadedAnalytics, setAnalytics] = useState(null);
+  const [loadedStations, setStations] = useState([]);
+  const [legacyLoading, setLoading] = useState(true);
+  const [legacyAnalyticsLoading, setAnalyticsLoading] = useState(true);
   const [dashboardUnavailable, setDashboardUnavailable] = useState(false);
   const [analyticsUnavailable, setAnalyticsUnavailable] = useState(false);
   const [reloadVersion, setReloadVersion] = useState(0);
@@ -89,6 +91,7 @@ export default function CreatorStudioHome({
   const audioRef = useRef(null);
 
   useEffect(() => {
+    if (creatorState) return undefined;
     let mounted = true;
 
     (async () => {
@@ -118,9 +121,10 @@ export default function CreatorStudioHome({
     return () => {
       mounted = false;
     };
-  }, [reloadVersion]);
+  }, [creatorState, reloadVersion]);
 
   useEffect(() => {
+    if (creatorState) return undefined;
     let mounted = true;
 
     (async () => {
@@ -142,9 +146,9 @@ export default function CreatorStudioHome({
     return () => {
       mounted = false;
     };
-  }, [period, reloadVersion]);
+  }, [creatorState, period, reloadVersion]);
 
-  const retryData = () => setReloadVersion((current) => current + 1);
+  const retryData = () => creatorState?.refresh?.() || setReloadVersion((current) => current + 1);
 
   useEffect(() => () => {
     if (audioRef.current) {
@@ -153,13 +157,18 @@ export default function CreatorStudioHome({
     }
   }, []);
 
+  const dashboard = creatorState?.dashboard || loadedDashboard;
+  const analytics = creatorState?.analytics || loadedAnalytics;
+  const stations = creatorState?.ownedStations || loadedStations;
+  const loading = creatorState?.loading ?? legacyLoading;
+  const analyticsLoading = creatorState?.loading ?? legacyAnalyticsLoading;
   const stats = dashboard?.stats || {};
   const summary = analytics?.summary || {};
-  const broadcasts = Array.isArray(analytics?.broadcasts) ? analytics.broadcasts : [];
+  const broadcasts = Array.isArray(creatorState?.broadcasts) ? creatorState.broadcasts : (Array.isArray(analytics?.broadcasts) ? analytics.broadcasts : []);
   const recent = Array.isArray(dashboard?.recentContent) ? dashboard.recentContent : [];
-  const upcoming = Array.isArray(dashboard?.upcomingSchedule) ? dashboard.upcomingSchedule : [];
+  const upcoming = Array.isArray(creatorState?.upcomingBroadcasts) ? creatorState.upcomingBroadcasts : (Array.isArray(dashboard?.upcomingSchedule) ? dashboard.upcomingSchedule : []);
   const active = Array.isArray(dashboard?.activeBroadcasts) ? dashboard.activeBroadcasts : [];
-  const live = active.some((item) => item.status === 'live');
+  const live = creatorState?.isLive ?? active.some((item) => item.status === 'live');
 
   const station = useMemo(
     () => [...stations]
@@ -167,7 +176,7 @@ export default function CreatorStudioHome({
     [stations]
   );
 
-  const totalTracks = Number(summary.totalTracks ?? dashboard?.totalTracks) || 0;
+  const totalTracks = Number(creatorState?.audioCount ?? summary.totalTracks ?? dashboard?.totalTracks) || 0;
   const totalPlays = Number(summary.totalPlays ?? dashboard?.totalPlays ?? stats.plays) || 0;
   const peak = Number(summary.peakListeners ?? stats.peakListeners) || 0;
   const average = broadcasts.length
@@ -180,7 +189,7 @@ export default function CreatorStudioHome({
     : 0;
 
   const setupReady =
-    localFlag('echooProfileCompleted') ||
+    creatorState?.profileComplete || localFlag('echooProfileCompleted') ||
     Boolean(studioName && !['Creator', 'Creator Studio'].includes(studioName));
   const canBroadcast = !dashboardUnavailable && stations.length > 0;
   const systemsReady = setupReady && canBroadcast;
@@ -282,8 +291,8 @@ export default function CreatorStudioHome({
                 <FaMicrophone /> Open live studio
               </button>
             ) : (
-              <button type="button" className="primary" onClick={() => onNavigate?.('Stations')}>
-                <FaBroadcastTower /> Create station
+              <button type="button" className="primary" onClick={() => stations.length ? openBroadcast('now') : onNavigate?.('Stations')}>
+                {stations.length ? <FaMicrophone /> : <FaBroadcastTower />} {stations.length ? 'Open broadcast studio' : 'Create station'}
               </button>
             )}
             <button type="button" onClick={onUpload}>
@@ -614,6 +623,37 @@ export default function CreatorStudioHome({
           </button>
         </section>
       </div>
+
+      <section className="ehome-ecosystem-panel" aria-labelledby="ehome-ecosystem-title">
+        <header className="ehome-panel-head">
+          <div>
+            <h2 id="ehome-ecosystem-title">Explore what&apos;s happening on Echoo</h2>
+            <p>Discover real public stations from the Echoo community.</p>
+          </div>
+          <button type="button" onClick={() => onNavigate?.('Discover')}>
+            View all <FaArrowRight />
+          </button>
+        </header>
+        {creatorState?.publicStations?.length ? (
+          <div className="ehome-ecosystem-row">
+            {creatorState.publicStations.slice(0, 5).map((publicStation) => (
+              <button type="button" className="ehome-ecosystem-card" key={publicStation.id} onClick={() => onNavigate?.('Discover')}>
+                <span>
+                  <img src={publicStation.coverArt || publicStation.brandCover} alt={`${publicStation.name} artwork`} loading="lazy" />
+                  {publicStation.isLive && <i>LIVE</i>}
+                </span>
+                <strong>{publicStation.name}</strong>
+                <small>{publicStation.category || 'Station'} · {number(publicStation.listenerCount)} listening</small>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="ehome-reference-empty-row">
+            <i><FaBroadcastTower /></i>
+            <div><strong>No public stations yet</strong><span>Public Echoo stations will appear here as creators publish them.</span></div>
+          </div>
+        )}
+      </section>
 
       {selectedTrack && (
         <CreatorAudioDetailModal

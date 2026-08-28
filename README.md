@@ -63,6 +63,21 @@ Open the local URL printed by the command, normally `http://localhost:5173`. See
 
 ### Current web client
 
+For a user-owned local MongoDB (no sudo required), start the database before
+the API:
+
+```bash
+cd backend
+npm run db:local
+npm run dev
+```
+
+The helper stores data in `~/echoo-mongodb/data`, writes logs to
+`~/echoo-mongodb/logs/mongod.log`, and deliberately avoids the shared MongoDB
+Unix socket in `/tmp`. To create the local-only Creator presentation account,
+run `npm run seed:local-demo`. It refuses every non-development or non-local
+`echoo` MongoDB URI.
+
 The canonical web client contains both Listener and Creator experiences. Run it
 from the frontend directory and use the fixed development URL:
 
@@ -71,9 +86,20 @@ cd /home/Software_projects/echoo2.0/echoo-github-main/frontend
 npm run dev
 ```
 
-Open `http://localhost:5174`. The Vite server uses `strictPort: true`, so a
+Open `http://localhost:5173`. The Vite server uses `strictPort: true`, so a
 port conflict fails clearly instead of silently switching ports. The sibling
 `../../echoo` frontend is legacy source and is not the current UI target.
+
+The frontend's development-only API setting lives in
+`frontend/.env.development.local` (copy its `.example` file if needed) and
+targets the configured local API (normally `http://localhost:5001/api`). This
+file is not loaded into production Vite builds.
+
+For a LAN presentation, set `CLIENT_ORIGIN`/`CLIENT_ORIGINS` in the ignored
+`backend/.env` and `VITE_API_URL` in the ignored
+`frontend/.env.development.local` to the laptop's LAN address. Vite already
+listens on `0.0.0.0`; run `npm run dev -- --host 0.0.0.0` and share the Vite
+network URL. MongoDB remains bound to `127.0.0.1`.
 
 Useful backend health endpoints:
 

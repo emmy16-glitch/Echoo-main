@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import {
   FaArrowUp,
+  FaBroadcastTower,
   FaCommentDots,
+  FaCloudUploadAlt,
   FaEnvelope,
+  FaMicrophone,
   FaQuestionCircle,
   FaShieldAlt,
   FaTimes,
@@ -13,6 +16,8 @@ import {
   humanSupportEmailDraft,
   resolveCuratedHelpResponse,
 } from './curatedHelp';
+import { useOptionalCreatorStudioState } from '../CreatorStudio/CreatorStudioState';
+import { getCreatorCopilotState } from '../CreatorStudio/creatorCopilotState';
 import './CuratedHelpAssistant.css';
 
 const RESPONSE_DELAY_MS = 260;
@@ -29,7 +34,8 @@ const getFocusableElements = (container) => (
     : []
 );
 
-const CuratedHelpAssistant = ({ mode = 'listener' }) => {
+const CuratedHelpAssistant = ({ mode = 'listener', page = 'Home', onNavigate }) => {
+  const creatorState = useOptionalCreatorStudioState();
   const [open, setOpen] = useState(false);
   const [question, setQuestion] = useState('');
   const [answers, setAnswers] = useState(() => [getCuratedHelpWelcome(mode)]);
@@ -45,6 +51,23 @@ const CuratedHelpAssistant = ({ mode = 'listener' }) => {
   const escalationId = useId();
   const dialogId = useId();
   const labels = labelsFor(mode);
+  const copilotState = getCreatorCopilotState(mode === 'creator' ? creatorState : {});
+  const { hasStation, hasAudio, hasUpcoming, isLive, setupComplete } = copilotState;
+  const creatorTitle = copilotState.title;
+  const creatorIntro = isLive
+    ? 'Monitor your live session, check your connection, and keep the audience engaged.'
+    : hasStation
+      ? hasUpcoming ? 'Review your upcoming session or prepare your live setup.' : 'Plan a broadcast, refine your station, or prepare audio.'
+      : 'Create your first station, then prepare your audio and first live session.';
+  const creatorActions = mode !== 'creator' ? [] : [
+    hasStation
+      ? { id: 'broadcast', icon: <FaMicrophone />, title: isLive ? 'Open live studio' : 'Prepare your next broadcast', body: isLive ? 'Monitor your mix and audience in Broadcast Studio.' : 'Review your station and get ready to go live.', label: isLive ? 'Open' : 'Prepare', destination: 'Broadcast' }
+      : { id: 'station', icon: <FaBroadcastTower />, title: 'Create your first station', body: 'Set up the home for your broadcasts.', label: 'Start', destination: 'Stations' },
+    hasAudio
+      ? { id: 'audio', icon: <FaCloudUploadAlt />, title: 'Manage your audio', body: 'Review your recent uploads and prepare them for a broadcast.', label: 'Open', destination: 'Audio' }
+      : { id: 'audio', icon: <FaMicrophone />, title: 'Check your audio setup', body: 'Make sure your microphone and monitoring are ready.', label: 'Check', destination: 'Broadcast' },
+  ];
+  const creatorSuggestions = mode === 'creator' ? copilotState.suggestions : [];
 
   const clearResponseTimer = useCallback(() => {
     if (responseTimerRef.current !== null) {
@@ -65,6 +88,13 @@ const CuratedHelpAssistant = ({ mode = 'listener' }) => {
   }, [clearResponseTimer, mode]);
 
   useEffect(() => () => clearResponseTimer(), [clearResponseTimer]);
+
+  useEffect(() => {
+    if (mode !== 'creator') return undefined;
+    const openCopilot = () => setOpen(true);
+    window.addEventListener('echoo:open-creator-copilot', openCopilot);
+    return () => window.removeEventListener('echoo:open-creator-copilot', openCopilot);
+  }, [mode]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -122,8 +152,13 @@ const CuratedHelpAssistant = ({ mode = 'listener' }) => {
     setHasEscalationConsent(false);
   };
 
+  const runCreatorAction = (action) => {
+    onNavigate?.(action.destination);
+    close();
+  };
+
   return (
-    <div className="echoo-curated-help">
+    <div className={`echoo-curated-help ${mode === 'creator' ? 'echoo-curated-help--creator' : ''}`}>
       <button
         ref={triggerRef}
         type="button"
@@ -135,7 +170,7 @@ const CuratedHelpAssistant = ({ mode = 'listener' }) => {
         onClick={() => setOpen(true)}
       >
         <FaCommentDots aria-hidden="true" />
-        <span>Help</span>
+        <span>{mode === 'creator' ? 'Copilot' : 'Help'}</span>
       </button>
 
       {open && (
@@ -157,16 +192,30 @@ const CuratedHelpAssistant = ({ mode = 'listener' }) => {
           >
             <header className="echoo-curated-help__header">
               <div>
-                <p>LOCAL, CURATED GUIDANCE</p>
-                <h2 id={titleId}>{labels.title}</h2>
+                <h2 id={titleId}>{mode === 'creator' ? 'Echoo Copilot' : labels.title}</h2>
+                <p>{mode === 'creator' ? 'Creator assistant' : 'LOCAL, CURATED GUIDANCE'}</p>
               </div>
               <button type="button" className="echoo-curated-help__close" onClick={close} aria-label={`Close ${labels.title}`}>
                 <FaTimes aria-hidden="true" />
               </button>
             </header>
 
-            <div className="echoo-curated-help__answers" aria-live="polite" aria-busy={isSelectingGuidance}>
-              {answers.map((answer, index) => (
+            {mode === 'creator' && answers.length <= 1 ? (
+              <div className="echoo-curated-help__creator-start" aria-live="polite">
+                <div className="echoo-curated-help__context"><span>{page}</span><span className={setupComplete ? 'complete' : ''}>{setupComplete ? 'Setup complete' : 'Setup incomplete'}</span></div>
+                <p className="echoo-curated-help__greeting">{isLive ? 'Live guidance' : 'Creator guidance'}</p>
+                <h3>{creatorTitle}</h3>
+                <p>{creatorIntro}</p>
+                <div className="echoo-curated-help__action-cards">
+                  {creatorActions.map((action) => <article key={action.id}><i>{action.icon}</i><div><strong>{action.title}</strong><span>{action.body}</span></div><button type="button" onClick={() => runCreatorAction(action)}>{action.label} <FaArrowUp /></button></article>)}
+                </div>
+                <h4>Suggested for you</h4>
+                <div className="echoo-curated-help__suggestions echoo-curated-help__suggestions--creator">
+                  {creatorSuggestions.map((suggestion) => <button key={suggestion} type="button" onClick={() => ask(suggestion)}>{suggestion}</button>)}
+                </div>
+              </div>
+            ) : <div className="echoo-curated-help__answers" aria-live="polite" aria-busy={isSelectingGuidance}>
+              {answers.slice(mode === 'creator' ? 1 : 0).map((answer, index) => (
                 <article key={`${answer.topic}-${index}`} className="echoo-curated-help__answer echoo-curated-help__answer--entering">
                   <p>{answer.topic}</p>
                   <span>{answer.answer}</span>
@@ -178,18 +227,18 @@ const CuratedHelpAssistant = ({ mode = 'listener' }) => {
                   Selecting the most relevant curated guidance…
                 </div>
               )}
-            </div>
+            </div>}
 
             <div className="echoo-curated-help__composer">
               <p id={descriptionId} className="echoo-curated-help__privacy">
                 <FaShieldAlt aria-hidden="true" />
-                Your question is used only to select guidance in this browser session. It is not sent to a service, persisted, or analysed.
+                {mode === 'creator' ? 'Local guidance · Your questions stay in this browser session.' : 'Your question is used only to select guidance in this browser session. It is not sent to a service, persisted, or analysed.'}
               </p>
-              <div className="echoo-curated-help__suggestions">
+              {mode !== 'creator' && <div className="echoo-curated-help__suggestions">
                 {curatedHelpSuggestions[mode].map((suggestion) => (
                   <button key={suggestion} type="button" disabled={isSelectingGuidance} onClick={() => ask(suggestion)}>{suggestion}</button>
                 ))}
-              </div>
+              </div>}
               <button
                 type="button"
                 className="echoo-curated-help__escalate"

@@ -535,6 +535,7 @@ const CreatorLiveConnectedWorkspace = ({
     if (!response?.data?.id) throw new Error('Could not prepare this broadcast.');
     setSavedBroadcast(response.data);
     setBroadcasts((current) => [...current, response.data]);
+    window.dispatchEvent(new CustomEvent('echoo:creator-state-changed'));
     return response.data;
   };
 
@@ -626,6 +627,7 @@ const CreatorLiveConnectedWorkspace = ({
         current.map((item) => item.id === liveBroadcast.id ? liveBroadcast : item)
       );
       setMessage('You are live.');
+      window.dispatchEvent(new CustomEvent('echoo:creator-state-changed'));
       clearPreparedBroadcast();
     } catch (liveError) {
       if (backendStarted && broadcast?.id) {
@@ -672,6 +674,7 @@ const CreatorLiveConnectedWorkspace = ({
 
       if (!response?.data?.id) throw new Error('Could not schedule this broadcast.');
       setBroadcasts((current) => [...current, response.data]);
+      window.dispatchEvent(new CustomEvent('echoo:creator-state-changed'));
       setMessage('Broadcast scheduled.');
       setTitle('');
       setDescription('');
@@ -791,6 +794,7 @@ const CreatorLiveConnectedWorkspace = ({
           : 'Broadcast ended. No local recording was captured for this session.'
       );
       clearPreparedBroadcast();
+      window.dispatchEvent(new CustomEvent('echoo:creator-state-changed'));
 
       if (cleanupWarnings.length) {
         setError(`Broadcast ended, but local cleanup reported: ${cleanupWarnings.join(' ')}`);
@@ -810,6 +814,7 @@ const CreatorLiveConnectedWorkspace = ({
       setBroadcasts((current) => current.map((item) =>
         item.id === broadcast.id ? { ...item, status: 'cancelled' } : item
       ));
+      window.dispatchEvent(new CustomEvent('echoo:creator-state-changed'));
     } catch (cancelError) {
       setError(cancelError?.message || 'Could not cancel the broadcast.');
     } finally {
@@ -823,6 +828,7 @@ const CreatorLiveConnectedWorkspace = ({
       setActionId(broadcast.id);
       await batch2Service.deleteBroadcast(broadcast.id);
       setBroadcasts((current) => current.filter((item) => item.id !== broadcast.id));
+      window.dispatchEvent(new CustomEvent('echoo:creator-state-changed'));
     } catch (deleteError) {
       setError(deleteError?.message || 'Could not delete the broadcast.');
     } finally {

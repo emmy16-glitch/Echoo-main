@@ -5,9 +5,19 @@ const localRuntime =
   typeof window !== 'undefined' &&
   ['localhost', '127.0.0.1'].includes(window.location.hostname);
 
+// A LAN browser must never fall back to its own localhost for the API. The
+// explicit VITE_API_URL remains authoritative; this only keeps an unset local
+// development environment working from the same host that served Vite.
+const developmentApiBase = () => {
+  if (typeof window === 'undefined') return '';
+  const hostname = window.location.hostname;
+  const host = hostname.includes(':') ? `[${hostname}]` : hostname;
+  return `http://${host}:5001/api`;
+};
+
 export const API_BASE_URL =
   configuredApiBase ||
-  (import.meta.env.DEV || localRuntime ? 'http://localhost:5001/api' : '');
+  (import.meta.env.DEV || localRuntime ? developmentApiBase() : '');
 
 export const API_ORIGIN =
   API_BASE_URL.replace(/\/api\/?$/, '');
@@ -305,7 +315,11 @@ export const buildMediaUrl = (
     return fileUrl;
   }
 
-  const origin = API_ORIGIN || (localRuntime ? 'http://localhost:5001' : '');
+  const origin =
+    API_ORIGIN ||
+    (import.meta.env.DEV || localRuntime
+      ? developmentApiBase().replace(/\/api\/?$/, '')
+      : '');
   if (!origin) return fileUrl;
 
   return `${origin}${

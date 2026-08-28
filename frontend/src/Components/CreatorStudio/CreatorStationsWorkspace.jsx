@@ -419,6 +419,7 @@ const CreatorStationsWorkspace = ({ onNavigate }) => {
       setEditingId('');
       setForm(createEmptyForm());
       resetLogoInput();
+      window.dispatchEvent(new CustomEvent('echoo:creator-state-changed'));
     } catch (saveError) {
       setError(saveError?.message || 'Could not save the station.');
     } finally {
@@ -445,6 +446,7 @@ const CreatorStationsWorkspace = ({ onNavigate }) => {
         else sessionStorage.removeItem('echooSelectedStationId');
       }
       setMessage('Station deleted.');
+      window.dispatchEvent(new CustomEvent('echoo:creator-state-changed'));
     } catch (deleteError) {
       setError(deleteError?.message || 'Could not delete the station.');
     } finally {
