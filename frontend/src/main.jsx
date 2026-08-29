@@ -60,6 +60,9 @@ import "./Components/Register/auth-reference.css";
 // experience wins over legacy Listener experiment layers without touching Creator.
 import "./styles/listener-selected-target-2026.css";
 import "./styles/listener-selected-target-pass2-2026.css";
+// Root-scoped final pass uses deliberately stronger selectors so lazy-loaded
+// legacy Listener CSS cannot repaint the selected dark shell after route load.
+import "./styles/listener-selected-target-pass3-2026.css";
 
 initializeEchooTheme();
 
