@@ -1,4 +1,8 @@
 import User from '../models/User.js';
+import {
+  creatorOnboardingStep,
+  hasCreatorCapability,
+} from '../utils/accountCapabilities.js';
 
 // Step 1: Choose user type (Listener or Creator)
 export async function chooseUserType(req, res, next) {
@@ -22,7 +26,12 @@ export async function chooseUserType(req, res, next) {
       });
     }
 
-    if (user.onboardingCompleted) {
+    const upgradingListenerToCreator =
+      user.onboardingCompleted &&
+      userType === 'creator' &&
+      !hasCreatorCapability(user);
+
+    if (user.onboardingCompleted && !upgradingListenerToCreator) {
       return res.status(400).json({
         error: { 
           code: 'ONBOARDING_COMPLETED', 
@@ -31,7 +40,15 @@ export async function chooseUserType(req, res, next) {
       });
     }
 
-    await user.setUserType(userType);
+    if (upgradingListenerToCreator) {
+      user.userType = 'creator';
+      user.roles = [...new Set(['listener', ...(user.roles || []), 'creator'])];
+      user.onboardingCompleted = false;
+      user.onboardingStep = creatorOnboardingStep(user);
+      await user.save();
+    } else {
+      await user.setUserType(userType);
+    }
 
     return res.status(200).json({
       data: {

@@ -59,6 +59,7 @@ const ListenerRealStationProfile = lazy(loadListenerStationProfile);
 import EchooExperienceOrchestrator from './Components/EchooSystem/EchooExperienceOrchestrator';
 import EchooMobileNavigation from './Components/EchooSystem/EchooMobileNavigation';
 import ImageCropProvider from './Components/Common/ImageCropProvider';
+import { canAccessExperience } from './services/accountExperience';
 
 // Error boundary that catches lazy-chunk load failures (e.g. a network drop
 // mid-session) and lets the user retry instead of crashing the whole app.
@@ -261,17 +262,16 @@ const RequireRole = ({ role, children }) => {
   if (!accessToken) return <Navigate to="/" replace />;
 
   const user = getStoredUser();
-  const currentRole = getStoredRole(user);
   const onboardingComplete =
     Boolean(user.onboardingCompleted) ||
     localStorage.getItem('echooOnboardingCompleted') === 'true';
 
-  if (!onboardingComplete || !currentRole) {
+  if (!onboardingComplete) {
     return <Navigate to="/" replace />;
   }
 
-  if (currentRole !== role) {
-    return <Navigate to={roleHome(currentRole)} replace />;
+  if (!canAccessExperience(user, role)) {
+    return <Navigate to="/" replace />;
   }
 
   return (

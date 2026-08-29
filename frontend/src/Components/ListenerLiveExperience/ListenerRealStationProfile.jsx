@@ -44,11 +44,12 @@ const ListenerRealStationProfile = () => {
 
       setStation(nextStation);
       setFollowerCount(Number(nextStation.followerCount) || 0);
+      const canonicalStationId = nextStation.id;
 
       const [liveResult, upcomingResult, followResult] = await Promise.allSettled([
-        batch3Service.getLiveBroadcastForStation(stationId),
-        batch3Service.getUpcomingForStation(stationId),
-        followService.getStationStatus(stationId),
+        batch3Service.getLiveBroadcastForStation(canonicalStationId),
+        batch3Service.getUpcomingForStation(canonicalStationId),
+        followService.getStationStatus(canonicalStationId),
       ]);
 
       if (liveResult.status === 'fulfilled') {
@@ -108,8 +109,8 @@ const ListenerRealStationProfile = () => {
 
       const wasFollowing = following;
       const response = wasFollowing
-        ? await followService.unfollowStation(stationId)
-        : await followService.followStation(stationId);
+        ? await followService.unfollowStation(station.id)
+        : await followService.followStation(station.id);
 
       setFollowing(!wasFollowing);
 

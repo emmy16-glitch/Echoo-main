@@ -49,10 +49,12 @@ const enrichBroadcasts = (broadcasts, stations) => {
   return broadcasts.map((broadcast) => {
     const station = stationMap.get(String(broadcast.stationId)) || null;
     const stationBrand = station?.brandCover || station?.coverArt || station?.logo || null;
+    const eventArtwork = broadcast.coverArt || broadcast.artwork || broadcast.image || null;
     const artwork = stationBrand || broadcast.coverArt || null;
 
     return {
       ...broadcast,
+      eventArtwork,
       station: station || broadcast.station,
       stationName:
         station?.name || broadcast.stationName || 'Echoo Station',

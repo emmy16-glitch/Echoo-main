@@ -34,6 +34,7 @@ const listener = {
 const station = {
   id: '507f1f77bcf86cd799439021',
   _id: '507f1f77bcf86cd799439021',
+  slug: 'echoo-e2e-station',
   name: LONG,
   description: `${LONG} ${LONG}`,
   category: 'Technology',

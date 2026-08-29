@@ -25,6 +25,14 @@ function invalidId(res) {
   });
 }
 
+export function buildStationLookupFilter(value) {
+  const identifier = String(value || '').trim();
+  if (!identifier) return null;
+  if (validId(identifier)) return { _id: identifier };
+  if (!/^[a-z0-9_-]{1,100}$/i.test(identifier)) return null;
+  return { slug: identifier.toLowerCase() };
+}
+
 function populateOwner(query) {
   return query.populate('owner', OWNER_FIELDS);
 }
@@ -285,11 +293,12 @@ export async function getMyStations(req, res, next) {
 export async function getStationById(req, res, next) {
   try {
     const { stationId } = req.params;
-    if (!validId(stationId)) return invalidId(res);
+    const stationLookup = buildStationLookupFilter(stationId);
+    if (!stationLookup) return invalidId(res);
 
     const station = await populateOwner(
       Station.findOne({
-        _id: stationId,
+        ...stationLookup,
         isDeleted: false,
       })
     );

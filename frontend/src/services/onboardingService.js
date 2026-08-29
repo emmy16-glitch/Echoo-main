@@ -62,6 +62,13 @@ const saveUser = (user) => {
       "echooOnboardingCompleted",
       "true"
     );
+  } else if (
+    user.onboardingCompleted ===
+    false
+  ) {
+    localStorage.removeItem(
+      "echooOnboardingCompleted"
+    );
   }
 
   return mergedUser;
