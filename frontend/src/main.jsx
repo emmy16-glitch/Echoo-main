@@ -66,6 +66,9 @@ import "./styles/listener-selected-target-pass3-2026.css";
 // Browser-QA pass removes the final legacy light content canvas and keeps the
 // compact live-room identity row inside the dark selected Listener workspace.
 import "./styles/listener-selected-target-pass4-2026.css";
+// Final Chromium density pass collapses the live-room identity strip so the
+// player and chat begin immediately beneath a compact creator action bar.
+import "./styles/listener-selected-target-pass5-2026.css";
 
 initializeEchooTheme();
 
