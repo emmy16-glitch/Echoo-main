@@ -1,0 +1,42 @@
+/* Listener 2.0 — final room-density correction from Chromium QA. */
+
+@media (min-width: 761px) {
+  html body #root .echoo-listener-v2-shell .listener-room-page .lex-room-header {
+    box-sizing: border-box !important;
+    width: 100% !important;
+    height: 56px !important;
+    min-height: 56px !important;
+    max-height: 56px !important;
+    margin: 0 0 10px !important;
+    padding: 6px 10px !important;
+    overflow: visible !important;
+    align-items: center !important;
+  }
+
+  html body #root .echoo-listener-v2-shell .listener-room-page .lex-room-header__copy {
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: 44px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    align-items: center !important;
+  }
+
+  html body #root .echoo-listener-v2-shell .listener-room-page .lex-creator-line,
+  html body #root .echoo-listener-v2-shell .listener-room-page .lex-header-actions {
+    height: 34px !important;
+    min-height: 34px !important;
+    margin: 0 !important;
+  }
+
+  html body #root .echoo-listener-v2-shell .listener-room-page .lex-avatar {
+    width: 28px !important;
+    height: 28px !important;
+    min-width: 28px !important;
+  }
+
+  html body #root .echoo-listener-v2-shell .listener-room-page .llr-grid {
+    margin-top: 0 !important;
+  }
+}
