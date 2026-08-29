@@ -38,33 +38,33 @@ jobs:
         working-directory: frontend
         run: npx playwright test e2e/listener-selected-visual.spec.mjs --project=desktop-1440 --reporter=line
 
-      - name: Prepare compact screenshots for logs
+      - name: Print compact screenshots into logs
         if: always()
         working-directory: frontend
         run: |
-          python - <<'PY'
-          import base64, glob, io, os, subprocess, sys
-          try:
-              from PIL import Image
-          except Exception:
-              subprocess.check_call([sys.executable, '-m', 'pip', 'install', '--quiet', 'pillow'])
-              from PIL import Image
-          for path in sorted(glob.glob('test-results/**/listener-*-selected.jpg', recursive=True)):
-              im = Image.open(path).convert('RGB')
-              im.thumbnail((900, 650))
-              out = io.BytesIO()
-              im.save(out, format='JPEG', quality=48, optimize=True)
-              encoded = base64.b64encode(out.getvalue()).decode('ascii')
-              name = os.path.basename(path)
-              print(f'SCREENSHOT_BEGIN:{name}')
-              print(encoded)
-              print(f'SCREENSHOT_END:{name}')
-          PY
+          set +e
+          count=0
+          while IFS= read -r path; do
+            count=$((count+1))
+            [ "$count" -gt 4 ] && break
+            name="$(basename "$path")"
+            tmp="/tmp/echoo-qa-${count}.jpg"
+            ffmpeg -loglevel error -y -i "$path" -vf "scale='min(900,iw)':-2" -q:v 10 "$tmp" || cp "$path" "$tmp"
+            echo "SCREENSHOT_BEGIN:${name}"
+            base64 -w 0 "$tmp"
+            echo
+            echo "SCREENSHOT_END:${name}"
+          done < <(find test-results -type f \( -name '*.jpg' -o -name '*.png' \) | sort)
+          exit 0
 
-      - name: Upload screenshots
+      - name: Upload screenshots and traces
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: listener-visual-qa
-          path: frontend/test-results/**/listener-*-selected.jpg
+          path: |
+            frontend/test-results/**/*.jpg
+            frontend/test-results/**/*.png
+            frontend/test-results/**/error-context.md
+            frontend/test-results/**/trace.zip
           if-no-files-found: warn
