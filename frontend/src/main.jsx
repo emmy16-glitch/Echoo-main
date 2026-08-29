@@ -63,6 +63,9 @@ import "./styles/listener-selected-target-pass2-2026.css";
 // Root-scoped final pass uses deliberately stronger selectors so lazy-loaded
 // legacy Listener CSS cannot repaint the selected dark shell after route load.
 import "./styles/listener-selected-target-pass3-2026.css";
+// Browser-QA pass removes the final legacy light content canvas and keeps the
+// compact live-room identity row inside the dark selected Listener workspace.
+import "./styles/listener-selected-target-pass4-2026.css";
 
 initializeEchooTheme();
 
