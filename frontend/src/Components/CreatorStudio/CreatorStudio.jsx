@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   FaCloudUploadAlt,
@@ -14,6 +14,7 @@ import './CreatorStudio.css';
 import './CreatorStudio.identity.css';
 import './CreatorStudioShellFinal.css';
 import './CreatorStudioV2Shell.css';
+import './CreatorStudioShellArchitecture.css';
 import echooLogo from '../Assets/echoo-logo-mark.png';
 import echooDecorativeLogo from '../Assets/echoo-logo.png';
 import studioService from '../../services/studioService';
@@ -28,6 +29,7 @@ import CreatorBroadcastWorkspace from './CreatorLiveConnectedWorkspace';
 import CreatorStationsWorkspace from './CreatorStationsWorkspace';
 import CreatorAudienceWorkspace from './CreatorAudienceWorkspace';
 import CreatorAnalyticsWorkspace from './CreatorAnalyticsConnectedWorkspace';
+import CreatorScheduleEventsWorkspace from './CreatorScheduleEventsWorkspace';
 import CreatorSettingsWorkspace from './CreatorSettingsWorkspace';
 import CreatorNotificationsWorkspace from './CreatorNotificationsWorkspace';
 import CreatorCollectionsWorkspace from './CreatorCollectionsWorkspace';
@@ -56,6 +58,30 @@ const AUDIO_EXTENSIONS = new Set([
   'mp3', 'm4a', 'aac', 'wav', 'ogg', 'oga', 'opus', 'flac', 'webm',
 ]);
 
+const CREATOR_WORKSPACE_PATHS = {
+  Broadcast: '/creator-studio',
+  Channels: '/creator-studio/channels',
+  Collections: '/creator-studio/recordings',
+  Schedule: '/creator-studio/schedule-events',
+  Analytics: '/creator-studio/analytics',
+  Audio: '/creator-studio/audio',
+  Stations: '/creator-studio/stations',
+  Audience: '/creator-studio/audience',
+  Discover: '/creator-studio/discover',
+  'Explore Live': '/creator-studio/explore-live',
+  Settings: '/creator-studio/settings',
+  Notifications: '/creator-studio/notifications',
+};
+
+const CREATOR_ROUTE_WORKSPACES = Object.fromEntries(
+  Object.entries(CREATOR_WORKSPACE_PATHS).map(([workspace, path]) => [path, workspace])
+);
+
+const creatorWorkspaceForPath = (pathname) => {
+  const normalizedPath = String(pathname || '/creator-studio').replace(/\/+$/, '') || '/creator-studio';
+  return CREATOR_ROUTE_WORKSPACES[normalizedPath] || 'Broadcast';
+};
+
 const readJson = (key, fallback = {}) => {
   try {
     return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback));
@@ -76,11 +102,11 @@ const isSupportedAudioFile = (file) => {
 const CreatorStudioBody = () => {
   const location = useLocation();
   const routerNavigate = useNavigate();
-  const [activeNav, setActiveNav] = useState(() => {
-    if (location.pathname.endsWith('/channels')) return 'Channels';
-    if (location.pathname.endsWith('/discover')) return 'Discover';
-    return 'Broadcast';
-  });
+  const mainScrollRef = useRef(null);
+  const activeNav = useMemo(
+    () => creatorWorkspaceForPath(location.pathname),
+    [location.pathname]
+  );
   const [content, setContent] = useState({ tracks: [], pagination: {} });
   const [audience, setAudience] = useState(null);
   const [contentPage, setContentPage] = useState(1);
@@ -121,11 +147,11 @@ const CreatorStudioBody = () => {
   const uploadArtwork = uploadForm.coverPreview || generatedUploadArtwork;
 
   const navItems = [
-    { name: 'Broadcast', label: 'Broadcast', icon: <FiRadio /> },
-    { name: 'Channels', label: 'Channels', icon: <MdOutlinePodcasts /> },
-    { name: 'Recordings', label: 'Recordings', target: 'Collections', icon: <FiCamera /> },
-    { name: 'Schedule Events', label: 'Schedule Events', target: 'Schedule', icon: <FiCalendar /> },
-    { name: 'Analytics', label: 'Analytics', icon: <PiChartBar /> },
+    { workspace: 'Broadcast', label: 'Broadcast', icon: <FiRadio /> },
+    { workspace: 'Channels', label: 'Channels', icon: <MdOutlinePodcasts /> },
+    { workspace: 'Collections', label: 'Recordings', icon: <FiCamera /> },
+    { workspace: 'Schedule', label: 'Schedule Events', icon: <FiCalendar /> },
+    { workspace: 'Analytics', label: 'Analytics', icon: <PiChartBar /> },
   ];
 
   useEffect(() => {
@@ -140,16 +166,6 @@ const CreatorStudioBody = () => {
     });
     return () => { active = false; };
   }, []);
-
-  useEffect(() => {
-    if (location.pathname.endsWith('/channels')) {
-      setActiveNav('Channels');
-    } else if (location.pathname.endsWith('/discover')) {
-      setActiveNav('Discover');
-    } else if (activeNav === 'Discover' || activeNav === 'Channels') {
-      setActiveNav('Broadcast');
-    }
-  }, [location.pathname, activeNav]);
 
   useEffect(() => {
     let active = true;
@@ -182,27 +198,27 @@ const CreatorStudioBody = () => {
     return () => window.removeEventListener('echoo:creator-audio-changed', onCreatorAudioChanged);
   }, []);
 
+  // The Creator shell owns its own vertical scroll. Reset only when the URL
+  // resolves to a different workspace, never during page-level data updates.
+  useEffect(() => {
+    mainScrollRef.current?.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, [activeNav]);
+
   const navigateStudio = (page) => {
     let target = page;
-    if (page === 'Home') target = 'Studio';
+    if (page === 'Home' || page === 'Studio') target = 'Broadcast';
     if (page === 'Live') {
       sessionStorage.setItem('echooBroadcastMode', 'now');
       target = 'Broadcast';
     }
     if (page === 'Schedule') {
       sessionStorage.setItem('echooBroadcastMode', 'later');
-      target = 'Broadcast';
+      target = 'Schedule';
     }
     setError('');
     setNotice('');
-    if (target === 'Channels') {
-      routerNavigate('/creator-studio/channels');
-    } else if (target === 'Discover') {
-      routerNavigate('/creator-studio/discover');
-    } else if (location.pathname !== '/creator-studio') {
-      routerNavigate('/creator-studio');
-    }
-    setActiveNav(target);
+    const destination = CREATOR_WORKSPACE_PATHS[target] || CREATOR_WORKSPACE_PATHS.Broadcast;
+    if (location.pathname !== destination) routerNavigate(destination);
   };
 
   const openUpload = () => {
@@ -371,9 +387,12 @@ const CreatorStudioBody = () => {
             onChanged={() => setRefreshKey((value) => value + 1)}
           />
         );
+      case 'Schedule':
+        return <CreatorScheduleEventsWorkspace onNavigate={navigateStudio} />;
       case 'Broadcast':
         return (
           <CreatorBroadcastWorkspace
+            key="broadcast"
             studioName={studioName}
             profileImage={profileImage}
             initialBroadcastId={preparedBroadcastId}
@@ -393,16 +412,7 @@ const CreatorStudioBody = () => {
       case 'Notifications':
         return <CreatorNotificationsWorkspace onNavigate={navigateStudio} />;
       default:
-        return (
-          <CreatorBroadcastWorkspace
-            studioName={studioName}
-            profileImage={profileImage}
-            initialBroadcastId={preparedBroadcastId}
-            onNavigate={navigateStudio}
-            onAddMusic={openUpload}
-            onClearPreparedBroadcast={clearPreparedBroadcast}
-          />
-        );
+        return null;
     }
   };
 
@@ -420,11 +430,12 @@ const CreatorStudioBody = () => {
           {navItems.map((item) => (
             <button
               type="button"
-              key={item.name}
-              className={`studio-nav-item ${activeNav === item.name || activeNav === item.target ? 'active' : ''}`}
-              onClick={() => navigateStudio(item.target || item.name)}
+              key={item.workspace}
+              className={`studio-nav-item ${activeNav === item.workspace ? 'active' : ''}`}
+              onClick={() => navigateStudio(item.workspace)}
               title={item.label}
               aria-label={item.label}
+              aria-current={activeNav === item.workspace ? 'page' : undefined}
             >
               <span className="studio-nav-icon">{item.icon}</span><span className="studio-nav-label">{item.label}</span>
             </button>
@@ -434,7 +445,7 @@ const CreatorStudioBody = () => {
         <img className="studio-sidebar-watermark" src={echooDecorativeLogo} alt="" aria-hidden="true" />
       </aside>
 
-      <main id="echoo-main-content" tabIndex="-1" className="studio-main">
+      <main id="echoo-main-content" ref={mainScrollRef} tabIndex="-1" className="studio-main">
         <header className="studio-topbar studio-topbar-final">
           <AccountExperienceMenu
             currentExperience="creator"

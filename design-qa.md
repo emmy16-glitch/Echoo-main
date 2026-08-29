@@ -115,6 +115,31 @@ No actionable P0, P1, or P2 findings remain.
 
 final result: passed
 
+## Schedule Events and Analytics — QA pending browser authorization
+
+**Comparison target**
+
+- Source visual truth: `/home/okunlola/Pictures/locked echoo design/schedule events.png` and `/home/okunlola/Pictures/locked echoo design/analytics.png`, each `1536 x 1024` pixels.
+- Intended implementation routes: `/creator-studio/schedule-events` and `/creator-studio/analytics` at `1536 x 1024` CSS pixels, authenticated creator desktop state.
+- Source evidence was opened and inspected in this task. Browser-rendered implementation evidence is not yet available.
+
+**Findings**
+
+- [P0] Browser-rendered comparison is blocked.
+  - Location: both new Creator workspace routes.
+  - Evidence: the Product Design browser policy requires explicit user approval before using the Playwright CLI. No current-turn approval has been given.
+  - Impact: the required same-input visual comparison, interaction test, and implementation screenshot cannot be completed yet.
+  - Fix: obtain approval to run the existing Playwright browser verification, then capture both routes at the source viewport, create same-input comparison evidence, and resolve any P1/P2 visual differences.
+
+**Implementation Checklist**
+
+- [x] Source reference images opened.
+- [x] Production build and static syntax checks passed.
+- [ ] Capture browser-rendered Schedule Events and Analytics at `1536 x 1024`.
+- [ ] Create same-input source/implementation comparisons and complete the visual QA loop.
+
+final result: blocked
+
 ## Listener streaming redesign — QA
 
 ### Comparison target

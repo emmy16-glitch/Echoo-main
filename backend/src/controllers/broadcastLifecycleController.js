@@ -661,6 +661,10 @@ export async function endBroadcast(req, res, next) {
     // ended broadcast stuck forever in `ending`.
     broadcast.status = wasLive ? 'completed' : 'cancelled';
     broadcast.endedAt = broadcast.endedAt || new Date();
+    // Scheduled broadcasts are intentionally open-ended. Record their actual
+    // end only when the creator ends the live session, preserving older
+    // records that already supplied a planned end time.
+    broadcast.endTime = broadcast.endTime || broadcast.endedAt;
     broadcast.listenerCount = 0;
     broadcast.livekitRoomName = null;
     broadcast.livekitEgressId = null;

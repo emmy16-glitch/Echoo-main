@@ -1,0 +1,94 @@
+/*
+ * Creator shell ownership rules. Page styles remain responsible for workspace
+ * visuals; this file owns only the stable desktop application frame.
+ */
+.studio-final-shell {
+  --creator-shell-sidebar-width: var(--studio-sidebar-width, 238px);
+  --creator-shell-topbar-height: 91px;
+  --creator-shell-scrollbar: #b8c3d3;
+  --creator-shell-scrollbar-hover: #9facbe;
+}
+
+@media (min-width: 761px) {
+  html body #root .studio-page.studio-final-shell.studio-v2-shell {
+    height: 100dvh !important;
+    min-height: 0 !important;
+    grid-template-columns: var(--creator-shell-sidebar-width) minmax(0, 1fr) !important;
+    align-items: stretch !important;
+    overflow: hidden !important;
+  }
+
+  html body #root .studio-page.studio-final-shell.studio-v2-shell > .studio-sidebar {
+    position: fixed !important;
+    inset: 0 auto 0 0 !important;
+    width: var(--creator-shell-sidebar-width) !important;
+    min-width: var(--creator-shell-sidebar-width) !important;
+    height: 100dvh !important;
+    overflow: hidden !important;
+  }
+
+  html body #root .studio-page.studio-final-shell.studio-v2-shell > .studio-main {
+    grid-column: 2 !important;
+    width: 100% !important;
+    max-width: none !important;
+    height: 100dvh !important;
+    min-height: 0 !important;
+    overflow-x: clip !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--creator-shell-scrollbar) transparent;
+  }
+
+  html body #root .studio-page.studio-final-shell.studio-v2-shell .studio-topbar-final {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 70 !important;
+    background: rgba(255, 255, 255, .98) !important;
+    box-shadow: 0 1px 0 rgba(227, 234, 244, .92);
+  }
+
+  /* Older Broadcast-only viewport rules made the shared header relative and
+     the sidebar part of the document flow. Keep the approved mixer visual,
+     while restoring the shared fixed shell for that workspace too. */
+  html body #root .studio-page.studio-final-shell.studio-v2-shell:has(.studio-view > .ec2-broadcast) > .studio-sidebar {
+    position: fixed !important;
+  }
+
+  html body #root .studio-page.studio-final-shell.studio-v2-shell:has(.studio-view > .ec2-broadcast) > .studio-main {
+    display: block !important;
+    grid-template-rows: none !important;
+    overflow-x: clip !important;
+    overflow-y: auto !important;
+  }
+
+  html body #root .studio-page.studio-final-shell.studio-v2-shell:has(.studio-view > .ec2-broadcast) .studio-topbar-final {
+    position: sticky !important;
+    top: 0 !important;
+  }
+
+  html body #root .studio-page.studio-final-shell.studio-v2-shell:has(.studio-view > .ec2-broadcast) .studio-view {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  html body #root .studio-page.studio-final-shell.studio-v2-shell > .studio-main::-webkit-scrollbar {
+    width: 7px;
+  }
+
+  html body #root .studio-page.studio-final-shell.studio-v2-shell > .studio-main::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  html body #root .studio-page.studio-final-shell.studio-v2-shell > .studio-main::-webkit-scrollbar-thumb {
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background: var(--creator-shell-scrollbar);
+    background-clip: padding-box;
+  }
+
+  html body #root .studio-page.studio-final-shell.studio-v2-shell > .studio-main::-webkit-scrollbar-thumb:hover {
+    background: var(--creator-shell-scrollbar-hover);
+    background-clip: padding-box;
+  }
+}

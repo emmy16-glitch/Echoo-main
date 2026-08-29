@@ -139,11 +139,11 @@ export async function createBroadcast(req, res, next) {
 
     const resolvedStationId = stationId || stationFromBody;
 
-    if (!title || !resolvedStationId || !startTime || !endTime) {
+    if (!title || !resolvedStationId || !startTime) {
       return res.status(400).json({
         error: {
           code: 'VALIDATION_ERROR',
-          message: 'title, stationId, startTime and endTime are required',
+          message: 'title, stationId and startTime are required',
         },
       });
     }
@@ -158,18 +158,18 @@ export async function createBroadcast(req, res, next) {
     }
 
     const start = new Date(startTime);
-    const end = new Date(endTime);
+    const end = endTime ? new Date(endTime) : null;
 
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    if (Number.isNaN(start.getTime()) || (end && Number.isNaN(end.getTime()))) {
       return res.status(400).json({
         error: {
           code: 'INVALID_DATE',
-          message: 'startTime and endTime must be valid dates',
+          message: 'startTime must be valid, and endTime must be valid when supplied',
         },
       });
     }
 
-    if (end <= start) {
+    if (end && end <= start) {
       return res.status(400).json({
         error: {
           code: 'INVALID_DATE_RANGE',

@@ -38,8 +38,8 @@ const broadcastSchema = new mongoose.Schema(
     },
     endTime: {
       type: Date,
-      required: true,
       index: true,
+      default: null,
     },
     duration: {
       type: Number,

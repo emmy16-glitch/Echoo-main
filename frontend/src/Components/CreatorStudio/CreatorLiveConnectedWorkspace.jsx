@@ -141,6 +141,7 @@ const getValidAudioSourceIds = (state) => ['host', 'guest', 'media', 'screen'].f
 const CreatorLiveConnectedWorkspace = ({
   studioName = 'Creator',
   initialBroadcastId = '',
+  initialMode = '',
   onNavigate,
   onAddMusic,
   onClearPreparedBroadcast,
@@ -153,9 +154,9 @@ const CreatorLiveConnectedWorkspace = ({
   const [stationId, setStationId] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [mode, setMode] = useState(
-    () => sessionStorage.getItem('echooBroadcastMode') === 'later' ? 'later' : 'now'
-  );
+  const [mode, setMode] = useState(() => (
+    initialMode === 'later' || sessionStorage.getItem('echooBroadcastMode') === 'later' ? 'later' : 'now'
+  ));
   const [date, setDate] = useState(defaultDate);
   const [time, setTime] = useState('18:00');
   const [duration, setDuration] = useState('60');
@@ -850,7 +851,7 @@ const CreatorLiveConnectedWorkspace = ({
     setMode('now');
     sessionStorage.setItem('echooPreparedBroadcastId', String(broadcast.id));
     sessionStorage.setItem('echooBroadcastMode', 'now');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    document.getElementById('echoo-main-content')?.scrollTo({ top: 0, behavior: 'auto' });
   };
 
   const resolveLiveStationUrl = (liveStation) => {

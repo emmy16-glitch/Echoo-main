@@ -148,6 +148,57 @@ test('Listen uses the canonical public station route', async ({ page }) => {
   await expect(page).toHaveURL(/\/listen\/stations\/builders-in-africa$/);
 });
 
+test('Creator sidebar routes, refresh, history, and quick clicks stay in sync', async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const canonicalRoutes = [
+    ['/creator-studio', 'Broadcast'],
+    ['/creator-studio/channels', 'Channels'],
+    ['/creator-studio/recordings', 'Recordings'],
+    ['/creator-studio/schedule-events', 'Schedule Events'],
+    ['/creator-studio/analytics', 'Analytics'],
+  ];
+
+  for (const [path, label] of canonicalRoutes) {
+    await page.goto(path);
+    await expect(page.getByRole('button', { name: label, exact: true })).toHaveAttribute('aria-current', 'page');
+    await page.reload();
+    await expect(page.getByRole('button', { name: label, exact: true })).toHaveAttribute('aria-current', 'page');
+  }
+
+  await page.goto('/creator-studio');
+  await page.getByRole('button', { name: 'Channels' }).click();
+  await expect(page).toHaveURL(/\/creator-studio\/channels$/);
+  await page.getByRole('button', { name: 'Recordings' }).click();
+  await expect(page).toHaveURL(/\/creator-studio\/recordings$/);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/creator-studio\/channels$/);
+  await expect(page.getByRole('button', { name: 'Channels', exact: true })).toHaveAttribute('aria-current', 'page');
+  await page.goBack();
+  await expect(page).toHaveURL(/\/creator-studio$/);
+  await page.goForward();
+  await expect(page).toHaveURL(/\/creator-studio\/channels$/);
+
+  await page.getByRole('button', { name: 'Recordings' }).click();
+  await expect(page).toHaveURL(/\/creator-studio\/recordings$/);
+  await page.getByRole('button', { name: 'Channels' }).click();
+  await expect(page).toHaveURL(/\/creator-studio\/channels$/);
+  await page.getByRole('button', { name: 'Recordings' }).click();
+  await expect(page).toHaveURL(/\/creator-studio\/recordings$/);
+  await page.getByRole('button', { name: 'Analytics' }).click();
+  await expect(page).toHaveURL(/\/creator-studio\/analytics$/);
+  await page.getByRole('button', { name: 'Schedule Events' }).click();
+  await expect(page).toHaveURL(/\/creator-studio\/schedule-events$/);
+
+  await page.locator('.studio-nav-item').evaluateAll((items) => {
+    ['Broadcast', 'Channels', 'Recordings', 'Analytics'].forEach((label) => (
+      [...items].find((item) => item.getAttribute('aria-label') === label)?.click()
+    ));
+  });
+  await expect(page).toHaveURL(/\/creator-studio\/analytics$/);
+  await expect(page.getByRole('button', { name: 'Analytics', exact: true })).toHaveAttribute('aria-current', 'page');
+});
+
 test('Channels remains usable on a narrow mobile viewport', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/creator-studio/channels');
@@ -159,4 +210,122 @@ test('Channels remains usable on a narrow mobile viewport', async ({ page }) => 
 
   const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
   expect(hasHorizontalOverflow).toBe(false);
+});
+
+test('one live channel stays left-aligned and the Channels surface hugs real content', async ({ page }) => {
+  await page.setViewportSize({ width: 1536, height: 1024 });
+  await page.route('**/api/broadcasts?**', (route) => {
+    const url = new URL(route.request().url());
+    fulfill(route, url.searchParams.get('status') === 'live' ? [liveBroadcasts[1]] : []);
+  });
+
+  await page.goto('/creator-studio/channels');
+  await expect(page.locator('.channels-card')).toHaveCount(1);
+
+  const geometry = await page.evaluate(() => {
+    const surface = document.querySelector('.channels-surface')?.getBoundingClientRect();
+    const card = document.querySelector('.channels-card')?.getBoundingClientRect();
+    const grid = document.querySelector('.channels-grid')?.getBoundingClientRect();
+    const filters = document.querySelector('.channels-filters')?.getBoundingClientRect();
+    const surfaceStyle = document.querySelector('.channels-surface');
+    const filtersStyle = document.querySelector('.channels-filters');
+    return {
+      surface,
+      card,
+      grid,
+      filters,
+      surfaceMinHeight: surfaceStyle ? getComputedStyle(surfaceStyle).minHeight : '',
+      filtersAlignSelf: filtersStyle ? getComputedStyle(filtersStyle).alignSelf : '',
+    };
+  });
+
+  expect(geometry.card.width).toBeGreaterThanOrEqual(218);
+  expect(geometry.card.width).toBeLessThanOrEqual(222);
+  expect(Math.abs(geometry.card.left - geometry.grid.left)).toBeLessThanOrEqual(1);
+  expect(geometry.surfaceMinHeight).toBe('0px');
+  expect(geometry.filtersAlignSelf).toBe('start');
+  expect(geometry.surface.height).toBeLessThan(900);
+  expect(Math.abs(geometry.filters.bottom - geometry.surface.bottom)).toBeLessThanOrEqual(2);
+
+  await page.screenshot({
+    path: 'design-qa-evidence/channels/channels-one-1536x1024.png',
+    fullPage: false,
+  });
+});
+
+test('eight live channels retain the four-column reference grid without growing cards', async ({ page }) => {
+  await page.setViewportSize({ width: 1536, height: 1024 });
+  const manyLiveBroadcasts = Array.from({ length: 8 }, (_, index) => {
+    const channel = station(
+      `507f1f77bcf86cd79943902${index}`,
+      `507f1f77bcf86cd79943912${index}`,
+      `QA Channel ${index + 1}`,
+      index % 2 ? 'Education' : 'Technology',
+      20 + index,
+      { live: true },
+    );
+    return {
+      ...liveBroadcasts[1],
+      id: `607f1f77bcf86cd79943902${index}`,
+      _id: `607f1f77bcf86cd79943902${index}`,
+      station: channel,
+      stationId: channel.id,
+      creator: channel.owner,
+      title: `${channel.name} Live`,
+      description: channel.description,
+      tags: channel.tags,
+      listenerCount: channel.listenerCount,
+    };
+  });
+  await page.route('**/api/stations?**', (route) => fulfill(route, manyLiveBroadcasts.map((broadcast) => broadcast.station)));
+  await page.route('**/api/broadcasts?**', (route) => {
+    const url = new URL(route.request().url());
+    fulfill(route, url.searchParams.get('status') === 'live' ? manyLiveBroadcasts : []);
+  });
+
+  await page.goto('/creator-studio/channels');
+  await expect(page.locator('.channels-card')).toHaveCount(8);
+  const cards = await page.locator('.channels-card').evaluateAll((nodes) => nodes.map((node) => node.getBoundingClientRect()));
+
+  expect(cards.every((card) => card.width >= 218 && card.width <= 222)).toBe(true);
+  expect(Math.abs(cards[0].left - cards[4].left)).toBeLessThanOrEqual(1);
+  expect(cards[4].top).toBeGreaterThan(cards[0].top);
+});
+
+test('Creator workspace navigation resets the main scroll, while Channels filtering does not', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/creator-studio');
+  const mainScroll = page.locator('#echoo-main-content');
+  const initialSidebarBox = await page.locator('.studio-sidebar').boundingBox();
+  const initialTopbarBox = await page.locator('.studio-topbar-final').boundingBox();
+  await mainScroll.evaluate((container) => {
+    const spacer = document.createElement('div');
+    spacer.id = 'creator-scroll-test-spacer';
+    spacer.style.height = '1200px';
+    container.append(spacer);
+    container.scrollTo(0, 650);
+  });
+  await expect.poll(() => mainScroll.evaluate((container) => container.scrollTop)).toBeGreaterThan(100);
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+  expect((await page.locator('.studio-sidebar').boundingBox()).y).toBe(initialSidebarBox.y);
+  expect((await page.locator('.studio-topbar-final').boundingBox()).y).toBe(initialTopbarBox.y);
+
+  await page.getByRole('button', { name: 'Channels' }).click();
+  await expect(page).toHaveURL(/\/creator-studio\/channels$/);
+  await expect.poll(() => mainScroll.evaluate((container) => container.scrollTop)).toBe(0);
+
+  await mainScroll.evaluate((container) => container.scrollTo(0, 500));
+  await expect.poll(() => mainScroll.evaluate((container) => container.scrollTop)).toBeGreaterThan(100);
+  await page.getByPlaceholder('Search channels or topics...').fill('builders');
+  await expect.poll(() => mainScroll.evaluate((container) => container.scrollTop)).toBeGreaterThan(100);
+
+  await page.getByRole('button', { name: 'Recordings' }).click();
+  await expect(page).toHaveURL(/\/creator-studio\/recordings$/);
+  await expect.poll(() => mainScroll.evaluate((container) => container.scrollTop)).toBeLessThanOrEqual(8);
+
+  await mainScroll.evaluate((container) => container.scrollTo(0, 500));
+  await expect.poll(() => mainScroll.evaluate((container) => container.scrollTop)).toBeGreaterThan(100);
+  await page.getByRole('button', { name: 'Channels' }).click();
+  await expect(page).toHaveURL(/\/creator-studio\/channels$/);
+  await expect.poll(() => mainScroll.evaluate((container) => container.scrollTop)).toBeLessThanOrEqual(8);
 });

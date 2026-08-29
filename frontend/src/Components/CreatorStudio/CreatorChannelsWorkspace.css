@@ -16,6 +16,7 @@
 
 .channels-surface {
   width:100%;
+  height:auto;
   overflow:hidden;
   border:1px solid var(--ch-line);
   border-radius:14px;
@@ -59,7 +60,7 @@
 .channels-view-toggle button.active { border-color:var(--ch-blue); color:var(--ch-blue); background:#f8fbff; }
 .channels-filter-toggle { display:none; width:auto; grid-auto-flow:column; gap:7px; padding:0 13px; font-size:12px; }
 
-.channels-layout { display:grid; grid-template-columns:minmax(0,1fr) 264px; align-items:stretch; }
+.channels-layout { display:grid; grid-template-columns:minmax(0,1fr) 248px; align-items:start; }
 .channels-results { min-width:0; padding:18px 20px 24px; }
 .channels-section-heading { min-height:54px; display:flex; align-items:flex-start; gap:13px; margin:0 7px 18px; }
 .channels-section-heading > span { width:26px; height:30px; display:grid; place-items:center; color:var(--ch-blue); font-size:19px; }
@@ -74,7 +75,7 @@
 }
 
 .channels-card {
-  width:100%;
+  width:220px;
   min-width:0;
   height:308px;
   display:grid;
@@ -127,7 +128,7 @@
 .channels-card-body footer button { width:40px; height:40px; display:grid; place-items:center; flex:0 0 40px; border:1px solid #b9cdfb; border-radius:50%; background:#fff; color:var(--ch-blue); cursor:pointer; font-size:15px; }
 .channels-card-body footer button:hover,.channels-card-body footer button:focus-visible { border-color:var(--ch-blue); background:#eef4ff; outline:0; }
 
-.channels-filters { min-width:0; border-left:1px solid #edf1f6; padding:22px 24px 28px; background:#fff; }
+.channels-filters { min-width:0; align-self:start; border-left:1px solid #edf1f6; padding:22px 24px 28px; background:#fff; }
 .channels-filters > h2 { margin:0 0 18px; font-size:14px; font-weight:760; }
 .channels-filter-group { padding:0 0 20px; border-bottom:1px solid #e8edf4; }
 .channels-filter-group + .channels-filter-group { padding-top:20px; }
@@ -136,7 +137,7 @@
 .channels-filter-group > header strong { font-size:11.5px; font-weight:650; }
 .channels-filter-group > header > svg { font-size:11px; }
 .channels-filter-pills { display:flex; flex-wrap:wrap; gap:8px; }
-.channels-filter-pills button { min-height:30px; padding:0 13px; border:1px solid #dbe3ef; border-radius:999px; background:#fff; color:#506182; font-size:10.5px; cursor:pointer; }
+.channels-filter-pills button { height:30px !important; min-height:30px !important; padding:0 13px; border:1px solid #dbe3ef; border-radius:999px; background:#fff; color:#506182; font-size:10.5px; line-height:1; cursor:pointer; }
 .channels-filter-pills button.active { border-color:var(--ch-blue); background:#f7faff; color:var(--ch-blue); }
 .channels-filter-pills button:focus-visible,.channels-clear:focus-visible { outline:2px solid var(--ch-blue); outline-offset:2px; }
 
@@ -146,7 +147,7 @@
 .channels-audience div { display:flex; justify-content:space-between; margin-top:13px; color:#667796; font-size:10px; }
 .channels-clear { min-height:44px; display:flex; align-items:center; justify-content:center; gap:9px; margin:18px auto 0; border:0; background:transparent; color:var(--ch-blue); font-size:11px; font-weight:650; cursor:pointer; }
 
-.channels-state { min-height:320px; display:grid; place-content:center; justify-items:center; padding:28px; color:#71809a; text-align:center; }
+.channels-state { min-height:240px; display:grid; place-content:center; justify-items:center; padding:28px; color:#71809a; text-align:center; }
 .channels-state > svg { margin-bottom:12px; color:var(--ch-blue); font-size:25px; }
 .channels-state strong { color:var(--ch-navy); font-size:15px; }
 .channels-state p { margin:7px 0 14px; font-size:12px; }
@@ -160,7 +161,7 @@
 
 .channels-grid.is-list { grid-template-columns:1fr; gap:11px; }
 .channels-card.is-list { width:100%; height:136px; grid-template-columns:180px minmax(0,1fr); grid-template-rows:1fr; }
-.channels-card.is-list .channels-card-art img { object-fit:cover; }
+.channels-card.is-list .channels-card-art img { object-fit:contain; }
 .channels-card.is-list .channels-card-body { grid-template-columns:minmax(150px,.8fr) minmax(170px,1fr) 1fr auto; grid-template-rows:1fr; align-items:center; gap:14px; }
 .channels-card.is-list .channels-card-body > p { margin:0; }
 .channels-card.is-list .channels-card-tags { align-items:center; }
@@ -170,11 +171,9 @@
 
 @keyframes channels-pulse { 0%,100%{opacity:1}50%{opacity:.55} }
 
-@media (min-width:761px) { .channels-surface { min-height:calc(100dvh - 205px); } }
 @media (max-width:1300px) {
   .channels-layout { grid-template-columns:minmax(0,1fr) 244px; }
-  .channels-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
-  .channels-card,.channels-skeleton { width:100%; }
+  .channels-grid { grid-template-columns:repeat(3,minmax(0,220px)); }
   .channels-card { height:300px; }
   .channels-sort { min-width:180px; }
 }
@@ -183,7 +182,7 @@
   .channels-filter-toggle { display:grid; }
   .channels-filters { display:none; border-top:1px solid #edf1f6; border-left:0; }
   .channels-filters.open { display:block; }
-  .channels-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .channels-grid { grid-template-columns:repeat(3,minmax(0,220px)); }
   .channels-search { width:100%; }
   .channels-toolbar { align-items:stretch; flex-direction:column; }
   .channels-toolbar-actions { justify-content:flex-end; }
@@ -191,7 +190,7 @@
 @media (max-width:760px) {
   .channels-page-heading { margin-left:0; }
   .channels-page-heading h1 { font-size:27px; }
-  .channels-grid { grid-template-columns:1fr 1fr; gap:13px; }
+  .channels-grid { grid-template-columns:repeat(2,minmax(0,220px)); gap:13px; }
   .channels-card { height:288px; grid-template-rows:142px 1fr; }
   .channels-card.is-list { height:126px; grid-template-columns:120px 1fr; }
   .channels-card.is-list .channels-card-body { display:grid; grid-template-columns:1fr; gap:2px; }
@@ -203,7 +202,8 @@
   .channels-results { padding:15px 13px; }
 }
 @media (max-width:480px) {
-  .channels-grid { grid-template-columns:1fr; }
+  .channels-grid { grid-template-columns:minmax(0,1fr); }
+  .channels-card,.channels-skeleton { width:100%; }
   .channels-card { height:310px; grid-template-rows:165px 1fr; }
   .channels-view-toggle { display:none; }
   .channels-sort { min-width:100%; }
