@@ -59,6 +59,7 @@ import "./Components/Register/auth-reference.css";
 // Selected Listener 2.0 target is intentionally last so the live-first dark
 // experience wins over legacy Listener experiment layers without touching Creator.
 import "./styles/listener-selected-target-2026.css";
+import "./styles/listener-selected-target-pass2-2026.css";
 
 initializeEchooTheme();
 
