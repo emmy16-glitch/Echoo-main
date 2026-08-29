@@ -9,25 +9,62 @@
     max-height: 56px !important;
     margin: 0 0 10px !important;
     padding: 6px 10px !important;
-    overflow: visible !important;
+    overflow: hidden !important;
     align-items: center !important;
   }
 
   html body #root .echoo-listener-v2-shell .listener-room-page .lex-room-header__copy {
     width: 100% !important;
-    height: auto !important;
-    min-height: 0 !important;
-    max-height: 44px !important;
+    height: 34px !important;
+    min-height: 34px !important;
+    max-height: 34px !important;
     margin: 0 !important;
     padding: 0 !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    grid-template-rows: 34px !important;
+    grid-template-areas: 'creator actions' !important;
     align-items: center !important;
+    column-gap: 12px !important;
+    row-gap: 0 !important;
+    overflow: visible !important;
   }
 
-  html body #root .echoo-listener-v2-shell .listener-room-page .lex-creator-line,
-  html body #root .echoo-listener-v2-shell .listener-room-page .lex-header-actions {
+  html body #root .echoo-listener-v2-shell .listener-room-page .lex-creator-line {
+    grid-area: creator !important;
+    min-width: 0 !important;
     height: 34px !important;
     min-height: 34px !important;
     margin: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    align-self: center !important;
+  }
+
+  html body #root .echoo-listener-v2-shell .listener-room-page .lex-header-actions {
+    grid-area: actions !important;
+    height: 34px !important;
+    min-height: 34px !important;
+    margin: 0 !important;
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    align-self: center !important;
+    gap: 7px !important;
+  }
+
+  html body #root .echoo-listener-v2-shell .listener-room-page .lex-header-actions > button:first-child {
+    display: none !important;
+  }
+
+  html body #root .echoo-listener-v2-shell .listener-room-page .lex-header-actions button {
+    height: 32px !important;
+    min-height: 32px !important;
+    max-height: 32px !important;
+    margin: 0 !important;
+    white-space: nowrap !important;
   }
 
   html body #root .echoo-listener-v2-shell .listener-room-page .lex-avatar {
