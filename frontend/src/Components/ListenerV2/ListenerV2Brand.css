@@ -15,9 +15,7 @@
   content: "";
   flex: 0 0 auto;
   display: block;
-  background: linear-gradient(145deg, #1769ff, #a7bfdf);
-  -webkit-mask: url('../Assets/echoo-mark-transparent.svg') center / contain no-repeat;
-  mask: url('../Assets/echoo-mark-transparent.svg') center / contain no-repeat;
+  background: url('../Assets/echoo-mark-transparent.svg') center / contain no-repeat;
 }
 
 .listener-v2-brand::after,
@@ -73,9 +71,7 @@
   bottom: 52px;
   width: 205px;
   height: 205px;
-  background: #a9c0e2;
-  -webkit-mask: url('../Assets/echoo-mark-transparent.svg') center / contain no-repeat;
-  mask: url('../Assets/echoo-mark-transparent.svg') center / contain no-repeat;
+  background: url('../Assets/echoo-mark-transparent.svg') center / contain no-repeat;
   opacity: 0.085;
   pointer-events: none;
   user-select: none;
