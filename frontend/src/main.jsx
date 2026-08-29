@@ -56,19 +56,10 @@ import "./styles/playwright-run6-root-layout-hardening.css";
 import "./styles/playwright-run7-final-gate-fixes.css";
 import "./styles/echoo-artwork-fit.css";
 import "./Components/Register/auth-reference.css";
-// Selected Listener 2.0 target is intentionally last so the live-first dark
-// experience wins over legacy Listener experiment layers without touching Creator.
-import "./styles/listener-selected-target-2026.css";
-import "./styles/listener-selected-target-pass2-2026.css";
-// Root-scoped final pass uses deliberately stronger selectors so lazy-loaded
-// legacy Listener CSS cannot repaint the selected dark shell after route load.
-import "./styles/listener-selected-target-pass3-2026.css";
-// Browser-QA pass removes the final legacy light content canvas and keeps the
-// compact live-room identity row inside the dark selected Listener workspace.
-import "./styles/listener-selected-target-pass4-2026.css";
-// Final Chromium density pass collapses the live-room identity strip so the
-// player and chat begin immediately beneath a compact creator action bar.
-import "./styles/listener-selected-target-pass5-2026.css";
+// Strict Listener 2.0 owns its page/shell CSS inside ListenerV2. This one small
+// global scoped brand layer only replaces the shared logo asset with the
+// transparent Echoo mark lockup; legacy Listener pass1-pass5 overrides are retired.
+import "./Components/ListenerV2/ListenerV2Brand.css";
 
 initializeEchooTheme();
 
