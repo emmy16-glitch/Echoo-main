@@ -204,3 +204,8 @@
 - [x] Move the creator rename Undo duration to a shared application configuration constant.
 - [x] Add an accessible compact info control beside history progress for touch users to show or dismiss the exact listening position.
 - [x] Add a listener settings toggle that persists the user’s haptic-feedback preference and honors it during mobile player dismissal.
+
+- [x] Add a small dismissible first-use onboarding tooltip for the listening-history info control.
+- [x] Expand listener player preferences with persistent default playback speed and audio quality settings.
+- [x] Provide a clear user-facing toggle for enabling or disabling swipe-dismiss haptic feedback.
+- [x] Add focused unit/browser coverage and synchronize the authenticated-app update to both Echoo-main repositories.

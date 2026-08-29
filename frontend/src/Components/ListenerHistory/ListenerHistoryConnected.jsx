@@ -106,6 +106,29 @@ const ListenerHistoryConnected = () => {
   const [touchTooltipEntryId, setTouchTooltipEntryId] = useState('');
   const [hoveredTooltipEntryId, setHoveredTooltipEntryId] = useState('');
   const [focusedTooltipEntryId, setFocusedTooltipEntryId] = useState('');
+  const [historyOnboardingVisible, setHistoryOnboardingVisible] = useState(false);
+
+  const getHistoryOnboardingKey = () => {
+    try {
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      return `echoo-history-info-onboarding-dismissed:${user.id || user._id || user.openId || 'account'}`;
+    } catch {
+      return 'echoo-history-info-onboarding-dismissed:account';
+    }
+  };
+
+  useEffect(() => {
+    try {
+      setHistoryOnboardingVisible(localStorage.getItem(getHistoryOnboardingKey()) !== 'true');
+    } catch {
+      setHistoryOnboardingVisible(true);
+    }
+  }, []);
+
+  const dismissHistoryOnboarding = () => {
+    try { localStorage.setItem(getHistoryOnboardingKey(), 'true'); } catch { /* memory dismissal still applies */ }
+    setHistoryOnboardingVisible(false);
+  };
 
   const loadStats = useCallback(async () => {
     try {
@@ -310,8 +333,16 @@ const ListenerHistoryConnected = () => {
               </p>
             </div>
           ) : (
-            <div className="lh-list">
-              {filtered.map((track) => {
+            <>
+              {historyOnboardingVisible && (
+                <div id="history-info-onboarding" className="lh-onboarding-tip" role="note">
+                  <FaInfoCircle aria-hidden="true" />
+                  <p><strong>Tip:</strong> tap the info icon beside a progress bar to see exactly where you left off.</p>
+                  <button type="button" onClick={dismissHistoryOnboarding} aria-label="Dismiss history tip">Got it</button>
+                </div>
+              )}
+              <div className="lh-list">
+              {filtered.map((track, index) => {
                 const current = isCurrent(track);
                 const removing = busyId === String(track.entryId);
                 const progressPercent = progressFractionToPercent(track.progress);
@@ -345,7 +376,7 @@ const ListenerHistoryConnected = () => {
                     </button>
                     <button
                       type="button"
-                      className={`lh-row-info lh-row-info-button ${tooltipDismissed ? 'lh-row-info-button--tooltip-dismissed' : ''} ${touchTooltipOpen ? 'lh-row-info-button--tooltip-open' : ''}`}
+                      className={`lh-row-info lh-row-info-button ${tooltipDismissed ? 'lh-row-info-button--tooltip-dismissed' : ''} ${touchTooltipOpen ? 'lh-row-info-button--tooltip-open' : ''} ${historyOnboardingVisible && index === 0 ? 'lh-row-info-button--onboarding' : ''}`}
                       onClick={() => handleRowClick(track)}
                       onMouseEnter={() => {
                         setDismissedTooltipEntryId('');
@@ -402,6 +433,7 @@ const ListenerHistoryConnected = () => {
                       aria-label={`${touchTooltipOpen ? 'Hide' : 'Show'} listening position for ${track.title || 'history item'}`}
                       aria-controls={tooltipId}
                       aria-expanded={touchTooltipOpen}
+                      aria-describedby={historyOnboardingVisible && index === 0 ? 'history-info-onboarding' : undefined}
                       onClick={(event) => {
                         event.stopPropagation();
                         setDismissedTooltipEntryId('');
@@ -442,7 +474,8 @@ const ListenerHistoryConnected = () => {
                   </div>
                 );
               })}
-            </div>
+              </div>
+            </>
           )}
         </div>
 

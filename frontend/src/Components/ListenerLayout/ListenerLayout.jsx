@@ -159,6 +159,8 @@ const ListenerLayout = () => {
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
   const [hapticsEnabled, setHapticsEnabled] = useState(true);
+  const [playbackRate, setPlaybackRate] = useState(1);
+  const [audioQuality, setAudioQuality] = useState('auto');
   const [queue, setQueue] = useState([]);
   const [queueIndex, setQueueIndex] = useState(-1);
   const [shuffle, setShuffle] = useState(false);
@@ -336,6 +338,9 @@ const ListenerLayout = () => {
         }
         setIsMuted(Boolean(state.isMuted));
         setHapticsEnabled(state.hapticsEnabled !== false);
+        const savedRate = Number(state.playbackRate);
+        setPlaybackRate(Number.isFinite(savedRate) && savedRate >= 0.5 && savedRate <= 3 ? savedRate : 1);
+        setAudioQuality(['auto', 'standard', 'high'].includes(state.audioQuality) ? state.audioQuality : 'auto');
         setShuffle(Boolean(state.isShuffled));
         setRepeatMode(
           state.repeatMode === 'one' || state.repeatMode === 'all'
@@ -359,6 +364,11 @@ const ListenerLayout = () => {
     const updateHapticPreference = (event) => {
       const nextValue = event?.detail?.hapticsEnabled;
       if (typeof nextValue === 'boolean') setHapticsEnabled(nextValue);
+      const nextRate = Number(event?.detail?.playbackRate);
+      if (Number.isFinite(nextRate) && nextRate >= 0.5 && nextRate <= 3) setPlaybackRate(nextRate);
+      if (['auto', 'standard', 'high'].includes(event?.detail?.audioQuality)) {
+        setAudioQuality(event.detail.audioQuality);
+      }
     };
 
     window.addEventListener('echoo-player-preferences-updated', updateHapticPreference);
@@ -373,6 +383,8 @@ const ListenerLayout = () => {
         volume,
         isMuted,
         hapticsEnabled,
+        playbackRate,
+        audioQuality,
         isShuffled: shuffle,
         repeatMode: repeatMode === 'off' ? 'none' : repeatMode,
       }).catch((error) => {
@@ -381,7 +393,11 @@ const ListenerLayout = () => {
     }, 350);
 
     return () => window.clearTimeout(timer);
-  }, [volume, isMuted, hapticsEnabled, shuffle, repeatMode]);
+  }, [volume, isMuted, hapticsEnabled, playbackRate, audioQuality, shuffle, repeatMode]);
+
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.playbackRate = playbackRate;
+  }, [playbackRate]);
 
   const syncProgress = async (completed = false) => {
     const audio = audioRef.current;
@@ -459,6 +475,7 @@ const ListenerLayout = () => {
 
       audio.volume = volume;
       audio.muted = isMuted;
+      audio.playbackRate = playbackRate;
       setPlayerError('');
 
       const playPromise = audio.play();

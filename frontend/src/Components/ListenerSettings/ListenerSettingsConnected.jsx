@@ -52,7 +52,9 @@ const ListenerSettingsConnected = () => {
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [pushNotifications, setPushNotifications] = useState(true);
   const [hapticsEnabled, setHapticsEnabled] = useState(true);
-  const [hapticsSaving, setHapticsSaving] = useState(false);
+  const [playbackRate, setPlaybackRate] = useState(1);
+  const [audioQuality, setAudioQuality] = useState('auto');
+  const [playerPreferenceSaving, setPlayerPreferenceSaving] = useState(false);
   const [location, setLocation] = useState('');
   const [username, setUsername] = useState('');
   const [website, setWebsite] = useState('');
@@ -90,6 +92,11 @@ const ListenerSettingsConnected = () => {
       setEmailNotifications(notifications.email !== false);
       setPushNotifications(notifications.push !== false);
       setHapticsEnabled(playerSettings.hapticsEnabled !== false);
+      const savedRate = Number(playerSettings.playbackRate);
+      setPlaybackRate(Number.isFinite(savedRate) && savedRate >= 0.5 && savedRate <= 3 ? savedRate : 1);
+      setAudioQuality(['auto', 'standard', 'high'].includes(playerSettings.audioQuality)
+        ? playerSettings.audioQuality
+        : 'auto');
       setLocation(profile.location || '');
       setWebsite(profile.website || '');
       setDirty(false);
@@ -152,7 +159,7 @@ const ListenerSettingsConnected = () => {
           ? 'Echoo can now show neutral room and message alerts while the desktop app is in the background.'
           : 'Desktop alerts are turned off. Your room and message content remains private.',
       });
-    } catch (error) {
+    } catch {
       setToast({ open: true, title: 'Something went wrong', message: 'Could not update your desktop notification setting.' });
     } finally {
       setDesktopPreferenceLoading(false);
@@ -176,39 +183,66 @@ const ListenerSettingsConnected = () => {
         title: 'Desktop alert type updated',
         message: nextEvents[eventKey] ? 'This alert type is enabled for Echoo Desktop.' : 'This alert type is disabled for Echoo Desktop.',
       });
-    } catch (error) {
+    } catch {
       setToast({ open: true, title: 'Something went wrong', message: 'Could not update that desktop alert type.' });
     } finally {
       setDesktopPreferenceLoading(false);
     }
   };
 
+  const updatePlayerPreference = async (patch, successMessage, rollback) => {
+    if (playerPreferenceSaving) return;
+    setPlayerPreferenceSaving(true);
+    try {
+      await listenerService.updatePreferences(patch);
+      window.dispatchEvent(new CustomEvent('echoo-player-preferences-updated', { detail: patch }));
+      setToast({ open: true, title: 'Player preference updated', message: successMessage });
+    } catch (error) {
+      console.error('Player preference update failed', error);
+      rollback();
+      setToast({ open: true, title: 'Something went wrong', message: 'Could not update that player preference.' });
+    } finally {
+      setPlayerPreferenceSaving(false);
+    }
+  };
+
   const toggleHaptics = async () => {
-    if (hapticsSaving) return;
+    if (playerPreferenceSaving) return;
 
     const nextValue = !hapticsEnabled;
     setHapticsEnabled(nextValue);
-    setHapticsSaving(true);
-    try {
-      await listenerService.updatePreferences({ hapticsEnabled: nextValue });
-      window.dispatchEvent(new CustomEvent('echoo-player-preferences-updated', {
-        detail: { hapticsEnabled: nextValue },
-      }));
-      setToast({
-        open: true,
-        title: 'Haptic feedback updated',
-        message: nextValue
-          ? 'Echoo will confirm successful mobile player swipe dismissals with a brief vibration when your device supports it.'
-          : 'Haptic confirmation is turned off for mobile player swipe dismissals.',
-      });
-    } catch (error) {
-      console.error('Haptic preference update failed', error);
-      setHapticsEnabled(!nextValue);
-      setToast({ open: true, title: 'Something went wrong', message: 'Could not update your haptic feedback setting.' });
-    } finally {
-      setHapticsSaving(false);
-    }
+    await updatePlayerPreference(
+      { hapticsEnabled: nextValue },
+      nextValue
+        ? 'Echoo will confirm successful mobile player swipe dismissals with a brief vibration when supported.'
+        : 'Haptic confirmation is turned off for mobile player swipe dismissals.',
+      () => setHapticsEnabled(!nextValue),
+    );
   };
+
+  const changePlaybackRate = async (event) => {
+    const nextValue = Number(event.target.value);
+    const previousValue = playbackRate;
+    setPlaybackRate(nextValue);
+    await updatePlayerPreference(
+      { playbackRate: nextValue },
+      `New audio will play at ${nextValue}× speed by default.`,
+      () => setPlaybackRate(previousValue),
+    );
+  };
+
+  const changeAudioQuality = async (event) => {
+    const nextValue = event.target.value;
+    const previousValue = audioQuality;
+    setAudioQuality(nextValue);
+    const qualityLabel = nextValue === 'high' ? 'High' : nextValue === 'standard' ? 'Standard' : 'Auto';
+    await updatePlayerPreference(
+      { audioQuality: nextValue },
+      `${qualityLabel} audio quality will be used when available.`,
+      () => setAudioQuality(previousValue),
+    );
+  };
+
 
   const save = async () => {
     if (saving || !dirty) return;
@@ -456,6 +490,32 @@ const ListenerSettingsConnected = () => {
                     </div>
                   </div>
 
+                  <div className="set-field">
+                    <label className="set-label" htmlFor="set-playback-speed">Default playback speed</label>
+                    <div className="set-select-wrap">
+                      <select id="set-playback-speed" className="set-select" value={playbackRate} onChange={changePlaybackRate} disabled={playerPreferenceSaving}>
+                        {[0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map((rate) => (
+                          <option key={rate} value={rate}>{rate}×</option>
+                        ))}
+                      </select>
+                      <FaChevronDown className="set-select-chevron" aria-hidden="true" />
+                    </div>
+                    <span className="set-toggle-desc">Use this speed whenever a new audio track starts.</span>
+                  </div>
+
+                  <div className="set-field">
+                    <label className="set-label" htmlFor="set-audio-quality">Preferred audio quality</label>
+                    <div className="set-select-wrap">
+                      <select id="set-audio-quality" className="set-select" value={audioQuality} onChange={changeAudioQuality} disabled={playerPreferenceSaving}>
+                        <option value="auto">Auto — adapt to connection</option>
+                        <option value="standard">Standard — balanced data use</option>
+                        <option value="high">High — prioritize clarity</option>
+                      </select>
+                      <FaChevronDown className="set-select-chevron" aria-hidden="true" />
+                    </div>
+                    <span className="set-toggle-desc">Echoo uses the best available source for your selection.</span>
+                  </div>
+
                   <div className="set-toggle-row">
                     <div className="set-toggle-info">
                       <strong className="set-toggle-title">Email notifications</strong>
@@ -512,8 +572,8 @@ const ListenerSettingsConnected = () => {
                       role="switch"
                       aria-label="Haptic feedback"
                       aria-checked={hapticsEnabled}
-                      aria-busy={hapticsSaving}
-                      disabled={hapticsSaving}
+                      aria-busy={playerPreferenceSaving}
+                      disabled={playerPreferenceSaving}
                       className={`set-toggle ${hapticsEnabled ? 'set-toggle-on' : ''}`}
                       onClick={toggleHaptics}
                     >

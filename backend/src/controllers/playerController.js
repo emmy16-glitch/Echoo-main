@@ -63,6 +63,7 @@ export async function getPlaybackState(req, res, next) {
         isMuted: Boolean(user.preferences?.player?.isMuted),
         hapticsEnabled: user.preferences?.player?.hapticsEnabled !== false,
         playbackRate: user.preferences?.player?.playbackRate ?? 1.0,
+        audioQuality: user.preferences?.player?.audioQuality || 'auto',
         isShuffled: Boolean(user.preferences?.player?.isShuffled),
         repeatMode: user.preferences?.player?.repeatMode || 'none',
       },
@@ -389,7 +390,7 @@ export async function getListeningHistory(req, res, next) {
 export async function updatePlayerPreferences(req, res, next) {
   try {
     const userId = req.userId;
-    const { volume, isMuted, hapticsEnabled, playbackRate, isShuffled, repeatMode } = req.body;
+    const { volume, isMuted, hapticsEnabled, playbackRate, audioQuality, isShuffled, repeatMode } = req.body;
 
     const user = await User.findById(userId);
     if (!user) {
@@ -416,6 +417,12 @@ export async function updatePlayerPreferences(req, res, next) {
       const nextRate = Number(playbackRate);
       if (Number.isFinite(nextRate) && nextRate >= 0.5 && nextRate <= 2) {
         user.preferences.player.playbackRate = nextRate;
+      }
+    }
+    if (audioQuality !== undefined) {
+      const validQualities = ['auto', 'standard', 'high'];
+      if (validQualities.includes(audioQuality)) {
+        user.preferences.player.audioQuality = audioQuality;
       }
     }
     if (isShuffled !== undefined) user.preferences.player.isShuffled = Boolean(isShuffled);

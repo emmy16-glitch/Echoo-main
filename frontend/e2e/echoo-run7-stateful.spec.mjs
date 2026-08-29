@@ -237,6 +237,22 @@ test('History focus refresh does not multiply after repeated mounts', async ({ p
   expect(historyRequests, 'one focus event should cause at most one History refresh after repeated mounts').toBeLessThanOrEqual(1);
 });
 
+test('history first-use info coachmark is dismissible and scoped to the position control', async ({ page }, testInfo) => {
+  test.skip(!['mobile-390', 'desktop-1440', 'webkit-390'].includes(testInfo.project.name));
+  await authenticate(page, 'listener');
+  await page.goto('/listen/history');
+  await settle(page);
+
+  const historyTip = page.locator('#history-info-onboarding');
+  await expect(historyTip).toBeVisible();
+  const firstPositionToggle = page.locator('.lh-row-position-toggle').first();
+  await expect(firstPositionToggle).toHaveAttribute('aria-describedby', 'history-info-onboarding');
+  await historyTip.getByRole('button', { name: 'Dismiss history tip' }).click();
+  await expect(historyTip).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole('note', { name: /tap the info icon/i })).toHaveCount(0);
+});
+
 test('visible form controls on critical settings/broadcast surfaces have programmatic names', async ({ page }, testInfo) => {
   test.skip(!['desktop-1440', 'webkit-1440'].includes(testInfo.project.name));
 
@@ -309,9 +325,18 @@ test('Listener settings saves the haptic feedback player preference', async ({ p
   await page.goto('/listen/settings');
   await settle(page);
 
+  const playbackSpeed = page.getByLabel('Default playback speed');
+  const audioQuality = page.getByLabel('Preferred audio quality');
+  await expect(playbackSpeed).toHaveValue('1');
+  await expect(audioQuality).toHaveValue('auto');
+  await playbackSpeed.selectOption('1.5');
+  await expect(playbackSpeed).toHaveValue('1.5');
+  await audioQuality.selectOption('high');
+  await expect(audioQuality).toHaveValue('high');
+
   const hapticSwitch = page.getByRole('switch', { name: 'Haptic feedback' });
   await expect(hapticSwitch).toHaveAttribute('aria-checked', 'true');
   await hapticSwitch.click();
   await expect(hapticSwitch).toHaveAttribute('aria-checked', 'false');
-  await expect(page.getByRole('status')).toContainText('Haptic feedback updated');
+  await expect(page.getByRole('status')).toContainText('Haptic confirmation is turned off');
 });

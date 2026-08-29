@@ -155,6 +155,11 @@ const userSchema = new mongoose.Schema(
         isMuted: { type: Boolean, default: false },
         hapticsEnabled: { type: Boolean, default: true },
         playbackRate: { type: Number, min: 0.5, max: 3, default: 1 },
+        audioQuality: {
+          type: String,
+          enum: ['auto', 'standard', 'high'],
+          default: 'auto',
+        },
         isShuffled: { type: Boolean, default: false },
         repeatMode: {
           type: String,
