@@ -127,11 +127,13 @@ export default function AccountExperienceMenu({
       </button>
 
       {open && (
-        <div ref={dropdownRef} className="account-experience-dropdown" role="menu" aria-label={`${currentExperience} account menu`} onKeyDown={navigateMenu}>
-          <div className="account-experience-identity">
-            <AccountAvatar image={image} name={name} className="account-experience-avatar" />
-            <span><strong>{name}</strong><small>{currentExperience === 'creator' ? 'Creator' : 'Listener'}</small></span>
-          </div>
+        <div
+          ref={dropdownRef}
+          className="account-experience-dropdown"
+          role="menu"
+          aria-label={`${currentExperience} account menu`}
+          onKeyDown={navigateMenu}
+        >
           <button
             type="button"
             role="menuitem"
@@ -145,8 +147,15 @@ export default function AccountExperienceMenu({
           </button>
           {error && <p className="account-experience-error" role="alert">{error}</p>}
           <div className="account-experience-divider" />
-          <button type="button" role="menuitem" className="account-experience-signout" disabled={switching} onClick={signOut}>
-            <FiLogOut aria-hidden="true" /><span>Sign out</span>
+          <button
+            type="button"
+            role="menuitem"
+            className="account-experience-signout"
+            disabled={switching}
+            onClick={signOut}
+          >
+            <FiLogOut aria-hidden="true" />
+            <span>Sign out</span>
           </button>
         </div>
       )}
