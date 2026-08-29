@@ -1,0 +1,69 @@
+name: Listener visual QA temp
+
+on:
+  push:
+    branches:
+      - fix/deep-hidden-listener-creator-audit
+    paths:
+      - '.github/workflows/listener-visual-qa-temp.yml'
+      - 'frontend/e2e/listener-selected-visual.spec.mjs'
+      - 'frontend/src/**'
+      - 'frontend/package*.json'
+  workflow_dispatch:
+
+jobs:
+  visual-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      ECHOO_QA_BASE_URL: https://muscles-nutrition-phone-bull.trycloudflare.com
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install Chromium
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Listener selected visual QA
+        working-directory: frontend
+        run: npx playwright test e2e/listener-selected-visual.spec.mjs --project=chromium --reporter=line
+
+      - name: Prepare compact screenshots for logs
+        if: always()
+        working-directory: frontend
+        run: |
+          python - <<'PY'
+          import base64, glob, io, os
+          try:
+              from PIL import Image
+          except Exception:
+              raise SystemExit(0)
+          for path in sorted(glob.glob('test-results/**/listener-*-selected.jpg', recursive=True)):
+              im = Image.open(path).convert('RGB')
+              im.thumbnail((900, 650))
+              out = io.BytesIO()
+              im.save(out, format='JPEG', quality=48, optimize=True)
+              encoded = base64.b64encode(out.getvalue()).decode('ascii')
+              name = os.path.basename(path)
+              print(f'SCREENSHOT_BEGIN:{name}')
+              print(encoded)
+              print(f'SCREENSHOT_END:{name}')
+          PY
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: listener-visual-qa
+          path: frontend/test-results/**/listener-*-selected.jpg
+          if-no-files-found: warn
