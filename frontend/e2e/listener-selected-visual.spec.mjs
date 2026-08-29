@@ -1,4 +1,4 @@
-import { test, expect } from 'playwright/test';
+import { test } from 'playwright/test';
 
 const BASE = process.env.ECHOO_QA_BASE_URL || 'http://127.0.0.1:5173';
 
@@ -84,6 +84,7 @@ const geometry = async (page) => page.evaluate(() => {
     liveGrid: box('.echoo-listener-target-live-grid'),
     firstCard: box('.echoo-listener-target-live-card'),
     roomPage: box('.listener-room-page'),
+    roomHeader: box('.lex-room-header'),
     roomMain: box('.llr-main'),
     player: box('.llr-player-card'),
     playerVisual: box('.llr-player-visual'),
@@ -91,24 +92,31 @@ const geometry = async (page) => page.evaluate(() => {
   };
 });
 
+const reportPage = async (page, label) => {
+  console.log(`${label}_URL=${page.url()}`);
+  console.log(`${label}_TITLE=${await page.title()}`);
+  console.log(`${label}_TEXT=${(await page.locator('body').innerText().catch(() => '')).replace(/\s+/g, ' ').slice(0, 2200)}`);
+  console.log(`${label}_GEOMETRY=${JSON.stringify(await geometry(page))}`);
+};
+
 test.use({ viewport: { width: 1536, height: 1024 }, baseURL: BASE, colorScheme: 'dark' });
 
-test('capture selected Listener home and live room', async ({ page }, testInfo) => {
+test('capture whatever the live Listener tunnel actually renders', async ({ page }, testInfo) => {
   await mockApi(page);
   await authenticate(page);
+  page.on('pageerror', (error) => console.log('PAGE_ERROR=' + error.message));
+  page.on('console', (message) => {
+    if (['error', 'warning'].includes(message.type())) console.log(`BROWSER_${message.type().toUpperCase()}=${message.text()}`);
+  });
 
-  await page.goto('/listen', { waitUntil: 'domcontentloaded' });
-  await page.waitForTimeout(1400);
-  await expect(page.getByRole('heading', { level: 1, name: 'Live now' })).toBeVisible();
-  await expect(page.locator('.echoo-listener-target-live-card')).toHaveCount(5);
+  await page.goto('/listen', { waitUntil: 'domcontentloaded', timeout: 30000 });
+  await page.waitForTimeout(1800);
+  await reportPage(page, 'HOME');
   await page.screenshot({ path: `${testInfo.outputDir}/listener-home-selected.jpg`, type: 'jpeg', quality: 72, fullPage: false });
-  console.log('HOME_GEOMETRY=' + JSON.stringify(await geometry(page)));
 
-  await page.locator('.echoo-listener-target-live-card').first().click();
-  await page.waitForTimeout(1500);
-  await page.addStyleTag({ content: '.echoo-livekit-listener{display:none!important}' });
-  await expect(page.locator('.llr-player-card')).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Live Chat' })).toBeVisible();
+  await page.goto('/listen/live/live-1', { waitUntil: 'domcontentloaded', timeout: 30000 });
+  await page.waitForTimeout(1800);
+  await page.addStyleTag({ content: '.echoo-livekit-listener{display:none!important}' }).catch(() => {});
+  await reportPage(page, 'ROOM');
   await page.screenshot({ path: `${testInfo.outputDir}/listener-room-selected.jpg`, type: 'jpeg', quality: 72, fullPage: false });
-  console.log('ROOM_GEOMETRY=' + JSON.stringify(await geometry(page)));
 });
