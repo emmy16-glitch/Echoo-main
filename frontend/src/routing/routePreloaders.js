@@ -12,13 +12,23 @@ const cachedLoader = (loader) => {
   };
 };
 
-export const loadListenerLayout = cachedLoader(() => import('../Components/ListenerLayout/ListenerLayout'));
-export const loadListenerHome = cachedLoader(() => import('../Components/ListenerHome/ListenerHome'));
-export const loadListenerSearch = cachedLoader(() => import('../Components/ListenerSearch/ListenerSearch'));
-export const loadListenerLive = cachedLoader(() => import('../Components/ListenerLive/ListenerLiveConnected'));
-export const loadListenerStations = cachedLoader(() => import('../Components/ListenerStations/ListenerStationsConnected'));
+const loadListenerV2Module = cachedLoader(() => import('../Components/ListenerV2/ListenerV2'));
+const listenerV2Page = (exportName) => cachedLoader(() =>
+  loadListenerV2Module().then((module) => ({ default: module[exportName] }))
+);
+
+// Core Listener 2.0 routes share one intentionally rebuilt module rather than
+// inheriting the legacy Listener shell and page families.
+export const loadListenerLayout = listenerV2Page('ListenerV2Layout');
+export const loadListenerHome = listenerV2Page('ListenerV2Home');
+export const loadListenerSearch = listenerV2Page('ListenerV2Search');
+export const loadListenerLive = listenerV2Page('ListenerV2Live');
+export const loadListenerStations = listenerV2Page('ListenerV2Categories');
+export const loadListenerFollowing = listenerV2Page('ListenerV2Following');
+
+// Secondary/detail experiences retain their proven data and interaction logic.
+// They now render inside the strict Listener 2.0 shell.
 export const loadListenerLibrary = cachedLoader(() => import('../Components/ListenerLibrary/ListenerLibrary'));
-export const loadListenerFollowing = cachedLoader(() => import('../Components/ListenerLibrary/ListenerFollowing'));
 export const loadListenerPlaylist = cachedLoader(() => import('../Components/ListenerPlaylist/ListenerPlaylist'));
 export const loadListenerSavedMoments = cachedLoader(() => import('../Components/ListenerSavedMoments/ListenerSavedMoments'));
 export const loadListenerHistory = cachedLoader(() => import('../Components/ListenerHistory/ListenerHistoryConnected'));
