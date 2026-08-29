@@ -8,22 +8,17 @@
 .account-experience-trigger:focus-visible { border-radius:9px; outline:3px solid rgba(7,88,247,.24); outline-offset:5px; }
 .account-experience-menu--creator .account-experience-dropdown { top:calc(100% + 10px); left:0; }
 .account-experience-menu--listener .account-experience-dropdown { top:calc(100% + 10px); right:0; }
-.account-experience-dropdown { position:absolute; z-index:1000; width:260px; padding:10px; border:1px solid #dfe6f0; border-radius:12px; background:#fff; box-shadow:0 16px 38px rgba(7,22,56,.14); animation:account-menu-in .17s ease-out; }
-.account-experience-identity { display:flex; align-items:center; gap:10px; padding:3px 4px 11px; }
-.account-experience-avatar { width:38px; height:38px; display:grid; flex:0 0 38px; place-items:center; overflow:hidden; border-radius:50%; background:#0758f7; color:#fff; font-size:13px; font-weight:750; }
-.account-experience-avatar img,.account-experience-trigger .top-avatar img { width:100%; height:100%; display:block; object-fit:cover; }
-.account-experience-identity > span { min-width:0; display:grid; gap:2px; }
-.account-experience-identity strong { overflow:hidden; color:#071638; font-size:13px; font-weight:730; text-overflow:ellipsis; white-space:nowrap; }
-.account-experience-identity small { color:#75839c; font-size:11px; }
-.account-experience-dropdown button { width:100%; min-height:40px; display:flex; align-items:center; gap:10px; padding:0 10px; border:0; border-radius:8px; background:transparent; color:#14264c; font:inherit; font-size:12px; font-weight:650; text-align:left; cursor:pointer; }
+.account-experience-dropdown { position:absolute; z-index:1000; width:214px; padding:8px; border:1px solid #dfe6f0; border-radius:11px; background:#fff; box-shadow:0 16px 38px rgba(7,22,56,.14); animation:account-menu-in .17s ease-out; }
+.account-experience-dropdown button { width:100%; min-height:42px; display:flex; align-items:center; gap:10px; padding:0 10px; border:0; border-radius:8px; background:transparent; color:#14264c; font:inherit; font-size:12.5px; font-weight:670; text-align:left; cursor:pointer; }
 .account-experience-dropdown button:hover,.account-experience-dropdown button:focus-visible { background:#edf4ff; color:#0758f7; outline:0; }
 .account-experience-dropdown button:focus-visible { box-shadow:inset 0 0 0 2px rgba(7,88,247,.28); }
 .account-experience-dropdown button:disabled { cursor:wait; opacity:.62; }
 .account-experience-dropdown button svg { width:17px; height:17px; flex:0 0 17px; }
-.account-experience-divider { height:1px; margin:7px 4px; background:#e7ecf3; }
+.account-experience-divider { height:1px; margin:6px 4px; background:#e7ecf3; }
 .account-experience-dropdown .account-experience-signout { color:#a82b23; }
 .account-experience-dropdown .account-experience-signout:hover,.account-experience-dropdown .account-experience-signout:focus-visible { background:#fff3f1; color:#b42318; }
 .account-experience-error { margin:6px 7px 4px; color:#b42318; font-size:10.5px; line-height:1.4; }
+.account-experience-trigger .top-avatar img { width:100%; height:100%; display:block; object-fit:cover; }
 @keyframes account-menu-in { from{opacity:0;transform:translateY(-5px)} to{opacity:1;transform:translateY(0)} }
 @media (prefers-reduced-motion:reduce) { .account-experience-dropdown{animation:none}.account-experience-chevron{transition:none} }
-@media (max-width:760px) { .account-experience-dropdown { width:min(260px,calc(100vw - 24px)); }.account-experience-menu--creator .account-experience-dropdown { left:0; }.account-experience-menu--listener .account-experience-dropdown { right:0; } }
+@media (max-width:760px) { .account-experience-dropdown { width:min(214px,calc(100vw - 24px)); }.account-experience-menu--creator .account-experience-dropdown { left:0; }.account-experience-menu--listener .account-experience-dropdown { right:0; } }
