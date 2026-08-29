@@ -54,7 +54,10 @@ const mockApi = async (page) => {
 };
 
 const authenticate = async (page) => {
-  await page.addInitScript((user) => {
+  // Establish the Vite origin first. Some browsers reject/ignore storage writes
+  // from an init script before a stable application origin exists.
+  await page.goto('/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+  await page.evaluate((user) => {
     localStorage.setItem('accessToken', 'listener-visual-token');
     localStorage.setItem('token', 'listener-visual-token');
     localStorage.setItem('refreshToken', 'listener-visual-refresh');
@@ -63,6 +66,13 @@ const authenticate = async (page) => {
     localStorage.setItem('echooProfileCompleted', 'true');
     localStorage.setItem('echooOnboardingCompleted', 'true');
   }, listener);
+  const stored = await page.evaluate(() => ({
+    accessToken: localStorage.getItem('accessToken'),
+    role: localStorage.getItem('echooRole'),
+    onboarding: localStorage.getItem('echooOnboardingCompleted'),
+    user: localStorage.getItem('user'),
+  }));
+  console.log('AUTH_STORAGE=' + JSON.stringify(stored));
 };
 
 const geometry = async (page) => page.evaluate(() => {
@@ -101,13 +111,14 @@ const reportPage = async (page, label) => {
 
 test.use({ viewport: { width: 1536, height: 1024 }, baseURL: BASE, colorScheme: 'dark' });
 
-test('capture whatever the live Listener tunnel actually renders', async ({ page }, testInfo) => {
+test('capture the selected Listener 2.0 home and live room', async ({ page }, testInfo) => {
   await mockApi(page);
-  await authenticate(page);
   page.on('pageerror', (error) => console.log('PAGE_ERROR=' + error.message));
   page.on('console', (message) => {
     if (['error', 'warning'].includes(message.type())) console.log(`BROWSER_${message.type().toUpperCase()}=${message.text()}`);
   });
+
+  await authenticate(page);
 
   await page.goto('/listen', { waitUntil: 'domcontentloaded', timeout: 30000 });
   await page.waitForTimeout(1800);
