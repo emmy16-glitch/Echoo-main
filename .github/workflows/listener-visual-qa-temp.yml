@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      ECHOO_QA_BASE_URL: https://muscles-nutrition-phone-bull.trycloudflare.com
+      ECHOO_QA_BASE_URL: http://127.0.0.1:4173
     steps:
       - uses: actions/checkout@v4
 
