@@ -56,6 +56,9 @@ import "./styles/playwright-run6-root-layout-hardening.css";
 import "./styles/playwright-run7-final-gate-fixes.css";
 import "./styles/echoo-artwork-fit.css";
 import "./Components/Register/auth-reference.css";
+// Selected Listener 2.0 target is intentionally last so the live-first dark
+// experience wins over legacy Listener experiment layers without touching Creator.
+import "./styles/listener-selected-target-2026.css";
 
 initializeEchooTheme();
 
