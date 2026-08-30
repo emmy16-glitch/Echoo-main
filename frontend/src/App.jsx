@@ -358,6 +358,7 @@ function App() {
               <Route path="live" element={<ListenerLive />} />
               <Route path="live/:broadcastId" element={<ListenerRealLiveRoom />} />
               <Route path="stations" element={<ListenerStations />} />
+              <Route path="categories" element={<ListenerStations />} />
               <Route path="stations/:stationId" element={<ListenerRealStationProfile />} />
               <Route path="audio/:audioId" element={<ListenerAudioDetail />} />
               <Route path="library" element={<ListenerLibrary />} />

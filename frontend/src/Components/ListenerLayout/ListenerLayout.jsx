@@ -40,9 +40,11 @@ import '../../styles/echoo-identity-reset.css';
 import '../../styles/echoo-asset-system.css';
 import './ListenerLayout.css';
 import './ListenerStreamingShell.css';
+import './ListenerDesignSystem.css';
 import EchooAppShell from '../Shared/EchooAppShell';
 import CuratedHelpAssistant from '../Support/CuratedHelpAssistant';
 import AccountExperienceMenu from '../Shared/AccountExperienceMenu';
+import echooLogo from '../Assets/echoo-logo-official.svg';
 
 const SEARCH_SUGGESTIONS = [
   'Podcast',
@@ -136,7 +138,6 @@ const ListenerLayout = () => {
   const [user, setUser] = useState(readUser);
   const displayName =
     user.displayName || user.fullname || user.username || 'Listener';
-  const listenerFirstName = displayName.trim().split(/\s+/)[0] || 'Listener';
   const profileImage =
     buildMediaUrl(user.profileImage || user.avatar || localStorage.getItem('profileImage'));
 
@@ -776,9 +777,10 @@ const ListenerLayout = () => {
       )}
       search={(
           <div className="beautiful-search-wrapper echoo-app-search" ref={searchAreaRef}>
-            <div className="listener-mobile-welcome">
-              <h1>Good morning, {listenerFirstName}</h1>
-              <span>Here’s what’s live and new on Echoo.</span>
+            <div className="listener-mobile-brand" aria-label="Echoo Listener">
+              <img src={echooLogo} alt="" />
+              <strong>echoo</strong>
+              <span>Listener</span>
             </div>
             <div className={`beautiful-search ${searchOpen ? 'active' : ''}`}>
               <FaSearch className="beautiful-search-icon" />
