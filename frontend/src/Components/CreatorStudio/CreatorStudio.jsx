@@ -29,6 +29,7 @@ import CreatorStationsWorkspace from './CreatorStationsWorkspace';
 import CreatorAudienceWorkspace from './CreatorAudienceWorkspace';
 import CreatorAnalyticsWorkspace from './CreatorAnalyticsConnectedWorkspace';
 import CreatorScheduleEventsWorkspace from './CreatorScheduleEventsWorkspace';
+import CreatorBroadcastSettingsWorkspace from './CreatorBroadcastSettingsWorkspace';
 import CreatorSettingsWorkspace from './CreatorSettingsWorkspace';
 import CreatorNotificationsWorkspace from './CreatorNotificationsWorkspace';
 import CreatorCollectionsWorkspace from './CreatorCollectionsWorkspace';
@@ -59,12 +60,13 @@ const AUDIO_EXTENSIONS = new Set([
 
 const CREATOR_WORKSPACE_PATHS = {
   Broadcast: '/creator-studio',
-  Station: '/creator-studio/station',
+  Station: '/creator-studio/channels',
   Collections: '/creator-studio/recordings',
   Schedule: '/creator-studio/schedule-events',
+  BroadcastSettings: '/creator-studio/broadcast-settings',
   Analytics: '/creator-studio/analytics',
   Audio: '/creator-studio/audio',
-  Stations: '/creator-studio/stations',
+  Stations: '/creator-studio/channels',
   Audience: '/creator-studio/audience',
   Discover: '/creator-studio/discover',
   'Explore Live': '/creator-studio/explore-live',
@@ -75,8 +77,9 @@ const CREATOR_WORKSPACE_PATHS = {
 const CREATOR_ROUTE_WORKSPACES = Object.fromEntries(
   Object.entries(CREATOR_WORKSPACE_PATHS).map(([workspace, path]) => [path, workspace])
 );
-CREATOR_ROUTE_WORKSPACES['/creator-studio/channels'] = 'Station';
+CREATOR_ROUTE_WORKSPACES['/creator-studio/station'] = 'Station';
 CREATOR_ROUTE_WORKSPACES['/creator-studio/stations'] = 'Station';
+CREATOR_ROUTE_WORKSPACES['/creator-studio/channels'] = 'Station';
 
 const creatorWorkspaceForPath = (pathname) => {
   const normalizedPath = String(pathname || '/creator-studio').replace(/\/+$/, '') || '/creator-studio';
@@ -149,7 +152,7 @@ const CreatorStudioBody = () => {
 
   const navItems = [
     { workspace: 'Broadcast', label: 'Broadcast', icon: <FiRadio /> },
-    { workspace: 'Station', label: 'Station', icon: <MdOutlinePodcasts /> },
+    { workspace: 'Station', label: 'Channels', icon: <MdOutlinePodcasts /> },
     { workspace: 'Collections', label: 'Recordings', icon: <FiCamera /> },
     { workspace: 'Schedule', label: 'Schedule Events', icon: <FiCalendar /> },
     { workspace: 'Analytics', label: 'Analytics', icon: <PiChartBar /> },
@@ -199,8 +202,6 @@ const CreatorStudioBody = () => {
     return () => window.removeEventListener('echoo:creator-audio-changed', onCreatorAudioChanged);
   }, []);
 
-  // The Creator shell owns its own vertical scroll. Reset only when the URL
-  // resolves to a different workspace, never during page-level data updates.
   useEffect(() => {
     mainScrollRef.current?.scrollTo({ top: 0, left: 0, behavior: 'auto' });
   }, [activeNav]);
@@ -389,6 +390,8 @@ const CreatorStudioBody = () => {
         );
       case 'Schedule':
         return <CreatorScheduleEventsWorkspace onNavigate={navigateStudio} />;
+      case 'BroadcastSettings':
+        return <CreatorBroadcastSettingsWorkspace onNavigate={navigateStudio} />;
       case 'Broadcast':
         return (
           <CreatorBroadcastWorkspace
