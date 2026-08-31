@@ -89,11 +89,15 @@ const channelState = (channel) => {
   return 'ready';
 };
 
-const broadcastArtwork = (broadcast, channel, fallback) =>
+const ownBroadcastArtwork = (broadcast) =>
   broadcast?.eventArtwork ||
   broadcast?.coverArt ||
   broadcast?.artwork ||
   broadcast?.image ||
+  '';
+
+const broadcastArtwork = (broadcast, channel, fallback) =>
+  ownBroadcastArtwork(broadcast) ||
   channel?.brandCover ||
   channel?.coverArt ||
   channel?.logo ||
@@ -273,7 +277,7 @@ const CreatorStationsWorkspace = ({ onNavigate }) => {
     reader.readAsDataURL(file);
   };
 
-  const useGeneratedArtwork = (shuffle = false) => {
+  const setGeneratedArtwork = (shuffle = false) => {
     setForm((current) => ({
       ...current,
       logoFile: null,
@@ -451,12 +455,13 @@ const CreatorStationsWorkspace = ({ onNavigate }) => {
                   const live = LIVE_STATUSES.has(status);
                   const start = broadcast.startTime || broadcast.startAt || broadcast.createdAt;
                   const duration = formatDuration(broadcast.duration);
+                  const ownArtwork = ownBroadcastArtwork(broadcast);
                   const meta = live
                     ? `Started ${formatTime(start) || 'recently'}`
                     : [formatDate(start), duration].filter(Boolean).join(' · ');
                   return (
-                    <article className="est-broadcast-card" key={idOf(broadcast)}>
-                      <div className="est-broadcast-art">
+                    <article className={`est-broadcast-card${live ? ' is-live' : ''}`} key={idOf(broadcast)}>
+                      <div className={`est-broadcast-art${ownArtwork ? '' : ' is-channel-fallback'}`}>
                         <img src={broadcastArtwork(broadcast, channel, channelArtwork)} alt="" />
                         <span className={live ? 'live' : 'recording'}>{live ? 'LIVE' : 'RECORDING'}</span>
                         {!live && <i><FaPlay /></i>}
@@ -524,8 +529,8 @@ const CreatorStationsWorkspace = ({ onNavigate }) => {
                       <FaUpload /> {form.brandingMode === 'custom' ? 'Change artwork' : 'Upload artwork'}
                       <input ref={logoInputRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={handleLogoFile} />
                     </label>
-                    <button type="button" onClick={() => useGeneratedArtwork(false)}>Use Echoo artwork</button>
-                    {form.brandingMode === 'generated' && <button type="button" onClick={() => useGeneratedArtwork(true)}><FaRandom /> Shuffle</button>}
+                    <button type="button" onClick={() => setGeneratedArtwork(false)}>Use Echoo artwork</button>
+                    {form.brandingMode === 'generated' && <button type="button" onClick={() => setGeneratedArtwork(true)}><FaRandom /> Shuffle</button>}
                   </div>
                 </div>
               </div>
