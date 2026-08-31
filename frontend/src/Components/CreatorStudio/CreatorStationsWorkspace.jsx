@@ -1,21 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
   FaBroadcastTower,
   FaCalendarAlt,
-  FaChevronDown,
   FaChevronRight,
   FaEdit,
-  FaEllipsisH,
-  FaList,
-  FaMicrophone,
   FaPlay,
   FaPlus,
   FaRandom,
   FaSave,
-  FaThLarge,
   FaTimes,
-  FaTrash,
   FaUpload,
   FaUsers,
 } from 'react-icons/fa';
@@ -58,7 +51,6 @@ const createEmptyForm = () => ({
 
 const MAX_LOGO_SIZE = 5 * 1024 * 1024;
 const LOGO_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
-
 const idOf = (value) => String(value?.id || value?._id || value || '');
 
 const stationIdFromBroadcast = (broadcast) =>
@@ -93,107 +85,89 @@ const stationState = (station) => {
 };
 
 const CreatorStationsWorkspace = ({ onNavigate }) => {
-  const navigate = useNavigate();
   const [stations, setStations] = useState([]);
   const [broadcasts, setBroadcasts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
-  const [editingId, setEditingId] = useState('');
-  const [menuStationId, setMenuStationId] = useState('');
-  const [selectedStationId, setSelectedStationId] = useState(
-    () => sessionStorage.getItem('echooSelectedStationId') || ''
-  );
-  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const [form, setForm] = useState(createEmptyForm);
   const [saving, setSaving] = useState(false);
-  const [deletingId, setDeletingId] = useState('');
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const logoInputRef = useRef(null);
 
-  const loadStations = useCallback(async () => {
+  const loadStation = useCallback(async () => {
     try {
       setLoading(true);
       setError('');
-      const response = await batch2Service.getMyStations();
-      const nextStations = Array.isArray(response?.data) ? response.data : [];
-      setStations(nextStations);
+      const [stationResult, broadcastResult] = await Promise.allSettled([
+        batch2Service.getMyStations(),
+        batch2Service.getCreatorBroadcasts(),
+      ]);
 
-      try {
-        const broadcastResponse = await batch2Service.getCreatorBroadcasts();
-        setBroadcasts(Array.isArray(broadcastResponse?.data) ? broadcastResponse.data : []);
-      } catch {
-        setBroadcasts([]);
+      const nextStations = stationResult.status === 'fulfilled' && Array.isArray(stationResult.value?.data)
+        ? stationResult.value.data
+        : [];
+      const nextBroadcasts = broadcastResult.status === 'fulfilled' && Array.isArray(broadcastResult.value?.data)
+        ? broadcastResult.value.data
+        : [];
+
+      setStations(nextStations);
+      setBroadcasts(nextBroadcasts);
+
+      if (stationResult.status === 'rejected') {
+        throw stationResult.reason;
       }
     } catch (loadError) {
       setStations([]);
       setBroadcasts([]);
-      setError(loadError?.message || 'Could not load your stations.');
+      setError(loadError?.message || 'Could not load your Station.');
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    loadStations();
-  }, [loadStations]);
+    loadStation();
+  }, [loadStation]);
 
-  const sorted = useMemo(() => {
-    const next = [...stations];
-    return next.sort(
+  const canonicalStation = useMemo(() => {
+    if (!stations.length) return null;
+    return [...stations].sort(
       (a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0)
-    );
+    )[0];
   }, [stations]);
 
   useEffect(() => {
-    if (!sorted.length) {
-      setSelectedStationId('');
+    if (!canonicalStation?.id) {
+      sessionStorage.removeItem('echooSelectedStationId');
       return;
     }
+    sessionStorage.setItem('echooSelectedStationId', idOf(canonicalStation));
+  }, [canonicalStation]);
 
-    const selectedStillExists = sorted.some((station) => idOf(station) === String(selectedStationId));
-    if (selectedStillExists) return;
-
-    const stored = sessionStorage.getItem('echooSelectedStationId') || '';
-    const storedStation = sorted.find((station) => idOf(station) === stored);
-    const next = storedStation || sorted[0];
-    setSelectedStationId(idOf(next));
-    sessionStorage.setItem('echooSelectedStationId', idOf(next));
-  }, [selectedStationId, sorted]);
-
-  const selectedStation = useMemo(
-    () => stations.find((station) => idOf(station) === String(selectedStationId)) || sorted[0] || null,
-    [selectedStationId, sorted, stations]
-  );
-
-  const liveStation = stations.find((station) => station.isLive) || null;
-
-  const broadcastCounts = useMemo(() => {
-    const counts = new Map();
-    broadcasts.forEach((broadcast) => {
-      const stationId = stationIdFromBroadcast(broadcast);
-      if (!stationId) return;
-      counts.set(stationId, (counts.get(stationId) || 0) + 1);
-    });
-    return counts;
-  }, [broadcasts]);
-
-  const recentActivity = useMemo(() => {
-    if (!selectedStation) return [];
-    const selectedId = idOf(selectedStation);
+  const stationBroadcasts = useMemo(() => {
+    if (!canonicalStation) return [];
+    const stationId = idOf(canonicalStation);
     return broadcasts
-      .filter((broadcast) => stationIdFromBroadcast(broadcast) === selectedId)
+      .filter((broadcast) => stationIdFromBroadcast(broadcast) === stationId)
       .sort(
         (a, b) =>
           new Date(b.startTime || b.startAt || b.createdAt || 0) -
           new Date(a.startTime || a.startAt || a.createdAt || 0)
-      )
-      .slice(0, 3);
-  }, [broadcasts, selectedStation]);
+      );
+  }, [broadcasts, canonicalStation]);
+
+  const recentActivity = stationBroadcasts.slice(0, 3);
+  const legacyStationCount = Math.max(0, stations.length - 1);
+  const featuredState = stationState(canonicalStation);
+  const stationDescription = canonicalStation?.description || 'No description has been added yet.';
+  const publicPath = canonicalStation ? getPublicStationPath(canonicalStation) : '';
+  const publicUrl = canonicalStation ? getPublicStationUrl(canonicalStation) : '';
 
   const generatedPreview = useMemo(
     () => buildGeneratedStationBrandCoverUrl({
-      id: editingId || `preview-${form.brandingVariant}`,
+      id: canonicalStation?.id || `preview-${form.brandingVariant}`,
       name: form.name.trim() || 'Your Station',
       category: form.category,
       branding: {
@@ -202,60 +176,12 @@ const CreatorStationsWorkspace = ({ onNavigate }) => {
         version: 1,
       },
     }),
-    [editingId, form.name, form.category, form.brandingVariant]
+    [canonicalStation?.id, form.name, form.category, form.brandingVariant]
   );
 
   const brandPreview = form.brandingMode === 'custom' && form.logoPreview
     ? form.logoPreview
     : generatedPreview;
-
-  const selectStation = (station, scrollOnMobile = false) => {
-    if (!station?.id) return;
-    const id = idOf(station);
-    setSelectedStationId(id);
-    setDescriptionExpanded(false);
-    setMenuStationId('');
-    sessionStorage.setItem('echooSelectedStationId', id);
-
-    if (scrollOnMobile && window.matchMedia?.('(max-width: 760px)').matches) {
-      window.setTimeout(() => {
-        document.getElementById('station-details-panel')?.scrollIntoView({
-          behavior: 'smooth',
-          block: 'start',
-        });
-      }, 0);
-    }
-  };
-
-  const openBroadcast = (station, nextMode = 'now') => {
-    if (!station?.id) return;
-    sessionStorage.setItem('echooSelectedStationId', idOf(station));
-    sessionStorage.setItem('echooBroadcastMode', nextMode);
-    setMenuStationId('');
-    onNavigate?.('Broadcast');
-  };
-
-  const openActivity = (broadcast) => {
-    if (!broadcast) return;
-    const broadcastId = idOf(broadcast);
-    if (broadcastId) sessionStorage.setItem('echooPreparedBroadcastId', broadcastId);
-    if (selectedStation?.id) sessionStorage.setItem('echooSelectedStationId', idOf(selectedStation));
-    const status = String(broadcast.status || '').toLowerCase();
-    if (['starting', 'live', 'ending'].includes(status)) {
-      onNavigate?.('Broadcast');
-      return;
-    }
-    if (status === 'scheduled') {
-      onNavigate?.('Schedule');
-      return;
-    }
-    onNavigate?.('Collections');
-  };
-
-  const openBroadcastLibrary = () => {
-    if (selectedStation?.id) sessionStorage.setItem('echooSelectedStationId', idOf(selectedStation));
-    onNavigate?.('Broadcast');
-  };
 
   const resetLogoInput = () => {
     if (logoInputRef.current) logoInputRef.current.value = '';
@@ -264,41 +190,35 @@ const CreatorStationsWorkspace = ({ onNavigate }) => {
   const closeForm = () => {
     if (saving) return;
     setFormOpen(false);
-    setEditingId('');
     setForm(createEmptyForm());
     resetLogoInput();
   };
 
-  const openCreate = () => {
+  const openSetup = () => {
     setMessage('');
     setError('');
-    setEditingId('');
-    setMenuStationId('');
     setForm(createEmptyForm());
     resetLogoInput();
     setFormOpen(true);
   };
 
-  const openEdit = (station) => {
-    if (!station) return;
-    selectStation(station);
+  const openEdit = () => {
+    if (!canonicalStation) return;
     setMessage('');
     setError('');
-    setEditingId(station.id);
-    setMenuStationId('');
     setForm({
-      name: station.name || '',
-      category: CATEGORIES.includes(station.category) ? station.category : 'Other',
-      description: station.description || '',
-      tags: Array.isArray(station.tags) ? station.tags.join(', ') : '',
+      name: canonicalStation.name || '',
+      category: CATEGORIES.includes(canonicalStation.category) ? canonicalStation.category : 'Other',
+      description: canonicalStation.description || '',
+      tags: Array.isArray(canonicalStation.tags) ? canonicalStation.tags.join(', ') : '',
       logoFile: null,
-      logoPreview: station.logo || '',
+      logoPreview: canonicalStation.logo || '',
       removeLogo: false,
-      brandingMode: station.logo ? 'custom' : 'generated',
-      brandingVariant: Number.isInteger(Number(station.branding?.variant))
-        ? Number(station.branding.variant)
+      brandingMode: canonicalStation.logo ? 'custom' : 'generated',
+      brandingVariant: Number.isInteger(Number(canonicalStation.branding?.variant))
+        ? Number(canonicalStation.branding.variant)
         : randomStationBrandVariant(),
-      isPublic: station.isPublic !== false,
+      isPublic: canonicalStation.isPublic !== false,
     });
     resetLogoInput();
     setFormOpen(true);
@@ -343,7 +263,7 @@ const CreatorStationsWorkspace = ({ onNavigate }) => {
       ...current,
       logoFile: null,
       logoPreview: '',
-      removeLogo: Boolean(editingId) || current.removeLogo,
+      removeLogo: Boolean(canonicalStation?.id) || current.removeLogo,
       brandingMode: 'generated',
       brandingVariant: shuffle
         ? randomStationBrandVariant(current.brandingVariant)
@@ -374,97 +294,83 @@ const CreatorStationsWorkspace = ({ onNavigate }) => {
       setError('');
       setMessage('');
 
-      const response = editingId
-        ? await batch2Service.updateStation(editingId, payload)
+      const response = canonicalStation?.id
+        ? await batch2Service.updateStation(canonicalStation.id, payload)
         : await batch2Service.createStation(payload);
 
-      if (!response?.data?.id) throw new Error('Echoo did not return the saved station.');
+      if (!response?.data?.id) throw new Error('Echoo did not return the saved Station.');
 
-      const refreshed = await batch2Service.getMyStations();
-      const canonicalStations = Array.isArray(refreshed?.data) ? refreshed.data : [];
-      const canonical = canonicalStations.find(
-        (station) => idOf(station) === idOf(response.data)
-      );
-
-      if (!canonical) {
-        throw new Error('The station saved, but Echoo could not reload its brand from the backend.');
-      }
-
-      if (form.brandingMode === 'custom' && form.logoFile && !canonical.logo) {
-        throw new Error('The station saved, but its custom logo did not persist.');
-      }
-
-      if (form.brandingMode === 'generated' && canonical.branding?.mode !== 'generated') {
-        throw new Error('The station saved, but Echoo could not apply the generated brand.');
-      }
-
-      setStations(canonicalStations);
-      setSelectedStationId(idOf(canonical));
-      sessionStorage.setItem('echooSelectedStationId', idOf(canonical));
-      setMessage(editingId ? 'Station updated.' : 'Station created.');
+      await loadStation();
+      sessionStorage.setItem('echooSelectedStationId', idOf(response.data));
+      setMessage(canonicalStation?.id ? 'Station updated.' : 'Station setup complete.');
       setFormOpen(false);
-      setEditingId('');
       setForm(createEmptyForm());
       resetLogoInput();
       window.dispatchEvent(new CustomEvent('echoo:creator-state-changed'));
     } catch (saveError) {
-      setError(saveError?.message || 'Could not save the station.');
+      setError(saveError?.message || 'Could not save the Station.');
     } finally {
       setSaving(false);
     }
   };
 
-  const removeStation = async (station) => {
-    if (!station?.id || deletingId) return;
-    if (!window.confirm(`Delete “${station.name}”?`)) return;
+  const openBroadcast = () => {
+    if (!canonicalStation?.id) return;
+    sessionStorage.setItem('echooSelectedStationId', idOf(canonicalStation));
+    sessionStorage.setItem('echooBroadcastMode', 'now');
+    onNavigate?.('Broadcast');
+  };
 
-    try {
-      setDeletingId(idOf(station));
-      setError('');
-      setMessage('');
-      setMenuStationId('');
-      await batch2Service.deleteStation(station.id);
-      const nextStations = stations.filter((item) => idOf(item) !== idOf(station));
-      setStations(nextStations);
-      if (idOf(station) === String(selectedStationId)) {
-        const next = nextStations[0] || null;
-        setSelectedStationId(next ? idOf(next) : '');
-        if (next) sessionStorage.setItem('echooSelectedStationId', idOf(next));
-        else sessionStorage.removeItem('echooSelectedStationId');
-      }
-      setMessage('Station deleted.');
-      window.dispatchEvent(new CustomEvent('echoo:creator-state-changed'));
-    } catch (deleteError) {
-      setError(deleteError?.message || 'Could not delete the station.');
-    } finally {
-      setDeletingId('');
+  const openSchedule = () => {
+    if (canonicalStation?.id) {
+      sessionStorage.setItem('echooSelectedStationId', idOf(canonicalStation));
     }
+    onNavigate?.('Schedule');
   };
 
-  const featured = selectedStation;
-  const featuredState = stationState(featured);
-  const featuredBroadcastCount = featured ? broadcastCounts.get(idOf(featured)) || 0 : 0;
-  const stationDescription = featured?.description || 'No description has been added for this station yet.';
-  const defaultAudio = featured?.defaultAudio?.title || featured?.defaultAudioTitle || 'Not set';
-  const publicPath = featured ? getPublicStationPath(featured) : '';
-  const publicUrl = featured ? getPublicStationUrl(featured) : '';
-  const legacyStationCount = Math.max(0, stations.length - 1);
-  const viewAsListener = () => {
-    if (publicPath) navigate(publicPath);
+  const openActivity = (broadcast) => {
+    const broadcastId = idOf(broadcast);
+    if (broadcastId) sessionStorage.setItem('echooPreparedBroadcastId', broadcastId);
+    if (canonicalStation?.id) sessionStorage.setItem('echooSelectedStationId', idOf(canonicalStation));
+    const status = String(broadcast?.status || '').toLowerCase();
+    if (['starting', 'live', 'ending'].includes(status)) {
+      onNavigate?.('Broadcast');
+      return;
+    }
+    if (status === 'scheduled') {
+      onNavigate?.('Schedule');
+      return;
+    }
+    onNavigate?.('Collections');
   };
+
+  const viewAsListener = () => {
+    if (!publicPath || typeof window === 'undefined') return;
+    const url = new URL(publicPath, window.location.origin).toString();
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  if (loading) {
+    return (
+      <section className="est est-reference-page">
+        <div className="est-page-loading">
+          <div className="est-loading-featured" />
+          <div className="est-loading-details" />
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="est est-reference-page">
       <header className="est-header">
         <div>
           <h1>Station</h1>
-          <p>
-            Manage the one public station your broadcasts belong to.
-          </p>
+          <p>Manage the one public Station your broadcasts belong to.</p>
         </div>
-        {!stations.length && (
-          <button type="button" className="est-new" onClick={openCreate}>
-            <FaPlus /> Set up station
+        {!canonicalStation && (
+          <button type="button" className="est-new" onClick={openSetup}>
+            <FaPlus /> Set up Station
           </button>
         )}
       </header>
@@ -472,17 +378,12 @@ const CreatorStationsWorkspace = ({ onNavigate }) => {
       {message && <div className="est-message success">{message}</div>}
       {error && <div className="est-message error">{error}</div>}
 
-      {loading ? (
-        <div className="est-page-loading">
-          <div className="est-loading-featured" />
-          <div className="est-loading-details" />
-        </div>
-      ) : !stations.length ? (
+      {!canonicalStation ? (
         <div className="est-empty">
           <FaBroadcastTower />
-          <h2>Complete your station setup</h2>
-          <p>Create the one station listeners can find, follow, and hear live.</p>
-          <button type="button" onClick={openCreate}><FaPlus /> Set up station</button>
+          <h2>Complete your Station setup</h2>
+          <p>Create the one Station listeners can find, follow, and hear live.</p>
+          <button type="button" onClick={openSetup}><FaPlus /> Set up Station</button>
         </div>
       ) : (
         <div className="est-workspace-grid">
@@ -490,47 +391,46 @@ const CreatorStationsWorkspace = ({ onNavigate }) => {
             <section className="est-featured-card">
               <span className="est-featured-label">STATION</span>
               <div className="est-featured-layout">
-                <button
-                  type="button"
-                  className="est-featured-art"
-                  onClick={() => selectStation(featured, true)}
-                  aria-label={`Select ${featured?.name || 'featured station'}`}
-                >
-                  <img src={featured?.brandCover || featured?.coverArt} alt={`${featured?.name || 'Station'} brand`} />
-                  {featured?.isLive && <span>LIVE</span>}
-                </button>
+                <div className="est-featured-art" aria-hidden="true">
+                  <img
+                    src={canonicalStation.brandCover || canonicalStation.coverArt || canonicalStation.logo || generatedPreview}
+                    alt=""
+                  />
+                  {canonicalStation.isLive && <span>LIVE</span>}
+                </div>
 
                 <div className="est-featured-copy">
                   <span className={`est-status ${featuredState}`}>
                     <i /> {featuredState === 'live' ? 'Live now' : featuredState === 'offline' ? 'Offline' : 'Ready to broadcast'}
                   </span>
-                  <h2>{featured?.name}</h2>
-                  <span className="est-category-pill">{featured?.category || 'Other'}</span>
+                  <h2>{canonicalStation.name}</h2>
+                  <span className="est-category-pill">{canonicalStation.category || 'Other'}</span>
                   <p>{stationDescription}</p>
+
                   <div className="est-featured-stats">
-                    <div><FaUsers /><strong>{formatNumber(featured?.followerCount)}</strong><span>Followers</span></div>
-                    <div><FaHeadphonesSafe /><strong>{formatNumber(featured?.listenerCount)}</strong><span>Listening now</span></div>
-                    <div><FaBroadcastTower /><strong>{formatNumber(featuredBroadcastCount)}</strong><span>Broadcasts</span></div>
+                    <div><FaUsers /><strong>{formatNumber(canonicalStation.followerCount)}</strong><span>Followers</span></div>
+                    <div><FaBroadcastTower /><strong>{formatNumber(stationBroadcasts.length)}</strong><span>Broadcasts</span></div>
                   </div>
+
                   {publicUrl && <p className="est-public-url">Public URL <span>{publicUrl}</span></p>}
                   {legacyStationCount > 0 && (
                     <p className="est-legacy-note">
-                      {legacyStationCount} older station record{legacyStationCount === 1 ? '' : 's'} remain safely preserved, but this is the canonical station shown in Creator Studio.
+                      {legacyStationCount} older station record{legacyStationCount === 1 ? '' : 's'} remain safely preserved in the backend. Creator Studio uses this Station as your canonical public identity.
                     </p>
                   )}
                 </div>
 
                 <div className="est-featured-actions">
-                  <button type="button" className="primary" onClick={() => openBroadcast(featured, 'now')}>
-                    <FaBroadcastTower /> {featured?.isLive ? 'Open studio' : 'Start broadcast'}
+                  <button type="button" className="primary" onClick={openBroadcast}>
+                    <FaBroadcastTower /> {canonicalStation.isLive ? 'Open studio' : 'Start broadcast'}
                   </button>
-                  <button type="button" onClick={() => openEdit(featured)}>
-                    <FaEdit /> Edit station
+                  <button type="button" onClick={openEdit}>
+                    <FaEdit /> Edit Station
                   </button>
                   <button type="button" onClick={viewAsListener} disabled={!publicPath}>
                     <FaPlay /> View as Listener
                   </button>
-                  <button type="button" onClick={() => openBroadcast(featured, 'later')}>
+                  <button type="button" onClick={openSchedule}>
                     <FaCalendarAlt /> Schedule
                   </button>
                 </div>
@@ -541,21 +441,26 @@ const CreatorStationsWorkspace = ({ onNavigate }) => {
           <aside className="est-details" id="station-details-panel">
             <div className="est-details-head">
               <h2>Station details</h2>
-              <span className={`est-status compact ${featuredState}`}><i />{featuredState === 'live' ? 'Live now' : featuredState === 'offline' ? 'Offline' : 'Ready to broadcast'}</span>
+              <span className={`est-status compact ${featuredState}`}>
+                <i /> {featuredState === 'live' ? 'Live now' : featuredState === 'offline' ? 'Offline' : 'Ready to broadcast'}
+              </span>
             </div>
 
             <div className="est-details-identity">
-              <img src={featured?.brandCover || featured?.coverArt} alt={`${featured?.name || 'Station'} brand`} />
-              <div><h3>{featured?.name}</h3><span>{featured?.category || 'Other'}</span></div>
+              <img
+                src={canonicalStation.brandCover || canonicalStation.coverArt || canonicalStation.logo || generatedPreview}
+                alt={`${canonicalStation.name || 'Station'} brand`}
+              />
+              <div><h3>{canonicalStation.name}</h3><span>{canonicalStation.category || 'Other'}</span></div>
             </div>
 
             <div className="est-details-dates">
-              <span>Created {formatDate(featured?.createdAt)}</span>
-              <span>Last updated {formatDate(featured?.updatedAt)}</span>
+              <span>Created {formatDate(canonicalStation.createdAt)}</span>
+              <span>Last updated {formatDate(canonicalStation.updatedAt)}</span>
             </div>
 
             <section className="est-details-about">
-              <h3>About this station</h3>
+              <h3>About this Station</h3>
               <p className={descriptionExpanded ? 'expanded' : ''}>{stationDescription}</p>
               {stationDescription.length > 130 && (
                 <button type="button" onClick={() => setDescriptionExpanded((value) => !value)}>
@@ -565,8 +470,8 @@ const CreatorStationsWorkspace = ({ onNavigate }) => {
             </section>
 
             <div className="est-detail-fields">
-              <div><strong>Visibility</strong><span>{featured?.isPublic === false ? 'Private' : 'Public'}</span></div>
-              <div><strong>Default audio</strong><span>{defaultAudio}</span></div>
+              <div><strong>Visibility</strong><span>{canonicalStation.isPublic === false ? 'Private' : 'Public'}</span></div>
+              <div><strong>Station URL</strong><span>{publicPath || 'Unavailable'}</span></div>
             </div>
 
             <section className="est-recent-activity">
@@ -574,16 +479,19 @@ const CreatorStationsWorkspace = ({ onNavigate }) => {
               {recentActivity.length ? recentActivity.map((activity) => (
                 <button type="button" key={idOf(activity)} onClick={() => openActivity(activity)}>
                   <i>{activity.status === 'live' ? <FaBroadcastTower /> : activity.status === 'completed' ? <FaPlay /> : <FaCalendarAlt />}</i>
-                  <span><strong>{activity.title || 'Broadcast'}</strong><small>{formatDateTime(activity.startTime || activity.startAt || activity.createdAt)}</small></span>
+                  <span>
+                    <strong>{activity.title || 'Broadcast'}</strong>
+                    <small>{formatDateTime(activity.startTime || activity.startAt || activity.createdAt)}</small>
+                  </span>
                   {activity.status === 'live' ? <em>Live</em> : <FaChevronRight />}
                 </button>
               )) : (
-                <div className="est-activity-empty">No recent broadcasts for this station.</div>
+                <div className="est-activity-empty">No recent broadcasts for this Station.</div>
               )}
             </section>
 
-            <button type="button" className="est-view-broadcasts" onClick={openBroadcastLibrary}>
-              View all broadcasts <FaChevronRight />
+            <button type="button" className="est-view-broadcasts" onClick={() => onNavigate?.('Collections')}>
+              View recordings <FaChevronRight />
             </button>
           </aside>
         </div>
@@ -594,11 +502,11 @@ const CreatorStationsWorkspace = ({ onNavigate }) => {
           <form className="est-form" onSubmit={submitStation}>
             <div className="est-form-head">
               <div>
-                <span>{editingId ? 'EDIT STATION' : 'NEW STATION'}</span>
-                <h2>{editingId ? 'Update station' : 'Create a station'}</h2>
-                <p>This is the permanent home your broadcasts belong to.</p>
+                <span>{canonicalStation ? 'EDIT STATION' : 'STATION SETUP'}</span>
+                <h2>{canonicalStation ? 'Update Station' : 'Set up your Station'}</h2>
+                <p>This is your single public broadcasting identity on Echoo.</p>
               </div>
-              <button type="button" onClick={closeForm} aria-label="Close station form"><FaTimes /></button>
+              <button type="button" onClick={closeForm} aria-label="Close Station form"><FaTimes /></button>
             </div>
 
             <div className="est-form-grid">
@@ -614,13 +522,13 @@ const CreatorStationsWorkspace = ({ onNavigate }) => {
               </label>
               <label className="wide">
                 <span>Description</span>
-                <textarea value={form.description} maxLength={2000} placeholder="What is this station about?" onChange={(event) => updateField('description', event.target.value)} />
+                <textarea value={form.description} maxLength={2000} placeholder="What is this Station about?" onChange={(event) => updateField('description', event.target.value)} />
               </label>
 
               <div className="est-brand-field wide">
                 <div className="est-logo-copy">
-                  <span>Station brand <em>Automatic</em></span>
-                  <p>Echoo creates a branded cover automatically. Upload a custom logo or shuffle the generated design.</p>
+                  <span>Station artwork</span>
+                  <p>Use Echoo-generated artwork or upload a custom logo for your Listener surfaces.</p>
                 </div>
 
                 <div className="est-brand-editor">
@@ -634,11 +542,15 @@ const CreatorStationsWorkspace = ({ onNavigate }) => {
                     <button type="button" onClick={() => logoInputRef.current?.click()}>
                       <FaUpload /> {form.brandingMode === 'custom' ? 'Change logo' : 'Upload custom logo'}
                     </button>
-                    <button type="button" onClick={() => setEchooBrandMode(true)}><FaRandom /> Shuffle Echoo design</button>
+                    <button type="button" onClick={() => setEchooBrandMode(true)}>
+                      <FaRandom /> Shuffle Echoo design
+                    </button>
                     {form.brandingMode === 'custom' && (
-                      <button type="button" className="remove" onClick={() => setEchooBrandMode(false)}><FaTimes /> Use Echoo design</button>
+                      <button type="button" className="remove" onClick={() => setEchooBrandMode(false)}>
+                        <FaTimes /> Use Echoo design
+                      </button>
                     )}
-                    <small>Generated designs are saved with the station. JPG, PNG or WebP logos can be up to 5 MB.</small>
+                    <small>JPG, PNG or WebP up to 5 MB.</small>
                   </div>
                 </div>
               </div>
@@ -649,14 +561,14 @@ const CreatorStationsWorkspace = ({ onNavigate }) => {
               </label>
               <label className="est-public">
                 <input type="checkbox" checked={form.isPublic} onChange={(event) => updateField('isPublic', event.target.checked)} />
-                <span>Public station</span>
+                <span>Public Station</span>
               </label>
             </div>
 
             <div className="est-form-actions">
               <button type="button" onClick={closeForm} disabled={saving}>Cancel</button>
               <button type="submit" className="primary" disabled={saving || !form.name.trim()}>
-                <FaSave /> {saving ? 'Saving...' : editingId ? 'Save changes' : 'Create station'}
+                <FaSave /> {saving ? 'Saving…' : canonicalStation ? 'Save changes' : 'Create Station'}
               </button>
             </div>
           </form>
@@ -665,7 +577,5 @@ const CreatorStationsWorkspace = ({ onNavigate }) => {
     </section>
   );
 };
-
-const FaHeadphonesSafe = FaUsers;
 
 export default CreatorStationsWorkspace;
