@@ -3,8 +3,8 @@ import { Outlet, useLocation, useNavigate, useOutletContext } from 'react-router
 import {
   FiArrowRight,
   FiCheck,
+  FiChevronDown,
   FiChevronRight,
-  FiGrid,
   FiHeadphones,
   FiHeart,
   FiMusic,
@@ -21,6 +21,7 @@ import followService from '../../services/followService';
 import batch1Service from '../../services/batch1Service';
 import batch2Service from '../../services/batch2Service';
 import audioService from '../../services/audioService';
+import notificationService from '../../services/notificationService';
 import { buildMediaUrl } from '../../services/api';
 import { getCreatorProfilePath } from '../../services/profileIdentifier';
 import { buildGeneratedStationBrandCoverUrl } from '../../stationBranding/stationBranding';
@@ -93,14 +94,15 @@ const Artwork = ({ src, className = '' }) => {
   return <img className={`${className} listener-v2-fallback-mark`.trim()} src={echooMark} alt="" />;
 };
 
-const SearchField = ({ value, onChange, placeholder, autoFocus = false }) => (
-  <label className="listener-v2-search-field">
+const SearchField = ({ value, onChange, placeholder, autoFocus = false, onKeyDown, className = '' }) => (
+  <label className={`listener-v2-search-field ${className}`.trim()}>
     <FiSearch aria-hidden="true" />
     <input
       value={value}
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
       autoFocus={autoFocus}
+      onKeyDown={onKeyDown}
     />
   </label>
 );
@@ -131,11 +133,11 @@ const LiveCard = ({ broadcast, onOpen }) => {
       <button type="button" className="listener-v2-live-art" onClick={() => onOpen(broadcast)}>
         <Artwork src={art} />
         <span className="listener-v2-live-badge">LIVE</span>
+        <span className="listener-v2-live-listeners"><FiHeadphones /> {formatCount(broadcast?.listenerCount ?? broadcast?.station?.listenerCount)}</span>
       </button>
       <button type="button" className="listener-v2-live-meta" onClick={() => onOpen(broadcast)}>
         <strong>{titleOf(broadcast)}</strong>
-        <span>{stationNameOf(broadcast)}</span>
-        <small><FiUsers /> {formatCount(broadcast?.listenerCount ?? broadcast?.station?.listenerCount)} listening</small>
+        <span>{categoryOf(broadcast)}</span>
       </button>
     </article>
   );
@@ -243,13 +245,15 @@ const ListenerV2Layout = () => {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [, setLivePlayerState] = useState(null);
+  const [headerSearch, setHeaderSearch] = useState('');
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
 
-  const displayName = user?.displayName || user?.fullname || user?.username || 'Listener';
   const profileImage = buildMediaUrl(user?.profileImage || user?.avatar || localStorage.getItem('profileImage'));
   const isLiveRoom = /^\/listen\/live\/[^/]+/.test(location.pathname);
 
   const activeKey = useMemo(() => {
     if (location.pathname.includes('/library/following')) return 'following';
+    if (location.pathname === '/listen/following') return 'following';
     if (location.pathname === '/listen/stations' || location.pathname.startsWith('/listen/stations/')) return 'categories';
     if (location.pathname === '/listen/search') return 'search';
     return 'live';
@@ -257,10 +261,23 @@ const ListenerV2Layout = () => {
 
   const navItems = [
     { key: 'live', label: 'Live now', path: '/listen', icon: <FiRadio /> },
-    { key: 'following', label: 'Following', path: '/listen/library/following', icon: <FiHeart /> },
-    { key: 'categories', label: 'Categories', path: '/listen/stations', icon: <FiGrid /> },
-    { key: 'search', label: 'Search', path: '/listen/search', icon: <FiSearch /> },
+    { key: 'following', label: 'Following', path: '/listen/following', icon: <FiHeart /> },
   ];
+
+  useEffect(() => {
+    let active = true;
+    notificationService.list({ limit: 1, unreadOnly: true })
+      .then((response) => {
+        if (active) setUnreadNotifications(Number(response?.data?.unreadCount) || 0);
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, []);
+
+  const submitHeaderSearch = (event) => {
+    if (event.key !== 'Enter' || !headerSearch.trim()) return;
+    navigate(`/listen/search?q=${encodeURIComponent(headerSearch.trim())}`);
+  };
 
   const playTrack = useCallback((track, incomingQueue = []) => {
     const normalized = normalizePlayable(track);
@@ -305,44 +322,30 @@ const ListenerV2Layout = () => {
   };
 
   return (
-    <div className="listener-v2-root">
-      <aside className="listener-v2-sidebar">
+    <div className={`listener-v2-root${isLiveRoom ? ' listener-v2-root--room' : ''}`}>
+      {!isLiveRoom && <header className="listener-v2-header">
         <button type="button" className="listener-v2-brand" onClick={() => navigate('/listen')} aria-label="Echoo Listener home">
-          <img src={echooMark} alt="Echoo" />
+          <img src={echooMark} alt="" /> <span>echoo</span>
         </button>
-
         <nav className="listener-v2-nav" aria-label="Listener navigation">
           {navItems.map((item) => (
-            <button
-              type="button"
-              key={item.key}
-              className={activeKey === item.key ? 'is-active' : ''}
-              onClick={() => navigate(item.path)}
-              aria-current={activeKey === item.key ? 'page' : undefined}
-            >
-              <span aria-hidden="true">{item.icon}</span>
-              <strong>{item.label}</strong>
+            <button type="button" key={item.key} className={activeKey === item.key ? 'is-active' : ''} onClick={() => navigate(item.path)} aria-current={activeKey === item.key ? 'page' : undefined}>
+              {item.label}
             </button>
           ))}
         </nav>
-
-        <img className="listener-v2-watermark" src={echooMark} alt="" aria-hidden="true" />
-
-        <div className="listener-v2-account">
-          <AccountExperienceMenu
-            currentExperience="listener"
-            user={user}
-            profileImage={profileImage}
-            variant="listener"
-            onUserChange={setUser}
-          />
-        </div>
-      </aside>
-
-      <div className="listener-v2-mobile-header">
-        <button type="button" className="listener-v2-mobile-brand" onClick={() => navigate('/listen')}><img src={echooMark} alt="Echoo" /></button>
-        <AccountExperienceMenu currentExperience="listener" user={user} profileImage={profileImage} variant="listener" onUserChange={setUser} />
-      </div>
+        <SearchField value={headerSearch} onChange={setHeaderSearch} onKeyDown={submitHeaderSearch} placeholder="Search live stations..." className="listener-v2-header-search" />
+        <AccountExperienceMenu
+          currentExperience="listener"
+          user={user}
+          profileImage={profileImage}
+          variant="listener"
+          onUserChange={setUser}
+          unreadNotifications={unreadNotifications}
+          onNotifications={() => navigate('/listen/notifications')}
+          onSettings={() => navigate('/listen/settings')}
+        />
+      </header>}
 
       <main className={`listener-v2-main${currentTrack && !isLiveRoom ? ' has-player' : ''}`}>
         <Outlet context={{ playTrack, currentTrack, isPlaying, togglePlay, setLivePlayerState }} />
@@ -367,60 +370,51 @@ const ListenerV2Layout = () => {
           <div className="listener-v2-player-progress"><span style={{ width: `${duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0}%` }} /></div>
         </section>
       )}
+      {!isLiveRoom && <nav className="listener-v2-mobile-nav" aria-label="Listener navigation">
+        {[
+          { key: 'live', label: 'Live now', path: '/listen', icon: <FiRadio /> },
+          { key: 'following', label: 'Following', path: '/listen/following', icon: <FiHeart /> },
+          { key: 'search', label: 'Search', path: '/listen/search', icon: <FiSearch /> },
+          { key: 'profile', label: 'Profile', path: '/listen/settings', icon: <FiUser /> },
+        ].map((item) => <button key={item.key} type="button" className={activeKey === item.key ? 'is-active' : ''} onClick={() => navigate(item.path)}><span>{item.icon}</span>{item.label}</button>)}
+      </nav>}
     </div>
   );
 };
 
-const LiveCatalog = ({ includeDiscovery = false }) => {
+const LiveCatalog = () => {
   const navigate = useNavigate();
-  const { liveNow, loading, error } = useLiveCatalog();
+  const { liveNow, loading, error, reload } = useLiveCatalog();
   const [query, setQuery] = useState('');
-  const [following, setFollowing] = useState([]);
-  const [stations, setStations] = useState([]);
-
-  useEffect(() => {
-    if (!includeDiscovery) return;
-    let active = true;
-    Promise.allSettled([
-      followService.getFollowingStations(),
-      batch2Service.listStations({ page: 1, limit: 100 }),
-    ]).then(([followedResult, stationsResult]) => {
-      if (!active) return;
-      if (followedResult.status === 'fulfilled') setFollowing(Array.isArray(followedResult.value?.data) ? followedResult.value.data : []);
-      if (stationsResult.status === 'fulfilled') setStations(Array.isArray(stationsResult.value?.data) ? stationsResult.value.data.filter((item) => item?.isPublic !== false) : []);
-    });
-    return () => { active = false; };
-  }, [includeDiscovery]);
+  const [category, setCategory] = useState('All categories');
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (!needle) return liveNow;
-    return liveNow.filter((item) => [titleOf(item), stationNameOf(item), categoryOf(item)]
+    return liveNow.filter((item) => (category === 'All categories' || categoryOf(item) === category) && [titleOf(item), stationNameOf(item), categoryOf(item)]
       .some((value) => String(value || '').toLowerCase().includes(needle)));
-  }, [liveNow, query]);
+  }, [liveNow, query, category]);
 
   const categories = useMemo(() => {
-    const counts = new Map();
-    stations.forEach((station) => {
-      const key = String(station?.category || '').trim();
-      if (key) counts.set(key, (counts.get(key) || 0) + 1);
-    });
-    const names = counts.size ? [...counts.keys()].sort() : CATEGORY_FALLBACK;
-    return names.slice(0, 6).map((name) => ({ name, count: counts.get(name) || 0 }));
-  }, [stations]);
+    return ['All categories', ...Array.from(new Set(liveNow.map(categoryOf).filter(Boolean))).sort()];
+  }, [liveNow]);
 
   const openBroadcast = (item) => navigate(`/listen/live/${idOf(item)}`, { state: { show: item } });
 
   return (
     <div className="listener-v2-page listener-v2-live-page">
-      <section className="listener-v2-panel listener-v2-live-panel">
+      <section className="listener-v2-live-panel">
         <div className="listener-v2-page-header">
-          <div><h1>Live now</h1><p>What’s live right now</p></div>
-          <SearchField value={query} onChange={setQuery} placeholder="Search live events..." />
+          <div><h1>Live now</h1><p>Listen to what’s happening right now.</p></div>
         </div>
-        {error && <div className="listener-v2-error" role="alert">{error}</div>}
+        <div className="listener-v2-discovery-tools">
+          <label className="listener-v2-category-select"><span className="sr-only">Filter by category</span><select value={category} onChange={(event) => setCategory(event.target.value)}>{categories.map((item) => <option key={item}>{item}</option>)}</select><FiChevronDown aria-hidden="true" /></label>
+          <SearchField value={query} onChange={setQuery} placeholder="Search live events..." className="listener-v2-inline-search" />
+        </div>
         {loading ? (
           <div className="listener-v2-live-grid listener-v2-skeleton-grid">{Array.from({ length: 5 }, (_, index) => <span key={index} />)}</div>
+        ) : error ? (
+          <EmptyState icon={<FiRadio />} title="We couldn’t reach Echoo." copy="Check your connection and try again." action={reload} actionLabel="Try again" />
         ) : filtered.length ? (
           <div className="listener-v2-live-grid">
             {filtered.map((broadcast) => <LiveCard key={idOf(broadcast)} broadcast={broadcast} onOpen={openBroadcast} />)}
@@ -432,58 +426,17 @@ const LiveCatalog = ({ includeDiscovery = false }) => {
             copy={query ? 'Try another creator, station or topic.' : 'Live broadcasts will appear here as soon as creators go live.'}
           />
         )}
-        {includeDiscovery && (
-          <button type="button" className="listener-v2-outline-action" onClick={() => navigate('/listen/live')}>View all live events<FiArrowRight /></button>
-        )}
       </section>
-
-      {includeDiscovery && (
-        <div className="listener-v2-home-split">
-          <section className="listener-v2-panel">
-            <SectionTitle title="Following" copy="Creators and stations you follow" action={() => navigate('/listen/library/following')} />
-            {following.length ? (
-              <div className="listener-v2-follow-preview">
-                {following.slice(0, 5).map((station) => (
-                  <button type="button" key={idOf(station)} onClick={() => navigate(`/listen/stations/${idOf(station)}`)}>
-                    <span><Artwork src={stationArtwork(station)} /></span>
-                    <strong>{station?.name || 'Station'}</strong>
-                    <small>{station?.isLive ? `${formatCount(station.listenerCount)} listening` : station?.category || 'Station'}</small>
-                    {station?.isLive && <i>LIVE</i>}
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <EmptyState icon={<FiHeart />} title="Nothing followed yet" copy="Follow stations you enjoy and they’ll appear here." action={() => navigate('/listen/stations')} actionLabel="Explore stations" />
-            )}
-          </section>
-
-          <section className="listener-v2-panel">
-            <SectionTitle title="Categories" copy="Browse by category" action={() => navigate('/listen/stations')} />
-            <div className="listener-v2-category-preview">
-              {categories.map(({ name, count }) => (
-                <button type="button" key={name} onClick={() => navigate(`/listen/stations?category=${encodeURIComponent(name)}`)}>
-                  <span><FiGrid /></span>
-                  <strong>{name}</strong>
-                  {count > 0 && <small>{count} station{count === 1 ? '' : 's'}</small>}
-                </button>
-              ))}
-            </div>
-          </section>
-        </div>
-      )}
     </div>
   );
 };
 
-const ListenerV2Home = () => <LiveCatalog includeDiscovery />;
+const ListenerV2Home = () => <LiveCatalog />;
 const ListenerV2Live = () => <LiveCatalog />;
 
 const ListenerV2Following = () => {
   const navigate = useNavigate();
-  const { playTrack, currentTrack, isPlaying, togglePlay } = useOutletContext();
   const [stations, setStations] = useState([]);
-  const [creators, setCreators] = useState([]);
-  const [latest, setLatest] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState('');
   const [error, setError] = useState('');
@@ -491,17 +444,11 @@ const ListenerV2Following = () => {
   const load = useCallback(async () => {
     try {
       setLoading(true);
-      const [stationResult, creatorResult, historyResult] = await Promise.allSettled([
-        followService.getFollowingStations(),
-        followService.getFollowingCreators(),
-        listenerService.getHistory(1, 8),
-      ]);
-      if (stationResult.status === 'fulfilled') setStations(Array.isArray(stationResult.value?.data) ? stationResult.value.data : []);
-      if (creatorResult.status === 'fulfilled') setCreators(Array.isArray(creatorResult.value?.data) ? creatorResult.value.data : []);
-      if (historyResult.status === 'fulfilled') setLatest((historyResult.value?.data?.history || []).map((entry) => entry.track).filter(Boolean));
+      const stationResult = await followService.getFollowingStations();
+      setStations(Array.isArray(stationResult?.data) ? stationResult.data : []);
       setError('');
     } catch (loadError) {
-      setError(loadError?.message || 'Following could not be loaded.');
+      setError(loadError?.message || "We couldn't load your followed stations.");
     } finally {
       setLoading(false);
     }
@@ -521,66 +468,92 @@ const ListenerV2Following = () => {
     } finally { setBusyId(''); }
   };
 
-  const unfollowCreator = async (creator) => {
-    const key = idOf(creator);
-    if (!key || busyId) return;
-    try {
-      setBusyId(key);
-      await followService.unfollowCreator(key);
-      setCreators((current) => current.filter((item) => idOf(item) !== key));
-    } catch (actionError) {
-      setError(actionError?.message || 'Could not unfollow this creator.');
-    } finally { setBusyId(''); }
+  const liveBroadcastIdOfStation = (station) => (
+    station?.liveBroadcastId ||
+    station?.currentBroadcastId ||
+    station?.activeBroadcastId ||
+    station?.liveBroadcast?.id ||
+    station?.liveBroadcast?._id ||
+    station?.activeBroadcast?.id ||
+    station?.activeBroadcast?._id ||
+    ''
+  );
+
+  const openStation = (station) => {
+    const liveBroadcastId = station?.isLive ? liveBroadcastIdOfStation(station) : '';
+    navigate(liveBroadcastId ? `/listen/live/${liveBroadcastId}` : `/listen/stations/${idOf(station)}`);
   };
 
+  const liveStations = useMemo(
+    () => stations.filter((station) => Boolean(station?.isLive)),
+    [stations]
+  );
+
   return (
-    <div className="listener-v2-page">
-      <header className="listener-v2-page-title"><h1>Following</h1><p>People and stations you care about, in one place.</p></header>
-      {error && <div className="listener-v2-error" role="alert">{error}</div>}
+    <div className="listener-v2-page listener-v2-following-page">
+      <header className="listener-v2-page-title"><h1>Following</h1><p>Stations you follow and never miss.</p></header>
 
-      <section className="listener-v2-panel">
-        <SectionTitle title="Creators you follow" copy="Keep up with the voices you care about" action={() => navigate('/listen/search')} actionLabel="Find creators" />
-        {loading ? <div className="listener-v2-row-skeleton"><span /><span /><span /></div> : creators.length ? (
-          <div className="listener-v2-creator-grid">
-            {creators.map((creator) => (
-              <CreatorCard
-                key={idOf(creator)}
-                creator={creator}
-                busy={busyId === idOf(creator)}
-                onOpen={(item) => { const path = getCreatorProfilePath(item); if (path) navigate(path); }}
-                onFollow={unfollowCreator}
-              />
-            ))}
-          </div>
-        ) : <EmptyState icon={<FiUser />} title="No creators followed yet" copy="Search for creators you enjoy and they’ll appear here." action={() => navigate('/listen/search')} actionLabel="Find creators" />}
-      </section>
-
-      <section className="listener-v2-panel">
-        <SectionTitle title="Stations you follow" copy="Your saved live destinations" action={() => navigate('/listen/stations')} actionLabel="Explore stations" />
-        {loading ? <div className="listener-v2-row-skeleton"><span /><span /><span /></div> : stations.length ? (
-          <div className="listener-v2-station-grid">
-            {stations.map((station) => <StationCard key={idOf(station)} station={station} following busy={busyId === idOf(station)} onOpen={(item) => navigate(`/listen/stations/${idOf(item)}`)} onFollow={unfollowStation} />)}
-          </div>
-        ) : <EmptyState icon={<FiHeadphones />} title="No stations followed yet" copy="Explore stations and follow the voices you want to hear again." action={() => navigate('/listen/stations')} actionLabel="Explore stations" />}
-      </section>
-
-      <section className="listener-v2-panel">
-        <SectionTitle title="Latest listening" copy="Recent audio from your listening history" />
-        {latest.length ? (
-          <div className="listener-v2-audio-list">
-            {latest.map((track, index) => {
-              const playing = idOf(currentTrack) === idOf(track) && isPlaying;
-              return (
-                <article key={`${idOf(track)}-${index}`}>
-                  <span className="listener-v2-audio-art"><Artwork src={buildMediaUrl(track?.coverArt || track?.artwork)} /></span>
-                  <div><strong>{track?.title || 'Untitled audio'}</strong><span>{track?.artist?.displayName || track?.artistName || track?.station?.name || 'Echoo'}</span></div>
-                  <button type="button" onClick={() => playing ? togglePlay() : playTrack(track, latest)} aria-label={playing ? 'Pause' : 'Play'}>{playing ? <FiPause /> : <FiPlay />}</button>
+      {loading ? (
+        <div className="listener-v2-following-skeleton" aria-label="Loading followed stations"><span /><span /><span /></div>
+      ) : error ? (
+        <EmptyState icon={<FiHeadphones />} title="We couldn't load your followed stations." copy="Check your connection and try again." action={load} actionLabel="Try again" />
+      ) : stations.length ? (
+        <>
+          {liveStations.length > 0 && (
+            <section className="listener-v2-following-live">
+              <h2>Live from your following</h2>
+              {liveStations.map((station) => (
+                <article className="listener-v2-following-live-card" key={idOf(station)}>
+                  <button type="button" className="listener-v2-following-live-art" onClick={() => openStation(station)} aria-label={`Listen to ${station?.name || 'station'}`}>
+                    <Artwork src={stationArtwork(station)} />
+                    <span className="listener-v2-live-badge">LIVE</span>
+                  </button>
+                  <div>
+                    <strong>{station?.name || 'Unnamed station'}</strong>
+                    <span>{station?.category || 'Station'}</span>
+                    <small><FiUsers /> {formatCount(station?.listenerCount)} listening</small>
+                    <button type="button" onClick={() => openStation(station)}><FiPlay /> Listen now</button>
+                  </div>
                 </article>
-              );
-            })}
-          </div>
-        ) : <EmptyState icon={<FiMusic />} title="No recent audio yet" copy="Recorded audio you listen to will appear here." />}
-      </section>
+              ))}
+            </section>
+          )}
+
+          <section className="listener-v2-following-all">
+            <h2>All following</h2>
+            <div className="listener-v2-following-list">
+              {stations.map((station) => (
+                <article className="listener-v2-following-row" key={idOf(station)}>
+                  <button type="button" className="listener-v2-following-art" onClick={() => openStation(station)} aria-label={`Open ${station?.name || 'station'}`}>
+                    <Artwork src={stationArtwork(station)} />
+                    {station?.isLive && <span className="listener-v2-live-badge">LIVE</span>}
+                  </button>
+                  <button type="button" className="listener-v2-following-copy" onClick={() => openStation(station)}>
+                    <strong>{station?.name || 'Unnamed station'}</strong>
+                    <span>
+                      {station?.category || 'Station'} · {station?.isLive ? `LIVE · ${formatCount(station?.listenerCount)} listening` : `${formatCount(station?.followerCount)} followers`}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="listener-v2-follow-button is-following"
+                    disabled={busyId === idOf(station)}
+                    onClick={() => unfollowStation(station)}
+                    aria-label={`Unfollow ${station?.name || 'station'}`}
+                  >
+                    {busyId === idOf(station) ? '...' : 'Following'}
+                  </button>
+                  <button type="button" className="listener-v2-following-more" aria-label={`More options for ${station?.name || 'station'}`}>
+                    <FiChevronDown />
+                  </button>
+                </article>
+              ))}
+            </div>
+          </section>
+        </>
+      ) : (
+        <EmptyState icon={<FiHeadphones />} title="You aren't following any stations yet." action={() => navigate('/listen/stations')} actionLabel="Find stations" />
+      )}
     </div>
   );
 };
@@ -680,11 +653,16 @@ const ListenerV2Categories = () => {
 
 const ListenerV2Search = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { playTrack, currentTrack, isPlaying, togglePlay } = useOutletContext();
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(() => new URLSearchParams(location.search).get('q') || '');
   const [data, setData] = useState({ tracks: [], creators: [], stations: [], playlists: [] });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    setQuery(new URLSearchParams(location.search).get('q') || '');
+  }, [location.search]);
 
   useEffect(() => {
     const clean = query.trim();

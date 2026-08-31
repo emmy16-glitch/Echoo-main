@@ -1,4 +1,14 @@
 .account-experience-menu { position:relative; z-index:90; min-width:0; }
+.echoo-account-toolbar { display:flex; align-items:center; justify-content:flex-end; gap:12px; min-width:0; }
+.echoo-mode-switcher { width:158px; height:36px; display:grid; grid-template-columns:1fr 1fr; align-items:center; padding:3px; border:1px solid #dbe5f3; border-radius:999px; background:#fff; box-shadow:0 4px 12px rgba(15,34,66,.04); }
+.echoo-mode-switcher button { min-width:0; height:28px; padding:0 13px; border:0; border-radius:999px; background:transparent; color:#172642; cursor:pointer; font-size:12px; font-weight:720; line-height:28px; transition:background .16s ease,color .16s ease,box-shadow .16s ease; }
+.echoo-mode-switcher button.is-active { background:#0758f7; color:#fff; box-shadow:0 5px 12px rgba(7,88,247,.18); }
+.echoo-mode-switcher button:focus-visible { outline:3px solid rgba(7,88,247,.2); outline-offset:2px; }
+.echoo-mode-switcher button:disabled { cursor:wait; opacity:.68; }
+.echoo-account-toolbar__notification { position:relative; width:40px; height:40px; display:grid; place-items:center; padding:0; border:0; border-radius:50%; background:transparent; color:#0b1835; cursor:pointer; font-size:18px; }
+.echoo-account-toolbar__notification:hover,.echoo-account-toolbar__notification:focus-visible { background:#f2f6fc; color:#0758f7; outline:0; }
+.echoo-account-toolbar__notification:focus-visible { box-shadow:0 0 0 3px rgba(7,88,247,.18); }
+.echoo-account-toolbar__notification span { position:absolute; top:3px; right:5px; width:8px; height:8px; border:2px solid #fff; border-radius:50%; background:#0758f7; }
 .account-experience-trigger { display:inline-flex; align-items:center; gap:12px; margin:0; padding:0; border:0; background:transparent; color:#071638; font:inherit; text-align:left; cursor:pointer; }
 .account-experience-trigger-copy { min-width:0; display:grid; gap:1px; }
 .account-experience-trigger-copy strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -9,6 +19,12 @@
 .account-experience-menu--creator .account-experience-dropdown { top:calc(100% + 10px); left:0; }
 .account-experience-menu--listener .account-experience-dropdown { top:calc(100% + 10px); right:0; }
 .account-experience-dropdown { position:absolute; z-index:1000; width:214px; padding:8px; border:1px solid #dfe6f0; border-radius:11px; background:#fff; box-shadow:0 16px 38px rgba(7,22,56,.14); animation:account-menu-in .17s ease-out; }
+.account-experience-identity { display:grid; grid-template-columns:34px minmax(0,1fr); align-items:center; gap:10px; padding:8px 8px 10px; }
+.account-experience-identity .top-avatar { width:34px; height:34px; display:grid; place-items:center; overflow:hidden; border-radius:50%; background:#eaf2ff; color:#0758f7; font-size:12px; font-weight:800; }
+.account-experience-identity span { min-width:0; display:grid; gap:2px; }
+.account-experience-identity strong,.account-experience-identity small { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.account-experience-identity strong { color:#071638; font-size:13px; font-weight:760; }
+.account-experience-identity small { color:#6f7f99; font-size:11px; }
 .account-experience-dropdown button { width:100%; min-height:42px; display:flex; align-items:center; gap:10px; padding:0 10px; border:0; border-radius:8px; background:transparent; color:#14264c; font:inherit; font-size:12.5px; font-weight:670; text-align:left; cursor:pointer; }
 .account-experience-dropdown button:hover,.account-experience-dropdown button:focus-visible { background:#edf4ff; color:#0758f7; outline:0; }
 .account-experience-dropdown button:focus-visible { box-shadow:inset 0 0 0 2px rgba(7,88,247,.28); }
@@ -21,4 +37,11 @@
 .account-experience-trigger .top-avatar img { width:100%; height:100%; display:block; object-fit:cover; }
 @keyframes account-menu-in { from{opacity:0;transform:translateY(-5px)} to{opacity:1;transform:translateY(0)} }
 @media (prefers-reduced-motion:reduce) { .account-experience-dropdown{animation:none}.account-experience-chevron{transition:none} }
-@media (max-width:760px) { .account-experience-dropdown { width:min(214px,calc(100vw - 24px)); }.account-experience-menu--creator .account-experience-dropdown { left:0; }.account-experience-menu--listener .account-experience-dropdown { right:0; } }
+@media (max-width:760px) {
+  .echoo-account-toolbar { display:grid; grid-template-columns:1fr auto auto; grid-template-areas:"switch switch switch" "bell profile profile"; justify-content:end; gap:10px 8px; width:100%; }
+  .echoo-mode-switcher { grid-area:switch; justify-self:center; width:180px; height:36px; }
+  .echoo-account-toolbar__notification { grid-area:bell; justify-self:end; width:34px; height:34px; font-size:16px; }
+  .account-experience-trigger { grid-area:profile; justify-self:end; }
+  .account-experience-dropdown { width:min(232px,calc(100vw - 24px)); }
+  .account-experience-menu--creator .account-experience-dropdown,.account-experience-menu--listener .account-experience-dropdown { right:0; left:auto; }
+}

@@ -44,6 +44,19 @@ const channelDefaults = {
     peakDb: MIN_DB,
     connected: false,
   },
+  channel2: {
+    id: 'channel2',
+    name: 'Channel 2',
+    sourceLabel: 'No source',
+    deviceId: '',
+    gain: 1,
+    muted: false,
+    solo: false,
+    level: 0,
+    rmsDb: MIN_DB,
+    peakDb: MIN_DB,
+    connected: false,
+  },
   guest: {
     id: 'guest',
     name: 'Guest Mic',
@@ -98,6 +111,12 @@ let masterDirectGainNode = null;
 let masterProtectedGainNode = null;
 let masterAnalyser = null;
 let masterMeterData = null;
+let masterChannelSplitter = null;
+let masterLeftAnalyser = null;
+let masterRightAnalyser = null;
+let masterLeftMeterData = null;
+let masterRightMeterData = null;
+let masterMeterSinkNode = null;
 let monitorGainNode = null;
 let monitorDestinationNode = null;
 let monitorAudioElement = null;
@@ -110,6 +129,7 @@ let voiceProcessingEngine = null;
 
 const sources = new Map();
 const listeners = new Set();
+const meterListeners = new Set();
 let channels = cloneChannels();
 let creatorAudioSettings = getCachedCreatorAudioSettings();
 let processingStatus = {
@@ -122,6 +142,10 @@ let master = {
   level: 0,
   rmsDb: MIN_DB,
   peakDb: MIN_DB,
+  leftLevel: 0,
+  rightLevel: 0,
+  leftPeakDb: MIN_DB,
+  rightPeakDb: MIN_DB,
 };
 let monitoring = {
   enabled: false,
@@ -166,9 +190,10 @@ const getSnapshot = () => ({
   },
 });
 
-const notify = () => {
+const notify = (metersOnly = false) => {
   const snapshot = getSnapshot();
-  listeners.forEach((listener) => listener(snapshot));
+  if (!metersOnly) listeners.forEach((listener) => listener(snapshot));
+  meterListeners.forEach((listener) => listener(snapshot));
 };
 
 const ensureMonitorElement = () => {
@@ -255,6 +280,10 @@ const ensureContext = async () => {
     masterDirectGainNode = audioContext.createGain();
     masterProtectedGainNode = audioContext.createGain();
     masterAnalyser = audioContext.createAnalyser();
+    masterChannelSplitter = audioContext.createChannelSplitter(2);
+    masterLeftAnalyser = audioContext.createAnalyser();
+    masterRightAnalyser = audioContext.createAnalyser();
+    masterMeterSinkNode = audioContext.createGain();
     monitorGainNode = audioContext.createGain();
     voiceInputNode = audioContext.createGain();
     voiceOutputNode = audioContext.createGain();
@@ -262,12 +291,29 @@ const ensureContext = async () => {
     masterAnalyser.fftSize = 512;
     masterAnalyser.smoothingTimeConstant = 0.72;
     masterMeterData = new Float32Array(masterAnalyser.fftSize);
+    masterLeftAnalyser.fftSize = 512;
+    masterLeftAnalyser.smoothingTimeConstant = 0.72;
+    masterRightAnalyser.fftSize = 512;
+    masterRightAnalyser.smoothingTimeConstant = 0.72;
+    masterLeftMeterData = new Float32Array(masterLeftAnalyser.fftSize);
+    masterRightMeterData = new Float32Array(masterRightAnalyser.fftSize);
+    masterMeterSinkNode.gain.value = 0;
 
     masterGainNode.connect(masterDirectGainNode);
     masterDirectGainNode.connect(masterAnalyser);
     masterGainNode.connect(masterLimiterNode);
     masterLimiterNode.connect(masterProtectedGainNode);
     masterProtectedGainNode.connect(masterAnalyser);
+    // The program bus stays stereo. These analysers observe each real output
+    // lane independently; they never alter the LiveKit or monitor routes.
+    masterAnalyser.connect(masterChannelSplitter);
+    masterChannelSplitter.connect(masterLeftAnalyser, 0);
+    masterChannelSplitter.connect(masterRightAnalyser, 1);
+    // Keep the metering branch active without duplicating it into either the
+    // audience or monitor mix.
+    masterLeftAnalyser.connect(masterMeterSinkNode);
+    masterRightAnalyser.connect(masterMeterSinkNode);
+    masterMeterSinkNode.connect(audioContext.destination);
 
     voiceOutputNode.connect(masterGainNode);
     voiceProcessingEngine = createEchooVoiceProcessingEngine({
@@ -356,6 +402,8 @@ const disconnectSource = (channelId, stopTracks = true) => {
         sourceLabel:
           channelId === 'host'
             ? 'Default input'
+            : channelId === 'channel2'
+              ? 'No source'
             : channelId === 'media'
               ? 'No audio selected'
               : channelId === 'screen'
@@ -520,13 +568,36 @@ function startMeterLoop() {
       }
     });
 
+    const mediaState = sources.get('media');
+    if (mediaState?.mediaPlaying && mediaState.audioBuffer && audioContext) {
+      const elapsed = audioContext.currentTime - mediaState.mediaStartedAt;
+      const currentTime = (mediaState.mediaOffset + elapsed) % mediaState.audioBuffer.duration;
+      if (Math.abs(currentTime - Number(channels.media?.currentTime || 0)) > 0.08) {
+        channels = { ...channels, media: { ...channels.media, currentTime, playing: true } };
+        changed = true;
+      }
+    }
+
     if (masterAnalyser && masterMeterData) {
       const meter = readMeter(masterAnalyser, masterMeterData);
+      const left = readMeter(masterLeftAnalyser, masterLeftMeterData);
+      const right = readMeter(masterRightAnalyser, masterRightMeterData);
       if (
         Math.abs(meter.level - master.level) > 0.004 ||
-        Math.abs(meter.peakDb - master.peakDb) > 0.5
+        Math.abs(meter.peakDb - master.peakDb) > 0.5 ||
+        Math.abs(left.level - master.leftLevel) > 0.004 ||
+        Math.abs(right.level - master.rightLevel) > 0.004 ||
+        Math.abs(left.peakDb - master.leftPeakDb) > 0.5 ||
+        Math.abs(right.peakDb - master.rightPeakDb) > 0.5
       ) {
-        master = { ...master, ...meter };
+        master = {
+          ...master,
+          ...meter,
+          leftLevel: left.level,
+          rightLevel: right.level,
+          leftPeakDb: left.peakDb,
+          rightPeakDb: right.peakDb,
+        };
         changed = true;
       }
     }
@@ -546,6 +617,11 @@ const normalizedMicConstraints = (audioConstraints) => ({
 export const subscribeEchooMixer = (listener) => {
   listeners.add(listener);
   return () => listeners.delete(listener);
+};
+
+export const subscribeEchooMeters = (listener) => {
+  meterListeners.add(listener);
+  return () => meterListeners.delete(listener);
 };
 
 export const getEchooMixerState = getSnapshot;
@@ -597,6 +673,24 @@ export const connectGuestInput = async (deviceId, audioConstraints = null) => {
   return connectAcquiredStream('guest', stream, track?.label || 'Guest microphone', deviceId);
 };
 
+export const connectSecondInput = async (deviceId, audioConstraints = null) => {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    throw new Error(
+      'Microphone access is unavailable here. Open Creator Studio on HTTPS or http://localhost and allow microphone permission.'
+    );
+  }
+  if (!deviceId) throw new Error('Choose an input for Channel 2.');
+
+  const stream = await navigator.mediaDevices.getUserMedia({
+    audio: {
+      ...normalizedMicConstraints(audioConstraints),
+      deviceId: { exact: deviceId },
+    },
+  });
+  const track = stream.getAudioTracks()[0];
+  return connectAcquiredStream('channel2', stream, track?.label || 'Audio input', deviceId);
+};
+
 export const connectMediaFile = async (file) => {
   if (!(file instanceof File) || !file.type.startsWith('audio/')) {
     throw new Error('Choose an audio file for Music / FX.');
@@ -624,14 +718,84 @@ export const connectMediaFile = async (file) => {
     const sourceState = sources.get('media');
     if (sourceState) {
       sourceState.bufferSource = bufferSource;
+      sourceState.audioBuffer = buffer;
       sourceState.mediaDestination = mediaDestination;
+      sourceState.mediaStartedAt = context.currentTime;
+      sourceState.mediaOffset = 0;
+      sourceState.mediaPlaying = true;
     }
+    channels = {
+      ...channels,
+      media: {
+        ...channels.media,
+        duration: buffer.duration,
+        currentTime: 0,
+        playing: true,
+        sourceKind: 'file',
+      },
+    };
     bufferSource.start();
+    notify();
     return track;
   } catch (error) {
     try { bufferSource.stop(); } catch { /* Source was not started. */ }
     throw error;
   }
+};
+
+export const connectMediaUrl = async (url, label = 'Echoo library audio') => {
+  if (!url) throw new Error('This Echoo library item has no playable audio URL.');
+  const response = await fetch(url, { credentials: 'include' });
+  if (!response.ok) throw new Error('Echoo could not load that library audio.');
+  const blob = await response.blob();
+  const type = blob.type.startsWith('audio/') ? blob.type : 'audio/mpeg';
+  return connectMediaFile(new File([blob], label, { type }));
+};
+
+const restartMediaBuffer = (sourceState, offset = 0) => {
+  if (!audioContext || !sourceState?.audioBuffer || !sourceState?.mediaDestination) return;
+  const nextSource = audioContext.createBufferSource();
+  nextSource.buffer = sourceState.audioBuffer;
+  nextSource.loop = true;
+  nextSource.connect(sourceState.mediaDestination);
+  const duration = sourceState.audioBuffer.duration;
+  const normalizedOffset = Math.max(0, offset) % duration;
+  nextSource.start(0, normalizedOffset);
+  sourceState.bufferSource = nextSource;
+  sourceState.mediaOffset = normalizedOffset;
+  sourceState.mediaStartedAt = audioContext.currentTime;
+  sourceState.mediaPlaying = true;
+};
+
+export const toggleMediaPlayback = () => {
+  const sourceState = sources.get('media');
+  if (!sourceState?.audioBuffer) return getSnapshot();
+  if (sourceState.mediaPlaying) {
+    const elapsed = audioContext.currentTime - sourceState.mediaStartedAt;
+    sourceState.mediaOffset = (sourceState.mediaOffset + elapsed) % sourceState.audioBuffer.duration;
+    sourceState.mediaPlaying = false;
+    try { sourceState.bufferSource?.stop(); } catch { /* Already stopped. */ }
+  } else {
+    restartMediaBuffer(sourceState, sourceState.mediaOffset);
+  }
+  channels = {
+    ...channels,
+    media: { ...channels.media, currentTime: sourceState.mediaOffset, playing: sourceState.mediaPlaying },
+  };
+  notify();
+  return getSnapshot();
+};
+
+export const seekMedia = (seconds) => {
+  const sourceState = sources.get('media');
+  if (!sourceState?.audioBuffer) return getSnapshot();
+  const nextOffset = Math.max(0, Math.min(sourceState.audioBuffer.duration, Number(seconds) || 0));
+  try { sourceState.bufferSource?.stop(); } catch { /* Already stopped. */ }
+  sourceState.mediaOffset = nextOffset;
+  if (sourceState.mediaPlaying) restartMediaBuffer(sourceState, nextOffset);
+  channels = { ...channels, media: { ...channels.media, currentTime: nextOffset } };
+  notify();
+  return getSnapshot();
 };
 
 export const connectSystemAudio = async () => {
@@ -765,7 +929,7 @@ export const setCreatorAudioSettings = async (value) => {
     previousSettings.echoRemoval !== creatorAudioSettings.echoRemoval;
   if (!captureSettingsChanged) return { ...creatorAudioSettings };
 
-  const activeVoiceTracks = ['host', 'guest']
+  const activeVoiceTracks = ['host', 'channel2', 'guest']
     .map((channelId) => sources.get(channelId)?.audioTrack)
     .filter((track) => track?.readyState === 'live');
   await Promise.allSettled(
@@ -1101,6 +1265,12 @@ export const stopEchooMixer = async () => {
   masterProtectedGainNode = null;
   masterAnalyser = null;
   masterMeterData = null;
+  masterChannelSplitter = null;
+  masterLeftAnalyser = null;
+  masterRightAnalyser = null;
+  masterLeftMeterData = null;
+  masterRightMeterData = null;
+  masterMeterSinkNode = null;
   monitorGainNode = null;
   monitorDestinationNode = null;
   pcmCaptureModuleContext = null;
@@ -1115,6 +1285,10 @@ export const stopEchooMixer = async () => {
     level: 0,
     rmsDb: MIN_DB,
     peakDb: MIN_DB,
+    leftLevel: 0,
+    rightLevel: 0,
+    leftPeakDb: MIN_DB,
+    rightPeakDb: MIN_DB,
   };
   monitoring = {
     enabled: false,
@@ -1136,17 +1310,22 @@ export const ECHOO_MIXER_LIMITS = {
 
 export default {
   subscribeEchooMixer,
+  subscribeEchooMeters,
   getEchooMixerState,
   getMixerChannelTrack,
   ensureHostInput,
   connectGuestInput,
+  connectSecondInput,
   connectMediaFile,
+  connectMediaUrl,
   connectSystemAudio,
   disconnectMixerChannel,
   setMixerChannelGain,
   setMixerChannelGainDb,
   toggleMixerChannelMute,
   toggleMixerChannelSolo,
+  toggleMediaPlayback,
+  seekMedia,
   setMasterGain,
   setMasterGainDb,
   setCreatorAudioSettings,

@@ -6,7 +6,7 @@ import {
   FaImage,
   FaTimes,
 } from 'react-icons/fa';
-import { FiBell, FiCalendar, FiCamera, FiRadio, FiSettings } from 'react-icons/fi';
+import { FiCalendar, FiCamera, FiRadio } from 'react-icons/fi';
 import { MdOutlinePodcasts } from 'react-icons/md';
 import { PiChartBar } from 'react-icons/pi';
 
@@ -22,7 +22,6 @@ import { api } from '../../services/api';
 import { buildGeneratedAudioCoverUrl } from '../../audioCover/audioCover';
 import ListenerLiveConnected from '../ListenerLive/ListenerLiveConnected';
 import CreatorDiscoverWorkspace from './CreatorDiscoverWorkspace';
-import CreatorChannelsWorkspace from './CreatorChannelsWorkspace';
 import { CreatorStudioStateProvider } from './CreatorStudioState';
 import CreatorContentWorkspace from './CreatorContentWorkspace';
 import CreatorBroadcastWorkspace from './CreatorLiveConnectedWorkspace';
@@ -60,7 +59,7 @@ const AUDIO_EXTENSIONS = new Set([
 
 const CREATOR_WORKSPACE_PATHS = {
   Broadcast: '/creator-studio',
-  Channels: '/creator-studio/channels',
+  Station: '/creator-studio/station',
   Collections: '/creator-studio/recordings',
   Schedule: '/creator-studio/schedule-events',
   Analytics: '/creator-studio/analytics',
@@ -76,6 +75,8 @@ const CREATOR_WORKSPACE_PATHS = {
 const CREATOR_ROUTE_WORKSPACES = Object.fromEntries(
   Object.entries(CREATOR_WORKSPACE_PATHS).map(([workspace, path]) => [path, workspace])
 );
+CREATOR_ROUTE_WORKSPACES['/creator-studio/channels'] = 'Station';
+CREATOR_ROUTE_WORKSPACES['/creator-studio/stations'] = 'Station';
 
 const creatorWorkspaceForPath = (pathname) => {
   const normalizedPath = String(pathname || '/creator-studio').replace(/\/+$/, '') || '/creator-studio';
@@ -148,7 +149,7 @@ const CreatorStudioBody = () => {
 
   const navItems = [
     { workspace: 'Broadcast', label: 'Broadcast', icon: <FiRadio /> },
-    { workspace: 'Channels', label: 'Channels', icon: <MdOutlinePodcasts /> },
+    { workspace: 'Station', label: 'Station', icon: <MdOutlinePodcasts /> },
     { workspace: 'Collections', label: 'Recordings', icon: <FiCamera /> },
     { workspace: 'Schedule', label: 'Schedule Events', icon: <FiCalendar /> },
     { workspace: 'Analytics', label: 'Analytics', icon: <PiChartBar /> },
@@ -170,11 +171,11 @@ const CreatorStudioBody = () => {
   useEffect(() => {
     let active = true;
     const load = async () => {
-      if (!['Audio', 'Collections', 'Audience'].includes(activeNav)) return;
+      if (!['Audio', 'Broadcast', 'Collections', 'Audience'].includes(activeNav)) return;
       try {
         setLoading(true);
         setError('');
-        if (activeNav === 'Audio' || activeNav === 'Collections') {
+        if (activeNav === 'Audio' || activeNav === 'Broadcast' || activeNav === 'Collections') {
           const response = await studioService.getContent({ page: contentPage, limit: 50 });
           if (active) setContent(response?.data || { tracks: [], pagination: {} });
         }
@@ -373,9 +374,8 @@ const CreatorStudioBody = () => {
             onChanged={() => setRefreshKey((value) => value + 1)}
           />
         );
-      case 'Channels':
-        return <CreatorChannelsWorkspace />;
       case 'Stations':
+      case 'Station':
         return <CreatorStationsWorkspace studioName={studioName} onNavigate={navigateStudio} />;
       case 'Discover':
         return <CreatorDiscoverWorkspace onNavigate={navigateStudio} />;
@@ -396,8 +396,8 @@ const CreatorStudioBody = () => {
             studioName={studioName}
             profileImage={profileImage}
             initialBroadcastId={preparedBroadcastId}
+            audioLibrary={Array.isArray(content?.tracks) ? content.tracks : []}
             onNavigate={navigateStudio}
-            onAddMusic={openUpload}
             onClearPreparedBroadcast={clearPreparedBroadcast}
           />
         );
@@ -447,17 +447,19 @@ const CreatorStudioBody = () => {
 
       <main id="echoo-main-content" ref={mainScrollRef} tabIndex="-1" className="studio-main">
         <header className="studio-topbar studio-topbar-final">
+          <button type="button" className="studio-mobile-brand" onClick={() => navigateStudio('Broadcast')} aria-label="Echoo Creator Studio">
+            <img src={echooLogo} alt="" />
+            <span>echoo</span>
+          </button>
           <AccountExperienceMenu
             currentExperience="creator"
             user={user}
             profileImage={profileImage}
             variant="creator"
             onUserChange={setUser}
+            onNotifications={() => navigateStudio('Notifications')}
+            onSettings={() => navigateStudio('Settings')}
           />
-          <div className="studio-top-actions">
-            <button type="button" className="notification-button" onClick={() => navigateStudio('Notifications')} title="Notifications" aria-label="Notifications"><FiBell /></button>
-            <button type="button" className="studio-icon-button" onClick={() => navigateStudio('Settings')} title="Settings" aria-label="Settings"><FiSettings /></button>
-          </div>
         </header>
 
         {error && <div className="studio-alert error"><FaExclamationCircle /><span>{error}</span><button type="button" onClick={() => setError('')}><FaTimes /></button></div>}

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   FaBroadcastTower,
   FaCalendarAlt,
@@ -12,7 +13,6 @@ import {
   FaPlus,
   FaRandom,
   FaSave,
-  FaSearch,
   FaThLarge,
   FaTimes,
   FaTrash,
@@ -25,6 +25,7 @@ import {
   buildGeneratedStationBrandCoverUrl,
   randomStationBrandVariant,
 } from '../../stationBranding/stationBranding';
+import { getPublicStationPath, getPublicStationUrl } from '../../services/stationPublicUrl';
 import './CreatorStationsReference.css';
 
 const CATEGORIES = [
@@ -92,6 +93,7 @@ const stationState = (station) => {
 };
 
 const CreatorStationsWorkspace = ({ onNavigate }) => {
+  const navigate = useNavigate();
   const [stations, setStations] = useState([]);
   const [broadcasts, setBroadcasts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -101,10 +103,6 @@ const CreatorStationsWorkspace = ({ onNavigate }) => {
   const [selectedStationId, setSelectedStationId] = useState(
     () => sessionStorage.getItem('echooSelectedStationId') || ''
   );
-  const [search, setSearch] = useState('');
-  const [sortMode, setSortMode] = useState('updated');
-  const [viewMode, setViewMode] = useState('list');
-  const [visibleCount, setVisibleCount] = useState(4);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const [form, setForm] = useState(createEmptyForm);
   const [saving, setSaving] = useState(false);
@@ -142,30 +140,10 @@ const CreatorStationsWorkspace = ({ onNavigate }) => {
 
   const sorted = useMemo(() => {
     const next = [...stations];
-    if (sortMode === 'name') {
-      return next.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
-    }
-    if (sortMode === 'followers') {
-      return next.sort((a, b) => Number(b.followerCount || 0) - Number(a.followerCount || 0));
-    }
     return next.sort(
       (a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0)
     );
-  }, [stations, sortMode]);
-
-  const filtered = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    if (!query) return sorted;
-    return sorted.filter((station) =>
-      [station.name, station.category, station.description, ...(station.tags || [])]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(query))
-    );
-  }, [search, sorted]);
-
-  useEffect(() => {
-    setVisibleCount(4);
-  }, [search, sortMode, viewMode]);
+  }, [stations]);
 
   useEffect(() => {
     if (!sorted.length) {
@@ -262,7 +240,16 @@ const CreatorStationsWorkspace = ({ onNavigate }) => {
     const broadcastId = idOf(broadcast);
     if (broadcastId) sessionStorage.setItem('echooPreparedBroadcastId', broadcastId);
     if (selectedStation?.id) sessionStorage.setItem('echooSelectedStationId', idOf(selectedStation));
-    onNavigate?.('Broadcast');
+    const status = String(broadcast.status || '').toLowerCase();
+    if (['starting', 'live', 'ending'].includes(status)) {
+      onNavigate?.('Broadcast');
+      return;
+    }
+    if (status === 'scheduled') {
+      onNavigate?.('Schedule');
+      return;
+    }
+    onNavigate?.('Collections');
   };
 
   const openBroadcastLibrary = () => {
@@ -459,20 +446,27 @@ const CreatorStationsWorkspace = ({ onNavigate }) => {
   const featuredBroadcastCount = featured ? broadcastCounts.get(idOf(featured)) || 0 : 0;
   const stationDescription = featured?.description || 'No description has been added for this station yet.';
   const defaultAudio = featured?.defaultAudio?.title || featured?.defaultAudioTitle || 'Not set';
+  const publicPath = featured ? getPublicStationPath(featured) : '';
+  const publicUrl = featured ? getPublicStationUrl(featured) : '';
+  const legacyStationCount = Math.max(0, stations.length - 1);
+  const viewAsListener = () => {
+    if (publicPath) navigate(publicPath);
+  };
 
   return (
     <section className="est est-reference-page">
       <header className="est-header">
         <div>
-          <h1>Your stations</h1>
+          <h1>Station</h1>
           <p>
-            A station is the home for your broadcasts. Create it once, then go live or
-            schedule your next session whenever you are ready.
+            Manage the one public station your broadcasts belong to.
           </p>
         </div>
-        <button type="button" className="est-new" onClick={openCreate}>
-          <FaPlus /> New station
-        </button>
+        {!stations.length && (
+          <button type="button" className="est-new" onClick={openCreate}>
+            <FaPlus /> Set up station
+          </button>
+        )}
       </header>
 
       {message && <div className="est-message success">{message}</div>}
@@ -486,15 +480,15 @@ const CreatorStationsWorkspace = ({ onNavigate }) => {
       ) : !stations.length ? (
         <div className="est-empty">
           <FaBroadcastTower />
-          <h2>No stations yet</h2>
-          <p>Create your first station to start broadcasting.</p>
-          <button type="button" onClick={openCreate}><FaPlus /> New station</button>
+          <h2>Complete your station setup</h2>
+          <p>Create the one station listeners can find, follow, and hear live.</p>
+          <button type="button" onClick={openCreate}><FaPlus /> Set up station</button>
         </div>
       ) : (
         <div className="est-workspace-grid">
           <div className="est-workspace-main">
             <section className="est-featured-card">
-              <span className="est-featured-label">FEATURED STATION</span>
+              <span className="est-featured-label">STATION</span>
               <div className="est-featured-layout">
                 <button
                   type="button"
@@ -518,6 +512,12 @@ const CreatorStationsWorkspace = ({ onNavigate }) => {
                     <div><FaHeadphonesSafe /><strong>{formatNumber(featured?.listenerCount)}</strong><span>Listening now</span></div>
                     <div><FaBroadcastTower /><strong>{formatNumber(featuredBroadcastCount)}</strong><span>Broadcasts</span></div>
                   </div>
+                  {publicUrl && <p className="est-public-url">Public URL <span>{publicUrl}</span></p>}
+                  {legacyStationCount > 0 && (
+                    <p className="est-legacy-note">
+                      {legacyStationCount} older station record{legacyStationCount === 1 ? '' : 's'} remain safely preserved, but this is the canonical station shown in Creator Studio.
+                    </p>
+                  )}
                 </div>
 
                 <div className="est-featured-actions">
@@ -525,127 +525,16 @@ const CreatorStationsWorkspace = ({ onNavigate }) => {
                     <FaBroadcastTower /> {featured?.isLive ? 'Open studio' : 'Start broadcast'}
                   </button>
                   <button type="button" onClick={() => openEdit(featured)}>
-                    <FaEdit /> Edit branding
+                    <FaEdit /> Edit station
+                  </button>
+                  <button type="button" onClick={viewAsListener} disabled={!publicPath}>
+                    <FaPlay /> View as Listener
                   </button>
                   <button type="button" onClick={() => openBroadcast(featured, 'later')}>
                     <FaCalendarAlt /> Schedule
                   </button>
-                  <div className="est-featured-more-wrap">
-                    <button
-                      type="button"
-                      className="icon-only"
-                      aria-label="More featured station actions"
-                      aria-expanded={menuStationId === `featured-${idOf(featured)}`}
-                      onClick={() => setMenuStationId((current) => current === `featured-${idOf(featured)}` ? '' : `featured-${idOf(featured)}`)}
-                    >
-                      <FaEllipsisH />
-                    </button>
-                    {menuStationId === `featured-${idOf(featured)}` && (
-                      <div className="est-more-menu featured-menu">
-                        <button type="button" onClick={() => openEdit(featured)}><FaEdit /> Edit station</button>
-                        <button
-                          type="button"
-                          className="danger"
-                          disabled={deletingId === idOf(featured) || featured?.isLive}
-                          onClick={() => removeStation(featured)}
-                        >
-                          <FaTrash /> Delete station
-                        </button>
-                      </div>
-                    )}
-                  </div>
                 </div>
               </div>
-            </section>
-
-            <section className="est-all-stations">
-              <div className="est-all-head">
-                <div><h2>All stations</h2></div>
-                <div className="est-toolbar">
-                  <label className="est-search">
-                    <FaSearch />
-                    <input
-                      type="search"
-                      value={search}
-                      placeholder="Search stations..."
-                      onChange={(event) => setSearch(event.target.value)}
-                    />
-                  </label>
-                  <label className="est-sort">
-                    <select value={sortMode} onChange={(event) => setSortMode(event.target.value)}>
-                      <option value="updated">Recently updated</option>
-                      <option value="name">Name</option>
-                      <option value="followers">Most followers</option>
-                    </select>
-                    <FaChevronDown />
-                  </label>
-                  <div className="est-view-toggle" aria-label="Station view">
-                    <button type="button" className={viewMode === 'grid' ? 'active' : ''} onClick={() => setViewMode('grid')} aria-label="Grid view"><FaThLarge /></button>
-                    <button type="button" className={viewMode === 'list' ? 'active' : ''} onClick={() => setViewMode('list')} aria-label="List view"><FaList /></button>
-                  </div>
-                </div>
-              </div>
-
-              {filtered.length ? (
-                <div className={`est-station-collection ${viewMode}`}>
-                  {filtered.slice(0, visibleCount).map((station) => {
-                    const state = stationState(station);
-                    const menuOpen = menuStationId === idOf(station);
-                    const isSelected = idOf(station) === idOf(featured);
-                    const broadcastCount = broadcastCounts.get(idOf(station)) || 0;
-                    const anotherStationLive = Boolean(liveStation && !station.isLive);
-
-                    return (
-                      <article className={`est-station-row ${isSelected ? 'selected' : ''}`} key={station.id}>
-                        <button type="button" className="est-row-identity" onClick={() => selectStation(station, true)}>
-                          <img src={station.brandCover || station.coverArt} alt="" />
-                          <span><strong>{station.name}</strong><small>{station.category || 'Other'}</small></span>
-                        </button>
-                        <div className="est-row-stat"><strong>{formatNumber(station.followerCount)}</strong><span>Followers</span></div>
-                        <div className="est-row-stat"><strong>{formatNumber(station.listenerCount)}</strong><span>Listening now</span></div>
-                        <div className="est-row-stat"><strong>{formatNumber(broadcastCount)}</strong><span>Broadcasts</span></div>
-                        <span className={`est-status compact ${state}`}><i />{state === 'live' ? 'Live' : state === 'offline' ? 'Offline' : 'Ready'}</span>
-                        <div className="est-more-wrap">
-                          <button
-                            type="button"
-                            className="est-more-button"
-                            aria-label={`More actions for ${station.name}`}
-                            aria-expanded={menuOpen}
-                            onClick={() => setMenuStationId((current) => current === idOf(station) ? '' : idOf(station))}
-                          >
-                            <FaEllipsisH />
-                          </button>
-                          {menuOpen && (
-                            <div className="est-more-menu">
-                              <button type="button" onClick={() => openBroadcast(station, 'now')} disabled={anotherStationLive}>
-                                <FaMicrophone /> {station.isLive ? 'Open studio' : 'Start broadcast'}
-                              </button>
-                              <button type="button" onClick={() => openBroadcast(station, 'later')}><FaCalendarAlt /> Schedule</button>
-                              <button type="button" onClick={() => openEdit(station)}><FaEdit /> Edit station</button>
-                              <button
-                                type="button"
-                                className="danger"
-                                disabled={deletingId === idOf(station) || station.isLive}
-                                onClick={() => removeStation(station)}
-                              >
-                                <FaTrash /> Delete station
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </article>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="est-no-results">No stations match “{search}”.</div>
-              )}
-
-              {filtered.length > visibleCount && (
-                <button type="button" className="est-show-more" onClick={() => setVisibleCount((value) => value + 4)}>
-                  Show more stations <FaChevronDown />
-                </button>
-              )}
             </section>
           </div>
 

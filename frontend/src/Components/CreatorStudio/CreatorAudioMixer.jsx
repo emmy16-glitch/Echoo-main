@@ -13,12 +13,14 @@ import {
   FaVolumeMute,
   FaVolumeUp,
 } from 'react-icons/fa';
-import { FiChevronDown, FiCircle, FiHeadphones, FiMinus, FiMoreVertical } from 'react-icons/fi';
+import { FiChevronDown, FiCircle, FiHeadphones, FiMinus, FiMoreVertical, FiPause, FiPlay, FiPlus, FiRadio, FiTrash2, FiVolume2 } from 'react-icons/fi';
 
 import {
   ECHOO_MIXER_LIMITS,
   connectGuestInput,
+  connectSecondInput,
   connectMediaFile,
+  connectMediaUrl,
   connectSystemAudio,
   disconnectMixerChannel,
   ensureHostInput,
@@ -35,11 +37,15 @@ import {
   setMonitorGain,
   setMonitorOutputDevice,
   subscribeEchooMixer,
+  subscribeEchooMeters,
   toggleMasterMute,
   toggleMixerChannelMute,
   toggleMixerChannelSolo,
+  toggleMediaPlayback,
+  seekMedia,
 } from '../../services/echooMixerService';
 import { applyProgramTrackQuality, audioQualityLabel } from '../../services/audioQualityProfile';
+import studioService from '../../services/studioService';
 import {
   getCachedCreatorAudioSettings,
   loadCreatorAudioSettings,
@@ -52,6 +58,21 @@ const formatDb = (value) => {
   const db = Number(value);
   if (!Number.isFinite(db) || db <= ECHOO_MIXER_LIMITS.minDb + 0.1) return '-∞ dB';
   return `${db > 0 ? '+' : ''}${db.toFixed(1)} dB`;
+};
+
+const formatMediaTime = (seconds) => {
+  const value = Math.max(0, Number(seconds) || 0);
+  const minutes = Math.floor(value / 60);
+  return `${minutes}:${String(Math.floor(value % 60)).padStart(2, '0')}`;
+};
+
+const getLibraryAudioUrl = async (item = {}) => {
+  const directUrl = item.audioUrl || item.fileUrl || item.url || item.streamUrl || item.audioFile || '';
+  if (directUrl) return directUrl;
+  const audioId = item.id || item._id;
+  if (!audioId) return '';
+  const stream = await studioService.getAudioStreamUrl(audioId);
+  return stream?.streamUrl || '';
 };
 
 const SOURCE_COPY = Object.freeze({
@@ -157,15 +178,40 @@ const parentStateSignature = (snapshot = {}) => [
   snapshot.channels?.host?.connected ? '1' : '0',
   snapshot.channels?.host?.deviceId || '',
   snapshot.channels?.host?.sourceLabel || '',
+  snapshot.channels?.host?.gain ?? '',
+  snapshot.channels?.host?.muted ? '1' : '0',
+  snapshot.channels?.host?.solo ? '1' : '0',
+  snapshot.channels?.channel2?.connected ? '1' : '0',
+  snapshot.channels?.channel2?.deviceId || '',
+  snapshot.channels?.channel2?.sourceLabel || '',
+  snapshot.channels?.channel2?.gain ?? '',
+  snapshot.channels?.channel2?.muted ? '1' : '0',
+  snapshot.channels?.channel2?.solo ? '1' : '0',
   snapshot.channels?.guest?.connected ? '1' : '0',
   snapshot.channels?.guest?.deviceId || '',
+  snapshot.channels?.guest?.gain ?? '',
+  snapshot.channels?.guest?.muted ? '1' : '0',
+  snapshot.channels?.guest?.solo ? '1' : '0',
   snapshot.channels?.media?.connected ? '1' : '0',
   snapshot.channels?.media?.sourceLabel || '',
+  snapshot.channels?.media?.gain ?? '',
+  snapshot.channels?.media?.muted ? '1' : '0',
+  snapshot.channels?.media?.solo ? '1' : '0',
+  snapshot.channels?.media?.playing ? '1' : '0',
+  Math.floor(Number(snapshot.channels?.media?.currentTime) || 0),
+  snapshot.channels?.screen?.connected ? '1' : '0',
+  snapshot.channels?.screen?.sourceLabel || '',
+  snapshot.channels?.screen?.gain ?? '',
+  snapshot.channels?.screen?.muted ? '1' : '0',
+  snapshot.channels?.screen?.solo ? '1' : '0',
+  snapshot.master?.gain ?? '',
   snapshot.master?.muted ? '1' : '0',
   snapshot.monitoring?.enabled ? '1' : '0',
+  snapshot.monitoring?.gain ?? '',
+  snapshot.monitoring?.outputDeviceId || '',
 ].join('|');
 
-const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = null, onStateChange, onAddMusic }) => {
+const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = null, onStateChange, audioLibrary = [], onGoLive, goLiveBusy = false }) => {
   // The pre-live Sound Check and Live Mixer share this exact snapshot. Browser
   // tracks remain owned by echooMixerService, so entering live never asks the
   // creator to choose or reconnect a source a second time.
@@ -173,6 +219,7 @@ const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = n
   const [inputs, setInputs] = useState([]);
   const [outputs, setOutputs] = useState([]);
   const [hostDeviceId, setHostDeviceId] = useState('');
+  const [channel2DeviceId, setChannel2DeviceId] = useState('');
   const [guestDeviceId, setGuestDeviceId] = useState('');
   const [monitorDeviceId, setMonitorDeviceId] = useState('');
   const [workingChannel, setWorkingChannel] = useState('');
@@ -187,18 +234,44 @@ const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = n
   const parentSignatureRef = useRef('');
   const preferenceSaveTimerRef = useRef(null);
   const monitorWasEnabledBeforeTestRef = useRef(false);
+  const approvedMeterRefs = useRef(new Map());
+  const [audioMenuOpen, setAudioMenuOpen] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
 
   useEffect(() =>
     subscribeEchooMixer((next) => {
       // The mixer itself needs fast meter updates. The parent Broadcast Studio
       // does not. Only notify the parent when connection/control state changes.
-      setMixer(next);
       const signature = parentStateSignature(next);
+      if (!approved || signature !== parentSignatureRef.current) setMixer(next);
       if (signature !== parentSignatureRef.current) {
         parentSignatureRef.current = signature;
         onStateChange?.(next);
       }
-    }), [onStateChange]);
+    }), [approved, onStateChange]);
+
+  useEffect(() => {
+    if (!approved) return undefined;
+    return subscribeEchooMeters((next) => {
+      const levels = {
+        host: next.channels?.host?.level,
+        channel2: next.channels?.channel2?.level,
+        guest: next.channels?.guest?.level,
+        media: next.channels?.media?.level,
+        screen: next.channels?.screen?.level,
+        masterLeft: next.master?.leftLevel,
+        masterRight: next.master?.rightLevel,
+      };
+      Object.entries(levels).forEach(([key, rawLevel]) => {
+        const node = approvedMeterRefs.current.get(key);
+        if (!node) return;
+        const level = Math.max(0, Math.min(1, Number(rawLevel) || 0));
+        const active = Math.round(level * 14);
+        node.querySelectorAll('i').forEach((segment, index) => segment.classList.toggle('active', index < active));
+        node.setAttribute('aria-valuenow', String(Math.round(level * 100)));
+      });
+    });
+  }, [approved]);
 
   const channels = useMemo(() => mixer?.channels || {}, [mixer]);
   const master = mixer?.master || {
@@ -265,11 +338,17 @@ const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = n
           : ''
       );
 
+      setChannel2DeviceId((current) =>
+        current && nextInputs.some((device) => device.deviceId === current)
+          ? current
+          : ''
+      );
+
       setGuestDeviceId((current) => {
         if (current && nextInputs.some((device) => device.deviceId === current)) {
           return current;
         }
-        return nextInputs.find((device) => device.deviceId !== channels.host?.deviceId)?.deviceId || '';
+        return '';
       });
 
       setMonitorDeviceId((current) =>
@@ -290,7 +369,6 @@ const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = n
     mediaDevices.addEventListener('devicechange', refreshDevices);
     return () => mediaDevices.removeEventListener('devicechange', refreshDevices);
     // Device refresh is intentionally registered once for hardware hot-plug.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const connectHost = async () => {
@@ -632,6 +710,7 @@ const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = n
       setWorkingChannel('media');
       setError('');
       await connectMediaFile(file);
+      setAudioMenuOpen(false);
     } catch (mediaError) {
       setError(mediaError?.message || 'Could not add that audio file.');
     } finally {
@@ -641,11 +720,17 @@ const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = n
 
   const changeApprovedInput = async (channelId, deviceId) => {
     if (channelId === 'host') setHostDeviceId(deviceId);
+    if (channelId === 'channel2') setChannel2DeviceId(deviceId);
     if (channelId === 'guest') setGuestDeviceId(deviceId);
     try {
       setWorkingChannel(channelId);
       setError('');
+      if (!deviceId) {
+        disconnectMixerChannel(channelId);
+        return;
+      }
       if (channelId === 'host') await ensureHostInput(deviceId);
+      if (channelId === 'channel2') await connectSecondInput(deviceId);
       if (channelId === 'guest') await connectGuestInput(deviceId);
       await refreshDevices();
     } catch (deviceError) {
@@ -657,8 +742,8 @@ const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = n
 
   if (approved) {
     const strips = [
-      { id: 'host', title: 'CHANNEL 1', role: 'Microphone' },
-      { id: 'media', title: 'CHANNEL 2', role: 'Background Audio' },
+      { id: 'host', title: 'CHANNEL 1', role: 'Built-in Microphone', empty: 'Built-in Microphone' },
+      { id: 'channel2', title: 'CHANNEL 2', role: 'No source', empty: 'No source' },
       { id: 'guest', title: 'CHANNEL 3', role: 'Guest / Call-in' },
     ];
     const dbLabels = ['0', '-10', '-20', '-30', '-40', '-50'];
@@ -680,37 +765,74 @@ const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = n
       const ratioFromTop = (100 - position) / 100;
       return `${ratioFromTop * 100}%`;
     };
-    const renderApprovedMeter = (channel, label) => {
+    const renderApprovedMeter = (channel, label, meterKey) => {
       const active = Math.round(Math.max(0, Math.min(1, Number(channel?.level) || 0)) * 14);
-      return <div className="eam-approved-meter" role="meter" aria-label={`${label} level`} aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.round((Number(channel?.level) || 0) * 100)}>{Array.from({ length: 14 }, (_, index) => <i key={index} className={index < active ? 'active' : ''} />)}</div>;
+      return <div ref={(node) => { if (node) approvedMeterRefs.current.set(meterKey, node); else approvedMeterRefs.current.delete(meterKey); }} className="eam-approved-meter" role="meter" aria-label={`${label} level`} aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.round((Number(channel?.level) || 0) * 100)}>{Array.from({ length: 14 }, (_, index) => <i key={index} className={index < active ? 'active' : ''} />)}</div>;
     };
+    const renderApprovedStereoMeter = () => (
+      <div className="eam-approved-stereo-meter" aria-label="Master output stereo level">
+        <div className="eam-approved-stereo-column"><span>L</span>{renderApprovedMeter({ level: master.leftLevel, peakDb: master.leftPeakDb }, 'Master left', 'masterLeft')}</div>
+        <div className="eam-approved-stereo-column"><span>R</span>{renderApprovedMeter({ level: master.rightLevel, peakDb: master.rightPeakDb }, 'Master right', 'masterRight')}</div>
+      </div>
+    );
     const renderApprovedStrip = ({ id, title, role }) => {
       const channel = channels[id] || {};
       const faderDb = gainToDb(channel.gain ?? 1);
       const approvedFaderValue = dbToApprovedPosition(faderDb, ECHOO_MIXER_LIMITS.maxChannelDb);
-      const inputValue = id === 'host' ? hostDeviceId : guestDeviceId;
-      const inputOptions = id === 'host'
-        ? inputs
-        : inputs.filter((device) => device.deviceId !== channels.host?.deviceId);
+      const selectedDeviceId = id === 'host' ? hostDeviceId : id === 'channel2' ? channel2DeviceId : guestDeviceId;
+      const inputValue = selectedDeviceId || channel.deviceId || '';
+      const unavailableIds = [channels.host?.deviceId, channels.channel2?.deviceId, channels.guest?.deviceId]
+        .filter((deviceId) => deviceId && deviceId !== channel?.deviceId);
+      const inputOptions = inputs.filter((device) => !unavailableIds.includes(device.deviceId));
+      const sourceTitle = channel.connected ? channel.sourceLabel : role;
       return (
         <article className="eam-approved-strip" key={id}>
-          <header><div><strong>{title}</strong><span>{role}</span></div><button type="button" aria-label={`${role} options`} title={`${role} options`}><FiMoreVertical /></button></header>
+          <header><div><strong>{title}</strong><span>{sourceTitle}</span></div><button type="button" aria-label={`${role} options`} title={`${role} options`}><FiMoreVertical /></button></header>
           <div className="eam-approved-controls">
-            <div className="eam-approved-meter-area"><div className="eam-approved-db">{dbLabels.map((label) => <span key={label}>{label}</span>)}</div>{renderApprovedMeter(channel, role)}</div>
+            <div className="eam-approved-meter-area"><div className="eam-approved-db">{dbLabels.map((label) => <span key={label}>{label}</span>)}</div>{renderApprovedMeter(channel, role, id)}</div>
             <label className="eam-approved-fader" style={{ '--fader-position': faderPosition(approvedFaderValue) }}><FiCircle className="eam-approved-fader-cap" aria-hidden="true" /><input type="range" min="0" max="100" step="1" value={approvedFaderValue} onChange={(event) => setMixerChannelGainDb(id, approvedPositionToDb(event.target.value, ECHOO_MIXER_LIMITS.maxChannelDb))} disabled={!channel.connected} aria-label={`${role} level`} aria-valuetext={formatDb(faderDb)} /><FiMinus className="eam-approved-fader-mark" aria-hidden="true" /></label>
           </div>
-          <button type="button" className={`eam-approved-monitor ${channel.solo ? 'active' : ''}`} onClick={() => handleListenOnly(id)} disabled={!channel.connected || monitorWorking} aria-pressed={Boolean(channel.solo)}><FiHeadphones /> Monitor</button>
-          {id === 'media' ? (
-            <button type="button" className="eam-approved-select eam-approved-media-select" onClick={() => { if (onAddMusic) onAddMusic(); else mediaFileInputRef.current?.click(); }}><span>{channel.connected ? channel.sourceLabel || 'Audio source' : 'Select audio source'}</span><FiChevronDown /></button>
-          ) : (
-            <label className="eam-approved-select"><select value={inputValue} onChange={(event) => changeApprovedInput(id, event.target.value)} aria-label={`${role} input`} disabled={workingChannel === id}><option value="">{id === 'host' ? 'Select microphone' : 'Select guest input'}</option>{inputOptions.map((device) => <option key={device.deviceId} value={device.deviceId}>{device.label}</option>)}</select><FiChevronDown /></label>
-          )}
+          <div className="eam-approved-actions">
+            <button type="button" className={`eam-approved-monitor ${channel.solo ? 'active' : ''}`} onClick={() => handleListenOnly(id)} disabled={!channel.connected || monitorWorking} aria-pressed={Boolean(channel.solo)}><FiHeadphones /> Monitor</button>
+            <button type="button" className={`eam-approved-mute ${channel.muted ? 'active' : ''}`} onClick={() => toggleMixerChannelMute(id)} disabled={!channel.connected} aria-pressed={Boolean(channel.muted)}><FaVolumeMute /> {channel.muted ? 'Muted' : 'Mute'}</button>
+          </div>
+          <label className="eam-approved-select"><select value={inputValue} onChange={(event) => changeApprovedInput(id, event.target.value)} aria-label={`${role} input`} disabled={workingChannel === id}><option value="">{id === 'host' ? 'Built-in Microphone' : id === 'channel2' ? 'Select source' : 'Invite guest'}</option>{inputOptions.map((device) => <option key={device.deviceId} value={device.deviceId}>{device.label}</option>)}</select><FiChevronDown /></label>
         </article>
       );
     };
 
     const masterDb = gainToDb(master.gain ?? 1);
     const approvedMasterFaderValue = dbToApprovedPosition(masterDb, ECHOO_MIXER_LIMITS.maxMasterDb);
+    const activeMediaId = channels.media?.connected ? 'media' : channels.screen?.connected ? 'screen' : '';
+    const activeMedia = activeMediaId ? channels[activeMediaId] : null;
+    const addBrowserAudio = async () => {
+      try {
+        setWorkingChannel('screen');
+        setError('');
+        await connectSystemAudio();
+        setAudioMenuOpen(false);
+      } catch (browserAudioError) {
+        setError(browserAudioError?.message || 'Could not share browser audio.');
+      } finally {
+        setWorkingChannel('');
+      }
+    };
+    const addLibraryAudio = async (item) => {
+      try {
+        setWorkingChannel('media');
+        setError('');
+        const playableUrl = await getLibraryAudioUrl(item);
+        await connectMediaUrl(playableUrl, item.title || item.name || 'Echoo library audio');
+        setLibraryOpen(false);
+        setAudioMenuOpen(false);
+      } catch (libraryError) {
+        setError(libraryError?.message || 'Could not add that Echoo library audio.');
+      } finally {
+        setWorkingChannel('');
+      }
+    };
+    const mediaDuration = Number(channels.media?.duration) || 0;
+    const mediaCurrentTime = Number(channels.media?.currentTime) || 0;
     return (
       <section className="eam-approved" aria-label="Workstation mixer">
         <input ref={mediaFileInputRef} className="eam-approved-file" type="file" accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.oga,.opus,.flac,.webm" onChange={chooseMediaFile} />
@@ -719,10 +841,30 @@ const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = n
           {strips.map(renderApprovedStrip)}
           <article className="eam-approved-strip master">
             <header><div><strong>MASTER OUTPUT</strong><span>Main Mix</span></div><button type="button" aria-label="Master output options" title="Master output options"><FiMoreVertical /></button></header>
-            <div className="eam-approved-controls"><div className="eam-approved-meter-area"><div className="eam-approved-db">{dbLabels.map((label) => <span key={label}>{label}</span>)}</div>{renderApprovedMeter(master, 'Main mix')}</div><label className="eam-approved-fader" style={{ '--fader-position': faderPosition(approvedMasterFaderValue) }}><FiCircle className="eam-approved-fader-cap" aria-hidden="true" /><input type="range" min="0" max="100" step="1" value={approvedMasterFaderValue} onChange={(event) => setMasterGainDb(approvedPositionToDb(event.target.value, ECHOO_MIXER_LIMITS.maxMasterDb))} aria-label="Main mix level" aria-valuetext={formatDb(masterDb)} /><FiMinus className="eam-approved-fader-mark" aria-hidden="true" /></label></div>
-            <button type="button" className={`eam-approved-monitor ${monitoring.enabled ? 'active' : ''}`} onClick={handleMonitoring} disabled={monitorWorking} aria-pressed={Boolean(monitoring.enabled)}><FiHeadphones /> Monitor</button>
+            <div className="eam-approved-controls"><div className="eam-approved-meter-area"><div className="eam-approved-db">{dbLabels.map((label) => <span key={label}>{label}</span>)}</div>{renderApprovedStereoMeter()}</div><label className="eam-approved-fader" style={{ '--fader-position': faderPosition(approvedMasterFaderValue) }}><FiCircle className="eam-approved-fader-cap" aria-hidden="true" /><input type="range" min="0" max="100" step="1" value={approvedMasterFaderValue} onChange={(event) => setMasterGainDb(approvedPositionToDb(event.target.value, ECHOO_MIXER_LIMITS.maxMasterDb))} aria-label="Main mix level" aria-valuetext={formatDb(masterDb)} /><FiMinus className="eam-approved-fader-mark" aria-hidden="true" /></label></div>
+            <button type="button" className={`eam-approved-monitor eam-approved-monitor-mix ${monitoring.enabled ? 'active' : ''}`} onClick={handleMonitoring} disabled={monitorWorking} aria-pressed={Boolean(monitoring.enabled)}><FiHeadphones /> Monitor Mix</button>
             <label className="eam-approved-select"><select value={monitorDeviceId || monitoring.outputDeviceId || ''} onChange={(event) => changeMonitorOutput(event.target.value)} disabled={monitorWorking || !monitoring.outputSelectionSupported} aria-label="Main mix output"><option value="">Default Output</option>{outputs.filter((device) => device.deviceId && device.deviceId !== 'default').map((device) => <option key={device.deviceId} value={device.deviceId}>{device.label}</option>)}</select><FiChevronDown /></label>
           </article>
+        </div>
+        <div className={`eam-approved-lower ${activeMedia ? 'has-media' : ''}`}>
+          <section className={`eam-approved-media-dock ${activeMedia ? 'populated' : ''}`}>
+            {activeMedia ? (
+              <>
+                <header><div><strong>MEDIA</strong><span>1 item</span></div><button type="button" onClick={() => setAudioMenuOpen((open) => !open)}><FiPlus /> Add audio <FiChevronDown /></button></header>
+                <div className="eam-approved-media-row">
+                  <div className="eam-approved-media-art"><FiVolume2 /></div>
+                  <div className="eam-approved-media-copy"><strong>{activeMediaId === 'screen' ? 'Browser audio' : activeMedia.sourceLabel}</strong><span>{activeMediaId === 'screen' ? 'Shared browser / tab source' : formatMediaTime(mediaDuration)}</span></div>
+                  {activeMediaId === 'media' && <button type="button" className="eam-approved-play" onClick={toggleMediaPlayback} aria-label={channels.media.playing ? 'Pause audio' : 'Play audio'}>{channels.media.playing ? <FiPause /> : <FiPlay />}</button>}
+                  {activeMediaId === 'media' && <div className="eam-approved-media-progress"><span>{formatMediaTime(mediaCurrentTime)} / {formatMediaTime(mediaDuration)}</span><input type="range" min="0" max={Math.max(1, mediaDuration)} step=".1" value={Math.min(mediaCurrentTime, mediaDuration)} onChange={(event) => seekMedia(event.target.value)} aria-label="Media position" /></div>}
+                  <div className="eam-approved-media-levels"><div className="eam-approved-media-mini-meter">{renderApprovedMeter(activeMedia, 'Media', activeMediaId)}</div><label><FiVolume2 aria-hidden="true" /><input type="range" min={ECHOO_MIXER_LIMITS.minDb} max={ECHOO_MIXER_LIMITS.maxChannelDb} step="0.5" value={gainToDb(activeMedia.gain ?? 1)} onChange={(event) => setMixerChannelGainDb(activeMediaId, event.target.value)} aria-label="Media volume" /></label></div>
+                  <div className="eam-approved-media-actions"><button type="button" className={activeMedia.solo ? 'active' : ''} onClick={() => handleListenOnly(activeMediaId)}><FiHeadphones /> Monitor</button><button type="button" className={activeMedia.muted ? 'active muted' : ''} onClick={() => toggleMixerChannelMute(activeMediaId)}><FaVolumeMute /> {activeMedia.muted ? 'Muted' : 'Mute'}</button><button type="button" className="remove" onClick={() => disconnectMixerChannel(activeMediaId)}><FiTrash2 /> {activeMediaId === 'screen' ? 'Stop sharing' : 'Remove'}</button></div>
+                </div>
+              </>
+            ) : <button type="button" className="eam-approved-add-audio" onClick={() => setAudioMenuOpen((open) => !open)}><FiPlus /> Add audio <FiChevronDown /></button>}
+            {audioMenuOpen && <div className="eam-approved-audio-menu"><button type="button" onClick={() => { setAudioMenuOpen(false); mediaFileInputRef.current?.click(); }}>Upload audio file</button><button type="button" onClick={() => setLibraryOpen(true)}>From Echoo library</button><button type="button" onClick={addBrowserAudio} disabled={workingChannel === 'screen'}>{workingChannel === 'screen' ? 'Opening browser picker…' : 'Share browser audio'}</button></div>}
+            {libraryOpen && <div className="eam-approved-library" role="dialog" aria-modal="true" aria-label="Echoo audio library"><header><strong>Echoo library</strong><button type="button" onClick={() => setLibraryOpen(false)}>Close</button></header>{audioLibrary.length ? audioLibrary.map((item) => <button type="button" key={item.id || item._id || item.title} onClick={() => addLibraryAudio(item)} disabled={workingChannel === 'media'}><span>{item.title || item.name || 'Untitled audio'}</span><small>{item.genre || item.category || 'Audio'}</small></button>) : <p>Your Echoo library is empty.</p>}</div>}
+          </section>
+          <aside className="eam-approved-live-actions"><button type="button" className="eam-approved-go-live" onClick={onGoLive} disabled={goLiveBusy}><FiRadio />{goLiveBusy ? 'Starting…' : 'Go Live'}</button><p>Review your mix before going live.</p><button type="button" className="eam-approved-test-mix" onClick={testProcessedAudio} disabled={monitorWorking || workingChannel === 'host'}><FiVolume2 /> {testingAudio && monitoring.enabled ? 'Stop testing' : 'Test your mix'}</button></aside>
         </div>
       </section>
     );

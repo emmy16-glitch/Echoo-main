@@ -11,14 +11,14 @@
 }
 
 .ec2-hero {
-  height: 278px;
-  min-height: 278px;
+  height: 214px;
+  min-height: 214px;
   display: grid;
   grid-template-columns: minmax(250px, .92fr) minmax(300px, 1.3fr) minmax(175px, .58fr);
   align-items: center;
   gap: 30px;
   overflow: hidden;
-  padding: 38px 48px 38px 50px;
+  padding: 28px 32px;
   border-radius: 16px;
   background: #031536;
   box-shadow: 0 8px 16px rgba(8, 25, 57, .12);
@@ -53,42 +53,20 @@
 .ec2-station-identity strong { display: block; overflow: hidden; margin: 14px 0; color: #fff; font-size: clamp(23px, 2vw, 30px); font-weight: 690; letter-spacing: -.025em; line-height: 1.08; text-overflow: ellipsis; white-space: nowrap; }
 .ec2-station-identity small { color: #c8d0e4; font-size: 15px; line-height: 1.4; }
 
-.ec2-workstation-heading { margin: 28px 10px 13px; }
+.ec2-workstation-heading { margin: 16px 10px 5px; }
 .ec2-workstation-heading h2 { margin: 0; color: var(--ec2-ink); font-size: 27px; font-weight: 760; letter-spacing: -.04em; line-height: 1.1; }
 .ec2-workstation-heading p { margin: 7px 0 0; color: var(--ec2-muted); font-size: 16px; }
 .ec2-notice { margin: 0 0 14px; padding: 11px 13px; border: 1px solid #f0c7c7; border-radius: 9px; background: #fff8f8; color: #a93535; font-size: 13px; }
 
-.ec2-bottom-controls { min-height: 117px; display: grid; grid-template-columns: minmax(0, .95fr) minmax(340px, 1fr); align-items: center; gap: 24px; margin-top: 17px; padding: 14px 13px 14px 17px; border-radius: 15px; background: #fff; box-shadow: 0 8px 26px rgba(16, 42, 83, .05); }
-.ec2-add-music { width: fit-content; min-width: 244px; min-height: 58px; display: inline-flex; align-items: center; gap: 14px; padding: 0 21px; border: 1px solid #d5dfef; border-radius: 10px; background: #fff; color: var(--ec2-blue); font: inherit; font-size: 15px; font-weight: 700; cursor: pointer; }
-.ec2-add-music svg { width: 25px; height: 25px; flex: 0 0 25px; stroke-width: 2; }
-.ec2-add-music:hover { border-color: #a9c4fa; background: #f6f9ff; }
-.ec2-live-action { min-width: 0; text-align: center; }
-.ec2-go-live { width: 100%; min-height: 63px; display: inline-flex; align-items: center; justify-content: center; gap: 14px; border: 0; border-radius: 13px; background: var(--ec2-blue); box-shadow: 0 8px 18px rgba(7, 88, 247, .17); color: #fff; font: inherit; font-size: 20px; font-weight: 720; cursor: pointer; }
-.ec2-go-live:hover:not(:disabled) { background: #0649d3; }
-.ec2-go-live:disabled { cursor: wait; opacity: .7; }
-.ec2-go-live svg { width: 25px; height: 25px; flex: 0 0 25px; stroke-width: 2; }
-.ec2-live-action p { margin: 10px 0 0; color: var(--ec2-muted); font-size: 14px; }
-.ec2-go-live:focus-visible, .ec2-add-music:focus-visible { outline: 3px solid rgba(7,88,247,.28); outline-offset: 3px; }
-
 /* The established app has broad late-loaded type/button rules. Keep this
    reference-matched screen authoritative without changing other Creator pages. */
-html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-hero h1 { color: #fff !important; font-size: 72px !important; font-weight: 760 !important; line-height: .94 !important; letter-spacing: -.055em !important; }
+html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-hero h1 { color: #fff !important; font-size: 50px !important; font-weight: 760 !important; line-height: .94 !important; letter-spacing: -.055em !important; }
 html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-hero p { color: rgba(255,255,255,.94) !important; font-size: 16px !important; line-height: 1.48 !important; }
 html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-waveform { height: 180px !important; }
 html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-status-pill { transform: translateY(-11px); }
 html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-hero p + p { white-space: nowrap; }
 html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-workstation-heading h2 { color: #071434 !important; font-size: 28px !important; font-weight: 760 !important; line-height: 1.1 !important; letter-spacing: -.04em !important; }
 html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-workstation-heading p { color: #52658e !important; font-size: 17px !important; line-height: 1.35 !important; }
-html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-go-live { height: 63px !important; min-height: 63px !important; color: #fff !important; font-size: 21px !important; font-weight: 720 !important; line-height: 1 !important; }
-html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-add-music { min-height: 58px !important; color: #0758f7 !important; font-size: 16px !important; }
-html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-live-action p { color: #52658e !important; font-size: 15px !important; line-height: 21px !important; }
-@media (min-width: 1500px) {
-  html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-bottom-controls {
-    width: calc(100% + 2px);
-    margin-left: 4px;
-  }
-}
-
 @media (max-width: 1100px) {
   .ec2-hero { grid-template-columns: minmax(225px, 1fr) minmax(240px, 1fr); padding: 34px; }
   .ec2-station-identity { grid-column: 1 / -1; display: flex; align-items: baseline; gap: 15px; padding: 0; }
@@ -99,6 +77,4 @@ html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-live-action
   .ec2-waveform-wrap { height: 115px; }
   .ec2-station-identity { display: block; }
   .ec2-station-identity strong { margin: 9px 0; }
-  .ec2-bottom-controls { grid-template-columns: 1fr; gap: 15px; padding: 16px; }
-  .ec2-add-music, .ec2-go-live { width: 100%; justify-content: center; }
 }

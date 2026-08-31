@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FiChevronDown, FiLogOut, FiRepeat } from 'react-icons/fi';
+import { FiBell, FiChevronDown, FiHelpCircle, FiLogOut, FiSettings } from 'react-icons/fi';
 
 import { api } from '../../services/api';
 import { resolveExperienceSwitch } from '../../services/accountExperience';
@@ -20,12 +20,43 @@ const AccountAvatar = ({ image, name, className = '' }) => (
   </span>
 );
 
+export function EchooModeSwitcher({
+  activeMode,
+  disabled = false,
+  onSwitch,
+}) {
+  return (
+    <div className="echoo-mode-switcher" role="tablist" aria-label="Echoo mode">
+      {[
+        ['creator', 'Creator'],
+        ['listener', 'Listener'],
+      ].map(([mode, label]) => (
+        <button
+          key={mode}
+          type="button"
+          role="tab"
+          aria-selected={activeMode === mode}
+          className={activeMode === mode ? 'is-active' : ''}
+          disabled={disabled}
+          onClick={() => onSwitch?.(mode)}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function AccountExperienceMenu({
   currentExperience,
   user,
   profileImage = null,
   variant = 'creator',
   onUserChange,
+  onNotifications,
+  unreadNotifications = 0,
+  onSettings,
+  onHelp,
 }) {
   const navigate = useNavigate();
   const rootRef = useRef(null);
@@ -38,8 +69,7 @@ export default function AccountExperienceMenu({
 
   const name = identityOf(user);
   const image = profileImage || imageOf(user);
-  const targetExperience = currentExperience === 'creator' ? 'listener' : 'creator';
-  const targetLabel = targetExperience === 'creator' ? 'Creator' : 'Listener';
+  const roleLabel = currentExperience === 'creator' ? 'Creator' : 'Listener';
 
   useEffect(() => {
     const closeOutside = (event) => {
@@ -68,7 +98,7 @@ export default function AccountExperienceMenu({
     setOpen((current) => !current);
   };
 
-  const switchExperience = async () => {
+  const switchExperience = async (targetExperience) => {
     if (switching) return;
     try {
       setSwitching(true);
@@ -108,7 +138,24 @@ export default function AccountExperienceMenu({
   };
 
   return (
-    <div className={`account-experience-menu account-experience-menu--${variant}`} ref={rootRef}>
+    <div className={`echoo-account-toolbar account-experience-menu account-experience-menu--${variant}`} ref={rootRef}>
+      <EchooModeSwitcher
+        activeMode={currentExperience}
+        disabled={switching}
+        onSwitch={(mode) => {
+          if (mode === currentExperience) return;
+          switchExperience(mode);
+        }}
+      />
+      <button
+        type="button"
+        className="echoo-account-toolbar__notification"
+        onClick={onNotifications}
+        aria-label={`Notifications${unreadNotifications ? ', unread notifications' : ''}`}
+      >
+        <FiBell aria-hidden="true" />
+        {unreadNotifications > 0 && <span aria-hidden="true" />}
+      </button>
       <button
         type="button"
         ref={triggerRef}
@@ -121,7 +168,7 @@ export default function AccountExperienceMenu({
         <AccountAvatar image={image} name={name} className="top-avatar" />
         <span className="account-experience-trigger-copy">
           <strong>{name}</strong>
-          {variant === 'listener' && <small>Listener</small>}
+          <small>{roleLabel}</small>
         </span>
         <FiChevronDown className={`account-experience-chevron ${open ? 'is-open' : ''}`} aria-hidden="true" />
       </button>
@@ -134,18 +181,40 @@ export default function AccountExperienceMenu({
           aria-label={`${currentExperience} account menu`}
           onKeyDown={navigateMenu}
         >
+          <div className="account-experience-identity">
+            <AccountAvatar image={image} name={name} className="top-avatar" />
+            <span>
+              <strong>{name}</strong>
+              <small>{roleLabel}</small>
+            </span>
+          </div>
+          {error && <p className="account-experience-error" role="alert">{error}</p>}
+          <div className="account-experience-divider" />
           <button
             type="button"
             role="menuitem"
             ref={firstItemRef}
-            className="account-experience-switch"
             disabled={switching}
-            onClick={switchExperience}
+            onClick={() => {
+              setOpen(false);
+              onSettings?.();
+            }}
           >
-            <FiRepeat aria-hidden="true" />
-            <span>{switching ? 'Switching…' : `Switch to ${targetLabel}`}</span>
+            <FiSettings aria-hidden="true" />
+            <span>Settings</span>
           </button>
-          {error && <p className="account-experience-error" role="alert">{error}</p>}
+          <button
+            type="button"
+            role="menuitem"
+            disabled={switching}
+            onClick={() => {
+              setOpen(false);
+              (onHelp || onSettings)?.();
+            }}
+          >
+            <FiHelpCircle aria-hidden="true" />
+            <span>Help &amp; Support</span>
+          </button>
           <div className="account-experience-divider" />
           <button
             type="button"

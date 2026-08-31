@@ -15,7 +15,6 @@ import {
   FaTimesCircle,
   FaTrash,
 } from 'react-icons/fa';
-import { FiMusic, FiRadio } from 'react-icons/fi';
 
 import EchoWave from '../EchooSystem/EchoWave';
 import CreatorBroadcastAudioSurface from './CreatorBroadcastAudioSurface';
@@ -105,6 +104,7 @@ const buildAudioSnapshot = (state) => {
   const settings = state?.processing?.settings || DEFAULT_CREATOR_AUDIO_SETTINGS;
   const sourceDefinitions = [
     ['host', 'microphone', 'Host microphone'],
+    ['channel2', 'microphone', 'Channel 2 input'],
     ['guest', 'guest_microphone', 'Guest microphone'],
     ['media', 'music', 'Music / FX'],
     ['screen', 'screen_share', 'Screen / tab audio'],
@@ -134,7 +134,7 @@ const buildAudioSnapshot = (state) => {
   };
 };
 
-const getValidAudioSourceIds = (state) => ['host', 'guest', 'media', 'screen'].filter(
+const getValidAudioSourceIds = (state) => ['host', 'channel2', 'guest', 'media', 'screen'].filter(
   (channelId) => state?.channels?.[channelId]?.connected && Boolean(getMixerChannelTrack(channelId))
 );
 
@@ -143,7 +143,7 @@ const CreatorLiveConnectedWorkspace = ({
   initialBroadcastId = '',
   initialMode = '',
   onNavigate,
-  onAddMusic,
+  audioLibrary = [],
   onClearPreparedBroadcast,
 }) => {
   const preparedBroadcastId =
@@ -1016,11 +1016,7 @@ const CreatorLiveConnectedWorkspace = ({
 
       <header className="ec2-workstation-heading"><h2>Workstation</h2><p>Mix, monitor and go live.</p></header>
       {error && <div className="ec2-notice" role="alert">{error}</div>}
-      <CreatorAudioMixer approved sessionState={mixerState} onStateChange={setMixerState} onAddMusic={onAddMusic} />
-      <footer className="ec2-bottom-controls">
-        <button type="button" className="ec2-add-music" onClick={onAddMusic}><FiMusic /> Add music or audio</button>
-        <div className="ec2-live-action"><button type="button" className="ec2-go-live" onClick={goLive} disabled={goingLive || saving}><FiRadio /> {goingLive || saving ? 'Starting...' : 'Go Live'}</button><p>Review your mix before going live.</p></div>
-      </footer>
+      <CreatorAudioMixer approved sessionState={mixerState} onStateChange={setMixerState} audioLibrary={audioLibrary} onGoLive={goLive} goLiveBusy={goingLive || saving} />
     </section>
   );
 };
