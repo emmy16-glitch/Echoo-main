@@ -331,13 +331,6 @@ const CreatorStationsWorkspace = ({ onNavigate }) => {
     }
   };
 
-  const openBroadcast = () => {
-    if (!channel?.id) return;
-    sessionStorage.setItem('echooSelectedStationId', idOf(channel));
-    sessionStorage.setItem('echooBroadcastMode', 'now');
-    onNavigate?.('Broadcast');
-  };
-
   const openSchedule = () => {
     if (channel?.id) sessionStorage.setItem('echooSelectedStationId', idOf(channel));
     onNavigate?.('Schedule');
@@ -425,9 +418,6 @@ const CreatorStationsWorkspace = ({ onNavigate }) => {
               </div>
 
               <div className="est-channel-primary-actions">
-                <button type="button" className="primary" onClick={openBroadcast}>
-                  <FaBroadcastTower /> {channel.isLive ? 'Open Studio' : 'Start broadcast'}
-                </button>
                 <button type="button" onClick={openEdit}><FaEdit /> Edit Channel</button>
               </div>
 
