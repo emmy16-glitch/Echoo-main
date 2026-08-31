@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FaBroadcastTower } from 'react-icons/fa';
-import { FiExternalLink, FiSquare } from 'react-icons/fi';
+import { FiCopy, FiSquare } from 'react-icons/fi';
 
 import CreatorAudioMixer from './CreatorAudioMixer';
 import BroadcastWaveform from './BroadcastWaveform';
@@ -111,6 +111,7 @@ const CreatorLiveConnectedWorkspace = ({
   const [goingLive, setGoingLive] = useState(false);
   const [ending, setEnding] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
@@ -123,6 +124,7 @@ const CreatorLiveConnectedWorkspace = ({
     setCurrentLiveBroadcast(null);
     setSavedBroadcast(null);
     setElapsed(0);
+    setLinkCopied(false);
     setPresence({ listenerCount: 0, peakListeners: 0, creatorConnected: false });
     setMixerState(getEchooMixerState());
     setMessage(notice);
@@ -332,7 +334,7 @@ const CreatorLiveConnectedWorkspace = ({
     }
 
     const station = selectedStation || stations[0] || null;
-    if (!station?.id) throw new Error('Complete your Station setup before going live.');
+    if (!station?.id) throw new Error('Complete your Channel setup before going live.');
 
     const start = new Date(Date.now() + 10 * 60 * 1000);
     const end = new Date(start.getTime() + 4 * 60 * 60 * 1000);
@@ -361,7 +363,7 @@ const CreatorLiveConnectedWorkspace = ({
     if (goingLive || currentLiveBroadcast?.id) return;
     const station = selectedStation || stations[0] || null;
     if (!station?.id) {
-      setError('Complete your Station setup before going live.');
+      setError('Complete your Channel setup before going live.');
       return;
     }
 
@@ -473,13 +475,18 @@ const CreatorLiveConnectedWorkspace = ({
     }
   };
 
-  const viewLive = () => {
+  const copyLiveLink = async () => {
     if (!currentLiveBroadcast?.id || typeof window === 'undefined') return;
     const path = `/listen/live/${encodeURIComponent(currentLiveBroadcast.id)}`;
     const url = new URL(path, window.location.origin).toString();
-    const liveWindow = window.open(url, '_blank', 'noopener,noreferrer');
-    if (!liveWindow) {
-      setError('Your browser blocked the live preview tab. Allow pop-ups for Echoo and try again.');
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error('Clipboard unavailable');
+      await navigator.clipboard.writeText(url);
+      setError('');
+      setLinkCopied(true);
+      window.setTimeout(() => setLinkCopied(false), 1800);
+    } catch {
+      setError('Could not copy the live link. Copy it from your browser after opening the Listener experience.');
     }
   };
 
@@ -491,9 +498,9 @@ const CreatorLiveConnectedWorkspace = ({
     return (
       <section className="ebsx-empty-page">
         <FaBroadcastTower />
-        <h1>Complete your Station setup.</h1>
-        <p>Your one Echoo Station is required before you can broadcast.</p>
-        <button type="button" onClick={() => onNavigate?.('Station')}>Open Station</button>
+        <h1>Complete your Channel setup.</h1>
+        <p>Your Echoo Channel is required before you can broadcast.</p>
+        <button type="button" onClick={() => onNavigate?.('Station')}>Open Channels</button>
       </section>
     );
   }
@@ -537,9 +544,9 @@ const CreatorLiveConnectedWorkspace = ({
           <BroadcastWaveform level={mixerState?.master?.level || 0} />
         </div>
         <aside className="ec2-station-identity">
-          <span>STATION</span>
+          <span>CHANNEL</span>
           <strong>{liveStation?.name || studioName}</strong>
-          <small>{liveStation?.category || 'Your Echoo station'}</small>
+          <small>{liveStation?.category || 'Your Echoo Channel'}</small>
         </aside>
       </section>
 
@@ -564,8 +571,8 @@ const CreatorLiveConnectedWorkspace = ({
 
       {isLive && (
         <div className="ec2-live-action-panel" aria-label="Live broadcast actions">
-          <button type="button" className="ec2-view-live" onClick={viewLive}>
-            <FiExternalLink /> View live
+          <button type="button" className="ec2-copy-live" onClick={copyLiveLink}>
+            <FiCopy /> {linkCopied ? 'Copied' : 'Copy live link'}
           </button>
           <button type="button" className="ec2-end-live" onClick={endBroadcast} disabled={ending}>
             <FiSquare /> {ending ? 'Ending…' : 'End broadcast'}
