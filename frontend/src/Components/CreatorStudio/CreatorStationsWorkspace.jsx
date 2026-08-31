@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FaBroadcastTower,
-  FaCalendarAlt,
   FaEdit,
   FaHeadphones,
   FaLink,
@@ -331,11 +330,6 @@ const CreatorStationsWorkspace = ({ onNavigate }) => {
     }
   };
 
-  const openSchedule = () => {
-    if (channel?.id) sessionStorage.setItem('echooSelectedStationId', idOf(channel));
-    onNavigate?.('Schedule');
-  };
-
   const openRecentBroadcast = (broadcast) => {
     const broadcastId = idOf(broadcast);
     if (broadcastId) sessionStorage.setItem('echooPreparedBroadcastId', broadcastId);
@@ -421,8 +415,11 @@ const CreatorStationsWorkspace = ({ onNavigate }) => {
                 <button type="button" onClick={openEdit}><FaEdit /> Edit Channel</button>
               </div>
 
-              <div className="est-channel-secondary-actions" aria-label="Channel actions">
-                <button type="button" onClick={openSchedule}><FaCalendarAlt /> Schedule event</button>
+              <div
+                className="est-channel-secondary-actions"
+                aria-label="Channel actions"
+                style={{ gridTemplateColumns: 'repeat(2, minmax(0, max-content))' }}
+              >
                 <button type="button" onClick={viewAsListener} disabled={!publicPath}><FaPlay /> View as Listener</button>
                 <button type="button" onClick={copyChannelLink} disabled={!publicUrl}><FaLink /> Copy Channel link</button>
               </div>
