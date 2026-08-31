@@ -742,9 +742,9 @@ const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = n
 
   if (approved) {
     const strips = [
-      { id: 'host', title: 'CHANNEL 1', role: 'Built-in Microphone', empty: 'Built-in Microphone' },
-      { id: 'channel2', title: 'CHANNEL 2', role: 'No source', empty: 'No source' },
-      { id: 'guest', title: 'CHANNEL 3', role: 'Guest / Call-in' },
+      { id: 'host', title: 'HOST', role: 'Built-in Microphone', empty: 'Built-in Microphone' },
+      { id: 'channel2', title: 'GUEST 1', role: 'Guest 1 source', empty: 'No source' },
+      { id: 'guest', title: 'GUEST 2', role: 'Guest 2 / Call-in', empty: 'No source' },
     ];
     const dbLabels = ['0', '-10', '-20', '-30', '-40', '-50'];
     // A mixer fader is intentionally non-linear: unity (0 dB) sits near the
@@ -787,16 +787,16 @@ const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = n
       const sourceTitle = channel.connected ? channel.sourceLabel : role;
       return (
         <article className="eam-approved-strip" key={id}>
-          <header><div><strong>{title}</strong><span>{sourceTitle}</span></div><button type="button" aria-label={`${role} options`} title={`${role} options`}><FiMoreVertical /></button></header>
+          <header><div><strong>{title}</strong><span>{sourceTitle}</span></div><button type="button" aria-label={`${title} options`} title={`${title} options`}><FiMoreVertical /></button></header>
           <div className="eam-approved-controls">
-            <div className="eam-approved-meter-area"><div className="eam-approved-db">{dbLabels.map((label) => <span key={label}>{label}</span>)}</div>{renderApprovedMeter(channel, role, id)}</div>
-            <label className="eam-approved-fader" style={{ '--fader-position': faderPosition(approvedFaderValue) }}><FiCircle className="eam-approved-fader-cap" aria-hidden="true" /><input type="range" min="0" max="100" step="1" value={approvedFaderValue} onChange={(event) => setMixerChannelGainDb(id, approvedPositionToDb(event.target.value, ECHOO_MIXER_LIMITS.maxChannelDb))} disabled={!channel.connected} aria-label={`${role} level`} aria-valuetext={formatDb(faderDb)} /><FiMinus className="eam-approved-fader-mark" aria-hidden="true" /></label>
+            <div className="eam-approved-meter-area"><div className="eam-approved-db">{dbLabels.map((label) => <span key={label}>{label}</span>)}</div>{renderApprovedMeter(channel, title, id)}</div>
+            <label className="eam-approved-fader" style={{ '--fader-position': faderPosition(approvedFaderValue) }}><FiCircle className="eam-approved-fader-cap" aria-hidden="true" /><input type="range" min="0" max="100" step="1" value={approvedFaderValue} onChange={(event) => setMixerChannelGainDb(id, approvedPositionToDb(event.target.value, ECHOO_MIXER_LIMITS.maxChannelDb))} disabled={!channel.connected} aria-label={`${title} level`} aria-valuetext={formatDb(faderDb)} /><FiMinus className="eam-approved-fader-mark" aria-hidden="true" /></label>
           </div>
           <div className="eam-approved-actions">
             <button type="button" className={`eam-approved-monitor ${channel.solo ? 'active' : ''}`} onClick={() => handleListenOnly(id)} disabled={!channel.connected || monitorWorking} aria-pressed={Boolean(channel.solo)}><FiHeadphones /> Monitor</button>
             <button type="button" className={`eam-approved-mute ${channel.muted ? 'active' : ''}`} onClick={() => toggleMixerChannelMute(id)} disabled={!channel.connected} aria-pressed={Boolean(channel.muted)}><FaVolumeMute /> {channel.muted ? 'Muted' : 'Mute'}</button>
           </div>
-          <label className="eam-approved-select"><select value={inputValue} onChange={(event) => changeApprovedInput(id, event.target.value)} aria-label={`${role} input`} disabled={workingChannel === id}><option value="">{id === 'host' ? 'Built-in Microphone' : id === 'channel2' ? 'Select source' : 'Invite guest'}</option>{inputOptions.map((device) => <option key={device.deviceId} value={device.deviceId}>{device.label}</option>)}</select><FiChevronDown /></label>
+          <label className="eam-approved-select"><select value={inputValue} onChange={(event) => changeApprovedInput(id, event.target.value)} aria-label={`${title} input`} disabled={workingChannel === id}><option value="">{id === 'host' ? 'Built-in Microphone' : 'Select guest source'}</option>{inputOptions.map((device) => <option key={device.deviceId} value={device.deviceId}>{device.label}</option>)}</select><FiChevronDown /></label>
         </article>
       );
     };
