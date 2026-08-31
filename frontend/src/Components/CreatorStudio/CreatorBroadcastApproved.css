@@ -112,8 +112,18 @@
 }
 
 .ec2-live-meta span.is-healthy {
+  position: relative;
+  gap: 7px;
   border-color: rgba(34, 197, 94, .30);
   color: #c7f9d5;
+}
+
+.ec2-live-meta span.is-healthy::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #22c55e;
 }
 
 .ec2-waveform-wrap {
@@ -191,9 +201,7 @@
   color: #36527f;
 }
 
-/* LIVE is a state of the approved workstation, not a separate console.
-   Keep the mixer/media exactly where they were prepared and replace the
-   pre-live CTA area with one compact live action row. */
+/* LIVE is a state of the approved workstation, not a separate console. */
 .ec2-broadcast.is-live .eam-approved-live-actions {
   display: none !important;
 }
@@ -243,6 +251,91 @@
 
 .ec2-end-live:hover:not(:disabled) { background: #b42318; border-color: #b42318; }
 .ec2-end-live:disabled { opacity: .62; cursor: wait; }
+
+/* Media is a secondary source dock, not another mixer strip. Give the identity,
+   level controls and actions their own breathing room and allow intentional
+   wrapping instead of squeezing every control into one horizontal line. */
+.ec2-broadcast .eam-approved-media-dock.populated {
+  min-width: 0;
+  overflow: visible;
+}
+
+.ec2-broadcast .eam-approved-media-dock.populated > header {
+  min-height: 48px;
+  padding: 0 16px;
+}
+
+.ec2-broadcast .eam-approved-media-row {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px 18px;
+  padding: 16px;
+}
+
+.ec2-broadcast .eam-approved-media-art {
+  flex: 0 0 54px;
+  width: 54px;
+  height: 54px;
+}
+
+.ec2-broadcast .eam-approved-media-copy {
+  flex: 1 1 180px;
+  min-width: 160px;
+}
+
+.ec2-broadcast .eam-approved-play {
+  flex: 0 0 40px;
+}
+
+.ec2-broadcast .eam-approved-media-progress {
+  flex: 1 1 230px;
+  min-width: 210px;
+}
+
+.ec2-broadcast .eam-approved-media-levels {
+  flex: 1 1 230px;
+  min-width: 210px;
+  display: grid;
+  gap: 10px;
+}
+
+.ec2-broadcast .eam-approved-media-levels > label {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.ec2-broadcast .eam-approved-media-levels > label input {
+  min-width: 0;
+  width: 100%;
+}
+
+.ec2-broadcast .eam-approved-media-mini-meter {
+  min-width: 0;
+}
+
+.ec2-broadcast .eam-approved-media-actions {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.ec2-broadcast .eam-approved-media-actions button {
+  min-height: 38px;
+  white-space: nowrap;
+}
+
+.ec2-broadcast .eam-approved-media-actions .remove {
+  color: #c12e27;
+}
 
 /* The established app has broad late-loaded type/button rules. Keep this
    reference-matched screen authoritative without changing other Creator pages. */
@@ -307,6 +400,11 @@ html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-workstation
   }
 
   .ec2-station-identity strong { margin: 0; }
+
+  .ec2-broadcast .eam-approved-media-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
 }
 
 @media (max-width: 720px) {
@@ -327,4 +425,31 @@ html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-workstation
   }
 
   .ec2-live-action-panel button { width: 100%; }
+
+  .ec2-broadcast .eam-approved-media-row {
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px;
+  }
+
+  .ec2-broadcast .eam-approved-media-copy {
+    flex-basis: calc(100% - 72px);
+  }
+
+  .ec2-broadcast .eam-approved-media-progress,
+  .ec2-broadcast .eam-approved-media-levels,
+  .ec2-broadcast .eam-approved-media-actions {
+    flex: 1 1 100%;
+    width: 100%;
+    min-width: 0;
+    margin-left: 0;
+  }
+
+  .ec2-broadcast .eam-approved-media-actions {
+    justify-content: stretch;
+  }
+
+  .ec2-broadcast .eam-approved-media-actions button {
+    flex: 1 1 120px;
+  }
 }
