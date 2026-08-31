@@ -4,6 +4,7 @@ import {
   FaCalendarAlt,
   FaChevronRight,
   FaEdit,
+  FaLink,
   FaPlay,
   FaPlus,
   FaRandom,
@@ -58,13 +59,6 @@ const stationIdFromBroadcast = (broadcast) =>
 
 const formatNumber = (value) => new Intl.NumberFormat('en-US').format(Number(value) || 0);
 
-const formatDate = (value) => {
-  if (!value) return 'Not available';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return 'Not available';
-  return date.toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
-};
-
 const formatDateTime = (value) => {
   if (!value) return '';
   const date = new Date(value);
@@ -91,7 +85,6 @@ const CreatorStationsWorkspace = ({ onNavigate }) => {
   const [formOpen, setFormOpen] = useState(false);
   const [form, setForm] = useState(createEmptyForm);
   const [saving, setSaving] = useState(false);
-  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const logoInputRef = useRef(null);
@@ -115,9 +108,7 @@ const CreatorStationsWorkspace = ({ onNavigate }) => {
       setStations(nextStations);
       setBroadcasts(nextBroadcasts);
 
-      if (stationResult.status === 'rejected') {
-        throw stationResult.reason;
-      }
+      if (stationResult.status === 'rejected') throw stationResult.reason;
     } catch (loadError) {
       setStations([]);
       setBroadcasts([]);
@@ -159,11 +150,11 @@ const CreatorStationsWorkspace = ({ onNavigate }) => {
   }, [broadcasts, canonicalStation]);
 
   const recentActivity = stationBroadcasts.slice(0, 3);
-  const legacyStationCount = Math.max(0, stations.length - 1);
   const featuredState = stationState(canonicalStation);
-  const stationDescription = canonicalStation?.description || 'No description has been added yet.';
+  const stationDescription = canonicalStation?.description || 'Add a short description so listeners know what your Station is about.';
   const publicPath = canonicalStation ? getPublicStationPath(canonicalStation) : '';
   const publicUrl = canonicalStation ? getPublicStationUrl(canonicalStation) : '';
+  const listenerCount = Number(canonicalStation?.listenerCount ?? canonicalStation?.totalListeners ?? 0) || 0;
 
   const generatedPreview = useMemo(
     () => buildGeneratedStationBrandCoverUrl({
@@ -322,9 +313,7 @@ const CreatorStationsWorkspace = ({ onNavigate }) => {
   };
 
   const openSchedule = () => {
-    if (canonicalStation?.id) {
-      sessionStorage.setItem('echooSelectedStationId', idOf(canonicalStation));
-    }
+    if (canonicalStation?.id) sessionStorage.setItem('echooSelectedStationId', idOf(canonicalStation));
     onNavigate?.('Schedule');
   };
 
@@ -332,6 +321,7 @@ const CreatorStationsWorkspace = ({ onNavigate }) => {
     const broadcastId = idOf(broadcast);
     if (broadcastId) sessionStorage.setItem('echooPreparedBroadcastId', broadcastId);
     if (canonicalStation?.id) sessionStorage.setItem('echooSelectedStationId', idOf(canonicalStation));
+
     const status = String(broadcast?.status || '').toLowerCase();
     if (['starting', 'live', 'ending'].includes(status)) {
       onNavigate?.('Broadcast');
@@ -350,6 +340,17 @@ const CreatorStationsWorkspace = ({ onNavigate }) => {
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
+  const copyStationLink = async () => {
+    if (!publicUrl || typeof navigator === 'undefined') return;
+    try {
+      await navigator.clipboard.writeText(publicUrl);
+      setError('');
+      setMessage('Station link copied.');
+    } catch {
+      setError('Could not copy the Station link.');
+    }
+  };
+
   if (loading) {
     return (
       <section className="est est-reference-page">
@@ -366,7 +367,7 @@ const CreatorStationsWorkspace = ({ onNavigate }) => {
       <header className="est-header">
         <div>
           <h1>Station</h1>
-          <p>Manage the one public Station your broadcasts belong to.</p>
+          <p>Manage the public identity listeners see when you broadcast.</p>
         </div>
         {!canonicalStation && (
           <button type="button" className="est-new" onClick={openSetup}>
@@ -382,14 +383,14 @@ const CreatorStationsWorkspace = ({ onNavigate }) => {
         <div className="est-empty">
           <FaBroadcastTower />
           <h2>Complete your Station setup</h2>
-          <p>Create the one Station listeners can find, follow, and hear live.</p>
+          <p>Create the Station listeners can find, follow and hear live.</p>
           <button type="button" onClick={openSetup}><FaPlus /> Set up Station</button>
         </div>
       ) : (
-        <div className="est-workspace-grid">
-          <div className="est-workspace-main">
+        <>
+          <div className="est-workspace-grid">
             <section className="est-featured-card">
-              <span className="est-featured-label">STATION</span>
+              <span className="est-featured-label">YOUR STATION</span>
               <div className="est-featured-layout">
                 <div className="est-featured-art" aria-hidden="true">
                   <img
@@ -400,101 +401,110 @@ const CreatorStationsWorkspace = ({ onNavigate }) => {
                 </div>
 
                 <div className="est-featured-copy">
-                  <span className={`est-status ${featuredState}`}>
-                    <i /> {featuredState === 'live' ? 'Live now' : featuredState === 'offline' ? 'Offline' : 'Ready to broadcast'}
-                  </span>
-                  <h2>{canonicalStation.name}</h2>
-                  <span className="est-category-pill">{canonicalStation.category || 'Other'}</span>
-                  <p>{stationDescription}</p>
-
-                  <div className="est-featured-stats">
-                    <div><FaUsers /><strong>{formatNumber(canonicalStation.followerCount)}</strong><span>Followers</span></div>
-                    <div><FaBroadcastTower /><strong>{formatNumber(stationBroadcasts.length)}</strong><span>Broadcasts</span></div>
+                  <div className="est-featured-status-line">
+                    <span className={`est-status ${featuredState}`}>
+                      <i /> {featuredState === 'live' ? 'Live now' : featuredState === 'offline' ? 'Offline' : 'Ready to broadcast'}
+                    </span>
+                    <span className="est-visibility">{canonicalStation.isPublic === false ? 'Private' : 'Public'}</span>
                   </div>
 
-                  {publicUrl && <p className="est-public-url">Public URL <span>{publicUrl}</span></p>}
-                  {legacyStationCount > 0 && (
-                    <p className="est-legacy-note">
-                      {legacyStationCount} older station record{legacyStationCount === 1 ? '' : 's'} remain safely preserved in the backend. Creator Studio uses this Station as your canonical public identity.
-                    </p>
-                  )}
-                </div>
+                  <h2>{canonicalStation.name}</h2>
+                  <span className="est-category-pill">{canonicalStation.category || 'Other'}</span>
+                  <p className="est-description">{stationDescription}</p>
 
-                <div className="est-featured-actions">
-                  <button type="button" className="primary" onClick={openBroadcast}>
-                    <FaBroadcastTower /> {canonicalStation.isLive ? 'Open studio' : 'Start broadcast'}
-                  </button>
-                  <button type="button" onClick={openEdit}>
-                    <FaEdit /> Edit Station
-                  </button>
-                  <button type="button" onClick={viewAsListener} disabled={!publicPath}>
-                    <FaPlay /> View as Listener
-                  </button>
-                  <button type="button" onClick={openSchedule}>
-                    <FaCalendarAlt /> Schedule
+                  <div className="est-featured-stats">
+                    <div>
+                      <FaUsers />
+                      <strong>{formatNumber(canonicalStation.followerCount)}</strong>
+                      <span>Followers</span>
+                    </div>
+                    <div>
+                      <FaBroadcastTower />
+                      <strong>{formatNumber(listenerCount)}</strong>
+                      <span>Listening</span>
+                    </div>
+                    <div>
+                      <FaPlay />
+                      <strong>{formatNumber(stationBroadcasts.length)}</strong>
+                      <span>Broadcasts</span>
+                    </div>
+                  </div>
+
+                  <button type="button" className="est-hero-primary" onClick={openBroadcast}>
+                    <FaBroadcastTower /> {canonicalStation.isLive ? 'Open Studio' : 'Start broadcast'}
                   </button>
                 </div>
               </div>
             </section>
+
+            <aside className="est-manage" aria-label="Station management">
+              <div className="est-manage-head">
+                <span>MANAGE</span>
+                <h2>Station controls</h2>
+                <p>Update, schedule or preview your public Station.</p>
+              </div>
+
+              <div className="est-manage-actions">
+                <button type="button" onClick={openEdit}>
+                  <i><FaEdit /></i>
+                  <span><strong>Edit Station</strong><small>Name, artwork and details</small></span>
+                  <FaChevronRight />
+                </button>
+                <button type="button" onClick={openSchedule}>
+                  <i><FaCalendarAlt /></i>
+                  <span><strong>Schedule event</strong><small>Plan your next broadcast</small></span>
+                  <FaChevronRight />
+                </button>
+                <button type="button" onClick={viewAsListener} disabled={!publicPath}>
+                  <i><FaPlay /></i>
+                  <span><strong>View as Listener</strong><small>Open the public Station</small></span>
+                  <FaChevronRight />
+                </button>
+                <button type="button" onClick={copyStationLink} disabled={!publicUrl}>
+                  <i><FaLink /></i>
+                  <span><strong>Copy Station link</strong><small>Share your public Station</small></span>
+                  <FaChevronRight />
+                </button>
+              </div>
+            </aside>
           </div>
 
-          <aside className="est-details" id="station-details-panel">
-            <div className="est-details-head">
-              <h2>Station details</h2>
-              <span className={`est-status compact ${featuredState}`}>
-                <i /> {featuredState === 'live' ? 'Live now' : featuredState === 'offline' ? 'Offline' : 'Ready to broadcast'}
-              </span>
-            </div>
+          <section className="est-recent-section">
+            <header className="est-recent-head">
+              <div>
+                <span>RECENT</span>
+                <h2>Recent broadcasts</h2>
+              </div>
+              <button type="button" onClick={() => onNavigate?.('Collections')}>
+                View recordings <FaChevronRight />
+              </button>
+            </header>
 
-            <div className="est-details-identity">
-              <img
-                src={canonicalStation.brandCover || canonicalStation.coverArt || canonicalStation.logo || generatedPreview}
-                alt={`${canonicalStation.name || 'Station'} brand`}
-              />
-              <div><h3>{canonicalStation.name}</h3><span>{canonicalStation.category || 'Other'}</span></div>
-            </div>
-
-            <div className="est-details-dates">
-              <span>Created {formatDate(canonicalStation.createdAt)}</span>
-              <span>Last updated {formatDate(canonicalStation.updatedAt)}</span>
-            </div>
-
-            <section className="est-details-about">
-              <h3>About this Station</h3>
-              <p className={descriptionExpanded ? 'expanded' : ''}>{stationDescription}</p>
-              {stationDescription.length > 130 && (
-                <button type="button" onClick={() => setDescriptionExpanded((value) => !value)}>
-                  {descriptionExpanded ? 'Show less' : 'View more'}
-                </button>
-              )}
-            </section>
-
-            <div className="est-detail-fields">
-              <div><strong>Visibility</strong><span>{canonicalStation.isPublic === false ? 'Private' : 'Public'}</span></div>
-              <div><strong>Station URL</strong><span>{publicPath || 'Unavailable'}</span></div>
-            </div>
-
-            <section className="est-recent-activity">
-              <h3>Recent activity</h3>
-              {recentActivity.length ? recentActivity.map((activity) => (
-                <button type="button" key={idOf(activity)} onClick={() => openActivity(activity)}>
-                  <i>{activity.status === 'live' ? <FaBroadcastTower /> : activity.status === 'completed' ? <FaPlay /> : <FaCalendarAlt />}</i>
-                  <span>
-                    <strong>{activity.title || 'Broadcast'}</strong>
-                    <small>{formatDateTime(activity.startTime || activity.startAt || activity.createdAt)}</small>
-                  </span>
-                  {activity.status === 'live' ? <em>Live</em> : <FaChevronRight />}
-                </button>
-              )) : (
-                <div className="est-activity-empty">No recent broadcasts for this Station.</div>
-              )}
-            </section>
-
-            <button type="button" className="est-view-broadcasts" onClick={() => onNavigate?.('Collections')}>
-              View recordings <FaChevronRight />
-            </button>
-          </aside>
-        </div>
+            {recentActivity.length ? (
+              <div className="est-recent-list">
+                {recentActivity.map((activity) => {
+                  const status = String(activity.status || '').toLowerCase();
+                  const live = ['starting', 'live', 'ending'].includes(status);
+                  const scheduled = status === 'scheduled';
+                  return (
+                    <button type="button" className="est-recent-row" key={idOf(activity)} onClick={() => openActivity(activity)}>
+                      <i className={live ? 'live' : ''}>
+                        {live ? <FaBroadcastTower /> : scheduled ? <FaCalendarAlt /> : <FaPlay />}
+                      </i>
+                      <span>
+                        <strong>{activity.title || canonicalStation.name || 'Broadcast'}</strong>
+                        <small>{live ? 'Live now' : formatDateTime(activity.startTime || activity.startAt || activity.createdAt)}</small>
+                      </span>
+                      {live ? <em>LIVE</em> : <FaChevronRight />}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="est-recent-empty">Your recent broadcasts will appear here.</div>
+            )}
+          </section>
+        </>
       )}
 
       {formOpen && (
@@ -504,7 +514,7 @@ const CreatorStationsWorkspace = ({ onNavigate }) => {
               <div>
                 <span>{canonicalStation ? 'EDIT STATION' : 'STATION SETUP'}</span>
                 <h2>{canonicalStation ? 'Update Station' : 'Set up your Station'}</h2>
-                <p>This is your single public broadcasting identity on Echoo.</p>
+                <p>This is the public identity listeners see across Echoo.</p>
               </div>
               <button type="button" onClick={closeForm} aria-label="Close Station form"><FaTimes /></button>
             </div>
@@ -528,7 +538,7 @@ const CreatorStationsWorkspace = ({ onNavigate }) => {
               <div className="est-brand-field wide">
                 <div className="est-logo-copy">
                   <span>Station artwork</span>
-                  <p>Use Echoo-generated artwork or upload a custom logo for your Listener surfaces.</p>
+                  <p>Use Echoo artwork or upload your own logo.</p>
                 </div>
 
                 <div className="est-brand-editor">
