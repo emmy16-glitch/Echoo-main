@@ -233,13 +233,14 @@
   cursor: pointer;
 }
 
-.ec2-view-live {
+.ec2-copy-live {
+  min-width: 150px;
   border: 1px solid #cbd9f1;
   background: #fff;
   color: #0a4fd7;
 }
 
-.ec2-view-live:hover { background: #f6f9ff; }
+.ec2-copy-live:hover { background: #f6f9ff; }
 
 .ec2-end-live {
   min-width: 190px;
