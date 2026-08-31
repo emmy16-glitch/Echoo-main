@@ -217,3 +217,55 @@
   .schedule-event-cell { grid-template-columns: 68px minmax(0, 1fr); }
   .schedule-event-art { width: 68px; height: 52px; }
 }
+
+/* Final compact scheduling modal: quick edit scale, stable page, internal scroll only. */
+body:has(.schedule-modal-overlay) { overflow: hidden; }
+
+.schedule-modal-overlay { padding: 16px; }
+.schedule-modal {
+  width: min(660px, calc(100vw - 32px));
+  max-height: min(520px, calc(100dvh - 32px));
+  border-radius: 13px;
+}
+.schedule-modal-header { padding: 12px 15px 9px; }
+.schedule-modal-header h2 { font-size: 16px; }
+.schedule-modal-header button { width: 28px; height: 28px; }
+.schedule-modal-body {
+  grid-template-columns: 132px minmax(0, 1fr);
+  gap: 14px;
+  padding: 2px 15px 12px;
+  scrollbar-width: thin;
+  scrollbar-color: #c8d3e1 transparent;
+}
+.schedule-modal-body::-webkit-scrollbar { width: 6px; }
+.schedule-modal-body::-webkit-scrollbar-thumb { border-radius: 999px; background: #c8d3e1; }
+.schedule-channel-preview-art { aspect-ratio: 1 / 1; border-radius: 8px; }
+.schedule-channel-preview > strong { margin-top: 7px; font-size: 10px; }
+.schedule-channel-preview > span { margin-top: 3px; }
+.schedule-modal-fields { gap: 9px; }
+.schedule-modal-fields label { gap: 5px; }
+.schedule-modal-fields input { min-height: 35px; }
+.schedule-modal-fields textarea { min-height: 68px; max-height: 82px; padding: 8px 9px; }
+.schedule-modal-top-row { grid-template-columns: minmax(0, 1fr) 132px; gap: 9px; }
+.schedule-artwork-mini { min-height: 35px; }
+.schedule-artwork-mini img { width: 25px; height: 25px; }
+.schedule-modal-bottom-row { gap: 8px; }
+.schedule-modal-footer { padding: 9px 15px 12px; }
+.schedule-modal-footer > button:not(.schedule-primary),
+.schedule-modal-footer .schedule-primary { min-height: 35px; }
+
+@media (max-width: 780px) and (min-width: 561px) {
+  .schedule-modal { width: min(620px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); }
+  .schedule-modal-body { grid-template-columns: 118px minmax(0, 1fr); }
+}
+
+@media (max-width: 560px) {
+  .schedule-modal-overlay { padding: 8px; align-items: center; }
+  .schedule-modal { width: 100%; max-height: calc(100dvh - 16px); border-radius: 14px; }
+  .schedule-modal-body { grid-template-columns: 1fr; padding: 2px 14px 10px; }
+  .schedule-channel-preview { grid-template-columns: 72px minmax(0, 1fr); }
+  .schedule-channel-preview-art { width: 72px; height: 72px; aspect-ratio: auto; }
+  .schedule-modal-top-row { grid-template-columns: 1fr; }
+  .schedule-artwork-compact { max-width: none; }
+  .schedule-modal-footer { padding-left: 14px; padding-right: 14px; }
+}
