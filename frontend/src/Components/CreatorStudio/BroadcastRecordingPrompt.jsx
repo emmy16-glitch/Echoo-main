@@ -102,6 +102,14 @@ const BroadcastRecordingPrompt = () => {
   const [retryToken, setRetryToken] = useState(0);
   const saveAttemptRef = useRef('');
 
+  const dismissSavedState = () => {
+    if (!saved) return;
+    setPending(null);
+    setSaved(false);
+    setError('');
+    saveAttemptRef.current = '';
+  };
+
   useEffect(() => {
     const applyPendingRecording = (detail) => {
       if (!detail?.recording?.blob?.size) return;
@@ -142,7 +150,16 @@ const BroadcastRecordingPrompt = () => {
     saveAttemptRef.current = attemptKey;
 
     let active = true;
-    let successTimer = null;
+
+    const markSaved = () => {
+      if (!active) return;
+      forgetPendingRecording();
+      clearPendingBroadcastRecording(recording.broadcastId);
+      window.dispatchEvent(new CustomEvent('echoo:creator-audio-changed'));
+      window.dispatchEvent(new CustomEvent('echoo:creator-state-changed'));
+      setSaved(true);
+      setSaving(false);
+    };
 
     const saveAutomatically = async () => {
       const title = broadcast?.title || 'Live broadcast recording';
@@ -182,20 +199,7 @@ const BroadcastRecordingPrompt = () => {
           broadcastId: recording.broadcastId,
         });
 
-        if (!active) return;
-        forgetPendingRecording();
-        clearPendingBroadcastRecording(recording.broadcastId);
-        window.dispatchEvent(new CustomEvent('echoo:creator-audio-changed'));
-        window.dispatchEvent(new CustomEvent('echoo:creator-state-changed'));
-        setSaved(true);
-        setSaving(false);
-        successTimer = window.setTimeout(() => {
-          if (active) {
-            setPending(null);
-            setSaved(false);
-            saveAttemptRef.current = '';
-          }
-        }, 1400);
+        markSaved();
       } catch (saveError) {
         if (!active) return;
 
@@ -204,19 +208,7 @@ const BroadcastRecordingPrompt = () => {
         // exists, so treat the lifecycle as successfully finalized instead of
         // creating a confusing duplicate/error loop.
         if (saveError?.code === 'REPLAY_ALREADY_EXISTS') {
-          forgetPendingRecording();
-          clearPendingBroadcastRecording(recording.broadcastId);
-          window.dispatchEvent(new CustomEvent('echoo:creator-audio-changed'));
-          window.dispatchEvent(new CustomEvent('echoo:creator-state-changed'));
-          setSaved(true);
-          setSaving(false);
-          successTimer = window.setTimeout(() => {
-            if (active) {
-              setPending(null);
-              setSaved(false);
-              saveAttemptRef.current = '';
-            }
-          }, 1400);
+          markSaved();
           return;
         }
 
@@ -233,12 +225,22 @@ const BroadcastRecordingPrompt = () => {
 
     return () => {
       active = false;
-      if (successTimer) window.clearTimeout(successTimer);
     };
   }, [pending, retryToken, saved]);
 
   useEffect(() => {
-    if (!pending) return undefined;
+    if (!saved) return undefined;
+    const closeTimer = window.setTimeout(() => {
+      setPending(null);
+      setSaved(false);
+      setError('');
+      saveAttemptRef.current = '';
+    }, 2200);
+    return () => window.clearTimeout(closeTimer);
+  }, [saved]);
+
+  useEffect(() => {
+    if (!pending || saved) return undefined;
 
     const protectPendingRecording = (event) => {
       event.preventDefault();
@@ -247,7 +249,7 @@ const BroadcastRecordingPrompt = () => {
 
     window.addEventListener('beforeunload', protectPendingRecording);
     return () => window.removeEventListener('beforeunload', protectPendingRecording);
-  }, [pending]);
+  }, [pending, saved]);
 
   if (!pending) return null;
 
@@ -304,9 +306,20 @@ const BroadcastRecordingPrompt = () => {
         {error && <div className="echoo-recording-error">{error}</div>}
 
         {saved && (
-          <div className="echoo-recording-saved">
-            <FaCheckCircle /> {savedLabel} saved automatically in Recordings.
-          </div>
+          <>
+            <div className="echoo-recording-saved">
+              <FaCheckCircle /> {savedLabel} saved automatically in Recordings.
+            </div>
+            <div className="echoo-recording-options">
+              <button type="button" className="private" onClick={dismissSavedState}>
+                <FaCheckCircle />
+                <span>
+                  <strong>Done</strong>
+                  <small>Return to Broadcast Studio.</small>
+                </span>
+              </button>
+            </div>
+          </>
         )}
 
         {!saved && (
