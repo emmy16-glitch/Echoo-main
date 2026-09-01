@@ -100,7 +100,7 @@ const BroadcastRecordingPrompt = () => {
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
   const [retryToken, setRetryToken] = useState(0);
-  const saveKeyRef = useRef('');
+  const saveAttemptRef = useRef('');
 
   useEffect(() => {
     const applyPendingRecording = (detail) => {
@@ -109,7 +109,8 @@ const BroadcastRecordingPrompt = () => {
       setPending(detail);
       setError('');
       setSaved(false);
-      saveKeyRef.current = '';
+      setRetryToken(0);
+      saveAttemptRef.current = '';
     };
 
     const onRecordingReady = (event) => {
@@ -136,8 +137,9 @@ const BroadcastRecordingPrompt = () => {
 
     const { recording, broadcast } = pending;
     const saveKey = String(recording.broadcastId || broadcast?.id || 'recording');
-    if (saveKeyRef.current === saveKey && !error) return undefined;
-    saveKeyRef.current = saveKey;
+    const attemptKey = `${saveKey}:${retryToken}`;
+    if (saveAttemptRef.current === attemptKey) return undefined;
+    saveAttemptRef.current = attemptKey;
 
     let active = true;
     let successTimer = null;
@@ -191,7 +193,7 @@ const BroadcastRecordingPrompt = () => {
           if (active) {
             setPending(null);
             setSaved(false);
-            saveKeyRef.current = '';
+            saveAttemptRef.current = '';
           }
         }, 1400);
       } catch (saveError) {
@@ -212,13 +214,12 @@ const BroadcastRecordingPrompt = () => {
             if (active) {
               setPending(null);
               setSaved(false);
-              saveKeyRef.current = '';
+              saveAttemptRef.current = '';
             }
           }, 1400);
           return;
         }
 
-        saveKeyRef.current = '';
         setSaving(false);
         setError(
           recording.qualityCompletionPending
@@ -234,7 +235,7 @@ const BroadcastRecordingPrompt = () => {
       active = false;
       if (successTimer) window.clearTimeout(successTimer);
     };
-  }, [pending, retryToken, saved, error]);
+  }, [pending, retryToken, saved]);
 
   useEffect(() => {
     if (!pending) return undefined;
