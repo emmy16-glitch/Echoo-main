@@ -28,7 +28,10 @@ export const getCreatorCaptureConstraints = (settings = DEFAULT_CREATOR_AUDIO_SE
     echoCancellation: normalized.audioMode === 'enhanced' && normalized.echoRemoval,
     noiseSuppression: false,
     autoGainControl: false,
-    channelCount: 1,
+    // A studio interface can expose a real stereo program feed. Raw mode must
+    // not request it down to mono before it reaches Echoo's stereo master.
+    // Enhanced microphone mode remains intentionally mono/speech-oriented.
+    channelCount: normalized.audioMode === 'raw' ? { ideal: 2 } : 1,
     sampleRate: { ideal: 48000 },
   });
 };

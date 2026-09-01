@@ -31,6 +31,7 @@ import {
   loadListenerSearch,
   loadListenerSettings,
   loadListenerStationProfile,
+  loadListenerCollectionDetail,
   loadListenerStations,
   loadListenerPlaylist,
   loadListenerSavedMoments,
@@ -55,6 +56,7 @@ const ListenerSettings = lazy(loadListenerSettings);
 const ListenerAudioDetail = lazy(loadListenerAudioDetail);
 const ListenerRealLiveRoom = lazy(loadListenerLiveRoom);
 const ListenerRealStationProfile = lazy(loadListenerStationProfile);
+const ListenerCollectionDetail = lazy(loadListenerCollectionDetail);
 
 import EchooExperienceOrchestrator from './Components/EchooSystem/EchooExperienceOrchestrator';
 import EchooMobileNavigation from './Components/EchooSystem/EchooMobileNavigation';
@@ -367,6 +369,7 @@ function App() {
               <Route path="stations" element={<ListenerStations />} />
               <Route path="categories" element={<ListenerStations />} />
               <Route path="stations/:stationId" element={<ListenerRealStationProfile />} />
+              <Route path="collections/:collectionId" element={<ListenerCollectionDetail />} />
               <Route path="audio/:audioId" element={<ListenerAudioDetail />} />
               <Route path="library" element={<ListenerLibrary />} />
               <Route path="library/following" element={<ListenerFollowing />} />

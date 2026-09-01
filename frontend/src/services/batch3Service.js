@@ -330,6 +330,24 @@ const batch3Service = {
       console.warn('[Echoo Transcript] background handoff warning:', error?.message || error);
     });
 
+    let recordingReady = false;
+    let finishedRecording = null;
+    try {
+      // Close the pre-Opus PCM tap before the lifecycle endpoint tears down
+      // optional server encoders. This keeps the final PCM chunk in the FLAC
+      // master and lets the MP3 process flush gracefully.
+      const recording = await finishBroadcastRecording(broadcastId);
+      finishedRecording = recording;
+      if (recording?.blob?.size) {
+        recordingReady = true;
+      }
+    } catch (recordingError) {
+      console.warn(
+        '[Echoo Recording] could not finalize local recording:',
+        recordingError?.message || recordingError
+      );
+    }
+
     const response = await apiRequest(
       `/broadcasts/${encodeURIComponent(broadcastId)}/end`,
       { method: 'POST' }
@@ -337,21 +355,10 @@ const batch3Service = {
 
     const raw = response?.data?.broadcast || response?.data;
     const normalized = normalizeBroadcast(raw);
-
-    let recordingReady = false;
-    try {
-      const recording = await finishBroadcastRecording(broadcastId);
-      if (recording?.blob?.size) {
-        recordingReady = true;
-        const decision = { recording, broadcast: normalized };
-        rememberPendingRecordingDecision(decision);
-        announceFinishedBroadcastRecording(decision);
-      }
-    } catch (recordingError) {
-      console.warn(
-        '[Echoo Recording] could not finalize local recording:',
-        recordingError?.message || recordingError
-      );
+    if (recordingReady && finishedRecording) {
+      const decision = { recording: finishedRecording, broadcast: normalized };
+      rememberPendingRecordingDecision(decision);
+      announceFinishedBroadcastRecording(decision);
     }
 
     return {

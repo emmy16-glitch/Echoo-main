@@ -7,15 +7,20 @@ import { resolveLiveKitUrl } from './livekitUrl.js';
 import { ensureBroadcastRecording } from './broadcastRecordingService.js';
 import { applyProgramTrackQuality } from './audioQualityProfile.js';
 import {
+  getRealtimeAudioProfile,
+  liveKitPublishOptionsFor,
+  normalizeRealtimeAudioProfile,
+} from './realtimeAudioQuality.js';
+import {
   startWhisperFlowTranscription,
   stopWhisperFlowTranscription,
 } from './whisperFlowService.js';
 
-const ECHOO_LIVE_AUDIO_BITRATE = 256000;
-
 let activeRoom = null;
 let activeBroadcastId = null;
 let activePublication = null;
+let activeQualityProfile = 'broadcast_high';
+let previousSenderStats = null;
 let publisherHealth = {
   mixer: 'idle',
   livekit: 'disconnected',
@@ -130,9 +135,41 @@ export const getLiveKitPublishingState = () => ({
   connected: Boolean(activeRoom),
   broadcastId: activeBroadcastId,
   roomName: activeRoom?.name || null,
-  targetAudioBitsPerSecond: ECHOO_LIVE_AUDIO_BITRATE,
+  targetAudioBitsPerSecond: getRealtimeAudioProfile(activeQualityProfile).maxBitrate,
+  qualityProfile: activeQualityProfile,
   ...publisherHealth,
 });
+
+// Uses the installed livekit-client LocalAudioTrack public stats API. This is
+// intentionally diagnostic-only: negotiated bitrate can be lower than the
+// requested profile when WebRTC congestion control intervenes.
+export const refreshLiveKitPublishingDiagnostics = async () => {
+  const track = activePublication?.track;
+  const stats = await track?.getSenderStats?.();
+  if (!stats) return getLiveKitPublishingState();
+  const report = await track?.getRTCStatsReport?.();
+  let outbound = null;
+  report?.forEach?.((entry) => {
+    if (entry?.type === 'outbound-rtp' && entry.kind === 'audio') outbound = entry;
+  });
+  const codec = outbound?.codecId ? report?.get?.(outbound.codecId) : null;
+  const previous = previousSenderStats;
+  const elapsedMs = Math.max(1, Number(stats.timestamp || 0) - Number(previous?.timestamp || 0));
+  const bytesDelta = Math.max(0, Number(stats.bytesSent || 0) - Number(previous?.bytesSent || 0));
+  previousSenderStats = stats;
+  publishHealth({
+    outboundBitrate: previous ? Math.round((bytesDelta * 8 * 1000) / elapsedMs) : null,
+    packetsSent: Number(stats.packetsSent) || 0,
+    packetsLost: Number(stats.packetsLost) || 0,
+    roundTripTime: Number.isFinite(stats.roundTripTime) ? stats.roundTripTime : null,
+    jitter: Number.isFinite(stats.jitter) ? stats.jitter : null,
+    negotiatedCodec: codec?.mimeType || null,
+    audioClockRate: Number(codec?.clockRate) || null,
+    negotiatedChannels: Number(outbound?.channels) || null,
+    trackId: track?.mediaStreamTrack?.id || null,
+  });
+  return getLiveKitPublishingState();
+};
 
 export const stopLiveKitPublishing = async () => {
   const room = activeRoom;
@@ -140,6 +177,8 @@ export const stopLiveKitPublishing = async () => {
   activeRoom = null;
   activeBroadcastId = null;
   activePublication = null;
+  activeQualityProfile = 'broadcast_high';
+  previousSenderStats = null;
   publishHealth({
     livekit: 'disconnected',
     audio: 'disconnected',
@@ -185,9 +224,12 @@ export const startLiveKitPublishing = async ({
   token,
   broadcastId,
   mediaTrack = null,
+  qualityProfile = 'broadcast_high',
 }) => {
   const resolvedUrl = resolveLiveKitUrl(url);
   const id = String(broadcastId || '').trim();
+  const selectedQualityProfile = normalizeRealtimeAudioProfile(qualityProfile);
+  const selectedQuality = getRealtimeAudioProfile(selectedQualityProfile);
 
   if (!resolvedUrl) {
     throw new Error('Echoo did not receive a LiveKit websocket URL from the backend.');
@@ -274,13 +316,7 @@ export const startLiveKitPublishing = async ({
         // Echoo is an audio-broadcast product, not a speech-call product. Keep
         // continuous music/system audio in stereo and give Opus enough bitrate
         // to preserve the post-master studio feed without speech-style DTX.
-        audioPreset: { maxBitrate: ECHOO_LIVE_AUDIO_BITRATE },
-        forceStereo: true,
-        dtx: false,
-        // Stereo RED is intentionally left off for the primary quality profile.
-        // Network resilience can be A/B tested separately without changing the
-        // clean source/mastering path.
-        red: false,
+        ...liveKitPublishOptionsFor(selectedQualityProfile),
       });
     } else {
       const nativeTrack = await createSyntheticTrack();
@@ -296,6 +332,8 @@ export const startLiveKitPublishing = async ({
     activeRoom = room;
     activeBroadcastId = id;
     activePublication = publication;
+    activeQualityProfile = selectedQualityProfile;
+    previousSenderStats = null;
     publishHealth({
       audio: 'published',
       broadcastId: id,
@@ -349,7 +387,10 @@ export const startLiveKitPublishing = async ({
       trackSid: publication?.trackSid || null,
       mode,
       url: resolvedUrl,
-      targetAudioBitsPerSecond: ECHOO_LIVE_AUDIO_BITRATE,
+      targetAudioBitsPerSecond: selectedQuality.maxBitrate,
+      qualityProfile: selectedQualityProfile,
+      requestedSampleRate: selectedQuality.sampleRate,
+      requestedChannels: selectedQuality.channels,
       programTrackQuality,
     };
 
@@ -376,4 +417,5 @@ export default {
   getLiveKitPublishingState,
   getActiveLiveKitRoom,
   setLiveKitPublishingPaused,
+  refreshLiveKitPublishingDiagnostics,
 };

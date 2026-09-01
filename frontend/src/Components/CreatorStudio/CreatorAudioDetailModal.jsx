@@ -50,7 +50,7 @@ const formatType = (mimeType = '') => {
   return mimeType || 'Original format';
 };
 
-const CreatorAudioDetailModal = ({ track, onClose, onChanged }) => {
+const CreatorAudioDetailModal = ({ track, onClose, onChanged, onAddToCollection }) => {
   const audioRef = useRef(null);
   const initializedTrackRef = useRef(null);
   const [fileUrl, setFileUrl] = useState('');
@@ -475,6 +475,7 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged }) => {
           {error && <div className="creator-audio-modal-error" role="alert">{error}</div>}
 
           <div className="creator-audio-modal-actions">
+            {onAddToCollection && <button type="button" onClick={onAddToCollection}>Add to Collection</button>}
             <button type="button" onClick={toggleVisibility} disabled={visibilitySaving}>
               {visibility ? <FaLock /> : <FaGlobe />}
               {visibilitySaving

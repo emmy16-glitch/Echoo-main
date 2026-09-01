@@ -25,15 +25,16 @@ const isEchooProgramPublication = (publication) => {
     name === 'echoo-studio-mix' ||
     (import.meta.env.DEV && name === 'echoo-dev-test-audio');
 
-  // Fallback: accept any audio track if it's the only one published by a participant,
-  // to prevent total silence if naming fails or if using standard LiveKit tools.
-  const isFallback = !isStudioMix && publication?.kind === 'audio';
-
+  // Listener playback deliberately attaches only the canonical program track.
+  // There is no listener AudioContext, resampler, speech enhancement or MP3
+  // fallback here: `track.attach()` sends the negotiated LiveKit stereo Opus
+  // directly to the browser media element. Rejecting other room audio also
+  // prevents duplicate playback when guests publish talkback tracks.
   if (publication) {
-    console.log(`[Echoo LiveKit] Track "${name}": studioMix=${isStudioMix}, fallback=${isFallback}`);
+    console.log(`[Echoo LiveKit] Track "${name}": studioMix=${isStudioMix}`);
   }
-  
-  return isStudioMix || isFallback;
+
+  return isStudioMix;
 };
 
 const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChange }) => {

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   FiCalendar,
   FiChevronDown,
@@ -56,10 +57,7 @@ const statusLabel = (broadcast) => {
   return status === 'cancelled' ? 'Cancelled' : status === 'failed' ? 'Failed' : 'Past';
 };
 
-const channelFor = (broadcast, channels) => {
-  const embedded = broadcast?.station && typeof broadcast.station === 'object' ? broadcast.station : null;
-  return embedded || channels.find((channel) => String(channel.id) === String(broadcast?.stationId)) || null;
-};
+const channelFor = (_broadcast, channels) => channels[0] || null;
 
 const artworkFor = (broadcast, channel) =>
   broadcast?.eventArtwork ||
@@ -378,7 +376,7 @@ export default function CreatorScheduleEventsWorkspace({ onNavigate }) {
         )}
       </section>
 
-      {modalOpen && (
+      {modalOpen && createPortal((
         <div className="schedule-modal-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) setModalOpen(false); }}>
           <form className="schedule-modal" onSubmit={save} aria-labelledby="schedule-modal-title">
             <header className="schedule-modal-header">
@@ -443,7 +441,7 @@ export default function CreatorScheduleEventsWorkspace({ onNavigate }) {
             </footer>
           </form>
         </div>
-      )}
+      ), document.body)}
     </section>
   );
 }

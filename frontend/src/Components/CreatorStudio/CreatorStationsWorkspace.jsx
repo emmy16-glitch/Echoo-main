@@ -102,7 +102,7 @@ const broadcastArtwork = (broadcast, channel, fallback) =>
   channel?.logo ||
   fallback;
 
-const CreatorStationsWorkspace = ({ onNavigate }) => {
+const CreatorStationsWorkspace = ({ onNavigate, onOpenRecording }) => {
   const [stations, setStations] = useState([]);
   const [broadcasts, setBroadcasts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -145,12 +145,9 @@ const CreatorStationsWorkspace = ({ onNavigate }) => {
     loadChannel();
   }, [loadChannel]);
 
-  const channel = useMemo(() => {
-    if (!stations.length) return null;
-    return [...stations].sort(
-      (a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0)
-    )[0];
-  }, [stations]);
+  // /stations/mine/all is ordered by the backend canonical Channel rule.
+  // Do not reselect it from a broadcast, profile name, or stale local state.
+  const channel = useMemo(() => stations[0] || null, [stations]);
 
   useEffect(() => {
     if (!channel?.id) {
@@ -176,7 +173,7 @@ const CreatorStationsWorkspace = ({ onNavigate }) => {
     () => channelBroadcasts
       .filter((broadcast) => {
         const status = String(broadcast?.status || '').toLowerCase();
-        return LIVE_STATUSES.has(status) || status === 'completed';
+        return LIVE_STATUSES.has(status) || (status === 'completed' && Boolean(idOf(broadcast?.replayAudio)));
       })
       .slice(0, 3),
     [channelBroadcasts]
@@ -335,8 +332,13 @@ const CreatorStationsWorkspace = ({ onNavigate }) => {
     if (broadcastId) sessionStorage.setItem('echooPreparedBroadcastId', broadcastId);
     if (channel?.id) sessionStorage.setItem('echooSelectedStationId', idOf(channel));
     const status = String(broadcast?.status || '').toLowerCase();
-    if (LIVE_STATUSES.has(status)) onNavigate?.('Broadcast');
-    else onNavigate?.('Collections');
+    if (LIVE_STATUSES.has(status)) {
+      onNavigate?.('Broadcast');
+      return;
+    }
+    const recordingId = idOf(broadcast?.replayAudio);
+    if (recordingId) onOpenRecording?.(recordingId);
+    else setError('This completed broadcast does not have a saved recording yet.');
   };
 
   const viewAsListener = () => {

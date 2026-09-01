@@ -9,6 +9,7 @@ import {
 
 import batch3Service from '../../services/batch3Service';
 import followService from '../../services/followService';
+import collectionService from '../../services/collectionService';
 import { getCreatorProfilePath } from '../../services/profileIdentifier';
 import '../../styles/echoo-batch3.css';
 
@@ -21,6 +22,7 @@ const ListenerRealStationProfile = () => {
   const [station, setStation] = useState(null);
   const [live, setLive] = useState(null);
   const [upcoming, setUpcoming] = useState([]);
+  const [collections, setCollections] = useState([]);
   const [following, setFollowing] = useState(false);
   const [followerCount, setFollowerCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -39,6 +41,7 @@ const ListenerRealStationProfile = () => {
         setStation(null);
         setLive(null);
         setUpcoming([]);
+        setCollections([]);
         return;
       }
 
@@ -46,10 +49,11 @@ const ListenerRealStationProfile = () => {
       setFollowerCount(Number(nextStation.followerCount) || 0);
       const canonicalStationId = nextStation.id;
 
-      const [liveResult, upcomingResult, followResult] = await Promise.allSettled([
+      const [liveResult, upcomingResult, followResult, collectionResult] = await Promise.allSettled([
         batch3Service.getLiveBroadcastForStation(canonicalStationId),
         batch3Service.getUpcomingForStation(canonicalStationId),
         followService.getStationStatus(canonicalStationId),
+        collectionService.getForStation(canonicalStationId),
       ]);
 
       if (liveResult.status === 'fulfilled') {
@@ -77,6 +81,9 @@ const ListenerRealStationProfile = () => {
             : Number(nextStation.followerCount) || 0
         );
       }
+      setCollections(collectionResult.status === 'fulfilled' && Array.isArray(collectionResult.value?.data)
+        ? collectionResult.value.data
+        : []);
     } catch (loadError) {
       if (!silent) {
         setStation(null);
@@ -248,6 +255,20 @@ const ListenerRealStationProfile = () => {
               Join
             </button>
           </article>
+        </section>
+      )}
+
+      {collections.length > 0 && (
+        <section className="b3-section">
+          <div className="b3-section-title"><h2>Collections</h2></div>
+          <div className="b3-upcoming-list">
+            {collections.slice(0, 4).map((collection) => (
+              <article key={collection.id}>
+                <div><strong>{collection.title}</strong><span>{collection.broadcastCount} {collection.broadcastCount === 1 ? 'recording' : 'recordings'}</span></div>
+                <button type="button" onClick={() => navigate(`/listen/collections/${collection.id}`)}>View</button>
+              </article>
+            ))}
+          </div>
         </section>
       )}
 

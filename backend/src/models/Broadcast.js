@@ -245,6 +245,34 @@ const broadcastSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    realtimeAudio: {
+      codec: { type: String, default: 'opus' },
+      requestedSampleRate: { type: Number, default: 48000 },
+      requestedChannels: { type: Number, default: 2 },
+      requestedMaxBitrate: { type: Number, default: 256000 },
+      qualityProfile: { type: String, enum: ['broadcast_high', 'studio', 'studio_max'], default: 'broadcast_high' },
+    },
+    radioOutput: {
+      status: { type: String, enum: ['idle', 'starting', 'active', 'stopping', 'completed', 'failed'], default: 'idle' },
+      codec: { type: String, default: null },
+      sampleRate: { type: Number, default: null },
+      channels: { type: Number, default: null },
+      bitrate: { type: Number, default: null },
+      publicUrl: { type: String, default: null },
+      reason: { type: String, default: null },
+      error: { type: String, default: null },
+    },
+    masterRecording: {
+      status: { type: String, enum: ['idle', 'starting', 'active', 'stopping', 'completed', 'failed'], default: 'idle' },
+      codec: { type: String, default: null },
+      sampleRate: { type: Number, default: null },
+      channels: { type: Number, default: null },
+      bitDepth: { type: Number, default: null },
+      sourceStage: { type: String, enum: ['pre_opus_pcm', 'post_opus_pcm', null], default: null },
+      storageKey: { type: String, default: null, select: false },
+      reason: { type: String, default: null },
+      error: { type: String, default: null },
+    },
     captionSettings: {
       // Retained for compatibility with creator settings. Live listeners never
       // receive transcript data; replay publication is controlled separately.

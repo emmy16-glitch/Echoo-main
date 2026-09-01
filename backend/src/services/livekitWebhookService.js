@@ -2,6 +2,7 @@ import { WebhookReceiver } from 'livekit-server-sdk';
 import Broadcast from '../models/Broadcast.js';
 import Station from '../models/Station.js';
 import LiveKitProvider from '../providers/livekit.js';
+import { stopBroadcastOutputs } from './broadcastOutputService.js';
 import { clearBroadcastPresenceCache } from '../controllers/broadcastPresenceController.js';
 import { releaseCreatorBroadcastLease } from './creatorBroadcastLease.js';
 import { flushBroadcastTranscription } from './transcriptionGateway.js';
@@ -113,6 +114,9 @@ const endDisconnectedBroadcast = async (broadcastId, io) => {
   if (broadcast.livekitEgressId) {
     await LiveKitProvider.stopEgress(broadcast.livekitEgressId).catch(() => null);
   }
+  await stopBroadcastOutputs(String(broadcast._id), { incomplete: true }).catch((error) => {
+    console.warn('[Echoo Outputs] LiveKit-disconnect cleanup warning:', error?.message || error);
+  });
   await LiveKitProvider.endRoom(broadcast._id).catch(() => null);
 
   broadcast.status = 'completed';

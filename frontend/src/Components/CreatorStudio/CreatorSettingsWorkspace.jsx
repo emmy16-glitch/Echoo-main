@@ -1,12 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  FaBell,
   FaCamera,
-  FaEnvelope,
   FaLock,
   FaSave,
-  FaShieldAlt,
-  FaUser,
 } from 'react-icons/fa';
 
 import settingsService from '../../services/settingsService';
@@ -20,9 +16,9 @@ import './CreatorSettingsConnected.css';
 import './CreatorStudioRuntimeFixes.css';
 
 const TABS = [
-  { id: 'profile', label: 'Profile', icon: <FaUser /> },
-  { id: 'notifications', label: 'Notifications', icon: <FaBell /> },
-  { id: 'security', label: 'Account & Security', icon: <FaShieldAlt /> },
+  { id: 'profile', label: 'Profile' },
+  { id: 'notifications', label: 'Notifications' },
+  { id: 'security', label: 'Account & Security' },
 ];
 
 const CreatorSettingsWorkspace = () => {
@@ -225,33 +221,34 @@ const CreatorSettingsWorkspace = () => {
         <p>Manage your Echoo account.</p>
       </header>
 
-      <nav className="creator-settings-tabs" aria-label="Settings sections">
-        {TABS.map((tab) => (
-          <button
-            type="button"
-            key={tab.id}
-            className={activeTab === tab.id ? 'active' : ''}
-            aria-current={activeTab === tab.id ? 'page' : undefined}
-            onClick={() => {
-              setActiveTab(tab.id);
-              setError('');
-              setMessage('');
-            }}
-          >
-            {tab.icon}
-            <span className="creator-settings-tab-label">{tab.label}</span>
-          </button>
-        ))}
-      </nav>
+      <div className="creator-settings-panel">
+        <nav className="creator-settings-tabs" aria-label="Settings sections">
+          {TABS.map((tab) => (
+            <button
+              type="button"
+              key={tab.id}
+              className={activeTab === tab.id ? 'active' : ''}
+              aria-current={activeTab === tab.id ? 'page' : undefined}
+              onClick={() => {
+                setActiveTab(tab.id);
+                setError('');
+                setMessage('');
+              }}
+            >
+              <span className="creator-settings-tab-label">{tab.label}</span>
+            </button>
+          ))}
+        </nav>
 
-      {message && <div className="creator-settings-real-message success">{message}</div>}
-      {error && <div className="creator-settings-real-message error">{error}</div>}
+        <div className="creator-settings-panel-body">
+          {message && <div className="creator-settings-real-message success">{message}</div>}
+          {error && <div className="creator-settings-real-message error">{error}</div>}
 
-      {activeTab === 'profile' && (
+          {activeTab === 'profile' && (
         <div className="creator-settings-section">
           <form className="creator-settings-real-card" onSubmit={saveProfile}>
             <div className="creator-settings-section-heading">
-              <h3><FaUser /> Profile</h3>
+              <h3>Profile</h3>
               <p>Manage your personal Echoo profile.</p>
             </div>
 
@@ -295,11 +292,11 @@ const CreatorSettingsWorkspace = () => {
         </div>
       )}
 
-      {activeTab === 'notifications' && (
+          {activeTab === 'notifications' && (
         <div className="creator-settings-section">
           <form className="creator-settings-real-card" onSubmit={saveNotifications}>
             <div className="creator-settings-section-heading">
-              <h3><FaBell /> Notifications</h3>
+              <h3>Notifications</h3>
               <p>Choose the account updates you want Echoo to send you.</p>
             </div>
 
@@ -327,7 +324,7 @@ const CreatorSettingsWorkspace = () => {
           {isDesktop && (
             <section className="creator-settings-real-card creator-settings-desktop-card">
               <div className="creator-settings-section-heading">
-                <h3><FaBell /> Desktop alerts</h3>
+                <h3>Desktop alerts</h3>
                 <p>Choose which neutral native alerts Echoo Desktop may show on this device.</p>
               </div>
 
@@ -372,11 +369,15 @@ const CreatorSettingsWorkspace = () => {
         </div>
       )}
 
-      {activeTab === 'security' && (
+          {activeTab === 'security' && (
         <div className="creator-settings-section creator-settings-security-grid">
+          <div className="creator-settings-section-heading creator-settings-security-heading">
+            <h3>Account &amp; Security</h3>
+            <p>Manage your sign-in email and password.</p>
+          </div>
           <form className="creator-settings-real-card" onSubmit={saveEmail}>
             <div className="creator-settings-section-heading">
-              <h3><FaEnvelope /> Email</h3>
+              <h3>Email</h3>
               <p>Confirm your current password before changing your sign-in email.</p>
             </div>
             <label>
@@ -415,6 +416,8 @@ const CreatorSettingsWorkspace = () => {
           </form>
         </div>
       )}
+        </div>
+      </div>
     </section>
   );
 };

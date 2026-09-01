@@ -8,6 +8,7 @@
   --se-blue: #0b63f6;
   width: 100%;
   min-width: 0;
+  min-height: 0;
   color: var(--se-ink);
 }
 
@@ -114,10 +115,14 @@
 .schedule-modal-overlay {
   position: fixed;
   inset: 0;
-  z-index: 230;
+  z-index: 1000;
   display: grid;
-  place-items: center;
+  align-items: center;
+  justify-items: center;
   padding: 24px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   background: rgba(8, 18, 35, .48);
   backdrop-filter: blur(6px);
 }
@@ -221,7 +226,11 @@
 /* Final compact scheduling modal: quick edit scale, stable page, internal scroll only. */
 body:has(.schedule-modal-overlay) { overflow: hidden; }
 
-.schedule-modal-overlay { padding: 16px; }
+.schedule-modal-overlay {
+  align-items: start;
+  padding: max(16px, env(safe-area-inset-top, 0px)) 16px max(16px, env(safe-area-inset-bottom, 0px));
+  scrollbar-gutter: stable;
+}
 .schedule-modal {
   width: min(660px, calc(100vw - 32px));
   max-height: min(520px, calc(100dvh - 32px));
@@ -260,7 +269,10 @@ body:has(.schedule-modal-overlay) { overflow: hidden; }
 }
 
 @media (max-width: 560px) {
-  .schedule-modal-overlay { padding: 8px; align-items: center; }
+  .schedule-modal-overlay {
+    align-items: end;
+    padding: 8px;
+  }
   .schedule-modal { width: 100%; max-height: calc(100dvh - 16px); border-radius: 14px; }
   .schedule-modal-body { grid-template-columns: 1fr; padding: 2px 14px 10px; }
   .schedule-channel-preview { grid-template-columns: 72px minmax(0, 1fr); }

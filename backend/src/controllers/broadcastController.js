@@ -72,6 +72,19 @@ const sanitizeAudioSources = (sources) => (Array.isArray(sources) ? sources : []
     gain: clamp(source.gain, 0, 1.5, 1),
   }));
 
+const sanitizeRealtimeAudio = (value = {}) => {
+  const profile = ['broadcast_high', 'studio', 'studio_max'].includes(value?.qualityProfile)
+    ? value.qualityProfile
+    : 'broadcast_high';
+  return {
+    codec: 'opus',
+    requestedSampleRate: 48000,
+    requestedChannels: 2,
+    requestedMaxBitrate: profile === 'studio_max' ? 510000 : profile === 'studio' ? 384000 : 256000,
+    qualityProfile: profile,
+  };
+};
+
 function emitStatus(req, broadcast) {
   const io = req.app.get('io');
   if (!io) return;
@@ -135,6 +148,7 @@ export async function createBroadcast(req, res, next) {
       captionSettings = {},
       audioConfiguration = {},
       audioSources = [],
+      realtimeAudio = {},
     } = req.body;
 
     const resolvedStationId = stationId || stationFromBody;
@@ -226,6 +240,7 @@ export async function createBroadcast(req, res, next) {
       },
       audioConfiguration: sanitizeAudioConfiguration(audioConfiguration),
       audioSources: sanitizeAudioSources(audioSources),
+      realtimeAudio: sanitizeRealtimeAudio(realtimeAudio),
     });
 
     await broadcast.save();
@@ -437,6 +452,9 @@ export async function updateBroadcast(req, res, next) {
     }
     if (req.body.audioSources !== undefined) {
       broadcast.audioSources = sanitizeAudioSources(req.body.audioSources);
+    }
+    if (req.body.realtimeAudio && typeof req.body.realtimeAudio === 'object') {
+      broadcast.realtimeAudio = sanitizeRealtimeAudio(req.body.realtimeAudio);
     }
 
     if (

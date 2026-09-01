@@ -218,6 +218,10 @@ const userSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Audio',
     }],
+    savedCollections: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Playlist',
+    }],
     isActive: {
       type: Boolean,
       default: true,

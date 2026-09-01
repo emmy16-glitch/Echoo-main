@@ -14,6 +14,12 @@ import {
 } from '../../services/echooMixerService';
 import { DEFAULT_CREATOR_AUDIO_SETTINGS } from '../../services/creatorAudioPreferences';
 import {
+  getRealtimeAudioProfile,
+  getSavedRealtimeAudioProfile,
+  normalizeRealtimeAudioProfile,
+  saveRealtimeAudioProfile,
+} from '../../services/realtimeAudioQuality';
+import {
   getActiveLiveKitRoom,
   getLiveKitPublishingState,
   startLiveKitPublishing,
@@ -45,8 +51,9 @@ const percentToRatio = (value, fallback = 0) => {
   return Number.isFinite(number) ? Math.max(0, Math.min(1, number / 100)) : fallback;
 };
 
-const buildAudioSnapshot = (state) => {
+const buildAudioSnapshot = (state, qualityProfile) => {
   const settings = state?.processing?.settings || DEFAULT_CREATOR_AUDIO_SETTINGS;
+  const realtimeAudio = getRealtimeAudioProfile(qualityProfile);
   const sourceDefinitions = [
     ['host', 'microphone', 'Host microphone'],
     ['channel2', 'microphone', 'Channel 2 input'],
@@ -76,6 +83,13 @@ const buildAudioSnapshot = (state) => {
         gain: Math.max(0, Math.min(1.5, Number(source.gain) || 0)),
       };
     }),
+    realtimeAudio: {
+      codec: 'opus',
+      requestedSampleRate: realtimeAudio.sampleRate,
+      requestedChannels: realtimeAudio.channels,
+      requestedMaxBitrate: realtimeAudio.maxBitrate,
+      qualityProfile: realtimeAudio.id,
+    },
   };
 };
 
@@ -98,6 +112,7 @@ const CreatorLiveConnectedWorkspace = ({
   const [stationId, setStationId] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [realtimeQualityProfile, setRealtimeQualityProfile] = useState(getSavedRealtimeAudioProfile);
   const [savedBroadcast, setSavedBroadcast] = useState(null);
   const [currentLiveBroadcast, setCurrentLiveBroadcast] = useState(null);
   const [presence, setPresence] = useState({
@@ -157,7 +172,10 @@ const CreatorLiveConnectedWorkspace = ({
         if (activeBroadcast) {
           setCurrentLiveBroadcast(activeBroadcast);
           setSavedBroadcast(activeBroadcast);
-          setStationId(activeBroadcast.stationId || realStations[0]?.id || '');
+          setRealtimeQualityProfile(normalizeRealtimeAudioProfile(
+            activeBroadcast.realtimeAudio?.qualityProfile || getSavedRealtimeAudioProfile()
+          ));
+          setStationId(realStations[0]?.id || '');
           setTitle(activeBroadcast.title || realStations[0]?.name || '');
           setDescription(activeBroadcast.description || realStations[0]?.description || '');
           clearPreparedBroadcast();
@@ -167,7 +185,10 @@ const CreatorLiveConnectedWorkspace = ({
         const interruptedStart = realBroadcasts.find((item) => item.status === 'starting') || null;
         if (interruptedStart) {
           setSavedBroadcast(interruptedStart);
-          setStationId(interruptedStart.stationId || realStations[0]?.id || '');
+          setRealtimeQualityProfile(normalizeRealtimeAudioProfile(
+            interruptedStart.realtimeAudio?.qualityProfile || getSavedRealtimeAudioProfile()
+          ));
+          setStationId(realStations[0]?.id || '');
           setTitle(interruptedStart.title || realStations[0]?.name || '');
           setDescription(interruptedStart.description || realStations[0]?.description || '');
           sessionStorage.setItem('echooPreparedBroadcastId', String(interruptedStart.id));
@@ -192,7 +213,10 @@ const CreatorLiveConnectedWorkspace = ({
 
           if (prepared && ['scheduled', 'starting', 'failed', 'draft'].includes(prepared.status)) {
             setSavedBroadcast(prepared);
-            setStationId(prepared.stationId || realStations[0]?.id || '');
+            setRealtimeQualityProfile(normalizeRealtimeAudioProfile(
+              prepared.realtimeAudio?.qualityProfile || getSavedRealtimeAudioProfile()
+            ));
+            setStationId(realStations[0]?.id || '');
             setTitle(prepared.title || realStations[0]?.name || '');
             setDescription(prepared.description || realStations[0]?.description || '');
             return;
@@ -300,8 +324,8 @@ const CreatorLiveConnectedWorkspace = ({
   }, [currentLiveBroadcast?.id, currentLiveBroadcast?.startedAt, currentLiveBroadcast?.startTime]);
 
   const selectedStation = useMemo(
-    () => stations.find((station) => String(station.id) === String(stationId)) || stations[0] || null,
-    [stations, stationId]
+    () => stations[0] || null,
+    [stations]
   );
 
   useEffect(() => {
@@ -311,7 +335,7 @@ const CreatorLiveConnectedWorkspace = ({
   }, [selectedStation, savedBroadcast?.id, currentLiveBroadcast?.id]);
 
   const prepareImmediateBroadcast = async (snapshot = getEchooMixerState()) => {
-    const audioSnapshot = buildAudioSnapshot(snapshot);
+    const audioSnapshot = buildAudioSnapshot(snapshot, realtimeQualityProfile);
 
     if (savedBroadcast?.id && savedBroadcast.status !== 'live') {
       try {
@@ -410,6 +434,7 @@ const CreatorLiveConnectedWorkspace = ({
         token: connection.token,
         broadcastId: broadcast.id,
         mediaTrack,
+        qualityProfile: realtimeQualityProfile,
       });
 
       let confirmed = null;
@@ -500,15 +525,15 @@ const CreatorLiveConnectedWorkspace = ({
         <FaBroadcastTower />
         <h1>Complete your Channel setup.</h1>
         <p>Your Echoo Channel is required before you can broadcast.</p>
-        <button type="button" onClick={() => onNavigate?.('Station')}>Open Channels</button>
+            <button type="button" onClick={() => onNavigate?.('Station')}>Open Channel</button>
       </section>
     );
   }
 
   const isLive = Boolean(currentLiveBroadcast?.id);
-  const liveStation = isLive
-    ? stations.find((station) => String(station.id) === String(currentLiveBroadcast.stationId)) || selectedStation
-    : selectedStation;
+  // Channel identity is independent of the selected program/broadcast. The
+  // canonical station is always the first backend-ordered station.
+  const liveStation = selectedStation;
   const activeRoom = isLive ? getActiveLiveKitRoom() : null;
   const creatorConnected = presence.creatorConnected || Boolean(activeRoom);
   const audioPublished =
@@ -545,7 +570,7 @@ const CreatorLiveConnectedWorkspace = ({
         </div>
         <aside className="ec2-station-identity">
           <span>CHANNEL</span>
-          <strong>{liveStation?.name || studioName}</strong>
+          <strong>{liveStation?.name || 'Your Channel'}</strong>
           <small>{liveStation?.category || 'Your Echoo Channel'}</small>
         </aside>
       </section>
@@ -567,6 +592,8 @@ const CreatorLiveConnectedWorkspace = ({
         audioLibrary={audioLibrary}
         onGoLive={goLive}
         goLiveBusy={goingLive}
+        qualityProfile={realtimeQualityProfile}
+        onQualityProfileChange={(value) => setRealtimeQualityProfile(saveRealtimeAudioProfile(value))}
       />
 
       {isLive && (

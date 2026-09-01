@@ -6,7 +6,7 @@ import {
   FaImage,
   FaTimes,
 } from 'react-icons/fa';
-import { FiCalendar, FiCamera, FiRadio } from 'react-icons/fi';
+import { FiCalendar, FiCamera, FiFolder, FiRadio } from 'react-icons/fi';
 import { MdOutlinePodcasts } from 'react-icons/md';
 import { PiChartBar } from 'react-icons/pi';
 
@@ -32,7 +32,8 @@ import CreatorScheduleEventsWorkspace from './CreatorScheduleEventsWorkspace';
 import CreatorBroadcastSettingsWorkspace from './CreatorBroadcastSettingsWorkspace';
 import CreatorSettingsWorkspace from './CreatorSettingsWorkspace';
 import CreatorNotificationsWorkspace from './CreatorNotificationsWorkspace';
-import CreatorCollectionsWorkspace from './CreatorCollectionsWorkspace';
+import CreatorRecordingsWorkspace from './CreatorCollectionsWorkspace';
+import CreatorCollectionWorkspace from './CreatorCollectionWorkspace';
 import AccountExperienceMenu from '../Shared/AccountExperienceMenu';
 
 const GENRES = [
@@ -61,7 +62,8 @@ const AUDIO_EXTENSIONS = new Set([
 const CREATOR_WORKSPACE_PATHS = {
   Broadcast: '/creator-studio',
   Station: '/creator-studio/channels',
-  Collections: '/creator-studio/recordings',
+  Recordings: '/creator-studio/recordings',
+  Collections: '/creator-studio/collections',
   Schedule: '/creator-studio/schedule-events',
   BroadcastSettings: '/creator-studio/broadcast-settings',
   Analytics: '/creator-studio/analytics',
@@ -83,6 +85,8 @@ CREATOR_ROUTE_WORKSPACES['/creator-studio/channels'] = 'Station';
 
 const creatorWorkspaceForPath = (pathname) => {
   const normalizedPath = String(pathname || '/creator-studio').replace(/\/+$/, '') || '/creator-studio';
+  if (normalizedPath.startsWith('/creator-studio/collections/')) return 'Collections';
+  if (normalizedPath.startsWith('/creator-studio/recordings/')) return 'Recordings';
   return CREATOR_ROUTE_WORKSPACES[normalizedPath] || 'Broadcast';
 };
 
@@ -152,8 +156,9 @@ const CreatorStudioBody = () => {
 
   const navItems = [
     { workspace: 'Broadcast', label: 'Broadcast', icon: <FiRadio /> },
-    { workspace: 'Station', label: 'Channels', icon: <MdOutlinePodcasts /> },
-    { workspace: 'Collections', label: 'Recordings', icon: <FiCamera /> },
+    { workspace: 'Station', label: 'Channel', icon: <MdOutlinePodcasts /> },
+    { workspace: 'Recordings', label: 'Recordings', icon: <FiCamera /> },
+    { workspace: 'Collections', label: 'Collections', icon: <FiFolder /> },
     { workspace: 'Schedule', label: 'Schedule Events', icon: <FiCalendar /> },
     { workspace: 'Analytics', label: 'Analytics', icon: <PiChartBar /> },
   ];
@@ -174,11 +179,11 @@ const CreatorStudioBody = () => {
   useEffect(() => {
     let active = true;
     const load = async () => {
-      if (!['Audio', 'Broadcast', 'Collections', 'Audience'].includes(activeNav)) return;
+      if (!['Audio', 'Broadcast', 'Recordings', 'Audience'].includes(activeNav)) return;
       try {
         setLoading(true);
         setError('');
-        if (activeNav === 'Audio' || activeNav === 'Broadcast' || activeNav === 'Collections') {
+        if (activeNav === 'Audio' || activeNav === 'Broadcast' || activeNav === 'Recordings') {
           const response = await studioService.getContent({ page: contentPage, limit: 50 });
           if (active) setContent(response?.data || { tracks: [], pagination: {} });
         }
@@ -377,17 +382,33 @@ const CreatorStudioBody = () => {
         );
       case 'Stations':
       case 'Station':
-        return <CreatorStationsWorkspace studioName={studioName} onNavigate={navigateStudio} />;
+        return <CreatorStationsWorkspace studioName={studioName} onNavigate={navigateStudio} onOpenRecording={(id) => routerNavigate(`/creator-studio/recordings/${encodeURIComponent(id)}`)} />;
       case 'Discover':
         return <CreatorDiscoverWorkspace onNavigate={navigateStudio} />;
-      case 'Collections':
+      case 'Recordings': {
+        const selectedRecordingId = location.pathname.split('/')[3] || '';
         return (
-          <CreatorCollectionsWorkspace
+          <CreatorRecordingsWorkspace
             tracks={Array.isArray(content?.tracks) ? content.tracks : []}
             studioName={studioName}
             onChanged={() => setRefreshKey((value) => value + 1)}
+            onNavigate={navigateStudio}
+            recordingId={selectedRecordingId}
+            onCloseRecording={() => routerNavigate('/creator-studio/recordings')}
           />
         );
+      }
+      case 'Collections': {
+        const selectedCollectionId = location.pathname.split('/')[3] || '';
+        return (
+          <CreatorCollectionWorkspace
+            collectionId={selectedCollectionId}
+            studioName={studioName}
+            onOpenCollection={(id) => routerNavigate(`/creator-studio/collections/${encodeURIComponent(id)}`)}
+            onBack={() => routerNavigate('/creator-studio/collections')}
+          />
+        );
+      }
       case 'Schedule':
         return <CreatorScheduleEventsWorkspace onNavigate={navigateStudio} />;
       case 'BroadcastSettings':

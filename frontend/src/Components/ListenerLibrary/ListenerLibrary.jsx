@@ -18,6 +18,7 @@ import audioService from '../../services/audioService';
 import realtimeService from '../../services/realtimeService';
 import batch6Service from '../../services/batch6Service';
 import playlistService from '../../services/playlistService';
+import collectionService from '../../services/collectionService';
 import ListenerToast from '../ListenerUI/ListenerToast';
 import '../../styles/listener-reference-pages.css';
 import './ListenerLibrary.css';
@@ -93,6 +94,7 @@ const ListenerLibrary = () => {
   const [totalPages, setTotalPages] = useState(0);
   const [genres, setGenres] = useState([]);
   const [playlists, setPlaylists] = useState([]);
+  const [savedCollections, setSavedCollections] = useState([]);
   const [downloads, setDownloads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -116,7 +118,7 @@ const ListenerLibrary = () => {
     try {
       if (!silent) setLoading(true);
       if (!silent) setLoadError('');
-      const [audioResult, playlistsResult, downloadsResult, genresResult] = await Promise.allSettled([
+      const [audioResult, playlistsResult, downloadsResult, genresResult, collectionsResult] = await Promise.allSettled([
         audioService.getAll({
           page,
           limit: PAGE_SIZE,
@@ -126,6 +128,7 @@ const ListenerLibrary = () => {
         playlistService.getMine(),
         batch6Service.getDownloads({ page: 1, limit: 100 }),
         audioService.getAll({ page: 1, limit: 100 }),
+        collectionService.getSaved(),
       ]);
 
       if (audioResult.status === 'fulfilled') {
@@ -148,6 +151,9 @@ const ListenerLibrary = () => {
         const list = Array.isArray(genresResult.value?.data) ? genresResult.value.data : [];
         const seen = new Set();
         setGenres(list.map((track) => String(track.genre || '')).filter((value) => value && !seen.has(value) && seen.add(value)));
+      }
+      if (collectionsResult.status === 'fulfilled') {
+        setSavedCollections(Array.isArray(collectionsResult.value?.data) ? collectionsResult.value.data : []);
       }
     } finally {
       if (!silent) setLoading(false);
@@ -518,6 +524,12 @@ const ListenerLibrary = () => {
                 </article>
               );
             })}
+          </section>
+
+          <section className="al-card al-playlist-card">
+            <div className="al-card-header"><strong>Saved Collections</strong></div>
+            {savedCollections.length === 0 && <p className="al-empty-note">Collections you save from Channels will appear here.</p>}
+            {savedCollections.slice(0, 3).map((collection) => <article className="al-playlist-row" key={idOf(collection)} role="button" tabIndex={0} onClick={() => navigate(`/listen/collections/${idOf(collection)}`)} onKeyDown={(event) => event.key === 'Enter' && navigate(`/listen/collections/${idOf(collection)}`)}><span className="al-playlist-art"><FaHeadphones /></span><div className="al-playlist-info"><strong>{collection.title}</strong><span>{collection.broadcastCount} recordings</span></div></article>)}
           </section>
 
           <section className="al-card al-offline-card">

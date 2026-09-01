@@ -152,6 +152,19 @@ export async function createStation(req, res, next) {
       });
     }
 
+    // Echoo exposes one public Channel identity per creator. Historical
+    // station rows can remain referenced by old broadcasts, but no new second
+    // Channel may be created for the same creator.
+    const existingChannel = await Station.findOne({ owner: req.userId, isDeleted: false }).select('_id');
+    if (existingChannel) {
+      return res.status(409).json({
+        error: {
+          code: 'CHANNEL_ALREADY_EXISTS',
+          message: 'This creator already has a Channel. Edit it instead.',
+        },
+      });
+    }
+
     const slug = createSlug(cleanName);
     const existing = await Station.findOne({ slug, isDeleted: false }).select('_id');
 
@@ -278,7 +291,10 @@ export async function getMyStations(req, res, next) {
       Station.find({
         owner: req.userId,
         isDeleted: false,
-      }).sort({ createdAt: -1 })
+      // The newest edited channel is the canonical identity when importing a
+      // legacy account that already has historical station records. Every
+      // creator surface consumes this order rather than selecting by context.
+      }).sort({ updatedAt: -1, createdAt: -1, _id: -1 })
     );
 
     return res.status(200).json({

@@ -45,6 +45,10 @@ import {
   seekMedia,
 } from '../../services/echooMixerService';
 import { applyProgramTrackQuality, audioQualityLabel } from '../../services/audioQualityProfile';
+import {
+  ECHOO_REALTIME_AUDIO_PROFILES,
+  normalizeRealtimeAudioProfile,
+} from '../../services/realtimeAudioQuality';
 import studioService from '../../services/studioService';
 import {
   getCachedCreatorAudioSettings,
@@ -211,7 +215,7 @@ const parentStateSignature = (snapshot = {}) => [
   snapshot.monitoring?.outputDeviceId || '',
 ].join('|');
 
-const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = null, onStateChange, audioLibrary = [], onGoLive, goLiveBusy = false }) => {
+const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = null, onStateChange, audioLibrary = [], onGoLive, goLiveBusy = false, qualityProfile = 'broadcast_high', onQualityProfileChange }) => {
   // The pre-live Sound Check and Live Mixer share this exact snapshot. Browser
   // tracks remain owned by echooMixerService, so entering live never asks the
   // creator to choose or reconnect a source a second time.
@@ -726,6 +730,11 @@ const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = n
       setWorkingChannel(channelId);
       setError('');
       if (!deviceId) {
+        if (channelId === 'host') {
+          await ensureHostInput();
+          await refreshDevices();
+          return;
+        }
         disconnectMixerChannel(channelId);
         return;
       }
@@ -864,7 +873,26 @@ const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = n
             {audioMenuOpen && <div className="eam-approved-audio-menu"><button type="button" onClick={() => { setAudioMenuOpen(false); mediaFileInputRef.current?.click(); }}>Upload audio file</button><button type="button" onClick={() => setLibraryOpen(true)}>From Echoo library</button><button type="button" onClick={addBrowserAudio} disabled={workingChannel === 'screen'}>{workingChannel === 'screen' ? 'Opening browser picker…' : 'Share browser audio'}</button></div>}
             {libraryOpen && <div className="eam-approved-library" role="dialog" aria-modal="true" aria-label="Echoo audio library"><header><strong>Echoo library</strong><button type="button" onClick={() => setLibraryOpen(false)}>Close</button></header>{audioLibrary.length ? audioLibrary.map((item) => <button type="button" key={item.id || item._id || item.title} onClick={() => addLibraryAudio(item)} disabled={workingChannel === 'media'}><span>{item.title || item.name || 'Untitled audio'}</span><small>{item.genre || item.category || 'Audio'}</small></button>) : <p>Your Echoo library is empty.</p>}</div>}
           </section>
-          <aside className="eam-approved-live-actions"><button type="button" className="eam-approved-go-live" onClick={onGoLive} disabled={goLiveBusy}><FiRadio />{goLiveBusy ? 'Starting…' : 'Go Live'}</button><p>Review your mix before going live.</p><button type="button" className="eam-approved-test-mix" onClick={testProcessedAudio} disabled={monitorWorking || workingChannel === 'host'}><FiVolume2 /> {testingAudio && monitoring.enabled ? 'Stop testing' : 'Test your mix'}</button></aside>
+          <aside className="eam-approved-live-actions">
+            <div className="eam-approved-quality" role="group" aria-labelledby="audio-quality-label">
+              <span id="audio-quality-label">Audio quality</span>
+              <div className="eam-approved-quality-options">
+                {Object.values(ECHOO_REALTIME_AUDIO_PROFILES).map((profile) => (
+                  <button
+                    type="button"
+                    key={profile.id}
+                    className={normalizeRealtimeAudioProfile(qualityProfile) === profile.id ? 'active' : ''}
+                    aria-pressed={normalizeRealtimeAudioProfile(qualityProfile) === profile.id}
+                    onClick={() => onQualityProfileChange?.(profile.id)}
+                  >
+                    {profile.label}
+                  </button>
+                ))}
+              </div>
+              <small>{ECHOO_REALTIME_AUDIO_PROFILES[normalizeRealtimeAudioProfile(qualityProfile)].description}</small>
+            </div>
+            <button type="button" className="eam-approved-go-live" onClick={onGoLive} disabled={goLiveBusy}><FiRadio />{goLiveBusy ? 'Starting…' : 'Go Live'}</button><p>Review your mix before going live.</p><button type="button" className="eam-approved-test-mix" onClick={testProcessedAudio} disabled={monitorWorking || workingChannel === 'host'}><FiVolume2 /> {testingAudio && monitoring.enabled ? 'Stop testing' : 'Test your mix'}</button>
+          </aside>
         </div>
       </section>
     );

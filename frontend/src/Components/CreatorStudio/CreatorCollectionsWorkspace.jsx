@@ -19,6 +19,7 @@ import { TbWorld } from 'react-icons/tb';
 
 import { buildMediaUrl } from '../../services/api.js';
 import studioService from '../../services/studioService.js';
+import collectionService from '../../services/collectionService.js';
 import { buildGeneratedAudioCoverUrl } from '../../audioCover/audioCover.js';
 import CreatorAudioDetailModal from './CreatorAudioDetailModal.jsx';
 import './CreatorCollectionsWorkspace.css';
@@ -78,6 +79,9 @@ export default function CreatorCollectionsWorkspace({
   tracks = [],
   studioName = 'Echoo Creator',
   onChanged,
+  onNavigate,
+  recordingId = '',
+  onCloseRecording,
 }) {
   const [tab, setTab] = useState('all');
   const [query, setQuery] = useState('');
@@ -92,6 +96,8 @@ export default function CreatorCollectionsWorkspace({
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [collectionPickerTrack, setCollectionPickerTrack] = useState(null);
+  const [collectionChoices, setCollectionChoices] = useState([]);
   const audioRef = useRef(null);
   const fileRef = useRef(null);
 
@@ -129,6 +135,12 @@ export default function CreatorCollectionsWorkspace({
   }, [query, sortMode, studioName, tab, tracks]);
 
   useEffect(() => { setPage(1); }, [query, tab, sortMode, perPage]);
+
+  useEffect(() => {
+    if (!recordingId) return;
+    const recording = tracks.find((track) => String(getId(track)) === String(recordingId));
+    if (recording) setSelectedTrack(recording);
+  }, [recordingId, tracks]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
   const safePage = Math.min(page, totalPages);
@@ -224,6 +236,32 @@ export default function CreatorCollectionsWorkspace({
       refresh();
     } catch (deleteError) {
       setError(deleteError?.message || 'Could not delete this recording.');
+    } finally {
+      setBusyId('');
+    }
+  };
+
+  const openCollectionPicker = async (track) => {
+    try {
+      setError('');
+      const response = await collectionService.getMine();
+      setCollectionChoices(response?.data || []);
+      setCollectionPickerTrack(track);
+    } catch (loadError) {
+      setError(loadError?.message || 'Could not load Collections.');
+    }
+  };
+
+  const addToCollection = async (collectionId) => {
+    const targetId = getId(collectionPickerTrack);
+    if (!targetId || !collectionId) return;
+    try {
+      setBusyId(String(targetId));
+      await collectionService.addRecordings(collectionId, [targetId]);
+      setCollectionPickerTrack(null);
+      announce('Recording added to Collection.');
+    } catch (addError) {
+      setError(addError?.message || 'Could not add this recording to the Collection.');
     } finally {
       setBusyId('');
     }
@@ -368,6 +406,7 @@ export default function CreatorCollectionsWorkspace({
                     {menuId === id && (
                       <div className="recordings-more-menu">
                         <button type="button" onClick={() => setSelectedTrack(track)}>Manage recording</button>
+                        <button type="button" onClick={() => { setMenuId(''); openCollectionPicker(track); }}>Add to Collection</button>
                         {status === 'published' && <button type="button" onClick={() => setVisibility(track, false)}>Unpublish</button>}
                         <button type="button" className="danger" onClick={() => remove(track)}><FiTrash2 /> Delete</button>
                       </div>
@@ -398,7 +437,8 @@ export default function CreatorCollectionsWorkspace({
         </footer>
       </section>
 
-      {selectedTrack && <CreatorAudioDetailModal track={selectedTrack} onClose={() => setSelectedTrack(null)} onChanged={refresh} />}
+      {selectedTrack && <CreatorAudioDetailModal track={selectedTrack} onClose={() => { setSelectedTrack(null); if (recordingId) onCloseRecording?.(); }} onChanged={refresh} onAddToCollection={() => openCollectionPicker(selectedTrack)} />}
+      {collectionPickerTrack && <div className="recordings-collection-picker" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setCollectionPickerTrack(null)}><section role="dialog" aria-modal="true" aria-label="Add to Collection"><header><strong>Add to Collection</strong><button type="button" onClick={() => setCollectionPickerTrack(null)}>×</button></header>{collectionChoices.length ? collectionChoices.map((collection) => <button type="button" key={collection.id} onClick={() => addToCollection(collection.id)}>{collection.title}<small>{collection.broadcastCount} recordings</small></button>) : <p>No Collections yet.</p>}<button type="button" className="new" onClick={() => { setCollectionPickerTrack(null); onNavigate?.('Collections'); }}>+ New Collection</button></section></div>}
     </section>
   );
 }

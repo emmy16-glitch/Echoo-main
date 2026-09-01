@@ -41,6 +41,7 @@ export const loadListenerSettings = cachedLoader(() => import('../Components/Lis
 export const loadListenerAudioDetail = cachedLoader(() => import('../Components/ListenerAudioDetail/ListenerAudioDetail'));
 export const loadListenerLiveRoom = cachedLoader(() => import('../Components/ListenerLiveExperience/ListenerRealLiveRoom'));
 export const loadListenerStationProfile = cachedLoader(() => import('../Components/ListenerLiveExperience/ListenerRealStationProfile'));
+export const loadListenerCollectionDetail = cachedLoader(() => import('../Components/ListenerCollectionDetail/ListenerCollectionDetail'));
 
 const LISTENER_ROUTE_LOADERS = [
   loadListenerHome,
@@ -59,6 +60,7 @@ const LISTENER_ROUTE_LOADERS = [
   loadListenerAudioDetail,
   loadListenerLiveRoom,
   loadListenerStationProfile,
+  loadListenerCollectionDetail,
 ];
 
 export const preloadListenerRoutes = () =>

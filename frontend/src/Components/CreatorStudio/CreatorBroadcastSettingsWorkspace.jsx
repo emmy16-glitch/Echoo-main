@@ -94,10 +94,7 @@ export default function CreatorBroadcastSettingsWorkspace({ onNavigate }) {
     load();
   }, [load]);
 
-  const channel = useMemo(() => {
-    if (!broadcast) return channels[0] || null;
-    return channels.find((item) => idOf(item) === String(broadcast.stationId)) || channels[0] || null;
-  }, [broadcast, channels]);
+  const channel = useMemo(() => channels[0] || null, [channels]);
 
   const update = (field, value) => setForm((current) => ({ ...current, [field]: value }));
 

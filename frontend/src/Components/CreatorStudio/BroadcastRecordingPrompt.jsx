@@ -248,7 +248,7 @@ const BroadcastRecordingPrompt = () => {
   };
 
   const savedLabel = recording.lossless
-    ? 'Lossless master recording'
+    ? 'Lossless Master Capture'
     : 'High-quality fallback recording';
 
   return (
