@@ -47,6 +47,7 @@
 }
 
 .creator-audio-modal-artwork {
+  position: relative;
   width: 100%;
   aspect-ratio: 1 / 1;
   overflow: hidden;
@@ -69,6 +70,41 @@
 .creator-audio-modal-artwork > span {
   font-size: 72px;
   font-weight: 850;
+}
+
+.creator-audio-artwork-edit {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, .42);
+  border-radius: 10px;
+  background: rgba(16, 24, 40, .78);
+  color: #fff;
+  backdrop-filter: blur(8px);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.creator-audio-artwork-edit:hover:not(:disabled) {
+  background: rgba(16, 24, 40, .9);
+}
+
+.creator-audio-artwork-edit:focus-visible {
+  outline: 3px solid rgba(255, 255, 255, .8);
+  outline-offset: 2px;
+}
+
+.creator-audio-artwork-edit:disabled {
+  opacity: .7;
+  cursor: wait;
 }
 
 .creator-audio-modal-content {
