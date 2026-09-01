@@ -1,0 +1,70 @@
+.listener-live-waveform {
+  position: relative;
+  width: min(760px, 76vw);
+  height: 122px;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  opacity: .82;
+  transition: opacity 180ms ease;
+}
+
+.listener-live-waveform.is-quiet {
+  opacity: .34;
+}
+
+.listener-live-waveform-bars {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  overflow: hidden;
+  mask-image: linear-gradient(90deg, transparent 0%, #000 9%, #000 91%, transparent 100%);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 9%, #000 91%, transparent 100%);
+}
+
+.listener-live-waveform-bars span {
+  flex: 1 1 0;
+  min-width: 2px;
+  max-width: 5px;
+  height: var(--listener-wave-height, 4px);
+  border-radius: 999px;
+  background: linear-gradient(180deg, #7ed8ff 0%, #2f8cff 45%, #1661ff 100%);
+  opacity: var(--listener-wave-opacity, .18);
+  box-shadow: 0 0 10px rgba(47, 140, 255, .26);
+  transition: height 78ms linear, opacity 90ms linear;
+}
+
+.listener-live-waveform.has-signal .listener-live-waveform-bars span {
+  box-shadow: 0 0 12px rgba(63, 156, 255, .38);
+}
+
+.listener-live-waveform-baseline {
+  position: absolute;
+  left: 7%;
+  right: 7%;
+  top: 50%;
+  height: 1px;
+  transform: translateY(-50%);
+  background: linear-gradient(90deg, transparent, rgba(90, 171, 255, .22), rgba(90, 171, 255, .22), transparent);
+}
+
+@media (max-width: 760px) {
+  .listener-live-waveform {
+    width: min(640px, 88vw);
+    height: 92px;
+  }
+
+  .listener-live-waveform-bars {
+    gap: 3px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .listener-live-waveform,
+  .listener-live-waveform-bars span {
+    transition: none;
+  }
+}
