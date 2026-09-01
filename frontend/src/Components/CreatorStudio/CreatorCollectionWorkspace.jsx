@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { FiArrowLeft, FiChevronDown, FiChevronUp, FiEdit2, FiFolder, FiPlus, FiTrash2, FiX } from 'react-icons/fi';
 
 import batch2Service from '../../services/batch2Service.js';
@@ -9,6 +10,7 @@ import { buildGeneratedAudioCoverUrl } from '../../audioCover/audioCover.js';
 import './CreatorCollectionWorkspace.css';
 
 const idOf = (value) => value?.id || value?._id || value || '';
+const PENDING_RECORDING_KEY = 'echooAddRecordingToCollection';
 
 const artworkFor = (recording, studioName) => buildMediaUrl(recording?.coverArt || recording?.artwork || null)
   || buildGeneratedAudioCoverUrl({ title: recording?.title || 'Echoo recording', artistName: studioName, genre: recording?.genre || 'Recording' });
@@ -35,6 +37,9 @@ export default function CreatorCollectionWorkspace({ collectionId = '', studioNa
   const [form, setForm] = useState(EMPTY_FORM);
   const [addOpen, setAddOpen] = useState(false);
   const [selectedRecordingIds, setSelectedRecordingIds] = useState([]);
+  const [pendingRecordingId, setPendingRecordingId] = useState(() => (
+    typeof window === 'undefined' ? '' : sessionStorage.getItem(PENDING_RECORDING_KEY) || ''
+  ));
 
   const load = useCallback(async () => {
     try {
@@ -75,14 +80,34 @@ export default function CreatorCollectionWorkspace({ collectionId = '', studioNa
     window.setTimeout(() => setNotice(''), 2400);
   };
 
+  const clearPendingRecording = () => {
+    if (typeof window !== 'undefined') sessionStorage.removeItem(PENDING_RECORDING_KEY);
+    setPendingRecordingId('');
+  };
+
   const openCreate = () => {
-    if (!stations.length) {
-      setError('Create a Channel before creating a Collection.');
+    const channel = stations[0] || null;
+    if (!channel?.id && !channel?._id) {
+      setError('Your Channel could not be loaded. Open Channel and try again.');
       return;
     }
+    setError('');
     setEditing(false);
-    setForm({ ...EMPTY_FORM, stationId: idOf(stations[0]) });
+    setForm({ ...EMPTY_FORM, stationId: idOf(channel) });
     setFormOpen(true);
+  };
+
+  useEffect(() => {
+    if (loading || collectionId || !pendingRecordingId || formOpen || !stations.length) return;
+    openCreate();
+    // This effect is intentionally driven by the pending add-to-Collection intent.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, collectionId, pendingRecordingId, formOpen, stations.length]);
+
+  const closeForm = () => {
+    if (busy) return;
+    setFormOpen(false);
+    if (!editing && pendingRecordingId) clearPendingRecording();
   };
 
   const openEdit = () => {
@@ -101,9 +126,23 @@ export default function CreatorCollectionWorkspace({ collectionId = '', studioNa
       const response = editing
         ? await collectionService.update(selected.id, { title: form.title.trim(), description: form.description.trim(), isPublic: form.isPublic })
         : await collectionService.create({ ...form, title: form.title.trim(), description: form.description.trim() });
-      const updated = response?.data;
+      let updated = response?.data;
+
+      if (!editing && updated?.id && pendingRecordingId) {
+        try {
+          const addResponse = await collectionService.addRecordings(updated.id, [pendingRecordingId]);
+          updated = addResponse?.data || updated;
+          announce('Collection created and recording added.');
+          clearPendingRecording();
+        } catch (addError) {
+          clearPendingRecording();
+          setError(addError?.message || 'Collection was created, but the recording could not be added.');
+        }
+      } else {
+        announce(editing ? 'Collection updated.' : 'Collection created.');
+      }
+
       setFormOpen(false);
-      announce(editing ? 'Collection updated.' : 'Collection created.');
       await load();
       if (updated?.id) onOpenCollection?.(updated.id);
     } catch (submitError) {
@@ -134,9 +173,9 @@ export default function CreatorCollectionWorkspace({ collectionId = '', studioNa
   }, [recordings, selected]);
 
   const openAddRecordings = () => {
-    const pending = sessionStorage.getItem('echooAddRecordingToCollection');
+    const pending = typeof window === 'undefined' ? '' : sessionStorage.getItem(PENDING_RECORDING_KEY);
     setSelectedRecordingIds(pending && availableRecordings.some((recording) => idOf(recording) === pending) ? [pending] : []);
-    sessionStorage.removeItem('echooAddRecordingToCollection');
+    if (pending) clearPendingRecording();
     setAddOpen(true);
   };
 
@@ -201,23 +240,30 @@ export default function CreatorCollectionWorkspace({ collectionId = '', studioNa
           <div><span className="creator-collection-eyebrow">Collection</span><h1>{selected.title}</h1><p>{selected.description || 'A curated set of recordings from your Channel.'}</p><small>{selected.broadcastCount} {selected.broadcastCount === 1 ? 'recording' : 'recordings'} · {selected.isPublic ? 'Public' : 'Private'}</small></div>
         </section>
         <section className="creator-collection-recordings"><div className="creator-collection-section-head"><div><h2>Recordings</h2><p>Order determines listener playback.</p></div><button type="button" className="creator-collections-button" onClick={openAddRecordings}><FiPlus /> Add recordings</button></div>
-          {selected.recordings?.length ? selected.recordings.map((recording, index) => <article key={idOf(recording)} className="creator-collection-recording"><span className="creator-collection-order">{index + 1}</span><img src={artworkFor(recording, studioName)} alt="" /><div><strong>{recording.title || 'Untitled recording'}</strong><span>{duration(recording.duration)} · {recording.genre || 'Recording'}</span></div><div className="creator-collection-row-actions"><button type="button" disabled={busy || index === 0} aria-label="Move recording up" onClick={() => moveRecording(index, -1)}><FiChevronUp /></button><button type="button" disabled={busy || index === selected.recordings.length - 1} aria-label="Move recording down" onClick={() => moveRecording(index, 1)}><FiChevronDown /></button><button type="button" disabled={busy} aria-label="Remove recording" onClick={() => removeRecording(idOf(recording))}><FiX /></button></div></article>) : <div className="creator-collection-empty"><FiFolder /><strong>No recordings in this Collection yet.</strong><p>Add recordings from your library to publish a replayable set for listeners.</p></div>}
+          {selected.recordings?.length ? selected.recordings.map((recording, index) => <article key={idOf(recording)} className="creator-collection-recording"><span className="creator-collection-order">{index + 1}</span><img src={artworkFor(recording, studioName)} alt="" /><div><strong>{recording.title || 'Untitled recording'}</strong><span>{duration(recording.duration)} · {recording.genre || 'Recording'}</span></div><div className="creator-collection-row-actions"><button type="button" disabled={busy || index === 0} aria-label="Move recording up" onClick={() => moveRecording(index, -1)}><FiChevronUp /></button><button type="button" disabled={busy || index === selected.recordings.length - 1} aria-label="Move recording down" onClick={() => moveRecording(index, 1)}><FiChevronDown /></button><button type="button" disabled={busy} aria-label="Remove recording" onClick={() => removeRecording(idOf(recording))}><FiX /></button></div></article>) : <div className="creator-collection-empty"><FiFolder /><strong>No recordings in this Collection yet.</strong><p>Add recordings from your library to build a replayable set for listeners.</p></div>}
         </section>
-        {formOpen && <CollectionForm form={form} setForm={setForm} stations={stations} editing={editing} busy={busy} onClose={() => !busy && setFormOpen(false)} onSubmit={submitForm} />}
+        {formOpen && <CollectionForm form={form} setForm={setForm} stations={stations} editing={editing} busy={busy} onClose={closeForm} onSubmit={submitForm} />}
         {addOpen && <RecordingPicker recordings={availableRecordings} selectedIds={selectedRecordingIds} setSelectedIds={setSelectedRecordingIds} studioName={studioName} busy={busy} onClose={() => !busy && setAddOpen(false)} onSubmit={addRecordings} />}
       </section>
     );
   }
 
-  return <section className="creator-collections-page"><header className="creator-collections-heading list"><div><h1>Collections</h1><p>Curate your saved recordings into replayable sets for listeners.</p></div><button type="button" className="creator-collections-button" onClick={openCreate}><FiPlus /> New Collection</button></header>{(error || notice) && <div className={`creator-collections-feedback ${error ? 'is-error' : ''}`} role={error ? 'alert' : 'status'}>{error || notice}<button type="button" onClick={() => { setError(''); setNotice(''); }}><FiX /></button></div>}<div className="creator-collections-grid">{loading ? <p className="creator-collections-loading">Loading Collections…</p> : collections.length ? collections.map((collection) => <button type="button" key={collection.id} className="creator-collection-card" onClick={() => onOpenCollection?.(collection.id)}><img src={collection.coverArt} alt="" /><span><strong>{collection.title}</strong><small>{collection.broadcastCount} {collection.broadcastCount === 1 ? 'recording' : 'recordings'} · {collection.isPublic ? 'Public' : 'Private'}</small></span></button>) : <div className="creator-collection-empty"><FiFolder /><strong>No Collections yet.</strong><p>Group your broadcasts and recordings so listeners can replay them in order.</p><button type="button" className="creator-collections-button" onClick={openCreate}><FiPlus /> Create Collection</button></div>}</div>{formOpen && <CollectionForm form={form} setForm={setForm} stations={stations} editing={false} busy={busy} onClose={() => !busy && setFormOpen(false)} onSubmit={submitForm} />}</section>;
+  const showHeaderCreate = !loading && collections.length > 0;
+
+  return <section className="creator-collections-page"><header className="creator-collections-heading list"><div><h1>Collections</h1><p>Organize related recordings into collections for listeners.</p></div>{showHeaderCreate && <button type="button" className="creator-collections-button" onClick={openCreate}><FiPlus /> New Collection</button>}</header>{(error || notice) && <div className={`creator-collections-feedback ${error ? 'is-error' : ''}`} role={error ? 'alert' : 'status'}>{error || notice}<button type="button" onClick={() => { setError(''); setNotice(''); }}><FiX /></button></div>}<div className="creator-collections-grid">{loading ? <p className="creator-collections-loading">Loading Collections…</p> : collections.length ? collections.map((collection) => <button type="button" key={collection.id} className="creator-collection-card" onClick={() => onOpenCollection?.(collection.id)}><img src={collection.coverArt} alt="" /><span><strong>{collection.title}</strong><small>{collection.broadcastCount} {collection.broadcastCount === 1 ? 'recording' : 'recordings'} · {collection.isPublic ? 'Public' : 'Private'}</small></span></button>) : <div className="creator-collection-empty"><FiFolder /><strong>No Collections yet.</strong><p>Keep related recordings together so listeners can replay them in order.</p><button type="button" className="creator-collections-button" onClick={openCreate}><FiPlus /> Create Collection</button></div>}</div>{formOpen && <CollectionForm form={form} setForm={setForm} stations={stations} editing={false} busy={busy} onClose={closeForm} onSubmit={submitForm} />}</section>;
+}
+
+function ModalPortal({ children }) {
+  if (typeof document === 'undefined') return children;
+  return createPortal(children, document.body);
 }
 
 function CollectionForm({ form, setForm, stations, editing, busy, onClose, onSubmit }) {
   const channel = stations[0] || null;
-  return <div className="creator-collections-modal" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><form className="creator-collections-dialog" onSubmit={onSubmit}><header><h2>{editing ? 'Edit Collection' : 'New Collection'}</h2><button type="button" aria-label="Close" onClick={onClose}><FiX /></button></header><label>Collection name<input required maxLength="100" value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} placeholder="Sunday night replays" /></label><label>Description<textarea maxLength="500" value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} placeholder="What listeners can expect" /></label>{!editing && <p className="creator-collection-channel-note">Channel: <strong>{channel?.name || 'Your Channel'}</strong></p>}<label className="creator-collections-check"><input type="checkbox" checked={form.isPublic} onChange={(event) => setForm((current) => ({ ...current, isPublic: event.target.checked }))} /> Visible to listeners</label><footer><button type="button" className="creator-collections-button secondary" onClick={onClose}>Cancel</button><button className="creator-collections-button" disabled={busy}>{busy ? 'Saving…' : editing ? 'Save changes' : 'Create Collection'}</button></footer></form></div>;
+  return <ModalPortal><div className="creator-collections-modal" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><form className="creator-collections-dialog" onSubmit={onSubmit}><header><h2>{editing ? 'Edit Collection' : 'New Collection'}</h2><button type="button" aria-label="Close" onClick={onClose}><FiX /></button></header><label>Collection name<input required maxLength="100" value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} placeholder="Sunday night replays" /></label><label>Description<textarea maxLength="500" value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} placeholder="What listeners can expect" /></label>{!editing && <p className="creator-collection-channel-note">Channel: <strong>{channel?.name || 'Your Channel'}</strong></p>}<label className="creator-collections-check"><input type="checkbox" checked={form.isPublic} onChange={(event) => setForm((current) => ({ ...current, isPublic: event.target.checked }))} /> Visible to listeners</label><footer><button type="button" className="creator-collections-button secondary" onClick={onClose}>Cancel</button><button className="creator-collections-button" disabled={busy}>{busy ? 'Saving…' : editing ? 'Save changes' : 'Create Collection'}</button></footer></form></div></ModalPortal>;
 }
 
 function RecordingPicker({ recordings, selectedIds, setSelectedIds, studioName, busy, onClose, onSubmit }) {
   const toggle = (id) => setSelectedIds((current) => current.includes(id) ? current.filter((value) => value !== id) : [...current, id]);
-  return <div className="creator-collections-modal" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><section className="creator-collections-dialog"><header><h2>Add recordings</h2><button type="button" aria-label="Close" onClick={onClose}><FiX /></button></header><div className="creator-collection-picker">{recordings.length ? recordings.map((recording) => <label key={idOf(recording)}><input type="checkbox" checked={selectedIds.includes(idOf(recording))} onChange={() => toggle(idOf(recording))} /><img src={artworkFor(recording, studioName)} alt="" /><span><strong>{recording.title || 'Untitled recording'}</strong><small>{duration(recording.duration)}</small></span></label>) : <p>All available recordings are already in this Collection.</p>}</div><footer><button type="button" className="creator-collections-button secondary" onClick={onClose}>Cancel</button><button type="button" className="creator-collections-button" disabled={busy || !selectedIds.length} onClick={onSubmit}>{busy ? 'Adding…' : 'Add selected'}</button></footer></section></div>;
+  return <ModalPortal><div className="creator-collections-modal" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><section className="creator-collections-dialog"><header><h2>Add recordings</h2><button type="button" aria-label="Close" onClick={onClose}><FiX /></button></header><div className="creator-collection-picker">{recordings.length ? recordings.map((recording) => <label key={idOf(recording)}><input type="checkbox" checked={selectedIds.includes(idOf(recording))} onChange={() => toggle(idOf(recording))} /><img src={artworkFor(recording, studioName)} alt="" /><span><strong>{recording.title || 'Untitled recording'}</strong><small>{duration(recording.duration)}</small></span></label>) : <p>All available recordings are already in this Collection.</p>}</div><footer><button type="button" className="creator-collections-button secondary" onClick={onClose}>Cancel</button><button type="button" className="creator-collections-button" disabled={busy || !selectedIds.length} onClick={onSubmit}>{busy ? 'Adding…' : 'Add selected'}</button></footer></section></div></ModalPortal>;
 }
