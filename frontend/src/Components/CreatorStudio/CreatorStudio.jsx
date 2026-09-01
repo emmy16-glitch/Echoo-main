@@ -414,6 +414,7 @@ const CreatorStudioBody = () => {
       case 'BroadcastSettings':
         return <CreatorBroadcastSettingsWorkspace onNavigate={navigateStudio} />;
       case 'Broadcast':
+      case 'Home':
         return (
           <CreatorBroadcastWorkspace
             key="broadcast"
@@ -475,15 +476,17 @@ const CreatorStudioBody = () => {
             <img src={echooLogo} alt="" />
             <span>echoo</span>
           </button>
-          <AccountExperienceMenu
-            currentExperience="creator"
-            user={user}
-            profileImage={profileImage}
-            variant="creator"
-            onUserChange={setUser}
-            onNotifications={() => navigateStudio('Notifications')}
-            onSettings={() => navigateStudio('Settings')}
-          />
+          <div className="studio-top-profile-wrap">
+            <AccountExperienceMenu
+              currentExperience="creator"
+              user={user}
+              profileImage={profileImage}
+              variant="creator"
+              onUserChange={setUser}
+              onNotifications={() => navigateStudio('Notifications')}
+              onSettings={() => navigateStudio('Settings')}
+            />
+          </div>
         </header>
 
         {error && <div className="studio-alert error"><FaExclamationCircle /><span>{error}</span><button type="button" onClick={() => setError('')}><FaTimes /></button></div>}

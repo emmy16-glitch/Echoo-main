@@ -138,10 +138,10 @@ const ListenerHome = () => {
   }
 
   return (
-    <div className="echoo-listener-target-home">
+    <div className="echoo-home echoo-listener-target-home">
       {error && <div className="echoo-listener-target-error" role="alert">{error}</div>}
 
-      <section className="echoo-listener-target-section echoo-listener-target-section--live-page">
+      <section className="echoo-listener-target-section echoo-listener-target-section--live-page echoo-home-welcome">
         <header className="echoo-listener-target-section-head echoo-listener-target-section-head--page">
           <div>
             <h1>Live now</h1>

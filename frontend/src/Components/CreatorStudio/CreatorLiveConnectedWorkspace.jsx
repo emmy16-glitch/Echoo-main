@@ -28,6 +28,8 @@ import {
 import realtimeService from '../../services/realtimeService';
 import './CreatorBroadcastApproved.css';
 
+const TRANSCRIPT_REVIEW_STATUSES = ['processing', 'ready_for_review', 'editing', 'failed'];
+
 const pad = (value) => String(value).padStart(2, '0');
 
 const formatTimer = (seconds) => {

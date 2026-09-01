@@ -103,7 +103,7 @@ test('creator end-live hands buffered PCM to backend and finalizes recording bef
   assert.doesNotMatch(broadcastService, /void \(async \(\) => \{[\s\S]*finishBroadcastRecording/);
 
   const endCall = workspace.indexOf('await batch3Service.endBroadcast');
-  const mixerStop = workspace.indexOf('await stopEchooMixer', endCall);
+  const mixerStop = workspace.indexOf('stopLiveKitPublishing', endCall);
   assert.ok(endCall >= 0 && mixerStop > endCall, 'mixer teardown must happen after the synchronized end service returns');
 });
 

@@ -62,7 +62,7 @@ test('Listener uses the shared Creator/Listener shell and matching Home class co
   assert.match(layout, /<EchooAppShell[\s\S]*role="listener"/);
   assert.doesNotMatch(layout, /<aside className="layout-sidebar"/);
 
-  assert.match(home, /className="echoo-home"/);
+  assert.match(home, /className="echoo-home/);
   assert.match(home, /echoo-home-welcome/);
   assert.match(homeCss, /\.echoo-home\s*\{/);
   assert.match(homeCss, /\.echoo-home-welcome/);
