@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  FaCamera,
   FaDownload,
   FaEdit,
   FaGlobe,
@@ -15,11 +16,14 @@ import {
 
 import { buildMediaUrl } from '../../services/api.js';
 import studioService from '../../services/studioService.js';
+import recordingArtworkService from '../../services/recordingArtworkService.js';
 import { CREATOR_RENAME_UNDO_WINDOW_MS } from '../../config/playerFeedback.js';
 import Toast from '../UI/Toast';
 import './CreatorAudioDetailModal.css';
 
 const getId = (track) => track?.id || track?._id || null;
+const MAX_ARTWORK_BYTES = 5 * 1024 * 1024;
+const ARTWORK_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 const formatClock = (seconds) => {
   const value = Math.max(0, Number(seconds) || 0);
@@ -52,6 +56,7 @@ const formatType = (mimeType = '') => {
 
 const CreatorAudioDetailModal = ({ track, onClose, onChanged, onAddToCollection }) => {
   const audioRef = useRef(null);
+  const artworkInputRef = useRef(null);
   const initializedTrackRef = useRef(null);
   const [fileUrl, setFileUrl] = useState('');
   const [streamLoading, setStreamLoading] = useState(false);
@@ -66,6 +71,8 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged, onAddToCollection 
   const [savedTitle, setSavedTitle] = useState(track?.title || '');
   const [titleEditing, setTitleEditing] = useState(false);
   const [titleSaving, setTitleSaving] = useState(false);
+  const [artworkOverride, setArtworkOverride] = useState('');
+  const [artworkUploading, setArtworkUploading] = useState(false);
   const [renameToast, setRenameToast] = useState({
     open: false,
     title: '',
@@ -81,8 +88,18 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged, onAddToCollection 
     [track]
   );
   const artwork = useMemo(
-    () => buildMediaUrl(track?.coverArt || track?.artwork || track?.image || ''),
-    [track]
+    () => buildMediaUrl(
+      artworkOverride ||
+      track?.coverArt ||
+      track?.artwork ||
+      track?.image ||
+      track?.thumbnail ||
+      track?.sourceBroadcast?.coverArt ||
+      track?.sourceBroadcast?.station?.coverArt ||
+      track?.station?.coverArt ||
+      ''
+    ),
+    [artworkOverride, track]
   );
 
   useEffect(() => {
@@ -97,6 +114,7 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged, onAddToCollection 
     setTitleDraft(track?.title || '');
     setSavedTitle(track?.title || '');
     setTitleEditing(false);
+    setArtworkOverride('');
     setRenameToast({ open: false, title: '', message: '', undoTitle: '' });
   }, [track?.id, track?._id, track?.title]);
 
@@ -302,6 +320,44 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged, onAddToCollection 
     }
   };
 
+  const changeArtwork = async (event) => {
+    const file = event.target.files?.[0] || null;
+    event.target.value = '';
+    if (!file || artworkUploading) return;
+
+    const id = getId(track);
+    if (!id) {
+      setError('This recording is missing its ID.');
+      return;
+    }
+
+    if (!ARTWORK_TYPES.has(String(file.type || '').toLowerCase())) {
+      setError('Recording artwork must be JPG, PNG or WebP.');
+      return;
+    }
+
+    if (file.size > MAX_ARTWORK_BYTES) {
+      setError('Recording artwork must be 5 MB or smaller.');
+      return;
+    }
+
+    try {
+      setArtworkUploading(true);
+      setError('');
+      const response = await recordingArtworkService.update(id, file);
+      const nextArtwork = response?.data?.coverArt || '';
+      if (nextArtwork) setArtworkOverride(nextArtwork);
+      window.dispatchEvent(new CustomEvent('echoo:creator-audio-changed', {
+        detail: { audioId: String(id), coverArt: nextArtwork },
+      }));
+      onChanged?.(response?.data);
+    } catch (artworkError) {
+      setError(artworkError?.message || 'Could not update this recording artwork.');
+    } finally {
+      setArtworkUploading(false);
+    }
+  };
+
   const downloadOriginal = async () => {
     const id = getId(track);
     if (!id || downloading) return;
@@ -361,6 +417,22 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged, onAddToCollection 
           ) : (
             <span>{String(track.title || 'E').charAt(0).toUpperCase()}</span>
           )}
+          <input
+            ref={artworkInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+            hidden
+            onChange={changeArtwork}
+          />
+          <button
+            type="button"
+            className="creator-audio-artwork-edit"
+            onClick={() => artworkInputRef.current?.click()}
+            disabled={artworkUploading}
+            aria-label="Change recording artwork"
+          >
+            <FaCamera /> {artworkUploading ? 'Uploading…' : 'Change artwork'}
+          </button>
         </div>
 
         <div className="creator-audio-modal-content">
