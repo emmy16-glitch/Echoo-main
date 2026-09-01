@@ -42,6 +42,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
   const audioHostRef = useRef(null);
   const outputRef = useRef('');
   const attachedRef = useRef(new Set());
+  const programParticipantRef = useRef(null);
   const [retryVersion, setRetryVersion] = useState(0);
   const [status, setStatus] = useState(isLive ? 'connecting' : 'disconnected');
   const [needsAudioStart, setNeedsAudioStart] = useState(false);
@@ -51,6 +52,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
   const [trackCount, setTrackCount] = useState(0);
   const [liveVolume, setLiveVolume] = useState(1);
   const [liveMuted, setLiveMuted] = useState(false);
+  const [programAudioLevel, setProgramAudioLevel] = useState(0);
 
   useEffect(() => {
     outputRef.current = outputDeviceId;
@@ -59,14 +61,35 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
   useEffect(() => {
     if (!broadcastId || !isLive) return undefined;
     let disposed = false;
+    let audioLevelTimer = null;
+    let smoothedAudioLevel = 0;
 
     const clearAudio = () => {
       attachedRef.current.clear();
+      programParticipantRef.current = null;
+      smoothedAudioLevel = 0;
+      setProgramAudioLevel(0);
       setTrackCount(0);
       audioHostRef.current?.querySelectorAll('audio').forEach((element) => {
         try { element.pause(); } catch { /* ignore */ }
         element.remove();
       });
+    };
+
+    const startProgramLevelTelemetry = () => {
+      if (audioLevelTimer) window.clearInterval(audioLevelTimer);
+      audioLevelTimer = window.setInterval(() => {
+        if (disposed) return;
+        const participant = programParticipantRef.current;
+        const raw = Math.max(0, Math.min(1, Number(participant?.audioLevel) || 0));
+        const target = raw < 0.012 ? 0 : Math.min(1, raw * 1.18);
+        const response = target > smoothedAudioLevel ? 0.48 : 0.18;
+        smoothedAudioLevel += (target - smoothedAudioLevel) * response;
+        const next = smoothedAudioLevel < 0.006 ? 0 : smoothedAudioLevel;
+        setProgramAudioLevel((current) => (
+          Math.abs(current - next) >= 0.006 ? next : current
+        ));
+      }, 82);
     };
 
     const loadOutputs = async () => {
@@ -83,7 +106,12 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       }
     };
 
-    const attachAudio = async (track, publication = null, room = roomRef.current) => {
+    const attachAudio = async (
+      track,
+      publication = null,
+      room = roomRef.current,
+      participant = null
+    ) => {
       if (
         disposed ||
         roomRef.current !== room ||
@@ -92,6 +120,8 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       ) {
         return;
       }
+
+      if (participant) programParticipantRef.current = participant;
 
       const id = String(track.sid || track.mediaStreamTrack?.id || 'audio');
       if (attachedRef.current.has(id)) return;
@@ -104,7 +134,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       element.muted = false;
       element.volume = 1;
       element.setAttribute('playsinline', '');
-      element.style.display = 'block'; // Ensure it's not display:none
+      element.style.display = 'block';
 
       if (outputRef.current && typeof element.setSinkId === 'function') {
         try { await element.setSinkId(outputRef.current); } catch { /* use system default */ }
@@ -140,11 +170,12 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       }
     };
 
-    const subscribeToProgramPublication = async (publication, room) => {
+    const subscribeToProgramPublication = async (publication, room, participant = null) => {
       if (!publication || !isEchooProgramPublication(publication)) return;
+      if (participant) programParticipantRef.current = participant;
 
       if (publication.track?.kind === Track.Kind.Audio) {
-        await attachAudio(publication.track, publication, room);
+        await attachAudio(publication.track, publication, room, participant);
         return;
       }
 
@@ -166,7 +197,8 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       room.remoteParticipants.forEach((participant) => {
         participant.trackPublications.forEach((publication) => {
           if (isEchooProgramPublication(publication)) {
-            tasks.push(subscribeToProgramPublication(publication, room));
+            programParticipantRef.current = participant;
+            tasks.push(subscribeToProgramPublication(publication, room, participant));
           }
         });
       });
@@ -194,30 +226,36 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       const room = new Room({ adaptiveStream: false, dynacast: false });
       roomRef.current = room;
 
-      room.on(RoomEvent.TrackPublished, (publication) => {
+      room.on(RoomEvent.TrackPublished, (publication, participant) => {
         if (roomRef.current !== room || !isEchooProgramPublication(publication)) return;
-        subscribeToProgramPublication(publication, room).catch((subscriptionError) => {
+        programParticipantRef.current = participant || programParticipantRef.current;
+        subscribeToProgramPublication(publication, room, participant).catch((subscriptionError) => {
           if (!disposed && roomRef.current === room) {
             setError(subscriptionError?.message || 'Could not subscribe to live audio.');
           }
         });
       });
 
-      room.on(RoomEvent.TrackSubscribed, (track, publication) => {
+      room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
         if (roomRef.current !== room) return;
-        attachAudio(track, publication, room).catch((trackError) => {
+        attachAudio(track, publication, room, participant).catch((trackError) => {
           if (!disposed && roomRef.current === room) {
             setError(trackError?.message || 'Could not attach live audio.');
           }
         });
       });
 
-      room.on(RoomEvent.TrackUnsubscribed, (track) => {
+      room.on(RoomEvent.TrackUnsubscribed, (track, publication) => {
         if (roomRef.current !== room) return;
         const id = String(track.sid || track.mediaStreamTrack?.id || 'audio');
         if (!attachedRef.current.has(id)) return;
         attachedRef.current.delete(id);
         try { track.detach().forEach((element) => element.remove()); } catch { /* ignore */ }
+        if (isEchooProgramPublication(publication)) {
+          programParticipantRef.current = null;
+          smoothedAudioLevel = 0;
+          setProgramAudioLevel(0);
+        }
         if (!disposed) {
           setTrackCount((current) => Math.max(0, current - 1));
           setStatus('connected');
@@ -234,7 +272,11 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
         }
       });
       room.on(RoomEvent.Disconnected, () => {
-        if (!disposed && roomRef.current === room) setStatus('disconnected');
+        if (!disposed && roomRef.current === room) {
+          smoothedAudioLevel = 0;
+          setProgramAudioLevel(0);
+          setStatus('disconnected');
+        }
       });
 
       // LiveKit signals an expiring token through a Disconnect with
@@ -267,6 +309,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
 
       await loadOutputs();
       await attachExisting(room);
+      startProgramLevelTelemetry();
 
       const audioElements = Array.from(
         audioHostRef.current?.querySelectorAll('audio') || []
@@ -300,6 +343,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
 
     return () => {
       disposed = true;
+      if (audioLevelTimer) window.clearInterval(audioLevelTimer);
       const room = roomRef.current;
       roomRef.current = null;
       clearAudio();
@@ -388,13 +432,14 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       needsAudioStart,
       volume: liveVolume,
       isMuted: liveMuted,
+      audioLevel: programAudioLevel,
       onTogglePlay: togglePlayback,
       onToggleMute: toggleMute,
       onVolumeChange: changeVolume,
     });
 
     return () => {
-      onStateChange?.({ active: false, track: null, isPlaying: false, playerError: '' });
+      onStateChange?.({ active: false, track: null, isPlaying: false, playerError: '', audioLevel: 0 });
     };
   }, [
     onStateChange,
@@ -406,6 +451,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
     liveVolume,
     liveMuted,
     trackCount,
+    programAudioLevel,
     togglePlayback,
     toggleMute,
     changeVolume,
