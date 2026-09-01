@@ -111,7 +111,7 @@ test('prerequisite waiting does not burn processing retry attempts', async () =>
   assert.match(processing, /failed without a durable quality recording path/);
 });
 
-test('recording completion acknowledgement retries and pending recording preserves recovery state', async () => {
+test('recording completion retries and automatic save preserves recovery state', async () => {
   const recording = await frontendSource('src/services/broadcastRecordingService.js');
   const prompt = await frontendSource('src/Components/CreatorStudio/BroadcastRecordingPrompt.jsx');
   assert.match(recording, /QUALITY_CHUNK_COMPLETE_RETRIES/);
@@ -119,7 +119,12 @@ test('recording completion acknowledgement retries and pending recording preserv
   assert.match(recording, /qualityCompletionPending/);
   assert.match(recording, /retryBroadcastQualityCompletion/);
   assert.match(prompt, /retryBroadcastQualityCompletion/);
-  assert.match(prompt, /discard-replay/);
+  assert.match(prompt, /studioService\.uploadAudio/);
+  assert.match(prompt, /isPublic:\s*false/);
+  assert.match(prompt, /REPLAY_ALREADY_EXISTS/);
+  assert.match(prompt, /beforeunload/);
+  assert.match(prompt, /Echoo automatically saves every completed broadcast/);
+  assert.doesNotMatch(prompt, /discard-replay/);
 });
 
 test('protected downloads use one canonical authorization boundary from route to bytes', async () => {
