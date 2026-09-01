@@ -3,7 +3,6 @@ import { FaBroadcastTower } from 'react-icons/fa';
 import { FiCopy, FiSquare } from 'react-icons/fi';
 
 import CreatorAudioMixer from './CreatorAudioMixer';
-import BroadcastWaveform from './BroadcastWaveform';
 import batch2Service from '../../services/batch2Service';
 import batch3Service from '../../services/batch3Service';
 import {
@@ -27,8 +26,6 @@ import {
 } from '../../services/livekitPublisher';
 import realtimeService from '../../services/realtimeService';
 import './CreatorBroadcastApproved.css';
-
-const TRANSCRIPT_REVIEW_STATUSES = ['processing', 'ready_for_review', 'editing', 'failed'];
 
 const pad = (value) => String(value).padStart(2, '0');
 
@@ -470,7 +467,9 @@ const CreatorLiveConnectedWorkspace = ({
 
   const endBroadcast = async () => {
     if (!currentLiveBroadcast?.id || ending) return;
-    const confirmed = window.confirm('End broadcast? Your listeners will be disconnected, but your workstation setup will stay ready.');
+    const confirmed = window.confirm(
+      'End broadcast?\n\nYour live broadcast will stop for everyone. The recording will be saved automatically.'
+    );
     if (!confirmed) return;
 
     const broadcastId = currentLiveBroadcast.id;
@@ -486,13 +485,13 @@ const CreatorLiveConnectedWorkspace = ({
       ]);
 
       const publishingWarning = publishingResult.find((result) => result.status === 'rejected');
-      markOffAir('Broadcast ended. Your workstation is still ready.');
+      markOffAir('Broadcast ended. Your recording is being saved automatically.');
       if (publishingWarning) {
         setError('The broadcast ended, but Echoo could not fully close the local live connection. Refresh before starting another live session.');
       }
 
       if (!endedResponse?.data) {
-        setMessage('Broadcast ended. Your workstation is still ready.');
+        setMessage('Broadcast ended. Your recording is being saved automatically.');
       }
     } catch (endError) {
       setError(endError?.message || 'Could not end the broadcast.');
@@ -566,9 +565,6 @@ const CreatorLiveConnectedWorkspace = ({
               <p>Connect your inputs, test your mix and go live.</p>
             </>
           )}
-        </div>
-        <div className="ec2-waveform-wrap">
-          <BroadcastWaveform level={mixerState?.master?.level || 0} />
         </div>
         <aside className="ec2-station-identity">
           <span>CHANNEL</span>
