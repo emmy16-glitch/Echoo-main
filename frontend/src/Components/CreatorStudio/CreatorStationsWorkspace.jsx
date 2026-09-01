@@ -434,7 +434,7 @@ const CreatorStationsWorkspace = ({ onNavigate, onOpenRecording }) => {
                 <h2>Recent broadcasts</h2>
                 <p>Your latest live sessions and recordings.</p>
               </div>
-              <button type="button" onClick={() => onNavigate?.('Collections')}>View all</button>
+              <button type="button" onClick={() => onNavigate?.('Recordings')}>View all</button>
             </header>
 
             {recentBroadcasts.length ? (
