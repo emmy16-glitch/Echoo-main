@@ -305,7 +305,7 @@ export default function CreatorCollectionsWorkspace({
         <div className="recordings-heading-copy">
           <h1>Recordings</h1>
           <p>All your live broadcasts are saved automatically.</p>
-          <strong>Review, publish and manage your recordings.</strong>
+          <strong>Review and manage your recordings.</strong>
         </div>
 
         <div className="recordings-heading-actions">
