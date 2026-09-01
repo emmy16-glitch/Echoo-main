@@ -58,6 +58,8 @@ import {
 } from '../../services/creatorAudioPreferences';
 import './CreatorAudioMixer.css';
 
+const DEFAULT_INPUT_VALUE = '__echoo_default_input__';
+
 const formatDb = (value) => {
   const db = Number(value);
   if (!Number.isFinite(db) || db <= ECHOO_MIXER_LIMITS.minDb + 0.1) return '-∞ dB';
@@ -216,9 +218,6 @@ const parentStateSignature = (snapshot = {}) => [
 ].join('|');
 
 const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = null, onStateChange, audioLibrary = [], onGoLive, goLiveBusy = false, qualityProfile = 'broadcast_high', onQualityProfileChange }) => {
-  // The pre-live Sound Check and Live Mixer share this exact snapshot. Browser
-  // tracks remain owned by echooMixerService, so entering live never asks the
-  // creator to choose or reconnect a source a second time.
   const [mixer, setMixer] = useState(() => sessionState || getEchooMixerState());
   const [inputs, setInputs] = useState([]);
   const [outputs, setOutputs] = useState([]);
@@ -244,8 +243,6 @@ const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = n
 
   useEffect(() =>
     subscribeEchooMixer((next) => {
-      // The mixer itself needs fast meter updates. The parent Broadcast Studio
-      // does not. Only notify the parent when connection/control state changes.
       const signature = parentStateSignature(next);
       if (!approved || signature !== parentSignatureRef.current) setMixer(next);
       if (signature !== parentSignatureRef.current) {
@@ -309,7 +306,6 @@ const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = n
       cancelled = true;
       window.clearTimeout(preferenceSaveTimerRef.current);
     };
-    // Load once; all later changes use updateAudioSetting.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -372,7 +368,6 @@ const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = n
     if (!mediaDevices?.addEventListener) return undefined;
     mediaDevices.addEventListener('devicechange', refreshDevices);
     return () => mediaDevices.removeEventListener('devicechange', refreshDevices);
-    // Device refresh is intentionally registered once for hardware hot-plug.
   }, []);
 
   const connectHost = async () => {
@@ -723,27 +718,34 @@ const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = n
   };
 
   const changeApprovedInput = async (channelId, deviceId) => {
-    if (channelId === 'host') setHostDeviceId(deviceId);
-    if (channelId === 'channel2') setChannel2DeviceId(deviceId);
-    if (channelId === 'guest') setGuestDeviceId(deviceId);
+    const defaultInputRequested = deviceId === DEFAULT_INPUT_VALUE;
+    const resolvedDeviceId = defaultInputRequested ? '' : deviceId;
+
+    if (channelId === 'host') setHostDeviceId(resolvedDeviceId);
+    if (channelId === 'channel2') setChannel2DeviceId(resolvedDeviceId);
+    if (channelId === 'guest') setGuestDeviceId(resolvedDeviceId);
+
     try {
       setWorkingChannel(channelId);
       setError('');
-      if (!deviceId) {
-        if (channelId === 'host') {
-          await ensureHostInput();
-          await refreshDevices();
-          return;
-        }
+
+      if (defaultInputRequested && channelId === 'host') {
+        await ensureHostInput();
+        await refreshDevices();
+        return;
+      }
+
+      if (!resolvedDeviceId) {
         disconnectMixerChannel(channelId);
         return;
       }
-      if (channelId === 'host') await ensureHostInput(deviceId);
-      if (channelId === 'channel2') await connectSecondInput(deviceId);
-      if (channelId === 'guest') await connectGuestInput(deviceId);
+
+      if (channelId === 'host') await ensureHostInput(resolvedDeviceId);
+      if (channelId === 'channel2') await connectSecondInput(resolvedDeviceId);
+      if (channelId === 'guest') await connectGuestInput(resolvedDeviceId);
       await refreshDevices();
     } catch (deviceError) {
-      setError(deviceError?.message || 'Could not connect that audio input.');
+      setError(deviceError?.message || 'Could not connect that audio input. Check browser microphone permission and try again.');
     } finally {
       setWorkingChannel('');
     }
@@ -756,9 +758,6 @@ const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = n
       { id: 'guest', title: 'GUEST 2', role: 'Guest 2 / Call-in', empty: 'No source' },
     ];
     const dbLabels = ['0', '-10', '-20', '-30', '-40', '-50'];
-    // A mixer fader is intentionally non-linear: unity (0 dB) sits near the
-    // approved visual midpoint while the lower half keeps useful attenuation
-    // travel down to silence. The value written to the audio engine remains dB.
     const APPROVED_UNITY_POSITION = 62;
     const dbToApprovedPosition = (db, maxDb) => {
       const value = Math.max(ECHOO_MIXER_LIMITS.minDb, Math.min(maxDb, Number(db) || 0));
@@ -794,6 +793,7 @@ const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = n
         .filter((deviceId) => deviceId && deviceId !== channel?.deviceId);
       const inputOptions = inputs.filter((device) => !unavailableIds.includes(device.deviceId));
       const sourceTitle = channel.connected ? channel.sourceLabel : role;
+      const isHost = id === 'host';
       return (
         <article className="eam-approved-strip" key={id}>
           <header><div><strong>{title}</strong><span>{sourceTitle}</span></div><button type="button" aria-label={`${title} options`} title={`${title} options`}><FiMoreVertical /></button></header>
@@ -805,7 +805,20 @@ const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = n
             <button type="button" className={`eam-approved-monitor ${channel.solo ? 'active' : ''}`} onClick={() => handleListenOnly(id)} disabled={!channel.connected || monitorWorking} aria-pressed={Boolean(channel.solo)}><FiHeadphones /> Monitor</button>
             <button type="button" className={`eam-approved-mute ${channel.muted ? 'active' : ''}`} onClick={() => toggleMixerChannelMute(id)} disabled={!channel.connected} aria-pressed={Boolean(channel.muted)}><FaVolumeMute /> {channel.muted ? 'Muted' : 'Mute'}</button>
           </div>
-          <label className="eam-approved-select"><select value={inputValue} onChange={(event) => changeApprovedInput(id, event.target.value)} aria-label={`${title} input`} disabled={workingChannel === id}><option value="">{id === 'host' ? 'Built-in Microphone' : 'Select guest source'}</option>{inputOptions.map((device) => <option key={device.deviceId} value={device.deviceId}>{device.label}</option>)}</select><FiChevronDown /></label>
+          <label className="eam-approved-select">
+            <select value={inputValue} onChange={(event) => changeApprovedInput(id, event.target.value)} aria-label={`${title} input`} disabled={workingChannel === id}>
+              {isHost ? (
+                <>
+                  <option value="" disabled>Choose microphone</option>
+                  <option value={DEFAULT_INPUT_VALUE}>Built-in Microphone</option>
+                </>
+              ) : (
+                <option value="">Select guest source</option>
+              )}
+              {inputOptions.map((device) => <option key={device.deviceId} value={device.deviceId}>{device.label}</option>)}
+            </select>
+            <FiChevronDown />
+          </label>
         </article>
       );
     };
