@@ -15,7 +15,6 @@ import {
   FiTrash2,
   FiUploadCloud,
 } from 'react-icons/fi';
-import { TbWorld } from 'react-icons/tb';
 
 import { buildMediaUrl } from '../../services/api.js';
 import studioService from '../../services/studioService.js';
@@ -25,6 +24,7 @@ import CreatorAudioDetailModal from './CreatorAudioDetailModal.jsx';
 import './CreatorCollectionsWorkspace.css';
 
 const getId = (track) => track?.id || track?._id || null;
+const PENDING_RECORDING_KEY = 'echooAddRecordingToCollection';
 
 const parseDurationSeconds = (value) => {
   if (typeof value === 'number') return Math.max(0, value);
@@ -54,11 +54,7 @@ const formatDate = (value) => {
   };
 };
 
-const recordingStatus = (track = {}) => {
-  const raw = String(track.status || track.processingStatus || track.state || '').toLowerCase();
-  if (raw === 'draft') return 'draft';
-  return track.isPublic ? 'published' : 'unpublished';
-};
+const recordingStatus = (track = {}) => (track.isPublic ? 'published' : 'unpublished');
 
 const getArtwork = (track, studioName) => (
   buildMediaUrl(track?.coverArt || track?.artwork || track?.image || track?.thumbnail || null) ||
@@ -70,9 +66,8 @@ const getArtwork = (track, studioName) => (
 );
 
 const statusLabel = {
-  published: 'Published',
-  unpublished: 'Unpublished',
-  draft: 'Draft',
+  published: 'Public',
+  unpublished: 'Private',
 };
 
 export default function CreatorCollectionsWorkspace({
@@ -108,12 +103,10 @@ export default function CreatorCollectionsWorkspace({
 
   const counts = useMemo(() => {
     const published = tracks.filter((track) => recordingStatus(track) === 'published').length;
-    const draft = tracks.filter((track) => recordingStatus(track) === 'draft').length;
     return {
       total: tracks.length,
       published,
       private: tracks.length - published,
-      draft,
     };
   }, [tracks]);
 
@@ -122,7 +115,7 @@ export default function CreatorCollectionsWorkspace({
     const rows = tracks.filter((track) => {
       const status = recordingStatus(track);
       const matchesTab = tab === 'all' || status === tab;
-      const matchesQuery = !needle || [track.title, track.genre, track.description, studioName]
+      const matchesQuery = !needle || [track.title, track.genre, track.description, track.stationName, studioName]
         .some((value) => String(value || '').toLowerCase().includes(needle));
       return matchesTab && matchesQuery;
     });
@@ -195,7 +188,7 @@ export default function CreatorCollectionsWorkspace({
       setError('');
       await studioService.updateAudio(id, { isPublic: Boolean(makePublic) });
       setMenuId('');
-      announce(makePublic ? 'Recording published.' : 'Recording unpublished.');
+      announce(makePublic ? 'Recording is now public.' : 'Recording is now private.');
       refresh();
     } catch (actionError) {
       setError(actionError?.message || 'Could not update this recording.');
@@ -267,6 +260,13 @@ export default function CreatorCollectionsWorkspace({
     }
   };
 
+  const createCollectionForRecording = () => {
+    const targetId = getId(collectionPickerTrack);
+    if (targetId && typeof window !== 'undefined') sessionStorage.setItem(PENDING_RECORDING_KEY, String(targetId));
+    setCollectionPickerTrack(null);
+    onNavigate?.('Collections');
+  };
+
   const uploadSelected = async (event) => {
     const file = event.target.files?.[0];
     event.target.value = '';
@@ -283,7 +283,7 @@ export default function CreatorCollectionsWorkspace({
         tags: [],
         isPublic: false,
       });
-      announce('Audio uploaded. Review it before publishing.');
+      announce('Audio uploaded privately. You can make it public when ready.');
       refresh();
     } catch (uploadError) {
       setError(uploadError?.message || 'Could not upload this audio.');
@@ -294,9 +294,8 @@ export default function CreatorCollectionsWorkspace({
 
   const tabs = [
     ['all', 'All recordings'],
-    ['published', 'Published'],
-    ['unpublished', 'Unpublished'],
-    ['draft', 'Drafts'],
+    ['published', 'Public'],
+    ['unpublished', 'Private'],
   ];
 
   return (
@@ -314,7 +313,7 @@ export default function CreatorCollectionsWorkspace({
             <span>
               <small>Total recordings</small>
               <b>{counts.total}</b>
-              <em>{counts.published} published <i>•</i> {counts.private} private</em>
+              <em>{counts.published} public <i>•</i> {counts.private} private</em>
             </span>
           </div>
           <input ref={fileRef} type="file" accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.opus,.flac,.webm" hidden onChange={uploadSelected} />
@@ -333,7 +332,7 @@ export default function CreatorCollectionsWorkspace({
 
       <section className="recordings-surface">
         <div className="recordings-toolbar">
-          <div className="recordings-tabs" role="tablist" aria-label="Recording status">
+          <div className="recordings-tabs" role="tablist" aria-label="Recording visibility">
             {tabs.map(([value, label]) => (
               <button key={value} type="button" role="tab" aria-selected={tab === value} className={tab === value ? 'active' : ''} onClick={() => setTab(value)}>{label}</button>
             ))}
@@ -362,7 +361,7 @@ export default function CreatorCollectionsWorkspace({
             <span role="columnheader">Recording</span>
             <span role="columnheader">Duration</span>
             <span role="columnheader">Date</span>
-            <span role="columnheader">Status</span>
+            <span role="columnheader">Visibility</span>
             <span role="columnheader">Actions</span>
           </div>
 
@@ -373,6 +372,7 @@ export default function CreatorCollectionsWorkspace({
             const date = formatDate(track.createdAt || track.updatedAt);
             const artwork = getArtwork(track, studioName);
             const metadata = [track.genre, track.description].filter(Boolean).join(' • ');
+            const channelName = track.stationName || track.channelName || studioName;
 
             return (
               <article className="recordings-row" role="row" key={id || track.title}>
@@ -384,7 +384,7 @@ export default function CreatorCollectionsWorkspace({
                   </button>
                   <div className="recordings-copy">
                     <button type="button" className="recordings-title" onClick={() => setSelectedTrack(track)}>{track.title || 'Untitled recording'} <FiEdit2 /></button>
-                    <p>{studioName}</p>
+                    <p>{channelName}</p>
                     {metadata && <span>{metadata}</span>}
                   </div>
                 </div>
@@ -394,11 +394,7 @@ export default function CreatorCollectionsWorkspace({
                 <div className="recordings-status-cell" role="cell"><span className={`recordings-status is-${status}`}><i />{statusLabel[status]}</span></div>
 
                 <div className="recordings-actions" role="cell">
-                  {status === 'published' ? (
-                    <button type="button" className="recordings-primary-action" onClick={() => setSelectedTrack(track)}><FiSettings /> Manage</button>
-                  ) : (
-                    <button type="button" className="recordings-primary-action" disabled={busyId === id} onClick={() => setVisibility(track, true)}><TbWorld /> Publish</button>
-                  )}
+                  <button type="button" className="recordings-primary-action" onClick={() => setSelectedTrack(track)}><FiSettings /> Manage</button>
                   <button type="button" className="recordings-icon-action" aria-label={isPlaying ? 'Pause recording' : 'Play recording'} onClick={() => togglePlay(track)}>{isPlaying ? <FiPause /> : <FiPlay />}</button>
                   <button type="button" className="recordings-icon-action" aria-label="Download recording" disabled={busyId === id} onClick={() => download(track)}><FiDownload /></button>
                   <div className="recordings-more-wrap">
@@ -407,7 +403,7 @@ export default function CreatorCollectionsWorkspace({
                       <div className="recordings-more-menu">
                         <button type="button" onClick={() => setSelectedTrack(track)}>Manage recording</button>
                         <button type="button" onClick={() => { setMenuId(''); openCollectionPicker(track); }}>Add to Collection</button>
-                        {status === 'published' && <button type="button" onClick={() => setVisibility(track, false)}>Unpublish</button>}
+                        <button type="button" onClick={() => setVisibility(track, status !== 'published')}>{status === 'published' ? 'Make private' : 'Make public'}</button>
                         <button type="button" className="danger" onClick={() => remove(track)}><FiTrash2 /> Delete</button>
                       </div>
                     )}
@@ -419,7 +415,7 @@ export default function CreatorCollectionsWorkspace({
             <div className="recordings-empty">
               <FiFolder />
               <strong>{tracks.length ? 'No recordings found.' : 'No recordings yet.'}</strong>
-              <p>{tracks.length ? 'Try another search or status filter.' : 'Completed live broadcasts and uploaded audio will appear here.'}</p>
+              <p>{tracks.length ? 'Try another search or visibility filter.' : 'Completed live broadcasts and uploaded audio will appear here.'}</p>
             </div>
           )}
         </div>
@@ -438,7 +434,7 @@ export default function CreatorCollectionsWorkspace({
       </section>
 
       {selectedTrack && <CreatorAudioDetailModal track={selectedTrack} onClose={() => { setSelectedTrack(null); if (recordingId) onCloseRecording?.(); }} onChanged={refresh} onAddToCollection={() => openCollectionPicker(selectedTrack)} />}
-      {collectionPickerTrack && <div className="recordings-collection-picker" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setCollectionPickerTrack(null)}><section role="dialog" aria-modal="true" aria-label="Add to Collection"><header><strong>Add to Collection</strong><button type="button" onClick={() => setCollectionPickerTrack(null)}>×</button></header>{collectionChoices.length ? collectionChoices.map((collection) => <button type="button" key={collection.id} onClick={() => addToCollection(collection.id)}>{collection.title}<small>{collection.broadcastCount} recordings</small></button>) : <p>No Collections yet.</p>}<button type="button" className="new" onClick={() => { setCollectionPickerTrack(null); onNavigate?.('Collections'); }}>+ New Collection</button></section></div>}
+      {collectionPickerTrack && <div className="recordings-collection-picker" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setCollectionPickerTrack(null)}><section role="dialog" aria-modal="true" aria-label="Add to Collection"><header><strong>Add to Collection</strong><button type="button" onClick={() => setCollectionPickerTrack(null)}>×</button></header>{collectionChoices.length ? collectionChoices.map((collection) => <button type="button" key={collection.id} onClick={() => addToCollection(collection.id)}>{collection.title}<small>{collection.broadcastCount} recordings</small></button>) : <p>No Collections yet.</p>}<button type="button" className="new" onClick={createCollectionForRecording}>{collectionChoices.length ? '+ New Collection' : 'Create Collection'}</button></section></div>}
     </section>
   );
 }
