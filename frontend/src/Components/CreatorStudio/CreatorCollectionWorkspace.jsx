@@ -22,7 +22,7 @@ const duration = (value) => {
   return `${minutes}:${String(total % 60).padStart(2, '0')}`;
 };
 
-const EMPTY_FORM = { title: '', description: '', stationId: '', isPublic: true };
+const EMPTY_FORM = { title: '', description: '', stationId: '', isPublic: true, coverFile: null, coverPreview: '' };
 
 export default function CreatorCollectionWorkspace({ collectionId = '', studioName = 'Echoo Creator', onOpenCollection, onBack }) {
   const [collections, setCollections] = useState([]);
@@ -125,7 +125,7 @@ export default function CreatorCollectionWorkspace({ collectionId = '', studioNa
   const openEdit = () => {
     if (!selected) return;
     setEditing(true);
-    setForm({ title: selected.title || '', description: selected.description || '', stationId: selected.stationId || '', isPublic: selected.isPublic !== false });
+    setForm({ title: selected.title || '', description: selected.description || '', stationId: selected.stationId || '', isPublic: selected.isPublic !== false, coverFile: null, coverPreview: selected.coverArt || '' });
     setFormOpen(true);
   };
 
@@ -137,8 +137,13 @@ export default function CreatorCollectionWorkspace({ collectionId = '', studioNa
       setError('');
       const response = editing
         ? await collectionService.update(selected.id, { title: form.title.trim(), description: form.description.trim(), isPublic: form.isPublic })
-        : await collectionService.create({ ...form, title: form.title.trim(), description: form.description.trim() });
+        : await collectionService.create({ title: form.title.trim(), description: form.description.trim(), stationId: form.stationId, isPublic: form.isPublic });
       let updated = response?.data;
+
+      if (updated?.id && form.coverFile) {
+        const coverResponse = await collectionService.updateCover(updated.id, form.coverFile);
+        updated = coverResponse?.data || updated;
+      }
 
       if (!editing && updated?.id && pendingRecordingId) {
         try {
@@ -155,6 +160,7 @@ export default function CreatorCollectionWorkspace({ collectionId = '', studioNa
       }
 
       setFormOpen(false);
+      if (editing && updated?.id) setSelected(updated);
       await load();
       if (updated?.id) onOpenCollection?.(updated.id);
     } catch (submitError) {
@@ -271,7 +277,12 @@ function ModalPortal({ children }) {
 }
 
 function CollectionForm({ form, setForm, channel, editing, busy, onClose, onSubmit }) {
-  return <ModalPortal><div className="creator-collections-modal" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><form className="creator-collections-dialog" onSubmit={onSubmit}><header><h2>{editing ? 'Edit Collection' : 'New Collection'}</h2><button type="button" aria-label="Close" onClick={onClose}><FiX /></button></header><label>Collection name<input required maxLength="100" value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} placeholder="Sunday night replays" /></label><label>Description<textarea maxLength="500" value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} placeholder="What listeners can expect" /></label>{!editing && <p className="creator-collection-channel-note">Channel: <strong>{channel?.name || 'Your Channel'}</strong></p>}<label className="creator-collections-check"><input type="checkbox" checked={form.isPublic} onChange={(event) => setForm((current) => ({ ...current, isPublic: event.target.checked }))} /> Visible to listeners</label><footer><button type="button" className="creator-collections-button secondary" onClick={onClose}>Cancel</button><button className="creator-collections-button" disabled={busy}>{busy ? 'Saving…' : editing ? 'Save changes' : 'Create Collection'}</button></footer></form></div></ModalPortal>;
+  const chooseCover = (event) => {
+    const coverFile = event.target.files?.[0] || null;
+    if (!coverFile) return;
+    setForm((current) => ({ ...current, coverFile, coverPreview: URL.createObjectURL(coverFile) }));
+  };
+  return <ModalPortal><div className="creator-collections-modal" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><form className="creator-collections-dialog" onSubmit={onSubmit}><header><h2>{editing ? 'Edit Collection' : 'New Collection'}</h2><button type="button" aria-label="Close" onClick={onClose}><FiX /></button></header><label>Collection name<input required maxLength="100" value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} placeholder="Sunday night replays" /></label><label>Description<textarea maxLength="500" value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} placeholder="What listeners can expect" /></label><label className="creator-collection-cover-field">Collection cover<input type="file" accept="image/jpeg,image/png,image/webp" onChange={chooseCover} /><small>JPG, PNG or WebP · up to 5 MB</small>{form.coverPreview && <img src={form.coverPreview} alt="Selected collection cover preview" />}</label>{!editing && <p className="creator-collection-channel-note">Channel: <strong>{channel?.name || 'Your Channel'}</strong></p>}<label className="creator-collections-check"><input type="checkbox" checked={form.isPublic} onChange={(event) => setForm((current) => ({ ...current, isPublic: event.target.checked }))} /> Visible to listeners</label><footer><button type="button" className="creator-collections-button secondary" onClick={onClose}>Cancel</button><button className="creator-collections-button" disabled={busy}>{busy ? 'Saving…' : editing ? 'Save changes' : 'Create Collection'}</button></footer></form></div></ModalPortal>;
 }
 
 function RecordingPicker({ recordings, selectedIds, setSelectedIds, studioName, busy, onClose, onSubmit }) {

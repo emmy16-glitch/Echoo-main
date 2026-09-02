@@ -20,6 +20,7 @@ import { buildGeneratedStationBrandCoverUrl } from '../../stationBranding/statio
 import { ChatPanel } from '../../design-system';
 import { referenceChat, referenceLiveShows } from '../ListenerExperience/listenerExperienceData';
 import LiveKitListenerPlayer from './LiveKitListenerPlayer';
+import BroadcastWaveform from '../CreatorStudio/BroadcastWaveform';
 import echooMark from '../Assets/echoo-logo-official.svg';
 import './ListenerLiveRoom.css';
 import './ListenerV2LiveRoom.css';
@@ -568,6 +569,11 @@ const ListenerRealLiveRoom = () => {
           style={show.artwork ? { '--listener-room-artwork': `url("${show.artwork}")` } : undefined}
         >
           <img className="listener-v2-room-watermark" src={echooMark} alt="" aria-hidden="true" />
+          {isLive && (
+            <div className="listener-v2-room-waveform-wrap">
+              <BroadcastWaveform live={isLive} analyser={liveState?.analyser} />
+            </div>
+          )}
           <div className="listener-v2-room-artwork">
             {show.artwork ? (
               <img src={show.artwork} alt="" />

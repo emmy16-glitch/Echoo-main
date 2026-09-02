@@ -989,7 +989,7 @@
 .eam-approved-strip > header button { width: 20px; height: 26px; padding: 0; border: 0; background: transparent; color: #071438; cursor: pointer; }
 .eam-approved-strip > header button svg { width: 21px; height: 21px; stroke-width: 3; }
 .eam-approved-controls { width: min(100%, 210px); min-height: 174px; display: grid; grid-template-columns: minmax(92px, 1fr) 42px; align-items: center; justify-content: center; gap: 24px; margin: 6px auto 10px; }
-.eam-approved-meter-area { min-width: 0; height: 158px; display: grid; grid-template-columns: auto 19px; align-items: center; justify-content: center; gap: 20px; }
+.eam-approved-meter-area { min-width: 0; height: 158px; display: grid; grid-template-columns: auto minmax(50px, 1fr); align-items: center; justify-content: center; gap: 13px; }
 .eam-approved-db { height: 156px; display: flex; flex-direction: column; justify-content: space-between; color: #06133a; font-size: 13px; line-height: 1; }
 .eam-approved-meter { width: 19px; height: 156px; display: flex; flex-direction: column-reverse; justify-content: space-between; }
 .eam-approved-meter i { height: 7px; border-radius: 999px; background: #cdd5e2; transition: background 70ms linear, transform 70ms linear; }

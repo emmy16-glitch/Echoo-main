@@ -7,13 +7,18 @@ const BAR_COUNT = 56;
  * source is connected, then takes its energy from the canonical mixer state.
  * Canvas avoids turning audio-frame updates into React renders.
  */
-export default function BroadcastWaveform({ live = false, level = 0 }) {
+export default function BroadcastWaveform({ live = false, level = 0, analyser = null }) {
   const canvasRef = useRef(null);
   const levelRef = useRef(level);
+  const analyserRef = useRef(analyser);
 
   useEffect(() => {
     levelRef.current = Number(level) || 0;
   }, [level]);
+
+  useEffect(() => {
+    analyserRef.current = analyser;
+  }, [analyser]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -22,6 +27,9 @@ export default function BroadcastWaveform({ live = false, level = 0 }) {
     const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     const color = live ? '#f15454' : '#1263ff';
     let animationFrame = 0;
+
+    // Create a typed array once if an analyser is present. We will re-create it if the analyser changes.
+    let dataArray = null;
 
     const render = (timestamp = 0) => {
       const bounds = canvas.getBoundingClientRect();
@@ -37,7 +45,22 @@ export default function BroadcastWaveform({ live = false, level = 0 }) {
       context.clearRect(0, 0, bounds.width, bounds.height);
       context.strokeStyle = color;
       context.lineCap = 'round';
-      const baseEnergy = Math.min(1, Math.max(0, levelRef.current));
+
+      let currentLevel = levelRef.current;
+      const currentAnalyser = analyserRef.current;
+      if (currentAnalyser) {
+        if (!dataArray || dataArray.length !== currentAnalyser.frequencyBinCount) {
+          dataArray = new Uint8Array(currentAnalyser.frequencyBinCount);
+        }
+        currentAnalyser.getByteFrequencyData(dataArray);
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i++) {
+          sum += dataArray[i];
+        }
+        currentLevel = (sum / dataArray.length) / 255;
+      }
+
+      const baseEnergy = Math.min(1, Math.max(0, currentLevel));
       const time = reducedMotion ? 0 : timestamp / 1000;
       const waveformWidth = bounds.width * .82;
       const waveformStart = (bounds.width - waveformWidth) / 2;
@@ -75,7 +98,11 @@ export default function BroadcastWaveform({ live = false, level = 0 }) {
         ), 0.04);
         const organic = 0.82 + 0.13 * Math.sin(index * 1.73 + time * 2.1) + 0.07 * Math.sin(index * .43 - time * 1.25);
         const audioEnergy = baseEnergy * (0.45 + 0.55 * Math.sin(index * 1.19 + time * 5.5) ** 2);
-        const amplitude = Math.min(0.94, (0.08 + envelope * organic + audioEnergy * 0.65));
+
+        // When using an analyser, scale down the artificial organic movement based on actual audio energy to reflect silence
+        const idleFactor = currentAnalyser ? Math.min(1, baseEnergy * 8) : 1;
+        const amplitude = Math.min(0.94, (idleFactor * (0.08 + envelope * organic)) + (audioEnergy * 1.2));
+
         const barHeight = Math.max(3, amplitude * bounds.height);
         const x = waveformStart + index * spacing + spacing / 2;
         context.globalAlpha = 0.62 + Math.min(envelope, 1) * 0.38;

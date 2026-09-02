@@ -157,7 +157,8 @@ export async function updateCollection(req, res, next) {
       collection.name = title.slice(0, 100);
     }
     if (req.body.description !== undefined) collection.description = String(req.body.description || '').trim().slice(0, 500);
-    if (req.body.coverArt !== undefined) collection.coverArt = req.body.coverArt ? String(req.body.coverArt).slice(0, 4000) : null;
+    if (req.file?.filename) collection.coverArt = `/uploads/collection-covers/${req.file.filename}`;
+    else if (req.body.coverArt !== undefined) collection.coverArt = req.body.coverArt ? String(req.body.coverArt).slice(0, 4000) : null;
     if (req.body.isPublic !== undefined) collection.isPublic = Boolean(req.body.isPublic);
     await collection.save();
     const populated = await populateCollection(Playlist.findById(collection._id));

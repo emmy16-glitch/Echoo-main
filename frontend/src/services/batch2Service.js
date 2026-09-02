@@ -118,10 +118,18 @@ export const normalizeBroadcast = (broadcast) => {
   const stationId = normalizeId(broadcast.station) || broadcast.stationId || null;
   const creatorId = normalizeId(broadcast.creator) || broadcast.creatorId || null;
   const normalizedStation = stationObject ? normalizeStation(stationObject) : null;
+  const replayAudio = typeof broadcast.replayAudio === 'object' && broadcast.replayAudio
+    ? {
+      ...broadcast.replayAudio,
+      id: broadcast.replayAudio.id || broadcast.replayAudio._id || null,
+      _id: broadcast.replayAudio._id || broadcast.replayAudio.id || null,
+      coverArt: buildMediaUrl(broadcast.replayAudio.coverArt || null),
+    }
+    : broadcast.replayAudio || null;
   const eventArtwork = buildMediaUrl(
     broadcast.eventArtwork || broadcast.coverArt || broadcast.artwork || broadcast.image || null
   );
-  const coverArt = eventArtwork || normalizedStation?.brandCover || null;
+  const coverArt = replayAudio?.coverArt || eventArtwork || normalizedStation?.brandCover || null;
   const status = broadcast.status || 'scheduled';
 
   return {
@@ -144,6 +152,7 @@ export const normalizeBroadcast = (broadcast) => {
     creatorAvatar: buildMediaUrl(creatorObject?.avatar || null),
     coverArt,
     eventArtwork,
+    replayAudio,
     artwork: coverArt,
     image: coverArt,
     status,

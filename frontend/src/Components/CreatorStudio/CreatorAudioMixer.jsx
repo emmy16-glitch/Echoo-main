@@ -13,7 +13,7 @@ import {
   FaVolumeMute,
   FaVolumeUp,
 } from 'react-icons/fa';
-import { FiChevronDown, FiCircle, FiHeadphones, FiMinus, FiMoreVertical, FiPause, FiPlay, FiPlus, FiRadio, FiTrash2, FiVolume2 } from 'react-icons/fi';
+import { FiChevronDown, FiCircle, FiHeadphones, FiMinus, FiPause, FiPlay, FiPlus, FiRadio, FiTrash2, FiVolume2 } from 'react-icons/fi';
 
 import {
   ECHOO_MIXER_LIMITS,
@@ -255,9 +255,12 @@ const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = n
     if (!approved) return undefined;
     return subscribeEchooMeters((next) => {
       const levels = {
-        host: next.channels?.host?.level,
-        channel2: next.channels?.channel2?.level,
-        guest: next.channels?.guest?.level,
+        hostLeft: next.channels?.host?.leftLevel,
+        hostRight: next.channels?.host?.rightLevel,
+        channel2Left: next.channels?.channel2?.leftLevel,
+        channel2Right: next.channels?.channel2?.rightLevel,
+        guestLeft: next.channels?.guest?.leftLevel,
+        guestRight: next.channels?.guest?.rightLevel,
         media: next.channels?.media?.level,
         screen: next.channels?.screen?.level,
         masterLeft: next.master?.leftLevel,
@@ -332,11 +335,15 @@ const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = n
       setInputs(nextInputs);
       setOutputs(nextOutputs);
 
-      setHostDeviceId((current) =>
-        current && nextInputs.some((device) => device.deviceId === current)
+      setHostDeviceId((current) => {
+        // This is UI intent, not the physical ID returned by the browser.
+        // Keep the default-device choice selected across enumerateDevices and
+        // devicechange, even when the browser resolves it to a concrete ID.
+        if (current === DEFAULT_INPUT_VALUE) return current;
+        return current && nextInputs.some((device) => device.deviceId === current)
           ? current
-          : ''
-      );
+          : '';
+      });
 
       setChannel2DeviceId((current) =>
         current && nextInputs.some((device) => device.deviceId === current)
@@ -374,7 +381,9 @@ const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = n
     try {
       setWorkingChannel('host');
       setError('');
-      const deviceId = hostDeviceId || channels.host?.deviceId || '';
+      const deviceId = hostDeviceId === DEFAULT_INPUT_VALUE
+        ? ''
+        : hostDeviceId || channels.host?.deviceId || '';
       await ensureHostInput(deviceId);
       await refreshDevices();
       return true;
@@ -721,7 +730,9 @@ const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = n
     const defaultInputRequested = deviceId === DEFAULT_INPUT_VALUE;
     const resolvedDeviceId = defaultInputRequested ? '' : deviceId;
 
-    if (channelId === 'host') setHostDeviceId(resolvedDeviceId);
+    if (channelId === 'host') {
+      setHostDeviceId(defaultInputRequested ? DEFAULT_INPUT_VALUE : resolvedDeviceId);
+    }
     if (channelId === 'channel2') setChannel2DeviceId(resolvedDeviceId);
     if (channelId === 'guest') setGuestDeviceId(resolvedDeviceId);
 
@@ -777,28 +788,30 @@ const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = n
       const active = Math.round(Math.max(0, Math.min(1, Number(channel?.level) || 0)) * 14);
       return <div ref={(node) => { if (node) approvedMeterRefs.current.set(meterKey, node); else approvedMeterRefs.current.delete(meterKey); }} className="eam-approved-meter" role="meter" aria-label={`${label} level`} aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.round((Number(channel?.level) || 0) * 100)}>{Array.from({ length: 14 }, (_, index) => <i key={index} className={index < active ? 'active' : ''} />)}</div>;
     };
-    const renderApprovedStereoMeter = () => (
-      <div className="eam-approved-stereo-meter" aria-label="Master output stereo level">
-        <div className="eam-approved-stereo-column"><span>L</span>{renderApprovedMeter({ level: master.leftLevel, peakDb: master.leftPeakDb }, 'Master left', 'masterLeft')}</div>
-        <div className="eam-approved-stereo-column"><span>R</span>{renderApprovedMeter({ level: master.rightLevel, peakDb: master.rightPeakDb }, 'Master right', 'masterRight')}</div>
+    const renderApprovedStereoMeter = (channel, label, meterPrefix) => (
+      <div className="eam-approved-stereo-meter" aria-label={`${label} stereo level`}>
+        <div className="eam-approved-stereo-column"><span>L</span>{renderApprovedMeter({ level: channel.leftLevel, peakDb: channel.leftPeakDb }, `${label} left`, `${meterPrefix}Left`)}</div>
+        <div className="eam-approved-stereo-column"><span>R</span>{renderApprovedMeter({ level: channel.rightLevel, peakDb: channel.rightPeakDb }, `${label} right`, `${meterPrefix}Right`)}</div>
       </div>
     );
     const renderApprovedStrip = ({ id, title, role }) => {
       const channel = channels[id] || {};
       const faderDb = gainToDb(channel.gain ?? 1);
       const approvedFaderValue = dbToApprovedPosition(faderDb, ECHOO_MIXER_LIMITS.maxChannelDb);
+      const isHost = id === 'host';
       const selectedDeviceId = id === 'host' ? hostDeviceId : id === 'channel2' ? channel2DeviceId : guestDeviceId;
-      const inputValue = selectedDeviceId || channel.deviceId || '';
+      const inputValue = isHost && selectedDeviceId === DEFAULT_INPUT_VALUE
+        ? DEFAULT_INPUT_VALUE
+        : selectedDeviceId || channel.deviceId || '';
       const unavailableIds = [channels.host?.deviceId, channels.channel2?.deviceId, channels.guest?.deviceId]
         .filter((deviceId) => deviceId && deviceId !== channel?.deviceId);
       const inputOptions = inputs.filter((device) => !unavailableIds.includes(device.deviceId));
       const sourceTitle = channel.connected ? channel.sourceLabel : role;
-      const isHost = id === 'host';
       return (
         <article className="eam-approved-strip" key={id}>
-          <header><div><strong>{title}</strong><span>{sourceTitle}</span></div><button type="button" aria-label={`${title} options`} title={`${title} options`}><FiMoreVertical /></button></header>
+          <header><div><strong>{title}</strong><span>{sourceTitle}</span></div></header>
           <div className="eam-approved-controls">
-            <div className="eam-approved-meter-area"><div className="eam-approved-db">{dbLabels.map((label) => <span key={label}>{label}</span>)}</div>{renderApprovedMeter(channel, title, id)}</div>
+            <div className="eam-approved-meter-area"><div className="eam-approved-db">{dbLabels.map((label) => <span key={label}>{label}</span>)}</div>{renderApprovedStereoMeter(channel, title, id)}</div>
             <label className="eam-approved-fader" style={{ '--fader-position': faderPosition(approvedFaderValue) }}><FiCircle className="eam-approved-fader-cap" aria-hidden="true" /><input type="range" min="0" max="100" step="1" value={approvedFaderValue} onChange={(event) => setMixerChannelGainDb(id, approvedPositionToDb(event.target.value, ECHOO_MIXER_LIMITS.maxChannelDb))} disabled={!channel.connected} aria-label={`${title} level`} aria-valuetext={formatDb(faderDb)} /><FiMinus className="eam-approved-fader-mark" aria-hidden="true" /></label>
           </div>
           <div className="eam-approved-actions">
@@ -862,8 +875,8 @@ const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = n
         <div className="eam-approved-grid">
           {strips.map(renderApprovedStrip)}
           <article className="eam-approved-strip master">
-            <header><div><strong>MASTER OUTPUT</strong><span>Main Mix</span></div><button type="button" aria-label="Master output options" title="Master output options"><FiMoreVertical /></button></header>
-            <div className="eam-approved-controls"><div className="eam-approved-meter-area"><div className="eam-approved-db">{dbLabels.map((label) => <span key={label}>{label}</span>)}</div>{renderApprovedStereoMeter()}</div><label className="eam-approved-fader" style={{ '--fader-position': faderPosition(approvedMasterFaderValue) }}><FiCircle className="eam-approved-fader-cap" aria-hidden="true" /><input type="range" min="0" max="100" step="1" value={approvedMasterFaderValue} onChange={(event) => setMasterGainDb(approvedPositionToDb(event.target.value, ECHOO_MIXER_LIMITS.maxMasterDb))} aria-label="Main mix level" aria-valuetext={formatDb(masterDb)} /><FiMinus className="eam-approved-fader-mark" aria-hidden="true" /></label></div>
+            <header><div><strong>MASTER OUTPUT</strong><span>Main Mix</span></div></header>
+            <div className="eam-approved-controls"><div className="eam-approved-meter-area"><div className="eam-approved-db">{dbLabels.map((label) => <span key={label}>{label}</span>)}</div>{renderApprovedStereoMeter(master, 'Master output', 'master')}</div><label className="eam-approved-fader" style={{ '--fader-position': faderPosition(approvedMasterFaderValue) }}><FiCircle className="eam-approved-fader-cap" aria-hidden="true" /><input type="range" min="0" max="100" step="1" value={approvedMasterFaderValue} onChange={(event) => setMasterGainDb(approvedPositionToDb(event.target.value, ECHOO_MIXER_LIMITS.maxMasterDb))} aria-label="Main mix level" aria-valuetext={formatDb(masterDb)} /><FiMinus className="eam-approved-fader-mark" aria-hidden="true" /></label></div>
             <button type="button" className={`eam-approved-monitor eam-approved-monitor-mix ${monitoring.enabled ? 'active' : ''}`} onClick={handleMonitoring} disabled={monitorWorking} aria-pressed={Boolean(monitoring.enabled)}><FiHeadphones /> Monitor Mix</button>
             <label className="eam-approved-select"><select value={monitorDeviceId || monitoring.outputDeviceId || ''} onChange={(event) => changeMonitorOutput(event.target.value)} disabled={monitorWorking || !monitoring.outputSelectionSupported} aria-label="Main mix output"><option value="">Default Output</option>{outputs.filter((device) => device.deviceId && device.deviceId !== 'default').map((device) => <option key={device.deviceId} value={device.deviceId}>{device.label}</option>)}</select><FiChevronDown /></label>
           </article>

@@ -51,6 +51,9 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
   const [trackCount, setTrackCount] = useState(0);
   const [liveVolume, setLiveVolume] = useState(1);
   const [liveMuted, setLiveMuted] = useState(false);
+  const [analyser, setAnalyser] = useState(null);
+
+  const audioCtxRef = useRef(null);
 
   useEffect(() => {
     outputRef.current = outputDeviceId;
@@ -63,6 +66,11 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
     const clearAudio = () => {
       attachedRef.current.clear();
       setTrackCount(0);
+      setAnalyser(null);
+      if (audioCtxRef.current) {
+        try { audioCtxRef.current.close(); } catch { /* ignore */ }
+        audioCtxRef.current = null;
+      }
       audioHostRef.current?.querySelectorAll('audio').forEach((element) => {
         try { element.pause(); } catch { /* ignore */ }
         element.remove();
@@ -119,6 +127,20 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
 
       audioHostRef.current?.appendChild(element);
       setTrackCount((current) => current + 1);
+
+      if (track.mediaStreamTrack && !audioCtxRef.current) {
+        try {
+          const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          audioCtxRef.current = audioCtx;
+          const createdAnalyser = audioCtx.createAnalyser();
+          createdAnalyser.fftSize = 256;
+          const source = audioCtx.createMediaStreamSource(new MediaStream([track.mediaStreamTrack]));
+          source.connect(createdAnalyser);
+          if (!disposed && roomRef.current === room) setAnalyser(createdAnalyser);
+        } catch (err) {
+          console.warn('[Echoo LiveKit] Could not create track analyser:', err);
+        }
+      }
 
       try {
         console.log(`[Echoo LiveKit] Attempting autoplay for track: ${id}`);
@@ -313,6 +335,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
     try {
       setError('');
       await room.startAudio();
+      audioCtxRef.current?.resume?.();
       const elements = Array.from(audioHostRef.current?.querySelectorAll('audio') || []);
       for (const element of elements) await element.play();
       setNeedsAudioStart(false);
@@ -333,6 +356,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
     if (!elements.length) return;
     const shouldPlay = elements.every((element) => element.paused);
     try {
+      if (shouldPlay) audioCtxRef.current?.resume?.();
       await Promise.all(elements.map((element) => (shouldPlay ? element.play() : element.pause())));
       setStatus(shouldPlay ? 'listening' : 'connected');
     } catch (playError) {
@@ -388,6 +412,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       needsAudioStart,
       volume: liveVolume,
       isMuted: liveMuted,
+      analyser,
       onTogglePlay: togglePlayback,
       onToggleMute: toggleMute,
       onVolumeChange: changeVolume,
@@ -406,6 +431,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
     liveVolume,
     liveMuted,
     trackCount,
+    analyser,
     togglePlayback,
     toggleMute,
     changeVolume,

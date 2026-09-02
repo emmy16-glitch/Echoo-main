@@ -71,8 +71,10 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged, onAddToCollection 
   const [savedTitle, setSavedTitle] = useState(track?.title || '');
   const [titleEditing, setTitleEditing] = useState(false);
   const [titleSaving, setTitleSaving] = useState(false);
-  const [artworkOverride, setArtworkOverride] = useState('');
+  const [recordingArtwork, setRecordingArtwork] = useState(track?.coverArt || '');
+  const [artworkPreview, setArtworkPreview] = useState('');
   const [artworkUploading, setArtworkUploading] = useState(false);
+  const [artworkToast, setArtworkToast] = useState(false);
   const [renameToast, setRenameToast] = useState({
     open: false,
     title: '',
@@ -89,8 +91,8 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged, onAddToCollection 
   );
   const artwork = useMemo(
     () => buildMediaUrl(
-      artworkOverride ||
-      track?.coverArt ||
+      artworkPreview ||
+      recordingArtwork ||
       track?.artwork ||
       track?.image ||
       track?.thumbnail ||
@@ -99,7 +101,7 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged, onAddToCollection 
       track?.station?.coverArt ||
       ''
     ),
-    [artworkOverride, track]
+    [artworkPreview, recordingArtwork, track]
   );
 
   useEffect(() => {
@@ -114,9 +116,11 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged, onAddToCollection 
     setTitleDraft(track?.title || '');
     setSavedTitle(track?.title || '');
     setTitleEditing(false);
-    setArtworkOverride('');
+    setRecordingArtwork(track?.coverArt || '');
+    setArtworkPreview('');
+    setArtworkToast(false);
     setRenameToast({ open: false, title: '', message: '', undoTitle: '' });
-  }, [track?.id, track?._id, track?.title]);
+  }, [track?.id, track?._id, track?.title, track?.coverArt]);
 
   useEffect(() => {
     let active = true;
@@ -341,17 +345,26 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged, onAddToCollection 
       return;
     }
 
+    const localPreview = URL.createObjectURL(file);
+    setArtworkPreview(localPreview);
+
     try {
       setArtworkUploading(true);
       setError('');
       const response = await recordingArtworkService.update(id, file);
       const nextArtwork = response?.data?.coverArt || '';
-      if (nextArtwork) setArtworkOverride(nextArtwork);
+      if (!nextArtwork) throw new Error('Echoo did not return the saved recording artwork.');
+      URL.revokeObjectURL(localPreview);
+      setArtworkPreview('');
+      setRecordingArtwork(nextArtwork);
+      setArtworkToast(true);
       window.dispatchEvent(new CustomEvent('echoo:creator-audio-changed', {
         detail: { audioId: String(id), coverArt: nextArtwork },
       }));
       onChanged?.(response?.data);
     } catch (artworkError) {
+      URL.revokeObjectURL(localPreview);
+      setArtworkPreview('');
       setError(artworkError?.message || 'Could not update this recording artwork.');
     } finally {
       setArtworkUploading(false);
@@ -396,6 +409,14 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged, onAddToCollection 
         showCountdown={Boolean(renameToast.undoTitle)}
         onClose={() => setRenameToast((current) => ({ ...current, open: false }))}
       />
+      <Toast
+        open={artworkToast}
+        type="success"
+        title="Artwork saved"
+        message="This recording artwork is updated everywhere the recording appears."
+        duration={3000}
+        onClose={() => setArtworkToast(false)}
+      />
       <section
         className="creator-audio-modal"
         role="dialog"
@@ -411,12 +432,15 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged, onAddToCollection 
           <FaTimes />
         </button>
 
-        <div className="creator-audio-modal-artwork">
+        <div className="creator-audio-modal-top">
+          <div className="creator-audio-artwork-column">
+            <div className="creator-audio-modal-artwork">
           {artwork ? (
             <img src={artwork} alt="" />
           ) : (
             <span>{String(track.title || 'E').charAt(0).toUpperCase()}</span>
           )}
+            </div>
           <input
             ref={artworkInputRef}
             type="file"
@@ -431,13 +455,13 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged, onAddToCollection 
             disabled={artworkUploading}
             aria-label="Change recording artwork"
           >
-            <FaCamera /> {artworkUploading ? 'Uploading…' : 'Change artwork'}
+            <FaCamera /> {artworkUploading ? 'Saving artwork…' : 'Change artwork'}
           </button>
-        </div>
+          </div>
 
         <div className="creator-audio-modal-content">
           <div className="creator-audio-modal-heading">
-            <span>AUDIO LIBRARY</span>
+            <span>RECORDING DETAILS</span>
             {titleEditing ? (
               <div className="creator-audio-title-editor">
                 <label htmlFor="creator-audio-title">Audio title</label>
@@ -492,10 +516,12 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged, onAddToCollection 
             <span>{formatType(track.mimeType)}</span>
             <span>{formatBytes(track.fileSize)}</span>
           </div>
+        </div>
+        </div>
 
-          <audio ref={audioRef} src={fileUrl || undefined} preload="metadata" />
+        <audio ref={audioRef} src={fileUrl || undefined} preload="metadata" />
 
-          <div className="creator-audio-transport">
+        <div className="creator-audio-transport">
             <div className="creator-audio-seek-row">
               <span>{formatClock(currentTime)}</span>
               <input
@@ -541,12 +567,12 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged, onAddToCollection 
             </div>
           </div>
 
-          {streamLoading && !error && (
-            <div className="creator-audio-modal-error" role="status">Preparing protected playback...</div>
-          )}
-          {error && <div className="creator-audio-modal-error" role="alert">{error}</div>}
+        {streamLoading && !error && (
+          <div className="creator-audio-modal-error" role="status">Preparing protected playback...</div>
+        )}
+        {error && <div className="creator-audio-modal-error" role="alert">{error}</div>}
 
-          <div className="creator-audio-modal-actions">
+        <div className="creator-audio-modal-actions">
             {onAddToCollection && <button type="button" onClick={onAddToCollection}>Add to Collection</button>}
             <button type="button" onClick={toggleVisibility} disabled={visibilitySaving}>
               {visibility ? <FaLock /> : <FaGlobe />}
@@ -562,10 +588,9 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged, onAddToCollection 
             </button>
           </div>
 
-          <p className="creator-audio-quality-note">
-            Playback uses Echoo’s protected range stream. Downloads still use the exact stored original with no extra transcoding.
-          </p>
-        </div>
+        <p className="creator-audio-quality-note">
+          Playback uses Echoo’s protected range stream. Downloads still use the exact stored original with no extra transcoding.
+        </p>
       </section>
     </div>
   );

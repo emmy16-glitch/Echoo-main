@@ -8,7 +8,6 @@ import {
   discardBroadcastRecording,
   finishBroadcastRecording,
 } from './broadcastRecordingService.js';
-import { stopWhisperFlowTranscription } from './whisperFlowService.js';
 
 const PENDING_RECORDING_DECISION_KEY = '__echooPendingBroadcastRecording';
 
@@ -214,8 +213,6 @@ const batch3Service = {
   checkLiveKitReadiness,
 
   startBroadcast: async (broadcastId) => {
-    await checkLiveKitReadiness();
-
     const response = await apiRequest(
       `/broadcasts/${encodeURIComponent(broadcastId)}/start`,
       { method: 'POST' }
@@ -325,29 +322,9 @@ const batch3Service = {
   getLiveAnalytics: async (broadcastId) =>
     apiRequest(`/analytics/live/${encodeURIComponent(broadcastId)}`),
 
-  endBroadcast: async (broadcastId) => {
-    await stopWhisperFlowTranscription({ finalize: false }).catch((error) => {
-      console.warn('[Echoo Transcript] background handoff warning:', error?.message || error);
-    });
-
-    let recordingReady = false;
-    let finishedRecording = null;
-    try {
-      // Close the pre-Opus PCM tap before the lifecycle endpoint tears down
-      // optional server encoders. This keeps the final PCM chunk in the FLAC
-      // master and lets the MP3 process flush gracefully.
-      const recording = await finishBroadcastRecording(broadcastId);
-      finishedRecording = recording;
-      if (recording?.blob?.size) {
-        recordingReady = true;
-      }
-    } catch (recordingError) {
-      console.warn(
-        '[Echoo Recording] could not finalize local recording:',
-        recordingError?.message || recordingError
-      );
-    }
-
+  // Realtime lifecycle only. Recording finalization deliberately happens
+  // afterwards so endpoint latency never keeps listeners connected.
+  endBroadcastRealtime: async (broadcastId) => {
     const response = await apiRequest(
       `/broadcasts/${encodeURIComponent(broadcastId)}/end`,
       { method: 'POST' }
@@ -355,17 +332,26 @@ const batch3Service = {
 
     const raw = response?.data?.broadcast || response?.data;
     const normalized = normalizeBroadcast(raw);
-    if (recordingReady && finishedRecording) {
-      const decision = { recording: finishedRecording, broadcast: normalized };
-      rememberPendingRecordingDecision(decision);
-      announceFinishedBroadcastRecording(decision);
-    }
-
     return {
       ...response,
       data: normalized,
-      recordingReady,
     };
+  },
+
+  // Called after local LiveKit publication has stopped. The mixer program
+  // stays alive while its recorder flushes, preserving the completed take.
+  finalizeBroadcastRecording: async (broadcastId, broadcast = null) => {
+    try {
+      const recording = await finishBroadcastRecording(broadcastId);
+      if (!recording?.blob?.size) return { recordingReady: false, recording: null };
+      const decision = { recording, broadcast: broadcast || null };
+      rememberPendingRecordingDecision(decision);
+      announceFinishedBroadcastRecording(decision);
+      return { recordingReady: true, recording };
+    } catch (recordingError) {
+      console.warn('[Echoo Recording] could not finalize local recording:', recordingError?.message || recordingError);
+      return { recordingReady: false, recording: null, error: recordingError };
+    }
   },
 
   getProcessing: async (broadcastId) =>

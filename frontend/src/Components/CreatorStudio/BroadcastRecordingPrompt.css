@@ -1,22 +1,51 @@
 .echoo-recording-decision-overlay {
+  --echoo-z-dialog: 200000;
   position: fixed;
   inset: 0;
-  z-index: 200000;
+  z-index: var(--echoo-z-dialog);
   padding: 24px;
   background: rgba(16, 24, 40, .56);
   display: grid;
   place-items: center;
   backdrop-filter: blur(8px);
+  animation: echoo-recording-backdrop-in 180ms ease-out both;
 }
 
 .echoo-recording-decision {
-  width: min(720px, 100%);
+  position: relative;
+  width: min(540px, 100%);
   max-height: min(880px, calc(100svh - 32px));
   overflow-y: auto;
   border: 1px solid #e4e7ec;
   border-radius: 20px;
   background: #fff;
   box-shadow: 0 28px 80px rgba(16, 24, 40, .24);
+  color: #101828;
+  animation: echoo-recording-dialog-in 190ms ease-out both;
+}
+
+.echoo-recording-decision-close {
+  position: absolute;
+  z-index: 1;
+  top: 14px;
+  right: 14px;
+  width: 34px;
+  height: 34px;
+  border: 1px solid #d0d5dd;
+  border-radius: 50%;
+  background: #fff;
+  color: #475467;
+  font-size: 24px;
+  font-weight: 400;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+
+.echoo-recording-decision-close:hover,
+.echoo-recording-decision-close:focus-visible {
+  border-color: #98a2b3;
+  background: #f2f4f7;
   color: #101828;
 }
 
@@ -39,6 +68,10 @@
   place-items: center;
   font-size: 20px;
 }
+
+.echoo-recording-decision-icon.is-saving svg { animation: echoo-recording-spin 900ms linear infinite; }
+.echoo-recording-decision-icon.is-saved { background: #dcfae6; color: #079455; }
+.echoo-recording-decision-icon.is-error { background: #fee4e2; color: #d92d20; }
 
 .echoo-recording-decision header span {
   display: block;
@@ -70,7 +103,7 @@
   border-radius: 14px;
   background: #f9fafb;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   gap: 18px;
   align-items: center;
 }
@@ -100,8 +133,9 @@
 
 .echoo-recording-summary dl {
   margin: 0;
-  display: flex;
-  gap: 18px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .echoo-recording-summary dl > div {
@@ -233,6 +267,32 @@
   font-weight: 600;
 }
 
+.echoo-recording-saved-actions {
+  display: flex;
+  justify-content: center;
+  margin: 0 24px 18px;
+}
+
+.echoo-recording-saved-actions button {
+  min-height: 40px;
+  padding: 0 18px;
+  border: 1px solid #d0d5dd;
+  border-radius: 9px;
+  background: #fff;
+  color: #344054;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.echoo-recording-saved-actions button:hover { border-color: #98a2b3; background: #f9fafb; }
+.echoo-recording-saved-actions button:focus-visible,
+.echoo-recording-decision-close:focus-visible {
+  outline: 3px solid rgba(72, 131, 255, .42);
+  outline-offset: 2px;
+}
+
 .echoo-recording-error {
   border: 1px solid #fecdca;
   background: #fef3f2;
@@ -286,6 +346,39 @@
   text-align: right;
 }
 
+.echoo-recording-auto-close {
+  width: 100%;
+  display: grid;
+  gap: 8px;
+  color: #667085;
+  font-size: 10px;
+  text-align: center;
+}
+
+.echoo-recording-auto-close > i {
+  height: 3px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e4e7ec;
+}
+
+.echoo-recording-auto-close > i > b {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: #22c55e;
+  transform-origin: left center;
+  animation: echoo-recording-auto-close 5s linear forwards;
+}
+
+.echoo-recording-auto-close.is-paused > i > b { animation-play-state: paused; }
+
+@keyframes echoo-recording-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes echoo-recording-dialog-in { from { opacity: 0; transform: scale(.97); } to { opacity: 1; transform: scale(1); } }
+@keyframes echoo-recording-spin { to { transform: rotate(360deg); } }
+@keyframes echoo-recording-auto-close { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+
 @media (max-width: 640px) {
   .echoo-recording-decision-overlay {
     padding: 10px;
@@ -315,7 +408,7 @@
   }
 
   .echoo-recording-summary dl {
-    justify-content: space-between;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
   }
 
@@ -349,7 +442,15 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .echoo-recording-decision-overlay,
+  .echoo-recording-decision,
+  .echoo-recording-decision-icon.is-saving svg {
+    animation: none;
+  }
+
   .echoo-recording-options > button {
     transition: none;
   }
+
+  .echoo-recording-auto-close > i > b { animation: none; }
 }

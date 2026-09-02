@@ -43,6 +43,11 @@ const collectionService = {
   getById: async (collectionId) => collectionOne(await request(`/collections/${encodeURIComponent(collectionId)}`)),
   create: async (payload) => collectionOne(await request('/collections', { method: 'POST', body: JSON.stringify(payload) })),
   update: async (collectionId, payload) => collectionOne(await request(`/collections/${encodeURIComponent(collectionId)}`, { method: 'PATCH', body: JSON.stringify(payload) })),
+  updateCover: async (collectionId, cover) => {
+    const body = new FormData();
+    body.append('cover', cover);
+    return collectionOne(await request(`/collections/${encodeURIComponent(collectionId)}`, { method: 'PATCH', body, isFormData: true }));
+  },
   delete: async (collectionId) => request(`/collections/${encodeURIComponent(collectionId)}`, { method: 'DELETE' }),
   addRecordings: async (collectionId, recordingIds) => collectionOne(await request(`/collections/${encodeURIComponent(collectionId)}/recordings`, { method: 'POST', body: JSON.stringify({ recordingIds }) })),
   removeRecording: async (collectionId, recordingId) => collectionOne(await request(`/collections/${encodeURIComponent(collectionId)}/recordings/${encodeURIComponent(recordingId)}`, { method: 'DELETE' })),

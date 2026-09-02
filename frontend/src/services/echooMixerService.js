@@ -42,6 +42,10 @@ const channelDefaults = {
     level: 0,
     rmsDb: MIN_DB,
     peakDb: MIN_DB,
+    leftLevel: 0,
+    rightLevel: 0,
+    leftPeakDb: MIN_DB,
+    rightPeakDb: MIN_DB,
     connected: false,
   },
   channel2: {
@@ -55,6 +59,10 @@ const channelDefaults = {
     level: 0,
     rmsDb: MIN_DB,
     peakDb: MIN_DB,
+    leftLevel: 0,
+    rightLevel: 0,
+    leftPeakDb: MIN_DB,
+    rightPeakDb: MIN_DB,
     connected: false,
   },
   guest: {
@@ -68,6 +76,10 @@ const channelDefaults = {
     level: 0,
     rmsDb: MIN_DB,
     peakDb: MIN_DB,
+    leftLevel: 0,
+    rightLevel: 0,
+    leftPeakDb: MIN_DB,
+    rightPeakDb: MIN_DB,
     connected: false,
   },
   media: {
@@ -81,6 +93,10 @@ const channelDefaults = {
     level: 0,
     rmsDb: MIN_DB,
     peakDb: MIN_DB,
+    leftLevel: 0,
+    rightLevel: 0,
+    leftPeakDb: MIN_DB,
+    rightPeakDb: MIN_DB,
     connected: false,
   },
   screen: {
@@ -94,6 +110,10 @@ const channelDefaults = {
     level: 0,
     rmsDb: MIN_DB,
     peakDb: MIN_DB,
+    leftLevel: 0,
+    rightLevel: 0,
+    leftPeakDb: MIN_DB,
+    rightPeakDb: MIN_DB,
     connected: false,
   },
 };
@@ -362,6 +382,10 @@ const disconnectSource = (channelId, stopTracks = true) => {
     current.source,
     current.gainNode,
     current.analyser,
+    current.channelSplitter,
+    current.leftAnalyser,
+    current.rightAnalyser,
+    current.meterSinkNode,
     current.soloMonitorGainNode,
   ]) {
     try {
@@ -461,16 +485,33 @@ const connectStream = async (channelId, stream, sourceLabel, deviceId = '') => {
 
   const source = context.createMediaStreamSource(stream);
   const analyser = context.createAnalyser();
+  const channelSplitter = context.createChannelSplitter(2);
+  const leftAnalyser = context.createAnalyser();
+  const rightAnalyser = context.createAnalyser();
+  const meterSinkNode = context.createGain();
   const gainNode = context.createGain();
   const soloMonitorGainNode = context.createGain();
   analyser.fftSize = 512;
   analyser.smoothingTimeConstant = 0.72;
+  leftAnalyser.fftSize = 512;
+  leftAnalyser.smoothingTimeConstant = 0.72;
+  rightAnalyser.fftSize = 512;
+  rightAnalyser.smoothingTimeConstant = 0.72;
+  meterSinkNode.gain.value = 0;
   soloMonitorGainNode.gain.value = 0;
 
   // Meter pre-fader input so a muted/quietly-faded source still visibly proves
   // that signal is reaching the Studio. Audience gain is applied afterwards.
   source.connect(analyser);
   analyser.connect(gainNode);
+  // This is an observational branch only. It terminates at a muted sink, so
+  // it cannot duplicate the programme, LiveKit publication, or monitor mix.
+  analyser.connect(channelSplitter);
+  channelSplitter.connect(leftAnalyser, 0);
+  channelSplitter.connect(rightAnalyser, 1);
+  leftAnalyser.connect(meterSinkNode);
+  rightAnalyser.connect(meterSinkNode);
+  meterSinkNode.connect(context.destination);
   gainNode.connect(['media', 'screen'].includes(channelId) ? masterGainNode : voiceInputNode);
 
   // Separate headphone audition path. It never reaches the master/LiveKit bus.
@@ -482,8 +523,18 @@ const connectStream = async (channelId, stream, sourceLabel, deviceId = '') => {
     source,
     gainNode,
     analyser,
+    channelSplitter,
+    leftAnalyser,
+    rightAnalyser,
+    meterSinkNode,
     soloMonitorGainNode,
     data: new Float32Array(analyser.fftSize),
+    leftMeterData: new Float32Array(leftAnalyser.fftSize),
+    rightMeterData: new Float32Array(rightAnalyser.fftSize),
+    // Web Audio exposes a mono device as lane 0 and a silent lane 1. Mirror
+    // only that genuine mono signal for the visual dual-mono meter; a device
+    // that declares two channels retains independent L/R measurements.
+    isMono: Number(audioTrack.getSettings?.().channelCount || 0) === 1,
     audioTrack,
   });
 
@@ -555,14 +606,32 @@ function startMeterLoop() {
       const meter = sourceState
         ? readMeter(sourceState.analyser, sourceState.data)
         : { level: 0, rmsDb: MIN_DB, peakDb: MIN_DB };
+      const left = sourceState
+        ? readMeter(sourceState.leftAnalyser, sourceState.leftMeterData)
+        : { level: 0, rmsDb: MIN_DB, peakDb: MIN_DB };
+      const measuredRight = sourceState
+        ? readMeter(sourceState.rightAnalyser, sourceState.rightMeterData)
+        : { level: 0, rmsDb: MIN_DB, peakDb: MIN_DB };
+      const right = sourceState?.isMono ? left : measuredRight;
 
       if (
         Math.abs(meter.level - channel.level) > 0.004 ||
-        Math.abs(meter.peakDb - channel.peakDb) > 0.5
+        Math.abs(meter.peakDb - channel.peakDb) > 0.5 ||
+        Math.abs(left.level - Number(channel.leftLevel || 0)) > 0.004 ||
+        Math.abs(right.level - Number(channel.rightLevel || 0)) > 0.004 ||
+        Math.abs(left.peakDb - Number(channel.leftPeakDb ?? MIN_DB)) > 0.5 ||
+        Math.abs(right.peakDb - Number(channel.rightPeakDb ?? MIN_DB)) > 0.5
       ) {
         channels = {
           ...channels,
-          [channelId]: { ...channels[channelId], ...meter },
+          [channelId]: {
+            ...channels[channelId],
+            ...meter,
+            leftLevel: left.level,
+            rightLevel: right.level,
+            leftPeakDb: left.peakDb,
+            rightPeakDb: right.peakDb,
+          },
         };
         changed = true;
       }

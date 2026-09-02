@@ -11,10 +11,6 @@ import {
   liveKitPublishOptionsFor,
   normalizeRealtimeAudioProfile,
 } from './realtimeAudioQuality.js';
-import {
-  startWhisperFlowTranscription,
-  stopWhisperFlowTranscription,
-} from './whisperFlowService.js';
 
 let activeRoom = null;
 let activeBroadcastId = null;
@@ -173,6 +169,7 @@ export const refreshLiveKitPublishingDiagnostics = async () => {
 
 export const stopLiveKitPublishing = async () => {
   const room = activeRoom;
+  const needsSyntheticCleanup = Boolean(syntheticContext || syntheticNativeTrack || syntheticOscillator);
 
   activeRoom = null;
   activeBroadcastId = null;
@@ -187,10 +184,6 @@ export const stopLiveKitPublishing = async () => {
     trackName: null,
   });
 
-  await stopWhisperFlowTranscription().catch((error) => {
-    console.warn('[Echoo Transcript] cleanup warning:', error?.message || error);
-  });
-
   if (room) {
     try {
       await room.disconnect();
@@ -199,7 +192,7 @@ export const stopLiveKitPublishing = async () => {
     }
   }
 
-  await cleanupSyntheticAudio();
+  if (needsSyntheticCleanup) await cleanupSyntheticAudio();
 };
 
 export const setLiveKitPublishingPaused = async (paused) => {
@@ -226,6 +219,7 @@ export const startLiveKitPublishing = async ({
   mediaTrack = null,
   qualityProfile = 'broadcast_high',
 }) => {
+  const publishingStartedAt = performance.now();
   const resolvedUrl = resolveLiveKitUrl(url);
   const id = String(broadcastId || '').trim();
   const selectedQualityProfile = normalizeRealtimeAudioProfile(qualityProfile);
@@ -251,7 +245,8 @@ export const startLiveKitPublishing = async ({
     );
   }
 
-  await stopLiveKitPublishing();
+  // Avoid a needless async disconnect on the normal first publish.
+  if (activeRoom || activePublication || syntheticContext) await stopLiveKitPublishing();
 
   publishHealth({
     mixer: mediaTrack ? 'ready' : 'synthetic-test',
@@ -283,12 +278,14 @@ export const startLiveKitPublishing = async ({
   });
 
   try {
+    const connectStartedAt = performance.now();
     await room.connect(resolvedUrl, token, {
       autoSubscribe: false,
       maxRetries: 3,
       websocketTimeout: 15000,
       peerConnectionTimeout: 20000,
     });
+    const connectedAt = performance.now();
     publishHealth({ livekit: 'connected' });
     console.info('[Echoo LiveKit] connected', {
       broadcastId: id,
@@ -310,6 +307,7 @@ export const startLiveKitPublishing = async ({
       // browsers avoid speech-oriented handling where they support contentHint.
       programTrackQuality = applyProgramTrackQuality(mediaTrack);
 
+      const publishStartedAt = performance.now();
       publication = await room.localParticipant.publishTrack(mediaTrack, {
         name: 'echoo-studio-mix',
         source: Track.Source.Microphone,
@@ -318,6 +316,7 @@ export const startLiveKitPublishing = async ({
         // to preserve the post-master studio feed without speech-style DTX.
         ...liveKitPublishOptionsFor(selectedQualityProfile),
       });
+      publication.__echooPublishMs = Math.round(performance.now() - publishStartedAt);
     } else {
       const nativeTrack = await createSyntheticTrack();
       publication = await room.localParticipant.publishTrack(nativeTrack, {
@@ -348,36 +347,20 @@ export const startLiveKitPublishing = async ({
       source: mode === 'studio-mix' ? 'echoo-studio-mix' : 'echoo-dev-test-audio',
     });
 
-    // Local-first recording: tap the exact post-master mixer signal that is
-    // being published to LiveKit. Recording is deliberately independent from
-    // the LiveKit Room so a reconnect does not split or lose the local take.
+    // Recording starts after publication and is intentionally background-only:
+    // a slow recorder must never delay Creator LIVE or listener access.
     if (mode === 'studio-mix' && mediaTrack) {
-      try {
-        await ensureBroadcastRecording({
+      void ensureBroadcastRecording({
           broadcastId: activeBroadcastId,
           mediaTrack,
           title: `echoo-live-${activeBroadcastId}`,
-        });
-      } catch (recordingError) {
-        // Recording must never prevent the creator from going live. The end
-        // flow simply will not offer a recording if this browser cannot record.
+      }).catch((recordingError) => {
         console.warn(
           '[Echoo Recording] could not start local recording:',
           recordingError?.message || recordingError
         );
-      }
-
-      // This is a second, independent branch from the post-master program.
-      // Listener audio remains a direct Creator -> LiveKit -> Listener path.
-      startWhisperFlowTranscription({
-        broadcastId: activeBroadcastId,
-        mediaTrack,
-      }).catch((transcriptionError) => {
-        console.warn(
-          '[Echoo Transcript] realtime transcription is unavailable; live audio continues:',
-          transcriptionError?.message || transcriptionError
-        );
       });
+
     }
 
     const result = {
@@ -392,6 +375,9 @@ export const startLiveKitPublishing = async ({
       requestedSampleRate: selectedQuality.sampleRate,
       requestedChannels: selectedQuality.channels,
       programTrackQuality,
+      connectMs: Math.round(connectedAt - connectStartedAt),
+      publishMs: publication?.__echooPublishMs ?? Math.round(performance.now() - connectedAt),
+      totalMs: Math.round(performance.now() - publishingStartedAt),
     };
 
     console.log('[Echoo LiveKit] publishing hi-fi studio mix', result);

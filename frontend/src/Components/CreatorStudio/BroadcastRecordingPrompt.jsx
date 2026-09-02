@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   FaCheckCircle,
   FaCloudUploadAlt,
+  FaExclamationTriangle,
   FaSave,
   FaSyncAlt,
 } from 'react-icons/fa';
@@ -15,6 +16,7 @@ import {
 import './BroadcastRecordingPrompt.css';
 
 const PENDING_RECORDING_DECISION_KEY = '__echooPendingBroadcastRecording';
+const SAVED_AUTO_DISMISS_MS = 5000;
 
 const readRecoveredPendingRecording = () => {
   if (typeof window === 'undefined') return null;
@@ -99,8 +101,54 @@ const BroadcastRecordingPrompt = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
+  const [savedRecordingId, setSavedRecordingId] = useState('');
+  const [autoDismissPaused, setAutoDismissPaused] = useState(false);
   const [retryToken, setRetryToken] = useState(0);
   const saveAttemptRef = useRef('');
+  const savedRef = useRef(false);
+  const autoDismissTimerRef = useRef(null);
+  const autoDismissStartedAtRef = useRef(0);
+  const autoDismissRemainingRef = useRef(SAVED_AUTO_DISMISS_MS);
+  const closeButtonRef = useRef(null);
+  const dialogRef = useRef(null);
+  const restoreFocusRef = useRef(null);
+
+  useEffect(() => {
+    savedRef.current = saved;
+  }, [saved]);
+
+  const dismissSavedRecording = useCallback(() => {
+    if (!savedRef.current) return;
+    window.clearTimeout(autoDismissTimerRef.current);
+    setPending(null);
+    setSaved(false);
+    setSavedRecordingId('');
+    setAutoDismissPaused(false);
+    saveAttemptRef.current = '';
+  }, []);
+
+  const scheduleAutoDismiss = useCallback(() => {
+    window.clearTimeout(autoDismissTimerRef.current);
+    autoDismissStartedAtRef.current = Date.now();
+    autoDismissTimerRef.current = window.setTimeout(
+      dismissSavedRecording,
+      autoDismissRemainingRef.current
+    );
+  }, [dismissSavedRecording]);
+
+  const pauseAutoDismiss = useCallback(() => {
+    if (!saved || autoDismissPaused) return;
+    window.clearTimeout(autoDismissTimerRef.current);
+    const elapsed = Date.now() - autoDismissStartedAtRef.current;
+    autoDismissRemainingRef.current = Math.max(250, autoDismissRemainingRef.current - elapsed);
+    setAutoDismissPaused(true);
+  }, [autoDismissPaused, saved]);
+
+  const resumeAutoDismiss = useCallback(() => {
+    if (!saved || !autoDismissPaused) return;
+    setAutoDismissPaused(false);
+    scheduleAutoDismiss();
+  }, [autoDismissPaused, saved, scheduleAutoDismiss]);
 
   useEffect(() => {
     const applyPendingRecording = (detail) => {
@@ -109,6 +157,7 @@ const BroadcastRecordingPrompt = () => {
       setPending(detail);
       setError('');
       setSaved(false);
+      setSavedRecordingId('');
       setRetryToken(0);
       saveAttemptRef.current = '';
     };
@@ -142,8 +191,6 @@ const BroadcastRecordingPrompt = () => {
     saveAttemptRef.current = attemptKey;
 
     let active = true;
-    let successTimer = null;
-
     const saveAutomatically = async () => {
       const title = broadcast?.title || 'Live broadcast recording';
       const description = broadcast?.description || '';
@@ -163,7 +210,7 @@ const BroadcastRecordingPrompt = () => {
           { type: recording.mimeType || recording.blob.type || 'audio/wav' }
         );
 
-        await studioService.uploadAudio({
+        const uploadResponse = await studioService.uploadAudio({
           file,
           title,
           description:
@@ -187,15 +234,9 @@ const BroadcastRecordingPrompt = () => {
         clearPendingBroadcastRecording(recording.broadcastId);
         window.dispatchEvent(new CustomEvent('echoo:creator-audio-changed'));
         window.dispatchEvent(new CustomEvent('echoo:creator-state-changed'));
+        setSavedRecordingId(String(uploadResponse?.data?.id || uploadResponse?.data?._id || ''));
         setSaved(true);
         setSaving(false);
-        successTimer = window.setTimeout(() => {
-          if (active) {
-            setPending(null);
-            setSaved(false);
-            saveAttemptRef.current = '';
-          }
-        }, 1400);
       } catch (saveError) {
         if (!active) return;
 
@@ -210,13 +251,6 @@ const BroadcastRecordingPrompt = () => {
           window.dispatchEvent(new CustomEvent('echoo:creator-state-changed'));
           setSaved(true);
           setSaving(false);
-          successTimer = window.setTimeout(() => {
-            if (active) {
-              setPending(null);
-              setSaved(false);
-              saveAttemptRef.current = '';
-            }
-          }, 1400);
           return;
         }
 
@@ -233,9 +267,60 @@ const BroadcastRecordingPrompt = () => {
 
     return () => {
       active = false;
-      if (successTimer) window.clearTimeout(successTimer);
     };
   }, [pending, retryToken, saved]);
+
+  useEffect(() => {
+    if (!saved) return undefined;
+
+    autoDismissRemainingRef.current = SAVED_AUTO_DISMISS_MS;
+    setAutoDismissPaused(false);
+    scheduleAutoDismiss();
+    closeButtonRef.current?.focus();
+
+    return () => window.clearTimeout(autoDismissTimerRef.current);
+  }, [saved, scheduleAutoDismiss]);
+
+  useEffect(() => {
+    if (!pending) return undefined;
+    restoreFocusRef.current = document.activeElement;
+    dialogRef.current?.focus();
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape' && savedRef.current) {
+        event.preventDefault();
+        dismissSavedRecording();
+        return;
+      }
+
+      if (event.key !== 'Tab') return;
+      const focusable = Array.from(
+        dialogRef.current?.querySelectorAll(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        ) || []
+      );
+      if (!focusable.length) {
+        event.preventDefault();
+        dialogRef.current?.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      if (restoreFocusRef.current?.isConnected) restoreFocusRef.current.focus();
+    };
+  }, [dismissSavedRecording, pending]);
 
   useEffect(() => {
     if (!pending) return undefined;
@@ -257,22 +342,52 @@ const BroadcastRecordingPrompt = () => {
     ? 'Lossless Master Capture'
     : 'High-quality fallback recording';
 
+  const viewRecording = () => {
+    if (!savedRecordingId) return;
+    const path = `/creator-studio/recordings/${encodeURIComponent(savedRecordingId)}`;
+    dismissSavedRecording();
+    window.history.pushState({}, '', path);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  };
+
   return (
     <div className="echoo-recording-decision-overlay" role="presentation">
       <section
+        ref={dialogRef}
         className="echoo-recording-decision"
         role="dialog"
         aria-modal="true"
         aria-labelledby="echoo-recording-decision-title"
+        aria-describedby="echoo-recording-decision-description"
+        tabIndex={-1}
+        onPointerEnter={pauseAutoDismiss}
+        onPointerLeave={resumeAutoDismiss}
+        onKeyDownCapture={pauseAutoDismiss}
+        onBlurCapture={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget)) resumeAutoDismiss();
+        }}
       >
+        {saved && (
+          <button
+            ref={closeButtonRef}
+            type="button"
+            className="echoo-recording-decision-close"
+            aria-label="Close"
+            onClick={dismissSavedRecording}
+          >
+            ×
+          </button>
+        )}
         <header>
-          <div className="echoo-recording-decision-icon"><FaSave /></div>
+          <div className={`echoo-recording-decision-icon ${saved ? 'is-saved' : error ? 'is-error' : 'is-saving'}`}>
+            {saved ? <FaCheckCircle /> : error ? <FaExclamationTriangle /> : saving ? <FaSyncAlt /> : <FaSave />}
+          </div>
           <div>
             <span>LIVE SESSION ENDED</span>
             <h2 id="echoo-recording-decision-title">
-              {saved ? 'Recording saved' : error ? 'Recording needs attention' : 'Saving your recording…'}
+              {saved ? 'Recording saved!' : error ? 'Recording needs attention' : 'Saving your recording…'}
             </h2>
-            <p>
+            <p id="echoo-recording-decision-description">
               {saved
                 ? 'Your completed broadcast is now available in Recordings.'
                 : error
@@ -304,9 +419,16 @@ const BroadcastRecordingPrompt = () => {
         {error && <div className="echoo-recording-error">{error}</div>}
 
         {saved && (
-          <div className="echoo-recording-saved">
-            <FaCheckCircle /> {savedLabel} saved automatically in Recordings.
-          </div>
+          <>
+            <div className="echoo-recording-saved">
+              <FaCheckCircle /> {savedLabel} saved automatically in Recordings.
+            </div>
+            {savedRecordingId && (
+              <div className="echoo-recording-saved-actions">
+                <button type="button" onClick={viewRecording}>View recording</button>
+              </div>
+            )}
+          </>
         )}
 
         {!saved && (
@@ -327,9 +449,16 @@ const BroadcastRecordingPrompt = () => {
         )}
 
         <footer>
-          <span>
-            <FaCloudUploadAlt /> Completed broadcasts are saved automatically to this Echoo backend during local testing.
-          </span>
+          {saved ? (
+            <div className={`echoo-recording-auto-close ${autoDismissPaused ? 'is-paused' : ''}`}>
+              <span>Auto closing in 5 sec…</span>
+              <i aria-hidden="true"><b /></i>
+            </div>
+          ) : (
+            <span>
+              <FaCloudUploadAlt /> Completed broadcasts are saved automatically to this Echoo backend during local testing.
+            </span>
+          )}
         </footer>
       </section>
     </div>
