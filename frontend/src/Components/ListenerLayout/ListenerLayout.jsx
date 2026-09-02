@@ -136,8 +136,6 @@ const ListenerLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [user, setUser] = useState(readUser);
-  const displayName =
-    user.displayName || user.fullname || user.username || 'Listener';
   const profileImage =
     buildMediaUrl(user.profileImage || user.avatar || localStorage.getItem('profileImage'));
 

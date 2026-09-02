@@ -231,7 +231,12 @@ const CreatorLiveConnectedWorkspace = ({
             }
           }
 
-          if (prepared && ['scheduled', 'starting', 'failed', 'draft'].includes(prepared.status)) {
+          if (prepared && ['processing', 'ready_for_review', 'editing', 'failed'].includes(prepared.status)) {
+            onNavigate?.('Broadcast', { broadcastId: prepared._id });
+            return;
+          }
+
+          if (prepared && ['scheduled', 'starting', 'draft'].includes(prepared.status)) {
             setSavedBroadcast(prepared);
             setRealtimeQualityProfile(normalizeRealtimeAudioProfile(
               prepared.realtimeAudio?.qualityProfile || getSavedRealtimeAudioProfile()
@@ -258,7 +263,7 @@ const CreatorLiveConnectedWorkspace = ({
 
     load();
     return () => { active = false; };
-  }, [preparedBroadcastId, clearPreparedBroadcast]);
+  }, [preparedBroadcastId, clearPreparedBroadcast, onNavigate]);
 
   useEffect(() => {
     const onPublisherHealth = (event) => setPublisherHealth(event.detail);

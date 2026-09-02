@@ -152,7 +152,7 @@ const ListenerSettingsConnected = () => {
           ? 'Echoo can now show neutral room and message alerts while the desktop app is in the background.'
           : 'Desktop alerts are turned off. Your room and message content remains private.',
       });
-    } catch (error) {
+    } catch {
       setToast({ open: true, title: 'Something went wrong', message: 'Could not update your desktop notification setting.' });
     } finally {
       setDesktopPreferenceLoading(false);
@@ -176,7 +176,7 @@ const ListenerSettingsConnected = () => {
         title: 'Desktop alert type updated',
         message: nextEvents[eventKey] ? 'This alert type is enabled for Echoo Desktop.' : 'This alert type is disabled for Echoo Desktop.',
       });
-    } catch (error) {
+    } catch {
       setToast({ open: true, title: 'Something went wrong', message: 'Could not update that desktop alert type.' });
     } finally {
       setDesktopPreferenceLoading(false);

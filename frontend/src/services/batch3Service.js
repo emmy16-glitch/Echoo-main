@@ -322,8 +322,6 @@ const batch3Service = {
   getLiveAnalytics: async (broadcastId) =>
     apiRequest(`/analytics/live/${encodeURIComponent(broadcastId)}`),
 
-  // Realtime lifecycle only. Recording finalization deliberately happens
-  // afterwards so endpoint latency never keeps listeners connected.
   endBroadcastRealtime: async (broadcastId) => {
     const response = await apiRequest(
       `/broadcasts/${encodeURIComponent(broadcastId)}/end`,
@@ -331,10 +329,10 @@ const batch3Service = {
     );
 
     const raw = response?.data?.broadcast || response?.data;
-    const normalized = normalizeBroadcast(raw);
+
     return {
       ...response,
-      data: normalized,
+      data: normalizeBroadcast(raw),
     };
   },
 

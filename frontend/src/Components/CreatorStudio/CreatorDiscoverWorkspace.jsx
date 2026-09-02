@@ -27,7 +27,7 @@ const StationArtwork = ({ station }) => (
     : <span className="creator-discover-artwork-fallback"><FaBroadcastTower aria-hidden="true" /></span>
 );
 
-export default function CreatorDiscoverWorkspace({ onNavigate }) {
+export default function CreatorDiscoverWorkspace() {
   const { currentUser, publicStations, loading, refresh } = useCreatorStudioState();
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('All categories');

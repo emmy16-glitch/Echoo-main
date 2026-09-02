@@ -245,7 +245,6 @@ export const startLiveKitPublishing = async ({
     );
   }
 
-  // Avoid a needless async disconnect on the normal first publish.
   if (activeRoom || activePublication || syntheticContext) await stopLiveKitPublishing();
 
   publishHealth({
@@ -360,7 +359,6 @@ export const startLiveKitPublishing = async ({
           recordingError?.message || recordingError
         );
       });
-
     }
 
     const result = {

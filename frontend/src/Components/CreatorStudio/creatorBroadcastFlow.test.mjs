@@ -42,7 +42,7 @@ test('Recording Saved is gated by real backend completion and real upload succes
   const apiCompletion = realtimeSection.indexOf("/end`");
   const readyAnnouncement = finalizeSection.indexOf('announceFinishedBroadcastRecording');
   const uploadCompletion = prompt.indexOf('await studioService.uploadAudio');
-  const savedState = prompt.indexOf('setSaved(true)', uploadCompletion);
+  const savedState = prompt.indexOf('markSaved(String', uploadCompletion);
 
   assert.ok(apiCompletion >= 0);
   assert.ok(readyAnnouncement >= 0);
@@ -101,7 +101,7 @@ test('OFF AIR reset clears session state while the stereo workstation remains ca
   assert.doesNotMatch(resetBody, /resetEchooMixer/);
   assert.match(workspace, /window\.setTimeout\(\(\) => setMessage\(''\), 3000\)/);
   assert.match(shell, /padding-top: 22px !important/);
-  assert.match(heroCss, /animation: ec2-live-ticker 48s linear infinite/);
+  assert.match(heroCss, /animation: ec2-live-ticker 36s linear infinite/);
   assert.match(heroCss, /\.ec2-off-air-details > p \{\s*grid-column: 1 \/ -1;/);
 
   for (const label of ['HOST', 'GUEST 1', 'GUEST 2', 'MASTER OUTPUT']) {

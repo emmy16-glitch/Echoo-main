@@ -16,7 +16,7 @@ export const curatedHelpSuggestions = {
 };
 
 const privacyBoundary =
-  'This is curated product guidance, not a generative AI service. It does not access private account, room, chat, or playback data.';
+  'This is curated product guidance, not a generative AI service. It does not access account, room, chat, or playback data, cannot inspect the room’s live connection state, and cannot see device permissions.';
 
 const listenerFallback =
   'I can guide you around Echoo listener features, including live rooms, station discovery, playback controls, following, history, connection troubleshooting, and settings. I cannot inspect private account or playback state.';

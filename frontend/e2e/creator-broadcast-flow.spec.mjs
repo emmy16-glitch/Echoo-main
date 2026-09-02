@@ -98,6 +98,7 @@ const announceRecording = (page, broadcastId = BROADCAST_ID) => page.evaluate(({
 test('Creator broadcast moves through OFF AIR, LIVE, confirmation, ending, saved, and OFF AIR', async ({ page }) => {
   test.setTimeout(60_000);
   await page.setViewportSize({ width: 1536, height: 1024 });
+  await page.route(/https:\/\/fonts\.(googleapis|gstatic)\.com\//, (route) => route.abort());
   await authenticate(page);
   const pageErrors = [];
   page.on('pageerror', (error) => pageErrors.push(error.message));
@@ -108,8 +109,9 @@ test('Creator broadcast moves through OFF AIR, LIVE, confirmation, ending, saved
   await expect(page.getByText("YOU'RE BROADCASTING NOW.", { exact: true })).toHaveCount(0);
   await page.screenshot({ path: 'design-qa-evidence/broadcast-approved/off-air-1536x1024.png' });
 
+  let broadcastEnded = false;
   await page.unroute('**/api/broadcasts/mine/all**');
-  await page.route('**/api/broadcasts/mine/all**', (route) => fulfill(route, [liveBroadcast]));
+  await page.route('**/api/broadcasts/mine/all**', (route) => fulfill(route, broadcastEnded ? [] : [liveBroadcast]));
   await page.reload();
   await expect(page.locator('.ec2-status-pill[aria-label="Live"]')).toHaveCount(1);
   await expect(page.locator('.ec2-live-ticker-track')).toBeVisible();
@@ -136,9 +138,10 @@ test('Creator broadcast moves through OFF AIR, LIVE, confirmation, ending, saved
   await page.getByRole('button', { name: 'End broadcast' }).click();
   await page.getByRole('alertdialog').getByRole('button', { name: 'End broadcast' }).click();
   await expect.poll(() => endCalls).toBe(1);
-  await expect(page.getByRole('dialog', { name: 'Ending broadcast…' })).toBeVisible();
   await expect(page.locator('.ec2-live-ticker-track')).toHaveCount(0);
+  await expect(page.getByText('READY TO BROADCAST', { exact: true })).toBeVisible();
   await page.screenshot({ path: 'design-qa-evidence/broadcast-approved/ending-1536x1024.png' });
+  broadcastEnded = true;
   releaseEnd();
   await expect(page.getByText('READY TO BROADCAST', { exact: true })).toBeVisible();
 

@@ -11,7 +11,6 @@ import {
   FaHeart,
   FaHistory,
   FaMicrophone,
-  FaPlay,
   FaQuestionCircle,
   FaShieldAlt,
   FaTimes,

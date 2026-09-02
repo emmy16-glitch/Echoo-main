@@ -16,9 +16,10 @@
   height: 214px;
   min-height: 214px;
   display: grid;
-  grid-template-columns: minmax(250px, .92fr) minmax(300px, 1.3fr) minmax(175px, .58fr);
+  grid-template-columns: minmax(300px, 1fr) minmax(220px, auto);
   align-items: center;
-  gap: 30px;
+  justify-content: space-between;
+  gap: 48px;
   overflow: hidden;
   padding: 28px 32px;
   border: 1px solid transparent;
@@ -78,13 +79,13 @@
 .ec2-live-ticker-track {
   display: flex;
   width: max-content;
-  animation: ec2-live-ticker 48s linear infinite;
+  animation: ec2-live-ticker 36s linear infinite;
 }
 
 .ec2-live-ticker-group {
   display: flex;
-  gap: 64px;
-  padding-right: 64px;
+  gap: 80px;
+  padding-right: 80px;
 }
 
 .ec2-live-ticker-track span {
@@ -332,18 +333,10 @@
   background: #22c55e;
 }
 
-.ec2-waveform-wrap {
-  min-width: 0;
-  height: 166px;
-  display: grid;
-  place-items: center;
-}
-
-.ec2-waveform { width: 100%; height: 100%; display: block; }
-
 .ec2-station-identity {
   align-self: center;
-  min-width: 0;
+  min-width: 220px;
+  max-width: 360px;
   padding-left: 5px;
   transform: translateY(-1px);
 }
@@ -684,10 +677,6 @@ html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-hero p {
   line-height: 1.48 !important;
 }
 
-html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-waveform {
-  height: 180px !important;
-}
-
 html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-status-pill {
   transform: none;
 }
@@ -722,7 +711,7 @@ html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-workstation
   .ec2-hero {
     height: auto;
     min-height: 214px;
-    grid-template-columns: minmax(225px, 1fr) minmax(240px, 1fr);
+    grid-template-columns: minmax(225px, 1fr) minmax(210px, auto);
     padding: 34px;
   }
 
@@ -747,14 +736,10 @@ html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-workstation
   .ec2-copy-live--hero { justify-self: start; }
 
   .ec2-station-identity {
-    grid-column: 1 / -1;
-    display: flex;
-    align-items: baseline;
-    gap: 15px;
+    min-width: 0;
+    max-width: 310px;
     padding: 0;
   }
-
-  .ec2-station-identity strong { margin: 0; }
 
   .ec2-broadcast .eam-approved-media-actions {
     width: 100%;
@@ -765,7 +750,7 @@ html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-workstation
 @media (max-width: 720px) {
   .ec2-hero {
     grid-template-columns: 1fr;
-    gap: 15px;
+    gap: 22px;
     padding: 28px 24px;
   }
 
@@ -785,7 +770,10 @@ html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-workstation
   .ec2-end-dialog { padding: 28px 18px 18px; }
 
   .ec2-waveform-wrap { height: 115px; }
-  .ec2-station-identity { display: block; }
+  .ec2-station-identity {
+    display: block;
+    max-width: 100%;
+  }
   .ec2-station-identity strong { margin: 9px 0; }
 
   .ec2-live-action-panel {

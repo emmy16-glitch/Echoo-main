@@ -102,7 +102,6 @@ const BroadcastRecordingPrompt = () => {
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
   const [savedRecordingId, setSavedRecordingId] = useState('');
-  const [autoDismissPaused, setAutoDismissPaused] = useState(false);
   const [retryToken, setRetryToken] = useState(0);
   const saveAttemptRef = useRef('');
   const savedRef = useRef(false);
@@ -123,7 +122,6 @@ const BroadcastRecordingPrompt = () => {
     setPending(null);
     setSaved(false);
     setSavedRecordingId('');
-    setAutoDismissPaused(false);
     saveAttemptRef.current = '';
   }, []);
 
@@ -135,20 +133,6 @@ const BroadcastRecordingPrompt = () => {
       autoDismissRemainingRef.current
     );
   }, [dismissSavedRecording]);
-
-  const pauseAutoDismiss = useCallback(() => {
-    if (!saved || autoDismissPaused) return;
-    window.clearTimeout(autoDismissTimerRef.current);
-    const elapsed = Date.now() - autoDismissStartedAtRef.current;
-    autoDismissRemainingRef.current = Math.max(250, autoDismissRemainingRef.current - elapsed);
-    setAutoDismissPaused(true);
-  }, [autoDismissPaused, saved]);
-
-  const resumeAutoDismiss = useCallback(() => {
-    if (!saved || !autoDismissPaused) return;
-    setAutoDismissPaused(false);
-    scheduleAutoDismiss();
-  }, [autoDismissPaused, saved, scheduleAutoDismiss]);
 
   useEffect(() => {
     const applyPendingRecording = (detail) => {
@@ -191,6 +175,17 @@ const BroadcastRecordingPrompt = () => {
     saveAttemptRef.current = attemptKey;
 
     let active = true;
+    const markSaved = (id = '') => {
+      if (!active) return;
+      forgetPendingRecording();
+      clearPendingBroadcastRecording(recording.broadcastId);
+      window.dispatchEvent(new CustomEvent('echoo:creator-audio-changed'));
+      window.dispatchEvent(new CustomEvent('echoo:creator-state-changed'));
+      if (id) setSavedRecordingId(id);
+      setSaved(true);
+      setSaving(false);
+    };
+
     const saveAutomatically = async () => {
       const title = broadcast?.title || 'Live broadcast recording';
       const description = broadcast?.description || '';
@@ -229,14 +224,7 @@ const BroadcastRecordingPrompt = () => {
           broadcastId: recording.broadcastId,
         });
 
-        if (!active) return;
-        forgetPendingRecording();
-        clearPendingBroadcastRecording(recording.broadcastId);
-        window.dispatchEvent(new CustomEvent('echoo:creator-audio-changed'));
-        window.dispatchEvent(new CustomEvent('echoo:creator-state-changed'));
-        setSavedRecordingId(String(uploadResponse?.data?.id || uploadResponse?.data?._id || ''));
-        setSaved(true);
-        setSaving(false);
+        markSaved(String(uploadResponse?.data?.id || uploadResponse?.data?._id || ''));
       } catch (saveError) {
         if (!active) return;
 
@@ -245,12 +233,7 @@ const BroadcastRecordingPrompt = () => {
         // exists, so treat the lifecycle as successfully finalized instead of
         // creating a confusing duplicate/error loop.
         if (saveError?.code === 'REPLAY_ALREADY_EXISTS') {
-          forgetPendingRecording();
-          clearPendingBroadcastRecording(recording.broadcastId);
-          window.dispatchEvent(new CustomEvent('echoo:creator-audio-changed'));
-          window.dispatchEvent(new CustomEvent('echoo:creator-state-changed'));
-          setSaved(true);
-          setSaving(false);
+          markSaved();
           return;
         }
 
@@ -274,7 +257,6 @@ const BroadcastRecordingPrompt = () => {
     if (!saved) return undefined;
 
     autoDismissRemainingRef.current = SAVED_AUTO_DISMISS_MS;
-    setAutoDismissPaused(false);
     scheduleAutoDismiss();
     closeButtonRef.current?.focus();
 
@@ -323,7 +305,7 @@ const BroadcastRecordingPrompt = () => {
   }, [dismissSavedRecording, pending]);
 
   useEffect(() => {
-    if (!pending) return undefined;
+    if (!pending || saved) return undefined;
 
     const protectPendingRecording = (event) => {
       event.preventDefault();
@@ -332,7 +314,7 @@ const BroadcastRecordingPrompt = () => {
 
     window.addEventListener('beforeunload', protectPendingRecording);
     return () => window.removeEventListener('beforeunload', protectPendingRecording);
-  }, [pending]);
+  }, [pending, saved]);
 
   if (!pending) return null;
 
@@ -360,12 +342,6 @@ const BroadcastRecordingPrompt = () => {
         aria-labelledby="echoo-recording-decision-title"
         aria-describedby="echoo-recording-decision-description"
         tabIndex={-1}
-        onPointerEnter={pauseAutoDismiss}
-        onPointerLeave={resumeAutoDismiss}
-        onKeyDownCapture={pauseAutoDismiss}
-        onBlurCapture={(event) => {
-          if (!event.currentTarget.contains(event.relatedTarget)) resumeAutoDismiss();
-        }}
       >
         {saved && (
           <button
@@ -450,7 +426,7 @@ const BroadcastRecordingPrompt = () => {
 
         <footer>
           {saved ? (
-            <div className={`echoo-recording-auto-close ${autoDismissPaused ? 'is-paused' : ''}`}>
+            <div className="echoo-recording-auto-close">
               <span>Auto closing in 5 sec…</span>
               <i aria-hidden="true"><b /></i>
             </div>

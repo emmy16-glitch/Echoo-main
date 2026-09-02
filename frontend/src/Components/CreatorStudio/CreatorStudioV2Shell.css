@@ -493,6 +493,27 @@
 }
 
 @media (max-width: 760px) {
+  /* Legacy responsive passes used a narrow sidebar on small screens. The
+     Creator shell is a bottom navigation at this breakpoint, so retain the
+     full canvas for broadcast controls and never leave a clickable rail over
+     the workstation. */
+  html body #root .studio-page.studio-final-shell.studio-v2-shell > .studio-sidebar {
+    position: fixed !important;
+    inset: auto 0 0 0 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    height: calc(65px + env(safe-area-inset-bottom, 0px)) !important;
+    margin: 0 !important;
+    z-index: 60 !important;
+  }
+  html body #root .studio-page.studio-final-shell.studio-v2-shell > .studio-main {
+    width: 100% !important;
+    min-width: 0 !important;
+    margin-left: 0 !important;
+  }
+  html body #root .studio-page.studio-final-shell.studio-v2-shell .studio-view {
+    padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)) !important;
+  }
   .studio-v2-shell .studio-topbar-final {
     min-height:118px !important;
     display:grid !important;
