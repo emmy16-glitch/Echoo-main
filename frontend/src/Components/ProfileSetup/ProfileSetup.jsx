@@ -11,6 +11,8 @@ import { clearAuthTokens } from "../../services/api";
 import "../../styles/echoo-onboarding.css";
 import EchoAmbient from "../EchooSystem/EchoAmbient";
 
+const ACCOUNT_STEPS = ["Account", "Profile"];
+
 const prepareImage = (file) =>
   new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -124,17 +126,22 @@ const ProfileSetup = ({ onProfileCompleted, onSessionInvalid }) => {
         avatar: profileImage || null,
       });
 
+      const responseUser = response?.data?.user || response?.data || {};
       const updatedUser = {
         ...currentUser,
-        ...(response?.data || {}),
+        ...responseUser,
         displayName: displayName.trim(),
         bio: bio.trim(),
-        avatar: profileImage || response?.data?.avatar || null,
-        profileImage: profileImage || response?.data?.avatar || "",
+        avatar: profileImage || responseUser?.avatar || null,
+        profileImage: profileImage || responseUser?.avatar || "",
         profileCompleted: true,
+        onboardingCompleted: true,
       };
 
       localStorage.setItem("user", JSON.stringify(updatedUser));
+      localStorage.setItem("echooProfileCompleted", "true");
+      localStorage.setItem("echooOnboardingCompleted", "true");
+      localStorage.setItem("echooActiveExperience", "listener");
       setCompleted(true);
     } catch (error) {
       showError(error.message || "Could not save your profile.");
@@ -155,7 +162,7 @@ const ProfileSetup = ({ onProfileCompleted, onSessionInvalid }) => {
         <div className="profile-container">
           <SuccessState
             title="Profile saved"
-            message="Your Echoo profile is ready. Next, choose how you want to use Echoo."
+            message="Your Echoo profile is ready. Opening your Listener experience..."
             autoContinue
             duration={900}
             onContinue={() => onProfileCompleted?.()}
@@ -177,6 +184,8 @@ const ProfileSetup = ({ onProfileCompleted, onSessionInvalid }) => {
 
       <OnboardingFrame
         step={2}
+        steps={ACCOUNT_STEPS}
+        phaseLabel="Account setup"
         hero="profile"
         panelClassName="eor-profile-panel"
         heroData={{
@@ -260,7 +269,7 @@ const ProfileSetup = ({ onProfileCompleted, onSessionInvalid }) => {
               Continue
             </LoadingButton>
             <p className="eor-tailor-note">
-              More setup steps follow after you choose how you want to use Echoo.
+              You’ll start in Listener. Create a Channel from Echoo whenever you’re ready to broadcast.
             </p>
           </div>
         </form>
