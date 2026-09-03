@@ -9,8 +9,8 @@ export const hasCreatorCapability = (user = {}) => (
 );
 
 // Creator setup is separate from the shared Echoo account onboarding state.
-// setupCompleted is supported for future records, while isApproved is the
-// existing persisted completion marker used by Creator setup today.
+// setupCompleted is supported for future records, while isApproved and the old
+// step-5 completion shape preserve creators made before this unification.
 export const hasCompletedCreatorSetup = (user = {}) => {
   if (!hasCreatorCapability(user)) return false;
 
@@ -18,12 +18,19 @@ export const hasCompletedCreatorSetup = (user = {}) => {
   if (profile.setupCompleted === true) return true;
   if (profile.setupCompleted === false) return false;
   if (profile.isApproved === true) return true;
-  if (profile.isApproved === false && (profile.creatorType || profile.category)) return false;
+
+  const legacyStep = Number(user.onboardingStep);
+  const hasLegacyStep = Number.isFinite(legacyStep) && legacyStep > 0;
+
+  if (!hasLegacyStep) {
+    return Boolean(profile.creatorType && user.onboardingCompleted === true);
+  }
 
   return Boolean(
     profile.creatorType &&
     profile.category &&
-    user.onboardingCompleted === true
+    user.onboardingCompleted === true &&
+    legacyStep >= 5
   );
 };
 
