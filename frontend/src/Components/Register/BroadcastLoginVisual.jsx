@@ -207,19 +207,19 @@ const BroadcastLoginVisual = ({ logoSrc, mode = "signup" }) => {
       <div className="ear-story-copy">
         {isLogin ? (
           <>
-            <h1>Welcome back<br />to <em>Echoo.</em></h1>
-            <p>Your audience is waiting.</p>
+            <h1>Welcome to<br /><em>Echoo.</em></h1>
+            <p>Listen live, follow what matters, and create when you&apos;re ready.</p>
           </>
         ) : (
           <>
-            <h1>Your <em>voice.</em><br />Your audience.<br />Your moment.</h1>
-            <p>Go live, connect with listeners, and<br className="ear-desktop-break" /> turn conversations into experiences.</p>
+            <h1>One account.<br /><em>Every sound.</em></h1>
+            <p>Start by listening. Create your Channel whenever you&apos;re ready.</p>
           </>
         )}
       </div>
       {isLogin ? <LoginArtwork /> : <AudioPreview />}
       {!isLogin && (
-        <p className="ear-security-note"><FaShieldAlt aria-hidden="true" /> Secure. Private. Built for creators.</p>
+        <p className="ear-security-note"><FaShieldAlt aria-hidden="true" /> Secure. Private. One Echoo account.</p>
       )}
     </div>
   );
