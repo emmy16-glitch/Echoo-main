@@ -15,9 +15,9 @@ export const hasCreatorCapability = (user = {}) => (
   accountRoles(user).includes('creator')
 );
 
-// Creator access is a capability on one Echoo account, not a second account.
-// Current completions use isApproved; older creators are recognized through the
-// legacy completed step shape so migration does not force them through setup.
+// Creator/Channel setup is independent from shared Account/Profile onboarding.
+// New accounts use setupCompleted. isApproved remains a migration marker only
+// because older Echoo creator setup historically wrote that field.
 export const hasCompletedCreatorProfile = (user = {}) => {
   if (!hasCreatorCapability(user)) return false;
 
@@ -27,16 +27,11 @@ export const hasCompletedCreatorProfile = (user = {}) => {
   if (profile.isApproved === true) return true;
 
   const legacyStep = Number(user.onboardingStep);
-  const hasLegacyStep = Number.isFinite(legacyStep) && legacyStep > 0;
-
-  if (!hasLegacyStep) {
-    return Boolean(profile.creatorType && user.onboardingCompleted === true);
-  }
-
   return Boolean(
     profile.creatorType &&
     profile.category &&
     user.onboardingCompleted === true &&
+    Number.isFinite(legacyStep) &&
     legacyStep >= 5
   );
 };
@@ -60,8 +55,10 @@ export const saveAccountUser = (user) => {
 
   if (user.onboardingCompleted === true) {
     localStorage.setItem('echooOnboardingCompleted', 'true');
+    localStorage.setItem('echooProfileCompleted', 'true');
   } else if (user.onboardingCompleted === false) {
     localStorage.removeItem('echooOnboardingCompleted');
+    localStorage.removeItem('echooProfileCompleted');
   }
 
   return user;
