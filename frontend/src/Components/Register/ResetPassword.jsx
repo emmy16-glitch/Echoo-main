@@ -22,6 +22,8 @@ const ResetPassword = () => {
   const passwordValid = useMemo(() => passwordPattern.test(password), [password]);
   const passwordsMatch = password === confirmPassword;
 
+  const returnToLogin = () => navigate('/?mode=login', { replace: true });
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     if (!token) {
@@ -62,14 +64,14 @@ const ResetPassword = () => {
               title="Password updated"
               message="Your new password is ready. Return to Echoo and sign in."
               buttonText="Back to login"
-              onContinue={() => navigate('/', { replace: true })}
+              onContinue={returnToLogin}
             />
           ) : (
             <>
               <button
                 type="button"
                 className="ear-glass-back"
-                onClick={() => navigate('/', { replace: true })}
+                onClick={returnToLogin}
                 aria-label="Back to login"
               >
                 <FaArrowLeft />
