@@ -9,14 +9,16 @@ export const hasCreatorCapability = (user = {}) => (
 );
 
 // Creator setup is separate from the shared Echoo account onboarding state.
-// `setupCompleted` is the canonical flag going forward. The profile-based
-// fallback preserves existing creators created before that flag existed.
+// setupCompleted is supported for future records, while isApproved is the
+// existing persisted completion marker used by Creator setup today.
 export const hasCompletedCreatorSetup = (user = {}) => {
   if (!hasCreatorCapability(user)) return false;
 
   const profile = user.creatorProfile || {};
   if (profile.setupCompleted === true) return true;
   if (profile.setupCompleted === false) return false;
+  if (profile.isApproved === true) return true;
+  if (profile.isApproved === false && (profile.creatorType || profile.category)) return false;
 
   return Boolean(
     profile.creatorType &&
