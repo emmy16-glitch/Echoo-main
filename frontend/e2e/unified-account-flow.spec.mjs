@@ -18,19 +18,18 @@ const activatedCreator = {
 test('new Echoo signup becomes Listener without any role-choice screen', async ({ page }) => {
   await page.goto('/');
 
-  await page.getByLabel('Full name').fill('New Listener');
   await page.getByLabel('Username', { exact: true }).fill('newlistener');
   await page.getByLabel('Email address').fill('newlistener@example.test');
   await page.getByLabel('Password', { exact: true }).fill('StrongPass1!');
   await page.getByLabel('Confirm password').fill('StrongPass1!');
-  await page.getByRole('button', { name: 'Continue' }).click();
+  await page.getByRole('button', { name: 'Create account' }).click();
 
-  await expect(page.getByText('Account created')).toBeVisible();
   await expect(page.getByText('Creator / Listener')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Set up your profile' })).toBeVisible({ timeout: 5_000 });
 
   await expect(page.getByText('Account').first()).toBeVisible();
   await expect(page.getByText('Profile').first()).toBeVisible();
+  await expect(page.getByText('Role')).toHaveCount(0);
   await page.getByRole('button', { name: 'Continue' }).click();
 
   await expect(page).toHaveURL(/\/listen$/, { timeout: 8_000 });
