@@ -9,8 +9,9 @@ export const hasCreatorCapability = (user = {}) => (
 );
 
 // Creator setup is separate from the shared Echoo Account/Profile onboarding.
-// New records use setupCompleted. isApproved is recognized only as a migration
-// marker because older Echoo creator setup historically wrote that field.
+// New records always get an explicit setupCompleted value when Creator is
+// activated. For pre-migration creator records, creatorType + the old completed
+// onboarding flag is enough to preserve access to the Creator Studio.
 export const hasCompletedCreatorSetup = (user = {}) => {
   if (!hasCreatorCapability(user)) return false;
 
@@ -19,13 +20,9 @@ export const hasCompletedCreatorSetup = (user = {}) => {
   if (profile.setupCompleted === false) return false;
   if (profile.isApproved === true) return true;
 
-  const legacyStep = Number(user.onboardingStep);
   return Boolean(
     profile.creatorType &&
-    profile.category &&
-    user.onboardingCompleted === true &&
-    Number.isFinite(legacyStep) &&
-    legacyStep >= 5
+    user.onboardingCompleted === true
   );
 };
 
