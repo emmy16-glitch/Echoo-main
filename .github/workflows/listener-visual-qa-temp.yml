@@ -1,0 +1,70 @@
+name: Listener visual QA temp
+
+on:
+  push:
+    branches:
+      - fix/deep-hidden-listener-creator-audit
+    paths:
+      - '.github/workflows/listener-visual-qa-temp.yml'
+      - 'frontend/e2e/listener-selected-visual.spec.mjs'
+      - 'frontend/src/**'
+      - 'frontend/package*.json'
+  workflow_dispatch:
+
+jobs:
+  visual-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      ECHOO_QA_BASE_URL: http://127.0.0.1:4173
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install Chromium
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Listener selected visual QA
+        working-directory: frontend
+        run: npx playwright test e2e/listener-selected-visual.spec.mjs --project=desktop-1440 --reporter=line
+
+      - name: Print compact screenshots into logs
+        if: always()
+        working-directory: frontend
+        run: |
+          set +e
+          count=0
+          while IFS= read -r path; do
+            count=$((count+1))
+            [ "$count" -gt 4 ] && break
+            name="$(basename "$path")"
+            tmp="/tmp/echoo-qa-${count}.jpg"
+            ffmpeg -loglevel error -y -i "$path" -vf "scale='min(900,iw)':-2" -q:v 10 "$tmp" || cp "$path" "$tmp"
+            echo "SCREENSHOT_BEGIN:${name}"
+            base64 -w 0 "$tmp"
+            echo
+            echo "SCREENSHOT_END:${name}"
+          done < <(find test-results -type f \( -name '*.jpg' -o -name '*.png' \) | sort)
+          exit 0
+
+      - name: Upload screenshots and traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: listener-visual-qa
+          path: |
+            frontend/test-results/**/*.jpg
+            frontend/test-results/**/*.png
+            frontend/test-results/**/error-context.md
+            frontend/test-results/**/trace.zip
+          if-no-files-found: warn

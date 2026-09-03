@@ -7,15 +7,16 @@ import { resolveLiveKitUrl } from './livekitUrl.js';
 import { ensureBroadcastRecording } from './broadcastRecordingService.js';
 import { applyProgramTrackQuality } from './audioQualityProfile.js';
 import {
-  startWhisperFlowTranscription,
-  stopWhisperFlowTranscription,
-} from './whisperFlowService.js';
-
-const ECHOO_LIVE_AUDIO_BITRATE = 256000;
+  getRealtimeAudioProfile,
+  liveKitPublishOptionsFor,
+  normalizeRealtimeAudioProfile,
+} from './realtimeAudioQuality.js';
 
 let activeRoom = null;
 let activeBroadcastId = null;
 let activePublication = null;
+let activeQualityProfile = 'broadcast_high';
+let previousSenderStats = null;
 let publisherHealth = {
   mixer: 'idle',
   livekit: 'disconnected',
@@ -130,26 +131,57 @@ export const getLiveKitPublishingState = () => ({
   connected: Boolean(activeRoom),
   broadcastId: activeBroadcastId,
   roomName: activeRoom?.name || null,
-  targetAudioBitsPerSecond: ECHOO_LIVE_AUDIO_BITRATE,
+  targetAudioBitsPerSecond: getRealtimeAudioProfile(activeQualityProfile).maxBitrate,
+  qualityProfile: activeQualityProfile,
   ...publisherHealth,
 });
 
+// Uses the installed livekit-client LocalAudioTrack public stats API. This is
+// intentionally diagnostic-only: negotiated bitrate can be lower than the
+// requested profile when WebRTC congestion control intervenes.
+export const refreshLiveKitPublishingDiagnostics = async () => {
+  const track = activePublication?.track;
+  const stats = await track?.getSenderStats?.();
+  if (!stats) return getLiveKitPublishingState();
+  const report = await track?.getRTCStatsReport?.();
+  let outbound = null;
+  report?.forEach?.((entry) => {
+    if (entry?.type === 'outbound-rtp' && entry.kind === 'audio') outbound = entry;
+  });
+  const codec = outbound?.codecId ? report?.get?.(outbound.codecId) : null;
+  const previous = previousSenderStats;
+  const elapsedMs = Math.max(1, Number(stats.timestamp || 0) - Number(previous?.timestamp || 0));
+  const bytesDelta = Math.max(0, Number(stats.bytesSent || 0) - Number(previous?.bytesSent || 0));
+  previousSenderStats = stats;
+  publishHealth({
+    outboundBitrate: previous ? Math.round((bytesDelta * 8 * 1000) / elapsedMs) : null,
+    packetsSent: Number(stats.packetsSent) || 0,
+    packetsLost: Number(stats.packetsLost) || 0,
+    roundTripTime: Number.isFinite(stats.roundTripTime) ? stats.roundTripTime : null,
+    jitter: Number.isFinite(stats.jitter) ? stats.jitter : null,
+    negotiatedCodec: codec?.mimeType || null,
+    audioClockRate: Number(codec?.clockRate) || null,
+    negotiatedChannels: Number(outbound?.channels) || null,
+    trackId: track?.mediaStreamTrack?.id || null,
+  });
+  return getLiveKitPublishingState();
+};
+
 export const stopLiveKitPublishing = async () => {
   const room = activeRoom;
+  const needsSyntheticCleanup = Boolean(syntheticContext || syntheticNativeTrack || syntheticOscillator);
 
   activeRoom = null;
   activeBroadcastId = null;
   activePublication = null;
+  activeQualityProfile = 'broadcast_high';
+  previousSenderStats = null;
   publishHealth({
     livekit: 'disconnected',
     audio: 'disconnected',
     broadcastId: null,
     trackSid: null,
     trackName: null,
-  });
-
-  await stopWhisperFlowTranscription().catch((error) => {
-    console.warn('[Echoo Transcript] cleanup warning:', error?.message || error);
   });
 
   if (room) {
@@ -160,7 +192,7 @@ export const stopLiveKitPublishing = async () => {
     }
   }
 
-  await cleanupSyntheticAudio();
+  if (needsSyntheticCleanup) await cleanupSyntheticAudio();
 };
 
 export const setLiveKitPublishingPaused = async (paused) => {
@@ -185,9 +217,13 @@ export const startLiveKitPublishing = async ({
   token,
   broadcastId,
   mediaTrack = null,
+  qualityProfile = 'broadcast_high',
 }) => {
+  const publishingStartedAt = performance.now();
   const resolvedUrl = resolveLiveKitUrl(url);
   const id = String(broadcastId || '').trim();
+  const selectedQualityProfile = normalizeRealtimeAudioProfile(qualityProfile);
+  const selectedQuality = getRealtimeAudioProfile(selectedQualityProfile);
 
   if (!resolvedUrl) {
     throw new Error('Echoo did not receive a LiveKit websocket URL from the backend.');
@@ -209,7 +245,7 @@ export const startLiveKitPublishing = async ({
     );
   }
 
-  await stopLiveKitPublishing();
+  if (activeRoom || activePublication || syntheticContext) await stopLiveKitPublishing();
 
   publishHealth({
     mixer: mediaTrack ? 'ready' : 'synthetic-test',
@@ -241,12 +277,14 @@ export const startLiveKitPublishing = async ({
   });
 
   try {
+    const connectStartedAt = performance.now();
     await room.connect(resolvedUrl, token, {
       autoSubscribe: false,
       maxRetries: 3,
       websocketTimeout: 15000,
       peerConnectionTimeout: 20000,
     });
+    const connectedAt = performance.now();
     publishHealth({ livekit: 'connected' });
     console.info('[Echoo LiveKit] connected', {
       broadcastId: id,
@@ -268,20 +306,16 @@ export const startLiveKitPublishing = async ({
       // browsers avoid speech-oriented handling where they support contentHint.
       programTrackQuality = applyProgramTrackQuality(mediaTrack);
 
+      const publishStartedAt = performance.now();
       publication = await room.localParticipant.publishTrack(mediaTrack, {
         name: 'echoo-studio-mix',
         source: Track.Source.Microphone,
         // Echoo is an audio-broadcast product, not a speech-call product. Keep
         // continuous music/system audio in stereo and give Opus enough bitrate
         // to preserve the post-master studio feed without speech-style DTX.
-        audioPreset: { maxBitrate: ECHOO_LIVE_AUDIO_BITRATE },
-        forceStereo: true,
-        dtx: false,
-        // Stereo RED is intentionally left off for the primary quality profile.
-        // Network resilience can be A/B tested separately without changing the
-        // clean source/mastering path.
-        red: false,
+        ...liveKitPublishOptionsFor(selectedQualityProfile),
       });
+      publication.__echooPublishMs = Math.round(performance.now() - publishStartedAt);
     } else {
       const nativeTrack = await createSyntheticTrack();
       publication = await room.localParticipant.publishTrack(nativeTrack, {
@@ -296,6 +330,8 @@ export const startLiveKitPublishing = async ({
     activeRoom = room;
     activeBroadcastId = id;
     activePublication = publication;
+    activeQualityProfile = selectedQualityProfile;
+    previousSenderStats = null;
     publishHealth({
       audio: 'published',
       broadcastId: id,
@@ -310,34 +346,17 @@ export const startLiveKitPublishing = async ({
       source: mode === 'studio-mix' ? 'echoo-studio-mix' : 'echoo-dev-test-audio',
     });
 
-    // Local-first recording: tap the exact post-master mixer signal that is
-    // being published to LiveKit. Recording is deliberately independent from
-    // the LiveKit Room so a reconnect does not split or lose the local take.
+    // Recording starts after publication and is intentionally background-only:
+    // a slow recorder must never delay Creator LIVE or listener access.
     if (mode === 'studio-mix' && mediaTrack) {
-      try {
-        await ensureBroadcastRecording({
+      void ensureBroadcastRecording({
           broadcastId: activeBroadcastId,
           mediaTrack,
           title: `echoo-live-${activeBroadcastId}`,
-        });
-      } catch (recordingError) {
-        // Recording must never prevent the creator from going live. The end
-        // flow simply will not offer a recording if this browser cannot record.
+      }).catch((recordingError) => {
         console.warn(
           '[Echoo Recording] could not start local recording:',
           recordingError?.message || recordingError
-        );
-      }
-
-      // This is a second, independent branch from the post-master program.
-      // Listener audio remains a direct Creator -> LiveKit -> Listener path.
-      startWhisperFlowTranscription({
-        broadcastId: activeBroadcastId,
-        mediaTrack,
-      }).catch((transcriptionError) => {
-        console.warn(
-          '[Echoo Transcript] realtime transcription is unavailable; live audio continues:',
-          transcriptionError?.message || transcriptionError
         );
       });
     }
@@ -349,8 +368,14 @@ export const startLiveKitPublishing = async ({
       trackSid: publication?.trackSid || null,
       mode,
       url: resolvedUrl,
-      targetAudioBitsPerSecond: ECHOO_LIVE_AUDIO_BITRATE,
+      targetAudioBitsPerSecond: selectedQuality.maxBitrate,
+      qualityProfile: selectedQualityProfile,
+      requestedSampleRate: selectedQuality.sampleRate,
+      requestedChannels: selectedQuality.channels,
       programTrackQuality,
+      connectMs: Math.round(connectedAt - connectStartedAt),
+      publishMs: publication?.__echooPublishMs ?? Math.round(performance.now() - connectedAt),
+      totalMs: Math.round(performance.now() - publishingStartedAt),
     };
 
     console.log('[Echoo LiveKit] publishing hi-fi studio mix', result);
@@ -376,4 +401,5 @@ export default {
   getLiveKitPublishingState,
   getActiveLiveKitRoom,
   setLiveKitPublishingPaused,
+  refreshLiveKitPublishingDiagnostics,
 };

@@ -16,6 +16,7 @@ import {
   incrementPlays,
   getAudioCover,
 } from '../controllers/audioController.js';
+import { updateAudioCover } from '../controllers/audioArtworkController.js';
 import { toggleAudioLike } from '../controllers/audioLikeController.js';
 import {
   issueAudioStreamUrl,
@@ -31,6 +32,7 @@ const COVER_UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'audio-covers');
 });
 
 const MAX_CLASSIC_WAV_BYTES = 0xffffffff;
+const MAX_COVER_UPLOAD_BYTES = 5 * 1024 * 1024;
 const configuredUploadLimit = Number.parseInt(
   process.env.AUDIO_UPLOAD_MAX_BYTES || '',
   10
@@ -100,6 +102,17 @@ const upload = multer({
   },
 });
 
+const coverUpload = multer({
+  storage,
+  fileFilter,
+  limits: {
+    fileSize: MAX_COVER_UPLOAD_BYTES,
+    files: 1,
+    fields: 4,
+    fieldSize: 16 * 1024,
+  },
+});
+
 const uploadAudioFields = (req, res, next) => {
   upload.fields([
     { name: 'audio', maxCount: 1 },
@@ -126,6 +139,31 @@ const uploadAudioFields = (req, res, next) => {
       error: {
         code: error.code || 'UPLOAD_REJECTED',
         message: error.message || 'This upload could not be accepted.',
+      },
+    });
+  });
+};
+
+const uploadCoverFile = (req, res, next) => {
+  coverUpload.single('cover')(req, res, (error) => {
+    if (!error) return next();
+
+    if (error instanceof multer.MulterError) {
+      const tooLarge = error.code === 'LIMIT_FILE_SIZE';
+      return res.status(tooLarge ? 413 : 400).json({
+        error: {
+          code: tooLarge ? 'COVER_FILE_TOO_LARGE' : (error.code || 'UPLOAD_ERROR'),
+          message: tooLarge
+            ? 'Cover artwork must be 5 MB or smaller.'
+            : (error.message || 'The cover artwork could not be uploaded.'),
+        },
+      });
+    }
+
+    return res.status(error?.status || 400).json({
+      error: {
+        code: error?.code || 'UPLOAD_REJECTED',
+        message: error?.message || 'The cover artwork could not be accepted.',
       },
     });
   });
@@ -344,6 +382,16 @@ router.post(
   uploadAudioFields,
   validateUploadedFileSignatures,
   uploadAudio,
+  cleanupUploadError
+);
+router.patch(
+  '/:id/cover',
+  validateAudioId,
+  authenticate,
+  requireCreator,
+  uploadCoverFile,
+  validateUploadedFileSignatures,
+  updateAudioCover,
   cleanupUploadError
 );
 router.patch('/:id', validateAudioId, authenticate, requireCreator, updateAudio);

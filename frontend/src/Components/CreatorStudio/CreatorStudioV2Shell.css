@@ -1,0 +1,600 @@
+/* Creator 2.0 shell: intentionally quiet, operational, and separate from the
+   older Creator Studio workspace styles which remain available to their routes. */
+.studio-v2-shell {
+  --studio-sidebar-width: 282px;
+  --studio-canvas: #f8fbff;
+  --studio-surface: #fff;
+  --studio-ink: #071638;
+  --studio-soft: #5e6f8f;
+  --studio-muted: #8390a8;
+  --studio-line: #e3eaf4;
+  --studio-blue: #0d5be9;
+  --studio-blue-soft: #eaf1ff;
+}
+
+.studio-v2-shell.studio-page { background: #f8fbff; }
+
+.studio-v2-shell .studio-sidebar {
+  padding: 32px 22px 22px;
+  border-right: 0;
+  background: #03133b;
+  box-shadow: none;
+}
+
+.studio-v2-shell .studio-sidebar-head { min-height: 82px; }
+.studio-v2-shell .studio-brand {
+  gap: 9px;
+  padding: 0 10px 24px;
+  color: #fff;
+}
+.studio-v2-shell .studio-brand .studio-logo {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+}
+.studio-v2-shell .studio-brand-wordmark {
+  color: #fff;
+  font-size: 28px;
+  font-weight: 720;
+  letter-spacing: -.055em;
+  line-height: 1;
+}
+
+.studio-v2-shell .studio-navigation { gap: 13px; padding: 0 0 18px; }
+.studio-v2-shell .studio-nav-item,
+.studio-v2-shell .studio-nav-item:hover {
+  min-height: 53px;
+  flex-basis: 53px;
+  gap: 14px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  color: #dce6ff;
+  font-size: 16px;
+  font-weight: 630;
+}
+.studio-v2-shell .studio-nav-item:hover { background: rgba(84, 122, 215, .17); color: #fff; }
+.studio-v2-shell .studio-nav-item.active {
+  background: #0758f7;
+  color: #fff;
+  box-shadow: none;
+}
+.studio-v2-shell .studio-nav-icon { color: currentColor; font-size: 17px; }
+
+.studio-v2-shell .studio-sidebar-profile-wrap { padding-top: 16px; border-top: 1px solid rgba(218, 230, 255, .14); }
+.studio-v2-shell .studio-sidebar-profile {
+  min-height: 68px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #fff;
+  box-shadow: none;
+}
+.studio-v2-shell .studio-sidebar-profile:hover { border: 0; background: rgba(84, 122, 215, .17); }
+.studio-v2-shell .sidebar-avatar { width: 39px; height: 39px; border: 0; box-shadow: none; background: #0f45e5; color: #fff; font-size: 14px; }
+.studio-v2-shell .sidebar-profile-text strong { color: #fff; font-size: 14px; font-weight: 720; }
+.studio-v2-shell .sidebar-profile-text span { color: #bdcbed; font-size: 12px; }
+.studio-v2-shell .studio-sidebar-profile > svg { color: #dce6ff; font-size: 12px; }
+
+.studio-v2-shell .studio-main { background: #f8fbff; }
+.studio-v2-shell .studio-topbar-final {
+  min-height: 84px;
+  padding: 0 38px;
+  border-bottom: 1px solid #e3eaf4;
+  background: rgba(255, 255, 255, .96);
+  backdrop-filter: none;
+}
+.studio-v2-shell .studio-top-actions { gap: 14px; }
+.studio-v2-shell .studio-header-profile { display: inline-flex; align-items: center; gap: 14px; min-width: 0; }
+.studio-v2-shell .studio-header-profile strong { overflow: hidden; color: #071438; font-size: 17px; font-weight: 730; letter-spacing: -.025em; text-overflow: ellipsis; white-space: nowrap; }
+.studio-v2-shell .studio-header-profile .top-avatar { width: 48px; height: 48px; display: grid; flex: 0 0 48px; place-items: center; overflow: hidden; border: 2px solid #fff; border-radius: 50%; background: #0d45dc; box-shadow: 0 2px 8px rgba(7, 25, 60, .14); color: #fff; font-size: 15px; }
+.studio-v2-shell .studio-header-profile .top-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.studio-v2-shell .studio-sidebar { position: relative; overflow: hidden; }
+.studio-v2-shell .studio-sidebar-watermark { position: absolute; bottom: -49px; left: -33px; width: 301px; height: 530px; opacity: .13; filter: brightness(1.3) saturate(1.15); pointer-events: none; }
+.studio-create-wrap { position: relative; }
+.studio-v2-shell .studio-create-button {
+  min-height: 43px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 18px;
+  border: 1px solid #0d45dc;
+  border-radius: 999px;
+  background: #0d45dc;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 720;
+  cursor: pointer;
+}
+.studio-v2-shell .studio-create-button > span { font-size: 25px; font-weight: 300; line-height: 0; }
+.studio-v2-shell .studio-create-button > svg { font-size: 10px; }
+.studio-v2-shell .studio-icon-button,
+.studio-v2-shell .notification-button {
+  width: 41px;
+  height: 41px;
+  min-height: 41px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #071638;
+  box-shadow: none;
+  font-size: 19px;
+  cursor: pointer;
+}
+.studio-v2-shell .studio-icon-button:hover,
+.studio-v2-shell .notification-button:hover { background: #edf3fd; color: #0d45dc; border: 0; }
+.studio-v2-shell .studio-account-button { min-width: 46px; width: 46px; min-height: 46px; display: block; padding: 0; border-radius: 50%; }
+.studio-v2-shell .studio-account-button > div:nth-child(2),
+.studio-v2-shell .studio-account-button > svg { display: none; }
+.studio-v2-shell .top-avatar { width: 46px; height: 46px; background: #0d45dc; color: #fff; font-size: 15px; }
+
+.studio-v2-shell .studio-create-menu {
+  position: absolute;
+  z-index: 100;
+  top: calc(100% + 9px);
+  right: 0;
+  width: 208px;
+  display: grid;
+  gap: 3px;
+  padding: 7px;
+  border: 1px solid #e1e8f3;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 18px 42px rgba(7, 22, 56, .15);
+}
+.studio-v2-shell .studio-create-menu button {
+  min-height: 39px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #16264c;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 640;
+  text-align: left;
+  cursor: pointer;
+}
+.studio-v2-shell .studio-create-menu button:hover,
+.studio-v2-shell .studio-create-menu button:focus-visible { background: #edf3fd; outline: none; }
+.studio-v2-shell .studio-create-menu svg { width: 16px; color: #0d45dc; }
+
+.studio-v2-shell .studio-view { max-width: 1280px; padding: 51px 44px 42px; }
+.studio-v2-shell .studio-alert { width: min(calc(100% - 88px), 1190px); }
+.studio-v2-shell .studio-footer { display: none; }
+.studio-v2-shell .studio-create-button:focus-visible,
+.studio-v2-shell .studio-icon-button:focus-visible,
+.studio-v2-shell .notification-button:focus-visible { outline: 3px solid rgba(13, 91, 233, .3); outline-offset: 3px; }
+
+@media (max-width: 1120px) and (min-width: 761px) {
+  .studio-v2-shell { --studio-sidebar-width: 242px; }
+  .studio-v2-shell .studio-sidebar { padding-left: 15px; padding-right: 15px; }
+  .studio-v2-shell .studio-topbar-final { padding: 0 26px; }
+  .studio-v2-shell .studio-view { padding: 42px 28px; }
+}
+
+@media (max-width: 760px) {
+  .studio-v2-shell .studio-sidebar { border-top: 1px solid rgba(205, 219, 250, .2); background: #03133b; box-shadow: none; }
+  .studio-v2-shell .studio-navigation { gap: 2px; }.studio-v2-shell .studio-nav-item,
+  .studio-v2-shell.sidebar-collapsed .studio-nav-item { min-width: 66px; flex-basis: 66px; color: #cbd8f8; font-size: 8px; }.studio-v2-shell .studio-nav-item.active { background: #153fc5; color: #fff; }
+  .studio-v2-shell .studio-topbar-final { min-height: 66px; padding: 0 14px; }.studio-v2-shell .studio-top-actions { width: 100%; justify-content: flex-end; gap: 7px; }.studio-v2-shell .studio-create-button { min-height: 39px; padding: 0 13px; font-size: 13px; }.studio-v2-shell .studio-create-button > span { font-size: 21px; }.studio-v2-shell .studio-icon-button,.studio-v2-shell .notification-button { width: 36px; height: 36px; min-height: 36px; font-size: 16px; }.studio-v2-shell .studio-account-button { width: 36px; min-height: 36px; }.studio-v2-shell .top-avatar { width: 36px; height: 36px; font-size: 12px; }
+  .studio-v2-shell .studio-view { padding: 30px 17px 32px; }.studio-v2-shell .studio-create-menu { right: -42px; }
+}
+
+/* The legacy identity stylesheet intentionally has high-specificity desktop
+   guards. Keep the new approved Creator 2.0 navigation authoritative here. */
+@media (min-width: 761px) {
+  html body #root .studio-page.studio-final-shell.studio-v2-shell {
+    --studio-sidebar-width: 238px !important;
+    grid-template-columns: 238px minmax(0, 1fr) !important;
+  }
+  html body #root .studio-page.studio-final-shell.studio-v2-shell > .studio-sidebar {
+    padding: 26px 13px 22px !important;
+    border-right: 0 !important;
+    background: #03133b !important;
+    box-shadow: none !important;
+  }
+  html body #root .studio-page.studio-final-shell.studio-v2-shell .studio-sidebar-head { min-height: 114px !important; }
+  html body #root .studio-page.studio-final-shell.studio-v2-shell .studio-brand {
+    height: auto !important;
+    min-height: 0 !important;
+    gap: 8px !important;
+    margin: 0 !important;
+    padding: 0 14px 34px !important;
+    color: #fff !important;
+  }
+  html body #root .studio-page.studio-final-shell.studio-v2-shell .studio-brand .studio-logo {
+    width: 42px !important;
+    min-width: 42px !important;
+    max-width: 42px !important;
+    height: 52px !important;
+    min-height: 52px !important;
+    max-height: 52px !important;
+    flex: 0 0 42px !important;
+    object-fit: contain !important;
+    object-position: center !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    filter: brightness(1.16) saturate(1.3);
+  }
+  html body #root .studio-page.studio-final-shell.studio-v2-shell .studio-brand-wordmark {
+    display: block !important;
+    color: #fff !important;
+    font-size: 31px !important;
+    font-weight: 720 !important;
+    letter-spacing: -.055em !important;
+  }
+  html body #root .studio-page.studio-final-shell.studio-v2-shell .studio-navigation { gap: 12px !important; padding: 0 !important; }
+  html body #root .studio-page.studio-final-shell.studio-v2-shell .studio-nav-item,
+  html body #root .studio-page.studio-final-shell.studio-v2-shell.sidebar-expanded .studio-nav-item {
+    height: 64px !important;
+    min-height: 64px !important;
+    flex-basis: 64px !important;
+    gap: 20px !important;
+    padding: 0 15px !important;
+    border: 0 !important;
+    border-radius: 10px !important;
+    background: transparent !important;
+    color: #dce6ff !important;
+    font-size: 16px !important;
+    font-weight: 630 !important;
+  }
+  html body #root .studio-page.studio-final-shell.studio-v2-shell .studio-nav-item:hover { background: rgba(84, 122, 215, .17) !important; color: #fff !important; }
+  html body #root .studio-page.studio-final-shell.studio-v2-shell .studio-nav-item.active { background: #0758f7 !important; color: #fff !important; box-shadow: none !important; }
+  html body #root .studio-page.studio-final-shell.studio-v2-shell .studio-nav-icon {
+    width: 26px !important;
+    min-width: 26px !important;
+    height: 26px !important;
+    display: grid !important;
+    flex: 0 0 26px !important;
+    place-items: center !important;
+    color: currentColor !important;
+    font-size: 26px !important;
+  }
+  html body #root .studio-page.studio-final-shell.studio-v2-shell .studio-nav-icon svg {
+    width: 26px !important;
+    height: 26px !important;
+    max-width: none !important;
+    flex: 0 0 26px !important;
+  }
+  /* A legacy compact-label rule otherwise scales the visible nav copy down
+     after the item itself has been sized. Keep both the label and icon at the
+     reference dimensions. */
+  html body #root .studio-page.studio-final-shell.studio-v2-shell .studio-nav-label {
+    display: block !important;
+    color: inherit !important;
+    font-size: 16px !important;
+    font-weight: 630 !important;
+    line-height: 20px !important;
+    white-space: nowrap !important;
+  }
+  html body #root .studio-page.studio-final-shell.studio-v2-shell .studio-sidebar-profile-wrap { padding-top: 16px !important; border-top: 1px solid rgba(218, 230, 255, .14) !important; }
+  html body #root .studio-page.studio-final-shell.studio-v2-shell .studio-sidebar-profile { min-height: 68px !important; padding: 8px 10px !important; border: 0 !important; border-radius: 10px !important; background: transparent !important; color: #fff !important; box-shadow: none !important; }
+  html body #root .studio-page.studio-final-shell.studio-v2-shell .studio-sidebar-profile:hover { background: rgba(84, 122, 215, .17) !important; }
+  html body #root .studio-page.studio-final-shell.studio-v2-shell .sidebar-avatar { width: 39px !important; height: 39px !important; border: 0 !important; box-shadow: none !important; background: #0f45e5 !important; color: #fff !important; font-size: 14px !important; }
+  html body #root .studio-page.studio-final-shell.studio-v2-shell .sidebar-profile-text strong { color: #fff !important; font-size: 14px !important; font-weight: 720 !important; }
+  html body #root .studio-page.studio-final-shell.studio-v2-shell .sidebar-profile-text span { color: #bdcbed !important; font-size: 12px !important; }
+  html body #root .studio-page.studio-final-shell.studio-v2-shell .studio-sidebar-profile > svg { color: #dce6ff !important; font-size: 12px !important; }
+  html body #root .studio-page.studio-final-shell.studio-v2-shell .studio-topbar-final { min-height: 91px !important; justify-content: space-between !important; padding: 0 38px !important; background: rgba(255, 255, 255, .96) !important; }
+  html body #root .studio-page.studio-final-shell.studio-v2-shell .studio-view { max-width: none !important; padding: 0 34px 30px !important; }
+  html body #root .studio-page.studio-final-shell.studio-v2-shell .studio-icon-button,
+  html body #root .studio-page.studio-final-shell.studio-v2-shell .notification-button { width: 54px !important; height: 54px !important; min-height: 54px !important; border: 1px solid #e0e6ef !important; background: #fff !important; box-shadow: 0 4px 12px rgba(17, 40, 80, .07) !important; color: #071438 !important; font-size: 21px !important; }
+  html body #root .studio-page.studio-final-shell.studio-v2-shell .studio-icon-button > svg,
+  html body #root .studio-page.studio-final-shell.studio-v2-shell .notification-button > svg { width: 27px !important; height: 27px !important; stroke-width: 2.2 !important; }
+  html body #root .studio-page.studio-final-shell.studio-v2-shell .studio-header-profile .top-avatar { width: 51px !important; height: 51px !important; flex-basis: 51px !important; }
+}
+
+@media (min-width: 1500px) {
+  html body #root .studio-page.studio-final-shell.studio-v2-shell:has(.studio-view > .ec2-broadcast) {
+    --studio-sidebar-width: 204px !important;
+    grid-template-columns: 204px minmax(0, 1fr) !important;
+  }
+  html body #root .studio-page.studio-final-shell.studio-v2-shell:has(.studio-view > .ec2-broadcast) .studio-view {
+    padding-right: 29px !important;
+    padding-left: 29px !important;
+  }
+}
+
+/* Broadcast keeps its desktop composition while allowing shorter screens to
+   scroll vertically. Horizontal overflow remains clipped at the page shell. */
+@media (min-width: 761px) {
+  html body #root .studio-page.studio-final-shell.studio-v2-shell:has(.studio-view > .schedule-events) {
+    height: 100dvh !important;
+    min-height: 100dvh !important;
+    max-height: 100dvh !important;
+    align-items: stretch !important;
+    overflow: hidden !important;
+  }
+  html body #root .studio-page.studio-final-shell.studio-v2-shell:has(.studio-view > .schedule-events) > .studio-sidebar {
+    position: relative !important;
+    height: 100dvh !important;
+    overflow: hidden !important;
+  }
+  html body #root .studio-page.studio-final-shell.studio-v2-shell:has(.studio-view > .schedule-events) .studio-navigation {
+    overflow: hidden !important;
+  }
+  html body #root .studio-page.studio-final-shell.studio-v2-shell:has(.studio-view > .schedule-events) > .studio-main {
+    height: 100dvh !important;
+    min-height: 0 !important;
+    display: grid !important;
+    grid-template-rows: 91px minmax(0, 1fr) !important;
+    overflow: hidden !important;
+  }
+  html body #root .studio-page.studio-final-shell.studio-v2-shell:has(.studio-view > .schedule-events) .studio-topbar-final {
+    position: relative !important;
+    top: auto !important;
+    height: 91px !important;
+  }
+  html body #root .studio-page.studio-final-shell.studio-v2-shell:has(.studio-view > .schedule-events) .studio-view {
+    height: 100% !important;
+    min-height: 0 !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    padding-bottom: 34px !important;
+  }
+
+  html body #root .studio-page.studio-final-shell.studio-v2-shell:has(.studio-view > .ec2-broadcast) {
+    height: 100dvh !important;
+    min-height: 100dvh !important;
+    max-height: 100dvh !important;
+    align-items: stretch !important;
+    overflow: hidden !important;
+  }
+  html body #root .studio-page.studio-final-shell.studio-v2-shell:has(.studio-view > .ec2-broadcast) > .studio-sidebar {
+    position: relative !important;
+    height: 100dvh !important;
+    overflow: hidden !important;
+  }
+  html body #root .studio-page.studio-final-shell.studio-v2-shell:has(.studio-view > .ec2-broadcast) .studio-navigation {
+    overflow: hidden !important;
+  }
+  html body #root .studio-page.studio-final-shell.studio-v2-shell:has(.studio-view > .ec2-broadcast) > .studio-main {
+    height: 100dvh !important;
+    min-height: 0 !important;
+    display: grid !important;
+    grid-template-rows: 91px minmax(0, 1fr) !important;
+    overflow: hidden !important;
+  }
+  html body #root .studio-page.studio-final-shell.studio-v2-shell:has(.studio-view > .ec2-broadcast) .studio-topbar-final {
+    position: relative !important;
+    top: auto !important;
+    height: 91px !important;
+  }
+  html body #root .studio-page.studio-final-shell.studio-v2-shell:has(.studio-view > .ec2-broadcast) .studio-view {
+    height: 100% !important;
+    min-height: 0 !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    padding-bottom: 18px !important;
+  }
+}
+
+@media (min-width: 761px) and (max-height: 999px) {
+  html body #root .studio-page.studio-final-shell.studio-v2-shell:has(.studio-view > .schedule-events) > .studio-main {
+    grid-template-rows: 76px minmax(0, 1fr) !important;
+  }
+  html body #root .studio-page.studio-final-shell.studio-v2-shell:has(.studio-view > .schedule-events) .studio-topbar-final {
+    height: 76px !important;
+    min-height: 76px !important;
+  }
+
+  html body #root .studio-page.studio-final-shell.studio-v2-shell:has(.studio-view > .ec2-broadcast) > .studio-main {
+    grid-template-rows: 76px minmax(0, 1fr) !important;
+  }
+  html body #root .studio-page.studio-final-shell.studio-v2-shell:has(.studio-view > .ec2-broadcast) .studio-topbar-final {
+    height: 76px !important;
+    min-height: 76px !important;
+  }
+  html body #root .studio-page.studio-final-shell.studio-v2-shell:has(.studio-view > .ec2-broadcast) .studio-view {
+    padding-bottom: 10px !important;
+  }
+  .studio-v2-shell .ec2-hero {
+    height: 214px;
+    min-height: 214px;
+    padding-top: 24px;
+    padding-bottom: 24px;
+  }
+  html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-hero h1 {
+    margin: 13px 0 13px !important;
+    font-size: 50px !important;
+  }
+  .studio-v2-shell .ec2-station-identity strong { font-size: 26px; }
+  html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-status-pill { transform: none; }
+  .studio-v2-shell .ec2-workstation-heading { margin-top: 18px; margin-bottom: 9px; }
+}
+
+@media (min-width: 761px) and (max-height: 850px) {
+  html body #root .studio-page.studio-final-shell.studio-v2-shell:has(.studio-view > .schedule-events) > .studio-main {
+    grid-template-rows: 66px minmax(0, 1fr) !important;
+  }
+  html body #root .studio-page.studio-final-shell.studio-v2-shell:has(.studio-view > .schedule-events) .studio-topbar-final {
+    height: 66px !important;
+    min-height: 66px !important;
+  }
+
+  html body #root .studio-page.studio-final-shell.studio-v2-shell:has(.studio-view > .ec2-broadcast) > .studio-main {
+    grid-template-rows: 66px minmax(0, 1fr) !important;
+  }
+  html body #root .studio-page.studio-final-shell.studio-v2-shell:has(.studio-view > .ec2-broadcast) .studio-topbar-final {
+    height: 66px !important;
+    min-height: 66px !important;
+  }
+  .studio-v2-shell .ec2-hero { height: 190px; min-height: 190px; padding-top: 20px; padding-bottom: 20px; }
+  html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-hero h1 { margin: 8px 0 !important; font-size: 48px !important; }
+  html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-hero p { font-size: 14px !important; }
+  .studio-v2-shell .ec2-waveform-wrap { height: 130px; }
+  .studio-v2-shell .ec2-workstation-heading { margin-top: 10px; margin-bottom: 6px; }
+  .studio-v2-shell .ec2-workstation-heading p { margin-top: 2px; }
+}
+
+/* Canonical one-account Creator shell header and mobile chrome. */
+.studio-v2-shell .studio-mobile-brand { display:none; }
+.studio-v2-shell .studio-topbar-final > .echoo-account-toolbar {
+  margin-left:auto;
+}
+.studio-v2-shell .echoo-account-toolbar .studio-header-profile {
+  min-width:136px;
+  height:46px;
+  display:grid;
+  grid-template-columns:38px minmax(0,1fr) 14px;
+  gap:10px;
+  padding:0;
+  border:0;
+  border-radius:10px;
+  background:transparent;
+}
+.studio-v2-shell .echoo-account-toolbar .studio-header-profile .top-avatar {
+  width:38px;
+  height:38px;
+  flex-basis:38px;
+}
+.studio-v2-shell .echoo-account-toolbar .account-experience-trigger-copy strong {
+  font-size:13px;
+  letter-spacing:0;
+}
+.studio-v2-shell .echoo-account-toolbar .account-experience-trigger-copy small {
+  color:#72819b;
+  font-size:11px;
+}
+
+@media (min-width: 761px) {
+  html body #root .studio-page.studio-final-shell.studio-v2-shell .studio-topbar-final {
+    display:flex !important;
+    align-items:center !important;
+    justify-content:flex-end !important;
+  }
+  html body #root .studio-page.studio-final-shell.studio-v2-shell .echoo-account-toolbar__notification {
+    width:40px !important;
+    height:40px !important;
+    min-height:40px !important;
+    border:0 !important;
+    background:transparent !important;
+    box-shadow:none !important;
+    color:#071438 !important;
+    font-size:18px !important;
+  }
+  html body #root .studio-page.studio-final-shell.studio-v2-shell .echoo-account-toolbar__notification svg {
+    width:20px !important;
+    height:20px !important;
+  }
+  html body #root .studio-page.studio-final-shell.studio-v2-shell .echoo-account-toolbar .studio-header-profile .top-avatar {
+    width:38px !important;
+    height:38px !important;
+    flex-basis:38px !important;
+  }
+}
+
+@media (max-width: 760px) {
+  /* Legacy responsive passes used a narrow sidebar on small screens. The
+     Creator shell is a bottom navigation at this breakpoint, so retain the
+     full canvas for broadcast controls and never leave a clickable rail over
+     the workstation. */
+  html body #root .studio-page.studio-final-shell.studio-v2-shell > .studio-sidebar {
+    position: fixed !important;
+    inset: auto 0 0 0 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    height: calc(65px + env(safe-area-inset-bottom, 0px)) !important;
+    margin: 0 !important;
+    z-index: 60 !important;
+  }
+  html body #root .studio-page.studio-final-shell.studio-v2-shell > .studio-main {
+    width: 100% !important;
+    min-width: 0 !important;
+    margin-left: 0 !important;
+  }
+  html body #root .studio-page.studio-final-shell.studio-v2-shell .studio-view {
+    padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  .studio-v2-shell .studio-topbar-final {
+    min-height:118px !important;
+    display:grid !important;
+    grid-template-columns:1fr auto;
+    align-content:center;
+    gap:10px 12px;
+    padding:14px 18px 10px !important;
+    border-bottom:1px solid #e6ebf3;
+    background:#fff !important;
+  }
+  .studio-v2-shell .studio-mobile-brand {
+    display:inline-flex;
+    align-items:center;
+    gap:7px;
+    padding:0;
+    border:0;
+    background:transparent;
+    color:#071226;
+    cursor:pointer;
+  }
+  .studio-v2-shell .studio-mobile-brand img {
+    width:26px;
+    height:26px;
+    object-fit:contain;
+  }
+  .studio-v2-shell .studio-mobile-brand span {
+    color:#071226;
+    font-size:19px;
+    font-weight:780;
+    letter-spacing:-.055em;
+  }
+  .studio-v2-shell .studio-topbar-final > .echoo-account-toolbar {
+    grid-column:1 / -1;
+    width:100%;
+  }
+  .studio-v2-shell .echoo-account-toolbar .echoo-account-toolbar__notification {
+    position:absolute;
+    top:17px;
+    right:58px;
+    width:34px;
+    height:34px;
+  }
+  .studio-v2-shell .echoo-account-toolbar .account-experience-trigger {
+    position:absolute;
+    top:16px;
+    right:18px;
+  }
+  .studio-v2-shell .echoo-account-toolbar .studio-header-profile {
+    width:34px;
+    min-width:34px;
+    height:34px;
+    grid-template-columns:34px;
+    padding:0;
+  }
+  .studio-v2-shell .echoo-account-toolbar .studio-header-profile .account-experience-trigger-copy,
+  .studio-v2-shell .echoo-account-toolbar .studio-header-profile .account-experience-chevron {
+    display:none;
+  }
+  .studio-v2-shell .echoo-account-toolbar .studio-header-profile .top-avatar {
+    width:34px !important;
+    height:34px !important;
+    flex-basis:34px !important;
+  }
+  .studio-v2-shell .studio-sidebar {
+    height:calc(65px + env(safe-area-inset-bottom,0px));
+    border-top:1px solid #dfe6f0 !important;
+    background:#fff !important;
+    box-shadow:0 -8px 24px rgba(18,35,61,.05) !important;
+  }
+  .studio-v2-shell .studio-navigation {
+    height:58px !important;
+    grid-template-columns:repeat(5,minmax(0,1fr)) !important;
+  }
+  .studio-v2-shell .studio-nav-item,
+  .studio-v2-shell.sidebar-collapsed .studio-nav-item {
+    min-width:0 !important;
+    flex-basis:auto !important;
+    color:#66758e !important;
+  }
+  .studio-v2-shell .studio-nav-item.active {
+    background:#edf4ff !important;
+    color:#0758f7 !important;
+  }
+}

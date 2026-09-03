@@ -22,6 +22,10 @@ const QUALITY_CHUNK_CHANNELS = 2;
 const QUALITY_CHUNK_UPLOAD_RETRIES = 5;
 const QUALITY_CHUNK_START_RETRIES = 3;
 const QUALITY_CHUNK_COMPLETE_RETRIES = 5;
+// Optional transport can never be allowed to accumulate arbitrary PCM on the
+// main thread. At 48 kHz stereo this permits 30 seconds of queued float audio;
+// exceeding it disables only the quality/archive branch and preserves LiveKit.
+const MAX_QUEUED_PCM_SECONDS = 30;
 
 let activeRecording = null;
 let pendingRecording = null;
@@ -273,6 +277,21 @@ const appendQualityPcm = (recording, buffer) => {
   if (!buffer || recording.qualityChunkDisabled) return;
   const samples = new Float32Array(buffer);
   if (!samples.length) return;
+  const maximumSamples = Math.max(
+    1,
+    Math.round(recording.sampleRate * QUALITY_CHUNK_CHANNELS * MAX_QUEUED_PCM_SECONDS)
+  );
+  if (recording.qualitySampleCount + samples.length > maximumSamples) {
+    recording.qualityChunkDisabled = true;
+    recording.qualityBuffers = [];
+    recording.qualitySampleCount = 0;
+    recording.qualityChunkErrors.push({
+      chunkIndex: recording.qualityChunkIndex,
+      message: 'Optional PCM transport fell behind and was stopped to protect realtime audio.',
+    });
+    console.warn('[Echoo Recording] optional PCM transport exceeded its bounded queue; LiveKit continues.');
+    return;
+  }
   recording.qualityBuffers.push(samples);
   recording.qualitySampleCount += samples.length;
   if (recording.qualityChunkStarted) void flushQualityChunk(recording);

@@ -13,6 +13,7 @@ import OnboardingFrame from "../Onboarding/OnboardingFrame";
 import LoadingButton from "../UI/LoadingButton";
 import Toast from "../UI/Toast";
 import onboardingService from "../../services/onboardingService";
+import batch2Service from "../../services/batch2Service";
 
 const CREATOR_STEPS = ["Creator Type", "Details", "Ready"];
 
@@ -73,6 +74,15 @@ const prepareImage = (file) =>
     reader.readAsDataURL(file);
   });
 
+const logoFileFromDataUrl = async (dataUrl) => {
+  if (!dataUrl || typeof dataUrl !== "string" || !dataUrl.startsWith("data:image/")) {
+    return null;
+  }
+  const response = await fetch(dataUrl);
+  const blob = await response.blob();
+  return new File([blob], "station-logo.jpg", { type: blob.type || "image/jpeg" });
+};
+
 const CreatorPublicPreview = ({
   creatorType,
   displayName,
@@ -84,6 +94,7 @@ const CreatorPublicPreview = ({
 }) => {
   const isOrganization = creatorType === "organization";
   const name = isOrganization ? organizationDetails.name : displayName;
+  const stationName = isOrganization ? organizationDetails.name : individualDetails.stationName;
   const category = isOrganization
     ? organizationDetails.category
     : individualDetails.category;
@@ -100,7 +111,7 @@ const CreatorPublicPreview = ({
         </div>
         <div>
           <p>{category || "Creator"}</p>
-          <h2>{name || "Your creator space"}</h2>
+          <h2>{stationName || name || "Your station"}</h2>
           <span>{isOrganization ? `@${(name || "creator").replace(/\s+/g, "").toLowerCase()}` : username}</span>
         </div>
       </div>
@@ -125,6 +136,7 @@ const CreatorSetup = ({ onBackToRole, onCreatorReady }) => {
   const [creatorType, setCreatorType] = useState("");
   const [saving, setSaving] = useState(false);
   const [individualDetails, setIndividualDetails] = useState({
+    stationName: "",
     category: "",
     content: "",
   });
@@ -202,6 +214,7 @@ const CreatorSetup = ({ onBackToRole, onCreatorReady }) => {
   const detailsAreComplete = () => {
     if (creatorType === "individual") {
       return (
+        individualDetails.stationName.trim() !== "" &&
         individualDetails.category.trim() !== "" &&
         individualDetails.content.trim() !== ""
       );
@@ -220,6 +233,23 @@ const CreatorSetup = ({ onBackToRole, onCreatorReady }) => {
     return false;
   };
 
+  const ensureCanonicalStation = async ({ name, category, description, logoDataUrl = "" }) => {
+    const existing = await batch2Service.getMyStations().catch(() => null);
+    const currentStations = Array.isArray(existing?.data) ? existing.data : [];
+    if (currentStations.length > 0) return currentStations[0];
+
+    const logoFile = await logoFileFromDataUrl(logoDataUrl);
+    const response = await batch2Service.createStation({
+      name,
+      category,
+      description,
+      logoFile,
+      brandingMode: logoFile ? "custom" : "generated",
+      isPublic: true,
+    });
+    return response?.data || null;
+  };
+
   const finishIndividualSetup = async () => {
     await onboardingService.chooseCreatorType({
       creatorType: "individual",
@@ -235,10 +265,17 @@ const CreatorSetup = ({ onBackToRole, onCreatorReady }) => {
     const response = await onboardingService.complete();
     if (response?.data?.user) onboardingService.saveUser(response.data.user);
 
+    await ensureCanonicalStation({
+      name: individualDetails.stationName.trim(),
+      category: individualDetails.category,
+      description: individualDetails.content.trim(),
+    });
+
     localStorage.setItem(
       "creatorSetup",
       JSON.stringify({
         type: "individual",
+        stationName: individualDetails.stationName.trim(),
         displayName,
         username: storedUser.username || "",
         profileImage,
@@ -271,6 +308,13 @@ const CreatorSetup = ({ onBackToRole, onCreatorReady }) => {
 
     const response = await onboardingService.complete();
     if (response?.data?.user) onboardingService.saveUser(response.data.user);
+
+    await ensureCanonicalStation({
+      name: organizationDetails.name.trim(),
+      category: organizationDetails.category,
+      description: organizationDetails.about.trim() || organizationDetails.content.trim(),
+      logoDataUrl: organizationLogo || "",
+    });
 
     localStorage.setItem(
       "creatorSetup",
@@ -342,7 +386,7 @@ const CreatorSetup = ({ onBackToRole, onCreatorReady }) => {
         >
           <header className="eor-form-header eor-creator-ready-header">
             <h1>Almost <span>ready!</span></h1>
-            <p>Review the public creator identity listeners will discover on Echoo.</p>
+            <p>Review the station listeners will discover on Echoo.</p>
           </header>
           <CreatorPublicPreview
             creatorType={creatorType}
@@ -389,8 +433,7 @@ const CreatorSetup = ({ onBackToRole, onCreatorReady }) => {
           </header>
 
           <p className="eor-creator-info">
-            You chose Creator. This next phase sets up how your creator identity appears
-            across stations, broadcasts, and your studio.
+            You chose Creator. This next phase sets up the station your broadcasts belong to.
           </p>
 
           <div className="creator-type-options" role="radiogroup" aria-label="Creator type">
@@ -453,9 +496,9 @@ const CreatorSetup = ({ onBackToRole, onCreatorReady }) => {
         >
           <header className="eor-form-header">
             <h1>
-              Tell us what you'll <span>create</span>
+              Set up your <span>station</span>
             </h1>
-            <p>These details help Echoo shape your studio and discovery experience.</p>
+            <p>This is the station listeners can find, follow, and hear live.</p>
           </header>
 
           <div className="creator-identity-card">
@@ -473,6 +516,21 @@ const CreatorSetup = ({ onBackToRole, onCreatorReady }) => {
           </div>
 
           <div className="eor-form-grid">
+            <div className="eor-field">
+              <label htmlFor="creator-station-name">Station name</label>
+              <div className="creator-input-shell">
+                <input
+                  id="creator-station-name"
+                  type="text"
+                  name="stationName"
+                  placeholder="Enter your station name"
+                  value={individualDetails.stationName}
+                  onChange={handleIndividualChange}
+                  maxLength={100}
+                />
+              </div>
+            </div>
+
             <div className="eor-field">
               <label htmlFor="creator-category">Category</label>
               <div className="creator-select-shell">
@@ -497,7 +555,7 @@ const CreatorSetup = ({ onBackToRole, onCreatorReady }) => {
                 <textarea
                   id="creator-content"
                   name="content"
-                  placeholder="Tell us about the content you plan to create..."
+                placeholder="Tell listeners what your station is about..."
                   value={individualDetails.content}
                   onChange={handleIndividualChange}
                   maxLength={300}
@@ -508,7 +566,7 @@ const CreatorSetup = ({ onBackToRole, onCreatorReady }) => {
           </div>
 
           <p className="eor-tailor-note">
-            You can refine categories, descriptions, and station details later in Creator Studio.
+            You can refine your station name, artwork, description, and category later in Creator Studio.
           </p>
 
           <div className="eor-action-row eor-creator-actions">

@@ -9,6 +9,7 @@ import {
 } from 'react-router-dom';
 
 import Register from './Components/Register/register';
+import ResetPassword from './Components/Register/ResetPassword';
 import ProfileSetup from './Components/ProfileSetup/ProfileSetup';
 import ChooseRole from './Components/ChooseRole/ChooseRole';
 import CreatorSetup from './Components/CreatorSetup/CreatorSetup';
@@ -31,6 +32,7 @@ import {
   loadListenerSearch,
   loadListenerSettings,
   loadListenerStationProfile,
+  loadListenerCollectionDetail,
   loadListenerStations,
   loadListenerPlaylist,
   loadListenerSavedMoments,
@@ -55,10 +57,12 @@ const ListenerSettings = lazy(loadListenerSettings);
 const ListenerAudioDetail = lazy(loadListenerAudioDetail);
 const ListenerRealLiveRoom = lazy(loadListenerLiveRoom);
 const ListenerRealStationProfile = lazy(loadListenerStationProfile);
+const ListenerCollectionDetail = lazy(loadListenerCollectionDetail);
 
 import EchooExperienceOrchestrator from './Components/EchooSystem/EchooExperienceOrchestrator';
 import EchooMobileNavigation from './Components/EchooSystem/EchooMobileNavigation';
 import ImageCropProvider from './Components/Common/ImageCropProvider';
+import { canAccessExperience } from './services/accountExperience';
 
 // Error boundary that catches lazy-chunk load failures (e.g. a network drop
 // mid-session) and lets the user retry instead of crashing the whole app.
@@ -125,7 +129,10 @@ const getStoredUser = () => {
 };
 
 const getStoredRole = (user = getStoredUser()) =>
-  user.userType || localStorage.getItem('echooRole') || '';
+  localStorage.getItem('echooActiveExperience') ||
+  user.userType ||
+  localStorage.getItem('echooRole') ||
+  '';
 
 const roleHome = (role) => {
   if (role === 'creator') return '/creator-studio';
@@ -228,11 +235,13 @@ const OnboardingFlow = () => {
       <ChooseRole
         onListenerContinue={() => {
           localStorage.setItem('echooRole', 'listener');
+          localStorage.setItem('echooActiveExperience', 'listener');
           localStorage.setItem('echooOnboardingCompleted', 'true');
           setStage('listener-done');
         }}
         onCreatorContinue={() => {
           localStorage.setItem('echooRole', 'creator');
+          localStorage.setItem('echooActiveExperience', 'creator');
           setStage('creator');
         }}
         onBackToProfile={() => setStage('profile')}
@@ -246,6 +255,7 @@ const OnboardingFlow = () => {
         onBackToRole={() => setStage('role')}
         onCreatorReady={() => {
           localStorage.setItem('echooRole', 'creator');
+          localStorage.setItem('echooActiveExperience', 'creator');
           localStorage.setItem('echooOnboardingCompleted', 'true');
           setStage('creator-done');
         }}
@@ -261,17 +271,16 @@ const RequireRole = ({ role, children }) => {
   if (!accessToken) return <Navigate to="/" replace />;
 
   const user = getStoredUser();
-  const currentRole = getStoredRole(user);
   const onboardingComplete =
     Boolean(user.onboardingCompleted) ||
     localStorage.getItem('echooOnboardingCompleted') === 'true';
 
-  if (!onboardingComplete || !currentRole) {
+  if (!onboardingComplete) {
     return <Navigate to="/" replace />;
   }
 
-  if (currentRole !== role) {
-    return <Navigate to={roleHome(currentRole)} replace />;
+  if (!canAccessExperience(user, role)) {
+    return <Navigate to="/" replace />;
   }
 
   return (
@@ -335,9 +344,10 @@ function App() {
         <div id="echoo-route-content" tabIndex={-1}>
           <Routes>
             <Route path="/" element={<OnboardingFlow />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
 
             <Route
-              path="/creator-studio"
+              path="/creator-studio/*"
               element={
                 <RequireRole role="creator">
                   <LazyPage element={<CreatorStudio />} />
@@ -354,11 +364,14 @@ function App() {
               }
             >
               <Route index element={<ListenerHome />} />
+              <Route path="following" element={<ListenerFollowing />} />
               <Route path="search" element={<ListenerSearch />} />
               <Route path="live" element={<ListenerLive />} />
               <Route path="live/:broadcastId" element={<ListenerRealLiveRoom />} />
               <Route path="stations" element={<ListenerStations />} />
+              <Route path="categories" element={<ListenerStations />} />
               <Route path="stations/:stationId" element={<ListenerRealStationProfile />} />
+              <Route path="collections/:collectionId" element={<ListenerCollectionDetail />} />
               <Route path="audio/:audioId" element={<ListenerAudioDetail />} />
               <Route path="library" element={<ListenerLibrary />} />
               <Route path="library/following" element={<ListenerFollowing />} />

@@ -11,7 +11,6 @@ import {
   FaListUl,
   FaBroadcastTower,
   FaCog,
-  FaChevronDown,
   FaDownload,
   FaHeart,
   FaHistory,
@@ -36,13 +35,16 @@ import EchoSignal from '../EchooSystem/EchoSignal';
 import audioService from '../../services/audioService';
 import listenerService from '../../services/listenerService';
 import notificationService from '../../services/notificationService';
-import { buildMediaUrl, clearAuthTokens } from '../../services/api';
+import { buildMediaUrl } from '../../services/api';
 import '../../styles/echoo-identity-reset.css';
 import '../../styles/echoo-asset-system.css';
 import './ListenerLayout.css';
 import './ListenerStreamingShell.css';
+import './ListenerDesignSystem.css';
 import EchooAppShell from '../Shared/EchooAppShell';
 import CuratedHelpAssistant from '../Support/CuratedHelpAssistant';
+import AccountExperienceMenu from '../Shared/AccountExperienceMenu';
+import echooLogo from '../Assets/echoo-logo-official.svg';
 
 const SEARCH_SUGGESTIONS = [
   'Podcast',
@@ -134,17 +136,12 @@ const ListenerLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [user, setUser] = useState(readUser);
-  const displayName =
-    user.displayName || user.fullname || user.username || 'Listener';
-  const listenerFirstName = displayName.trim().split(/\s+/)[0] || 'Listener';
   const profileImage =
     buildMediaUrl(user.profileImage || user.avatar || localStorage.getItem('profileImage'));
-  const initial = displayName.charAt(0).toUpperCase() || 'L';
 
   const audioRef = useRef(null);
   const searchRef = useRef(null);
   const searchAreaRef = useRef(null);
-  const profileMenuRef = useRef(null);
   const progressSyncRef = useRef(false);
   const lastProgressSyncRef = useRef({ trackId: null, progress: -1 });
   const pendingSeekRef = useRef(null);
@@ -176,7 +173,6 @@ const ListenerLayout = () => {
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState('');
   const [unreadNotifications, setUnreadNotifications] = useState(0);
-  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
 
   const navigation = [
     { name: 'Home', path: '/listen', icon: <FaHome />, end: true },
@@ -231,29 +227,6 @@ const ListenerLayout = () => {
     document.addEventListener('focusin', keepKeyboardFocusVisible);
     return () => document.removeEventListener('focusin', keepKeyboardFocusVisible);
   }, []);
-
-  useEffect(() => {
-    const closeProfileMenu = (event) => {
-      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target)) {
-        setProfileMenuOpen(false);
-      }
-    };
-    const closeOnEscape = (event) => {
-      if (event.key === 'Escape') setProfileMenuOpen(false);
-    };
-    document.addEventListener('mousedown', closeProfileMenu);
-    window.addEventListener('keydown', closeOnEscape);
-    return () => {
-      document.removeEventListener('mousedown', closeProfileMenu);
-      window.removeEventListener('keydown', closeOnEscape);
-    };
-  }, []);
-
-  const handleLogout = () => {
-    clearAuthTokens();
-    setProfileMenuOpen(false);
-    navigate('/', { replace: true });
-  };
 
   const openFullPlayer = (panel = null) => {
     if (fullPlayerDismissTimerRef.current) {
@@ -819,9 +792,10 @@ const ListenerLayout = () => {
       )}
       search={(
           <div className="beautiful-search-wrapper echoo-app-search" ref={searchAreaRef}>
-            <div className="listener-mobile-welcome">
-              <h1>Good morning, {listenerFirstName}</h1>
-              <span>Here’s what’s live and new on Echoo.</span>
+            <div className="listener-mobile-brand" aria-label="Echoo Listener">
+              <img src={echooLogo} alt="" />
+              <strong>echoo</strong>
+              <span>Listener</span>
             </div>
             <div className={`beautiful-search ${searchOpen ? 'active' : ''}`}>
               <FaSearch className="beautiful-search-icon" />
@@ -940,30 +914,13 @@ const ListenerLayout = () => {
             <FaBell />
             {unreadNotifications > 0 && <span title={`${unreadNotifications} unread`} />}
           </button>
-          <div className="listener-account-menu" ref={profileMenuRef}>
-            <button
-              type="button"
-              className="studio-account-button"
-              aria-label="Open account menu"
-              aria-haspopup="menu"
-              aria-expanded={profileMenuOpen}
-              onClick={() => setProfileMenuOpen((open) => !open)}
-            >
-              <div className="top-avatar">{profileImage ? <img src={profileImage} alt="" /> : initial}</div>
-              <div><strong>{displayName}</strong><span>Listener</span></div>
-              <FaChevronDown className={profileMenuOpen ? 'account-menu-chevron-open' : ''} />
-            </button>
-            {profileMenuOpen && (
-              <div className="listener-account-dropdown" role="menu" aria-label="Account menu">
-                <button type="button" role="menuitem" onClick={() => { setProfileMenuOpen(false); navigate('/listen/settings'); }}>
-                  Profile settings
-                </button>
-                <button type="button" role="menuitem" className="listener-account-logout" onClick={handleLogout}>
-                  Log out
-                </button>
-              </div>
-            )}
-          </div>
+          <AccountExperienceMenu
+            currentExperience="listener"
+            user={user}
+            profileImage={profileImage}
+            variant="listener"
+            onUserChange={setUser}
+          />
         </>
       )}
       persistentSlot={(

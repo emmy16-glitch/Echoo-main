@@ -1,0 +1,813 @@
+.ec2-broadcast,
+.ec2-broadcast * { box-sizing: border-box; }
+
+.ec2-broadcast {
+  --ec2-blue: #0758f7;
+  --ec2-navy: #031537;
+  --ec2-ink: #071434;
+  --ec2-muted: #52658e;
+  --ec2-live: #d92d20;
+  --ec2-z-backdrop: 200000;
+  width: 100%;
+  color: var(--ec2-ink);
+}
+
+.ec2-hero {
+  height: 214px;
+  min-height: 214px;
+  display: grid;
+  grid-template-columns: minmax(300px, 1fr) minmax(220px, auto);
+  align-items: center;
+  justify-content: space-between;
+  gap: 48px;
+  overflow: hidden;
+  padding: 28px 32px;
+  border: 1px solid transparent;
+  border-radius: 16px;
+  background: #031536;
+  box-shadow: 0 8px 16px rgba(8, 25, 57, .12);
+  color: #fff;
+  transition: border-color 220ms ease, box-shadow 220ms ease;
+}
+
+.ec2-hero.is-live,
+.ec2-hero.is-off-air,
+.ec2-hero.is-ending {
+  height: 160px;
+  min-height: 160px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: 13px;
+  padding: 15px 22px;
+}
+
+.ec2-hero.is-live {
+  background: #031536;
+  border-color: rgba(217, 45, 32, .28);
+  box-shadow: 0 8px 20px rgba(8, 25, 57, .14), 0 0 0 1px rgba(217, 45, 32, .04);
+}
+
+.ec2-hero.is-off-air {
+  height: 176px;
+  min-height: 176px;
+  border-color: rgba(115, 143, 193, .26);
+}
+
+.ec2-hero.is-ending {
+  border-color: rgba(115, 143, 193, .34);
+}
+
+.ec2-live-banner {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  min-width: 0;
+}
+
+.ec2-hero.is-live .ec2-status-pill { flex: 0 0 auto; }
+
+.ec2-live-ticker {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  mask-image: linear-gradient(90deg, transparent 0%, #000 3%, #000 97%, transparent 100%);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 3%, #000 97%, transparent 100%);
+}
+
+.ec2-live-ticker-track {
+  display: flex;
+  width: max-content;
+  animation: ec2-live-ticker 36s linear infinite;
+}
+
+.ec2-live-ticker-group {
+  display: flex;
+  gap: 80px;
+  padding-right: 80px;
+}
+
+.ec2-live-ticker-track span {
+  color: rgba(255, 255, 255, .96);
+  font-size: clamp(21px, 1.7vw, 24px);
+  font-weight: 850;
+  letter-spacing: -.01em;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+@keyframes ec2-live-ticker {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-50%, 0, 0); }
+}
+
+.ec2-live-details {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.35fr) minmax(145px, 1fr) repeat(3, max-content) max-content max-content;
+  align-items: center;
+  gap: 18px 28px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, .10);
+}
+
+.ec2-hero.is-live .ec2-station-identity {
+  align-self: end;
+  padding: 0;
+  transform: none;
+}
+
+.ec2-hero.is-off-air .ec2-station-identity {
+  align-self: center;
+  padding: 0;
+  transform: none;
+}
+
+.ec2-hero.is-live .ec2-station-identity > span,
+.ec2-live-identity > span,
+.ec2-hero.is-off-air .ec2-station-identity > span,
+.ec2-hero.is-ending .ec2-station-identity > span {
+  display: block;
+  color: #318cff;
+  font-size: 12px;
+  font-weight: 720;
+  letter-spacing: .02em;
+}
+
+.ec2-hero.is-live .ec2-station-identity strong,
+.ec2-live-identity strong,
+.ec2-hero.is-off-air .ec2-station-identity strong,
+.ec2-hero.is-ending .ec2-station-identity strong {
+  display: block;
+  margin: 8px 0 0;
+  overflow: hidden;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 720;
+  letter-spacing: -.025em;
+  line-height: 1.08;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ec2-live-identity { min-width: 0; }
+
+.ec2-live-identity strong { font-size: 14px; font-weight: 650; }
+
+.ec2-live-fact,
+.ec2-live-connection {
+  display: inline-flex;
+  align-items: center;
+  min-height: 27px;
+  color: #e8eefb;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.ec2-live-fact { gap: 6px; }
+.ec2-live-fact strong { font-weight: 620; }
+.ec2-live-fact.is-recording::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #ef4444;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, .2);
+}
+
+.ec2-live-connection { gap: 7px; color: #c7f9d5; font-weight: 620; }
+.ec2-live-connection::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #22c55e;
+}
+.ec2-live-connection:not(.is-healthy) { color: #d5def0; }
+.ec2-live-connection:not(.is-healthy)::before { background: #93a4bf; }
+
+.ec2-off-air-banner strong {
+  color: rgba(255, 255, 255, .94);
+  font-size: clamp(22px, 1.7vw, 26px);
+  font-weight: 800;
+  letter-spacing: -.01em;
+}
+
+.ec2-ending-banner strong {
+  color: rgba(255, 255, 255, .96);
+  font-size: clamp(22px, 1.7vw, 26px);
+  font-weight: 800;
+  letter-spacing: -.01em;
+}
+
+.ec2-live-details.ec2-off-air-details {
+  grid-template-columns: minmax(180px, 1.35fr) minmax(145px, 1fr) max-content;
+  row-gap: 8px;
+}
+
+.ec2-ending-details {
+  grid-template-columns: minmax(180px, 1.35fr) minmax(145px, 1fr) max-content minmax(260px, 1.4fr);
+}
+
+.ec2-ending-details > p {
+  margin: 0;
+  color: #d5def0;
+  font-size: 14px;
+}
+
+.ec2-off-air-details .ec2-station-identity,
+.ec2-off-air-details .ec2-live-identity { align-self: center; }
+
+.ec2-off-air-details > p {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #d5def0;
+  font-size: 14px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.ec2-status-pill {
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 39px;
+  padding: 0 14px;
+  border-radius: 9px;
+  background: rgba(43, 103, 222, .27);
+  color: #f9fbff;
+  font-size: 13px;
+  font-weight: 720;
+}
+
+.ec2-status-pill i {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--ec2-blue);
+  transition: background 220ms ease;
+}
+
+.ec2-hero.is-live .ec2-status-pill {
+  background: rgba(217, 45, 32, .18);
+  color: #fff;
+}
+
+.ec2-hero.is-live .ec2-status-pill i {
+  background: #ef4444;
+  animation: ec2-live-pulse 2s ease-in-out infinite;
+}
+
+@keyframes ec2-live-pulse {
+  0%, 100% { opacity: .55; transform: scale(.94); }
+  50% { opacity: 1; transform: scale(1.05); }
+}
+
+.ec2-hero.is-ending .ec2-status-pill i { background: #93a4bf; }
+
+.ec2-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.ec2-hero h1 {
+  margin: 18px 0 20px;
+  font-size: clamp(46px, 4.3vw, 64px);
+  font-weight: 760;
+  letter-spacing: -.055em;
+  line-height: .94;
+}
+
+.ec2-hero p {
+  margin: 0;
+  color: rgba(255,255,255,.94);
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.ec2-hero p + p { margin-top: 2px; }
+
+.ec2-live-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.ec2-live-meta span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid rgba(255,255,255,.16);
+  border-radius: 999px;
+  background: rgba(255,255,255,.06);
+  color: #e8eefb;
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.ec2-live-meta span.is-healthy {
+  position: relative;
+  gap: 7px;
+  border-color: rgba(34, 197, 94, .30);
+  color: #c7f9d5;
+}
+
+.ec2-live-meta span.is-healthy::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #22c55e;
+}
+
+.ec2-station-identity {
+  align-self: center;
+  min-width: 220px;
+  max-width: 360px;
+  padding-left: 5px;
+  transform: translateY(-1px);
+}
+
+.ec2-station-identity > span {
+  display: block;
+  color: #318cff;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.ec2-station-identity strong {
+  display: block;
+  overflow: hidden;
+  margin: 14px 0;
+  color: #fff;
+  font-size: clamp(23px, 2vw, 30px);
+  font-weight: 690;
+  letter-spacing: -.025em;
+  line-height: 1.08;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ec2-station-identity small {
+  color: #c8d0e4;
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.ec2-workstation-heading { margin: 16px 10px 5px; }
+
+.ec2-workstation-heading h2 {
+  margin: 0;
+  color: var(--ec2-ink);
+  font-size: 27px;
+  font-weight: 760;
+  letter-spacing: -.04em;
+  line-height: 1.1;
+}
+
+.ec2-workstation-heading p {
+  margin: 7px 0 0;
+  color: var(--ec2-muted);
+  font-size: 16px;
+}
+
+.ec2-notice {
+  margin: 0 0 14px;
+  padding: 11px 13px;
+  border: 1px solid #f0c7c7;
+  border-radius: 9px;
+  background: #fff8f8;
+  color: #a93535;
+  font-size: 13px;
+}
+
+.ec2-notice--info {
+  border-color: #dbe7ff;
+  background: #f7faff;
+  color: #36527f;
+}
+
+/* LIVE is a state of the approved workstation, not a separate console. */
+.ec2-broadcast.is-live .eam-approved-live-actions {
+  display: none !important;
+}
+
+.ec2-broadcast.is-live .eam-approved-lower {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+
+.ec2-live-action-panel {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 0 2px 2px;
+}
+
+.ec2-live-action-panel button {
+  min-height: 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 0 18px;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 720;
+  cursor: pointer;
+}
+
+.ec2-copy-live {
+  min-width: 150px;
+  border: 1px solid #cbd9f1;
+  background: #fff;
+  color: #0a4fd7;
+}
+
+.ec2-copy-live:hover { background: #f6f9ff; }
+
+.ec2-copy-live--hero {
+  min-width: 138px;
+  min-height: 36px !important;
+  border-color: #0b6eff;
+  background: rgba(4, 26, 68, .78);
+  color: #fff;
+}
+
+.ec2-copy-live--hero:hover { background: rgba(13, 69, 159, .82); }
+
+.ec2-end-live {
+  min-width: 190px;
+  border: 1px solid var(--ec2-live);
+  background: var(--ec2-live);
+  color: #fff;
+  box-shadow: 0 7px 16px rgba(217, 45, 32, .15);
+}
+
+.ec2-end-live:hover:not(:disabled) { background: #b42318; border-color: #b42318; }
+.ec2-end-live:disabled { opacity: .62; cursor: wait; }
+
+.ec2-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--ec2-z-backdrop);
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(16, 24, 40, .56);
+  backdrop-filter: blur(3px);
+  animation: ec2-backdrop-in 180ms ease-out both;
+}
+
+.ec2-end-dialog {
+  position: relative;
+  width: min(420px, 100%);
+  padding: 30px 28px 24px;
+  border: 1px solid #e4e7ec;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 24px 70px rgba(16, 24, 40, .24);
+  color: #101828;
+  text-align: center;
+  animation: ec2-dialog-in 190ms ease-out both;
+}
+
+.ec2-dialog-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #667085;
+  cursor: pointer;
+  font-size: 18px;
+}
+
+.ec2-dialog-close:hover { background: #f2f4f7; color: #101828; }
+
+.ec2-dialog-icon {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  margin: 0 auto 18px;
+  border-radius: 50%;
+  font-size: 23px;
+}
+
+.ec2-dialog-icon.is-warning { background: #fee4e2; color: #d92d20; }
+
+.ec2-end-dialog h2 {
+  margin: 0;
+  color: #101828;
+  font-size: 21px;
+  line-height: 1.2;
+  letter-spacing: -.025em;
+}
+
+.ec2-end-dialog p {
+  margin: 11px 0 0;
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.ec2-dialog-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.ec2-dialog-actions button {
+  min-height: 44px;
+  border-radius: 9px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.ec2-keep-live { border: 1px solid #d0d5dd; background: #fff; color: #344054; }
+.ec2-keep-live:hover { background: #f9fafb; }
+.ec2-confirm-end { border: 1px solid #d92d20; background: #d92d20; color: #fff; }
+.ec2-confirm-end:hover { border-color: #b42318; background: #b42318; }
+
+.ec2-dialog-close:focus-visible,
+.ec2-dialog-actions button:focus-visible,
+.ec2-end-live:focus-visible,
+.ec2-copy-live:focus-visible {
+  outline: 3px solid rgba(72, 131, 255, .45);
+  outline-offset: 2px;
+}
+
+.ec2-ending-dialog { padding-block: 32px; }
+
+.ec2-ending-spinner {
+  width: 48px;
+  height: 48px;
+  margin-bottom: 18px;
+  color: #0758f7;
+  animation: ec2-spinner 900ms linear infinite;
+}
+
+@keyframes ec2-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ec2-dialog-in { from { opacity: 0; transform: scale(.97); } to { opacity: 1; transform: scale(1); } }
+@keyframes ec2-spinner { to { transform: rotate(360deg); } }
+
+/* Media is a secondary source dock, not another mixer strip. Give the identity,
+   level controls and actions their own breathing room and allow intentional
+   wrapping instead of squeezing every control into one horizontal line. */
+.ec2-broadcast .eam-approved-media-dock.populated {
+  min-width: 0;
+  overflow: visible;
+}
+
+.ec2-broadcast .eam-approved-media-dock.populated > header {
+  min-height: 48px;
+  padding: 0 16px;
+}
+
+.ec2-broadcast .eam-approved-media-row {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px 18px;
+  padding: 16px;
+}
+
+.ec2-broadcast .eam-approved-media-art {
+  flex: 0 0 54px;
+  width: 54px;
+  height: 54px;
+}
+
+.ec2-broadcast .eam-approved-media-copy {
+  flex: 1 1 180px;
+  min-width: 160px;
+}
+
+.ec2-broadcast .eam-approved-play {
+  flex: 0 0 40px;
+}
+
+.ec2-broadcast .eam-approved-media-progress {
+  flex: 1 1 230px;
+  min-width: 210px;
+}
+
+.ec2-broadcast .eam-approved-media-levels {
+  flex: 1 1 230px;
+  min-width: 210px;
+  display: grid;
+  gap: 10px;
+}
+
+.ec2-broadcast .eam-approved-media-levels > label {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.ec2-broadcast .eam-approved-media-levels > label input {
+  min-width: 0;
+  width: 100%;
+}
+
+.ec2-broadcast .eam-approved-media-mini-meter {
+  min-width: 0;
+}
+
+.ec2-broadcast .eam-approved-media-actions {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.ec2-broadcast .eam-approved-media-actions button {
+  min-height: 38px;
+  white-space: nowrap;
+}
+
+.ec2-broadcast .eam-approved-media-actions .remove {
+  color: #c12e27;
+}
+
+/* The established app has broad late-loaded type/button rules. Keep this
+   reference-matched screen authoritative without changing other Creator pages. */
+html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-hero h1 {
+  color: #fff !important;
+  font-size: 50px !important;
+  font-weight: 760 !important;
+  line-height: .94 !important;
+  letter-spacing: -.055em !important;
+}
+
+html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-hero p {
+  color: rgba(255,255,255,.94) !important;
+  font-size: 16px !important;
+  line-height: 1.48 !important;
+}
+
+html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-status-pill {
+  transform: none;
+}
+
+html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-hero p + p {
+  white-space: nowrap;
+}
+
+html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-workstation-heading h2 {
+  color: #071434 !important;
+  font-size: 20px !important;
+  font-weight: 760 !important;
+  line-height: 1.1 !important;
+  letter-spacing: -.04em !important;
+}
+
+html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-workstation-heading p {
+  color: #52658e !important;
+  font-size: 12px !important;
+  line-height: 1.35 !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ec2-hero.is-live .ec2-status-pill i { animation: none; }
+  .ec2-live-ticker-track { animation: none; }
+  .ec2-dialog-backdrop,
+  .ec2-end-dialog { animation: none; }
+  .ec2-ending-spinner { animation: none; }
+}
+
+@media (max-width: 1100px) {
+  .ec2-hero {
+    height: auto;
+    min-height: 214px;
+    grid-template-columns: minmax(225px, 1fr) minmax(210px, auto);
+    padding: 34px;
+  }
+
+  .ec2-hero.is-live,
+  .ec2-hero.is-off-air,
+  .ec2-hero.is-ending { min-height: 160px; }
+
+  .ec2-live-details {
+    grid-template-columns: repeat(3, minmax(140px, 1fr));
+    align-items: start;
+  }
+
+  .ec2-hero.is-live .ec2-station-identity,
+  .ec2-hero.is-off-air .ec2-station-identity,
+  .ec2-hero.is-ending .ec2-station-identity {
+    grid-column: auto;
+    display: block;
+    gap: 0;
+    padding: 0;
+  }
+
+  .ec2-copy-live--hero { justify-self: start; }
+
+  .ec2-station-identity {
+    min-width: 0;
+    max-width: 310px;
+    padding: 0;
+  }
+
+  .ec2-broadcast .eam-approved-media-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
+
+@media (max-width: 720px) {
+  .ec2-hero {
+    grid-template-columns: 1fr;
+    gap: 22px;
+    padding: 28px 24px;
+  }
+
+  .ec2-hero.is-live,
+  .ec2-hero.is-off-air,
+  .ec2-hero.is-ending { height: auto; min-height: 0; gap: 16px; }
+  .ec2-live-banner { gap: 14px; }
+  .ec2-live-ticker-track { gap: 48px; }
+  .ec2-live-ticker-track span { font-size: 18px; }
+  .ec2-live-details { grid-template-columns: 1fr 1fr; gap: 14px 18px; }
+  .ec2-hero.is-live .ec2-station-identity { grid-column: 1 / -1; }
+  .ec2-off-air-details .ec2-station-identity { grid-column: 1 / -1; }
+  .ec2-off-air-details > p { grid-column: 1 / -1; }
+  .ec2-ending-details > p { grid-column: 1 / -1; }
+
+  .ec2-dialog-backdrop { padding: 12px; }
+  .ec2-end-dialog { padding: 28px 18px 18px; }
+
+  .ec2-waveform-wrap { height: 115px; }
+  .ec2-station-identity {
+    display: block;
+    max-width: 100%;
+  }
+  .ec2-station-identity strong { margin: 9px 0; }
+
+  .ec2-live-action-panel {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .ec2-live-action-panel button { width: 100%; }
+
+  .ec2-broadcast .eam-approved-media-row {
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px;
+  }
+
+  .ec2-broadcast .eam-approved-media-copy {
+    flex-basis: calc(100% - 72px);
+  }
+
+  .ec2-broadcast .eam-approved-media-progress,
+  .ec2-broadcast .eam-approved-media-levels,
+  .ec2-broadcast .eam-approved-media-actions {
+    flex: 1 1 100%;
+    width: 100%;
+    min-width: 0;
+    margin-left: 0;
+  }
+
+  .ec2-broadcast .eam-approved-media-actions {
+    justify-content: stretch;
+  }
+
+  .ec2-broadcast .eam-approved-media-actions button {
+    flex: 1 1 120px;
+  }
+}

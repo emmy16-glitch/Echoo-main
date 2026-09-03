@@ -284,6 +284,27 @@ test('createRoom creates a broadcast-scoped audio room when none exists', async 
   });
 });
 
+test('createRoom retries one transient LiveKit timeout before giving up', async () => {
+  const LiveKitProvider = await loadProvider();
+  let listAttempts = 0;
+  const fakeClient = {
+    listRooms: async () => {
+      listAttempts += 1;
+      if (listAttempts === 1) throw new Error('The operation was aborted due to timeout');
+      return [];
+    },
+    createRoom: async (options) => ({ name: options.name }),
+  };
+
+  const room = await withClientOverrides(
+    { room: () => fakeClient },
+    () => LiveKitProvider.createRoom('retryable-timeout')
+  );
+
+  assert.equal(listAttempts, 2);
+  assert.equal(room.name, 'echoo-broadcast-retryable-timeout');
+});
+
 test('SDK failures are translated into a LIVEKIT_UNAVAILABLE service error', async () => {
   const LiveKitProvider = await loadProvider();
   await assert.rejects(

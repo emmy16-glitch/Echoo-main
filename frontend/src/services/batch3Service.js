@@ -8,7 +8,6 @@ import {
   discardBroadcastRecording,
   finishBroadcastRecording,
 } from './broadcastRecordingService.js';
-import { stopWhisperFlowTranscription } from './whisperFlowService.js';
 
 const PENDING_RECORDING_DECISION_KEY = '__echooPendingBroadcastRecording';
 
@@ -49,10 +48,12 @@ const enrichBroadcasts = (broadcasts, stations) => {
   return broadcasts.map((broadcast) => {
     const station = stationMap.get(String(broadcast.stationId)) || null;
     const stationBrand = station?.brandCover || station?.coverArt || station?.logo || null;
+    const eventArtwork = broadcast.coverArt || broadcast.artwork || broadcast.image || null;
     const artwork = stationBrand || broadcast.coverArt || null;
 
     return {
       ...broadcast,
+      eventArtwork,
       station: station || broadcast.station,
       stationName:
         station?.name || broadcast.stationName || 'Echoo Station',
@@ -212,8 +213,6 @@ const batch3Service = {
   checkLiveKitReadiness,
 
   startBroadcast: async (broadcastId) => {
-    await checkLiveKitReadiness();
-
     const response = await apiRequest(
       `/broadcasts/${encodeURIComponent(broadcastId)}/start`,
       { method: 'POST' }
@@ -323,40 +322,34 @@ const batch3Service = {
   getLiveAnalytics: async (broadcastId) =>
     apiRequest(`/analytics/live/${encodeURIComponent(broadcastId)}`),
 
-  endBroadcast: async (broadcastId) => {
-    await stopWhisperFlowTranscription({ finalize: false }).catch((error) => {
-      console.warn('[Echoo Transcript] background handoff warning:', error?.message || error);
-    });
-
+  endBroadcastRealtime: async (broadcastId) => {
     const response = await apiRequest(
       `/broadcasts/${encodeURIComponent(broadcastId)}/end`,
       { method: 'POST' }
     );
 
     const raw = response?.data?.broadcast || response?.data;
-    const normalized = normalizeBroadcast(raw);
-
-    let recordingReady = false;
-    try {
-      const recording = await finishBroadcastRecording(broadcastId);
-      if (recording?.blob?.size) {
-        recordingReady = true;
-        const decision = { recording, broadcast: normalized };
-        rememberPendingRecordingDecision(decision);
-        announceFinishedBroadcastRecording(decision);
-      }
-    } catch (recordingError) {
-      console.warn(
-        '[Echoo Recording] could not finalize local recording:',
-        recordingError?.message || recordingError
-      );
-    }
 
     return {
       ...response,
-      data: normalized,
-      recordingReady,
+      data: normalizeBroadcast(raw),
     };
+  },
+
+  // Called after local LiveKit publication has stopped. The mixer program
+  // stays alive while its recorder flushes, preserving the completed take.
+  finalizeBroadcastRecording: async (broadcastId, broadcast = null) => {
+    try {
+      const recording = await finishBroadcastRecording(broadcastId);
+      if (!recording?.blob?.size) return { recordingReady: false, recording: null };
+      const decision = { recording, broadcast: broadcast || null };
+      rememberPendingRecordingDecision(decision);
+      announceFinishedBroadcastRecording(decision);
+      return { recordingReady: true, recording };
+    } catch (recordingError) {
+      console.warn('[Echoo Recording] could not finalize local recording:', recordingError?.message || recordingError);
+      return { recordingReady: false, recording: null, error: recordingError };
+    }
   },
 
   getProcessing: async (broadcastId) =>

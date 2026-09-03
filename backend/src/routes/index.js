@@ -4,6 +4,7 @@ import authRoutes from './authRoutes.js';
 import userRoutes from './userRoutes.js';
 import audioRoutes from './audioRoutes.js';
 import playlistRoutes from './playlistRoutes.js';
+import collectionRoutes from './collectionRoutes.js';
 import commentRoutes from './commentRoutes.js';
 import onboardingRoutes from './onboardingRoutes.js';
 import studioRoutes from './studioRoutes.js';
@@ -27,6 +28,8 @@ import notificationRoutes from './notificationRoutes.js';
 import transcriptRoutes from './transcriptRoutes.js';
 import savedMomentRoutes from './savedMomentRoutes.js';
 import LiveKitProvider from '../providers/livekit.js';
+import livekitWebhookRoutes from './livekitWebhookRoutes.js';
+import feedbackRoutes from './feedbackRoutes.js';
 import { uploadLimiter } from '../middleware/rateLimiter.js';
 import { getTranscriptionGatewayDiagnostics } from '../services/transcriptionGateway.js';
 
@@ -96,6 +99,8 @@ router.get('/health/transcription', (req, res) => {
   });
 });
 
+router.use('/livekit/webhook', livekitWebhookRoutes);
+router.use('/feedback', feedbackRoutes);
 router.use('/auth', authRoutes);
 router.use('/users', userRoutes);
 // Audio uploads can be multi-gigabyte local-disk writes, so throttle the upload
@@ -104,6 +109,7 @@ router.use('/users', userRoutes);
 router.use('/audio/upload', uploadLimiter);
 router.use('/audio', audioRoutes);
 router.use('/playlists', playlistRoutes);
+router.use('/collections', collectionRoutes);
 router.use('/comments', commentRoutes);
 router.use('/onboarding', onboardingRoutes);
 router.use('/studio', studioRoutes);

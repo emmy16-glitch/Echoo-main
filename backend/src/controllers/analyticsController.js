@@ -11,6 +11,9 @@ const periodDates = (period = '30d') => {
   const startDate = new Date(endDate);
 
   switch (period) {
+    case 'all':
+      startDate.setTime(0);
+      break;
     case '7d':
       startDate.setDate(startDate.getDate() - 7);
       break;
@@ -69,6 +72,14 @@ const analyticsTotals = (rows) => {
   const engagementValues = rows
     .map((row) => Number(row.metrics?.engagement))
     .filter((value) => Number.isFinite(value) && value > 0);
+  const averageListenDuration = rows.length
+    ? Math.round(
+        rows.reduce(
+          (sum, row) => sum + (Number(row.metrics?.avgListenDuration) || 0),
+          0
+        ) / rows.length
+      )
+    : 0;
 
   return {
     totalListeners,
@@ -76,6 +87,7 @@ const analyticsTotals = (rows) => {
     peakListeners,
     returningListeners,
     newListeners,
+    averageListenDuration,
     engagementRate: engagementValues.length
       ? Number(
           (
@@ -197,6 +209,7 @@ export async function getAnalyticsOverview(req, res, next) {
           totalPlays,
           totalTracks,
           engagementRate: current.engagementRate,
+          averageListenDuration: current.averageListenDuration,
           followerGrowth,
         },
         changes: {
@@ -225,6 +238,14 @@ export async function getAnalyticsOverview(req, res, next) {
           listeners: broadcast.listenerCount || 0,
           peakListeners: broadcast.peakListeners || 0,
           status: broadcast.status,
+        })),
+        // Analytics stores listener snapshots and new-listener counts, but no
+        // leave-event stream. Expose only these measured series so Creator
+        // surfaces never infer departures from aggregate totals.
+        listenerActivity: analytics.map((row) => ({
+          date: row.date,
+          listeners: Number(row.metrics?.listeners) || 0,
+          newListeners: Number(row.metrics?.newListeners) || 0,
         })),
         availability: {
           listenerTimeSeries: analytics.length > 0,
@@ -412,7 +433,8 @@ export async function getContentAnalytics(req, res, next) {
       })
         .sort({ startTime: -1 })
         .limit(20)
-        .select('title startTime listenerCount peakListeners status type'),
+        .select('title startTime listenerCount peakListeners status type recordingUrl replayAudio')
+        .populate('replayAudio', 'fileUrl isDeleted'),
     ]);
 
     const totalTracks = tracks.length;
@@ -481,6 +503,11 @@ export async function getContentAnalytics(req, res, next) {
           peakListeners: broadcast.peakListeners || 0,
           status: broadcast.status,
           type: broadcast.type,
+          replayUrl:
+            broadcast.recordingUrl ||
+            (broadcast.replayAudio && !broadcast.replayAudio.isDeleted
+              ? broadcast.replayAudio.fileUrl
+              : null),
         })),
         availability: {
           trackCountersAreCumulative: true,

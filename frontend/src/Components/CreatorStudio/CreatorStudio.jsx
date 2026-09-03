@@ -1,40 +1,40 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
-  FaBell,
-  FaBroadcastTower,
-  FaChartBar,
-  FaChevronDown,
   FaCloudUploadAlt,
-  FaCog,
   FaExclamationCircle,
-  FaHeadphones,
-  FaHome,
   FaImage,
-  FaList,
-  FaMicrophone,
-  FaSearch,
   FaTimes,
-  FaUsers,
 } from 'react-icons/fa';
+import { FiCalendar, FiCamera, FiFolder, FiRadio } from 'react-icons/fi';
+import { MdOutlinePodcasts } from 'react-icons/md';
+import { PiChartBar } from 'react-icons/pi';
 
 import './CreatorStudio.css';
 import './CreatorStudio.identity.css';
 import './CreatorStudioShellFinal.css';
-import echooLogo from '../Assets/echoo-brand-logo.png';
+import './CreatorStudioV2Shell.css';
+import './CreatorStudioShellArchitecture.css';
+import echooLogo from '../Assets/echoo-logo-mark.png';
+import echooDecorativeLogo from '../Assets/echoo-logo.png';
 import studioService from '../../services/studioService';
+import { api } from '../../services/api';
 import { buildGeneratedAudioCoverUrl } from '../../audioCover/audioCover';
 import ListenerLiveConnected from '../ListenerLive/ListenerLiveConnected';
-import CreatorStudioHome from './CreatorStudioHome';
+import CreatorDiscoverWorkspace from './CreatorDiscoverWorkspace';
+import { CreatorStudioStateProvider } from './CreatorStudioState';
 import CreatorContentWorkspace from './CreatorContentWorkspace';
 import CreatorBroadcastWorkspace from './CreatorLiveConnectedWorkspace';
 import CreatorStationsWorkspace from './CreatorStationsWorkspace';
 import CreatorAudienceWorkspace from './CreatorAudienceWorkspace';
 import CreatorAnalyticsWorkspace from './CreatorAnalyticsConnectedWorkspace';
+import CreatorScheduleEventsWorkspace from './CreatorScheduleEventsWorkspace';
+import CreatorBroadcastSettingsWorkspace from './CreatorBroadcastSettingsWorkspace';
 import CreatorSettingsWorkspace from './CreatorSettingsWorkspace';
 import CreatorNotificationsWorkspace from './CreatorNotificationsWorkspace';
-import CreatorCollectionsWorkspace from './CreatorCollectionsWorkspace';
-import CreatorAccountMenuPortal from './CreatorAccountMenuPortal';
-import CuratedHelpAssistant from '../Support/CuratedHelpAssistant';
+import CreatorRecordingsWorkspace from './CreatorCollectionsWorkspace';
+import CreatorCollectionWorkspace from './CreatorCollectionWorkspace';
+import AccountExperienceMenu from '../Shared/AccountExperienceMenu';
 
 const GENRES = [
   'Pop', 'Rock', 'Hip-Hop', 'Electronic', 'Jazz', 'Classical', 'R&B',
@@ -59,6 +59,37 @@ const AUDIO_EXTENSIONS = new Set([
   'mp3', 'm4a', 'aac', 'wav', 'ogg', 'oga', 'opus', 'flac', 'webm',
 ]);
 
+const CREATOR_WORKSPACE_PATHS = {
+  Broadcast: '/creator-studio',
+  Station: '/creator-studio/channels',
+  Recordings: '/creator-studio/recordings',
+  Collections: '/creator-studio/collections',
+  Schedule: '/creator-studio/schedule-events',
+  BroadcastSettings: '/creator-studio/broadcast-settings',
+  Analytics: '/creator-studio/analytics',
+  Audio: '/creator-studio/audio',
+  Stations: '/creator-studio/channels',
+  Audience: '/creator-studio/audience',
+  Discover: '/creator-studio/discover',
+  'Explore Live': '/creator-studio/explore-live',
+  Settings: '/creator-studio/settings',
+  Notifications: '/creator-studio/notifications',
+};
+
+const CREATOR_ROUTE_WORKSPACES = Object.fromEntries(
+  Object.entries(CREATOR_WORKSPACE_PATHS).map(([workspace, path]) => [path, workspace])
+);
+CREATOR_ROUTE_WORKSPACES['/creator-studio/station'] = 'Station';
+CREATOR_ROUTE_WORKSPACES['/creator-studio/stations'] = 'Station';
+CREATOR_ROUTE_WORKSPACES['/creator-studio/channels'] = 'Station';
+
+const creatorWorkspaceForPath = (pathname) => {
+  const normalizedPath = String(pathname || '/creator-studio').replace(/\/+$/, '') || '/creator-studio';
+  if (normalizedPath.startsWith('/creator-studio/collections/')) return 'Collections';
+  if (normalizedPath.startsWith('/creator-studio/recordings/')) return 'Recordings';
+  return CREATOR_ROUTE_WORKSPACES[normalizedPath] || 'Broadcast';
+};
+
 const readJson = (key, fallback = {}) => {
   try {
     return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback));
@@ -76,8 +107,14 @@ const isSupportedAudioFile = (file) => {
   ) && AUDIO_EXTENSIONS.has(extension);
 };
 
-const CreatorStudio = () => {
-  const [activeNav, setActiveNav] = useState('Home');
+const CreatorStudioBody = () => {
+  const location = useLocation();
+  const routerNavigate = useNavigate();
+  const mainScrollRef = useRef(null);
+  const activeNav = useMemo(
+    () => creatorWorkspaceForPath(location.pathname),
+    [location.pathname]
+  );
   const [content, setContent] = useState({ tracks: [], pagination: {} });
   const [audience, setAudience] = useState(null);
   const [contentPage, setContentPage] = useState(1);
@@ -89,17 +126,12 @@ const CreatorStudio = () => {
   const [preparedBroadcastId, setPreparedBroadcastId] = useState(
     () => sessionStorage.getItem('echooPreparedBroadcastId') || ''
   );
-  const [studioSearch, setStudioSearch] = useState('');
-  const [profileMenuOpen, setProfileMenuOpen] = useState('');
-
-  const topProfileRef = useRef(null);
-
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadForm, setUploadForm] = useState(EMPTY_UPLOAD);
 
   const creatorSetup = useMemo(() => readJson('creatorSetup', {}), []);
-  const user = useMemo(() => readJson('user', {}), []);
+  const [user, setUser] = useState(() => readJson('user', {}));
 
   const isOrganization =
     creatorSetup.type === 'organization' ||
@@ -109,9 +141,7 @@ const CreatorStudio = () => {
     ? creatorSetup.name || creatorSetup.organizationName || user.creatorProfile?.organizationName || user.displayName || 'Creator Studio'
     : user.displayName || user.fullname || user.name || user.username || 'Creator Studio';
 
-  const studioType = isOrganization ? 'Organization' : 'Individual Creator';
   const profileImage = user.avatar || user.profileImage || localStorage.getItem('profileImage') || null;
-  const initial = studioName.charAt(0).toUpperCase() || 'E';
 
   const generatedUploadArtwork = useMemo(
     () => buildGeneratedAudioCoverUrl({
@@ -125,24 +155,35 @@ const CreatorStudio = () => {
   const uploadArtwork = uploadForm.coverPreview || generatedUploadArtwork;
 
   const navItems = [
-    { name: 'Home', label: 'Home', icon: <FaHome /> },
-    { name: 'Stations', label: 'Stations', icon: <FaBroadcastTower /> },
-    { name: 'Broadcast', label: 'Broadcast Studio', icon: <FaMicrophone /> },
-    { name: 'Audio', label: 'Audio', icon: <FaHeadphones /> },
-    { name: 'Collections', label: 'Collections', icon: <FaList /> },
-    { name: 'Audience', label: 'Audience', icon: <FaUsers /> },
-    { name: 'Analytics', label: 'Analytics', icon: <FaChartBar /> },
-    { name: 'Settings', label: 'Settings', icon: <FaCog /> },
+    { workspace: 'Broadcast', label: 'Broadcast', icon: <FiRadio /> },
+    { workspace: 'Station', label: 'Channel', icon: <MdOutlinePodcasts /> },
+    { workspace: 'Recordings', label: 'Recordings', icon: <FiCamera /> },
+    { workspace: 'Collections', label: 'Collections', icon: <FiFolder /> },
+    { workspace: 'Schedule', label: 'Schedule Events', icon: <FiCalendar /> },
+    { workspace: 'Analytics', label: 'Analytics', icon: <PiChartBar /> },
   ];
 
   useEffect(() => {
     let active = true;
+    api.auth.getCurrentUser().then((response) => {
+      const currentUser = response?.data?.user || response?.data;
+      if (!active || !currentUser || typeof currentUser !== 'object') return;
+      setUser(currentUser);
+      localStorage.setItem('user', JSON.stringify(currentUser));
+    }).catch(() => {
+      // The cached authenticated user remains a valid offline fallback.
+    });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
     const load = async () => {
-      if (!['Audio', 'Collections', 'Audience'].includes(activeNav)) return;
+      if (!['Audio', 'Broadcast', 'Recordings', 'Audience'].includes(activeNav)) return;
       try {
         setLoading(true);
         setError('');
-        if (activeNav === 'Audio' || activeNav === 'Collections') {
+        if (activeNav === 'Audio' || activeNav === 'Broadcast' || activeNav === 'Recordings') {
           const response = await studioService.getContent({ page: contentPage, limit: 50 });
           if (active) setContent(response?.data || { tracks: [], pagination: {} });
         }
@@ -167,76 +208,24 @@ const CreatorStudio = () => {
   }, []);
 
   useEffect(() => {
-    const closeProfileMenu = (event) => {
-      const insideTrigger = event.target.closest?.('[data-creator-profile-menu]');
-      const insidePopover = event.target.closest?.('[data-creator-profile-popover]');
-      if (!insideTrigger && !insidePopover) setProfileMenuOpen('');
-    };
-    const closeOnEscape = (event) => {
-      if (event.key === 'Escape') setProfileMenuOpen('');
-    };
-
-    document.addEventListener('pointerdown', closeProfileMenu);
-    document.addEventListener('keydown', closeOnEscape);
-    return () => {
-      document.removeEventListener('pointerdown', closeProfileMenu);
-      document.removeEventListener('keydown', closeOnEscape);
-    };
-  }, []);
+    mainScrollRef.current?.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, [activeNav]);
 
   const navigateStudio = (page) => {
     let target = page;
+    if (page === 'Home' || page === 'Studio') target = 'Broadcast';
     if (page === 'Live') {
       sessionStorage.setItem('echooBroadcastMode', 'now');
       target = 'Broadcast';
     }
     if (page === 'Schedule') {
       sessionStorage.setItem('echooBroadcastMode', 'later');
-      target = 'Broadcast';
+      target = 'Schedule';
     }
-    setProfileMenuOpen('');
     setError('');
     setNotice('');
-    setActiveNav(target);
-  };
-
-  const handleSearchSubmit = (event) => {
-    event.preventDefault();
-    const query = studioSearch.trim().toLowerCase();
-    if (!query) return;
-    const match = navItems.find((item) =>
-      item.name.toLowerCase().startsWith(query) || item.label.toLowerCase().startsWith(query)
-    );
-    if (match) {
-      navigateStudio(match.name);
-      setStudioSearch('');
-      return;
-    }
-    if (query.includes('explore') || query.includes('listen')) {
-      navigateStudio('Explore Live');
-      setStudioSearch('');
-      return;
-    }
-    if (query.includes('live') || query.includes('schedule') || query.includes('broadcast')) {
-      navigateStudio('Broadcast');
-      setStudioSearch('');
-      return;
-    }
-    if (query.includes('content') || query.includes('recording') || query.includes('collection') || query.includes('playlist') || query.includes('series')) {
-      navigateStudio(query.includes('collection') || query.includes('playlist') || query.includes('series') ? 'Collections' : 'Audio');
-      setStudioSearch('');
-      return;
-    }
-    setNotice('Try Home, Stations, Broadcast Studio, Audio, Collections, Audience, Analytics, or Settings.');
-  };
-
-  const handleCreatorLogout = () => {
-    [
-      'accessToken', 'refreshToken', 'token', 'user', 'profileImage', 'profileBio',
-      'echooRole', 'echooProfileCompleted', 'echooOnboardingCompleted', 'creatorSetup',
-    ].forEach((key) => localStorage.removeItem(key));
-    sessionStorage.clear();
-    window.location.replace('/');
+    const destination = CREATOR_WORKSPACE_PATHS[target] || CREATOR_WORKSPACE_PATHS.Broadcast;
+    if (location.pathname !== destination) routerNavigate(destination);
   };
 
   const openUpload = () => {
@@ -339,6 +328,7 @@ const CreatorStudio = () => {
       setUploadOpen(false);
       setUploadForm({ ...EMPTY_UPLOAD });
       setNotice('Audio uploaded successfully.');
+      window.dispatchEvent(new CustomEvent('echoo:creator-state-changed'));
       setRefreshKey((value) => value + 1);
     } catch (uploadError) {
       setError(uploadError?.message || 'Could not upload audio.');
@@ -360,6 +350,7 @@ const CreatorStudio = () => {
         tracks: (current.tracks || []).filter((track) => String(track.id || track._id) !== String(audioId)),
       }));
       setNotice(`${title || 'Audio'} was deleted.`);
+      window.dispatchEvent(new CustomEvent('echoo:creator-state-changed'));
       setRefreshKey((value) => value + 1);
     } catch (deleteError) {
       setError(deleteError?.message || 'Could not delete audio.');
@@ -390,21 +381,47 @@ const CreatorStudio = () => {
           />
         );
       case 'Stations':
-        return <CreatorStationsWorkspace studioName={studioName} onNavigate={navigateStudio} />;
-      case 'Collections':
+      case 'Station':
+        return <CreatorStationsWorkspace studioName={studioName} onNavigate={navigateStudio} onOpenRecording={(id) => routerNavigate(`/creator-studio/recordings/${encodeURIComponent(id)}`)} />;
+      case 'Discover':
+        return <CreatorDiscoverWorkspace onNavigate={navigateStudio} />;
+      case 'Recordings': {
+        const selectedRecordingId = location.pathname.split('/')[3] || '';
         return (
-          <CreatorCollectionsWorkspace
+          <CreatorRecordingsWorkspace
             tracks={Array.isArray(content?.tracks) ? content.tracks : []}
             studioName={studioName}
             onChanged={() => setRefreshKey((value) => value + 1)}
+            onNavigate={navigateStudio}
+            recordingId={selectedRecordingId}
+            onCloseRecording={() => routerNavigate('/creator-studio/recordings')}
           />
         );
+      }
+      case 'Collections': {
+        const selectedCollectionId = location.pathname.split('/')[3] || '';
+        return (
+          <CreatorCollectionWorkspace
+            collectionId={selectedCollectionId}
+            studioName={studioName}
+            onOpenCollection={(id) => routerNavigate(`/creator-studio/collections/${encodeURIComponent(id)}`)}
+            onBack={() => routerNavigate('/creator-studio/collections')}
+          />
+        );
+      }
+      case 'Schedule':
+        return <CreatorScheduleEventsWorkspace onNavigate={navigateStudio} />;
+      case 'BroadcastSettings':
+        return <CreatorBroadcastSettingsWorkspace onNavigate={navigateStudio} />;
       case 'Broadcast':
+      case 'Home':
         return (
           <CreatorBroadcastWorkspace
+            key="broadcast"
             studioName={studioName}
             profileImage={profileImage}
             initialBroadcastId={preparedBroadcastId}
+            audioLibrary={Array.isArray(content?.tracks) ? content.tracks : []}
             onNavigate={navigateStudio}
             onClearPreparedBroadcast={clearPreparedBroadcast}
           />
@@ -419,28 +436,18 @@ const CreatorStudio = () => {
         return <CreatorSettingsWorkspace />;
       case 'Notifications':
         return <CreatorNotificationsWorkspace onNavigate={navigateStudio} />;
-      case 'Home':
       default:
-        return (
-          <CreatorStudioHome
-            key={refreshKey}
-            studioName={studioName}
-            studioType={studioType}
-            profileImage={profileImage}
-            onUpload={openUpload}
-            onNavigate={navigateStudio}
-          />
-        );
+        return null;
     }
   };
 
   return (
-    <div className="studio-page studio-final-shell">
+    <div className="studio-page studio-final-shell studio-v2-shell">
       <aside className="studio-sidebar">
         <div className="studio-sidebar-head">
-          <button type="button" className="studio-brand" onClick={() => navigateStudio('Home')} aria-label="Echoo Creator Studio home">
+          <button type="button" className="studio-brand" onClick={() => navigateStudio('Broadcast')} aria-label="Echoo Broadcast">
             <img src={echooLogo} alt="Echoo" className="studio-logo" />
-            <div><h2>Echoo</h2><span>Creator Studio</span></div>
+            <span className="studio-brand-wordmark">echoo</span>
           </button>
         </div>
 
@@ -448,42 +455,37 @@ const CreatorStudio = () => {
           {navItems.map((item) => (
             <button
               type="button"
-              key={item.name}
-              className={`studio-nav-item ${activeNav === item.name ? 'active' : ''}`}
-              onClick={() => navigateStudio(item.name)}
+              key={item.workspace}
+              className={`studio-nav-item ${activeNav === item.workspace ? 'active' : ''}`}
+              onClick={() => navigateStudio(item.workspace)}
               title={item.label}
               aria-label={item.label}
+              aria-current={activeNav === item.workspace ? 'page' : undefined}
             >
-              <span className="studio-nav-icon">{item.icon}</span><span>{item.label}</span>
+              <span className="studio-nav-icon">{item.icon}</span><span className="studio-nav-label">{item.label}</span>
             </button>
           ))}
         </nav>
 
+        <img className="studio-sidebar-watermark" src={echooDecorativeLogo} alt="" aria-hidden="true" />
       </aside>
 
-      <main id="echoo-main-content" tabIndex="-1" className="studio-main">
+      <main id="echoo-main-content" ref={mainScrollRef} tabIndex="-1" className="studio-main">
         <header className="studio-topbar studio-topbar-final">
-          <form className="studio-command-search" onSubmit={handleSearchSubmit}>
-            <FaSearch />
-            <input value={studioSearch} onChange={(event) => setStudioSearch(event.target.value)} placeholder="Search Creator Studio..." aria-label="Search Creator Studio" />
-          </form>
-
-          <div className="studio-top-actions">
-            <button type="button" className="notification-button" onClick={() => navigateStudio('Notifications')} title="Notifications" aria-label="Notifications"><FaBell /></button>
-            <div className="studio-top-profile-wrap" data-creator-profile-menu>
-              <button
-                ref={topProfileRef}
-                type="button"
-                className="studio-account-button"
-                aria-expanded={profileMenuOpen === 'top'}
-                aria-haspopup="menu"
-                onClick={() => setProfileMenuOpen((current) => current === 'top' ? '' : 'top')}
-              >
-                <div className="top-avatar">{profileImage ? <img src={profileImage} alt="" /> : initial}</div>
-                <div><strong>{studioName}</strong><span>Creator</span></div>
-                <FaChevronDown />
-              </button>
-            </div>
+          <button type="button" className="studio-mobile-brand" onClick={() => navigateStudio('Broadcast')} aria-label="Echoo Creator Studio">
+            <img src={echooLogo} alt="" />
+            <span>echoo</span>
+          </button>
+          <div className="studio-top-profile-wrap">
+            <AccountExperienceMenu
+              currentExperience="creator"
+              user={user}
+              profileImage={profileImage}
+              variant="creator"
+              onUserChange={setUser}
+              onNotifications={() => navigateStudio('Notifications')}
+              onSettings={() => navigateStudio('Settings')}
+            />
           </div>
         </header>
 
@@ -493,16 +495,6 @@ const CreatorStudio = () => {
         <div className="studio-view">{renderWorkspace()}</div>
         <footer className="studio-footer"><span>© 2026 Echoo.</span><span>Audio-first creator platform</span></footer>
       </main>
-
-      <CreatorAccountMenuPortal
-        open={profileMenuOpen === 'top'}
-        anchorRef={topProfileRef}
-        placement="top"
-        onSettings={() => navigateStudio('Settings')}
-        onLogout={handleCreatorLogout}
-      />
-
-      <CuratedHelpAssistant mode="creator" />
 
       {uploadOpen && (
         <div className="studio-modal-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) closeUpload(); }}>
@@ -608,6 +600,15 @@ const CreatorStudio = () => {
         </div>
       )}
     </div>
+  );
+};
+
+const CreatorStudio = () => {
+  const user = useMemo(() => readJson('user', {}), []);
+  return (
+    <CreatorStudioStateProvider user={user}>
+      <CreatorStudioBody />
+    </CreatorStudioStateProvider>
   );
 };
 

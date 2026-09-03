@@ -1,0 +1,134 @@
+/* Canonical Listener 2.0 visual system.
+   Shell geometry and the desktop/mobile decision remain owned by ListenerLayout.css. */
+.echoo-listener-v2-shell {
+  --listener-blue: #2684ff;
+  --listener-blue-hover: #1672ed;
+  --listener-blue-soft: #102f5d;
+  --listener-ink: #f8faff;
+  --listener-body: #c8d3e5;
+  --listener-muted: #91a2bc;
+  --listener-subtle: #0d2342;
+  --listener-border: #203b60;
+  --listener-surface: #0a1d38;
+  --listener-surface-raised: #102946;
+  --listener-canvas: #06152b;
+  color-scheme: dark;
+  background: var(--listener-canvas);
+  color: var(--listener-ink);
+}
+
+.echoo-listener-v2-shell .echoo-app-sidebar,
+.echoo-listener-v2-shell .echoo-app-main,
+.echoo-listener-v2-shell .layout-content { background: var(--listener-canvas); }
+.echoo-listener-v2-shell .echoo-app-sidebar { background: #081a32; border-color: var(--listener-border); }
+.echoo-listener-v2-shell .studio-brand-copy strong,
+.echoo-listener-v2-shell .studio-account-button strong { color: var(--listener-ink); }
+.echoo-listener-v2-shell .studio-nav-item { color: #9fb0c9; }
+.echoo-listener-v2-shell .studio-nav-item:hover { background: var(--listener-subtle); color: #fff; }
+.echoo-listener-v2-shell .studio-nav-item.active { background: var(--listener-blue-soft); color: #65a8ff; }
+.echoo-listener-v2-shell .echoo-listener-sidebar-watermark { opacity: .045; }
+.echoo-listener-v2-shell .listener-sidebar-settings { color: #9fb0c9; }
+
+.echoo-listener-v2-shell .echoo-app-topbar {
+  border-color: var(--listener-border);
+  background: rgba(6, 21, 43, .94);
+}
+.echoo-listener-v2-shell .listener-mobile-brand { display: none; }
+.echoo-listener-v2-shell .beautiful-search,
+.echoo-listener-v2-shell .stations-search,
+.echoo-listener-v2-shell .stations-select,
+.echoo-listener-v2-shell .listener-live-search,
+.echoo-listener-v2-shell .listener-search-box,
+.echoo-listener-v2-shell .al-list-search,
+.echoo-listener-v2-shell :is(select,input) { color: var(--listener-ink); }
+.echoo-listener-v2-shell .beautiful-search { background: var(--listener-surface); border-color: var(--listener-border); }
+.echoo-listener-v2-shell .beautiful-search:focus-within { background: var(--listener-surface-raised); border-color: var(--listener-blue); box-shadow: 0 0 0 3px rgba(38,132,255,.12); }
+.echoo-listener-v2-shell .beautiful-search-panel,
+.echoo-listener-v2-shell .listener-account-dropdown { background: var(--listener-surface-raised); border-color: var(--listener-border); box-shadow: 0 18px 45px rgba(0,5,18,.42); }
+.echoo-listener-v2-shell .beautiful-result-row { color: var(--listener-ink); }
+.echoo-listener-v2-shell .beautiful-result-row:hover { background: var(--listener-subtle); }
+
+/* All route roots share one centered, viewport-safe page container. */
+.echoo-listener-v2-shell .layout-content { padding: 32px 32px calc(var(--listener-player) + 40px); }
+.echoo-listener-v2-shell .layout-content > * {
+  width: min(100%, 1240px);
+  max-width: 1240px;
+  min-width: 0;
+  margin-inline: auto;
+  color: var(--listener-ink);
+}
+.echoo-listener-v2-shell .layout-content :is(section,article,div,header,nav,form) { min-width: 0; }
+.echoo-listener-v2-shell .layout-content :is(h1,h2,h3,h4,strong) { color: var(--listener-ink); }
+.echoo-listener-v2-shell .layout-content :is(p,small) { color: var(--listener-muted); }
+
+/* Shared surfaces normalize legacy light pages without changing their behavior. */
+.echoo-listener-v2-shell :is(
+  .echoo-reference-page,.listener-stations-page,.listener-search-page,.listener-live,
+  .listener-following,.stations-page,.ref-library-page,.al-page
+) { width: 100%; max-width: 100%; background: transparent; color: var(--listener-ink); }
+.echoo-listener-v2-shell :is(
+  .ref-state-card,.al-card,.al-row,.al-hero,.station-card,.stations-top-card,
+  .stations-empty,.following-creator-card,.following-station-card,.following-latest-card,
+  .search-message,.batch1-search-empty,.listener-search-discovery,.listener-live-card
+) { border-color: var(--listener-border); background: var(--listener-surface); color: var(--listener-ink); }
+.echoo-listener-v2-shell :is(.al-chip,.stations-categories button,.station-follow,.al-page-btn) {
+  border-color: var(--listener-border); background: var(--listener-surface); color: var(--listener-body);
+}
+.echoo-listener-v2-shell :is(.al-chip-active,.stations-categories button.active,.station-follow.following,.al-apply-btn,.al-hero-cta) {
+  border-color: var(--listener-blue); background: var(--listener-blue); color: #fff;
+}
+.echoo-listener-v2-shell .al-hero { background: var(--listener-surface-raised); }
+.echoo-listener-v2-shell .al-hero::before { opacity: .18; }
+.echoo-listener-v2-shell .al-row { border-bottom-color: var(--listener-border); }
+.echoo-listener-v2-shell :is(.al-list-search,.al-sort-select,.al-select-wrap) { border-color: var(--listener-border); background: #081b35; }
+.echoo-listener-v2-shell :is(select,input) { background-color: transparent; }
+.echoo-listener-v2-shell option { background: var(--listener-surface-raised); color: var(--listener-ink); }
+.echoo-listener-v2-shell .listener-search-prompts { display: flex; flex-wrap: wrap; justify-content: center; gap: 9px; margin-top: 18px; }
+.echoo-listener-v2-shell .listener-search-prompts button { min-height: 42px; padding: 0 16px; border: 1px solid var(--listener-border); border-radius: 999px; background: var(--listener-surface-raised); color: var(--listener-body); cursor: pointer; }
+.echoo-listener-v2-shell .listener-search-prompts button:hover { border-color: var(--listener-blue); color: #fff; }
+.echoo-listener-v2-shell :is(input,select,button,a):focus-visible { outline: 2px solid var(--listener-blue); outline-offset: 2px; }
+
+.echoo-listener-v2-shell > .echoo-persistent-player {
+  border-color: var(--listener-border); background: rgba(8,26,50,.98); box-shadow: 0 -8px 24px rgba(0,5,18,.28);
+}
+.echoo-listener-v2-shell .layout-player-info strong { color: var(--listener-ink); }
+.echoo-listener-v2-shell .layout-player-controls button,
+.echoo-listener-v2-shell .layout-player-volume button { color: #b9c8dc; }
+.echoo-listener-v2-shell .layout-player-progress { background: #213957; }
+
+@media (max-width: 767px) {
+  .echoo-listener-v2-shell,
+  #root .echoo-listener-v2-shell { display: block !important; width: 100%; max-width: 100%; grid-template-columns: none !important; }
+  #root .echoo-listener-v2-shell > .echoo-app-sidebar { display: none !important; }
+  .echoo-listener-v2-shell .echoo-app-main { width: 100% !important; max-width: 100%; margin: 0 !important; }
+  .echoo-listener-v2-shell .echoo-app-topbar {
+    min-height: 126px !important; grid-template-columns: minmax(0,1fr) auto; padding: 10px 16px 8px !important; background: var(--listener-canvas);
+  }
+  .echoo-listener-v2-shell .echoo-app-search { width: 100%; max-width: 100%; grid-template-rows: 52px 44px; }
+  .echoo-listener-v2-shell .listener-mobile-brand { display: flex; align-items: center; gap: 9px; min-width: 0; padding-right: 96px; }
+  .echoo-listener-v2-shell .listener-mobile-brand img { width: 34px; height: 34px; object-fit: contain; }
+  .echoo-listener-v2-shell .listener-mobile-brand strong { color: #fff; font-size: 20px; letter-spacing: -.04em; }
+  .echoo-listener-v2-shell .listener-mobile-brand span { color: var(--listener-muted); font-size: 11px; }
+  .echoo-listener-v2-shell .layout-content { width: 100%; max-width: 100%; padding: 16px 16px calc(150px + env(safe-area-inset-bottom)); }
+  .echoo-listener-v2-shell .layout-content > * { width: 100%; max-width: 100%; margin: 0; }
+  .echoo-listener-v2-shell .layout-content h1 { font-size: clamp(28px,8.5vw,34px); }
+  .echoo-listener-v2-shell :is(.listener-live,.listener-stations-page,.listener-search-page) { padding: 0; }
+  .echoo-listener-v2-shell :is(.listener-live-header,.al-section-header) { flex-direction: column; align-items: stretch; gap: 14px; }
+  .echoo-listener-v2-shell :is(.listener-live-search,.listener-search-box,.al-list-search) { width: 100%; max-width: 100%; }
+  .echoo-listener-v2-shell .al-layout { grid-template-columns: minmax(0,1fr); }
+  .echoo-listener-v2-shell .al-hero { padding: 24px 20px; }
+  .echoo-listener-v2-shell .al-hero-visual { display: none; }
+  .echoo-listener-v2-shell > .echoo-persistent-player { bottom: calc(68px + env(safe-area-inset-bottom)); background: #081a32; }
+
+  body:has(.echoo-listener-v2-shell) .echoo-mobile-nav {
+    height: calc(68px + env(safe-area-inset-bottom)); padding-bottom: calc(5px + env(safe-area-inset-bottom));
+    border-color: #203b60; background: rgba(8,26,50,.98); box-shadow: 0 -8px 24px rgba(0,5,18,.3);
+  }
+  body:has(.echoo-listener-v2-shell) .echoo-mobile-nav-item { color: #91a2bc; }
+  body:has(.echoo-listener-v2-shell) .echoo-mobile-nav-item.active { color: #65a8ff; background: #102f5d; }
+  body:has(.echoo-listener-v2-shell) .echoo-mobile-sheet-panel { background: #0a1d38; color: #f8faff; }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  .echoo-listener-v2-shell .layout-content { padding-inline: 24px; }
+}

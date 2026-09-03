@@ -11,6 +11,14 @@ const __dirname = path.dirname(__filename);
 // Upload directory
 const UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'audio');
 const TEMP_DIR = path.join(process.cwd(), 'uploads', 'temp');
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const MAX_UPLOAD_SIZE = 100 * 1024 * 1024;
+const MAX_CHUNK_SIZE = 5 * 1024 * 1024;
+
+const uploadPath = (uploadId) =>
+  UUID_PATTERN.test(String(uploadId || ''))
+    ? path.join(TEMP_DIR, String(uploadId))
+    : null;
 
 // Ensure directories exist
 if (!fs.existsSync(UPLOAD_DIR)) {
@@ -26,14 +34,21 @@ export async function initiateUpload(req, res, next) {
     const userId = req.userId;
     const { filename, fileSize, mimeType } = req.body;
 
-    if (!filename || !fileSize || !mimeType) {
+    if (
+      typeof filename !== 'string' ||
+      !filename.trim() ||
+      filename.length > 255 ||
+      !Number.isInteger(fileSize) ||
+      fileSize <= 0 ||
+      typeof mimeType !== 'string'
+    ) {
       return res.status(400).json({
         error: { code: 'VALIDATION_ERROR', message: 'Filename, fileSize, and mimeType are required' }
       });
     }
 
     // Validate file size (100MB max)
-    if (fileSize > 100 * 1024 * 1024) {
+    if (fileSize > MAX_UPLOAD_SIZE) {
       return res.status(400).json({
         error: { code: 'FILE_TOO_LARGE', message: 'File size exceeds 100MB limit' }
       });
@@ -49,7 +64,7 @@ export async function initiateUpload(req, res, next) {
 
     // Generate unique upload ID
     const uploadId = randomUUID();
-    const tempFilePath = path.join(TEMP_DIR, uploadId);
+    const tempFilePath = uploadPath(uploadId);
 
     // Create temp file
     fs.writeFileSync(tempFilePath, '');
@@ -79,6 +94,22 @@ export async function uploadChunk(req, res, next) {
     const { uploadId } = req.params;
     const { chunkIndex, totalChunks } = req.body;
     const file = req.file;
+    const tempFilePath = uploadPath(uploadId);
+    const parsedChunkIndex = Number(chunkIndex);
+    const parsedTotalChunks = Number(totalChunks);
+
+    if (
+      !tempFilePath ||
+      !Number.isInteger(parsedChunkIndex) ||
+      parsedChunkIndex < 0 ||
+      !Number.isInteger(parsedTotalChunks) ||
+      parsedTotalChunks <= 0 ||
+      parsedChunkIndex >= parsedTotalChunks
+    ) {
+      return res.status(400).json({
+        error: { code: 'INVALID_UPLOAD', message: 'Invalid upload metadata' },
+      });
+    }
 
     if (!file) {
       return res.status(400).json({
@@ -86,7 +117,11 @@ export async function uploadChunk(req, res, next) {
       });
     }
 
-    const tempFilePath = path.join(TEMP_DIR, uploadId);
+    if (file.size > MAX_CHUNK_SIZE) {
+      return res.status(400).json({
+        error: { code: 'CHUNK_TOO_LARGE', message: 'Upload chunk exceeds the size limit' },
+      });
+    }
     
     // Check if temp file exists
     if (!fs.existsSync(tempFilePath)) {
@@ -105,7 +140,7 @@ export async function uploadChunk(req, res, next) {
 
     return res.status(200).json({
       data: {
-        chunkIndex,
+        chunkIndex: parsedChunkIndex,
         received: true,
         uploaded: fs.statSync(tempFilePath).size,
       },
@@ -122,15 +157,14 @@ export async function completeUpload(req, res, next) {
   try {
     const userId = req.userId;
     const { uploadId, title, description, genre, tags, isPublic, coverArt } = req.body;
+    const tempFilePath = uploadPath(uploadId);
 
-    if (!uploadId) {
+    if (!tempFilePath) {
       return res.status(400).json({
         error: { code: 'VALIDATION_ERROR', message: 'Upload ID is required' }
       });
     }
 
-    const tempFilePath = path.join(TEMP_DIR, uploadId);
-    
     // Check if temp file exists
     if (!fs.existsSync(tempFilePath)) {
       return res.status(404).json({
@@ -200,8 +234,13 @@ export async function completeUpload(req, res, next) {
 export async function getUploadStatus(req, res, next) {
   try {
     const { uploadId } = req.params;
+    const tempFilePath = uploadPath(uploadId);
 
-    const tempFilePath = path.join(TEMP_DIR, uploadId);
+    if (!tempFilePath) {
+      return res.status(400).json({
+        error: { code: 'INVALID_UPLOAD', message: 'Invalid upload ID' },
+      });
+    }
     
     if (!fs.existsSync(tempFilePath)) {
       return res.status(404).json({
@@ -229,8 +268,13 @@ export async function getUploadStatus(req, res, next) {
 export async function cancelUpload(req, res, next) {
   try {
     const { uploadId } = req.params;
+    const tempFilePath = uploadPath(uploadId);
 
-    const tempFilePath = path.join(TEMP_DIR, uploadId);
+    if (!tempFilePath) {
+      return res.status(400).json({
+        error: { code: 'INVALID_UPLOAD', message: 'Invalid upload ID' },
+      });
+    }
     
     if (fs.existsSync(tempFilePath)) {
       fs.unlinkSync(tempFilePath);

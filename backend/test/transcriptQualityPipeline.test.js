@@ -89,22 +89,21 @@ test('quality provider failures are retryable and reconciliation cannot keep reu
   assert.match(quality, /candidate\.correctedAt \|\| candidate\.editedText/);
 });
 
-test('creator end-live hands buffered PCM to backend and finalizes recording before mixer teardown', async () => {
-  const [whisperClient, broadcastService, workspace] = await Promise.all([
-    source('../../frontend/src/services/whisperFlowService.js'),
+test('creator ends realtime audio first and finalizes its recording independently', async () => {
+  const [broadcastService, workspace] = await Promise.all([
     source('../../frontend/src/services/batch3Service.js'),
     source('../../frontend/src/Components/CreatorStudio/CreatorLiveConnectedWorkspace.jsx'),
   ]);
 
-  assert.match(whisperClient, /await drainForBackgroundHandoff\(session\)/);
-  assert.match(broadcastService, /await stopWhisperFlowTranscription\(\{ finalize: false \}\)/);
-  assert.match(broadcastService, /const recording = await finishBroadcastRecording\(broadcastId\)/);
-  assert.match(broadcastService, /recordingReady = true/);
-  assert.doesNotMatch(broadcastService, /void \(async \(\) => \{[\s\S]*finishBroadcastRecording/);
+  assert.match(broadcastService, /endBroadcastRealtime: async/);
+  assert.match(broadcastService, /finalizeBroadcastRecording: async/);
+  assert.doesNotMatch(broadcastService, /stopWhisperFlowTranscription/);
 
-  const endCall = workspace.indexOf('await batch3Service.endBroadcast');
-  const mixerStop = workspace.indexOf('await stopEchooMixer', endCall);
-  assert.ok(endCall >= 0 && mixerStop > endCall, 'mixer teardown must happen after the synchronized end service returns');
+  const endCall = workspace.indexOf('batch3Service.endBroadcastRealtime');
+  const mixerStop = workspace.indexOf('await stopLiveKitPublishing()', endCall);
+  const recordingFinalize = workspace.indexOf('batch3Service.finalizeBroadcastRecording', mixerStop);
+  assert.ok(endCall >= 0 && mixerStop > endCall && recordingFinalize > mixerStop,
+    'the listener-visible realtime path must stop before recorder finalization');
 });
 
 test('transcript review waits for the entire durable chunk handoff and then notifies once', async () => {
@@ -134,7 +133,7 @@ test('long-form quality chunk traffic uses the centralized API limiter instead o
   assert.match(limiter, /limit: 600/);
 });
 
-test('raw and enhanced modes still converge on one audience, recording and transcription program feed', async () => {
+test('raw and enhanced modes still converge on one audience and recording program feed', async () => {
   const [engine, mixer, publisher, creatorMixer] = await Promise.all([
     source('../../frontend/src/services/echooAudioProcessingEngine.js'),
     source('../../frontend/src/services/echooMixerService.js'),
@@ -147,7 +146,7 @@ test('raw and enhanced modes still converge on one audience, recording and trans
   assert.match(mixer, /masterAnalyser\.connect\(destinationNode\)/);
   assert.match(publisher, /name:\s*'echoo-studio-mix'/);
   assert.match(publisher, /ensureBroadcastRecording\(\{[\s\S]*mediaTrack/);
-  assert.match(publisher, /startWhisperFlowTranscription\(\{[\s\S]*mediaTrack/);
+  assert.doesNotMatch(publisher, /startWhisperFlowTranscription/);
   assert.match(creatorMixer, /Raw Audio/);
   assert.match(creatorMixer, /Enhanced Audio/);
 });

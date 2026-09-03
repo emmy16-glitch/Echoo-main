@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { FaCheck, FaMinus, FaPlus, FaTimes, FaUndo } from 'react-icons/fa';
 import './ImageCropProvider.css';
 
@@ -383,7 +384,9 @@ export default function ImageCropProvider({ children }) {
   return (
     <>
       {children}
-      {request && <CropEditor request={request} onCancel={cancel} onComplete={complete} />}
+      {request && typeof document !== 'undefined'
+        ? createPortal(<CropEditor request={request} onCancel={cancel} onComplete={complete} />, document.body)
+        : null}
     </>
   );
 }

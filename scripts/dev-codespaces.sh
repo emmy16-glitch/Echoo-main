@@ -37,8 +37,8 @@ fi
 
 # Codespaces uses a specific URL pattern for forwarded ports
 # Format: https://<codespace-name>-<port>.app.github.dev
-APP_URL="https://${CODESPACE_NAME}-5174.app.github.dev"
-API_URL="https://${CODESPACE_NAME}-5174.app.github.dev/api"
+APP_URL="https://${CODESPACE_NAME}-5173.app.github.dev"
+API_URL="https://${CODESPACE_NAME}-5173.app.github.dev/api"
 
 echo "[dev-codespaces] Codespace detected: ${CODESPACE_NAME}"
 echo "[dev-codespaces] Expected App URL: $APP_URL"
@@ -64,13 +64,13 @@ echo "[dev-codespaces] Updated $FRONTEND_ENV"
 echo "[dev-codespaces] Starting Echoo backend on :5001 ..."
 ( cd "$BACKEND_DIR" && exec npm run dev ) &
 
-echo "[dev-codespaces] Starting Echoo frontend on :5174 ..."
+echo "[dev-codespaces] Starting Echoo frontend on :5173 ..."
 ( cd "$FRONTEND_DIR" && exec npm run dev ) &
 
 echo
 echo "[dev-codespaces] ============================================="
 echo "[dev-codespaces] 1. Go to the 'PORTS' tab in VS Code."
-echo "[dev-codespaces] 2. Right-click port 5174 and set 'Port Visibility' to PUBLIC."
+echo "[dev-codespaces] 2. Right-click port 5173 and set 'Port Visibility' to PUBLIC."
 echo "[dev-codespaces] 3. Open this link: $APP_URL"
 echo "[dev-codespaces] ============================================="
 echo

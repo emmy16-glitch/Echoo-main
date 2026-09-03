@@ -39,7 +39,8 @@ test('creator publishes only the named post-master mix and exposes real health m
   assert.match(publisher, /\[Echoo Studio\] mixer ready/);
   assert.match(publisher, /\[Echoo LiveKit\] connected/);
   assert.match(publisher, /\[Echoo LiveKit\] track published/);
-  assert.match(publisher, /startWhisperFlowTranscription\(\{[\s\S]*mediaTrack/);
+  assert.match(publisher, /void ensureBroadcastRecording\(\{[\s\S]*mediaTrack/);
+  assert.doesNotMatch(publisher, /startWhisperFlowTranscription/);
 });
 
 test('backend broadcasts media state and accepts only Echoo program-track webhooks', async () => {
@@ -68,6 +69,6 @@ test('listener consumes real LiveKit states without receiving live transcript da
   assert.doesNotMatch(room, /transcript:segment/);
   assert.doesNotMatch(room, /transcript:finalized/);
   assert.doesNotMatch(room, /TranscriptPanel/);
-  assert.match(room, /Live Audio \+ Community/);
+  assert.match(room, /Live audio on Echoo/);
   assert.match(room, /onStateChange=\{handleLivePlayerState\}/);
 });

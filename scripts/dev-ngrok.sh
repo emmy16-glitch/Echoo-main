@@ -3,7 +3,7 @@
 # Echoo: local development with a single ngrok tunnel
 # =============================================
 # Starts the backend and frontend, then opens ONE tunnel to the
-# frontend (port 5174). API requests are proxied automatically.
+# frontend (port 5173). API requests are proxied automatically.
 #
 # Usage (from repo root):
 #   ./scripts/dev-ngrok.sh [YOUR_NGROK_AUTHTOKEN]
@@ -45,7 +45,7 @@ echo "[dev-ngrok] Starting Echoo backend on :5001 ..."
 ( cd "$BACKEND_DIR" && exec npm run dev ) > "$PID_DIR/backend.log" 2>&1 &
 echo $! > "$PID_DIR/backend.pid"
 
-echo "[dev-ngrok] Starting Echoo frontend on :5174 ..."
+echo "[dev-ngrok] Starting Echoo frontend on :5173 ..."
 ( cd "$FRONTEND_DIR" && exec npm run dev ) > "$PID_DIR/frontend.log" 2>&1 &
 echo $! > "$PID_DIR/frontend.pid"
 
@@ -75,7 +75,7 @@ $( [ -n "$TOKEN" ] && echo "authtoken: $TOKEN" )
 tunnels:
   echoo-app:
     proto: http
-    addr: 5174
+    addr: 5173
 EOF
 
 ( exec ngrok start echoo-app --config "$NGROK_CONFIG" ) > "$PID_DIR/ngrok.log" 2>&1 &

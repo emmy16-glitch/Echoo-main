@@ -18,6 +18,7 @@ import audioService from '../../services/audioService';
 import realtimeService from '../../services/realtimeService';
 import batch6Service from '../../services/batch6Service';
 import playlistService from '../../services/playlistService';
+import collectionService from '../../services/collectionService';
 import ListenerToast from '../ListenerUI/ListenerToast';
 import '../../styles/listener-reference-pages.css';
 import './ListenerLibrary.css';
@@ -93,8 +94,10 @@ const ListenerLibrary = () => {
   const [totalPages, setTotalPages] = useState(0);
   const [genres, setGenres] = useState([]);
   const [playlists, setPlaylists] = useState([]);
+  const [savedCollections, setSavedCollections] = useState([]);
   const [downloads, setDownloads] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [busyId, setBusyId] = useState('');
   const [toast, setToast] = useState({ open: false, type: 'info', title: '', message: '' });
   const [waveSeed] = useState(() => Array.from({ length: 14 }, () => 0.35 + Math.random() * 0.65));
@@ -114,7 +117,8 @@ const ListenerLibrary = () => {
   const load = useCallback(async ({ silent = false } = {}) => {
     try {
       if (!silent) setLoading(true);
-      const [audioResult, playlistsResult, downloadsResult, genresResult] = await Promise.allSettled([
+      if (!silent) setLoadError('');
+      const [audioResult, playlistsResult, downloadsResult, genresResult, collectionsResult] = await Promise.allSettled([
         audioService.getAll({
           page,
           limit: PAGE_SIZE,
@@ -124,6 +128,7 @@ const ListenerLibrary = () => {
         playlistService.getMine(),
         batch6Service.getDownloads({ page: 1, limit: 100 }),
         audioService.getAll({ page: 1, limit: 100 }),
+        collectionService.getSaved(),
       ]);
 
       if (audioResult.status === 'fulfilled') {
@@ -134,6 +139,7 @@ const ListenerLibrary = () => {
         setAudio([]);
         setTotal(0);
         setTotalPages(0);
+        if (!silent) setLoadError('We couldn’t reach Echoo. Check your connection and try again.');
       }
       if (playlistsResult.status === 'fulfilled') {
         setPlaylists(Array.isArray(playlistsResult.value?.data) ? playlistsResult.value.data : []);
@@ -145,6 +151,9 @@ const ListenerLibrary = () => {
         const list = Array.isArray(genresResult.value?.data) ? genresResult.value.data : [];
         const seen = new Set();
         setGenres(list.map((track) => String(track.genre || '')).filter((value) => value && !seen.has(value) && seen.add(value)));
+      }
+      if (collectionsResult.status === 'fulfilled') {
+        setSavedCollections(Array.isArray(collectionsResult.value?.data) ? collectionsResult.value.data : []);
       }
     } finally {
       if (!silent) setLoading(false);
@@ -280,6 +289,19 @@ const ListenerLibrary = () => {
 
   if (loading) {
     return <div className="echoo-reference-page ref-library-page"><div className="ref-state-card"><strong>Loading your Library...</strong></div></div>;
+  }
+
+  if (loadError) {
+    return (
+      <div className="echoo-reference-page ref-library-page">
+        <div className="ref-state-card">
+          <FaHeadphones />
+          <strong>We couldn’t load the audio library.</strong>
+          <span>{loadError}</span>
+          <button type="button" className="al-hero-cta" onClick={() => load()}>Try again</button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -502,6 +524,12 @@ const ListenerLibrary = () => {
                 </article>
               );
             })}
+          </section>
+
+          <section className="al-card al-playlist-card">
+            <div className="al-card-header"><strong>Saved Collections</strong></div>
+            {savedCollections.length === 0 && <p className="al-empty-note">Collections you save from Channels will appear here.</p>}
+            {savedCollections.slice(0, 3).map((collection) => <article className="al-playlist-row" key={idOf(collection)} role="button" tabIndex={0} onClick={() => navigate(`/listen/collections/${idOf(collection)}`)} onKeyDown={(event) => event.key === 'Enter' && navigate(`/listen/collections/${idOf(collection)}`)}><span className="al-playlist-art"><FaHeadphones /></span><div className="al-playlist-info"><strong>{collection.title}</strong><span>{collection.broadcastCount} recordings</span></div></article>)}
           </section>
 
           <section className="al-card al-offline-card">

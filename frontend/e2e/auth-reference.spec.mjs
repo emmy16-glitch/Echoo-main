@@ -13,7 +13,12 @@ const assertNoHorizontalOverflow = async (page) => {
 test('signup and login match the responsive Echoo auth composition', async ({ page }, testInfo) => {
   const browserErrors = [];
   page.on('console', (message) => {
-    if (message.type() === 'error') browserErrors.push(message.text());
+    const text = message.text();
+    // Vite's development websocket can close while Playwright tears down a
+    // page; it is not an application error and does not occur in production.
+    if (message.type() === 'error' && !text.includes('net::ERR_SOCKET_NOT_CONNECTED')) {
+      browserErrors.push(text);
+    }
   });
   page.on('pageerror', (error) => browserErrors.push(error.message));
 

@@ -25,15 +25,16 @@ const isEchooProgramPublication = (publication) => {
     name === 'echoo-studio-mix' ||
     (import.meta.env.DEV && name === 'echoo-dev-test-audio');
 
-  // Fallback: accept any audio track if it's the only one published by a participant,
-  // to prevent total silence if naming fails or if using standard LiveKit tools.
-  const isFallback = !isStudioMix && publication?.kind === 'audio';
-
+  // Listener playback deliberately attaches only the canonical program track.
+  // There is no listener AudioContext, resampler, speech enhancement or MP3
+  // fallback here: `track.attach()` sends the negotiated LiveKit stereo Opus
+  // directly to the browser media element. Rejecting other room audio also
+  // prevents duplicate playback when guests publish talkback tracks.
   if (publication) {
-    console.log(`[Echoo LiveKit] Track "${name}": studioMix=${isStudioMix}, fallback=${isFallback}`);
+    console.log(`[Echoo LiveKit] Track "${name}": studioMix=${isStudioMix}`);
   }
-  
-  return isStudioMix || isFallback;
+
+  return isStudioMix;
 };
 
 const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChange }) => {
@@ -41,6 +42,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
   const audioHostRef = useRef(null);
   const outputRef = useRef('');
   const attachedRef = useRef(new Set());
+  const programParticipantRef = useRef(null);
   const [retryVersion, setRetryVersion] = useState(0);
   const [status, setStatus] = useState(isLive ? 'connecting' : 'disconnected');
   const [needsAudioStart, setNeedsAudioStart] = useState(false);
@@ -50,6 +52,9 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
   const [trackCount, setTrackCount] = useState(0);
   const [liveVolume, setLiveVolume] = useState(1);
   const [liveMuted, setLiveMuted] = useState(false);
+  const [analyser, setAnalyser] = useState(null);
+  const audioCtxRef = useRef(null);
+  const [programAudioLevel, setProgramAudioLevel] = useState(0);
 
   useEffect(() => {
     outputRef.current = outputDeviceId;
@@ -58,14 +63,40 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
   useEffect(() => {
     if (!broadcastId || !isLive) return undefined;
     let disposed = false;
+    let audioLevelTimer = null;
+    let smoothedAudioLevel = 0;
 
     const clearAudio = () => {
       attachedRef.current.clear();
+      programParticipantRef.current = null;
+      smoothedAudioLevel = 0;
+      setProgramAudioLevel(0);
       setTrackCount(0);
+      setAnalyser(null);
+      if (audioCtxRef.current) {
+        try { audioCtxRef.current.close(); } catch { /* ignore */ }
+        audioCtxRef.current = null;
+      }
       audioHostRef.current?.querySelectorAll('audio').forEach((element) => {
         try { element.pause(); } catch { /* ignore */ }
         element.remove();
       });
+    };
+
+    const startProgramLevelTelemetry = () => {
+      if (audioLevelTimer) window.clearInterval(audioLevelTimer);
+      audioLevelTimer = window.setInterval(() => {
+        if (disposed) return;
+        const participant = programParticipantRef.current;
+        const raw = Math.max(0, Math.min(1, Number(participant?.audioLevel) || 0));
+        const target = raw < 0.012 ? 0 : Math.min(1, raw * 1.18);
+        const response = target > smoothedAudioLevel ? 0.48 : 0.18;
+        smoothedAudioLevel += (target - smoothedAudioLevel) * response;
+        const next = smoothedAudioLevel < 0.006 ? 0 : smoothedAudioLevel;
+        setProgramAudioLevel((current) => (
+          Math.abs(current - next) >= 0.006 ? next : current
+        ));
+      }, 82);
     };
 
     const loadOutputs = async () => {
@@ -82,7 +113,12 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       }
     };
 
-    const attachAudio = async (track, publication = null, room = roomRef.current) => {
+    const attachAudio = async (
+      track,
+      publication = null,
+      room = roomRef.current,
+      participant = null
+    ) => {
       if (
         disposed ||
         roomRef.current !== room ||
@@ -91,6 +127,8 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       ) {
         return;
       }
+
+      if (participant) programParticipantRef.current = participant;
 
       const id = String(track.sid || track.mediaStreamTrack?.id || 'audio');
       if (attachedRef.current.has(id)) return;
@@ -103,7 +141,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       element.muted = false;
       element.volume = 1;
       element.setAttribute('playsinline', '');
-      element.style.display = 'block'; // Ensure it's not display:none
+      element.style.display = 'block';
 
       if (outputRef.current && typeof element.setSinkId === 'function') {
         try { await element.setSinkId(outputRef.current); } catch { /* use system default */ }
@@ -118,6 +156,20 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
 
       audioHostRef.current?.appendChild(element);
       setTrackCount((current) => current + 1);
+
+      if (track.mediaStreamTrack && !audioCtxRef.current) {
+        try {
+          const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          audioCtxRef.current = audioCtx;
+          const createdAnalyser = audioCtx.createAnalyser();
+          createdAnalyser.fftSize = 256;
+          const source = audioCtx.createMediaStreamSource(new MediaStream([track.mediaStreamTrack]));
+          source.connect(createdAnalyser);
+          if (!disposed && roomRef.current === room) setAnalyser(createdAnalyser);
+        } catch (err) {
+          console.warn('[Echoo LiveKit] Could not create track analyser:', err);
+        }
+      }
 
       try {
         console.log(`[Echoo LiveKit] Attempting autoplay for track: ${id}`);
@@ -139,11 +191,12 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       }
     };
 
-    const subscribeToProgramPublication = async (publication, room) => {
+    const subscribeToProgramPublication = async (publication, room, participant = null) => {
       if (!publication || !isEchooProgramPublication(publication)) return;
+      if (participant) programParticipantRef.current = participant;
 
       if (publication.track?.kind === Track.Kind.Audio) {
-        await attachAudio(publication.track, publication, room);
+        await attachAudio(publication.track, publication, room, participant);
         return;
       }
 
@@ -165,7 +218,8 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       room.remoteParticipants.forEach((participant) => {
         participant.trackPublications.forEach((publication) => {
           if (isEchooProgramPublication(publication)) {
-            tasks.push(subscribeToProgramPublication(publication, room));
+            programParticipantRef.current = participant;
+            tasks.push(subscribeToProgramPublication(publication, room, participant));
           }
         });
       });
@@ -193,30 +247,36 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       const room = new Room({ adaptiveStream: false, dynacast: false });
       roomRef.current = room;
 
-      room.on(RoomEvent.TrackPublished, (publication) => {
+      room.on(RoomEvent.TrackPublished, (publication, participant) => {
         if (roomRef.current !== room || !isEchooProgramPublication(publication)) return;
-        subscribeToProgramPublication(publication, room).catch((subscriptionError) => {
+        programParticipantRef.current = participant || programParticipantRef.current;
+        subscribeToProgramPublication(publication, room, participant).catch((subscriptionError) => {
           if (!disposed && roomRef.current === room) {
             setError(subscriptionError?.message || 'Could not subscribe to live audio.');
           }
         });
       });
 
-      room.on(RoomEvent.TrackSubscribed, (track, publication) => {
+      room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
         if (roomRef.current !== room) return;
-        attachAudio(track, publication, room).catch((trackError) => {
+        attachAudio(track, publication, room, participant).catch((trackError) => {
           if (!disposed && roomRef.current === room) {
             setError(trackError?.message || 'Could not attach live audio.');
           }
         });
       });
 
-      room.on(RoomEvent.TrackUnsubscribed, (track) => {
+      room.on(RoomEvent.TrackUnsubscribed, (track, publication) => {
         if (roomRef.current !== room) return;
         const id = String(track.sid || track.mediaStreamTrack?.id || 'audio');
         if (!attachedRef.current.has(id)) return;
         attachedRef.current.delete(id);
         try { track.detach().forEach((element) => element.remove()); } catch { /* ignore */ }
+        if (isEchooProgramPublication(publication)) {
+          programParticipantRef.current = null;
+          smoothedAudioLevel = 0;
+          setProgramAudioLevel(0);
+        }
         if (!disposed) {
           setTrackCount((current) => Math.max(0, current - 1));
           setStatus('connected');
@@ -233,7 +293,11 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
         }
       });
       room.on(RoomEvent.Disconnected, () => {
-        if (!disposed && roomRef.current === room) setStatus('disconnected');
+        if (!disposed && roomRef.current === room) {
+          smoothedAudioLevel = 0;
+          setProgramAudioLevel(0);
+          setStatus('disconnected');
+        }
       });
 
       // LiveKit signals an expiring token through a Disconnect with
@@ -258,7 +322,12 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       });
       room.on(RoomEvent.MediaDevicesChanged, loadOutputs);
 
-      await room.connect(liveKitUrl, credentials.token, { autoSubscribe: true });
+      await room.connect(liveKitUrl, credentials.token, {
+        autoSubscribe: true,
+        maxRetries: 5,
+        websocketTimeout: 15000,
+        peerConnectionTimeout: 20000,
+      });
       if (disposed || roomRef.current !== room) {
         await room.disconnect();
         return;
@@ -266,6 +335,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
 
       await loadOutputs();
       await attachExisting(room);
+      startProgramLevelTelemetry();
 
       const audioElements = Array.from(
         audioHostRef.current?.querySelectorAll('audio') || []
@@ -299,6 +369,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
 
     return () => {
       disposed = true;
+      if (audioLevelTimer) window.clearInterval(audioLevelTimer);
       const room = roomRef.current;
       roomRef.current = null;
       clearAudio();
@@ -312,6 +383,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
     try {
       setError('');
       await room.startAudio();
+      audioCtxRef.current?.resume?.();
       const elements = Array.from(audioHostRef.current?.querySelectorAll('audio') || []);
       for (const element of elements) await element.play();
       setNeedsAudioStart(false);
@@ -332,6 +404,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
     if (!elements.length) return;
     const shouldPlay = elements.every((element) => element.paused);
     try {
+      if (shouldPlay) audioCtxRef.current?.resume?.();
       await Promise.all(elements.map((element) => (shouldPlay ? element.play() : element.pause())));
       setStatus(shouldPlay ? 'listening' : 'connected');
     } catch (playError) {
@@ -387,13 +460,15 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       needsAudioStart,
       volume: liveVolume,
       isMuted: liveMuted,
+      analyser,
+      audioLevel: programAudioLevel,
       onTogglePlay: togglePlayback,
       onToggleMute: toggleMute,
       onVolumeChange: changeVolume,
     });
 
     return () => {
-      onStateChange?.({ active: false, track: null, isPlaying: false, playerError: '' });
+      onStateChange?.({ active: false, track: null, isPlaying: false, playerError: '', audioLevel: 0 });
     };
   }, [
     onStateChange,
@@ -405,6 +480,8 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
     liveVolume,
     liveMuted,
     trackCount,
+    analyser,
+    programAudioLevel,
     togglePlayback,
     toggleMute,
     changeVolume,

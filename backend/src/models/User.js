@@ -25,6 +25,16 @@ const userSchema = new mongoose.Schema(
       required: [true, 'Password is required'],
       select: false,
     },
+    resetPasswordTokenHash: {
+      type: String,
+      default: null,
+      select: false,
+    },
+    resetPasswordExpiresAt: {
+      type: Date,
+      default: null,
+      select: false,
+    },
     displayName: {
       type: String,
       required: true,
@@ -223,6 +233,10 @@ const userSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Audio',
     }],
+    savedCollections: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Playlist',
+    }],
     isActive: {
       type: Boolean,
       default: true,
@@ -305,7 +319,10 @@ userSchema.methods.setUserType = async function(userType) {
   }
   
   this.userType = userType;
-  this.roles = userType === 'creator' ? ['creator'] : ['listener'];
+  // Roles describe account capabilities, not the screen currently open. Every
+  // Echoo account can listen, and Creator setup adds that capability without
+  // removing the listener experience.
+  this.roles = [...new Set(['listener', ...(this.roles || []), userType])];
   this.onboardingStep = userType === 'creator' ? 1 : 0;
   this.onboardingCompleted = userType === 'listener' ? true : false;
   return await this.save();

@@ -16,6 +16,7 @@ import {
   refreshCreatorBroadcastLease,
   releaseCreatorBroadcastLease,
 } from '../services/creatorBroadcastLease.js';
+import { stopBroadcastOutputs } from '../services/broadcastOutputService.js';
 
 const ACTIVE_STATUSES = new Set(['starting', 'live', 'ending']);
 
@@ -110,6 +111,12 @@ const releaseLeaseBestEffort = async (creatorId, broadcastId) => {
 };
 
 const stopLiveResourcesBestEffort = async ({ broadcastId, egressId, ingressId }) => {
+  // The browser normally closes its bounded PCM chunks first. This is a
+  // server-side safety net for disconnect/cancel/error paths, and is separate
+  // from LiveKit cleanup so an encoder problem cannot interrupt listeners.
+  await stopBroadcastOutputs(broadcastId).catch((error) => {
+    console.warn(`Broadcast output cleanup warning for ${broadcastId}:`, error?.message || error);
+  });
   if (ingressId) {
     try {
       await LiveKitProvider.stopIngress(ingressId);
@@ -661,6 +668,10 @@ export async function endBroadcast(req, res, next) {
     // ended broadcast stuck forever in `ending`.
     broadcast.status = wasLive ? 'completed' : 'cancelled';
     broadcast.endedAt = broadcast.endedAt || new Date();
+    // Scheduled broadcasts are intentionally open-ended. Record their actual
+    // end only when the creator ends the live session, preserving older
+    // records that already supplied a planned end time.
+    broadcast.endTime = broadcast.endTime || broadcast.endedAt;
     broadcast.listenerCount = 0;
     broadcast.livekitRoomName = null;
     broadcast.livekitEgressId = null;

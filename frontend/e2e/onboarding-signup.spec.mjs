@@ -6,8 +6,8 @@ test('new signup persists a session and can continue through profile setup', asy
   await page.getByLabel('Full name').fill('New Echoo Listener');
   await page.getByLabel('Username').fill('new-listener');
   await page.getByLabel('Email address').fill('new-listener@example.test');
-  await page.getByLabel('Password', { exact: true }).fill('password123');
-  await page.getByLabel('Confirm password').fill('password123');
+  await page.getByLabel('Password', { exact: true }).fill('Password123!');
+  await page.getByLabel('Confirm password').fill('Password123!');
   await page.getByRole('button', { name: 'Continue' }).click();
 
   await expect(page.getByRole('heading', { name: 'Set up your profile' })).toBeVisible();

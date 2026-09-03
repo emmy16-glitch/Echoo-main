@@ -2,10 +2,10 @@ export const humanSupportEmailDraft = 'mailto:?subject=Echoo%20human%20support%2
 
 export const curatedHelpSuggestions = {
   listener: [
-    'How do I find a live room?',
-    'Why will audio not play?',
-    'The player keeps loading or reconnecting',
-    'Where are my settings?',
+    'What’s live now?',
+    'Find technology stations',
+    'Show stations I follow',
+    'Help with playback',
   ],
   creator: [
     'Give me a pre-broadcast checklist',
@@ -16,10 +16,10 @@ export const curatedHelpSuggestions = {
 };
 
 const privacyBoundary =
-  'This is curated product guidance, not a generative AI service. It does not access account, room, chat, or playback data.';
+  'This is curated product guidance, not a generative AI service. It does not access account, room, chat, or playback data, cannot inspect the room’s live connection state, and cannot see device permissions.';
 
 const listenerFallback =
-  'I can guide you to Echoo listener features, including finding live rooms, playback controls, connection troubleshooting, and settings. I cannot see your account, room, or playback state.';
+  'I can guide you around Echoo listener features, including live rooms, station discovery, playback controls, following, history, connection troubleshooting, and settings. I cannot inspect private account or playback state.';
 const creatorFallback =
   'I can offer a curated broadcast checklist, station-copy templates, audio-readiness and permission tips, connection troubleshooting, and privacy-safe audience guidance. I cannot access your private room, chat, audience, or account data.';
 
@@ -37,46 +37,60 @@ const listenerHelp = (query) => {
   if (includesAny(query, ['loading', 'reconnect', 'reconnecting', 'buffer', 'spinning', 'disconnect', 'connection', 'network'])) {
     return response(
       'Connection troubleshooting',
-      'If a room keeps loading or reconnecting, check your internet connection, keep the Echoo tab open, and refresh the room once the connection is stable. If you are on a restrictive work, school, or public network, try another trusted connection. The assistant cannot inspect the room’s live connection state.'
+      'If a room keeps loading or reconnecting, check your internet connection, keep the Echoo tab open, and refresh the room once the connection is stable. If you are on a restrictive work, school, or public network, try another trusted connection.'
     );
   }
 
-  if (includesAny(query, ['live', 'room', 'station', 'find', 'discover', 'search', 'browse'])) {
+  if (includesAny(query, ['follow', 'following'])) {
+    return response(
+      'Following stations',
+      'Use the Follow control on public station cards and station profiles. Your followed stations are collected in Following so you can return to them quickly and see what they publish or broadcast next.'
+    );
+  }
+
+  if (includesAny(query, ['history', 'recent', 'continue', 'resume', 'left off'])) {
+    return response(
+      'Listening history',
+      'Open History to return to recently played audio. When Echoo has saved progress for a replay, Continue listening can take you back to that item without treating an unrelated station as your current playback.'
+    );
+  }
+
+  if (includesAny(query, ['live', 'room', 'station', 'find', 'discover', 'search', 'browse', 'technology', 'business', 'music', 'sports'])) {
     return response(
       'Finding audio',
-      'Use Live to browse current broadcasts, Stations to explore creator pages, and Search to look for public audio and creators. The assistant cannot confirm whether a specific room is live or available to you.'
+      'Use Live now to browse current broadcasts, Stations to explore public creator pages, and Search when you already know a topic, station, or creator you want to find.'
     );
   }
 
   if (includesAny(query, ['play', 'pause', 'mute', 'unmute', 'audio', 'sound', 'volume', 'autoplay', 'hear', 'speaker', 'output', 'permission'])) {
     return response(
       'Playback',
-      'Use the persistent player at the bottom of the listener workspace for play, pause, seeking, mute, and volume. If a browser will not start audio, interact with the page once, check your device output and browser site permissions, then try play again.'
+      'Use the persistent player at the bottom of the listener workspace for play, pause, seeking, mute, and volume. If a browser will not start audio, interact with the page once, check your device output and browser site permissions, then try Play again.'
     );
   }
 
   if (includesAny(query, ['setting', 'profile', 'account', 'notification', 'preferences'])) {
     return response(
       'Settings',
-      'Open Settings from the listener sidebar or account menu to review your profile and listener preferences. For notifications, use the dedicated Notifications area. This assistant cannot view or change your settings.'
+      'Open Settings from the listener sidebar or account menu to review your profile and listener preferences. For notifications, use the dedicated Notifications area.'
     );
   }
 
-  return response('Listener support', listenerFallback);
+  return response('Echoo Copilot', listenerFallback);
 };
 
 const creatorHelp = (query) => {
   if (includesAny(query, ['permission', 'allow microphone', 'deny microphone', 'blocked microphone', 'browser permission'])) {
     return response(
       'Microphone permissions',
-      'Use your browser’s site-permission controls to allow Echoo to use the selected microphone, then return to the studio and choose the intended input. If the wrong device is selected, reconnect it and repeat a short private sound check before inviting listeners. The copilot cannot see device permissions or change them for you.'
+      'Use your browser’s site-permission controls to allow Echoo to use the selected microphone, then return to the studio and choose the intended input. If the wrong device is selected, reconnect it and repeat a short private sound check before inviting listeners.'
     );
   }
 
   if (includesAny(query, ['connection', 'reconnect', 'reconnecting', 'disconnect', 'loading', 'cannot go live', 'cant go live', 'room error'])) {
     return response(
       'Studio connection',
-      'If the studio cannot stay connected, check your network, keep the studio tab open, and refresh only when it is safe to restart your setup. Reconfirm microphone and monitoring after reconnecting. The copilot cannot verify whether a room is currently live or change broadcast state.'
+      'If the studio cannot stay connected, check your network, keep the studio tab open, and refresh only when it is safe to restart your setup. Reconfirm microphone and monitoring after reconnecting.'
     );
   }
 
@@ -120,8 +134,8 @@ export const resolveCuratedHelpResponse = (input, mode) => (
 );
 
 export const getCuratedHelpWelcome = (mode) => response(
-  mode === 'creator' ? 'Creator copilot' : 'Listener support',
+  'Echoo Copilot',
   mode === 'creator'
     ? 'Ask for a broadcast checklist, station-copy template, microphone-permission, connection, or audio-readiness reminder.'
-    : 'Ask how to find live audio, use playback controls, troubleshoot a connection, or reach settings.'
+    : 'Ask how to find live audio, discover stations, use playback controls, follow creators, return to listening history, troubleshoot a connection, or reach settings.'
 );

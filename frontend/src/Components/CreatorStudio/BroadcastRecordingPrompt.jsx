@@ -1,15 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   FaCheckCircle,
   FaCloudUploadAlt,
-  FaGlobe,
-  FaLock,
+  FaExclamationTriangle,
   FaSave,
-  FaTrash,
+  FaSyncAlt,
 } from 'react-icons/fa';
 
 import studioService from '../../services/studioService.js';
-import { apiRequest } from '../../services/api.js';
 import {
   BROADCAST_RECORDING_READY_EVENT,
   clearPendingBroadcastRecording,
@@ -18,19 +16,20 @@ import {
 import './BroadcastRecordingPrompt.css';
 
 const PENDING_RECORDING_DECISION_KEY = '__echooPendingBroadcastRecording';
+const SAVED_AUTO_DISMISS_MS = 5000;
 
-const readRecoveredPendingDecision = () => {
+const readRecoveredPendingRecording = () => {
   if (typeof window === 'undefined') return null;
   const detail = window[PENDING_RECORDING_DECISION_KEY] || null;
   return detail?.recording?.blob?.size ? detail : null;
 };
 
-const rememberPendingDecision = (detail) => {
+const rememberPendingRecording = (detail) => {
   if (typeof window === 'undefined' || !detail?.recording?.blob?.size) return;
   window[PENDING_RECORDING_DECISION_KEY] = detail;
 };
 
-const forgetPendingDecision = () => {
+const forgetPendingRecording = () => {
   if (typeof window === 'undefined') return;
   try {
     delete window[PENDING_RECORDING_DECISION_KEY];
@@ -98,44 +97,215 @@ const safeFilename = (title, recording) => {
 };
 
 const BroadcastRecordingPrompt = () => {
-  const [pending, setPending] = useState(readRecoveredPendingDecision);
-  const [savingMode, setSavingMode] = useState('');
+  const [pending, setPending] = useState(readRecoveredPendingRecording);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [savedMode, setSavedMode] = useState('');
+  const [saved, setSaved] = useState(false);
+  const [savedRecordingId, setSavedRecordingId] = useState('');
+  const [retryToken, setRetryToken] = useState(0);
+  const saveAttemptRef = useRef('');
+  const savedRef = useRef(false);
+  const autoDismissTimerRef = useRef(null);
+  const autoDismissStartedAtRef = useRef(0);
+  const autoDismissRemainingRef = useRef(SAVED_AUTO_DISMISS_MS);
+  const closeButtonRef = useRef(null);
+  const dialogRef = useRef(null);
+  const restoreFocusRef = useRef(null);
 
   useEffect(() => {
-    const applyPendingDecision = (detail) => {
+    savedRef.current = saved;
+  }, [saved]);
+
+  const dismissSavedRecording = useCallback(() => {
+    if (!savedRef.current) return;
+    window.clearTimeout(autoDismissTimerRef.current);
+    setPending(null);
+    setSaved(false);
+    setSavedRecordingId('');
+    saveAttemptRef.current = '';
+  }, []);
+
+  const scheduleAutoDismiss = useCallback(() => {
+    window.clearTimeout(autoDismissTimerRef.current);
+    autoDismissStartedAtRef.current = Date.now();
+    autoDismissTimerRef.current = window.setTimeout(
+      dismissSavedRecording,
+      autoDismissRemainingRef.current
+    );
+  }, [dismissSavedRecording]);
+
+  useEffect(() => {
+    const applyPendingRecording = (detail) => {
       if (!detail?.recording?.blob?.size) return;
-      rememberPendingDecision(detail);
+      rememberPendingRecording(detail);
       setPending(detail);
       setError('');
-      setSavedMode('');
-      setSavingMode('');
+      setSaved(false);
+      setSavedRecordingId('');
+      setRetryToken(0);
+      saveAttemptRef.current = '';
     };
 
     const onRecordingReady = (event) => {
-      applyPendingDecision(event?.detail || null);
+      applyPendingRecording(event?.detail || null);
     };
 
-    const recoverPendingDecision = () => {
-      const recovered = readRecoveredPendingDecision();
-      if (recovered) applyPendingDecision(recovered);
+    const recoverPendingRecording = () => {
+      const recovered = readRecoveredPendingRecording();
+      if (recovered) applyPendingRecording(recovered);
     };
 
-    recoverPendingDecision();
-
+    recoverPendingRecording();
     window.addEventListener(BROADCAST_RECORDING_READY_EVENT, onRecordingReady);
-    window.addEventListener('focus', recoverPendingDecision);
-    window.addEventListener('pageshow', recoverPendingDecision);
+    window.addEventListener('pageshow', recoverPendingRecording);
+
     return () => {
       window.removeEventListener(BROADCAST_RECORDING_READY_EVENT, onRecordingReady);
-      window.removeEventListener('focus', recoverPendingDecision);
-      window.removeEventListener('pageshow', recoverPendingDecision);
+      window.removeEventListener('pageshow', recoverPendingRecording);
     };
   }, []);
 
   useEffect(() => {
+    if (!pending?.recording?.blob?.size || saved) return undefined;
+
+    const { recording, broadcast } = pending;
+    const saveKey = String(recording.broadcastId || broadcast?.id || 'recording');
+    const attemptKey = `${saveKey}:${retryToken}`;
+    if (saveAttemptRef.current === attemptKey) return undefined;
+    saveAttemptRef.current = attemptKey;
+
+    let active = true;
+    const markSaved = (id = '') => {
+      if (!active) return;
+      forgetPendingRecording();
+      clearPendingBroadcastRecording(recording.broadcastId);
+      window.dispatchEvent(new CustomEvent('echoo:creator-audio-changed'));
+      window.dispatchEvent(new CustomEvent('echoo:creator-state-changed'));
+      if (id) setSavedRecordingId(id);
+      setSaved(true);
+      setSaving(false);
+    };
+
+    const saveAutomatically = async () => {
+      const title = broadcast?.title || 'Live broadcast recording';
+      const description = broadcast?.description || '';
+
+      try {
+        setSaving(true);
+        setError('');
+
+        if (recording.qualityCompletionPending) {
+          await retryBroadcastQualityCompletion(recording);
+          rememberPendingRecording({ ...pending, recording });
+        }
+
+        const file = new File(
+          [recording.blob],
+          safeFilename(title, recording),
+          { type: recording.mimeType || recording.blob.type || 'audio/wav' }
+        );
+
+        const uploadResponse = await studioService.uploadAudio({
+          file,
+          title,
+          description:
+            description ||
+            `Recorded live on Echoo. Broadcast recording from ${new Date(recording.startedAt).toLocaleString()}.`,
+          genre: 'Other',
+          tags: [
+            'live-recording',
+            'broadcast',
+            recording.lossless ? 'lossless-master' : 'recording-fallback',
+          ],
+          // Completed broadcasts are saved automatically. Visibility is managed
+          // later from Recordings rather than interrupting End Broadcast with a
+          // publish/private decision.
+          isPublic: false,
+          broadcastId: recording.broadcastId,
+        });
+
+        markSaved(String(uploadResponse?.data?.id || uploadResponse?.data?._id || ''));
+      } catch (saveError) {
+        if (!active) return;
+
+        // A lost response after a successful upload can make a retry hit the
+        // sourceBroadcast uniqueness guard. In that case the Recording already
+        // exists, so treat the lifecycle as successfully finalized instead of
+        // creating a confusing duplicate/error loop.
+        if (saveError?.code === 'REPLAY_ALREADY_EXISTS') {
+          markSaved();
+          return;
+        }
+
+        setSaving(false);
+        setError(
+          recording.qualityCompletionPending
+            ? saveError?.message || 'Echoo is still confirming the final recording data. Your local master is protected; retry saving.'
+            : saveError?.message || 'Echoo could not save this recording yet. Your local master is protected; retry saving.'
+        );
+      }
+    };
+
+    saveAutomatically();
+
+    return () => {
+      active = false;
+    };
+  }, [pending, retryToken, saved]);
+
+  useEffect(() => {
+    if (!saved) return undefined;
+
+    autoDismissRemainingRef.current = SAVED_AUTO_DISMISS_MS;
+    scheduleAutoDismiss();
+    closeButtonRef.current?.focus();
+
+    return () => window.clearTimeout(autoDismissTimerRef.current);
+  }, [saved, scheduleAutoDismiss]);
+
+  useEffect(() => {
     if (!pending) return undefined;
+    restoreFocusRef.current = document.activeElement;
+    dialogRef.current?.focus();
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape' && savedRef.current) {
+        event.preventDefault();
+        dismissSavedRecording();
+        return;
+      }
+
+      if (event.key !== 'Tab') return;
+      const focusable = Array.from(
+        dialogRef.current?.querySelectorAll(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        ) || []
+      );
+      if (!focusable.length) {
+        event.preventDefault();
+        dialogRef.current?.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      if (restoreFocusRef.current?.isConnected) restoreFocusRef.current.focus();
+    };
+  }, [dismissSavedRecording, pending]);
+
+  useEffect(() => {
+    if (!pending || saved) return undefined;
 
     const protectPendingRecording = (event) => {
       event.preventDefault();
@@ -144,130 +314,61 @@ const BroadcastRecordingPrompt = () => {
 
     window.addEventListener('beforeunload', protectPendingRecording);
     return () => window.removeEventListener('beforeunload', protectPendingRecording);
-  }, [pending]);
-
-  const previewUrl = useMemo(() => {
-    if (!pending?.recording?.blob) return '';
-    return URL.createObjectURL(pending.recording.blob);
-  }, [pending]);
-
-  useEffect(() => () => {
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-  }, [previewUrl]);
+  }, [pending, saved]);
 
   if (!pending) return null;
 
   const { recording, broadcast } = pending;
   const title = broadcast?.title || 'Live broadcast recording';
-  const description = broadcast?.description || '';
-
-  const closeAfterSave = (mode) => {
-    setSavedMode(mode);
-    forgetPendingDecision();
-    clearPendingBroadcastRecording(recording.broadcastId);
-    window.dispatchEvent(new CustomEvent('echoo:creator-audio-changed'));
-    window.setTimeout(() => {
-      setPending(null);
-      setSavedMode('');
-    }, 1200);
-  };
-
-  const ensureQualityFinalized = async () => {
-    if (!recording.qualityCompletionPending) return;
-    await retryBroadcastQualityCompletion(recording);
-    // Persist the cleared pending flag in the in-memory recovery detail too.
-    rememberPendingDecision({ ...pending, recording });
-  };
-
-  const saveRecording = async (isPublic) => {
-    if (savingMode || savedMode) return;
-
-    const mode = isPublic ? 'publish' : 'private';
-    setSavingMode(mode);
-    setError('');
-
-    try {
-      await ensureQualityFinalized();
-
-      const file = new File(
-        [recording.blob],
-        safeFilename(title, recording),
-        { type: recording.mimeType || recording.blob.type || 'audio/wav' }
-      );
-
-      await studioService.uploadAudio({
-        file,
-        title,
-        description:
-          description ||
-          `Recorded live on Echoo. Broadcast recording from ${new Date(recording.startedAt).toLocaleString()}.`,
-        genre: 'Other',
-        tags: [
-          'live-recording',
-          'broadcast',
-          recording.lossless ? 'lossless-master' : 'recording-fallback',
-        ],
-        isPublic,
-        broadcastId: recording.broadcastId,
-      });
-
-      closeAfterSave(mode);
-    } catch (saveError) {
-      setError(
-        recording.qualityCompletionPending
-          ? saveError?.message || 'Echoo is still confirming the transcript quality upload. The local master is protected; try again.'
-          : saveError?.message || 'Echoo could not save this local recording.'
-      );
-    } finally {
-      setSavingMode('');
-    }
-  };
-
-  const discard = async () => {
-    if (savingMode || savedMode) return;
-    setSavingMode('discard');
-    setError('');
-    try {
-      await ensureQualityFinalized();
-      await apiRequest(
-        `/broadcasts/${encodeURIComponent(recording.broadcastId)}/discard-replay`,
-        { method: 'POST' }
-      );
-      forgetPendingDecision();
-      clearPendingBroadcastRecording(recording.broadcastId);
-      setPending(null);
-    } catch (discardError) {
-      setError(
-        recording.qualityCompletionPending
-          ? discardError?.message || 'Echoo is still confirming the transcript quality upload. The local recording is protected; try again.'
-          : discardError?.message || 'Echoo could not confirm the discard. The local recording is still protected; try again.'
-      );
-    } finally {
-      setSavingMode('');
-    }
-  };
-
   const savedLabel = recording.lossless
-    ? 'Lossless master recording'
+    ? 'Lossless Master Capture'
     : 'High-quality fallback recording';
+
+  const viewRecording = () => {
+    if (!savedRecordingId) return;
+    const path = `/creator-studio/recordings/${encodeURIComponent(savedRecordingId)}`;
+    dismissSavedRecording();
+    window.history.pushState({}, '', path);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  };
 
   return (
     <div className="echoo-recording-decision-overlay" role="presentation">
       <section
+        ref={dialogRef}
         className="echoo-recording-decision"
         role="dialog"
         aria-modal="true"
         aria-labelledby="echoo-recording-decision-title"
+        aria-describedby="echoo-recording-decision-description"
+        tabIndex={-1}
       >
+        {saved && (
+          <button
+            ref={closeButtonRef}
+            type="button"
+            className="echoo-recording-decision-close"
+            aria-label="Close"
+            onClick={dismissSavedRecording}
+          >
+            ×
+          </button>
+        )}
         <header>
-          <div className="echoo-recording-decision-icon"><FaSave /></div>
+          <div className={`echoo-recording-decision-icon ${saved ? 'is-saved' : error ? 'is-error' : 'is-saving'}`}>
+            {saved ? <FaCheckCircle /> : error ? <FaExclamationTriangle /> : saving ? <FaSyncAlt /> : <FaSave />}
+          </div>
           <div>
             <span>LIVE SESSION ENDED</span>
-            <h2 id="echoo-recording-decision-title">Keep this broadcast recording?</h2>
-            <p>
-              {recording.lossless
-                ? 'Echoo captured the actual post-master studio mix as a lossless PCM WAV master without holding the full raw session in page memory.'
-                : 'Disk-backed lossless capture was unavailable, so Echoo used the high-quality Opus fallback for this session.'}
+            <h2 id="echoo-recording-decision-title">
+              {saved ? 'Recording saved!' : error ? 'Recording needs attention' : 'Saving your recording…'}
+            </h2>
+            <p id="echoo-recording-decision-description">
+              {saved
+                ? 'Your completed broadcast is now available in Recordings.'
+                : error
+                  ? 'Echoo kept the local master safe. Retry the automatic save when you are ready.'
+                  : 'Echoo automatically saves every completed broadcast. There is no publish or discard step here.'}
             </p>
           </div>
         </header>
@@ -287,74 +388,53 @@ const BroadcastRecordingPrompt = () => {
 
         {recording.limitReached && (
           <div className="echoo-recording-error">
-            This master reached the classic WAV file-size limit. Save this segment before recording another session.
+            This master reached the classic WAV file-size limit. Echoo is saving the captured segment as the Recording for this broadcast.
           </div>
         )}
-
-        {recording.qualityCompletionPending && (
-          <div className="echoo-recording-error">
-            Echoo is still confirming the final transcript-quality upload. Saving or discarding will retry that confirmation first.
-          </div>
-        )}
-
-        {previewUrl && (
-          <div className="echoo-recording-preview">
-            <span>Check the master before you decide</span>
-            <audio src={previewUrl} controls preload="metadata" />
-          </div>
-        )}
-
-        <div className="echoo-recording-options">
-          <button
-            type="button"
-            className="private"
-            onClick={() => saveRecording(false)}
-            disabled={Boolean(savingMode || savedMode)}
-          >
-            <FaLock />
-            <span>
-              <strong>{savingMode === 'private' ? 'Saving...' : 'Save unpublished'}</strong>
-              <small>Keep the recording in Creator Audio. Listeners cannot see it.</small>
-            </span>
-          </button>
-
-          <button
-            type="button"
-            className="publish"
-            onClick={() => saveRecording(true)}
-            disabled={Boolean(savingMode || savedMode)}
-          >
-            <FaGlobe />
-            <span>
-              <strong>{savingMode === 'publish' ? 'Publishing...' : 'Save & publish'}</strong>
-              <small>Save the recording and make this audio available to listeners.</small>
-            </span>
-          </button>
-        </div>
 
         {error && <div className="echoo-recording-error">{error}</div>}
 
-        {savedMode && (
-          <div className="echoo-recording-saved">
-            <FaCheckCircle />
-            {savedMode === 'publish'
-              ? `${savedLabel} saved and published to listeners.`
-              : `${savedLabel} saved privately in Creator Audio.`}
+        {saved && (
+          <>
+            <div className="echoo-recording-saved">
+              <FaCheckCircle /> {savedLabel} saved automatically in Recordings.
+            </div>
+            {savedRecordingId && (
+              <div className="echoo-recording-saved-actions">
+                <button type="button" onClick={viewRecording}>View recording</button>
+              </div>
+            )}
+          </>
+        )}
+
+        {!saved && (
+          <div className="echoo-recording-options">
+            <button
+              type="button"
+              className="private"
+              onClick={() => setRetryToken((value) => value + 1)}
+              disabled={saving || !error}
+            >
+              <FaSyncAlt />
+              <span>
+                <strong>{saving ? 'Saving…' : error ? 'Retry saving' : 'Saving automatically…'}</strong>
+                <small>Your Recording stays private until you choose to publish it later from Recordings.</small>
+              </span>
+            </button>
           </div>
         )}
 
         <footer>
-          <button
-            type="button"
-            className="discard"
-            onClick={discard}
-            disabled={Boolean(savingMode || savedMode)}
-          >
-            <FaTrash /> {savingMode === 'discard' ? 'Discarding…' : 'Discard recording'}
-          </button>
-          <span>
-            <FaCloudUploadAlt /> Local testing: completed recordings are uploaded to this Echoo backend, not cloud storage.
-          </span>
+          {saved ? (
+            <div className="echoo-recording-auto-close">
+              <span>Auto closing in 5 sec…</span>
+              <i aria-hidden="true"><b /></i>
+            </div>
+          ) : (
+            <span>
+              <FaCloudUploadAlt /> Completed broadcasts are saved automatically to this Echoo backend during local testing.
+            </span>
+          )}
         </footer>
       </section>
     </div>

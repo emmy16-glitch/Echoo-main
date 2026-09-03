@@ -79,6 +79,14 @@ function roomNameFor(broadcastId) {
   return `echoo-broadcast-${broadcastId}`;
 }
 
+const LIVEKIT_ROOM_SETUP_ATTEMPTS = 2;
+
+const isRetryableRoomSetupError = (error) =>
+  /timeout|timed out|operation was aborted|aborterror|fetch failed|network error|econnreset|eai_again/i
+    .test(String(error?.message || error || ''));
+
+const waitForRoomSetupRetry = () => new Promise((resolve) => setTimeout(resolve, 250));
+
 function getConfig() {
   const configuredUrl = requireEnv('LIVEKIT_URL');
   const apiKey = requireEnv('LIVEKIT_API_KEY');
@@ -185,27 +193,35 @@ const LiveKitProvider = {
   async createRoom(broadcastId) {
     const name = roomNameFor(broadcastId);
 
-    try {
-      const client = roomClientOverride();
-      const existing = await client.listRooms([name]);
+    for (let attempt = 1; attempt <= LIVEKIT_ROOM_SETUP_ATTEMPTS; attempt += 1) {
+      try {
+        const client = roomClientOverride();
+        const existing = await client.listRooms([name]);
 
-      if (Array.isArray(existing) && existing.length > 0) {
-        return existing[0];
+        if (Array.isArray(existing) && existing.length > 0) {
+          return existing[0];
+        }
+
+        return await client.createRoom({
+          name,
+          emptyTimeout: 10 * 60,
+          maxParticipants: 5000,
+          metadata: JSON.stringify({
+            application: 'echoo',
+            broadcastId: String(broadcastId),
+            mediaType: 'audio',
+          }),
+        });
+      } catch (error) {
+        if (attempt < LIVEKIT_ROOM_SETUP_ATTEMPTS && isRetryableRoomSetupError(error)) {
+          await waitForRoomSetupRetry();
+          continue;
+        }
+        throw serviceError('room setup', error);
       }
-
-      return await client.createRoom({
-        name,
-        emptyTimeout: 10 * 60,
-        maxParticipants: 5000,
-        metadata: JSON.stringify({
-          application: 'echoo',
-          broadcastId: String(broadcastId),
-          mediaType: 'audio',
-        }),
-      });
-    } catch (error) {
-      throw serviceError('room setup', error);
     }
+
+    throw serviceError('room setup', new Error('Room setup attempts were exhausted'));
   },
 
   async getParticipants(broadcastId) {

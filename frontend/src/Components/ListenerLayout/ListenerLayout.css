@@ -168,6 +168,7 @@
   .echoo-listener-v2-shell .echoo-app-topbar { padding-inline: 20px; }
   .echoo-listener-v2-shell .studio-account-button { min-width: 48px; grid-template-columns: 38px; }
   .echoo-listener-v2-shell .studio-account-button > div:nth-child(2),
+  .echoo-listener-v2-shell .studio-account-button .account-experience-trigger-copy,
   .echoo-listener-v2-shell .studio-account-button > svg { display: none; }
   .echoo-listener-v2-shell > .echoo-persistent-player { grid-template-columns: minmax(180px,1fr) minmax(260px,1fr); }
   .echoo-listener-v2-shell .layout-player-volume { display: none; }
@@ -198,6 +199,7 @@
   .echoo-listener-v2-shell .echoo-app-header__actions { position: relative; z-index: 2; grid-column: 2; grid-row: 1; align-self: center; justify-self: end; }
   .echoo-listener-v2-shell .studio-account-button { min-width: 42px; width: 42px; height: 42px; grid-template-columns: 36px; padding: 3px; }
   .echoo-listener-v2-shell .studio-account-button > div:nth-child(2),
+  .echoo-listener-v2-shell .studio-account-button .account-experience-trigger-copy,
   .echoo-listener-v2-shell .studio-account-button > svg { display: none; }
   .echoo-listener-v2-shell .top-avatar { width: 36px; height: 36px; }
   .echoo-listener-v2-shell .beautiful-search-panel { top: calc(100% + 5px); }

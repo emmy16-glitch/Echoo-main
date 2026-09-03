@@ -1,0 +1,60 @@
+/* Listener 2.0 — final browser-QA correction.
+   Loaded after pass 3. Scope is intentionally limited to the selected
+   Live Now and live-room surfaces so other Listener routes keep their
+   existing behavior until they are explicitly migrated. */
+
+@media (min-width: 761px) {
+  html body #root .echoo-listener-v2-shell:has(.echoo-listener-target-home) .layout-content.echoo-listener-scroll,
+  html body #root .echoo-listener-v2-shell:has(.listener-room-page) .layout-content.echoo-listener-scroll {
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+    color: #f6f9ff !important;
+  }
+
+  html body #root .echoo-listener-v2-shell:has(.echoo-listener-target-home) .layout-content.echoo-listener-scroll::before,
+  html body #root .echoo-listener-v2-shell:has(.echoo-listener-target-home) .layout-content.echoo-listener-scroll::after,
+  html body #root .echoo-listener-v2-shell:has(.listener-room-page) .layout-content.echoo-listener-scroll::before,
+  html body #root .echoo-listener-v2-shell:has(.listener-room-page) .layout-content.echoo-listener-scroll::after {
+    display: none !important;
+    content: none !important;
+  }
+
+  html body #root .echoo-listener-v2-shell:has(.echoo-listener-target-home) .echoo-app-view,
+  html body #root .echoo-listener-v2-shell:has(.listener-room-page) .echoo-app-view {
+    background: transparent !important;
+    background-color: transparent !important;
+  }
+
+  /* Keep the compact creator identity/action row readable as part of the
+     immersive room instead of letting it float on an inherited light card. */
+  html body #root .echoo-listener-v2-shell .listener-room-page .lex-room-header {
+    min-height: 50px !important;
+    margin: 0 0 10px !important;
+    padding: 7px 9px !important;
+    border: 1px solid rgba(133, 160, 201, .10) !important;
+    border-radius: 9px !important;
+    background: rgba(7, 16, 28, .88) !important;
+    box-shadow: none !important;
+  }
+
+  html body #root .echoo-listener-v2-shell .listener-room-page .lex-room-header__copy {
+    min-height: 34px !important;
+  }
+}
+
+@media (max-width: 760px) {
+  html body #root .echoo-listener-v2-shell:has(.echoo-listener-target-home) .layout-content.echoo-listener-scroll,
+  html body #root .echoo-listener-v2-shell:has(.listener-room-page) .layout-content.echoo-listener-scroll {
+    background: #040a15 !important;
+    background-color: #040a15 !important;
+    color: #f6f9ff !important;
+  }
+}

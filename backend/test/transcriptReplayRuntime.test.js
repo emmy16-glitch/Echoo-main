@@ -38,14 +38,14 @@ test('transcript routes require authentication and expose live plus replay reads
   assert.match(routes, /\/search/);
 });
 
-test('Whisper Flow is a parallel post-master branch and never a listener relay', async () => {
+test('realtime publishing is independent from dormant transcription and never relays it to listeners', async () => {
   const publisher = await read('frontend/src/services/livekitPublisher.js');
   const whisperFlow = await read('frontend/src/services/whisperFlowService.js');
   const gateway = await read('backend/src/services/transcriptionGateway.js');
   const listener = await read('frontend/src/Components/ListenerLiveExperience/LiveKitListenerPlayer.jsx');
 
   assert.match(publisher, /publishTrack\(mediaTrack/);
-  assert.match(publisher, /startWhisperFlowTranscription/);
+  assert.doesNotMatch(publisher, /startWhisperFlowTranscription/);
   assert.match(whisperFlow, /TARGET_SAMPLE_RATE = 16000/);
   assert.doesNotMatch(whisperFlow, /VITE_WHISPER_FLOW_URL|new WebSocket/);
   assert.match(whisperFlow, /transcription:pcm/);

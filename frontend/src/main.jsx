@@ -56,7 +56,6 @@ import "./styles/playwright-run6-root-layout-hardening.css";
 import "./styles/playwright-run7-final-gate-fixes.css";
 import "./styles/echoo-artwork-fit.css";
 import "./Components/Register/auth-reference.css";
-
 initializeEchooTheme();
 
 // Older builds used this as a persistent transcript-processing selector. It is

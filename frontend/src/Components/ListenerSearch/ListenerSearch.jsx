@@ -16,6 +16,8 @@ import batch1Service from '../../services/batch1Service';
 import { getCreatorProfilePath } from '../../services/profileIdentifier';
 import './ListenerSearch.css';
 
+const DISCOVERY_PROMPTS = ['Faith', 'Talk', 'Music', 'Education', 'News', 'Sports'];
+
 const creatorName = (creator) =>
   creator?.displayName ||
   creator?.artistName ||
@@ -179,9 +181,9 @@ const ListenerSearch = () => {
   return (
     <div className="listener-search-page batch1-search-page">
       <header className="listener-search-header">
-        <span className="batch1-kicker">ECHOO / SEARCH</span>
-        <h1>Search Echoo</h1>
-        <p>Find real published audio, creators, stations and public playlists.</p>
+        <span className="batch1-kicker">DISCOVER</span>
+        <h1>Search</h1>
+        <p>Find live events, stations, creators and recorded audio.</p>
       </header>
 
       <div className="listener-search-box">
@@ -190,7 +192,7 @@ const ListenerSearch = () => {
           type="text"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search voices, stations, audio, playlists..."
+          placeholder="Search Echoo..."
           aria-label="Search Echoo"
           autoFocus
         />
@@ -388,8 +390,13 @@ const ListenerSearch = () => {
       {query.trim().length < 2 && (
         <div className="batch1-search-guidance">
           <FaHeadphones />
-          <strong>Search for something worth hearing.</strong>
-          <span>Type at least two characters to search Echoo.</span>
+          <strong>What do you want to hear?</strong>
+          <span>Search by creator, station, topic or audio title.</span>
+          <div className="listener-search-prompts" aria-label="Suggested searches">
+            {DISCOVERY_PROMPTS.map((prompt) => (
+              <button type="button" key={prompt} onClick={() => setQuery(prompt)}>{prompt}</button>
+            ))}
+          </div>
         </div>
       )}
     </div>

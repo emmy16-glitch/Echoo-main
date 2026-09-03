@@ -5,9 +5,19 @@ const localRuntime =
   typeof window !== 'undefined' &&
   ['localhost', '127.0.0.1'].includes(window.location.hostname);
 
+// A LAN browser must never fall back to its own localhost for the API. The
+// explicit VITE_API_URL remains authoritative; this only keeps an unset local
+// development environment working from the same host that served Vite.
+const developmentApiBase = () => {
+  if (typeof window === 'undefined') return '';
+  const hostname = window.location.hostname;
+  const host = hostname.includes(':') ? `[${hostname}]` : hostname;
+  return `http://${host}:5001/api`;
+};
+
 export const API_BASE_URL =
   configuredApiBase ||
-  (import.meta.env.DEV || localRuntime ? 'http://localhost:5001/api' : '');
+  (import.meta.env.DEV || localRuntime ? developmentApiBase() : '');
 
 export const API_ORIGIN =
   API_BASE_URL.replace(/\/api\/?$/, '');
@@ -95,24 +105,40 @@ const parseResponse = async (
   }
 };
 
+const USER_SAFE_ERROR_CODES = new Set([
+  'VALIDATION_ERROR',
+  'INVALID_CREDENTIALS',
+  'AUTH_INVALID',
+  'LOGIN_FAILED',
+  'EMAIL_EXISTS',
+  'USERNAME_TAKEN',
+  'USER_NOT_REGISTERED',
+  'INVALID_RESET_TOKEN',
+  'BROADCAST_NOT_LIVE',
+  'BROADCAST_PRIVATE',
+  'LIVEKIT_ROOM_UNAVAILABLE',
+  'SESSION_EXPIRED',
+  'REFRESH_TOKEN_REQUIRED',
+  'INVALID_REFRESH_TOKEN',
+]);
+
 const createError = (
   response,
   data
 ) => {
-  const error = new Error(
-    data?.error?.message ||
-      data?.message ||
-      `Request failed with status ${response.status}`
-  );
+  const status = response.status;
+  const code = data?.error?.code || null;
+  const isServerFailure = status >= 500;
+  const message = isServerFailure
+    ? 'The Echoo service is temporarily unavailable. Please try again in a moment.'
+    : USER_SAFE_ERROR_CODES.has(code)
+      ? data?.error?.message || data?.message || 'We could not complete that request.'
+      : 'We could not complete that request. Please check your details and try again.';
 
-  error.code =
-    data?.error?.code || null;
-
-  error.status =
-    response.status;
-
+  const error = new Error(message);
+  error.code = code;
+  error.status = status;
   error.data = data;
-
   return error;
 };
 
@@ -305,7 +331,11 @@ export const buildMediaUrl = (
     return fileUrl;
   }
 
-  const origin = API_ORIGIN || (localRuntime ? 'http://localhost:5001' : '');
+  const origin =
+    API_ORIGIN ||
+    (import.meta.env.DEV || localRuntime
+      ? developmentApiBase().replace(/\/api\/?$/, '')
+      : '');
   if (!origin) return fileUrl;
 
   return `${origin}${
@@ -430,6 +460,19 @@ export const api = {
             body: JSON.stringify({
               email,
             }),
+            skipAuth: true,
+            skipRefresh: true,
+          }
+        );
+      },
+
+    resetPassword:
+      async ({ token, password }) => {
+        return apiRequest(
+          '/auth/reset-password',
+          {
+            method: 'POST',
+            body: JSON.stringify({ token, password }),
             skipAuth: true,
             skipRefresh: true,
           }

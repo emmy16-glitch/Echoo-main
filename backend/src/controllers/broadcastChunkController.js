@@ -3,6 +3,11 @@ import path from 'node:path';
 import Broadcast from '../models/Broadcast.js';
 import BroadcastAudioChunk from '../models/BroadcastAudioChunk.js';
 import BroadcastProcessingJob from '../models/BroadcastProcessingJob.js';
+import {
+  appendBroadcastOutputPcm,
+  startBroadcastOutputs,
+  stopBroadcastOutputs,
+} from '../services/broadcastOutputService.js';
 
 const CHUNK_DIR = path.join(process.cwd(), 'uploads', 'transcript-chunks');
 const MAX_CHUNK_DURATION_MS = 60_000;
@@ -74,7 +79,14 @@ export async function startBroadcastAudioChunks(req, res, next) {
         }
       );
     }
-    return res.status(200).json({ data: { broadcastId: String(broadcast._id), started: true }, timestamp: new Date().toISOString() });
+    // This starts only optional, server-side branches. A missing FFmpeg/Icecast
+    // setup is represented in output metadata and never rejects the WebRTC live
+    // path or the authenticated quality-chunk transport.
+    const outputs = await startBroadcastOutputs(String(broadcast._id)).catch((error) => ({
+      radioOutput: { status: 'failed', error: String(error?.message || error) },
+      masterRecording: { status: 'failed', error: String(error?.message || error) },
+    }));
+    return res.status(200).json({ data: { broadcastId: String(broadcast._id), started: true, outputs }, timestamp: new Date().toISOString() });
   } catch (error) {
     next(error);
   }
@@ -112,6 +124,11 @@ export async function completeBroadcastAudioChunks(req, res, next) {
         },
       }
     );
+    await stopBroadcastOutputs(String(broadcast._id), {
+      incomplete: qualityChunkUploadErrors > 0,
+    }).catch((error) => {
+      console.warn('[Echoo Outputs] stop warning:', error?.message || error);
+    });
     return res.status(200).json({
       data: { broadcastId: String(broadcast._id), qualityChunkCount: Math.max(chunkCount, qualityChunkCount), qualityChunkUploadErrors },
       timestamp: new Date().toISOString(),
@@ -196,6 +213,14 @@ export async function uploadBroadcastAudioChunk(req, res, next) {
     );
 
     await ensureQualityJob(broadcastId, chunk);
+
+    // Send the same authenticated, pre-Opus master PCM that is kept for
+    // quality transcription to the optional MP3 and FLAC encoders. Encoder
+    // failures are isolated: the durable chunk remains accepted and LiveKit is
+    // not affected.
+    await appendBroadcastOutputPcm(broadcastId, req.file.buffer).catch((error) => {
+      console.warn('[Echoo Outputs] PCM append warning; LiveKit continues:', error?.message || error);
+    });
 
     return res.status(201).json({ data: chunk, timestamp: new Date().toISOString() });
   } catch (error) {

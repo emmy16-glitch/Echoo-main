@@ -25,7 +25,7 @@ const publicLiveKitConfigurationError = () =>
  *
  * Local/LAN development:
  * - backend may use ws://127.0.0.1:7880
- * - another device may open Vite through http://<LAN-IP>:5174
+ * - another device may open Vite through http://<LAN-IP>:5173
  * - in that case only, replace the loopback hostname with the LAN hostname.
  *
  * Public HTTPS:

@@ -55,6 +55,7 @@ const primaryItems = [
 const moreItems = [
   { label: 'Search', path: '/listen/search', icon: FaSearch },
   { label: 'Following', path: '/listen/library/following', icon: FaUsers },
+  { label: 'Categories', path: '/listen/categories', icon: FaCompass },
   { label: 'Playlist', path: '/listen/playlist', icon: FaListUl },
   { label: 'History', path: '/listen/history', icon: FaHistory },
   { label: 'Downloads', path: '/listen/downloads', icon: FaDownload },
@@ -96,7 +97,7 @@ const EchooMobileNavigation = () => {
   if (!isListenerRoute) return null;
 
   const displayName =
-    user.displayName || user.fullname || user.username || 'Echoo Listener';
+    user.username || user.displayName || user.fullname || 'Echoo Listener';
   const initial = displayName.trim().charAt(0).toUpperCase() || 'E';
   const profileImage =
     user.profileImage || user.avatar || localStorage.getItem('profileImage') || '';

@@ -47,6 +47,15 @@ const playlistSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    // `series` rows are surfaced as Creator Collections. Keeping this optional
+    // preserves existing listener playlists while giving creator collections a
+    // canonical Channel home.
+    station: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Station',
+      default: null,
+      index: true,
+    },
     tracks: [
       {
         trackId: {
@@ -113,6 +122,7 @@ const playlistSchema = new mongoose.Schema(
 );
 
 playlistSchema.index({ owner: 1, createdAt: -1 });
+playlistSchema.index({ station: 1, mode: 1, isPublic: 1, updatedAt: -1 });
 playlistSchema.index({ isPublic: 1, createdAt: -1 });
 playlistSchema.index({ name: 'text', description: 'text' });
 

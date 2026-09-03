@@ -84,11 +84,27 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
   });
 
   const passwordTooShort =
-    action === "Sign Up" && formData.password.length > 0 && formData.password.length < 8;
+    action === "Sign Up" &&
+    formData.password.length > 0 &&
+    formData.password.length < 8;
+  const passwordMissingCombination =
+    action === "Sign Up" &&
+    formData.password.length > 0 &&
+    !(/[a-z]/.test(formData.password) &&
+      /[A-Z]/.test(formData.password) &&
+      /\d/.test(formData.password) &&
+      /[^A-Za-z0-9]/.test(formData.password));
+  const passwordInvalid = passwordTooShort || passwordMissingCombination;
   const passwordsMismatch =
     action === "Sign Up" &&
     formData.confirmPassword.length > 0 &&
     formData.password !== formData.confirmPassword;
+
+  const fullNamePattern = /^[\p{L}]+(?:[\s'-][\p{L}]+)*$/u;
+  const fullNameInvalid =
+    action === "Sign Up" &&
+    formData.fullname.trim() !== "" &&
+    !fullNamePattern.test(formData.fullname.trim());
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -104,9 +120,10 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
     if (action === "Sign Up") {
       return (
         formData.fullname.trim() !== "" &&
+        !fullNameInvalid &&
         formData.username.trim() !== "" &&
         formData.email.trim() !== "" &&
-        formData.password.length >= 8 &&
+        !passwordInvalid &&
         formData.confirmPassword !== "" &&
         formData.password === formData.confirmPassword
       );
@@ -137,8 +154,13 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
     if (loading) return;
 
     if (action === "Sign Up" && !formIsComplete()) {
-      if (formData.password.length < 8) setSignupError("Password must be at least 8 characters.");
-      else if (formData.password !== formData.confirmPassword) {
+      if (fullNameInvalid) {
+        setSignupError("Full name can contain letters, spaces, apostrophes, or hyphens only.");
+      } else if (passwordTooShort) {
+        setSignupError("Password must be at least 8 characters.");
+      } else if (passwordMissingCombination) {
+        setSignupError("Password must include uppercase and lowercase letters, a number, and a special character.");
+      } else if (formData.password !== formData.confirmPassword) {
         setSignupError("Passwords do not match. Please check both password fields.");
       } else setSignupError("Please complete all required fields.");
       return;
@@ -176,12 +198,12 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
       }
 
       if (action === "Forgot Password") {
+        const response = await api.auth.forgotPassword(formData.email.trim());
         setToast({
           open: true,
-          type: "info",
-          title: "Password recovery is not available yet",
-          message:
-            "Echoo has not enabled password-reset email yet. Please contact support or your administrator if you cannot access your account.",
+          type: "success",
+          title: "Reset link sent",
+          message: response?.data?.message || "Check your email for a password-reset link.",
         });
       }
     } catch (error) {
@@ -190,15 +212,30 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
           error?.status === 401 ||
           error?.status === 403 ||
           ["INVALID_CREDENTIALS", "AUTH_INVALID", "LOGIN_FAILED"].includes(error?.code);
+        const isNetworkError = error?.message?.toLowerCase() === "failed to fetch";
         setLoginError(
           isCredentialError
             ? "Incorrect username or password. Please check your details and try again."
-            : error?.message || "We couldn't sign you in. Please try again."
+            : isNetworkError
+              ? "We couldn't reach the Echoo sign-in service. Please check your connection and try again."
+              : error?.message || "We couldn't sign you in. Please try again."
         );
         return;
       }
       if (action === "Sign Up") {
-        setSignupError(error?.message || "We couldn't create your account. Please try again.");
+        const isNetworkError = error?.message?.toLowerCase() === "failed to fetch";
+        const isServiceUnavailable = [502, 503, 504].includes(error?.status);
+        setSignupError(
+          isNetworkError || isServiceUnavailable
+            ? "The Echoo account service is temporarily unavailable. Please try again in a moment."
+            : error?.message || "We couldn't create your account. Please try again."
+        );
+        return;
+      }
+
+      if (action === "Forgot Password" && error?.status === 404 && error?.code === "USER_NOT_REGISTERED") {
+        setAction("Sign Up");
+        setSignupError("This email is not registered. Please create an Echoo account.");
         return;
       }
       setToast({
@@ -286,7 +323,7 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
           <div className="auth-header forgot-header"><h1>Forgot Password</h1></div>
           <form onSubmit={handleSubmit} className="auth-form compact-form">
             <p className="forgot-description">
-              Enter the email address associated with your account, and we'll send you a verification code.
+              Enter the email address associated with your account, and we'll send you a password-reset link.
             </p>
             <div className="input-container">
               <div className="input">
@@ -347,7 +384,12 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
 
           <form className="ear-form" onSubmit={handleSubmit} noValidate>
             {!isLogin && (
-              <AuthField id="echoo-signup-fullname" label="Full name" icon={FaUser}>
+              <AuthField
+                id="echoo-signup-fullname"
+                label="Full name"
+                icon={FaUser}
+                error={fullNameInvalid}
+              >
                 <input
                   id="echoo-signup-fullname"
                   type="text"
@@ -356,9 +398,16 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
                   value={formData.fullname}
                   onChange={handleChange}
                   autoComplete="name"
+                  aria-invalid={fullNameInvalid}
                   required
                 />
               </AuthField>
+            )}
+
+            {fullNameInvalid && (
+              <p className="ear-error" role="alert">
+                Full name can contain letters, spaces, apostrophes, or hyphens only.
+              </p>
             )}
 
             <AuthField
@@ -401,7 +450,7 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
               id={isLogin ? "echoo-login-password" : "echoo-signup-password"}
               label="Password"
               icon={FaLock}
-              error={isLogin ? loginError : passwordTooShort}
+              error={isLogin ? loginError : passwordInvalid}
               action={isLogin ? (
                 <button
                   type="button"
@@ -424,7 +473,7 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
                 value={formData.password}
                 onChange={handleChange}
                 autoComplete={isLogin ? "current-password" : "new-password"}
-                aria-invalid={isLogin ? Boolean(loginError) : passwordTooShort}
+                aria-invalid={isLogin ? Boolean(loginError) : passwordInvalid}
                 aria-describedby={isLogin && loginError ? "echoo-login-error" : undefined}
                 required
               />
@@ -470,9 +519,12 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
             )}
 
             {!isLogin && !passwordTooShort && !passwordsMismatch && (
-              <p className="ear-helper">Use 8+ characters. A mix of letters, numbers and symbols is recommended.</p>
+              <p className="ear-helper">Use 8+ characters with uppercase and lowercase letters, a number, and a special character.</p>
             )}
             {passwordTooShort && <p className="ear-error" role="alert">Password must be at least 8 characters.</p>}
+            {!passwordTooShort && passwordMissingCombination && (
+              <p className="ear-error" role="alert">Use uppercase and lowercase letters, a number, and a special character.</p>
+            )}
             {passwordsMismatch && <p className="ear-error" role="alert">Passwords do not match.</p>}
             {signupError && <p className="ear-error" role="alert">{signupError}</p>}
             {loginError && (

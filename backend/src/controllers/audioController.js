@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import mongoose from 'mongoose';
 import Audio from '../models/Audio.js';
+import Playlist from '../models/Playlist.js';
 import Broadcast from '../models/Broadcast.js';
 import SavedMoment from '../models/SavedMoment.js';
 import TranscriptSegment from '../models/TranscriptSegment.js';
@@ -494,6 +495,17 @@ export async function deleteAudio(req, res, next) {
 
     audio.isDeleted = true;
     await audio.save();
+
+    // Collections retain references, never copies. Remove a deleted recording
+    // from every ordered collection without touching either collection itself.
+    const affectedCollections = await Playlist.find({ 'tracks.trackId': audio._id });
+    await Promise.all(affectedCollections.map(async (collection) => {
+      collection.tracks = collection.tracks.filter(
+        (entry) => String(entry.trackId) !== String(audio._id)
+      );
+      collection.trackCount = collection.tracks.length;
+      await collection.save();
+    }));
 
     const audioPath = safeLocalMediaPath(
       'audio',
