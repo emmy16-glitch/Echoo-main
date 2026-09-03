@@ -1,28 +1,49 @@
 import User from '../models/User.js';
 import {
+  accountCapabilities,
   creatorOnboardingStep,
+  hasCompletedCreatorSetup,
   hasCreatorCapability,
 } from '../utils/accountCapabilities.js';
+
+const notFound = (res) => res.status(404).json({
+  error: { code: 'NOT_FOUND', message: 'User not found' },
+});
+
+const enableCreatorCapability = async (user) => {
+  // userType is retained as a legacy capability marker for older backend code.
+  // It must never be interpreted as a separate account or active workspace.
+  user.userType = 'creator';
+  user.roles = [...new Set(['listener', ...(user.roles || []), 'creator'])];
+
+  // isApproved is the existing persisted completion marker for CreatorSetup.
+  // Preserve completed legacy creators, otherwise explicitly mark setup pending.
+  if (user.creatorProfile?.isApproved !== true) {
+    user.creatorProfile.isApproved = false;
+  }
+
+  user.onboardingStep = creatorOnboardingStep(user);
+  await user.save();
+  return user;
+};
 
 export async function activateCreator(req, res, next) {
   try {
     const user = await User.findById(req.userId);
-    if (!user) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'User not found' } });
+    if (!user) return notFound(res);
 
-    if (!hasCreatorCapability(user)) {
-      user.userType = 'creator';
-      user.roles = [...new Set(['listener', ...(user.roles || []), 'creator'])];
-      user.onboardingCompleted = false;
-      user.onboardingStep = creatorOnboardingStep(user);
-      await user.save();
-    }
+    await enableCreatorCapability(user);
 
     return res.status(200).json({
       data: {
         user: user.toJSON(),
-        nextStep: 'creator-type-selection',
-        message: 'Creator setup is ready.',
-        onboardingStep: user.onboardingStep,
+        capabilities: accountCapabilities(user),
+        creatorSetupCompleted: hasCompletedCreatorSetup(user),
+        nextStep: hasCompletedCreatorSetup(user) ? 'complete' : 'creator-type-selection',
+        message: hasCompletedCreatorSetup(user)
+          ? 'Creator Studio is ready.'
+          : 'Channel setup is ready.',
+        onboardingStep: creatorOnboardingStep(user),
       },
       timestamp: new Date().toISOString(),
     });
@@ -31,123 +52,99 @@ export async function activateCreator(req, res, next) {
   }
 }
 
-// Step 1: Choose user type (Listener or Creator)
+// Legacy compatibility endpoint. New Echoo signup never asks the user to pick a
+// role: every account is a Listener and Creator is enabled later as a capability.
 export async function chooseUserType(req, res, next) {
   try {
     const { userType } = req.body;
-    const userId = req.userId;
-
     if (!userType || !['listener', 'creator'].includes(userType)) {
       return res.status(400).json({
-        error: { 
-          code: 'VALIDATION_ERROR', 
-          message: 'Please select either "listener" or "creator"' 
-        }
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Please select either "listener" or "creator"',
+        },
       });
     }
 
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'User not found' }
-      });
-    }
+    const user = await User.findById(req.userId);
+    if (!user) return notFound(res);
 
-    const upgradingListenerToCreator =
-      user.onboardingCompleted &&
-      userType === 'creator' &&
-      !hasCreatorCapability(user);
-
-    if (user.onboardingCompleted && !upgradingListenerToCreator) {
-      return res.status(400).json({
-        error: { 
-          code: 'ONBOARDING_COMPLETED', 
-          message: 'Onboarding already completed' 
-        }
-      });
-    }
-
-    if (upgradingListenerToCreator) {
-      user.userType = 'creator';
-      user.roles = [...new Set(['listener', ...(user.roles || []), 'creator'])];
-      user.onboardingCompleted = false;
-      user.onboardingStep = creatorOnboardingStep(user);
-      await user.save();
+    if (userType === 'creator') {
+      await enableCreatorCapability(user);
     } else {
-      await user.setUserType(userType);
+      user.roles = [...new Set(['listener', ...(user.roles || [])])];
+      if (!hasCreatorCapability(user)) user.userType = 'listener';
+      await user.save();
     }
 
     return res.status(200).json({
       data: {
         user: user.toJSON(),
-        nextStep: userType === 'creator' ? 'creator-type-selection' : 'dashboard',
-        message: `You've chosen to start as a ${userType}!`,
-        onboardingStep: user.onboardingStep,
+        capabilities: accountCapabilities(user),
+        nextStep: userType === 'creator' ? 'creator-type-selection' : 'listener-home',
+        message: userType === 'creator'
+          ? 'Channel setup is ready.'
+          : 'Listener experience is ready.',
+        onboardingStep: userType === 'creator' ? creatorOnboardingStep(user) : user.onboardingStep,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 }
 
-// Step 2: Choose creator type (Individual or Organization)
 export async function chooseCreatorType(req, res, next) {
   try {
-    const { creatorType, artistName, organizationName, organizationType, website, location } = req.body;
-    const userId = req.userId;
+    const {
+      creatorType,
+      artistName,
+      organizationName,
+      organizationType,
+      website,
+      location,
+    } = req.body;
 
     if (!creatorType || !['individual', 'organization'].includes(creatorType)) {
       return res.status(400).json({
-        error: { 
-          code: 'VALIDATION_ERROR', 
-          message: 'Please select either "individual" or "organization"' 
-        }
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Please select either "individual" or "organization"',
+        },
       });
     }
 
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'User not found' }
-      });
-    }
+    const user = await User.findById(req.userId);
+    if (!user) return notFound(res);
 
-    if (user.userType !== 'creator') {
+    if (!hasCreatorCapability(user)) {
       return res.status(403).json({
-        error: { 
-          code: 'FORBIDDEN', 
-          message: 'Only creators can set creator type' 
-        }
+        error: {
+          code: 'FORBIDDEN',
+          message: 'Create a Channel before setting creator details',
+        },
       });
     }
 
-    if (creatorType === 'individual') {
-      if (!artistName) {
-        return res.status(400).json({
-          error: { 
-            code: 'VALIDATION_ERROR', 
-            message: 'Artist name is required for individual creators' 
-          }
-        });
-      }
-    } else {
-      if (!organizationName) {
-        return res.status(400).json({
-          error: { 
-            code: 'VALIDATION_ERROR', 
-            message: 'Organization name is required' 
-          }
-        });
-      }
-      if (!organizationType) {
-        return res.status(400).json({
-          error: { 
-            code: 'VALIDATION_ERROR', 
-            message: 'Organization type is required' 
-          }
-        });
-      }
+    // Existing model helpers still use userType as the legacy capability flag.
+    user.userType = 'creator';
+
+    if (creatorType === 'individual' && !artistName) {
+      return res.status(400).json({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Artist name is required for individual creators',
+        },
+      });
+    }
+
+    if (creatorType === 'organization' && (!organizationName || !organizationType)) {
+      return res.status(400).json({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: !organizationName ? 'Organization name is required' : 'Organization type is required',
+        },
+      });
     }
 
     await user.setCreatorType(creatorType, {
@@ -157,122 +154,100 @@ export async function chooseCreatorType(req, res, next) {
       website,
       location,
     });
+    user.creatorProfile.isApproved = false;
+    await user.save();
 
     return res.status(200).json({
       data: {
         user: user.toJSON(),
         nextStep: 'content-info',
-        message: 'Creator type set! Now tell us about your content.',
-        onboardingStep: user.onboardingStep,
+        message: 'Creator type saved. Now tell us about your Channel.',
+        onboardingStep: creatorOnboardingStep(user),
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 }
 
-// Step 3: Update content info (Category + Description)
 export async function updateContentInfo(req, res, next) {
   try {
     const { category, contentDescription, genres } = req.body;
-    const userId = req.userId;
+    const user = await User.findById(req.userId);
+    if (!user) return notFound(res);
 
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'User not found' }
-      });
-    }
-
-    if (user.userType !== 'creator') {
+    if (!hasCreatorCapability(user)) {
       return res.status(403).json({
-        error: { 
-          code: 'FORBIDDEN', 
-          message: 'Only creators can update content info' 
-        }
+        error: { code: 'FORBIDDEN', message: 'Creator capability is required' },
       });
     }
 
     if (!category) {
       return res.status(400).json({
-        error: { 
-          code: 'VALIDATION_ERROR', 
-          message: 'Category is required' 
-        }
+        error: { code: 'VALIDATION_ERROR', message: 'Category is required' },
       });
     }
 
+    user.userType = 'creator';
     await user.updateContentInfo({
       category,
       contentDescription: contentDescription || '',
       genres: genres || [],
     });
+    user.creatorProfile.isApproved = false;
+    await user.save();
 
-    const nextStep = user.creatorProfile.creatorType === 'organization' 
-      ? 'organization-details' 
+    const nextStep = user.creatorProfile.creatorType === 'organization'
+      ? 'organization-details'
       : 'complete';
 
     return res.status(200).json({
       data: {
         user: user.toJSON(),
-        nextStep: nextStep,
-        message: 'Content info saved!',
-        onboardingStep: user.onboardingStep,
+        nextStep,
+        message: 'Channel content info saved.',
+        onboardingStep: creatorOnboardingStep(user),
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 }
 
-// Step 4: Update organization details (for Organization creators)
 export async function updateOrganizationDetails(req, res, next) {
   try {
-    const { 
-      organizationName, 
-      category, 
-      about, 
-      contentDescription, 
-      organizationLogo 
+    const {
+      organizationName,
+      category,
+      about,
+      contentDescription,
+      organizationLogo,
     } = req.body;
-    const userId = req.userId;
 
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'User not found' }
-      });
-    }
+    const user = await User.findById(req.userId);
+    if (!user) return notFound(res);
 
-    if (user.userType !== 'creator' || user.creatorProfile.creatorType !== 'organization') {
+    if (!hasCreatorCapability(user) || user.creatorProfile?.creatorType !== 'organization') {
       return res.status(403).json({
-        error: { 
-          code: 'FORBIDDEN', 
-          message: 'Only organization creators can update organization details' 
-        }
+        error: {
+          code: 'FORBIDDEN',
+          message: 'Only organization Channels can update organization details',
+        },
       });
     }
 
-    if (!organizationName) {
+    if (!organizationName || !category) {
       return res.status(400).json({
-        error: { 
-          code: 'VALIDATION_ERROR', 
-          message: 'Organization name is required' 
-        }
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: !organizationName ? 'Organization name is required' : 'Category is required',
+        },
       });
     }
 
-    if (!category) {
-      return res.status(400).json({
-        error: { 
-          code: 'VALIDATION_ERROR', 
-          message: 'Category is required' 
-        }
-      });
-    }
-
+    user.userType = 'creator';
     await user.updateOrganizationInfo({
       organizationName,
       category,
@@ -280,222 +255,209 @@ export async function updateOrganizationDetails(req, res, next) {
       contentDescription: contentDescription || '',
       organizationLogo: organizationLogo || null,
     });
+    user.creatorProfile.isApproved = false;
+    await user.save();
 
     return res.status(200).json({
       data: {
         user: user.toJSON(),
         nextStep: 'complete',
-        message: 'Organization profile complete!',
-        onboardingStep: user.onboardingStep,
+        message: 'Organization Channel details saved.',
+        onboardingStep: creatorOnboardingStep(user),
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 }
 
-// Step 5: Complete onboarding
+// Completes optional Creator/Channel setup only. It intentionally does not
+// rewrite the shared account onboarding flag that unlocked Listener.
 export async function completeOnboarding(req, res, next) {
   try {
-    const userId = req.userId;
+    const user = await User.findById(req.userId);
+    if (!user) return notFound(res);
 
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'User not found' }
+    if (!hasCreatorCapability(user)) {
+      return res.status(403).json({
+        error: { code: 'FORBIDDEN', message: 'Creator capability is required' },
       });
     }
 
-    // Set creator profile as approved
-    if (user.userType === 'creator') {
-      user.creatorProfile.isApproved = true;
-    }
-
-    await user.completeOnboarding();
-
-    return res.status(200).json({
-      data: {
-        message: 'Onboarding completed successfully! Your creator studio is ready.',
-        redirect: '/studio/dashboard',
-        user: user.toJSON(),
-      },
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    next(error);
-  }
-}
-
-// Get onboarding status
-export async function getOnboardingStatus(req, res, next) {
-  try {
-    const userId = req.userId;
-
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'User not found' }
+    if (!user.creatorProfile?.creatorType || !user.creatorProfile?.category) {
+      return res.status(400).json({
+        error: {
+          code: 'CREATOR_SETUP_INCOMPLETE',
+          message: 'Finish your Channel identity and category before continuing',
+        },
       });
     }
 
-    let currentStep = 'select-user-type';
-    if (user.onboardingCompleted) {
-      currentStep = 'complete';
-    } else if (user.userType === 'creator') {
-      const step = user.onboardingStep || 0;
-      if (step === 1) currentStep = 'select-creator-type';
-      else if (step === 2) currentStep = 'content-info';
-      else if (step === 3) currentStep = 'organization-details';
-      else if (step === 4) currentStep = 'complete';
-    }
-
-    return res.status(200).json({
-      data: {
-        isOnboardingComplete: user.onboardingCompleted || false,
-        userType: user.userType || 'listener',
-        currentStep: currentStep,
-        onboardingStep: user.onboardingStep || 0,
-        creatorType: user.creatorProfile?.creatorType || null,
-        user: user.toJSON(),
-      },
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    next(error);
-  }
-}
-
-// Skip onboarding
-export async function skipOnboarding(req, res, next) {
-  try {
-    const userId = req.userId;
-
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'User not found' }
-      });
-    }
-
-    user.onboardingCompleted = true;
-    if (user.userType === 'creator') {
-      user.creatorProfile.isApproved = true;
-    }
+    user.userType = 'creator';
+    user.roles = [...new Set(['listener', ...(user.roles || []), 'creator'])];
+    user.creatorProfile.isApproved = true;
+    user.onboardingStep = 4;
     await user.save();
 
     return res.status(200).json({
       data: {
-        message: 'Onboarding skipped',
-        redirect: user.userType === 'creator' ? '/studio/dashboard' : '/dashboard',
+        message: 'Your Channel is ready. Opening Creator Studio.',
+        redirect: '/creator-studio',
+        creatorSetupCompleted: true,
+        capabilities: accountCapabilities(user),
+        user: user.toJSON(),
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 }
 
-// Step 4: Complete profile setup
+export async function getOnboardingStatus(req, res, next) {
+  try {
+    const user = await User.findById(req.userId);
+    if (!user) return notFound(res);
+
+    const accountComplete = Boolean(user.onboardingCompleted);
+    const creatorEnabled = hasCreatorCapability(user);
+    const creatorComplete = hasCompletedCreatorSetup(user);
+    const creatorStep = creatorOnboardingStep(user);
+
+    let currentStep = 'profile-setup';
+    if (accountComplete && !creatorEnabled) currentStep = 'listener-ready';
+    if (accountComplete && creatorEnabled && !creatorComplete) {
+      if (creatorStep === 1) currentStep = 'select-creator-type';
+      else if (creatorStep === 2) currentStep = 'content-info';
+      else if (creatorStep === 3) currentStep = 'organization-details';
+      else currentStep = 'complete-creator-setup';
+    }
+    if (accountComplete && creatorComplete) currentStep = 'complete';
+
+    return res.status(200).json({
+      data: {
+        isOnboardingComplete: accountComplete,
+        isCreatorSetupComplete: creatorComplete,
+        capabilities: accountCapabilities(user),
+        userType: user.userType || 'listener',
+        currentStep,
+        onboardingStep: user.onboardingStep || 0,
+        creatorOnboardingStep: creatorStep,
+        creatorType: user.creatorProfile?.creatorType || null,
+        user: user.toJSON(),
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function skipOnboarding(req, res, next) {
+  try {
+    const user = await User.findById(req.userId);
+    if (!user) return notFound(res);
+
+    user.onboardingCompleted = true;
+    user.onboardingStep = Math.max(Number(user.onboardingStep) || 0, 5);
+    await user.save();
+
+    return res.status(200).json({
+      data: {
+        message: 'Account profile setup skipped',
+        redirect: '/listen',
+        user: user.toJSON(),
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 export async function completeProfileSetup(req, res, next) {
   try {
-    const userId = req.userId;
-    const { 
-      displayName, 
-      bio, 
+    const {
+      displayName,
+      bio,
       avatar,
-      preferences 
+      preferences,
     } = req.body;
 
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'User not found' }
-      });
-    }
+    const user = await User.findById(req.userId);
+    if (!user) return notFound(res);
 
-    // If user is already onboarded, redirect
     if (user.onboardingCompleted) {
       return res.status(400).json({
-        error: { 
-          code: 'ONBOARDING_COMPLETED', 
-          message: 'Onboarding already completed' 
-        }
+        error: {
+          code: 'ONBOARDING_COMPLETED',
+          message: 'Account profile setup is already completed',
+        },
       });
     }
 
-    // Update profile fields
     if (displayName) user.displayName = displayName;
     if (bio !== undefined) user.bio = bio;
     if (avatar) user.avatar = avatar;
 
-    // Update preferences
     if (preferences) {
       if (preferences.theme) user.preferences.theme = preferences.theme;
       if (preferences.language) user.preferences.language = preferences.language;
       if (preferences.categories) user.preferences.categories = preferences.categories;
     }
 
-    // Mark onboarding as complete
+    // This is the one mandatory onboarding milestone. Completing it always
+    // lands the account in Listener; Creator is optional and added later.
+    user.roles = [...new Set(['listener', ...(user.roles || [])])];
     user.onboardingCompleted = true;
-    user.onboardingStep = 5; // Profile setup step
+    user.onboardingStep = 5;
     await user.save();
-
-    // Determine redirect based on user type
-    const redirect = user.userType === 'creator' ? '/studio/dashboard' : '/dashboard';
 
     return res.status(200).json({
       data: {
         user: user.toJSON(),
-        message: 'Profile setup completed successfully!',
-        redirect,
+        capabilities: accountCapabilities(user),
+        message: 'Profile setup completed successfully.',
+        redirect: '/listen',
         onboardingCompleted: true,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error('Profile setup error:', error);
-    next(error);
+    return next(error);
   }
 }
 
-// Upload profile picture (avatar)
 export async function uploadProfilePicture(req, res, next) {
   try {
-    const userId = req.userId;
     const file = req.file;
-
     if (!file) {
       return res.status(400).json({
-        error: { code: 'NO_FILE', message: 'No image file uploaded' }
+        error: { code: 'NO_FILE', message: 'No image file uploaded' },
       });
     }
 
-    // Validate file type
     const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
     if (!allowedTypes.includes(file.mimetype)) {
       return res.status(400).json({
-        error: { code: 'INVALID_TYPE', message: 'Only JPEG, PNG, GIF, and WEBP images are allowed' }
+        error: {
+          code: 'INVALID_TYPE',
+          message: 'Only JPEG, PNG, GIF, and WEBP images are allowed',
+        },
       });
     }
 
-    // Validate file size (5MB max)
     if (file.size > 5 * 1024 * 1024) {
       return res.status(400).json({
-        error: { code: 'FILE_TOO_LARGE', message: 'File size exceeds 5MB limit' }
+        error: { code: 'FILE_TOO_LARGE', message: 'File size exceeds 5MB limit' },
       });
     }
 
-    // Create avatar URL
     const avatarUrl = `/uploads/avatars/${file.filename}`;
-
-    // Update user avatar
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'User not found' }
-      });
-    }
+    const user = await User.findById(req.userId);
+    if (!user) return notFound(res);
 
     user.avatar = avatarUrl;
     await user.save();
@@ -505,43 +467,36 @@ export async function uploadProfilePicture(req, res, next) {
         avatar: avatarUrl,
         message: 'Profile picture uploaded successfully',
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error('Upload profile picture error:', error);
-    next(error);
+    return next(error);
   }
 }
 
-// Skip profile setup (for users who want to skip)
 export async function skipProfileSetup(req, res, next) {
   try {
-    const userId = req.userId;
-
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'User not found' }
-      });
-    }
+    const user = await User.findById(req.userId);
+    if (!user) return notFound(res);
 
     if (!user.onboardingCompleted) {
+      user.roles = [...new Set(['listener', ...(user.roles || [])])];
       user.onboardingCompleted = true;
       user.onboardingStep = 5;
       await user.save();
     }
 
-    const redirect = user.userType === 'creator' ? '/studio/dashboard' : '/dashboard';
-
     return res.status(200).json({
       data: {
         message: 'Profile setup skipped',
-        redirect,
+        redirect: '/listen',
+        user: user.toJSON(),
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error('Skip profile setup error:', error);
-    next(error);
+    return next(error);
   }
 }
