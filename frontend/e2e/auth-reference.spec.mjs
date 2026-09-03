@@ -10,6 +10,47 @@ const assertNoHorizontalOverflow = async (page) => {
   expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth + 1);
 };
 
+const assertExactDesktopSignupFigma = async (page, projectName) => {
+  // Figma node 532:803 is a tall desktop reference. Short-laptop projects use
+  // the intentional compact-height adaptation and should not be forced to 714px.
+  if (projectName !== 'desktop-1440') return;
+
+  const geometry = await page.locator('.ear-auth-card').evaluate((card) => {
+    const cardRect = card.getBoundingClientRect();
+    const cardStyle = getComputedStyle(card);
+    const heading = card.querySelector('.ear-form-heading h1');
+    const headingStyle = heading ? getComputedStyle(heading) : null;
+    const field = card.querySelector('.ear-input-shell');
+    const fieldRect = field?.getBoundingClientRect();
+    const button = card.querySelector('.ear-submit');
+    const buttonStyle = button ? getComputedStyle(button) : null;
+    const blur = cardStyle.backdropFilter || cardStyle.webkitBackdropFilter || '';
+
+    return {
+      width: cardRect.width,
+      height: cardRect.height,
+      radius: cardStyle.borderRadius,
+      background: cardStyle.backgroundColor,
+      blur,
+      headingSize: headingStyle?.fontSize || '',
+      fieldHeight: fieldRect?.height || 0,
+      buttonRadius: buttonStyle?.borderRadius || '',
+    };
+  });
+
+  expect(geometry.width).toBeGreaterThanOrEqual(549);
+  expect(geometry.width).toBeLessThanOrEqual(551);
+  expect(geometry.height).toBeGreaterThanOrEqual(713);
+  expect(geometry.height).toBeLessThanOrEqual(716);
+  expect(geometry.radius).toBe('25px');
+  expect(geometry.background).toBe('rgba(255, 255, 255, 0.15)');
+  expect(geometry.blur).toContain('blur(5px)');
+  expect(geometry.headingSize).toBe('36px');
+  expect(geometry.fieldHeight).toBeGreaterThanOrEqual(53);
+  expect(geometry.fieldHeight).toBeLessThanOrEqual(55);
+  expect(geometry.buttonRadius).toBe('40px');
+};
+
 const capture = async (page, testInfo, state) => {
   await page.evaluate(() => document.activeElement?.blur());
   await page.screenshot({
@@ -42,6 +83,7 @@ test('Echoo auth and password recovery follow the Figma glass-screen flow', asyn
   await expect(page.getByText('Creator / Listener')).toHaveCount(0);
   await expect(page.locator('.ear-auth-card')).toHaveCSS('position', 'relative');
   await expect.poll(() => page.locator('.ear-auth-card').evaluate((card) => getComputedStyle(card).backdropFilter || getComputedStyle(card).webkitBackdropFilter)).not.toBe('none');
+  await assertExactDesktopSignupFigma(page, testInfo.project.name);
   await assertNoHorizontalOverflow(page);
   await capture(page, testInfo, 'signup-empty');
 
@@ -50,6 +92,7 @@ test('Echoo auth and password recovery follow the Figma glass-screen flow', asyn
   await page.getByLabel('Password', { exact: true }).fill('StrongPass1!');
   await page.getByLabel('Confirm password').fill('StrongPass1!');
   await expect(page.getByText(/By signing up, I agree to Echoo/)).toBeVisible();
+  await assertNoHorizontalOverflow(page);
   await capture(page, testInfo, 'signup-filled');
 
   // Figma: Sign in pg (empty/filled)
@@ -64,9 +107,10 @@ test('Echoo auth and password recovery follow the Figma glass-screen flow', asyn
 
   await page.getByLabel('Username or email').fill('listener@example.test');
   await page.locator('#echoo-login-password').fill('password123');
+  await assertNoHorizontalOverflow(page);
   await capture(page, testInfo, 'login-filled');
 
-  // Figma: forget password -> check email
+  // Figma family: forget password -> check email
   await page.getByRole('button', { name: 'Forgot password?' }).click();
   await expect(page.getByRole('heading', { name: 'Forgot password?' })).toBeVisible();
   await expect(page.getByLabel('Email address')).toBeVisible();
@@ -153,6 +197,7 @@ test('email verification stays inside the Figma auth shell and starts the same L
   for (let index = 0; index < 6; index += 1) {
     await page.getByLabel(`Verification digit ${index + 1}`).fill(String(index + 1));
   }
+  await assertNoHorizontalOverflow(page);
   await capture(page, testInfo, 'verify-filled');
   await page.getByRole('button', { name: 'Verify' }).click();
 
@@ -174,6 +219,7 @@ test('reset-password link uses the same Echoo Web visual family and reaches succ
 
   await page.getByLabel('New password').fill('FreshPass1!');
   await page.getByLabel('Confirm new password').fill('FreshPass1!');
+  await assertNoHorizontalOverflow(page);
   await capture(page, testInfo, 'reset-password-filled');
   await page.getByRole('button', { name: 'Update password' }).click();
 
