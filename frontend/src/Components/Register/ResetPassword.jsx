@@ -50,7 +50,7 @@ const ResetPassword = () => {
   };
 
   return (
-    <main className="echoo-auth-reference is-login is-reset-password">
+    <main className="echoo-auth-reference is-figma-auth is-login is-reset-password">
       <section className="ear-visual-panel" aria-label="Echoo audio background">
         <BroadcastLoginVisual logoSrc={EchooLogoImage} mode="login" />
       </section>
