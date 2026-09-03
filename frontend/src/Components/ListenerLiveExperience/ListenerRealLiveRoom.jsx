@@ -8,7 +8,7 @@ import {
   FaVolumeMute,
   FaVolumeUp,
 } from 'react-icons/fa';
-import { FiArrowLeft, FiCheck, FiRadio, FiShare2, FiUsers } from 'react-icons/fi';
+import { FiArrowLeft, FiCheck, FiMessageCircle, FiRadio, FiShare2, FiUsers } from 'react-icons/fi';
 
 import batch3Service from '../../services/batch3Service';
 import batch4Service, { normalizeChatMessage } from '../../services/batch4Service';
@@ -20,6 +20,7 @@ import { buildGeneratedStationBrandCoverUrl } from '../../stationBranding/statio
 import { ChatPanel } from '../../design-system';
 import { referenceChat, referenceLiveShows } from '../ListenerExperience/listenerExperienceData';
 import LiveKitListenerPlayer from './LiveKitListenerPlayer';
+import echooMark from '../Assets/echoo-logo-official.svg';
 import './ListenerLiveRoom.css';
 import './ListenerV2LiveRoom.css';
 
@@ -132,6 +133,7 @@ const ListenerRealLiveRoom = () => {
   const [audioState, setAudioState] = useState('connecting');
   const statusRef = useRef(show?.status || '');
   const [liveState, setLiveState] = useState(null);
+  const [chatOpen, setChatOpen] = useState(false);
 
   const ended = show
     ? !['live', 'scheduled'].includes(String(show.status || '').toLowerCase())
@@ -162,7 +164,7 @@ const ListenerRealLiveRoom = () => {
     return () => {
       setDesktopRoomState({ active: false, muted: false, canToggleMute: false });
     };
-  }, [isLive, joined, liveState?.isMuted, liveState?.onToggleMute]);
+  }, [isLive, joined, liveState]);
 
   useEffect(
     () =>
@@ -173,7 +175,7 @@ const ListenerRealLiveRoom = () => {
           navigate('/listen/live');
         }
       }),
-    [liveState?.onToggleMute, navigate]
+    [liveState, navigate]
   );
 
   const playerTrack = useMemo(
@@ -560,7 +562,12 @@ const ListenerRealLiveRoom = () => {
       )}
 
       <section className="listener-v2-room-grid">
-        <article className="listener-v2-room-stage" ref={stageRef}>
+        <article
+          className="listener-v2-room-stage"
+          ref={stageRef}
+          style={show.artwork ? { '--listener-room-artwork': `url("${show.artwork}")` } : undefined}
+        >
+          <img className="listener-v2-room-watermark" src={echooMark} alt="" aria-hidden="true" />
           <div className="listener-v2-room-artwork">
             {show.artwork ? (
               <img src={show.artwork} alt="" />
@@ -655,7 +662,16 @@ const ListenerRealLiveRoom = () => {
             )}
         </article>
 
-        <aside className="listener-v2-room-chat">
+        <button
+          type="button"
+          className="listener-v2-room-chat-toggle"
+          onClick={() => setChatOpen((open) => !open)}
+          aria-expanded={chatOpen}
+          aria-controls="listener-live-chat"
+        >
+          <FiMessageCircle /> {chatOpen ? 'Hide chat' : 'Chat'}
+        </button>
+        <aside id="listener-live-chat" className={`listener-v2-room-chat${chatOpen ? ' is-open' : ''}`}>
           <ChatPanel
             messages={messages}
             loading={chatLoading}

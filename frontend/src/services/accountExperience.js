@@ -57,10 +57,12 @@ export const resolveExperienceSwitch = async (
 
   if (targetExperience === 'listener') {
     if (!hasListenerProfile(user)) throw new Error('Listener profile is unavailable.');
+    localStorage.setItem('echooActiveExperience', 'listener');
     return { user, route: '/listen', requiresSetup: false };
   }
 
   if (hasCompletedCreatorProfile(user)) {
+    localStorage.setItem('echooActiveExperience', 'creator');
     return { user, route: '/creator-studio', requiresSetup: false };
   }
 
@@ -74,6 +76,7 @@ export const resolveExperienceSwitch = async (
   // Existing authenticated accounts have already completed the shared account
   // identity step; only Creator-specific setup remains.
   localStorage.setItem('echooProfileCompleted', 'true');
+  localStorage.setItem('echooActiveExperience', 'creator');
 
   return {
     user,

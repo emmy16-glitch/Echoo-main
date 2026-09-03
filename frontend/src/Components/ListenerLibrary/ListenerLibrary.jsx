@@ -95,6 +95,7 @@ const ListenerLibrary = () => {
   const [playlists, setPlaylists] = useState([]);
   const [downloads, setDownloads] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [busyId, setBusyId] = useState('');
   const [toast, setToast] = useState({ open: false, type: 'info', title: '', message: '' });
   const [waveSeed] = useState(() => Array.from({ length: 14 }, () => 0.35 + Math.random() * 0.65));
@@ -114,6 +115,7 @@ const ListenerLibrary = () => {
   const load = useCallback(async ({ silent = false } = {}) => {
     try {
       if (!silent) setLoading(true);
+      if (!silent) setLoadError('');
       const [audioResult, playlistsResult, downloadsResult, genresResult] = await Promise.allSettled([
         audioService.getAll({
           page,
@@ -134,6 +136,7 @@ const ListenerLibrary = () => {
         setAudio([]);
         setTotal(0);
         setTotalPages(0);
+        if (!silent) setLoadError('We couldn’t reach Echoo. Check your connection and try again.');
       }
       if (playlistsResult.status === 'fulfilled') {
         setPlaylists(Array.isArray(playlistsResult.value?.data) ? playlistsResult.value.data : []);
@@ -280,6 +283,19 @@ const ListenerLibrary = () => {
 
   if (loading) {
     return <div className="echoo-reference-page ref-library-page"><div className="ref-state-card"><strong>Loading your Library...</strong></div></div>;
+  }
+
+  if (loadError) {
+    return (
+      <div className="echoo-reference-page ref-library-page">
+        <div className="ref-state-card">
+          <FaHeadphones />
+          <strong>We couldn’t load the audio library.</strong>
+          <span>{loadError}</span>
+          <button type="button" className="al-hero-cta" onClick={() => load()}>Try again</button>
+        </div>
+      </div>
+    );
   }
 
   return (

@@ -55,6 +55,7 @@ const primaryItems = [
 const moreItems = [
   { label: 'Search', path: '/listen/search', icon: FaSearch },
   { label: 'Following', path: '/listen/library/following', icon: FaUsers },
+  { label: 'Categories', path: '/listen/categories', icon: FaCompass },
   { label: 'Playlist', path: '/listen/playlist', icon: FaListUl },
   { label: 'History', path: '/listen/history', icon: FaHistory },
   { label: 'Downloads', path: '/listen/downloads', icon: FaDownload },

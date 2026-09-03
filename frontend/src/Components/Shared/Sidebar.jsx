@@ -83,16 +83,16 @@ const Sidebar = ({
     {
       key: 'listener-categories',
       name: 'Categories',
-      path: '/listen/stations',
+      path: '/listen/categories',
       icon: <FiGrid />,
-      active: activeKey.startsWith('/listen/stations'),
+      active: activeKey.startsWith('/listen/categories'),
     },
     {
       key: 'listener-search',
       name: 'Search',
-      path: '/listen/library',
+      path: '/listen/search',
       icon: <FiSearch />,
-      active: activeKey === '/listen/library',
+      active: activeKey === '/listen/search',
     },
   ];
 

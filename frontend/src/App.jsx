@@ -126,7 +126,10 @@ const getStoredUser = () => {
 };
 
 const getStoredRole = (user = getStoredUser()) =>
-  user.userType || localStorage.getItem('echooRole') || '';
+  localStorage.getItem('echooActiveExperience') ||
+  user.userType ||
+  localStorage.getItem('echooRole') ||
+  '';
 
 const roleHome = (role) => {
   if (role === 'creator') return '/creator-studio';
@@ -229,11 +232,13 @@ const OnboardingFlow = () => {
       <ChooseRole
         onListenerContinue={() => {
           localStorage.setItem('echooRole', 'listener');
+          localStorage.setItem('echooActiveExperience', 'listener');
           localStorage.setItem('echooOnboardingCompleted', 'true');
           setStage('listener-done');
         }}
         onCreatorContinue={() => {
           localStorage.setItem('echooRole', 'creator');
+          localStorage.setItem('echooActiveExperience', 'creator');
           setStage('creator');
         }}
         onBackToProfile={() => setStage('profile')}
@@ -247,6 +252,7 @@ const OnboardingFlow = () => {
         onBackToRole={() => setStage('role')}
         onCreatorReady={() => {
           localStorage.setItem('echooRole', 'creator');
+          localStorage.setItem('echooActiveExperience', 'creator');
           localStorage.setItem('echooOnboardingCompleted', 'true');
           setStage('creator-done');
         }}
@@ -354,10 +360,12 @@ function App() {
               }
             >
               <Route index element={<ListenerHome />} />
+              <Route path="following" element={<ListenerFollowing />} />
               <Route path="search" element={<ListenerSearch />} />
               <Route path="live" element={<ListenerLive />} />
               <Route path="live/:broadcastId" element={<ListenerRealLiveRoom />} />
               <Route path="stations" element={<ListenerStations />} />
+              <Route path="categories" element={<ListenerStations />} />
               <Route path="stations/:stationId" element={<ListenerRealStationProfile />} />
               <Route path="audio/:audioId" element={<ListenerAudioDetail />} />
               <Route path="library" element={<ListenerLibrary />} />

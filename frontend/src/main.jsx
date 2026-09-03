@@ -56,11 +56,6 @@ import "./styles/playwright-run6-root-layout-hardening.css";
 import "./styles/playwright-run7-final-gate-fixes.css";
 import "./styles/echoo-artwork-fit.css";
 import "./Components/Register/auth-reference.css";
-// Strict Listener 2.0 owns its page/shell CSS inside ListenerV2. This one small
-// global scoped brand layer only replaces the shared logo asset with the
-// transparent Echoo mark lockup; legacy Listener pass1-pass5 overrides are retired.
-import "./Components/ListenerV2/ListenerV2Brand.css";
-
 initializeEchooTheme();
 
 // Older builds used this as a persistent transcript-processing selector. It is
