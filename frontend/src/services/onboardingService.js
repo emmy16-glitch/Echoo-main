@@ -30,12 +30,12 @@ const saveUser = (user) => {
     )
   );
 
-  if (user.userType) {
-    localStorage.setItem(
-      "echooRole",
-      user.userType
-    );
-  }
+  // Creator and Listener are experiences of one Echoo account. The old
+  // echooRole key represented separate account identities and must not be
+  // recreated while saving onboarding progress.
+  localStorage.removeItem(
+    "echooRole"
+  );
 
   if (
     user.onboardingCompleted ===
@@ -69,15 +69,6 @@ const onboardingService = {
     ) {
       saveUser(
         response.data.user
-      );
-    }
-
-    if (
-      response?.data?.userType
-    ) {
-      localStorage.setItem(
-        "echooRole",
-        response.data.userType
       );
     }
 
@@ -174,8 +165,6 @@ const onboardingService = {
         response.data.user
       );
     }
-
-    localStorage.setItem("echooRole", "creator");
 
     return response;
   },
@@ -290,11 +279,8 @@ const onboardingService = {
       );
     }
 
-    localStorage.setItem(
-      "echooOnboardingCompleted",
-      "true"
-    );
-
+    // Completing a Channel is not account onboarding. The account/Profile
+    // completion flag remains whatever the authenticated Echoo account says.
     return response;
   },
 
