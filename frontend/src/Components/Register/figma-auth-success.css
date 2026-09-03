@@ -1,0 +1,69 @@
+.echoo-auth-reference.is-figma-auth .echoo-success-state {
+  min-height: 380px;
+  padding: 24px 16px;
+  color: #fff;
+  font-family: Manrope, Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+.echoo-auth-reference.is-figma-auth .echoo-success-state h2 {
+  color: #fff;
+  font-family: Manrope, Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 32px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.echoo-auth-reference.is-figma-auth .echoo-success-state p {
+  max-width: 360px;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.echoo-auth-reference.is-figma-auth .echoo-success-pulse {
+  background: rgba(79, 126, 195, 0.22);
+}
+
+.echoo-auth-reference.is-figma-auth .echoo-success-ring {
+  border-color: rgba(255, 255, 255, 0.34);
+  background: rgba(255, 255, 255, 0.16);
+  box-shadow: 0 0 0 7px rgba(255, 255, 255, 0.05);
+}
+
+.echoo-auth-reference.is-figma-auth .echoo-success-check {
+  background: #4f7ec3;
+}
+
+.echoo-auth-reference.is-figma-auth .echoo-success-button {
+  min-width: 220px;
+  min-height: 50px;
+  margin-top: 24px;
+  padding: 0 28px;
+  border-radius: 40px;
+  background: #4f7ec3;
+  color: #f9f9f9;
+  font-family: Manrope, Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 15px;
+  font-weight: 500;
+  box-shadow: none;
+}
+
+.echoo-auth-reference.is-figma-auth .echoo-success-button:hover,
+.echoo-auth-reference.is-figma-auth .echoo-success-button:focus-visible {
+  background: #416faa;
+  outline: none;
+}
+
+@media (max-width: 760px) {
+  .echoo-auth-reference.is-figma-auth .echoo-success-state {
+    min-height: 320px;
+  }
+
+  .echoo-auth-reference.is-figma-auth .echoo-success-state h2 {
+    font-size: 27px;
+  }
+
+  .echoo-auth-reference.is-figma-auth .echoo-success-state p {
+    font-size: 13px;
+  }
+}
