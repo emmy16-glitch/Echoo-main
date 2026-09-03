@@ -10,9 +10,15 @@ const creator = {
   username: 'emmanuel',
   displayName: 'Emmanuel',
   userType: 'creator',
-  roles: ['creator'],
+  roles: ['listener', 'creator'],
   onboardingCompleted: true,
   profileCompleted: true,
+  creatorProfile: {
+    creatorType: 'individual',
+    category: 'Faith & Spirituality',
+    artistName: 'Emmanuel',
+    isApproved: true,
+  },
 };
 
 const station = {
@@ -48,9 +54,10 @@ const authenticate = async (page) => {
     localStorage.setItem('token', 'creator-token');
     localStorage.setItem('refreshToken', 'creator-refresh-token');
     localStorage.setItem('user', JSON.stringify(user));
-    localStorage.setItem('echooRole', 'creator');
     localStorage.setItem('echooProfileCompleted', 'true');
     localStorage.setItem('echooOnboardingCompleted', 'true');
+    localStorage.setItem('echooActiveExperience', 'creator');
+    localStorage.removeItem('echooRole');
     localStorage.setItem('creatorSetup', JSON.stringify({ type: 'individual', name: user.displayName }));
   }, { user: creator });
 };
