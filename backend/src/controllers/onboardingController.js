@@ -16,10 +16,14 @@ const enableCreatorCapability = async (user) => {
   user.userType = 'creator';
   user.roles = [...new Set(['listener', ...(user.roles || []), 'creator'])];
 
-  // isApproved is the existing persisted completion marker for CreatorSetup.
-  // Preserve completed legacy creators, otherwise explicitly mark setup pending.
-  if (user.creatorProfile?.isApproved !== true) {
-    user.creatorProfile.isApproved = false;
+  // New creator activations use an explicit Channel-setup state. Existing
+  // completed legacy creators remain unset here and continue through the
+  // migration fallback in hasCompletedCreatorSetup().
+  if (
+    user.creatorProfile?.setupCompleted === undefined &&
+    !hasCompletedCreatorSetup(user)
+  ) {
+    user.creatorProfile.setupCompleted = false;
   }
 
   user.onboardingStep = creatorOnboardingStep(user);
@@ -34,13 +38,14 @@ export async function activateCreator(req, res, next) {
 
     await enableCreatorCapability(user);
 
+    const creatorSetupCompleted = hasCompletedCreatorSetup(user);
     return res.status(200).json({
       data: {
         user: user.toJSON(),
         capabilities: accountCapabilities(user),
-        creatorSetupCompleted: hasCompletedCreatorSetup(user),
-        nextStep: hasCompletedCreatorSetup(user) ? 'complete' : 'creator-type-selection',
-        message: hasCompletedCreatorSetup(user)
+        creatorSetupCompleted,
+        nextStep: creatorSetupCompleted ? 'complete' : 'creator-type-selection',
+        message: creatorSetupCompleted
           ? 'Creator Studio is ready.'
           : 'Channel setup is ready.',
         onboardingStep: creatorOnboardingStep(user),
@@ -72,6 +77,8 @@ export async function chooseUserType(req, res, next) {
     if (userType === 'creator') {
       await enableCreatorCapability(user);
     } else {
+      // Listener is always available. The compatibility endpoint must never
+      // remove creator capability from an account that already has it.
       user.roles = [...new Set(['listener', ...(user.roles || [])])];
       if (!hasCreatorCapability(user)) user.userType = 'listener';
       await user.save();
@@ -126,9 +133,6 @@ export async function chooseCreatorType(req, res, next) {
       });
     }
 
-    // Existing model helpers still use userType as the legacy capability flag.
-    user.userType = 'creator';
-
     if (creatorType === 'individual' && !artistName) {
       return res.status(400).json({
         error: {
@@ -154,7 +158,7 @@ export async function chooseCreatorType(req, res, next) {
       website,
       location,
     });
-    user.creatorProfile.isApproved = false;
+    user.creatorProfile.setupCompleted = false;
     await user.save();
 
     return res.status(200).json({
@@ -189,13 +193,12 @@ export async function updateContentInfo(req, res, next) {
       });
     }
 
-    user.userType = 'creator';
     await user.updateContentInfo({
       category,
       contentDescription: contentDescription || '',
       genres: genres || [],
     });
-    user.creatorProfile.isApproved = false;
+    user.creatorProfile.setupCompleted = false;
     await user.save();
 
     const nextStep = user.creatorProfile.creatorType === 'organization'
@@ -247,7 +250,6 @@ export async function updateOrganizationDetails(req, res, next) {
       });
     }
 
-    user.userType = 'creator';
     await user.updateOrganizationInfo({
       organizationName,
       category,
@@ -255,7 +257,7 @@ export async function updateOrganizationDetails(req, res, next) {
       contentDescription: contentDescription || '',
       organizationLogo: organizationLogo || null,
     });
-    user.creatorProfile.isApproved = false;
+    user.creatorProfile.setupCompleted = false;
     await user.save();
 
     return res.status(200).json({
@@ -273,7 +275,7 @@ export async function updateOrganizationDetails(req, res, next) {
 }
 
 // Completes optional Creator/Channel setup only. It intentionally does not
-// rewrite the shared account onboarding flag that unlocked Listener.
+// rewrite the shared Account/Profile onboarding flag that unlocked Listener.
 export async function completeOnboarding(req, res, next) {
   try {
     const user = await User.findById(req.userId);
@@ -294,9 +296,21 @@ export async function completeOnboarding(req, res, next) {
       });
     }
 
+    if (
+      user.creatorProfile.creatorType === 'organization' &&
+      !user.creatorProfile.about
+    ) {
+      return res.status(400).json({
+        error: {
+          code: 'CREATOR_SETUP_INCOMPLETE',
+          message: 'Finish your organization Channel details before continuing',
+        },
+      });
+    }
+
     user.userType = 'creator';
     user.roles = [...new Set(['listener', ...(user.roles || []), 'creator'])];
-    user.creatorProfile.isApproved = true;
+    user.creatorProfile.setupCompleted = true;
     user.onboardingStep = 4;
     await user.save();
 
@@ -359,6 +373,7 @@ export async function skipOnboarding(req, res, next) {
     const user = await User.findById(req.userId);
     if (!user) return notFound(res);
 
+    user.roles = [...new Set(['listener', ...(user.roles || [])])];
     user.onboardingCompleted = true;
     user.onboardingStep = Math.max(Number(user.onboardingStep) || 0, 5);
     await user.save();
