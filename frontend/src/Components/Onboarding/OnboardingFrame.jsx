@@ -10,14 +10,13 @@ import {
 } from "react-icons/fa";
 import echooLogo from "../Assets/echoo-brand-logo.png";
 import creatorArtwork from "../Assets/creator-logo.png";
-import roleArtwork from "../Assets/echoo-role-headphones-microphone.png";
 import signalWave from "../Assets/echoo-patterns/signal-wave.svg";
 import "./onboarding-redesign.css";
 import "./onboarding-animation-fix.css";
 import "./onboarding-layout-audit.css";
 import "./onboarding-dynamic-hero.css";
 
-const BASIC_STEPS = ["Account", "Profile", "Role"];
+const BASIC_STEPS = ["Account", "Profile"];
 const AUDIO_BAR_COUNT = 44;
 const PROFILE_BAR_COUNT = 24;
 
@@ -304,14 +303,6 @@ const ProfileHero = ({ profileName = "Your profile", profileHandle = "@echoo", p
   );
 };
 
-const RoleHero = () => (
-  <div className="eor-role-hero-card" aria-hidden="true">
-    <img src={roleArtwork} alt="" />
-    <span className="eor-role-hero-kicker">LISTEN OR CREATE</span>
-    <p>Find the way your voice belongs on Echoo.</p>
-  </div>
-);
-
 const CreatorHero = ({ creatorName = "Your creator space", creatorHandle = "@creator" }) => (
   <div className="eor-creator-hero-card" aria-hidden="true">
     <img className="eor-creator-hero-art" src={creatorArtwork} alt="" />
@@ -369,7 +360,6 @@ const OnboardingFrame = ({
 }) => {
   const isProfile = hero === "profile";
   const isCreator = hero === "creator";
-  const isRole = hero === "role";
 
   return (
     <main className={`echoo-onboarding-redesign eor-step-${step}`}>
@@ -398,15 +388,6 @@ const OnboardingFrame = ({
                 Build your profile so others can discover, connect, and listen.
                 Be authentic. Be you.
               </p>
-            </>
-          ) : isRole ? (
-            <>
-              <h1>
-                Your <em>platform.</em>
-                <br />
-                Your <em>way.</em>
-              </h1>
-              <p>Choose how you want to experience Echoo today. You can always grow into more later.</p>
             </>
           ) : isCreator ? (
             <>
@@ -437,8 +418,6 @@ const OnboardingFrame = ({
 
         {isProfile ? (
           <ProfileHero {...heroData} />
-        ) : isRole ? (
-          <RoleHero />
         ) : isCreator ? (
           <CreatorHero {...heroData} />
         ) : (
@@ -449,7 +428,6 @@ const OnboardingFrame = ({
       <section className="eor-form-side">
         <div className={`eor-panel ${panelClassName}`}>
           <StepProgress step={step} stepLabels={stepLabels} phaseLabel={phaseLabel} />
-
           {children}
         </div>
       </section>
