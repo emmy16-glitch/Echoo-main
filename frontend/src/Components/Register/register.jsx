@@ -66,6 +66,7 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
   const [signupError, setSignupError] = useState("");
   const [successState, setSuccessState] = useState(null);
   const [successUser, setSuccessUser] = useState(null);
+  const [resetEmail, setResetEmail] = useState("");
   const [toast, setToast] = useState({
     open: false,
     type: "info",
@@ -192,8 +193,6 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
           password: formData.password,
         });
         const user = saveSession(response);
-        // Every authenticated Echoo account opens in Listener by default. A
-        // Creator can switch to Studio without changing account or session.
         localStorage.setItem("echooActiveExperience", "listener");
         setSuccessUser(user);
         setSuccessState("login");
@@ -201,13 +200,9 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
       }
 
       if (action === "Forgot Password") {
-        const response = await api.auth.forgotPassword(formData.email.trim());
-        setToast({
-          open: true,
-          type: "success",
-          title: "Reset link sent",
-          message: response?.data?.message || "Check your email for a password-reset link.",
-        });
+        await api.auth.forgotPassword(formData.email.trim());
+        setResetEmail(formData.email.trim());
+        setSuccessState("reset-email");
       }
     } catch (error) {
       if (action === "Login") {
@@ -301,6 +296,31 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
           />
         </div>
       </div>
+    );
+  }
+
+  if (successState === "reset-email") {
+    return (
+      <main className="echoo-auth-reference is-login is-check-email">
+        <section className="ear-visual-panel" aria-label="Echoo audio background">
+          <BroadcastLoginVisual logoSrc={EchooLogoImage} mode="login" />
+        </section>
+        <section className="ear-auth-panel" aria-labelledby="ear-check-email-title">
+          <div className="ear-auth-card ear-check-email-card">
+            <img src={EchooLogoImage} alt="" className="ear-login-card-logo" aria-hidden="true" />
+            <div className="ear-check-email-icon" aria-hidden="true"><FaEnvelope /></div>
+            <header className="ear-form-heading">
+              <h1 id="ear-check-email-title">Check your email</h1>
+              <p>
+                We sent a password-reset link to <strong>{resetEmail}</strong>. Open it to create your new password.
+              </p>
+            </header>
+            <button type="button" className="ear-submit" onClick={switchToLogin}>
+              Back to login
+            </button>
+          </div>
+        </section>
+      </main>
     );
   }
 
