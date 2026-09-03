@@ -16,7 +16,7 @@ const activatedCreator = {
   ...listener,
   userType: 'creator',
   roles: ['listener', 'creator'],
-  creatorProfile: { isApproved: false },
+  creatorProfile: { setupCompleted: false },
 };
 
 const fulfill = (route, data) => route.fulfill({ json: { data } });
@@ -42,8 +42,8 @@ test('Listener opens contextual Channel onboarding and reaches a public Channel 
   }));
 
   await page.goto('/listen');
-  await expect(page.getByRole('button', { name: 'Create your Channel' })).toBeVisible();
-  await page.getByRole('button', { name: 'Create your Channel' }).click();
+  await expect(page.getByRole('button', { name: 'Create a Channel' })).toBeVisible();
+  await page.getByRole('button', { name: 'Create a Channel' }).click();
 
   await expect(page.getByRole('heading', { name: /How will you create/i })).toBeVisible();
   await expect(page.locator('.eor-hero-copy h1')).toContainText('creator identity.');
