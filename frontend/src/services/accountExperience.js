@@ -17,18 +17,19 @@ export const hasCreatorCapability = (user = {}) => (
 
 // Creator/Channel setup is independent from shared Account/Profile onboarding.
 // New activations always receive an explicit setupCompleted flag. Legacy
-// creators did not, so creatorType + the old completed onboarding flag keeps
-// those existing accounts from being forced through setup again.
+// creators did not, so only a creator with a minimum Channel identity
+// (creator type + category) and the old completed onboarding state is treated
+// as ready for Creator Studio.
 export const hasCompletedCreatorProfile = (user = {}) => {
   if (!hasCreatorCapability(user)) return false;
 
   const profile = user.creatorProfile || {};
   if (profile.setupCompleted === true) return true;
   if (profile.setupCompleted === false) return false;
-  if (profile.isApproved === true) return true;
 
   return Boolean(
     profile.creatorType &&
+    profile.category &&
     user.onboardingCompleted === true
   );
 };
