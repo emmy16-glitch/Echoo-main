@@ -67,9 +67,6 @@ import {
   hasCreatorCapability,
 } from './services/accountExperience';
 
-// Error boundary that catches lazy-chunk load failures (e.g. a network drop
-// mid-session) and lets the user retry instead of crashing the whole app.
-// Class component because ErrorBoundary requires getDerivedStateFromError.
 class LazyPageErrorBoundary extends Component {
   constructor(props) {
     super(props);
@@ -81,10 +78,6 @@ class LazyPageErrorBoundary extends Component {
   }
 
   retry = () => {
-    // React.lazy caches a rejected import promise. Merely clearing the boundary
-    // state re-renders the same rejected promise and can trap the user in an
-    // immediate error loop. Reload the current route so the browser performs a
-    // fresh chunk request after the connection recovers.
     window.location.reload();
   };
 
@@ -130,8 +123,6 @@ const getStoredUser = () => {
   }
 };
 
-// Creator and Listener are workspaces for one Echoo account. The selected
-// experience only controls which workspace is open; it never changes identity.
 const getStoredExperience = () => localStorage.getItem('echooActiveExperience') || 'listener';
 
 const roleHome = (experience) => {
@@ -145,9 +136,14 @@ const isAccountOnboardingComplete = (user = {}) => (
   localStorage.getItem('echooOnboardingCompleted') === 'true'
 );
 
+// The backend historically persisted only onboardingCompleted for the shared
+// personal profile. Treat that as authoritative on returning logins while also
+// accepting the newer profileCompleted/local migration marker.
 const isProfileComplete = (user = {}) => (
   Boolean(user.profileCompleted) ||
-  localStorage.getItem('echooProfileCompleted') === 'true'
+  Boolean(user.onboardingCompleted) ||
+  localStorage.getItem('echooProfileCompleted') === 'true' ||
+  localStorage.getItem('echooOnboardingCompleted') === 'true'
 );
 
 const getStartingStage = () => {
@@ -157,8 +153,6 @@ const getStartingStage = () => {
   const user = getStoredUser();
   const activeExperience = getStoredExperience();
 
-  // Account/Profile setup is the only mandatory signup onboarding. Creator
-  // setup happens later from Listener and must never reset this state.
   if (!isAccountOnboardingComplete(user) || !isProfileComplete(user)) {
     return 'profile';
   }
@@ -186,8 +180,6 @@ const OnboardingFlow = () => {
   }, [stage, navigate]);
 
   const handleLoginSuccess = (user) => {
-    // Login always re-enters the universal Listener experience. Creator-capable
-    // users can switch to Studio immediately from the same account/session.
     localStorage.setItem('echooActiveExperience', 'listener');
 
     if (!isAccountOnboardingComplete(user) || !isProfileComplete(user)) {
