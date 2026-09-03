@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { FiBell, FiChevronDown, FiHelpCircle, FiLogOut, FiSettings } from 'react-icons/fi';
 
 import { api } from '../../services/api';
-import { hasCreatorCapability, resolveExperienceSwitch } from '../../services/accountExperience';
+import { hasCompletedCreatorProfile, resolveExperienceSwitch } from '../../services/accountExperience';
 import './AccountExperienceMenu.css';
 
 const identityOf = (user = {}) => (
@@ -26,7 +26,7 @@ export function EchooModeSwitcher({
   onSwitch,
 }) {
   return (
-    <div className="echoo-mode-switcher" role="tablist" aria-label="Echoo mode">
+    <div className="echoo-mode-switcher" role="tablist" aria-label="Echoo experience">
       {[
         ['creator', 'Creator'],
         ['listener', 'Listener'],
@@ -70,7 +70,7 @@ export default function AccountExperienceMenu({
   const name = identityOf(user);
   const image = profileImage || imageOf(user);
   const roleLabel = currentExperience === 'creator' ? 'Creator' : 'Listener';
-  const creatorEnabled = hasCreatorCapability(user);
+  const creatorReady = hasCompletedCreatorProfile(user);
 
   useEffect(() => {
     const closeOutside = (event) => {
@@ -140,7 +140,7 @@ export default function AccountExperienceMenu({
 
   return (
     <div className={`echoo-account-toolbar account-experience-menu account-experience-menu--${variant}`} ref={rootRef}>
-      {creatorEnabled ? (
+      {creatorReady ? (
         <EchooModeSwitcher
           activeMode={currentExperience}
           disabled={switching}
