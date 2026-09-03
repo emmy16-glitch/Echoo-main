@@ -13,9 +13,9 @@ import ResetPassword from './Components/Register/ResetPassword';
 import ProfileSetup from './Components/ProfileSetup/ProfileSetup';
 import CreatorSetup from './Components/CreatorSetup/CreatorSetup';
 
-// The logged-in shells are lazy-loaded so each role downloads only its own
-// experience instead of one monolithic bundle. Listener chunks are cached by
-// routePreloaders so the first navigation click is not a cold import.
+// The logged-in shells are lazy-loaded so each experience downloads only its
+// own bundle. Listener chunks are cached by routePreloaders so the first
+// navigation click is not a cold import.
 import {
   loadListenerAudioDetail,
   loadListenerCreatorProfile,
@@ -61,11 +61,15 @@ const ListenerCollectionDetail = lazy(loadListenerCollectionDetail);
 import EchooExperienceOrchestrator from './Components/EchooSystem/EchooExperienceOrchestrator';
 import EchooMobileNavigation from './Components/EchooSystem/EchooMobileNavigation';
 import ImageCropProvider from './Components/Common/ImageCropProvider';
-import { canAccessExperience } from './services/accountExperience';
+import {
+  canAccessExperience,
+  getStoredExperience,
+  hasCompletedCreatorProfile,
+  hasCompletedProfile,
+  saveAccountUser,
+  saveActiveExperience,
+} from './services/accountExperience';
 
-// Error boundary that catches lazy-chunk load failures (e.g. a network drop
-// mid-session) and lets the user retry instead of crashing the whole app.
-// Class component because ErrorBoundary requires getDerivedStateFromError.
 class LazyPageErrorBoundary extends Component {
   constructor(props) {
     super(props);
@@ -77,10 +81,6 @@ class LazyPageErrorBoundary extends Component {
   }
 
   retry = () => {
-    // React.lazy caches a rejected import promise. Merely clearing the boundary
-    // state re-renders the same rejected promise and can trap the user in an
-    // immediate error loop. Reload the current route so the browser performs a
-    // fresh chunk request after the connection recovers.
     window.location.reload();
   };
 
@@ -105,7 +105,6 @@ class LazyPageErrorBoundary extends Component {
   }
 }
 
-// Loading state shown while a lazy page shell (or its route chunk) loads.
 const LazyPageLoading = () => (
   <div className="echoo-lazy-page-fallback" role="status" aria-live="polite">
     <div className="echoo-lazy-page-fallback__spinner" aria-hidden="true" />
@@ -127,38 +126,18 @@ const getStoredUser = () => {
   }
 };
 
-// Creator and Listener are workspaces for one Echoo account. A new login
-// deliberately starts in Listener unless this account selected a workspace in
-// the current session; `userType` remains the legacy creator-capability flag,
-// never an account-routing identity.
-const getStoredRole = () => localStorage.getItem('echooActiveExperience') || 'listener';
-
-const roleHome = (role) => {
-  if (role === 'creator') return '/creator-studio';
-  if (role === 'listener') return '/listen';
-  return '/';
-};
+const roleHome = (experience) => (
+  experience === 'creator' ? '/creator-studio' : '/listen'
+);
 
 const getStartingStage = () => {
-  const accessToken = localStorage.getItem('accessToken');
-  if (!accessToken) return 'register';
-
-  const user = getStoredUser();
-  const role = getStoredRole(user);
-  const onboardingComplete =
-    Boolean(user.onboardingCompleted) ||
-    localStorage.getItem('echooOnboardingCompleted') === 'true';
-  const profileComplete =
-    Boolean(user.profileCompleted) ||
-    localStorage.getItem('echooProfileCompleted') === 'true';
-
-  if (onboardingComplete) return role === 'creator' ? 'creator-done' : 'listener-done';
-
-  if (!profileComplete) return 'profile';
-  if (user.userType === 'creator' || Array.isArray(user.roles) && user.roles.includes('creator')) return 'creator';
-  return 'listener-done';
+  if (!localStorage.getItem('accessToken')) return 'register';
+  return hasCompletedProfile(getStoredUser()) ? 'listener-done' : 'profile';
 };
 
+// Account creation/authentication only creates or resumes the shared Echoo
+// identity. Listener is the default experience. Creator setup is a separate
+// authenticated route and never participates in login/signup state.
 const OnboardingFlow = () => {
   const navigate = useNavigate();
   const [stage, setStage] = useState(getStartingStage);
@@ -167,36 +146,17 @@ const OnboardingFlow = () => {
     if (stage === 'listener-done') {
       navigate('/listen', { replace: true });
     }
-
-    if (stage === 'creator-done') {
-      navigate('/creator-studio', { replace: true });
-    }
   }, [stage, navigate]);
 
   const handleLoginSuccess = (user) => {
-    const role = getStoredRole();
-    const onboardingComplete =
-      Boolean(user?.onboardingCompleted) ||
-      localStorage.getItem('echooOnboardingCompleted') === 'true';
-    const profileComplete =
-      Boolean(user?.profileCompleted) ||
-      localStorage.getItem('echooProfileCompleted') === 'true';
+    if (user) saveAccountUser(user);
 
-    if (onboardingComplete) {
-      setStage(role === 'creator' ? 'creator-done' : 'listener-done');
-      return;
-    }
-
-    if (!profileComplete) {
+    if (!hasCompletedProfile(user || getStoredUser())) {
       setStage('profile');
       return;
     }
 
-    if (user?.userType === 'creator' || user?.roles?.includes('creator')) {
-      setStage('creator');
-      return;
-    }
-
+    saveActiveExperience('listener');
     setStage('listener-done');
   };
 
@@ -215,7 +175,7 @@ const OnboardingFlow = () => {
         onProfileCompleted={() => {
           localStorage.setItem('echooProfileCompleted', 'true');
           localStorage.setItem('echooOnboardingCompleted', 'true');
-          localStorage.setItem('echooActiveExperience', 'listener');
+          saveActiveExperience('listener');
           setStage('listener-done');
         }}
         onSessionInvalid={() => setStage('register')}
@@ -223,35 +183,35 @@ const OnboardingFlow = () => {
     );
   }
 
-  if (stage === 'creator') {
-    return (
-      <CreatorSetup
-        onBackToRole={() => setStage('role')}
-        onCreatorReady={() => {
-          localStorage.setItem('echooRole', 'creator');
-          localStorage.setItem('echooActiveExperience', 'creator');
-          localStorage.setItem('echooOnboardingCompleted', 'true');
-          setStage('creator-done');
-        }}
-      />
-    );
-  }
-
   return null;
 };
 
-const RequireRole = ({ role, children }) => {
+const CreateChannelFlow = () => {
+  const navigate = useNavigate();
   const accessToken = localStorage.getItem('accessToken');
   if (!accessToken) return <Navigate to="/" replace />;
 
   const user = getStoredUser();
-  const onboardingComplete =
-    Boolean(user.onboardingCompleted) ||
-    localStorage.getItem('echooOnboardingCompleted') === 'true';
+  if (!hasCompletedProfile(user)) return <Navigate to="/" replace />;
+  if (hasCompletedCreatorProfile(user)) return <Navigate to="/creator-studio" replace />;
 
-  if (!onboardingComplete) {
-    return <Navigate to="/" replace />;
-  }
+  return (
+    <CreatorSetup
+      onBackToRole={() => navigate('/listen', { replace: true })}
+      onCreatorReady={() => {
+        saveAccountUser(getStoredUser());
+        saveActiveExperience('creator');
+        navigate('/creator-studio', { replace: true });
+      }}
+    />
+  );
+};
+
+const RequireRole = ({ role, children }) => {
+  if (!localStorage.getItem('accessToken')) return <Navigate to="/" replace />;
+
+  const user = getStoredUser();
+  if (!hasCompletedProfile(user)) return <Navigate to="/" replace />;
 
   if (!canAccessExperience(user, role)) {
     return <Navigate to={role === 'creator' ? '/listen' : '/'} replace />;
@@ -266,17 +226,14 @@ const RequireRole = ({ role, children }) => {
 };
 
 const DefaultRedirect = () => {
-  const accessToken = localStorage.getItem('accessToken');
-  if (!accessToken) return <Navigate to="/" replace />;
+  if (!localStorage.getItem('accessToken')) return <Navigate to="/" replace />;
 
   const user = getStoredUser();
-  const role = getStoredRole(user);
-  const onboardingComplete =
-    Boolean(user.onboardingCompleted) ||
-    localStorage.getItem('echooOnboardingCompleted') === 'true';
+  if (!hasCompletedProfile(user)) return <Navigate to="/" replace />;
 
-  if (!onboardingComplete || !role) return <Navigate to="/" replace />;
-  return <Navigate to={roleHome(role)} replace />;
+  const preferred = getStoredExperience('listener');
+  const available = canAccessExperience(user, preferred) ? preferred : 'listener';
+  return <Navigate to={roleHome(available)} replace />;
 };
 
 const ListenerRoutePrefetch = () => {
@@ -319,6 +276,7 @@ function App() {
           <Routes>
             <Route path="/" element={<OnboardingFlow />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/create-channel" element={<CreateChannelFlow />} />
 
             <Route
               path="/creator-studio/*"
