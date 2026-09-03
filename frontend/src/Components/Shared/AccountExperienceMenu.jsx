@@ -72,6 +72,13 @@ export default function AccountExperienceMenu({
   const roleLabel = currentExperience === 'creator' ? 'Creator' : 'Listener';
   const creatorEnabled = hasCreatorCapability(user);
 
+  const defaultSettingsPath = currentExperience === 'creator'
+    ? '/creator-studio/settings'
+    : '/listen/settings';
+  const defaultNotificationsPath = currentExperience === 'creator'
+    ? '/creator-studio/notifications'
+    : '/listen/notifications';
+
   useEffect(() => {
     const closeOutside = (event) => {
       if (rootRef.current && !rootRef.current.contains(event.target)) setOpen(false);
@@ -126,6 +133,19 @@ export default function AccountExperienceMenu({
     }
   };
 
+  const openSettings = () => {
+    setOpen(false);
+    if (onSettings) onSettings();
+    else navigate(defaultSettingsPath);
+  };
+
+  const openHelp = () => {
+    setOpen(false);
+    if (onHelp) onHelp();
+    else if (onSettings) onSettings();
+    else navigate(defaultSettingsPath);
+  };
+
   const navigateMenu = (event) => {
     if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
     const items = [...(dropdownRef.current?.querySelectorAll('[role="menuitem"]:not(:disabled)') || [])];
@@ -159,15 +179,24 @@ export default function AccountExperienceMenu({
           {switching ? 'Opening setup…' : 'Create your Channel'}
         </button>
       )}
-      <button
-        type="button"
-        className="echoo-account-toolbar__notification"
-        onClick={onNotifications}
-        aria-label={`Notifications${unreadNotifications ? ', unread notifications' : ''}`}
-      >
-        <FiBell aria-hidden="true" />
-        {unreadNotifications > 0 && <span aria-hidden="true" />}
-      </button>
+
+      {/* ListenerLayout already owns the Listener notification button. Creator
+          Studio has no separate copy, so keep the shared control there only. */}
+      {variant === 'creator' && (
+        <button
+          type="button"
+          className="echoo-account-toolbar__notification"
+          onClick={() => {
+            if (onNotifications) onNotifications();
+            else navigate(defaultNotificationsPath);
+          }}
+          aria-label={`Notifications${unreadNotifications ? ', unread notifications' : ''}`}
+        >
+          <FiBell aria-hidden="true" />
+          {unreadNotifications > 0 && <span aria-hidden="true" />}
+        </button>
+      )}
+
       <button
         type="button"
         ref={triggerRef}
@@ -207,10 +236,7 @@ export default function AccountExperienceMenu({
             role="menuitem"
             ref={firstItemRef}
             disabled={switching}
-            onClick={() => {
-              setOpen(false);
-              onSettings?.();
-            }}
+            onClick={openSettings}
           >
             <FiSettings aria-hidden="true" />
             <span>Settings</span>
@@ -219,10 +245,7 @@ export default function AccountExperienceMenu({
             type="button"
             role="menuitem"
             disabled={switching}
-            onClick={() => {
-              setOpen(false);
-              (onHelp || onSettings)?.();
-            }}
+            onClick={openHelp}
           >
             <FiHelpCircle aria-hidden="true" />
             <span>Help &amp; Support</span>
