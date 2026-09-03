@@ -117,6 +117,9 @@ const USER_SAFE_ERROR_CODES = new Set([
   'EMAIL_EXISTS',
   'USERNAME_TAKEN',
   'USER_NOT_REGISTERED',
+  'EMAIL_NOT_VERIFIED',
+  'INVALID_VERIFICATION_CODE',
+  'VERIFICATION_CODE_EXPIRED',
   'INVALID_RESET_TOKEN',
   'BROADCAST_NOT_LIVE',
   'BROADCAST_PRIVATE',
@@ -368,10 +371,8 @@ export const api = {
           }
         );
 
-      // A successful login/register always begins a new browser session. Clear
-      // account-scoped UI remnants from the previous person before writing the
-      // newly authenticated session; Creator/Listener are experiences of this
-      // one user, never separate browser identities.
+      // Registration starts a new browser identity but does not create a full
+      // authenticated session until the email verification code succeeds.
       clearAuthTokens();
       saveTokens({
         accessToken:
@@ -383,6 +384,37 @@ export const api = {
       });
 
       return response;
+    },
+
+    verifyEmail: async ({ userId, code }) => {
+      const response = await apiRequest(
+        '/auth/verify-email',
+        {
+          method: 'POST',
+          body: JSON.stringify({ userId, code }),
+          skipAuth: true,
+          skipRefresh: true,
+        }
+      );
+
+      clearAuthTokens();
+      saveTokens({
+        accessToken: response?.data?.accessToken,
+        refreshToken: response?.data?.refreshToken,
+      });
+      return response;
+    },
+
+    resendVerification: async ({ userId, email }) => {
+      return apiRequest(
+        '/auth/resend-verification',
+        {
+          method: 'POST',
+          body: JSON.stringify({ userId, email }),
+          skipAuth: true,
+          skipRefresh: true,
+        }
+      );
     },
 
     login: async (
