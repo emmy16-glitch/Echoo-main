@@ -135,6 +135,9 @@ app.post(
   express.raw({ type: 'application/webhook+json', limit: '1mb' }),
   handleLiveKitWebhook
 );
+// The legacy signed webhook router also needs an untouched payload. Keep this
+// compatibility endpoint before the general JSON parser.
+app.use('/api/livekit/webhook', express.raw({ type: '*/*', limit: '1mb' }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 

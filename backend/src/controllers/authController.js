@@ -1,5 +1,8 @@
 import User from '../models/User.js';
+import crypto from 'node:crypto';
 import { verifyRefreshToken } from '../config/jwt.js';
+import { env } from '../config/env.js';
+import { sendPasswordResetEmail } from '../services/emailService.js';
 
 export async function register(req, res, next) {
   try {
@@ -13,9 +16,20 @@ export async function register(req, res, next) {
       });
     }
 
-    if (String(password).length < 6) {
+    const passwordValue = String(password);
+    const hasPasswordCombination =
+      passwordValue.length >= 8 &&
+      /[a-z]/.test(passwordValue) &&
+      /[A-Z]/.test(passwordValue) &&
+      /\d/.test(passwordValue) &&
+      /[^A-Za-z0-9]/.test(passwordValue);
+
+    if (!hasPasswordCombination) {
       return res.status(400).json({
-        error: { code: 'VALIDATION_ERROR', message: 'Password must be at least 6 characters' }
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Password must be at least 8 characters and include uppercase and lowercase letters, a number, and a special character',
+        },
       });
     }
 
@@ -192,16 +206,78 @@ export async function getCurrentUser(req, res, next) {
 
 export async function forgotPassword(req, res, next) {
   try {
-    const { email } = req.body;
-    if (!email) {
+    const cleanEmail = String(req.body?.email || '').trim().toLowerCase();
+    if (!cleanEmail) {
       return res.status(400).json({
-        error: { code: 'VALIDATION_ERROR', message: 'Email is required' }
+        error: { code: 'VALIDATION_ERROR', message: 'Email is required' },
       });
     }
 
+    const user = await User.findOne({ email: cleanEmail }).select('+resetPasswordTokenHash +resetPasswordExpiresAt');
+    if (!user) {
+      return res.status(404).json({
+        error: { code: 'USER_NOT_REGISTERED', message: 'This email is not registered. Please create an Echoo account.' },
+      });
+    }
+
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    user.resetPasswordTokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+    user.resetPasswordExpiresAt = new Date(Date.now() + 30 * 60 * 1000);
+    await user.save({ validateBeforeSave: false });
+
+    const resetUrl = `${env.frontendUrl}/reset-password?token=${encodeURIComponent(rawToken)}`;
+    await sendPasswordResetEmail({ to: user.email, resetUrl });
+
     return res.status(200).json({
-      data: { message: 'If an account exists, a reset link will be sent' },
-      timestamp: new Date().toISOString()
+      data: { message: 'A password-reset link has been sent to your email address.' },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function resetPassword(req, res, next) {
+  try {
+    const { token, password } = req.body || {};
+    const passwordValue = String(password || '');
+    const hasPasswordCombination =
+      passwordValue.length >= 8 &&
+      /[a-z]/.test(passwordValue) &&
+      /[A-Z]/.test(passwordValue) &&
+      /\d/.test(passwordValue) &&
+      /[^A-Za-z0-9]/.test(passwordValue);
+
+    if (!token || !hasPasswordCombination) {
+      return res.status(400).json({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'A valid reset token and a strong password are required.',
+        },
+      });
+    }
+
+    const tokenHash = crypto.createHash('sha256').update(String(token)).digest('hex');
+    const user = await User.findOne({
+      resetPasswordTokenHash: tokenHash,
+      resetPasswordExpiresAt: { $gt: new Date() },
+    }).select('+passwordHash +resetPasswordTokenHash +resetPasswordExpiresAt +refreshTokenVersion');
+
+    if (!user) {
+      return res.status(400).json({
+        error: { code: 'INVALID_RESET_TOKEN', message: 'This reset link is invalid or expired.' },
+      });
+    }
+
+    user.passwordHash = await User.hashPassword(passwordValue);
+    user.resetPasswordTokenHash = null;
+    user.resetPasswordExpiresAt = null;
+    user.refreshTokenVersion += 1;
+    await user.save({ validateBeforeSave: false });
+
+    return res.status(200).json({
+      data: { message: 'Password reset successfully. You can now sign in.' },
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     next(error);

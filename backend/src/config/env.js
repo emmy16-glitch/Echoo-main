@@ -100,4 +100,12 @@ export const env = Object.freeze({
   whisperQualityModel: String(process.env.WHISPER_QUALITY_MODEL || process.env.WHISPER_MODEL || 'faster-whisper-large-v3-turbo').trim(),
   whisperModel: String(process.env.WHISPER_MODEL || 'faster-whisper-large-v3-turbo').trim(),
   whisperLanguage: String(process.env.WHISPER_LANGUAGE || 'en').trim(),
+  frontendUrl: requireValue('FRONTEND_URL', 'http://localhost:5174'),
+  gmailUser: requireValue('GMAIL_USER', ''),
+  gmailClientId: requireValue('GMAIL_CLIENT_ID', ''),
+  gmailClientSecret: requireValue('GMAIL_CLIENT_SECRET', ''),
+  gmailRefreshToken: requireValue('GMAIL_REFRESH_TOKEN', ''),
+  mailFrom: requireValue('MAIL_FROM', ''),
+  livekitApiKey: requireValue('LIVEKIT_API_KEY', ''),
+  livekitApiSecret: requireValue('LIVEKIT_API_SECRET', ''),
 });

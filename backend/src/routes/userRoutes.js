@@ -2,6 +2,7 @@ import express from 'express';
 import mongoose from 'mongoose';
 import { authenticate, authorize } from '../middleware/auth.js';
 import User from '../models/User.js';
+import { validateHumanText } from '../utils/humanTextValidation.js';
 
 const router = express.Router();
 
@@ -133,6 +134,20 @@ router.patch('/:id', authenticate, async (req, res, next) => {
     const updateData = {};
     for (const key of allowedUpdates) {
       if (req.body?.[key] !== undefined) updateData[key] = req.body[key];
+    }
+
+    if (Object.prototype.hasOwnProperty.call(updateData, 'bio')) {
+      const bioError = validateHumanText(updateData.bio, {
+        maxLength: 500,
+        requiredMessage: 'Bio must be text',
+        codeMessage: 'Code cannot be submitted as a bio',
+      });
+      if (bioError && updateData.bio !== '') {
+        return res.status(400).json({
+          error: { code: 'VALIDATION_ERROR', message: bioError },
+        });
+      }
+      updateData.bio = typeof updateData.bio === 'string' ? updateData.bio.trim() : updateData.bio;
     }
 
     const user = await User.findByIdAndUpdate(

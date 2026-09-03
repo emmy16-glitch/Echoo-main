@@ -28,6 +28,8 @@ import notificationRoutes from './notificationRoutes.js';
 import transcriptRoutes from './transcriptRoutes.js';
 import savedMomentRoutes from './savedMomentRoutes.js';
 import LiveKitProvider from '../providers/livekit.js';
+import livekitWebhookRoutes from './livekitWebhookRoutes.js';
+import feedbackRoutes from './feedbackRoutes.js';
 import { uploadLimiter } from '../middleware/rateLimiter.js';
 import { getTranscriptionGatewayDiagnostics } from '../services/transcriptionGateway.js';
 
@@ -97,6 +99,8 @@ router.get('/health/transcription', (req, res) => {
   });
 });
 
+router.use('/livekit/webhook', livekitWebhookRoutes);
+router.use('/feedback', feedbackRoutes);
 router.use('/auth', authRoutes);
 router.use('/users', userRoutes);
 // Audio uploads can be multi-gigabyte local-disk writes, so throttle the upload

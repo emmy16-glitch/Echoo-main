@@ -322,7 +322,12 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       });
       room.on(RoomEvent.MediaDevicesChanged, loadOutputs);
 
-      await room.connect(liveKitUrl, credentials.token, { autoSubscribe: true });
+      await room.connect(liveKitUrl, credentials.token, {
+        autoSubscribe: true,
+        maxRetries: 5,
+        websocketTimeout: 15000,
+        peerConnectionTimeout: 20000,
+      });
       if (disposed || roomRef.current !== room) {
         await room.disconnect();
         return;
