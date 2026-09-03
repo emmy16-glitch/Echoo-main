@@ -11,9 +11,15 @@ const creator = {
   username: 'echoocreator',
   displayName: 'Echoo Creator',
   userType: 'creator',
-  roles: ['creator'],
+  roles: ['listener', 'creator'],
   onboardingCompleted: true,
   profileCompleted: true,
+  creatorProfile: {
+    creatorType: 'individual',
+    category: 'Education',
+    artistName: 'Echoo Creator',
+    isApproved: true,
+  },
 };
 
 const listener = {
@@ -60,9 +66,10 @@ const authenticate = async (page, user) => {
     localStorage.setItem('token', `${nextUser.userType}-token`);
     localStorage.setItem('refreshToken', `${nextUser.userType}-refresh-token`);
     localStorage.setItem('user', JSON.stringify(nextUser));
-    localStorage.setItem('echooRole', nextUser.userType);
     localStorage.setItem('echooProfileCompleted', 'true');
     localStorage.setItem('echooOnboardingCompleted', 'true');
+    localStorage.setItem('echooActiveExperience', nextUser.userType === 'creator' ? 'creator' : 'listener');
+    localStorage.removeItem('echooRole');
     if (nextUser.userType === 'creator') {
       localStorage.setItem('creatorSetup', JSON.stringify({
         type: 'individual',

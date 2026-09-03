@@ -12,9 +12,15 @@ const creator = {
   username: 'echoocreator',
   displayName: 'Echoo Creator',
   userType: 'creator',
-  roles: ['creator'],
+  roles: ['listener', 'creator'],
   onboardingCompleted: true,
   profileCompleted: true,
+  creatorProfile: {
+    creatorType: 'individual',
+    category: 'Technology',
+    artistName: 'Echoo Creator',
+    isApproved: true,
+  },
 };
 
 const station = { id: STATION_ID, _id: STATION_ID, name: 'Layers of truth', isPublic: true };
@@ -39,9 +45,10 @@ const authenticate = (page) => page.addInitScript((user) => {
   localStorage.setItem('token', 'creator-token');
   localStorage.setItem('refreshToken', 'creator-refresh-token');
   localStorage.setItem('user', JSON.stringify(user));
-  localStorage.setItem('echooRole', 'creator');
   localStorage.setItem('echooProfileCompleted', 'true');
   localStorage.setItem('echooOnboardingCompleted', 'true');
+  localStorage.setItem('echooActiveExperience', 'creator');
+  localStorage.removeItem('echooRole');
 }, creator);
 
 test('collection artwork crop stays above its editor and replaces the visible cover after save', async ({ page }) => {

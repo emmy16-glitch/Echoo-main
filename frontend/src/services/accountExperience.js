@@ -10,13 +10,29 @@ export const hasListenerProfile = (user = {}) => Boolean(
 );
 
 export const hasCreatorCapability = (user = {}) => (
-  user.userType === 'creator' || accountRoles(user).includes('creator')
+  user.capabilities?.creator === true ||
+  user.userType === 'creator' ||
+  accountRoles(user).includes('creator')
 );
 
-export const hasCompletedCreatorProfile = (user = {}) => (
-  hasCreatorCapability(user) &&
-  user.onboardingCompleted === true
-);
+// Creator/Channel setup is independent from shared Account/Profile onboarding.
+// New activations always receive an explicit setupCompleted flag. Legacy
+// creators did not, so only a creator with a minimum Channel identity
+// (creator type + category) and the old completed onboarding state is treated
+// as ready for Creator Studio.
+export const hasCompletedCreatorProfile = (user = {}) => {
+  if (!hasCreatorCapability(user)) return false;
+
+  const profile = user.creatorProfile || {};
+  if (profile.setupCompleted === true) return true;
+  if (profile.setupCompleted === false) return false;
+
+  return Boolean(
+    profile.creatorType &&
+    profile.category &&
+    user.onboardingCompleted === true
+  );
+};
 
 export const canAccessExperience = (user, experience) => {
   if (experience === 'listener') return hasListenerProfile(user);
@@ -28,13 +44,21 @@ const currentUserFromResponse = (response) => response?.data?.user || response?.
 
 export const saveAccountUser = (user) => {
   if (!user || typeof user !== 'object') return null;
+
   localStorage.setItem('user', JSON.stringify(user));
-  if (user.userType) localStorage.setItem('echooRole', user.userType);
+
+  // echooRole used to describe which account the user had. That concept no
+  // longer exists. Keep active workspace in echooActiveExperience only.
+  localStorage.removeItem('echooRole');
+
   if (user.onboardingCompleted === true) {
     localStorage.setItem('echooOnboardingCompleted', 'true');
+    localStorage.setItem('echooProfileCompleted', 'true');
   } else if (user.onboardingCompleted === false) {
     localStorage.removeItem('echooOnboardingCompleted');
+    localStorage.removeItem('echooProfileCompleted');
   }
+
   return user;
 };
 
@@ -56,7 +80,7 @@ export const resolveExperienceSwitch = async (
   saveUser(user);
 
   if (targetExperience === 'listener') {
-    if (!hasListenerProfile(user)) throw new Error('Listener profile is unavailable.');
+    if (!hasListenerProfile(user)) throw new Error('Listener experience is unavailable.');
     localStorage.setItem('echooActiveExperience', 'listener');
     return { user, route: '/listen', requiresSetup: false };
   }
@@ -69,12 +93,12 @@ export const resolveExperienceSwitch = async (
   if (!hasCreatorCapability(user)) {
     const activationResponse = await activateCreator();
     user = currentUserFromResponse(activationResponse);
-    if (!user) throw new Error('Unable to start Creator setup.');
+    if (!user) throw new Error('Unable to start Channel setup.');
     saveUser(user);
   }
 
-  // Existing authenticated accounts have already completed the shared account
-  // identity step; only Creator-specific setup remains.
+  // The signed-in Echoo identity is already complete. Only Channel/Creator
+  // setup remains, and switching experiences must never trigger another login.
   localStorage.setItem('echooProfileCompleted', 'true');
   localStorage.setItem('echooActiveExperience', 'creator');
 

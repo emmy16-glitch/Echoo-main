@@ -13,8 +13,8 @@ import ResetPassword from './Components/Register/ResetPassword';
 import ProfileSetup from './Components/ProfileSetup/ProfileSetup';
 import CreatorSetup from './Components/CreatorSetup/CreatorSetup';
 
-// The logged-in shells are lazy-loaded so each role downloads only its own
-// experience instead of one monolithic bundle. Listener chunks are cached by
+// The logged-in shells are lazy-loaded so each experience downloads only its
+// own workspace instead of one monolithic bundle. Listener chunks are cached by
 // routePreloaders so the first navigation click is not a cold import.
 import {
   loadListenerAudioDetail,
@@ -61,11 +61,12 @@ const ListenerCollectionDetail = lazy(loadListenerCollectionDetail);
 import EchooExperienceOrchestrator from './Components/EchooSystem/EchooExperienceOrchestrator';
 import EchooMobileNavigation from './Components/EchooSystem/EchooMobileNavigation';
 import ImageCropProvider from './Components/Common/ImageCropProvider';
-import { canAccessExperience } from './services/accountExperience';
+import {
+  canAccessExperience,
+  hasCompletedCreatorProfile,
+  hasCreatorCapability,
+} from './services/accountExperience';
 
-// Error boundary that catches lazy-chunk load failures (e.g. a network drop
-// mid-session) and lets the user retry instead of crashing the whole app.
-// Class component because ErrorBoundary requires getDerivedStateFromError.
 class LazyPageErrorBoundary extends Component {
   constructor(props) {
     super(props);
@@ -77,10 +78,6 @@ class LazyPageErrorBoundary extends Component {
   }
 
   retry = () => {
-    // React.lazy caches a rejected import promise. Merely clearing the boundary
-    // state re-renders the same rejected promise and can trap the user in an
-    // immediate error loop. Reload the current route so the browser performs a
-    // fresh chunk request after the connection recovers.
     window.location.reload();
   };
 
@@ -105,7 +102,6 @@ class LazyPageErrorBoundary extends Component {
   }
 }
 
-// Loading state shown while a lazy page shell (or its route chunk) loads.
 const LazyPageLoading = () => (
   <div className="echoo-lazy-page-fallback" role="status" aria-live="polite">
     <div className="echoo-lazy-page-fallback__spinner" aria-hidden="true" />
@@ -127,35 +123,45 @@ const getStoredUser = () => {
   }
 };
 
-// Creator and Listener are workspaces for one Echoo account. A new login
-// deliberately starts in Listener unless this account selected a workspace in
-// the current session; `userType` remains the legacy creator-capability flag,
-// never an account-routing identity.
-const getStoredRole = () => localStorage.getItem('echooActiveExperience') || 'listener';
+const getStoredExperience = () => localStorage.getItem('echooActiveExperience') || 'listener';
 
-const roleHome = (role) => {
-  if (role === 'creator') return '/creator-studio';
-  if (role === 'listener') return '/listen';
+const roleHome = (experience) => {
+  if (experience === 'creator') return '/creator-studio';
+  if (experience === 'listener') return '/listen';
   return '/';
 };
+
+const isAccountOnboardingComplete = (user = {}) => (
+  Boolean(user.onboardingCompleted) ||
+  localStorage.getItem('echooOnboardingCompleted') === 'true'
+);
+
+// The backend historically persisted only onboardingCompleted for the shared
+// personal profile. Treat that as authoritative on returning logins while also
+// accepting the newer profileCompleted/local migration marker.
+const isProfileComplete = (user = {}) => (
+  Boolean(user.profileCompleted) ||
+  Boolean(user.onboardingCompleted) ||
+  localStorage.getItem('echooProfileCompleted') === 'true' ||
+  localStorage.getItem('echooOnboardingCompleted') === 'true'
+);
 
 const getStartingStage = () => {
   const accessToken = localStorage.getItem('accessToken');
   if (!accessToken) return 'register';
 
   const user = getStoredUser();
-  const role = getStoredRole(user);
-  const onboardingComplete =
-    Boolean(user.onboardingCompleted) ||
-    localStorage.getItem('echooOnboardingCompleted') === 'true';
-  const profileComplete =
-    Boolean(user.profileCompleted) ||
-    localStorage.getItem('echooProfileCompleted') === 'true';
+  const activeExperience = getStoredExperience();
 
-  if (onboardingComplete) return role === 'creator' ? 'creator-done' : 'listener-done';
+  if (!isAccountOnboardingComplete(user) || !isProfileComplete(user)) {
+    return 'profile';
+  }
 
-  if (!profileComplete) return 'profile';
-  if (user.userType === 'creator' || Array.isArray(user.roles) && user.roles.includes('creator')) return 'creator';
+  if (activeExperience === 'creator') {
+    if (hasCompletedCreatorProfile(user)) return 'creator-done';
+    if (hasCreatorCapability(user)) return 'creator';
+  }
+
   return 'listener-done';
 };
 
@@ -174,26 +180,10 @@ const OnboardingFlow = () => {
   }, [stage, navigate]);
 
   const handleLoginSuccess = (user) => {
-    const role = getStoredRole();
-    const onboardingComplete =
-      Boolean(user?.onboardingCompleted) ||
-      localStorage.getItem('echooOnboardingCompleted') === 'true';
-    const profileComplete =
-      Boolean(user?.profileCompleted) ||
-      localStorage.getItem('echooProfileCompleted') === 'true';
+    localStorage.setItem('echooActiveExperience', 'listener');
 
-    if (onboardingComplete) {
-      setStage(role === 'creator' ? 'creator-done' : 'listener-done');
-      return;
-    }
-
-    if (!profileComplete) {
+    if (!isAccountOnboardingComplete(user) || !isProfileComplete(user)) {
       setStage('profile');
-      return;
-    }
-
-    if (user?.userType === 'creator' || user?.roles?.includes('creator')) {
-      setStage('creator');
       return;
     }
 
@@ -226,11 +216,13 @@ const OnboardingFlow = () => {
   if (stage === 'creator') {
     return (
       <CreatorSetup
-        onBackToRole={() => setStage('role')}
+        onBackToRole={() => {
+          localStorage.setItem('echooActiveExperience', 'listener');
+          setStage('listener-done');
+        }}
         onCreatorReady={() => {
-          localStorage.setItem('echooRole', 'creator');
+          localStorage.removeItem('echooRole');
           localStorage.setItem('echooActiveExperience', 'creator');
-          localStorage.setItem('echooOnboardingCompleted', 'true');
           setStage('creator-done');
         }}
       />
@@ -245,15 +237,15 @@ const RequireRole = ({ role, children }) => {
   if (!accessToken) return <Navigate to="/" replace />;
 
   const user = getStoredUser();
-  const onboardingComplete =
-    Boolean(user.onboardingCompleted) ||
-    localStorage.getItem('echooOnboardingCompleted') === 'true';
-
-  if (!onboardingComplete) {
+  if (!isAccountOnboardingComplete(user) || !isProfileComplete(user)) {
     return <Navigate to="/" replace />;
   }
 
   if (!canAccessExperience(user, role)) {
+    if (role === 'creator' && hasCreatorCapability(user)) {
+      localStorage.setItem('echooActiveExperience', 'creator');
+      return <Navigate to="/?source=switch&experience=creator" replace />;
+    }
     return <Navigate to={role === 'creator' ? '/listen' : '/'} replace />;
   }
 
@@ -270,13 +262,20 @@ const DefaultRedirect = () => {
   if (!accessToken) return <Navigate to="/" replace />;
 
   const user = getStoredUser();
-  const role = getStoredRole(user);
-  const onboardingComplete =
-    Boolean(user.onboardingCompleted) ||
-    localStorage.getItem('echooOnboardingCompleted') === 'true';
+  const activeExperience = getStoredExperience();
 
-  if (!onboardingComplete || !role) return <Navigate to="/" replace />;
-  return <Navigate to={roleHome(role)} replace />;
+  if (!isAccountOnboardingComplete(user) || !isProfileComplete(user)) {
+    return <Navigate to="/" replace />;
+  }
+
+  if (activeExperience === 'creator') {
+    if (hasCompletedCreatorProfile(user)) return <Navigate to="/creator-studio" replace />;
+    if (hasCreatorCapability(user)) {
+      return <Navigate to="/?source=switch&experience=creator" replace />;
+    }
+  }
+
+  return <Navigate to={roleHome('listener')} replace />;
 };
 
 const ListenerRoutePrefetch = () => {

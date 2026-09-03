@@ -13,9 +13,9 @@ import OnboardingFrame from "../Onboarding/OnboardingFrame";
 import LoadingButton from "../UI/LoadingButton";
 import Toast from "../UI/Toast";
 import onboardingService from "../../services/onboardingService";
-import batch2Service from "../../services/batch2Service";
+import channelProvisioningService from "../../services/channelProvisioningService";
 
-const CREATOR_STEPS = ["Creator Type", "Details", "Ready"];
+const CREATOR_STEPS = ["Channel Type", "Channel Details", "Ready"];
 
 const categories = [
   "Music",
@@ -74,15 +74,6 @@ const prepareImage = (file) =>
     reader.readAsDataURL(file);
   });
 
-const logoFileFromDataUrl = async (dataUrl) => {
-  if (!dataUrl || typeof dataUrl !== "string" || !dataUrl.startsWith("data:image/")) {
-    return null;
-  }
-  const response = await fetch(dataUrl);
-  const blob = await response.blob();
-  return new File([blob], "station-logo.jpg", { type: blob.type || "image/jpeg" });
-};
-
 const CreatorPublicPreview = ({
   creatorType,
   displayName,
@@ -104,14 +95,14 @@ const CreatorPublicPreview = ({
   const image = isOrganization ? organizationLogo : profileImage;
 
   return (
-    <section className="eor-public-preview" aria-label="Your public creator profile preview">
+    <section className="eor-public-preview" aria-label="Your public Channel preview">
       <div className="eor-public-preview-cover">
         <div className="eor-public-preview-avatar">
           {image ? <img src={image} alt="" /> : <FaMicrophone aria-hidden="true" />}
         </div>
         <div>
-          <p>{category || "Creator"}</p>
-          <h2>{stationName || name || "Your station"}</h2>
+          <p>{category || "Channel"}</p>
+          <h2>{stationName || name || "Your Channel"}</h2>
           <span>{isOrganization ? `@${(name || "creator").replace(/\s+/g, "").toLowerCase()}` : username}</span>
         </div>
       </div>
@@ -232,34 +223,6 @@ const CreatorSetup = ({ onBackToRole, onCreatorReady }) => {
     return false;
   };
 
-  const ensureCanonicalStation = async ({ name, category, description, logoDataUrl = "" }) => {
-    const existing = await batch2Service.getMyStations().catch(() => null);
-    const currentStations = Array.isArray(existing?.data) ? existing.data : [];
-    if (currentStations.length > 0) return currentStations[0];
-
-    const logoFile = await logoFileFromDataUrl(logoDataUrl);
-    try {
-      const response = await batch2Service.createStation({
-        name,
-        category,
-        description,
-        logoFile,
-        brandingMode: logoFile ? "custom" : "generated",
-        isPublic: true,
-      });
-      return response?.data || null;
-    } catch (error) {
-      // The one-Channel-per-creator rule can be reached by a retry after a
-      // previous request completed server-side. Reload the canonical Channel
-      // rather than presenting that successful state as a setup failure.
-      if (error?.code !== "CHANNEL_ALREADY_EXISTS") throw error;
-      const retry = await batch2Service.getMyStations();
-      const stations = Array.isArray(retry?.data) ? retry.data : [];
-      if (stations.length > 0) return stations[0];
-      throw error;
-    }
-  };
-
   const finishIndividualSetup = async () => {
     await onboardingService.chooseCreatorType({
       creatorType: "individual",
@@ -272,7 +235,7 @@ const CreatorSetup = ({ onBackToRole, onCreatorReady }) => {
       genres: [],
     });
 
-    await ensureCanonicalStation({
+    await channelProvisioningService.ensureMyChannel({
       name: individualDetails.stationName.trim(),
       category: individualDetails.category,
       description: individualDetails.content.trim(),
@@ -316,7 +279,7 @@ const CreatorSetup = ({ onBackToRole, onCreatorReady }) => {
       organizationLogo: organizationLogo || null,
     });
 
-    await ensureCanonicalStation({
+    await channelProvisioningService.ensureMyChannel({
       name: organizationDetails.name.trim(),
       category: organizationDetails.category,
       description: organizationDetails.about.trim() || organizationDetails.content.trim(),
@@ -352,7 +315,7 @@ const CreatorSetup = ({ onBackToRole, onCreatorReady }) => {
       setToast({
         open: true,
         type: "error",
-        title: "Could not finish creator setup",
+        title: "Could not finish Channel setup",
         message: error.message || "Please try again.",
       });
     } finally {
@@ -386,7 +349,7 @@ const CreatorSetup = ({ onBackToRole, onCreatorReady }) => {
         <OnboardingFrame
           step={3}
           steps={CREATOR_STEPS}
-          phaseLabel="Creator setup"
+          phaseLabel="Channel setup"
           hero="creator"
           panelClassName="eor-creator-panel eor-creator-ready-panel"
           heroData={{
@@ -396,7 +359,7 @@ const CreatorSetup = ({ onBackToRole, onCreatorReady }) => {
         >
           <header className="eor-form-header eor-creator-ready-header">
             <h1>Almost <span>ready!</span></h1>
-            <p>Review the station listeners will discover on Echoo.</p>
+            <p>Review the Channel listeners will discover on Echoo.</p>
           </header>
           <CreatorPublicPreview
             creatorType={creatorType}
@@ -407,13 +370,13 @@ const CreatorSetup = ({ onBackToRole, onCreatorReady }) => {
             organizationDetails={organizationDetails}
             organizationLogo={organizationLogo}
           />
-          <div className="eor-public-preview-checklist" aria-label="Creator identity checklist">
-            <span><FaCheck aria-hidden="true" /> Profile identity ready</span>
+          <div className="eor-public-preview-checklist" aria-label="Channel identity checklist">
+            <span><FaCheck aria-hidden="true" /> Account identity connected</span>
             <span><FaCheck aria-hidden="true" /> Category selected</span>
-            <span><FaCheck aria-hidden="true" /> Creator space configured</span>
+            <span><FaCheck aria-hidden="true" /> Channel configured</span>
           </div>
           <LoadingButton type="button" className="eor-primary" onClick={() => onCreatorReady?.()}>
-            Create my creator space
+            Open Creator Studio
           </LoadingButton>
           <button type="button" className="eor-outline eor-creator-ready-back" onClick={() => setStep(2)}>
             Back
@@ -430,7 +393,7 @@ const CreatorSetup = ({ onBackToRole, onCreatorReady }) => {
         <OnboardingFrame
           step={1}
           steps={CREATOR_STEPS}
-          phaseLabel="Creator setup"
+          phaseLabel="Channel setup"
           hero="creator"
           panelClassName="eor-creator-panel"
           heroData={{ creatorName: displayName, creatorHandle: username }}
@@ -439,14 +402,14 @@ const CreatorSetup = ({ onBackToRole, onCreatorReady }) => {
             <h1>
               How will you <span>create?</span>
             </h1>
-            <p>Choose the creator identity that best matches how you'll use Echoo.</p>
+            <p>Choose the Channel identity that best matches how you'll create on Echoo.</p>
           </header>
 
           <p className="eor-creator-info">
-            You chose Creator. This next phase sets up the station your broadcasts belong to.
+            You’re still using the same Echoo account. This setup creates the Channel your broadcasts belong to.
           </p>
 
-          <div className="creator-type-options" role="radiogroup" aria-label="Creator type">
+          <div className="creator-type-options" role="radiogroup" aria-label="Channel type">
             <button
               type="button"
               role="radio"
@@ -476,7 +439,7 @@ const CreatorSetup = ({ onBackToRole, onCreatorReady }) => {
 
           <div className="eor-action-row eor-creator-actions">
             <button type="button" className="eor-outline" onClick={handleBack}>
-              Back to role
+              Back to Listener
             </button>
             <LoadingButton
               type="button"
@@ -499,16 +462,16 @@ const CreatorSetup = ({ onBackToRole, onCreatorReady }) => {
         <OnboardingFrame
           step={2}
           steps={CREATOR_STEPS}
-          phaseLabel="Creator setup"
+          phaseLabel="Channel setup"
           hero="creator"
           panelClassName="eor-creator-panel eor-creator-details-panel"
           heroData={{ creatorName: displayName, creatorHandle: username }}
         >
           <header className="eor-form-header">
             <h1>
-              Set up your <span>station</span>
+              Set up your <span>Channel</span>
             </h1>
-            <p>This is the station listeners can find, follow, and hear live.</p>
+            <p>This is the Channel listeners can find, follow, and hear live.</p>
           </header>
 
           <div className="creator-identity-card">
@@ -527,13 +490,13 @@ const CreatorSetup = ({ onBackToRole, onCreatorReady }) => {
 
           <div className="eor-form-grid">
             <div className="eor-field">
-              <label htmlFor="creator-station-name">Station name</label>
+              <label htmlFor="creator-station-name">Channel name</label>
               <div className="creator-input-shell">
                 <input
                   id="creator-station-name"
                   type="text"
                   name="stationName"
-                  placeholder="Enter your station name"
+                  placeholder="Enter your Channel name"
                   value={individualDetails.stationName}
                   onChange={handleIndividualChange}
                   maxLength={100}
@@ -565,7 +528,7 @@ const CreatorSetup = ({ onBackToRole, onCreatorReady }) => {
                 <textarea
                   id="creator-content"
                   name="content"
-                placeholder="Tell listeners what your station is about..."
+                  placeholder="Tell listeners what your Channel is about..."
                   value={individualDetails.content}
                   onChange={handleIndividualChange}
                   maxLength={300}
@@ -576,7 +539,7 @@ const CreatorSetup = ({ onBackToRole, onCreatorReady }) => {
           </div>
 
           <p className="eor-tailor-note">
-            You can refine your station name, artwork, description, and category later in Creator Studio.
+            You can refine your Channel name, artwork, description, and category later in Creator Studio.
           </p>
 
           <div className="eor-action-row eor-creator-actions">
@@ -587,7 +550,7 @@ const CreatorSetup = ({ onBackToRole, onCreatorReady }) => {
               type="button"
               disabled={!detailsAreComplete()}
               loading={saving}
-              loadingText="Creating your studio..."
+              loadingText="Creating your Channel..."
               className="eor-primary"
               onClick={handleDetailsContinue}
             >
@@ -605,19 +568,19 @@ const CreatorSetup = ({ onBackToRole, onCreatorReady }) => {
       <OnboardingFrame
         step={2}
         steps={CREATOR_STEPS}
-        phaseLabel="Creator setup"
+        phaseLabel="Channel setup"
         hero="creator"
         panelClassName="eor-creator-panel eor-creator-details-panel eor-organization-panel"
         heroData={{
-          creatorName: organizationDetails.name || "Your creator space",
+          creatorName: organizationDetails.name || "Your Channel",
           creatorHandle: "Your public audio identity",
         }}
       >
         <header className="eor-form-header">
           <h1>
-            Set up your <span>organization</span>
+            Set up your <span>organization Channel</span>
           </h1>
-          <p>Build the creator identity your audience will see across Echoo.</p>
+          <p>Build the Channel identity your audience will see across Echoo.</p>
         </header>
 
         <div className="organization-upload-section">
@@ -732,7 +695,7 @@ const CreatorSetup = ({ onBackToRole, onCreatorReady }) => {
             type="button"
             disabled={!detailsAreComplete()}
             loading={saving}
-            loadingText="Creating your studio..."
+            loadingText="Creating your Channel..."
             className="eor-primary"
             onClick={handleDetailsContinue}
           >

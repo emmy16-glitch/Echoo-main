@@ -10,12 +10,60 @@ const assertNoHorizontalOverflow = async (page) => {
   expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth + 1);
 };
 
-test('signup and login match the responsive Echoo auth composition', async ({ page }, testInfo) => {
+const assertExactDesktopSignupFigma = async (page, projectName) => {
+  // Figma node 532:803 is a tall desktop reference. Short-laptop projects use
+  // the intentional compact-height adaptation and should not be forced to 714px.
+  if (projectName !== 'desktop-1440') return;
+
+  const geometry = await page.locator('.ear-auth-card').evaluate((card) => {
+    const cardRect = card.getBoundingClientRect();
+    const cardStyle = getComputedStyle(card);
+    const heading = card.querySelector('.ear-form-heading h1');
+    const headingStyle = heading ? getComputedStyle(heading) : null;
+    const field = card.querySelector('.ear-input-shell');
+    const fieldRect = field?.getBoundingClientRect();
+    const button = card.querySelector('.ear-submit');
+    const buttonStyle = button ? getComputedStyle(button) : null;
+    const blur = cardStyle.backdropFilter || cardStyle.webkitBackdropFilter || '';
+
+    return {
+      width: cardRect.width,
+      height: cardRect.height,
+      radius: cardStyle.borderRadius,
+      background: cardStyle.backgroundColor,
+      blur,
+      headingSize: headingStyle?.fontSize || '',
+      fieldHeight: fieldRect?.height || 0,
+      buttonRadius: buttonStyle?.borderRadius || '',
+    };
+  });
+
+  expect(geometry.width).toBeGreaterThanOrEqual(549);
+  expect(geometry.width).toBeLessThanOrEqual(551);
+  expect(geometry.height).toBeGreaterThanOrEqual(713);
+  expect(geometry.height).toBeLessThanOrEqual(716);
+  expect(geometry.radius).toBe('25px');
+  expect(geometry.background).toBe('rgba(255, 255, 255, 0.15)');
+  expect(geometry.blur).toContain('blur(5px)');
+  expect(geometry.headingSize).toBe('36px');
+  expect(geometry.fieldHeight).toBeGreaterThanOrEqual(53);
+  expect(geometry.fieldHeight).toBeLessThanOrEqual(55);
+  expect(geometry.buttonRadius).toBe('40px');
+};
+
+const capture = async (page, testInfo, state) => {
+  await page.evaluate(() => document.activeElement?.blur());
+  await page.screenshot({
+    path: `${screenshotDir}/${testInfo.project.name}-${state}.png`,
+    fullPage: true,
+    timeout: 30_000,
+  });
+};
+
+test('Echoo auth and password recovery follow the Figma glass-screen flow', async ({ page }, testInfo) => {
   const browserErrors = [];
   page.on('console', (message) => {
     const text = message.text();
-    // Vite's development websocket can close while Playwright tears down a
-    // page; it is not an application error and does not occur in production.
     if (message.type() === 'error' && !text.includes('net::ERR_SOCKET_NOT_CONNECTED')) {
       browserErrors.push(text);
     }
@@ -23,36 +71,160 @@ test('signup and login match the responsive Echoo auth composition', async ({ pa
   page.on('pageerror', (error) => browserErrors.push(error.message));
 
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Join the Echoo community' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Start microphone test' })).toBeVisible();
-  const firstWaveBar = page.locator('.ear-waveform span').first();
-  const initialWaveTransform = await firstWaveBar.evaluate((bar) => getComputedStyle(bar).transform);
-  await expect.poll(() => firstWaveBar.evaluate((bar) => getComputedStyle(bar).transform)).not.toBe(initialWaveTransform);
-  await assertNoHorizontalOverflow(page);
-  await page.evaluate(() => document.activeElement?.blur());
-  await page.screenshot({
-    path: `${screenshotDir}/${testInfo.project.name}-signup.png`,
-    fullPage: true,
-    timeout: 30_000,
-  });
 
-  await page.locator('.ear-auth-switch button').click({ force: true });
-  await expect(page.locator('#ear-auth-title')).toHaveText('Welcome back to Echoo.');
-  await expect(page.getByLabel('Username or email')).toBeVisible();
-  await expect.poll(() => page.locator('.ear-login-art img').evaluate((image) => image.complete && image.naturalWidth > 0)).toBe(true);
-  await expect.poll(() => page.locator('.ear-login-art').evaluate((art) => getComputedStyle(art).opacity)).toBe('1');
+  // Figma: Web Sign Up (empty/filled)
+  await expect(page.getByRole('heading', { name: 'Sign up' })).toBeVisible();
+  await expect(page.getByText('Enjoy wonderful listening experience')).toBeVisible();
+  await expect(page.getByLabel('Username', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('Email address')).toBeVisible();
+  await expect(page.getByLabel('Password', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('Confirm password')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Create account' })).toBeVisible();
+  await expect(page.getByText('Creator / Listener')).toHaveCount(0);
+  await expect(page.locator('.ear-auth-card')).toHaveCSS('position', 'relative');
+  await expect.poll(() => page.locator('.ear-auth-card').evaluate((card) => getComputedStyle(card).backdropFilter || getComputedStyle(card).webkitBackdropFilter)).not.toBe('none');
+  await assertExactDesktopSignupFigma(page, testInfo.project.name);
   await assertNoHorizontalOverflow(page);
-  await page.evaluate(() => document.activeElement?.blur());
-  await page.screenshot({
-    path: `${screenshotDir}/${testInfo.project.name}-login.png`,
-    fullPage: true,
-    timeout: 30_000,
-  });
+  await capture(page, testInfo, 'signup-empty');
+
+  await page.getByLabel('Username', { exact: true }).fill('figma-listener');
+  await page.getByLabel('Email address').fill('listener@example.test');
+  await page.getByLabel('Password', { exact: true }).fill('StrongPass1!');
+  await page.getByLabel('Confirm password').fill('StrongPass1!');
+  await expect(page.getByText(/By signing up, I agree to Echoo/)).toBeVisible();
+  await assertNoHorizontalOverflow(page);
+  await capture(page, testInfo, 'signup-filled');
+
+  // Figma: Sign in pg (empty/filled)
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await expect(page.locator('#ear-auth-title')).toHaveText('Echoo your sound');
+  await expect(page.getByText('Sign in to continue your listening experience')).toBeVisible();
+  await expect(page.getByLabel('Username or email')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Login' })).toBeVisible();
+  await expect.poll(() => page.locator('.ear-login-art img').evaluate((image) => image.complete && image.naturalWidth > 0)).toBe(true);
+  await assertNoHorizontalOverflow(page);
+  await capture(page, testInfo, 'login-empty');
 
   await page.getByLabel('Username or email').fill('listener@example.test');
   await page.locator('#echoo-login-password').fill('password123');
-  await page.locator('.ear-submit').click({ force: true });
+  await assertNoHorizontalOverflow(page);
+  await capture(page, testInfo, 'login-filled');
+
+  // Figma family: forget password -> check email
+  await page.getByRole('button', { name: 'Forgot password?' }).click();
+  await expect(page.getByRole('heading', { name: 'Forgot password?' })).toBeVisible();
+  await expect(page.getByLabel('Email address')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Back to login' })).toBeVisible();
+  await assertNoHorizontalOverflow(page);
+  await capture(page, testInfo, 'forgot-empty');
+
+  await page.getByLabel('Email address').fill('listener@example.test');
+  await capture(page, testInfo, 'forgot-filled');
+  await page.getByRole('button', { name: 'Send reset link' }).click();
+
+  await expect(page.getByRole('heading', { name: 'Check your email' })).toBeVisible();
+  await expect(page.getByText('listener@example.test')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Back to login' })).toBeVisible();
+  await assertNoHorizontalOverflow(page);
+  await capture(page, testInfo, 'check-email');
+
+  await page.getByRole('button', { name: 'Back to login' }).click();
+  await page.getByLabel('Username or email').fill('listener@example.test');
+  await page.locator('#echoo-login-password').fill('password123');
+  await page.getByRole('button', { name: 'Login' }).click({ force: true });
   await expect.poll(() => page.evaluate(() => localStorage.getItem('accessToken'))).toBe('listener-token');
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('echooActiveExperience'))).toBe('listener');
 
   expect(browserErrors).toEqual([]);
+});
+
+test('email verification stays inside the Figma auth shell and starts the same Listener account session', async ({ page }, testInfo) => {
+  const pendingUser = {
+    id: '507f1f77bcf86cd799439088',
+    _id: '507f1f77bcf86cd799439088',
+    username: 'verify-listener',
+    displayName: 'verify-listener',
+    email: 'verify-listener@example.test',
+    userType: 'listener',
+    roles: ['listener'],
+    profileCompleted: false,
+    onboardingCompleted: false,
+    emailVerified: false,
+  };
+
+  await page.route('**/api/auth/register', (route) => route.fulfill({
+    status: 201,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      data: {
+        user: pendingUser,
+        verificationRequired: true,
+        verification: {
+          userId: pendingUser.id,
+          email: pendingUser.email,
+          expiresInSeconds: 600,
+        },
+      },
+    }),
+  }));
+
+  await page.route('**/api/auth/verify-email', (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      data: {
+        user: { ...pendingUser, emailVerified: true },
+        accessToken: 'verified-listener-token',
+        refreshToken: 'verified-listener-refresh',
+        verificationRequired: false,
+      },
+    }),
+  }));
+
+  await page.goto('/');
+  await page.getByLabel('Username', { exact: true }).fill(pendingUser.username);
+  await page.getByLabel('Email address').fill(pendingUser.email);
+  await page.getByLabel('Password', { exact: true }).fill('StrongPass1!');
+  await page.getByLabel('Confirm password').fill('StrongPass1!');
+  await page.getByRole('button', { name: 'Create account' }).click();
+
+  await expect(page.getByRole('heading', { name: 'Verify your email' })).toBeVisible();
+  await expect(page.getByText(pendingUser.email)).toBeVisible();
+  await expect(page.getByLabel('Verification code')).toBeVisible();
+  await assertNoHorizontalOverflow(page);
+  await capture(page, testInfo, 'verify-empty');
+
+  for (let index = 0; index < 6; index += 1) {
+    await page.getByLabel(`Verification digit ${index + 1}`).fill(String(index + 1));
+  }
+  await assertNoHorizontalOverflow(page);
+  await capture(page, testInfo, 'verify-filled');
+  await page.getByRole('button', { name: 'Verify' }).click();
+
+  await expect(page.getByRole('heading', { name: 'Set up your profile' })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('accessToken'))).toBe('verified-listener-token');
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('user') || '{}')))
+    .toMatchObject({ id: pendingUser.id, username: pendingUser.username, emailVerified: true });
+});
+
+test('reset-password link uses the same Echoo Web visual family and reaches success', async ({ page }, testInfo) => {
+  await page.goto('/reset-password?token=playwright-reset-token');
+
+  await expect(page.getByRole('heading', { name: 'Create new password' })).toBeVisible();
+  await expect(page.getByLabel('New password')).toBeVisible();
+  await expect(page.getByLabel('Confirm new password')).toBeVisible();
+  await expect(page.locator('.ear-login-art img')).toBeVisible();
+  await assertNoHorizontalOverflow(page);
+  await capture(page, testInfo, 'reset-password-empty');
+
+  await page.getByLabel('New password').fill('FreshPass1!');
+  await page.getByLabel('Confirm new password').fill('FreshPass1!');
+  await assertNoHorizontalOverflow(page);
+  await capture(page, testInfo, 'reset-password-filled');
+  await page.getByRole('button', { name: 'Update password' }).click();
+
+  await expect(page.getByRole('heading', { name: 'Password updated' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Back to login' })).toBeVisible();
+  await assertNoHorizontalOverflow(page);
+  await capture(page, testInfo, 'reset-password-success');
 });

@@ -10,7 +10,10 @@ export default defineConfig({
   fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  // Test files are isolated and use deterministic browser/API state. Two CI
+  // workers keep the complete 19-project audit practical without reducing any
+  // browser or viewport coverage or overloading the standard GitHub runner.
+  workers: process.env.CI ? 2 : undefined,
   reporter: process.env.CI
     ? [['line'], ['html', { outputFolder: 'playwright-report', open: 'never' }]]
     : [['list'], ['html', { outputFolder: 'playwright-report', open: 'never' }]],

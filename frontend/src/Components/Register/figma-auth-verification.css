@@ -1,0 +1,93 @@
+.echoo-auth-reference.is-figma-auth.is-verify .ear-auth-card {
+  min-height: 500px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.echoo-auth-reference.is-figma-auth.is-verify .ear-form-heading {
+  margin-bottom: 28px;
+}
+
+.echoo-auth-reference.is-figma-auth .ear-verify-form {
+  gap: 18px;
+}
+
+.echoo-auth-reference.is-figma-auth .ear-verify-code {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.echoo-auth-reference.is-figma-auth .ear-code-box {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  min-width: 0;
+  border: 1px solid rgba(0, 0, 0, .68);
+  border-radius: 10px;
+  outline: none;
+  background: rgba(235, 238, 244, .76);
+  color: rgba(0, 0, 0, .76);
+  text-align: center;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: clamp(19px, 2vw, 25px);
+  font-weight: 600;
+  caret-color: #4f7ec3;
+  transition: border-color 150ms ease, background 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+}
+
+.echoo-auth-reference.is-figma-auth .ear-code-box:hover {
+  background: rgba(244, 246, 250, .84);
+}
+
+.echoo-auth-reference.is-figma-auth .ear-code-box:focus {
+  border-color: rgba(121, 171, 230, .98);
+  background: rgba(250, 252, 255, .94);
+  box-shadow: 0 0 0 3px rgba(79, 126, 195, .22);
+  transform: translateY(-1px);
+}
+
+.echoo-auth-reference.is-figma-auth .ear-code-box:not(:placeholder-shown) {
+  background: rgba(248, 250, 253, .9);
+}
+
+.echoo-auth-reference.is-figma-auth .ear-verify-message {
+  margin: -5px 0 0;
+  text-align: center;
+}
+
+.echoo-auth-reference.is-figma-auth .ear-verify-resend {
+  margin-top: 0;
+}
+
+.echoo-auth-reference.is-figma-auth .ear-verify-resend button:disabled {
+  opacity: .55;
+  cursor: wait;
+}
+
+@media (max-width: 760px) {
+  .echoo-auth-reference.is-figma-auth.is-verify .ear-auth-card {
+    min-height: auto;
+  }
+
+  .echoo-auth-reference.is-figma-auth .ear-verify-code {
+    gap: 7px;
+  }
+
+  .echoo-auth-reference.is-figma-auth .ear-code-box {
+    border-radius: 8px;
+    font-size: 20px;
+  }
+}
+
+@media (max-width: 380px) {
+  .echoo-auth-reference.is-figma-auth .ear-verify-code {
+    gap: 5px;
+  }
+
+  .echoo-auth-reference.is-figma-auth .ear-code-box {
+    border-radius: 7px;
+    font-size: 18px;
+  }
+}
