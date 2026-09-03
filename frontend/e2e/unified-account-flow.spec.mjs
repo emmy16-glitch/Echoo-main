@@ -19,7 +19,7 @@ const activatedCreator = {
   userType: 'creator',
   roles: ['listener', 'creator'],
   creatorProfile: {
-    isApproved: false,
+    setupCompleted: false,
   },
 };
 
@@ -88,8 +88,8 @@ test('Listener can start Channel setup in the same account and return without an
   }));
 
   await page.goto('/listen');
-  await expect(page.getByRole('button', { name: 'Create your Channel' })).toBeVisible();
-  await page.getByRole('button', { name: 'Create your Channel' }).click();
+  await expect(page.getByRole('button', { name: 'Create a Channel' })).toBeVisible();
+  await page.getByRole('button', { name: 'Create a Channel' }).click();
 
   await expect(page).toHaveURL(/experience=creator/);
   await expect(page.getByRole('heading', { name: /How will you create/i })).toBeVisible();
@@ -104,6 +104,8 @@ test('Listener can start Channel setup in the same account and return without an
   expect(identityDuringSetup.token).toBe('listener-token');
   expect(identityDuringSetup.user.id).toBe(activatedCreator.id);
   expect(identityDuringSetup.user.roles).toEqual(['listener', 'creator']);
+  expect(identityDuringSetup.user.onboardingCompleted).toBe(true);
+  expect(identityDuringSetup.user.creatorProfile.setupCompleted).toBe(false);
   expect(identityDuringSetup.experience).toBe('creator');
 
   await page.getByRole('button', { name: 'Back to Listener' }).click();
@@ -135,7 +137,7 @@ test('one Listener account can create its Channel, enter Creator Studio, switch 
   await page.route('**/api/onboarding/activate-creator', (route) => {
     currentUser = {
       ...activatedCreator,
-      creatorProfile: { isApproved: false },
+      creatorProfile: { setupCompleted: false },
     };
     return fulfill(route, {
       data: {
@@ -155,9 +157,9 @@ test('one Listener account can create its Channel, enter Creator Studio, switch 
       ...currentUser,
       creatorProfile: {
         ...currentUser.creatorProfile,
+        setupCompleted: false,
         creatorType: 'individual',
         artistName: payload.artistName,
-        isApproved: false,
       },
     };
     return fulfill(route, { data: { user: currentUser, nextStep: 'content-info' } });
@@ -170,9 +172,9 @@ test('one Listener account can create its Channel, enter Creator Studio, switch 
       ...currentUser,
       creatorProfile: {
         ...currentUser.creatorProfile,
+        setupCompleted: false,
         category: payload.category,
         contentDescription: payload.contentDescription,
-        isApproved: false,
       },
     };
     return fulfill(route, { data: { user: currentUser, nextStep: 'complete' } });
@@ -211,7 +213,8 @@ test('one Listener account can create its Channel, enter Creator Studio, switch 
       onboardingStep: 4,
       creatorProfile: {
         ...currentUser.creatorProfile,
-        isApproved: true,
+        setupCompleted: true,
+        isApproved: false,
       },
     };
     return fulfill(route, {
@@ -225,8 +228,8 @@ test('one Listener account can create its Channel, enter Creator Studio, switch 
   });
 
   await page.goto('/listen');
-  await expect(page.getByRole('button', { name: 'Create your Channel' })).toBeVisible();
-  await page.getByRole('button', { name: 'Create your Channel' }).click();
+  await expect(page.getByRole('button', { name: 'Create a Channel' })).toBeVisible();
+  await page.getByRole('button', { name: 'Create a Channel' }).click();
 
   await expect(page.getByRole('heading', { name: /How will you create/i })).toBeVisible();
   await noHorizontalOverflow(page);
@@ -246,7 +249,7 @@ test('one Listener account can create its Channel, enter Creator Studio, switch 
 
   await page.getByRole('button', { name: 'Open Creator Studio' }).click();
   await expect(page).toHaveURL(/\/creator-studio$/, { timeout: 10_000 });
-  await expect(page.getByRole('tab', { name: 'Creator' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: 'Creator Studio' })).toHaveAttribute('aria-selected', 'true');
   await expect.poll(() => page.evaluate(() => ({
     token: localStorage.getItem('accessToken'),
     experience: localStorage.getItem('echooActiveExperience'),
@@ -255,17 +258,17 @@ test('one Listener account can create its Channel, enter Creator Studio, switch 
   }))).toMatchObject({
     token: 'listener-token',
     experience: 'creator',
-    user: { id: accountId, roles: ['listener', 'creator'], creatorProfile: { isApproved: true } },
+    user: { id: accountId, roles: ['listener', 'creator'], creatorProfile: { setupCompleted: true } },
     legacyRole: null,
   });
   await noHorizontalOverflow(page);
 
-  await page.getByRole('tab', { name: 'Listener' }).click();
+  await page.getByRole('tab', { name: 'Listening' }).click();
   await expect(page).toHaveURL(/\/listen$/, { timeout: 10_000 });
   await expect.poll(() => page.evaluate(() => localStorage.getItem('echooActiveExperience'))).toBe('listener');
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('user') || '{}').id)).toBe(accountId);
 
-  await page.getByRole('tab', { name: 'Creator' }).click();
+  await page.getByRole('tab', { name: 'Creator Studio' }).click();
   await expect(page).toHaveURL(/\/creator-studio$/, { timeout: 10_000 });
   await expect(page.getByRole('heading', { name: /How will you create/i })).toHaveCount(0);
 
@@ -295,7 +298,7 @@ test('one Listener account can create its Channel, enter Creator Studio, switch 
     userId: accountId,
   });
 
-  await page.getByRole('tab', { name: 'Creator' }).click();
+  await page.getByRole('tab', { name: 'Creator Studio' }).click();
   await expect(page).toHaveURL(/\/creator-studio$/, { timeout: 10_000 });
   await expect(page.getByRole('heading', { name: /How will you create/i })).toHaveCount(0);
   await noHorizontalOverflow(page);
