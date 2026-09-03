@@ -25,6 +25,28 @@ const userSchema = new mongoose.Schema(
       required: [true, 'Password is required'],
       select: false,
     },
+    // Existing Echoo accounts predate email verification, so the schema default
+    // remains true for migration safety. New registrations explicitly set this
+    // to false until the one-time code is verified.
+    emailVerified: {
+      type: Boolean,
+      default: true,
+    },
+    emailVerificationCodeHash: {
+      type: String,
+      default: null,
+      select: false,
+    },
+    emailVerificationExpiresAt: {
+      type: Date,
+      default: null,
+      select: false,
+    },
+    emailVerificationSentAt: {
+      type: Date,
+      default: null,
+      select: false,
+    },
     resetPasswordTokenHash: {
       type: String,
       default: null,
@@ -274,6 +296,11 @@ const userSchema = new mongoose.Schema(
       transform(doc, ret) {
         delete ret.passwordHash;
         delete ret.refreshTokenVersion;
+        delete ret.emailVerificationCodeHash;
+        delete ret.emailVerificationExpiresAt;
+        delete ret.emailVerificationSentAt;
+        delete ret.resetPasswordTokenHash;
+        delete ret.resetPasswordExpiresAt;
         delete ret.__v;
         return ret;
       },
@@ -283,6 +310,7 @@ const userSchema = new mongoose.Schema(
 
 // Indexes
 userSchema.index({ userType: 1 });
+userSchema.index({ emailVerified: 1 });
 userSchema.index({ 'creatorProfile.isVerified': 1 });
 userSchema.index({ 'listeningHistory.playedAt': -1 });
 
@@ -312,19 +340,17 @@ userSchema.methods.generateTokens = function() {
   return { accessToken, refreshToken };
 };
 
-// Instance method to set user type
+// Legacy compatibility helper. userType is retained for old records and old
+// integrations, but changing capability must never reset the shared Account /
+// Profile onboarding state.
 userSchema.methods.setUserType = async function(userType) {
   if (!['listener', 'creator'].includes(userType)) {
     throw new Error('Invalid user type. Must be "listener" or "creator"');
   }
-  
+
   this.userType = userType;
-  // Roles describe account capabilities, not the screen currently open. Every
-  // Echoo account can listen, and Creator setup adds that capability without
-  // removing the listener experience.
   this.roles = [...new Set(['listener', ...(this.roles || []), userType])];
-  this.onboardingStep = userType === 'creator' ? 1 : 0;
-  this.onboardingCompleted = userType === 'listener' ? true : false;
+  if (userType === 'creator' && this.onboardingStep < 1) this.onboardingStep = 1;
   return await this.save();
 };
 
@@ -333,13 +359,13 @@ userSchema.methods.setCreatorType = async function(creatorType, data) {
   if (this.userType !== 'creator') {
     throw new Error('User must be a creator to set creator type');
   }
-  
+
   if (!['individual', 'organization'].includes(creatorType)) {
     throw new Error('Invalid creator type. Must be "individual" or "organization"');
   }
-  
+
   this.creatorProfile.creatorType = creatorType;
-  
+
   if (creatorType === 'individual') {
     this.creatorProfile.artistName = data.artistName || this.displayName;
   } else {
@@ -348,7 +374,7 @@ userSchema.methods.setCreatorType = async function(creatorType, data) {
     this.creatorProfile.website = data.website;
     this.creatorProfile.location = data.location;
   }
-  
+
   this.onboardingStep = 2;
   return await this.save();
 };
@@ -358,11 +384,11 @@ userSchema.methods.updateContentInfo = async function(data) {
   if (this.userType !== 'creator') {
     throw new Error('User must be a creator to update content info');
   }
-  
+
   if (data.category) this.creatorProfile.category = data.category;
   if (data.contentDescription) this.creatorProfile.contentDescription = data.contentDescription;
   if (data.genres) this.creatorProfile.genres = data.genres;
-  
+
   this.onboardingStep = this.creatorProfile.creatorType === 'organization' ? 3 : 4;
   return await this.save();
 };
@@ -372,13 +398,13 @@ userSchema.methods.updateOrganizationInfo = async function(data) {
   if (this.userType !== 'creator' || this.creatorProfile.creatorType !== 'organization') {
     throw new Error('User must be an organization creator to update organization info');
   }
-  
+
   if (data.organizationName) this.creatorProfile.organizationName = data.organizationName;
   if (data.category) this.creatorProfile.category = data.category;
   if (data.about) this.creatorProfile.about = data.about;
   if (data.contentDescription) this.creatorProfile.contentDescription = data.contentDescription;
   if (data.organizationLogo) this.creatorProfile.organizationLogo = data.organizationLogo;
-  
+
   this.onboardingStep = 4;
   return await this.save();
 };
@@ -398,14 +424,14 @@ userSchema.methods.updateListeningHistory = async function(trackId, progress) {
     progress: progress || 0,
     completed: progress >= 100,
   };
-  
+
   this.listeningHistory.push(historyEntry);
-  
+
   // Keep only last 100 entries
   if (this.listeningHistory.length > 100) {
     this.listeningHistory = this.listeningHistory.slice(-100);
   }
-  
+
   return await this.save();
 };
 
