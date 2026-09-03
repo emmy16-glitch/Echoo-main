@@ -3,14 +3,27 @@ export const userRoles = (user = {}) => (
 );
 
 export const hasCreatorCapability = (user = {}) => (
-  user.userType === 'creator' || userRoles(user).includes('creator')
+  user.capabilities?.creator === true ||
+  user.userType === 'creator' ||
+  userRoles(user).includes('creator')
 );
 
-export const hasCompletedCreatorSetup = (user = {}) => (
-  hasCreatorCapability(user) &&
-  user.onboardingCompleted === true &&
-  Boolean(user.creatorProfile?.creatorType)
-);
+// Creator setup is separate from the shared Echoo account onboarding state.
+// `setupCompleted` is the canonical flag going forward. The profile-based
+// fallback preserves existing creators created before that flag existed.
+export const hasCompletedCreatorSetup = (user = {}) => {
+  if (!hasCreatorCapability(user)) return false;
+
+  const profile = user.creatorProfile || {};
+  if (profile.setupCompleted === true) return true;
+  if (profile.setupCompleted === false) return false;
+
+  return Boolean(
+    profile.creatorType &&
+    profile.category &&
+    user.onboardingCompleted === true
+  );
+};
 
 export const creatorOnboardingStep = (user = {}) => {
   const profile = user.creatorProfile || {};
@@ -19,3 +32,8 @@ export const creatorOnboardingStep = (user = {}) => {
   if (profile.creatorType === 'organization' && !profile.about) return 3;
   return 4;
 };
+
+export const accountCapabilities = (user = {}) => ({
+  listener: true,
+  creator: hasCreatorCapability(user),
+});
