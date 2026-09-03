@@ -32,8 +32,14 @@ const AuthField = ({ id, label, icon: Icon, error, action, children }) => (
 
 const emptyVerificationDigits = () => Array(6).fill("");
 
+const initialAuthAction = () => {
+  if (typeof window === "undefined") return "Sign Up";
+  const mode = new URLSearchParams(window.location.search).get("mode");
+  return mode === "login" ? "Login" : "Sign Up";
+};
+
 const Register = ({ onAccountCreated, onLoginSuccess }) => {
-  const [action, setAction] = useState("Sign Up");
+  const [action, setAction] = useState(initialAuthAction);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState("");
