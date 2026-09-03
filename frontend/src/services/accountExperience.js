@@ -16,18 +16,21 @@ export const hasCreatorCapability = (user = {}) => (
 );
 
 // Creator access is a capability on one Echoo account, not a second account.
-// New API responses can mark creatorProfile.setupCompleted explicitly. The
-// fallback keeps existing creator accounts working without a destructive data
-// migration while we transition away from the legacy shared onboarding flag.
+// New API responses can mark creatorProfile.setupCompleted explicitly. Existing
+// CreatorSetup already persists isApproved on completion, so that remains a
+// migration-safe completion signal for current accounts.
 export const hasCompletedCreatorProfile = (user = {}) => {
   if (!hasCreatorCapability(user)) return false;
 
-  if (user.creatorProfile?.setupCompleted === true) return true;
-  if (user.creatorProfile?.setupCompleted === false) return false;
+  const profile = user.creatorProfile || {};
+  if (profile.setupCompleted === true) return true;
+  if (profile.setupCompleted === false) return false;
+  if (profile.isApproved === true) return true;
+  if (profile.isApproved === false && (profile.creatorType || profile.category)) return false;
 
   return Boolean(
-    user.creatorProfile?.creatorType &&
-    user.creatorProfile?.category &&
+    profile.creatorType &&
+    profile.category &&
     user.onboardingCompleted === true
   );
 };
