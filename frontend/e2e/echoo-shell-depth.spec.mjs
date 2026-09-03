@@ -19,10 +19,16 @@ const creatorUser = {
   displayName: 'Echoo Creator With A Long Display Name',
   email: 'creator@example.test',
   userType: 'creator',
-  roles: ['creator'],
+  roles: ['listener', 'creator'],
   onboardingCompleted: true,
   profileCompleted: true,
-  creatorProfile: { creatorType: 'individual', artistName: 'Echoo Creator' },
+  creatorProfile: {
+    setupCompleted: true,
+    creatorType: 'individual',
+    artistName: 'Echoo Creator',
+    category: 'Technology',
+    isApproved: false,
+  },
 };
 
 const authenticate = async (page, role) => {
@@ -32,12 +38,11 @@ const authenticate = async (page, role) => {
     localStorage.setItem('token', `${nextRole}-token`);
     localStorage.setItem('refreshToken', `${nextRole}-refresh-token`);
     localStorage.setItem('user', JSON.stringify(nextUser));
-    localStorage.setItem('echooRole', nextRole);
     localStorage.setItem('echooProfileCompleted', 'true');
     localStorage.setItem('echooOnboardingCompleted', 'true');
-    if (nextRole === 'creator') {
-      localStorage.setItem('creatorSetup', JSON.stringify({ type: 'individual', name: nextUser.displayName }));
-    }
+    localStorage.setItem('echooActiveExperience', nextRole === 'creator' ? 'creator' : 'listener');
+    localStorage.removeItem('echooRole');
+    localStorage.removeItem('creatorSetup');
   }, { nextUser: user, nextRole: role });
 };
 
