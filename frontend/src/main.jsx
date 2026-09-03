@@ -57,6 +57,7 @@ import "./styles/playwright-run7-final-gate-fixes.css";
 import "./styles/echoo-artwork-fit.css";
 import "./Components/Register/auth-reference.css";
 import "./Components/Register/figma-auth-login.css";
+import "./Components/Register/figma-auth-verification.css";
 initializeEchooTheme();
 
 // Older builds used this as a persistent transcript-processing selector. It is
