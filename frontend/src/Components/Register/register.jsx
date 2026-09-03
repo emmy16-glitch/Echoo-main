@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import "./register.css";
 import api from "../../services/api";
 
@@ -30,6 +30,8 @@ const AuthField = ({ id, label, icon: Icon, error, action, children }) => (
   </div>
 );
 
+const emptyVerificationDigits = () => Array(6).fill("");
+
 const Register = ({ onAccountCreated, onLoginSuccess }) => {
   const [action, setAction] = useState("Sign Up");
   const [loading, setLoading] = useState(false);
@@ -38,6 +40,12 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
   const [signupError, setSignupError] = useState("");
   const [resetEmail, setResetEmail] = useState("");
   const [showCheckEmail, setShowCheckEmail] = useState(false);
+  const [verification, setVerification] = useState(null);
+  const [verificationDigits, setVerificationDigits] = useState(emptyVerificationDigits);
+  const [verificationError, setVerificationError] = useState("");
+  const [verificationNotice, setVerificationNotice] = useState("");
+  const [verificationOrigin, setVerificationOrigin] = useState("signup");
+  const verificationRefs = useRef([]);
   const [toast, setToast] = useState({
     open: false,
     type: "info",
@@ -55,6 +63,7 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
   const isSignup = action === "Sign Up";
   const isLogin = action === "Login";
   const isForgotPassword = action === "Forgot Password";
+  const verificationCode = verificationDigits.join("");
 
   const passwordTooShort =
     isSignup &&
@@ -113,6 +122,19 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
     return user;
   };
 
+  const openVerification = (nextVerification, origin = "signup") => {
+    if (!nextVerification?.userId) {
+      throw new Error("Echoo could not start email verification. Please try again.");
+    }
+    setVerification(nextVerification);
+    setVerificationOrigin(origin);
+    setVerificationDigits(emptyVerificationDigits());
+    setVerificationError("");
+    setVerificationNotice("");
+    setShowCheckEmail(false);
+    window.setTimeout(() => verificationRefs.current[0]?.focus(), 0);
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     if (loading) return;
@@ -145,6 +167,12 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
           // Display name is collected on the following Profile screen.
           displayName: formData.username.trim(),
         });
+
+        if (response?.data?.verificationRequired) {
+          openVerification(response.data.verification, "signup");
+          return;
+        }
+
         const user = saveSession(response);
         onAccountCreated?.(user);
         return;
@@ -167,9 +195,13 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
       }
     } catch (error) {
       if (isLogin) {
+        if (error?.code === "EMAIL_NOT_VERIFIED" && error?.data?.data?.verification) {
+          openVerification(error.data.data.verification, "login");
+          return;
+        }
+
         const isCredentialError =
           error?.status === 401 ||
-          error?.status === 403 ||
           ["INVALID_CREDENTIALS", "UNAUTHORIZED", "AUTH_INVALID", "LOGIN_FAILED"].includes(error?.code);
         const isNetworkError = error?.message?.toLowerCase() === "failed to fetch";
         setLoginError(
@@ -210,11 +242,91 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
     }
   };
 
+  const handleVerificationDigit = (index, rawValue) => {
+    const digit = String(rawValue || "").replace(/\D/g, "").slice(-1);
+    setVerificationDigits((current) => {
+      const next = [...current];
+      next[index] = digit;
+      return next;
+    });
+    setVerificationError("");
+    setVerificationNotice("");
+    if (digit && index < 5) verificationRefs.current[index + 1]?.focus();
+  };
+
+  const handleVerificationKeyDown = (index, event) => {
+    if (event.key === "Backspace" && !verificationDigits[index] && index > 0) {
+      verificationRefs.current[index - 1]?.focus();
+    }
+    if (event.key === "ArrowLeft" && index > 0) verificationRefs.current[index - 1]?.focus();
+    if (event.key === "ArrowRight" && index < 5) verificationRefs.current[index + 1]?.focus();
+  };
+
+  const handleVerificationPaste = (event) => {
+    const pasted = event.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+    if (!pasted) return;
+    event.preventDefault();
+    const next = emptyVerificationDigits();
+    pasted.split("").forEach((digit, index) => { next[index] = digit; });
+    setVerificationDigits(next);
+    setVerificationError("");
+    verificationRefs.current[Math.min(5, pasted.length - 1)]?.focus();
+  };
+
+  const verifyEmail = async (event) => {
+    event.preventDefault();
+    if (loading || !verification?.userId || verificationCode.length !== 6) return;
+
+    try {
+      setLoading(true);
+      setVerificationError("");
+      setVerificationNotice("");
+      const response = await api.auth.verifyEmail({
+        userId: verification.userId,
+        code: verificationCode,
+      });
+      const user = saveSession(response);
+      setVerification(null);
+      if (verificationOrigin === "login") onLoginSuccess?.(user);
+      else onAccountCreated?.(user);
+    } catch (error) {
+      setVerificationError(error?.message || "We couldn't verify that code. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resendVerification = async () => {
+    if (loading || !verification?.userId) return;
+    try {
+      setLoading(true);
+      setVerificationError("");
+      const response = await api.auth.resendVerification({
+        userId: verification.userId,
+        email: verification.email,
+      });
+      if (response?.data?.verification) {
+        setVerification(response.data.verification);
+      }
+      setVerificationDigits(emptyVerificationDigits());
+      setVerificationNotice(response?.data?.message || "A new code has been sent.");
+      window.setTimeout(() => verificationRefs.current[0]?.focus(), 0);
+    } catch (error) {
+      setVerificationError(error?.message || "We couldn't send a new code. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const resetMessages = () => {
     setShowPassword(false);
     setLoginError("");
     setSignupError("");
     setShowCheckEmail(false);
+    setVerification(null);
+    setVerificationDigits(emptyVerificationDigits());
+    setVerificationError("");
+    setVerificationNotice("");
   };
 
   const switchToLogin = () => {
@@ -231,6 +343,73 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
     setLoginError("");
     setAction("Forgot Password");
   };
+
+  if (verification) {
+    return (
+      <main className="echoo-auth-reference is-figma-auth is-login is-verify">
+        <section className="ear-visual-panel" aria-label="Echoo audio background">
+          <BroadcastLoginVisual logoSrc={EchooLogoImage} mode="login" />
+        </section>
+        <section className="ear-auth-panel" aria-labelledby="ear-verify-title">
+          <div className="ear-auth-card ear-verify-card">
+            <img src={EchooLogoImage} alt="" className="ear-login-card-logo" aria-hidden="true" />
+            <header className="ear-form-heading">
+              <h1 id="ear-verify-title">Verify your email</h1>
+              <p>
+                Enter the 6-digit code sent to <strong>{verification.email}</strong>.
+              </p>
+            </header>
+
+            <form className="ear-form ear-verify-form" onSubmit={verifyEmail}>
+              <div className="ear-verify-code" onPaste={handleVerificationPaste} aria-label="Verification code">
+                {verificationDigits.map((digit, index) => (
+                  <input
+                    key={index}
+                    ref={(node) => { verificationRefs.current[index] = node; }}
+                    className="ear-code-box"
+                    aria-label={`Verification digit ${index + 1}`}
+                    inputMode="numeric"
+                    autoComplete={index === 0 ? "one-time-code" : "off"}
+                    pattern="[0-9]*"
+                    maxLength={1}
+                    value={digit}
+                    onChange={(event) => handleVerificationDigit(index, event.target.value)}
+                    onKeyDown={(event) => handleVerificationKeyDown(index, event)}
+                  />
+                ))}
+              </div>
+
+              {verificationError && <p className="ear-error ear-verify-message" role="alert">{verificationError}</p>}
+              {verificationNotice && <p className="ear-notice ear-verify-message" role="status">{verificationNotice}</p>}
+
+              <LoadingButton
+                type="submit"
+                loading={loading}
+                loadingText="Verifying..."
+                disabled={verificationCode.length !== 6}
+                className="ear-submit"
+              >
+                Verify
+              </LoadingButton>
+
+              <p className="ear-auth-switch ear-verify-resend">
+                Didn&apos;t receive the code?{" "}
+                <button type="button" onClick={resendVerification} disabled={loading}>
+                  Resend code
+                </button>
+              </p>
+
+              {verificationOrigin === "login" && (
+                <button type="button" className="ear-auth-text-button" onClick={switchToLogin}>
+                  Back to login
+                </button>
+              )}
+            </form>
+          </div>
+        </section>
+      </main>
+    );
+  }
 
   if (showCheckEmail) {
     return (
