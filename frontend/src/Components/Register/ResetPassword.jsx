@@ -1,8 +1,11 @@
 import { useMemo, useState } from 'react';
+import { FaArrowLeft, FaLock } from 'react-icons/fa';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../../services/api';
 import LoadingButton from '../UI/LoadingButton';
-import EchooLogoImage from '../Assets/creator-logo.png';
+import SuccessState from '../UI/SuccessState';
+import EchooLogoImage from '../Assets/echoo-logo-official.svg';
+import BroadcastLoginVisual from './BroadcastLoginVisual';
 import './register.css';
 
 const passwordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
@@ -39,7 +42,6 @@ const ResetPassword = () => {
     try {
       const response = await api.auth.resetPassword({ token, password });
       setNotice(response?.data?.message || 'Password reset successfully.');
-      window.setTimeout(() => navigate('/', { replace: true }), 900);
     } catch (requestError) {
       setError(requestError?.message || 'This reset link is invalid or expired.');
     } finally {
@@ -48,53 +50,99 @@ const ResetPassword = () => {
   };
 
   return (
-    <div className="auth-page">
-      <div className="auth-card compact-card">
-        <div className="logo-container">
-          <img src={EchooLogoImage} alt="Echoo Logo" className="echoo-logo-image" />
+    <main className="echoo-auth-reference is-login is-reset-password">
+      <section className="ear-visual-panel" aria-label="Echoo audio background">
+        <BroadcastLoginVisual logoSrc={EchooLogoImage} mode="login" />
+      </section>
+
+      <section className="ear-auth-panel" aria-labelledby="reset-password-title">
+        <div className="ear-auth-card">
+          {notice ? (
+            <SuccessState
+              title="Password updated"
+              message="Your new password is ready. Return to Echoo and sign in."
+              onContinue={() => navigate('/', { replace: true })}
+              continueLabel="Back to login"
+            />
+          ) : (
+            <>
+              <button
+                type="button"
+                className="ear-glass-back"
+                onClick={() => navigate('/', { replace: true })}
+                aria-label="Back to login"
+              >
+                <FaArrowLeft />
+              </button>
+              <img src={EchooLogoImage} alt="" className="ear-login-card-logo" aria-hidden="true" />
+              <header className="ear-form-heading">
+                <h1 id="reset-password-title">Create new password</h1>
+                <p>Choose a secure new password for your Echoo account.</p>
+              </header>
+
+              <form onSubmit={handleSubmit} className="ear-form" noValidate>
+                <div className="ear-field">
+                  <div className="ear-field-label-row">
+                    <label htmlFor="echoo-reset-password">New password</label>
+                  </div>
+                  <div className="ear-input-shell">
+                    <FaLock className="ear-input-icon" aria-hidden="true" />
+                    <input
+                      id="echoo-reset-password"
+                      type="password"
+                      placeholder="Enter new password"
+                      value={password}
+                      onChange={(event) => {
+                        setPassword(event.target.value);
+                        setError('');
+                      }}
+                      autoComplete="new-password"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="ear-field">
+                  <div className="ear-field-label-row">
+                    <label htmlFor="echoo-reset-confirm">Confirm new password</label>
+                  </div>
+                  <div className="ear-input-shell">
+                    <FaLock className="ear-input-icon" aria-hidden="true" />
+                    <input
+                      id="echoo-reset-confirm"
+                      type="password"
+                      placeholder="Confirm new password"
+                      value={confirmPassword}
+                      onChange={(event) => {
+                        setConfirmPassword(event.target.value);
+                        setError('');
+                      }}
+                      autoComplete="new-password"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <p className="ear-helper ear-helper-on-glass">
+                  Use 8+ characters with uppercase and lowercase letters, a number, and a special character.
+                </p>
+                {error && <p className="ear-error" role="alert">{error}</p>}
+
+                <LoadingButton
+                  type="submit"
+                  loading={loading}
+                  loadingText="Updating..."
+                  disabled={!passwordValid || !passwordsMatch || !token}
+                  className="ear-submit"
+                >
+                  Update password
+                </LoadingButton>
+              </form>
+            </>
+          )}
         </div>
-        <div className="auth-header forgot-header">
-          <h1>Reset Password</h1>
-          <p>Choose a new password for your Echoo account.</p>
-        </div>
-        <form onSubmit={handleSubmit} className="auth-form compact-form" noValidate>
-          <div className="input-container">
-            <div className="input">
-              <input
-                className="forminput"
-                type="password"
-                placeholder="New password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                autoComplete="new-password"
-                required
-              />
-            </div>
-          </div>
-          <div className="input-container">
-            <div className="input">
-              <input
-                className="forminput"
-                type="password"
-                placeholder="Confirm new password"
-                value={confirmPassword}
-                onChange={(event) => setConfirmPassword(event.target.value)}
-                autoComplete="new-password"
-                required
-              />
-            </div>
-          </div>
-          {error && <p className="eor-inline-error" role="alert">{error}</p>}
-          {notice && <p className="eor-notice" role="status">{notice}</p>}
-          <LoadingButton type="submit" loading={loading} loadingText="Updating..." disabled={!passwordValid || !passwordsMatch || !token} className="main-button">
-            Update password
-          </LoadingButton>
-          <button type="button" className="back-button" onClick={() => navigate('/', { replace: true })}>
-            Back to sign in
-          </button>
-        </form>
-      </div>
-    </div>
+      </section>
+    </main>
   );
 };
 
