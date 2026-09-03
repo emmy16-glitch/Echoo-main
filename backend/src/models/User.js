@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import { generateAccessToken, generateRefreshToken } from '../config/jwt.js';
+import { hasCreatorCapability } from '../utils/accountCapabilities.js';
 
 const userSchema = new mongoose.Schema(
   {
@@ -83,6 +84,11 @@ const userSchema = new mongoose.Schema(
       default: 'listener',
     },
     creatorProfile: {
+      // Deliberately has no default. Existing creators that predate this field
+      // fall through to the legacy completion checks in accountCapabilities.
+      setupCompleted: {
+        type: Boolean,
+      },
       creatorType: {
         type: String,
         enum: ['individual', 'organization'],
@@ -356,14 +362,16 @@ userSchema.methods.setUserType = async function(userType) {
 
 // Instance method to set creator type
 userSchema.methods.setCreatorType = async function(creatorType, data) {
-  if (this.userType !== 'creator') {
-    throw new Error('User must be a creator to set creator type');
+  if (!hasCreatorCapability(this)) {
+    throw new Error('Creator capability is required to set Channel details');
   }
 
   if (!['individual', 'organization'].includes(creatorType)) {
     throw new Error('Invalid creator type. Must be "individual" or "organization"');
   }
 
+  this.userType = 'creator';
+  this.roles = [...new Set(['listener', ...(this.roles || []), 'creator'])];
   this.creatorProfile.creatorType = creatorType;
 
   if (creatorType === 'individual') {
@@ -381,12 +389,12 @@ userSchema.methods.setCreatorType = async function(creatorType, data) {
 
 // Instance method to update content info
 userSchema.methods.updateContentInfo = async function(data) {
-  if (this.userType !== 'creator') {
-    throw new Error('User must be a creator to update content info');
+  if (!hasCreatorCapability(this)) {
+    throw new Error('Creator capability is required to update Channel content');
   }
 
   if (data.category) this.creatorProfile.category = data.category;
-  if (data.contentDescription) this.creatorProfile.contentDescription = data.contentDescription;
+  if (data.contentDescription !== undefined) this.creatorProfile.contentDescription = data.contentDescription;
   if (data.genres) this.creatorProfile.genres = data.genres;
 
   this.onboardingStep = this.creatorProfile.creatorType === 'organization' ? 3 : 4;
@@ -395,21 +403,22 @@ userSchema.methods.updateContentInfo = async function(data) {
 
 // Instance method to update organization info
 userSchema.methods.updateOrganizationInfo = async function(data) {
-  if (this.userType !== 'creator' || this.creatorProfile.creatorType !== 'organization') {
-    throw new Error('User must be an organization creator to update organization info');
+  if (!hasCreatorCapability(this) || this.creatorProfile.creatorType !== 'organization') {
+    throw new Error('Organization Channel capability is required to update organization info');
   }
 
   if (data.organizationName) this.creatorProfile.organizationName = data.organizationName;
   if (data.category) this.creatorProfile.category = data.category;
-  if (data.about) this.creatorProfile.about = data.about;
-  if (data.contentDescription) this.creatorProfile.contentDescription = data.contentDescription;
-  if (data.organizationLogo) this.creatorProfile.organizationLogo = data.organizationLogo;
+  if (data.about !== undefined) this.creatorProfile.about = data.about;
+  if (data.contentDescription !== undefined) this.creatorProfile.contentDescription = data.contentDescription;
+  if (data.organizationLogo !== undefined) this.creatorProfile.organizationLogo = data.organizationLogo;
 
   this.onboardingStep = 4;
   return await this.save();
 };
 
-// Instance method to complete onboarding
+// Shared Account/Profile onboarding only. Creator setup has its own
+// creatorProfile.setupCompleted flag and must not change this state.
 userSchema.methods.completeOnboarding = async function() {
   this.onboardingCompleted = true;
   this.onboardingStep = 5;
