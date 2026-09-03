@@ -16,9 +16,8 @@ export const hasCreatorCapability = (user = {}) => (
 );
 
 // Creator access is a capability on one Echoo account, not a second account.
-// New API responses can mark creatorProfile.setupCompleted explicitly. Existing
-// CreatorSetup already persists isApproved on completion, so that remains a
-// migration-safe completion signal for current accounts.
+// Current completions use isApproved; older creators are recognized through the
+// legacy completed step shape so migration does not force them through setup.
 export const hasCompletedCreatorProfile = (user = {}) => {
   if (!hasCreatorCapability(user)) return false;
 
@@ -26,12 +25,19 @@ export const hasCompletedCreatorProfile = (user = {}) => {
   if (profile.setupCompleted === true) return true;
   if (profile.setupCompleted === false) return false;
   if (profile.isApproved === true) return true;
-  if (profile.isApproved === false && (profile.creatorType || profile.category)) return false;
+
+  const legacyStep = Number(user.onboardingStep);
+  const hasLegacyStep = Number.isFinite(legacyStep) && legacyStep > 0;
+
+  if (!hasLegacyStep) {
+    return Boolean(profile.creatorType && user.onboardingCompleted === true);
+  }
 
   return Boolean(
     profile.creatorType &&
     profile.category &&
-    user.onboardingCompleted === true
+    user.onboardingCompleted === true &&
+    legacyStep >= 5
   );
 };
 
