@@ -13,7 +13,7 @@ import OnboardingFrame from "../Onboarding/OnboardingFrame";
 import LoadingButton from "../UI/LoadingButton";
 import Toast from "../UI/Toast";
 import onboardingService from "../../services/onboardingService";
-import batch2Service from "../../services/batch2Service";
+import channelProvisioningService from "../../services/channelProvisioningService";
 
 const CREATOR_STEPS = ["Channel Type", "Channel Details", "Ready"];
 
@@ -73,15 +73,6 @@ const prepareImage = (file) =>
 
     reader.readAsDataURL(file);
   });
-
-const logoFileFromDataUrl = async (dataUrl) => {
-  if (!dataUrl || typeof dataUrl !== "string" || !dataUrl.startsWith("data:image/")) {
-    return null;
-  }
-  const response = await fetch(dataUrl);
-  const blob = await response.blob();
-  return new File([blob], "station-logo.jpg", { type: blob.type || "image/jpeg" });
-};
 
 const CreatorPublicPreview = ({
   creatorType,
@@ -232,34 +223,6 @@ const CreatorSetup = ({ onBackToRole, onCreatorReady }) => {
     return false;
   };
 
-  const ensureCanonicalStation = async ({ name, category, description, logoDataUrl = "" }) => {
-    const existing = await batch2Service.getMyStations().catch(() => null);
-    const currentStations = Array.isArray(existing?.data) ? existing.data : [];
-    if (currentStations.length > 0) return currentStations[0];
-
-    const logoFile = await logoFileFromDataUrl(logoDataUrl);
-    try {
-      const response = await batch2Service.createStation({
-        name,
-        category,
-        description,
-        logoFile,
-        brandingMode: logoFile ? "custom" : "generated",
-        isPublic: true,
-      });
-      return response?.data || null;
-    } catch (error) {
-      // The one-Channel-per-creator rule can be reached by a retry after a
-      // previous request completed server-side. Reload the canonical Channel
-      // rather than presenting that successful state as a setup failure.
-      if (error?.code !== "CHANNEL_ALREADY_EXISTS") throw error;
-      const retry = await batch2Service.getMyStations();
-      const stations = Array.isArray(retry?.data) ? retry.data : [];
-      if (stations.length > 0) return stations[0];
-      throw error;
-    }
-  };
-
   const finishIndividualSetup = async () => {
     await onboardingService.chooseCreatorType({
       creatorType: "individual",
@@ -272,7 +235,7 @@ const CreatorSetup = ({ onBackToRole, onCreatorReady }) => {
       genres: [],
     });
 
-    await ensureCanonicalStation({
+    await channelProvisioningService.ensureMyChannel({
       name: individualDetails.stationName.trim(),
       category: individualDetails.category,
       description: individualDetails.content.trim(),
@@ -316,7 +279,7 @@ const CreatorSetup = ({ onBackToRole, onCreatorReady }) => {
       organizationLogo: organizationLogo || null,
     });
 
-    await ensureCanonicalStation({
+    await channelProvisioningService.ensureMyChannel({
       name: organizationDetails.name.trim(),
       category: organizationDetails.category,
       description: organizationDetails.about.trim() || organizationDetails.content.trim(),
