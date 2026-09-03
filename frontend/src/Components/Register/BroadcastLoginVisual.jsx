@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { FaMicrophone, FaShieldAlt, FaSignal, FaUser } from "react-icons/fa";
-import microphoneAudience from "../Assets/echoo-auth-microphone-audience.png";
+import headphonesMicrophone from "../Assets/echoo-role-headphones-microphone.png";
 
 const BAR_COUNT = 38;
 const LEVEL_COUNT = 24;
@@ -182,7 +182,7 @@ const AudioPreview = () => {
 
 const LoginArtwork = () => (
   <div className="ear-login-art" aria-hidden="true">
-    <img src={microphoneAudience} alt="" />
+    <img src={headphonesMicrophone} alt="" />
     <div className="ear-social-proof ear-proof-live">
       <span><FaUser /></span>
       <p><strong>Sarah just went live</strong><small>2.4K listening</small></p>
