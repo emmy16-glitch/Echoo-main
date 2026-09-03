@@ -16,8 +16,9 @@ export const hasCreatorCapability = (user = {}) => (
 );
 
 // Creator/Channel setup is independent from shared Account/Profile onboarding.
-// New accounts use setupCompleted. isApproved remains a migration marker only
-// because older Echoo creator setup historically wrote that field.
+// New activations always receive an explicit setupCompleted flag. Legacy
+// creators did not, so creatorType + the old completed onboarding flag keeps
+// those existing accounts from being forced through setup again.
 export const hasCompletedCreatorProfile = (user = {}) => {
   if (!hasCreatorCapability(user)) return false;
 
@@ -26,13 +27,9 @@ export const hasCompletedCreatorProfile = (user = {}) => {
   if (profile.setupCompleted === false) return false;
   if (profile.isApproved === true) return true;
 
-  const legacyStep = Number(user.onboardingStep);
   return Boolean(
     profile.creatorType &&
-    profile.category &&
-    user.onboardingCompleted === true &&
-    Number.isFinite(legacyStep) &&
-    legacyStep >= 5
+    user.onboardingCompleted === true
   );
 };
 
