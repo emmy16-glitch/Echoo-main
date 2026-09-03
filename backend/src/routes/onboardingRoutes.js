@@ -5,6 +5,7 @@ import fs from 'fs';
 import { authenticate } from '../middleware/auth.js';
 import {
   chooseUserType,
+  activateCreator,
   chooseCreatorType,
   updateContentInfo,
   updateOrganizationDetails,
@@ -56,7 +57,9 @@ router.use(authenticate);
 // Get onboarding status
 router.get('/status', getOnboardingStatus);
 
-// Step 1: Choose user type (Listener or Creator)
+// Creator is an optional capability on the authenticated Echoo user. The old
+// route remains only for older deployed clients; new clients use this action.
+router.post('/activate-creator', activateCreator);
 router.post('/choose-type', chooseUserType);
 
 // Step 2: Choose creator type (Individual or Organization)

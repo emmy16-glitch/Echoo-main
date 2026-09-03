@@ -142,29 +142,28 @@ const onboardingService = {
     return response;
   },
 
-  chooseUserType: async (
-    userType
-  ) => {
-    if (
-      !["listener", "creator"].includes(
-        userType
-      )
-    ) {
-      throw new Error(
-        "Invalid user type."
-      );
-    }
+  completeProfile: async (data) => {
+    const response = await apiRequest('/onboarding/profile-setup', {
+      method: 'POST',
+      body: JSON.stringify({
+        displayName: data.displayName,
+        bio: data.bio ?? '',
+        avatar: data.avatar ?? null,
+      }),
+    });
 
+    if (response?.data?.user) saveUser(response.data.user);
+    return response;
+  },
+
+  activateCreator: async () => {
     const response =
       await apiRequest(
-        "/onboarding/choose-type",
+        "/onboarding/activate-creator",
         {
           method: "POST",
 
-          body:
-            JSON.stringify({
-              userType,
-            }),
+          body: JSON.stringify({}),
         }
       );
 
@@ -176,10 +175,7 @@ const onboardingService = {
       );
     }
 
-    localStorage.setItem(
-      "echooRole",
-      userType
-    );
+    localStorage.setItem("echooRole", "creator");
 
     return response;
   },

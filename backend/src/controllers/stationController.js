@@ -11,6 +11,7 @@ import {
   normalizeStationBrandVariant,
 } from '../utils/stationBranding.js';
 import { sendGeneratedCover } from '../utils/generatedCoverResponse.js';
+import { hasCreatorCapability } from '../utils/accountCapabilities.js';
 
 const OWNER_FIELDS =
   'username displayName avatar bio userType creatorProfile.category creatorProfile.artistName creatorProfile.organizationName creatorProfile.organizationLogo creatorProfile.isVerified';
@@ -143,7 +144,7 @@ export async function createStation(req, res, next) {
       });
     }
 
-    if (user.userType !== 'creator') {
+    if (!hasCreatorCapability(user)) {
       return res.status(403).json({
         error: {
           code: 'FORBIDDEN',

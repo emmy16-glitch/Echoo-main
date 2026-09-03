@@ -4,6 +4,33 @@ import {
   hasCreatorCapability,
 } from '../utils/accountCapabilities.js';
 
+export async function activateCreator(req, res, next) {
+  try {
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'User not found' } });
+
+    if (!hasCreatorCapability(user)) {
+      user.userType = 'creator';
+      user.roles = [...new Set(['listener', ...(user.roles || []), 'creator'])];
+      user.onboardingCompleted = false;
+      user.onboardingStep = creatorOnboardingStep(user);
+      await user.save();
+    }
+
+    return res.status(200).json({
+      data: {
+        user: user.toJSON(),
+        nextStep: 'creator-type-selection',
+        message: 'Creator setup is ready.',
+        onboardingStep: user.onboardingStep,
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 // Step 1: Choose user type (Listener or Creator)
 export async function chooseUserType(req, res, next) {
   try {

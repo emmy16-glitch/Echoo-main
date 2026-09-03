@@ -4,6 +4,29 @@ import { verifyRefreshToken } from '../config/jwt.js';
 import { env } from '../config/env.js';
 import { sendPasswordResetEmail } from '../services/emailService.js';
 
+const registrationError = (res, caught) => {
+  if (caught?.code === 11000) {
+    const key = Object.keys(caught.keyPattern || caught.keyValue || {})[0];
+    return res.status(409).json({
+      error: key === 'username'
+        ? { code: 'USERNAME_TAKEN', message: 'Username already taken' }
+        : { code: 'EMAIL_EXISTS', message: 'Email already registered' },
+    });
+  }
+
+  if (caught?.name === 'ValidationError') {
+    const first = Object.values(caught.errors || {})[0];
+    return res.status(400).json({
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: first?.message || 'Please check your account details and try again.',
+      },
+    });
+  }
+
+  return null;
+};
+
 export async function register(req, res, next) {
   try {
     const { username, email, password, displayName } = req.body;
@@ -63,6 +86,7 @@ export async function register(req, res, next) {
     });
   } catch (error) {
     console.error('Registration error:', error?.message || error);
+    if (registrationError(res, error)) return;
     next(error);
   }
 }

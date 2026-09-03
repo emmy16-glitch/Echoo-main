@@ -3,6 +3,7 @@ import Audio from '../models/Audio.js';
 import Playlist from '../models/Playlist.js';
 import Station from '../models/Station.js';
 import User from '../models/User.js';
+import { hasCreatorCapability } from '../utils/accountCapabilities.js';
 import { isAudioAccessibleToUser } from '../services/audioAccess.js';
 
 const OWNER_FIELDS = 'username displayName avatar';
@@ -14,7 +15,7 @@ const error = (res, status, code, message) =>
   res.status(status).json({ error: { code, message } });
 
 const requireCreator = (req, res) => {
-  if (req.user?.userType === 'creator') return true;
+  if (hasCreatorCapability(req.user)) return true;
   error(res, 403, 'FORBIDDEN', 'Only creators can manage Collections');
   return false;
 };
@@ -245,7 +246,6 @@ export async function reorderCollection(req, res, next) {
 
 export async function saveCollection(req, res, next) {
   try {
-    if (req.user?.userType !== 'listener') return error(res, 403, 'FORBIDDEN', 'Only listeners can save Collections');
     const collection = await Playlist.findOne({ _id: req.params.id, mode: 'series', isDeleted: false, isPublic: true }).select('_id');
     if (!collection) return error(res, 404, 'NOT_FOUND', 'Collection not found');
     await User.updateOne({ _id: req.userId }, { $addToSet: { savedCollections: collection._id } });
@@ -257,7 +257,6 @@ export async function saveCollection(req, res, next) {
 
 export async function unsaveCollection(req, res, next) {
   try {
-    if (req.user?.userType !== 'listener') return error(res, 403, 'FORBIDDEN', 'Only listeners can save Collections');
     await User.updateOne({ _id: req.userId }, { $pull: { savedCollections: req.params.id } });
     return res.status(200).json({ data: { saved: false }, timestamp: new Date().toISOString() });
   } catch (caught) {
@@ -267,7 +266,6 @@ export async function unsaveCollection(req, res, next) {
 
 export async function getSavedCollections(req, res, next) {
   try {
-    if (req.user?.userType !== 'listener') return error(res, 403, 'FORBIDDEN', 'Only listeners can view saved Collections');
     const saved = await savedIdSet(req.userId);
     const collections = await populateCollection(
       Playlist.find({ _id: { $in: [...saved] }, mode: 'series', isDeleted: false, isPublic: true }).sort({ updatedAt: -1 })

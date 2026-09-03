@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { FiBell, FiChevronDown, FiHelpCircle, FiLogOut, FiSettings } from 'react-icons/fi';
 
 import { api } from '../../services/api';
-import { resolveExperienceSwitch } from '../../services/accountExperience';
+import { hasCreatorCapability, resolveExperienceSwitch } from '../../services/accountExperience';
 import './AccountExperienceMenu.css';
 
 const identityOf = (user = {}) => (
@@ -70,6 +70,7 @@ export default function AccountExperienceMenu({
   const name = identityOf(user);
   const image = profileImage || imageOf(user);
   const roleLabel = currentExperience === 'creator' ? 'Creator' : 'Listener';
+  const creatorEnabled = hasCreatorCapability(user);
 
   useEffect(() => {
     const closeOutside = (event) => {
@@ -139,14 +140,25 @@ export default function AccountExperienceMenu({
 
   return (
     <div className={`echoo-account-toolbar account-experience-menu account-experience-menu--${variant}`} ref={rootRef}>
-      <EchooModeSwitcher
-        activeMode={currentExperience}
-        disabled={switching}
-        onSwitch={(mode) => {
-          if (mode === currentExperience) return;
-          switchExperience(mode);
-        }}
-      />
+      {creatorEnabled ? (
+        <EchooModeSwitcher
+          activeMode={currentExperience}
+          disabled={switching}
+          onSwitch={(mode) => {
+            if (mode === currentExperience) return;
+            switchExperience(mode);
+          }}
+        />
+      ) : (
+        <button
+          type="button"
+          className="echoo-create-channel"
+          disabled={switching}
+          onClick={() => switchExperience('creator')}
+        >
+          {switching ? 'Opening setup…' : 'Create your Channel'}
+        </button>
+      )}
       <button
         type="button"
         className="echoo-account-toolbar__notification"

@@ -5,6 +5,10 @@
 .echoo-mode-switcher button.is-active { background:#0758f7; color:#fff; box-shadow:0 5px 12px rgba(7,88,247,.18); }
 .echoo-mode-switcher button:focus-visible { outline:3px solid rgba(7,88,247,.2); outline-offset:2px; }
 .echoo-mode-switcher button:disabled { cursor:wait; opacity:.68; }
+.echoo-create-channel { min-height:36px; padding:0 15px; border:1px solid #0758f7; border-radius:999px; background:#0758f7; color:#fff; font:inherit; font-size:12px; font-weight:720; cursor:pointer; box-shadow:0 5px 12px rgba(7,88,247,.18); }
+.echoo-create-channel:hover { background:#1769ff; }
+.echoo-create-channel:focus-visible { outline:3px solid rgba(7,88,247,.22); outline-offset:2px; }
+.echoo-create-channel:disabled { cursor:wait; opacity:.7; }
 .echoo-account-toolbar__notification { position:relative; width:40px; height:40px; display:grid; place-items:center; padding:0; border:0; border-radius:50%; background:transparent; color:#0b1835; cursor:pointer; font-size:18px; }
 .echoo-account-toolbar__notification:hover,.echoo-account-toolbar__notification:focus-visible { background:#f2f6fc; color:#0758f7; outline:0; }
 .echoo-account-toolbar__notification:focus-visible { box-shadow:0 0 0 3px rgba(7,88,247,.18); }

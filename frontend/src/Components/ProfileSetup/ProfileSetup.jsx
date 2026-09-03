@@ -118,7 +118,7 @@ const ProfileSetup = ({ onProfileCompleted, onSessionInvalid }) => {
 
     try {
       setSaving(true);
-      const response = await onboardingService.updateProfile(userId, {
+      const response = await onboardingService.completeProfile({
         displayName: displayName.trim(),
         bio: bio.trim(),
         avatar: profileImage || null,

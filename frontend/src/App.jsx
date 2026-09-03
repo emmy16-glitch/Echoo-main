@@ -11,7 +11,6 @@ import {
 import Register from './Components/Register/register';
 import ResetPassword from './Components/Register/ResetPassword';
 import ProfileSetup from './Components/ProfileSetup/ProfileSetup';
-import ChooseRole from './Components/ChooseRole/ChooseRole';
 import CreatorSetup from './Components/CreatorSetup/CreatorSetup';
 
 // The logged-in shells are lazy-loaded so each role downloads only its own
@@ -128,11 +127,11 @@ const getStoredUser = () => {
   }
 };
 
-const getStoredRole = (user = getStoredUser()) =>
-  localStorage.getItem('echooActiveExperience') ||
-  user.userType ||
-  localStorage.getItem('echooRole') ||
-  '';
+// Creator and Listener are workspaces for one Echoo account. A new login
+// deliberately starts in Listener unless this account selected a workspace in
+// the current session; `userType` remains the legacy creator-capability flag,
+// never an account-routing identity.
+const getStoredRole = () => localStorage.getItem('echooActiveExperience') || 'listener';
 
 const roleHome = (role) => {
   if (role === 'creator') return '/creator-studio';
@@ -153,14 +152,11 @@ const getStartingStage = () => {
     Boolean(user.profileCompleted) ||
     localStorage.getItem('echooProfileCompleted') === 'true';
 
-  if (onboardingComplete) {
-    return role === 'creator' ? 'creator-done' : 'listener-done';
-  }
+  if (onboardingComplete) return role === 'creator' ? 'creator-done' : 'listener-done';
 
   if (!profileComplete) return 'profile';
-  if (role === 'creator') return 'creator';
-  if (role === 'listener') return 'listener-done';
-  return 'role';
+  if (user.userType === 'creator' || Array.isArray(user.roles) && user.roles.includes('creator')) return 'creator';
+  return 'listener-done';
 };
 
 const OnboardingFlow = () => {
@@ -178,7 +174,7 @@ const OnboardingFlow = () => {
   }, [stage, navigate]);
 
   const handleLoginSuccess = (user) => {
-    const role = getStoredRole(user || {});
+    const role = getStoredRole();
     const onboardingComplete =
       Boolean(user?.onboardingCompleted) ||
       localStorage.getItem('echooOnboardingCompleted') === 'true';
@@ -196,17 +192,12 @@ const OnboardingFlow = () => {
       return;
     }
 
-    if (role === 'creator') {
+    if (user?.userType === 'creator' || user?.roles?.includes('creator')) {
       setStage('creator');
       return;
     }
 
-    if (role === 'listener') {
-      setStage('listener-done');
-      return;
-    }
-
-    setStage('role');
+    setStage('listener-done');
   };
 
   if (stage === 'register') {
@@ -223,28 +214,11 @@ const OnboardingFlow = () => {
       <ProfileSetup
         onProfileCompleted={() => {
           localStorage.setItem('echooProfileCompleted', 'true');
-          setStage('role');
-        }}
-        onSessionInvalid={() => setStage('register')}
-      />
-    );
-  }
-
-  if (stage === 'role') {
-    return (
-      <ChooseRole
-        onListenerContinue={() => {
-          localStorage.setItem('echooRole', 'listener');
-          localStorage.setItem('echooActiveExperience', 'listener');
           localStorage.setItem('echooOnboardingCompleted', 'true');
+          localStorage.setItem('echooActiveExperience', 'listener');
           setStage('listener-done');
         }}
-        onCreatorContinue={() => {
-          localStorage.setItem('echooRole', 'creator');
-          localStorage.setItem('echooActiveExperience', 'creator');
-          setStage('creator');
-        }}
-        onBackToProfile={() => setStage('profile')}
+        onSessionInvalid={() => setStage('register')}
       />
     );
   }
@@ -280,7 +254,7 @@ const RequireRole = ({ role, children }) => {
   }
 
   if (!canAccessExperience(user, role)) {
-    return <Navigate to="/" replace />;
+    return <Navigate to={role === 'creator' ? '/listen' : '/'} replace />;
   }
 
   return (

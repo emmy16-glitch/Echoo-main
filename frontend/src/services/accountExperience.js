@@ -42,7 +42,7 @@ export const resolveExperienceSwitch = async (
   targetExperience,
   {
     loadCurrentUser = () => api.auth.getCurrentUser(),
-    activateCreator = () => onboardingService.chooseUserType('creator'),
+    activateCreator = () => onboardingService.activateCreator(),
     saveUser = saveAccountUser,
   } = {}
 ) => {
