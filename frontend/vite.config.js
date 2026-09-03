@@ -17,22 +17,24 @@ const localBackendProxy = {
   },
 }
 
+const localPort = Number(process.env.VITE_PORT || '5173');
+
 export default defineConfig({
   plugins: [react()],
   server: {
     host: '0.0.0.0',
-    port: 5173,
-    strictPort: true,
+    port: localPort,
+    // Do not prevent local development when another checkout already owns the
+    // default port. Vite reports the fallback URL (normally 5174) on startup.
+    strictPort: false,
     allowedHosts: true,
     proxy: localBackendProxy,
   },
-  // The Cloudflare presentation tunnel stays pointed at port 5173. Preview
-  // serves the optimized bundle while this local-only proxy keeps browser API
-  // and Socket.IO traffic on the same public hostname.
+  // Preview uses the same configurable default and local API proxy.
   preview: {
     host: '0.0.0.0',
-    port: 5173,
-    strictPort: true,
+    port: localPort,
+    strictPort: false,
     allowedHosts: true,
     proxy: localBackendProxy,
   },

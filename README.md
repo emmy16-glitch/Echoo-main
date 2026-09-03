@@ -86,7 +86,8 @@ cd /home/Software_projects/echoo2.0/echoo-github-main/frontend
 npm run dev
 ```
 
-Open `http://localhost:5173`. The Vite server uses `strictPort: true`, so a
+Open the URL printed by Vite (normally `http://localhost:5173`; it falls back
+to the next free port if needed). The Vite server
 port conflict fails clearly instead of silently switching ports. The sibling
 `../../echoo` frontend is legacy source and is not the current UI target.
 
