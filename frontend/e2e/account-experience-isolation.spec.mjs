@@ -9,9 +9,12 @@ const accountB = {
   avatar: 'data:image/svg+xml,account-b-avatar',
   bio: 'Account B private profile',
   userType: 'creator',
-  roles: ['creator'],
+  roles: ['listener', 'creator'],
+  capabilities: { listener: true, creator: true },
   onboardingCompleted: true,
   profileCompleted: true,
+  creatorOnboardingCompleted: true,
+  creatorProfile: { creatorType: 'individual' },
 };
 
 test('Creator and Listener are one Account B session after Account A signs out', async ({ page }) => {
@@ -21,7 +24,7 @@ test('Creator and Listener are one Account B session after Account A signs out',
     localStorage.setItem('user', JSON.stringify({ id: 'account-a', username: 'account-a', avatar: 'account-a-avatar' }));
     localStorage.setItem('profileImage', 'account-a-avatar');
     localStorage.setItem('profileBio', 'Account A private bio');
-    localStorage.setItem('echooActiveExperience', 'listener');
+    localStorage.setItem('echooActiveExperience', 'creator');
     localStorage.setItem('echooDownloads', JSON.stringify([{ id: 'account-a-track' }]));
     localStorage.setItem('echooCreatorAudioPreferencesV1', JSON.stringify({ masterVolume: 11 }));
     sessionStorage.setItem('echooPreparedBroadcastId', 'account-a-broadcast');
@@ -44,29 +47,42 @@ test('Creator and Listener are one Account B session after Account A signs out',
   await page.getByLabel('Password', { exact: true }).fill('Password123!');
   await page.getByRole('button', { name: 'Sign in' }).click();
 
-  await expect(page).toHaveURL(/\/creator-studio$/);
-  await expect.poll(() => page.evaluate(() => ({
+  // Login is unified and Listener-first even when this same account also has a
+  // completed Creator workspace.
+  await expect(page).toHaveURL(/\/listen$/);
+  await expect.poll(() => page.evaluate((accountId) => ({
     user: JSON.parse(localStorage.getItem('user') || '{}'),
     token: localStorage.getItem('accessToken'),
     staleProfileImage: localStorage.getItem('profileImage'),
     staleProfileBio: localStorage.getItem('profileBio'),
     staleExperience: localStorage.getItem('echooActiveExperience'),
+    scopedExperience: localStorage.getItem(`echooActiveExperience:${accountId}`),
     staleDownloads: localStorage.getItem('echooDownloads'),
     staleCreatorAudio: localStorage.getItem('echooCreatorAudioPreferencesV1'),
     staleBroadcast: sessionStorage.getItem('echooPreparedBroadcastId'),
-  }))).toMatchObject({
+  }), accountB.id)).toMatchObject({
     user: { id: accountB.id, username: 'account-b', avatar: accountB.avatar },
     token: 'account-b-token',
     staleProfileImage: null,
     staleProfileBio: null,
     staleExperience: null,
+    scopedExperience: 'listener',
     staleDownloads: null,
     staleCreatorAudio: null,
     staleBroadcast: null,
   });
 
-  await page.getByRole('tab', { name: 'Listener' }).click();
-  await expect(page).toHaveURL(/\/listen$/);
-  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('user') || '{}')))
-    .toMatchObject({ id: accountB.id, username: 'account-b', avatar: accountB.avatar });
+  const tokenBeforeSwitch = await page.evaluate(() => localStorage.getItem('accessToken'));
+  await page.getByRole('tab', { name: 'Creator' }).click();
+  await expect(page).toHaveURL(/\/creator-studio$/);
+
+  await expect.poll(() => page.evaluate((accountId) => ({
+    user: JSON.parse(localStorage.getItem('user') || '{}'),
+    token: localStorage.getItem('accessToken'),
+    scopedExperience: localStorage.getItem(`echooActiveExperience:${accountId}`),
+  }), accountB.id)).toMatchObject({
+    user: { id: accountB.id, username: 'account-b', avatar: accountB.avatar },
+    token: tokenBeforeSwitch,
+    scopedExperience: 'creator',
+  });
 });
