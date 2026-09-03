@@ -86,6 +86,27 @@ test('legacy completed creators remain migration-compatible', () => {
   }), true);
 });
 
+test('partial legacy Creator records are sent back to Channel setup', () => {
+  assert.equal(hasCompletedCreatorSetup({
+    userType: 'creator',
+    roles: ['listener', 'creator'],
+    onboardingCompleted: true,
+    creatorProfile: {
+      creatorType: 'individual',
+      isApproved: true,
+    },
+  }), false);
+
+  assert.equal(hasCompletedCreatorSetup({
+    userType: 'creator',
+    roles: ['listener', 'creator'],
+    onboardingCompleted: true,
+    creatorProfile: {
+      category: 'Technology',
+    },
+  }), false);
+});
+
 test('Creator activation never reopens shared Account/Profile onboarding', async () => {
   const onboardingController = await source('../src/controllers/onboardingController.js');
 
