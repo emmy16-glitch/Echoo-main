@@ -60,6 +60,7 @@ import "./Components/Register/figma-auth-login.css";
 import "./Components/Register/figma-auth-verification.css";
 import "./Components/Register/figma-auth-parity.css";
 import "./Components/Register/figma-auth-success.css";
+import "./Components/Register/figma-auth-final-fixes.css";
 initializeEchooTheme();
 
 // Older builds used this as a persistent transcript-processing selector. It is
