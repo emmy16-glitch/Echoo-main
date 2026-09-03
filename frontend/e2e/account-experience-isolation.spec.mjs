@@ -13,13 +13,14 @@ const accountB = {
   onboardingCompleted: true,
   profileCompleted: true,
   creatorProfile: {
+    setupCompleted: true,
     creatorType: 'individual',
     category: 'Technology',
-    isApproved: true,
+    isApproved: false,
   },
 };
 
-test('Creator and Listener are one Account B session after Account A signs out', async ({ page }) => {
+test('Creator Studio and Listening are one Account B session after Account A signs out', async ({ page }) => {
   await page.addInitScript(() => {
     // Mimic data left by Account A in an older Echoo browser session. A login
     // must replace it, never hydrate it into the next person’s workspace.
@@ -49,7 +50,7 @@ test('Creator and Listener are one Account B session after Account A signs out',
   await page.getByLabel('Password', { exact: true }).fill('Password123!');
   await page.getByRole('button', { name: 'Login' }).click();
 
-  // Even Creator-capable accounts enter Echoo through the universal Listener
+  // Even Creator-capable accounts enter Echoo through the universal Listening
   // experience after login. Switching workspace does not change identity.
   await expect(page).toHaveURL(/\/listen$/);
   await expect.poll(() => page.evaluate(() => ({
@@ -72,12 +73,12 @@ test('Creator and Listener are one Account B session after Account A signs out',
     staleBroadcast: null,
   });
 
-  await page.getByRole('tab', { name: 'Creator' }).click();
+  await page.getByRole('tab', { name: 'Creator Studio' }).click();
   await expect(page).toHaveURL(/\/creator-studio$/);
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('user') || '{}')))
     .toMatchObject({ id: accountB.id, username: 'account-b', avatar: accountB.avatar });
 
-  await page.getByRole('tab', { name: 'Listener' }).click();
+  await page.getByRole('tab', { name: 'Listening' }).click();
   await expect(page).toHaveURL(/\/listen$/);
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('user') || '{}')))
     .toMatchObject({ id: accountB.id, username: 'account-b', avatar: accountB.avatar });
