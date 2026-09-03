@@ -254,9 +254,21 @@ const userSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    // Legacy shared onboarding flag kept for existing accounts and old clients.
     onboardingCompleted: {
       type: Boolean,
       default: false,
+    },
+    // Shared Echoo profile completion. Undefined lets old documents safely fall
+    // back to onboardingCompleted until they are next written.
+    profileCompleted: {
+      type: Boolean,
+      default: undefined,
+    },
+    // Creator setup is independent from the shared Echoo account/profile.
+    creatorOnboardingCompleted: {
+      type: Boolean,
+      default: undefined,
     },
     uploadedAudio: [{
       type: mongoose.Schema.Types.ObjectId,
@@ -275,6 +287,24 @@ const userSchema = new mongoose.Schema(
         delete ret.passwordHash;
         delete ret.refreshTokenVersion;
         delete ret.__v;
+
+        const roles = Array.isArray(ret.roles) ? ret.roles.map(String) : [];
+        const creator = ret.userType === 'creator' || roles.includes('creator');
+        const profileCompleted = typeof ret.profileCompleted === 'boolean'
+          ? ret.profileCompleted
+          : ret.onboardingCompleted === true;
+        const creatorCompleted = typeof ret.creatorOnboardingCompleted === 'boolean'
+          ? ret.creatorOnboardingCompleted
+          : creator && ret.onboardingCompleted === true && Boolean(ret.creatorProfile?.creatorType);
+
+        ret.roles = [...new Set(['listener', ...roles])];
+        ret.capabilities = {
+          listener: true,
+          creator,
+        };
+        ret.profileCompleted = profileCompleted;
+        ret.creatorOnboardingCompleted = creatorCompleted;
+
         return ret;
       },
     },
@@ -312,19 +342,28 @@ userSchema.methods.generateTokens = function() {
   return { accessToken, refreshToken };
 };
 
-// Instance method to set user type
+// Legacy compatibility method. userType is no longer an account identity;
+// Creator is an additional capability on the same Echoo account.
 userSchema.methods.setUserType = async function(userType) {
   if (!['listener', 'creator'].includes(userType)) {
     throw new Error('Invalid user type. Must be "listener" or "creator"');
   }
-  
-  this.userType = userType;
-  // Roles describe account capabilities, not the screen currently open. Every
-  // Echoo account can listen, and Creator setup adds that capability without
-  // removing the listener experience.
-  this.roles = [...new Set(['listener', ...(this.roles || []), userType])];
-  this.onboardingStep = userType === 'creator' ? 1 : 0;
-  this.onboardingCompleted = userType === 'listener' ? true : false;
+
+  this.roles = [...new Set(['listener', ...(this.roles || []), ...(userType === 'creator' ? ['creator'] : [])])];
+
+  if (userType === 'creator') {
+    this.userType = 'creator';
+    if (typeof this.creatorOnboardingCompleted !== 'boolean') {
+      this.creatorOnboardingCompleted = false;
+    }
+    this.onboardingStep = 1;
+  } else {
+    this.userType = this.roles.includes('creator') ? 'creator' : 'listener';
+    this.profileCompleted = true;
+    this.onboardingCompleted = true;
+    this.onboardingStep = 5;
+  }
+
   return await this.save();
 };
 
@@ -333,13 +372,13 @@ userSchema.methods.setCreatorType = async function(creatorType, data) {
   if (this.userType !== 'creator') {
     throw new Error('User must be a creator to set creator type');
   }
-  
+
   if (!['individual', 'organization'].includes(creatorType)) {
     throw new Error('Invalid creator type. Must be "individual" or "organization"');
   }
-  
+
   this.creatorProfile.creatorType = creatorType;
-  
+
   if (creatorType === 'individual') {
     this.creatorProfile.artistName = data.artistName || this.displayName;
   } else {
@@ -348,7 +387,7 @@ userSchema.methods.setCreatorType = async function(creatorType, data) {
     this.creatorProfile.website = data.website;
     this.creatorProfile.location = data.location;
   }
-  
+
   this.onboardingStep = 2;
   return await this.save();
 };
@@ -358,11 +397,11 @@ userSchema.methods.updateContentInfo = async function(data) {
   if (this.userType !== 'creator') {
     throw new Error('User must be a creator to update content info');
   }
-  
+
   if (data.category) this.creatorProfile.category = data.category;
   if (data.contentDescription) this.creatorProfile.contentDescription = data.contentDescription;
   if (data.genres) this.creatorProfile.genres = data.genres;
-  
+
   this.onboardingStep = this.creatorProfile.creatorType === 'organization' ? 3 : 4;
   return await this.save();
 };
@@ -372,20 +411,25 @@ userSchema.methods.updateOrganizationInfo = async function(data) {
   if (this.userType !== 'creator' || this.creatorProfile.creatorType !== 'organization') {
     throw new Error('User must be an organization creator to update organization info');
   }
-  
+
   if (data.organizationName) this.creatorProfile.organizationName = data.organizationName;
   if (data.category) this.creatorProfile.category = data.category;
   if (data.about) this.creatorProfile.about = data.about;
   if (data.contentDescription) this.creatorProfile.contentDescription = data.contentDescription;
   if (data.organizationLogo) this.creatorProfile.organizationLogo = data.organizationLogo;
-  
+
   this.onboardingStep = 4;
   return await this.save();
 };
 
-// Instance method to complete onboarding
+// Creator completion never changes the shared Echoo profile state.
 userSchema.methods.completeOnboarding = async function() {
-  this.onboardingCompleted = true;
+  if (this.userType === 'creator' || (this.roles || []).includes('creator')) {
+    this.creatorOnboardingCompleted = true;
+  } else {
+    this.profileCompleted = true;
+    this.onboardingCompleted = true;
+  }
   this.onboardingStep = 5;
   return await this.save();
 };
@@ -398,14 +442,14 @@ userSchema.methods.updateListeningHistory = async function(trackId, progress) {
     progress: progress || 0,
     completed: progress >= 100,
   };
-  
+
   this.listeningHistory.push(historyEntry);
-  
+
   // Keep only last 100 entries
   if (this.listeningHistory.length > 100) {
     this.listeningHistory = this.listeningHistory.slice(-100);
   }
-  
+
   return await this.save();
 };
 
