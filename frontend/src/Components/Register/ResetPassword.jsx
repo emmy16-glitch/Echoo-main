@@ -61,8 +61,8 @@ const ResetPassword = () => {
             <SuccessState
               title="Password updated"
               message="Your new password is ready. Return to Echoo and sign in."
+              buttonText="Back to login"
               onContinue={() => navigate('/', { replace: true })}
-              continueLabel="Back to login"
             />
           ) : (
             <>
