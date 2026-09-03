@@ -10,18 +10,19 @@ export const hasCreatorCapability = (user = {}) => (
 
 // Creator setup is separate from the shared Echoo Account/Profile onboarding.
 // New records always get an explicit setupCompleted value when Creator is
-// activated. For pre-migration creator records, creatorType + the old completed
-// onboarding flag is enough to preserve access to the Creator Studio.
+// activated. Legacy creator records did not have that flag, so only a creator
+// that already has the minimum Channel identity (type + category) and had
+// completed the old onboarding flow is treated as ready for Creator Studio.
 export const hasCompletedCreatorSetup = (user = {}) => {
   if (!hasCreatorCapability(user)) return false;
 
   const profile = user.creatorProfile || {};
   if (profile.setupCompleted === true) return true;
   if (profile.setupCompleted === false) return false;
-  if (profile.isApproved === true) return true;
 
   return Boolean(
     profile.creatorType &&
+    profile.category &&
     user.onboardingCompleted === true
   );
 };
