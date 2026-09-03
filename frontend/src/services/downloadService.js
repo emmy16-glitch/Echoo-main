@@ -1,5 +1,6 @@
 import batch6Service from './batch6Service.js';
 import audioService from './audioService.js';
+import { accountStorageKey, getActiveAccountId } from './accountStorage.js';
 
 const STORAGE_KEY = 'echooDownloads';
 const CACHE_NAME = 'echoo-offline-audio-v1';
@@ -10,9 +11,25 @@ const OFFLINE_DB_VERSION = 1;
 
 let offlineDbPromise = null;
 
+// Offline media is private listener data. Browser Cache and IndexedDB are
+// shared by every account that uses this browser, so every key must be scoped
+// to the authenticated Echoo user instead of only to the track.
+const requireCurrentUserId = () => {
+  const userId = getActiveAccountId();
+  if (!userId) throw new Error('Sign in to manage offline downloads.');
+  return userId;
+};
+
+const downloadsStorageKey = () => accountStorageKey(STORAGE_KEY);
+
+const offlineCacheName = () => `${CACHE_NAME}:${requireCurrentUserId()}`;
+const offlineRecordId = (trackId) => `${requireCurrentUserId()}:${String(trackId)}`;
+
 const readDownloads = () => {
   try {
-    const saved = localStorage.getItem(STORAGE_KEY);
+    const storageKey = downloadsStorageKey();
+    if (!storageKey) return [];
+    const saved = localStorage.getItem(storageKey);
     const parsed = saved ? JSON.parse(saved) : [];
     return Array.isArray(parsed) ? parsed : [];
   } catch {
@@ -21,7 +38,9 @@ const readDownloads = () => {
 };
 
 const writeDownloads = (items) => {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+  const storageKey = downloadsStorageKey();
+  if (!storageKey) return;
+  localStorage.setItem(storageKey, JSON.stringify(items));
   window.dispatchEvent(new CustomEvent('echoo-downloads-updated', { detail: items }));
 };
 
@@ -97,7 +116,7 @@ const putIndexedDbBlob = async (trackId, blob) => {
     );
 
     transaction.objectStore(OFFLINE_DB_STORE).put({
-      id: String(trackId),
+      id: offlineRecordId(trackId),
       blob,
       size: Number(blob?.size) || 0,
       storedAt: Date.now(),
@@ -111,7 +130,7 @@ const getIndexedDbBlob = async (trackId) => {
 
   return new Promise((resolve, reject) => {
     const transaction = database.transaction(OFFLINE_DB_STORE, 'readonly');
-    const request = transaction.objectStore(OFFLINE_DB_STORE).get(String(trackId));
+    const request = transaction.objectStore(OFFLINE_DB_STORE).get(offlineRecordId(trackId));
 
     request.onsuccess = () => {
       const value = request.result;
@@ -133,13 +152,14 @@ const deleteIndexedDbBlob = async (trackId) => {
     transaction.onerror = () => reject(
       transaction.error || new Error('Could not remove offline audio.')
     );
-    transaction.objectStore(OFFLINE_DB_STORE).delete(String(trackId));
+    transaction.objectStore(OFFLINE_DB_STORE).delete(offlineRecordId(trackId));
   });
 };
 
 const clearIndexedDbAudio = async () => {
   if (!indexedDbAvailable()) return;
   const database = await openOfflineDb();
+  const prefix = `${requireCurrentUserId()}:`;
 
   await new Promise((resolve, reject) => {
     const transaction = database.transaction(OFFLINE_DB_STORE, 'readwrite');
@@ -147,7 +167,15 @@ const clearIndexedDbAudio = async () => {
     transaction.onerror = () => reject(
       transaction.error || new Error('Could not clear offline audio.')
     );
-    transaction.objectStore(OFFLINE_DB_STORE).clear();
+    const store = transaction.objectStore(OFFLINE_DB_STORE);
+    const request = store.openCursor();
+    request.onerror = () => reject(request.error || new Error('Could not clear offline audio.'));
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (!cursor) return;
+      if (String(cursor.key).startsWith(prefix)) cursor.delete();
+      cursor.continue();
+    };
   });
 };
 
@@ -225,7 +253,7 @@ const persistOfflineResponse = async (item, response) => {
 
   if (cacheStorageAvailable()) {
     try {
-      const cache = await caches.open(CACHE_NAME);
+      const cache = await caches.open(offlineCacheName());
       await cache.put(item.cacheUrl, response.clone());
       return {
         ...item,
@@ -313,7 +341,7 @@ const downloadService = {
 
     if (cacheStorageAvailable()) {
       cleanupTasks.push((async () => {
-        const cache = await caches.open(CACHE_NAME);
+        const cache = await caches.open(offlineCacheName());
         if (target?.cacheUrl) await cache.delete(target.cacheUrl);
         // Also clear the stable cache key in case this is a pre-migration record.
         await cache.delete(offlineCacheUrl(trackId));
@@ -334,7 +362,7 @@ const downloadService = {
 
   clear: async () => {
     const cleanupTasks = [];
-    if (cacheStorageAvailable()) cleanupTasks.push(caches.delete(CACHE_NAME));
+    if (cacheStorageAvailable()) cleanupTasks.push(caches.delete(offlineCacheName()));
     if (indexedDbAvailable()) cleanupTasks.push(clearIndexedDbAudio());
     if (cleanupTasks.length) await Promise.allSettled(cleanupTasks);
 
@@ -349,7 +377,7 @@ const downloadService = {
 
     if (target && cacheStorageAvailable()) {
       try {
-        const cache = await caches.open(CACHE_NAME);
+        const cache = await caches.open(offlineCacheName());
         const preferredKey = target.cacheUrl || offlineCacheUrl(trackId);
         let response = preferredKey ? await cache.match(preferredKey) : null;
 

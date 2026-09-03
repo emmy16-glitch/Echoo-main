@@ -100,7 +100,7 @@ const EchooMobileNavigation = () => {
     user.username || user.displayName || user.fullname || 'Echoo Listener';
   const initial = displayName.trim().charAt(0).toUpperCase() || 'E';
   const profileImage =
-    user.profileImage || user.avatar || localStorage.getItem('profileImage') || '';
+    user.profileImage || user.avatar || '';
   const role = user.userType || localStorage.getItem('echooRole') || 'listener';
 
   const go = (path) => {

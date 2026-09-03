@@ -162,7 +162,6 @@ const CreatorSetup = ({ onBackToRole, onCreatorReady }) => {
   const profileImage =
     storedUser.avatar ||
     storedUser.profileImage ||
-    localStorage.getItem("profileImage") ||
     null;
 
   const handleIndividualChange = (event) => {
@@ -239,15 +238,26 @@ const CreatorSetup = ({ onBackToRole, onCreatorReady }) => {
     if (currentStations.length > 0) return currentStations[0];
 
     const logoFile = await logoFileFromDataUrl(logoDataUrl);
-    const response = await batch2Service.createStation({
-      name,
-      category,
-      description,
-      logoFile,
-      brandingMode: logoFile ? "custom" : "generated",
-      isPublic: true,
-    });
-    return response?.data || null;
+    try {
+      const response = await batch2Service.createStation({
+        name,
+        category,
+        description,
+        logoFile,
+        brandingMode: logoFile ? "custom" : "generated",
+        isPublic: true,
+      });
+      return response?.data || null;
+    } catch (error) {
+      // The one-Channel-per-creator rule can be reached by a retry after a
+      // previous request completed server-side. Reload the canonical Channel
+      // rather than presenting that successful state as a setup failure.
+      if (error?.code !== "CHANNEL_ALREADY_EXISTS") throw error;
+      const retry = await batch2Service.getMyStations();
+      const stations = Array.isArray(retry?.data) ? retry.data : [];
+      if (stations.length > 0) return stations[0];
+      throw error;
+    }
   };
 
   const finishIndividualSetup = async () => {
@@ -262,14 +272,14 @@ const CreatorSetup = ({ onBackToRole, onCreatorReady }) => {
       genres: [],
     });
 
-    const response = await onboardingService.complete();
-    if (response?.data?.user) onboardingService.saveUser(response.data.user);
-
     await ensureCanonicalStation({
       name: individualDetails.stationName.trim(),
       category: individualDetails.category,
       description: individualDetails.content.trim(),
     });
+
+    const response = await onboardingService.complete();
+    if (response?.data?.user) onboardingService.saveUser(response.data.user);
 
     localStorage.setItem(
       "creatorSetup",
@@ -306,15 +316,15 @@ const CreatorSetup = ({ onBackToRole, onCreatorReady }) => {
       organizationLogo: organizationLogo || null,
     });
 
-    const response = await onboardingService.complete();
-    if (response?.data?.user) onboardingService.saveUser(response.data.user);
-
     await ensureCanonicalStation({
       name: organizationDetails.name.trim(),
       category: organizationDetails.category,
       description: organizationDetails.about.trim() || organizationDetails.content.trim(),
       logoDataUrl: organizationLogo || "",
     });
+
+    const response = await onboardingService.complete();
+    if (response?.data?.user) onboardingService.saveUser(response.data.user);
 
     localStorage.setItem(
       "creatorSetup",

@@ -141,7 +141,7 @@ const CreatorStudioBody = () => {
     ? creatorSetup.name || creatorSetup.organizationName || user.creatorProfile?.organizationName || user.displayName || 'Creator Studio'
     : user.displayName || user.fullname || user.name || user.username || 'Creator Studio';
 
-  const profileImage = user.avatar || user.profileImage || localStorage.getItem('profileImage') || null;
+  const profileImage = user.avatar || user.profileImage || null;
 
   const generatedUploadArtwork = useMemo(
     () => buildGeneratedAudioCoverUrl({

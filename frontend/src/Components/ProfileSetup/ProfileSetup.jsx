@@ -52,12 +52,11 @@ const ProfileSetup = ({ onProfileCompleted, onSessionInvalid }) => {
     storedUser.displayName || storedUser.fullname || storedUser.username || ""
   );
   const [bio, setBio] = useState(
-    storedUser.bio || localStorage.getItem("profileBio") || ""
+    storedUser.bio || ""
   );
   const [profileImage, setProfileImage] = useState(
     storedUser.avatar ||
       storedUser.profileImage ||
-      localStorage.getItem("profileImage") ||
       null
   );
   const [saving, setSaving] = useState(false);
@@ -95,7 +94,6 @@ const ProfileSetup = ({ onProfileCompleted, onSessionInvalid }) => {
     try {
       const imageData = await prepareImage(file);
       setProfileImage(imageData);
-      localStorage.setItem("profileImage", imageData);
     } catch (error) {
       showError(error.message || "Could not process the image.");
     }
@@ -136,8 +134,6 @@ const ProfileSetup = ({ onProfileCompleted, onSessionInvalid }) => {
         profileCompleted: true,
       };
 
-      localStorage.setItem("profileBio", bio.trim());
-      if (profileImage) localStorage.setItem("profileImage", profileImage);
       localStorage.setItem("user", JSON.stringify(updatedUser));
       setCompleted(true);
     } catch (error) {

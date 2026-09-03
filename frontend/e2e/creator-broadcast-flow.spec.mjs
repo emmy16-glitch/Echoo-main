@@ -172,3 +172,27 @@ test('broadcast hero and modal remain usable without horizontal overflow on mobi
   await expect(page.getByRole('alertdialog', { name: 'End broadcast?' })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
 });
+
+test('a creator without a Channel receives a clear setup path without horizontal overflow', async ({ page }) => {
+  await authenticate(page);
+  await installBaseRoutes(page, []);
+  await page.unroute('**/api/stations/mine/all**');
+  await page.route('**/api/stations/mine/all**', (route) => fulfill(route, []));
+  await page.goto('/creator-studio');
+
+  await expect(page.getByRole('heading', { name: 'Set up your Channel' })).toBeVisible();
+  await expect(page.getByText('Your Channel is your public home on Echoo.', { exact: false })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Set up Channel' })).toBeVisible();
+  await expect(page.getByText('One Channel, one public home', { exact: true })).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
+
+  if (await page.evaluate(() => window.innerWidth > 720)) {
+    const card = await page.locator('.ec2-no-channel').boundingBox();
+    expect(card?.height).toBeGreaterThanOrEqual(320);
+    expect(card?.height).toBeLessThanOrEqual(390);
+  }
+
+  await page.getByRole('button', { name: 'Set up Channel' }).click();
+  await expect(page).toHaveURL(/\/creator-studio\/channels$/);
+  await expect(page.getByRole('heading', { name: 'Channel', exact: true })).toBeVisible();
+});

@@ -137,7 +137,7 @@ const ListenerLayout = () => {
   const location = useLocation();
   const [user, setUser] = useState(readUser);
   const profileImage =
-    buildMediaUrl(user.profileImage || user.avatar || localStorage.getItem('profileImage'));
+    buildMediaUrl(user.profileImage || user.avatar);
 
   const audioRef = useRef(null);
   const searchRef = useRef(null);
@@ -197,7 +197,7 @@ const ListenerLayout = () => {
     };
 
     const storageChanged = (event) => {
-      if (event.key === 'user' || event.key === 'profileImage') {
+      if (event.key === 'user') {
         setUser(readUser());
       }
     };

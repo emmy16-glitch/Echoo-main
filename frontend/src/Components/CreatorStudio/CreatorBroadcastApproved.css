@@ -12,6 +12,92 @@
   color: var(--ec2-ink);
 }
 
+/* Missing-channel is a compact, focused prerequisite state rather than a
+   second marketing hero. */
+.ec2-no-channel {
+  min-height: 348px;
+  display: grid;
+  align-items: center;
+  padding: 42px clamp(30px, 5vw, 72px);
+  border: 1px solid #dbe5f2;
+  border-radius: 14px;
+  background: linear-gradient(120deg, #fff 0%, #fbfdff 100%);
+  box-shadow: 0 8px 22px rgba(14, 37, 75, .04);
+  color: var(--ec2-ink);
+}
+
+.ec2-no-channel-copy { min-width: 0; max-width: 610px; }
+
+.ec2-no-channel-eyebrow {
+  display: block;
+  color: var(--ec2-blue);
+  font-size: 11px;
+  font-weight: 780;
+  letter-spacing: .09em;
+}
+
+.ec2-no-channel h1 {
+  max-width: 600px;
+  margin: 12px 0 0;
+  color: var(--ec2-ink);
+  font-size: clamp(29px, 2.8vw, 38px);
+  font-weight: 780;
+  letter-spacing: -.05em;
+  line-height: 1.03;
+}
+
+.ec2-no-channel-copy > p {
+  max-width: 570px;
+  margin: 13px 0 0;
+  color: var(--ec2-muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.ec2-no-channel ul {
+  display: grid;
+  gap: 8px;
+  margin: 21px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ec2-no-channel li {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: #263957;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.ec2-no-channel li svg { color: #15945f; font-size: 15px; }
+
+.ec2-no-channel button {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  margin-top: 24px;
+  padding: 0 17px;
+  border: 1px solid var(--ec2-blue);
+  border-radius: 9px;
+  background: #0758f7;
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 760;
+  cursor: pointer;
+  box-shadow: 0 7px 16px rgba(7, 88, 247, .18);
+  transition: background 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+}
+
+.ec2-no-channel button:hover { background: #1769ff; box-shadow: 0 9px 19px rgba(7, 88, 247, .24); }
+.ec2-no-channel button:active { transform: translateY(1px); }
+.ec2-no-channel button:focus-visible { outline: 3px solid #b9d8ff; outline-offset: 3px; }
+
+
 .ec2-hero {
   height: 214px;
   min-height: 214px;
@@ -748,6 +834,13 @@ html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-workstation
 }
 
 @media (max-width: 720px) {
+  .ec2-no-channel {
+    min-height: 0;
+    padding: 31px 24px;
+  }
+
+  .ec2-no-channel h1 { font-size: clamp(29px, 9vw, 38px); }
+
   .ec2-hero {
     grid-template-columns: 1fr;
     gap: 22px;

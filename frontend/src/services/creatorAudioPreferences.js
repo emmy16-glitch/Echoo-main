@@ -1,4 +1,5 @@
 import settingsService from './settingsService.js';
+import { accountStorageKey } from './accountStorage.js';
 
 const STORAGE_KEY = 'echooCreatorAudioPreferencesV1';
 
@@ -63,7 +64,8 @@ const storage = () => {
 export const cacheCreatorAudioSettings = (value) => {
   const normalized = normalizeCreatorAudioSettings(value);
   try {
-    storage()?.setItem(STORAGE_KEY, JSON.stringify(normalized));
+    const key = accountStorageKey(STORAGE_KEY);
+    if (key) storage()?.setItem(key, JSON.stringify(normalized));
   } catch {
     // Local persistence is a convenience; it must never interrupt live audio.
   }
@@ -72,7 +74,8 @@ export const cacheCreatorAudioSettings = (value) => {
 
 export const getCachedCreatorAudioSettings = () => {
   try {
-    const value = JSON.parse(storage()?.getItem(STORAGE_KEY) || 'null');
+    const key = accountStorageKey(STORAGE_KEY);
+    const value = JSON.parse((key && storage()?.getItem(key)) || 'null');
     return normalizeCreatorAudioSettings(value || DEFAULT_CREATOR_AUDIO_SETTINGS);
   } catch {
     return { ...DEFAULT_CREATOR_AUDIO_SETTINGS };

@@ -11,7 +11,7 @@ const identityOf = (user = {}) => (
 );
 
 const imageOf = (user = {}) => (
-  user.avatar || user.profileImage || localStorage.getItem('profileImage') || null
+  user.avatar || user.profileImage || null
 );
 
 const AccountAvatar = ({ image, name, className = '' }) => (

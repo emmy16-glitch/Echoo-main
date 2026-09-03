@@ -248,7 +248,7 @@ const ListenerV2Layout = () => {
   const [headerSearch, setHeaderSearch] = useState('');
   const [unreadNotifications, setUnreadNotifications] = useState(0);
 
-  const profileImage = buildMediaUrl(user?.profileImage || user?.avatar || localStorage.getItem('profileImage'));
+  const profileImage = buildMediaUrl(user?.profileImage || user?.avatar);
   const isLiveRoom = /^\/listen\/live\/[^/]+/.test(location.pathname);
 
   const activeKey = useMemo(() => {

@@ -20,3 +20,21 @@ test('new signup persists a session and can continue through profile setup', asy
   await page.getByRole('button', { name: 'Continue' }).click();
   await expect(page.getByRole('heading', { name: /Choose how you'll use Echoo/i })).toBeVisible();
 });
+
+test('signup explains when an email is already registered', async ({ page }) => {
+  await page.route('**/api/auth/register', (route) => route.fulfill({
+    status: 409,
+    contentType: 'application/json',
+    body: JSON.stringify({ error: { code: 'EMAIL_EXISTS', message: 'Email already registered' } }),
+  }));
+  await page.goto('/');
+
+  await page.getByLabel('Full name').fill('Existing Echoo Listener');
+  await page.getByLabel('Username').fill('existing-listener');
+  await page.getByLabel('Email address').fill('existing@example.test');
+  await page.getByLabel('Password', { exact: true }).fill('Password123!');
+  await page.getByLabel('Confirm password').fill('Password123!');
+  await page.getByRole('button', { name: 'Continue' }).click();
+
+  await expect(page.getByText('Email already registered', { exact: true })).toBeVisible();
+});

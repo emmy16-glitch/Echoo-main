@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FaBroadcastTower } from 'react-icons/fa';
 import {
   FiAlertTriangle,
+  FiCheckCircle,
   FiClock,
   FiCopy,
   FiLoader,
@@ -639,11 +639,22 @@ const CreatorLiveConnectedWorkspace = ({
 
   if (!stations.length && !currentLiveBroadcast) {
     return (
-      <section className="ebsx-empty-page">
-        <FaBroadcastTower />
-        <h1>Complete your Channel setup.</h1>
-        <p>Your Echoo Channel is required before you can broadcast.</p>
-            <button type="button" onClick={() => onNavigate?.('Station')}>Open Channel</button>
+      <section className="ec2-no-channel" aria-labelledby="ec2-no-channel-title">
+        <div className="ec2-no-channel-copy">
+          <span className="ec2-no-channel-eyebrow">CHANNEL SETUP</span>
+          <h1 id="ec2-no-channel-title">Set up your Channel</h1>
+          <p>
+            Your Channel is your public home on Echoo. Listeners will find your live broadcasts, recordings and collections here.
+          </p>
+          <ul>
+            <li><FiCheckCircle aria-hidden="true" /> Choose a Channel name and category</li>
+            <li><FiCheckCircle aria-hidden="true" /> Add your artwork</li>
+            <li><FiCheckCircle aria-hidden="true" /> Start broadcasting</li>
+          </ul>
+          <button type="button" onClick={() => onNavigate?.('Station')}>
+            Set up Channel
+          </button>
+        </div>
       </section>
     );
   }

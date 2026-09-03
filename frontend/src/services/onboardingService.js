@@ -30,23 +30,6 @@ const saveUser = (user) => {
     )
   );
 
-  if (user.avatar) {
-    localStorage.setItem(
-      "profileImage",
-      user.avatar
-    );
-  }
-
-  if (
-    user.bio !==
-    undefined
-  ) {
-    localStorage.setItem(
-      "profileBio",
-      user.bio || ""
-    );
-  }
-
   if (user.userType) {
     localStorage.setItem(
       "echooRole",

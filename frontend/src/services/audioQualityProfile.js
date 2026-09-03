@@ -1,3 +1,5 @@
+import { accountStorageKey } from './accountStorage.js';
+
 const PROFILE_STORAGE_KEY = 'echooBroadcastCaptureProfile';
 
 export const BROADCAST_CAPTURE_PROFILES = Object.freeze({
@@ -39,7 +41,8 @@ const safeStorage = () => {
 
 export const getBroadcastCaptureProfile = () => {
   try {
-    const stored = safeStorage()?.getItem(PROFILE_STORAGE_KEY) || '';
+    const key = accountStorageKey(PROFILE_STORAGE_KEY);
+    const stored = (key && safeStorage()?.getItem(key)) || '';
     return BROADCAST_CAPTURE_PROFILES[stored] ? stored : 'studio';
   } catch {
     return 'studio';
@@ -49,7 +52,8 @@ export const getBroadcastCaptureProfile = () => {
 export const saveBroadcastCaptureProfile = (profileId) => {
   const next = BROADCAST_CAPTURE_PROFILES[profileId] ? profileId : 'studio';
   try {
-    safeStorage()?.setItem(PROFILE_STORAGE_KEY, next);
+    const key = accountStorageKey(PROFILE_STORAGE_KEY);
+    if (key) safeStorage()?.setItem(key, next);
   } catch {
     // A storage failure must never block the creator audio path.
   }

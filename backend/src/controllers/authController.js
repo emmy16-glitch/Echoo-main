@@ -39,9 +39,9 @@ export async function register(req, res, next) {
 
     if (existingUser) {
       if (existingUser.email === cleanEmail) {
-        return res.status(409).json({ error: { code: 'CONFLICT', message: 'Email already registered' } });
+        return res.status(409).json({ error: { code: 'EMAIL_EXISTS', message: 'Email already registered' } });
       }
-      return res.status(409).json({ error: { code: 'CONFLICT', message: 'Username already taken' } });
+      return res.status(409).json({ error: { code: 'USERNAME_TAKEN', message: 'Username already taken' } });
     }
 
     const hashedPassword = await User.hashPassword(password);

@@ -1,3 +1,5 @@
+import { accountStorageKey } from './accountStorage.js';
+
 const STORAGE_KEY = 'echooRealtimeAudioQuality';
 
 // These values are deliberately explicit instead of relying on LiveKit defaults.
@@ -43,7 +45,8 @@ export const getRealtimeAudioProfile = (value) =>
 
 export const getSavedRealtimeAudioProfile = () => {
   try {
-    return normalizeRealtimeAudioProfile(window.localStorage?.getItem(STORAGE_KEY));
+    const key = accountStorageKey(STORAGE_KEY);
+    return normalizeRealtimeAudioProfile(key && window.localStorage?.getItem(key));
   } catch {
     return 'broadcast_high';
   }
@@ -52,7 +55,8 @@ export const getSavedRealtimeAudioProfile = () => {
 export const saveRealtimeAudioProfile = (value) => {
   const profile = normalizeRealtimeAudioProfile(value);
   try {
-    window.localStorage?.setItem(STORAGE_KEY, profile);
+    const key = accountStorageKey(STORAGE_KEY);
+    if (key) window.localStorage?.setItem(key, profile);
   } catch {
     // Preference storage is optional and must not interrupt broadcast setup.
   }

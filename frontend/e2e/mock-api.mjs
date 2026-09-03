@@ -220,7 +220,7 @@ const server = http.createServer(async (req, res) => {
   if (/^\/broadcasts\/station\/[^/]+\/upcoming$/.test(path)) return json(res, 200, listPage([broadcastScheduled], 'broadcasts'));
   if (/^\/broadcasts\/[^/]+\/presence$/.test(path)) return json(res, 200, data({ listenerCount: 1284, peakListeners: 1900, status: 'live' }));
   if (/^\/broadcasts\/[^/]+\/processing$/.test(path)) return json(res, 200, data({ broadcast: { ...broadcastLive, status: 'completed', replayAudio: replayAudio.id, assetStatus: { audio: 'ready', transcript: 'ready_for_review', highlights: 'ready', chapters: 'ready' }, assetVisibility: { audio: 'public', transcript: 'public' } }, jobs: [] }));
-  if (/^\/broadcasts\/[^/]+\/listener-token$/.test(path)) return json(res, 409, { error: { code: 'E2E_LIVEKIT_DISABLED', message: 'LiveKit is intentionally disabled in deterministic browser tests.' } });
+  if (/^\/broadcasts\/[^/]+\/listener-token$/.test(path)) return json(res, 409, { error: { code: 'LIVEKIT_ROOM_UNAVAILABLE', message: 'The live audio room is not ready in this test.' } });
   if (/^\/broadcasts\/[^/]+$/.test(path)) return json(res, 200, data(broadcastLive));
 
   if (path === '/audio') return json(res, 200, listPage([replayAudio]));

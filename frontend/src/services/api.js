@@ -81,8 +81,12 @@ const AUTH_LOCAL_STORAGE_KEYS = [
   'echooRole',
   'echooProfileCompleted',
   'echooOnboardingCompleted',
+  'echooActiveExperience',
   'creatorSetup',
   'echooCreatorAudioPreferencesV1',
+  'echooRealtimeAudioQuality',
+  'echooBroadcastCaptureProfile',
+  'echooDownloads',
 ];
 
 export const clearAuthTokens = () => {
@@ -117,6 +121,7 @@ const USER_SAFE_ERROR_CODES = new Set([
   'BROADCAST_NOT_LIVE',
   'BROADCAST_PRIVATE',
   'LIVEKIT_ROOM_UNAVAILABLE',
+  'CHANNEL_ALREADY_EXISTS',
   'SESSION_EXPIRED',
   'REFRESH_TOKEN_REQUIRED',
   'INVALID_REFRESH_TOKEN',
@@ -363,6 +368,11 @@ export const api = {
           }
         );
 
+      // A successful login/register always begins a new browser session. Clear
+      // account-scoped UI remnants from the previous person before writing the
+      // newly authenticated session; Creator/Listener are experiences of this
+      // one user, never separate browser identities.
+      clearAuthTokens();
       saveTokens({
         accessToken:
           response?.data
@@ -391,6 +401,9 @@ export const api = {
           }
         );
 
+      // See register: do not let a previous user's local profile, workspace,
+      // or offline metadata hydrate into this authenticated session.
+      clearAuthTokens();
       saveTokens({
         accessToken:
           response?.data

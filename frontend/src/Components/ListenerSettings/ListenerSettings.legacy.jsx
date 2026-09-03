@@ -137,7 +137,6 @@ const ListenerSettings = () => {
         const user = JSON.parse(localStorage.getItem('user') || '{}');
         const nextUser = { ...user, ...saved };
         localStorage.setItem('user',JSON.stringify(nextUser));
-        if (saved.avatar) localStorage.setItem('profileImage',saved.avatar);
         window.dispatchEvent(new CustomEvent('echoo-profile-updated',{ detail:nextUser }));
       } catch { /* backend remains authoritative */ }
     }
