@@ -15,7 +15,8 @@ export const hasCreatorCapability = (user = {}) => (
 
 export const hasCompletedCreatorProfile = (user = {}) => (
   hasCreatorCapability(user) &&
-  user.onboardingCompleted === true
+  user.onboardingCompleted === true &&
+  Boolean(String(user.creatorType || '').trim())
 );
 
 export const canAccessExperience = (user, experience) => {
@@ -28,13 +29,15 @@ const currentUserFromResponse = (response) => response?.data?.user || response?.
 
 export const saveAccountUser = (user) => {
   if (!user || typeof user !== 'object') return null;
+
   localStorage.setItem('user', JSON.stringify(user));
-  if (user.userType) localStorage.setItem('echooRole', user.userType);
+
   if (user.onboardingCompleted === true) {
     localStorage.setItem('echooOnboardingCompleted', 'true');
   } else if (user.onboardingCompleted === false) {
     localStorage.removeItem('echooOnboardingCompleted');
   }
+
   return user;
 };
 
@@ -73,8 +76,8 @@ export const resolveExperienceSwitch = async (
     saveUser(user);
   }
 
-  // Existing authenticated accounts have already completed the shared account
-  // identity step; only Creator-specific setup remains.
+  // Echoo has one account identity. Creator activation only adds capability;
+  // the Channel setup below completes that capability before Studio access.
   localStorage.setItem('echooProfileCompleted', 'true');
   localStorage.setItem('echooActiveExperience', 'creator');
 

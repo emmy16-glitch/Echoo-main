@@ -2,56 +2,26 @@ import { apiRequest } from "./api.js";
 
 const getStoredUser = () => {
   try {
-    return JSON.parse(
-      localStorage.getItem("user") || "{}"
-    );
+    return JSON.parse(localStorage.getItem("user") || "{}");
   } catch {
     return {};
   }
 };
 
 const saveUser = (user) => {
-  if (!user) {
-    return null;
-  }
-
-  const existingUser =
-    getStoredUser();
+  if (!user) return null;
 
   const mergedUser = {
-    ...existingUser,
+    ...getStoredUser(),
     ...user,
   };
 
-  localStorage.setItem(
-    "user",
-    JSON.stringify(
-      mergedUser
-    )
-  );
+  localStorage.setItem("user", JSON.stringify(mergedUser));
 
-  if (user.userType) {
-    localStorage.setItem(
-      "echooRole",
-      user.userType
-    );
-  }
-
-  if (
-    user.onboardingCompleted ===
-    true
-  ) {
-    localStorage.setItem(
-      "echooOnboardingCompleted",
-      "true"
-    );
-  } else if (
-    user.onboardingCompleted ===
-    false
-  ) {
-    localStorage.removeItem(
-      "echooOnboardingCompleted"
-    );
+  if (user.onboardingCompleted === true) {
+    localStorage.setItem("echooOnboardingCompleted", "true");
+  } else if (user.onboardingCompleted === false) {
+    localStorage.removeItem("echooOnboardingCompleted");
   }
 
   return mergedUser;
@@ -59,86 +29,32 @@ const saveUser = (user) => {
 
 const onboardingService = {
   getStatus: async () => {
-    const response =
-      await apiRequest(
-        "/onboarding/status"
-      );
+    const response = await apiRequest("/onboarding/status");
 
-    if (
-      response?.data?.user
-    ) {
-      saveUser(
-        response.data.user
-      );
-    }
+    if (response?.data?.user) saveUser(response.data.user);
 
-    if (
-      response?.data?.userType
-    ) {
-      localStorage.setItem(
-        "echooRole",
-        response.data.userType
-      );
-    }
-
-    if (
-      response?.data
-        ?.isOnboardingComplete ===
-      true
-    ) {
-      localStorage.setItem(
-        "echooOnboardingCompleted",
-        "true"
-      );
+    if (response?.data?.isOnboardingComplete === true) {
+      localStorage.setItem("echooOnboardingCompleted", "true");
     }
 
     return response;
   },
 
-  updateProfile: async (
-    userId,
-    data
-  ) => {
+  updateProfile: async (userId, data) => {
     if (!userId) {
-      throw new Error(
-        "User ID is missing. Please sign in again."
-      );
+      throw new Error("User ID is missing. Please sign in again.");
     }
 
-    const response =
-      await apiRequest(
-        `/users/${userId}`,
-        {
-          method: "PATCH",
+    const response = await apiRequest(`/users/${userId}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        bio: data.bio ?? "",
+        avatar: data.avatar ?? null,
+        ...(data.displayName ? { displayName: data.displayName } : {}),
+      }),
+    });
 
-          body:
-            JSON.stringify({
-              bio:
-                data.bio ??
-                "",
-
-              avatar:
-                data.avatar ??
-                null,
-
-              ...(data.displayName
-                ? {
-                    displayName:
-                      data.displayName,
-                  }
-                : {}),
-            }),
-        }
-      );
-
-    if (
-      response?.data
-    ) {
-      saveUser(
-        response.data
-      );
-    }
-
+    if (response?.data) saveUser(response.data);
     return response;
   },
 
@@ -157,184 +73,71 @@ const onboardingService = {
   },
 
   activateCreator: async () => {
-    const response =
-      await apiRequest(
-        "/onboarding/activate-creator",
-        {
-          method: "POST",
+    const response = await apiRequest("/onboarding/activate-creator", {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
 
-          body: JSON.stringify({}),
-        }
-      );
-
-    if (
-      response?.data?.user
-    ) {
-      saveUser(
-        response.data.user
-      );
-    }
-
-    localStorage.setItem("echooRole", "creator");
-
+    if (response?.data?.user) saveUser(response.data.user);
     return response;
   },
 
-  chooseCreatorType:
-    async (data) => {
-      const response =
-        await apiRequest(
-          "/onboarding/choose-creator-type",
-          {
-            method:
-              "POST",
+  chooseCreatorType: async (data) => {
+    const response = await apiRequest("/onboarding/choose-creator-type", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
 
-            body:
-              JSON.stringify(
-                data
-              ),
-          }
-        );
+    if (response?.data?.user) saveUser(response.data.user);
+    return response;
+  },
 
-      if (
-        response?.data
-          ?.user
-      ) {
-        saveUser(
-          response.data
-            .user
-        );
-      }
+  updateContentInfo: async ({ category, contentDescription, genres = [] }) => {
+    const response = await apiRequest("/onboarding/content-info", {
+      method: "POST",
+      body: JSON.stringify({ category, contentDescription, genres }),
+    });
 
-      return response;
-    },
+    if (response?.data?.user) saveUser(response.data.user);
+    return response;
+  },
 
-  updateContentInfo:
-    async ({
-      category,
-      contentDescription,
-      genres = [],
-    }) => {
-      const response =
-        await apiRequest(
-          "/onboarding/content-info",
-          {
-            method:
-              "POST",
+  updateOrganizationDetails: async (data) => {
+    const response = await apiRequest("/onboarding/organization-details", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
 
-            body:
-              JSON.stringify({
-                category,
-                contentDescription,
-                genres,
-              }),
-          }
-        );
-
-      if (
-        response?.data
-          ?.user
-      ) {
-        saveUser(
-          response.data
-            .user
-        );
-      }
-
-      return response;
-    },
-
-  updateOrganizationDetails:
-    async (data) => {
-      const response =
-        await apiRequest(
-          "/onboarding/organization-details",
-          {
-            method:
-              "POST",
-
-            body:
-              JSON.stringify(
-                data
-              ),
-          }
-        );
-
-      if (
-        response?.data
-          ?.user
-      ) {
-        saveUser(
-          response.data
-            .user
-        );
-      }
-
-      return response;
-    },
+    if (response?.data?.user) saveUser(response.data.user);
+    return response;
+  },
 
   complete: async () => {
-    const response =
-      await apiRequest(
-        "/onboarding/complete",
-        {
-          method: "POST",
-        }
-      );
+    const response = await apiRequest("/onboarding/complete", { method: "POST" });
 
-    if (
-      response?.data?.user
-    ) {
-      saveUser(
-        response.data.user
-      );
-    }
-
-    localStorage.setItem(
-      "echooOnboardingCompleted",
-      "true"
-    );
+    if (response?.data?.user) saveUser(response.data.user);
+    localStorage.setItem("echooOnboardingCompleted", "true");
 
     return response;
   },
 
-  refreshStatus:
-    async () => {
-      return onboardingService.getStatus();
-    },
+  refreshStatus: async () => onboardingService.getStatus(),
 
-  getLocalUser: () => {
-    return getStoredUser();
+  getLocalUser: () => getStoredUser(),
+
+  isLocallyCompleted: () => {
+    const user = getStoredUser();
+    return (
+      user.onboardingCompleted === true ||
+      localStorage.getItem("echooOnboardingCompleted") === "true"
+    );
   },
 
-  isLocallyCompleted:
-    () => {
-      const user =
-        getStoredUser();
-
-      return (
-        user.onboardingCompleted ===
-          true ||
-        localStorage.getItem(
-          "echooOnboardingCompleted"
-        ) === "true"
-      );
-    },
-
-  clearOnboardingCache:
-    () => {
-      localStorage.removeItem(
-        "echooRole"
-      );
-
-      localStorage.removeItem(
-        "echooOnboardingCompleted"
-      );
-
-      localStorage.removeItem(
-        "echooProfileCompleted"
-      );
-    },
+  clearOnboardingCache: () => {
+    localStorage.removeItem("echooOnboardingCompleted");
+    localStorage.removeItem("echooProfileCompleted");
+    localStorage.removeItem("echooActiveExperience");
+  },
 
   saveUser,
 };

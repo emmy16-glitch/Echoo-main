@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
+  FiBarChart2,
   FiCalendar,
   FiChevronDown,
   FiClock,
   FiEdit2,
+  FiExternalLink,
+  FiHeadphones,
   FiImage,
   FiMoreVertical,
   FiPlusCircle,
@@ -54,7 +57,7 @@ const statusLabel = (broadcast) => {
   if (state === 'live') return 'Live now';
   if (state === 'upcoming') return 'Upcoming';
   const status = String(broadcast?.status || '').toLowerCase();
-  return status === 'cancelled' ? 'Cancelled' : status === 'failed' ? 'Failed' : 'Past';
+  return status === 'cancelled' ? 'Cancelled' : status === 'failed' ? 'Failed' : 'Completed';
 };
 
 const channelFor = (_broadcast, channels) => channels[0] || null;
@@ -68,6 +71,15 @@ const artworkFor = (broadcast, channel) =>
   channel?.artwork ||
   channel?.logo ||
   '';
+
+const recordingIdFor = (broadcast) => (
+  broadcast?.replayAudio?.id ||
+  broadcast?.replayAudio?._id ||
+  broadcast?.recording?.id ||
+  broadcast?.recording?._id ||
+  broadcast?.audioId ||
+  ''
+);
 
 export default function CreatorScheduleEventsWorkspace({ onNavigate }) {
   const { ownedStations, broadcasts: stateBroadcasts, refresh, notifyChanged } = useCreatorStudioState();
@@ -138,6 +150,41 @@ export default function CreatorScheduleEventsWorkspace({ onNavigate }) {
     if (!broadcast?.id) return;
     sessionStorage.setItem('echooEditBroadcastId', String(broadcast.id));
     onNavigate?.('BroadcastSettings');
+  };
+
+  const openCreatorBroadcast = (broadcast) => {
+    setOpenMenu('');
+    if (broadcast?.id) {
+      sessionStorage.setItem('echooPreparedBroadcastId', String(broadcast.id));
+    }
+    onNavigate?.('Broadcast');
+  };
+
+  const viewAsListener = (broadcast) => {
+    setOpenMenu('');
+    if (!broadcast?.id) return;
+    window.open(
+      `/listen/live/${encodeURIComponent(broadcast.id)}`,
+      '_blank',
+      'noopener,noreferrer'
+    );
+  };
+
+  const openCompletedBroadcast = (broadcast) => {
+    setOpenMenu('');
+    const recordingId = recordingIdFor(broadcast);
+    if (recordingId) {
+      window.location.assign(`/creator-studio/recordings/${encodeURIComponent(recordingId)}`);
+      return;
+    }
+    onNavigate?.('Analytics');
+  };
+
+  const openEvent = (broadcast) => {
+    const state = eventState(broadcast);
+    if (state === 'upcoming') return openBroadcastSettings(broadcast);
+    if (state === 'live') return openCreatorBroadcast(broadcast);
+    return openCompletedBroadcast(broadcast);
   };
 
   const updateForm = (field, value) => setForm((current) => ({ ...current, [field]: value }));
@@ -262,8 +309,19 @@ export default function CreatorScheduleEventsWorkspace({ onNavigate }) {
 
       <div className="schedule-controls">
         <div className="schedule-tabs" role="tablist" aria-label="Broadcast status">
-          {[['upcoming', 'Upcoming'], ['live', 'Live now'], ['past', 'Past broadcasts']].map(([value, label]) => (
-            <button key={value} type="button" role="tab" aria-selected={tab === value} className={tab === value ? 'active' : ''} onClick={() => setTab(value)}>
+          {[
+            ['upcoming', 'Upcoming'],
+            ['live', 'Live now'],
+            ['past', 'Completed'],
+          ].map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              role="tab"
+              aria-selected={tab === value}
+              className={tab === value ? 'active' : ''}
+              onClick={() => setTab(value)}
+            >
               {label}
             </button>
           ))}
@@ -271,7 +329,7 @@ export default function CreatorScheduleEventsWorkspace({ onNavigate }) {
         <div className="schedule-tools">
           <label className="schedule-search">
             <FiSearch />
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search broadcasts..." aria-label="Search broadcasts" />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search broadcasts" aria-label="Search broadcasts" />
           </label>
           <label className="schedule-sort">
             Sort
@@ -290,15 +348,17 @@ export default function CreatorScheduleEventsWorkspace({ onNavigate }) {
         </div>
 
         {loading ? (
-          <div className="schedule-empty">Loading your broadcasts…</div>
+          <div className="schedule-empty">Loading broadcasts…</div>
         ) : visibleRows.length ? visibleRows.map((broadcast) => {
           const eventChannel = channelFor(broadcast, ownedStations);
           const art = artworkFor(broadcast, eventChannel);
           const state = eventState(broadcast);
           const editable = state === 'upcoming';
+          const recordingId = recordingIdFor(broadcast);
+
           return (
             <article className="schedule-table schedule-row" key={broadcast.id}>
-              <button type="button" className="schedule-event-cell" onClick={() => editable ? openBroadcastSettings(broadcast) : state === 'live' ? onNavigate?.('Broadcast') : onNavigate?.('Collections')}>
+              <button type="button" className="schedule-event-cell" onClick={() => openEvent(broadcast)}>
                 <div className="schedule-event-art">
                   {art ? <img src={art} alt="" /> : <FiRadio aria-hidden="true" />}
                   <span>
@@ -329,23 +389,50 @@ export default function CreatorScheduleEventsWorkspace({ onNavigate }) {
 
               <div className="schedule-actions">
                 {editable && (
-                  <button type="button" onClick={() => openBroadcastSettings(broadcast)} aria-label={`Edit ${broadcast.title}`} title="Broadcast settings">
+                  <button type="button" onClick={() => openBroadcastSettings(broadcast)} aria-label={`Edit ${broadcast.title}`} title="Edit schedule">
                     <FiEdit2 />
                   </button>
                 )}
                 {state === 'live' && (
-                  <button type="button" onClick={() => onNavigate?.('Broadcast')} aria-label="Open Broadcast Studio">
+                  <button type="button" onClick={() => openCreatorBroadcast(broadcast)} aria-label="Open Broadcast Studio" title="Manage broadcast">
                     <FiRadio />
                   </button>
                 )}
+                {state === 'past' && (
+                  <button
+                    type="button"
+                    onClick={() => openCompletedBroadcast(broadcast)}
+                    aria-label={recordingId ? 'Open recording' : 'Open analytics'}
+                    title={recordingId ? 'Open recording' : 'Open analytics'}
+                  >
+                    {recordingId ? <FiHeadphones /> : <FiBarChart2 />}
+                  </button>
+                )}
                 <div className="schedule-menu-wrap">
-                  <button type="button" onClick={() => setOpenMenu((value) => value === broadcast.id ? '' : broadcast.id)} aria-label={`More actions for ${broadcast.title}`} aria-expanded={openMenu === broadcast.id}>
+                  <button
+                    type="button"
+                    onClick={() => setOpenMenu((value) => String(value) === String(broadcast.id) ? '' : broadcast.id)}
+                    aria-label={`More actions for ${broadcast.title}`}
+                    aria-expanded={String(openMenu) === String(broadcast.id)}
+                  >
                     <FiMoreVertical />
                   </button>
-                  {openMenu === broadcast.id && (
+                  {String(openMenu) === String(broadcast.id) && (
                     <div className="schedule-menu">
+                      {state === 'live' && (
+                        <button type="button" onClick={() => viewAsListener(broadcast)}>
+                          <FiExternalLink /> View as Listener
+                        </button>
+                      )}
+                      {state === 'past' && (
+                        <button type="button" onClick={() => openCompletedBroadcast(broadcast)}>
+                          {recordingId ? <><FiHeadphones /> Open recording</> : <><FiBarChart2 /> View analytics</>}
+                        </button>
+                      )}
                       {editable && <button type="button" onClick={() => cancelEvent(broadcast)}>Cancel broadcast</button>}
-                      {state !== 'live' && <button type="button" className="danger" onClick={() => deleteEvent(broadcast)}><FiTrash2 /> Delete</button>}
+                      {state !== 'live' && (
+                        <button type="button" className="danger" onClick={() => deleteEvent(broadcast)}><FiTrash2 /> Delete</button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -357,8 +444,10 @@ export default function CreatorScheduleEventsWorkspace({ onNavigate }) {
             {query
               ? 'No broadcasts match your search.'
               : tab === 'upcoming'
-                ? 'No upcoming broadcasts. Schedule your next one when you are ready.'
-                : `No ${tab === 'live' ? 'live' : 'past'} broadcasts yet.`}
+                ? 'No upcoming broadcasts. Schedule one when you have something to air.'
+                : tab === 'live'
+                  ? 'Nothing is live right now.'
+                  : 'No completed broadcasts yet.'}
           </div>
         )}
 
