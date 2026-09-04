@@ -6,7 +6,7 @@ import {
   hasCompletedCreatorProfile,
   hasCreatorCapability,
   hasListenerProfile,
-} from './accountExperience.js';
+} from './accountCapabilities.js';
 
 const listener = {
   id: 'user-1',

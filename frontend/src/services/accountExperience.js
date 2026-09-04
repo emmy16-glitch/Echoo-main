@@ -1,28 +1,19 @@
 import { api } from './api.js';
 import onboardingService from './onboardingService.js';
+import {
+  accountRoles,
+  canAccessExperience,
+  hasCompletedCreatorProfile,
+  hasCreatorCapability,
+  hasListenerProfile,
+} from './accountCapabilities.js';
 
-export const accountRoles = (user = {}) => (
-  Array.isArray(user.roles) ? user.roles.map(String) : []
-);
-
-export const hasListenerProfile = (user = {}) => Boolean(
-  user.id || user._id || user.email || user.username
-);
-
-export const hasCreatorCapability = (user = {}) => (
-  user.userType === 'creator' || accountRoles(user).includes('creator')
-);
-
-export const hasCompletedCreatorProfile = (user = {}) => (
-  hasCreatorCapability(user) &&
-  user.onboardingCompleted === true &&
-  Boolean(String(user.creatorType || '').trim())
-);
-
-export const canAccessExperience = (user, experience) => {
-  if (experience === 'listener') return hasListenerProfile(user);
-  if (experience === 'creator') return hasCompletedCreatorProfile(user);
-  return false;
+export {
+  accountRoles,
+  canAccessExperience,
+  hasCompletedCreatorProfile,
+  hasCreatorCapability,
+  hasListenerProfile,
 };
 
 const currentUserFromResponse = (response) => response?.data?.user || response?.data || null;
@@ -77,7 +68,7 @@ export const resolveExperienceSwitch = async (
   }
 
   // Echoo has one account identity. Creator activation only adds capability;
-  // the Channel setup below completes that capability before Studio access.
+  // Channel setup completes that capability before Creator Studio access.
   localStorage.setItem('echooProfileCompleted', 'true');
   localStorage.setItem('echooActiveExperience', 'creator');
 
