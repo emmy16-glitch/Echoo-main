@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { FaMicrophone, FaShieldAlt, FaSignal, FaUser } from "react-icons/fa";
 import microphoneAudience from "../Assets/echoo-auth-microphone-audience.png";
+import "./auth-reference.css";
 
 const BAR_COUNT = 38;
 const LEVEL_COUNT = 24;
