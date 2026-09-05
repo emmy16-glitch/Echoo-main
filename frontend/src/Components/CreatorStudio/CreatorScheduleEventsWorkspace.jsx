@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   FiBarChart2,
@@ -95,6 +95,8 @@ export default function CreatorScheduleEventsWorkspace({ onNavigate }) {
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const [openMenu, setOpenMenu] = useState('');
+  const createButtonRef = useRef(null);
+  const modalRef = useRef(null);
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Local time';
   const channel = ownedStations[0] || null;
 
@@ -143,6 +145,40 @@ export default function CreatorScheduleEventsWorkspace({ onNavigate }) {
     setNotice('');
     setForm(emptyForm());
     setModalOpen(true);
+  };
+
+  const closeCreate = useCallback(() => {
+    if (saving) return;
+    setModalOpen(false);
+    window.requestAnimationFrame(() => createButtonRef.current?.focus());
+  }, [saving]);
+
+  useEffect(() => {
+    if (!modalOpen) return undefined;
+    const onEscape = (event) => {
+      if (event.key !== 'Escape' || saving) return;
+      event.preventDefault();
+      closeCreate();
+    };
+    document.addEventListener('keydown', onEscape);
+    return () => document.removeEventListener('keydown', onEscape);
+  }, [closeCreate, modalOpen, saving]);
+
+  const trapModalFocus = (event) => {
+    if (event.key !== 'Tab') return;
+    const items = [...(modalRef.current?.querySelectorAll(
+      'button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), [tabindex]:not([tabindex="-1"])'
+    ) || [])].filter((item) => item.getClientRects().length > 0);
+    if (!items.length) return;
+    const first = items[0];
+    const last = items.at(-1);
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
   };
 
   const openBroadcastSettings = (broadcast) => {
@@ -250,6 +286,7 @@ export default function CreatorScheduleEventsWorkspace({ onNavigate }) {
       setModalOpen(false);
       setForm(emptyForm());
       setNotice('Broadcast scheduled.');
+      window.requestAnimationFrame(() => createButtonRef.current?.focus());
       notifyChanged();
       refresh({ silent: true }).catch(() => {});
     } catch (saveError) {
@@ -299,7 +336,7 @@ export default function CreatorScheduleEventsWorkspace({ onNavigate }) {
           <h1 id="schedule-events-title">Schedule Events</h1>
           <p>Plan upcoming broadcasts for your Channel.</p>
         </div>
-        <button type="button" className="schedule-primary" onClick={openCreate}>
+        <button ref={createButtonRef} type="button" className="schedule-primary" onClick={openCreate}>
           <FiPlusCircle /> Schedule event
         </button>
       </header>
@@ -466,11 +503,19 @@ export default function CreatorScheduleEventsWorkspace({ onNavigate }) {
       </section>
 
       {modalOpen && createPortal((
-        <div className="schedule-modal-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) setModalOpen(false); }}>
-          <form className="schedule-modal" onSubmit={save} aria-labelledby="schedule-modal-title">
+        <div className="schedule-modal-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeCreate(); }}>
+          <form
+            ref={modalRef}
+            className="schedule-modal"
+            onSubmit={save}
+            onKeyDown={trapModalFocus}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="schedule-modal-title"
+          >
             <header className="schedule-modal-header">
               <h2 id="schedule-modal-title">Schedule event</h2>
-              <button type="button" onClick={() => setModalOpen(false)} disabled={saving} aria-label="Close"><FiX /></button>
+              <button type="button" onClick={closeCreate} disabled={saving} aria-label="Close"><FiX /></button>
             </header>
 
             <div className="schedule-modal-body">
@@ -523,7 +568,7 @@ export default function CreatorScheduleEventsWorkspace({ onNavigate }) {
             </div>
 
             <footer className="schedule-modal-footer">
-              <button type="button" onClick={() => setModalOpen(false)} disabled={saving}>Cancel</button>
+              <button type="button" onClick={closeCreate} disabled={saving}>Cancel</button>
               <button type="submit" className="schedule-primary" disabled={saving || !channel?.id}>
                 {saving ? 'Scheduling…' : 'Schedule event'}
               </button>
