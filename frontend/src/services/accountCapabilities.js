@@ -10,10 +10,14 @@ export const hasCreatorCapability = (user = {}) => (
   user.userType === 'creator' || accountRoles(user).includes('creator')
 );
 
+const creatorTypeOf = (user = {}) => (
+  user.creatorProfile?.creatorType || user.creatorType || ''
+);
+
 export const hasCompletedCreatorProfile = (user = {}) => (
   hasCreatorCapability(user) &&
   user.onboardingCompleted === true &&
-  Boolean(String(user.creatorType || '').trim())
+  Boolean(String(creatorTypeOf(user)).trim())
 );
 
 export const canAccessExperience = (user, experience) => {
