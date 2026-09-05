@@ -79,8 +79,9 @@ const imageFileFromDataUrl = async (dataUrl) => {
 export default function CreatorSetup({ onCreatorReady }) {
   const storedUser = useMemo(() => getStoredUser(), []);
   const displayName = storedUser.displayName || storedUser.fullname || storedUser.name || storedUser.username || '';
-  const existingCreatorType = ['individual', 'organization'].includes(storedUser.creatorType)
-    ? storedUser.creatorType
+  const storedCreatorType = storedUser.creatorProfile?.creatorType || storedUser.creatorType || '';
+  const existingCreatorType = ['individual', 'organization'].includes(storedCreatorType)
+    ? storedCreatorType
     : 'individual';
 
   const [creatorType, setCreatorType] = useState(existingCreatorType);
@@ -149,8 +150,6 @@ export default function CreatorSetup({ onCreatorReady }) {
       });
       return response?.data || null;
     } catch (error) {
-      // A retry may arrive after the first request already created the one
-      // allowed Channel. Re-read the canonical Channel instead of failing.
       if (error?.code !== 'CHANNEL_ALREADY_EXISTS') throw error;
       const retry = await batch2Service.getMyStations();
       const retryChannels = Array.isArray(retry?.data) ? retry.data : [];
