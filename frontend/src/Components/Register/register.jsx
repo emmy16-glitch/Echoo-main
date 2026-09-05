@@ -1,7 +1,7 @@
 import { useState } from "react";
 import "./register.css";
 import "./auth-reference.css";
-import api, { clearAuthTokens } from "../../services/api";
+import api from "../../services/api";
 
 import {
   FaArrowLeft,
@@ -60,8 +60,15 @@ const AuthField = ({
   </div>
 );
 
+const initialAuthAction = () => {
+  if (typeof window === "undefined") return "Sign Up";
+  return new URLSearchParams(window.location.search).get("mode") === "login"
+    ? "Login"
+    : "Sign Up";
+};
+
 const Register = ({ onAccountCreated, onLoginSuccess }) => {
-  const [action, setAction] = useState("Sign Up");
+  const [action, setAction] = useState(initialAuthAction);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -155,11 +162,8 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
         "Your account was created, but Echoo could not start a secure session. Please sign in again."
       );
     }
-
-    // Authentication replaces the browser account completely. Clear any
-    // account-scoped Listener/Creator preferences, cached profile data and
-    // session-only broadcast state before persisting the authenticated user.
-    clearAuthTokens();
+    // api.auth.login/register already clear the previous account's local and
+    // session state before persisting the newly authenticated token pair.
     localStorage.setItem("accessToken", accessToken);
     localStorage.setItem("token", accessToken);
     if (refreshToken) localStorage.setItem("refreshToken", refreshToken);
