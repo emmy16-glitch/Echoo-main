@@ -23,9 +23,9 @@ export const loadListenerLayout = listenerV2Page('ListenerV2Layout');
 export const loadListenerHome = listenerV2Page('ListenerV2Home');
 export const loadListenerSearch = listenerV2Page('ListenerV2Search');
 export const loadListenerLive = listenerV2Page('ListenerV2Live');
-// Legacy /listen/stations and /listen/categories list routes now resolve to the
-// canonical Search experience. Categories are filters, not a standalone page.
-export const loadListenerStations = listenerV2Page('ListenerV2Search');
+// /listen/channels is the canonical browse-by-Channel experience. App.jsx keeps
+// the old stations/categories route aliases only for backwards-compatible URLs.
+export const loadListenerStations = listenerV2Page('ListenerV2Categories');
 export const loadListenerFollowing = listenerV2Page('ListenerV2Following');
 
 // Secondary/detail experiences retain their proven data and interaction logic.
