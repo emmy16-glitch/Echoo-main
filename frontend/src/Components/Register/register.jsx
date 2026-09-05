@@ -1,7 +1,7 @@
 import { useState } from "react";
 import "./register.css";
 import "./auth-reference.css";
-import api from "../../services/api";
+import api, { clearAuthTokens } from "../../services/api";
 
 import {
   FaArrowLeft,
@@ -155,9 +155,14 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
         "Your account was created, but Echoo could not start a secure session. Please sign in again."
       );
     }
+
+    // Authentication replaces the browser account completely. Clear any
+    // account-scoped Listener/Creator preferences, cached profile data and
+    // session-only broadcast state before persisting the authenticated user.
+    clearAuthTokens();
     localStorage.setItem("accessToken", accessToken);
     localStorage.setItem("token", accessToken);
-    localStorage.setItem("refreshToken", refreshToken);
+    if (refreshToken) localStorage.setItem("refreshToken", refreshToken);
     localStorage.setItem("user", JSON.stringify(user));
     return user;
   };
@@ -233,9 +238,9 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
         const isNetworkError = error?.message?.toLowerCase() === "failed to fetch";
         setLoginError(
           isCredentialError
-            ? "Incorrect username, email, or password. Check your details and try again."
+            ? "Incorrect username/email or password. Please check your details and try again."
             : isNetworkError
-              ? "We couldn't reach the Echoo sign-in service. Check your connection and try again."
+              ? "We couldn't reach the Echoo sign-in service. Please check your connection and try again."
               : error?.message || "We couldn't sign you in. Please try again."
         );
         return;
@@ -245,7 +250,7 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
         const isServiceUnavailable = [502, 503, 504].includes(error?.status);
         setSignupError(
           isNetworkError || isServiceUnavailable
-            ? "The Echoo account service is temporarily unavailable. Please try again."
+            ? "The Echoo account service is temporarily unavailable. Please try again in a moment."
             : error?.message || "We couldn't create your account. Please try again."
         );
         return;
@@ -253,7 +258,7 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
 
       if (action === "Forgot Password" && error?.status === 404 && error?.code === "USER_NOT_REGISTERED") {
         setAction("Sign Up");
-        setSignupError("This email is not registered. Create an Echoo account instead.");
+        setSignupError("This email is not registered. Please create an Echoo account.");
         return;
       }
       setToast({
@@ -292,7 +297,7 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
         <div className="auth-card compact-card">
           <SuccessState
             title="Account created"
-            message="Your Echoo account is ready. Next, set up your profile."
+            message="Your Echoo account is ready. Let's set up your profile."
             autoContinue
             duration={900}
             onContinue={() => onAccountCreated?.(successUser)}
