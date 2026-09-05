@@ -99,6 +99,20 @@ export const clearAuthTokens = () => {
   sessionStorage.clear();
 };
 
+let sessionExpiryRedirectStarted = false;
+
+const expireBrowserSession = () => {
+  clearAuthTokens();
+
+  if (typeof window === 'undefined' || sessionExpiryRedirectStarted) return;
+  sessionExpiryRedirectStarted = true;
+
+  // Token state can be cleared from a background request after a protected
+  // route has already rendered. Replace history immediately so Listener/Studio
+  // cannot remain visible with a dead session and Back cannot restore it.
+  window.location.replace('/?mode=login&reason=session-expired');
+};
+
 const parseResponse = async (
   response
 ) => {
@@ -271,9 +285,15 @@ export const apiFetch = async (
   if (
     response.status === 401 &&
     !skipAuth &&
-    !skipRefresh &&
-    getRefreshToken()
+    !skipRefresh
   ) {
+    const refreshToken = getRefreshToken();
+
+    if (!refreshToken) {
+      expireBrowserSession();
+      throw sessionExpiredError();
+    }
+
     try {
       const newAccessToken =
         await refreshSessionAccessToken();
@@ -284,8 +304,14 @@ export const apiFetch = async (
           options,
           newAccessToken
         );
-    } catch {
-      clearAuthTokens();
+
+      if (response.status === 401) {
+        expireBrowserSession();
+        throw sessionExpiredError();
+      }
+    } catch (error) {
+      if (error?.code === 'SESSION_EXPIRED') throw error;
+      expireBrowserSession();
       throw sessionExpiredError();
     }
   }
