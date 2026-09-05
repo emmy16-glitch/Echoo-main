@@ -26,7 +26,7 @@ jobs:
       - run: npm run lint
       - run: npm run build
 
-  frontend-e2e:
+  frontend-e2e-critical:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -41,13 +41,56 @@ jobs:
       - run: npm ci
       - name: Install Chromium, Firefox and WebKit for Playwright
         run: npx playwright install --with-deps chromium firefox webkit
-      - name: Run responsive and end-to-end browser audit
-        run: npm run test:e2e
+      - name: Run critical account lifecycle in three browser engines
+        run: >-
+          npx playwright test
+          e2e/auth-reference.spec.mjs
+          e2e/onboarding-signup.spec.mjs
+          e2e/onboarding-dynamic-hero.spec.mjs
+          e2e/account-experience-isolation.spec.mjs
+          e2e/account-lifecycle-deep.spec.mjs
+          --project=desktop-1280
+          --project=firefox-1024
+          --project=webkit-1440
+      - name: Upload critical Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-critical-report
+          path: frontend/playwright-report
+          if-no-files-found: ignore
+          retention-days: 7
+
+  frontend-e2e:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - name: Install Chromium and WebKit for Playwright
+        run: npx playwright install --with-deps chromium webkit
+      - name: Run every Playwright spec once on desktop Chromium
+        run: npx playwright test --project=desktop-1280
+      - name: Run responsive audit across compact and wide layouts
+        run: >-
+          npx playwright test e2e/echoo-responsive.spec.mjs
+          --project=mobile-320x800
+          --project=mobile-390
+          --project=tablet-820
+          --project=desktop-1920
+          --project=webkit-390
       - name: Upload Playwright report on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
+          name: playwright-regression-report
           path: frontend/playwright-report
           if-no-files-found: ignore
           retention-days: 7
