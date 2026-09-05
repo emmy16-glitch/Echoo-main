@@ -51,13 +51,9 @@ const ProfileSetup = ({ onProfileCompleted, onSessionInvalid }) => {
   const [displayName, setDisplayName] = useState(
     storedUser.displayName || storedUser.fullname || storedUser.username || ""
   );
-  const [bio, setBio] = useState(
-    storedUser.bio || ""
-  );
+  const [bio, setBio] = useState(storedUser.bio || "");
   const [profileImage, setProfileImage] = useState(
-    storedUser.avatar ||
-      storedUser.profileImage ||
-      null
+    storedUser.avatar || storedUser.profileImage || null
   );
   const [saving, setSaving] = useState(false);
   const [completed, setCompleted] = useState(false);
@@ -123,14 +119,16 @@ const ProfileSetup = ({ onProfileCompleted, onSessionInvalid }) => {
         bio: bio.trim(),
         avatar: profileImage || null,
       });
+      const responseUser = response?.data?.user || response?.data || {};
+      const resolvedAvatar = profileImage || responseUser.avatar || null;
 
       const updatedUser = {
         ...currentUser,
-        ...(response?.data || {}),
+        ...responseUser,
         displayName: displayName.trim(),
         bio: bio.trim(),
-        avatar: profileImage || response?.data?.avatar || null,
-        profileImage: profileImage || response?.data?.avatar || "",
+        avatar: resolvedAvatar,
+        profileImage: resolvedAvatar || "",
         profileCompleted: true,
       };
 
