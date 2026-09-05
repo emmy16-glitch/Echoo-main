@@ -20,6 +20,7 @@ for (const required of [
   'backend/src/services/broadcastAudioReadiness.js',
   'frontend/src/services/echooMixerService.js',
   'frontend/src/services/livekitPublisher.js',
+  'frontend/src/services/realtimeAudioQuality.js',
   'ARCHITECTURE.md',
   'SMOKE_TEST.md',
 ]) {
@@ -98,14 +99,28 @@ for (const forbidden of [
 const publisher = read('frontend/src/services/livekitPublisher.js');
 for (const invariant of [
   "name: 'echoo-studio-mix'",
-  'forceStereo: true',
-  'dtx: false',
-  'red: false',
+  'liveKitPublishOptionsFor(selectedQualityProfile)',
 ]) {
   if (!publisher.includes(invariant)) failures.push(`Live program invariant missing: ${invariant}`);
 }
 if (publisher.includes('createLocalAudioTrack(')) {
   failures.push('LiveKit publisher reintroduced a raw microphone fallback outside the mixer.');
+}
+
+const realtimeQuality = read('frontend/src/services/realtimeAudioQuality.js');
+for (const invariant of [
+  'forceStereo: true',
+  'dtx: false',
+  'red: profile.red',
+  'channels: 2',
+  'sampleRate: 48000',
+]) {
+  if (!realtimeQuality.includes(invariant)) {
+    failures.push(`Realtime audio quality contract missing: ${invariant}`);
+  }
+}
+if (!realtimeQuality.includes("studio_max: Object.freeze({") || !realtimeQuality.includes('red: false')) {
+  failures.push('Maximum realtime audio profile no longer has its explicit RED policy.');
 }
 
 const architecture = read('ARCHITECTURE.md');
@@ -145,5 +160,6 @@ console.log('Echoo runtime architecture check passed.');
 console.log('Auth throttling + reactivation: guarded');
 console.log('Creator private playback: owner-scoped signed stream');
 console.log('Live program: post-master echoo-studio-mix -> LiveKit');
+console.log('Realtime audio: stereo, DTX disabled, RED policy selected by quality profile');
 console.log('Prerecorded audio: protected Range stream; direct storage blocked');
 console.log('Realtime scaling claims: process-local unless a shared adapter is explicitly added');
