@@ -112,6 +112,14 @@ export default function CreatorSetup({ onCreatorReady }) {
     setToast({ open: true, type: 'error', title, message });
   };
 
+  const backToListener = () => {
+    // Creator activation can happen before Channel setup is complete. Leaving
+    // setup must make Listener the active experience as well as change the URL;
+    // otherwise a refresh/default redirect would immediately reopen setup.
+    localStorage.setItem('echooActiveExperience', 'listener');
+    window.location.assign('/listen');
+  };
+
   const handleArtwork = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -351,7 +359,7 @@ export default function CreatorSetup({ onCreatorReady }) {
             <button
               type="button"
               className="channel-setup-secondary"
-              onClick={() => window.location.assign('/listen')}
+              onClick={backToListener}
               disabled={saving}
             >
               Back to Listener
