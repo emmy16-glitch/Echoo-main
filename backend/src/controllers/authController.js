@@ -5,6 +5,8 @@ import { env } from '../config/env.js';
 import { sendPasswordResetEmail } from '../services/emailService.js';
 import { hasCreatorCapability } from '../utils/accountCapabilities.js';
 
+const USERNAME_PATTERN = /^[A-Za-z0-9._-]{3,30}$/;
+
 const accountUserJson = (user) => {
   const serialized = user?.toJSON?.() || user || {};
   return {
@@ -54,6 +56,18 @@ export async function register(req, res, next) {
     if (!cleanUsername || !cleanEmail || !password) {
       return res.status(400).json({
         error: { code: 'VALIDATION_ERROR', message: 'Username, email, and password are required' }
+      });
+    }
+
+    // Usernames are Echoo handles, never alternate email addresses. Keeping the
+    // handle alphabet explicit prevents a value like name@example.com from
+    // colliding conceptually with the email login path.
+    if (!USERNAME_PATTERN.test(cleanUsername)) {
+      return res.status(400).json({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Username must be 3–30 characters and use only letters, numbers, dots, underscores, or hyphens',
+        },
       });
     }
 
@@ -113,19 +127,23 @@ export async function login(req, res, next) {
   try {
     const { username, email, password } = req.body;
 
-    const identifier = String(username || email || '').trim();
-    if (!identifier || !password) {
+    const rawIdentifier = String(username || email || '').trim();
+    if (!rawIdentifier || !password) {
       return res.status(400).json({
         error: { code: 'VALIDATION_ERROR', message: 'Username/email and password are required' }
       });
     }
 
-    const user = await User.findOne({
-      $or: [
-        { username: identifier },
-        { email: identifier.toLowerCase() }
-      ]
-    }).select('+passwordHash +refreshTokenVersion');
+    // A leading @ is explicitly a handle. Otherwise any @ identifies the email
+    // path, so login never asks MongoDB to choose between two different account
+    // fields for the same string.
+    const explicitHandle = rawIdentifier.startsWith('@');
+    const identifier = explicitHandle ? rawIdentifier.slice(1) : rawIdentifier;
+    const lookup = !explicitHandle && identifier.includes('@')
+      ? { email: identifier.toLowerCase() }
+      : { username: identifier };
+
+    const user = await User.findOne(lookup).select('+passwordHash +refreshTokenVersion');
 
     if (!user) {
       return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Invalid credentials' } });
