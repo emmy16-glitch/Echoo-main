@@ -71,6 +71,8 @@ const forbidFile = (relative) => {
   'backend/src/routes/scheduleRoutes.js',
   'backend/src/controllers/scheduleController.js',
   'backend/src/routes/listenerLivekitRoutes.js',
+  'frontend/src/Components/ChooseRole/ChooseRole.jsx',
+  'frontend/src/Components/ChooseRole/ChooseRole.css',
   'frontend/src/Components/CreatorStudio/CreatorStudioHome.jsx',
   'frontend/src/Components/CreatorStudio/CreatorScheduleWorkspace.jsx',
   'frontend/src/Components/CreatorStudio/CreatorLiveWorkspace.jsx',
@@ -136,14 +138,15 @@ const forbiddenRuntimeTokens = [
   'Faith Talk Live',
   'Praise & Worship Live',
 ];
+const legacyRoleReadWrite = /(?:localStorage\.)?(?:getItem|setItem)\s*\(\s*['"]echooRole['"]/;
 
 for (const file of frontendFiles) {
   const source = read(file);
   for (const token of forbiddenRuntimeTokens) {
     if (source.includes(token)) failures.push(`Forbidden production mock token "${token}" found in ${file}`);
   }
-  if (/\.(jsx|js)$/.test(file) && source.includes('echooRole')) {
-    failures.push(`Legacy role identity storage "echooRole" found in ${file}`);
+  if (/\.(jsx|js)$/.test(file) && legacyRoleReadWrite.test(source)) {
+    failures.push(`Legacy role identity read/write "echooRole" found in ${file}`);
   }
 }
 
@@ -172,6 +175,13 @@ for (const capabilityToken of ['creatorProfile?.creatorType', 'hasCompletedCreat
 const backendCapabilitySource = read('backend/src/utils/accountCapabilities.js');
 if (!backendCapabilitySource.includes('creatorProfile?.creatorType')) {
   failures.push('Backend Creator readiness must use creatorProfile.creatorType.');
+}
+
+const mobileNavigation = read('frontend/src/Components/EchooSystem/EchooMobileNavigation.jsx');
+for (const mobileToken of ["label: 'Channels'", "path: '/listen/channels'", 'hasCreatorCapability']) {
+  if (!mobileNavigation.includes(mobileToken)) {
+    failures.push(`Mobile Listener navigation is missing current account/Channel behavior: ${mobileToken}`);
+  }
 }
 
 const mainSource = read('frontend/src/main.jsx');
@@ -278,7 +288,12 @@ for (const requiredStudioFeature of [
 }
 
 const scheduleWorkspace = read('frontend/src/Components/CreatorStudio/CreatorScheduleEventsWorkspace.jsx');
-for (const scheduleToken of ['createBroadcast', "status === 'live'", "status === 'completed'"]) {
+for (const scheduleToken of [
+  'batch2Service.createBroadcast',
+  "if (state === 'live') return openCreatorBroadcast(broadcast);",
+  'openCompletedBroadcast',
+  '/listen/live/',
+]) {
   if (!scheduleWorkspace.includes(scheduleToken)) {
     failures.push(`Schedule Events workspace is missing state-aware behavior: ${scheduleToken}`);
   }
