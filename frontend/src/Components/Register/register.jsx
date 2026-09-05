@@ -116,9 +116,9 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
 
   const cleanEmail = formData.email.trim();
   const emailInvalid =
-    action === "Sign Up" &&
     cleanEmail.length > 0 &&
     !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail);
+  const loginIdentifier = formData.identifier.trim().replace(/^@/, "");
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -142,7 +142,7 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
       );
     }
     if (action === "Login") {
-      return formData.identifier.trim() !== "" && formData.password.trim() !== "";
+      return loginIdentifier !== "" && formData.password.trim() !== "";
     }
     if (action === "Forgot Password") return cleanEmail !== "" && !emailInvalid;
     return false;
@@ -206,7 +206,7 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
 
       if (action === "Login") {
         const response = await api.auth.login({
-          username: formData.identifier.trim(),
+          username: loginIdentifier,
           password: formData.password,
         });
         const user = saveSession(response);
