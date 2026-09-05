@@ -254,8 +254,13 @@ const ListenerV2Layout = () => {
   const activeKey = useMemo(() => {
     if (location.pathname.includes('/library/following')) return 'following';
     if (location.pathname === '/listen/following') return 'following';
-    if (location.pathname === '/listen/search') return 'search';
-    if (location.pathname === '/listen/stations' || location.pathname.startsWith('/listen/stations/')) return 'search';
+    if (
+      location.pathname === '/listen/search' ||
+      location.pathname === '/listen/channels' ||
+      location.pathname.startsWith('/listen/channels/') ||
+      location.pathname === '/listen/stations' ||
+      location.pathname.startsWith('/listen/stations/')
+    ) return 'search';
     return 'live';
   }, [location.pathname]);
 
@@ -484,7 +489,7 @@ const ListenerV2Following = () => {
 
   const openStation = (station) => {
     const liveBroadcastId = station?.isLive ? liveBroadcastIdOfStation(station) : '';
-    navigate(liveBroadcastId ? `/listen/live/${liveBroadcastId}` : `/listen/stations/${idOf(station)}`);
+    navigate(liveBroadcastId ? `/listen/live/${liveBroadcastId}` : `/listen/channels/${idOf(station)}`);
   };
 
   const liveStations = useMemo(
@@ -545,9 +550,6 @@ const ListenerV2Following = () => {
                     aria-label={`Unfollow ${station?.name || 'Channel'}`}
                   >
                     {busyId === idOf(station) ? '...' : 'Following'}
-                  </button>
-                  <button type="button" className="listener-v2-following-more" aria-label={`More options for ${station?.name || 'Channel'}`}>
-                    <FiChevronDown />
                   </button>
                 </article>
               ))}
@@ -643,7 +645,7 @@ const ListenerV2Categories = () => {
                 station={station}
                 following={followingIds.has(idOf(station))}
                 busy={busyId === idOf(station)}
-                onOpen={(item) => navigate(`/listen/stations/${idOf(item)}`)}
+                onOpen={(item) => navigate(`/listen/channels/${idOf(item)}`)}
                 onFollow={toggleFollow}
               />
             ))}
@@ -734,7 +736,7 @@ const ListenerV2Search = () => {
 
       {data.stations.length > 0 && (
         <section className="listener-v2-panel"><SectionTitle title="Channels" copy={`${data.stations.length} result${data.stations.length === 1 ? '' : 's'}`} />
-          <div className="listener-v2-station-grid">{data.stations.map((station) => <StationCard key={idOf(station)} station={station} onOpen={(item) => navigate(`/listen/stations/${idOf(item)}`)} />)}</div>
+          <div className="listener-v2-station-grid">{data.stations.map((station) => <StationCard key={idOf(station)} station={station} onOpen={(item) => navigate(`/listen/channels/${idOf(item)}`)} />)}</div>
         </section>
       )}
 
