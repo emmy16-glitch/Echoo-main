@@ -1,40 +1,34 @@
 import { api } from './api.js';
 import onboardingService from './onboardingService.js';
+import {
+  accountRoles,
+  canAccessExperience,
+  hasCompletedCreatorProfile,
+  hasCreatorCapability,
+  hasListenerProfile,
+} from './accountCapabilities.js';
 
-export const accountRoles = (user = {}) => (
-  Array.isArray(user.roles) ? user.roles.map(String) : []
-);
-
-export const hasListenerProfile = (user = {}) => Boolean(
-  user.id || user._id || user.email || user.username
-);
-
-export const hasCreatorCapability = (user = {}) => (
-  user.userType === 'creator' || accountRoles(user).includes('creator')
-);
-
-export const hasCompletedCreatorProfile = (user = {}) => (
-  hasCreatorCapability(user) &&
-  user.onboardingCompleted === true
-);
-
-export const canAccessExperience = (user, experience) => {
-  if (experience === 'listener') return hasListenerProfile(user);
-  if (experience === 'creator') return hasCompletedCreatorProfile(user);
-  return false;
+export {
+  accountRoles,
+  canAccessExperience,
+  hasCompletedCreatorProfile,
+  hasCreatorCapability,
+  hasListenerProfile,
 };
 
 const currentUserFromResponse = (response) => response?.data?.user || response?.data || null;
 
 export const saveAccountUser = (user) => {
   if (!user || typeof user !== 'object') return null;
+
   localStorage.setItem('user', JSON.stringify(user));
-  if (user.userType) localStorage.setItem('echooRole', user.userType);
+
   if (user.onboardingCompleted === true) {
     localStorage.setItem('echooOnboardingCompleted', 'true');
   } else if (user.onboardingCompleted === false) {
     localStorage.removeItem('echooOnboardingCompleted');
   }
+
   return user;
 };
 
@@ -73,8 +67,8 @@ export const resolveExperienceSwitch = async (
     saveUser(user);
   }
 
-  // Existing authenticated accounts have already completed the shared account
-  // identity step; only Creator-specific setup remains.
+  // Echoo has one account identity. Creator activation only adds capability;
+  // Channel setup completes that capability before Creator Studio access.
   localStorage.setItem('echooProfileCompleted', 'true');
   localStorage.setItem('echooActiveExperience', 'creator');
 

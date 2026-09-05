@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { FaMicrophone, FaShieldAlt, FaSignal, FaUser } from "react-icons/fa";
+import { FaMicrophone, FaShieldAlt, FaSignal } from "react-icons/fa";
 import microphoneAudience from "../Assets/echoo-auth-microphone-audience.png";
 
 const BAR_COUNT = 38;
@@ -24,35 +24,35 @@ const AudioPreview = () => {
   const analyserRef = useRef(null);
   const rafRef = useRef(0);
   const [micState, setMicState] = useState("idle");
-  const [message, setMessage] = useState("Start microphone test");
+  const [message, setMessage] = useState("Test your microphone before your first broadcast.");
 
   useEffect(() => {
     const frequencyData = new Uint8Array(128);
 
-    const animate = (time = 0) => {
+    const animate = () => {
       const analyser = analyserRef.current;
       if (analyser) analyser.getByteFrequencyData(frequencyData);
 
       barRefs.current.forEach((bar, index) => {
         if (!bar) return;
-        const idleEnergy =
-          0.55 +
-          Math.abs(Math.sin(time * 0.0035 + index * 0.5)) * 0.48 +
-          Math.abs(Math.sin(time * 0.0018 - index * 0.23)) * 0.2;
         const bucket = Math.min(
           frequencyData.length - 1,
           Math.floor((index / BAR_COUNT) * frequencyData.length)
         );
-        const liveEnergy = analyser ? 0.44 + (frequencyData[bucket] / 255) * 1.75 : idleEnergy;
-        bar.style.transform = `scaleY(${liveEnergy.toFixed(3)})`;
-        bar.style.opacity = `${Math.min(1, 0.45 + liveEnergy * 0.35)}`;
+        const energy = analyser
+          ? 0.22 + (frequencyData[bucket] / 255) * 1.55
+          : 0.18 + ((index * 7) % 9) * 0.014;
+        bar.style.transform = `scaleY(${energy.toFixed(3)})`;
+        bar.style.opacity = analyser
+          ? `${Math.min(1, 0.42 + energy * 0.42)}`
+          : "0.28";
       });
 
       levelRefs.current.forEach((level, index) => {
         if (!level) return;
         const isFilled = analyser
           ? frequencyData[Math.min(frequencyData.length - 1, index * 4)] > 36
-          : index < 17;
+          : false;
         level.classList.toggle("is-filled", isFilled);
       });
 
@@ -74,7 +74,7 @@ const AudioPreview = () => {
     await audioContextRef.current?.close?.().catch?.(() => {});
     audioContextRef.current = null;
     setMicState("idle");
-    setMessage("Start microphone test");
+    setMessage("Test your microphone before your first broadcast.");
   };
 
   const toggleMic = async () => {
@@ -85,12 +85,12 @@ const AudioPreview = () => {
 
     if (!navigator.mediaDevices?.getUserMedia) {
       setMicState("unavailable");
-      setMessage("Microphone preview unavailable");
+      setMessage("Microphone testing is not available in this browser.");
       return;
     }
 
     setMicState("requesting");
-    setMessage("Requesting microphone access…");
+    setMessage("Requesting microphone access...");
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -109,7 +109,7 @@ const AudioPreview = () => {
       audioContextRef.current = context;
       analyserRef.current = analyser;
       setMicState("active");
-      setMessage("Listening — audio stays on this device");
+      setMessage("Listening. Audio stays on this device.");
     } catch (error) {
       stopStream(streamRef.current);
       streamRef.current = null;
@@ -119,22 +119,22 @@ const AudioPreview = () => {
       setMicState(error?.name === "NotAllowedError" ? "denied" : "unavailable");
       setMessage(
         error?.name === "NotAllowedError"
-          ? "Microphone permission was not granted"
-          : "Microphone preview unavailable"
+          ? "Microphone permission was not granted."
+          : "Microphone testing is unavailable right now."
       );
     }
   };
 
   const statusLabel =
     micState === "active"
-      ? "LIVE AUDIO"
+      ? "MIC ACTIVE"
       : micState === "requesting"
       ? "CONNECTING"
       : micState === "denied"
       ? "MIC BLOCKED"
       : micState === "unavailable"
-      ? "MIC UNAVAILABLE"
-      : "LIVE AUDIO CHECK";
+      ? "UNAVAILABLE"
+      : "MIC TEST";
 
   return (
     <div className={`ear-audio-card is-${micState}`}>
@@ -161,7 +161,6 @@ const AudioPreview = () => {
           aria-pressed={micState === "active"}
           aria-label={micState === "active" ? "Stop microphone test" : "Start microphone test"}
         >
-          <span aria-hidden="true" />
           <FaMicrophone aria-hidden="true" />
         </button>
       </div>
@@ -174,7 +173,6 @@ const AudioPreview = () => {
             <i key={index} ref={(node) => { levelRefs.current[index] = node; }} />
           ))}
         </div>
-        <strong>72%</strong>
       </div>
     </div>
   );
@@ -183,18 +181,6 @@ const AudioPreview = () => {
 const LoginArtwork = () => (
   <div className="ear-login-art" aria-hidden="true">
     <img src={microphoneAudience} alt="" />
-    <div className="ear-social-proof ear-proof-live">
-      <span><FaUser /></span>
-      <p><strong>Sarah just went live</strong><small>2.4K listening</small></p>
-    </div>
-    <div className="ear-social-proof ear-proof-show">
-      <span><FaMicrophone /></span>
-      <p><strong>Your show hit</strong><small>1K listeners!</small></p>
-    </div>
-    <div className="ear-social-proof ear-proof-message">
-      <span><FaUser /></span>
-      <p><strong>New message</strong><small>From Alex</small></p>
-    </div>
   </div>
 );
 
@@ -207,19 +193,21 @@ const BroadcastLoginVisual = ({ logoSrc, mode = "signup" }) => {
       <div className="ear-story-copy">
         {isLogin ? (
           <>
-            <h1>Welcome back<br />to <em>Echoo.</em></h1>
-            <p>Your audience is waiting.</p>
+            <h1>One account for <em>all of Echoo.</em></h1>
+            <p>Listen, follow Channels, and return to Creator Studio with the same sign-in.</p>
           </>
         ) : (
           <>
-            <h1>Your <em>voice.</em><br />Your audience.<br />Your moment.</h1>
-            <p>Go live, connect with listeners, and<br className="ear-desktop-break" /> turn conversations into experiences.</p>
+            <h1>Listen first. <em>Create when you are ready.</em></h1>
+            <p>Your account starts in Listener. Set up one Channel later without creating another account.</p>
           </>
         )}
       </div>
       {isLogin ? <LoginArtwork /> : <AudioPreview />}
       {!isLogin && (
-        <p className="ear-security-note"><FaShieldAlt aria-hidden="true" /> Secure. Private. Built for creators.</p>
+        <p className="ear-security-note">
+          <FaShieldAlt aria-hidden="true" /> Your microphone is used only for this local test.
+        </p>
       )}
     </div>
   );

@@ -3,16 +3,18 @@ import { useNavigate } from 'react-router-dom';
 import { FiBell, FiChevronDown, FiHelpCircle, FiLogOut, FiSettings } from 'react-icons/fi';
 
 import { api } from '../../services/api';
-import { hasCreatorCapability, resolveExperienceSwitch } from '../../services/accountExperience';
+import {
+  hasCompletedCreatorProfile,
+  hasCreatorCapability,
+  resolveExperienceSwitch,
+} from '../../services/accountExperience';
 import './AccountExperienceMenu.css';
 
 const identityOf = (user = {}) => (
   user.username || user.displayName || user.fullname || user.name || 'Echoo account'
 );
 
-const imageOf = (user = {}) => (
-  user.avatar || user.profileImage || null
-);
+const imageOf = (user = {}) => user.avatar || user.profileImage || null;
 
 const AccountAvatar = ({ image, name, className = '' }) => (
   <span className={className}>
@@ -20,11 +22,7 @@ const AccountAvatar = ({ image, name, className = '' }) => (
   </span>
 );
 
-export function EchooModeSwitcher({
-  activeMode,
-  disabled = false,
-  onSwitch,
-}) {
+export function EchooModeSwitcher({ activeMode, disabled = false, onSwitch }) {
   return (
     <div className="echoo-mode-switcher" role="tablist" aria-label="Echoo mode">
       {[
@@ -71,6 +69,7 @@ export default function AccountExperienceMenu({
   const image = profileImage || imageOf(user);
   const roleLabel = currentExperience === 'creator' ? 'Creator' : 'Listener';
   const creatorEnabled = hasCreatorCapability(user);
+  const creatorReady = hasCompletedCreatorProfile(user);
 
   useEffect(() => {
     const closeOutside = (event) => {
@@ -140,7 +139,7 @@ export default function AccountExperienceMenu({
 
   return (
     <div className={`echoo-account-toolbar account-experience-menu account-experience-menu--${variant}`} ref={rootRef}>
-      {creatorEnabled ? (
+      {creatorReady ? (
         <EchooModeSwitcher
           activeMode={currentExperience}
           disabled={switching}
@@ -156,9 +155,14 @@ export default function AccountExperienceMenu({
           disabled={switching}
           onClick={() => switchExperience('creator')}
         >
-          {switching ? 'Opening setup…' : 'Create your Channel'}
+          {switching
+            ? 'Opening setup…'
+            : creatorEnabled
+              ? 'Finish Channel setup'
+              : 'Create your Channel'}
         </button>
       )}
+
       <button
         type="button"
         className="echoo-account-toolbar__notification"
@@ -168,6 +172,7 @@ export default function AccountExperienceMenu({
         <FiBell aria-hidden="true" />
         {unreadNotifications > 0 && <span aria-hidden="true" />}
       </button>
+
       <button
         type="button"
         ref={triggerRef}

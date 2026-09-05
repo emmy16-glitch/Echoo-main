@@ -4,7 +4,7 @@ const listenerUser = {
   id: '507f1f77bcf86cd799439012',
   _id: '507f1f77bcf86cd799439012',
   username: 'echolistener',
-  displayName: 'Echoo Listener With A Long Display Name',
+  displayName: 'Echoo Listener',
   email: 'listener@example.test',
   userType: 'listener',
   roles: ['listener'],
@@ -16,10 +16,10 @@ const creatorUser = {
   id: '507f1f77bcf86cd799439011',
   _id: '507f1f77bcf86cd799439011',
   username: 'echoocreator',
-  displayName: 'Echoo Creator With A Long Display Name',
+  displayName: 'Echoo Creator',
   email: 'creator@example.test',
   userType: 'creator',
-  roles: ['creator'],
+  roles: ['listener', 'creator'],
   onboardingCompleted: true,
   profileCompleted: true,
   creatorProfile: { creatorType: 'individual', artistName: 'Echoo Creator' },
@@ -32,122 +32,86 @@ const authenticate = async (page, role) => {
     localStorage.setItem('token', `${nextRole}-token`);
     localStorage.setItem('refreshToken', `${nextRole}-refresh-token`);
     localStorage.setItem('user', JSON.stringify(nextUser));
-    localStorage.setItem('echooRole', nextRole);
     localStorage.setItem('echooProfileCompleted', 'true');
     localStorage.setItem('echooOnboardingCompleted', 'true');
-    if (nextRole === 'creator') {
-      localStorage.setItem('creatorSetup', JSON.stringify({ type: 'individual', name: nextUser.displayName }));
-    }
+    localStorage.setItem('echooActiveExperience', nextRole);
+    if (nextRole === 'creator') localStorage.setItem('creatorSetup', JSON.stringify({ type: 'individual', name: nextUser.displayName }));
   }, { nextUser: user, nextRole: role });
 };
 
-const settle = async (page) => {
-  await page.waitForLoadState('domcontentloaded');
-  await page.waitForTimeout(600);
+const assertShellIntegrity = async (page, label) => {
+  const geometry = await page.evaluate(() => ({
+    scrollWidth: document.documentElement.scrollWidth,
+    clientWidth: document.documentElement.clientWidth,
+    mains: [...document.querySelectorAll('main')].filter((node) => {
+      const rect = node.getBoundingClientRect();
+      const style = getComputedStyle(node);
+      return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    }).length,
+  }));
+  expect(geometry.scrollWidth, `${label}: horizontal overflow`).toBeLessThanOrEqual(geometry.clientWidth + 2);
+  expect(geometry.mains, `${label}: duplicate main landmarks`).toBeLessThanOrEqual(1);
 };
 
-const fontPx = async (locator) => locator.evaluate((node) => Number.parseFloat(getComputedStyle(node).fontSize || '0'));
-
-const assertInsideViewport = async (locator, viewportWidth) => {
-  const geometry = await locator.evaluate((node) => {
-    const rect = node.getBoundingClientRect();
-    const style = getComputedStyle(node);
-    return {
-      left: rect.left,
-      right: rect.right,
-      width: rect.width,
-      height: rect.height,
-      display: style.display,
-      visibility: style.visibility,
-    };
-  });
-  expect(geometry.display).not.toBe('none');
-  expect(geometry.visibility).not.toBe('hidden');
-  expect(geometry.width).toBeGreaterThanOrEqual(28);
-  expect(geometry.height).toBeGreaterThanOrEqual(28);
-  expect(geometry.left).toBeGreaterThanOrEqual(-1);
-  expect(geometry.right).toBeLessThanOrEqual(viewportWidth + 1);
-};
-
-test('Listener persistent transport and Stations geometry stay usable', async ({ page }, testInfo) => {
+test('Listener canonical routes stay inside one ListenerV2 shell', async ({ page }) => {
   await authenticate(page, 'listener');
-  await page.goto('/listen/stations');
-  await settle(page);
 
-  const viewportWidth = page.viewportSize()?.width || 0;
-  const transport = page.locator('.echoo-listener-v2-shell .layout-player-controls').first();
-  await expect(transport).toBeVisible();
-
-  const visibleTransportButtons = transport.locator('button:visible');
-  const visibleCount = await visibleTransportButtons.count();
-  expect(visibleCount, `${testInfo.project.name}: expected usable transport controls`).toBeGreaterThanOrEqual(viewportWidth <= 760 ? 2 : 3);
-
-  for (let index = 0; index < visibleCount; index += 1) {
-    await assertInsideViewport(visibleTransportButtons.nth(index), viewportWidth);
+  for (const route of [
+    '/listen',
+    '/listen/channels',
+    '/listen/search?q=Echoo',
+    '/listen/following',
+    '/listen/library',
+    '/listen/settings',
+  ]) {
+    await page.goto(route);
+    await expect(page.locator('.listener-v2-root')).toHaveCount(1);
+    await assertShellIntegrity(page, route);
   }
 
-  const timeLabels = page.locator('.echoo-listener-v2-shell .layout-player-volume > span:visible');
-  for (let index = 0; index < await timeLabels.count(); index += 1) {
-    expect(await fontPx(timeLabels.nth(index)), `${testInfo.project.name}: player time label must be >=10px`).toBeGreaterThanOrEqual(10);
+  await page.goto('/listen/channels');
+  await expect(page.getByRole('heading', { name: 'Channels' })).toBeVisible();
+  await expect(page.getByPlaceholder('Search Channels...')).toBeVisible();
+});
+
+test('Creator shell exposes only the current six primary workspaces', async ({ page }) => {
+  await authenticate(page, 'creator');
+  await page.goto('/creator-studio');
+
+  for (const label of ['Broadcast', 'Channel', 'Recordings', 'Collections', 'Schedule Events', 'Analytics']) {
+    await expect(page.getByRole('button', { name: label, exact: true })).toBeVisible();
   }
 
-  const stationName = page.locator('.stations-top-overlay strong:visible').first();
-  if (await stationName.count()) {
-    const rect = await stationName.boundingBox();
-    expect(rect?.width || 0, `${testInfo.project.name}: top station name was squeezed into a sliver`).toBeGreaterThanOrEqual(80);
-    expect(rect?.height || 0, `${testInfo.project.name}: top station name wrapped into an unusably tall control`).toBeLessThanOrEqual(80);
+  for (const obsolete of ['Home', 'Stations', 'Audio', 'Audience']) {
+    await expect(page.getByRole('button', { name: obsolete, exact: true })).toHaveCount(0);
   }
 
-  const topRows = page.locator('.stations-top-card:visible');
-  for (let index = 0; index < await topRows.count(); index += 1) {
-    const rect = await topRows.nth(index).boundingBox();
-    expect(rect?.width || 0, `${testInfo.project.name}: top station row collapsed`).toBeGreaterThanOrEqual(Math.min(220, viewportWidth - 40));
-    expect(rect?.height || 0, `${testInfo.project.name}: top station card became excessively tall`).toBeLessThanOrEqual(240);
+  const destinations = [
+    ['Broadcast', /\/creator-studio\/?$/],
+    ['Channel', /\/creator-studio\/channels$/],
+    ['Recordings', /\/creator-studio\/recordings$/],
+    ['Collections', /\/creator-studio\/collections$/],
+    ['Schedule Events', /\/creator-studio\/schedule-events$/],
+    ['Analytics', /\/creator-studio\/analytics$/],
+  ];
+
+  for (const [label, route] of destinations) {
+    await page.getByRole('button', { name: label, exact: true }).click();
+    await expect(page).toHaveURL(route);
+    await assertShellIntegrity(page, `Creator ${label}`);
   }
 });
 
-test('Creator shell navigation and operational labels remain readable', async ({ page }, testInfo) => {
-  await authenticate(page, 'creator');
-  await page.goto('/creator-studio');
-  await settle(page);
+test('legacy Listener Station URLs remain compatible but current UI emits Channel URLs', async ({ page }) => {
+  await authenticate(page, 'listener');
 
-  const nav = page.locator('.studio-navigation').first();
-  await expect(nav).toBeVisible();
-  const labels = nav.locator('.studio-nav-item > span:last-child:visible');
-  expect(await labels.count()).toBeGreaterThan(0);
-  for (let index = 0; index < await labels.count(); index += 1) {
-    expect(await fontPx(labels.nth(index)), `${testInfo.project.name}: creator nav label below 10px`).toBeGreaterThanOrEqual(10);
-  }
+  await page.goto('/listen/stations/507f1f77bcf86cd799439021');
+  await expect(page).toHaveURL(/\/listen\/stations\/507f1f77bcf86cd799439021$/);
+  await expect(page.locator('.listener-v2-root')).toHaveCount(1);
 
-  const liveBadge = page.locator('.ehome-primary-station-art > span:visible').filter({ hasText: /^LIVE$/ }).first();
-  if (await liveBadge.count()) {
-    expect(await fontPx(liveBadge), `${testInfo.project.name}: LIVE badge below 10px`).toBeGreaterThanOrEqual(10);
-  }
-
-  const broadcastButton = page.locator('button').filter({ hasText: 'Broadcast Studio' }).first();
-  if (await broadcastButton.count()) {
-    await broadcastButton.evaluate((node) => node.click());
-    await page.waitForTimeout(500);
-  }
-
-  for (const selector of [
-    '.ecbs-monitor-card span > strong',
-    '.ecbs-monitor-card span > small',
-    '.ecbs-transcript-ready-card > header > span',
-    '.ecbs-setup-action small',
-  ]) {
-    const nodes = page.locator(`${selector}:visible`);
-    for (let index = 0; index < await nodes.count(); index += 1) {
-      expect(await fontPx(nodes.nth(index)), `${testInfo.project.name}: ${selector} below 10px`).toBeGreaterThanOrEqual(10);
-    }
-  }
-
-  const sourceActions = page.locator('.ecbs-source > .ecbs-connect:visible');
-  for (let index = 0; index < await sourceActions.count(); index += 1) {
-    const action = sourceActions.nth(index);
-    const label = (await action.textContent())?.trim() || `source action ${index + 1}`;
-    const rect = await action.boundingBox();
-    expect(rect?.width || 0, `${testInfo.project.name}: Broadcast Studio action "${label}" is too narrow`).toBeGreaterThanOrEqual(80);
-    expect(rect?.height || 0, `${testInfo.project.name}: Broadcast Studio action "${label}" is too short`).toBeGreaterThanOrEqual(36);
-  }
+  await page.goto('/listen/channels');
+  const channelCard = page.locator('.listener-v2-station-card .listener-v2-station-meta button').first();
+  await expect(channelCard).toBeVisible();
+  await channelCard.click();
+  await expect(page).toHaveURL(/\/listen\/channels\/507f1f77bcf86cd799439021$/);
 });

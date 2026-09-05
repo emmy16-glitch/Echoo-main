@@ -17,6 +17,8 @@ import {
   FaUsers,
 } from 'react-icons/fa';
 
+import { hasCreatorCapability } from '../../services/accountExperience';
+
 const readUser = () => {
   try {
     return JSON.parse(localStorage.getItem('user') || '{}');
@@ -36,6 +38,7 @@ const clearEchooSession = () => {
     'echooRole',
     'echooProfileCompleted',
     'echooOnboardingCompleted',
+    'echooActiveExperience',
     'creatorSetup',
   ].forEach((key) => localStorage.removeItem(key));
 
@@ -48,7 +51,7 @@ const clearEchooSession = () => {
 const primaryItems = [
   { label: 'Home', path: '/listen', icon: FaHome, end: true },
   { label: 'Live now', path: '/listen/live', icon: FaBroadcastTower },
-  { label: 'Stations', path: '/listen/stations', icon: FaCompass },
+  { label: 'Channels', path: '/listen/channels', icon: FaCompass },
   { label: 'Library', path: '/listen/library', icon: FaBookOpen, end: true },
 ];
 
@@ -99,9 +102,8 @@ const EchooMobileNavigation = () => {
   const displayName =
     user.username || user.displayName || user.fullname || 'Echoo Listener';
   const initial = displayName.trim().charAt(0).toUpperCase() || 'E';
-  const profileImage =
-    user.profileImage || user.avatar || '';
-  const role = user.userType || localStorage.getItem('echooRole') || 'listener';
+  const profileImage = user.profileImage || user.avatar || '';
+  const creatorEnabled = hasCreatorCapability(user);
 
   const go = (path) => {
     setMenuOpen(false);
@@ -168,7 +170,7 @@ const EchooMobileNavigation = () => {
               </div>
               <div>
                 <strong id="echoo-mobile-menu-title">{displayName}</strong>
-                <span>{role === 'creator' ? 'Creator listening mode' : 'Listener'}</span>
+                <span>{creatorEnabled ? 'Creator listening mode' : 'Listener'}</span>
               </div>
               <button
                 type="button"
@@ -197,7 +199,7 @@ const EchooMobileNavigation = () => {
                 );
               })}
 
-              {role === 'creator' && (
+              {creatorEnabled && (
                 <button type="button" onClick={() => go('/creator-studio')}>
                   <FaBroadcastTower aria-hidden="true" />
                   <span>Creator Studio</span>

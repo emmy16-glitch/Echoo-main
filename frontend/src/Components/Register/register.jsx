@@ -1,11 +1,12 @@
 import { useState } from "react";
 import "./register.css";
+import "./auth-reference.css";
 import api from "../../services/api";
 
 import {
-  FaApple,
   FaArrowLeft,
   FaArrowRight,
+  FaAt,
   FaEnvelope,
   FaExclamationCircle,
   FaEye,
@@ -13,7 +14,6 @@ import {
   FaLock,
   FaUser,
 } from "react-icons/fa";
-import { FcGoogle } from "react-icons/fc";
 
 import EchooLogoImage from "../Assets/echoo-logo-official.svg";
 import BroadcastLoginVisual from "./BroadcastLoginVisual";
@@ -25,13 +25,13 @@ import "../../styles/echoo-onboarding.css";
 
 const AuthProgress = () => (
   <div className="ear-progress-wrap">
-    <p>STEP 1 OF 3</p>
-    <div className="ear-progress" aria-label="Account setup, step 1 of 3">
-      {["Account", "Profile", "Creator / Listener"].map((label, index) => (
+    <p>STEP 1 OF 2</p>
+    <div className="ear-progress" aria-label="Account setup, step 1 of 2">
+      {["Account", "Profile"].map((label, index) => (
         <div className={`ear-progress-step ${index === 0 ? "is-current" : ""}`} key={label}>
           <span>{index + 1}</span>
           <strong>{label}</strong>
-          {index < 2 && <i aria-hidden="true" />}
+          {index === 0 && <i aria-hidden="true" />}
         </div>
       ))}
     </div>
@@ -44,6 +44,7 @@ const AuthField = ({
   icon: Icon,
   error,
   action,
+  hint,
   children,
 }) => (
   <div className="ear-field">
@@ -55,16 +56,23 @@ const AuthField = ({
       <Icon className="ear-input-icon" aria-hidden="true" />
       {children}
     </div>
+    {hint && <p className="ear-field-hint">{hint}</p>}
   </div>
 );
 
+const initialAuthAction = () => {
+  if (typeof window === "undefined") return "Sign Up";
+  return new URLSearchParams(window.location.search).get("mode") === "login"
+    ? "Login"
+    : "Sign Up";
+};
+
 const Register = ({ onAccountCreated, onLoginSuccess }) => {
-  const [action, setAction] = useState("Sign Up");
+  const [action, setAction] = useState(initialAuthAction);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loginError, setLoginError] = useState("");
-  const [loginNotice, setLoginNotice] = useState("");
   const [signupError, setSignupError] = useState("");
   const [successState, setSuccessState] = useState(null);
   const [successUser, setSuccessUser] = useState(null);
@@ -79,6 +87,7 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
     fullname: "",
     username: "",
     email: "",
+    identifier: "",
     password: "",
     confirmPassword: "",
   });
@@ -106,13 +115,22 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
     formData.fullname.trim() !== "" &&
     !fullNamePattern.test(formData.fullname.trim());
 
+  const cleanUsername = formData.username.trim();
+  const usernameInvalid =
+    action === "Sign Up" &&
+    cleanUsername.length > 0 &&
+    (cleanUsername.length < 3 || cleanUsername.length > 30);
+
+  const cleanEmail = formData.email.trim();
+  const emailInvalid =
+    cleanEmail.length > 0 &&
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail);
+  const loginIdentifier = formData.identifier.trim().replace(/^@/, "");
+
   const handleChange = (event) => {
     const { name, value } = event.target;
     setFormData((previousData) => ({ ...previousData, [name]: value }));
-    if (action === "Login") {
-      setLoginError("");
-      setLoginNotice("");
-    }
+    if (action === "Login") setLoginError("");
     if (action === "Sign Up") setSignupError("");
   };
 
@@ -121,17 +139,19 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
       return (
         formData.fullname.trim() !== "" &&
         !fullNameInvalid &&
-        formData.username.trim() !== "" &&
-        formData.email.trim() !== "" &&
+        cleanUsername !== "" &&
+        !usernameInvalid &&
+        cleanEmail !== "" &&
+        !emailInvalid &&
         !passwordInvalid &&
         formData.confirmPassword !== "" &&
         formData.password === formData.confirmPassword
       );
     }
     if (action === "Login") {
-      return formData.username.trim() !== "" && formData.password.trim() !== "";
+      return loginIdentifier !== "" && formData.password.trim() !== "";
     }
-    if (action === "Forgot Password") return formData.email.trim() !== "";
+    if (action === "Forgot Password") return cleanEmail !== "" && !emailInvalid;
     return false;
   };
 
@@ -142,9 +162,11 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
         "Your account was created, but Echoo could not start a secure session. Please sign in again."
       );
     }
+    // api.auth.login/register already clear the previous account's local and
+    // session state before persisting the newly authenticated token pair.
     localStorage.setItem("accessToken", accessToken);
     localStorage.setItem("token", accessToken);
-    localStorage.setItem("refreshToken", refreshToken);
+    if (refreshToken) localStorage.setItem("refreshToken", refreshToken);
     localStorage.setItem("user", JSON.stringify(user));
     return user;
   };
@@ -156,27 +178,32 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
     if (action === "Sign Up" && !formIsComplete()) {
       if (fullNameInvalid) {
         setSignupError("Full name can contain letters, spaces, apostrophes, or hyphens only.");
+      } else if (usernameInvalid) {
+        setSignupError("Username must be between 3 and 30 characters.");
+      } else if (emailInvalid) {
+        setSignupError("Enter a valid email address.");
       } else if (passwordTooShort) {
         setSignupError("Password must be at least 8 characters.");
       } else if (passwordMissingCombination) {
         setSignupError("Password must include uppercase and lowercase letters, a number, and a special character.");
       } else if (formData.password !== formData.confirmPassword) {
         setSignupError("Passwords do not match. Please check both password fields.");
-      } else setSignupError("Please complete all required fields.");
+      } else {
+        setSignupError("Please complete all required fields.");
+      }
       return;
     }
     if (!formIsComplete()) return;
 
     setLoading(true);
     setLoginError("");
-    setLoginNotice("");
     setSignupError("");
 
     try {
       if (action === "Sign Up") {
         const response = await api.auth.register({
-          username: formData.username.trim(),
-          email: formData.email.trim(),
+          username: cleanUsername,
+          email: cleanEmail,
           password: formData.password,
           displayName: formData.fullname.trim(),
         });
@@ -188,7 +215,7 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
 
       if (action === "Login") {
         const response = await api.auth.login({
-          username: formData.username.trim(),
+          username: loginIdentifier,
           password: formData.password,
         });
         const user = saveSession(response);
@@ -198,7 +225,7 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
       }
 
       if (action === "Forgot Password") {
-        const response = await api.auth.forgotPassword(formData.email.trim());
+        const response = await api.auth.forgotPassword(cleanEmail);
         setToast({
           open: true,
           type: "success",
@@ -211,11 +238,11 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
         const isCredentialError =
           error?.status === 401 ||
           error?.status === 403 ||
-          ["INVALID_CREDENTIALS", "AUTH_INVALID", "LOGIN_FAILED"].includes(error?.code);
+          ["INVALID_CREDENTIALS", "AUTH_INVALID", "LOGIN_FAILED", "UNAUTHORIZED"].includes(error?.code);
         const isNetworkError = error?.message?.toLowerCase() === "failed to fetch";
         setLoginError(
           isCredentialError
-            ? "Incorrect username or password. Please check your details and try again."
+            ? "Incorrect username/email or password. Please check your details and try again."
             : isNetworkError
               ? "We couldn't reach the Echoo sign-in service. Please check your connection and try again."
               : error?.message || "We couldn't sign you in. Please try again."
@@ -254,7 +281,6 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
     setShowConfirmPassword(false);
     setSuccessState(null);
     setLoginError("");
-    setLoginNotice("");
     setSignupError("");
   };
 
@@ -301,271 +327,291 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
     );
   }
 
-  if (action === "Forgot Password") {
-    return (
-      <div className="auth-page">
-        <Toast
-          open={toast.open}
-          type={toast.type}
-          title={toast.title}
-          message={toast.message}
-          onClose={() => setToast((current) => ({ ...current, open: false }))}
-        />
-        <div className="auth-card compact-card">
-          <div className="top-nav">
-            <button type="button" className="back-button" onClick={switchToLogin} aria-label="Back to sign in">
-              <FaArrowLeft />
-            </button>
-          </div>
-          <div className="logo-container">
-            <img src={EchooLogoImage} alt="Echoo Logo" className="echoo-logo-image" />
-          </div>
-          <div className="auth-header forgot-header"><h1>Forgot Password</h1></div>
-          <form onSubmit={handleSubmit} className="auth-form compact-form">
-            <p className="forgot-description">
-              Enter the email address associated with your account, and we'll send you a password-reset link.
-            </p>
-            <div className="input-container">
-              <div className="input">
-                <input
-                  className="forminput"
-                  type="email"
-                  name="email"
-                  placeholder="Email Address"
-                  value={formData.email}
-                  onChange={handleChange}
-                  autoComplete="email"
-                  required
-                />
-              </div>
-            </div>
-            <LoadingButton
-              type="submit"
-              loading={loading}
-              loadingText="Sending..."
-              disabled={!formIsComplete()}
-              className={`main-button ${formIsComplete() ? "active" : ""}`}
-            >
-              Send
-            </LoadingButton>
-          </form>
-        </div>
-      </div>
-    );
-  }
-
   const isLogin = action === "Login";
-  const showSocialNotice = (provider) => {
-    setLoginError("");
-    setLoginNotice(
-      `${provider} sign-in is not enabled on the current Echoo backend yet. Please use your Echoo username and password.`
-    );
-  };
+  const isRecovery = action === "Forgot Password";
 
   return (
-    <main className={`echoo-auth-reference ${isLogin ? "is-login" : "is-signup"}`}>
-      <section className="ear-visual-panel" aria-label="Echoo live audio preview">
-        <BroadcastLoginVisual logoSrc={EchooLogoImage} mode={isLogin ? "login" : "signup"} />
+    <main className={`echoo-auth-reference ${isLogin ? "is-login" : isRecovery ? "is-recovery" : "is-signup"}`}>
+      <Toast
+        open={toast.open}
+        type={toast.type}
+        title={toast.title}
+        message={toast.message}
+        onClose={() => setToast((current) => ({ ...current, open: false }))}
+      />
+
+      <section className="ear-visual-panel" aria-label="About your Echoo account">
+        <BroadcastLoginVisual
+          logoSrc={EchooLogoImage}
+          mode={isLogin || isRecovery ? "login" : "signup"}
+        />
       </section>
 
       <section className="ear-auth-panel" aria-labelledby="ear-auth-title">
         <div className="ear-auth-card">
-          {!isLogin && <AuthProgress />}
-          <header className="ear-form-heading">
-            <h1 id="ear-auth-title">
-              {isLogin ? <>Welcome back to <em>Echoo.</em></> : <>Join the <em>Echoo</em> community</>}
-            </h1>
-            <p>
-              {isLogin
-                ? "Your audience is waiting."
-                : "Create, broadcast and connect with listeners around the world."}
-            </p>
-          </header>
-
-          <form className="ear-form" onSubmit={handleSubmit} noValidate>
-            {!isLogin && (
-              <AuthField
-                id="echoo-signup-fullname"
-                label="Full name"
-                icon={FaUser}
-                error={fullNameInvalid}
-              >
-                <input
-                  id="echoo-signup-fullname"
-                  type="text"
-                  name="fullname"
-                  placeholder="Enter your full name"
-                  value={formData.fullname}
-                  onChange={handleChange}
-                  autoComplete="name"
-                  aria-invalid={fullNameInvalid}
-                  required
-                />
-              </AuthField>
-            )}
-
-            {fullNameInvalid && (
-              <p className="ear-error" role="alert">
-                Full name can contain letters, spaces, apostrophes, or hyphens only.
-              </p>
-            )}
-
-            <AuthField
-              id={isLogin ? "echoo-login-username" : "echoo-signup-username"}
-              label={isLogin ? "Username or email" : "Username"}
-              icon={FaUser}
-              error={isLogin && loginError}
-            >
-              <input
-                id={isLogin ? "echoo-login-username" : "echoo-signup-username"}
-                type="text"
-                name="username"
-                placeholder={isLogin ? "Enter your username or email" : "Choose a username"}
-                value={formData.username}
-                onChange={handleChange}
-                autoComplete="username"
-                autoCapitalize="none"
-                spellCheck="false"
-                aria-invalid={isLogin && loginError ? "true" : "false"}
-                required
-              />
-            </AuthField>
-
-            {!isLogin && (
-              <AuthField id="echoo-signup-email" label="Email address" icon={FaEnvelope}>
-                <input
-                  id="echoo-signup-email"
-                  type="email"
-                  name="email"
-                  placeholder="you@example.com"
-                  value={formData.email}
-                  onChange={handleChange}
-                  autoComplete="email"
-                  required
-                />
-              </AuthField>
-            )}
-
-            <AuthField
-              id={isLogin ? "echoo-login-password" : "echoo-signup-password"}
-              label="Password"
-              icon={FaLock}
-              error={isLogin ? loginError : passwordInvalid}
-              action={isLogin ? (
-                <button
-                  type="button"
-                  className="ear-forgot"
-                  onClick={() => {
-                    setLoginError("");
-                    setLoginNotice("");
-                    setAction("Forgot Password");
-                  }}
-                >
-                  Forgot password?
-                </button>
-              ) : null}
-            >
-              <input
-                id={isLogin ? "echoo-login-password" : "echoo-signup-password"}
-                type={showPassword ? "text" : "password"}
-                name="password"
-                placeholder={isLogin ? "Enter your password" : "Create a strong password"}
-                value={formData.password}
-                onChange={handleChange}
-                autoComplete={isLogin ? "current-password" : "new-password"}
-                aria-invalid={isLogin ? Boolean(loginError) : passwordInvalid}
-                aria-describedby={isLogin && loginError ? "echoo-login-error" : undefined}
-                required
-              />
-              <button
-                type="button"
-                className="ear-password-toggle"
-                onClick={() => setShowPassword((previous) => !previous)}
-                aria-label={showPassword ? "Hide password" : "Show password"}
-                aria-pressed={showPassword}
-              >
-                {showPassword ? <FaEyeSlash /> : <FaEye />}
+          {isRecovery ? (
+            <>
+              <button type="button" className="ear-back" onClick={switchToLogin}>
+                <FaArrowLeft aria-hidden="true" /> Back to sign in
               </button>
-            </AuthField>
-
-            {!isLogin && (
-              <AuthField
-                id="echoo-signup-confirm"
-                label="Confirm password"
-                icon={FaLock}
-                error={passwordsMismatch}
-              >
-                <input
-                  id="echoo-signup-confirm"
-                  type={showConfirmPassword ? "text" : "password"}
-                  name="confirmPassword"
-                  placeholder="Confirm your password"
-                  value={formData.confirmPassword}
-                  onChange={handleChange}
-                  autoComplete="new-password"
-                  aria-invalid={passwordsMismatch}
-                  required
-                />
-                <button
-                  type="button"
-                  className="ear-password-toggle"
-                  onClick={() => setShowConfirmPassword((previous) => !previous)}
-                  aria-label={showConfirmPassword ? "Hide confirmed password" : "Show confirmed password"}
-                  aria-pressed={showConfirmPassword}
+              <header className="ear-form-heading">
+                <h1 id="ear-auth-title">Reset your password</h1>
+                <p>Enter the email address attached to your Echoo account.</p>
+              </header>
+              <form className="ear-form" onSubmit={handleSubmit} noValidate>
+                <AuthField id="echoo-recovery-email" label="Email address" icon={FaEnvelope} error={emailInvalid}>
+                  <input
+                    id="echoo-recovery-email"
+                    type="email"
+                    name="email"
+                    placeholder="you@example.com"
+                    value={formData.email}
+                    onChange={handleChange}
+                    autoComplete="email"
+                    inputMode="email"
+                    aria-invalid={emailInvalid}
+                    required
+                  />
+                </AuthField>
+                {emailInvalid && <p className="ear-error" role="alert">Enter a valid email address.</p>}
+                <LoadingButton
+                  type="submit"
+                  loading={loading}
+                  loadingText="Sending reset link..."
+                  disabled={!formIsComplete()}
+                  className="ear-submit"
                 >
-                  {showConfirmPassword ? <FaEyeSlash /> : <FaEye />}
-                </button>
-              </AuthField>
-            )}
+                  Send reset link <FaArrowRight aria-hidden="true" />
+                </LoadingButton>
+              </form>
+            </>
+          ) : (
+            <>
+              {!isLogin && <AuthProgress />}
+              <header className="ear-form-heading">
+                <h1 id="ear-auth-title">
+                  {isLogin ? "Sign in to Echoo" : "Create your Echoo account"}
+                </h1>
+                <p>
+                  {isLogin
+                    ? "Use your Echoo username or the email address on your account."
+                    : "One account gives you Listener access now. You can create your Channel later."}
+                </p>
+              </header>
 
-            {!isLogin && !passwordTooShort && !passwordsMismatch && (
-              <p className="ear-helper">Use 8+ characters with uppercase and lowercase letters, a number, and a special character.</p>
-            )}
-            {passwordTooShort && <p className="ear-error" role="alert">Password must be at least 8 characters.</p>}
-            {!passwordTooShort && passwordMissingCombination && (
-              <p className="ear-error" role="alert">Use uppercase and lowercase letters, a number, and a special character.</p>
-            )}
-            {passwordsMismatch && <p className="ear-error" role="alert">Passwords do not match.</p>}
-            {signupError && <p className="ear-error" role="alert">{signupError}</p>}
-            {loginError && (
-              <p id="echoo-login-error" className="ear-error" role="alert" aria-live="polite">
-                <FaExclamationCircle aria-hidden="true" /> {loginError}
-              </p>
-            )}
+              <form className="ear-form" onSubmit={handleSubmit} noValidate>
+                {!isLogin && (
+                  <AuthField
+                    id="echoo-signup-fullname"
+                    label="Full name"
+                    icon={FaUser}
+                    error={fullNameInvalid}
+                  >
+                    <input
+                      id="echoo-signup-fullname"
+                      type="text"
+                      name="fullname"
+                      placeholder="Your full name"
+                      value={formData.fullname}
+                      onChange={handleChange}
+                      autoComplete="name"
+                      aria-invalid={fullNameInvalid}
+                      required
+                    />
+                  </AuthField>
+                )}
 
-            <LoadingButton
-              type="submit"
-              loading={loading}
-              loadingText={isLogin ? "Signing in..." : "Creating account..."}
-              disabled={!formIsComplete()}
-              className="ear-submit"
-            >
-              {isLogin ? "Sign in" : "Continue"} <FaArrowRight aria-hidden="true" />
-            </LoadingButton>
+                {fullNameInvalid && (
+                  <p className="ear-error" role="alert">
+                    Full name can contain letters, spaces, apostrophes, or hyphens only.
+                  </p>
+                )}
 
-            {loginNotice && <p className="ear-notice" role="status">{loginNotice}</p>}
+                {isLogin ? (
+                  <AuthField
+                    id="echoo-login-identifier"
+                    label="Username or email"
+                    icon={FaAt}
+                    error={Boolean(loginError)}
+                    hint="Example: @okunlola or name@example.com"
+                  >
+                    <input
+                      id="echoo-login-identifier"
+                      type="text"
+                      name="identifier"
+                      placeholder="@username or email address"
+                      value={formData.identifier}
+                      onChange={handleChange}
+                      autoComplete="username"
+                      autoCapitalize="none"
+                      spellCheck="false"
+                      aria-invalid={Boolean(loginError)}
+                      aria-describedby={loginError ? "echoo-login-error" : undefined}
+                      required
+                    />
+                  </AuthField>
+                ) : (
+                  <AuthField
+                    id="echoo-signup-username"
+                    label="Username"
+                    icon={FaAt}
+                    error={usernameInvalid}
+                    hint="This becomes your @username on Echoo."
+                  >
+                    <input
+                      id="echoo-signup-username"
+                      type="text"
+                      name="username"
+                      placeholder="Choose a username"
+                      value={formData.username}
+                      onChange={handleChange}
+                      autoComplete="username"
+                      autoCapitalize="none"
+                      spellCheck="false"
+                      minLength={3}
+                      maxLength={30}
+                      aria-invalid={usernameInvalid}
+                      required
+                    />
+                  </AuthField>
+                )}
 
-            {isLogin && (
-              <>
-                <div className="ear-divider"><span>or continue with</span></div>
-                <div className="ear-socials">
-                  <button type="button" className="ear-social" onClick={() => showSocialNotice("Google")}>
-                    <FcGoogle aria-hidden="true" /> <span>Continue with Google</span>
+                {!isLogin && usernameInvalid && (
+                  <p className="ear-error" role="alert">Username must be between 3 and 30 characters.</p>
+                )}
+
+                {!isLogin && (
+                  <AuthField
+                    id="echoo-signup-email"
+                    label="Email address"
+                    icon={FaEnvelope}
+                    error={emailInvalid}
+                    hint="Used for account recovery and security notices."
+                  >
+                    <input
+                      id="echoo-signup-email"
+                      type="email"
+                      name="email"
+                      placeholder="you@example.com"
+                      value={formData.email}
+                      onChange={handleChange}
+                      autoComplete="email"
+                      inputMode="email"
+                      aria-invalid={emailInvalid}
+                      required
+                    />
+                  </AuthField>
+                )}
+
+                {!isLogin && emailInvalid && (
+                  <p className="ear-error" role="alert">Enter a valid email address.</p>
+                )}
+
+                <AuthField
+                  id={isLogin ? "echoo-login-password" : "echoo-signup-password"}
+                  label="Password"
+                  icon={FaLock}
+                  error={isLogin ? Boolean(loginError) : passwordInvalid}
+                  action={isLogin ? (
+                    <button
+                      type="button"
+                      className="ear-forgot"
+                      onClick={() => {
+                        setLoginError("");
+                        setAction("Forgot Password");
+                      }}
+                    >
+                      Forgot password?
+                    </button>
+                  ) : null}
+                >
+                  <input
+                    id={isLogin ? "echoo-login-password" : "echoo-signup-password"}
+                    type={showPassword ? "text" : "password"}
+                    name="password"
+                    placeholder={isLogin ? "Enter your password" : "Create a strong password"}
+                    value={formData.password}
+                    onChange={handleChange}
+                    autoComplete={isLogin ? "current-password" : "new-password"}
+                    aria-invalid={isLogin ? Boolean(loginError) : passwordInvalid}
+                    aria-describedby={isLogin && loginError ? "echoo-login-error" : undefined}
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="ear-password-toggle"
+                    onClick={() => setShowPassword((previous) => !previous)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    aria-pressed={showPassword}
+                  >
+                    {showPassword ? <FaEyeSlash aria-hidden="true" /> : <FaEye aria-hidden="true" />}
                   </button>
-                  <button type="button" className="ear-social" onClick={() => showSocialNotice("Apple")}>
-                    <FaApple aria-hidden="true" /> <span>Continue with Apple</span>
-                  </button>
-                </div>
-              </>
-            )}
+                </AuthField>
 
-            <p className="ear-auth-switch">
-              {isLogin ? "New to Echoo? " : "Already have an account? "}
-              <button type="button" onClick={isLogin ? switchToSignUp : switchToLogin}>
-                {isLogin ? "Create account" : "Sign in"}
-              </button>
-            </p>
-          </form>
+                {!isLogin && (
+                  <AuthField
+                    id="echoo-signup-confirm"
+                    label="Confirm password"
+                    icon={FaLock}
+                    error={passwordsMismatch}
+                  >
+                    <input
+                      id="echoo-signup-confirm"
+                      type={showConfirmPassword ? "text" : "password"}
+                      name="confirmPassword"
+                      placeholder="Enter the password again"
+                      value={formData.confirmPassword}
+                      onChange={handleChange}
+                      autoComplete="new-password"
+                      aria-invalid={passwordsMismatch}
+                      required
+                    />
+                    <button
+                      type="button"
+                      className="ear-password-toggle"
+                      onClick={() => setShowConfirmPassword((previous) => !previous)}
+                      aria-label={showConfirmPassword ? "Hide confirmed password" : "Show confirmed password"}
+                      aria-pressed={showConfirmPassword}
+                    >
+                      {showConfirmPassword ? <FaEyeSlash aria-hidden="true" /> : <FaEye aria-hidden="true" />}
+                    </button>
+                  </AuthField>
+                )}
+
+                {!isLogin && !passwordTooShort && !passwordsMismatch && (
+                  <p className="ear-helper">Use 8+ characters with uppercase and lowercase letters, a number, and a special character.</p>
+                )}
+                {passwordTooShort && <p className="ear-error" role="alert">Password must be at least 8 characters.</p>}
+                {!passwordTooShort && passwordMissingCombination && (
+                  <p className="ear-error" role="alert">Use uppercase and lowercase letters, a number, and a special character.</p>
+                )}
+                {passwordsMismatch && <p className="ear-error" role="alert">Passwords do not match.</p>}
+                {signupError && <p className="ear-error" role="alert">{signupError}</p>}
+                {loginError && (
+                  <p id="echoo-login-error" className="ear-error" role="alert" aria-live="polite">
+                    <FaExclamationCircle aria-hidden="true" /> {loginError}
+                  </p>
+                )}
+
+                <LoadingButton
+                  type="submit"
+                  loading={loading}
+                  loadingText={isLogin ? "Signing in..." : "Creating account..."}
+                  disabled={!formIsComplete()}
+                  className="ear-submit"
+                >
+                  {isLogin ? "Sign in" : "Continue"} <FaArrowRight aria-hidden="true" />
+                </LoadingButton>
+
+                <p className="ear-auth-switch">
+                  {isLogin ? "New to Echoo? " : "Already have an account? "}
+                  <button type="button" onClick={isLogin ? switchToSignUp : switchToLogin}>
+                    {isLogin ? "Create account" : "Sign in"}
+                  </button>
+                </p>
+              </form>
+            </>
+          )}
         </div>
       </section>
     </main>

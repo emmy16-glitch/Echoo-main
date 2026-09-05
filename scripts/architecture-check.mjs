@@ -27,14 +27,20 @@ const forbidFile = (relative) => {
 };
 
 [
+  'frontend/src/App.jsx',
+  'frontend/src/Components/Register/register.jsx',
+  'frontend/src/Components/ProfileSetup/ProfileSetup.jsx',
+  'frontend/src/Components/CreatorSetup/CreatorSetup.jsx',
+  'frontend/src/Components/Shared/AccountExperienceMenu.jsx',
+  'frontend/src/services/accountCapabilities.js',
+  'frontend/src/services/accountExperience.js',
   'frontend/src/Components/CreatorStudio/CreatorStudio.jsx',
-  'frontend/src/Components/CreatorStudio/CreatorStudioHome.jsx',
   'frontend/src/Components/CreatorStudio/CreatorLiveConnectedWorkspace.jsx',
-  'frontend/src/Components/CreatorStudio/CreatorLiveChatPanel.jsx',
   'frontend/src/Components/CreatorStudio/CreatorAudioMixer.jsx',
-  'frontend/src/Components/CreatorStudio/CreatorBroadcastStudioExact.css',
+  'frontend/src/Components/CreatorStudio/CreatorBroadcastApproved.css',
   'frontend/src/Components/CreatorStudio/CreatorStationsWorkspace.jsx',
-  'frontend/src/Components/CreatorStudio/CreatorStationsExact.css',
+  'frontend/src/Components/CreatorStudio/CreatorStationsReference.css',
+  'frontend/src/Components/CreatorStudio/CreatorScheduleEventsWorkspace.jsx',
   'frontend/src/Components/CreatorStudio/CreatorContentWorkspace.jsx',
   'frontend/src/Components/CreatorStudio/CreatorContentExact.css',
   'frontend/src/Components/ListenerLiveExperience/ListenerRealLiveRoom.jsx',
@@ -57,6 +63,7 @@ const forbidFile = (relative) => {
   'backend/src/providers/livekit.js',
   'backend/src/middleware/enforceSingleLiveCreator.js',
   'backend/src/models/StationFollow.js',
+  'backend/src/utils/accountCapabilities.js',
   'ARCHITECTURE.md',
 ].forEach(requireFile);
 
@@ -64,6 +71,9 @@ const forbidFile = (relative) => {
   'backend/src/routes/scheduleRoutes.js',
   'backend/src/controllers/scheduleController.js',
   'backend/src/routes/listenerLivekitRoutes.js',
+  'frontend/src/Components/ChooseRole/ChooseRole.jsx',
+  'frontend/src/Components/ChooseRole/ChooseRole.css',
+  'frontend/src/Components/CreatorStudio/CreatorStudioHome.jsx',
   'frontend/src/Components/CreatorStudio/CreatorScheduleWorkspace.jsx',
   'frontend/src/Components/CreatorStudio/CreatorLiveWorkspace.jsx',
   'frontend/src/Components/ListenerLiveExperience/ListenerLiveExperience.jsx',
@@ -72,29 +82,48 @@ const forbidFile = (relative) => {
   'frontend/src/services/listenerMockService.js',
   'frontend/src/services/mockMediaService.js',
   'frontend/src/services/momentService.js',
+  'frontend/src/Components/ListenerDownloads/ListenerDownloads.legacy.jsx',
+  'frontend/src/Components/ListenerHistory/ListenerHistoryConnected.legacy.jsx',
+  'frontend/src/Components/ListenerNotifications/ListenerNotifications.legacy.jsx',
+  'frontend/src/Components/ListenerSettings/ListenerSettings.legacy.jsx',
 ].forEach(forbidFile);
 
 const componentFiles = walk('frontend/src/Components').filter((file) => /\.(jsx|js)$/.test(file));
-const createStationCallers = componentFiles.filter((file) => /\.createStation\s*\(/.test(read(file)));
-const allowedStationCreator = 'frontend/src/Components/CreatorStudio/CreatorStationsWorkspace.jsx';
+const createStationCallers = componentFiles
+  .filter((file) => /\.createStation\s*\(/.test(read(file)))
+  .sort();
+const allowedChannelCreators = [
+  'frontend/src/Components/CreatorSetup/CreatorSetup.jsx',
+  'frontend/src/Components/CreatorStudio/CreatorStationsWorkspace.jsx',
+].sort();
 
-if (createStationCallers.length !== 1 || createStationCallers[0] !== allowedStationCreator) {
+if (
+  createStationCallers.length !== allowedChannelCreators.length ||
+  createStationCallers.some((file, index) => file !== allowedChannelCreators[index])
+) {
   failures.push(
-    `Station creation must exist in exactly one UI (${allowedStationCreator}). Found: ${
+    `Channel creation must remain limited to initial Channel setup and the empty Channel workspace. Found: ${
       createStationCallers.length ? createStationCallers.join(', ') : 'none'
     }`
   );
 }
 
 const creatorStudio = read('frontend/src/Components/CreatorStudio/CreatorStudio.jsx');
-for (const obsoleteNav of ["name: 'Live'", "name: 'Schedule'"]) {
+for (const obsoleteNav of ["label: 'Home'", "label: 'Stations'", "label: 'Audio'"]) {
   if (creatorStudio.includes(obsoleteNav)) {
-    failures.push(`Creator Studio reintroduced a duplicate sidebar destination: ${obsoleteNav}`);
+    failures.push(`Creator Studio reintroduced an obsolete sidebar destination: ${obsoleteNav}`);
   }
 }
-for (const requiredNav of ["name: 'Home'", "name: 'Stations'", "name: 'Broadcast'", "name: 'Audio'"]) {
+for (const requiredNav of [
+  "workspace: 'Broadcast', label: 'Broadcast'",
+  "workspace: 'Station', label: 'Channel'",
+  "workspace: 'Recordings', label: 'Recordings'",
+  "workspace: 'Collections', label: 'Collections'",
+  "workspace: 'Schedule', label: 'Schedule Events'",
+  "workspace: 'Analytics', label: 'Analytics'",
+]) {
   if (!creatorStudio.includes(requiredNav)) {
-    failures.push(`Creator Studio navigation is missing: ${requiredNav}`);
+    failures.push(`Creator Studio navigation is missing current destination: ${requiredNav}`);
   }
 }
 
@@ -109,21 +138,55 @@ const forbiddenRuntimeTokens = [
   'Faith Talk Live',
   'Praise & Worship Live',
 ];
+const legacyRoleReadWrite = /(?:localStorage\.)?(?:getItem|setItem)\s*\(\s*['"]echooRole['"]/;
 
 for (const file of frontendFiles) {
   const source = read(file);
   for (const token of forbiddenRuntimeTokens) {
     if (source.includes(token)) failures.push(`Forbidden production mock token "${token}" found in ${file}`);
   }
+  if (/\.(jsx|js)$/.test(file) && legacyRoleReadWrite.test(source)) {
+    failures.push(`Legacy role identity read/write "echooRole" found in ${file}`);
+  }
 }
 
 const appSource = read('frontend/src/App.jsx');
+for (const routeToken of [
+  'path="channels"',
+  'path="channels/:stationId"',
+  'path="/creator-studio/*"',
+]) {
+  if (!appSource.includes(routeToken)) failures.push(`Canonical product route missing from App.jsx: ${routeToken}`);
+}
+for (const accountToken of [
+  "localStorage.setItem('echooActiveExperience', 'listener')",
+  "canAccessExperience(user, 'creator')",
+]) {
+  if (!appSource.includes(accountToken)) failures.push(`Unified account flow is missing from App.jsx: ${accountToken}`);
+}
+
+const capabilitySource = read('frontend/src/services/accountCapabilities.js');
+for (const capabilityToken of ['creatorProfile?.creatorType', 'hasCompletedCreatorProfile', "experience === 'listener'"]) {
+  if (!capabilitySource.includes(capabilityToken)) {
+    failures.push(`Frontend account capability contract is missing: ${capabilityToken}`);
+  }
+}
+
+const backendCapabilitySource = read('backend/src/utils/accountCapabilities.js');
+if (!backendCapabilitySource.includes('creatorProfile?.creatorType')) {
+  failures.push('Backend Creator readiness must use creatorProfile.creatorType.');
+}
+
+const mobileNavigation = read('frontend/src/Components/EchooSystem/EchooMobileNavigation.jsx');
+for (const mobileToken of ["label: 'Channels'", "path: '/listen/channels'", 'hasCreatorCapability']) {
+  if (!mobileNavigation.includes(mobileToken)) {
+    failures.push(`Mobile Listener navigation is missing current account/Channel behavior: ${mobileToken}`);
+  }
+}
+
 const mainSource = read('frontend/src/main.jsx');
 const experienceSource = read('frontend/src/Components/EchooSystem/EchooExperienceOrchestrator.jsx');
-for (const requiredExperienceToken of [
-  'EchooExperienceOrchestrator',
-  '<EchooExperienceOrchestrator />',
-]) {
+for (const requiredExperienceToken of ['EchooExperienceOrchestrator', '<EchooExperienceOrchestrator />']) {
   if (!appSource.includes(requiredExperienceToken)) {
     failures.push(`Product-wide experience orchestration is missing from App.jsx: ${requiredExperienceToken}`);
   }
@@ -210,22 +273,30 @@ if (!publisher.includes("name: 'echoo-studio-mix'") || !publisher.includes('medi
 }
 
 const broadcastStudio = read('frontend/src/Components/CreatorStudio/CreatorLiveConnectedWorkspace.jsx');
-for (const requiredStudioFeature of ['CreatorBroadcastAudioSurface', 'Go live now', 'Schedule for later']) {
+for (const requiredStudioFeature of [
+  'CreatorAudioMixer',
+  'startLiveKitPublishing',
+  'stopLiveKitPublishing',
+  'batch3Service.startBroadcast',
+  'batch3Service.confirmBroadcastLive',
+  'batch3Service.endBroadcastRealtime',
+  'Complete your Channel setup before going live.',
+]) {
   if (!broadcastStudio.includes(requiredStudioFeature)) {
-    failures.push(`Broadcast Studio is missing: ${requiredStudioFeature}`);
+    failures.push(`Broadcast Studio is missing current live capability: ${requiredStudioFeature}`);
   }
 }
 
-const broadcastAudioSurface = read('frontend/src/Components/CreatorStudio/CreatorBroadcastAudioSurface.jsx');
-for (const requiredMixerCapability of ['getEchooMixerState', 'setMixerChannelGain', 'connectMediaFile']) {
-  if (!broadcastAudioSurface.includes(requiredMixerCapability)) {
-    failures.push(`Broadcast Studio audio surface is missing mixer capability: ${requiredMixerCapability}`);
+const scheduleWorkspace = read('frontend/src/Components/CreatorStudio/CreatorScheduleEventsWorkspace.jsx');
+for (const scheduleToken of [
+  'batch2Service.createBroadcast',
+  "if (state === 'live') return openCreatorBroadcast(broadcast);",
+  'openCompletedBroadcast',
+  '/listen/live/',
+]) {
+  if (!scheduleWorkspace.includes(scheduleToken)) {
+    failures.push(`Schedule Events workspace is missing state-aware behavior: ${scheduleToken}`);
   }
-}
-
-const creatorLiveChat = read('frontend/src/Components/CreatorStudio/CreatorLiveChatPanel.jsx');
-if (!broadcastStudio.includes('CreatorLiveChatPanel') || !creatorLiveChat.includes('Live Chat')) {
-  failures.push('Broadcast Studio is missing the synchronized Live Chat component.');
 }
 
 if (failures.length) {
@@ -235,12 +306,11 @@ if (failures.length) {
 }
 
 console.log('Echoo architecture check passed.');
-console.log(`Station creation UI: ${allowedStationCreator}`);
-console.log('Creator navigation: Home -> Stations -> Broadcast -> Audio -> Audience -> Analytics -> Settings');
-console.log('Scheduling authority: unified Broadcast Studio');
+console.log(`Channel creation UIs: ${allowedChannelCreators.join(' + ')}`);
+console.log('Creator navigation: Broadcast -> Channel -> Recordings -> Collections -> Schedule Events -> Analytics');
+console.log('Account model: one authenticated identity; Listener default; Creator capability unlocks Channel/Studio');
+console.log('Scheduling authority: Broadcast records managed through Schedule Events');
 console.log('Live concurrency: one active broadcast per creator account');
 console.log('Studio mixer: Host Mic + Guest Mic + Music/FX -> Master Output -> LiveKit');
-console.log('Live chat: synchronized CreatorLiveChatPanel + listener room');
-console.log('Experience system: shared motion + premium component layer + Echoo SVG geometry + strict responsive pass');
 console.log('Live media path: Creator mixer -> LiveKit -> Listener');
 console.log('Synthetic analytics/search data guard: active');

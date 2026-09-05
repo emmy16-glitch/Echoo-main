@@ -3,6 +3,26 @@ import crypto from 'node:crypto';
 import { verifyRefreshToken } from '../config/jwt.js';
 import { env } from '../config/env.js';
 import { sendPasswordResetEmail } from '../services/emailService.js';
+import { hasCreatorCapability } from '../utils/accountCapabilities.js';
+
+const USERNAME_PATTERN = /^[A-Za-z0-9._-]{3,30}$/;
+
+const accountUserJson = (user) => {
+  const serialized = user?.toJSON?.() || user || {};
+  return {
+    ...serialized,
+    // The current Echoo model predates a dedicated persisted profile-complete
+    // flag. Under the unified account flow, a completed Listener onboarding or
+    // any Creator capability implies the base public profile was completed.
+    // Exposing this derived flag keeps fresh logins from re-running Profile
+    // Setup, including creators who signed out midway through Channel setup.
+    profileCompleted: Boolean(
+      serialized.profileCompleted === true ||
+      serialized.onboardingCompleted === true ||
+      hasCreatorCapability(serialized)
+    ),
+  };
+};
 
 const registrationError = (res, caught) => {
   if (caught?.code === 11000) {
@@ -36,6 +56,18 @@ export async function register(req, res, next) {
     if (!cleanUsername || !cleanEmail || !password) {
       return res.status(400).json({
         error: { code: 'VALIDATION_ERROR', message: 'Username, email, and password are required' }
+      });
+    }
+
+    // Usernames are Echoo handles, never alternate email addresses. Keeping the
+    // handle alphabet explicit prevents a value like name@example.com from
+    // colliding conceptually with the email login path.
+    if (!USERNAME_PATTERN.test(cleanUsername)) {
+      return res.status(400).json({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Username must be 3–30 characters and use only letters, numbers, dots, underscores, or hyphens',
+        },
       });
     }
 
@@ -81,7 +113,7 @@ export async function register(req, res, next) {
     const { accessToken, refreshToken } = user.generateTokens();
 
     return res.status(201).json({
-      data: { user: user.toJSON(), accessToken, refreshToken },
+      data: { user: accountUserJson(user), accessToken, refreshToken },
       timestamp: new Date().toISOString()
     });
   } catch (error) {
@@ -95,19 +127,23 @@ export async function login(req, res, next) {
   try {
     const { username, email, password } = req.body;
 
-    const identifier = String(username || email || '').trim();
-    if (!identifier || !password) {
+    const rawIdentifier = String(username || email || '').trim();
+    if (!rawIdentifier || !password) {
       return res.status(400).json({
         error: { code: 'VALIDATION_ERROR', message: 'Username/email and password are required' }
       });
     }
 
-    const user = await User.findOne({
-      $or: [
-        { username: identifier },
-        { email: identifier.toLowerCase() }
-      ]
-    }).select('+passwordHash +refreshTokenVersion');
+    // A leading @ is explicitly a handle. Otherwise any @ identifies the email
+    // path, so login never asks MongoDB to choose between two different account
+    // fields for the same string.
+    const explicitHandle = rawIdentifier.startsWith('@');
+    const identifier = explicitHandle ? rawIdentifier.slice(1) : rawIdentifier;
+    const lookup = !explicitHandle && identifier.includes('@')
+      ? { email: identifier.toLowerCase() }
+      : { username: identifier };
+
+    const user = await User.findOne(lookup).select('+passwordHash +refreshTokenVersion');
 
     if (!user) {
       return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Invalid credentials' } });
@@ -135,7 +171,7 @@ export async function login(req, res, next) {
     const { accessToken, refreshToken } = user.generateTokens();
 
     return res.status(200).json({
-      data: { user: user.toJSON(), accessToken, refreshToken },
+      data: { user: accountUserJson(user), accessToken, refreshToken },
       timestamp: new Date().toISOString()
     });
   } catch (error) {
@@ -220,7 +256,7 @@ export async function getCurrentUser(req, res, next) {
       return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'User not found' } });
     }
     return res.status(200).json({
-      data: { user: user.toJSON() },
+      data: { user: accountUserJson(user) },
       timestamp: new Date().toISOString()
     });
   } catch (error) {
