@@ -155,7 +155,7 @@ const ProfileSetup = ({ onProfileCompleted, onSessionInvalid }) => {
         <div className="profile-container">
           <SuccessState
             title="Profile saved"
-            message="Your Echoo profile is ready. Next, choose how you want to use Echoo."
+            message="Your Echoo profile is ready. Opening Listener..."
             autoContinue
             duration={900}
             onContinue={() => onProfileCompleted?.()}
@@ -260,7 +260,7 @@ const ProfileSetup = ({ onProfileCompleted, onSessionInvalid }) => {
               Continue
             </LoadingButton>
             <p className="eor-tailor-note">
-              More setup steps follow after you choose how you want to use Echoo.
+              Listener opens next. You can create your Channel later when you want to broadcast.
             </p>
           </div>
         </form>
