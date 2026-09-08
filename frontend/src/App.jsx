@@ -248,8 +248,12 @@ const DefaultRedirect = () => {
   const user = getStoredUser();
   const experience = getStoredExperience();
 
-  if (experience === 'creator' && !canAccessExperience(user, 'creator')) {
-    return <Navigate to="/" replace />;
+    // If the user selected the Creator experience but their Creator profile
+    // is not yet completed, send them to the Creator workspace route. The
+    // `RequireRole` wrapper for `/creator-studio` will render the Creator
+    // setup flow (CreatorSetupRoute) for incomplete creator accounts.
+    if (experience === 'creator' && !canAccessExperience(user, 'creator')) {
+      return <Navigate to="/creator-studio" replace />;
   }
 
   return <Navigate to={experienceHome(experience)} replace />;
@@ -294,7 +298,7 @@ function App() {
 
         <div id="echoo-route-content" tabIndex={-1}>
           <Routes>
-            <Route path="/" element={<Navigate to="/listen" replace />} />
+            <Route path="/" element={<Navigate to={experienceHome(getStoredExperience())} replace />} />
             <Route path="/login" element={<OnboardingFlow />} />
             <Route path="/register" element={<OnboardingFlow />} />
             <Route path="/reset-password" element={<ResetPassword />} />

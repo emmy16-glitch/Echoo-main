@@ -84,10 +84,10 @@ test('Listener mobile navigation has exactly four primary destinations plus More
   assert.equal(itemCount, 4, 'four primary items + More must fit the five-column mobile bar');
   assert.match(primary, /label: 'Home'/);
   assert.match(primary, /label: 'Live now'/);
-  assert.match(primary, /label: 'Stations'/);
+  assert.match(primary, /label: 'Channels'/);
   assert.match(primary, /label: 'Library'/);
   assert.doesNotMatch(primary, /label: 'Discover'/);
-  assert.equal((primary.match(/path: '\/listen\/stations'/g) || []).length, 1);
+  assert.equal((primary.match(/path: '\/listen\/channels'/g) || []).length, 1);
   assert.match(navigation, />More<\/span>/);
 });
 

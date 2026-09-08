@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import "./auth-reference.css";
 import api from "../../services/api";
 
@@ -16,10 +16,7 @@ import {
 
 import EchooLogoImage from "../Assets/echoo-logo-mark.png";
 import LoadingButton from "../UI/LoadingButton";
-import SuccessState from "../UI/SuccessState";
 import Toast from "../UI/Toast";
-import EchoAmbient from "../EchooSystem/EchoAmbient";
-import "../../styles/echoo-onboarding.css";
 
 const AuthField = ({
   id,
@@ -42,6 +39,25 @@ const AuthField = ({
     {hint && <p className="ear-field-hint">{hint}</p>}
   </div>
 );
+
+const AuthStatus = ({ title, message, duration, onContinue }) => {
+  useEffect(() => {
+    const timeout = window.setTimeout(onContinue, duration);
+    return () => window.clearTimeout(timeout);
+  }, [duration, onContinue]);
+
+  return (
+    <main id="echoo-main-content" role="main" tabIndex="-1" className="echoo-auth-reference is-auth-status">
+      <section className="ear-auth-card ear-auth-status-card" aria-live="polite">
+        <img className="ear-logo-mark" src={EchooLogoImage} alt="Echoo" />
+        <div className="ear-auth-status-icon" aria-hidden="true">✓</div>
+        <h1>{title}</h1>
+        <p>{message}</p>
+        <span className="ear-auth-status-loader" aria-hidden="true" />
+      </section>
+    </main>
+  );
+};
 
 const initialAuthAction = () => {
   if (typeof window === "undefined") return "Sign Up";
@@ -279,34 +295,23 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
 
   if (successState === "signup") {
     return (
-      <div id="echoo-main-content" role="main" tabIndex="-1" className="auth-page echoo-onboarding-page">
-        <EchoAmbient density="low" className="echoo-onboarding-ambient" />
-        <div className="auth-card compact-card">
-          <SuccessState
-            title="Account created"
-            message="Your Echoo account is ready. Let's set up your profile."
-            autoContinue
-            duration={900}
-            onContinue={() => onAccountCreated?.(successUser)}
-          />
-        </div>
-      </div>
+      <AuthStatus
+        title="Account created"
+        message="Your Echoo account is ready. Let’s set up your profile."
+        duration={900}
+        onContinue={() => onAccountCreated?.(successUser)}
+      />
     );
   }
 
   if (successState === "login") {
     return (
-      <div className="auth-page">
-        <div className="auth-card compact-card">
-          <SuccessState
-            title="Welcome back"
-            message="Opening your Echoo account..."
-            autoContinue
-            duration={700}
-            onContinue={() => onLoginSuccess?.(successUser)}
-          />
-        </div>
-      </div>
+      <AuthStatus
+        title="Welcome back"
+        message="Opening your Echoo account..."
+        duration={700}
+        onContinue={() => onLoginSuccess?.(successUser)}
+      />
     );
   }
 

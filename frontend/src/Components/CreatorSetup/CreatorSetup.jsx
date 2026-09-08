@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
   FaBuilding,
   FaCheck,
@@ -80,7 +79,6 @@ const imageFileFromDataUrl = async (dataUrl) => {
 };
 
 export default function CreatorSetup({ onCreatorReady }) {
-  const navigate = useNavigate();
   const storedUser = useMemo(() => getStoredUser(), []);
   const displayName = storedUser.displayName || storedUser.fullname || storedUser.name || storedUser.username || '';
   const storedCreatorType = storedUser.creatorProfile?.creatorType || storedUser.creatorType || '';
@@ -226,19 +224,20 @@ export default function CreatorSetup({ onCreatorReady }) {
       // navigation here guarantees the app picks up the newly granted
       // creator capability from localStorage in all client shells.
       localStorage.setItem('echooProfileCompleted', 'true');
-      onCreatorReady?.(readyUser);
       // Persist the updated user snapshot so app route guards and shells
-      // see the newly granted creator capability immediately.
+      // see the newly granted creator capability before the route guard runs.
       try {
         localStorage.setItem('user', JSON.stringify(readyUser));
-      } catch (e) {
+      } catch {
         // ignore
       }
 
-      // Use SPA navigation so the Creator Studio shell mounts with the
-      // updated localStorage state immediately and tests can observe
-      // the Creator navigation items without waiting for a full reload.
-      navigate('/creator-studio');
+      onCreatorReady?.(readyUser);
+
+      // CreatorSetup can be rendered by the /creator-studio role guard. A
+      // document navigation makes that guard read the freshly persisted user
+      // rather than retaining the incomplete capability from its first render.
+      window.location.assign('/creator-studio');
     } catch (error) {
       showError('Could not set up your Channel', error.message || 'Check your connection and try again.');
     } finally {
@@ -259,7 +258,7 @@ export default function CreatorSetup({ onCreatorReady }) {
       <div className="channel-setup-layout" aria-labelledby="channel-setup-title">
         <aside className="channel-setup-left">
           <div className="channel-setup-left-inner">
-            <img src="/src/Components/Assets/echoo-logo.png" alt="echoo" className="channel-setup-logo" />
+            <img src={echooLogo} alt="Echoo" className="channel-setup-logo" />
             <div className="channel-setup-audio-identity">
               <FaUser aria-hidden="true" className="audio-identity-icon" />
               <div className="audio-identity-text">
@@ -274,10 +273,10 @@ export default function CreatorSetup({ onCreatorReady }) {
         </aside>
 
         <section className="channel-setup-right">
-          <form className="channel-setup-card" onSubmit={submit}>
+          <form className="channel-setup-card" onSubmit={submit} noValidate>
             <div className="channel-setup-card-inner">
               <p className="channel-setup-kicker">CHANNEL SETUP</p>
-              <h2 className="card-title">Set up your Channel</h2>
+              <h2 className="card-title">Channel details</h2>
               <p className="card-sub">A few quick details and you're ready to broadcast.</p>
               <div className="channel-setup-checklist" aria-label="Channel setup includes">
                 <div><FaCheck aria-hidden="true" /> Choose a name and category</div>

@@ -1,15 +1,12 @@
-import { useState } from "react";
-import { FaCamera, FaPen, FaUser } from "react-icons/fa";
-import "./ProfileSetup.css";
+import { useEffect, useState } from "react";
+import { FaCamera, FaCheck, FaPen, FaUser } from "react-icons/fa";
 
-import OnboardingFrame from "../Onboarding/OnboardingFrame";
 import LoadingButton from "../UI/LoadingButton";
-import SuccessState from "../UI/SuccessState";
 import Toast from "../UI/Toast";
+import EchooLogoImage from "../Assets/echoo-logo-mark.png";
 import onboardingService from "../../services/onboardingService";
 import { clearAuthTokens } from "../../services/api";
-import "../../styles/echoo-onboarding.css";
-import EchoAmbient from "../EchooSystem/EchoAmbient";
+import "../Register/auth-reference.css";
 
 const prepareImage = (file) =>
   new Promise((resolve, reject) => {
@@ -146,59 +143,61 @@ const ProfileSetup = ({ onProfileCompleted, onSessionInvalid }) => {
     await saveProfile();
   };
 
+  useEffect(() => {
+    if (!completed) return undefined;
+
+    const timeout = window.setTimeout(() => onProfileCompleted?.(), 900);
+    return () => window.clearTimeout(timeout);
+  }, [completed, onProfileCompleted]);
+
   if (completed) {
     return (
-      <div id="echoo-main-content" role="main" tabIndex="-1" className="profile-page echoo-onboarding-page">
-        <EchoAmbient density="low" className="echoo-onboarding-ambient" />
-        <div className="profile-container">
-          <SuccessState
-            title="Profile saved"
-            message="Your Echoo profile is ready. Opening Listener..."
-            autoContinue
-            duration={900}
-            onContinue={() => onProfileCompleted?.()}
-          />
-        </div>
-      </div>
+      <main id="echoo-main-content" role="main" tabIndex="-1" className="echoo-auth-reference is-profile is-profile-status">
+        <section className="ear-auth-card ear-profile-card ear-profile-status-card" aria-live="polite">
+          <img className="ear-logo-mark" src={EchooLogoImage} alt="Echoo" />
+          <div className="ear-profile-status-icon" aria-hidden="true"><FaCheck /></div>
+          <h1>Profile saved</h1>
+          <p>Your Echoo profile is ready. Opening Listener...</p>
+          <span className="ear-profile-status-loader" aria-hidden="true" />
+        </section>
+      </main>
     );
   }
 
   return (
-    <>
-      <Toast
-        open={toast.open}
-        type={toast.type}
-        title={toast.title}
-        message={toast.message}
-        onClose={() => setToast((current) => ({ ...current, open: false }))}
-      />
+    <main className="echoo-auth-reference is-profile" aria-labelledby="echoo-profile-title">
+      <div className="ear-profile-toast">
+        <Toast
+          open={toast.open}
+          type={toast.type}
+          title={toast.title}
+          message={toast.message}
+          onClose={() => setToast((current) => ({ ...current, open: false }))}
+        />
+      </div>
 
-      <OnboardingFrame
-        step={2}
-        hero="profile"
-        panelClassName="eor-profile-panel"
-        heroData={{
-          profileName: displayName || "Your profile",
-          profileHandle: storedUser.username ? `@${storedUser.username}` : "@yourvoice",
-          profileImage,
-        }}
-      >
-        <header className="eor-form-header">
-          <h1>Set up your <span>profile</span></h1>
-          <p>Add the details people will see when they discover you on Echoo.</p>
+      <section className="ear-auth-card ear-profile-card">
+        <div className="ear-profile-brand" aria-label="Echoo">
+          <img src={EchooLogoImage} alt="" aria-hidden="true" />
+          <span>Echoo</span>
+        </div>
+
+        <header className="ear-profile-heading">
+          <h1 id="echoo-profile-title">Create your profile</h1>
+          <p>Tell people a little about yourself</p>
         </header>
 
-        <form onSubmit={handleSubmit}>
-          <div className="eor-avatar-section">
-            <div style={{ position: "relative" }}>
-              <label htmlFor="profile-image-input" className="eor-avatar-input" aria-label="Upload a profile photo">
+        <form className="ear-profile-form" onSubmit={handleSubmit} noValidate>
+          <div className="ear-profile-avatar-section">
+            <div className="ear-profile-avatar-wrap">
+              <label htmlFor="profile-image-input" className="ear-profile-avatar" aria-label="Add a profile photo">
                 {profileImage ? (
                   <img src={profileImage} alt="Profile preview" />
                 ) : (
-                  <span className="eor-avatar-placeholder" aria-hidden="true" />
+                  <span className="ear-profile-avatar-placeholder" aria-hidden="true"><FaUser /></span>
                 )}
               </label>
-              <span className="eor-avatar-camera" aria-hidden="true"><FaCamera /></span>
+              <span className="ear-profile-avatar-camera" aria-hidden="true"><FaCamera /></span>
             </div>
             <input
               id="profile-image-input"
@@ -207,63 +206,56 @@ const ProfileSetup = ({ onProfileCompleted, onSessionInvalid }) => {
               onChange={handleImageChange}
               hidden
             />
-            <label htmlFor="profile-image-input" className="eor-avatar-caption">
-              Upload a profile photo
+            <label htmlFor="profile-image-input" className="ear-profile-avatar-caption">
+              Add a profile photo
               <span>JPG, PNG or WEBP. Max 10 MB.</span>
             </label>
           </div>
 
-          <div className="eor-form-grid">
-            <div className="eor-field">
-              <label htmlFor="echoo-profile-display-name">Display name</label>
-              <div className="eor-input-shell">
-                <FaUser className="eor-field-icon" aria-hidden="true" />
-                <input
-                  id="echoo-profile-display-name"
-                  type="text"
-                  value={displayName}
-                  onChange={(event) => setDisplayName(event.target.value)}
-                  placeholder="Enter your display name"
-                  autoComplete="name"
-                  maxLength={80}
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="eor-field">
-              <label htmlFor="echoo-profile-bio">Short bio <span style={{ color: "#91a0b1", fontWeight: 500 }}>(optional)</span></label>
-              <div className="eor-textarea-shell">
-                <FaPen className="eor-field-icon" aria-hidden="true" />
-                <textarea
-                  id="echoo-profile-bio"
-                  value={bio}
-                  onChange={(event) => setBio(event.target.value)}
-                  placeholder="Tell others about yourself"
-                  maxLength={160}
-                />
-                <span className="eor-counter">{bio.length} / 160</span>
-              </div>
+          <div className="ear-profile-field">
+            <label htmlFor="echoo-profile-display-name" className="ear-visually-hidden">Display name</label>
+            <div className="ear-profile-input-shell">
+              <FaUser aria-hidden="true" />
+              <input
+                id="echoo-profile-display-name"
+                type="text"
+                value={displayName}
+                onChange={(event) => setDisplayName(event.target.value)}
+                placeholder="Display name"
+                autoComplete="name"
+                maxLength={80}
+                required
+              />
             </div>
           </div>
 
-          <div className="eor-profile-actions">
-            <LoadingButton
-              type="submit"
-              loading={saving}
-              loadingText="Saving your profile..."
-              disabled={!displayName.trim()}
-              className="eor-primary"
-            >
-              Continue
-            </LoadingButton>
-            <p className="eor-tailor-note">
-              Listener opens next. You can create your Channel later when you want to broadcast.
-            </p>
+          <div className="ear-profile-field">
+            <label htmlFor="echoo-profile-bio" className="ear-visually-hidden">Short bio (optional)</label>
+            <div className="ear-profile-textarea-shell">
+              <FaPen aria-hidden="true" />
+              <textarea
+                id="echoo-profile-bio"
+                value={bio}
+                onChange={(event) => setBio(event.target.value)}
+                placeholder="Tell us a little about yourself"
+                maxLength={160}
+              />
+              <span className="ear-profile-counter" aria-live="polite">{bio.length} / 160</span>
+            </div>
           </div>
+
+          <LoadingButton
+            type="submit"
+            loading={saving}
+            loadingText="Saving your profile..."
+            disabled={!displayName.trim()}
+            className="ear-profile-submit"
+          >
+            Continue
+          </LoadingButton>
         </form>
-      </OnboardingFrame>
-    </>
+      </section>
+    </main>
   );
 };
 

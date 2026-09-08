@@ -243,6 +243,8 @@
   transition: border-color 140ms ease, box-shadow 140ms ease;
 }
 
+.channel-setup-field textarea { resize: none; }
+
 .channel-setup-field input,
 .channel-setup-field select {
   min-height: 44px;
@@ -252,7 +254,7 @@
 .channel-setup-field textarea {
   min-height: 104px;
   padding: 11px 12px 24px;
-  resize: vertical;
+  resize: none;
   line-height: 1.5;
 }
 

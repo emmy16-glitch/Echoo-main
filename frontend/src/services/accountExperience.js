@@ -74,7 +74,12 @@ export const resolveExperienceSwitch = async (
 
   return {
     user,
-    route: '/?source=switch&experience=creator',
+    // The root route intentionally opens Listener discovery for guests and
+    // listeners. Sending an activated account there immediately bounces the
+    // user back to Listener and leaves them stuck on “Finish Channel setup”.
+    // The creator guard owns the incomplete-capability case and renders the
+    // Channel setup flow before Creator Studio becomes available.
+    route: '/creator-studio',
     requiresSetup: true,
   };
 };

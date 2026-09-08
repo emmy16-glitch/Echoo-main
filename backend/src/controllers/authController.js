@@ -2,10 +2,34 @@ import User from '../models/User.js';
 import crypto from 'node:crypto';
 import { verifyRefreshToken } from '../config/jwt.js';
 import { env } from '../config/env.js';
-import { sendPasswordResetEmail } from '../services/emailService.js';
+import { sendEmailVerificationCode, sendPasswordResetEmail } from '../services/emailService.js';
 import { hasCreatorCapability } from '../utils/accountCapabilities.js';
 
 const USERNAME_PATTERN = /^[A-Za-z0-9._-]{3,30}$/;
+const EMAIL_VERIFICATION_CODE_TTL_MS = 10 * 60 * 1000;
+const EMAIL_VERIFICATION_RESEND_COOLDOWN_MS = 60 * 1000;
+
+const verificationCodeHash = (code) => crypto
+  .createHash('sha256')
+  .update(String(code))
+  .digest('hex');
+
+const matchesVerificationCode = (expectedHash, code) => {
+  if (!expectedHash || !code) return false;
+  const receivedHash = verificationCodeHash(code);
+  const expected = Buffer.from(String(expectedHash), 'hex');
+  const received = Buffer.from(receivedHash, 'hex');
+  return expected.length === received.length && crypto.timingSafeEqual(expected, received);
+};
+
+const issueEmailVerificationCode = async (user) => {
+  const code = String(crypto.randomInt(100000, 1000000));
+  user.emailVerificationCodeHash = verificationCodeHash(code);
+  user.emailVerificationExpiresAt = new Date(Date.now() + EMAIL_VERIFICATION_CODE_TTL_MS);
+  user.emailVerificationSentAt = new Date();
+  await user.save({ validateBeforeSave: false });
+  await sendEmailVerificationCode({ to: user.email, code });
+};
 
 const accountUserJson = (user) => {
   const serialized = user?.toJSON?.() || user || {};
@@ -176,6 +200,85 @@ export async function login(req, res, next) {
     });
   } catch (error) {
     console.error('Login error:', error?.message || error);
+    next(error);
+  }
+}
+
+export async function verifyEmail(req, res, next) {
+  try {
+    const email = String(req.body?.email || '').trim().toLowerCase();
+    const code = String(req.body?.code || '').trim();
+    if (!email || !/^\d{6}$/.test(code)) {
+      return res.status(400).json({
+        error: { code: 'VALIDATION_ERROR', message: 'Enter the email address and six-digit verification code.' },
+      });
+    }
+
+    const user = await User.findOne({ email }).select(
+      '+emailVerificationCodeHash +emailVerificationExpiresAt +emailVerificationSentAt'
+    );
+    if (!user || user.emailVerified || !user.emailVerificationExpiresAt ||
+      user.emailVerificationExpiresAt <= new Date() ||
+      !matchesVerificationCode(user.emailVerificationCodeHash, code)) {
+      return res.status(400).json({
+        error: { code: 'INVALID_VERIFICATION_CODE', message: 'This verification code is invalid or expired.' },
+      });
+    }
+
+    user.emailVerified = true;
+    user.emailVerificationCodeHash = null;
+    user.emailVerificationExpiresAt = null;
+    user.emailVerificationSentAt = null;
+    await user.save({ validateBeforeSave: false });
+
+    return res.status(200).json({
+      data: { user: accountUserJson(user), message: 'Email verified successfully.' },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function resendVerification(req, res, next) {
+  try {
+    const email = String(req.body?.email || '').trim().toLowerCase();
+    if (!email) {
+      return res.status(400).json({
+        error: { code: 'VALIDATION_ERROR', message: 'Email is required.' },
+      });
+    }
+
+    const user = await User.findOne({ email }).select(
+      '+emailVerificationCodeHash +emailVerificationExpiresAt +emailVerificationSentAt'
+    );
+    // Keep the endpoint non-enumerating. A valid account that is already
+    // verified should receive the same acknowledgement as an unknown address.
+    if (!user || user.emailVerified) {
+      return res.status(200).json({
+        data: { message: 'If this account needs verification, a code has been sent.' },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const lastSentAt = user.emailVerificationSentAt?.getTime?.() || 0;
+    const retryAfterMs = EMAIL_VERIFICATION_RESEND_COOLDOWN_MS - (Date.now() - lastSentAt);
+    if (retryAfterMs > 0) {
+      return res.status(429).json({
+        error: {
+          code: 'VERIFICATION_RESEND_THROTTLED',
+          message: 'Please wait a moment before requesting another code.',
+          retryAfterSeconds: Math.ceil(retryAfterMs / 1000),
+        },
+      });
+    }
+
+    await issueEmailVerificationCode(user);
+    return res.status(200).json({
+      data: { message: 'If this account needs verification, a code has been sent.' },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
     next(error);
   }
 }
