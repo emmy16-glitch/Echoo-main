@@ -1,5 +1,4 @@
 import { useState } from "react";
-import "./register.css";
 import "./auth-reference.css";
 import api from "../../services/api";
 
@@ -15,28 +14,12 @@ import {
   FaUser,
 } from "react-icons/fa";
 
-import EchooLogoImage from "../Assets/echoo-logo-official.svg";
-import BroadcastLoginVisual from "./BroadcastLoginVisual";
+import EchooLogoImage from "../Assets/echoo-logo-mark.png";
 import LoadingButton from "../UI/LoadingButton";
 import SuccessState from "../UI/SuccessState";
 import Toast from "../UI/Toast";
 import EchoAmbient from "../EchooSystem/EchoAmbient";
 import "../../styles/echoo-onboarding.css";
-
-const AuthProgress = () => (
-  <div className="ear-progress-wrap">
-    <p>STEP 1 OF 2</p>
-    <div className="ear-progress" aria-label="Account setup, step 1 of 2">
-      {["Account", "Profile"].map((label, index) => (
-        <div className={`ear-progress-step ${index === 0 ? "is-current" : ""}`} key={label}>
-          <span>{index + 1}</span>
-          <strong>{label}</strong>
-          {index === 0 && <i aria-hidden="true" />}
-        </div>
-      ))}
-    </div>
-  </div>
-);
 
 const AuthField = ({
   id,
@@ -50,12 +33,12 @@ const AuthField = ({
   <div className="ear-field">
     <div className="ear-field-label-row">
       <label htmlFor={id}>{label}</label>
-      {action}
     </div>
     <div className={`ear-input-shell ${error ? "has-error" : ""}`}>
       <Icon className="ear-input-icon" aria-hidden="true" />
       {children}
     </div>
+    {action && <div className="ear-field-action">{action}</div>}
     {hint && <p className="ear-field-hint">{hint}</p>}
   </div>
 );
@@ -340,15 +323,8 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
         onClose={() => setToast((current) => ({ ...current, open: false }))}
       />
 
-      <section className="ear-visual-panel" aria-label="About your Echoo account">
-        <BroadcastLoginVisual
-          logoSrc={EchooLogoImage}
-          mode={isLogin || isRecovery ? "login" : "signup"}
-        />
-      </section>
-
-      <section className="ear-auth-panel" aria-labelledby="ear-auth-title">
-        <div className="ear-auth-card">
+      <section className="ear-auth-card" aria-labelledby="ear-auth-title">
+        <img className="ear-logo-mark" src={EchooLogoImage} alt="Echoo" />
           {isRecovery ? (
             <>
               <button type="button" className="ear-back" onClick={switchToLogin}>
@@ -387,15 +363,14 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
             </>
           ) : (
             <>
-              {!isLogin && <AuthProgress />}
               <header className="ear-form-heading">
                 <h1 id="ear-auth-title">
-                  {isLogin ? "Sign in to Echoo" : "Create your Echoo account"}
+                  {isLogin ? "Echoo your sound" : "Sign up"}
                 </h1>
                 <p>
                   {isLogin
-                    ? "Use your Echoo username or the email address on your account."
-                    : "One account gives you Listener access now. You can create your Channel later."}
+                    ? "Sign in to continue your listening experience"
+                    : "Enjoy wonderful listening experience"}
                 </p>
               </header>
 
@@ -593,6 +568,12 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
                   </p>
                 )}
 
+                {!isLogin && (
+                  <p className="ear-legal">
+                    By signing up, I agree to Echoo’s <button type="button">Terms of Service</button> and <button type="button">Privacy Policy</button>
+                  </p>
+                )}
+
                 <LoadingButton
                   type="submit"
                   loading={loading}
@@ -600,19 +581,18 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
                   disabled={!formIsComplete()}
                   className="ear-submit"
                 >
-                  {isLogin ? "Sign in" : "Continue"} <FaArrowRight aria-hidden="true" />
+                  {isLogin ? "Login" : "Create account"}
                 </LoadingButton>
 
                 <p className="ear-auth-switch">
-                  {isLogin ? "New to Echoo? " : "Already have an account? "}
+                  {isLogin ? "Don’t have an account? " : "Already have an account? "}
                   <button type="button" onClick={isLogin ? switchToSignUp : switchToLogin}>
-                    {isLogin ? "Create account" : "Sign in"}
+                    {isLogin ? "Sign up" : "Sign in"}
                   </button>
                 </p>
               </form>
             </>
           )}
-        </div>
       </section>
     </main>
   );

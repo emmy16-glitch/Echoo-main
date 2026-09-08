@@ -20,17 +20,14 @@ const collectBrowserErrors = (page) => {
   return errors;
 };
 
-test('new Echoo auth UI has distinct identity fields, working password eyes and responsive layout', async ({ page }) => {
+test('Figma Echoo signup preserves identity fields, password eyes and responsive layout', async ({ page }) => {
   const browserErrors = collectBrowserErrors(page);
   await page.goto('/register');
 
-  await expect(page.getByRole('heading', { name: 'Create your Echoo account' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Sign up' })).toBeVisible();
   await expect(page.getByLabel('Full name')).toBeVisible();
   await expect(page.getByLabel('Username')).toBeVisible();
-  await expect(page.getByText('This becomes your @username on Echoo.')).toBeVisible();
   await expect(page.getByLabel('Email address')).toBeVisible();
-  await expect(page.getByText('Used for account recovery and security notices.')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Start microphone test' })).toBeVisible();
 
   await page.getByLabel('Username').fill('ab');
   await expect(page.getByText('Username must be between 3 and 30 characters.')).toBeVisible();
@@ -89,15 +86,14 @@ test('login accepts both @username and email and exposes working recovery', asyn
   });
 
   await page.goto('/login');
-  await expect(page.getByRole('heading', { name: 'Sign in to Echoo' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Echoo your sound' })).toBeVisible();
   await expect(page.getByLabel('Username or email')).toBeVisible();
-  await expect(page.getByText('Example: @okunlola or name@example.com')).toBeVisible();
 
   await page.getByLabel('Username or email').fill('@echo-listener');
   await page.getByLabel('Password', { exact: true }).fill('Password123!');
   await page.getByRole('button', { name: 'Show password' }).click();
   await expect(page.getByLabel('Password', { exact: true })).toHaveAttribute('type', 'text');
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await page.getByRole('button', { name: 'Login', exact: true }).click();
 
   await expect(page).toHaveURL(/\/listen$/);
   expect(loginPayloads[0]).toEqual({ username: 'echo-listener', password: 'Password123!' });
@@ -108,10 +104,10 @@ test('login accepts both @username and email and exposes working recovery', asyn
     sessionStorage.clear();
   });
   await page.goto('/login');
-  await expect(page.getByRole('heading', { name: 'Sign in to Echoo' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Echoo your sound' })).toBeVisible();
   await page.getByLabel('Username or email').fill('listener@example.test');
   await page.getByLabel('Password', { exact: true }).fill('Password123!');
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await page.getByRole('button', { name: 'Login', exact: true }).click();
   await expect(page).toHaveURL(/\/listen$/);
   expect(loginPayloads[1]).toEqual({ username: 'listener@example.test', password: 'Password123!' });
 
@@ -129,7 +125,7 @@ test('login accepts both @username and email and exposes working recovery', asyn
   await page.getByRole('button', { name: 'Send reset link' }).click();
   await expect(page.getByText('Reset link sent')).toBeVisible();
   await page.getByRole('button', { name: /Back to sign in/i }).click();
-  await expect(page.getByRole('heading', { name: 'Sign in to Echoo' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Echoo your sound' })).toBeVisible();
 
   await assertNoHorizontalOverflow(page);
   expect(browserErrors).toEqual([]);
@@ -172,7 +168,7 @@ test('reset-password completion uses the new design, both eye toggles and return
   await page.getByRole('button', { name: 'Update password' }).click();
   await expect(page.getByText(/Password reset successfully/i)).toBeVisible();
   expect(resetPayloads).toEqual([{ token: 'reset-token', password: 'NewPassword123!' }]);
-  await expect(page.getByRole('heading', { name: 'Sign in to Echoo' })).toBeVisible({ timeout: 4_000 });
+  await expect(page.getByRole('heading', { name: 'Echoo your sound' })).toBeVisible({ timeout: 4_000 });
   await expect(page).toHaveURL(/\/login$/);
 
   await page.goto('/reset-password');

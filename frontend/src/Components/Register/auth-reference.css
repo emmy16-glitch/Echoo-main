@@ -1,487 +1,107 @@
+/* Canonical authentication surface — matched to Figma nodes 251:723 and 249:510. */
 .echoo-auth-reference,
-.echoo-auth-reference * {
-  box-sizing: border-box;
-}
+.echoo-auth-reference * { box-sizing: border-box; }
 
 .echoo-auth-reference {
-  --ear-blue: #0b63f6;
-  --ear-blue-deep: #0957d9;
-  --ear-navy: #101828;
-  --ear-copy: #475467;
-  --ear-muted: #667085;
-  --ear-border: #d8e0ea;
-  --ear-soft: #f4f7fb;
-  width: 100%;
+  --echoo-auth-blue: #4f7ec3;
+  --echoo-auth-link: #93baff;
+  position: relative;
+  isolation: isolate;
   min-height: 100dvh;
   display: grid;
-  grid-template-columns: minmax(390px, 0.9fr) minmax(520px, 1.1fr);
-  overflow-x: clip;
-  background: #ffffff;
-  color: var(--ear-navy);
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-}
-
-.ear-visual-panel,
-.ear-auth-panel {
-  min-width: 0;
-  min-height: 100dvh;
-}
-
-.ear-visual-panel {
-  overflow: hidden;
-  border-right: 1px solid #dfe6ef;
-  background: #eef4fc;
-}
-
-.ear-story {
-  width: min(620px, 100%);
-  min-height: 100%;
-  margin: 0 auto;
-  padding: clamp(32px, 4vw, 56px) clamp(28px, 4.5vw, 64px) 30px;
-  display: flex;
-  flex-direction: column;
-}
-
-.ear-brand {
-  display: inline-flex;
-  align-items: center;
-  align-self: flex-start;
-  gap: 10px;
-}
-
-.ear-brand img {
-  width: 38px;
-  height: 38px;
-  flex: 0 0 38px;
-  object-fit: contain;
-}
-
-.ear-brand strong {
-  color: var(--ear-navy);
-  font-size: 21px;
-  line-height: 1;
-  font-weight: 760;
-  letter-spacing: -0.03em;
-}
-
-.ear-story-copy {
-  margin-top: clamp(52px, 8vh, 82px);
-}
-
-.ear-story-copy h1 {
-  max-width: 500px;
-  margin: 0;
-  color: var(--ear-navy);
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: clamp(40px, 4vw, 54px);
-  line-height: 1.03;
-  font-weight: 700;
-  letter-spacing: -0.04em;
-}
-
-.ear-story-copy h1 em {
-  color: var(--ear-blue);
-  font-style: normal;
-}
-
-.ear-story-copy p {
-  max-width: 500px;
-  margin: 20px 0 0;
-  color: var(--ear-copy);
-  font-size: 14px;
-  line-height: 1.62;
-}
-
-.ear-audio-card {
-  width: min(480px, 100%);
-  min-height: 226px;
-  margin-top: clamp(32px, 5vh, 48px);
-  padding: 18px;
-  overflow: hidden;
-  border: 1px solid #cbd8e8;
-  border-radius: 14px;
-  background: #ffffff;
-}
-
-.ear-audio-card.is-active {
-  border-color: #7eadef;
-}
-
-.ear-audio-topline {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.ear-audio-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: #34506f;
-  font-size: 11px;
-  line-height: 1;
-  font-weight: 720;
-  letter-spacing: 0.045em;
-}
-
-.ear-audio-status i {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #98a6b8;
-}
-
-.ear-audio-card.is-active .ear-audio-status i {
-  background: var(--ear-blue);
-  animation: earStatusPulse 1.4s ease-in-out infinite;
-}
-
-.ear-signal {
-  color: #5479a6;
-  font-size: 17px;
-}
-
-.ear-wave-stage {
-  position: relative;
-  height: 104px;
-  display: grid;
   place-items: center;
-}
-
-.ear-waveform {
-  position: absolute;
-  inset: 10px 0;
-  display: flex;
-  align-items: center;
-  gap: 3px;
+  padding: 36px 20px;
   overflow: hidden;
+  background: #020912 url("../Assets/echoo-auth-cinematic-headphones.jpeg") center center / 100% auto no-repeat;
+  color: #fff;
+  font-family: Manrope, Inter, ui-sans-serif, system-ui, sans-serif;
 }
 
-.ear-waveform span {
-  flex: 1 1 0;
-  min-width: 2px;
-  height: var(--bar-height);
-  max-height: 72%;
-  border-radius: 2px;
-  background: #83aee8;
-  transform-origin: center;
-}
-
-.ear-mic-button {
-  position: relative;
-  z-index: 2;
-  width: 52px;
-  height: 52px;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: var(--ear-blue);
-  color: #ffffff;
-  font-size: 15px;
-  cursor: pointer;
-  transition: background 160ms ease, transform 160ms ease;
-}
-
-.ear-mic-button:hover:not(:disabled) {
-  background: var(--ear-blue-deep);
-}
-
-.ear-mic-button:active:not(:disabled) {
-  transform: scale(0.97);
-}
-
-.ear-mic-button:disabled {
-  cursor: wait;
-  opacity: 0.62;
-}
-
-.ear-mic-button:focus-visible,
-.ear-forgot:focus-visible,
-.ear-back:focus-visible,
-.ear-auth-switch button:focus-visible,
-.ear-password-toggle:focus-visible,
-.ear-submit:focus-visible {
-  outline: 3px solid rgba(11, 99, 246, 0.23);
-  outline-offset: 2px;
-}
-
-.ear-mic-message {
-  min-height: 20px;
-  margin: 2px 0 14px;
-  color: #53657a;
-  text-align: center;
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-.ear-level-row {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: center;
-  gap: 10px;
-  color: #667085;
-  font-size: 10px;
-}
-
-.ear-level-meter {
-  height: 8px;
-  display: flex;
-  gap: 2px;
-}
-
-.ear-level-meter i {
-  flex: 1 1 0;
-  border-radius: 2px;
-  background: #dde4ed;
-}
-
-.ear-level-meter i.is-filled {
-  background: var(--ear-blue);
-}
-
-.ear-security-note {
-  margin: auto 0 0;
-  padding-top: 22px;
-  color: #617086;
-  font-size: 11px;
-  line-height: 1.5;
-}
-
-.ear-security-note svg {
-  margin-right: 6px;
-  color: #527aa8;
-  vertical-align: -1px;
-}
-
-.ear-login-art {
-  width: min(520px, 100%);
-  height: clamp(280px, 39vh, 390px);
-  margin: auto 0 0;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  overflow: hidden;
-}
-
-.ear-login-art img {
-  width: 100%;
-  height: 100%;
-  display: block;
-  object-fit: contain;
-  object-position: center bottom;
-}
-
-.ear-auth-panel {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: clamp(28px, 4vw, 56px);
-  background: #ffffff;
-}
-
-.ear-auth-card {
-  width: min(460px, 100%);
-  padding: clamp(26px, 3vw, 38px);
-  border: 1px solid #e1e7ef;
-  border-radius: 14px;
-  background: #ffffff;
-  box-shadow: 0 12px 32px rgba(16, 24, 40, 0.055);
-}
-
-.echoo-auth-reference.is-login .ear-auth-card,
-.echoo-auth-reference.is-recovery .ear-auth-card {
-  width: min(430px, 100%);
-}
-
-.ear-progress-wrap {
-  margin-bottom: 26px;
-}
-
-.ear-progress-wrap > p {
-  margin: 0 0 12px;
-  color: #667085;
-  font-size: 10px;
-  line-height: 1;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-}
-
-.ear-progress {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-}
-
-.ear-progress-step {
-  position: relative;
-  display: grid;
-  justify-items: start;
-  gap: 7px;
-}
-
-.ear-progress-step > span {
-  position: relative;
-  z-index: 2;
-  width: 28px;
-  height: 28px;
-  display: grid;
-  place-items: center;
-  border: 1px solid #cdd6e2;
-  border-radius: 50%;
-  background: #ffffff;
-  color: #667085;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.ear-progress-step.is-current > span {
-  border-color: var(--ear-blue);
-  background: var(--ear-blue);
-  color: #ffffff;
-}
-
-.ear-progress-step > strong {
-  color: #667085;
-  font-size: 11px;
-  font-weight: 620;
-}
-
-.ear-progress-step.is-current > strong {
-  color: var(--ear-navy);
-}
-
-.ear-progress-step > i {
+.echoo-auth-reference::before,
+.echoo-auth-reference::after {
+  content: "";
   position: absolute;
-  top: 14px;
-  left: 30px;
-  right: 2px;
-  height: 1px;
-  background: #d7dee8;
-}
-
-.ear-form-heading {
-  margin-bottom: 25px;
-}
-
-.ear-form-heading h1 {
-  margin: 0;
-  color: var(--ear-navy);
-  font-size: clamp(27px, 2.4vw, 33px);
-  line-height: 1.15;
-  font-weight: 720;
-  letter-spacing: -0.035em;
-}
-
-.ear-form-heading p {
-  margin: 10px 0 0;
-  color: var(--ear-copy);
-  font-size: 13px;
-  line-height: 1.58;
-}
-
-.ear-form {
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-}
-
-.ear-field {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-}
-
-.ear-field-label-row {
-  min-height: 22px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.ear-field-label-row label {
-  color: #344054;
-  font-size: 12px;
-  line-height: 1.4;
-  font-weight: 650;
-}
-
-.ear-field-hint,
-.ear-helper,
-.ear-error {
-  margin: 0;
-  font-size: 11px;
-  line-height: 1.5;
-}
-
-.ear-field-hint,
-.ear-helper {
-  color: #667085;
-}
-
-.ear-input-shell {
-  position: relative;
-  min-height: 48px;
-  display: flex;
-  align-items: center;
-  overflow: hidden;
-  border: 1px solid var(--ear-border);
-  border-radius: 10px;
-  background: #ffffff;
-  transition: border-color 150ms ease, box-shadow 150ms ease;
-}
-
-.ear-input-shell:hover {
-  border-color: #bdc9d8;
-}
-
-.ear-input-shell:focus-within {
-  border-color: #76a8ec;
-  box-shadow: 0 0 0 3px rgba(11, 99, 246, 0.1);
-}
-
-.ear-input-shell.has-error {
-  border-color: #e29992;
-}
-
-.ear-input-shell.has-error:focus-within {
-  box-shadow: 0 0 0 3px rgba(180, 35, 24, 0.08);
-}
-
-.ear-input-icon {
-  position: absolute;
-  left: 14px;
-  width: 14px;
-  height: 14px;
-  color: #667085;
+  inset: 0;
+  z-index: -1;
   pointer-events: none;
 }
 
+.echoo-auth-reference::before { background: rgba(0, 0, 0, .45); }
+.echoo-auth-reference::after { background: linear-gradient(115deg, rgba(1, 11, 25, .38), transparent 43%, rgba(1, 12, 31, .44)); }
+
+.ear-auth-card {
+  width: min(550px, 100%);
+  min-height: 600px;
+  max-height: calc(100dvh - 48px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 30px 50px 36px;
+  overflow: auto;
+  border: 1px solid rgba(255, 255, 255, .2);
+  border-radius: 25px;
+  background: rgba(255, 255, 255, .15);
+  box-shadow: 0 24px 65px rgba(0, 0, 0, .27), inset 0 1px 0 rgba(255, 255, 255, .1);
+  -webkit-backdrop-filter: blur(18px) saturate(112%);
+  backdrop-filter: blur(18px) saturate(112%);
+}
+
+.echoo-auth-reference.is-signup .ear-auth-card { min-height: 714px; }
+.ear-logo-mark { width: 51px; height: 71px; display: block; object-fit: contain; margin: 0 auto 2px; }
+
+.ear-form-heading { width: 100%; margin: 0 0 30px; text-align: center; }
+.ear-form-heading h1 { margin: 0; color: #fff; font: 700 36px/1.15 Manrope, Inter, sans-serif; letter-spacing: -2.88px; }
+.echoo-auth-reference.is-signup .ear-form-heading h1 { font-weight: 600; letter-spacing: -.9px; }
+.ear-form-heading p { margin: 12px 0 0; color: rgba(255, 255, 255, .8); font-size: 16px; line-height: 1.45; }
+
+.ear-form { width: 100%; display: flex; flex-direction: column; gap: 16px; }
+.echoo-auth-reference.is-login .ear-form { gap: 20px; }
+.ear-field { display: flex; flex-direction: column; gap: 0; }
+.ear-field-label-row label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.ear-input-shell {
+  position: relative;
+  min-height: 54px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, .7);
+  border-radius: 10px;
+  background: rgba(235, 238, 244, .7);
+  transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+.ear-input-shell:hover { background: rgba(245, 247, 251, .79); }
+.ear-input-shell:focus-within { border-color: #9cc0ff; box-shadow: 0 0 0 3px rgba(147, 186, 255, .34); }
+.ear-input-shell.has-error { border-color: #f3aaa3; box-shadow: 0 0 0 2px rgba(160, 33, 28, .15); }
+.ear-input-icon { width: 15px; height: 15px; margin-left: 21px; flex: 0 0 15px; color: rgba(0, 0, 0, .58); pointer-events: none; }
 .ear-input-shell input {
   width: 100%;
-  height: 46px;
-  padding: 0 48px 0 41px;
+  height: 52px;
+  min-width: 0;
+  padding: 0 48px 0 8px;
   border: 0;
   outline: 0;
   background: transparent;
-  color: #1d2939;
-  font: inherit;
-  font-size: 13px;
+  color: #132237;
+  font: 400 16px/1 Manrope, Inter, sans-serif;
 }
-
-.ear-input-shell input::placeholder {
-  color: #98a2b3;
-  opacity: 1;
-}
-
+.echoo-auth-reference.is-signup .ear-input-shell input { font-size: 17px; }
+.ear-input-shell input::placeholder { color: rgba(0, 0, 0, .5); opacity: 1; }
 .ear-password-toggle {
   position: absolute;
   top: 50%;
-  right: 2px;
-  width: 44px;
-  height: 44px;
+  right: 6px;
+  width: 38px;
+  height: 38px;
   display: grid;
   place-items: center;
   transform: translateY(-50%);
@@ -489,258 +109,84 @@
   border: 0;
   border-radius: 8px;
   background: transparent;
-  color: #667085;
-  font-size: 15px;
+  color: rgba(0, 0, 0, .58);
   cursor: pointer;
 }
-
-.ear-password-toggle:hover {
-  color: var(--ear-blue);
-  background: #f3f6fa;
-}
-
+.ear-password-toggle:hover { background: rgba(26, 59, 103, .11); color: #163f76; }
+.ear-field-action { min-height: 24px; display: flex; align-items: end; padding: 3px 0 0 6px; }
 .ear-forgot,
 .ear-back,
-.ear-auth-switch button {
+.ear-auth-switch button,
+.ear-legal button {
+  padding: 0;
   border: 0;
   background: transparent;
-  color: var(--ear-blue-deep);
+  color: var(--echoo-auth-link);
   font: inherit;
-  font-weight: 650;
   cursor: pointer;
 }
-
-.ear-forgot {
-  min-height: 44px;
-  margin: -10px 0;
-  padding: 0 2px;
-  font-size: 11px;
-}
-
-.ear-back {
-  min-height: 44px;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin: -8px 0 16px;
-  padding: 0 4px;
-  border-radius: 8px;
-  font-size: 12px;
-}
-
-.ear-back:hover,
-.ear-forgot:hover,
-.ear-auth-switch button:hover {
-  color: #0848b5;
-}
-
-.ear-error {
-  color: #b42318;
-}
-
-.ear-error svg {
-  margin-right: 4px;
-  vertical-align: -1px;
-}
-
+.ear-forgot { font-family: Inter, sans-serif; font-size: 16px; }
+.ear-back { align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; margin-bottom: 14px; font-size: 14px; }
+.ear-field-hint { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+.ear-helper,
+.ear-error { margin: -7px 0 0; font-size: 12px; line-height: 1.4; }
+.ear-helper { color: rgba(255, 255, 255, .76); }
+.ear-error { color: #ffd1cb; font-weight: 650; }
+.ear-error svg { margin-right: 4px; vertical-align: -1px; }
+.ear-legal { margin: 0; color: #fff; text-align: center; font-size: 13px; line-height: 1.5; }
+.ear-legal button { color: #fff; text-decoration: underline; }
 .ear-submit {
   width: 100%;
-  min-height: 48px;
+  min-height: 50px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  margin-top: 2px;
-  padding: 0 18px;
+  padding: 0 24px;
   border: 0;
-  border-radius: 10px;
-  background: var(--ear-blue);
-  color: #ffffff;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 700;
+  border-radius: 40px;
+  background: var(--echoo-auth-blue);
+  color: #f9f9f9;
+  font: 700 16px/1 Manrope, Inter, sans-serif;
   cursor: pointer;
-  transition: background 150ms ease, transform 150ms ease;
+  box-shadow: inset 0 1px rgba(255, 255, 255, .15);
+  transition: background 160ms ease, transform 160ms ease;
 }
+.echoo-auth-reference.is-login .ear-submit { min-height: 60px; margin-top: 20px; }
+.ear-submit:hover:not(:disabled) { background: #4071b8; }
+.ear-submit:active:not(:disabled) { transform: translateY(1px); }
+.ear-submit:disabled { background: #bbc3ce; color: #f9f9f9; cursor: not-allowed; }
+.ear-submit .echoo-button-text { display: inline-flex; align-items: center; justify-content: center; }
+.ear-auth-switch { margin: 0; color: #fff; text-align: center; font-size: 16px; line-height: 1.5; }
+.ear-auth-switch button { color: var(--echoo-auth-link); text-decoration: underline; }
+.ear-forgot:hover,
+.ear-back:hover,
+.ear-auth-switch button:hover,
+.ear-legal button:hover { color: #d2e4ff; }
+.ear-forgot:focus-visible,
+.ear-back:focus-visible,
+.ear-password-toggle:focus-visible,
+.ear-submit:focus-visible,
+.ear-auth-switch button:focus-visible,
+.ear-legal button:focus-visible { outline: 2px solid #d3e4ff; outline-offset: 3px; }
 
-.ear-submit:hover:not(:disabled) {
-  background: var(--ear-blue-deep);
-}
-
-.ear-submit:active:not(:disabled) {
-  transform: translateY(1px);
-}
-
-.ear-submit:disabled {
-  background: #d7dee8;
-  color: #7a8697;
-  cursor: not-allowed;
-}
-
-.ear-submit .echoo-button-text {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-}
-
-.ear-auth-switch {
-  margin: 3px 0 0;
-  color: #667085;
-  text-align: center;
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-.ear-auth-switch button {
-  min-height: 44px;
-  padding: 0 3px;
-}
-
-@keyframes earStatusPulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.38; }
-}
-
-@media (max-width: 980px) {
-  .echoo-auth-reference {
-    grid-template-columns: 1fr;
-  }
-
-  .ear-visual-panel,
-  .ear-auth-panel {
-    min-height: 0;
-  }
-
-  .ear-visual-panel {
-    border-right: 0;
-    border-bottom: 1px solid #dfe6ef;
-  }
-
-  .ear-story {
-    min-height: auto;
-    padding: 28px clamp(22px, 5vw, 46px) 30px;
-  }
-
-  .ear-story-copy {
-    margin-top: 34px;
-  }
-
-  .ear-story-copy h1 {
-    max-width: 580px;
-    font-size: clamp(34px, 7vw, 46px);
-  }
-
-  .ear-story-copy p {
-    max-width: 580px;
-  }
-
-  .ear-audio-card {
-    margin-top: 28px;
-  }
-
-  .ear-security-note {
-    margin-top: 20px;
-    padding-top: 0;
-  }
-
-  .ear-login-art {
-    width: min(480px, 100%);
-    height: 245px;
-    margin-top: 20px;
-  }
-
-  .ear-auth-panel {
-    padding: 34px 20px 46px;
-  }
-}
-
-@media (max-width: 560px) {
-  .ear-story {
-    padding: 22px 18px 24px;
-  }
-
-  .ear-brand img {
-    width: 34px;
-    height: 34px;
-    flex-basis: 34px;
-  }
-
-  .ear-brand strong {
-    font-size: 19px;
-  }
-
-  .ear-story-copy {
-    margin-top: 28px;
-  }
-
-  .ear-story-copy h1 {
-    font-size: clamp(31px, 9.5vw, 39px);
-    line-height: 1.06;
-  }
-
-  .ear-story-copy p {
-    margin-top: 14px;
-    font-size: 13px;
-  }
-
-  .ear-audio-card {
-    min-height: 214px;
-    margin-top: 22px;
-    padding: 15px;
-    border-radius: 12px;
-  }
-
-  .ear-wave-stage {
-    height: 94px;
-  }
-
-  .ear-login-art {
-    height: 190px;
-  }
-
-  .ear-auth-panel {
-    padding: 24px 12px 34px;
-  }
-
-  .ear-auth-card,
-  .echoo-auth-reference.is-login .ear-auth-card,
-  .echoo-auth-reference.is-recovery .ear-auth-card {
-    width: 100%;
-    padding: 24px 18px;
-    border-radius: 12px;
-    box-shadow: none;
-  }
-
-  .ear-form-heading h1 {
-    font-size: 27px;
-  }
-
-  .ear-form {
-    gap: 14px;
-  }
-
-  .ear-input-shell,
-  .ear-input-shell input {
-    min-height: 48px;
-  }
-
-  .ear-field-label-row {
-    gap: 8px;
-  }
-
-  .ear-forgot {
-    font-size: 10.5px;
-  }
+@media (max-width: 700px) {
+  .echoo-auth-reference { align-items: start; padding: 22px 14px; background-size: auto 125%; background-position: 50% 50%; }
+  .ear-auth-card { min-height: 0; max-height: none; padding: 25px 22px 28px; border-radius: 22px; }
+  .echoo-auth-reference.is-signup .ear-auth-card { min-height: 0; }
+  .ear-logo-mark { width: 42px; height: 54px; margin-bottom: 5px; }
+  .ear-form-heading { margin-bottom: 24px; }
+  .ear-form-heading h1 { font-size: clamp(29px, 8.5vw, 36px); letter-spacing: -1.8px; }
+  .ear-form-heading p { font-size: 14px; }
+  .ear-form { gap: 12px; }
+  .echoo-auth-reference.is-login .ear-form { gap: 15px; }
+  .ear-input-shell { min-height: 52px; }
+  .ear-input-shell input { height: 50px; font-size: 15px; }
+  .echoo-auth-reference.is-signup .ear-input-shell input { font-size: 15px; }
+  .ear-forgot { font-size: 14px; }
+  .echoo-auth-reference.is-login .ear-submit { min-height: 54px; margin-top: 10px; }
+  .ear-auth-switch { font-size: 14px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .echoo-auth-reference *,
-  .echoo-auth-reference *::before,
-  .echoo-auth-reference *::after {
-    scroll-behavior: auto !important;
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
+  .echoo-auth-reference *, .echoo-auth-reference *::before, .echoo-auth-reference *::after { transition-duration: .01ms !important; }
 }

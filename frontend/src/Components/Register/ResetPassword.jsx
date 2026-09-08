@@ -4,8 +4,7 @@ import { FaArrowLeft, FaArrowRight, FaEye, FaEyeSlash, FaLock } from 'react-icon
 
 import api from '../../services/api';
 import LoadingButton from '../UI/LoadingButton';
-import BroadcastLoginVisual from './BroadcastLoginVisual';
-import EchooLogoImage from '../Assets/echoo-logo-official.svg';
+import EchooLogoImage from '../Assets/echoo-logo-mark.png';
 import './auth-reference.css';
 
 const passwordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
@@ -93,12 +92,8 @@ const ResetPassword = () => {
 
   return (
     <main className="echoo-auth-reference is-recovery">
-      <section className="ear-visual-panel" aria-label="About your Echoo account">
-        <BroadcastLoginVisual logoSrc={EchooLogoImage} mode="login" />
-      </section>
-
-      <section className="ear-auth-panel" aria-labelledby="echoo-reset-title">
-        <div className="ear-auth-card">
+      <section className="ear-auth-card" aria-labelledby="echoo-reset-title">
+          <img className="ear-logo-mark" src={EchooLogoImage} alt="Echoo" />
           <button type="button" className="ear-back" onClick={backToSignIn}>
             <FaArrowLeft aria-hidden="true" /> Back to sign in
           </button>
@@ -155,7 +150,6 @@ const ResetPassword = () => {
               Update password <FaArrowRight aria-hidden="true" />
             </LoadingButton>
           </form>
-        </div>
       </section>
     </main>
   );
