@@ -59,6 +59,10 @@ body:has(.listener-v2-root) .echoo-mobile-navigation, body:has(.listener-v2-root
 }
 .listener-v2-header > .listener-v2-search-field { grid-column: 4; width: 100%; }
 .listener-v2-header > .echoo-account-toolbar { grid-column: 5; justify-self: end; }
+.listener-v2-guest-actions { display:flex; align-items:center; justify-content:flex-end; gap:8px; }
+.listener-v2-create-channel,.listener-v2-sign-in { min-height:36px; padding:0 12px; border-radius:8px; cursor:pointer; font-size:12px; font-weight:740; }
+.listener-v2-create-channel { border:1px solid #cbd9ef; background:#fff; color:#174278; }
+.listener-v2-sign-in { border:1px solid #0758f7; background:#0758f7; color:#fff; }
 .listener-v2-following-page { max-width: 1320px; }
 .listener-v2-following-page .listener-v2-page-title { display:block; margin-bottom:32px; }
 .listener-v2-following-page .listener-v2-page-title h1 { font-size:42px; letter-spacing:-.04em; }
@@ -105,6 +109,8 @@ body:has(.listener-v2-root) .echoo-mobile-navigation, body:has(.listener-v2-root
   .listener-v2-header .studio-account-button { width:34px; min-width:34px; height:34px; grid-template-columns:34px; padding:0; }
   .listener-v2-header .account-experience-trigger-copy,.listener-v2-header .account-experience-chevron { display:none; }
   .listener-v2-header .top-avatar { width:34px; height:34px; }
+  .listener-v2-guest-actions { gap:6px; }
+  .listener-v2-create-channel,.listener-v2-sign-in { min-height:34px; padding:0 9px; font-size:10px; }
   .listener-v2-main { min-height:calc(100dvh - 118px); padding:24px 18px 92px; background:#fbfcfe; }
   .listener-v2-page-title h1,.listener-v2-page-header h1,.listener-v2-section-title h2 { color:#071226; }
   .listener-v2-page-title p,.listener-v2-page-header p,.listener-v2-section-title p { color:#50617a; }

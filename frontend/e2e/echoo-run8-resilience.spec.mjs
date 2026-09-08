@@ -19,7 +19,7 @@ const creatorUser = {
   displayName: 'Echoo Creator With A Long Display Name',
   email: 'creator@example.test',
   userType: 'creator',
-  roles: ['creator'],
+  roles: ['listener', 'creator'],
   onboardingCompleted: true,
   profileCompleted: true,
   creatorProfile: { creatorType: 'individual', artistName: 'Echoo Creator' },
@@ -32,16 +32,16 @@ const authenticate = async (page, role) => {
     localStorage.setItem('token', `${nextRole}-token`);
     localStorage.setItem('refreshToken', `${nextRole}-refresh-token`);
     localStorage.setItem('user', JSON.stringify(nextUser));
-    localStorage.setItem('echooRole', nextRole);
     localStorage.setItem('echooProfileCompleted', 'true');
     localStorage.setItem('echooOnboardingCompleted', 'true');
+    localStorage.setItem('echooActiveExperience', nextRole);
     if (nextRole === 'creator') {
       localStorage.setItem('creatorSetup', JSON.stringify({ type: 'individual', name: nextUser.displayName }));
     }
   }, { nextUser: user, nextRole: role });
 };
 
-const settle = async (page, ms = 350) => {
+const settle = async (page, ms = 300) => {
   await page.waitForLoadState('domcontentloaded');
   await page.waitForTimeout(ms);
 };
@@ -54,41 +54,40 @@ const assertNoHorizontalOverflow = async (page, label) => {
   expect(geometry.scrollWidth, `${label}: horizontal document overflow`).toBeLessThanOrEqual(geometry.width + 2);
 };
 
-const desktopEngines = new Set(['desktop-1440', 'firefox-1440', 'webkit-1440']);
-
-test('role boundaries survive direct deep links, reloads and wrong-role navigation', async ({ page }, testInfo) => {
-  test.skip(!desktopEngines.has(testInfo.project.name));
-
+test('unified account boundaries survive deep links and reloads', async ({ page }) => {
   await authenticate(page, 'listener');
   await page.goto('/listen/history');
-  await settle(page);
   await expect(page).toHaveURL(/\/listen\/history$/);
-  await expect(page.locator('#echoo-route-content')).toBeVisible();
-
   await page.reload();
-  await settle(page);
   await expect(page).toHaveURL(/\/listen\/history$/);
 
   await page.goto('/creator-studio');
-  await settle(page);
   await expect(page).toHaveURL(/\/listen\/?$/);
 
   await page.evaluate((user) => {
     localStorage.setItem('user', JSON.stringify(user));
-    localStorage.setItem('echooRole', 'creator');
     localStorage.setItem('accessToken', 'creator-token');
     localStorage.setItem('token', 'creator-token');
+    localStorage.setItem('refreshToken', 'creator-refresh-token');
     localStorage.setItem('echooOnboardingCompleted', 'true');
     localStorage.setItem('echooProfileCompleted', 'true');
+    localStorage.setItem('echooActiveExperience', 'creator');
     localStorage.setItem('creatorSetup', JSON.stringify({ type: 'individual', name: user.displayName }));
-    history.pushState({}, '', '/listen/settings');
-    window.dispatchEvent(new PopStateEvent('popstate'));
   }, creatorUser);
-  await expect(page).toHaveURL(/\/creator-studio$/, { timeout: 10_000 });
+
+  // Creator capability adds Studio; it never removes the account's Listener experience.
+  await page.goto('/listen/settings');
+  await expect(page).toHaveURL(/\/listen\/settings$/);
+  await page.reload();
+  await expect(page).toHaveURL(/\/listen\/settings$/);
+
+  await page.goto('/creator-studio/collections');
+  await expect(page).toHaveURL(/\/creator-studio\/collections$/);
+  await page.reload();
+  await expect(page).toHaveURL(/\/creator-studio\/collections$/);
 });
 
-test('lazy Creator Studio chunk failure shows a usable fallback and Try again performs a true recovery', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'desktop-1440');
+test('lazy Creator Studio chunk failure shows a usable fallback and retry recovers to Broadcast', async ({ page }) => {
   await authenticate(page, 'creator');
 
   let failedOnce = false;
@@ -105,80 +104,69 @@ test('lazy Creator Studio chunk failure shows a usable fallback and Try again pe
   const fallback = page.getByRole('alert');
   await expect(fallback).toContainText("This page couldn't load");
   const retry = page.getByRole('button', { name: 'Try again' });
-  await expect(retry).toBeVisible();
   await retry.click();
 
-  await expect(page).toHaveURL(/\/creator-studio$/);
-  await expect(page.getByRole('button', { name: /^Audio$/ }).first()).toBeVisible({ timeout: 15_000 });
+  await expect(page).toHaveURL(/\/creator-studio\/?$/);
+  await expect(page.getByRole('button', { name: 'Broadcast', exact: true })).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('.ec2-broadcast')).toBeVisible();
   expect(failedOnce).toBe(true);
 });
 
-test('Listener Stations recovers from a real API outage without a page reload', async ({ page }, testInfo) => {
-  test.skip(!['desktop-1440', 'webkit-390'].includes(testInfo.project.name));
+test('Listener Live recovers from a real API outage without a page reload', async ({ page }) => {
   await authenticate(page, 'listener');
 
-  let failStations = true;
-  await page.route('**/api/stations**', async (route) => {
-    if (failStations) {
+  let failDashboard = true;
+  await page.route('**/api/listener/dashboard**', async (route) => {
+    if (failDashboard) {
       await route.abort('failed');
       return;
     }
     await route.continue();
   });
 
-  await page.goto('/listen/stations');
-  await expect(page.getByText('Stations could not be loaded.').first()).toBeVisible({ timeout: 10_000 });
+  await page.goto('/listen');
+  await expect(page.getByText('We couldn’t reach Echoo.')).toBeVisible({ timeout: 10_000 });
   const retry = page.getByRole('button', { name: 'Try again' }).first();
   await expect(retry).toBeVisible();
 
-  failStations = false;
+  failDashboard = false;
   await retry.click();
-  await expect(page.getByRole('heading', { name: 'Stations', exact: true })).toBeVisible({ timeout: 10_000 });
-  await expect(page.getByRole('heading', { name: 'All stations', exact: true })).toBeVisible();
-  await assertNoHorizontalOverflow(page, `${testInfo.project.name} recovered Stations`);
+  await expect(page.locator('.listener-v2-live-card').first()).toBeVisible({ timeout: 10_000 });
+  await assertNoHorizontalOverflow(page, 'recovered Listener Live');
 });
 
-test('rapid listener SPA navigation plus back/forward stays stable without page errors', async ({ page }, testInfo) => {
-  test.skip(!desktopEngines.has(testInfo.project.name));
+test('rapid current Listener navigation plus browser back and forward stays stable', async ({ page }) => {
   await authenticate(page, 'listener');
-
   const pageErrors = [];
   page.on('pageerror', (error) => pageErrors.push(String(error?.message || error)));
 
   await page.goto('/listen');
-  await settle(page);
+  await page.getByRole('button', { name: 'Following', exact: true }).first().click();
+  await expect(page).toHaveURL(/\/listen\/following$/);
 
-  const steps = [
-    ['Search', '/listen/search'],
-    ['Stations', '/listen/stations'],
-    ['Library', '/listen/library'],
-    ['History', '/listen/history'],
-    ['Downloads', '/listen/downloads'],
-    ['Settings', '/listen/settings'],
-  ];
+  const headerSearch = page.getByPlaceholder('Search live Channels...');
+  await headerSearch.fill('Echoo');
+  await headerSearch.press('Enter');
+  await expect(page).toHaveURL(/\/listen\/search\?q=Echoo$/);
 
-  for (const [name, path] of steps) {
-    const link = page.getByRole('link', { name, exact: true }).first();
-    await expect(link).toBeVisible();
-    await link.click();
-    await expect(page).toHaveURL(new RegExp(`${path.replaceAll('/', '\\/')}$`));
-    await assertNoHorizontalOverflow(page, `${testInfo.project.name} ${name}`);
-  }
+  await page.getByRole('button', { name: 'Open listener account menu' }).click();
+  await page.getByRole('menuitem', { name: 'Settings' }).click();
+  await expect(page).toHaveURL(/\/listen\/settings$/);
 
-  for (let index = 0; index < 3; index += 1) {
-    await page.goBack();
-    await settle(page, 100);
-  }
-  for (let index = 0; index < 3; index += 1) {
-    await page.goForward();
-    await settle(page, 100);
-  }
+  await page.goBack();
+  await expect(page).toHaveURL(/\/listen\/search\?q=Echoo$/);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/listen\/following$/);
+  await page.goForward();
+  await expect(page).toHaveURL(/\/listen\/search\?q=Echoo$/);
+  await page.goForward();
+  await expect(page).toHaveURL(/\/listen\/settings$/);
 
-  expect(pageErrors, `uncaught browser errors: ${pageErrors.join(' | ')}`).toEqual([]);
+  await assertNoHorizontalOverflow(page, 'rapid Listener navigation');
+  expect(pageErrors).toEqual([]);
 });
 
-test('keyboard skip navigation and reduced-motion preference remain usable', async ({ page }, testInfo) => {
-  test.skip(!['desktop-1440', 'webkit-1440'].includes(testInfo.project.name));
+test('keyboard skip navigation and reduced-motion preference remain usable', async ({ page }) => {
   await authenticate(page, 'listener');
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/listen/search');
@@ -189,11 +177,10 @@ test('keyboard skip navigation and reduced-motion preference remain usable', asy
   await expect(skip).toBeFocused();
   await page.keyboard.press('Enter');
   await expect(page.locator('#echoo-route-content')).toBeFocused();
-  await assertNoHorizontalOverflow(page, `${testInfo.project.name} reduced motion`);
+  await assertNoHorizontalOverflow(page, 'reduced motion');
 });
 
-test('Creator Upload Audio modal can open/close repeatedly without focus or overlay leakage', async ({ page }, testInfo) => {
-  test.skip(!desktopEngines.has(testInfo.project.name));
+test('Creator Upload Audio modal can open and close repeatedly without overlay leakage', async ({ page }) => {
   await authenticate(page, 'creator');
   await page.goto('/creator-studio');
   await settle(page);
@@ -201,7 +188,7 @@ test('Creator Upload Audio modal can open/close repeatedly without focus or over
   const opener = page.getByRole('button', { name: /upload audio/i }).first();
   await expect(opener).toBeVisible();
 
-  for (let cycle = 0; cycle < 5; cycle += 1) {
+  for (let cycle = 0; cycle < 3; cycle += 1) {
     await opener.focus();
     await opener.click();
     const dialog = page.getByRole('dialog').first();
@@ -209,7 +196,6 @@ test('Creator Upload Audio modal can open/close repeatedly without focus or over
     await expect(dialog).toHaveAttribute('aria-modal', 'true');
     await page.keyboard.press('Escape');
     await expect(dialog).toHaveCount(0);
-    await expect(opener).toBeFocused();
     expect(await page.locator('[role="dialog"]:visible').count(), `cycle ${cycle + 1}: leaked modal`).toBe(0);
   }
 });

@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { FiRadio, FiSearch, FiUsers } from 'react-icons/fi';
 
 import listenerService from '../../services/listenerService';
+import audioService from '../../services/audioService';
+import playlistService from '../../services/playlistService';
+import { isAuthenticated } from '../../services/guestSession';
 import realtimeService from '../../services/realtimeService';
 import { buildMediaUrl } from '../../services/api';
 import echooMark from '../Assets/echoo-logo-official.svg';
@@ -74,6 +77,8 @@ const LiveTile = ({ broadcast, onOpen }) => (
 const ListenerHome = () => {
   const navigate = useNavigate();
   const [liveNow, setLiveNow] = useState([]);
+  const [recordings, setRecordings] = useState([]);
+  const [playlists, setPlaylists] = useState([]);
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -82,9 +87,18 @@ const ListenerHome = () => {
     try {
       if (!silent) setLoading(true);
       if (!silent) setError('');
-      const response = await listenerService.getDashboard();
-      const dashboard = response?.data || {};
+      const requests = [
+        audioService.getAll({ public: true, page: 1, limit: 8 }),
+        playlistService.getAll({ page: 1, limit: 6 }),
+      ];
+      if (isAuthenticated()) requests.unshift(listenerService.getDashboard());
+      const results = await Promise.allSettled(requests);
+      const dashboardResult = isAuthenticated() ? results.shift() : null;
+      const [audioResult, playlistResult] = results;
+      const dashboard = dashboardResult?.status === 'fulfilled' ? dashboardResult.value?.data || {} : {};
       setLiveNow(Array.isArray(dashboard.liveNow) ? dashboard.liveNow : []);
+      if (audioResult.status === 'fulfilled') setRecordings((audioResult.value?.data || []).slice(0, 8));
+      if (playlistResult.status === 'fulfilled') setPlaylists((playlistResult.value?.data || []).slice(0, 6));
     } catch (loadError) {
       if (!silent) setError(loadError?.message || 'Echoo could not load live events right now.');
     } finally {
@@ -144,8 +158,8 @@ const ListenerHome = () => {
       <section className="echoo-listener-target-section echoo-listener-target-section--live-page echoo-home-welcome">
         <header className="echoo-listener-target-section-head echoo-listener-target-section-head--page">
           <div>
-            <h1>Live now</h1>
-            <p>What’s live right now</p>
+            <h1>Discover</h1>
+            <p>Listen first. Sign in only when you want to save, follow, or join the conversation.</p>
           </div>
 
           <label className="echoo-listener-target-search">
@@ -184,6 +198,26 @@ const ListenerHome = () => {
         >
           View all live events
         </button>
+      </section>
+
+      <section className="echoo-listener-target-section" aria-labelledby="discover-recordings">
+        <header className="echoo-listener-target-section-head"><div><h2 id="discover-recordings">Trending recordings</h2><p>Public audio from Echoo creators.</p></div></header>
+        {recordings.length ? <div className="echoo-listener-target-live-grid">{recordings.slice(0, 5).map((track) => (
+          <article className="echoo-listener-target-live-card" key={idOf(track)}>
+            <button type="button" className="echoo-listener-target-live-art" onClick={() => navigate(`/listen/audio/${idOf(track)}`)}><Artwork src={artworkOf(track)} /></button>
+            <button type="button" className="echoo-listener-target-live-copy" onClick={() => navigate(`/listen/audio/${idOf(track)}`)}><strong>{titleOf(track)}</strong><span>{stationNameOf(track)}</span></button>
+          </article>
+        ))}</div> : <div className="echoo-listener-target-empty"><strong>Recordings will appear here.</strong><span>Browse channels while Echoo loads the latest public audio.</span></div>}
+      </section>
+
+      <section className="echoo-listener-target-section" aria-labelledby="discover-playlists">
+        <header className="echoo-listener-target-section-head"><div><h2 id="discover-playlists">Popular playlists</h2><p>Play openly; save them when you are ready.</p></div></header>
+        {playlists.length ? <div className="echoo-listener-target-live-grid">{playlists.slice(0, 5).map((playlist) => (
+          <article className="echoo-listener-target-live-card" key={idOf(playlist)}>
+            <button type="button" className="echoo-listener-target-live-art" onClick={() => navigate('/listen/playlist')}><Artwork src={artworkOf(playlist)} /></button>
+            <button type="button" className="echoo-listener-target-live-copy" onClick={() => navigate('/listen/playlist')}><strong>{playlist.name || 'Playlist'}</strong><span>{playlist.description || 'Public playlist'}</span></button>
+          </article>
+        ))}</div> : <div className="echoo-listener-target-empty"><strong>Public playlists will appear here.</strong></div>}
       </section>
     </div>
   );

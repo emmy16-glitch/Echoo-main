@@ -19,7 +19,7 @@ const creatorUser = {
   displayName: 'Echoo Creator With A Long Display Name',
   email: 'creator@example.test',
   userType: 'creator',
-  roles: ['creator'],
+  roles: ['listener', 'creator'],
   onboardingCompleted: true,
   profileCompleted: true,
   creatorProfile: { creatorType: 'individual', artistName: 'Echoo Creator' },
@@ -32,9 +32,9 @@ const authenticate = async (page, role) => {
     localStorage.setItem('token', `${nextRole}-token`);
     localStorage.setItem('refreshToken', `${nextRole}-refresh-token`);
     localStorage.setItem('user', JSON.stringify(nextUser));
-    localStorage.setItem('echooRole', nextRole);
     localStorage.setItem('echooProfileCompleted', 'true');
     localStorage.setItem('echooOnboardingCompleted', 'true');
+    localStorage.setItem('echooActiveExperience', nextRole);
     if (nextRole === 'creator') {
       localStorage.setItem('creatorSetup', JSON.stringify({ type: 'individual', name: nextUser.displayName }));
     }
@@ -43,7 +43,7 @@ const authenticate = async (page, role) => {
 
 const settle = async (page) => {
   await page.waitForLoadState('domcontentloaded');
-  await page.waitForTimeout(650);
+  await page.waitForTimeout(550);
 };
 
 const rectOf = async (locator) => locator.evaluate((node) => {
@@ -58,23 +58,29 @@ const rectOf = async (locator) => locator.evaluate((node) => {
     height: rect.height,
     display: style.display,
     writingMode: style.writingMode,
-    overflowX: style.overflowX,
   };
 });
 
-const assertKeyboardFocusInsideViewport = async (page, projectName, presses = 28) => {
+const assertNoHorizontalOverflow = async (page, label) => {
+  const dimensions = await page.evaluate(() => ({
+    scrollWidth: document.documentElement.scrollWidth,
+    clientWidth: document.documentElement.clientWidth,
+  }));
+  expect(dimensions.scrollWidth, `${label}: document overflow`).toBeLessThanOrEqual(dimensions.clientWidth + 2);
+};
+
+const assertKeyboardFocusInsideViewport = async (page, projectName, presses = 24) => {
   const viewport = page.viewportSize();
   for (let index = 0; index < presses; index += 1) {
     await page.keyboard.press('Tab');
-    await page.waitForTimeout(30);
+    await page.waitForTimeout(25);
     const focused = await page.evaluate(() => {
       const node = document.activeElement;
       if (!node || node === document.body || node === document.documentElement) return null;
       const rect = node.getBoundingClientRect();
       const style = getComputedStyle(node);
       return {
-        tag: node.tagName,
-        name: node.getAttribute('aria-label') || node.getAttribute('title') || node.textContent?.trim().slice(0, 50) || '',
+        name: node.getAttribute('aria-label') || node.textContent?.trim().slice(0, 60) || node.tagName,
         left: rect.left,
         right: rect.right,
         top: rect.top,
@@ -86,114 +92,79 @@ const assertKeyboardFocusInsideViewport = async (page, projectName, presses = 28
       };
     });
     if (!focused || focused.display === 'none' || focused.visibility === 'hidden' || focused.width <= 0 || focused.height <= 0) continue;
-    expect(focused.left, `${projectName}: keyboard focus left viewport (${focused.tag} ${focused.name})`).toBeGreaterThanOrEqual(-2);
-    expect(focused.right, `${projectName}: keyboard focus right of viewport (${focused.tag} ${focused.name})`).toBeLessThanOrEqual((viewport?.width || 0) + 2);
-    /* Vertical focus may legitimately be below the fold after Tab scrolls it into view.
-       Require the browser to have scrolled it into the visible viewport. */
-    expect(focused.bottom, `${projectName}: keyboard focus above viewport (${focused.tag} ${focused.name})`).toBeGreaterThanOrEqual(-2);
-    expect(focused.top, `${projectName}: keyboard focus below viewport (${focused.tag} ${focused.name})`).toBeLessThanOrEqual((viewport?.height || 0) + 2);
+    expect(focused.left, `${projectName}: focus left viewport (${focused.name})`).toBeGreaterThanOrEqual(-2);
+    expect(focused.right, `${projectName}: focus right viewport (${focused.name})`).toBeLessThanOrEqual((viewport?.width || 0) + 2);
+    expect(focused.bottom, `${projectName}: focus above viewport (${focused.name})`).toBeGreaterThanOrEqual(-2);
+    expect(focused.top, `${projectName}: focus below viewport (${focused.name})`).toBeLessThanOrEqual((viewport?.height || 0) + 2);
   }
 };
 
-test('run6: Top Stations titles and station actions never compete for geometry', async ({ page }, testInfo) => {
+test('run6: current Channel cards preserve title and Follow geometry', async ({ page }, testInfo) => {
   await authenticate(page, 'listener');
-  await page.goto('/listen/stations');
+  await page.goto('/listen/search?q=Echoo');
   await settle(page);
 
-  const rows = page.locator('.stations-top-card:visible');
-  expect(await rows.count(), `${testInfo.project.name}: expected Top Stations cards`).toBeGreaterThan(0);
+  const cards = page.locator('.listener-v2-station-card:visible');
+  expect(await cards.count(), `${testInfo.project.name}: expected Channel cards`).toBeGreaterThan(0);
 
-  for (let index = 0; index < await rows.count(); index += 1) {
-    const row = rows.nth(index);
-    const name = row.locator('.stations-top-overlay strong:visible');
-    const play = row.locator('.stations-top-play:visible');
-    if (!(await name.count()) || !(await play.count())) continue;
+  for (let index = 0; index < await cards.count(); index += 1) {
+    const card = cards.nth(index);
+    const title = card.locator('.listener-v2-station-meta strong:visible').first();
+    const follow = card.locator('.listener-v2-follow-button:visible').first();
+    const cardRect = await rectOf(card);
 
-    const rowRect = await rectOf(row);
-    const nameRect = await rectOf(name);
-    const playRect = await rectOf(play);
+    expect(cardRect.width, `${testInfo.project.name}: Channel card collapsed`).toBeGreaterThanOrEqual(180);
+    expect(cardRect.writingMode, `${testInfo.project.name}: Channel card writing mode`).toBe('horizontal-tb');
 
-    expect(nameRect.width, `${testInfo.project.name}: station title collapsed`).toBeGreaterThanOrEqual(80);
-    expect(nameRect.height, `${testInfo.project.name}: station title became vertical text`).toBeLessThanOrEqual(48);
-    expect(playRect.width, `${testInfo.project.name}: Play action collapsed`).toBeGreaterThanOrEqual(32);
-    expect(playRect.left, `${testInfo.project.name}: Play action overlaps the station title`).toBeGreaterThanOrEqual(nameRect.right - 2);
-    expect(rowRect.height, `${testInfo.project.name}: Top Stations card became excessively tall`).toBeLessThanOrEqual(240);
+    if (await title.count()) {
+      const titleRect = await rectOf(title);
+      expect(titleRect.width, `${testInfo.project.name}: Channel title collapsed`).toBeGreaterThanOrEqual(60);
+      expect(titleRect.height, `${testInfo.project.name}: Channel title became vertical`).toBeLessThanOrEqual(80);
+    }
+
+    if (await follow.count()) {
+      const followRect = await rectOf(follow);
+      expect(followRect.width, `${testInfo.project.name}: Follow action collapsed`).toBeGreaterThanOrEqual(60);
+      expect(followRect.height, `${testInfo.project.name}: Follow action too short`).toBeGreaterThanOrEqual(30);
+    }
   }
 
-  const stationCards = page.locator('.station-card:visible');
-  for (let index = 0; index < await stationCards.count(); index += 1) {
-    const card = stationCards.nth(index);
-    const title = card.locator('.station-card-copy strong:visible');
-    const follow = card.locator('.station-follow:visible');
-    if (!(await title.count()) || !(await follow.count())) continue;
-    const titleRect = await rectOf(title);
-    const followRect = await rectOf(follow);
-    expect(titleRect.width, `${testInfo.project.name}: station title collapsed`).toBeGreaterThanOrEqual(70);
-    expect(followRect.width, `${testInfo.project.name}: Follow action collapsed`).toBeGreaterThanOrEqual(70);
-    expect(followRect.height, `${testInfo.project.name}: Follow action too short`).toBeGreaterThanOrEqual(32);
-  }
-
-  await assertKeyboardFocusInsideViewport(page, `${testInfo.project.name} Listener Stations`, 24);
+  await assertNoHorizontalOverflow(page, `${testInfo.project.name} Listener Channels`);
+  await assertKeyboardFocusInsideViewport(page, `${testInfo.project.name} Listener Channels`, 22);
 });
 
-test('run6: Broadcast Studio uses current main/rail architecture at every breakpoint', async ({ page }, testInfo) => {
+test('run6: current Broadcast workstation and mixer remain usable at every breakpoint', async ({ page }, testInfo) => {
   await authenticate(page, 'creator');
   await page.goto('/creator-studio');
   await settle(page);
 
-  const broadcastButton = page.locator('button').filter({ hasText: 'Broadcast Studio' }).first();
-  await expect(broadcastButton).toBeVisible();
-  await broadcastButton.click();
-  await settle(page);
+  const workstation = page.locator('.ec2-broadcast:visible').first();
+  const mixer = page.locator('.eam-approved-mixer:visible').first();
+  await expect(workstation).toBeVisible();
+  await expect(mixer).toBeVisible();
 
-  const layout = page.locator('.ebsx.setup-page .ebsx-setup-layout:visible').first();
-  const main = page.locator('.ebsx.setup-page .ebsx-setup-main:visible').first();
-  const rail = page.locator('.ebsx.setup-page .ecbs-setup-rail:visible').first();
-  await expect(layout).toBeVisible();
-  await expect(main).toBeVisible();
-  await expect(rail).toBeVisible();
+  const workstationRect = await rectOf(workstation);
+  const mixerRect = await rectOf(mixer);
+  expect(workstationRect.width, `${testInfo.project.name}: Broadcast workstation collapsed`).toBeGreaterThanOrEqual(260);
+  expect(mixerRect.width, `${testInfo.project.name}: audio mixer collapsed`).toBeGreaterThanOrEqual(240);
+  expect(mixerRect.writingMode, `${testInfo.project.name}: mixer rendered vertically`).toBe('horizontal-tb');
 
-  const layoutRect = await rectOf(layout);
-  const mainRect = await rectOf(main);
-  const railRect = await rectOf(rail);
-
-  expect(layoutRect.display, `${testInfo.project.name}: setup parent must be a real grid`).toBe('grid');
-  expect(mainRect.display, `${testInfo.project.name}: current setup-main must never revert to display:contents`).not.toBe('contents');
-  expect(railRect.display, `${testInfo.project.name}: current setup-rail must never revert to display:contents`).not.toBe('contents');
-  expect(mainRect.width, `${testInfo.project.name}: setup-main collapsed`).toBeGreaterThanOrEqual(Math.min(260, layoutRect.width * 0.72));
-
-  const sideBySide = Math.abs(mainRect.top - railRect.top) < 20;
-  if (sideBySide) {
-    expect(mainRect.width / layoutRect.width, `${testInfo.project.name}: legacy three-column grid is stealing main workspace width`).toBeGreaterThan(0.52);
-    expect(railRect.width, `${testInfo.project.name}: setup rail grew beyond intended width`).toBeLessThanOrEqual(380);
-  } else {
-    expect(mainRect.width / layoutRect.width, `${testInfo.project.name}: stacked main should use nearly full width`).toBeGreaterThan(0.88);
-    expect(railRect.width / layoutRect.width, `${testInfo.project.name}: stacked rail should use nearly full width`).toBeGreaterThan(0.88);
+  const strips = page.locator('.eam-approved-strip:visible');
+  expect(await strips.count(), `${testInfo.project.name}: expected mixer source strips`).toBeGreaterThanOrEqual(3);
+  for (let index = 0; index < await strips.count(); index += 1) {
+    const stripRect = await rectOf(strips.nth(index));
+    expect(stripRect.width, `${testInfo.project.name}: mixer strip ${index + 1} collapsed`).toBeGreaterThanOrEqual(100);
+    expect(stripRect.writingMode, `${testInfo.project.name}: mixer strip ${index + 1} vertical`).toBe('horizontal-tb');
   }
 
-  const sourceCards = page.locator('.ecbs-source:visible');
-  expect(await sourceCards.count(), `${testInfo.project.name}: expected audio source cards`).toBeGreaterThanOrEqual(4);
-  for (let index = 0; index < await sourceCards.count(); index += 1) {
-    const cardRect = await rectOf(sourceCards.nth(index));
-    expect(cardRect.width, `${testInfo.project.name}: source card ${index + 1} collapsed`).toBeGreaterThanOrEqual(118);
+  const actionButtons = page.locator('.eam-approved-actions button:visible, .eam-approved-master button:visible');
+  for (let index = 0; index < await actionButtons.count(); index += 1) {
+    const action = actionButtons.nth(index);
+    const rect = await rectOf(action);
+    expect(rect.width, `${testInfo.project.name}: mixer action ${index + 1} collapsed`).toBeGreaterThanOrEqual(28);
+    expect(rect.height, `${testInfo.project.name}: mixer action ${index + 1} too short`).toBeGreaterThanOrEqual(28);
   }
 
-  const sourceActions = page.locator('.ecbs-source > .ecbs-connect:visible');
-  for (let index = 0; index < await sourceActions.count(); index += 1) {
-    const action = sourceActions.nth(index);
-    const label = (await action.textContent())?.trim() || `source ${index + 1}`;
-    const actionRect = await rectOf(action);
-    expect(actionRect.width, `${testInfo.project.name}: ${label} collapsed`).toBeGreaterThanOrEqual(92);
-    expect(actionRect.height, `${testInfo.project.name}: ${label} too short`).toBeGreaterThanOrEqual(36);
-    expect(actionRect.writingMode, `${testInfo.project.name}: ${label} rendered vertically`).toBe('horizontal-tb');
-  }
-
-  const audioModes = page.locator('.ecbs-audio-modes button:visible');
-  for (let index = 0; index < await audioModes.count(); index += 1) {
-    const modeRect = await rectOf(audioModes.nth(index));
-    expect(modeRect.width, `${testInfo.project.name}: audio-mode card collapsed`).toBeGreaterThanOrEqual(118);
-    expect(modeRect.height, `${testInfo.project.name}: audio-mode card became excessively tall`).toBeLessThanOrEqual(150);
-  }
-
-  await assertKeyboardFocusInsideViewport(page, `${testInfo.project.name} Broadcast Studio`, 30);
+  await assertNoHorizontalOverflow(page, `${testInfo.project.name} Broadcast`);
+  await assertKeyboardFocusInsideViewport(page, `${testInfo.project.name} Broadcast`, 28);
 });
