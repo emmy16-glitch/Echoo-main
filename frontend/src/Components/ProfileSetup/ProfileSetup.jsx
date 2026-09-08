@@ -11,8 +11,6 @@ import { clearAuthTokens } from "../../services/api";
 import "../../styles/echoo-onboarding.css";
 import EchoAmbient from "../EchooSystem/EchoAmbient";
 
-const ACCOUNT_STEPS = ["Account", "Profile"];
-
 const prepareImage = (file) =>
   new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -53,13 +51,9 @@ const ProfileSetup = ({ onProfileCompleted, onSessionInvalid }) => {
   const [displayName, setDisplayName] = useState(
     storedUser.displayName || storedUser.fullname || storedUser.username || ""
   );
-  const [bio, setBio] = useState(
-    storedUser.bio || ""
-  );
+  const [bio, setBio] = useState(storedUser.bio || "");
   const [profileImage, setProfileImage] = useState(
-    storedUser.avatar ||
-      storedUser.profileImage ||
-      null
+    storedUser.avatar || storedUser.profileImage || null
   );
   const [saving, setSaving] = useState(false);
   const [completed, setCompleted] = useState(false);
@@ -125,23 +119,20 @@ const ProfileSetup = ({ onProfileCompleted, onSessionInvalid }) => {
         bio: bio.trim(),
         avatar: profileImage || null,
       });
-
       const responseUser = response?.data?.user || response?.data || {};
+      const resolvedAvatar = profileImage || responseUser.avatar || null;
+
       const updatedUser = {
         ...currentUser,
         ...responseUser,
         displayName: displayName.trim(),
         bio: bio.trim(),
-        avatar: profileImage || responseUser?.avatar || null,
-        profileImage: profileImage || responseUser?.avatar || "",
+        avatar: resolvedAvatar,
+        profileImage: resolvedAvatar || "",
         profileCompleted: true,
-        onboardingCompleted: true,
       };
 
       localStorage.setItem("user", JSON.stringify(updatedUser));
-      localStorage.setItem("echooProfileCompleted", "true");
-      localStorage.setItem("echooOnboardingCompleted", "true");
-      localStorage.setItem("echooActiveExperience", "listener");
       setCompleted(true);
     } catch (error) {
       showError(error.message || "Could not save your profile.");
@@ -162,7 +153,7 @@ const ProfileSetup = ({ onProfileCompleted, onSessionInvalid }) => {
         <div className="profile-container">
           <SuccessState
             title="Profile saved"
-            message="Your Echoo profile is ready. Opening your Listener experience..."
+            message="Your Echoo profile is ready. Opening Listener..."
             autoContinue
             duration={900}
             onContinue={() => onProfileCompleted?.()}
@@ -184,8 +175,6 @@ const ProfileSetup = ({ onProfileCompleted, onSessionInvalid }) => {
 
       <OnboardingFrame
         step={2}
-        steps={ACCOUNT_STEPS}
-        phaseLabel="Account setup"
         hero="profile"
         panelClassName="eor-profile-panel"
         heroData={{
@@ -269,7 +258,7 @@ const ProfileSetup = ({ onProfileCompleted, onSessionInvalid }) => {
               Continue
             </LoadingButton>
             <p className="eor-tailor-note">
-              You’ll start in Listener. Create a Channel from Echoo whenever you’re ready to broadcast.
+              Listener opens next. You can create your Channel later when you want to broadcast.
             </p>
           </div>
         </form>

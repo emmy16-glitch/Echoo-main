@@ -4,8 +4,8 @@ const listenerRoutes = [
   '/listen',
   '/listen/search',
   '/listen/live',
-  '/listen/stations',
-  '/listen/stations/507f1f77bcf86cd799439021',
+  '/listen/channels',
+  '/listen/channels/507f1f77bcf86cd799439021',
   '/listen/audio/507f1f77bcf86cd799439041',
   '/listen/library',
   '/listen/library/following',
@@ -19,14 +19,12 @@ const listenerRoutes = [
 ];
 
 const creatorWorkspaces = [
-  'Home',
-  'Stations',
-  'Broadcast Studio',
-  'Audio',
+  'Broadcast',
+  'Channel',
+  'Recordings',
   'Collections',
-  'Audience',
+  'Schedule Events',
   'Analytics',
-  'Settings',
 ];
 
 const userForRole = (role) => role === 'creator'
@@ -40,13 +38,7 @@ const userForRole = (role) => role === 'creator'
       roles: ['listener', 'creator'],
       onboardingCompleted: true,
       profileCompleted: true,
-      creatorProfile: {
-        setupCompleted: true,
-        creatorType: 'individual',
-        artistName: 'Echoo Creator',
-        category: 'Technology',
-        isApproved: false,
-      },
+      creatorProfile: { creatorType: 'individual', artistName: 'Echoo Creator' },
     }
   : {
       id: '507f1f77bcf86cd799439012',
@@ -69,9 +61,10 @@ const authenticate = async (page, role) => {
     localStorage.setItem('user', JSON.stringify(nextUser));
     localStorage.setItem('echooProfileCompleted', 'true');
     localStorage.setItem('echooOnboardingCompleted', 'true');
-    localStorage.setItem('echooActiveExperience', nextRole === 'creator' ? 'creator' : 'listener');
-    localStorage.removeItem('echooRole');
-    localStorage.removeItem('creatorSetup');
+    localStorage.setItem('echooActiveExperience', nextRole);
+    if (nextRole === 'creator') {
+      localStorage.setItem('creatorSetup', JSON.stringify({ type: 'individual', name: nextUser.displayName }));
+    }
   }, { nextUser: user, nextRole: role });
 };
 
@@ -244,10 +237,10 @@ test('all Creator workspaces remain responsive and runtime-clean', async ({ page
   const monitor = startFailureMonitor(page);
   const violations = [];
 
-  monitor.setLocation('/creator-studio Home');
+  monitor.setLocation('/creator-studio Broadcast');
   await page.goto('/creator-studio');
   await settle(page);
-  violations.push(...await collectIntegrityViolations(page, `${testInfo.project.name} Creator Home`));
+  violations.push(...await collectIntegrityViolations(page, `${testInfo.project.name} Creator Broadcast`));
 
   for (const workspace of creatorWorkspaces.slice(1)) {
     monitor.setLocation(`/creator-studio ${workspace}`);

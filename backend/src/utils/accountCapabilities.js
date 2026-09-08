@@ -21,7 +21,7 @@ export const hasCompletedCreatorSetup = (user = {}) => {
   if (profile.setupCompleted === false) return false;
 
   return Boolean(
-    profile.creatorType &&
+    user.creatorProfile?.creatorType &&
     profile.category &&
     user.onboardingCompleted === true
   );

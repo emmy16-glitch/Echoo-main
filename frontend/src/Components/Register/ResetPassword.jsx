@@ -1,14 +1,50 @@
 import { useMemo, useState } from 'react';
-import { FaArrowLeft, FaLock } from 'react-icons/fa';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { FaArrowLeft, FaArrowRight, FaEye, FaEyeSlash, FaLock } from 'react-icons/fa';
+
 import api from '../../services/api';
 import LoadingButton from '../UI/LoadingButton';
-import SuccessState from '../UI/SuccessState';
-import EchooLogoImage from '../Assets/echoo-logo-official.svg';
 import BroadcastLoginVisual from './BroadcastLoginVisual';
-import './register.css';
+import EchooLogoImage from '../Assets/echoo-logo-official.svg';
+import './auth-reference.css';
 
 const passwordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
+
+const PasswordField = ({
+  id,
+  label,
+  value,
+  onChange,
+  visible,
+  onToggle,
+  error = false,
+}) => (
+  <div className="ear-field">
+    <div className="ear-field-label-row">
+      <label htmlFor={id}>{label}</label>
+    </div>
+    <div className={`ear-input-shell ${error ? 'has-error' : ''}`}>
+      <FaLock className="ear-input-icon" aria-hidden="true" />
+      <input
+        id={id}
+        type={visible ? 'text' : 'password'}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        autoComplete="new-password"
+        required
+      />
+      <button
+        type="button"
+        className="ear-password-toggle"
+        onClick={onToggle}
+        aria-label={visible ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`}
+        aria-pressed={visible}
+      >
+        {visible ? <FaEyeSlash aria-hidden="true" /> : <FaEye aria-hidden="true" />}
+      </button>
+    </div>
+  </div>
+);
 
 const ResetPassword = () => {
   const navigate = useNavigate();
@@ -16,13 +52,16 @@ const ResetPassword = () => {
   const token = searchParams.get('token') || '';
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [loading, setLoading] = useState(false);
   const passwordValid = useMemo(() => passwordPattern.test(password), [password]);
   const passwordsMatch = password === confirmPassword;
+  const confirmMismatch = confirmPassword.length > 0 && !passwordsMatch;
 
-  const returnToLogin = () => navigate('/?mode=login', { replace: true });
+  const backToSignIn = () => navigate('/login', { replace: true });
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -44,6 +83,7 @@ const ResetPassword = () => {
     try {
       const response = await api.auth.resetPassword({ token, password });
       setNotice(response?.data?.message || 'Password reset successfully.');
+      window.setTimeout(backToSignIn, 900);
     } catch (requestError) {
       setError(requestError?.message || 'This reset link is invalid or expired.');
     } finally {
@@ -52,96 +92,69 @@ const ResetPassword = () => {
   };
 
   return (
-    <main className="echoo-auth-reference is-figma-auth is-login is-reset-password">
-      <section className="ear-visual-panel" aria-label="Echoo audio background">
+    <main className="echoo-auth-reference is-recovery">
+      <section className="ear-visual-panel" aria-label="About your Echoo account">
         <BroadcastLoginVisual logoSrc={EchooLogoImage} mode="login" />
       </section>
 
-      <section className="ear-auth-panel" aria-labelledby="reset-password-title">
+      <section className="ear-auth-panel" aria-labelledby="echoo-reset-title">
         <div className="ear-auth-card">
-          {notice ? (
-            <SuccessState
-              title="Password updated"
-              message="Your new password is ready. Return to Echoo and sign in."
-              buttonText="Back to login"
-              onContinue={returnToLogin}
+          <button type="button" className="ear-back" onClick={backToSignIn}>
+            <FaArrowLeft aria-hidden="true" /> Back to sign in
+          </button>
+
+          <header className="ear-form-heading">
+            <h1 id="echoo-reset-title">Choose a new password</h1>
+            <p>Use a strong password you have not used for your Echoo account before.</p>
+          </header>
+
+          <form className="ear-form" onSubmit={handleSubmit} noValidate>
+            <PasswordField
+              id="echoo-reset-password"
+              label="New password"
+              value={password}
+              onChange={(value) => {
+                setPassword(value);
+                setError('');
+              }}
+              visible={showPassword}
+              onToggle={() => setShowPassword((current) => !current)}
+              error={password.length > 0 && !passwordValid}
             />
-          ) : (
-            <>
-              <button
-                type="button"
-                className="ear-glass-back"
-                onClick={returnToLogin}
-                aria-label="Back to login"
-              >
-                <FaArrowLeft />
-              </button>
-              <img src={EchooLogoImage} alt="" className="ear-login-card-logo" aria-hidden="true" />
-              <header className="ear-form-heading">
-                <h1 id="reset-password-title">Create new password</h1>
-                <p>Choose a secure new password for your Echoo account.</p>
-              </header>
 
-              <form onSubmit={handleSubmit} className="ear-form" noValidate>
-                <div className="ear-field">
-                  <div className="ear-field-label-row">
-                    <label htmlFor="echoo-reset-password">New password</label>
-                  </div>
-                  <div className="ear-input-shell">
-                    <FaLock className="ear-input-icon" aria-hidden="true" />
-                    <input
-                      id="echoo-reset-password"
-                      type="password"
-                      placeholder="Enter new password"
-                      value={password}
-                      onChange={(event) => {
-                        setPassword(event.target.value);
-                        setError('');
-                      }}
-                      autoComplete="new-password"
-                      required
-                    />
-                  </div>
-                </div>
+            <PasswordField
+              id="echoo-reset-confirm-password"
+              label="Confirm new password"
+              value={confirmPassword}
+              onChange={(value) => {
+                setConfirmPassword(value);
+                setError('');
+              }}
+              visible={showConfirmPassword}
+              onToggle={() => setShowConfirmPassword((current) => !current)}
+              error={confirmMismatch}
+            />
 
-                <div className="ear-field">
-                  <div className="ear-field-label-row">
-                    <label htmlFor="echoo-reset-confirm">Confirm new password</label>
-                  </div>
-                  <div className="ear-input-shell">
-                    <FaLock className="ear-input-icon" aria-hidden="true" />
-                    <input
-                      id="echoo-reset-confirm"
-                      type="password"
-                      placeholder="Confirm new password"
-                      value={confirmPassword}
-                      onChange={(event) => {
-                        setConfirmPassword(event.target.value);
-                        setError('');
-                      }}
-                      autoComplete="new-password"
-                      required
-                    />
-                  </div>
-                </div>
+            {!passwordValid && password.length > 0 && (
+              <p className="ear-error" role="alert">
+                Use 8+ characters with uppercase and lowercase letters, a number, and a special character.
+              </p>
+            )}
+            {confirmMismatch && <p className="ear-error" role="alert">Passwords do not match.</p>}
+            {!token && <p className="ear-error" role="alert">This reset link is invalid or incomplete.</p>}
+            {error && <p className="ear-error" role="alert">{error}</p>}
+            {notice && <p className="ear-notice" role="status">{notice}</p>}
 
-                <p className="ear-helper ear-helper-on-glass">
-                  Use 8+ characters with uppercase and lowercase letters, a number, and a special character.
-                </p>
-                {error && <p className="ear-error" role="alert">{error}</p>}
-
-                <LoadingButton
-                  type="submit"
-                  loading={loading}
-                  loadingText="Updating..."
-                  disabled={!passwordValid || !passwordsMatch || !token}
-                  className="ear-submit"
-                >
-                  Update password
-                </LoadingButton>
-              </form>
-            </>
-          )}
+            <LoadingButton
+              type="submit"
+              loading={loading}
+              loadingText="Updating password..."
+              disabled={!passwordValid || !passwordsMatch || !token}
+              className="ear-submit"
+            >
+              Update password <FaArrowRight aria-hidden="true" />
+            </LoadingButton>
+          </form>
         </div>
       </section>
     </main>

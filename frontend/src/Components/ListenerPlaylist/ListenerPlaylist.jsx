@@ -16,6 +16,7 @@ import listenerService from '../../services/listenerService';
 import playlistService from '../../services/playlistService';
 import downloadService from '../../services/downloadService';
 import ListenerToast from '../ListenerUI/ListenerToast';
+import { useGuestAuth } from '../Auth/GuestAuthGate';
 import '../../styles/listener-reference-pages.css';
 import './ListenerPlaylist.css';
 
@@ -50,6 +51,7 @@ const compactNumber = (value) =>
 
 export default function ListenerPlaylist() {
   const navigate = useNavigate();
+  const { requestAuth, isGuest } = useGuestAuth();
   const { playTrack, currentTrack, isPlaying, togglePlay } = useOutletContext();
   const [tab, setTab] = useState('All');
   const [sort, setSort] = useState('recent');
@@ -159,6 +161,18 @@ export default function ListenerPlaylist() {
       showToast('error', 'Name required', 'Give your playlist a name first.');
       return;
     }
+    if (isGuest) {
+      requestAuth({
+        action: 'Save playlist',
+        title: 'Save this playlist?',
+        message: 'Create an Echoo account to keep your library across devices.',
+        resume: async () => {
+          await playlistService.create({ name, description: createDesc.trim(), isPublic: false });
+          await load();
+        },
+      });
+      return;
+    }
     try {
       setBusyId('create');
       const result = await playlistService.create({
@@ -182,7 +196,7 @@ export default function ListenerPlaylist() {
     } finally {
       setBusyId('');
     }
-  }, [createName, createDesc, showToast, load]);
+  }, [createName, createDesc, showToast, load, isGuest, requestAuth]);
 
   const handleDeletePlaylist = useCallback(
     async (playlist) => {

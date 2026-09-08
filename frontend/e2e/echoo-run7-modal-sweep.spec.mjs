@@ -7,7 +7,7 @@ const creatorUser = {
   displayName: 'Echoo Creator With A Long Display Name',
   email: 'creator@example.test',
   userType: 'creator',
-  roles: ['creator'],
+  roles: ['listener', 'creator'],
   onboardingCompleted: true,
   profileCompleted: true,
   creatorProfile: { creatorType: 'individual', artistName: 'Echoo Creator' },
@@ -19,121 +19,93 @@ const authenticate = async (page) => {
     localStorage.setItem('token', 'creator-token');
     localStorage.setItem('refreshToken', 'creator-refresh-token');
     localStorage.setItem('user', JSON.stringify(user));
-    localStorage.setItem('echooRole', 'creator');
     localStorage.setItem('echooProfileCompleted', 'true');
     localStorage.setItem('echooOnboardingCompleted', 'true');
+    localStorage.setItem('echooActiveExperience', 'creator');
     localStorage.setItem('creatorSetup', JSON.stringify({ type: 'individual', name: user.displayName }));
   }, creatorUser);
 };
 
-const settle = async (page, ms = 400) => {
-  await page.waitForLoadState('domcontentloaded');
-  await page.waitForTimeout(ms);
+const openSchedule = async (page) => {
+  await page.goto('/creator-studio');
+  const navigation = page.getByRole('button', { name: 'Schedule Events', exact: true });
+  await expect(navigation).toBeVisible();
+  await navigation.click();
+  await expect(page.getByRole('heading', { name: 'Schedule Events' })).toBeVisible();
 };
 
-const representative = new Set(['desktop-1440', 'firefox-1440', 'webkit-1440']);
+test('Schedule Events modal is a real keyboard dialog and restores trigger focus', async ({ page }) => {
+  await authenticate(page);
+  await openSchedule(page);
 
-const assertModalKeyboardContract = async ({ page, opener, dialog, closeByEscape = true }) => {
+  const trigger = page.getByRole('button', { name: 'Schedule event', exact: true }).first();
+  await trigger.focus();
+  await trigger.click();
+
+  const dialog = page.getByRole('dialog', { name: 'Schedule event' });
   await expect(dialog).toBeVisible();
-  await expect(dialog).toHaveAttribute('role', 'dialog');
   await expect(dialog).toHaveAttribute('aria-modal', 'true');
-  const labelledBy = await dialog.getAttribute('aria-labelledby');
-  const ariaLabel = await dialog.getAttribute('aria-label');
-  expect(Boolean(labelledBy || ariaLabel), 'modal must have a programmatic accessible name').toBe(true);
+  await expect(page.getByLabel('Event title')).toBeFocused();
 
-  const focusables = dialog.locator('button:not([disabled]), [href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])');
-  const count = await focusables.count();
-  expect(count, 'modal must contain keyboard-operable controls').toBeGreaterThan(0);
-
-  const last = focusables.last();
-  await last.focus();
+  const focusables = dialog.locator('button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled])');
+  expect(await focusables.count()).toBeGreaterThan(3);
+  await focusables.last().focus();
   await page.keyboard.press('Tab');
-  await expect.poll(() => dialog.evaluate((node) => node.contains(document.activeElement))).toBe(true);
-
-  const first = focusables.first();
-  await first.focus();
+  await expect(focusables.first()).toBeFocused();
+  await focusables.first().focus();
   await page.keyboard.press('Shift+Tab');
-  await expect.poll(() => dialog.evaluate((node) => node.contains(document.activeElement))).toBe(true);
+  await expect(focusables.last()).toBeFocused();
 
-  if (closeByEscape) {
-    await page.keyboard.press('Escape');
-    await expect(dialog).toHaveCount(0);
-    await expect(opener).toBeFocused();
-  }
-};
-
-test('Creator Upload Audio modal is named, trapped, Escape-closeable and restores focus', async ({ page }, testInfo) => {
-  test.skip(!representative.has(testInfo.project.name));
-  await authenticate(page);
-  await page.goto('/creator-studio');
-  await settle(page);
-
-  const opener = page.getByRole('button', { name: /upload audio/i }).first();
-  await expect(opener).toBeVisible();
-  await opener.focus();
-  await opener.click();
-
-  const dialog = page.locator('.studio-upload-modal').first();
-  await assertModalKeyboardContract({ page, opener, dialog });
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await expect(trigger).toBeFocused();
 });
 
-test('Creator Audio Detail modal keeps keyboard focus inside and restores its Details trigger', async ({ page }, testInfo) => {
-  test.skip(!representative.has(testInfo.project.name));
+test('Schedule Events validates artwork and completes a real schedule action', async ({ page }) => {
   await authenticate(page);
-  await page.goto('/creator-studio');
-  await settle(page);
+  await openSchedule(page);
 
-  const audioNav = page.getByRole('button', { name: /^Audio$/ }).first();
-  await expect(audioNav).toBeVisible();
-  await audioNav.click();
-  await page.waitForTimeout(500);
+  const trigger = page.getByRole('button', { name: 'Schedule event', exact: true }).first();
+  await trigger.click();
+  const dialog = page.getByRole('dialog', { name: 'Schedule event' });
 
-  const opener = page.getByRole('button', { name: /^Details$/ }).first();
-  if (!(await opener.count())) {
-    test.skip(true, 'Mock Creator library has no audio detail row in this fixture.');
-    return;
-  }
+  const artwork = dialog.locator('input[type="file"]');
+  await artwork.setInputFiles({
+    name: 'not-an-image.txt',
+    mimeType: 'text/plain',
+    buffer: Buffer.from('not an image'),
+  });
+  await expect(page.getByRole('alert')).toContainText('Event artwork must be JPG, PNG or WebP.');
+  await page.getByRole('button', { name: 'Dismiss' }).click();
 
-  await opener.focus();
-  await opener.click();
-  const dialog = page.locator('.creator-audio-modal').first();
-  await assertModalKeyboardContract({ page, opener, dialog });
-});
+  const future = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  const date = [future.getFullYear(), String(future.getMonth() + 1).padStart(2, '0'), String(future.getDate()).padStart(2, '0')].join('-');
+  const time = '18:30';
 
-test('Creator audio rename confirms successful saves without closing the detail modal', async ({ page }, testInfo) => {
-  test.skip(!representative.has(testInfo.project.name));
-  await authenticate(page);
-  await page.goto('/creator-studio');
-  await settle(page);
+  await page.route('**/api/broadcasts', async (route) => {
+    if (route.request().method() !== 'POST') return route.fallback();
+    const payload = JSON.parse(route.request().postData() || '{}');
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: {
+          id: '507f1f77bcf86cd799439077',
+          _id: '507f1f77bcf86cd799439077',
+          ...payload,
+          status: 'scheduled',
+        },
+      }),
+    });
+  });
 
-  const audioNav = page.getByRole('button', { name: /^Audio$/ }).first();
-  await expect(audioNav).toBeVisible();
-  await audioNav.click();
-  await page.waitForTimeout(500);
+  await page.getByLabel('Event title').fill('Deep Playwright Broadcast');
+  await page.getByLabel('Description').fill('Scheduled from the current Creator Studio modal.');
+  await page.getByLabel('Date').fill(date);
+  await page.getByLabel('Start time').fill(time);
+  await dialog.getByRole('button', { name: 'Schedule event', exact: true }).click();
 
-  const opener = page.getByRole('button', { name: /^Details$/ }).first();
-  if (!(await opener.count())) {
-    test.skip(true, 'Mock Creator library has no audio detail row in this fixture.');
-    return;
-  }
-
-  await opener.click();
-  const dialog = page.locator('.creator-audio-modal').first();
-  await expect(dialog).toBeVisible();
-  await dialog.getByRole('button', { name: 'Rename audio' }).click();
-  const input = dialog.getByLabel('Audio title');
-  await input.fill('Verified rename feedback');
-  await dialog.getByRole('button', { name: 'Save' }).click();
-
-  const toast = page.locator('.echoo-toast');
-  await expect(toast).toBeVisible();
-  await expect(toast).toHaveText(/Audio renamed/);
-  await expect(toast).toHaveText(/Verified rename feedback/);
-  await expect(toast.locator('.echoo-toast-countdown')).toHaveText(/Undo expires in [1-8]s/);
-  const undo = toast.getByRole('button', { name: 'Undo' });
-  await expect(undo).toBeVisible();
-  await undo.click();
-  await expect(toast).toHaveText(/Rename reverted/);
-  await expect(toast.getByRole('button', { name: 'Undo' })).toHaveCount(0);
-  await expect(dialog).toBeVisible();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByRole('status')).toContainText('Broadcast scheduled.');
+  await expect(trigger).toBeFocused();
 });

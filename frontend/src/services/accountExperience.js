@@ -1,43 +1,19 @@
 import { api } from './api.js';
 import onboardingService from './onboardingService.js';
+import {
+  accountRoles,
+  canAccessExperience,
+  hasCompletedCreatorProfile,
+  hasCreatorCapability,
+  hasListenerProfile,
+} from './accountCapabilities.js';
 
-export const accountRoles = (user = {}) => (
-  Array.isArray(user.roles) ? user.roles.map(String) : []
-);
-
-export const hasListenerProfile = (user = {}) => Boolean(
-  user.id || user._id || user.email || user.username
-);
-
-export const hasCreatorCapability = (user = {}) => (
-  user.capabilities?.creator === true ||
-  user.userType === 'creator' ||
-  accountRoles(user).includes('creator')
-);
-
-// Creator/Channel setup is independent from shared Account/Profile onboarding.
-// New activations always receive an explicit setupCompleted flag. Legacy
-// creators did not, so only a creator with a minimum Channel identity
-// (creator type + category) and the old completed onboarding state is treated
-// as ready for Creator Studio.
-export const hasCompletedCreatorProfile = (user = {}) => {
-  if (!hasCreatorCapability(user)) return false;
-
-  const profile = user.creatorProfile || {};
-  if (profile.setupCompleted === true) return true;
-  if (profile.setupCompleted === false) return false;
-
-  return Boolean(
-    profile.creatorType &&
-    profile.category &&
-    user.onboardingCompleted === true
-  );
-};
-
-export const canAccessExperience = (user, experience) => {
-  if (experience === 'listener') return hasListenerProfile(user);
-  if (experience === 'creator') return hasCompletedCreatorProfile(user);
-  return false;
+export {
+  accountRoles,
+  canAccessExperience,
+  hasCompletedCreatorProfile,
+  hasCreatorCapability,
+  hasListenerProfile,
 };
 
 const currentUserFromResponse = (response) => response?.data?.user || response?.data || null;
@@ -47,16 +23,10 @@ export const saveAccountUser = (user) => {
 
   localStorage.setItem('user', JSON.stringify(user));
 
-  // echooRole used to describe which account the user had. That concept no
-  // longer exists. Keep active workspace in echooActiveExperience only.
-  localStorage.removeItem('echooRole');
-
   if (user.onboardingCompleted === true) {
     localStorage.setItem('echooOnboardingCompleted', 'true');
-    localStorage.setItem('echooProfileCompleted', 'true');
   } else if (user.onboardingCompleted === false) {
     localStorage.removeItem('echooOnboardingCompleted');
-    localStorage.removeItem('echooProfileCompleted');
   }
 
   return user;
@@ -80,7 +50,7 @@ export const resolveExperienceSwitch = async (
   saveUser(user);
 
   if (targetExperience === 'listener') {
-    if (!hasListenerProfile(user)) throw new Error('Listener experience is unavailable.');
+    if (!hasListenerProfile(user)) throw new Error('Listener profile is unavailable.');
     localStorage.setItem('echooActiveExperience', 'listener');
     return { user, route: '/listen', requiresSetup: false };
   }
@@ -93,12 +63,12 @@ export const resolveExperienceSwitch = async (
   if (!hasCreatorCapability(user)) {
     const activationResponse = await activateCreator();
     user = currentUserFromResponse(activationResponse);
-    if (!user) throw new Error('Unable to start Channel setup.');
+    if (!user) throw new Error('Unable to start Creator setup.');
     saveUser(user);
   }
 
-  // The signed-in Echoo identity is already complete. Only Channel/Creator
-  // setup remains, and switching experiences must never trigger another login.
+  // Echoo has one account identity. Creator activation only adds capability;
+  // Channel setup completes that capability before Creator Studio access.
   localStorage.setItem('echooProfileCompleted', 'true');
   localStorage.setItem('echooActiveExperience', 'creator');
 

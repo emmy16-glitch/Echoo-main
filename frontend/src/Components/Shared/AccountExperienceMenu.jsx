@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FiBell, FiChevronDown, FiHelpCircle, FiLogOut, FiSettings, FiUser } from 'react-icons/fi';
+import { FiBell, FiChevronDown, FiHelpCircle, FiLogOut, FiSettings } from 'react-icons/fi';
 
 import { api } from '../../services/api';
 import {
@@ -14,9 +14,7 @@ const identityOf = (user = {}) => (
   user.username || user.displayName || user.fullname || user.name || 'Echoo account'
 );
 
-const imageOf = (user = {}) => (
-  user.avatar || user.profileImage || null
-);
+const imageOf = (user = {}) => user.avatar || user.profileImage || null;
 
 const AccountAvatar = ({ image, name, className = '' }) => (
   <span className={className}>
@@ -24,16 +22,12 @@ const AccountAvatar = ({ image, name, className = '' }) => (
   </span>
 );
 
-export function EchooModeSwitcher({
-  activeMode,
-  disabled = false,
-  onSwitch,
-}) {
+export function EchooModeSwitcher({ activeMode, disabled = false, onSwitch }) {
   return (
-    <div className="echoo-mode-switcher" role="tablist" aria-label="Echoo experience">
+    <div className="echoo-mode-switcher" role="tablist" aria-label="Echoo mode">
       {[
-        ['listener', 'Listening'],
-        ['creator', 'Creator Studio'],
+        ['creator', 'Creator'],
+        ['listener', 'Listener'],
       ].map(([mode, label]) => (
         <button
           key={mode}
@@ -59,7 +53,6 @@ export default function AccountExperienceMenu({
   onUserChange,
   onNotifications,
   unreadNotifications = 0,
-  onProfile,
   onSettings,
   onHelp,
 }) {
@@ -74,16 +67,9 @@ export default function AccountExperienceMenu({
 
   const name = identityOf(user);
   const image = profileImage || imageOf(user);
-  const roleLabel = currentExperience === 'creator' ? 'Creator Studio' : 'Listening';
+  const roleLabel = currentExperience === 'creator' ? 'Creator' : 'Listener';
   const creatorEnabled = hasCreatorCapability(user);
   const creatorReady = hasCompletedCreatorProfile(user);
-
-  const defaultSettingsPath = currentExperience === 'creator'
-    ? '/creator-studio/settings'
-    : '/listen/settings';
-  const defaultNotificationsPath = currentExperience === 'creator'
-    ? '/creator-studio/notifications'
-    : '/listen/notifications';
 
   useEffect(() => {
     const closeOutside = (event) => {
@@ -139,33 +125,6 @@ export default function AccountExperienceMenu({
     }
   };
 
-  const openProfile = () => {
-    setOpen(false);
-    if (onProfile) {
-      onProfile();
-      return;
-    }
-
-    // Personal Profile belongs to the Echoo account, not the Channel. The
-    // existing profile editor lives in Listener settings, which is available
-    // to every account even after Creator capability is enabled.
-    localStorage.setItem('echooActiveExperience', 'listener');
-    navigate('/listen/settings');
-  };
-
-  const openSettings = () => {
-    setOpen(false);
-    if (onSettings) onSettings();
-    else navigate(defaultSettingsPath);
-  };
-
-  const openHelp = () => {
-    setOpen(false);
-    if (onHelp) onHelp();
-    else if (onSettings) onSettings();
-    else navigate(defaultSettingsPath);
-  };
-
   const navigateMenu = (event) => {
     if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
     const items = [...(dropdownRef.current?.querySelectorAll('[role="menuitem"]:not(:disabled)') || [])];
@@ -199,27 +158,20 @@ export default function AccountExperienceMenu({
           {switching
             ? 'Opening setup…'
             : creatorEnabled
-              ? 'Continue Channel Setup'
-              : 'Create a Channel'}
+              ? 'Finish Channel setup'
+              : 'Create your Channel'}
         </button>
       )}
 
-      {/* ListenerLayout already owns the Listener notification button. Creator
-          Studio has no separate copy, so keep the shared control there only. */}
-      {variant === 'creator' && (
-        <button
-          type="button"
-          className="echoo-account-toolbar__notification"
-          onClick={() => {
-            if (onNotifications) onNotifications();
-            else navigate(defaultNotificationsPath);
-          }}
-          aria-label={`Notifications${unreadNotifications ? ', unread notifications' : ''}`}
-        >
-          <FiBell aria-hidden="true" />
-          {unreadNotifications > 0 && <span aria-hidden="true" />}
-        </button>
-      )}
+      <button
+        type="button"
+        className="echoo-account-toolbar__notification"
+        onClick={onNotifications}
+        aria-label={`Notifications${unreadNotifications ? ', unread notifications' : ''}`}
+      >
+        <FiBell aria-hidden="true" />
+        {unreadNotifications > 0 && <span aria-hidden="true" />}
+      </button>
 
       <button
         type="button"
@@ -260,16 +212,10 @@ export default function AccountExperienceMenu({
             role="menuitem"
             ref={firstItemRef}
             disabled={switching}
-            onClick={openProfile}
-          >
-            <FiUser aria-hidden="true" />
-            <span>Profile</span>
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            disabled={switching}
-            onClick={openSettings}
+            onClick={() => {
+              setOpen(false);
+              onSettings?.();
+            }}
           >
             <FiSettings aria-hidden="true" />
             <span>Settings</span>
@@ -278,7 +224,10 @@ export default function AccountExperienceMenu({
             type="button"
             role="menuitem"
             disabled={switching}
-            onClick={openHelp}
+            onClick={() => {
+              setOpen(false);
+              (onHelp || onSettings)?.();
+            }}
           >
             <FiHelpCircle aria-hidden="true" />
             <span>Help &amp; Support</span>

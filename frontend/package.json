@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test:e2e": "playwright test",
+    "test:account-experience": "node --test src/services/accountExperience.test.mjs",
     "test:curated-help": "node --test src/Components/Support/curatedHelp.test.mjs",
     "test:listener-history": "node --test src/Components/ListenerHistory/historyProgress.test.mjs",
     "test:player-feedback": "node --test src/config/playerFeedback.test.mjs"

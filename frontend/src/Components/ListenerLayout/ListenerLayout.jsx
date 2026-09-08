@@ -36,6 +36,8 @@ import audioService from '../../services/audioService';
 import listenerService from '../../services/listenerService';
 import notificationService from '../../services/notificationService';
 import { buildMediaUrl } from '../../services/api';
+import { getGuestSession, getMigratedGuestSession, isAuthenticated, recordGuestPlayback, saveGuestPreferences } from '../../services/guestSession';
+import { useGuestAuth } from '../Auth/GuestAuthGate';
 import '../../styles/echoo-identity-reset.css';
 import '../../styles/echoo-asset-system.css';
 import './ListenerLayout.css';
@@ -135,6 +137,7 @@ const playbackErrorMessage = (error) => {
 const ListenerLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { requestAuth, isGuest } = useGuestAuth();
   const [user, setUser] = useState(readUser);
   const profileImage =
     buildMediaUrl(user.profileImage || user.avatar);
@@ -302,9 +305,35 @@ const ListenerLayout = () => {
 
     const hydratePlayerPreferences = async () => {
       try {
+        if (!isAuthenticated()) {
+          const state = getGuestSession().preferences || {};
+          const savedVolume = Number(state.volume);
+          if (Number.isFinite(savedVolume)) setVolume(Math.max(0, Math.min(1, savedVolume)));
+          setIsMuted(Boolean(state.isMuted));
+          setHapticsEnabled(state.hapticsEnabled !== false);
+          setPlaybackRate(Number.isFinite(Number(state.playbackRate)) ? Number(state.playbackRate) : 1);
+          setAudioQuality(['auto', 'standard', 'high'].includes(state.audioQuality) ? state.audioQuality : 'auto');
+          setShuffle(Boolean(state.isShuffled));
+          setRepeatMode(['one', 'all'].includes(state.repeatMode) ? state.repeatMode : 'off');
+          return;
+        }
         const response = await listenerService.getPlayerState();
         if (!active) return;
-        const state = response?.data || {};
+        const migrated = getMigratedGuestSession(readUser());
+        const state = { ...(migrated?.preferences || {}), ...(response?.data || {}) };
+        if (Array.isArray(migrated?.queue) && migrated.queue.length) {
+          const restoredQueue = migrated.queue.map(normalizeTrack).filter((track) => track?.fileUrl);
+          setQueue(restoredQueue);
+          const lastId = String(migrated?.lastOpenedContent?.id || '');
+          const restoredIndex = restoredQueue.findIndex((track) => String(track.id) === lastId);
+          if (restoredIndex >= 0) {
+            const restoredTrack = restoredQueue[restoredIndex];
+            setQueueIndex(restoredIndex);
+            setCurrentTrack(restoredTrack);
+            setDuration(restoredTrack.duration || 0);
+            pendingSeekRef.current = Number(migrated?.playbackPosition?.[lastId]) || 0;
+          }
+        }
         const savedVolume = Number(state.volume);
         if (Number.isFinite(savedVolume)) {
           setVolume(Math.max(0, Math.min(1, savedVolume)));
@@ -352,7 +381,7 @@ const ListenerLayout = () => {
     if (!playerPreferencesReadyRef.current) return undefined;
 
     const timer = window.setTimeout(() => {
-      listenerService.updatePreferences({
+      const preferences = {
         volume,
         isMuted,
         hapticsEnabled,
@@ -360,7 +389,12 @@ const ListenerLayout = () => {
         audioQuality,
         isShuffled: shuffle,
         repeatMode: repeatMode === 'off' ? 'none' : repeatMode,
-      }).catch((error) => {
+      };
+      if (!isAuthenticated()) {
+        saveGuestPreferences(preferences);
+        return;
+      }
+      listenerService.updatePreferences(preferences).catch((error) => {
         console.warn('Player preference sync:', error);
       });
     }, 350);
@@ -374,6 +408,10 @@ const ListenerLayout = () => {
 
   const syncProgress = async (completed = false) => {
     const audio = audioRef.current;
+    if (!isAuthenticated() && audio && currentTrack?.id) {
+      recordGuestPlayback(currentTrack, audio.currentTime, queue);
+      return;
+    }
     if (
       progressSyncRef.current ||
       !audio ||
@@ -511,7 +549,9 @@ const ListenerLayout = () => {
     setDuration(normalized.duration || 0);
     loadAndPlay(normalized);
 
-    if (backendTrackId(normalized.id)) {
+    if (!isAuthenticated()) recordGuestPlayback(normalized, 0, incomingQueue || queue);
+
+    if (isAuthenticated() && backendTrackId(normalized.id)) {
       listenerService.addToContinueListening(normalized.id).catch(() => {});
       audioService.play(normalized.id).catch(() => {});
     }
@@ -527,7 +567,9 @@ const ListenerLayout = () => {
     setDuration(track.duration || 0);
     loadAndPlay(track);
 
-    if (backendTrackId(track.id)) {
+    if (!isAuthenticated()) recordGuestPlayback(track, 0, queue);
+
+    if (isAuthenticated() && backendTrackId(track.id)) {
       listenerService.addToContinueListening(track.id).catch(() => {});
       audioService.play(track.id).catch(() => {});
     }
@@ -644,7 +686,9 @@ const ListenerLayout = () => {
     setDuration(normalized.duration || 0);
     loadAndPlay(normalized);
 
-    if (backendTrackId(normalized.id)) {
+    if (!isAuthenticated()) recordGuestPlayback(normalized, requestedSeek, incomingQueue || queue);
+
+    if (isAuthenticated() && backendTrackId(normalized.id)) {
       listenerService.addToContinueListening(normalized.id).catch(() => {});
       audioService.play(normalized.id).catch(() => {});
     }
@@ -709,6 +753,10 @@ const ListenerLayout = () => {
     let active = true;
 
     const loadNotifications = async () => {
+      if (!isAuthenticated()) {
+        if (active) setUnreadNotifications(0);
+        return;
+      }
       try {
         const response = await notificationService.list({ limit: 1 });
         if (active) setUnreadNotifications(response?.data?.unreadCount || 0);
@@ -905,6 +953,14 @@ const ListenerLayout = () => {
             type="button"
             className="notification-button"
             onClick={() => {
+              if (isGuest) {
+                requestAuth({
+                  action: 'Notifications',
+                  title: 'Get updates from the channels you follow',
+                  message: 'Create an Echoo account to receive and manage notifications.',
+                });
+                return;
+              }
               setUnreadNotifications(0);
               navigate('/listen/notifications');
             }}
@@ -914,13 +970,27 @@ const ListenerLayout = () => {
             <FaBell />
             {unreadNotifications > 0 && <span title={`${unreadNotifications} unread`} />}
           </button>
-          <AccountExperienceMenu
-            currentExperience="listener"
-            user={user}
-            profileImage={profileImage}
-            variant="listener"
-            onUserChange={setUser}
-          />
+          {isGuest ? (
+            <button
+              type="button"
+              className="echoo-create-channel"
+              onClick={() => requestAuth({
+                action: 'Sign in',
+                title: 'Make Echoo yours',
+                message: 'Create an account to follow channels, build your library, or create your own Channel.',
+              })}
+            >
+              Sign in
+            </button>
+          ) : (
+            <AccountExperienceMenu
+              currentExperience="listener"
+              user={user}
+              profileImage={profileImage}
+              variant="listener"
+              onUserChange={setUser}
+            />
+          )}
         </>
       )}
       persistentSlot={(

@@ -2,12 +2,27 @@ import User from '../models/User.js';
 import crypto from 'node:crypto';
 import { verifyRefreshToken } from '../config/jwt.js';
 import { env } from '../config/env.js';
-import {
-  sendEmailVerificationCode,
-  sendPasswordResetEmail,
-} from '../services/emailService.js';
+import { sendPasswordResetEmail } from '../services/emailService.js';
+import { hasCreatorCapability } from '../utils/accountCapabilities.js';
 
-const EMAIL_VERIFICATION_TTL_MS = 10 * 60 * 1000;
+const USERNAME_PATTERN = /^[A-Za-z0-9._-]{3,30}$/;
+
+const accountUserJson = (user) => {
+  const serialized = user?.toJSON?.() || user || {};
+  return {
+    ...serialized,
+    // The current Echoo model predates a dedicated persisted profile-complete
+    // flag. Under the unified account flow, a completed Listener onboarding or
+    // any Creator capability implies the base public profile was completed.
+    // Exposing this derived flag keeps fresh logins from re-running Profile
+    // Setup, including creators who signed out midway through Channel setup.
+    profileCompleted: Boolean(
+      serialized.profileCompleted === true ||
+      serialized.onboardingCompleted === true ||
+      hasCreatorCapability(serialized)
+    ),
+  };
+};
 
 const registrationError = (res, caught) => {
   if (caught?.code === 11000) {
@@ -32,29 +47,7 @@ const registrationError = (res, caught) => {
   return null;
 };
 
-const hashVerificationCode = (code) =>
-  crypto.createHash('sha256').update(String(code)).digest('hex');
-
-const createVerificationCode = () => String(crypto.randomInt(100000, 1000000));
-
-const verificationPayload = (user) => ({
-  userId: String(user._id),
-  email: user.email,
-  expiresInSeconds: Math.round(EMAIL_VERIFICATION_TTL_MS / 1000),
-});
-
-const assignVerificationCode = (user) => {
-  const code = createVerificationCode();
-  user.emailVerified = false;
-  user.emailVerificationCodeHash = hashVerificationCode(code);
-  user.emailVerificationExpiresAt = new Date(Date.now() + EMAIL_VERIFICATION_TTL_MS);
-  user.emailVerificationSentAt = new Date();
-  return code;
-};
-
 export async function register(req, res, next) {
-  let createdUser = null;
-
   try {
     const { username, email, password, displayName } = req.body;
     const cleanUsername = String(username || '').trim();
@@ -63,6 +56,18 @@ export async function register(req, res, next) {
     if (!cleanUsername || !cleanEmail || !password) {
       return res.status(400).json({
         error: { code: 'VALIDATION_ERROR', message: 'Username, email, and password are required' }
+      });
+    }
+
+    // Usernames are Echoo handles, never alternate email addresses. Keeping the
+    // handle alphabet explicit prevents a value like name@example.com from
+    // colliding conceptually with the email login path.
+    if (!USERNAME_PATTERN.test(cleanUsername)) {
+      return res.status(400).json({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Username must be 3–30 characters and use only letters, numbers, dots, underscores, or hyphens',
+        },
       });
     }
 
@@ -94,7 +99,7 @@ export async function register(req, res, next) {
       return res.status(409).json({ error: { code: 'USERNAME_TAKEN', message: 'Username already taken' } });
     }
 
-    const hashedPassword = await User.hashPassword(passwordValue);
+    const hashedPassword = await User.hashPassword(password);
 
     const user = new User({
       username: cleanUsername,
@@ -102,157 +107,18 @@ export async function register(req, res, next) {
       passwordHash: hashedPassword,
       displayName: String(displayName || cleanUsername).trim() || cleanUsername,
       roles: ['listener'],
-      userType: 'listener',
-      emailVerified: false,
     });
 
-    const verificationCode = assignVerificationCode(user);
     await user.save();
-    createdUser = user;
-
-    try {
-      await sendEmailVerificationCode({ to: user.email, code: verificationCode });
-    } catch (mailError) {
-      // Do not strand the person with an unusable account if the initial
-      // verification email could not be delivered. A retry can create the
-      // account cleanly after the mail service recovers.
-      await User.deleteOne({ _id: user._id }).catch(() => {});
-      createdUser = null;
-      throw mailError;
-    }
+    const { accessToken, refreshToken } = user.generateTokens();
 
     return res.status(201).json({
-      data: {
-        user: user.toJSON(),
-        verificationRequired: true,
-        verification: verificationPayload(user),
-      },
+      data: { user: accountUserJson(user), accessToken, refreshToken },
       timestamp: new Date().toISOString()
     });
   } catch (error) {
     console.error('Registration error:', error?.message || error);
-    if (createdUser) {
-      // No-op safeguard: successful registrations are returned above. The only
-      // expected post-save failure is mail delivery, which cleans itself up.
-    }
     if (registrationError(res, error)) return;
-    next(error);
-  }
-}
-
-export async function verifyEmail(req, res, next) {
-  try {
-    const userId = String(req.body?.userId || '').trim();
-    const code = String(req.body?.code || '').trim();
-
-    if (!userId || !/^\d{6}$/.test(code)) {
-      return res.status(400).json({
-        error: { code: 'INVALID_VERIFICATION_CODE', message: 'Enter the 6-digit verification code from your email.' },
-      });
-    }
-
-    const user = await User.findById(userId).select(
-      '+emailVerificationCodeHash +emailVerificationExpiresAt +emailVerificationSentAt +refreshTokenVersion'
-    );
-
-    if (!user) {
-      return res.status(400).json({
-        error: { code: 'INVALID_VERIFICATION_CODE', message: 'This verification request is invalid. Start sign up again.' },
-      });
-    }
-
-    if (user.emailVerified !== false) {
-      const { accessToken, refreshToken } = user.generateTokens();
-      return res.status(200).json({
-        data: { user: user.toJSON(), accessToken, refreshToken, verificationRequired: false },
-        timestamp: new Date().toISOString(),
-      });
-    }
-
-    const expired = !user.emailVerificationExpiresAt || user.emailVerificationExpiresAt.getTime() <= Date.now();
-    const expected = String(user.emailVerificationCodeHash || '');
-    const received = hashVerificationCode(code);
-    const codeMatches =
-      expected.length === received.length &&
-      expected.length > 0 &&
-      crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(received));
-
-    if (expired || !codeMatches) {
-      return res.status(400).json({
-        error: {
-          code: expired ? 'VERIFICATION_CODE_EXPIRED' : 'INVALID_VERIFICATION_CODE',
-          message: expired
-            ? 'That verification code has expired. Request a new code.'
-            : 'That verification code is not correct. Please try again.',
-        },
-      });
-    }
-
-    user.emailVerified = true;
-    user.emailVerificationCodeHash = null;
-    user.emailVerificationExpiresAt = null;
-    user.emailVerificationSentAt = null;
-    user.lastLogin = new Date();
-    await user.save({ validateBeforeSave: false });
-
-    const { accessToken, refreshToken } = user.generateTokens();
-
-    return res.status(200).json({
-      data: {
-        user: user.toJSON(),
-        accessToken,
-        refreshToken,
-        verificationRequired: false,
-      },
-      timestamp: new Date().toISOString(),
-    });
-  } catch (error) {
-    next(error);
-  }
-}
-
-export async function resendVerification(req, res, next) {
-  try {
-    const userId = String(req.body?.userId || '').trim();
-    const cleanEmail = String(req.body?.email || '').trim().toLowerCase();
-
-    if (!userId && !cleanEmail) {
-      return res.status(400).json({
-        error: { code: 'VALIDATION_ERROR', message: 'Verification account is required.' },
-      });
-    }
-
-    const lookup = userId ? { _id: userId } : { email: cleanEmail };
-    const user = await User.findOne(lookup).select(
-      '+emailVerificationCodeHash +emailVerificationExpiresAt +emailVerificationSentAt'
-    );
-
-    if (!user) {
-      return res.status(400).json({
-        error: { code: 'INVALID_VERIFICATION_CODE', message: 'This verification request is invalid. Start sign up again.' },
-      });
-    }
-
-    if (user.emailVerified !== false) {
-      return res.status(200).json({
-        data: { message: 'Your email is already verified.', verificationRequired: false },
-        timestamp: new Date().toISOString(),
-      });
-    }
-
-    const verificationCode = assignVerificationCode(user);
-    await user.save({ validateBeforeSave: false });
-    await sendEmailVerificationCode({ to: user.email, code: verificationCode });
-
-    return res.status(200).json({
-      data: {
-        message: 'A new verification code has been sent to your email.',
-        verificationRequired: true,
-        verification: verificationPayload(user),
-      },
-      timestamp: new Date().toISOString(),
-    });
-  } catch (error) {
     next(error);
   }
 }
@@ -261,26 +127,30 @@ export async function login(req, res, next) {
   try {
     const { username, email, password } = req.body;
 
-    const identifier = String(username || email || '').trim();
-    if (!identifier || !password) {
+    const rawIdentifier = String(username || email || '').trim();
+    if (!rawIdentifier || !password) {
       return res.status(400).json({
         error: { code: 'VALIDATION_ERROR', message: 'Username/email and password are required' }
       });
     }
 
-    const user = await User.findOne({
-      $or: [
-        { username: identifier },
-        { email: identifier.toLowerCase() }
-      ]
-    }).select('+passwordHash +refreshTokenVersion');
+    // A leading @ is explicitly a handle. Otherwise any @ identifies the email
+    // path, so login never asks MongoDB to choose between two different account
+    // fields for the same string.
+    const explicitHandle = rawIdentifier.startsWith('@');
+    const identifier = explicitHandle ? rawIdentifier.slice(1) : rawIdentifier;
+    const lookup = !explicitHandle && identifier.includes('@')
+      ? { email: identifier.toLowerCase() }
+      : { username: identifier };
+
+    const user = await User.findOne(lookup).select('+passwordHash +refreshTokenVersion');
 
     if (!user) {
       return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Invalid credentials' } });
     }
 
-    // Verify the password before disclosing account state. Otherwise login
-    // becomes an account-state enumeration endpoint.
+    // Verify the password before disclosing whether this particular account is
+    // inactive. Otherwise login becomes an account-state enumeration endpoint.
     const isValidPassword = await user.comparePassword(password);
     if (!isValidPassword) {
       return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Invalid credentials' } });
@@ -295,26 +165,13 @@ export async function login(req, res, next) {
       });
     }
 
-    if (user.emailVerified === false) {
-      return res.status(403).json({
-        error: {
-          code: 'EMAIL_NOT_VERIFIED',
-          message: 'Verify your email to finish signing in.',
-        },
-        data: {
-          verificationRequired: true,
-          verification: verificationPayload(user),
-        },
-      });
-    }
-
     user.lastLogin = new Date();
     await user.save({ validateBeforeSave: false });
 
     const { accessToken, refreshToken } = user.generateTokens();
 
     return res.status(200).json({
-      data: { user: user.toJSON(), accessToken, refreshToken },
+      data: { user: accountUserJson(user), accessToken, refreshToken },
       timestamp: new Date().toISOString()
     });
   } catch (error) {
@@ -399,7 +256,7 @@ export async function getCurrentUser(req, res, next) {
       return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'User not found' } });
     }
     return res.status(200).json({
-      data: { user: user.toJSON() },
+      data: { user: accountUserJson(user) },
       timestamp: new Date().toISOString()
     });
   } catch (error) {

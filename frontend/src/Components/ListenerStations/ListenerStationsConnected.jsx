@@ -6,6 +6,8 @@ import { buildMediaUrl } from '../../services/api';
 import batch2Service from '../../services/batch2Service';
 import realtimeService from '../../services/realtimeService';
 import followService from '../../services/followService';
+import { useGuestAuth } from '../Auth/GuestAuthGate';
+import { isAuthenticated } from '../../services/guestSession';
 import echooMark from '../Assets/echoo-logo-official.svg';
 import './ListenerStations.css';
 
@@ -23,6 +25,7 @@ const Artwork = ({ station }) => coverOf(station)
 
 const ListenerStationsConnected = () => {
   const navigate = useNavigate();
+  const { requestAuth, isGuest } = useGuestAuth();
   const [searchParams] = useSearchParams();
   const searchInputRef = useRef(null);
   const [stations, setStations] = useState([]);
@@ -42,10 +45,9 @@ const ListenerStationsConnected = () => {
     try {
       if (!silent) setLoading(true);
       setFailed(false);
-      const [stationResult, followedResult] = await Promise.allSettled([
-        batch2Service.listStations({ page: 1, limit: 100 }),
-        followService.getFollowingStations(),
-      ]);
+      const requests = [batch2Service.listStations({ page: 1, limit: 100 })];
+      if (isAuthenticated()) requests.push(followService.getFollowingStations());
+      const [stationResult, followedResult] = await Promise.allSettled(requests);
       if (stationResult.status === 'rejected') throw stationResult.reason;
       const list = (Array.isArray(stationResult.value?.data) ? stationResult.value.data : [])
         .filter((station) => idOf(station) && station.isPublic !== false);
@@ -113,6 +115,18 @@ const ListenerStationsConnected = () => {
     const key = idOf(station);
     if (!key || actionId) return;
     const isFollowing = followingIds.has(key);
+    if (isGuest) {
+      requestAuth({
+        action: 'Follow channel',
+        title: 'Follow your favourite creators',
+        message: 'Create an Echoo account to follow channels, receive updates and build your library.',
+        resume: async () => {
+          await followService.followStation(key);
+          setFollowingIds((current) => new Set([...current, key]));
+        },
+      });
+      return;
+    }
     try {
       setActionId(key);
       setError('');
