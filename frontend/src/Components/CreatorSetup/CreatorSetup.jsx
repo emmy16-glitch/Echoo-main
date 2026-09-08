@@ -231,8 +231,8 @@ export default function CreatorSetup({ onCreatorReady }) {
       // see the newly granted creator capability immediately.
       try {
         localStorage.setItem('user', JSON.stringify(readyUser));
-      } catch (e) {
-        // ignore
+      } catch {
+        // ignore storage failures — the in-memory session already succeeded
       }
 
       // Use SPA navigation so the Creator Studio shell mounts with the
@@ -259,7 +259,7 @@ export default function CreatorSetup({ onCreatorReady }) {
       <div className="channel-setup-layout" aria-labelledby="channel-setup-title">
         <aside className="channel-setup-left">
           <div className="channel-setup-left-inner">
-            <img src="/src/Components/Assets/echoo-logo.png" alt="echoo" className="channel-setup-logo" />
+            <img src={echooLogo} alt="echoo" className="channel-setup-logo" />
             <div className="channel-setup-audio-identity">
               <FaUser aria-hidden="true" className="audio-identity-icon" />
               <div className="audio-identity-text">
