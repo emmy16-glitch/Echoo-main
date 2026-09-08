@@ -290,7 +290,10 @@ export const apiFetch = async (
     const refreshToken = getRefreshToken();
 
     if (!refreshToken) {
-      expireBrowserSession();
+      // A guest can intentionally reach public surfaces without a token. A
+      // protected action should fail locally (and open the identity prompt),
+      // never eject that guest into the old login-first entry flow.
+      if (accessToken) expireBrowserSession();
       throw sessionExpiredError();
     }
 
@@ -306,12 +309,12 @@ export const apiFetch = async (
         );
 
       if (response.status === 401) {
-        expireBrowserSession();
+        if (accessToken) expireBrowserSession();
         throw sessionExpiredError();
       }
     } catch (error) {
       if (error?.code === 'SESSION_EXPIRED') throw error;
-      expireBrowserSession();
+      if (accessToken) expireBrowserSession();
       throw sessionExpiredError();
     }
   }

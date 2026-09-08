@@ -60,7 +60,9 @@ const ListenerCollectionDetail = lazy(loadListenerCollectionDetail);
 import EchooExperienceOrchestrator from './Components/EchooSystem/EchooExperienceOrchestrator';
 import EchooMobileNavigation from './Components/EchooSystem/EchooMobileNavigation';
 import ImageCropProvider from './Components/Common/ImageCropProvider';
-import { canAccessExperience, hasCreatorCapability } from './services/accountExperience';
+import { canAccessExperience } from './services/accountExperience';
+import { migrateGuestSessionToAccount } from './services/guestSession';
+import { GuestAuthProvider, useGuestAuth } from './Components/Auth/GuestAuthGate';
 
 class LazyPageErrorBoundary extends Component {
   constructor(props) {
@@ -145,15 +147,15 @@ const getStartingStage = () => {
 
 const OnboardingFlow = () => {
   const navigate = useNavigate();
+  const { completeAuthentication } = useGuestAuth();
   const [stage, setStage] = useState(getStartingStage);
 
-  useEffect(() => {
-    if (stage === 'listener-done') navigate('/listen', { replace: true });
-    if (stage === 'creator-done') navigate('/creator-studio', { replace: true });
-  }, [stage, navigate]);
+  const finishAuthentication = (user) => {
+    migrateGuestSessionToAccount(user || getStoredUser());
+    void completeAuthentication();
+  };
 
   const handleLoginSuccess = (user) => {
-    const experience = getStoredExperience();
     const profileComplete =
       Boolean(user?.profileCompleted) ||
       localStorage.getItem('echooProfileCompleted') === 'true';
@@ -163,12 +165,7 @@ const OnboardingFlow = () => {
       return;
     }
 
-    if (experience === 'creator') {
-      setStage(canAccessExperience(user, 'creator') ? 'creator-done' : 'creator');
-      return;
-    }
-
-    setStage('listener-done');
+    finishAuthentication(user);
   };
 
   if (stage === 'register') {
@@ -186,7 +183,7 @@ const OnboardingFlow = () => {
         onProfileCompleted={() => {
           localStorage.setItem('echooProfileCompleted', 'true');
           localStorage.setItem('echooActiveExperience', 'listener');
-          setStage('listener-done');
+          finishAuthentication(getStoredUser());
         }}
         onSessionInvalid={() => setStage('register')}
       />
@@ -198,13 +195,29 @@ const OnboardingFlow = () => {
       <CreatorSetup
         onCreatorReady={() => {
           localStorage.setItem('echooActiveExperience', 'creator');
-          setStage('creator-done');
+          navigate('/creator-studio', { replace: true });
         }}
       />
     );
   }
 
+  if (stage === 'creator-done') return <Navigate to="/creator-studio" replace />;
+  if (stage === 'listener-done') return <Navigate to="/listen" replace />;
+
   return null;
+};
+
+const CreatorSetupRoute = () => {
+  const navigate = useNavigate();
+
+  return (
+    <CreatorSetup
+      onCreatorReady={() => {
+        localStorage.setItem('echooActiveExperience', 'creator');
+        navigate('/creator-studio', { replace: true });
+      }}
+    />
+  );
 };
 
 const RequireRole = ({ role, children }) => {
@@ -214,10 +227,9 @@ const RequireRole = ({ role, children }) => {
   const user = getStoredUser();
 
   if (!canAccessExperience(user, role)) {
-    if (role === 'creator' && hasCreatorCapability(user)) {
-      localStorage.setItem('echooActiveExperience', 'creator');
-      return <Navigate to="/" replace />;
-    }
+    // A listener is allowed to start creator onboarding from the public
+    // listener workspace; the setup flow grants the creator capability.
+    if (role === 'creator') return <CreatorSetupRoute />;
     return <Navigate to={role === 'creator' ? '/listen' : '/'} replace />;
   }
 
@@ -231,7 +243,7 @@ const RequireRole = ({ role, children }) => {
 
 const DefaultRedirect = () => {
   const accessToken = localStorage.getItem('accessToken');
-  if (!accessToken) return <Navigate to="/" replace />;
+  if (!accessToken) return <Navigate to="/listen" replace />;
 
   const user = getStoredUser();
   const experience = getStoredExperience();
@@ -271,6 +283,7 @@ const ListenerRoutePrefetch = () => {
 function App() {
   return (
     <BrowserRouter>
+      <GuestAuthProvider>
       <ImageCropProvider>
         <a className="echoo-skip-to-content" href="#echoo-route-content">
           Skip to content
@@ -281,7 +294,9 @@ function App() {
 
         <div id="echoo-route-content" tabIndex={-1}>
           <Routes>
-            <Route path="/" element={<OnboardingFlow />} />
+            <Route path="/" element={<Navigate to="/listen" replace />} />
+            <Route path="/login" element={<OnboardingFlow />} />
+            <Route path="/register" element={<OnboardingFlow />} />
             <Route path="/reset-password" element={<ResetPassword />} />
 
             <Route
@@ -296,9 +311,10 @@ function App() {
             <Route
               path="/listen"
               element={
-                <RequireRole role="listener">
+                <>
+                  <ListenerRoutePrefetch />
                   <LazyPage element={<ListenerLayout />} />
-                </RequireRole>
+                </>
               }
             >
               <Route index element={<ListenerHome />} />
@@ -328,6 +344,7 @@ function App() {
           </Routes>
         </div>
       </ImageCropProvider>
+      </GuestAuthProvider>
     </BrowserRouter>
   );
 }

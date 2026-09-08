@@ -61,7 +61,7 @@ const ResetPassword = () => {
   const passwordsMatch = password === confirmPassword;
   const confirmMismatch = confirmPassword.length > 0 && !passwordsMatch;
 
-  const backToSignIn = () => navigate('/?mode=login', { replace: true });
+  const backToSignIn = () => navigate('/login', { replace: true });
 
   const handleSubmit = async (event) => {
     event.preventDefault();

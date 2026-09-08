@@ -1,0 +1,11 @@
+.echoo-guest-auth-backdrop { position: fixed; inset: 0; z-index: 300000; display: grid; place-items: end center; padding: 20px; background: rgba(8, 17, 34, .44); }
+.echoo-guest-auth-sheet { width: min(100%, 440px); background: #fff; border-radius: 18px; padding: 24px; box-shadow: 0 24px 70px rgba(8, 17, 34, .24); }
+.echoo-guest-auth-kicker { margin: 0 0 8px; color: #1f65d6; font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.echoo-guest-auth-sheet h2 { margin: 0; color: #102247; font-size: 23px; line-height: 1.18; }
+.echoo-guest-auth-sheet > p:not(.echoo-guest-auth-kicker) { margin: 10px 0 20px; color: #5b6880; line-height: 1.55; }
+.echoo-guest-auth-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.echoo-guest-auth-actions button, .echoo-guest-auth-dismiss { min-height: 44px; border-radius: 9px; font: inherit; font-weight: 750; cursor: pointer; }
+.echoo-guest-auth-primary { border: 1px solid #1769d3; background: #1769d3; color: #fff; }
+.echoo-guest-auth-secondary { border: 1px solid #cfd8e7; background: #fff; color: #17305d; }
+.echoo-guest-auth-dismiss { width: 100%; margin-top: 8px; border: 0; background: transparent; color: #63718a; }
+@media (min-width: 700px) { .echoo-guest-auth-backdrop { place-items: center; } }

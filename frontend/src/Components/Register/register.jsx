@@ -62,7 +62,7 @@ const AuthField = ({
 
 const initialAuthAction = () => {
   if (typeof window === "undefined") return "Sign Up";
-  return new URLSearchParams(window.location.search).get("mode") === "login"
+  return window.location.pathname === '/login' || new URLSearchParams(window.location.search).get("mode") === "login"
     ? "Login"
     : "Sign Up";
 };

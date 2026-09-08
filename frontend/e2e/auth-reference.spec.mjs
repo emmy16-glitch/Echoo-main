@@ -22,7 +22,7 @@ const collectBrowserErrors = (page) => {
 
 test('new Echoo auth UI has distinct identity fields, working password eyes and responsive layout', async ({ page }) => {
   const browserErrors = collectBrowserErrors(page);
-  await page.goto('/');
+  await page.goto('/register');
 
   await expect(page.getByRole('heading', { name: 'Create your Echoo account' })).toBeVisible();
   await expect(page.getByLabel('Full name')).toBeVisible();
@@ -88,8 +88,7 @@ test('login accepts both @username and email and exposes working recovery', asyn
     });
   });
 
-  await page.goto('/');
-  await page.getByRole('button', { name: 'Sign in' }).click();
+  await page.goto('/login');
   await expect(page.getByRole('heading', { name: 'Sign in to Echoo' })).toBeVisible();
   await expect(page.getByLabel('Username or email')).toBeVisible();
   await expect(page.getByText('Example: @okunlola or name@example.com')).toBeVisible();
@@ -108,7 +107,7 @@ test('login accepts both @username and email and exposes working recovery', asyn
     localStorage.clear();
     sessionStorage.clear();
   });
-  await page.goto('/?mode=login');
+  await page.goto('/login');
   await expect(page.getByRole('heading', { name: 'Sign in to Echoo' })).toBeVisible();
   await page.getByLabel('Username or email').fill('listener@example.test');
   await page.getByLabel('Password', { exact: true }).fill('Password123!');
@@ -120,7 +119,7 @@ test('login accepts both @username and email and exposes working recovery', asyn
     localStorage.clear();
     sessionStorage.clear();
   });
-  await page.goto('/?mode=login');
+  await page.goto('/login');
   await page.getByRole('button', { name: 'Forgot password?' }).click();
   await expect(page.getByRole('heading', { name: 'Reset your password' })).toBeVisible();
 
@@ -152,8 +151,8 @@ test('reset-password completion uses the new design, both eye toggles and return
   await page.goto('/reset-password?token=reset-token');
   await expect(page.getByRole('heading', { name: 'Choose a new password' })).toBeVisible();
 
-  const password = page.getByLabel('New password');
-  const confirm = page.getByLabel('Confirm new password');
+  const password = page.getByRole('textbox', { name: 'New password', exact: true });
+  const confirm = page.getByRole('textbox', { name: 'Confirm new password', exact: true });
   await password.fill('weak');
   await expect(page.getByText(/Use 8\+ characters/i)).toBeVisible();
   await password.fill('NewPassword123!');
@@ -174,7 +173,7 @@ test('reset-password completion uses the new design, both eye toggles and return
   await expect(page.getByText(/Password reset successfully/i)).toBeVisible();
   expect(resetPayloads).toEqual([{ token: 'reset-token', password: 'NewPassword123!' }]);
   await expect(page.getByRole('heading', { name: 'Sign in to Echoo' })).toBeVisible({ timeout: 4_000 });
-  await expect(page).toHaveURL(/\/?\?mode=login$/);
+  await expect(page).toHaveURL(/\/login$/);
 
   await page.goto('/reset-password');
   await expect(page.getByText('This reset link is invalid or incomplete.')).toBeVisible();

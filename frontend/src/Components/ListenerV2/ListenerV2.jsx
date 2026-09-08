@@ -22,7 +22,10 @@ import batch1Service from '../../services/batch1Service';
 import batch2Service from '../../services/batch2Service';
 import audioService from '../../services/audioService';
 import notificationService from '../../services/notificationService';
+import playlistService from '../../services/playlistService';
 import { buildMediaUrl } from '../../services/api';
+import { getGuestSession, isAuthenticated, recordGuestPlayback, saveGuestPreferences } from '../../services/guestSession';
+import { useGuestAuth } from '../Auth/GuestAuthGate';
 import { getCreatorProfilePath } from '../../services/profileIdentifier';
 import { buildGeneratedStationBrandCoverUrl } from '../../stationBranding/stationBranding';
 import AccountExperienceMenu from '../Shared/AccountExperienceMenu';
@@ -209,8 +212,14 @@ const useLiveCatalog = () => {
   const load = useCallback(async ({ silent = false } = {}) => {
     try {
       if (!silent) setLoading(true);
-      const response = await listenerService.getDashboard();
-      setLiveNow(Array.isArray(response?.data?.liveNow) ? response.data.liveNow : []);
+      if (isAuthenticated()) {
+        const response = await listenerService.getDashboard();
+        setLiveNow(Array.isArray(response?.data?.liveNow) ? response.data.liveNow : []);
+      } else {
+        const response = await batch2Service.listStations({ page: 1, limit: 100 });
+        const stations = Array.isArray(response?.data) ? response.data : [];
+        setLiveNow(stations.filter((station) => station?.isPublic !== false && station?.isLive));
+      }
       setError('');
     } catch (loadError) {
       if (!silent) setError(loadError?.message || 'Echoo could not load live events.');
@@ -247,6 +256,7 @@ const ListenerV2Layout = () => {
   const [, setLivePlayerState] = useState(null);
   const [headerSearch, setHeaderSearch] = useState('');
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const { requestAuth, isGuest } = useGuestAuth();
 
   const profileImage = buildMediaUrl(user?.profileImage || user?.avatar);
   const isLiveRoom = /^\/listen\/live\/[^/]+/.test(location.pathname);
@@ -270,14 +280,19 @@ const ListenerV2Layout = () => {
   ];
 
   useEffect(() => {
+    if (isGuest) getGuestSession();
+  }, [isGuest]);
+
+  useEffect(() => {
     let active = true;
+    if (isGuest) return () => { active = false; };
     notificationService.list({ limit: 1, unreadOnly: true })
       .then((response) => {
         if (active) setUnreadNotifications(Number(response?.data?.unreadCount) || 0);
       })
       .catch(() => {});
     return () => { active = false; };
-  }, []);
+  }, [isGuest]);
 
   const submitHeaderSearch = (event) => {
     if (event.key !== 'Enter' || !headerSearch.trim()) return;
@@ -302,8 +317,14 @@ const ListenerV2Layout = () => {
     setCurrentTrack(normalized);
     setCurrentTime(0);
     setDuration(normalized.duration || 0);
+    if (isGuest) recordGuestPlayback(normalized, 0, nextQueue);
     return true;
-  }, [currentTrack]);
+  }, [currentTrack, isGuest]);
+
+  useEffect(() => {
+    if (!isGuest) return;
+    saveGuestPreferences({ lastVolume: audioRef.current?.volume ?? 1 });
+  }, [isGuest]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -340,16 +361,32 @@ const ListenerV2Layout = () => {
           ))}
         </nav>
         <SearchField value={headerSearch} onChange={setHeaderSearch} onKeyDown={submitHeaderSearch} placeholder="Search live Channels..." className="listener-v2-header-search" />
-        <AccountExperienceMenu
-          currentExperience="listener"
-          user={user}
-          profileImage={profileImage}
-          variant="listener"
-          onUserChange={setUser}
-          unreadNotifications={unreadNotifications}
-          onNotifications={() => navigate('/listen/notifications')}
-          onSettings={() => navigate('/listen/settings')}
-        />
+        {isGuest ? (
+          <div className="listener-v2-guest-actions">
+            <button type="button" className="listener-v2-create-channel" onClick={() => requestAuth({
+              action: 'Create Channel',
+              title: 'Create your Echoo account first',
+              message: 'Your listener profile will become your creator identity.',
+              destination: '/creator-studio',
+            })}>Create Channel</button>
+            <button type="button" className="listener-v2-sign-in" onClick={() => requestAuth({
+              action: 'Sign in',
+              title: 'Make Echoo yours',
+              message: 'Create an account to follow Channels, save playlists and keep listening across devices.',
+            })}>Sign in</button>
+          </div>
+        ) : (
+          <AccountExperienceMenu
+            currentExperience="listener"
+            user={user}
+            profileImage={profileImage}
+            variant="listener"
+            onUserChange={setUser}
+            unreadNotifications={unreadNotifications}
+            onNotifications={() => navigate('/listen/notifications')}
+            onSettings={() => navigate('/listen/settings')}
+          />
+        )}
       </header>}
 
       <main className={`listener-v2-main${currentTrack && !isLiveRoom ? ' has-player' : ''}`}>
@@ -362,7 +399,11 @@ const ListenerV2Layout = () => {
         preload="metadata"
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
-        onTimeUpdate={() => setCurrentTime(audioRef.current?.currentTime || 0)}
+        onTimeUpdate={() => {
+          const position = audioRef.current?.currentTime || 0;
+          setCurrentTime(position);
+          if (isGuest && currentTrack) recordGuestPlayback(currentTrack, position, queue);
+        }}
         onLoadedMetadata={() => setDuration(Number.isFinite(audioRef.current?.duration) ? audioRef.current.duration : currentTrack?.duration || 0)}
         onEnded={playNext}
       />
@@ -381,7 +422,18 @@ const ListenerV2Layout = () => {
           { key: 'following', label: 'Following', path: '/listen/following', icon: <FiHeart /> },
           { key: 'search', label: 'Search', path: '/listen/search', icon: <FiSearch /> },
           { key: 'profile', label: 'Profile', path: '/listen/settings', icon: <FiUser /> },
-        ].map((item) => <button key={item.key} type="button" className={activeKey === item.key ? 'is-active' : ''} onClick={() => navigate(item.path)}><span>{item.icon}</span>{item.label}</button>)}
+        ].map((item) => <button key={item.key} type="button" className={activeKey === item.key ? 'is-active' : ''} onClick={() => {
+          if (isGuest && item.key === 'profile') {
+            requestAuth({
+              action: 'Open settings',
+              title: 'Save your listening setup',
+              message: 'Sign in to manage your profile, preferences and notifications.',
+              destination: item.path,
+            });
+            return;
+          }
+          navigate(item.path);
+        }}><span>{item.icon}</span>{item.label}</button>)}
       </nav>}
     </div>
   );
@@ -439,7 +491,46 @@ const LiveCatalog = () => {
   );
 };
 
-const ListenerV2Home = () => <LiveCatalog />;
+const DiscoverCatalog = () => {
+  const navigate = useNavigate();
+  const { playTrack } = useOutletContext();
+  const { liveNow } = useLiveCatalog();
+  const [recordings, setRecordings] = useState([]);
+  const [playlists, setPlaylists] = useState([]);
+
+  useEffect(() => {
+    let active = true;
+    Promise.allSettled([
+      audioService.getAll({ public: true, page: 1, limit: 8 }),
+      playlistService.getAll({ page: 1, limit: 6 }),
+    ]).then(([audioResult, playlistResult]) => {
+      if (!active) return;
+      if (audioResult.status === 'fulfilled') setRecordings((audioResult.value?.data || []).map(normalizePlayable).filter(Boolean));
+      if (playlistResult.status === 'fulfilled') setPlaylists(playlistResult.value?.data || []);
+    });
+    return () => { active = false; };
+  }, []);
+
+  return (
+    <div className="listener-v2-page listener-v2-discover-page">
+      <header className="listener-v2-page-title"><h1>Discover</h1><p>Listen freely. Sign in only when you want to save, follow, or join the conversation.</p></header>
+      <section className="listener-v2-panel">
+        <SectionTitle title="Trending recordings" copy="Public audio from Echoo creators" action={() => navigate('/listen/search')} actionLabel="Search audio" />
+        {recordings.length ? <div className="listener-v2-audio-list">{recordings.slice(0, 6).map((track) => <article key={idOf(track)}><span className="listener-v2-audio-art"><Artwork src={track.coverArt} /></span><div><strong>{track.title}</strong><span>{track.subtitle}</span></div><button type="button" aria-label={`Play ${track.title}`} onClick={() => playTrack(track, recordings)}><FiPlay /></button></article>)}</div> : <EmptyState icon={<FiMusic />} title="No recordings yet" copy="Public recordings will appear here as creators publish." />}
+      </section>
+      <section className="listener-v2-panel">
+        <SectionTitle title="Live now" copy="Channels broadcasting in this moment" action={() => navigate('/listen/live')} />
+        {liveNow.length ? <div className="listener-v2-live-grid">{liveNow.slice(0, 5).map((item) => <LiveCard key={idOf(item)} broadcast={item} onOpen={(broadcast) => navigate(`/listen/live/${idOf(broadcast)}`, { state: { show: broadcast } })} />)}</div> : <EmptyState icon={<FiRadio />} title="Nothing is live right now" copy="Browse recordings or return when a Channel starts broadcasting." />}
+      </section>
+      <section className="listener-v2-panel">
+        <SectionTitle title="Popular playlists" copy="Play openly; save them when you are ready" action={() => navigate('/listen/playlist')} />
+        {playlists.length ? <div className="listener-v2-playlist-grid">{playlists.slice(0, 6).map((playlist) => <button type="button" key={idOf(playlist)} onClick={() => navigate('/listen/playlist')}><span><FiMusic /></span><div><strong>{playlist.name || 'Playlist'}</strong><small>{playlist.description || 'Public playlist'}</small></div></button>)}</div> : <EmptyState icon={<FiMusic />} title="No public playlists yet" />}
+      </section>
+    </div>
+  );
+};
+
+const ListenerV2Home = () => <DiscoverCatalog />;
 const ListenerV2Live = () => <LiveCatalog />;
 
 const ListenerV2Following = () => {
@@ -566,6 +657,7 @@ const ListenerV2Following = () => {
 const ListenerV2Categories = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { requestAuth, isGuest } = useGuestAuth();
   const [stations, setStations] = useState([]);
   const [followingIds, setFollowingIds] = useState(new Set());
   const [loading, setLoading] = useState(true);
@@ -577,10 +669,9 @@ const ListenerV2Categories = () => {
   const load = useCallback(async () => {
     try {
       setLoading(true);
-      const [stationsResult, followedResult] = await Promise.allSettled([
-        batch2Service.listStations({ page: 1, limit: 100 }),
-        followService.getFollowingStations(),
-      ]);
+      const requests = [batch2Service.listStations({ page: 1, limit: 100 })];
+      if (!isGuest) requests.push(followService.getFollowingStations());
+      const [stationsResult, followedResult] = await Promise.allSettled(requests);
       if (stationsResult.status === 'rejected') throw stationsResult.reason;
       setStations((Array.isArray(stationsResult.value?.data) ? stationsResult.value.data : []).filter((item) => item?.isPublic !== false));
       if (followedResult.status === 'fulfilled') setFollowingIds(new Set((followedResult.value?.data || []).map(idOf).filter(Boolean)));
@@ -588,7 +679,7 @@ const ListenerV2Categories = () => {
     } catch (loadError) {
       setError(loadError?.message || 'Channels could not be loaded.');
     } finally { setLoading(false); }
-  }, []);
+  }, [isGuest]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { setCategory(new URLSearchParams(location.search).get('category') || 'All'); }, [location.search]);
@@ -605,6 +696,18 @@ const ListenerV2Categories = () => {
     const key = idOf(station);
     if (!key || busyId) return;
     const following = followingIds.has(key);
+    if (isGuest) {
+      requestAuth({
+        action: 'Follow channel',
+        title: 'Follow your favourite creators',
+        message: 'Create an Echoo account to follow Channels, receive updates and build your library.',
+        resume: async () => {
+          await followService.followStation(key);
+          setFollowingIds((current) => new Set([...current, key]));
+        },
+      });
+      return;
+    }
     try {
       setBusyId(key);
       if (following) await followService.unfollowStation(key); else await followService.followStation(key);
