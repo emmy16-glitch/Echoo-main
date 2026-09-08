@@ -1,14 +1,14 @@
 import { test, expect } from 'playwright/test';
 
 test('new signup persists one Echoo session, completes profile setup and lands in Listener', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/register');
 
   await page.getByLabel('Full name').fill('New Echoo Listener');
   await page.getByLabel('Username').fill('new-listener');
   await page.getByLabel('Email address').fill('new-listener@example.test');
   await page.getByLabel('Password', { exact: true }).fill('Password123!');
   await page.getByLabel('Confirm password').fill('Password123!');
-  await page.getByRole('button', { name: 'Continue' }).click();
+  await page.getByRole('button', { name: 'Create account' }).click();
 
   await expect(page.getByRole('heading', { name: 'Set up your profile' })).toBeVisible();
   await expect.poll(() => page.evaluate(() => ({
@@ -52,19 +52,19 @@ test('signup explains duplicate email and duplicate username without losing ente
     }),
   }));
 
-  await page.goto('/');
+  await page.goto('/register');
   await page.getByLabel('Full name').fill('Existing Echoo Listener');
   await page.getByLabel('Username').fill('existing-listener');
   await page.getByLabel('Email address').fill('existing@example.test');
   await page.getByLabel('Password', { exact: true }).fill('Password123!');
   await page.getByLabel('Confirm password').fill('Password123!');
-  await page.getByRole('button', { name: 'Continue' }).click();
+  await page.getByRole('button', { name: 'Create account' }).click();
 
   await expect(page.getByText('Email already registered', { exact: true })).toBeVisible();
   await expect(page.getByLabel('Username')).toHaveValue('existing-listener');
   await expect(page.getByLabel('Email address')).toHaveValue('existing@example.test');
 
   responseCode = 'USERNAME_TAKEN';
-  await page.getByRole('button', { name: 'Continue' }).click();
+  await page.getByRole('button', { name: 'Create account' }).click();
   await expect(page.getByText('Username already taken', { exact: true })).toBeVisible();
 });
