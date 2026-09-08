@@ -142,7 +142,7 @@ test('CI executes the browser audit and syntax-checks new security controllers',
   const workflow = await fs.readFile(new URL('../../.github/workflows/echoo-check.yml', import.meta.url), 'utf8');
   assert.match(workflow, /frontend-e2e:/);
   assert.match(workflow, /playwright install --with-deps chromium/);
-  assert.match(workflow, /npm run test:e2e/);
+  assert.match(workflow, /npx playwright test/);
   assert.match(workflow, /audioDownloadController\.js/);
   assert.match(workflow, /transcriptSearchController\.js/);
   assert.match(workflow, /broadcastProcessingController\.js/);

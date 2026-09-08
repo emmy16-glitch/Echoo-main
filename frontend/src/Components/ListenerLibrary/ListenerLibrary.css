@@ -155,9 +155,13 @@
 /* ---------- Main + sidebar layout ---------- */
 .al-layout {
   display: grid;
-  grid-template-columns: 1fr 288px;
+  grid-template-columns: minmax(0, 1fr) 288px;
   gap: 22px;
   align-items: start;
+}
+
+.al-main {
+  min-width: 0;
 }
 
 /* ---------- Section header ---------- */
@@ -319,6 +323,8 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  max-width: 100%;
+  min-width: 0;
   font-size: 12.5px;
   color: #5f6f85;
   white-space: nowrap;
@@ -643,12 +649,12 @@
 /* ---------- Responsive ---------- */
 @media (max-width: 1120px) {
   .al-layout {
-    grid-template-columns: 1fr 256px;
+    grid-template-columns: minmax(0, 1fr) 256px;
   }
 }
 @media (max-width: 960px) {
   .al-layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .al-hero {
     padding: 26px 24px;
@@ -669,6 +675,9 @@
   }
   .al-category {
     display: none;
+  }
+  .al-section-tools {
+    flex-wrap: wrap;
   }
   .al-list-search input {
     width: 120px;
