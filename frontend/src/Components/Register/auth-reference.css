@@ -14,7 +14,7 @@
   overflow: hidden;
   background: #020912 url("../Assets/echoo-auth-cinematic-headphones.jpeg") center center / 100% auto no-repeat;
   color: #fff;
-  font-family: Manrope, Inter, ui-sans-serif, system-ui, sans-serif;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
 }
 
 .echoo-auth-reference::before,
@@ -50,7 +50,7 @@
 .ear-logo-mark { width: 51px; height: 71px; display: block; object-fit: contain; margin: 0 auto 2px; }
 
 .ear-form-heading { width: 100%; margin: 0 0 30px; text-align: center; }
-.ear-form-heading h1 { margin: 0; color: #fff; font: 700 36px/1.15 Manrope, Inter, sans-serif; letter-spacing: -2.88px; }
+.ear-form-heading h1 { margin: 0; color: #fff; font: 700 36px/1.15 Inter, sans-serif; letter-spacing: -2.88px; }
 .echoo-auth-reference.is-signup .ear-form-heading h1 { font-weight: 600; letter-spacing: -.9px; }
 .ear-form-heading p { margin: 12px 0 0; color: rgba(255, 255, 255, .8); font-size: 16px; line-height: 1.45; }
 
@@ -92,7 +92,7 @@
   outline: 0;
   background: transparent;
   color: #132237;
-  font: 400 16px/1 Manrope, Inter, sans-serif;
+  font: 400 16px/1 Inter, sans-serif;
 }
 .echoo-auth-reference.is-signup .ear-input-shell input { font-size: 17px; }
 .ear-input-shell input::placeholder { color: rgba(0, 0, 0, .5); opacity: 1; }
@@ -146,7 +146,7 @@
   border-radius: 40px;
   background: var(--echoo-auth-blue);
   color: #f9f9f9;
-  font: 700 16px/1 Manrope, Inter, sans-serif;
+  font: 700 16px/1 Inter, sans-serif;
   cursor: pointer;
   box-shadow: inset 0 1px rgba(255, 255, 255, .15);
   transition: background 160ms ease, transform 160ms ease;
