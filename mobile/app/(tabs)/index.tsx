@@ -9,7 +9,7 @@ import {
   Radio,
   Search,
 } from 'lucide-react-native';
-import { useEffect, useMemo, useState } from 'react';
+import { ReactNode, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -18,7 +18,6 @@ import {
   Text,
   View,
 } from 'react-native';
-import { ReactNode } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ListenerTopBar } from '@/src/components/ListenerV2';

@@ -76,7 +76,7 @@ test('shared sidebar follows nested router state instead of exact-string-only hi
   assert.match(sidebar, /isActive \|\| explicitActive/);
 });
 
-test('Listener mobile navigation has exactly four primary destinations plus More and no duplicate station tab', async () => {
+test('Listener mobile navigation has exactly four primary destinations plus More and no duplicate channel tab', async () => {
   const navigation = await source('../../frontend/src/Components/EchooSystem/EchooMobileNavigation.jsx');
   const primary = navigation.match(/const primaryItems = \[([\s\S]*?)\n\];/)?.[1] || '';
   const itemCount = (primary.match(/\{ label:/g) || []).length;

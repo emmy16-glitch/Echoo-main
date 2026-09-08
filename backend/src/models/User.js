@@ -58,6 +58,16 @@ const userSchema = new mongoose.Schema(
       default: null,
       select: false,
     },
+    resetPasswordRequestedAt: {
+      type: Date,
+      default: null,
+      select: false,
+    },
+    resetPasswordUsedAt: {
+      type: Date,
+      default: null,
+      select: false,
+    },
     displayName: {
       type: String,
       required: true,
@@ -307,6 +317,8 @@ const userSchema = new mongoose.Schema(
         delete ret.emailVerificationSentAt;
         delete ret.resetPasswordTokenHash;
         delete ret.resetPasswordExpiresAt;
+        delete ret.resetPasswordRequestedAt;
+        delete ret.resetPasswordUsedAt;
         delete ret.__v;
         return ret;
       },

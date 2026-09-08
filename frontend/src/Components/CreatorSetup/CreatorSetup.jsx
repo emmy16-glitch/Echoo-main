@@ -218,7 +218,7 @@ export default function CreatorSetup({ onCreatorReady }) {
       try {
         localStorage.setItem('user', JSON.stringify(readyUser));
       } catch {
-        // ignore
+        // ignore storage failures — the in-memory session already succeeded
       }
 
       onCreatorReady?.(readyUser);
