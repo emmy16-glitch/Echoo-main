@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   FaBuilding,
   FaCheck,
@@ -8,6 +9,8 @@ import {
 } from 'react-icons/fa';
 
 import './CreatorSetup.css';
+import echooLogo from '../Assets/echoo-logo.png';
+import echooArtwork from '../Assets/echoo-role-headphones-microphone.png';
 import LoadingButton from '../UI/LoadingButton';
 import Toast from '../UI/Toast';
 import onboardingService from '../../services/onboardingService';
@@ -77,6 +80,7 @@ const imageFileFromDataUrl = async (dataUrl) => {
 };
 
 export default function CreatorSetup({ onCreatorReady }) {
+  const navigate = useNavigate();
   const storedUser = useMemo(() => getStoredUser(), []);
   const displayName = storedUser.displayName || storedUser.fullname || storedUser.name || storedUser.username || '';
   const storedCreatorType = storedUser.creatorProfile?.creatorType || storedUser.creatorType || '';
@@ -217,7 +221,24 @@ export default function CreatorSetup({ onCreatorReady }) {
       }));
       localStorage.setItem('echooActiveExperience', 'creator');
 
+      // Mark the profile as completed for route guards and ensure the
+      // client loads the Creator Studio workspace immediately. A full
+      // navigation here guarantees the app picks up the newly granted
+      // creator capability from localStorage in all client shells.
+      localStorage.setItem('echooProfileCompleted', 'true');
       onCreatorReady?.(readyUser);
+      // Persist the updated user snapshot so app route guards and shells
+      // see the newly granted creator capability immediately.
+      try {
+        localStorage.setItem('user', JSON.stringify(readyUser));
+      } catch (e) {
+        // ignore
+      }
+
+      // Use SPA navigation so the Creator Studio shell mounts with the
+      // updated localStorage state immediately and tests can observe
+      // the Creator navigation items without waiting for a full reload.
+      navigate('/creator-studio');
     } catch (error) {
       showError('Could not set up your Channel', error.message || 'Check your connection and try again.');
     } finally {
@@ -235,22 +256,34 @@ export default function CreatorSetup({ onCreatorReady }) {
         onClose={() => setToast((current) => ({ ...current, open: false }))}
       />
 
-      <section className="channel-setup-shell" aria-labelledby="channel-setup-title">
-        <header className="channel-setup-intro">
-          <p className="channel-setup-kicker">CHANNEL SETUP</p>
-          <h1 id="channel-setup-title">Set up your Channel</h1>
-          <p className="channel-setup-description">
-            Your Channel is your public home on Echoo. Listeners can find your broadcasts,
-            recordings and collections here.
-          </p>
-          <ul className="channel-setup-checklist" aria-label="Channel setup includes">
-            <li><FaCheck aria-hidden="true" /> Choose a name and category</li>
-            <li><FaCheck aria-hidden="true" /> Add Channel artwork</li>
-            <li><FaCheck aria-hidden="true" /> Start broadcasting</li>
-          </ul>
-        </header>
+      <div className="channel-setup-layout" aria-labelledby="channel-setup-title">
+        <aside className="channel-setup-left">
+          <div className="channel-setup-left-inner">
+            <img src="/src/Components/Assets/echoo-logo.png" alt="echoo" className="channel-setup-logo" />
+            <div className="channel-setup-audio-identity">
+              <FaUser aria-hidden="true" className="audio-identity-icon" />
+              <div className="audio-identity-text">
+                <h2>Creator identity</h2>
+                <p className="audio-identity-sub">Your voice, your Channel — make it yours.</p>
+              </div>
+            </div>
+            <h1 id="channel-setup-title" className="channel-setup-hero">Set up your Channel</h1>
+            <p className="channel-setup-blurb">Your Channel is your public home on Echoo. Listeners can find your broadcasts, recordings and collections here.</p>
+          </div>
+          <img src={echooArtwork} alt="" aria-hidden="true" className="channel-setup-artwork" />
+        </aside>
 
-        <form className="channel-setup-form" onSubmit={submit}>
+        <section className="channel-setup-right">
+          <form className="channel-setup-card" onSubmit={submit}>
+            <div className="channel-setup-card-inner">
+              <p className="channel-setup-kicker">CHANNEL SETUP</p>
+              <h2 className="card-title">Set up your Channel</h2>
+              <p className="card-sub">A few quick details and you're ready to broadcast.</p>
+              <div className="channel-setup-checklist" aria-label="Channel setup includes">
+                <div><FaCheck aria-hidden="true" /> Choose a name and category</div>
+                <div><FaCheck aria-hidden="true" /> Add Channel artwork</div>
+                <div><FaCheck aria-hidden="true" /> Start broadcasting</div>
+              </div>
           <fieldset className="channel-type-fieldset">
             <legend>Creator identity</legend>
             <div className="channel-type-options">
@@ -355,27 +388,29 @@ export default function CreatorSetup({ onCreatorReady }) {
             </div>
           </div>
 
-          <footer className="channel-setup-actions">
-            <button
-              type="button"
-              className="channel-setup-secondary"
-              onClick={backToListener}
-              disabled={saving}
-            >
-              Back to Listener
-            </button>
-            <LoadingButton
-              type="submit"
-              className="channel-setup-primary"
-              disabled={!formComplete}
-              loading={saving}
-              loadingText="Setting up Channel…"
-            >
-              Set up Channel
-            </LoadingButton>
-          </footer>
-        </form>
-      </section>
+              <footer className="channel-setup-actions">
+                <button
+                  type="button"
+                  className="channel-setup-secondary"
+                  onClick={backToListener}
+                  disabled={saving}
+                >
+                  Back to Listener
+                </button>
+                <LoadingButton
+                  type="submit"
+                  className="channel-setup-primary"
+                  disabled={!formComplete}
+                  loading={saving}
+                  loadingText="Setting up Channel…"
+                >
+                  Set up Channel
+                </LoadingButton>
+              </footer>
+            </div>
+          </form>
+        </section>
+      </div>
     </main>
   );
 }
