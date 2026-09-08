@@ -138,9 +138,13 @@ const geometry = async (page) => page.evaluate(() => {
   };
 });
 
-const validateStrictShell = async (page, activeLabel) => {
+const validateStrictShell = async (page, activeLabel, { room = false } = {}) => {
   await expect(page.locator('.listener-v2-root')).toBeVisible();
-  await expect(page.locator('.listener-v2-sidebar')).toBeVisible();
+  // Listener 2.0 intentionally owns a compact top navigation rather than the
+  // retired sidebar shell used by the legacy listener pages.
+  await expect(page.locator('.listener-v2-sidebar')).toHaveCount(0);
+  await expect(page.locator('.listener-v2-main')).toBeVisible();
+  if (room) return;
   await expect(page.locator('.listener-v2-brand')).toBeVisible();
   await expect(page.locator('.listener-v2-nav > button.is-active')).toHaveCount(1);
   await expect(page.locator('.listener-v2-nav > button.is-active')).toContainText(activeLabel);
@@ -171,25 +175,32 @@ test('capture strict Listener 2.0 core surfaces', async ({ page }, testInfo) => 
   });
   await authenticate(page);
 
-  await capture(page, testInfo, '/listen', 'HOME', 'Live now');
+  await capture(page, testInfo, '/listen', 'HOME', 'Discover');
+  await expect(page.locator('.listener-hero-artwork')).toHaveCount(1);
   await expect(page.locator('.listener-v2-live-card')).toHaveCount(5);
 
   await capture(page, testInfo, '/listen/library/following', 'FOLLOWING', 'Following');
-  await expect(page.locator('.listener-v2-creator-card')).toHaveCount(3);
-  await expect(page.locator('.listener-v2-station-card')).toHaveCount(4);
+  await expect(page.locator('.listener-hero-artwork')).toHaveCount(1);
+  await expect(page.locator('.listener-v2-following-live-card')).toHaveCount(4);
+  await expect(page.locator('.listener-v2-following-row')).toHaveCount(4);
 
-  await capture(page, testInfo, '/listen/stations', 'CATEGORIES', 'Categories');
+  await capture(page, testInfo, '/listen/stations', 'CATEGORIES', 'Channels');
   await expect(page.locator('.listener-v2-station-card')).toHaveCount(8);
 
   await capture(page, testInfo, '/listen/search', 'SEARCH', 'Search', async () => {
-    await page.locator('.listener-v2-search-field input').fill('Layers');
+    await page.getByPlaceholder('Search Echoo...').fill('Layers');
     await page.waitForTimeout(700);
   });
   await expect(page.locator('.listener-v2-search-page .listener-v2-station-card').first()).toBeVisible();
 
+  await page.goto('/listen/playlist', { waitUntil: 'domcontentloaded', timeout: 30000 });
+  await page.waitForTimeout(1200);
+  await expect(page.locator('.pl-page')).toBeVisible();
+  await expect(page.locator('.listener-hero-artwork')).toHaveCount(1);
+
   await page.goto('/listen/live/live-1', { waitUntil: 'domcontentloaded', timeout: 30000 });
   await page.waitForTimeout(1400);
-  await validateStrictShell(page, 'Live now');
+  await validateStrictShell(page, 'Live now', { room: true });
   await expect(page.locator('.listener-v2-room-stage')).toBeVisible();
   await expect(page.locator('.listener-v2-room-chat')).toBeVisible();
   const stageBox = await page.locator('.listener-v2-room-stage').boundingBox();

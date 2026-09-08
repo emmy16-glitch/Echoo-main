@@ -350,7 +350,10 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
     };
 
     connect().catch(async (connectError) => {
-      console.error('[Echoo Listener LiveKit]', connectError);
+      // The component renders the recoverable connection state below. Keep
+      // expected unavailable-credentials/network failures out of console.error
+      // so browser monitoring only treats uncaught application faults as errors.
+      console.warn('[Echoo Listener LiveKit] Connection unavailable:', connectError?.message || connectError);
 
       // A failed ICE/signalling attempt can leave a partially-created Room in
       // memory. Disconnect it immediately instead of waiting for Retry/unmount.

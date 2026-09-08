@@ -24,16 +24,27 @@ import audioService from '../../services/audioService';
 import notificationService from '../../services/notificationService';
 import playlistService from '../../services/playlistService';
 import { buildMediaUrl } from '../../services/api';
+import { buildGeneratedAudioCoverUrl } from '../../audioCover/audioCover';
 import { getGuestSession, isAuthenticated, recordGuestPlayback, saveGuestPreferences } from '../../services/guestSession';
 import { useGuestAuth } from '../Auth/GuestAuthGate';
 import { getCreatorProfilePath } from '../../services/profileIdentifier';
 import { buildGeneratedStationBrandCoverUrl } from '../../stationBranding/stationBranding';
 import AccountExperienceMenu from '../Shared/AccountExperienceMenu';
+import ListenerHeroArtwork from '../ListenerHeroArtwork/ListenerHeroArtwork';
 import echooMark from '../Assets/echoo-logo-official.svg';
 import './ListenerV2.css';
 
 const LIVE_SYNC_MS = 15000;
 const CATEGORY_FALLBACK = ['Faith', 'Talk', 'Music', 'Education', 'News', 'Sports', 'Business', 'Technology'];
+const DEMO_PLAYLISTS = [
+  { id: 'echoo-picks-sunday-worship', name: 'Sunday Worship Collection', ownerName: 'Echoo picks', trackCount: 12, description: 'Warm voices for a slower Sunday.' },
+  { id: 'echoo-picks-african-stories', name: 'African Stories', ownerName: 'Echoo picks', trackCount: 9, description: 'Stories, memory and place.' },
+  { id: 'echoo-picks-tech-conversations', name: 'Tech Conversations', ownerName: 'Echoo picks', trackCount: 16, description: 'Ideas from builders and thinkers.' },
+  { id: 'echoo-picks-creator-sessions', name: 'Creator Sessions', ownerName: 'Echoo picks', trackCount: 7, description: 'Behind the voice and the work.' },
+].map((playlist) => ({
+  ...playlist,
+  coverArt: buildGeneratedAudioCoverUrl({ title: playlist.name, artistName: playlist.ownerName, genre: 'Playlist' }),
+}));
 
 const readUser = () => {
   try {
@@ -264,19 +275,24 @@ const ListenerV2Layout = () => {
   const activeKey = useMemo(() => {
     if (location.pathname.includes('/library/following')) return 'following';
     if (location.pathname === '/listen/following') return 'following';
+    if (location.pathname === '/listen/live' || location.pathname.startsWith('/listen/live/')) return 'live';
+    if (location.pathname === '/listen/settings') return 'profile';
+    if (location.pathname === '/listen/search') return 'search';
     if (
-      location.pathname === '/listen/search' ||
       location.pathname === '/listen/channels' ||
       location.pathname.startsWith('/listen/channels/') ||
       location.pathname === '/listen/stations' ||
       location.pathname.startsWith('/listen/stations/')
-    ) return 'search';
-    return 'live';
+    ) return 'channels';
+    return 'discover';
   }, [location.pathname]);
 
   const navItems = [
-    { key: 'live', label: 'Live now', path: '/listen', icon: <FiRadio /> },
+    { key: 'discover', label: 'Discover', path: '/listen', icon: <FiMusic /> },
+    { key: 'live', label: 'Live now', path: '/listen/live', icon: <FiRadio /> },
     { key: 'following', label: 'Following', path: '/listen/following', icon: <FiHeart /> },
+    { key: 'channels', label: 'Channels', path: '/listen/channels', icon: <FiUsers /> },
+    { key: 'search', label: 'Search', path: '/listen/search', icon: <FiSearch /> },
   ];
 
   useEffect(() => {
@@ -418,7 +434,7 @@ const ListenerV2Layout = () => {
       )}
       {!isLiveRoom && <nav className="listener-v2-mobile-nav" aria-label="Listener navigation">
         {[
-          { key: 'live', label: 'Live now', path: '/listen', icon: <FiRadio /> },
+          { key: 'discover', label: 'Discover', path: '/listen', icon: <FiMusic /> },
           { key: 'following', label: 'Following', path: '/listen/following', icon: <FiHeart /> },
           { key: 'search', label: 'Search', path: '/listen/search', icon: <FiSearch /> },
           { key: 'profile', label: 'Profile', path: '/listen/settings', icon: <FiUser /> },
@@ -511,8 +527,11 @@ const DiscoverCatalog = () => {
     return () => { active = false; };
   }, []);
 
+  const visiblePlaylists = playlists.length ? playlists : DEMO_PLAYLISTS;
+
   return (
     <div className="listener-v2-page listener-v2-discover-page">
+      <ListenerHeroArtwork />
       <header className="listener-v2-page-title"><h1>Discover</h1><p>Listen freely. Sign in only when you want to save, follow, or join the conversation.</p></header>
       <section className="listener-v2-panel">
         <SectionTitle title="Trending recordings" copy="Public audio from Echoo creators" action={() => navigate('/listen/search')} actionLabel="Search audio" />
@@ -524,7 +543,10 @@ const DiscoverCatalog = () => {
       </section>
       <section className="listener-v2-panel">
         <SectionTitle title="Popular playlists" copy="Play openly; save them when you are ready" action={() => navigate('/listen/playlist')} />
-        {playlists.length ? <div className="listener-v2-playlist-grid">{playlists.slice(0, 6).map((playlist) => <button type="button" key={idOf(playlist)} onClick={() => navigate('/listen/playlist')}><span><FiMusic /></span><div><strong>{playlist.name || 'Playlist'}</strong><small>{playlist.description || 'Public playlist'}</small></div></button>)}</div> : <EmptyState icon={<FiMusic />} title="No public playlists yet" />}
+        <div className="listener-v2-playlist-grid">{visiblePlaylists.slice(0, 6).map((playlist) => <button type="button" key={idOf(playlist)} onClick={() => navigate('/listen/playlist')}>
+          <span className="listener-v2-playlist-art"><img src={playlist.coverArt} alt="" /></span>
+          <div><strong>{playlist.name || 'Playlist'}</strong><small>{playlist.ownerName || playlist.owner?.displayName || playlist.owner?.username || 'Echoo creator'} · {Number(playlist.trackCount ?? playlist.tracks?.length) || 0} recordings</small></div>
+        </button>)}</div>
       </section>
     </div>
   );
@@ -590,12 +612,13 @@ const ListenerV2Following = () => {
 
   return (
     <div className="listener-v2-page listener-v2-following-page">
+      <ListenerHeroArtwork />
       <header className="listener-v2-page-title"><h1>Following</h1><p>Channels you follow and never miss.</p></header>
 
       {loading ? (
         <div className="listener-v2-following-skeleton" aria-label="Loading followed Channels"><span /><span /><span /></div>
       ) : error ? (
-        <EmptyState icon={<FiHeadphones />} title="We couldn't load your followed Channels." copy="Check your connection and try again." action={load} actionLabel="Try again" />
+        <EmptyState icon={<FiHeadphones />} title="Following couldn’t load" copy="Check your connection and try again." action={load} actionLabel="Try again" />
       ) : stations.length ? (
         <>
           {liveStations.length > 0 && (
@@ -648,7 +671,7 @@ const ListenerV2Following = () => {
           </section>
         </>
       ) : (
-        <EmptyState icon={<FiHeadphones />} title="You aren't following any Channels yet." action={() => navigate('/listen/search')} actionLabel="Find Channels" />
+        <EmptyState icon={<FiHeadphones />} title="No channels followed yet" copy="Discover creators and follow channels to keep up with new broadcasts." action={() => navigate('/listen/channels')} actionLabel="Discover Channels" />
       )}
     </div>
   );

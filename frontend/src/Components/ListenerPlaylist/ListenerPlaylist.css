@@ -4,6 +4,8 @@
    Uses creator tokens (--echoo-*).
    ============================================================ */
 .pl-page {
+  position: relative;
+  isolation: isolate;
   width: min(100%, 1480px);
   margin: 0 auto;
   padding: 28px 40px 126px;
@@ -32,6 +34,9 @@
   font-size: 13px;
 }
 
+.pl-page > .listener-hero-artwork { z-index: 0; }
+.pl-page > *:not(.listener-hero-artwork) { position: relative; z-index: 1; }
+
 /* ---------- Hero banner ---------- */
 .pl-hero {
   position: relative;
@@ -40,8 +45,8 @@
   padding: 26px 30px;
   border: 1px solid var(--echoo-border);
   border-radius: 16px;
-  background: linear-gradient(118deg, #f7fbff, #e9f2fe);
-  box-shadow: var(--echoo-shadow);
+  background: rgba(255, 255, 255, .91);
+  box-shadow: 0 10px 24px rgba(18, 35, 61, .035);
 }
 .pl-hero-content {
   position: relative;

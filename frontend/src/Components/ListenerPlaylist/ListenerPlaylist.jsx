@@ -16,6 +16,7 @@ import listenerService from '../../services/listenerService';
 import playlistService from '../../services/playlistService';
 import downloadService from '../../services/downloadService';
 import ListenerToast from '../ListenerUI/ListenerToast';
+import ListenerHeroArtwork from '../ListenerHeroArtwork/ListenerHeroArtwork';
 import { useGuestAuth } from '../Auth/GuestAuthGate';
 import '../../styles/listener-reference-pages.css';
 import './ListenerPlaylist.css';
@@ -240,6 +241,7 @@ export default function ListenerPlaylist() {
 
   return (
     <div className="pl-page">
+      <ListenerHeroArtwork className="listener-hero-artwork--playlist" />
       <div className="pl-heading">
         <div className="pl-heading-text">
           <h1>Playlist</h1>
@@ -281,11 +283,6 @@ export default function ListenerPlaylist() {
               </button>
             </div>
           )}
-        </div>
-        <div className="pl-hero-visual" aria-hidden="true">
-          <FaHeadphones />
-          <span className="pl-hero-ring pl-hero-ring--1" />
-          <span className="pl-hero-ring pl-hero-ring--2" />
         </div>
       </div>
 

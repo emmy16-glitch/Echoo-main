@@ -1,5 +1,6 @@
 import { apiRequest, buildMediaUrl } from './api.js';
 import { buildGeneratedStationBrandCoverUrl } from '../stationBranding/stationBranding.js';
+import { canonicalChannelCategory, isChannelCategory } from './channelCategories.js';
 
 const queryString = (values = {}) => {
   const params = new URLSearchParams();
@@ -193,10 +194,17 @@ const normalizeBroadcastList = (response) => {
 
 const stationFormData = (payload = {}) => {
   const form = new FormData();
+  const rawCategory = payload.category === undefined ? 'Other' : String(payload.category).trim();
+  if (!isChannelCategory(rawCategory)) {
+    const error = new Error('Choose a valid Channel category.');
+    error.code = 'INVALID_CHANNEL_CATEGORY';
+    throw error;
+  }
+  const category = canonicalChannelCategory(rawCategory);
 
   if (payload.name !== undefined) form.append('name', payload.name || '');
   if (payload.description !== undefined) form.append('description', payload.description || '');
-  if (payload.category !== undefined) form.append('category', payload.category || 'Other');
+  if (payload.category !== undefined) form.append('category', category);
   if (payload.tags !== undefined) {
     form.append('tags', JSON.stringify(Array.isArray(payload.tags) ? payload.tags : []));
   }
@@ -209,7 +217,7 @@ const stationFormData = (payload = {}) => {
     const generatedCoverArt = payload.generatedCoverArt || buildGeneratedStationBrandCoverUrl({
       id: payload.id || `station-${payload.brandingVariant ?? 0}`,
       name: payload.name || 'Echoo Station',
-      category: payload.category || 'Other',
+      category,
       branding: {
         mode: 'generated',
         variant: Number(payload.brandingVariant) || 0,

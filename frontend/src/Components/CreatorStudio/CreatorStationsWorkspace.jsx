@@ -19,22 +19,10 @@ import {
   randomStationBrandVariant,
 } from '../../stationBranding/stationBranding';
 import { getPublicStationPath, getPublicStationUrl } from '../../services/stationPublicUrl';
+import { CHANNEL_CATEGORY_OPTIONS } from '../../services/channelCategories';
 import './CreatorStationsReference.css';
 
-const CATEGORIES = [
-  'Faith & Spirituality',
-  'Education',
-  'News & Politics',
-  'Business',
-  'Health & Wellness',
-  'Entertainment',
-  'Technology',
-  'Sports',
-  'Music',
-  'Comedy',
-  'Storytelling',
-  'Other',
-];
+const CATEGORIES = CHANNEL_CATEGORY_OPTIONS.map(({ value }) => value);
 
 const EMPTY_FORM = () => ({
   name: '',

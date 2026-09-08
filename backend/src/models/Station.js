@@ -74,6 +74,7 @@ const stationSchema = new mongoose.Schema(
         'Technology',
         'Sports',
         'Music',
+        'Podcast',
         'Comedy',
         'Storytelling',
         'Other',

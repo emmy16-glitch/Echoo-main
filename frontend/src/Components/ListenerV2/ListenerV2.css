@@ -72,6 +72,21 @@ body:has(.listener-v2-root) .echoo-mobile-navigation, body:has(.listener-v2-root
 @media (max-width: 390px) { .listener-v2-live-grid { gap: 20px 16px; }.listener-v2-live-art { max-width: 140px; }.listener-v2-main { padding-inline: 15px; }.listener-v2-header { padding-inline: 15px; } }
 @media (prefers-reduced-motion: reduce) { .listener-v2-root *, .listener-v2-root *::before, .listener-v2-root *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; } }
 
+/* The shared component owns artwork rendering; retire the earlier local
+   pseudo-element so the same illustration is never painted twice. */
+.listener-v2-discover-page::before { content: none; }
+.listener-v2-discover-page,.listener-v2-following-page { position: relative; isolation: isolate; }
+.listener-v2-discover-page > .listener-hero-artwork,.listener-v2-following-page > .listener-hero-artwork { position: absolute; z-index: 0; }
+.listener-v2-discover-page > *:not(.listener-hero-artwork),.listener-v2-following-page > *:not(.listener-hero-artwork) { position: relative; z-index: 1; }
+.listener-v2-playlist-grid > button { display: flex; align-items: center; gap: 10px; min-width: 0; min-height: 76px; padding: 12px; border: 1px solid #e7edf5; border-radius: 12px; background: #fff; color: var(--listener-v2-ink); cursor: pointer; text-align: left; transition: border-color 160ms ease, background 160ms ease, transform 160ms ease; }
+.listener-v2-playlist-grid > button:hover { border-color: #b9d0fa; background: #f8fbff; transform: translateY(-1px); }
+.listener-v2-playlist-grid > button > div { min-width: 0; }
+.listener-v2-playlist-art { width: 48px; height: 48px; flex: 0 0 48px; overflow: hidden; border-radius: 9px; background: var(--listener-v2-blue-soft); }
+.listener-v2-playlist-art img { width: 100%; height: 100%; display: block; object-fit: cover; }
+.listener-v2-playlist-grid > button strong,.listener-v2-playlist-grid > button small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.listener-v2-playlist-grid > button strong { font-size: 12px; }
+.listener-v2-playlist-grid > button small { margin-top: 4px; color: var(--listener-v2-copy); font-size: 10px; }
+
 /* Canonical Echoo one-account Listener shell. Loaded here because ListenerV2 is
    the mounted listener implementation for /listen routes. */
 .listener-v2-header {

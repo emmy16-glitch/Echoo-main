@@ -14,20 +14,9 @@ import LoadingButton from '../UI/LoadingButton';
 import Toast from '../UI/Toast';
 import onboardingService from '../../services/onboardingService';
 import batch2Service from '../../services/batch2Service';
+import { CHANNEL_CATEGORY_OPTIONS } from '../../services/channelCategories';
 
-const categories = [
-  'Music',
-  'Podcast',
-  'Education',
-  'Entertainment',
-  'News',
-  'Sports',
-  'Technology',
-  'Spiritual',
-  'Comedy',
-  'Storytelling',
-  'Other',
-];
+const categories = CHANNEL_CATEGORY_OPTIONS;
 
 const organizationTypes = [
   { value: 'company', label: 'Company' },
@@ -262,12 +251,12 @@ export default function CreatorSetup({ onCreatorReady }) {
             <div className="channel-setup-audio-identity">
               <FaUser aria-hidden="true" className="audio-identity-icon" />
               <div className="audio-identity-text">
-                <h2>Creator identity</h2>
-                <p className="audio-identity-sub">Your voice, your Channel — make it yours.</p>
+                <h2>Creator space</h2>
+                <p className="audio-identity-sub">A home for your broadcasts, recordings and community.</p>
               </div>
             </div>
-            <h1 id="channel-setup-title" className="channel-setup-hero">Set up your Channel</h1>
-            <p className="channel-setup-blurb">Your Channel is your public home on Echoo. Listeners can find your broadcasts, recordings and collections here.</p>
+            <h1 id="channel-setup-title" className="channel-setup-hero">Create your Channel</h1>
+            <p className="channel-setup-blurb">Your space to broadcast, share recordings and grow your audience.</p>
           </div>
           <img src={echooArtwork} alt="" aria-hidden="true" className="channel-setup-artwork" />
         </aside>
@@ -346,7 +335,7 @@ export default function CreatorSetup({ onCreatorReady }) {
               <span className="channel-select-wrap">
                 <select value={category} onChange={(event) => setCategory(event.target.value)} required>
                   <option value="">Select category</option>
-                  {categories.map((item) => <option key={item} value={item}>{item}</option>)}
+                  {categories.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
                 </select>
                 <FaChevronDown aria-hidden="true" />
               </span>
