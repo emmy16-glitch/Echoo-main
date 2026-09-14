@@ -183,6 +183,16 @@ const OnboardingFlow = () => {
         onProfileCompleted={() => {
           localStorage.setItem('echooProfileCompleted', 'true');
           localStorage.setItem('echooActiveExperience', 'listener');
+          try {
+            const stored = getStoredUser();
+            localStorage.setItem('user', JSON.stringify({
+              ...stored,
+              profileCompleted: true,
+              onboardingCompleted: true,
+            }));
+          } catch {
+            // Stored profile is best-effort; flags above still drive routing.
+          }
           finishAuthentication(getStoredUser());
         }}
         onSessionInvalid={() => setStage('register')}
@@ -298,7 +308,14 @@ function App() {
 
         <div id="echoo-route-content" tabIndex={-1}>
           <Routes>
-            <Route path="/" element={<Navigate to={experienceHome(getStoredExperience())} replace />} />
+            <Route
+              path="/"
+              element={
+                localStorage.getItem('accessToken')
+                  ? <Navigate to={experienceHome(getStoredExperience())} replace />
+                  : <Navigate to="/listen" replace />
+              }
+            />
             <Route path="/login" element={<OnboardingFlow />} />
             <Route path="/register" element={<OnboardingFlow />} />
             <Route path="/reset-password" element={<ResetPassword />} />

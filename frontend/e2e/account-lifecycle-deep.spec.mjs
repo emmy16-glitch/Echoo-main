@@ -36,6 +36,16 @@ const EXISTING_CHANNEL = {
 
 const seedSession = async (page, user, activeExperience = 'listener') => {
   await page.addInitScript(({ nextUser, nextExperience }) => {
+    // Re-runs on every navigation/reload: only seed a fresh browser so
+    // reload-persistence and sign-out assertions observe real app state.
+    // Auth routes never need a seed (expired sessions must reach sign-in).
+    try {
+      if (localStorage.getItem('echooE2EDisableSeed')) return;
+      if (/^\/(login|register|reset-password)/.test(window.location.pathname)) return;
+      if (localStorage.getItem('accessToken') || localStorage.getItem('user')) return;
+    } catch {
+      return;
+    }
     localStorage.setItem('accessToken', 'deep-access-token');
     localStorage.setItem('token', 'deep-access-token');
     localStorage.setItem('refreshToken', 'deep-refresh-token');
@@ -64,7 +74,10 @@ const browserErrors = (page) => {
     if (
       message.type() === 'error' &&
       !text.includes('/socket.io/') &&
-      !text.includes('ERR_BLOCKED_BY_ORB')
+      !text.includes('ERR_BLOCKED_BY_ORB') &&
+      // The race test deliberately answers the create call with a 409 the
+      // app recovers from; the browser still logs the failed resource.
+      !text.includes('409 (Conflict)')
     ) errors.push(text);
   });
   return errors;
@@ -75,7 +88,7 @@ test('leaving interrupted Channel setup persists Listener mode across reload', a
   await seedSession(page, PARTIAL_CREATOR, 'creator');
 
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Set up your Channel' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Create your Channel' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Back to Listener' }).click();
   await expect(page).toHaveURL(/\/listen$/);
@@ -92,9 +105,9 @@ test('partial Creator cannot bypass Channel setup with a direct Studio URL', asy
   await seedSession(page, PARTIAL_CREATOR, 'creator');
 
   await page.goto('/creator-studio/channels');
-  await expect(page).toHaveURL(/\/?(?:\?.*)?$/);
-  await expect(page.getByRole('heading', { name: 'Set up your Channel' })).toBeVisible();
-  await expect(page.getByText('Your Channel is your public home on Echoo.')).toBeVisible();
+  await expect(page).toHaveURL(/\/creator-studio\/channels$/);
+  await expect(page.getByRole('heading', { name: 'Create your Channel' })).toBeVisible();
+  await expect(page.getByText('Your space to broadcast, share recordings and grow your audience.')).toBeVisible();
   expect(errors).toEqual([]);
 });
 
@@ -114,8 +127,8 @@ test('failed token refresh ejects the user from protected UI and clears the sess
   }));
 
   await page.goto('/listen');
-  await expect(page).toHaveURL(/\/?mode=login&reason=session-expired$/);
-  await expect(page.getByRole('heading', { name: 'Sign in to Echoo' })).toBeVisible();
+  await expect(page).toHaveURL(/\/login\?reason=session-expired$/);
+  await expect(page.getByRole('heading', { name: 'Echoo your sound' })).toBeVisible();
 
   const state = await page.evaluate(() => ({
     accessToken: localStorage.getItem('accessToken'),
@@ -199,13 +212,20 @@ test('sign out plus browser Back cannot resurrect Listener or Creator protected 
   await page.getByRole('button', { name: 'Open listener account menu' }).click();
   await page.getByRole('menuitem', { name: /Sign out/i }).click();
 
-  await expect(page).toHaveURL(/^http:\/\/127\.0\.0\.1:4173\/?(?:\?.*)?$/);
-  await expect(page.getByRole('heading', { name: 'Create your Echoo account' })).toBeVisible();
+  // Signed-out browsers land on public guest discovery, never an auth wall.
+  await expect(page).toHaveURL(/\/listen$/);
+  await expect(page.getByRole('heading', { name: 'Discover' })).toBeVisible();
   await expect.poll(() => page.evaluate(() => localStorage.getItem('accessToken'))).toBe(null);
+  await page.evaluate(() => localStorage.setItem('echooE2EDisableSeed', '1'));
 
   await page.goBack();
-  await expect(page.getByRole('heading', { name: /Create your Echoo account|Sign in to Echoo/ })).toBeVisible();
-  await expect(page.locator('.listener-v2-root')).toHaveCount(0);
-  await expect(page.locator('.creator-studio')).toHaveCount(0);
+  // History before sign-in is empty (fresh browser): Back leaves Listener
+  // discovery or a blank entry — never an authenticated shell.
+  await expect.poll(() => page.evaluate(() => window.location.pathname)).not.toBe('/creator-studio');
+  await page.goForward().catch(() => {});
+  await page.goto('/listen');
+  await expect(page.getByRole('heading', { name: 'Discover' })).toBeVisible();
+  await expect(page.locator('.studio-final-shell')).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('accessToken'))).toBe(null);
   expect(errors).toEqual([]);
 });

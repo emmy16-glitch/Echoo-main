@@ -67,7 +67,7 @@ test('Channels browse survives repeated reflow and opens the canonical Channel U
   await page.goto('/listen/channels');
   await settle(page);
 
-  await expect(page.getByRole('heading', { name: 'Channels' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Channels', exact: true })).toBeVisible();
   const search = page.getByPlaceholder('Search Channels...');
   await search.fill('Echoo');
 
@@ -108,7 +108,7 @@ test('Following has no dead More control and non-live Channels open canonically'
   await page.route('**/api/stations/507f1f77bcf86cd799439099', (route) => json(route, 200, data(channel)));
 
   await page.goto('/listen/following');
-  await expect(page.getByRole('heading', { name: 'Following' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Following', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: /More options for/i })).toHaveCount(0);
 
   await page.getByRole('button', { name: 'Open Stateful QA Channel' }).click();
@@ -121,7 +121,7 @@ test('Broadcast workstation remains mounted and usable through repeated viewport
   await settle(page);
 
   const workstation = page.locator('.ec2-broadcast').first();
-  const mixer = page.locator('.eam-approved-mixer').first();
+  const mixer = page.locator('section.eam-approved').first();
   await expect(workstation).toBeVisible();
   await expect(mixer).toBeVisible();
 

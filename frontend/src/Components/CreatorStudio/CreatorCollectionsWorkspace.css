@@ -129,7 +129,7 @@
 }
 
 .recordings-art-play { position:absolute; z-index:4; top:50%; left:50%; width:38px; height:38px; display:grid; place-items:center; transform:translate(-50%,-50%); border-radius:50%; background:#fff; color:var(--rec-blue); box-shadow:0 5px 13px rgba(7,22,56,.18); font-size:16px; }
-.recordings-art small { position:absolute; z-index:4; right:7px; bottom:7px; padding:3px 6px; border-radius:4px; background:rgba(3,11,30,.82); color:#fff; font-size:9px; }
+.recordings-art small { position:absolute; z-index:4; right:7px; bottom:7px; padding:3px 6px; border-radius:4px; background:rgba(3,11,30,.82); color:#fff; font-size:10px; }
 
 .recordings-copy { min-width:0; display:grid; gap:5px; }
 .recordings-title { max-width:100%; display:inline-flex; align-items:center; gap:10px; overflow:hidden; padding:0; border:0; background:transparent; color:var(--rec-navy); font:inherit; font-size:14px; font-weight:760; text-align:left; text-overflow:ellipsis; white-space:nowrap; cursor:pointer; }

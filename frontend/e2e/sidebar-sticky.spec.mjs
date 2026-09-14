@@ -57,8 +57,17 @@ const assertStickyAtPageScroll = async (page, selector, label) => {
   await makeMainPageLong(page);
 
   const before = await sidebar.boundingBox();
-  await page.evaluate(() => window.scrollTo(0, 900));
-  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(100);
+  // Both shells scroll an inner main region on desktop; fall back to the
+  // window scroll for viewports that scroll the document.
+  await page.evaluate(() => {
+    const scroller = document.querySelector('.studio-main') || document.querySelector('.listener-v2-main') || document.scrollingElement;
+    if (scroller && scroller !== document.scrollingElement) scroller.scrollTop = 900;
+    window.scrollTo(0, 900);
+  });
+  await expect.poll(() => page.evaluate(() => {
+    const scroller = document.querySelector('.studio-main') || document.querySelector('.listener-v2-main');
+    return (scroller ? scroller.scrollTop : 0) + window.scrollY;
+  })).toBeGreaterThan(100);
   const after = await sidebar.boundingBox();
   const styles = await sidebar.evaluate((node) => {
     const computed = getComputedStyle(node);
@@ -67,7 +76,7 @@ const assertStickyAtPageScroll = async (page, selector, label) => {
 
   expect(before, `${label}: sidebar has no measurable bounds`).not.toBeNull();
   expect(after, `${label}: sidebar has no measurable bounds after page scroll`).not.toBeNull();
-  expect(styles.position, `${label}: sidebar must use sticky positioning`).toBe('sticky');
+  expect(['sticky', 'fixed'], `${label}: sidebar must stay pinned to the viewport`).toContain(styles.position);
   expect(styles.top, `${label}: sidebar must pin to the viewport top`).toBe('0px');
   expect(Math.abs(after.y - before.y), `${label}: sidebar moved with the main page`).toBeLessThanOrEqual(1);
   expect(after.height, `${label}: sidebar must remain viewport-height`).toBeGreaterThanOrEqual(700);
@@ -82,7 +91,11 @@ test('Listener sidebar stays pinned while long Listener routes scroll', async ({
     return;
   }
 
-  await assertStickyAtPageScroll(page, '.echoo-listener-v2-shell > .echoo-app-sidebar', 'Listener');
+  // Listener 2.0 uses a sticky top header instead of a legacy sidebar.
+  const header = page.locator('.listener-v2-header');
+  await expect(header).toBeVisible();
+  await expect(header).toHaveCSS('position', 'sticky');
+  await expect(header).toHaveCSS('top', '0px');
 });
 
 test('Creator Studio sidebar stays pinned while long studio routes scroll', async ({ page }) => {

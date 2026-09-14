@@ -102,7 +102,7 @@
   border-radius: 6px;
   background: var(--est-red);
   color: #fff;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 820;
   letter-spacing: .05em;
 }
@@ -273,7 +273,7 @@
   padding: 5px 8px;
   border-radius: 6px;
   color: #fff;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 820;
 }
 .est-broadcast-art > span.live { background: var(--est-red); }

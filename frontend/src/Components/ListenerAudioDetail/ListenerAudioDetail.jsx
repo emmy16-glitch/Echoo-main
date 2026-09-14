@@ -139,27 +139,36 @@ const ListenerAudioDetail = () => {
   }, [previewMode, transcript]);
   const transcriptPublished = previewMode || normalizedTrack?.sourceBroadcast?.assetStatus?.transcript === 'published';
 
-  const active = normalizedTrack && String(player.currentTrack?.id || '') === String(normalizedTrack.id);
-  const playing = Boolean(active && player.isPlaying);
-  const displayDuration = active && player.duration > 0 ? player.duration : normalizedTrack?.duration || 0;
-  const displayCurrent = active ? player.currentTime : 0;
+  const active = normalizedTrack && String(player?.currentTrack?.id || '') === String(normalizedTrack.id);
+  const playing = Boolean(active && player?.isPlaying);
+  const displayDuration = active && Number(player?.duration) > 0 ? player.duration : normalizedTrack?.duration || 0;
+  const displayCurrent = active ? Number(player?.currentTime) || 0 : 0;
   const progress = displayDuration > 0 ? (displayCurrent / displayDuration) * 100 : 0;
 
   const play = () => {
-    if (!normalizedTrack) return;
-    if (active) player.togglePlay();
-    else player.playTrack(normalizedTrack, [normalizedTrack]);
+    if (!normalizedTrack || !player) return;
+    if (active) player.togglePlay?.();
+    else player.playTrack?.(normalizedTrack, [normalizedTrack]);
   };
   const jump = (seconds) => {
-    if (!normalizedTrack) return;
-    player.playTrackAt(normalizedTrack, seconds, [normalizedTrack]);
+    if (!normalizedTrack || !player) return;
+    if (typeof player.playTrackAt === 'function') {
+      player.playTrackAt(normalizedTrack, seconds, [normalizedTrack]);
+    } else {
+      player.playTrack?.(normalizedTrack, [normalizedTrack]);
+      player.seekTo?.(seconds);
+    }
   };
   useEffect(() => {
-    if (!normalizedTrack || initialSeekApplied.current) return;
+    if (!normalizedTrack || initialSeekApplied.current || !player) return;
     const requested = Number(new URLSearchParams(window.location.search).get('t'));
     if (!Number.isFinite(requested) || requested < 0) return;
     initialSeekApplied.current = true;
-    player.playTrackAt(normalizedTrack, requested, [normalizedTrack]);
+    if (typeof player.playTrackAt === 'function') {
+      player.playTrackAt(normalizedTrack, requested, [normalizedTrack]);
+    } else {
+      player.playTrack?.(normalizedTrack, [normalizedTrack]);
+    }
   }, [normalizedTrack, player]);
 
   const saveMoment = async (moment) => {
@@ -183,9 +192,12 @@ const ListenerAudioDetail = () => {
     if (results.some((result) => result.status === 'fulfilled')) setNotice('Key moments saved.');
   };
   const seekPercent = (percent) => {
-    if (!normalizedTrack) return;
-    if (!active) player.playTrackAt(normalizedTrack, (percent / 100) * displayDuration, [normalizedTrack]);
-    else player.seekTo((percent / 100) * displayDuration);
+    if (!normalizedTrack || !player) return;
+    if (!active && typeof player.playTrackAt === 'function') {
+      player.playTrackAt(normalizedTrack, (percent / 100) * displayDuration, [normalizedTrack]);
+    } else if (!active) {
+      player.playTrack?.(normalizedTrack, [normalizedTrack]);
+    } else player.seekTo?.((percent / 100) * displayDuration);
   };
   const toggleFollow = async () => {
     const artistId = typeof normalizedTrack?.artist === 'object'

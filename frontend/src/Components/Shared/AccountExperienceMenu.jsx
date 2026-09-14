@@ -121,7 +121,11 @@ export default function AccountExperienceMenu({
       await api.auth.logout();
     } finally {
       setOpen(false);
-      navigate('/', { replace: true });
+      // Reset to the public Listener discovery experience. Leaving the
+      // Creator experience active would bounce a signed-out browser between
+      // "/" and "/creator-studio" (RequireRole sends guests to "/").
+      localStorage.setItem('echooActiveExperience', 'listener');
+      navigate('/listen', { replace: true });
     }
   };
 

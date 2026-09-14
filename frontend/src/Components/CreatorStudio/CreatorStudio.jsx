@@ -242,6 +242,15 @@ const CreatorStudioBody = () => {
     }
   };
 
+  useEffect(() => {
+    if (!uploadOpen) return undefined;
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') closeUpload();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  });
+
   const handleUploadChange = (event) => {
     const { name, value, checked, files, type } = event.target;
 
@@ -498,7 +507,7 @@ const CreatorStudioBody = () => {
 
       {uploadOpen && (
         <div className="studio-modal-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) closeUpload(); }}>
-          <div className="studio-upload-modal studio-upload-modal-artwork">
+          <div className="studio-upload-modal studio-upload-modal-artwork" role="dialog" aria-modal="true" aria-label="Upload audio and artwork">
             <div className="upload-modal-header">
               <div>
                 <h2>Upload audio & artwork</h2>

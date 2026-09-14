@@ -110,7 +110,9 @@ const expireBrowserSession = () => {
   // Token state can be cleared from a background request after a protected
   // route has already rendered. Replace history immediately so Listener/Studio
   // cannot remain visible with a dead session and Back cannot restore it.
-  window.location.replace('/?mode=login&reason=session-expired');
+  // Guests land on public discovery; an expired session returns to sign-in so
+  // the interruption is explicit instead of a silent downgrade to guest.
+  window.location.replace('/login?reason=session-expired');
 };
 
 const parseResponse = async (

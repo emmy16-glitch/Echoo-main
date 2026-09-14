@@ -194,6 +194,7 @@ export default defineConfig({
       timeout: 30_000,
       env: {
         VITE_API_URL: `${e2eApiUrl}/api`,
+        VITE_PORT: '4173',
       },
       stdout: 'pipe',
       stderr: 'pipe',

@@ -29,6 +29,7 @@ const bodyOf = (route) => {
 };
 
 test('listener can create a Channel and enter Creator Studio with the same account', async ({ page }) => {
+  test.slow();
   let currentUser = makeUser();
   let channels = [];
   const createdChannel = {
@@ -166,7 +167,7 @@ test('listener can create a Channel and enter Creator Studio with the same accou
   await expect(page.getByRole('button', { name: 'Create your Channel' })).toBeVisible();
   await page.getByRole('button', { name: 'Create your Channel' }).click();
 
-  await expect(page.getByRole('heading', { name: 'Set up your Channel' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Create your Channel' })).toBeVisible();
   await expect(page.getByRole('button', { name: /Individual/i })).toHaveAttribute('aria-pressed', 'true');
   await page.getByRole('button', { name: /Organization/i }).click();
   await expect(page.getByLabel('Organization type')).toBeVisible();

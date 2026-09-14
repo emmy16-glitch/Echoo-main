@@ -86,6 +86,7 @@ export default function CreatorScheduleEventsWorkspace({ onNavigate }) {
   const [broadcasts, setBroadcasts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [modalError, setModalError] = useState('');
   const [notice, setNotice] = useState('');
   const [tab, setTab] = useState('upcoming');
   const [query, setQuery] = useState('');
@@ -143,6 +144,7 @@ export default function CreatorScheduleEventsWorkspace({ onNavigate }) {
   const openCreate = () => {
     setError('');
     setNotice('');
+    setModalError('');
     setForm(emptyForm());
     setModalOpen(true);
   };
@@ -150,6 +152,7 @@ export default function CreatorScheduleEventsWorkspace({ onNavigate }) {
   const closeCreate = useCallback(() => {
     if (saving) return;
     setModalOpen(false);
+    setModalError('');
     window.requestAnimationFrame(() => createButtonRef.current?.focus());
   }, [saving]);
 
@@ -229,12 +232,12 @@ export default function CreatorScheduleEventsWorkspace({ onNavigate }) {
     const file = event.target.files?.[0] || null;
     if (!file) return;
     if (!IMAGE_TYPES.has(file.type)) {
-      setError('Event artwork must be JPG, PNG or WebP.');
+      setModalError('Event artwork must be JPG, PNG or WebP.');
       event.target.value = '';
       return;
     }
     if (file.size > MAX_IMAGE_SIZE) {
-      setError('Event artwork must be 2 MB or smaller.');
+      setModalError('Event artwork must be 2 MB or smaller.');
       event.target.value = '';
       return;
     }
@@ -242,7 +245,7 @@ export default function CreatorScheduleEventsWorkspace({ onNavigate }) {
     const reader = new FileReader();
     reader.onload = () => {
       updateForm('artwork', typeof reader.result === 'string' ? reader.result : '');
-      setError('');
+      setModalError('');
     };
     reader.readAsDataURL(file);
   };
@@ -251,23 +254,23 @@ export default function CreatorScheduleEventsWorkspace({ onNavigate }) {
     event.preventDefault();
     if (saving) return;
     if (!channel?.id) {
-      setError('Set up your Channel before scheduling a broadcast.');
+      setModalError('Set up your Channel before scheduling a broadcast.');
       return;
     }
 
     const start = new Date(`${form.date}T${form.time}`);
     if (!form.title.trim() || !form.date || !form.time || Number.isNaN(start.getTime())) {
-      setError('Add a broadcast title, date and start time.');
+      setModalError('Add a broadcast title, date and start time.');
       return;
     }
     if (start <= new Date()) {
-      setError('Choose a future start time.');
+      setModalError('Choose a future start time.');
       return;
     }
 
     try {
       setSaving(true);
-      setError('');
+      setModalError('');
       const payload = {
         title: form.title.trim(),
         description: form.description.trim(),
@@ -290,7 +293,7 @@ export default function CreatorScheduleEventsWorkspace({ onNavigate }) {
       notifyChanged();
       refresh({ silent: true }).catch(() => {});
     } catch (saveError) {
-      setError(saveError?.message || 'Could not schedule this broadcast.');
+      setModalError(saveError?.message || 'Could not schedule this broadcast.');
     } finally {
       setSaving(false);
     }
@@ -528,6 +531,7 @@ export default function CreatorScheduleEventsWorkspace({ onNavigate }) {
               </aside>
 
               <div className="schedule-modal-fields">
+                {modalError && <div className="schedule-alert error" role="alert">{modalError}<button type="button" onClick={() => setModalError('')} aria-label="Dismiss"><FiX /></button></div>}
                 <div className="schedule-modal-top-row">
                   <label>
                     <span>Event title</span>

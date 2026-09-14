@@ -642,7 +642,7 @@ const CreatorLiveConnectedWorkspace = ({
       <section className="ec2-no-channel" aria-labelledby="ec2-no-channel-title">
         <div className="ec2-no-channel-copy">
           <span className="ec2-no-channel-eyebrow">CHANNEL SETUP</span>
-          <h1 id="ec2-no-channel-title">Set up your Channel</h1>
+          <h1 id="ec2-no-channel-title">Create your Channel</h1>
           <p>
             Your Channel is your public home on Echoo. Listeners will find your live broadcasts, recordings and collections here.
           </p>

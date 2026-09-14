@@ -79,7 +79,7 @@ const authenticate = async (page, user) => {
   }, { nextUser: user });
 };
 
-test('LIVE controls copy and share the permanent station URL and survive refresh', async ({ page }) => {
+test('LIVE controls copy the permanent live URL and survive refresh', async ({ page }) => {
   await authenticate(page, creator);
   await page.addInitScript(() => {
     window.__copiedText = '';
@@ -103,27 +103,19 @@ test('LIVE controls copy and share the permanent station URL and survive refresh
 
   await page.goto('/creator-studio');
   await expect(page.getByRole('button', { name: 'Copy live link' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Share', exact: true })).toBeVisible();
 
-  const expectedUrl = `${new URL(page.url()).origin}/listen/stations/${STATION_SLUG}`;
+  const expectedUrl = `${new URL(page.url()).origin}/listen/live/${BROADCAST_ID}`;
   await page.getByRole('button', { name: 'Copy live link' }).click();
-  await expect(page.getByRole('button', { name: 'Link copied' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Copied' })).toBeVisible();
   await expect.poll(() => page.evaluate(() => window.__copiedText)).toBe(expectedUrl);
-
-  await page.getByRole('button', { name: 'Share', exact: true }).click();
-  await expect.poll(() => page.evaluate(() => window.__sharePayload)).toEqual({
-    title: station.name,
-    text: `${station.name} is live on Echoo.`,
-    url: expectedUrl,
-  });
 
   await page.reload();
   await expect(page.getByRole('button', { name: 'Copy live link' })).toBeVisible();
 
-  await page.evaluate(() => { delete navigator.share; window.__copiedText = ''; });
-  await page.getByRole('button', { name: 'Share', exact: true }).click();
+  await page.evaluate(() => { window.__copiedText = ''; });
+  await page.getByRole('button', { name: 'Copy live link' }).click();
   await expect.poll(() => page.evaluate(() => window.__copiedText)).toBe(expectedUrl);
-  await expect(page.getByRole('button', { name: 'Link copied' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Copied' })).toBeVisible();
 });
 
 test('OFF AIR hides sharing controls and keeps the existing Go Live action', async ({ page }) => {

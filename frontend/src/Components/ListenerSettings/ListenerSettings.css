@@ -129,6 +129,7 @@
 }
 
 .set-change-photo {
+  min-height: 28px;
   border: 0;
   background: transparent;
   font-family: inherit;
@@ -257,7 +258,8 @@
 
 .set-toggle {
   width: 42px;
-  height: 24px;
+  height: 28px;
+  min-height: 28px;
   flex-shrink: 0;
   border: 0;
   border-radius: 999px;
@@ -487,7 +489,7 @@
 
 .set-header > span {
   color: #246bfe;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 800;
   letter-spacing: .14em;
 }
@@ -693,7 +695,7 @@
 
 .set-toggle-desc {
   color: #8591a3;
-  font-size: 9px;
+  font-size: 10px;
   line-height: 1.5;
 }
 

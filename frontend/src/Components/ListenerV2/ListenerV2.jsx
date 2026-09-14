@@ -357,6 +357,40 @@ const ListenerV2Layout = () => {
     else audio.pause();
   }, [currentTrack?.fileUrl]);
 
+  const seekTo = useCallback((seconds) => {
+    const audio = audioRef.current;
+    const target = Math.max(0, Number(seconds) || 0);
+    if (!audio) return target;
+    try {
+      if (Number.isFinite(audio.duration) && audio.duration > 0) {
+        audio.currentTime = Math.min(target, audio.duration);
+      } else {
+        audio.currentTime = target;
+      }
+    } catch {
+      // Seeking before metadata is available throws in some browsers; the
+      // time-update handler will converge once the media loads.
+    }
+    setCurrentTime(target);
+    return target;
+  }, []);
+
+  const playTrackAt = useCallback((track, seconds, incomingQueue = []) => {
+    const normalized = normalizePlayable(track);
+    const requestedSeek = Math.max(0, Number(seconds) || 0);
+    if (!normalized?.fileUrl) return false;
+    if (idOf(normalized) === idOf(currentTrack) && audioRef.current) {
+      seekTo(requestedSeek);
+      if (audioRef.current.paused) audioRef.current.play().catch(() => {});
+      return true;
+    }
+    const played = playTrack(normalized, incomingQueue);
+    if (played && requestedSeek > 0) {
+      window.setTimeout(() => seekTo(requestedSeek), 350);
+    }
+    return played;
+  }, [currentTrack, playTrack, seekTo]);
+
   const playNext = () => {
     if (!queue.length || !currentTrack) return;
     const index = queue.findIndex((item) => idOf(item) === idOf(currentTrack));
@@ -406,7 +440,7 @@ const ListenerV2Layout = () => {
       </header>}
 
       <main className={`listener-v2-main${currentTrack && !isLiveRoom ? ' has-player' : ''}`}>
-        <Outlet context={{ playTrack, currentTrack, isPlaying, togglePlay, setLivePlayerState }} />
+        <Outlet context={{ playTrack, playTrackAt, seekTo, playNext, currentTrack, currentTime, duration, queue, isPlaying, togglePlay, setLivePlayerState }} />
       </main>
 
       <audio
