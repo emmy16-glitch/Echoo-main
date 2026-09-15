@@ -1,0 +1,53 @@
+# Architecture
+
+## System map
+
+```text
+┌─────────────┐   ┌─────────────┐   ┌──────────────┐
+│ Web (Vite)  │   │  Desktop    │   │ Mobile (Expo)│  ◄── clients, subscribe-only for listeners
+│ React SPA   │   │ (Electron + │   │ iOS + Android│
+└──────┬──────┘   │  bundled API)│   └──────┬───────┘
+       │          └──────┬───────┘          │
+       └────────┬───────┴────────┬─────────┘
+                ▼                ▼
+┌────────────────────────┐   ┌──────────────────┐
+│ Echoo API (Express)    │   │  LiveKit Cloud   │  ◄── real-time audio routing
+│ identity, lifecycle,   │   │  (WebRTC SFU)    │
+│ chat, presence, media  │   └──────────────────┘
+│ access, recordings     │
+└───────┬────────────────┘
+        ▼
+┌────────────────────────┐   ┌──────────────────┐
+│ MongoDB                │   │ S3-compatible    │  ◄── recordings archive
+│ (accounts, shows,      │   │ object storage   │
+│  chat, media records)  │   │ (R2 / B2)        │
+└────────────────────────┘   └──────────────────┘
+```
+
+Realtime product events (chat, presence, status) travel over Socket.IO from the API process. Live audio bytes travel creator → LiveKit → listeners and never touch the API.
+
+## Authority rules
+
+- **One shared backend per environment.** Every install in an environment talks to the same API + database; that is what makes a broadcast visible to everyone. (Desktop installers can bundle a local server for offline/single-machine use, but a shared world needs the hosted API — see `deployment.md`.)
+- **LiveKit is the live media authority.** Playback attaches only to the named `echoo-studio-mix` publication; tokens are short-lived, subscriber-only for listeners, and reissued on reconnect.
+- **Private media by default.** Recording files, covers, and replays resolve through signed, time-limited stream URLs. Cloud object URLs are never exposed in API output.
+- **Public data is explicit.** Only broadcasts flagged public appear in discovery, shared links, and guest endpoints; private broadcasts 404 like missing ones.
+- **Single API process for realtime.** Socket.IO runs in-process; multi-instance API deployment needs a shared adapter before rooms can span processes.
+- **No mock data.** The product never serves fabricated shows, counts, or transcripts; empty states are honest.
+
+## Broadcast lifecycle (happy path)
+
+`scheduled → starting → live → ending → completed` (plus `cancelled`/`failed` exits). Going live mints the LiveKit room and creator token; ending it triggers the recording pipeline (master finalize → Opus transcode → cloud archive → replay link) and background processing jobs (transcript, highlights, chapters).
+
+## Clients
+
+- **Web** (`frontend/`): React SPA, lazy-loaded listener/creator shells, Vite proxy to the API in dev, relative asset base so the same bundle also runs inside Electron's `file://`.
+- **Desktop** (`desktop/`): Electron shell — single instance, tray with room controls, native notifications, auto-launch, GitHub auto-updates, graceful LiveKit/socket shutdown. Packaged builds bundle the API server and an embedded-database fallback. Details: `desktop/README.md`.
+- **Mobile** (`mobile/`): Expo app, `expo-audio` playback with lock-screen controls, LiveKit listener rooms, Android media-playback foreground service for background live audio. Details: `mobile/README.md`, builds: `mobile/APK_BUILD.md`.
+- **Landing** (`echoo-landing/`): marketing and release site (separate concern).
+
+## Deep dives
+
+- [Audio pipeline](audio-architecture.md) — capture, mixer, publishing profiles, listener attach.
+- [Transcription](transcription.md) — Whisper gateway deployment and behavior.
+- [Desktop internals](../desktop/README.md) — IPC contract, CSP, updater, release matrix.
