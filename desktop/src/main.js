@@ -884,15 +884,15 @@ function registerIpc() {
   ipcMain.handle('echoo:notify', async (_event, options = {}) => {
     try {
       const prefs = readPrefs();
-      if (prefs.notificationsEnabled !== true) return { ok: true, shown: false, reason: 'disabled' };
-      if (!Notification.isSupported()) return { ok: false, shown: false, reason: 'notifications-unsupported' };
+      if (prefs.notificationsEnabled !== true) return { shown: false, reason: 'disabled' };
+      if (!Notification.isSupported()) return { shown: false, reason: 'notifications-unsupported' };
 
       let title = 'Echoo';
       let body = '';
       if (options && typeof options.type === 'string') {
         const key = normalizeNotificationType(options.type);
-        if (!key) return { ok: false, shown: false, reason: 'unknown-type' };
-        if (prefs.notificationEvents[key] !== true) return { ok: true, shown: false, reason: 'event-disabled' };
+        if (!key) return { shown: false, reason: 'unknown-type' };
+        if (prefs.notificationEvents[key] !== true) return { shown: false, reason: 'event-disabled' };
         ({ title, body } = NOTIFICATION_COPY[key]);
       } else {
         title = typeof options.title === 'string' && options.title ? options.title : 'Echoo';
@@ -900,10 +900,10 @@ function registerIpc() {
       }
 
       showNotification({ title, body, silent: options.silent === true });
-      return { ok: true, shown: true };
+      return { shown: true };
     } catch (error) {
       log.warn('[echoo-desktop] echoo:notify failed:', error.message);
-      return { ok: false, shown: false, reason: 'error' };
+      return { shown: false, reason: 'error' };
     }
   });
 
