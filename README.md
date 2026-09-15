@@ -87,7 +87,7 @@ Echoo is deliberately **not** another upload-and-wait audio host. It separates l
 | Live audio | LiveKit Cloud (WebRTC SFU), `livekit-client` / `@livekit/react-native` |
 | Mobile | Expo React Native (iOS + Android), `expo-audio`, native foreground service for live |
 | Desktop | Electron 41, bundled API server, embedded-DB fallback |
-| Recordings | FFmpeg (server MP3) + S3-compatible object storage (R2 / Backblaze B2) |
+| Recordings | FFmpeg (server MP3); local disk by default, S3-compatible object storage when configured |
 | Transcription (optional) | Whisper gateway (Python service), failure-isolated |
 | Testing | `node --test` suites, `tsc`, Vite build, GitHub Actions (`echoo-check`) |
 | Deployment | Hosted site + Cloudflare, GitHub Releases (AppImage / NSIS `.exe` / DMG), EAS (mobile) |
@@ -132,9 +132,9 @@ The browser captures a 24-bit/48 kHz stereo WAV master (~660 MB/hour) to local O
 2. Normalises it to MP3 (`AUDIO_MP3_BITRATE`, default `192k` stereo ≈ 86 MB/hour) — the canonical server copy, on local disk or S3 when configured (local WAV deleted; kept on any failure — archiving never breaks the upload).
 3. Offers a PC copy: the creator picks **MP3** (the server copy) or **WAV** (the local master) and saves it into the `Desktop/Echoo Recordings` library folder.
 
-Playback always resolves through signed, time-limited `/api/audio/:id/stream` URLs: local files stream with HTTP ranges; cloud files redirect (public buckets) or mint short-lived object URLs (private buckets — the free no-card setup). Only replays are transcoded; uploaded music keeps its original encoding.
+Playback always resolves through signed, time-limited `/api/audio/:id/stream` URLs: local files stream with HTTP ranges; cloud files redirect (public buckets) or mint short-lived object URLs (private buckets). Only replays are transcoded; uploaded music keeps its original encoding.
 
-Free, no-card storage: **Backblaze B2** (10 GB ≈ 115 show-hours at 192k, private bucket + signed playback). Setup: [backend/.env.example](backend/.env.example) (`AUDIO_*`).
+No cloud account needed: recordings stay on the server's local disk by default (≈ 86 MB/hour at 192k). S3-compatible object storage is optional via [backend/.env.example](backend/.env.example) (`AUDIO_*`).
 
 ## Limits and honesty rules
 
