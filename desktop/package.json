@@ -1,6 +1,6 @@
 {
   "name": "echoo-desktop",
-  "version": "0.2.2",
+  "version": "0.2.6",
   "description": "Echoo native desktop shell (Electron wrapper around the React frontend)",
   "main": "src/main.js",
   "private": true,
@@ -34,6 +34,7 @@
     "afterSign": "scripts/afterSign.js",
     "files": [
       "src/**/*",
+      "offline.html",
       "assets/**/*",
       "package.json",
       {

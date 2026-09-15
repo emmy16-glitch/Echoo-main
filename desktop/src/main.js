@@ -28,6 +28,17 @@ log.transports.file.level = 'info';
 log.transports.console.level = app.isPackaged ? 'warn' : 'debug';
 autoUpdater.logger = log;
 
+// Blank white window on some Windows machines is caused by GPU/blacklisted
+// drivers. Opt out of hardware acceleration via ECHOO_DISABLE_GPU=1 or
+// --disable-gpu (must run before app.whenReady, hence here at the top).
+if (
+  process.platform === 'win32' &&
+  (process.env.ECHOO_DISABLE_GPU === '1' || process.argv.includes('--disable-gpu'))
+) {
+  app.disableHardwareAcceleration();
+  log.info('[echoo-desktop] hardware acceleration disabled (ECHOO_DISABLE_GPU/--disable-gpu)');
+}
+
 // ---------------------------------------------------------------------------
 // Config
 // ---------------------------------------------------------------------------
@@ -59,8 +70,13 @@ const ECHOO_IDENTITY_MARKER = 'name="echoo-app"';
 // NOTE: an earlier revision pointed at ../../frontend/dist relative to the
 // repo — that 404s in the installed app (resources/frontend/... doesn't exist)
 // and was caught by the packaged boot test via did-fail-load.
+// offline.html is a sibling of src/ in the repo AND packaged at the asar root
+// (see the "offline.html" entry in `files`), hence '../offline.html' here.
+// A previous revision used path.join(__dirname, 'offline.html'), which resolves
+// to src/offline.html — a file that does not exist — so the error page itself
+// failed to load and users saw a blank white window on Windows installs.
 const PROD_INDEX = path.join(__dirname, '../frontend-dist/index.html');
-const OFFLINE_PAGE = path.join(__dirname, 'offline.html');
+const OFFLINE_PAGE = path.join(__dirname, '../offline.html');
 
 // DevTools are gated: dev builds, or packaged builds with an explicit opt-in.
 const DEBUG_TOOLS =
@@ -388,7 +404,7 @@ function createWindow() {
   mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
     if (validatedURL.includes('offline.html')) return; // already showing it (query string included)
     log.warn(`[echoo-desktop] load failed (${errorCode} ${errorDescription}): ${validatedURL}`);
-    mainWindow?.loadFile(OFFLINE_PAGE).catch((error) => {
+    void loadOfflinePage(`${errorCode} ${errorDescription}`, validatedURL).catch((error) => {
       log.error('[echoo-desktop] could not load offline page:', error.message);
     });
   });
@@ -430,6 +446,26 @@ function createWindow() {
   });
 
   return mainWindow;
+}
+
+// Loads the bundled offline/error page. If the file itself is missing from the
+// package (the old Windows blank-screen bug), falls back to an inline data-URL
+// page so the window NEVER renders blank white without an explanation.
+function loadOfflinePage(reason, url) {
+  const query = { reason: reason || 'unknown', url: url || DEV_URL };
+  if (fs.existsSync(OFFLINE_PAGE)) {
+    return mainWindow?.loadFile(OFFLINE_PAGE, { query });
+  }
+  log.error(`[echoo-desktop] offline page missing at ${OFFLINE_PAGE} — showing inline fallback`);
+  const safeReason = String(query.reason).replace(/[<>&"]/g, '');
+  return mainWindow?.loadURL(
+    `data:text/html;charset=utf-8,${encodeURIComponent(
+      `<!doctype html><title>Echoo needs a connection</title>` +
+        `<body style="margin:0;min-height:100vh;display:grid;place-items:center;background:#f8fbff;color:#164f9d;font-family:Arial,sans-serif">` +
+        `<main style="text-align:center;max-width:420px"><h1>Echoo could not start.</h1>` +
+        `<p>(${safeReason}) Restart the app. If this keeps happening, reinstall from the latest release.</p></main></body>`
+    )}`
+  );
 }
 
 function showAndFocusWindow() {
@@ -516,9 +552,7 @@ async function loadDevUrl() {
         return;
       }
       log.warn(`[echoo-desktop] dev URL responded but is not Echoo (no identity marker): ${DEV_URL}`);
-      await mainWindow.loadFile(OFFLINE_PAGE, {
-        query: { reason: 'foreign-content', url: DEV_URL },
-      });
+      await loadOfflinePage('foreign-content', DEV_URL);
       return;
     }
   } catch (error) {
@@ -526,9 +560,7 @@ async function loadDevUrl() {
   }
   log.warn(`[echoo-desktop] dev server not reachable at ${DEV_URL} after ${DEV_WAIT_MS}ms — showing error screen`);
   try {
-    await mainWindow.loadFile(OFFLINE_PAGE, {
-      query: { reason: 'dev-unreachable', url: DEV_URL },
-    });
+    await loadOfflinePage('dev-unreachable', DEV_URL);
   } catch (error) {
     log.error('[echoo-desktop] could not load offline page:', error.message);
   }
@@ -734,16 +766,24 @@ function buildMenu() {
 // Tray (with room-state actions + macOS dark-mode-aware template icon)
 // ---------------------------------------------------------------------------
 function resolveTrayIcon() {
-  const dir = path.join(__dirname, '../assets');
+  const assetDir = path.join(__dirname, '../assets');
   if (process.platform === 'darwin') {
     for (const name of ['tray-iconTemplate.png', 'tray-icon.png']) {
-      const p = path.join(dir, name);
+      const p = path.join(assetDir, name);
       if (fs.existsSync(p)) return { path: p, template: name.includes('Template') };
     }
     return null;
   }
   for (const name of ['tray-icon.png', 'trayIcon.png', 'icon.png']) {
-    const p = path.join(dir, name);
+    const p = path.join(assetDir, name);
+    if (fs.existsSync(p)) return { path: p, template: false };
+  }
+  // Packaged installs ship icons under build/ (icon.ico on Windows, icon.icns
+  // on mac fallback) — desktop/assets/ does not exist in this repo, so without
+  // this fallback Windows got an empty tray image (and Tray(empty) can throw).
+  const buildDir = path.join(__dirname, '../build');
+  for (const name of ['icon.ico', 'icon.png', 'icon.icns']) {
+    const p = path.join(buildDir, name);
     if (fs.existsSync(p)) return { path: p, template: false };
   }
   return null;

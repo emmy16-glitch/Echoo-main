@@ -9,6 +9,10 @@
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
     <title>echoo</title>
+    <!-- Identity marker required by the desktop dev-server gate
+         (desktop/src/main.js) and scripts/dev-all.sh: proves a listening
+         port is actually serving Echoo and not a squatter on shared machines. -->
+    <meta name="echoo-app" content="echoo" />
     <meta
       name="theme-color"
       content="#FAFAFA"

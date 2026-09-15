@@ -118,7 +118,14 @@ const expireBrowserSession = () => {
   // cannot remain visible with a dead session and Back cannot restore it.
   // Guests land on public discovery; an expired session returns to sign-in so
   // the interruption is explicit instead of a silent downgrade to guest.
-  window.location.replace('/login?reason=session-expired');
+  // file:// (packaged desktop + HashRouter) has no '/login' document — a raw
+  // '/login' replace escapes the bundle, fails to load, and shows a blank
+  // window. Route through the hash there instead.
+  if (window.echooDesktop?.isDesktop === true || window.location.protocol === 'file:') {
+    window.location.replace('#/login?reason=session-expired');
+  } else {
+    window.location.replace('/login?reason=session-expired');
+  }
 };
 
 const parseResponse = async (

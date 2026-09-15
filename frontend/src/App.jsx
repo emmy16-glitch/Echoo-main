@@ -2,6 +2,7 @@ import { Component, useEffect, useState, Suspense, lazy } from 'react';
 import { FiAlertTriangle } from 'react-icons/fi';
 import {
   BrowserRouter,
+  HashRouter,
   Navigate,
   Route,
   Routes,
@@ -295,8 +296,16 @@ const ListenerRoutePrefetch = () => {
 };
 
 function App() {
+  // The packaged desktop shell loads over file:// (loadFile), where the HTML5
+  // history API has no server to resolve deep links — BrowserRouter renders a
+  // blank window there. HashRouter keeps every route after '#' so the installed
+  // Windows/macOS/Linux app always boots. The web build keeps BrowserRouter.
+  const isDesktopFileRuntime =
+    typeof window !== 'undefined' &&
+    (window.echooDesktop?.isDesktop === true || window.location.protocol === 'file:');
+  const Router = isDesktopFileRuntime ? HashRouter : BrowserRouter;
   return (
-    <BrowserRouter>
+    <Router>
       <GuestAuthProvider>
       <ImageCropProvider>
         <a className="echoo-skip-to-content" href="#echoo-route-content">
@@ -366,7 +375,7 @@ function App() {
         </div>
       </ImageCropProvider>
       </GuestAuthProvider>
-    </BrowserRouter>
+    </Router>
   );
 }
 
