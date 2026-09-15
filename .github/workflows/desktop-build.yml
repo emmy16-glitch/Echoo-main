@@ -32,6 +32,8 @@ jobs:
 
       - name: Install dependencies
         run: |
+          npm ci --prefix backend
+          npm ci --prefix frontend
           cd desktop
           npm ci
 
@@ -54,10 +56,18 @@ jobs:
       - name: Build Electron app
         run: |
           cd desktop
-          npm run build -- --publish never
+          npm run dist -- --publish never
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_ENV: production
+          # Baked into the installer so a fresh download can go live with zero
+          # setup (see desktop/scripts/prepare-bundled-backend.js). Leave the
+          # secrets unset and the build still succeeds — going live then needs
+          # a manual server-data/.env on the user's machine.
+          LIVEKIT_URL: ${{ secrets.LIVEKIT_URL }}
+          LIVEKIT_PUBLIC_URL: ${{ secrets.LIVEKIT_PUBLIC_URL }}
+          LIVEKIT_API_KEY: ${{ secrets.LIVEKIT_API_KEY }}
+          LIVEKIT_API_SECRET: ${{ secrets.LIVEKIT_API_SECRET }}
           # Platform-specific signing credentials are intentionally optional so
           # verified unsigned builds remain available while certificates are
           # being provisioned. When the matching secrets are configured, the
@@ -95,6 +105,16 @@ jobs:
           ls -lh "$dmg"
           shasum -a 256 "$dmg"
           file "$dmg"
+
+      - name: Verify packaged Linux shell
+        if: runner.os == 'Linux'
+        run: |
+          cd desktop
+          xvfb-run -a node verify-packaged-shell.mjs
+        env:
+          ECHOO_TEST_NO_SANDBOX: '1'
+          ECHOO_TEST_DISABLE_GPU: '1'
+          ECHOO_TEST_HEADLESS: '1'
 
       - name: Retain packaged desktop artifacts for verification
         uses: actions/upload-artifact@v4
