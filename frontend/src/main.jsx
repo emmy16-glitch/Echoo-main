@@ -4,6 +4,7 @@ import App from "./App.jsx";
 import AppErrorBoundary from "./Components/System/AppErrorBoundary.jsx";
 import BroadcastRecordingPrompt from "./Components/CreatorStudio/BroadcastRecordingPrompt.jsx";
 import settingsService from "./services/settingsService.js";
+import { installDesktopLifecycle } from "./services/desktopLifecycle.js";
 import { initializeEchooTheme } from "./theme/themePreference.js";
 import "./accessibility/installPlayerKeyboardAccess.js";
 import "./accessibility/installUiSemanticRepairs.js";
@@ -57,6 +58,7 @@ import "./styles/playwright-run7-final-gate-fixes.css";
 import "./styles/echoo-artwork-fit.css";
 import "./Components/Register/auth-reference.css";
 initializeEchooTheme();
+installDesktopLifecycle();
 
 // Older builds used this as a persistent transcript-processing selector. It is
 // now a one-shot notification concept represented by echooPreparedBroadcastId;

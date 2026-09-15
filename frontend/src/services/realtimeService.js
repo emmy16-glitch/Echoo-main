@@ -89,10 +89,12 @@ const installSocketRecovery = (socket) => {
   // reconnect attempt should pick up the newest local token rather than the one
   // captured when the page first opened.
   socket.io?.on?.('reconnect_attempt', () => {
+    if (socket.__echooGuest) return;
     updateSocketAuth();
   });
 
   socket.on('connect_error', (error) => {
+    if (socket.__echooGuest) return; // guests have no token to refresh
     if (!authErrorLikely(error)) return;
     recoverSocketAuthentication().catch((refreshError) => {
       console.warn(
@@ -225,9 +227,107 @@ const subscribeToCatalog = async (handler) => {
   };
 };
 
+// Shared listen links: join realtime rooms without an account. The server
+// accepts auth { guest: true } and labels the socket `guest:<id>` —
+// read-only by construction (chat REST stays auth-gated, transcription
+// attach is rejected server-side). No token refresh exists for guests:
+// a failed guest handshake rejects instead of rotating credentials.
+const connectGuest = async ({ guestId = '', displayName = '' } = {}) => {
+  const io = await loadSocketIoClient();
+
+  const auth = {
+    guest: true,
+    guestId: String(guestId || ''),
+    name: String(displayName || '').slice(0, 40),
+  };
+
+  if (!sharedSocket) {
+    sharedSocket = io(API_ORIGIN || window.location.origin, {
+      path: '/socket.io',
+      transports: ['websocket', 'polling'],
+      auth,
+      autoConnect: false,
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 700,
+      reconnectionDelayMax: 5000,
+      timeout: 10000,
+    });
+    sharedSocket.__echooGuest = true;
+    installSocketRecovery(sharedSocket);
+  } else {
+    sharedSocket.auth = auth;
+    sharedSocket.__echooGuest = true;
+  }
+
+  if (!sharedSocket.connected) sharedSocket.connect();
+
+  return new Promise((resolve, reject) => {
+    if (sharedSocket.connected) {
+      resolve(sharedSocket);
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      cleanup();
+      reject(new Error('Realtime connection timed out.'));
+    }, 12000);
+
+    const onConnect = () => {
+      cleanup();
+      resolve(sharedSocket);
+    };
+
+    const onError = (error) => {
+      cleanup();
+      reject(error instanceof Error ? error : new Error('Realtime connection failed.'));
+    };
+
+    const cleanup = () => {
+      window.clearTimeout(timer);
+      sharedSocket.off('connect', onConnect);
+      sharedSocket.off('connect_error', onError);
+    };
+
+    sharedSocket.on('connect', onConnect);
+    sharedSocket.on('connect_error', onError);
+  });
+};
+
+const joinBroadcastAsGuest = async (broadcastId, guest = {}) => {
+  const socket = await connectGuest(guest);
+
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    let timer = null;
+    const finish = (callback) => (value) => {
+      if (settled) return;
+      settled = true;
+      if (timer) window.clearTimeout(timer);
+      callback(value);
+    };
+    const resolveOnce = finish(resolve);
+    const rejectOnce = finish(reject);
+    timer = window.setTimeout(() => {
+      rejectOnce(new Error('Joining the realtime broadcast room timed out.'));
+    }, 10000);
+
+    socket.emit('broadcast:join', { broadcastId }, (response) => {
+      if (response?.ok) {
+        socket.__echooBroadcastSnapshots = socket.__echooBroadcastSnapshots || new Map();
+        if (response.status) socket.__echooBroadcastSnapshots.set(String(broadcastId), response.status);
+        resolveOnce(socket);
+      }
+      else rejectOnce(new Error(response?.error || 'Could not join realtime broadcast room.'));
+    });
+  });
+};
+
 const realtimeService = {
   connect,
+  connectGuest,
   joinBroadcast,
+  joinBroadcastAsGuest,
   leaveBroadcast,
   subscribeToCatalog,
   getSocket: () => sharedSocket,

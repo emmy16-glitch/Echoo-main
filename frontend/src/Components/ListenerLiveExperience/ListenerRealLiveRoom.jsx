@@ -14,6 +14,7 @@ import batch3Service from '../../services/batch3Service';
 import batch4Service, { normalizeChatMessage } from '../../services/batch4Service';
 import followService from '../../services/followService';
 import realtimeService from '../../services/realtimeService';
+import { getGuestSession } from '../../services/guestSession';
 import { buildMediaUrl } from '../../services/api';
 import { notifyDesktop, onDesktopRoomCommand, setDesktopRoomState } from '../../services/desktopBridge';
 import { buildGeneratedStationBrandCoverUrl } from '../../stationBranding/stationBranding';
@@ -130,6 +131,21 @@ const ListenerRealLiveRoom = () => {
   const [joined, setJoined] = useState(true);
   const [following, setFollowing] = useState(false);
   const [shareMessage, setShareMessage] = useState('');
+  // Shared listen links: no access token → guest mode. Guests get the public
+  // broadcast card, a guest realtime seat, and subscriber-only LiveKit audio.
+  // Chat stays read-only and follow/react need an account (see the CTAs).
+  const isGuest =
+    !previewMode &&
+    typeof window !== 'undefined' &&
+    !localStorage.getItem('accessToken');
+  const guestId = useMemo(() => {
+    if (!isGuest) return '';
+    try {
+      return getGuestSession()?.id || '';
+    } catch {
+      return '';
+    }
+  }, [isGuest]);
   const [realtimeState, setRealtimeState] = useState('connecting');
   const [audioState, setAudioState] = useState('connecting');
   const statusRef = useRef(show?.status || '');
@@ -215,6 +231,12 @@ const ListenerRealLiveRoom = () => {
   const loadChat = useCallback(
     async ({ silent = false } = {}) => {
       if (previewMode || !broadcastId) return;
+      // Chat history needs an account; guests still see live messages stream
+      // in over the realtime socket below.
+      if (isGuest) {
+        if (!silent) setChatLoading(false);
+        return;
+      }
       if (!silent) setChatLoading(true);
       try {
         const response = await batch4Service.getMessages(broadcastId, { limit: 100 });
@@ -230,14 +252,16 @@ const ListenerRealLiveRoom = () => {
         if (!silent) setChatLoading(false);
       }
     },
-    [broadcastId, previewMode]
+    [broadcastId, previewMode, isGuest]
   );
 
   const load = useCallback(async () => {
     if (!broadcastId || previewMode) return;
     try {
       setLoading(true);
-      const response = await batch3Service.getBroadcast(broadcastId);
+      const response = isGuest
+        ? await batch3Service.getPublicBroadcast(broadcastId)
+        : await batch3Service.getBroadcast(broadcastId);
       if (!response?.data) {
         throw new Error('This live show could not be found.');
       }
@@ -245,18 +269,24 @@ const ListenerRealLiveRoom = () => {
       setShow(next);
       setLoadError('');
       await Promise.all([loadChat(), refreshPresence()]);
-      if (next.stationId) {
+      if (!isGuest && next.stationId) {
         followService
           .getStationStatus(next.stationId)
           .then((status) => setFollowing(Boolean(status?.isFollowing)))
           .catch(() => {});
       }
     } catch (error) {
-      setLoadError(error?.message || 'This live show is unavailable.');
+      // Logged-out visitors hit the auth wall here — that is "not signed
+      // in", not an expired session, so say so instead of alarming them.
+      if (!localStorage.getItem('accessToken') && !isGuest) {
+        setLoadError('Sign in to watch this live broadcast.');
+      } else {
+        setLoadError(error?.message || 'This live show is unavailable.');
+      }
     } finally {
       setLoading(false);
     }
-  }, [broadcastId, loadChat, previewMode, refreshPresence]);
+  }, [broadcastId, loadChat, previewMode, refreshPresence, isGuest]);
 
   useEffect(() => {
     load();
@@ -283,8 +313,10 @@ const ListenerRealLiveRoom = () => {
       }, 15000);
     };
 
-    realtimeService
-      .joinBroadcast(show.id)
+    const joinRoom = isGuest
+      ? realtimeService.joinBroadcastAsGuest(show.id, { guestId })
+      : realtimeService.joinBroadcast(show.id);
+    joinRoom
       .then((connectedSocket) => {
         if (!active) return;
         socket = connectedSocket;
@@ -375,10 +407,24 @@ const ListenerRealLiveRoom = () => {
       socket?.__echooRoomCleanup?.();
       realtimeService.leaveBroadcast(show.id).catch(() => {});
     };
-  }, [loadChat, previewMode, refreshPresence, show?.id]);
+  }, [loadChat, previewMode, refreshPresence, show?.id, isGuest, guestId]);
 
   const share = async () => {
-    const url = window.location.href;
+    // Shared links must be absolute web URLs: prefer the configured public
+    // app origin, else the current page (dev browsers). file:// (packaged
+    // desktop without a configured origin) cannot produce a shareable link.
+    const configuredOrigin = String(import.meta.env?.VITE_PUBLIC_APP_ORIGIN || '').trim().replace(/\/$/, '');
+    const pageHref = window.location.href;
+    const url = configuredOrigin
+      ? `${configuredOrigin}/listen/live/${encodeURIComponent(broadcastId)}`
+      : /^https?:\/\//i.test(pageHref)
+        ? pageHref.split('?')[0]
+        : '';
+    if (!url) {
+      setShareMessage('Open this room in a browser to share its link');
+      window.setTimeout(() => setShareMessage(''), 1800);
+      return;
+    }
     try {
       if (navigator.share) {
         await navigator.share({ title: show?.title || 'Live on Echoo', url });
@@ -400,6 +446,11 @@ const ListenerRealLiveRoom = () => {
       return;
     }
 
+    if (isGuest) {
+      navigate({ pathname: '/', search: '?mode=login' });
+      return;
+    }
+
     const wasFollowing = following;
     setFollowing(!wasFollowing);
     try {
@@ -412,6 +463,10 @@ const ListenerRealLiveRoom = () => {
   };
 
   const sendMessage = async (content) => {
+    if (isGuest) {
+      setChatError('Sign in to join the live chat.');
+      return false;
+    }
     if (previewMode) {
       setMessages((current) => [
         ...current,
@@ -442,6 +497,10 @@ const ListenerRealLiveRoom = () => {
   };
 
   const react = async (message, emoji) => {
+    if (isGuest) {
+      setChatError('Sign in to react to messages.');
+      return;
+    }
     if (previewMode || !message?.id) return;
     try {
       const response = await batch4Service.react(message.id, emoji);
@@ -611,6 +670,7 @@ const ListenerRealLiveRoom = () => {
                 isLive={isLive && joined}
                 track={playerTrack}
                 onStateChange={handleLivePlayerState}
+                guest={isGuest}
               />
             )}
           </div>
@@ -678,10 +738,22 @@ const ListenerRealLiveRoom = () => {
           <FiMessageCircle /> {chatOpen ? 'Hide chat' : 'Chat'}
         </button>
         <aside id="listener-live-chat" className={`listener-v2-room-chat${chatOpen ? ' is-open' : ''}`}>
+          {isGuest && (
+            <div className="listener-v2-room-notice" role="status">
+              Listening as a guest.{' '}
+              <button
+                type="button"
+                className="listener-v2-room-back"
+                onClick={() => navigate({ pathname: '/', search: '?mode=login' })}
+              >
+                Sign in to chat and follow
+              </button>
+            </div>
+          )}
           <ChatPanel
             messages={messages}
             loading={chatLoading}
-            disabled={!isLive}
+            disabled={!isLive || isGuest}
             error={chatError}
             onSend={sendMessage}
             onReact={react}

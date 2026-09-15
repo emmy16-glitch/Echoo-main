@@ -14,8 +14,10 @@ import settingsService from '../../services/settingsService';
 import listenerService from '../../services/listenerService';
 import {
   DESKTOP_NOTIFICATION_EVENTS,
+  getDesktopAutoLaunch,
   getDesktopNotificationPreferences,
   isEchooDesktop,
+  setDesktopAutoLaunch,
   setDesktopNotificationPreferences,
 } from '../../services/desktopBridge';
 import '../../styles/listener-reference-pages.css';
@@ -63,6 +65,8 @@ const ListenerSettingsConnected = () => {
   const [desktopNotifications, setDesktopNotifications] = useState(false);
   const [desktopNotificationEvents, setDesktopNotificationEvents] = useState(DESKTOP_NOTIFICATION_EVENTS);
   const [desktopPreferenceLoading, setDesktopPreferenceLoading] = useState(isEchooDesktop());
+  const [autoLaunch, setAutoLaunch] = useState(false);
+  const [autoLaunchLoading, setAutoLaunchLoading] = useState(isEchooDesktop());
   const isDesktop = isEchooDesktop();
 
   const notify = useCallback((message, success = true) => {
@@ -139,6 +143,47 @@ const ListenerSettingsConnected = () => {
 
     return () => { active = false; };
   }, [isDesktop]);
+
+  useEffect(() => {
+    if (!isDesktop) {
+      setAutoLaunchLoading(false);
+      return;
+    }
+
+    let active = true;
+    getDesktopAutoLaunch()
+      .then((result) => {
+        if (!active) return;
+        setAutoLaunch(result?.openAtLogin === true);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (active) setAutoLaunchLoading(false);
+      });
+
+    return () => { active = false; };
+  }, [isDesktop]);
+
+  const toggleAutoLaunch = async () => {
+    if (!isDesktop || autoLaunchLoading) return;
+    const next = !autoLaunch;
+    try {
+      setAutoLaunchLoading(true);
+      const saved = await setDesktopAutoLaunch(next);
+      setAutoLaunch(saved?.openAtLogin === true);
+      setToast({
+        open: true,
+        title: 'Startup preference updated',
+        message: saved?.openAtLogin
+          ? 'Echoo Desktop will start automatically when you sign in to this computer.'
+          : 'Echoo Desktop will no longer start automatically.',
+      });
+    } catch {
+      setToast({ open: true, title: 'Something went wrong', message: 'Could not update the startup preference.' });
+    } finally {
+      setAutoLaunchLoading(false);
+    }
+  };
 
   const toggleDesktopNotifications = async () => {
     if (!isDesktop || desktopPreferenceLoading) return;
@@ -336,6 +381,27 @@ const ListenerSettingsConnected = () => {
                       >
                         <span className="set-toggle-thumb" />
                       </button>
+                    </div>
+                    <div className="mt-5 border-t border-[#164F9D]/15 pt-2">
+                      <p className="mt-3 text-[0.68rem] font-bold tracking-[0.12em] text-[#164F9D]/60">STARTUP</p>
+                      <div className="set-toggle-row">
+                        <div className="set-toggle-info">
+                          <strong className="set-toggle-title">Open Echoo at login</strong>
+                          <span className="set-toggle-desc">Start Echoo Desktop automatically when you sign in to this computer.</span>
+                        </div>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-label="Open Echoo at login"
+                          aria-checked={autoLaunch}
+                          aria-busy={autoLaunchLoading}
+                          disabled={autoLaunchLoading}
+                          className={`set-toggle ${autoLaunch ? 'set-toggle-on' : ''}`}
+                          onClick={toggleAutoLaunch}
+                        >
+                          <span className="set-toggle-thumb" />
+                        </button>
+                      </div>
                     </div>
                     <div className="mt-5 border-t border-[#164F9D]/15 pt-2">
                       <p className="mt-3 text-[0.68rem] font-bold tracking-[0.12em] text-[#164F9D]/60">CHOOSE ALERT TYPES</p>

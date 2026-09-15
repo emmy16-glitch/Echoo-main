@@ -37,7 +37,7 @@ const isEchooProgramPublication = (publication) => {
   return isStudioMix;
 };
 
-const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChange }) => {
+const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChange, guest = false }) => {
   const roomRef = useRef(null);
   const audioHostRef = useRef(null);
   const outputRef = useRef('');
@@ -238,7 +238,9 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
         try { await previousRoom.disconnect(); } catch { /* ignore */ }
       }
 
-      const credentials = await batch3Service.getListenerLiveKitToken(broadcastId);
+      const credentials = guest
+        ? await batch3Service.getGuestListenerToken(broadcastId)
+        : await batch3Service.getListenerLiveKitToken(broadcastId);
       const liveKitUrl = resolveLiveKitUrl(credentials?.livekitUrl);
       if (!credentials?.token || !liveKitUrl) {
         throw new Error('Echoo did not return listener audio credentials.');
@@ -378,7 +380,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       clearAudio();
       if (room) room.disconnect().catch(() => {});
     };
-  }, [broadcastId, isLive, retryVersion]);
+  }, [broadcastId, isLive, retryVersion, guest]);
 
   const startAudio = useCallback(async () => {
     const room = roomRef.current;
