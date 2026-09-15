@@ -972,6 +972,36 @@ function registerIpc() {
   });
 
   // Graceful-shutdown handshake: renderer answers will-quit with quitReady().
+  // Creator recording library: ~/Desktop/Echoo Recordings. The renderer asks
+  // MP3 vs WAV first, then the native dialog opens in that library folder so
+  // every PC copy lands in one place. The server copy is always MP3.
+  ipcMain.handle('echoo:save-recording', async (_event, options = {}) => {
+    try {
+      const format = String(options?.format || 'mp3').toLowerCase() === 'wav' ? 'wav' : 'mp3';
+      const rawName = String(options?.filename || `echoo-recording.${format}`)
+        .replace(/[\\/:*?"<>|]/g, '-')
+        .slice(0, 120) || `echoo-recording.${format}`;
+      const filename = rawName.toLowerCase().endsWith(`.${format}`) ? rawName : `${rawName}.${format}`;
+      const libraryDir = path.join(app.getPath('desktop'), 'Echoo Recordings');
+      await fs.promises.mkdir(libraryDir, { recursive: true });
+      const result = await dialog.showSaveDialog(mainWindow, {
+        title: `Save recording as ${format.toUpperCase()} — Echoo Recordings`,
+        defaultPath: path.join(libraryDir, filename),
+        filters: format === 'wav'
+          ? [{ name: 'WAV audio', extensions: ['wav'] }, { name: 'All files', extensions: ['*'] }]
+          : [{ name: 'MP3 audio', extensions: ['mp3'] }, { name: 'All files', extensions: ['*'] }],
+      });
+      if (result.canceled || !result.filePath) return { saved: false, cancelled: true };
+      const buffer = Buffer.isBuffer(options?.data) ? options.data : Buffer.from(options?.data || []);
+      if (!buffer.length) return { saved: false, error: 'Recording bytes are empty.' };
+      await fs.promises.writeFile(result.filePath, buffer);
+      return { saved: true, path: result.filePath };
+    } catch (error) {
+      log.warn('[echoo-desktop] save-recording failed:', error.message);
+      return { saved: false, error: error?.message || String(error) };
+    }
+  });
+
   ipcMain.on('echoo:quit-ready', () => {
     if (quitTimer) {
       clearTimeout(quitTimer);

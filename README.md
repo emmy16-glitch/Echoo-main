@@ -46,7 +46,7 @@
 2. **Go Live — Broadcast.** One click opens the LiveKit room; presence flips to live, followers can join.
 3. **Share — Grow.** Copy the listen link (`/listen/live/:id`) — anyone opening it hears the show instantly, account or not.
 4. **Engage — Chat.** Signed-in listeners chat and react live; guests watch the conversation stream read-only.
-5. **End — Keep.** Ending the broadcast finalizes the master, compresses it (~17 MB/hour), and archives it to cloud storage as a private draft.
+5. **End — Trim & keep.** Ending the broadcast opens a trim screen (waveform, start/end handles, preview). Saving uploads the chosen part; the server stores it as MP3 (~86 MB/hour) as a private draft. Creators can also save an MP3 or WAV copy into the `Desktop/Echoo Recordings` library on their own PC.
 6. **Replay — Publish.** Review in Recordings, publish — listeners stream or download on demand.
 
 One connected loop:
@@ -60,7 +60,7 @@ Echoo is deliberately **not** another upload-and-wait audio host. It separates l
 - **LiveKit Cloud** routes real-time audio — the API never touches per-listener audio bytes, so a room scales without server load.
 - **Guest-first listening** — shared links work with zero signup; accounts unlock chat, follows, and libraries, and guest sessions migrate into new accounts.
 - **Honest states everywhere** — empty rooms, offline servers, and unconfigured audio say exactly what is wrong instead of spinning or faking.
-- **Recordings are automatic** — the end of a broadcast, not an export button, is what saves the show.
+- **Recordings are trim-then-save** — ending a broadcast opens a trim/crop screen; the part you keep is saved, never the raw master by accident.
 - **One shared world per environment** — every install talks to the same API + database, so a broadcast is visible to everyone. No mock shows, counts, or transcripts, ever.
 
 ## Features
@@ -71,7 +71,7 @@ Echoo is deliberately **not** another upload-and-wait audio host. It separates l
 | 🔗 **Share links** | `/listen/live/:id` works account-free — public card, guest token, subscriber-only audio |
 | 💬 **Live chat** | Real-time messages, reactions, moderation (mute/pin/delete); read-only for guests |
 | 👥 **Presence** | Live listener counts, peak tracking, creator-connected state |
-| ⏺️ **Recordings** | Automatic post-broadcast save, Opus transcode (~17 MB/hr), cloud archive, publish/unpublish |
+| ⏺️ **Recordings** | Trim/crop before save, automatic server MP3 (~86 MB/hr), PC copy as MP3/WAV into `Desktop/Echoo Recordings`, cloud archive, publish/unpublish |
 | 📝 **Transcripts** | Optional live transcription with quality pipeline, review + publish flow |
 | 🔔 **Notifications** | In-app + native OS alerts (desktop) with per-type preferences |
 | 📴 **Offline & background** | Downloads, offline cache, background audio on web/desktop/mobile, lock-screen controls |
@@ -87,7 +87,7 @@ Echoo is deliberately **not** another upload-and-wait audio host. It separates l
 | Live audio | LiveKit Cloud (WebRTC SFU), `livekit-client` / `@livekit/react-native` |
 | Mobile | Expo React Native (iOS + Android), `expo-audio`, native foreground service for live |
 | Desktop | Electron 41, bundled API server, embedded-DB fallback |
-| Recordings | FFmpeg (Opus transcode) + S3-compatible object storage (R2 / Backblaze B2) |
+| Recordings | FFmpeg (server MP3) + S3-compatible object storage (R2 / Backblaze B2) |
 | Transcription (optional) | Whisper gateway (Python service), failure-isolated |
 | Testing | `node --test` suites, `tsc`, Vite build, GitHub Actions (`echoo-check`) |
 | Deployment | Hosted site + Cloudflare, GitHub Releases (AppImage / NSIS `.exe` / DMG), EAS (mobile) |
@@ -106,7 +106,7 @@ Listeners (web / desktop / mobile — subscribe-only, account optional)
 Echoo API (Express)
   │       │        │        │
   │       │        │        └── MongoDB (accounts, shows, chat, media records)
-  │       │        └─────────── S3-compatible storage (Opus replays, covers)
+  │       │        └─────────── S3-compatible storage (MP3 replays, covers)
   │       └──────────────────── Whisper gateway (optional transcription)
   └──────────────────────────── Socket.IO rooms (chat, presence, status)
 ```
@@ -126,15 +126,15 @@ Backend knobs: `LIVEKIT_URL`, `LIVEKIT_PUBLIC_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_
 
 ## Recordings & storage implementation
 
-The browser captures a 24-bit/48 kHz stereo WAV master (~660 MB/hour) to local OPFS storage during the show. On broadcast end it finalizes and uploads it; the backend then:
+The browser captures a 24-bit/48 kHz stereo WAV master (~660 MB/hour) to local OPFS storage during the show. On broadcast end it opens a trim screen (waveform + start/end handles + preview); the creator saves the chosen part and the backend then:
 
 1. Links it as the broadcast's replay (private draft).
-2. Transcodes to Opus (`AUDIO_OPUS_BITRATE`, default `48k` stereo ≈ 17.5 MB/hour, ~38× smaller — measured).
-3. PUTs it to S3-compatible object storage and deletes the local WAV (kept on any failure — archiving never breaks the upload).
+2. Normalises it to MP3 (`AUDIO_MP3_BITRATE`, default `192k` stereo ≈ 86 MB/hour) — the canonical server copy, on local disk or S3 when configured (local WAV deleted; kept on any failure — archiving never breaks the upload).
+3. Offers a PC copy: the creator picks **MP3** (the server copy) or **WAV** (the local master) and saves it into the `Desktop/Echoo Recordings` library folder.
 
 Playback always resolves through signed, time-limited `/api/audio/:id/stream` URLs: local files stream with HTTP ranges; cloud files redirect (public buckets) or mint short-lived object URLs (private buckets — the free no-card setup). Only replays are transcoded; uploaded music keeps its original encoding.
 
-Free, no-card storage: **Backblaze B2** (10 GB ≈ 570 show-hours, private bucket + signed playback). Setup: [backend/.env.example](backend/.env.example) (`AUDIO_*`).
+Free, no-card storage: **Backblaze B2** (10 GB ≈ 115 show-hours at 192k, private bucket + signed playback). Setup: [backend/.env.example](backend/.env.example) (`AUDIO_*`).
 
 ## Limits and honesty rules
 

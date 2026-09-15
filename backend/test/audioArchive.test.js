@@ -9,12 +9,13 @@ import {
   archiveRecordingAudio,
   createCloudDownloadUrl,
   isCloudArchiveEnabled,
+  transcodeToMp3,
   transcodeToOpus,
 } from '../src/services/audioArchiveService.js';
 
 // Recording archive contract:
-// - disabled/misconfigured -> keep local, never throw
-// - transcode produces a dramatically smaller Opus file
+// - server copy is ALWAYS MP3 automatically (local disk or S3 cloud)
+// - disabled/misconfigured S3 -> local MP3 normalise, never throw
 // - cloud failures keep the local file and never fail the upload
 
 const withEnv = (patch, fn) => async () => {
@@ -80,16 +81,57 @@ const writeSilentWav = (filePath, seconds = 10) => {
   return buffer.length;
 };
 
-test('archive disabled keeps the local file without touching it', withEnv(
+test('local server mode normalises the WAV master to MP3 automatically', withEnv(
   { AUDIO_STORAGE_PROVIDER: undefined },
   async () => {
     assert.equal(isCloudArchiveEnabled(), false);
+    if (!ffmpegAvailable()) {
+      console.log('  (skipped: ffmpeg not on PATH)');
+      return;
+    }
+    const dir = makeWorkDir();
+    const localPath = path.join(dir, 'master.wav');
+    writeSilentWav(localPath, 5);
+    const audio = { ...fakeAudioDoc(), filename: 'master.wav', mimeType: 'audio/wav', storage: 'local' };
+    const result = await archiveRecordingAudio({ audio, localPath });
+    assert.equal(result, 'local-mp3');
+    assert.equal(audio.state.saved, 1);
+    assert.equal(audio.filename.endsWith('.mp3'), true);
+    assert.equal(audio.mimeType, 'audio/mpeg');
+    assert.equal(fs.existsSync(path.join(dir, audio.filename)), true);
+    assert.equal(fs.existsSync(localPath), localPath.endsWith('.mp3') ? true : false);
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+));
+
+test('already-MP3 server copy is left alone', withEnv(
+  { AUDIO_STORAGE_PROVIDER: undefined },
+  async () => {
+    const dir = makeWorkDir();
+    const localPath = path.join(dir, 'master.mp3');
+    fs.writeFileSync(localPath, Buffer.alloc(1024));
+    const audio = { ...fakeAudioDoc(), filename: 'master.mp3', mimeType: 'audio/mpeg', storage: 'local' };
+    const result = await archiveRecordingAudio({ audio, localPath });
+    assert.equal(result, 'local');
+    assert.equal(audio.state.saved, 0);
+    assert.equal(fs.existsSync(localPath), true);
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+));
+
+test('corrupt master never throws and keeps the local file', withEnv(
+  { AUDIO_STORAGE_PROVIDER: undefined },
+  async () => {
+    if (!ffmpegAvailable()) {
+      console.log('  (skipped: ffmpeg not on PATH)');
+      return;
+    }
     const dir = makeWorkDir();
     const localPath = path.join(dir, 'master.wav');
     fs.writeFileSync(localPath, Buffer.alloc(1024));
-    const audio = fakeAudioDoc();
+    const audio = { ...fakeAudioDoc(), filename: 'master.wav', mimeType: 'audio/wav', storage: 'local' };
     const result = await archiveRecordingAudio({ audio, localPath });
-    assert.equal(result, 'local');
+    assert.equal(result, 'failed');
     assert.equal(audio.state.saved, 0);
     assert.equal(fs.existsSync(localPath), true);
     fs.rmSync(dir, { recursive: true, force: true });
@@ -156,21 +198,21 @@ test('private-bucket playback mints a signed URL without network', withEnv(
   }
 ));
 
-test('opus transcode shrinks a WAV master by an order of magnitude', async () => {
+test('mp3 transcode shrinks a WAV master by an order of magnitude', async () => {
   if (!ffmpegAvailable()) {
     console.log('  (skipped: ffmpeg not on PATH)');
     return;
   }
   const dir = makeWorkDir();
   const source = path.join(dir, 'master.wav');
-  const dest = path.join(dir, 'master.opus');
+  const dest = path.join(dir, 'master.mp3');
   const sourceBytes = writeSilentWav(source, 30);
-  await transcodeToOpus(source, dest);
+  await transcodeToMp3(source, dest);
   const destBytes = fs.statSync(dest).size;
   assert.ok(destBytes > 0, 'transcode must produce output');
   assert.ok(
-    destBytes < sourceBytes / 10,
-    `expected >=10x shrink, got ${(sourceBytes / destBytes).toFixed(1)}x`
+    destBytes < sourceBytes / 5,
+    `expected >=5x shrink, got ${(sourceBytes / destBytes).toFixed(1)}x`
   );
   fs.rmSync(dir, { recursive: true, force: true });
 });

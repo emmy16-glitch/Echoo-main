@@ -4,18 +4,19 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 
 // ---------------------------------------------------------------------------
-// Recording archive: compress + cloud-store finished live recordings.
+// Recording archive: compress finished live recordings to MP3.
 //
 // Why this exists: the browser captures a 24-bit/48kHz stereo WAV master
 // (~17 MB per minute, ~1 GB per hour). Those giants die mid-upload, fill the
 // local disk, and vanish on redeploys — the "my recording disappeared"
 // problem. This service runs right after a replay upload lands:
 //
-//   1. Transcode the WAV to Opus (~48 kbps stereo ≈ 22 MB/hour,
-//      ~30x smaller) with the machine FFmpeg.
-//   2. PUT the Opus file to S3-compatible object storage (Cloudflare R2 free
-//      tier: 10 GB + zero egress — see backend/.env.example AUDIO_*).
-//   3. Point the Audio record at the cloud URL and delete the local WAV.
+//   Server copy (automatic, always MP3):
+//   1. Transcode the WAV master to MP3 (default 192k stereo ≈ 86 MB/hour).
+//      The MP3 becomes the canonical server file; the giant WAV is deleted.
+//   2. If S3-compatible object storage is configured (Cloudflare R2 free
+//      tier: 10 GB + zero egress — see backend/.env.example AUDIO_*),
+//      PUT the MP3 to the bucket and point the Audio record at the cloud URL.
 //
 // Everything is best-effort and NEVER throws: any failure (no FFmpeg, no
 // cloud config, upload error) logs a warning and keeps the local file, so
@@ -27,6 +28,7 @@ export const isCloudArchiveEnabled = () => provider() !== 'local' && provider() 
 
 const ffmpegPath = () => String(process.env.FFMPEG_PATH || 'ffmpeg').trim() || 'ffmpeg';
 const opusBitrate = () => String(process.env.AUDIO_OPUS_BITRATE || '48k').trim() || '48k';
+const mp3Bitrate = () => String(process.env.AUDIO_MP3_BITRATE || '192k').trim() || '192k';
 const keepLocal = () => String(process.env.AUDIO_KEEP_LOCAL_AFTER_ARCHIVE || '').toLowerCase() === 'true';
 
 const s3Config = () => ({
@@ -81,7 +83,8 @@ const runFfmpeg = (args, timeoutMs = 10 * 60 * 1000) =>
 
 // 48 kbps stereo Opus ≈ 22 MB/hour (30x smaller than the 24-bit WAV master)
 // while staying transparent for voice and kind to music. Voice-only stations
-// can drop to 32k via AUDIO_OPUS_BITRATE (≈15 MB/hour).
+// can drop to 32k via AUDIO_OPUS_BITRATE (≈15 MB/hour). Kept for backwards
+// compatibility — new recordings archive to MP3 (see transcodeToMp3).
 export async function transcodeToOpus(sourcePath, destPath) {
   await runFfmpeg([
     '-i', sourcePath,
@@ -93,6 +96,22 @@ export async function transcodeToOpus(sourcePath, destPath) {
     '-ar', '48000',
     '-ac', '2',
     '-application', 'audio',
+    destPath,
+  ]);
+}
+
+// 192k stereo MP3 ≈ 86 MB/hour (≈12x smaller than the 24-bit WAV master).
+// Universal playback: every browser, phone and desktop player reads MP3,
+// which is why the server canonical copy is MP3. 128k (≈58 MB/hr) for
+// voice-only stations, 320k (≈144 MB/hr) for music-first quality.
+export async function transcodeToMp3(sourcePath, destPath) {
+  await runFfmpeg([
+    '-i', sourcePath,
+    '-vn',
+    '-c:a', 'libmp3lame',
+    '-b:a', mp3Bitrate(),
+    '-ar', '44100',
+    '-ac', '2',
     destPath,
   ]);
 }
@@ -179,14 +198,62 @@ const removeQuietly = async (absolutePath) => {
   }
 };
 
-// Archive a just-uploaded replay recording: transcode → cloud → repoint.
+// Archive a just-uploaded replay recording: WAV master → MP3 canonical.
 // `audio` is the saved Audio mongoose document, `localPath` the multer file.
-// Returns 'cloud', 'local', or 'failed' (failed = kept local, original error
-// logged). Never throws.
+// Server behaviour (automatic, no user choice):
+//   - local mode:  transcode to MP3 next to the upload, repoint the Audio
+//                  record at the MP3, delete the giant WAV.
+//   - cloud mode:  same MP3 transcode, then PUT the MP3 to S3 and repoint.
+// Returns 'cloud', 'local-mp3', 'local', or 'failed' (failed = kept original,
+// original error logged). Never throws.
 export async function archiveRecordingAudio({ audio, localPath }) {
   if (!audio || !localPath) return 'failed';
 
-  if (!isCloudArchiveEnabled()) return 'local';
+  // Already an MP3 (or S3-migrated doc): nothing to convert.
+  const currentName = String(audio.filename || localPath || '').toLowerCase();
+  const currentMime = String(audio.mimeType || '').toLowerCase();
+  if (currentName.endsWith('.mp3') || currentMime.includes('mpeg') || currentMime.includes('mp3')) {
+    return audio.storage === 'cloud' ? 'cloud' : 'local';
+  }
+
+  const workDir = path.dirname(localPath);
+  const base = path.basename(localPath, path.extname(localPath)) || `${Date.now()}-${randomUUID()}`;
+  const mp3Name = `${base}.mp3`;
+  const transcodedPath = path.join(workDir, mp3Name);
+  const key = mp3Name;
+  const mimeType = 'audio/mpeg';
+
+  const pointRecordAtMp3 = async (size) => {
+    audio.filename = mp3Name;
+    audio.fileSize = size;
+    audio.mimeType = mimeType;
+    await audio.save();
+  };
+
+  // Local server copy: always normalise replays to MP3 automatically.
+  if (!isCloudArchiveEnabled()) {
+    try {
+      await transcodeToMp3(localPath, transcodedPath);
+      const stat = await fs.promises.stat(transcodedPath).catch(() => null);
+      if (!stat?.size) throw new Error('Transcode produced an empty file');
+      // Move transcoded MP3 over the canonical path when names differ.
+      await pointRecordAtMp3(stat.size);
+      console.info(
+        `[audio-archive] replay ${audio._id} normalised to MP3 (${(stat.size / 1048576).toFixed(1)} MB)`
+      );
+      if (!keepLocal()) {
+        if (path.resolve(localPath) !== path.resolve(transcodedPath)) {
+          await removeQuietly(localPath);
+        }
+      }
+      return 'local-mp3';
+    } catch (error) {
+      console.warn('[audio-archive] MP3 normalise failed, keeping original file:', error?.message || error);
+      await removeQuietly(transcodedPath);
+      return 'failed';
+    }
+  }
+
   if (!s3Configured()) {
     console.warn(
       '[audio-archive] AUDIO_STORAGE_PROVIDER is set but S3 credentials/bucket are incomplete — keeping the recording on local disk.'
@@ -194,14 +261,8 @@ export async function archiveRecordingAudio({ audio, localPath }) {
     return 'local';
   }
 
-  const workDir = path.dirname(localPath);
-  const base = `${Date.now()}-${randomUUID()}`;
-  const transcodedPath = path.join(workDir, `${base}.opus`);
-  const key = `${base}.opus`;
-  const mimeType = 'audio/ogg; codecs=opus';
-
   try {
-    await transcodeToOpus(localPath, transcodedPath);
+    await transcodeToMp3(localPath, transcodedPath);
     const stat = await fs.promises.stat(transcodedPath).catch(() => null);
     if (!stat?.size) throw new Error('Transcode produced an empty file');
 
@@ -210,13 +271,13 @@ export async function archiveRecordingAudio({ audio, localPath }) {
     audio.storage = 'cloud';
     audio.cloudUrl = url;
     audio.cloudKey = objectKey;
-    audio.filename = `${base}.opus`;
+    audio.filename = mp3Name;
     audio.fileSize = stat.size;
     audio.mimeType = mimeType;
     await audio.save();
 
     console.info(
-      `[audio-archive] replay ${audio._id} archived to cloud (${(stat.size / 1048576).toFixed(1)} MB): ${url.slice(0, 80)}...`
+      `[audio-archive] replay ${audio._id} archived to cloud MP3 (${(stat.size / 1048576).toFixed(1)} MB): ${url.slice(0, 80)}...`
     );
 
     if (!keepLocal()) {
@@ -235,6 +296,7 @@ export default {
   isCloudArchiveEnabled,
   isCloudBucketPublic,
   transcodeToOpus,
+  transcodeToMp3,
   uploadToObjectStorage,
   createCloudDownloadUrl,
   archiveRecordingAudio,

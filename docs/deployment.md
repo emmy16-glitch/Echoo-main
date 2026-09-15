@@ -18,7 +18,7 @@ The public web deployment: frontend + API on one origin behind Cloudflare. Last 
 
 1. **Env:** `NODE_ENV=production` with `MONGODB_URI`, `JWT_SECRET`, `JWT_REFRESH_SECRET`, `CLIENT_ORIGINS`, and the four `LIVEKIT_*` vars (production requires public `wss://` LiveKit URLs). See `backend/.env.example` and `backend/.env.production.example`.
 2. **LiveKit:** LiveKit Cloud project (URL + key + secret). Local `livekit-server --dev` is dev-only.
-3. **Storage:** S3-compatible bucket for the recording archive (`AUDIO_*` vars). Free, no-card path: Backblaze B2 private bucket (10 GB) with signed playback URLs. See `backend/.env.example`.
+3. **Storage:** S3-compatible bucket for the recording archive (`AUDIO_*` vars; replays are stored as MP3, `AUDIO_MP3_BITRATE` default `192k`). Free, no-card path: Backblaze B2 private bucket (10 GB) with signed playback URLs. See `backend/.env.example`.
 4. **CORS:** production allowlist is explicit — add the web origin plus `"null"` for desktop `file://` shells (see `HOSTED-SERVER-SYNC.md` Task 1).
 5. **Frontend:** `npm run build` in `frontend/`, serve `dist/` (verify the `echoo-app` marker in the served HTML).
 6. **Transcription (optional):** Whisper gateway per [`transcription.md`](transcription.md); the app runs fine without it.

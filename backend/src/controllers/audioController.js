@@ -262,10 +262,11 @@ export async function uploadAudio(req, res, next) {
     }
 
     // Replay recordings (and only replays — uploaded music keeps its original
-    // encoding): compress the giant WAV master to Opus and push it to cloud
-    // object storage when configured. Best-effort by contract — failures keep
-    // the local file and never fail the upload. Runs before the committed
-    // flag so the saved doc already carries the final fileUrl/fileSize.
+    // encoding): normalise the giant WAV master to MP3 automatically
+    // (server canonical copy; cloud upload too when S3 is configured).
+    // Best-effort by contract — failures keep the local file and never fail
+    // the upload. Runs before the committed flag so the saved doc already
+    // carries the final fileUrl/fileSize.
     if (sourceBroadcast && audioFile?.path) {
       await archiveRecordingAudio({ audio, localPath: audioFile.path });
     }

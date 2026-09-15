@@ -34,6 +34,12 @@ contextBridge.exposeInMainWorld('echooDesktop', {
   setNotificationPreferences: (preferences) =>
     ipcRenderer.invoke('desktop:set-notification-preferences', toNotificationPreferencesUpdate(preferences)),
   notify: (event) => ipcRenderer.invoke('desktop:notify', event),
+  saveRecording: (options) => ipcRenderer.invoke('desktop:save-recording', {
+    filename: String(options?.filename || ''),
+    format: options?.format === 'wav' ? 'wav' : 'mp3',
+    mimeType: String(options?.mimeType || ''),
+    data: options?.data,
+  }),
   onRoomCommand: (listener) => {
     const handler = (_event, command) => listener(command);
     ipcRenderer.on('desktop:room-command', handler);

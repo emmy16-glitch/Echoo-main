@@ -2,8 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   FaCheckCircle,
   FaCloudUploadAlt,
+  FaCut,
   FaExclamationTriangle,
+  FaPlay,
   FaSave,
+  FaStop,
   FaSyncAlt,
 } from 'react-icons/fa';
 
@@ -13,6 +16,17 @@ import {
   clearPendingBroadcastRecording,
   retryBroadcastQualityCompletion,
 } from '../../services/broadcastRecordingService.js';
+import {
+  canTrimRecording,
+  computePeaks,
+  decodeRecordingBlob,
+  trimBufferToWavBlob,
+} from '../../services/audioTrimService.js';
+import {
+  ECHOO_RECORDINGS_LIBRARY,
+  RECORDING_PC_FORMATS,
+  saveRecordingToPc,
+} from '../../services/recordingExportService.js';
 import './BroadcastRecordingPrompt.css';
 
 const PENDING_RECORDING_DECISION_KEY = '__echooPendingBroadcastRecording';
@@ -103,6 +117,25 @@ const BroadcastRecordingPrompt = () => {
   const [saved, setSaved] = useState(false);
   const [savedRecordingId, setSavedRecordingId] = useState('');
   const [retryToken, setRetryToken] = useState(0);
+  const [pcFormat, setPcFormat] = useState('mp3');
+  const [pcSaving, setPcSaving] = useState(false);
+  const [pcMessage, setPcMessage] = useState('');
+  // Trim/crop step (before anything is uploaded). The decoded buffer stays
+  // in memory only while this dialog is open; the local master blob is the
+  // source of truth until the creator presses Save.
+  const [trimPeaks, setTrimPeaks] = useState([]);
+  const [trimDuration, setTrimDuration] = useState(0);
+  const [trimStart, setTrimStart] = useState(0);
+  const [trimEnd, setTrimEnd] = useState(0);
+  const [trimPreparing, setTrimPreparing] = useState(false);
+  const [trimSupported, setTrimSupported] = useState(true);
+  const [trimWasCut, setTrimWasCut] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
+  const trimBufferRef = useRef(null);
+  const previewAudioRef = useRef(null);
+  const previewObjectUrlRef = useRef('');
+  const previewStopTimerRef = useRef(null);
+  const savedUploadBlobRef = useRef(null);
   const saveAttemptRef = useRef('');
   const savedRef = useRef(false);
   const autoDismissTimerRef = useRef(null);
@@ -119,10 +152,27 @@ const BroadcastRecordingPrompt = () => {
   const dismissSavedRecording = useCallback(() => {
     if (!savedRef.current) return;
     window.clearTimeout(autoDismissTimerRef.current);
+    stopPreview();
+    if (previewObjectUrlRef.current) {
+      URL.revokeObjectURL(previewObjectUrlRef.current);
+      previewObjectUrlRef.current = '';
+    }
+    trimBufferRef.current = null;
+    savedUploadBlobRef.current = null;
     setPending(null);
     setSaved(false);
     setSavedRecordingId('');
     saveAttemptRef.current = '';
+  }, []);
+
+  const stopPreview = useCallback(() => {
+    window.clearTimeout(previewStopTimerRef.current);
+    try {
+      previewAudioRef.current?.pause();
+    } catch {
+      // No active preview.
+    }
+    setPreviewing(false);
   }, []);
 
   const scheduleAutoDismiss = useCallback(() => {
@@ -143,6 +193,17 @@ const BroadcastRecordingPrompt = () => {
       setSaved(false);
       setSavedRecordingId('');
       setRetryToken(0);
+      setPcFormat('mp3');
+      setPcMessage('');
+      setTrimPeaks([]);
+      setTrimDuration(0);
+      setTrimStart(0);
+      setTrimEnd(0);
+      setTrimPreparing(false);
+      setTrimSupported(true);
+      setTrimWasCut(false);
+      setPreviewing(false);
+      trimBufferRef.current = null;
       saveAttemptRef.current = '';
     };
 
@@ -165,6 +226,46 @@ const BroadcastRecordingPrompt = () => {
     };
   }, []);
 
+  // Step 1 — prepare the trim editor as soon as the master lands. Huge or
+  // undecodable masters skip trimming: the retry token is bumped so the save
+  // effect below stores the full recording automatically — nothing is lost.
+  useEffect(() => {
+    if (!pending?.recording?.blob?.size || saved) return undefined;
+    const { recording } = pending;
+    let active = true;
+
+    if (!canTrimRecording(recording.blob)) {
+      setTrimSupported(false);
+      setRetryToken((value) => value + 1);
+      return undefined;
+    }
+
+    setTrimPreparing(true);
+    decodeRecordingBlob(recording.blob)
+      .then((buffer) => {
+        if (!active) return;
+        trimBufferRef.current = buffer;
+        setTrimPeaks(computePeaks(buffer));
+        setTrimDuration(buffer.duration || recording.durationSeconds || 0);
+        setTrimStart(0);
+        setTrimEnd(buffer.duration || recording.durationSeconds || 0);
+        setTrimSupported(true);
+      })
+      .catch(() => {
+        if (!active) return;
+        // Decoder failed (odd codec, low memory) — fall back to full save.
+        setTrimSupported(false);
+        setRetryToken((value) => value + 1);
+      })
+      .finally(() => {
+        if (active) setTrimPreparing(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [pending, saved]);
+
   useEffect(() => {
     if (!pending?.recording?.blob?.size || saved) return undefined;
 
@@ -179,6 +280,7 @@ const BroadcastRecordingPrompt = () => {
       if (!active) return;
       forgetPendingRecording();
       clearPendingBroadcastRecording(recording.broadcastId);
+      stopPreview();
       window.dispatchEvent(new CustomEvent('echoo:creator-audio-changed'));
       window.dispatchEvent(new CustomEvent('echoo:creator-state-changed'));
       if (id) setSavedRecordingId(id);
@@ -186,9 +288,12 @@ const BroadcastRecordingPrompt = () => {
       setSaving(false);
     };
 
-    const saveAutomatically = async () => {
+    // Step 2 — upload. Called from the Save button (trimmed or full) or
+    // automatically when trimming is unavailable (huge/undecodable master).
+    const saveRecording = async ({ trimmed = true } = {}) => {
       const title = broadcast?.title || 'Live broadcast recording';
       const description = broadcast?.description || '';
+      const attemptTrim = trimmed && trimSupported && trimBufferRef.current && trimDuration > 0;
 
       try {
         setSaving(true);
@@ -199,10 +304,31 @@ const BroadcastRecordingPrompt = () => {
           rememberPendingRecording({ ...pending, recording });
         }
 
+        let uploadBlob = recording.blob;
+        let uploadMime = recording.mimeType || recording.blob.type || 'audio/wav';
+        let wasCut = false;
+        if (attemptTrim) {
+          const end = trimEnd > trimStart ? trimEnd : trimDuration;
+          const fullLength = end - trimStart >= trimDuration - 0.5 && trimStart <= 0.5;
+          if (!fullLength) {
+            const cut = trimBufferToWavBlob(trimBufferRef.current, trimStart, end);
+            uploadBlob = cut.blob;
+            uploadMime = 'audio/wav';
+            wasCut = true;
+          }
+        }
+
+        let uploadName = safeFilename(title, recording);
+        if (wasCut && !uploadName.toLowerCase().endsWith('.wav')) {
+          // Trimmed audio is always re-encoded to WAV — never keep a stale
+          // .webm/.ogg extension from an Opus fallback master.
+          uploadName = uploadName.replace(/\.[a-z0-9]+$/i, '') + '.wav';
+        }
+
         const file = new File(
-          [recording.blob],
-          safeFilename(title, recording),
-          { type: recording.mimeType || recording.blob.type || 'audio/wav' }
+          [uploadBlob],
+          uploadName,
+          { type: uploadMime }
         );
 
         const uploadResponse = await studioService.uploadAudio({
@@ -216,14 +342,17 @@ const BroadcastRecordingPrompt = () => {
             'live-recording',
             'broadcast',
             recording.lossless ? 'lossless-master' : 'recording-fallback',
+            ...(wasCut ? ['trimmed'] : []),
           ],
-          // Completed broadcasts are saved automatically. Visibility is managed
-          // later from Recordings rather than interrupting End Broadcast with a
-          // publish/private decision.
+          // Visibility is managed later from Recordings rather than
+          // interrupting End Broadcast with a publish/private decision.
           isPublic: false,
           broadcastId: recording.broadcastId,
         });
 
+        setTrimWasCut(wasCut);
+        // Remember exactly what was uploaded so "Save WAV to PC" matches it.
+        savedUploadBlobRef.current = wasCut ? uploadBlob : null;
         markSaved(String(uploadResponse?.data?.id || uploadResponse?.data?._id || ''));
       } catch (saveError) {
         if (!active) return;
@@ -246,12 +375,16 @@ const BroadcastRecordingPrompt = () => {
       }
     };
 
-    saveAutomatically();
+    // Only auto-save when trimming is unavailable — otherwise the creator
+    // reviews/trims first and presses Save themselves.
+    if (!trimSupported && !trimPreparing) {
+      saveRecording({ trimmed: false });
+    }
 
     return () => {
       active = false;
     };
-  }, [pending, retryToken, saved]);
+  }, [pending, retryToken, saved, trimSupported, trimPreparing, trimStart, trimEnd, trimDuration]);
 
   useEffect(() => {
     if (!saved) return undefined;
@@ -332,6 +465,35 @@ const BroadcastRecordingPrompt = () => {
     window.dispatchEvent(new PopStateEvent('popstate'));
   };
 
+  // Preview the selected [trimStart, trimEnd) region of the local master.
+  const previewTrim = () => {
+    const blob = pending?.recording?.blob;
+    if (!blob?.size || !trimDuration) return;
+    stopPreview();
+    if (!previewObjectUrlRef.current) {
+      previewObjectUrlRef.current = URL.createObjectURL(blob);
+    }
+    const audio = previewAudioRef.current;
+    if (!audio) return;
+    const end = trimEnd > trimStart ? trimEnd : trimDuration;
+    try {
+      audio.src = previewObjectUrlRef.current;
+      audio.currentTime = Math.max(0, trimStart);
+      void audio.play();
+      setPreviewing(true);
+      previewStopTimerRef.current = window.setTimeout(
+        () => stopPreview(),
+        Math.max(500, (end - trimStart) * 1000)
+      );
+    } catch {
+      setPreviewing(false);
+    }
+  };
+
+  const end = trimEnd > trimStart ? trimEnd : trimDuration;
+  const isFullLength = trimDuration > 0 && end - trimStart >= trimDuration - 0.5 && trimStart <= 0.5;
+  const selectedSeconds = Math.max(0, end - trimStart);
+
   return (
     <div className="echoo-recording-decision-overlay" role="presentation">
       <section
@@ -361,14 +523,16 @@ const BroadcastRecordingPrompt = () => {
           <div>
             <span>LIVE SESSION ENDED</span>
             <h2 id="echoo-recording-decision-title">
-              {saved ? 'Recording saved!' : error ? 'Recording needs attention' : 'Saving your recording…'}
+              {saved ? 'Recording saved!' : error ? 'Recording needs attention' : saving ? 'Saving your recording…' : 'Trim your recording'}
             </h2>
             <p id="echoo-recording-decision-description">
               {saved
                 ? 'Your completed broadcast is now available in Recordings.'
                 : error
-                  ? 'Echoo kept the local master safe. Retry the automatic save when you are ready.'
-                  : 'Echoo automatically saves every completed broadcast. There is no publish or discard step here.'}
+                  ? 'Echoo kept the local master safe. Adjust the trim if you like, then retry saving.'
+                  : saving
+                    ? 'Uploading your recording to the Echoo server as MP3…'
+                    : 'Drag the handles to crop the part you want to keep, preview it, then press Save. The server copy is always MP3.'}
             </p>
           </div>
         </header>
@@ -394,33 +558,195 @@ const BroadcastRecordingPrompt = () => {
 
         {error && <div className="echoo-recording-error">{error}</div>}
 
+        {!saved && trimSupported && (
+          <div className="echoo-recording-trim">
+            <div className="echoo-recording-trim-head">
+              <strong><FaCut /> Trim / crop</strong>
+              <span>{formatDuration(trimStart)} – {formatDuration(end)} of {formatDuration(trimDuration)}</span>
+            </div>
+            {trimPreparing || (!trimPeaks.length && !trimDuration) ? (
+              <div className="echoo-recording-trim-loading">Reading waveform…</div>
+            ) : (
+              <>
+                <div
+                  className="echoo-recording-waveform"
+                  role="img"
+                  aria-label={`Waveform of your recording, selected ${formatDuration(trimStart)} to ${formatDuration(end)}`}
+                >
+                  {trimPeaks.map((peak, index) => {
+                    const pos = trimPeaks.length <= 1 ? 0 : index / (trimPeaks.length - 1);
+                    const time = pos * trimDuration;
+                    const selected = time >= trimStart && time <= end;
+                    return (
+                      <i
+                        key={index}
+                        style={{ height: `${Math.max(4, Math.round(peak * 100))}%` }}
+                        className={selected ? 'is-selected' : 'is-cut'}
+                      />
+                    );
+                  })}
+                </div>
+                <label className="echoo-recording-trim-slider">
+                  <span>Start <b>{formatDuration(trimStart)}</b></span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={Math.max(1, Math.floor(trimDuration))}
+                    step={1}
+                    value={Math.min(Math.floor(trimStart), Math.floor(end))}
+                    disabled={saving || trimPreparing}
+                    onChange={(event) => {
+                      stopPreview();
+                      setTrimStart(Math.min(Number(event.target.value), end));
+                    }}
+                  />
+                </label>
+                <label className="echoo-recording-trim-slider">
+                  <span>End <b>{formatDuration(end)}</b></span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={Math.max(1, Math.floor(trimDuration))}
+                    step={1}
+                    value={Math.floor(end)}
+                    disabled={saving || trimPreparing}
+                    onChange={(event) => {
+                      stopPreview();
+                      setTrimEnd(Math.max(Number(event.target.value), trimStart));
+                    }}
+                  />
+                </label>
+                <div className="echoo-recording-trim-actions">
+                  <button type="button" onClick={previewTrim} disabled={saving || trimPreparing || previewing}>
+                    {previewing ? <FaStop /> : <FaPlay />}
+                    <span>{previewing ? 'Playing…' : 'Preview selection'}</span>
+                  </button>
+                  <span className="echoo-recording-trim-length">
+                    {isFullLength ? 'Full recording' : `${formatDuration(selectedSeconds)} selected`}
+                  </span>
+                </div>
+                <audio ref={previewAudioRef} preload="auto" onEnded={stopPreview} hidden />
+              </>
+            )}
+          </div>
+        )}
+
         {saved && (
           <>
             <div className="echoo-recording-saved">
-              <FaCheckCircle /> {savedLabel} saved automatically in Recordings.
+              <FaCheckCircle /> {savedLabel} saved in Recordings as MP3{trimWasCut ? ' (trimmed)' : ''}.
             </div>
-            {savedRecordingId && (
-              <div className="echoo-recording-saved-actions">
-                <button type="button" onClick={viewRecording}>View recording</button>
+            <div className="echoo-recording-pc-save">
+              <strong>Save a copy to this PC?</strong>
+              <span className="echoo-recording-pc-hint">
+                Server copy is MP3 automatically. For your computer, pick a format —
+                files suggest <code>Desktop/{ECHOO_RECORDINGS_LIBRARY}/</code> as your library.
+              </span>
+              <div className="echoo-recording-format-row" role="radiogroup" aria-label="PC save format">
+                {RECORDING_PC_FORMATS.map((option) => (
+                  <label key={option.id} className={`echoo-recording-format${pcFormat === option.id ? ' is-selected' : ''}`}>
+                    <input
+                      type="radio"
+                      name="echoo-pc-format"
+                      value={option.id}
+                      checked={pcFormat === option.id}
+                      onChange={() => { setPcFormat(option.id); setPcMessage(''); }}
+                    />
+                    <span><strong>{option.label}</strong><small>{option.hint}</small></span>
+                  </label>
+                ))}
               </div>
-            )}
+              <div className="echoo-recording-saved-actions">
+                <button
+                  type="button"
+                  disabled={pcSaving}
+                  onClick={async () => {
+                    setPcSaving(true);
+                    setPcMessage('');
+                    try {
+                      const result = await saveRecordingToPc({
+                        blob: savedUploadBlobRef.current?.size ? savedUploadBlobRef.current : recording.blob,
+                        title,
+                        format: pcFormat,
+                        audioId: savedRecordingId,
+                      });
+                      if (result?.cancelled) {
+                        setPcMessage('Save cancelled.');
+                      } else {
+                        setPcMessage(
+                          pcFormat === 'mp3'
+                            ? `MP3 saved to your PC${result?.path ? ` (${result.path})` : ''}.`
+                            : `WAV master saved to your PC${result?.path ? ` (${result.path})` : ''}.`
+                        );
+                      }
+                    } catch (saveError) {
+                      setPcMessage(saveError?.message || 'Could not save to this PC.');
+                    } finally {
+                      setPcSaving(false);
+                    }
+                  }}
+                >
+                  <FaSave /> {pcSaving ? 'Saving…' : `Save ${pcFormat.toUpperCase()} to PC`}
+                </button>
+                {savedRecordingId && (
+                  <button type="button" onClick={viewRecording}>View recording</button>
+                )}
+              </div>
+              {pcMessage && <div className="echoo-recording-pc-message">{pcMessage}</div>}
+            </div>
           </>
         )}
 
         {!saved && (
           <div className="echoo-recording-options">
-            <button
-              type="button"
-              className="private"
-              onClick={() => setRetryToken((value) => value + 1)}
-              disabled={saving || !error}
-            >
-              <FaSyncAlt />
-              <span>
-                <strong>{saving ? 'Saving…' : error ? 'Retry saving' : 'Saving automatically…'}</strong>
-                <small>Your Recording stays private until you choose to publish it later from Recordings.</small>
-              </span>
-            </button>
+            {trimSupported ? (
+              <>
+                <button
+                  type="button"
+                  className="publish"
+                  onClick={() => setRetryToken((value) => value + 1)}
+                  disabled={saving || trimPreparing}
+                >
+                  <FaSave />
+                  <span>
+                    <strong>{saving ? 'Saving…' : error ? 'Retry saving' : isFullLength ? 'Save full recording' : `Save trimmed (${formatDuration(selectedSeconds)})`}</strong>
+                    <small>Uploads to the Echoo server as MP3. Stays private until you publish it from Recordings.</small>
+                  </span>
+                </button>
+                {!isFullLength && !saving && (
+                  <button
+                    type="button"
+                    className="private"
+                    onClick={() => {
+                      stopPreview();
+                      setTrimStart(0);
+                      setTrimEnd(trimDuration);
+                      setRetryToken((value) => value + 1);
+                    }}
+                    disabled={saving || trimPreparing}
+                  >
+                    <FaSyncAlt />
+                    <span>
+                      <strong>Save full recording instead</strong>
+                      <small>Skip trimming and keep the whole {formatDuration(trimDuration)} master.</small>
+                    </span>
+                  </button>
+                )}
+              </>
+            ) : (
+              <button
+                type="button"
+                className="private"
+                onClick={() => setRetryToken((value) => value + 1)}
+                disabled={saving || !error}
+              >
+                <FaSyncAlt />
+                <span>
+                  <strong>{saving ? 'Saving…' : error ? 'Retry saving' : 'Saving automatically…'}</strong>
+                  <small>Your Recording stays private until you choose to publish it later from Recordings.</small>
+                </span>
+              </button>
+            )}
           </div>
         )}
 
@@ -432,7 +758,7 @@ const BroadcastRecordingPrompt = () => {
             </div>
           ) : (
             <span>
-              <FaCloudUploadAlt /> Completed broadcasts are saved automatically to this Echoo backend during local testing.
+              <FaCloudUploadAlt /> Trim first, then save — the server copy is MP3 and stays private until you publish it.
             </span>
           )}
         </footer>

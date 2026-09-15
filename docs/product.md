@@ -10,9 +10,9 @@ Echoo connects audio creators with live audiences. A creator opens the Creator S
 
 ## Core journeys
 
-1. **Go live (creator):** prepare workstation → test mix → Go Live → LiveKit room opens, presence flips to live → end broadcast → master recording auto-saves as a private draft.
+1. **Go live (creator):** prepare workstation → test mix → Go Live → LiveKit room opens, presence flips to live → end broadcast → trim/crop the master on a waveform screen → save as a private draft (server copy is MP3 automatically; optional MP3/WAV copy to the `Desktop/Echoo Recordings` PC library).
 2. **Listen live (anyone):** open `/listen/live/:id` → room card + live audio → optionally sign in to chat/follow.
-3. **Replay (creator):** Recordings → review → publish → listeners stream or download. Replays are stored as small Opus files in cloud object storage, streamed through signed time-limited URLs.
+3. **Replay (creator):** Recordings → review → publish → listeners stream or download. Replays are stored as MP3 files (server canonical copy, local disk or cloud object storage), streamed through signed time-limited URLs.
 4. **Catch up (listener):** library, history, downloads, saved moments, notifications for followed stations.
 
 ## Feature map
@@ -22,7 +22,7 @@ Echoo connects audio creators with live audiences. A creator opens the Creator S
 | Live audio | WebRTC via LiveKit Cloud, stereo Opus, three creator quality profiles, diagnostics |
 | Live chat | Real-time messages, reactions, moderation (mute/pin/delete), guest read-only |
 | Presence | Live listener counts, peak tracking, creator-connected state |
-| Recordings | Automatic post-broadcast save, Opus transcode (~17 MB/hr), cloud archive, publish/unpublish |
+| Recordings | Trim/crop before save, automatic server MP3 (~86 MB/hr), PC copy as MP3/WAV, cloud archive, publish/unpublish |
 | Transcripts | Optional live transcription with quality pipeline, review + publish flow |
 | Notifications | In-app + (desktop) native OS alerts with per-type preferences |
 | Offline | Downloads, offline cache, background audio on all clients |

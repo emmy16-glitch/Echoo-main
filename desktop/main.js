@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, shell, ipcMain, Notification, Tray } = require('electron');
+const { app, BrowserWindow, Menu, shell, ipcMain, Notification, Tray, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -401,6 +401,34 @@ ipcMain.handle('desktop:set-notification-preference', (_event, enabled) => setNo
 ipcMain.handle('desktop:get-notification-preferences', () => getNotificationPreferences());
 ipcMain.handle('desktop:set-notification-preferences', (_event, update) => setNotificationPreferences(update));
 ipcMain.handle('desktop:notify', (_event, payload) => showDesktopNotification(payload?.type));
+
+// Creator recording library: ~/Desktop/Echoo Recordings. The renderer asks
+// MP3 vs WAV first, then the native dialog opens in that library folder so
+// every PC copy lands in one place. Server copy is always MP3 automatically.
+ipcMain.handle('desktop:save-recording', async (_event, options = {}) => {
+  try {
+    const format = String(options?.format || 'mp3').toLowerCase() === 'wav' ? 'wav' : 'mp3';
+    const rawName = String(options?.filename || `echoo-recording.${format}`).replace(/[\\/:*?"<>|]/g, '-').slice(0, 120) || `echoo-recording.${format}`;
+    const filename = rawName.toLowerCase().endsWith(`.${format}`) ? rawName : `${rawName}.${format}`;
+    const libraryDir = path.join(app.getPath('desktop'), 'Echoo Recordings');
+    await fs.promises.mkdir(libraryDir, { recursive: true });
+    const result = await dialog.showSaveDialog(mainWindow, {
+      title: `Save recording as ${format.toUpperCase()} — Echoo Recordings`,
+      defaultPath: path.join(libraryDir, filename),
+      filters: format === 'wav'
+        ? [{ name: 'WAV audio', extensions: ['wav'] }, { name: 'All files', extensions: ['*'] }]
+        : [{ name: 'MP3 audio', extensions: ['mp3'] }, { name: 'All files', extensions: ['*'] }],
+    });
+    if (result.canceled || !result.filePath) return { saved: false, cancelled: true };
+    const data = options?.data;
+    const buffer = Buffer.isBuffer(data) ? data : Buffer.from(data || []);
+    if (!buffer.length) return { saved: false, error: 'Recording bytes are empty.' };
+    await fs.promises.writeFile(result.filePath, buffer);
+    return { saved: true, path: result.filePath };
+  } catch (error) {
+    return { saved: false, error: error?.message || String(error) };
+  }
+});
 
 app.whenReady().then(() => {
   app.setAppUserModelId('org.echoo.desktop');

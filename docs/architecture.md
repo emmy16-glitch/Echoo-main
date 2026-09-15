@@ -37,7 +37,7 @@ Realtime product events (chat, presence, status) travel over Socket.IO from the 
 
 ## Broadcast lifecycle (happy path)
 
-`scheduled → starting → live → ending → completed` (plus `cancelled`/`failed` exits). Going live mints the LiveKit room and creator token; ending it triggers the recording pipeline (master finalize → Opus transcode → cloud archive → replay link) and background processing jobs (transcript, highlights, chapters).
+`scheduled → starting → live → ending → completed` (plus `cancelled`/`failed` exits). Going live mints the LiveKit room and creator token; ending it triggers the recording pipeline (master finalize → creator trim/crop review → MP3 normalise → cloud archive → replay link) and background processing jobs (transcript, highlights, chapters).
 
 ## Clients
 
