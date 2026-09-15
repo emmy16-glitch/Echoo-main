@@ -35,7 +35,11 @@ export const decodeRecordingBlob = async (blob) => {
   // decodeAudioData detaches the buffer — copy first so the blob stays usable.
   const copy = raw.slice(0);
   const buffer = await new Promise((resolve, reject) => {
-    context.decodeAudioData(copy, resolve, reject);
+    // Modern browsers ALSO return a promise from decodeAudioData even when
+    // callbacks are given — and it rejects on decode failure. Swallow that
+    // floating rejection: the callbacks below already settle this promise.
+    const floating = context.decodeAudioData(copy, resolve, reject);
+    if (floating && typeof floating.catch === 'function') floating.catch(() => {});
   });
   if (!buffer?.duration) throw new Error('Could not read this recording for trimming.');
   return buffer;
