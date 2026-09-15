@@ -1,6 +1,6 @@
 {
   "name": "echoo-desktop",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Echoo native desktop shell (Electron wrapper around the React frontend)",
   "main": "src/main.js",
   "private": true,
@@ -9,14 +9,14 @@
     "type": "git",
     "url": "https://github.com/emmy16-glitch/Echoo-main.git"
   },
-    "scripts": {
-        "start": "electron .",
-        "dev": "node scripts/dev-launcher.js",
-        "dist": "node scripts/prepare-bundled-backend.js && npm run build --prefix ../frontend && electron-builder",
-        "dist:linux": "node scripts/prepare-bundled-backend.js && npm run build --prefix ../frontend && electron-builder --linux",
-        "dist:mac": "node scripts/prepare-bundled-backend.js && npm run build --prefix ../frontend && electron-builder --mac",
-        "dist:win": "node scripts/prepare-bundled-backend.js && npm run build --prefix ../frontend && electron-builder --win"
-    },
+  "scripts": {
+    "start": "electron .",
+    "dev": "node scripts/dev-launcher.js",
+    "dist": "node scripts/prepare-bundled-backend.js && npm run build --prefix ../frontend && electron-builder",
+    "dist:linux": "node scripts/prepare-bundled-backend.js && npm run build --prefix ../frontend && electron-builder --linux",
+    "dist:mac": "node scripts/prepare-bundled-backend.js && npm run build --prefix ../frontend && electron-builder --mac",
+    "dist:win": "node scripts/prepare-bundled-backend.js && npm run build --prefix ../frontend && electron-builder --win"
+  },
   "dependencies": {
     "electron-log": "^5.4.2",
     "electron-updater": "^6.7.2"
