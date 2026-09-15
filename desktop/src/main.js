@@ -39,7 +39,11 @@ autoUpdater.logger = log;
 // use. ECHOO_DEV_URL overrides everything. The frontend runs with
 // `--strictPort`, so a squatted port fails loudly at `npm run dev` time
 // instead of silently falling back behind our back.
-const DEV_URL = process.env.ECHOO_DEV_URL || 'http://localhost:5273';
+const DEV_URL = process.env.ECHOO_DEV_URL || process.env.ECHOO_URL || 'http://localhost:5273';
+// An explicitly provided URL (tests, debugging) is trusted as-is: the
+// identity-marker gate below only applies to the default dev port, where a
+// squatter may be serving foreign content on a shared machine.
+const DEV_URL_IS_EXPLICIT = Boolean(process.env.ECHOO_DEV_URL || process.env.ECHOO_URL);
 // How long to wait for the dev server before showing the error screen.
 const DEV_WAIT_MS = Number(process.env.DEV_WAIT_MS || '5000');
 // Identity marker injected by frontend/index.html (<meta name="echoo-app">).
@@ -502,6 +506,10 @@ async function loadDevUrl() {
   if (!mainWindow) return;
   try {
     if (await waitForDevServer(DEV_URL, DEV_WAIT_MS)) {
+      if (DEV_URL_IS_EXPLICIT) {
+        await mainWindow.loadURL(DEV_URL);
+        return;
+      }
       const identity = await fetchDevIdentity(DEV_URL);
       if (identity === true) {
         await mainWindow.loadURL(DEV_URL);
@@ -982,7 +990,11 @@ function registerIpc() {
 
   ipcMain.handle('echoo:reload', async () => {
     try {
-      if (!app.isPackaged) {
+  if (DEV_URL_IS_EXPLICIT) {
+    // Test/debug override (also honored in packaged builds so the packaged
+    // boot test can point at a fixture server).
+    void loadDevUrl();
+  } else if (!app.isPackaged) {
         await loadDevUrl();
       } else {
         mainWindow?.loadFile(PROD_INDEX);
