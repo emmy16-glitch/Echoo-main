@@ -163,6 +163,15 @@ test('History focus refresh does not multiply after repeated mounts', async ({ p
 
   await page.goto('/listen/history');
   await settle(page, 220);
+  // Mount requests can land late under load — wait until the request count
+  // settles, then reset so only the focus refresh is counted.
+  let lastCount = -1;
+  let calmRounds = 0;
+  for (let round = 0; round < 14 && calmRounds < 2; round += 1) {
+    await page.waitForTimeout(300);
+    if (historyRequests === lastCount) calmRounds += 1;
+    else { calmRounds = 0; lastCount = historyRequests; }
+  }
   historyRequests = 0;
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
   await page.waitForTimeout(350);
