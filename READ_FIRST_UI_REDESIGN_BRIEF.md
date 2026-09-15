@@ -69,7 +69,7 @@ Read the actual source code, not only this document. At minimum inspect the foll
 - `backend/src/app.js`
 - `backend/src/routes/index.js`
 - `docs/audio-architecture.md`
-- `IMPLEMENTATION_STATUS.md`
+- `docs/archive/IMPLEMENTATION_STATUS.md`
 - `scripts/architecture-check.mjs`
 
 If documentation and runtime source disagree, prefer the **current runtime source and architecture checks** over old documentation.

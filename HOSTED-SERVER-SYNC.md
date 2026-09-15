@@ -28,21 +28,28 @@
 
 ---
 
-## Task 1 — Allow the desktop app through CORS
+## Task 1 — Allow the desktop app through CORS (scoped, desktop runtime only)
 
 File: `backend/src/app.js`, function `isAllowedOrigin` (also used by the
 Socket.IO server via `echooCorsOrigin`, so one change covers HTTP + realtime).
 
-Change the guard at the top of `isAllowedOrigin` to:
+The code already contains the scoped guard — on the server, only enable it
+via environment, never by blanket-allowing `"null"`:
+
+```bash
+ECHOO_DESKTOP=1   # runtime env on the host that serves desktop shells
+```
 
 ```js
-if (!origin || origin === 'null') return true;
+// backend/src/app.js — already in place; do NOT replace with a blanket rule:
+if ((normalized === 'null' || normalized === 'file://') && process.env.ECHOO_DESKTOP === '1') return true;
 ```
 
 Why: `file://` pages have no real origin; Chromium sends `"null"`.
 Without this, every desktop install gets `CORS_ORIGIN_DENIED`.
 Security note: per-request auth is still enforced; do NOT enable
-`credentials: true` (leave the existing CORS options untouched).
+`credentials: true` (leave the existing CORS options untouched), and do NOT
+allow `"null"` for any other environment.
 Restart the backend afterwards.
 
 ---

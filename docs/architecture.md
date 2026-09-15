@@ -42,7 +42,7 @@ Realtime product events (chat, presence, status) travel over Socket.IO from the 
 ## Clients
 
 - **Web** (`frontend/`): React SPA, lazy-loaded listener/creator shells, Vite proxy to the API in dev, relative asset base so the same bundle also runs inside Electron's `file://`.
-- **Desktop** (`desktop/`): Electron shell — single instance, tray with room controls, native notifications, auto-launch, GitHub auto-updates, graceful LiveKit/socket shutdown. Packaged builds bundle the API server and an embedded-database fallback. Details: `desktop/README.md`.
+- **Desktop** (`desktop/`): Electron shell — single instance, tray with room controls, native notifications, auto-launch, GitHub auto-updates, graceful LiveKit/socket shutdown. Default builds are hosted thin clients; bundling the API server + embedded-database fallback is an explicit opt-in. Details: `desktop/README.md`.
 - **Mobile** (`mobile/`): Expo app, `expo-audio` playback with lock-screen controls, LiveKit listener rooms, Android media-playback foreground service for background live audio. Details: `mobile/README.md`, builds: `mobile/APK_BUILD.md`.
 - **Landing** (`echoo-landing/`): marketing and release site (separate concern).
 

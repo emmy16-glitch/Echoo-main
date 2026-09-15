@@ -56,8 +56,9 @@ const LOCAL_BACKEND_OPT_IN = process.env.ECHOO_LOCAL_BACKEND === '1';
 // The desktop `npm run dev` launcher resolves this the same way and waits
 // for the server; the gate below is defense-in-depth for direct `npm start`
 // use. ECHOO_DEV_URL overrides everything. The frontend runs with
-// `--strictPort`, so a squatted port fails loudly at `npm run dev` time
-// instead of silently falling back behind our back.
+// `strictPort: false`, so a squatted port may fall back silently at
+// `npm run dev` time — the identity-marker gate is what protects Electron
+// instead of launching a stranger's page.
 const DEV_URL = process.env.ECHOO_DEV_URL || process.env.ECHOO_URL || 'http://localhost:5273';
 // An explicitly provided URL (tests, debugging) is trusted as-is: the
 // identity-marker gate below only applies to the default dev port, where a
@@ -70,9 +71,10 @@ const DEV_WAIT_MS = Number(process.env.DEV_WAIT_MS || '5000');
 // is not proof on a shared machine — require the marker before loadURL.
 const ECHOO_IDENTITY_MARKER = 'name="echoo-app"';
 
-// Production bundle. `npm run dist` ALWAYS rebuilds it first
-// ("dist": "npm run build --prefix ../frontend && electron-builder"),
-// so packaging can never silently ship a blank window. electron-builder copies
+// Production bundle. Rebuild the frontend first (`npm run build` in
+// ../frontend) — plain `npm run dist` packages whatever is in
+// frontend/dist, so packaging can never silently ship a blank window only if
+// the build step ran (only `dist:win:local-backend` chains it automatically). electron-builder copies
 // frontend/dist INTO the packaged app (see the {from,to} entry in the `files`
 // array in package.json), so this path resolves inside the asar in prod.
 // NOTE: an earlier revision pointed at ../../frontend/dist relative to the
@@ -521,7 +523,7 @@ function sendRoomCommand(command) {
 // squatted. Any listening socket counts as "up" (even a non-Vite squatter —
 // that misconfiguration surfaces visibly as the wrong content, never a blank
 // window — while port conflicts themselves are caught earlier by the `predev`
-// port check and `--strictPort`, which fail loudly).
+// port check (which fails loudly).
 function isTcpReachable(host, port, timeoutMs = 1000) {
   return new Promise((resolve) => {
     const socket = new net.Socket();

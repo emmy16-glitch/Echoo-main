@@ -7,7 +7,7 @@ Node.js 20+, MongoDB (local or a URI), FFmpeg on PATH (recording transcode), and
 ## One-command dev stack
 
 ```bash
-npm run dev:all
+sh scripts/dev-all.sh   # from the repo root
 ```
 
 This starts, in order and with readiness polling (never fixed sleeps): MongoDB (if needed) → LiveKit (`livekit-server --dev` when installed) → backend (waits for `/api/health`) → frontend (waits for HTTP 200 + app identity) → desktop (foreground; Ctrl-C stops everything).

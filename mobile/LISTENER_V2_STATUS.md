@@ -98,9 +98,8 @@ The branch-closing GitHub Actions validation passed:
 - `npm ci` — 0
 - `npm run lint` — 0
 - `npx tsc --noEmit` — 0
-- `npx expo config --type public` — 0
 
-See `mobile/LISTENER_V2_VALIDATION.md` for the recorded output.
+See `mobile/LISTENER_V2_VALIDATION.md` for the recorded output (its `expo config` dump is superseded — see the note there).
 
 The permanent Echoo GitHub Actions workflow now also includes mobile install, lint and TypeScript validation.
 

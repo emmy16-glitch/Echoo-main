@@ -1,15 +1,19 @@
 # Echoo Desktop — release guide
 
-Native shell around the React frontend (`../frontend`) **with its own bundled
-Echoo API** (`../backend` via `extraResources`, run with
-`ELECTRON_RUN_AS_NODE`). End users install one file and get everything —
-no Node, no MongoDB, no terminal.
+Native shell around the React frontend (`../frontend`). Default builds are
+**hosted thin clients** for `https://echoo.digi02.org` — end users install one
+file and land in the same world as the web app: no Node, no MongoDB, no
+terminal. A bundled local API + embedded DB remains available only as an
+opt-in (`ECHOO_LOCAL_BACKEND=1`, offline development).
 
 ## Standalone runtime (packaged app)
 
-- On launch the shell probes `http://127.0.0.1:5017/api/health`. If an Echoo
-  API is already there (e.g. a developer running the repo stack), it is
-  reused; otherwise the bundled server is spawned and stopped on quit.
+- On launch the shell loads the live app URL (`ECHOO_URL` override or
+  `https://echoo.digi02.org`); no local server is spawned or required.
+- Opt-in local backend (`ECHOO_LOCAL_BACKEND=1`, offline development): the
+  shell probes `http://127.0.0.1:5017/api/health`. If an Echoo API is already
+  there (e.g. a developer running the repo stack), it is reused; otherwise the
+  bundled server is spawned and stopped on quit.
 - Server data (uploads, transcript chunks) lives in per-user app storage
   (`server-data/` under Electron `userData`), never in the read-only bundle.
   Per-machine JWT secrets are generated once (`echoo-server-secrets.json`,
@@ -21,9 +25,8 @@ no Node, no MongoDB, no terminal.
   downloads the mongod binary once (~120 MB, needs internet)** into the OS
   cache; later launches are fully offline.
 - Dev (`npm run dev` / `npm start`) never spawns anything extra: if the repo
-  backend is already up it is reused, otherwise the dev entrypoint is
-  available at `../../backend/src/app.js` — start it with
-  `cd backend && npm run dev` as usual.
+  backend is already up it is reused, otherwise start it with
+  `cd backend && npm run dev` as usual (`../backend/src/app.js` from `desktop/`).
 
 ## Going live (LiveKit audio server)
 
@@ -36,7 +39,7 @@ error. Two ways to provide it:
   `devkey` / `secret` — local only), plus in `backend/.env`:
   `LIVEKIT_URL=ws://127.0.0.1:7880`, `LIVEKIT_PUBLIC_URL=ws://127.0.0.1:7880`,
   `LIVEKIT_API_KEY=devkey`, `LIVEKIT_API_SECRET=secret`. The repo
-  `npm run dev:all` script starts this automatically when the binary exists.
+  `sh scripts/dev-all.sh` loop starts this automatically when the binary exists.
 - **Real deployments:** a LiveKit Cloud project (or self-hosted server) with
   public `wss://` URLs — set the same four vars to the real values. For the
   packaged desktop's bundled server, put them in a `.env` file inside
@@ -48,9 +51,9 @@ From the repo root, one command starts everything in order with readiness
 polling (no fixed sleeps, no three-terminal juggling):
 
 ```bash
-npm run dev:all
-# overrides: VITE_PORT=5274 npm run dev:all   (frontend on another port)
-#            PORT=5018 npm run dev:all        (backend on another port)
+sh scripts/dev-all.sh   # from the repo root
+# overrides: VITE_PORT=5274 sh scripts/dev-all.sh   (frontend on another port)
+#            PORT=5018 sh scripts/dev-all.sh        (backend on another port)
 ```
 
 This starts MongoDB (if needed) → backend (waits for `/api/health`) →
@@ -83,7 +86,7 @@ server on a squatted port (this actually happened: Electron loaded a foreign
 "DigiVolt" page believing it was Echoo). So every readiness gate verifies APP
 IDENTITY, not just liveness:
 
-- `frontend/index.html` carries `<meta name="echoo-app" content="echoo-frontend">`
+- `frontend/index.html` carries `<meta name="echoo-app" content="echoo">`
 - `dev-all.sh` requires that marker in the served HTML, and requires
   `/api/health` to return Echoo's shape (`status "ok"` + `service "echoo-api"`)
 - `desktop/scripts/dev-launcher.js` and `main.js` re-verify the marker before
@@ -92,10 +95,11 @@ IDENTITY, not just liveness:
   like Echoo" instead of launching.
 
 Stale-port protection: every `npm run dev` first runs a port check
-(`scripts/check-ports.sh`) that fails LOUDLY with the occupant's PID instead of
-starting on top of it — never auto-kills. The frontend also uses
-`vite --strictPort`, so a squatted port can never silently fall back to
-5174/5175/... behind Electron's back. If Electron itself can't reach the dev
+(`scripts/check-ports.sh`) that fails LOUDLY with the occupant's details
+instead of starting on top of it — never auto-kills. Note the frontend does
+NOT use `vite --strictPort` (`strictPort: false` in `vite.config.js`), so the
+identity-marker gate above is what protects Electron from silently loading a
+squatter's fallback port. If Electron itself can't reach the dev
 server it shows an error screen naming the expected port (or set
 `ECHOO_DEV_URL=http://localhost:XXXX npm run dev` in desktop/).
 
@@ -104,17 +108,19 @@ server it shows an error screen naming the expected port (or set
 ```bash
 npm run dev        # dev shell (resolves + waits for the Vite server first)
 npm start          # raw Electron entry (same window, but ensure the dev server is up yourself)
-npm run dist       # frontend build + electron-builder for current OS
-npm run dist:linux # … --linux only → dist/Echoo-0.2.0.AppImage
-npm run dist:win   # … --win only → dist/Echoo Setup 0.2.0.exe (NSIS installer, builds on Linux via Wine)
+npm run dist       # electron-builder for current OS (does NOT rebuild the frontend — run the frontend build first)
+npm run dist:linux # … --linux only → dist/Echoo-1.0.6.AppImage
+npm run dist:win   # … --win only → dist/Echoo-Setup-1.0.6-*.exe (NSIS installer, builds on Linux via Wine)
 npm run dist:mac   # … --mac only (DMG; best built on a Mac)
 ```
 
-Installers are per-OS but ship the identical app: React frontend + bundled
-Echoo API + embedded-DB fallback. The Windows build is unsigned until a cert
+Installers ship the thin-client app pointed at the live API. (Only the
+explicit `dist:win:local-backend` opt-in bundles a local API +
+embedded-DB fallback.) The Windows build is unsigned until a cert
 is configured (`CSC_LINK`/`CSC_KEY_PASSWORD`), so SmartScreen shows an
-"Unknown publisher" prompt — expected, not a bug. First launch on any OS
-downloads the mongod binary once (~120 MB) when no local MongoDB answers.
+"Unknown publisher" prompt — expected, not a bug. First launch of a
+local-backend build on any OS downloads the mongod binary once (~120 MB)
+when no local MongoDB answers.
 
 `desktop/` deps are intentionally minimal: `electron`, `electron-builder`,
 `electron-log` (structured logs), `electron-updater` (GitHub Releases updates).
