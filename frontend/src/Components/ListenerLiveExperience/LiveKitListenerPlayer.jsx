@@ -425,6 +425,57 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
     setLiveMuted(nextMuted);
   }, []);
 
+  // Lock-screen / background-tab controls (mobile browsers, minimized
+  // windows): without these the OS shows no metadata and some platforms
+  // deprioritize the page's audio. Playback itself already survives
+  // backgrounding — this keeps the user in control while it does.
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return undefined;
+    if (!isLive) {
+      try {
+        navigator.mediaSession.metadata = null;
+        navigator.mediaSession.playbackState = 'none';
+      } catch {
+        // Media Session is best-effort enhancement.
+      }
+      return undefined;
+    }
+    try {
+      navigator.mediaSession.metadata = new window.MediaMetadata({
+        title: track?.title || 'Live on Echoo',
+        artist: track?.subtitle || 'Echoo Creator',
+        album: 'Echoo Live',
+        artwork: track?.coverArt
+          ? [{ src: track.coverArt, sizes: '512x512', type: 'image/png' }]
+          : [],
+      });
+    } catch {
+      // Older browsers accept playback without metadata.
+    }
+    let disposed = false;
+    const setHandlers = () => {
+      if (disposed) return;
+      try {
+        navigator.mediaSession.setActionHandler('play', () => { void togglePlayback(); });
+        navigator.mediaSession.setActionHandler('pause', () => { void togglePlayback(); });
+        navigator.mediaSession.setActionHandler('stop', () => { void togglePlayback(); });
+      } catch {
+        // Unsupported actions throw per spec — safe to ignore.
+      }
+    };
+    setHandlers();
+    return () => {
+      disposed = true;
+      try {
+        navigator.mediaSession.setActionHandler('play', null);
+        navigator.mediaSession.setActionHandler('pause', null);
+        navigator.mediaSession.setActionHandler('stop', null);
+      } catch {
+        // Already torn down.
+      }
+    };
+  }, [isLive, track?.title, track?.subtitle, track?.coverArt, togglePlayback]);
+
   const changeVolume = useCallback((value) => {
     const nextVolume = Math.max(0, Math.min(1, Number(value) || 0));
     const nextMuted = nextVolume === 0;
@@ -471,6 +522,15 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       onToggleMute: toggleMute,
       onVolumeChange: changeVolume,
     });
+
+    // Keep the lock-screen transport icon truthful (playing vs paused).
+    try {
+      if (typeof navigator !== 'undefined' && 'mediaSession' in navigator && isLive) {
+        navigator.mediaSession.playbackState = status === 'listening' ? 'playing' : 'paused';
+      }
+    } catch {
+      // Best-effort only.
+    }
 
     return () => {
       onStateChange?.({ active: false, track: null, isPlaying: false, playerError: '', audioLevel: 0 });
