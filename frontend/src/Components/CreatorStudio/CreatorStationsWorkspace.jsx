@@ -309,6 +309,41 @@ const CreatorStationsWorkspace = ({ onNavigate, onOpenRecording }) => {
       resetLogoInput();
       window.dispatchEvent(new CustomEvent('echoo:creator-state-changed'));
     } catch (saveError) {
+      // One Channel per creator: if the backend already has one (e.g. list
+      // was empty on load, or an earlier save succeeded but the reload threw),
+      // recover by loading it for editing instead of leaving a dead error.
+      const saveCode = saveError?.code || saveError?.data?.error?.code;
+      if ((saveCode === 'CHANNEL_ALREADY_EXISTS' || saveError?.status === 409) && !channel?.id) {
+        try {
+          const mine = await batch2Service.getMyStations();
+          const existing = Array.isArray(mine?.data) ? mine.data[0] : null;
+          const existingId = idOf(existing);
+          if (existingId) {
+            setStations(Array.isArray(mine.data) ? mine.data : []);
+            setForm({
+              name: existing.name || '',
+              category: CATEGORIES.includes(existing.category) ? existing.category : 'Other',
+              description: existing.description || '',
+              logoFile: null,
+              logoPreview: existing.logo || '',
+              removeLogo: false,
+              brandingMode: existing.logo ? 'custom' : 'generated',
+              brandingVariant: Number.isInteger(Number(existing.branding?.variant))
+                ? Number(existing.branding.variant)
+                : randomStationBrandVariant(),
+              isPublic: existing.isPublic !== false,
+            });
+            setMessage('You already have a Channel — it is loaded here for editing.');
+            setError('');
+            setFormOpen(true);
+            resetLogoInput();
+            window.dispatchEvent(new CustomEvent('echoo:creator-state-changed'));
+            return;
+          }
+        } catch {
+          // Fall through to the generic error below.
+        }
+      }
       setError(saveError?.message || 'Could not save the Channel.');
     } finally {
       setSaving(false);
