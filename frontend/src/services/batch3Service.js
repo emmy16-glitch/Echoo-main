@@ -303,6 +303,33 @@ const batch3Service = {
     return response?.data || {};
   },
 
+  // Shared listen links — no account needed. Public broadcast card and guest
+  // LiveKit credentials; skipAuth/skipRefresh so logged-out viewers never
+  // trigger the token-refresh loop.
+  getPublicBroadcast: async (broadcastId) => {
+    const response = await apiRequest(
+      `/broadcasts/${encodeURIComponent(broadcastId)}/public`,
+      { skipAuth: true, skipRefresh: true }
+    );
+
+    const normalized = normalizeBroadcast(response?.data);
+    return { ...response, data: normalized };
+  },
+
+  getGuestListenerToken: async (broadcastId, { name = '' } = {}) => {
+    const response = await apiRequest(
+      `/broadcasts/${encodeURIComponent(broadcastId)}/guest-token`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ name: String(name || '').slice(0, 40) }),
+        skipAuth: true,
+        skipRefresh: true,
+      }
+    );
+
+    return response?.data || {};
+  },
+
   getPresence: async (broadcastId) => {
     const response = await apiRequest(
       `/broadcasts/${encodeURIComponent(broadcastId)}/presence`,

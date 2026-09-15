@@ -331,7 +331,12 @@ const CreatorStationsWorkspace = ({ onNavigate, onOpenRecording }) => {
 
   const viewAsListener = () => {
     if (!publicPath || typeof window === 'undefined') return;
-    window.open(new URL(publicPath, window.location.origin).toString(), '_blank', 'noopener,noreferrer');
+    try {
+      // new URL() throws on file:// (packaged desktop: origin 'null').
+      window.open(new URL(publicPath, window.location.origin).toString(), '_blank', 'noopener,noreferrer');
+    } catch {
+      setError('Open this station in a browser to view the Listener experience.');
+    }
   };
 
   const copyChannelLink = async () => {
@@ -376,7 +381,7 @@ const CreatorStationsWorkspace = ({ onNavigate, onOpenRecording }) => {
       {!channel ? (
         <div className="est-empty">
           <FaBroadcastTower />
-          <h2>Set up your Channel</h2>
+          <h2>Create your Channel</h2>
           <p>Create the public Channel listeners can find, follow and hear live.</p>
           <button type="button" onClick={openSetup}><FaPlus /> Set up Channel</button>
         </div>
@@ -470,7 +475,7 @@ const CreatorStationsWorkspace = ({ onNavigate, onOpenRecording }) => {
             <header className="est-form-head">
               <div>
                 <span>{channel ? 'EDIT CHANNEL' : 'CHANNEL SETUP'}</span>
-                <h2>{channel ? 'Edit Channel' : 'Set up your Channel'}</h2>
+                <h2>{channel ? 'Edit Channel' : 'Create your Channel'}</h2>
                 <p>Update the public identity listeners see across Echoo.</p>
               </div>
               <button type="button" onClick={closeForm} aria-label="Close Channel form"><FaTimes /></button>

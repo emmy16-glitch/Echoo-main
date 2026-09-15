@@ -8,8 +8,10 @@ import {
 import settingsService from '../../services/settingsService';
 import {
   DESKTOP_NOTIFICATION_EVENTS,
+  getDesktopAutoLaunch,
   getDesktopNotificationPreferences,
   isEchooDesktop,
+  setDesktopAutoLaunch,
   setDesktopNotificationPreferences,
 } from '../../services/desktopBridge';
 import './CreatorSettingsConnected.css';
@@ -45,6 +47,8 @@ const CreatorSettingsWorkspace = () => {
     notificationEvents: DESKTOP_NOTIFICATION_EVENTS,
   });
   const [desktopPreferenceLoading, setDesktopPreferenceLoading] = useState(isEchooDesktop());
+  const [autoLaunch, setAutoLaunch] = useState(false);
+  const [autoLaunchLoading, setAutoLaunchLoading] = useState(isEchooDesktop());
   const avatarInputRef = useRef(null);
   const isDesktop = isEchooDesktop();
 
@@ -107,6 +111,26 @@ const CreatorSettingsWorkspace = () => {
     return () => { active = false; };
   }, [isDesktop]);
 
+  useEffect(() => {
+    if (!isDesktop) {
+      setAutoLaunchLoading(false);
+      return undefined;
+    }
+
+    let active = true;
+    getDesktopAutoLaunch()
+      .then((result) => {
+        if (!active) return;
+        setAutoLaunch(result?.openAtLogin === true);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (active) setAutoLaunchLoading(false);
+      });
+
+    return () => { active = false; };
+  }, [isDesktop]);
+
   const run = async (name, action, success) => {
     try {
       setBusy(name);
@@ -163,6 +187,23 @@ const CreatorSettingsWorkspace = () => {
       setError(saveError?.message || 'Could not update the desktop alert preference.');
     } finally {
       setDesktopPreferenceLoading(false);
+    }
+  };
+
+  const saveAutoLaunch = async (enabled) => {
+    if (!isDesktop || autoLaunchLoading) return;
+    try {
+      setAutoLaunchLoading(true);
+      setError('');
+      const saved = await setDesktopAutoLaunch(enabled);
+      setAutoLaunch(saved?.openAtLogin === true);
+      setMessage(saved?.openAtLogin
+        ? 'Echoo Desktop will start automatically when you sign in to this computer.'
+        : 'Echoo Desktop will no longer start automatically.');
+    } catch (saveError) {
+      setError(saveError?.message || 'Could not update the startup preference.');
+    } finally {
+      setAutoLaunchLoading(false);
     }
   };
 
@@ -341,10 +382,21 @@ const CreatorSettingsWorkspace = () => {
                 />
               </label>
 
+              <label className="creator-settings-real-toggle">
+                <span><strong>Open Echoo at login</strong><small>Start Echoo Desktop automatically when you sign in to this computer.</small></span>
+                <input
+                  type="checkbox"
+                  checked={autoLaunch}
+                  disabled={autoLaunchLoading}
+                  onChange={(event) => saveAutoLaunch(event.target.checked)}
+                />
+              </label>
+
               {[
                 ['message', 'Live-room messages', 'Neutral alerts for incoming live-room messages.'],
                 ['roomStarted', 'Room started', 'Neutral alerts when a live room becomes active.'],
                 ['roomEnded', 'Room ended', 'Neutral alerts when a live room ends.'],
+                ['listenerJoined', 'New listeners', 'Neutral alerts when a listener joins your broadcast.'],
               ].map(([key, label, description]) => (
                 <label className="creator-settings-real-toggle" key={key}>
                   <span><strong>{label}</strong><small>{description}</small></span>
