@@ -181,10 +181,10 @@
 }
 .ear-profile-brand { display: flex; align-items: center; justify-content: center; gap: 12px; height: 71px; }
 .ear-profile-brand img { width: 51px; height: 71px; object-fit: contain; }
-.ear-profile-brand span { color: #1f3f78; font-family: Manrope, Inter, sans-serif; font-size: 32px; font-weight: 800; letter-spacing: -1.9px; line-height: 1; }
+.ear-profile-brand span { color: #1f3f78; font-family: var(--sans); font-size: 32px; font-weight: 800; letter-spacing: -1.9px; line-height: 1; }
 .ear-profile-heading { width: 100%; margin: 12px 0 0; text-align: center; }
-.ear-profile-heading h1 { margin: 0; color: #fff; font: 600 36px/1.18 Manrope, Inter, sans-serif; letter-spacing: -1.5px; }
-.ear-profile-heading p { margin: 3px 0 0; color: #fff; font: 300 20px/1.4 Manrope, Inter, sans-serif; }
+.ear-profile-heading h1 { margin: 0; color: #fff; font: 600 36px/1.18 var(--sans); letter-spacing: -1.5px; }
+.ear-profile-heading p { margin: 3px 0 0; color: #fff; font: 300 20px/1.4 var(--sans); }
 .ear-profile-form { width: 100%; display: flex; flex-direction: column; }
 .ear-profile-avatar-section { display: flex; flex-direction: column; align-items: center; margin: 18px 0 30px; }
 .ear-profile-avatar-wrap { position: relative; }
@@ -192,23 +192,23 @@
 .ear-profile-avatar > img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
 .ear-profile-avatar-placeholder { width: 90px; height: 90px; display: grid; place-items: center; border-radius: 45px; background: #ddedfa; color: #7ea8ed; font-size: 60px; }
 .ear-profile-avatar-camera { position: absolute; right: 5px; bottom: 5px; width: 25px; height: 25px; display: grid; place-items: center; border: 2px solid #fff; border-radius: 50%; background: #4f7ec3; color: #fff; font-size: 12px; pointer-events: none; }
-.ear-profile-avatar-caption { display: grid; gap: 2px; margin-top: 10px; color: #fff; font: 300 20px/1.2 Manrope, Inter, sans-serif; text-align: center; cursor: pointer; }
+.ear-profile-avatar-caption { display: grid; gap: 2px; margin-top: 10px; color: #fff; font: 300 20px/1.2 var(--sans); text-align: center; cursor: pointer; }
 .ear-profile-avatar-caption span { color: rgba(255, 255, 255, .8); font-size: 10px; line-height: 1.2; }
 .ear-profile-field { width: 100%; }
 .ear-profile-input-shell,
 .ear-profile-textarea-shell { position: relative; width: 100%; display: flex; overflow: hidden; border-radius: 10px; background: #ebeef4; color: rgba(0, 0, 0, .5); }
 .ear-profile-input-shell { height: 51px; align-items: center; }
 .ear-profile-input-shell > svg { width: 15px; height: 15px; margin-left: 16px; flex: 0 0 15px; }
-.ear-profile-input-shell input { width: 100%; height: 100%; min-width: 0; padding: 0 16px 0 5px; border: 0; outline: 0; background: transparent; color: #132237; font: 300 18px/1 Inter, Manrope, sans-serif; }
+.ear-profile-input-shell input { width: 100%; height: 100%; min-width: 0; padding: 0 16px 0 5px; border: 0; outline: 0; background: transparent; color: #132237; font: 300 18px/1 var(--sans); }
 .ear-profile-input-shell input::placeholder,
 .ear-profile-textarea-shell textarea::placeholder { color: rgba(0, 0, 0, .5); opacity: 1; }
 .ear-profile-textarea-shell { height: 180px; margin-top: 10px; align-items: flex-start; padding: 16px 10px; }
 .ear-profile-textarea-shell > svg { width: 10px; height: 15px; margin: 2px 2px 0 0; flex: 0 0 10px; }
-.ear-profile-textarea-shell textarea { width: 100%; height: 100%; padding: 0 0 24px; border: 0; outline: 0; resize: none; background: transparent; color: #132237; font: 300 16px/1.45 Inter, Manrope, sans-serif; }
+.ear-profile-textarea-shell textarea { width: 100%; height: 100%; padding: 0 0 24px; border: 0; outline: 0; resize: none; background: transparent; color: #132237; font: 300 16px/1.45 var(--sans); }
 .ear-profile-counter { position: absolute; right: 10px; bottom: 9px; color: #8292ac; font: 400 10px/1 Inter, sans-serif; }
 .ear-profile-input-shell:focus-within,
 .ear-profile-textarea-shell:focus-within { box-shadow: 0 0 0 3px rgba(147, 186, 255, .34); }
-.ear-profile-submit { width: 310px; min-height: 50px; align-self: center; margin-top: 51px; padding: 0 24px; border: 0; border-radius: 40px; background: #4f7ec3; color: #f9f9f9; font: 500 16px/1 Manrope, Inter, sans-serif; cursor: pointer; }
+.ear-profile-submit { width: 310px; min-height: 50px; align-self: center; margin-top: 51px; padding: 0 24px; border: 0; border-radius: 40px; background: #4f7ec3; color: #f9f9f9; font: 500 16px/1 var(--sans); cursor: pointer; }
 .ear-profile-submit:hover:not(:disabled) { background: #4071b8; }
 .ear-profile-submit:disabled { background: #bbc3ce; color: #f9f9f9; cursor: not-allowed; }
 .ear-profile-submit:focus-visible,
@@ -229,13 +229,13 @@
 .ear-auth-status-card { justify-content: center; text-align: center; }
 .ear-auth-status-card .ear-logo-mark { margin-bottom: 24px; }
 .ear-auth-status-icon { width: 64px; height: 64px; display: grid; place-items: center; margin-bottom: 18px; border: 1px solid rgba(255, 255, 255, .48); border-radius: 50%; background: rgba(79, 126, 195, .6); color: #fff; font: 700 30px/1 Inter, sans-serif; }
-.ear-auth-status-card h1 { margin: 0; color: #fff; font: 600 36px/1.18 Manrope, Inter, sans-serif; letter-spacing: -1.5px; }
+.ear-auth-status-card h1 { margin: 0; color: #fff; font: 600 36px/1.18 var(--sans); letter-spacing: -1.5px; }
 .ear-auth-status-card p { margin: 10px 0 0; color: rgba(255, 255, 255, .82); font-size: 16px; line-height: 1.5; }
 .ear-auth-status-loader { width: 28px; height: 28px; margin-top: 28px; border: 3px solid rgba(255, 255, 255, .3); border-top-color: #fff; border-radius: 50%; animation: ear-profile-spin .75s linear infinite; }
 .ear-profile-status-card { justify-content: center; text-align: center; }
 .ear-profile-status-card .ear-logo-mark { margin-bottom: 24px; }
 .ear-profile-status-icon { width: 64px; height: 64px; display: grid; place-items: center; margin-bottom: 18px; border: 1px solid rgba(255, 255, 255, .48); border-radius: 50%; background: rgba(79, 126, 195, .6); color: #fff; font-size: 26px; }
-.ear-profile-status-card h1 { margin: 0; color: #fff; font: 600 36px/1.18 Manrope, Inter, sans-serif; letter-spacing: -1.5px; }
+.ear-profile-status-card h1 { margin: 0; color: #fff; font: 600 36px/1.18 var(--sans); letter-spacing: -1.5px; }
 .ear-profile-status-card p { margin: 10px 0 0; color: rgba(255, 255, 255, .82); font-size: 16px; line-height: 1.5; }
 .ear-profile-status-loader { width: 28px; height: 28px; margin-top: 28px; border: 3px solid rgba(255, 255, 255, .3); border-top-color: #fff; border-radius: 50%; animation: ear-profile-spin .75s linear infinite; }
 @keyframes ear-profile-spin { to { transform: rotate(360deg); } }

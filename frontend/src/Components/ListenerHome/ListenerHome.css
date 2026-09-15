@@ -63,7 +63,7 @@
 
 .echoo-home-discovery-hero { min-height: 280px; display: grid; grid-template-columns: minmax(0, 1fr) 270px; align-items: center; gap: 28px; overflow: hidden; padding: 34px 38px; border: 1px solid #d7e5fa; border-radius: 18px; background: linear-gradient(135deg, #071f45 0%, #0a2c5f 58%, #0f3f83 100%); color: #fff; box-shadow: 0 15px 34px rgba(27,56,99,.15); }
 .echoo-home-discovery-copy > span { display: inline-flex; align-items: center; gap: 8px; color: #bcd7ff; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
-.echoo-home-discovery-copy h2 { max-width: 620px; margin: 12px 0 0; font-family: Georgia, 'Times New Roman', serif; font-size: clamp(30px, 3vw, 46px); letter-spacing: -.045em; line-height: 1.02; }
+.echoo-home-discovery-copy h2 { max-width: 620px; margin: 12px 0 0; font-family: var(--sans); font-size: clamp(30px, 3vw, 46px); letter-spacing: -.045em; line-height: 1.02; }
 .echoo-home-discovery-copy p { max-width: 620px; margin: 13px 0 0; color: #d5e6fb; font-size: 14px; line-height: 1.6; }
 .echoo-home-discovery-copy > div { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
 .echoo-home-discovery-copy button { min-height: 42px; display: inline-flex; align-items: center; gap: 8px; padding: 0 16px; border: 0; border-radius: 22px; background: #1672f8; color: #fff; font: inherit; font-size: 12px; font-weight: 760; cursor: pointer; box-shadow: 0 8px 18px rgba(22,114,248,.3); }
@@ -78,7 +78,7 @@
 .echoo-home-discovery-orbit i:nth-child(1) { top: 24px; left: 92px; }
 .echoo-home-discovery-orbit i:nth-child(2) { right: 35px; bottom: 60px; }
 .echoo-home-discovery-orbit i:nth-child(3) { left: 33px; bottom: 72px; }
-.echoo-home-discovery-orbit strong { z-index: 2; font-family: Georgia, 'Times New Roman', serif; font-size: 22px; }
+.echoo-home-discovery-orbit strong { z-index: 2; font-family: var(--sans); font-size: 22px; }
 
 .echoo-home-loading { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 16px; }
 .echoo-home-loading span { min-height: 150px; border-radius: 14px; background: #f0f3f8; animation: echoo-home-pulse 1.2s ease-in-out infinite alternate; }

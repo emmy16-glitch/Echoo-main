@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import {
   FaCheck,
@@ -143,25 +143,40 @@ const ListenerHistoryConnected = () => {
     }
   }, []);
 
+  // Guards overlapping loads (mount + focus sync firing together, React
+  // StrictMode double-mount in dev) so one logical refresh costs one request.
+  const loadInflightRef = useRef(null);
   const load = useCallback(async ({ silent = false } = {}) => {
+    if (loadInflightRef.current) {
+      try { await loadInflightRef.current; } catch { /* shared attempt settled */ }
+      return;
+    }
+    const task = (async () => {
+      try {
+        if (!silent) setLoading(true);
+        const response = await batch6Service.getHistory({
+          page: 1,
+          limit: 100,
+          type: 'all',
+          sort: 'recent',
+        });
+        const raw = response?.data || {};
+        const history = Array.isArray(raw.history) ? raw.history : [];
+        const tracks = history.map(normalizedTrack).filter(Boolean);
+        setItems(tracks);
+        if (!silent) await loadStats();
+      } catch (error) {
+        console.error('History load failed', error);
+        if (!silent) notify('Could not load listening history', 'error');
+      } finally {
+        if (!silent) setLoading(false);
+      }
+    })();
+    loadInflightRef.current = task;
     try {
-      if (!silent) setLoading(true);
-      const response = await batch6Service.getHistory({
-        page: 1,
-        limit: 100,
-        type: 'all',
-        sort: 'recent',
-      });
-      const raw = response?.data || {};
-      const history = Array.isArray(raw.history) ? raw.history : [];
-      const tracks = history.map(normalizedTrack).filter(Boolean);
-      setItems(tracks);
-      if (!silent) await loadStats();
-    } catch (error) {
-      console.error('History load failed', error);
-      if (!silent) notify('Could not load listening history', 'error');
+      await task;
     } finally {
-      if (!silent) setLoading(false);
+      if (loadInflightRef.current === task) loadInflightRef.current = null;
     }
   }, [loadStats, notify]);
 

@@ -527,7 +527,7 @@ const BroadcastRecordingPrompt = () => {
             </h2>
             <p id="echoo-recording-decision-description">
               {saved
-                ? 'Your completed broadcast is now available in Recordings.'
+                ? 'Your completed broadcast is now available in Recordings. Echoo automatically saves every completed broadcast.'
                 : error
                   ? 'Echoo kept the local master safe. Adjust the trim if you like, then retry saving.'
                   : saving

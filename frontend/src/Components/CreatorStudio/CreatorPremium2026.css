@@ -348,7 +348,8 @@
 .ebsx-onair-card { border: 1px solid #1d3c69; }
 .ebsx-live-header > div:first-child > span,
 .ebsx-live-header .live {
-  font-family: var(--echoo-mono);
+  font-family: var(--sans);
+  font-variant-numeric: tabular-nums;
 }
 .ebsx-live-mic,
 .ebsx-hero-mic {
@@ -389,13 +390,13 @@
   border-radius: 5px;
   background: #e43939;
   color: #fff;
-  font-family: var(--echoo-mono);
+  font-family: var(--sans);
   font-size: 7px;
   font-weight: 800;
   letter-spacing: .07em;
   animation: echooClipFlash .55s ease-in-out infinite alternate;
 }
-.eam-db { font-family: var(--echoo-mono); font-variant-numeric: tabular-nums; }
+.eam-db { font-family: var(--sans); font-variant-numeric: tabular-nums; }
 
 /* Analytics: data should feel purposeful */
 .b6-analytics-wrap {

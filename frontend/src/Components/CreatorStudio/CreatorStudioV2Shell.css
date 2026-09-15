@@ -528,6 +528,7 @@
     display:inline-flex;
     align-items:center;
     gap:7px;
+    min-height:32px;
     padding:0;
     border:0;
     background:transparent;

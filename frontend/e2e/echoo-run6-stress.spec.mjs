@@ -73,7 +73,30 @@ const assertKeyboardFocusInsideViewport = async (page, projectName, presses = 24
   const viewport = page.viewportSize();
   for (let index = 0; index < presses; index += 1) {
     await page.keyboard.press('Tab');
-    await page.waitForTimeout(25);
+    // Focus scrolling can land late on tall pages — wait for the focused
+    // element's geometry to settle before asserting visibility.
+    await page.evaluate(() => new Promise((resolve) => {
+      let last = '';
+      let stable = 0;
+      const started = performance.now();
+      const tick = () => {
+        const node = document.activeElement;
+        const rect = node && node !== document.body ? node.getBoundingClientRect() : null;
+        const key = rect
+          ? `${Math.round(rect.top)}:${Math.round(rect.left)}:${Math.round(window.scrollY)}`
+          : 'body';
+        if (key === last) {
+          stable += 1;
+          if (stable >= 2) { resolve(); return; }
+        } else {
+          stable = 0;
+          last = key;
+        }
+        if (performance.now() - started > 900) { resolve(); return; }
+        requestAnimationFrame(tick);
+      };
+      tick();
+    }));
     const focused = await page.evaluate(() => {
       const node = document.activeElement;
       if (!node || node === document.body || node === document.documentElement) return null;

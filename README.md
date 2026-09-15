@@ -117,7 +117,7 @@ The API manages identity, lifecycle, chat, presence, tokens, and product data. I
 
 Echoo uses LiveKit Cloud as its real-time audio SFU:
 
-- **Creator** publishes exactly one `echoo-studio-mix` program publication (stereo Opus, 48 kHz; profiles up to 510 kbps) with a short-lived publisher token.
+- **Creator** publishes exactly one `echoo-studio-mix` program publication (stereo Opus, 48 kHz; profiles up to 510 kbps) with a short-lived publisher token. This post-master `echoo-studio-mix` is the single feed listeners hear and recordings capture.
 - **Listeners** attach only that publication to a native audio element with subscriber-only tokens (`canPublish: false`), reissued automatically on reconnect/expiry.
 - **Guests** get server-generated `guest:<uuid>` identities with the same subscriber-only grants — they can never publish or impersonate accounts.
 - Token issuance is IP rate-limited; rooms are created on go-live and swept when orphaned.
