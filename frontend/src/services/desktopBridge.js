@@ -4,6 +4,7 @@ export const DESKTOP_NOTIFICATION_EVENTS = Object.freeze({
   message: true,
   roomStarted: true,
   roomEnded: true,
+  listenerJoined: true,
 });
 
 export const isEchooDesktop = () => Boolean(desktop()?.isDesktop);
@@ -45,4 +46,32 @@ export const setDesktopNotificationPreferences = (preferences) => {
 export const onDesktopRoomCommand = (listener) => {
   if (!isEchooDesktop()) return () => {};
   return desktop().onRoomCommand(listener);
+};
+
+export const getDesktopAutoLaunch = () => {
+  if (!isEchooDesktop()) return Promise.resolve(null);
+  return desktop().getAutoLaunch();
+};
+
+export const setDesktopAutoLaunch = (enabled) => {
+  if (!isEchooDesktop()) return Promise.resolve(null);
+  return desktop().setAutoLaunch(enabled === true);
+};
+
+export const reloadDesktop = () => {
+  if (!isEchooDesktop()) {
+    window.location.reload();
+    return Promise.resolve(null);
+  }
+  return desktop().reload();
+};
+
+export const onDesktopWillQuit = (listener) => {
+  if (!isEchooDesktop()) return () => {};
+  return desktop().onWillQuit(listener);
+};
+
+export const quitDesktopReady = () => {
+  if (!isEchooDesktop()) return;
+  desktop().quitReady();
 };

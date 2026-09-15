@@ -11,6 +11,7 @@ import User from '../models/User.js';
 import { createNotification } from './notificationController.js';
 import { createGeneratedAudioCover } from '../utils/audioCover.js';
 import { canAccessReplayAudio } from '../services/assetAccessService.js';
+import { archiveRecordingAudio } from '../services/audioArchiveService.js';
 import { sendGeneratedCover } from '../utils/generatedCoverResponse.js';
 
 const safeDuration = (value) => {
@@ -258,6 +259,15 @@ export async function uploadAudio(req, res, next) {
         action: 'published',
         audioId: String(audio._id),
       });
+    }
+
+    // Replay recordings (and only replays — uploaded music keeps its original
+    // encoding): compress the giant WAV master to Opus and push it to cloud
+    // object storage when configured. Best-effort by contract — failures keep
+    // the local file and never fail the upload. Runs before the committed
+    // flag so the saved doc already carries the final fileUrl/fileSize.
+    if (sourceBroadcast && audioFile?.path) {
+      await archiveRecordingAudio({ audio, localPath: audioFile.path });
     }
     // From this point the media bytes and Mongo record belong together. The
     // upload error middleware must not delete files merely because a secondary

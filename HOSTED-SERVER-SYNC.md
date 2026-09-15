@@ -91,6 +91,11 @@ any are missing — do not paper over them):
   `LIVEKIT_CONFIG_INVALID` with HTTP status 503 when unconfigured
 - Socket.IO events: `broadcast:join`, `broadcast:leave`,
   `broadcast:status`, `presence:changed`, `catalog:changed`
+- Guest access for shared listen links (no account): `GET
+  /api/broadcasts/:id/public` (public card), `POST
+  /api/broadcasts/:id/guest-token` (rate-limited, live+public only,
+  subscriber-only token), socket `auth: { guest: true }` handshake with
+  transcription handlers rejecting guests
 - Served `/` HTML contains `<meta name="echoo-app" content="echoo-frontend">`
   (this marker proves the fresh frontend is actually deployed)
 

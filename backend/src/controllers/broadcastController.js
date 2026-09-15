@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { randomUUID } from 'node:crypto';
 import Broadcast from '../models/Broadcast.js';
 import Station from '../models/Station.js';
 import User from '../models/User.js';
@@ -843,8 +844,7 @@ export async function getLiveKitToken(req, res, next) {
   }
 }
 
-export async function getListenerLiveKitToken(req, res, next) {
-  try {
+export async function getListenerLiveKitToken(req, res, next) {  try {
     const { broadcastId } = req.params;
     if (!isValidId(broadcastId)) return invalidId(res);
 
@@ -905,8 +905,112 @@ export async function getListenerLiveKitToken(req, res, next) {
   }
 }
 
-export async function getBroadcastPresence(req, res, next) {
+// Public broadcast card for shared listen links — no account needed. Only
+// broadcasts explicitly marked public are ever returned, and only the same
+// public-safe populated shape the authenticated endpoint serves (station
+// name/cover, creator username/displayName/avatar). Private broadcasts 404
+// exactly like missing ones so their existence can't be probed.
+export async function getPublicBroadcast(req, res, next) {
   try {
+    const { broadcastId } = req.params;
+    if (!isValidId(broadcastId)) return invalidId(res);
+
+    const broadcast = await broadcastPopulate(
+      Broadcast.findOne({
+        _id: broadcastId,
+        isDeleted: false,
+        isPublic: true,
+      })
+    );
+
+    if (!broadcast) {
+      return res.status(404).json({
+        error: { code: 'NOT_FOUND', message: 'Broadcast not found' },
+      });
+    }
+
+    return res.status(200).json({
+      data: broadcast,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+// Guest LiveKit credentials for shared listen links — no account needed.
+// Same guards as the authenticated listener token (live + public + room
+// ready) plus the same per-IP rate limiter on the route. The participant
+// identity is server-generated (`guest:<uuid>`) so guests can't impersonate
+// accounts or each other; grants are subscriber-only (see provider).
+export async function getGuestListenerToken(req, res, next) {
+  try {
+    const { broadcastId } = req.params;
+    if (!isValidId(broadcastId)) return invalidId(res);
+
+    const broadcast = await Broadcast.findOne({
+      _id: broadcastId,
+      isDeleted: false,
+    }).select('_id status isPublic livekitRoomName');
+
+    if (!broadcast) {
+      return res.status(404).json({
+        error: { code: 'NOT_FOUND', message: 'Broadcast not found' },
+      });
+    }
+
+    if (broadcast.status !== 'live') {
+      return res.status(409).json({
+        error: {
+          code: 'BROADCAST_NOT_LIVE',
+          message: 'This broadcast is not live',
+        },
+      });
+    }
+
+    if (!broadcast.isPublic) {
+      return res.status(403).json({
+        error: { code: 'BROADCAST_PRIVATE', message: 'This broadcast is private' },
+      });
+    }
+
+    if (!broadcast.livekitRoomName) {
+      return res.status(409).json({
+        error: {
+          code: 'LIVEKIT_ROOM_UNAVAILABLE',
+          message: 'The live audio room is not ready',
+        },
+      });
+    }
+
+    const rawName = String(req.body?.name || '').trim().slice(0, 40);
+    const displayName = rawName || 'Echoo Guest';
+    const guestId = `guest:${randomUUID()}`;
+
+    const token = await LiveKitProvider.generateListenerToken(
+      broadcastId,
+      guestId,
+      displayName
+    );
+
+    return res.status(200).json({
+      data: {
+        token,
+        roomName: broadcast.livekitRoomName,
+        livekitUrl: publicLiveKitUrl(),
+        broadcastId: String(broadcast._id),
+        mediaMode: 'livekit-direct',
+        role: 'listener',
+        guest: true,
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function getBroadcastPresence(req, res, next) {  try {
     const { broadcastId } = req.params;
     if (!isValidId(broadcastId)) return invalidId(res);
 

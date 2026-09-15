@@ -331,7 +331,12 @@ const CreatorStationsWorkspace = ({ onNavigate, onOpenRecording }) => {
 
   const viewAsListener = () => {
     if (!publicPath || typeof window === 'undefined') return;
-    window.open(new URL(publicPath, window.location.origin).toString(), '_blank', 'noopener,noreferrer');
+    try {
+      // new URL() throws on file:// (packaged desktop: origin 'null').
+      window.open(new URL(publicPath, window.location.origin).toString(), '_blank', 'noopener,noreferrer');
+    } catch {
+      setError('Open this station in a browser to view the Listener experience.');
+    }
   };
 
   const copyChannelLink = async () => {

@@ -18,6 +18,7 @@ import {
   getEchooMixerState,
   getMixerChannelTrack,
   setMasterMuted,
+  toggleMasterMute,
 } from '../../services/echooMixerService';
 import { DEFAULT_CREATOR_AUDIO_SETTINGS } from '../../services/creatorAudioPreferences';
 import {
@@ -33,6 +34,7 @@ import {
   stopLiveKitPublishing,
 } from '../../services/livekitPublisher';
 import realtimeService from '../../services/realtimeService';
+import { notifyDesktop, onDesktopRoomCommand, setDesktopRoomState } from '../../services/desktopBridge';
 import './CreatorBroadcastApproved.css';
 
 const pad = (value) => String(value).padStart(2, '0');
@@ -142,6 +144,9 @@ const CreatorLiveConnectedWorkspace = ({
   const keepLiveButtonRef = useRef(null);
   const endingRequestRef = useRef(false);
   const offAirNoticeTimeoutRef = useRef(null);
+  // Baseline for desktop "new listener joined" alerts. Reset when the
+  // broadcast ends so the next session starts clean.
+  const lastListenerCountRef = useRef(null);
 
   const clearPreparedBroadcast = useCallback(() => {
     sessionStorage.removeItem('echooPreparedBroadcastId');
@@ -155,6 +160,7 @@ const CreatorLiveConnectedWorkspace = ({
     setElapsed(0);
     setLinkCopied(false);
     setPresence({ listenerCount: 0, peakListeners: 0, creatorConnected: false });
+    lastListenerCountRef.current = null;
     setConfirmEndOpen(false);
     setMixerState(getEchooMixerState());
     setMessage(notice);
@@ -308,6 +314,10 @@ const CreatorLiveConnectedWorkspace = ({
           return;
         }
         setCurrentLiveBroadcast((current) => current ? { ...current, ...payload } : current);
+        // Keep the listener-join baseline fresh when counts arrive via status too.
+        if (Number.isFinite(Number(payload.listenerCount))) {
+          lastListenerCountRef.current = Number(payload.listenerCount);
+        }
         setPresence((current) => ({
           ...current,
           listenerCount: Number(payload.listenerCount ?? current.listenerCount) || 0,
@@ -317,6 +327,14 @@ const CreatorLiveConnectedWorkspace = ({
 
       const onPresence = (payload) => {
         if (payload?.broadcastId && String(payload.broadcastId) !== String(currentLiveBroadcast.id)) return;
+        // Native desktop alert when the audience grows (creator side).
+        // No-op in browsers — notifyDesktop only fires inside Echoo Desktop.
+        const nextCount = Number(payload?.listenerCount);
+        const lastCount = lastListenerCountRef.current;
+        lastListenerCountRef.current = Number.isFinite(nextCount) ? nextCount : lastCount;
+        if (Number.isFinite(nextCount) && lastCount !== null && nextCount > lastCount) {
+          notifyDesktop('listener-joined');
+        }
         setPresence((current) => ({ ...current, ...payload }));
       };
 
@@ -553,6 +571,9 @@ const CreatorLiveConnectedWorkspace = ({
         await batch3Service.cancelBroadcast(broadcast.id).catch(() => {});
       }
       await stopLiveKitPublishing().catch(() => {});
+      // Clear the in-progress notice — otherwise "Connecting your live room…"
+      // lingers under the error after a failed attempt.
+      setMessage('');
       setError(liveError?.message || 'Echoo could not start the broadcast.');
     } finally {
       setGoingLive(false);
@@ -564,6 +585,35 @@ const CreatorLiveConnectedWorkspace = ({
     setError('');
     setConfirmEndOpen(true);
   };
+
+  // Native tray integration (Echoo Desktop): report live-room state so the
+  // tray can offer Mute/Unmute + Leave actions, and honor commands sent back
+  // from the tray. Mirrors the listener-side wiring in ListenerRealLiveRoom.
+  useEffect(() => {
+    setDesktopRoomState({
+      active: Boolean(currentLiveBroadcast?.id),
+      muted: Boolean(mixerState?.master?.muted),
+      canToggleMute: Boolean(currentLiveBroadcast?.id),
+    });
+
+    return () => {
+      setDesktopRoomState({ active: false, muted: false, canToggleMute: false });
+    };
+  }, [currentLiveBroadcast?.id, mixerState?.master?.muted]);
+
+  useEffect(
+    () =>
+      onDesktopRoomCommand((command) => {
+        if (command === 'toggle-mute' && currentLiveBroadcast?.id) {
+          toggleMasterMute();
+        }
+        if (command === 'leave-room' && currentLiveBroadcast?.id && !ending) {
+          requestEndBroadcast();
+        }
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [currentLiveBroadcast?.id, ending]
+  );
 
   const endBroadcast = async () => {
     if (!currentLiveBroadcast?.id || ending || endingRequestRef.current) return;
@@ -621,8 +671,10 @@ const CreatorLiveConnectedWorkspace = ({
   const copyLiveLink = async () => {
     if (!currentLiveBroadcast?.id || typeof window === 'undefined') return;
     const path = `/listen/live/${encodeURIComponent(currentLiveBroadcast.id)}`;
-    const url = new URL(path, window.location.origin).toString();
     try {
+      // new URL() throws on file:// (packaged desktop: origin 'null') — a
+      // share link needs an http(s) origin the desktop shell cannot provide.
+      const url = new URL(path, window.location.origin).toString();
       if (!navigator.clipboard?.writeText) throw new Error('Clipboard unavailable');
       await navigator.clipboard.writeText(url);
       setError('');

@@ -1,18 +1,24 @@
 const configuredApiBase = String(import.meta.env.VITE_API_URL || '')
   .trim()
   .replace(/\/$/, '');
+const isEchooDesktopRuntime = () =>
+  typeof window !== 'undefined' && window.echooDesktop?.isDesktop === true;
 const localRuntime =
   typeof window !== 'undefined' &&
-  ['localhost', '127.0.0.1'].includes(window.location.hostname);
+  (['localhost', '127.0.0.1'].includes(window.location.hostname) ||
+    // Packaged desktop runs over file:// (hostname ''), never localhost — but
+    // its backend is still the local API on the project-specific port 5017.
+    isEchooDesktopRuntime());
 
 // A LAN browser must never fall back to its own localhost for the API. The
 // explicit VITE_API_URL remains authoritative; this only keeps an unset local
 // development environment working from the same host that served Vite.
 const developmentApiBase = () => {
   if (typeof window === 'undefined') return '';
-  const hostname = window.location.hostname;
+  // file:// (packaged desktop) has no hostname — default to loopback, never ''.
+  const hostname = window.location.hostname || '127.0.0.1';
   const host = hostname.includes(':') ? `[${hostname}]` : hostname;
-  return `http://${host}:5001/api`;
+  return `http://${host}:5017/api`;
 };
 
 export const API_BASE_URL =
@@ -153,11 +159,23 @@ const createError = (
   const status = response.status;
   const code = data?.error?.code || null;
   const isServerFailure = status >= 500;
-  const message = isServerFailure
-    ? 'The Echoo service is temporarily unavailable. Please try again in a moment.'
-    : USER_SAFE_ERROR_CODES.has(code)
-      ? data?.error?.message || data?.message || 'We could not complete that request.'
-      : 'We could not complete that request. Please check your details and try again.';
+  // Some 5xx failures have a known, actionable cause — say what it is instead
+  // of the generic "temporarily unavailable" text (e.g. going live when the
+  // server has no LiveKit audio backend configured).
+  const friendlyServerMessages = {
+    LIVEKIT_CONFIG_MISSING:
+      'Live audio is not set up on this Echoo server yet. The server admin needs to configure the LiveKit audio server before anyone can go live.',
+    LIVEKIT_CONFIG_INVALID:
+      'Live audio is misconfigured on this Echoo server. The server admin needs to fix the LiveKit audio server settings.',
+    LIVEKIT_ROOM_UNAVAILABLE:
+      'Echoo could not open the live audio room. Please try again in a moment.',
+  };
+  const message = friendlyServerMessages[code]
+    || (isServerFailure
+      ? 'The Echoo service is temporarily unavailable. Please try again in a moment.'
+      : USER_SAFE_ERROR_CODES.has(code)
+        ? data?.error?.message || data?.message || 'We could not complete that request.'
+        : 'We could not complete that request. Please check your details and try again.');
 
   const error = new Error(message);
   error.code = code;
@@ -352,8 +370,6 @@ export const buildMediaUrl = (
   }
 
   if (
-    fileUrl.startsWith('/assets/') ||
-    fileUrl.startsWith('/favicon') ||
     fileUrl.startsWith(
       'http://'
     ) ||
@@ -368,6 +384,22 @@ export const buildMediaUrl = (
     )
   ) {
     return fileUrl;
+  }
+
+  // Root-absolute app asset paths (seeded artwork, bundled covers) must be
+  // resolved against the running document, NOT returned raw: under file://
+  // (packaged desktop) a raw '/assets/...' escapes the app bundle and 404s,
+  // while document-relative resolution lands inside frontend-dist on desktop
+  // and at the domain root on the web.
+  if (
+    fileUrl.startsWith('/assets/') ||
+    fileUrl.startsWith('/favicon')
+  ) {
+    try {
+      return new URL(fileUrl, window.location.href).toString();
+    } catch {
+      return fileUrl;
+    }
   }
 
   const origin =

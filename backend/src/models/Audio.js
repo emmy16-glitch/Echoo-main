@@ -72,6 +72,23 @@ const audioSchema = new mongoose.Schema(
       required: true,
       unique: true,
     },
+    // Cloud archive (see services/audioArchiveService.js). Local files keep
+    // storage 'local'; archived replays flip to 'cloud' with the object URL.
+    // Playback always goes through signed /stream URLs — the raw cloud URL is
+    // never exposed in API output (stripped in toJSON below like fileKey).
+    storage: {
+      type: String,
+      enum: ['local', 'cloud'],
+      default: 'local',
+    },
+    cloudUrl: {
+      type: String,
+      default: null,
+    },
+    cloudKey: {
+      type: String,
+      default: null,
+    },
     mimeType: {
       type: String,
       required: true,
@@ -153,6 +170,8 @@ const audioSchema = new mongoose.Schema(
         delete ret._id;
         delete ret.filename;
         delete ret.fileKey;
+        delete ret.cloudUrl;
+        delete ret.cloudKey;
         return ret;
       },
     },
