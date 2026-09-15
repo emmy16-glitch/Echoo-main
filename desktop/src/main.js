@@ -89,6 +89,7 @@ let roomState = { active: false, muted: false, canToggleMute: false };
 let isQuitting = false;
 let quitTimer = null;
 let backendChild = null;
+let trayHideNoticed = false;
 
 // ---------------------------------------------------------------------------
 // Bundled backend: the installed app ships its own Echoo API (extraResources)
@@ -165,6 +166,8 @@ function seedServerEnv(dataDir) {
     log.warn('[echoo-desktop] could not seed server .env:', error.message);
   }
 }
+
+function fetchBackendHealth(timeoutMs = 2500) {
   return new Promise((resolve) => {
     const lib = require('node:http');
     let settled = false;
@@ -397,6 +400,29 @@ function createWindow() {
 
   mainWindow.on('closed', () => {
     mainWindow = null;
+  });
+
+  // Media-app behavior: closing the window while a live room is active hides
+  // to the tray instead of quitting, so minimizing never kills the audio.
+  // Quit explicitly via tray > Quit or File > Quit (those set isQuitting).
+  mainWindow.on('close', (event) => {
+    if (!isQuitting && roomState.active && mainWindow) {
+      event.preventDefault();
+      mainWindow.hide();
+      if (!trayHideNoticed) {
+        trayHideNoticed = true;
+        try {
+          const notice = new Notification({
+            title: 'Echoo keeps playing',
+            body: 'The live room moved to the tray. Quit from the tray menu to stop playback.',
+          });
+          notice.on('click', () => showAndFocusWindow());
+          notice.show();
+        } catch {
+          // Notifications may be unavailable — hiding still worked.
+        }
+      }
+    }
   });
 
   return mainWindow;

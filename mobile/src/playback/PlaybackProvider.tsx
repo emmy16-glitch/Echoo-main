@@ -17,6 +17,11 @@ import {
 import { View } from 'react-native';
 
 import { getListenerLiveKitCredentials } from '@/src/services/echooApi';
+import {
+  ensureLiveAudioNotificationPermission,
+  startLiveAudioService,
+  stopLiveAudioService,
+} from 'echoo-live-audio-service';
 
 type LiveKitNativeModule = typeof import('@livekit/react-native');
 
@@ -153,6 +158,9 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     clearLiveConnection();
     releaseAudio();
     setCurrent(item);
+    // Foreground-service notifications need a runtime grant on Android 13+;
+    // ask early so the lock-screen controls can appear. Never blocks playback.
+    void ensureLiveAudioNotificationPermission();
 
     try {
       await setAudioModeAsync({
@@ -212,6 +220,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     setDuration(0);
     setError('');
     setIsLoading(true);
+    void ensureLiveAudioNotificationPermission();
 
     try {
       const [liveKitModule, credentials] = await Promise.all([
@@ -320,6 +329,28 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => () => releaseAudio(), [releaseAudio]);
+
+  // Keep live audio alive when the app is minimized. iOS is covered by the
+  // audio background mode; on Android this starts the mediaPlayback
+  // foreground service (lock-screen notification included) for exactly as
+  // long as a live room is connected. Best-effort: unavailable platforms
+  // simply play without it, as before.
+  useEffect(() => {
+    const live =
+      current?.kind === 'live' && liveKit && liveCredentials && isPlaying;
+    if (!live || current?.kind !== 'live') {
+      void stopLiveAudioService();
+      return;
+    }
+    void startLiveAudioService({
+      title: current.title || 'Live on Echoo',
+      artist: current.subtitle || '',
+      broadcastId: current.id,
+    });
+    return () => {
+      void stopLiveAudioService();
+    };
+  }, [current, liveKit, liveCredentials, isPlaying]);
 
   const value = useMemo<PlaybackContextValue>(() => ({
     current,
