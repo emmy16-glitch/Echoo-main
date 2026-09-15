@@ -864,6 +864,7 @@ function registerIpc() {
         appName: app.getName(),
         appVersion: app.getVersion(),
         platform: process.platform,
+        startUrl: DEV_URL,
       };
     } catch (error) {
       log.warn('[echoo-desktop] get-app-info failed:', error.message);
@@ -873,10 +874,10 @@ function registerIpc() {
 
   ipcMain.handle('echoo:get-room-state', async () => {
     try {
-      return { ok: true, ...roomState };
+      return { ...roomState };
     } catch (error) {
       log.warn('[echoo-desktop] get-room-state failed:', error.message);
-      return { ok: false };
+      return { ...roomState };
     }
   });
 
@@ -954,10 +955,10 @@ function registerIpc() {
         canToggleMute: state.canToggleMute === true,
       };
       refreshTrayMenu();
-      return { ok: true };
+      return { ...roomState };
     } catch (error) {
       log.warn('[echoo-desktop] set-room-state failed:', error.message);
-      return { ok: false };
+      return { ...roomState };
     }
   });
 

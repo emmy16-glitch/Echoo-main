@@ -69,7 +69,7 @@
     ],
     "mac": {
       "target": "dmg",
-      "icon": "assets/icon.icns",
+      "icon": "build/icon.icns",
       "hardenedRuntime": true,
       "entitlements": "entitlements.mac.plist",
       "entitlementsInherit": "entitlements.mac.plist",
