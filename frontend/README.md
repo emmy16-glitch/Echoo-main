@@ -1,16 +1,22 @@
-# React + Vite
+# Echoo web app
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React + Vite single-page application. Serves both experiences from one codebase with lazy-loaded shells:
 
-Currently, two official plugins are available:
+- **Listener** (`src/Components/Listener*`, `ListenerV2/`) — home, search, live rooms, stations, library, downloads, settings.
+- **Creator Studio** (`src/Components/CreatorStudio/`) — broadcast workstation (mixer, guests, go-live), channels, content, analytics, settings.
+- **Shared** — routing (`src/routing/`), services (`src/services/` — API, realtime, LiveKit, recordings, storage), design system (`src/Components/Shared/`, `src/design-system/`, `src/theme/`).
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Run
 
-## React Compiler
+```bash
+npm run dev    # Vite on :5273 (strict port; proxies /api, /socket.io, /uploads to :5017)
+npm run build  # production bundle in dist/ (relative asset base — also runs inside Electron)
+```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Conventions that matter
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+- **Ports are project-specific** (`5273`, backend `5017`) — see `docs/getting-started.md`. Never assume framework defaults.
+- **Identity marker:** `index.html` carries `<meta name="echoo-app">` — dev tooling and the desktop shell trust only content bearing it.
+- **Live audio:** creator publishes one `echoo-studio-mix` Opus publication via LiveKit; listeners attach it to a native `<audio>` element (no AudioContext processing on the listen path).
+- **Auth:** token pair in localStorage; logged-out visitors get guest live access on shared links (public card + guest token + read-only chat).
+- **Desktop coexistence:** no absolute `/...` asset or fetch paths in app code — the same bundle runs over `file://` (use `buildMediaUrl` for media).
