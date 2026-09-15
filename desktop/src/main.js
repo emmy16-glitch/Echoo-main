@@ -849,6 +849,29 @@ function showNotification({ title, body, silent }) {
 }
 
 function registerIpc() {
+  ipcMain.handle('echoo:get-app-info', async () => {
+    try {
+      return {
+        ok: true,
+        appName: app.getName(),
+        appVersion: app.getVersion(),
+        platform: process.platform,
+      };
+    } catch (error) {
+      log.warn('[echoo-desktop] get-app-info failed:', error.message);
+      return { ok: false };
+    }
+  });
+
+  ipcMain.handle('echoo:get-room-state', async () => {
+    try {
+      return { ok: true, ...roomState };
+    } catch (error) {
+      log.warn('[echoo-desktop] get-room-state failed:', error.message);
+      return { ok: false };
+    }
+  });
+
   ipcMain.handle('echoo:notify', async (_event, options = {}) => {
     try {
       const prefs = readPrefs();
