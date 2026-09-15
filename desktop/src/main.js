@@ -42,6 +42,14 @@ if (
 // ---------------------------------------------------------------------------
 // Config
 // ---------------------------------------------------------------------------
+// HOSTED MODE (Windows .exe default): the packaged app is a thin client for
+// the live shared server — every download lands in the same world, same
+// users/channels/broadcasts as https://echoo.digi02.org/. This matches the
+// Echoo-Studio 1.0.5 behavior that is known-good and in sync with live.
+// The old "bundled backend island" (local API on :5017 per install) is kept
+// ONLY as an opt-in via ECHOO_LOCAL_BACKEND=1 for offline development.
+const LIVE_APP_URL = process.env.ECHOO_URL || process.env.ECHOO_LIVE_URL || 'https://echoo.digi02.org';
+const LOCAL_BACKEND_OPT_IN = process.env.ECHOO_LOCAL_BACKEND === '1';
 // Vite dev server URL. Single source of truth: VITE_PORT env, else the
 // `|| '<port>'` default in frontend/vite.config.js (project-specific 5273 —
 // NOT Vite's 5173 default, which collides on shared multi-user machines).
@@ -86,6 +94,8 @@ const DEBUG_TOOLS =
 
 // Origins the app window itself is allowed to navigate to. Everything else
 // (chat links, profile links, help URLs) opens in the OS default browser.
+// Packaged builds are hosted-mode: the live server origin (+ file:// for the
+// bundled offline/error page). Dev builds use the Vite server origin.
 function appOrigins() {
   if (!app.isPackaged) {
     try {
@@ -94,7 +104,13 @@ function appOrigins() {
       return ['http://localhost:5273'];
     }
   }
-  return ['file://'];
+  const origins = ['file://'];
+  try {
+    origins.unshift(new URL(LIVE_APP_URL).origin);
+  } catch {
+    origins.unshift('https://echoo.digi02.org');
+  }
+  return origins;
 }
 
 function isAppUrl(url) {
@@ -414,8 +430,15 @@ function createWindow() {
     // first (covers the race where Electron starts before Vite, and the case
     // where `npm start` is run without any dev server at all).
     void loadDevUrl();
+  } else if (DEV_URL_IS_EXPLICIT) {
+    // Packaged test/debug override (packaged boot test points at a fixture
+    // server via ECHOO_URL/ECHOO_DEV_URL).
+    void loadDevUrl();
   } else {
-    mainWindow.loadFile(PROD_INDEX);
+    // Hosted mode: load the live shared server. Same users, channels,
+    // broadcasts and LiveKit audio as the browser at echoo.digi02.org.
+    // A load failure falls through to the offline page via did-fail-load.
+    mainWindow.loadURL(LIVE_APP_URL);
   }
 
   mainWindow.on('closed', () => {
@@ -452,7 +475,7 @@ function createWindow() {
 // package (the old Windows blank-screen bug), falls back to an inline data-URL
 // page so the window NEVER renders blank white without an explanation.
 function loadOfflinePage(reason, url) {
-  const query = { reason: reason || 'unknown', url: url || DEV_URL };
+  const query = { reason: reason || 'unknown', url: url || (app.isPackaged ? LIVE_APP_URL : DEV_URL) };
   if (fs.existsSync(OFFLINE_PAGE)) {
     return mainWindow?.loadFile(OFFLINE_PAGE, { query });
   }
@@ -904,7 +927,7 @@ function registerIpc() {
         appName: app.getName(),
         appVersion: app.getVersion(),
         platform: process.platform,
-        startUrl: DEV_URL,
+        startUrl: app.isPackaged && !DEV_URL_IS_EXPLICIT ? LIVE_APP_URL : DEV_URL,
       };
     } catch (error) {
       log.warn('[echoo-desktop] get-app-info failed:', error.message);
@@ -1038,7 +1061,8 @@ function registerIpc() {
   } else if (!app.isPackaged) {
         await loadDevUrl();
       } else {
-        mainWindow?.loadFile(PROD_INDEX);
+        // Hosted mode: go back to the live server (offline-page Retry lands here).
+        mainWindow?.loadURL(LIVE_APP_URL);
       }
       return { ok: true };
     } catch (error) {
@@ -1148,10 +1172,16 @@ function startApp() {
   try {
     registerIpc();
     buildMenu();
-    // The window loads immediately (first launch may download the embedded
-    // database binary in the background — the UI degrades gracefully until
-    // the API answers); the server never blocks the shell from opening.
-    void startBundledBackend();
+    // Hosted mode (default): NO bundled backend — the live server at
+    // echoo.digi02.org owns users/channels/broadcasts/LiveKit, so every
+    // install is in sync out of the box. Opt back into the old local island
+    // only with ECHOO_LOCAL_BACKEND=1 (offline development).
+    if (LOCAL_BACKEND_OPT_IN) {
+      // The window loads immediately (first launch may download the embedded
+      // database binary in the background — the UI degrades gracefully until
+      // the API answers); the server never blocks the shell from opening.
+      void startBundledBackend();
+    }
     createWindow();
     createTray();
     if (app.isPackaged) installProdCsp();

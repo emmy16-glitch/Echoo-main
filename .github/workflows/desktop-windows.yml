@@ -1,0 +1,75 @@
+name: Windows .exe (hosted)
+
+# One-click Windows installer for the hosted thin client.
+# The .exe loads https://echoo.digi02.org/ directly, so every download is
+# automatically in sync with the live server (same users, channels,
+# broadcasts, LiveKit audio) with zero setup. No bundled backend, no local
+# database, no LiveKit secrets baked in.
+#
+# How to get the .exe:
+#   1. Actions tab → "Windows .exe (hosted)" → Run workflow, OR
+#   2. Push a tag like v1.0.6 → the .exe is attached to the GitHub Release.
+# Download the artifact / release asset named Echoo-Setup-*-x64.exe,
+# install, sign in — you are on the live server immediately.
+
+permissions:
+  contents: write
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  win:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install desktop dependencies
+        run: npm ci
+
+      - name: Build Windows installer (NSIS .exe)
+        run: npm run dist:win -- --publish never
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_ENV: production
+          # Optional Authenticode signing — unsigned builds still install
+          # (SmartScreen "Unknown publisher" prompt, expected without a cert).
+          CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+
+      - name: Show installer
+        run: |
+          Get-ChildItem dist
+          Get-ChildItem dist/*.exe | ForEach-Object { Write-Host "$($_.Name) — $([math]::Round($_.Length / 1MB, 1)) MB" }
+
+      - name: Upload .exe artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: echoo-windows-exe
+          path: desktop/dist/*.exe
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Attach .exe to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            desktop/dist/*.exe
+            desktop/dist/*.yml
+            desktop/dist/*.blockmap
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
