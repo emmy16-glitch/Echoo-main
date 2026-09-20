@@ -38,7 +38,7 @@ const ChannelCard = memo(function ChannelCard({ row, view, onListen }) {
   const open = () => onListen(row);
   return (
     <article
-      className={`channels-card ${view === 'list' ? 'is-list' : ''}`}
+      className={`channels-card eb-card-stack ${view === 'list' ? 'is-list' : ''}`}
       role="link"
       tabIndex="0"
       aria-label={`Open ${row.name}`}

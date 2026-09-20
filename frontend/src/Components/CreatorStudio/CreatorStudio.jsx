@@ -533,10 +533,10 @@ const CreatorStudioBody = () => {
           </div>
         </header>
 
-        {error && <div className="studio-alert error"><FaExclamationCircle /><span>{error}</span><button type="button" onClick={() => setError('')}><FaTimes /></button></div>}
-        {notice && <div className="studio-alert success"><FaCloudUploadAlt /><span>{notice}</span><button type="button" onClick={() => setNotice('')}><FaTimes /></button></div>}
+        {error && <div className="studio-alert error eb-shake" key={error}><FaExclamationCircle /><span>{error}</span><button type="button" onClick={() => setError('')}><FaTimes /></button></div>}
+        {notice && <div className="studio-alert success eb-toast-in" key={notice}><FaCloudUploadAlt /><span>{notice}</span><button type="button" onClick={() => setNotice('')}><FaTimes /></button></div>}
 
-        <div className="studio-view">{renderWorkspace()}</div>
+        <div className="studio-view eb-page-in" key={activeNav}>{renderWorkspace()}</div>
         <footer className="studio-footer"><span>© 2026 Echoo.</span><span>Audio-first creator platform</span></footer>
       </main>
 

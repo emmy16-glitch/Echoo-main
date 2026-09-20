@@ -1219,7 +1219,7 @@ const ListenerLayout = () => {
         )}
       overlaySlot={<CuratedHelpAssistant mode="listener" />}
     >
-      <div className="layout-content echoo-listener-scroll">
+      <div className="layout-content echoo-listener-scroll eb-page-in" key={location.pathname}>
         <Outlet
           context={{
             playTrack,

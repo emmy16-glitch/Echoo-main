@@ -9,6 +9,9 @@ import "./accessibility/installPlayerKeyboardAccess.js";
 import "./accessibility/installUiSemanticRepairs.js";
 import "./index.css";
 import "./theme/EchooTheme.css";
+import "./styles/echoo-tokens-plus.css";
+import "./styles/echoo-motion.css";
+import "./styles/echoo-primitives.css";
 
 import "./styles/echoo-phase13-final.css";
 import "./styles/echoo-final-visual-correction.css";

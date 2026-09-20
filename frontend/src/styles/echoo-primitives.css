@@ -1,0 +1,182 @@
+/* Echoo primitives — shadcn/ui foundation (button, badge, card, dialog, input,
+   tabs, toast, skeleton, switch, tooltip) in Echoo tokens. Additive classes:
+   apply alongside existing markup, never rename. */
+
+/* ---- Button (shadcn variants + beUI spring press) ---- */
+.eb-btn {
+  --eb-btn-bg: var(--eb-primary);
+  --eb-btn-fg: var(--eb-primary-foreground);
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 40px; padding: 0 18px;
+  border: 1px solid transparent; border-radius: var(--eb-radius-sm);
+  background: var(--eb-btn-bg); color: var(--eb-btn-fg);
+  font: inherit; font-size: 13px; font-weight: 650; cursor: pointer;
+  transition: transform 120ms var(--eb-spring, cubic-bezier(.34, 1.4, .44, 1)), background 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+}
+.eb-btn:hover:not(:disabled) { filter: brightness(1.05); }
+.eb-btn:active:not(:disabled) { transform: scale(.96); }
+.eb-btn:disabled { opacity: .55; cursor: not-allowed; }
+.eb-btn[data-variant="secondary"] { --eb-btn-bg: var(--eb-secondary); --eb-btn-fg: var(--eb-secondary-foreground); border-color: var(--eb-border); }
+.eb-btn[data-variant="outline"] { --eb-btn-bg: transparent; --eb-btn-fg: var(--eb-foreground); border-color: var(--eb-input); }
+.eb-btn[data-variant="ghost"] { --eb-btn-bg: transparent; --eb-btn-fg: var(--eb-foreground); }
+.eb-btn[data-variant="ghost"]:hover:not(:disabled) { background: var(--eb-muted); filter: none; }
+.eb-btn[data-variant="destructive"] { --eb-btn-bg: var(--eb-destructive); --eb-btn-fg: var(--eb-destructive-foreground); }
+.eb-btn[data-size="sm"] { min-height: 32px; padding: 0 12px; font-size: 12px; }
+.eb-btn[data-size="lg"] { min-height: 48px; padding: 0 24px; font-size: 14.5px; }
+.eb-btn[data-size="icon"] { min-height: 36px; width: 36px; padding: 0; }
+
+/* ---- Badge (shadcn) ---- */
+.eb-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 10px; border-radius: 999px;
+  background: var(--eb-secondary); color: var(--eb-secondary-foreground);
+  font-size: 10.5px; font-weight: 700; letter-spacing: .02em;
+  border: 1px solid var(--eb-border); white-space: nowrap;
+}
+.eb-badge[data-variant="primary"] { background: var(--eb-accent); color: var(--eb-accent-foreground); border-color: transparent; }
+.eb-badge[data-variant="success"] { background: #ecfdf3; color: #067647; border-color: #abefc6; }
+.eb-badge[data-variant="destructive"] { background: #fef3f2; color: #b42318; border-color: #fecdca; }
+.eb-badge[data-variant="warning"] { background: #fffaeb; color: #b54708; border-color: #fedf89; }
+.eb-badge .eb-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.eb-badge .eb-dot.pulse { animation: eb-dot-pulse 1.4s ease-in-out infinite; }
+
+/* ---- Card (shadcn) ---- */
+.eb-card {
+  background: var(--eb-card); color: var(--eb-card-foreground);
+  border: 1px solid var(--eb-border); border-radius: var(--eb-radius-md);
+  box-shadow: var(--eb-shadow-sm);
+}
+.eb-card-head { padding: 16px 16px 0; display: grid; gap: 2px; }
+.eb-card-title { font-size: 14px; font-weight: 700; }
+.eb-card-desc { font-size: 12px; color: var(--eb-muted-foreground); }
+.eb-card-body { padding: 12px 16px 16px; }
+
+/* ---- Input (shadcn) ---- */
+.eb-input, .eb-textarea, .eb-select {
+  width: 100%; min-height: 40px; padding: 8px 12px;
+  border: 1px solid var(--eb-input); border-radius: var(--eb-radius-sm);
+  background: var(--eb-card); color: var(--eb-foreground);
+  font: inherit; font-size: 13px;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+.eb-input:focus, .eb-textarea:focus, .eb-select:focus {
+  outline: none; border-color: var(--eb-ring);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--eb-ring) 25%, transparent);
+}
+.eb-input::placeholder, .eb-textarea::placeholder { color: var(--eb-muted-foreground); }
+.eb-label { display: grid; gap: 6px; font-size: 12px; font-weight: 650; }
+.eb-hint { font-size: 11px; color: var(--eb-muted-foreground); font-weight: 400; }
+
+/* ---- Tabs (shadcn + transitions.dev sliding pill) ---- */
+.eb-tabs { display: inline-flex; gap: 2px; padding: 3px; border-radius: 999px; background: var(--eb-muted); border: 1px solid var(--eb-border); }
+.eb-tabs > button {
+  position: relative; border: 0; background: transparent; color: var(--eb-muted-foreground);
+  font: inherit; font-size: 12.5px; font-weight: 650; padding: 7px 16px; border-radius: 999px; cursor: pointer;
+  transition: color 180ms ease;
+}
+.eb-tabs > button[aria-selected="true"] { background: var(--eb-card); color: var(--eb-foreground); box-shadow: var(--eb-shadow-sm); }
+
+/* ---- Switch (shadcn + beUI spring thumb) ---- */
+.eb-switch { position: relative; display: inline-block; width: 42px; height: 24px; flex: none; }
+.eb-switch > input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.eb-switch > i {
+  display: block; width: 100%; height: 100%; border-radius: 999px; background: var(--eb-input);
+  transition: background 180ms ease; position: relative;
+}
+.eb-switch > i::after {
+  content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%;
+  background: #fff; box-shadow: var(--eb-shadow-sm);
+  transition: transform 220ms var(--eb-spring, cubic-bezier(.34, 1.4, .44, 1));
+}
+.eb-switch > input:checked + i { background: var(--eb-primary); }
+.eb-switch > input:checked + i::after { transform: translateX(18px); }
+.eb-switch > input:focus-visible + i { outline: 2px solid var(--eb-ring); outline-offset: 2px; }
+
+/* ---- Tooltip (beUI blur enter/exit) ---- */
+.eb-tooltip { position: relative; }
+.eb-tooltip::after {
+  content: attr(data-tip);
+  position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%) scale(.95);
+  padding: 6px 10px; border-radius: var(--eb-radius-xs);
+  background: var(--eb-foreground); color: var(--eb-background);
+  font-size: 11px; font-weight: 600; white-space: nowrap; pointer-events: none;
+  opacity: 0; filter: blur(2px); transition: opacity 150ms ease, transform 180ms var(--eb-spring-soft, cubic-bezier(.3, 1.2, .4, 1)), filter 150ms ease;
+  z-index: 60;
+}
+.eb-tooltip:hover::after, .eb-tooltip:focus-visible::after { opacity: 1; transform: translateX(-50%) scale(1); filter: blur(0); }
+
+/* ---- OTP input (beUI + Rare OTP: gliding slots, roll-in digits, shake) ---- */
+.eb-otp { display: flex; gap: 8px; }
+.eb-otp > input {
+  width: 46px; height: 54px; text-align: center;
+  border: 1px solid var(--eb-input); border-radius: var(--eb-radius-sm);
+  background: var(--eb-card); color: var(--eb-foreground);
+  font: inherit; font-size: 20px; font-weight: 700;
+  transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+}
+.eb-otp > input:focus { outline: none; border-color: var(--eb-primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--eb-primary) 22%, transparent); transform: translateY(-1px); }
+.eb-otp > input.filled { animation: eb-pop-in 240ms var(--eb-spring, cubic-bezier(.34, 1.4, .44, 1)) both; }
+
+/* ---- Duration picker (Rare duration-picker lite) ---- */
+.eb-duration { display: inline-flex; align-items: stretch; border: 1px solid var(--eb-input); border-radius: var(--eb-radius-sm); overflow: hidden; background: var(--eb-card); }
+.eb-duration > button {
+  border: 0; background: var(--eb-muted); color: var(--eb-foreground);
+  font: inherit; font-size: 16px; font-weight: 700; width: 38px; cursor: pointer;
+  transition: background 150ms ease, transform 120ms var(--eb-spring, cubic-bezier(.34, 1.4, .44, 1));
+}
+.eb-duration > button:hover { background: var(--eb-accent); }
+.eb-duration > button:active { transform: scale(.92); }
+.eb-duration > span { min-width: 92px; display: grid; place-items: center; font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* ---- Command palette (beUI ⌘K glass surface) ---- */
+.eb-palette-overlay { position: fixed; inset: 0; z-index: 160000; background: rgba(16, 24, 40, .45); display: flex; justify-content: center; padding: 12vh 16px 16px; }
+.eb-palette {
+  width: min(560px, 100%); height: fit-content; max-height: 60vh; overflow: hidden;
+  border-radius: var(--eb-radius-lg); border: 1px solid var(--eb-border);
+  background: color-mix(in srgb, var(--eb-popover) 88%, transparent);
+  backdrop-filter: blur(16px); box-shadow: var(--eb-shadow-lg);
+  display: grid; grid-template-rows: auto 1fr;
+}
+.eb-palette > input { border: 0; background: transparent; padding: 14px 16px; font: inherit; font-size: 14px; color: var(--eb-foreground); }
+.eb-palette > input:focus { outline: none; }
+.eb-palette-list { overflow-y: auto; padding: 6px; border-top: 1px solid var(--eb-border); }
+.eb-palette-list > button {
+  width: 100%; display: flex; align-items: center; gap: 10px; text-align: left;
+  border: 0; background: transparent; color: var(--eb-foreground);
+  padding: 9px 10px; border-radius: var(--eb-radius-sm); font: inherit; font-size: 13px; cursor: pointer;
+}
+.eb-palette-list > button.active { background: var(--eb-accent); }
+.eb-palette-list > button kbd {
+  margin-left: auto; font: inherit; font-size: 10.5px; color: var(--eb-muted-foreground);
+  border: 1px solid var(--eb-border); border-radius: 5px; padding: 1px 6px; background: var(--eb-muted);
+}
+
+/* ---- Ambient orb (Rare fluid-orb lite, pure CSS) ---- */
+@keyframes eb-orb-drift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(4%, -6%) scale(1.08); }
+  66% { transform: translate(-5%, 4%) scale(.94); }
+}
+.eb-orb {
+  position: absolute; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle at 35% 35%, color-mix(in srgb, var(--eb-primary) 55%, transparent), color-mix(in srgb, var(--eb-primary) 8%, transparent) 65%);
+  filter: blur(48px); opacity: .5;
+  animation: eb-orb-drift 14s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) { .eb-orb { animation: none; } }
+
+/* ---- Bottom sheet (beUI vaul-style, mobile) ---- */
+@media (max-width: 640px) {
+  .eb-sheet {
+    align-items: end !important; padding: 0 !important;
+  }
+  .eb-sheet > section, .eb-sheet > div[role="dialog"] {
+    width: 100% !important; max-height: 92svh !important;
+    border-radius: 20px 20px 0 0 !important;
+    animation: eb-sheet-up 280ms var(--eb-spring-soft, cubic-bezier(.3, 1.2, .4, 1)) both !important;
+  }
+}
+@keyframes eb-sheet-up {
+  from { transform: translateY(48px); opacity: .6; }
+  to { transform: translateY(0); opacity: 1; }
+}

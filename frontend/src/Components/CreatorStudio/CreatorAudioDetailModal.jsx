@@ -394,7 +394,7 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged, onAddToCollection 
 
   return (
     <div
-      className="creator-audio-modal-overlay"
+      className="creator-audio-modal-overlay eb-backdrop-in eb-sheet"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose?.();
       }}
@@ -428,7 +428,7 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged, onAddToCollection 
         onClose={() => setNotice('')}
       />
       <section
-        className="creator-audio-modal"
+        className="creator-audio-modal eb-modal-in"
         role="dialog"
         aria-modal="true"
         aria-labelledby="creator-audio-modal-title"

@@ -202,7 +202,7 @@ const CreatorAudioTrimSection = ({ track, onChanged, onClose, onNotice }) => {
       </header>
 
       {sourceState === 'idle' && (
-        <button type="button" className="creator-audio-trim-load" onClick={loadSource}>
+        <button type="button" className="creator-audio-trim-load eb-press" onClick={loadSource}>
           <FaCut /> {localMaster ? 'Trim this recording (instant)' : 'Load trimmer'}
         </button>
       )}
@@ -249,7 +249,7 @@ const CreatorAudioTrimSection = ({ track, onChanged, onClose, onNotice }) => {
               <i><b style={{ width: `${Math.max(2, saveProgress)}%` }} /></i>
             </div>
           )}
-          <button type="button" className="creator-audio-trim-save" onClick={saveTrimmed} disabled={saving}>
+          <button type="button" className="creator-audio-trim-save eb-press" onClick={saveTrimmed} disabled={saving}>
             <FaSave /> {saving ? `Saving… ${saveProgress}%` : isFullLength ? 'Save (replaces this recording)' : `Save trimmed (${formatClock(selectedSeconds)}) — replaces original`}
           </button>
         </>

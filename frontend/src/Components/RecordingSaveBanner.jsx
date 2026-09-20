@@ -28,6 +28,7 @@ export function RecordingAutosaveMount() {
 const RecordingSaveBanner = () => {
   const navigate = useNavigate();
   const [state, setState] = useState(null);
+  const [elapsed, setElapsed] = useState(0);
   const hideTimerRef = useRef(null);
 
   const hide = useCallback(() => {
@@ -47,7 +48,8 @@ const RecordingSaveBanner = () => {
       switch (detail.status) {
         case 'started':
           window.clearTimeout(hideTimerRef.current);
-          setState({ kind: 'uploading', key: detail.key, title: detail.title, percent: 0, loaded: 0, total: detail.total || 0 });
+          setElapsed(0);
+          setState({ kind: 'uploading', key: detail.key, title: detail.title, percent: 0, loaded: 0, total: detail.total || 0, startedAt: Date.now() });
           break;
         case 'progress':
           setState((current) => current?.key === detail.key
@@ -82,8 +84,14 @@ const RecordingSaveBanner = () => {
       event.returnValue = '';
     };
     window.addEventListener('beforeunload', protect);
-    return () => window.removeEventListener('beforeunload', protect);
-  }, [state?.kind]);
+    const ticker = window.setInterval(() => {
+      setElapsed(Math.max(0, Math.round((Date.now() - (state.startedAt || Date.now())) / 1000)));
+    }, 1000);
+    return () => {
+      window.removeEventListener('beforeunload', protect);
+      window.clearInterval(ticker);
+    };
+  }, [state?.kind, state?.startedAt]);
 
   if (!state) return null;
 
@@ -128,7 +136,7 @@ const RecordingSaveBanner = () => {
           <FaSyncAlt className="spin" aria-hidden="true" />
           <div className="echoo-save-banner-body">
             <strong>Saving “{state.title}”</strong>
-            <span>{formatBytes(state.loaded)} of {formatBytes(state.total)} · {state.percent}% — keep this tab open</span>
+            <span>{formatBytes(state.loaded)} of {formatBytes(state.total)} · {state.percent}% · {elapsed}s — keep this tab open</span>
             <i className="echoo-save-banner-bar"><b style={{ width: `${Math.max(2, state.percent || 0)}%` }} /></i>
           </div>
         </>
@@ -140,8 +148,8 @@ const RecordingSaveBanner = () => {
             <strong>Saved to Recordings as MP3</strong>
             <span>{state.title}</span>
           </div>
-          {state.audioId && <button type="button" onClick={openRecording}>View</button>}
-          <button type="button" aria-label="Dismiss" onClick={hide}><FaTimes /></button>
+          {state.audioId && <button type="button" className="eb-press" onClick={openRecording}>View</button>}
+          <button type="button" className="eb-press" aria-label="Dismiss" onClick={hide}><FaTimes /></button>
         </>
       )}
       {state.kind === 'error' && (
@@ -151,8 +159,8 @@ const RecordingSaveBanner = () => {
             <strong>Couldn’t save “{state.title}”</strong>
             <span>{state.message || 'Your local master is kept.'}</span>
           </div>
-          <button type="button" onClick={retry} disabled={state.retrying}>{state.retrying ? 'Retrying…' : 'Retry'}</button>
-          <button type="button" aria-label="Dismiss" onClick={hide}><FaTimes /></button>
+          <button type="button" className="eb-press" onClick={retry} disabled={state.retrying}>{state.retrying ? 'Retrying…' : 'Retry'}</button>
+          <button type="button" className="eb-press" aria-label="Dismiss" onClick={hide}><FaTimes /></button>
         </>
       )}
       {state.kind === 'recovered' && (
@@ -162,8 +170,8 @@ const RecordingSaveBanner = () => {
             <strong>Unsaved recording found</strong>
             <span>{state.title} — from a tab that closed before saving.</span>
           </div>
-          <button type="button" onClick={uploadRecovered}>Upload</button>
-          <button type="button" onClick={discardRecovered}>Discard</button>
+          <button type="button" className="eb-press" onClick={uploadRecovered}>Upload</button>
+          <button type="button" className="eb-press" onClick={discardRecovered}>Discard</button>
         </>
       )}
     </div>

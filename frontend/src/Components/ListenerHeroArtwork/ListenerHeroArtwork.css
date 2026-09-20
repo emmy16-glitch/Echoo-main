@@ -1,5 +1,6 @@
 .listener-hero-artwork {
   position: absolute;
+  overflow: hidden;
   z-index: 0;
   top: 26px;
   right: -116px;

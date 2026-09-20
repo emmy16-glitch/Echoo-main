@@ -1,0 +1,61 @@
+/* Echoo foundation tokens — shadcn/ui system mapped onto Echoo brand.
+   shadcn semantics (background, foreground, card, popover, primary, secondary,
+   muted, accent, destructive, border, input, ring, radius) so every primitive
+   below reads from one contract. Light is default; .echoo-dark opts into dark.
+   Existing --echoo-* vars remain the source of brand truth. */
+
+:root {
+  --eb-background: var(--echoo-color-canvas, #fafafa);
+  --eb-foreground: var(--echoo-color-text, #101828);
+  --eb-card: var(--echoo-color-surface, #ffffff);
+  --eb-card-foreground: var(--echoo-color-text, #101828);
+  --eb-popover: #ffffff;
+  --eb-popover-foreground: #101828;
+  --eb-primary: var(--echoo-color-brand, #265dff);
+  --eb-primary-foreground: #ffffff;
+  --eb-secondary: #f2f4f7;
+  --eb-secondary-foreground: #344054;
+  --eb-muted: #f9fafb;
+  --eb-muted-foreground: var(--echoo-color-muted, #667085);
+  --eb-accent: var(--echoo-color-brand-soft, #eaf0ff);
+  --eb-accent-foreground: var(--echoo-color-brand, #265dff);
+  --eb-destructive: #d92d20;
+  --eb-destructive-foreground: #ffffff;
+  --eb-success: #079455;
+  --eb-success-foreground: #ffffff;
+  --eb-warning: #dc6803;
+  --eb-border: var(--echoo-color-line, #eaecf0);
+  --eb-input: #d0d5dd;
+  --eb-ring: var(--echoo-color-focus, #4883ff);
+  --eb-radius-xs: 6px;
+  --eb-radius-sm: 9px;
+  --eb-radius-md: 12px;
+  --eb-radius-lg: 16px;
+  --eb-radius-xl: 20px;
+  --eb-font-sans: var(--echoo-font-sans, 'Inter', system-ui, sans-serif);
+  --eb-shadow-sm: 0 1px 2px rgba(16, 24, 40, .06);
+  --eb-shadow-md: 0 4px 12px rgba(16, 24, 40, .08);
+  --eb-shadow-lg: 0 16px 48px rgba(16, 24, 40, .16);
+  --eb-spring: cubic-bezier(.34, 1.4, .44, 1);
+  --eb-spring-soft: cubic-bezier(.3, 1.2, .4, 1);
+  --eb-ease-out: cubic-bezier(.22, 1, .36, 1);
+}
+
+.echoo-dark {
+  --eb-background: #0b0e14;
+  --eb-foreground: #f2f4f7;
+  --eb-card: #131722;
+  --eb-card-foreground: #f2f4f7;
+  --eb-popover: #131722;
+  --eb-popover-foreground: #f2f4f7;
+  --eb-primary: #5b8cff;
+  --eb-primary-foreground: #0b0e14;
+  --eb-secondary: #1d2433;
+  --eb-secondary-foreground: #e4e7ec;
+  --eb-muted: #161c29;
+  --eb-muted-foreground: #98a2b3;
+  --eb-accent: #1a2540;
+  --eb-accent-foreground: #9db9ff;
+  --eb-border: #232b3d;
+  --eb-input: #344054;
+}

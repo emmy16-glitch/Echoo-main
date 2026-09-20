@@ -51,7 +51,7 @@ const Artwork = ({ src }) => {
 };
 
 const LiveTile = ({ broadcast, onOpen }) => (
-  <article className="echoo-listener-target-live-card">
+  <article className="echoo-listener-target-live-card eb-card-stack">
     <button
       type="button"
       className="echoo-listener-target-live-art"
@@ -203,7 +203,7 @@ const ListenerHome = () => {
       <section className="echoo-listener-target-section" aria-labelledby="discover-recordings">
         <header className="echoo-listener-target-section-head"><div><h2 id="discover-recordings">Trending recordings</h2><p>Public audio from Echoo creators.</p></div></header>
         {recordings.length ? <div className="echoo-listener-target-live-grid">{recordings.slice(0, 5).map((track) => (
-          <article className="echoo-listener-target-live-card" key={idOf(track)}>
+          <article className="echoo-listener-target-live-card eb-card-stack" key={idOf(track)}>
             <button type="button" className="echoo-listener-target-live-art" onClick={() => navigate(`/listen/audio/${idOf(track)}`)}><Artwork src={artworkOf(track)} /></button>
             <button type="button" className="echoo-listener-target-live-copy" onClick={() => navigate(`/listen/audio/${idOf(track)}`)}><strong>{titleOf(track)}</strong><span>{stationNameOf(track)}</span></button>
           </article>
@@ -213,7 +213,7 @@ const ListenerHome = () => {
       <section className="echoo-listener-target-section" aria-labelledby="discover-playlists">
         <header className="echoo-listener-target-section-head"><div><h2 id="discover-playlists">Popular playlists</h2><p>Play openly; save them when you are ready.</p></div></header>
         {playlists.length ? <div className="echoo-listener-target-live-grid">{playlists.slice(0, 5).map((playlist) => (
-          <article className="echoo-listener-target-live-card" key={idOf(playlist)}>
+          <article className="echoo-listener-target-live-card eb-card-stack" key={idOf(playlist)}>
             <button type="button" className="echoo-listener-target-live-art" onClick={() => navigate('/listen/playlist')}><Artwork src={artworkOf(playlist)} /></button>
             <button type="button" className="echoo-listener-target-live-copy" onClick={() => navigate('/listen/playlist')}><strong>{playlist.name || 'Playlist'}</strong><span>{playlist.description || 'Public playlist'}</span></button>
           </article>

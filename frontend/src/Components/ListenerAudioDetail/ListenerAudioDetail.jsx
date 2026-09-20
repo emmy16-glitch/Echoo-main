@@ -244,10 +244,10 @@ const ListenerAudioDetail = () => {
   ];
 
   return (
-    <div className="replay-page">
-      <button type="button" className="replay-back" onClick={() => navigate(-1)}><FiArrowLeft /> Back to Replays</button>
-      {notice && <div className="replay-notice" role="status">{notice}</div>}
-      {error && <div className="replay-error" role="alert">{error}</div>}
+    <div className="replay-page eb-page-in">
+      <button type="button" className="replay-back eb-press" onClick={() => navigate(-1)}><FiArrowLeft /> Back to Replays</button>
+      {notice && <div className="replay-notice eb-toast-in" key={notice} role="status">{notice}</div>}
+      {error && <div className="replay-error eb-shake" key={error} role="alert">{error}</div>}
 
       <section className="replay-hero" aria-labelledby="replay-title">
         <div className="replay-art">{normalizedTrack.coverArt && <img src={normalizedTrack.coverArt} alt="" />}<span>{formatTime(normalizedTrack.duration)}</span></div>

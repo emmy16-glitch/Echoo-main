@@ -58,6 +58,7 @@ const ListenerRealLiveRoom = lazy(loadListenerLiveRoom);
 const ListenerRealStationProfile = lazy(loadListenerStationProfile);
 const ListenerCollectionDetail = lazy(loadListenerCollectionDetail);
 import RecordingSaveBanner, { RecordingAutosaveMount } from './Components/RecordingSaveBanner.jsx';
+import CommandPalette from './Components/Shared/CommandPalette.jsx';
 
 import EchooExperienceOrchestrator from './Components/EchooSystem/EchooExperienceOrchestrator';
 import EchooMobileNavigation from './Components/EchooSystem/EchooMobileNavigation';
@@ -376,6 +377,7 @@ function App() {
         </div>
         <RecordingAutosaveMount />
         <RecordingSaveBanner />
+        <CommandPalette />
       </ImageCropProvider>
       </GuestAuthProvider>
     </Router>
