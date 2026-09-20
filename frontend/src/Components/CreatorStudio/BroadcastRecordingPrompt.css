@@ -96,6 +96,22 @@
   line-height: 1.55;
 }
 
+.echoo-recording-upload-progress {
+  margin-top: 10px;
+  height: 8px;
+  border-radius: 999px;
+  background: #e4e7ec;
+  overflow: hidden;
+}
+
+.echoo-recording-upload-progress > i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #22c55e;
+  transition: width 200ms ease;
+}
+
 .echoo-recording-summary {
   margin: 18px 24px 0;
   padding: 16px;

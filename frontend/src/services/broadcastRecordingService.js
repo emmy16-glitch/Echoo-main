@@ -14,6 +14,10 @@ const WAV_MIME_TYPE = 'audio/wav';
 const MAX_WAV_DATA_BYTES = 0xffffffff - 44;
 const OPFS_DIRECTORY = 'echoo-live-recordings';
 const STALE_OPFS_FILE_MS = 24 * 60 * 60 * 1000;
+// Survives tab close/crash: while a lossless take is open we keep a tiny
+// pointer in localStorage. On next boot an orphaned OPFS master (<24h) is
+// re-headed (dataBytes = file size - 44) and offered back for save.
+const RECOVERY_METADATA_KEY = 'echooLosslessRecordingRecoveryV1';
 
 const OPUS_FALLBACK_BITRATE = 256000;
 const QUALITY_CHUNK_SECONDS = 10;
@@ -29,6 +33,45 @@ const MAX_QUEUED_PCM_SECONDS = 30;
 
 let activeRecording = null;
 let pendingRecording = null;
+
+const readRecoveryMetadata = () => {
+  try {
+    const raw = localStorage.getItem(RECOVERY_METADATA_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed?.storageName || !parsed?.broadcastId) return null;
+    if (Date.now() - Number(parsed.startedAt || 0) > STALE_OPFS_FILE_MS) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+};
+
+const persistRecoveryMetadata = (recording) => {
+  try {
+    if (!recording?.storageName || !recording?.broadcastId) return;
+    localStorage.setItem(RECOVERY_METADATA_KEY, JSON.stringify({
+      broadcastId: String(recording.broadcastId),
+      storageName: String(recording.storageName),
+      title: String(recording.title || 'Echoo live recording'),
+      sampleRate: Number(recording.sampleRate) || null,
+      startedAt: Number(recording.startedAt) || Date.now(),
+    }));
+  } catch {
+    // Recovery pointer is best-effort only.
+  }
+};
+
+const clearRecoveryMetadata = (broadcastId = '') => {
+  try {
+    const current = readRecoveryMetadata();
+    if (!broadcastId || !current || String(current.broadcastId) === String(broadcastId)) {
+      localStorage.removeItem(RECOVERY_METADATA_KEY);
+    }
+  } catch {
+    // Ignore storage failures while cleaning up.
+  }
+};
 
 const supportsOpfs = () =>
   typeof navigator !== 'undefined' &&
@@ -390,6 +433,7 @@ const stopLosslessRecording = async (recording, { keep = true } = {}) => {
       await recording.writable?.close();
       recording.writable = null;
       await safeRemoveOpfsEntry(recording.directory, recording.storageName);
+      clearRecoveryMetadata(recording.broadcastId);
       return null;
     }
 
@@ -409,6 +453,7 @@ const stopLosslessRecording = async (recording, { keep = true } = {}) => {
     const file = await recording.fileHandle.getFile();
     const durationSeconds = recording.dataBytes /
       (sampleRate * WAV_CHANNELS * WAV_BYTES_PER_SAMPLE);
+    clearRecoveryMetadata(recording.broadcastId);
 
     return {
       broadcastId: recording.broadcastId,
@@ -480,6 +525,7 @@ const startLosslessRecording = async ({ broadcastId, title }) => {
     qualityCompletionError: '',
     ...storage,
   };
+  persistRecoveryMetadata(recording);
 
   try {
     const capture = await startEchooMasterPcmCapture({
@@ -513,6 +559,7 @@ const startLosslessRecording = async ({ broadcastId, title }) => {
 
     recording.capture = capture;
     recording.sampleRate = capture.sampleRate;
+    persistRecoveryMetadata(recording);
   } catch (error) {
     try {
       await recording.writable.close();
@@ -843,6 +890,7 @@ export const discardBroadcastRecording = async (broadcastId = '') => {
     activeRecording = null;
     await stopRecording(recording, { keep: false });
   }
+  clearRecoveryMetadata(id);
 
   if (!id || pendingRecording?.broadcastId === id) {
     const recording = pendingRecording;
@@ -857,6 +905,86 @@ export const clearPendingBroadcastRecording = (broadcastId = '') => {
     const recording = pendingRecording;
     pendingRecording = null;
     void recording?.dispose?.();
+  }
+  clearRecoveryMetadata(id);
+};
+
+// Best-effort flush when the tab is hidden/closed mid-take: close the OPFS
+// writer so the file is complete on disk. The WAV header is patched on
+// recovery (dataBytes = file size - 44), so a close without header is fine.
+export const flushRecordingForPageHide = async () => {
+  persistRecoveryMetadata(activeRecording);
+  try {
+    await activeRecording?.writable?.close();
+  } catch {
+    // The writer may already be closed or closing.
+  }
+  if (activeRecording) activeRecording.writable = null;
+};
+
+// Recover an orphaned OPFS master left by a closed/crashed tab (<24h old).
+// Returns { recording, broadcast } shaped like announceFinishedBroadcastRecording,
+// or null when there is nothing recoverable.
+export const recoverOrphanedLosslessRecording = async () => {
+  if (!supportsOpfs()) return null;
+  if (activeRecording || pendingRecording) return null;
+  const meta = readRecoveryMetadata();
+  if (!meta) return null;
+  try {
+    const root = await navigator.storage.getDirectory();
+    const directory = await root.getDirectoryHandle(OPFS_DIRECTORY, { create: false });
+    const fileHandle = await directory.getFileHandle(meta.storageName, { create: false });
+    const file = await fileHandle.getFile();
+    const dataBytes = Math.max(0, Number(file.size || 0) - 44);
+    if (!dataBytes) {
+      await safeRemoveOpfsEntry(directory, meta.storageName);
+      clearRecoveryMetadata(meta.broadcastId);
+      return null;
+    }
+    const sampleRate = Number(meta.sampleRate) || WAV_TARGET_SAMPLE_RATE;
+    try {
+      const writable = await fileHandle.createWritable();
+      await writable.seek(0);
+      await writable.write(createWavHeader({
+        dataBytes,
+        sampleRate,
+        channels: WAV_CHANNELS,
+        bitDepth: WAV_BIT_DEPTH,
+      }));
+      await writable.close();
+    } catch {
+      // Header patch is best-effort; the raw PCM size is still usable info.
+    }
+    const patched = await fileHandle.getFile();
+    const durationSeconds = Math.max(1, dataBytes / (sampleRate * WAV_CHANNELS * WAV_BYTES_PER_SAMPLE));
+    const recording = {
+      broadcastId: String(meta.broadcastId),
+      blob: patched,
+      mimeType: WAV_MIME_TYPE,
+      durationSeconds,
+      sampleRate,
+      channels: WAV_CHANNELS,
+      bitDepth: WAV_BIT_DEPTH,
+      lossless: true,
+      recordingFormat: 'pcm-wav',
+      captureSource: 'echoo-post-master-bus',
+      storageMode: 'opfs-stream',
+      audioBitsPerSecond: sampleRate * WAV_CHANNELS * WAV_BIT_DEPTH,
+      startedAt: new Date(Number(meta.startedAt) || Date.now()).toISOString(),
+      endedAt: new Date(Number(file.lastModified || Date.now())).toISOString(),
+      filename: `${cleanFilenamePart(meta.title)}-${recordingDatePart(Number(meta.startedAt) || Date.now())}.wav`,
+      limitReached: false,
+      qualityChunkCount: 0,
+      qualityChunkErrors: [],
+      qualityCompletionPending: false,
+      qualityCompletionError: '',
+      recovered: true,
+      dispose: () => safeRemoveOpfsEntry(directory, meta.storageName),
+    };
+    pendingRecording = recording;
+    return { recording, broadcast: { title: String(meta.title || 'Echoo live recording') } };
+  } catch {
+    return null;
   }
 };
 
@@ -879,5 +1007,7 @@ export default {
   announceFinishedBroadcastRecording,
   discardBroadcastRecording,
   clearPendingBroadcastRecording,
+  flushRecordingForPageHide,
+  recoverOrphanedLosslessRecording,
   getBroadcastRecordingState,
 };

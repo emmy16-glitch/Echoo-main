@@ -85,6 +85,7 @@ const analyticsSchema = new mongoose.Schema(
 
 // Compound index for efficient queries
 analyticsSchema.index({ userId: 1, date: -1, type: 1 });
+analyticsSchema.index({ userId: 1, date: 1 });
 analyticsSchema.index({ stationId: 1, date: -1 });
 
 const Analytics = mongoose.model('Analytics', analyticsSchema, 'echoo_analytics');

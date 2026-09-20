@@ -14,6 +14,8 @@ import studioService from '../../services/studioService.js';
 import {
   BROADCAST_RECORDING_READY_EVENT,
   clearPendingBroadcastRecording,
+  flushRecordingForPageHide,
+  recoverOrphanedLosslessRecording,
   retryBroadcastQualityCompletion,
 } from '../../services/broadcastRecordingService.js';
 import {
@@ -114,6 +116,7 @@ const safeFilename = (title, recording) => {
 const BroadcastRecordingPrompt = () => {
   const [pending, setPending] = useState(readRecoveredPendingRecording);
   const [saving, setSaving] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState({ percent: 0, loaded: 0, total: 0 });
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
   const [savedRecordingId, setSavedRecordingId] = useState('');
@@ -206,6 +209,8 @@ const BroadcastRecordingPrompt = () => {
       rememberPendingRecording(detail);
       setPending(detail);
       setError('');
+      setSaving(false);
+      setUploadProgress({ percent: 0, loaded: 0, total: 0 });
       setSaved(false);
       setSavedRecordingId('');
       setRetryToken(0);
@@ -236,6 +241,14 @@ const BroadcastRecordingPrompt = () => {
     };
 
     recoverPendingRecording();
+    // A closed/crashed tab leaves an OPFS orphan behind: offer it back.
+    if (!readRecoveredPendingRecording()) {
+      recoverOrphanedLosslessRecording()
+        .then((recovered) => {
+          if (recovered?.recording?.blob?.size) applyPendingRecording(recovered);
+        })
+        .catch(() => {});
+    }
     window.addEventListener(BROADCAST_RECORDING_READY_EVENT, onRecordingReady);
     window.addEventListener('pageshow', recoverPendingRecording);
 
@@ -335,6 +348,7 @@ const BroadcastRecordingPrompt = () => {
 
       try {
         setSaving(true);
+        setUploadProgress({ percent: 0, loaded: 0, total: uploadBlob?.size || 0 });
         setError('');
 
         if (recording.qualityCompletionPending) {
@@ -371,7 +385,8 @@ const BroadcastRecordingPrompt = () => {
 
         // One automatic retry on transient network blips — the server's
         // REPLAY_ALREADY_EXISTS guard makes a retried upload safe.
-        const uploadOnce = () => studioService.uploadAudio({
+        // XHR reports live % so a big master over cellular never spins blind.
+        const uploadOnce = (onRetryProgress) => studioService.uploadAudioWithProgress({
           file,
           title,
           description:
@@ -388,6 +403,11 @@ const BroadcastRecordingPrompt = () => {
           // interrupting End Broadcast with a publish/private decision.
           isPublic: false,
           broadcastId: recording.broadcastId,
+          timeoutMs: 120000,
+          onProgress: ({ loaded, total, percent }) => {
+            if (active) setUploadProgress({ percent, loaded, total });
+            onRetryProgress?.({ loaded, total, percent });
+          },
         });
         let uploadResponse;
         try {
@@ -494,9 +514,17 @@ const BroadcastRecordingPrompt = () => {
       event.preventDefault();
       event.returnValue = '';
     };
+    // pagehide fires on Android Chrome tab close where beforeunload is skipped.
+    const flushForHide = () => {
+      void flushRecordingForPageHide();
+    };
 
     window.addEventListener('beforeunload', protectPendingRecording);
-    return () => window.removeEventListener('beforeunload', protectPendingRecording);
+    window.addEventListener('pagehide', flushForHide);
+    return () => {
+      window.removeEventListener('beforeunload', protectPendingRecording);
+      window.removeEventListener('pagehide', flushForHide);
+    };
   }, [pending, saved]);
 
   if (!pending) return null;
@@ -573,7 +601,7 @@ const BroadcastRecordingPrompt = () => {
           <div>
             <span>LIVE SESSION ENDED</span>
             <h2 id="echoo-recording-decision-title">
-              {saved ? 'Recording saved!' : error ? 'Recording needs attention' : saving ? `Saving ${formatBytes(recording.blob.size)}…` : 'Trim your recording'}
+              {saved ? 'Recording saved!' : error ? 'Recording needs attention' : saving ? `Saving… ${uploadProgress.percent}%` : 'Trim your recording'}
             </h2>
             <p id="echoo-recording-decision-description">
               {saved
@@ -581,9 +609,14 @@ const BroadcastRecordingPrompt = () => {
                 : error
                   ? 'Echoo kept the local master safe. Adjust the trim if you like, then retry saving.'
                   : saving
-                    ? `Uploading ${formatBytes(recording.blob.size)} to the Echoo server as MP3… keep this tab open.`
+                    ? `Uploading ${formatBytes(uploadProgress.loaded)} of ${formatBytes(uploadProgress.total || recording.blob.size)} (${uploadProgress.percent}%) to the Echoo server as MP3… keep this tab open.`
                     : 'Drag the handles to crop the part you want to keep, preview it, then press Save. The server copy is always MP3.'}
             </p>
+            {saving && (
+              <div className="echoo-recording-upload-progress" aria-label={`Upload progress ${uploadProgress.percent} percent`}>
+                <i style={{ width: `${Math.max(2, uploadProgress.percent)}%` }} />
+              </div>
+            )}
           </div>
         </header>
 

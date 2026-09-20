@@ -27,6 +27,8 @@ const getAudioContext = () => {
   return sharedContext;
 };
 
+export const DECODE_TIMEOUT_MS = 15000;
+
 export const decodeRecordingBlob = async (blob, onProgress) => {
   if (!canTrimRecording(blob)) {
     throw new Error('This recording is too long to trim in the browser. Save the full recording instead.');
@@ -42,12 +44,30 @@ export const decodeRecordingBlob = async (blob, onProgress) => {
   // decodeAudioData detaches the buffer — copy first so the blob stays usable.
   const copy = raw.slice(0);
   emit(55);
+  // Mobile browsers can leave decodeAudioData unsettled forever (suspended
+  // context, throttled tab, OOM). Race a timeout so the trim UI can never
+  // deadlock — callers fall back to saving the full recording.
   const buffer = await new Promise((resolve, reject) => {
-    // Modern browsers ALSO return a promise from decodeAudioData even when
-    // callbacks are given — and it rejects on decode failure. Swallow that
-    // floating rejection: the callbacks below already settle this promise.
-    const floating = context.decodeAudioData(copy, resolve, reject);
-    if (floating && typeof floating.catch === 'function') floating.catch(() => {});
+    const timer = setTimeout(() => {
+      const timeoutError = new Error('decode-timeout');
+      timeoutError.code = 'DECODE_TIMEOUT';
+      reject(timeoutError);
+    }, DECODE_TIMEOUT_MS);
+    if (timer?.unref) timer.unref();
+    const settle = (fn) => (value) => {
+      clearTimeout(timer);
+      fn(value);
+    };
+    try {
+      // Modern browsers ALSO return a promise from decodeAudioData even when
+      // callbacks are given — and it rejects on decode failure. Swallow that
+      // floating rejection: the callbacks below already settle this promise.
+      const floating = context.decodeAudioData(copy, settle(resolve), settle(reject));
+      if (floating && typeof floating.catch === 'function') floating.catch(() => {});
+    } catch (error) {
+      clearTimeout(timer);
+      reject(error);
+    }
   });
   emit(85);
   if (!buffer?.duration) throw new Error('Could not read this recording for trimming.');
@@ -192,6 +212,7 @@ export const trimBufferToWavBlob = (buffer, startSec, endSec) => {
 export default {
   MAX_TRIM_BYTES,
   TRIM_PEAK_COUNT,
+  DECODE_TIMEOUT_MS,
   canTrimRecording,
   decodeRecordingBlob,
   computePeaks,

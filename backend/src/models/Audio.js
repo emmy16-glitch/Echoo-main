@@ -179,6 +179,7 @@ const audioSchema = new mongoose.Schema(
 );
 
 audioSchema.index({ artist: 1, createdAt: -1 });
+audioSchema.index({ artist: 1, isDeleted: 1, createdAt: -1 });
 audioSchema.index({ title: 'text', description: 'text', tags: 'text' });
 audioSchema.index({ isPublic: 1, createdAt: -1 });
 audioSchema.index({ publicationStatus: 1, visibility: 1, createdAt: -1 });
