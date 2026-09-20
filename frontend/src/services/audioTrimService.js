@@ -2,7 +2,8 @@
 //
 // The master is a huge WAV (or Opus fallback). Right after Stop we decode it
 // to an AudioBuffer, show a waveform, and let the creator drag a start/end
-// range. The chosen region is re-encoded to a 16-bit WAV Blob which becomes
+// range. The chosen region is re-encoded to a 24-bit WAV Blob (same depth as
+// the lossless master, so trimming never reduces clarity) which becomes
 // the file that is uploaded (server still normalises to MP3 automatically)
 // and the file offered for "Save WAV to PC".
 //
@@ -135,7 +136,8 @@ const clampRange = (startSec, endSec, duration) => {
   return { start, end };
 };
 
-// Re-encode [startSec, endSec) as a 16-bit PCM WAV Blob.
+// Re-encode [startSec, endSec) as a 24-bit PCM WAV Blob — same depth as the
+// lossless master, so trimming never reduces clarity (bit-transparent cut).
 export const trimBufferToWavBlob = (buffer, startSec, endSec) => {
   const sampleRate = buffer.sampleRate || 48000;
   const channels = Math.max(1, buffer.numberOfChannels || 2);
@@ -144,7 +146,7 @@ export const trimBufferToWavBlob = (buffer, startSec, endSec) => {
   const endSample = Math.min(buffer.length, Math.ceil(end * sampleRate));
   const frames = Math.max(1, endSample - startSample);
 
-  const bytesPerSample = 2;
+  const bytesPerSample = 3;
   const blockAlign = channels * bytesPerSample;
   const dataBytes = frames * blockAlign;
   const wav = new ArrayBuffer(44 + dataBytes);
@@ -162,7 +164,7 @@ export const trimBufferToWavBlob = (buffer, startSec, endSec) => {
   view.setUint32(24, sampleRate, true);
   view.setUint32(28, sampleRate * blockAlign, true);
   view.setUint16(32, blockAlign, true);
-  view.setUint16(34, 16, true);
+  view.setUint16(34, 24, true);
   writeText(36, 'data');
   view.setUint32(40, dataBytes, true);
 
@@ -176,8 +178,12 @@ export const trimBufferToWavBlob = (buffer, startSec, endSec) => {
         sample = 0;
       }
       const clamped = Math.max(-1, Math.min(1, sample));
-      view.setInt16(offset, clamped < 0 ? Math.round(clamped * 0x8000) : Math.round(clamped * 0x7fff), true);
-      offset += 2;
+      const signed = clamped < 0 ? Math.round(clamped * 0x800000) : Math.round(clamped * 0x7fffff);
+      const value = signed < 0 ? signed + 0x1000000 : signed;
+      view.setUint8(offset, value & 0xff);
+      view.setUint8(offset + 1, (value >> 8) & 0xff);
+      view.setUint8(offset + 2, (value >> 16) & 0xff);
+      offset += 3;
     }
   }
   return { blob: new Blob([wav], { type: 'audio/wav' }), start, end };

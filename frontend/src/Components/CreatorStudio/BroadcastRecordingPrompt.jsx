@@ -369,7 +369,9 @@ const BroadcastRecordingPrompt = () => {
           { type: uploadMime }
         );
 
-        const uploadResponse = await studioService.uploadAudio({
+        // One automatic retry on transient network blips — the server's
+        // REPLAY_ALREADY_EXISTS guard makes a retried upload safe.
+        const uploadOnce = () => studioService.uploadAudio({
           file,
           title,
           description:
@@ -387,6 +389,16 @@ const BroadcastRecordingPrompt = () => {
           isPublic: false,
           broadcastId: recording.broadcastId,
         });
+        let uploadResponse;
+        try {
+          uploadResponse = await uploadOnce();
+        } catch (firstError) {
+          const transient = firstError?.status === 0 || /network|fetch|failed|timeout|abort/i.test(String(firstError?.message || ''));
+          if (!transient || !active) throw firstError;
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+          if (!active) throw firstError;
+          uploadResponse = await uploadOnce();
+        }
 
         setTrimWasCut(wasCut);
         // Remember exactly what was uploaded so "Save WAV to PC" matches it.
@@ -561,7 +573,7 @@ const BroadcastRecordingPrompt = () => {
           <div>
             <span>LIVE SESSION ENDED</span>
             <h2 id="echoo-recording-decision-title">
-              {saved ? 'Recording saved!' : error ? 'Recording needs attention' : saving ? 'Saving your recording…' : 'Trim your recording'}
+              {saved ? 'Recording saved!' : error ? 'Recording needs attention' : saving ? `Saving ${formatBytes(recording.blob.size)}…` : 'Trim your recording'}
             </h2>
             <p id="echoo-recording-decision-description">
               {saved
@@ -569,7 +581,7 @@ const BroadcastRecordingPrompt = () => {
                 : error
                   ? 'Echoo kept the local master safe. Adjust the trim if you like, then retry saving.'
                   : saving
-                    ? 'Uploading your recording to the Echoo server as MP3…'
+                    ? `Uploading ${formatBytes(recording.blob.size)} to the Echoo server as MP3… keep this tab open.`
                     : 'Drag the handles to crop the part you want to keep, preview it, then press Save. The server copy is always MP3.'}
             </p>
           </div>
