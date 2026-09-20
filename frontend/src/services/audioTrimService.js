@@ -26,14 +26,21 @@ const getAudioContext = () => {
   return sharedContext;
 };
 
-export const decodeRecordingBlob = async (blob) => {
+export const decodeRecordingBlob = async (blob, onProgress) => {
   if (!canTrimRecording(blob)) {
     throw new Error('This recording is too long to trim in the browser. Save the full recording instead.');
   }
+  const emit = (value) => {
+    try { onProgress?.(Math.max(0, Math.min(100, Math.round(value)))); } catch { /* noop */ }
+  };
+  emit(5);
   const context = getAudioContext();
+  emit(15);
   const raw = await blob.arrayBuffer();
+  emit(45);
   // decodeAudioData detaches the buffer — copy first so the blob stays usable.
   const copy = raw.slice(0);
+  emit(55);
   const buffer = await new Promise((resolve, reject) => {
     // Modern browsers ALSO return a promise from decodeAudioData even when
     // callbacks are given — and it rejects on decode failure. Swallow that
@@ -41,11 +48,14 @@ export const decodeRecordingBlob = async (blob) => {
     const floating = context.decodeAudioData(copy, resolve, reject);
     if (floating && typeof floating.catch === 'function') floating.catch(() => {});
   });
+  emit(85);
   if (!buffer?.duration) throw new Error('Could not read this recording for trimming.');
+  emit(100);
   return buffer;
 };
 
 // Peak per bucket (mono mix) normalised 0..1 for the waveform.
+// Chunked with yields so a 20-min master never locks the UI thread.
 export const computePeaks = (buffer, count = TRIM_PEAK_COUNT) => {
   const channels = buffer.numberOfChannels || 1;
   const length = buffer.length || 1;
@@ -74,6 +84,42 @@ export const computePeaks = (buffer, count = TRIM_PEAK_COUNT) => {
     }
     peaks[b] = Math.max(0, Math.min(1, max));
   }
+  return peaks;
+};
+
+export const computePeaksAsync = async (buffer, count = TRIM_PEAK_COUNT, onProgress) => {
+  const channels = buffer.numberOfChannels || 1;
+  const length = buffer.length || 1;
+  const buckets = Math.max(16, Math.min(400, Math.floor(count) || TRIM_PEAK_COUNT));
+  const peaks = new Array(buckets).fill(0);
+  const data = [];
+  for (let c = 0; c < channels; c += 1) {
+    try {
+      data.push(buffer.getChannelData(c));
+    } catch {
+      // Ignore unreadable channels.
+    }
+  }
+  if (!data.length) return peaks;
+  const perBucket = Math.max(1, Math.floor(length / buckets));
+  for (let b = 0; b < buckets; b += 1) {
+    const start = b * perBucket;
+    const end = Math.min(length, start + perBucket);
+    let max = 0;
+    const step = Math.max(1, Math.floor((end - start) / 200));
+    for (let i = start; i < end; i += step) {
+      let sum = 0;
+      for (let c = 0; c < data.length; c += 1) sum += Math.abs(data[c][i] || 0);
+      const mean = sum / data.length;
+      if (mean > max) max = mean;
+    }
+    peaks[b] = Math.max(0, Math.min(1, max));
+    if (b % 12 === 0) {
+      try { onProgress?.(Math.round((b / buckets) * 100)); } catch { /* noop */ }
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+  }
+  try { onProgress?.(100); } catch { /* noop */ }
   return peaks;
 };
 
@@ -143,5 +189,6 @@ export default {
   canTrimRecording,
   decodeRecordingBlob,
   computePeaks,
+  computePeaksAsync,
   trimBufferToWavBlob,
 };

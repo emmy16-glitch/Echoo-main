@@ -18,7 +18,7 @@ import {
 } from '../../services/broadcastRecordingService.js';
 import {
   canTrimRecording,
-  computePeaks,
+  computePeaksAsync,
   decodeRecordingBlob,
   trimBufferToWavBlob,
 } from '../../services/audioTrimService.js';
@@ -26,6 +26,7 @@ import {
   ECHOO_RECORDINGS_LIBRARY,
   RECORDING_PC_FORMATS,
   saveRecordingToPc,
+  waitForServerMp3,
 } from '../../services/recordingExportService.js';
 import './BroadcastRecordingPrompt.css';
 
@@ -128,9 +129,12 @@ const BroadcastRecordingPrompt = () => {
   const [trimStart, setTrimStart] = useState(0);
   const [trimEnd, setTrimEnd] = useState(0);
   const [trimPreparing, setTrimPreparing] = useState(false);
+  const [trimProgress, setTrimProgress] = useState(0);
   const [trimSupported, setTrimSupported] = useState(true);
   const [trimWasCut, setTrimWasCut] = useState(false);
   const [previewing, setPreviewing] = useState(false);
+  const [mp3Ready, setMp3Ready] = useState(false);
+  const [mp3Checking, setMp3Checking] = useState(false);
   const trimBufferRef = useRef(null);
   const previewAudioRef = useRef(null);
   const previewObjectUrlRef = useRef('');
@@ -184,6 +188,18 @@ const BroadcastRecordingPrompt = () => {
     );
   }, [dismissSavedRecording]);
 
+  const pauseAutoDismiss = useCallback(() => {
+    if (!savedRef.current) return;
+    const elapsed = Date.now() - autoDismissStartedAtRef.current;
+    autoDismissRemainingRef.current = Math.max(1000, autoDismissRemainingRef.current - elapsed);
+    window.clearTimeout(autoDismissTimerRef.current);
+  }, []);
+
+  const resumeAutoDismiss = useCallback(() => {
+    if (!savedRef.current) return;
+    scheduleAutoDismiss();
+  }, [scheduleAutoDismiss]);
+
   useEffect(() => {
     const applyPendingRecording = (detail) => {
       if (!detail?.recording?.blob?.size) return;
@@ -200,9 +216,12 @@ const BroadcastRecordingPrompt = () => {
       setTrimStart(0);
       setTrimEnd(0);
       setTrimPreparing(false);
+      setTrimProgress(0);
       setTrimSupported(true);
       setTrimWasCut(false);
       setPreviewing(false);
+      setMp3Ready(false);
+      setMp3Checking(false);
       trimBufferRef.current = null;
       saveAttemptRef.current = '';
     };
@@ -226,9 +245,9 @@ const BroadcastRecordingPrompt = () => {
     };
   }, []);
 
-  // Step 1 — prepare the trim editor as soon as the master lands. Huge or
-  // undecodable masters skip trimming: the retry token is bumped so the save
-  // effect below stores the full recording automatically — nothing is lost.
+  // Step 1 — prepare the trim editor as soon as the master lands, with
+  // progress. Save is NEVER blocked on this: creators can save the full
+  // recording immediately while the waveform loads in the background.
   useEffect(() => {
     if (!pending?.recording?.blob?.size || saved) return undefined;
     const { recording } = pending;
@@ -241,15 +260,23 @@ const BroadcastRecordingPrompt = () => {
     }
 
     setTrimPreparing(true);
-    decodeRecordingBlob(recording.blob)
-      .then((buffer) => {
+    setTrimProgress(2);
+    decodeRecordingBlob(recording.blob, (value) => {
+      if (active) setTrimProgress(Math.min(70, value * 0.7));
+    })
+      .then(async (buffer) => {
         if (!active) return;
         trimBufferRef.current = buffer;
-        setTrimPeaks(computePeaks(buffer));
+        const peaks = await computePeaksAsync(buffer, 120, (value) => {
+          if (active) setTrimProgress(70 + Math.round(value * 0.3));
+        });
+        if (!active) return;
+        setTrimPeaks(peaks);
         setTrimDuration(buffer.duration || recording.durationSeconds || 0);
         setTrimStart(0);
         setTrimEnd(buffer.duration || recording.durationSeconds || 0);
         setTrimSupported(true);
+        setTrimProgress(100);
       })
       .catch(() => {
         if (!active) return;
@@ -276,6 +303,9 @@ const BroadcastRecordingPrompt = () => {
     saveAttemptRef.current = attemptKey;
 
     let active = true;
+    const notifyToast = (message, type = 'success') => {
+      window.dispatchEvent(new CustomEvent('echoo:toast', { detail: { message, type } }));
+    };
     const markSaved = (id = '') => {
       if (!active) return;
       forgetPendingRecording();
@@ -283,9 +313,17 @@ const BroadcastRecordingPrompt = () => {
       stopPreview();
       window.dispatchEvent(new CustomEvent('echoo:creator-audio-changed'));
       window.dispatchEvent(new CustomEvent('echoo:creator-state-changed'));
-      if (id) setSavedRecordingId(id);
+      if (id) {
+        setSavedRecordingId(id);
+        setMp3Checking(true);
+        // Probe server MP3 in background so "Save MP3 to PC" enables itself.
+        waitForServerMp3(id, { attempts: 12, delayMs: 2500 })
+          .then(() => { if (active) { setMp3Ready(true); setMp3Checking(false); } })
+          .catch(() => { if (active) setMp3Checking(false); });
+      }
       setSaved(true);
       setSaving(false);
+      notifyToast(id ? 'Recording saved! Server copy is MP3 — find it in Recordings.' : 'Recording saved!', 'success');
     };
 
     // Step 2 — upload. Called from the Save button (trimmed or full) or
@@ -505,9 +543,9 @@ const BroadcastRecordingPrompt = () => {
         aria-describedby="echoo-recording-decision-description"
         tabIndex={-1}
       >
-        {saved && (
+        {(saved || error) && (
           <button
-            ref={closeButtonRef}
+            ref={saved ? closeButtonRef : undefined}
             type="button"
             className="echoo-recording-decision-close"
             aria-label="Close"
@@ -561,11 +599,28 @@ const BroadcastRecordingPrompt = () => {
         {!saved && trimSupported && (
           <div className="echoo-recording-trim">
             <div className="echoo-recording-trim-head">
-              <strong><FaCut /> Trim / crop</strong>
-              <span>{formatDuration(trimStart)} – {formatDuration(end)} of {formatDuration(trimDuration)}</span>
+              <strong><FaCut /> Step 1 — Trim / crop (optional)</strong>
+              <span>{trimDuration ? `${formatDuration(trimStart)} – ${formatDuration(end)} of ${formatDuration(trimDuration)}` : 'Preparing…'}</span>
             </div>
             {trimPreparing || (!trimPeaks.length && !trimDuration) ? (
-              <div className="echoo-recording-trim-loading">Reading waveform…</div>
+              <div className="echoo-recording-trim-loading">
+                <div>Reading waveform… {trimProgress}%</div>
+                <div className="echoo-recording-trim-progress" aria-hidden="true">
+                  <i style={{ width: `${Math.max(2, trimProgress)}%` }} />
+                </div>
+                <button
+                  type="button"
+                  className="private"
+                  onClick={() => setRetryToken((value) => value + 1)}
+                  disabled={saving}
+                >
+                  <FaSave />
+                  <span>
+                    <strong>{saving ? 'Saving…' : 'Skip trimming — save full now'}</strong>
+                    <small>Waveform keeps loading in the background. Nothing is lost.</small>
+                  </span>
+                </button>
+              </div>
             ) : (
               <>
                 <div
@@ -594,7 +649,7 @@ const BroadcastRecordingPrompt = () => {
                     max={Math.max(1, Math.floor(trimDuration))}
                     step={1}
                     value={Math.min(Math.floor(trimStart), Math.floor(end))}
-                    disabled={saving || trimPreparing}
+                    disabled={saving}
                     onChange={(event) => {
                       stopPreview();
                       setTrimStart(Math.min(Number(event.target.value), end));
@@ -609,7 +664,7 @@ const BroadcastRecordingPrompt = () => {
                     max={Math.max(1, Math.floor(trimDuration))}
                     step={1}
                     value={Math.floor(end)}
-                    disabled={saving || trimPreparing}
+                    disabled={saving}
                     onChange={(event) => {
                       stopPreview();
                       setTrimEnd(Math.max(Number(event.target.value), trimStart));
@@ -617,7 +672,7 @@ const BroadcastRecordingPrompt = () => {
                   />
                 </label>
                 <div className="echoo-recording-trim-actions">
-                  <button type="button" onClick={previewTrim} disabled={saving || trimPreparing || previewing}>
+                  <button type="button" onClick={previewTrim} disabled={saving || previewing}>
                     {previewing ? <FaStop /> : <FaPlay />}
                     <span>{previewing ? 'Playing…' : 'Preview selection'}</span>
                   </button>
@@ -633,14 +688,21 @@ const BroadcastRecordingPrompt = () => {
 
         {saved && (
           <>
-            <div className="echoo-recording-saved">
-              <FaCheckCircle /> {savedLabel} saved in Recordings as MP3{trimWasCut ? ' (trimmed)' : ''}.
+            <div className="echoo-recording-saved" role="status" aria-live="polite">
+              <FaCheckCircle /> {savedLabel} saved in Recordings as MP3{trimWasCut ? ' (trimmed)' : ''}. Saved successfully!
             </div>
-            <div className="echoo-recording-pc-save">
-              <strong>Save a copy to this PC?</strong>
+            <div
+              className="echoo-recording-pc-save"
+              onMouseEnter={pauseAutoDismiss}
+              onMouseLeave={resumeAutoDismiss}
+              onFocus={pauseAutoDismiss}
+              onBlur={resumeAutoDismiss}
+            >
+              <strong>Step 2 — Save a copy to this phone / PC?</strong>
               <span className="echoo-recording-pc-hint">
-                Server copy is MP3 automatically. For your computer, pick a format —
+                Server copy is MP3 automatically. For this device, pick MP3 (universal), Opus (smallest, instant) or WAV (lossless) —
                 files suggest <code>Desktop/{ECHOO_RECORDINGS_LIBRARY}/</code> as your library.
+                {mp3Checking && !mp3Ready ? ' Preparing server MP3…' : mp3Ready ? ' Server MP3 is ready.' : ''}
               </span>
               <div className="echoo-recording-format-row" role="radiogroup" aria-label="PC save format">
                 {RECORDING_PC_FORMATS.map((option) => (
@@ -659,7 +721,7 @@ const BroadcastRecordingPrompt = () => {
               <div className="echoo-recording-saved-actions">
                 <button
                   type="button"
-                  disabled={pcSaving}
+                  disabled={pcSaving || (pcFormat === 'mp3' && mp3Checking && !mp3Ready)}
                   onClick={async () => {
                     setPcSaving(true);
                     setPcMessage('');
@@ -675,18 +737,20 @@ const BroadcastRecordingPrompt = () => {
                       } else {
                         setPcMessage(
                           pcFormat === 'mp3'
-                            ? `MP3 saved to your PC${result?.path ? ` (${result.path})` : ''}.`
-                            : `WAV master saved to your PC${result?.path ? ` (${result.path})` : ''}.`
+                            ? `MP3 saved to your device${result?.path ? ` (${result.path})` : ''}. Saved successfully!`
+                            : pcFormat === 'opus'
+                              ? `Opus saved to your device${result?.path ? ` (${result.path})` : ''}. Saved successfully!`
+                              : `WAV master saved to your device${result?.path ? ` (${result.path})` : ''}. Saved successfully!`
                         );
                       }
                     } catch (saveError) {
-                      setPcMessage(saveError?.message || 'Could not save to this PC.');
+                      setPcMessage(saveError?.message || 'Could not save to this device.');
                     } finally {
                       setPcSaving(false);
                     }
                   }}
                 >
-                  <FaSave /> {pcSaving ? 'Saving…' : `Save ${pcFormat.toUpperCase()} to PC`}
+                  <FaSave /> {pcSaving ? 'Saving…' : pcFormat === 'mp3' && mp3Checking && !mp3Ready ? 'Preparing MP3…' : `Save ${pcFormat.toUpperCase()} to this device`}
                 </button>
                 {savedRecordingId && (
                   <button type="button" onClick={viewRecording}>View recording</button>
@@ -699,17 +763,18 @@ const BroadcastRecordingPrompt = () => {
 
         {!saved && (
           <div className="echoo-recording-options">
+            <div className="echoo-recording-step-label">Step 2 — Save to server (automatic MP3, private)</div>
             {trimSupported ? (
               <>
                 <button
                   type="button"
                   className="publish"
                   onClick={() => setRetryToken((value) => value + 1)}
-                  disabled={saving || trimPreparing}
+                  disabled={saving}
                 >
                   <FaSave />
                   <span>
-                    <strong>{saving ? 'Saving…' : error ? 'Retry saving' : isFullLength ? 'Save full recording' : `Save trimmed (${formatDuration(selectedSeconds)})`}</strong>
+                    <strong>{saving ? 'Saving… uploading as MP3…' : error ? 'Retry saving' : trimPreparing ? 'Save full recording now' : isFullLength ? 'Save full recording' : `Save trimmed (${formatDuration(selectedSeconds)})`}</strong>
                     <small>Uploads to the Echoo server as MP3. Stays private until you publish it from Recordings.</small>
                   </span>
                 </button>
@@ -723,7 +788,7 @@ const BroadcastRecordingPrompt = () => {
                       setTrimEnd(trimDuration);
                       setRetryToken((value) => value + 1);
                     }}
-                    disabled={saving || trimPreparing}
+                    disabled={saving}
                   >
                     <FaSyncAlt />
                     <span>
@@ -752,13 +817,13 @@ const BroadcastRecordingPrompt = () => {
 
         <footer>
           {saved ? (
-            <div className="echoo-recording-auto-close">
-              <span>Auto closing in 5 sec…</span>
+            <div className="echoo-recording-auto-close" onMouseEnter={pauseAutoDismiss} onMouseLeave={resumeAutoDismiss}>
+              <span>Saved successfully! Auto closing in 5 sec… (hover to pause)</span>
               <i aria-hidden="true"><b /></i>
             </div>
           ) : (
             <span>
-              <FaCloudUploadAlt /> Trim first, then save — the server copy is MP3 and stays private until you publish it.
+              <FaCloudUploadAlt /> Step 1 trim (optional), Step 2 save — the server copy is MP3 and stays private until you publish it.
             </span>
           )}
         </footer>

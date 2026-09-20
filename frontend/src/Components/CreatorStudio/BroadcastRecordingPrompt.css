@@ -335,7 +335,13 @@
 
 .echoo-recording-trim-head > span { font-variant-numeric: tabular-nums; }
 
-.echoo-recording-trim-loading { font-size: 11px; color: #667085; }
+.echoo-recording-trim-loading { font-size: 11px; color: #667085; display: grid; gap: 10px; }
+.echoo-recording-trim-progress { height: 6px; border-radius: 999px; background: #e4e7ec; overflow: hidden; }
+.echoo-recording-trim-progress > i { display: block; height: 100%; border-radius: inherit; background: #265dff; transition: width 200ms ease; }
+.echoo-recording-trim-loading > button { min-height: 0; padding: 12px; }
+.echoo-recording-step-label { font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: #475467; }
+.echoo-recording-format-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+@media (max-width: 640px) { .echoo-recording-format-row { grid-template-columns: 1fr; } }
 
 .echoo-recording-waveform {
   height: 72px;
