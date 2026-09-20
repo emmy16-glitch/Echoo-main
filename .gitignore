@@ -35,6 +35,7 @@ logs/
 *.log
 .mongodb/
 **/.mongodb/
+backend/mongo-data/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
