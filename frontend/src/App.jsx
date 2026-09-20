@@ -57,6 +57,7 @@ const ListenerAudioDetail = lazy(loadListenerAudioDetail);
 const ListenerRealLiveRoom = lazy(loadListenerLiveRoom);
 const ListenerRealStationProfile = lazy(loadListenerStationProfile);
 const ListenerCollectionDetail = lazy(loadListenerCollectionDetail);
+import RecordingSaveBanner, { RecordingAutosaveMount } from './Components/RecordingSaveBanner.jsx';
 
 import EchooExperienceOrchestrator from './Components/EchooSystem/EchooExperienceOrchestrator';
 import EchooMobileNavigation from './Components/EchooSystem/EchooMobileNavigation';
@@ -373,6 +374,8 @@ function App() {
             <Route path="*" element={<DefaultRedirect />} />
           </Routes>
         </div>
+        <RecordingAutosaveMount />
+        <RecordingSaveBanner />
       </ImageCropProvider>
       </GuestAuthProvider>
     </Router>

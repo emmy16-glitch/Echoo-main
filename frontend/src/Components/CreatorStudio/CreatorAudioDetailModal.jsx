@@ -19,6 +19,7 @@ import studioService from '../../services/studioService.js';
 import recordingArtworkService from '../../services/recordingArtworkService.js';
 import { CREATOR_RENAME_UNDO_WINDOW_MS } from '../../config/playerFeedback.js';
 import Toast from '../UI/Toast';
+import CreatorAudioTrimSection from './CreatorAudioTrimSection.jsx';
 import './CreatorAudioDetailModal.css';
 
 const getId = (track) => track?.id || track?._id || null;
@@ -83,6 +84,7 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged, onAddToCollection 
   });
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
 
   const trackId = getId(track);
   const legacyFileUrl = useMemo(
@@ -417,6 +419,14 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged, onAddToCollection 
         duration={3000}
         onClose={() => setArtworkToast(false)}
       />
+      <Toast
+        open={Boolean(notice)}
+        type="success"
+        title="Saved"
+        message={notice}
+        duration={4000}
+        onClose={() => setNotice('')}
+      />
       <section
         className="creator-audio-modal"
         role="dialog"
@@ -571,6 +581,13 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged, onAddToCollection 
           <div className="creator-audio-modal-error" role="status">Preparing protected playback...</div>
         )}
         {error && <div className="creator-audio-modal-error" role="alert">{error}</div>}
+
+        <CreatorAudioTrimSection
+          track={track}
+          onChanged={onChanged}
+          onClose={onClose}
+          onNotice={setNotice}
+        />
 
         <div className="creator-audio-modal-actions">
             {onAddToCollection && <button type="button" onClick={onAddToCollection}>Add to Collection</button>}

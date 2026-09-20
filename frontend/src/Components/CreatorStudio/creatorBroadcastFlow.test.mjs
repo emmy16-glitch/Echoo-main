@@ -34,24 +34,24 @@ test('End Broadcast opens an app dialog and only the confirmed action calls the 
 
 test('Recording Saved is gated by real backend completion and real upload success', async () => {
   const service = await read('../../services/batch3Service.js');
-  const prompt = await read('./BroadcastRecordingPrompt.jsx');
+  const autosave = await read('../../services/recordingAutosave.js');
+  const banner = await read('../RecordingSaveBanner.jsx');
   const realtimeStart = service.indexOf('endBroadcastRealtime: async');
   const finalizeStart = service.indexOf('finalizeBroadcastRecording: async');
   const realtimeSection = service.slice(realtimeStart, finalizeStart);
   const finalizeSection = service.slice(finalizeStart, service.indexOf('getProcessing:', finalizeStart));
   const apiCompletion = realtimeSection.indexOf("/end`");
   const readyAnnouncement = finalizeSection.indexOf('announceFinishedBroadcastRecording');
-  const uploadCompletion = prompt.indexOf('await studioService.uploadAudio');
-  const savedState = prompt.indexOf('markSaved(String', uploadCompletion);
+  const uploadCompletion = autosave.indexOf('await studioService.uploadAudioWithProgress');
+  const doneEmit = autosave.indexOf("status: 'done'", uploadCompletion);
 
   assert.ok(apiCompletion >= 0);
   assert.ok(readyAnnouncement >= 0);
-  assert.ok(uploadCompletion >= 0 && savedState > uploadCompletion);
-  assert.match(prompt, /Recording saved!/);
-  assert.match(prompt, /aria-label="Close"/);
-  assert.match(prompt, /SAVED_AUTO_DISMISS_MS = 5000/);
-  assert.match(prompt, /View recording/);
-  assert.match(prompt, /dismissSavedRecording/);
+  assert.ok(uploadCompletion >= 0 && doneEmit > uploadCompletion);
+  assert.match(banner, /Saved to Recordings as MP3/);
+  assert.match(banner, /View in Recordings|View/);
+  assert.match(banner, /Retry/);
+  assert.match(autosave, /REPLAY_ALREADY_EXISTS/);
 });
 
 test('LIVE is set by the published program track, with confirmation and recording out of band', async () => {
