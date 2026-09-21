@@ -4,7 +4,6 @@ import {
   FiChevronLeft,
   FiChevronRight,
   FiDownload,
-  FiEdit2,
   FiFilter,
   FiFolder,
   FiMoreVertical,
@@ -54,7 +53,46 @@ const formatDate = (value) => {
   };
 };
 
-const recordingStatus = (track = {}) => (track.isPublic ? 'published' : 'unpublished');
+const sourceBroadcastOf = (track = {}) => (
+  track?.sourceBroadcast && typeof track.sourceBroadcast === 'object'
+    ? track.sourceBroadcast
+    : null
+);
+
+const recordingVisibility = (track = {}) => (track.isPublic ? 'published' : 'unpublished');
+
+const recordingSaveState = (track = {}) => {
+  const sourceBroadcast = sourceBroadcastOf(track);
+  if (!sourceBroadcast) return 'uploaded';
+
+  const audioState = String(sourceBroadcast?.assetStatus?.audio || '').toLowerCase();
+  if (audioState === 'failed') return 'attention';
+  if (audioState === 'pending' || audioState === 'processing') return 'processing';
+  return 'ready';
+};
+
+const recordingDisplayTitle = (track = {}) => {
+  const sourceBroadcast = sourceBroadcastOf(track);
+  const title = String(track?.title || '').trim();
+  if (/^recovered live broadcast recording$/i.test(title) && sourceBroadcast?.title) {
+    return sourceBroadcast.title;
+  }
+  return title || sourceBroadcast?.title || 'Untitled recording';
+};
+
+const saveStatusLabel = {
+  ready: 'Saved',
+  processing: 'Processing',
+  attention: 'Needs attention',
+  uploaded: 'Uploaded',
+};
+
+const saveStatusHint = {
+  ready: 'Server copy ready',
+  processing: 'Echoo is finishing the server copy',
+  attention: 'Open this recording to review the save',
+  uploaded: 'Uploaded directly to Echoo',
+};
 
 const getArtwork = (track, studioName) => (
   buildMediaUrl(track?.coverArt || track?.artwork || track?.image || track?.thumbnail || null) ||
@@ -102,18 +140,27 @@ export default function CreatorCollectionsWorkspace({
   }, []);
 
   const counts = useMemo(() => {
-    const published = tracks.filter((track) => recordingStatus(track) === 'published').length;
+    const published = tracks.filter((track) => recordingVisibility(track) === 'published').length;
+    const states = tracks.reduce((summary, track) => {
+      const state = recordingSaveState(track);
+      summary[state] = (summary[state] || 0) + 1;
+      return summary;
+    }, {});
     return {
       total: tracks.length,
       published,
       private: tracks.length - published,
+      ready: states.ready || 0,
+      processing: states.processing || 0,
+      attention: states.attention || 0,
+      uploaded: states.uploaded || 0,
     };
   }, [tracks]);
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     const rows = tracks.filter((track) => {
-      const status = recordingStatus(track);
+      const status = recordingVisibility(track);
       const matchesTab = tab === 'all' || status === tab;
       const matchesQuery = !needle || [track.title, track.genre, track.description, track.stationName, studioName]
         .some((value) => String(value || '').toLowerCase().includes(needle));
@@ -293,9 +340,9 @@ export default function CreatorCollectionsWorkspace({
   };
 
   const tabs = [
-    ['all', 'All recordings'],
-    ['published', 'Public'],
-    ['unpublished', 'Private'],
+    ['all', `All recordings (${counts.total})`],
+    ['published', `Public (${counts.published})`],
+    ['unpublished', `Private (${counts.private})`],
   ];
 
   return (
@@ -303,17 +350,21 @@ export default function CreatorCollectionsWorkspace({
       <header className="recordings-heading">
         <div className="recordings-heading-copy">
           <h1>Recordings</h1>
-          <p>All your live broadcasts are saved automatically.</p>
-          <strong>Review and manage your recordings.</strong>
+          <p>Live broadcasts are captured automatically.</p>
+          <strong>Echoo keeps the local safety master until the server copy is confirmed. Public/Private controls who can listen.</strong>
         </div>
 
         <div className="recordings-heading-actions">
           <div className="recordings-total-card" aria-label={`${counts.total} total recordings`}>
             <span className="recordings-total-icon"><FiFolder /></span>
             <span>
-              <small>Total recordings</small>
+              <small>Recordings on Echoo</small>
               <b>{counts.total}</b>
-              <em>{counts.published} public <i>•</i> {counts.private} private</em>
+              <em>
+                {counts.ready + counts.uploaded} ready
+                <i>•</i> {counts.processing} processing
+                {counts.attention > 0 && <><i>•</i> {counts.attention} attention</>}
+              </em>
             </span>
           </div>
           <input ref={fileRef} type="file" accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.opus,.flac,.webm" hidden onChange={uploadSelected} />
@@ -361,29 +412,34 @@ export default function CreatorCollectionsWorkspace({
             <span role="columnheader">Recording</span>
             <span role="columnheader">Duration</span>
             <span role="columnheader">Date</span>
+            <span role="columnheader">Save status</span>
             <span role="columnheader">Visibility</span>
             <span role="columnheader">Actions</span>
           </div>
 
           {pageRows.length ? pageRows.map((track) => {
             const id = String(getId(track) || '');
-            const status = recordingStatus(track);
+            const status = recordingVisibility(track);
+            const saveState = recordingSaveState(track);
+            const sourceBroadcast = sourceBroadcastOf(track);
             const isPlaying = playingId === id;
             const date = formatDate(track.createdAt || track.updatedAt);
             const artwork = getArtwork(track, studioName);
-            const metadata = [track.genre, track.description].filter(Boolean).join(' • ');
-            const channelName = track.stationName || track.channelName || studioName;
+            const displayTitle = recordingDisplayTitle(track);
+            const category = track.category || sourceBroadcast?.station?.category || track.genre;
+            const metadata = [category, track.description].filter(Boolean).join(' • ');
+            const channelName = track.stationName || sourceBroadcast?.station?.name || track.channelName || studioName;
 
             return (
               <article className="recordings-row" role="row" key={id || track.title}>
                 <div className="recordings-recording-cell" role="cell">
-                  <button type="button" className="recordings-art" aria-label={`${isPlaying ? 'Pause' : 'Play'} ${track.title || 'recording'}`} onClick={() => togglePlay(track)}>
+                  <button type="button" className="recordings-art" aria-label={`${isPlaying ? 'Pause' : 'Play'} ${displayTitle}`} onClick={() => togglePlay(track)}>
                     <img src={artwork} alt="" />
                     <span className="recordings-art-play">{isPlaying ? <FiPause /> : <FiPlay />}</span>
                     <small>{formatDuration(track.duration)}</small>
                   </button>
                   <div className="recordings-copy">
-                    <button type="button" className="recordings-title" onClick={() => setSelectedTrack(track)}>{track.title || 'Untitled recording'} <FiEdit2 /></button>
+                    <button type="button" className="recordings-title" onClick={() => setSelectedTrack(track)}>{displayTitle}</button>
                     <p>{channelName}</p>
                     {metadata && <span>{metadata}</span>}
                   </div>
@@ -391,6 +447,12 @@ export default function CreatorCollectionsWorkspace({
 
                 <div className="recordings-duration" role="cell">{formatDuration(track.duration)}</div>
                 <div className="recordings-date" role="cell"><strong>{date.date}</strong><span>{date.time}</span></div>
+                <div className="recordings-save-cell" role="cell">
+                  <span className={`recordings-save-state is-${saveState}`} title={saveStatusHint[saveState]}>
+                    <i />{saveStatusLabel[saveState]}
+                  </span>
+                  <small>{saveStatusHint[saveState]}</small>
+                </div>
                 <div className="recordings-status-cell" role="cell"><span className={`recordings-status is-${status}`}><i />{statusLabel[status]}</span></div>
 
                 <div className="recordings-actions" role="cell">
