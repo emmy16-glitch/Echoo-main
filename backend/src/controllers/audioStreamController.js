@@ -183,7 +183,7 @@ export async function streamAudio(req, res, next) {
       _id: audioId,
       isDeleted: false,
     }).select(
-      '_id artist isPublic visibility publicationStatus sourceBroadcast filename fileKey mimeType originalName duration fileSize storage cloudUrl'
+      '_id artist isPublic visibility publicationStatus sourceBroadcast filename fileKey mimeType originalName duration fileSize storage cloudKey cloudUrl'
     );
 
     if (!audio) {
