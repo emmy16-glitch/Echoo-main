@@ -8,7 +8,6 @@ import {
 } from 'react-icons/fa';
 
 import './CreatorSetup.css';
-import '../CreatorStudio/CreatorListenerAligned.css';
 import echooLogo from '../Assets/echoo-logo.png';
 // Decorative background artwork for the setup panel (opacity 0.12, aria-hidden).
 // Previously referenced an undefined `echooArtwork` identifier, which crashed
