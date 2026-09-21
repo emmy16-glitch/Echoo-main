@@ -181,6 +181,7 @@ test('recording management keeps trim copies safe and prevents cramped or mislab
   assert.doesNotMatch(exportService, /suggestedName:\s*suggestedInLibrary/);
   assert.match(studioService, /const originalStem = original/);
   assert.match(studioService, /canonical server copy may have been transcoded/);
+  assert.match(studioService, /mimeType: blob\.type \|\| metadata\?\.mimeType/);
 
   assert.doesNotMatch(
     modalCss,
