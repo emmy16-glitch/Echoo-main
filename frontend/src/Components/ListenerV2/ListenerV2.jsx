@@ -61,6 +61,16 @@ const formatCount = (value) => {
   if (count >= 1000) return `${Number((count / 1000).toFixed(1))}K`;
   return String(Math.floor(count));
 };
+
+const playbackErrorMessage = (error) => {
+  if (error?.name === 'NotAllowedError') {
+    return 'Playback was blocked by the browser. Press Play again.';
+  }
+  if (error?.name === 'NotSupportedError') {
+    return 'This audio format cannot be played by this browser.';
+  }
+  return 'Echoo could not play this audio. Check your connection and try again.';
+};
 const titleOf = (item) => item?.title || item?.station?.name || item?.stationName || item?.name || 'Live on Echoo';
 const stationNameOf = (item) => item?.station?.name || item?.stationName || item?.creator?.displayName || item?.name || 'Echoo';
 const categoryOf = (item) => item?.category || item?.station?.category || 'Live';
@@ -259,11 +269,14 @@ const ListenerV2Layout = () => {
   const [user, setUser] = useState(readUser);
   const audioRef = useRef(null);
   const autoplayRef = useRef(false);
+  const pendingSeekRef = useRef(null);
   const [currentTrack, setCurrentTrack] = useState(null);
   const [queue, setQueue] = useState([]);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [playerError, setPlayerError] = useState('');
+  const [playbackState, setPlaybackState] = useState('idle');
   const [, setLivePlayerState] = useState(null);
   const [headerSearch, setHeaderSearch] = useState('');
   const [unreadNotifications, setUnreadNotifications] = useState(0);
@@ -315,13 +328,34 @@ const ListenerV2Layout = () => {
     navigate(`/listen/search?q=${encodeURIComponent(headerSearch.trim())}`);
   };
 
+  const playAudioElement = useCallback(async (audio) => {
+    if (!audio) return false;
+    try {
+      setPlayerError('');
+      setPlaybackState('loading');
+      await audio.play();
+      setIsPlaying(true);
+      setPlaybackState('playing');
+      return true;
+    } catch (error) {
+      setIsPlaying(false);
+      setPlaybackState('error');
+      setPlayerError(playbackErrorMessage(error));
+      return false;
+    }
+  }, []);
+
   const playTrack = useCallback((track, incomingQueue = []) => {
     const normalized = normalizePlayable(track);
-    if (!normalized?.fileUrl) return false;
+    if (!normalized?.fileUrl) {
+      setPlayerError('This audio does not have a playable file attached to it.');
+      setPlaybackState('error');
+      return false;
+    }
     if (idOf(normalized) === idOf(currentTrack)) {
       const audio = audioRef.current;
       if (!audio) return false;
-      if (audio.paused) audio.play().catch(() => {});
+      if (audio.paused) void playAudioElement(audio);
       else audio.pause();
       return true;
     }
@@ -329,13 +363,16 @@ const ListenerV2Layout = () => {
       .map(normalizePlayable)
       .filter((item) => item?.fileUrl);
     setQueue(nextQueue);
+    pendingSeekRef.current = null;
     autoplayRef.current = true;
+    setPlayerError('');
+    setPlaybackState('loading');
     setCurrentTrack(normalized);
     setCurrentTime(0);
     setDuration(normalized.duration || 0);
     if (isGuest) recordGuestPlayback(normalized, 0, nextQueue);
     return true;
-  }, [currentTrack, isGuest]);
+  }, [currentTrack, isGuest, playAudioElement]);
 
   useEffect(() => {
     if (!isGuest) return;
@@ -347,49 +384,57 @@ const ListenerV2Layout = () => {
     if (!audio || !currentTrack?.fileUrl || !autoplayRef.current) return;
     autoplayRef.current = false;
     audio.load();
-    audio.play().catch(() => setIsPlaying(false));
-  }, [currentTrack?.fileUrl]);
+    void playAudioElement(audio);
+  }, [currentTrack?.fileUrl, playAudioElement]);
 
   const togglePlay = useCallback(() => {
     const audio = audioRef.current;
-    if (!audio || !currentTrack?.fileUrl) return;
-    if (audio.paused) audio.play().catch(() => setIsPlaying(false));
-    else audio.pause();
-  }, [currentTrack?.fileUrl]);
+    if (!audio || !currentTrack?.fileUrl) {
+      setPlayerError('Choose an audio track first.');
+      return;
+    }
+    if (audio.paused) {
+      if (playbackState === 'error') audio.load();
+      void playAudioElement(audio);
+    } else {
+      audio.pause();
+    }
+  }, [currentTrack?.fileUrl, playbackState, playAudioElement]);
 
   const seekTo = useCallback((seconds) => {
     const audio = audioRef.current;
-    const target = Math.max(0, Number(seconds) || 0);
-    if (!audio) return target;
-    try {
-      if (Number.isFinite(audio.duration) && audio.duration > 0) {
-        audio.currentTime = Math.min(target, audio.duration);
-      } else {
-        audio.currentTime = target;
-      }
-    } catch {
-      // Seeking before metadata is available throws in some browsers; the
-      // time-update handler will converge once the media loads.
+    const requested = Math.max(0, Number(seconds) || 0);
+    if (!audio || !Number.isFinite(audio.duration) || audio.duration <= 0) {
+      pendingSeekRef.current = requested;
+      setCurrentTime(requested);
+      return requested;
     }
+    const target = Math.min(requested, audio.duration);
+    audio.currentTime = target;
+    pendingSeekRef.current = null;
     setCurrentTime(target);
     return target;
   }, []);
 
   const playTrackAt = useCallback((track, seconds, incomingQueue = []) => {
     const normalized = normalizePlayable(track);
-    const requestedSeek = Math.max(0, Number(seconds) || 0);
-    if (!normalized?.fileUrl) return false;
+    const requested = Math.max(0, Number(seconds) || 0);
+    if (!normalized?.fileUrl) {
+      setPlayerError('This audio does not have a playable file attached to it.');
+      setPlaybackState('error');
+      return false;
+    }
+
     if (idOf(normalized) === idOf(currentTrack) && audioRef.current) {
-      seekTo(requestedSeek);
-      if (audioRef.current.paused) audioRef.current.play().catch(() => {});
+      seekTo(requested);
+      if (audioRef.current.paused) void playAudioElement(audioRef.current);
       return true;
     }
+
     const played = playTrack(normalized, incomingQueue);
-    if (played && requestedSeek > 0) {
-      window.setTimeout(() => seekTo(requestedSeek), 350);
-    }
+    if (played) pendingSeekRef.current = requested;
     return played;
-  }, [currentTrack, playTrack, seekTo]);
+  }, [currentTrack, playAudioElement, playTrack, seekTo]);
 
   const playNext = () => {
     if (!queue.length || !currentTrack) return;
@@ -440,29 +485,103 @@ const ListenerV2Layout = () => {
       </header>}
 
       <main className={`listener-v2-main${currentTrack && !isLiveRoom ? ' has-player' : ''}`}>
-        <Outlet context={{ playTrack, playTrackAt, seekTo, playNext, currentTrack, currentTime, duration, queue, isPlaying, togglePlay, setLivePlayerState }} />
+        <Outlet
+          context={{
+            playTrack,
+            playTrackAt,
+            seekTo,
+            playNext,
+            currentTrack,
+            currentTime,
+            duration,
+            queue,
+            isPlaying,
+            togglePlay,
+            playerError,
+            playbackState,
+            setLivePlayerState,
+          }}
+        />
       </main>
 
       <audio
         ref={audioRef}
         src={currentTrack?.fileUrl || undefined}
         preload="metadata"
-        onPlay={() => setIsPlaying(true)}
-        onPause={() => setIsPlaying(false)}
+        onPlay={() => {
+          setIsPlaying(true);
+          setPlaybackState('playing');
+          setPlayerError('');
+        }}
+        onPause={() => {
+          setIsPlaying(false);
+          if (!audioRef.current?.ended) setPlaybackState('paused');
+        }}
+        onWaiting={() => {
+          if (!audioRef.current?.paused) setPlaybackState('buffering');
+        }}
+        onPlaying={() => {
+          setIsPlaying(true);
+          setPlaybackState('playing');
+          setPlayerError('');
+        }}
         onTimeUpdate={() => {
           const position = audioRef.current?.currentTime || 0;
           setCurrentTime(position);
           if (isGuest && currentTrack) recordGuestPlayback(currentTrack, position, queue);
         }}
-        onLoadedMetadata={() => setDuration(Number.isFinite(audioRef.current?.duration) ? audioRef.current.duration : currentTrack?.duration || 0)}
-        onEnded={playNext}
+        onLoadedMetadata={() => {
+          const audio = audioRef.current;
+          const resolvedDuration = Number.isFinite(audio?.duration)
+            ? audio.duration
+            : currentTrack?.duration || 0;
+          setDuration(resolvedDuration);
+          if (audio && pendingSeekRef.current !== null && resolvedDuration > 0) {
+            const target = Math.min(Math.max(0, Number(pendingSeekRef.current) || 0), resolvedDuration);
+            audio.currentTime = target;
+            setCurrentTime(target);
+            pendingSeekRef.current = null;
+          }
+        }}
+        onCanPlay={() => {
+          const audio = audioRef.current;
+          if (audio && pendingSeekRef.current !== null && Number.isFinite(audio.duration) && audio.duration > 0) {
+            const target = Math.min(Math.max(0, Number(pendingSeekRef.current) || 0), audio.duration);
+            audio.currentTime = target;
+            setCurrentTime(target);
+            pendingSeekRef.current = null;
+          }
+          if (audio?.paused && playbackState === 'buffering') setPlaybackState('paused');
+        }}
+        onError={() => {
+          setIsPlaying(false);
+          setPlaybackState('error');
+          setPlayerError('Echoo could not load this audio. Check your connection and try again.');
+        }}
+        onEnded={() => {
+          setIsPlaying(false);
+          setPlaybackState('ended');
+          playNext();
+        }}
       />
 
       {currentTrack && !isLiveRoom && (
-        <section className="listener-v2-player" aria-label="Audio player">
+        <section className={`listener-v2-player${playerError ? ' has-error' : ''}`} aria-label="Audio player">
           <span className="listener-v2-player-art"><Artwork src={currentTrack.coverArt} /></span>
-          <div className="listener-v2-player-copy"><strong>{currentTrack.title}</strong><span>{currentTrack.subtitle}</span></div>
-          <button type="button" className="listener-v2-player-play" onClick={togglePlay} aria-label={isPlaying ? 'Pause' : 'Play'}>{isPlaying ? <FiPause /> : <FiPlay />}</button>
+          <div className="listener-v2-player-copy">
+            <strong>{currentTrack.title}</strong>
+            <span role={playerError ? 'alert' : undefined}>
+              {playerError || (playbackState === 'buffering' ? 'Buffering…' : currentTrack.subtitle)}
+            </span>
+          </div>
+          <button
+            type="button"
+            className="listener-v2-player-play"
+            onClick={togglePlay}
+            aria-label={playerError ? 'Retry playback' : isPlaying ? 'Pause' : 'Play'}
+          >
+            {isPlaying ? <FiPause /> : <FiPlay />}
+          </button>
           <div className="listener-v2-player-progress"><span style={{ width: `${duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0}%` }} /></div>
         </section>
       )}

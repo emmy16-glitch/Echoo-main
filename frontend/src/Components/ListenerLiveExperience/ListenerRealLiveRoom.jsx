@@ -5,6 +5,7 @@ import {
   FaHeadphones,
   FaPause,
   FaPlay,
+  FaRedoAlt,
   FaVolumeMute,
   FaVolumeUp,
 } from 'react-icons/fa';
@@ -521,17 +522,37 @@ const ListenerRealLiveRoom = () => {
     }
   };
 
+  const connectionStatus = liveState?.connectionStatus || audioState;
+  const hasProgramTrack = Number(liveState?.trackCount) > 0;
+  const needsReconnect = Boolean(liveState?.canReconnect);
   const audioStatusLabel = !isLive
     ? 'Audio disconnected'
     : show.mediaState === 'audio_paused'
       ? 'Broadcast paused'
-      : audioState === 'playing'
-        ? 'Audio live'
-        : ['connecting', 'reconnecting'].includes(audioState) || show.mediaState === 'creator_connecting'
-          ? 'Creator connecting'
-          : ['waiting_for_program', 'recovering_audio', 'autoplay_blocked'].includes(audioState) || show.mediaState === 'waiting_for_creator'
-            ? 'Waiting for creator'
-            : 'Audio disconnected';
+      : connectionStatus === 'reconnecting'
+        ? 'Reconnecting audio…'
+        : needsReconnect
+          ? 'Audio disconnected'
+          : liveState?.needsAudioStart || audioState === 'autoplay_blocked'
+            ? 'Tap Play to hear audio'
+            : liveState?.isPlaying || audioState === 'playing'
+              ? 'Audio live'
+              : hasProgramTrack
+                ? 'Paused'
+                : ['recovering_audio', 'waiting_for_program'].includes(audioState)
+                  ? 'Waiting for creator'
+                  : connectionStatus === 'connecting' || show.mediaState === 'creator_connecting'
+                    ? 'Creator connecting'
+                    : connectionStatus === 'connected' || show.mediaState === 'waiting_for_creator'
+                      ? 'Waiting for creator'
+                      : 'Audio disconnected';
+
+  const primaryPlaybackDisabled =
+    !isLive ||
+    (!needsReconnect &&
+      !liveState?.needsAudioStart &&
+      !hasProgramTrack &&
+      ['connecting', 'reconnecting'].includes(connectionStatus));
 
   const togglePlayback = () => {
     if (!isLive) return;
@@ -539,8 +560,16 @@ const ListenerRealLiveRoom = () => {
       setJoined(true);
       return;
     }
+    if (needsReconnect) {
+      liveState?.onReconnect?.();
+      return;
+    }
     liveState?.onTogglePlay?.();
   };
+
+  const audioLevelPercent = liveState?.isPlaying
+    ? Math.max(0, Math.min(100, Math.round((Number(liveState?.audioLevel) || 0) * 100)))
+    : 0;
 
   const toggleFullscreen = async () => {
     try {
@@ -680,7 +709,7 @@ const ListenerRealLiveRoom = () => {
               type="button"
               onClick={liveState?.onToggleMute}
               aria-label={liveState?.isMuted ? 'Unmute' : 'Mute'}
-              disabled={!isLive}
+              disabled={!isLive || !hasProgramTrack}
             >
               {liveState?.isMuted ? <FaVolumeMute /> : <FaVolumeUp />}
             </button>
@@ -689,17 +718,24 @@ const ListenerRealLiveRoom = () => {
               <button
                 type="button"
                 className="listener-v2-room-play"
-                aria-label={liveState?.isPlaying ? 'Pause' : 'Play'}
-                disabled={!isLive || Boolean(liveState?.playerError)}
+                aria-label={needsReconnect ? 'Reconnect audio' : liveState?.isPlaying ? 'Pause' : 'Play'}
+                disabled={primaryPlaybackDisabled}
                 onClick={togglePlayback}
               >
-                {liveState?.isPlaying ? <FaPause /> : <FaPlay />}
+                {needsReconnect ? <FaRedoAlt /> : liveState?.isPlaying ? <FaPause /> : <FaPlay />}
               </button>
               <span>{audioStatusLabel}</span>
             </div>
 
-            <div className="listener-v2-room-live-line" aria-hidden="true">
-              <span />
+            <div
+              className="listener-v2-room-live-line"
+              role="meter"
+              aria-label="Live audio level"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              aria-valuenow={audioLevelPercent}
+            >
+              <span style={{ width: `${audioLevelPercent}%` }} />
             </div>
 
             <span className="listener-v2-room-realtime-state">
