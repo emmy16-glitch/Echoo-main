@@ -251,7 +251,7 @@ const studioService = {
     anchor.href = objectUrl;
     anchor.download = safeDownloadName({
       ...metadata,
-      mimeType: metadata?.mimeType || blob.type,
+      mimeType: blob.type || metadata?.mimeType,
     });
     anchor.style.display = "none";
     document.body.appendChild(anchor);
