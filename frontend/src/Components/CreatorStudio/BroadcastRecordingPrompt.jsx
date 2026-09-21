@@ -2,9 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   FaCheckCircle,
   FaCloudUploadAlt,
+  FaDownload,
   FaExclamationTriangle,
   FaSave,
   FaSyncAlt,
+  FaWifi,
 } from 'react-icons/fa';
 
 import {
@@ -17,6 +19,27 @@ import './BroadcastRecordingPrompt.css';
 
 const PENDING_RECORDING_DECISION_KEY = '__echooPendingBroadcastRecording';
 const SAVED_AUTO_DISMISS_MS = 5000;
+
+// Server error codes mapped to creator-safe language. Raw backend error
+// text is never rendered directly; every recovery code gets plain language.
+const friendlyRecoveryMessage = (error, recording) => {
+  switch (error?.code) {
+    case 'RECORDING_WAITING_FOR_NETWORK':
+      return 'Recording is safe on this device. Echoo will continue saving when your connection returns.';
+    case 'BROADCAST_STILL_LIVE':
+      return 'This broadcast still looks live in another session, so Echoo left it untouched. End it there first — your local master stays safe here.';
+    case 'RECOVERY_FORBIDDEN':
+      return 'This recording belongs to a different creator account. Sign in as that creator to save it, or download a copy below.';
+    case 'BROADCAST_NOT_FOUND':
+      return 'Echoo could not find this broadcast on the server. Your local file is preserved — download a copy below so it is never lost.';
+    case 'BROADCAST_NOT_RECOVERABLE':
+      return 'This broadcast never went live, so the recording cannot be linked to it. Your local file is preserved — download a copy below.';
+    default:
+      return recording?.qualityCompletionPending
+        ? 'Echoo is still confirming the final recording data. Your local master is protected; retry saving.'
+        : 'Echoo could not save this recording yet. Your local master is protected; retry saving.';
+  }
+};
 
 const readRecoveredPendingRecording = () => {
   if (typeof window === 'undefined') return null;
@@ -83,6 +106,7 @@ const BroadcastRecordingPrompt = () => {
   const [pending, setPending] = useState(readRecoveredPendingRecording);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [errorCode, setErrorCode] = useState('');
   const [saved, setSaved] = useState(false);
   const [savedRecordingId, setSavedRecordingId] = useState('');
   const [retryToken, setRetryToken] = useState(0);
@@ -124,6 +148,7 @@ const BroadcastRecordingPrompt = () => {
       rememberPendingRecording(detail);
       setPending(detail);
       setError('');
+      setErrorCode('');
       setSaved(false);
       setSavedRecordingId('');
       setRetryToken(0);
@@ -185,6 +210,7 @@ const BroadcastRecordingPrompt = () => {
       try {
         setSaving(true);
         setError('');
+        setErrorCode('');
         const uploadResponse = await autosaveFinishedRecording({ recording, broadcast });
         rememberPendingRecording({ ...pending, recording });
 
@@ -202,11 +228,8 @@ const BroadcastRecordingPrompt = () => {
         }
 
         setSaving(false);
-        setError(
-          recording.qualityCompletionPending
-            ? saveError?.message || 'Echoo is still confirming the final recording data. Your local master is protected; retry saving.'
-            : saveError?.message || 'Echoo could not save this recording yet. Your local master is protected; retry saving.'
-        );
+        setError(friendlyRecoveryMessage(saveError, recording));
+        setErrorCode(saveError?.code || '');
       }
     };
 
@@ -279,6 +302,35 @@ const BroadcastRecordingPrompt = () => {
     window.addEventListener('beforeunload', protectPendingRecording);
     return () => window.removeEventListener('beforeunload', protectPendingRecording);
   }, [pending, saved]);
+
+  // Network recovery is event-driven, never a polling loop: when the save
+  // failed for lack of connectivity, retry once when the browser reports
+  // the connection is back. Manual "Retry saving" always remains available.
+  useEffect(() => {
+    if (!pending || saved || !error || errorCode !== 'RECORDING_WAITING_FOR_NETWORK') return undefined;
+    const handleOnline = () => setRetryToken((value) => value + 1);
+    window.addEventListener('online', handleOnline);
+    return () => window.removeEventListener('online', handleOnline);
+  }, [pending, saved, error, errorCode]);
+
+  // Manual escape hatch: the creator can always keep a device copy of the
+  // recovered master. Downloading never clears OPFS — only a server READY
+  // (markSaved) does that.
+  const downloadLocalCopy = useCallback(() => {
+    const recording = pending?.recording;
+    if (!recording?.blob?.size || typeof window === 'undefined') return;
+    const extension = recording.lossless || recording.mimeType === 'audio/wav'
+      ? 'wav'
+      : String(recording.mimeType || '').includes('ogg') ? 'ogg' : 'webm';
+    const url = URL.createObjectURL(recording.blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = recording.filename || `echoo-recovered-recording.${extension}`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 5000);
+  }, [pending]);
 
   if (!pending) return null;
 
@@ -379,12 +431,25 @@ const BroadcastRecordingPrompt = () => {
               onClick={() => setRetryToken((value) => value + 1)}
               disabled={saving || !error}
             >
-              <FaSyncAlt />
+              {errorCode === 'RECORDING_WAITING_FOR_NETWORK' ? <FaWifi /> : <FaSyncAlt />}
               <span>
                 <strong>{saving ? 'Saving…' : error ? 'Retry saving' : 'Saving automatically…'}</strong>
                 <small>Your Recording stays private until you choose to publish it later from Recordings.</small>
               </span>
             </button>
+            {error && (
+              <button
+                type="button"
+                className="secondary"
+                onClick={downloadLocalCopy}
+              >
+                <FaDownload />
+                <span>
+                  <strong>Download {recording?.lossless ? 'WAV' : 'recording'} copy</strong>
+                  <small>Keep a device copy now. This never deletes the protected master.</small>
+                </span>
+              </button>
+            )}
           </div>
         )}
 

@@ -253,6 +253,21 @@
   background: #f2f5ff;
 }
 
+.echoo-recording-options button.secondary {
+  border-color: #b9c8ff;
+  background: #f7f9ff;
+}
+
+.echoo-recording-options button.secondary > svg {
+  background: #eaf0ff;
+  color: #265dff;
+}
+
+.echoo-recording-options button.secondary:hover:not(:disabled) {
+  border-color: #7f9bff;
+  background: #f2f5ff;
+}
+
 .echoo-recording-options > button:disabled {
   opacity: .62;
   cursor: wait;

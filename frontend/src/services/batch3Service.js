@@ -382,6 +382,15 @@ const batch3Service = {
   getProcessing: async (broadcastId) =>
     apiRequest(`/broadcasts/${encodeURIComponent(broadcastId)}/processing`),
 
+  // Recording-recovery reconciliation: asks the backend to safely finalize an
+  // interrupted broadcast lifecycle (or return the already-linked replay) so
+  // a recovered OPFS master can be saved exactly once. Never creates a
+  // broadcast; never duplicates a replay.
+  recoverBroadcast: async (broadcastId) =>
+    apiRequest(`/broadcasts/${encodeURIComponent(broadcastId)}/recover`, {
+      method: 'POST',
+    }),
+
   updateAssetVisibility: async (broadcastId, values) =>
     apiRequest(`/broadcasts/${encodeURIComponent(broadcastId)}/asset-visibility`, {
       method: 'PATCH',

@@ -41,6 +41,7 @@ import {
   startBroadcastAudioChunks,
   uploadBroadcastAudioChunk,
 } from '../controllers/broadcastChunkController.js';
+import { recoverBroadcast } from '../controllers/broadcastRecoveryController.js';
 import {
   beginTranscriptReview,
   discardReplay,
@@ -130,6 +131,7 @@ router.post('/:broadcastId/confirm-live', authenticate, requireCreator, confirmB
 router.post('/:broadcastId/pause', authenticate, requireCreator, pauseBroadcast);
 router.post('/:broadcastId/resume', authenticate, requireCreator, resumeBroadcast);
 router.post('/:broadcastId/end', authenticate, requireCreator, endBroadcast);
+router.post('/:broadcastId/recover', authenticate, requireCreator, recoverBroadcast);
 router.get('/:broadcastId/processing', authenticate, requireCreator, getProcessingStatus);
 router.patch('/:broadcastId/asset-visibility', authenticate, requireCreator, updateAssetVisibility);
 router.post('/:broadcastId/discard-replay', authenticate, requireCreator, discardReplay);

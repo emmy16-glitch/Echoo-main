@@ -42,12 +42,16 @@ test('Recording Saved is gated by real backend completion and real upload succes
   const finalizeSection = service.slice(finalizeStart, service.indexOf('getProcessing:', finalizeStart));
   const apiCompletion = realtimeSection.indexOf("/end`");
   const readyAnnouncement = finalizeSection.indexOf('announceFinishedBroadcastRecording');
-  const uploadCompletion = autosave.indexOf('return studioService.uploadAudio');
+  const uploadCompletion = autosave.indexOf('return uploadWithRecovery');
+  const uploadSendsToBackend = autosave.indexOf('studioService.uploadAudio');
+  const recoveryReconcilesOnce = autosave.indexOf('batch3Service.recoverBroadcast');
   const savedState = prompt.indexOf('markSaved(String');
 
   assert.ok(apiCompletion >= 0);
   assert.ok(readyAnnouncement >= 0);
   assert.ok(uploadCompletion >= 0);
+  assert.ok(uploadSendsToBackend >= 0);
+  assert.ok(recoveryReconcilesOnce >= 0);
   assert.match(prompt, /await autosaveFinishedRecording/);
   assert.ok(savedState >= 0);
   assert.match(prompt, /Recording saved!/);
