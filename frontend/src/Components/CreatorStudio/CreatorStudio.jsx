@@ -20,6 +20,11 @@ import echooDecorativeLogo from '../Assets/echoo-logo.png';
 import studioService from '../../services/studioService';
 import { api } from '../../services/api';
 import { buildGeneratedAudioCoverUrl } from '../../audioCover/audioCover';
+import {
+  formatElapsedTime,
+  transferProgressText,
+  updateTransferEstimate,
+} from '../../services/progressTiming';
 import ListenerLiveConnected from '../ListenerLive/ListenerLiveConnected';
 import CreatorDiscoverWorkspace from './CreatorDiscoverWorkspace';
 import { CreatorStudioStateProvider } from './CreatorStudioState';
@@ -128,6 +133,7 @@ const CreatorStudioBody = () => {
   );
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(null);
   const [uploadForm, setUploadForm] = useState(EMPTY_UPLOAD);
 
   const creatorSetup = useMemo(() => readJson('creatorSetup', {}), []);
@@ -211,6 +217,19 @@ const CreatorStudioBody = () => {
     mainScrollRef.current?.scrollTo({ top: 0, left: 0, behavior: 'auto' });
   }, [activeNav]);
 
+  useEffect(() => {
+    if (!uploading || !uploadProgress?.startedAt) return undefined;
+    const interval = window.setInterval(() => {
+      setUploadProgress((current) => current?.startedAt
+        ? {
+            ...current,
+            elapsedSeconds: Math.max(0, (Date.now() - current.startedAt) / 1000),
+          }
+        : current);
+    }, 1000);
+    return () => window.clearInterval(interval);
+  }, [uploading, uploadProgress?.startedAt]);
+
   const navigateStudio = (page) => {
     let target = page;
     if (page === 'Home' || page === 'Studio') target = 'Broadcast';
@@ -231,6 +250,7 @@ const CreatorStudioBody = () => {
   const openUpload = () => {
     setError('');
     setNotice('');
+    setUploadProgress(null);
     setUploadForm({ ...EMPTY_UPLOAD });
     setUploadOpen(true);
   };
@@ -238,6 +258,7 @@ const CreatorStudioBody = () => {
   const closeUpload = () => {
     if (!uploading) {
       setUploadOpen(false);
+      setUploadProgress(null);
       setUploadForm({ ...EMPTY_UPLOAD });
     }
   };
@@ -316,7 +337,14 @@ const CreatorStudioBody = () => {
       setUploading(true);
       setError('');
       setNotice('');
-      await studioService.uploadAudio({
+      setUploadProgress({
+        stage: 'uploading',
+        ...updateTransferEstimate(null, {
+          loaded: 0,
+          total: uploadForm.file.size || 0,
+        }),
+      });
+      await studioService.uploadAudioWithProgress({
         file: uploadForm.file,
         coverFile: uploadForm.coverFile,
         title: uploadForm.title.trim(),
@@ -324,13 +352,35 @@ const CreatorStudioBody = () => {
         genre: uploadForm.genre,
         tags: uploadForm.tags.split(',').map((tag) => tag.trim()).filter(Boolean),
         isPublic: uploadForm.isPublic,
+        onProgress: ({ loaded, total }) => {
+          setUploadProgress((current) => {
+            const next = updateTransferEstimate(current, { loaded, total });
+            return {
+              ...current,
+              ...next,
+              stage: next.percent >= 100 ? 'verifying' : 'uploading',
+            };
+          });
+        },
       });
+      setUploadProgress((current) => ({
+        ...(current || {}),
+        stage: 'done',
+        percent: 100,
+        completedAt: Date.now(),
+      }));
       setUploadOpen(false);
+      setUploadProgress(null);
       setUploadForm({ ...EMPTY_UPLOAD });
       setNotice('Audio uploaded successfully.');
       window.dispatchEvent(new CustomEvent('echoo:creator-state-changed'));
       setRefreshKey((value) => value + 1);
     } catch (uploadError) {
+      setUploadProgress((current) => ({
+        ...(current || {}),
+        stage: navigator.onLine === false ? 'waiting-network' : 'error',
+        message: uploadError?.message || 'Could not upload audio.',
+      }));
       setError(uploadError?.message || 'Could not upload audio.');
     } finally {
       setUploading(false);
@@ -589,10 +639,47 @@ const CreatorStudioBody = () => {
                 </div>
               </div>
 
+              {uploadProgress && (
+                <div className={`studio-upload-progress is-${uploadProgress.stage}`} role="status" aria-live="polite">
+                  <div>
+                    <strong>
+                      {uploadProgress.stage === 'waiting-network'
+                        ? 'Waiting for connection'
+                        : uploadProgress.stage === 'error'
+                          ? 'Upload needs attention'
+                          : uploadProgress.stage === 'verifying'
+                            ? 'Upload complete — verifying'
+                            : 'Uploading audio'}
+                    </strong>
+                    <span>
+                      {uploadProgress.stage === 'uploading'
+                        ? `${Math.max(0, Math.min(100, Math.round(uploadProgress.percent || 0)))}%`
+                        : `${formatElapsedTime(uploadProgress.elapsedSeconds || 0)} elapsed`}
+                    </span>
+                  </div>
+                  {['uploading', 'verifying'].includes(uploadProgress.stage) && (
+                    <i><b style={{ width: `${Math.max(2, Math.min(100, uploadProgress.percent || 0))}%` }} /></i>
+                  )}
+                  <small>
+                    {uploadProgress.stage === 'waiting-network'
+                      ? 'Your source file is unchanged. Retry when your connection returns.'
+                      : uploadProgress.stage === 'error'
+                        ? uploadProgress.message || 'Please retry.'
+                        : uploadProgress.stage === 'verifying'
+                          ? `Server verification in progress · ${formatElapsedTime(uploadProgress.elapsedSeconds || 0)} elapsed`
+                          : transferProgressText(uploadProgress)}
+                  </small>
+                </div>
+              )}
+
               <div className="studio-upload-actions">
                 <button type="button" onClick={closeUpload} disabled={uploading}>Cancel</button>
                 <button type="submit" className="primary" disabled={uploading || !uploadForm.file || !uploadForm.title.trim()}>
-                  {uploading ? 'Uploading...' : uploadForm.isPublic ? 'Upload & publish' : 'Save privately'}
+                  {uploading
+                    ? uploadProgress?.stage === 'verifying'
+                      ? 'Verifying…'
+                      : `Uploading ${Math.max(0, Math.min(100, Math.round(uploadProgress?.percent || 0)))}%`
+                    : uploadForm.isPublic ? 'Upload & publish' : 'Save privately'}
                 </button>
               </div>
             </form>
