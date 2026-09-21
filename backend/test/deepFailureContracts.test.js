@@ -179,7 +179,7 @@ test('recording management keeps trim copies safe and prevents cramped or mislab
   assert.match(exportService, /sourceMime\.includes\('webm'\)/);
   assert.match(exportService, /suggestedName:\s*filename/);
   assert.doesNotMatch(exportService, /suggestedName:\s*suggestedInLibrary/);
-  assert.match(studioService, /original\.replace\/\\\.\[\^\/\.\]\+\$\//);
+  assert.match(studioService, /const originalStem = original/);
   assert.match(studioService, /canonical server copy may have been transcoded/);
 
   assert.doesNotMatch(
