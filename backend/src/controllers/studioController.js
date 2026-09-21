@@ -266,8 +266,16 @@ export async function getContentList(req, res, next) {
         .skip(skip)
         .limit(limit)
         .select(
-          'title description createdAt duration playCount likeCount genre isPublic coverArt artist'
-        ),
+          'title description createdAt updatedAt duration playCount likeCount genre tags isPublic visibility publicationStatus coverArt artist sourceBroadcast originalName mimeType fileSize'
+        )
+        .populate({
+          path: 'sourceBroadcast',
+          select: 'title status assetStatus assetVisibility endedAt station',
+          populate: {
+            path: 'station',
+            select: 'name category',
+          },
+        }),
       Audio.countDocuments(filter),
     ]);
 
@@ -281,10 +289,36 @@ export async function getContentList(req, res, next) {
           plays: track.playCount || 0,
           likes: track.likeCount || 0,
           genre: track.genre,
+          tags: track.tags || [],
           isPublic: track.isPublic,
+          visibility: track.visibility,
+          publicationStatus: track.publicationStatus,
           fileUrl: ownerPlaybackUrl(track),
           coverArt: track.coverArt,
+          originalName: track.originalName,
+          mimeType: track.mimeType,
+          fileSize: track.fileSize,
           createdAt: track.createdAt,
+          updatedAt: track.updatedAt,
+          stationName: track.sourceBroadcast?.station?.name || null,
+          category: track.sourceBroadcast?.station?.category || track.genre,
+          sourceBroadcast: track.sourceBroadcast
+            ? {
+                id: track.sourceBroadcast._id,
+                title: track.sourceBroadcast.title,
+                status: track.sourceBroadcast.status,
+                assetStatus: track.sourceBroadcast.assetStatus,
+                assetVisibility: track.sourceBroadcast.assetVisibility,
+                endedAt: track.sourceBroadcast.endedAt,
+                station: track.sourceBroadcast.station
+                  ? {
+                      id: track.sourceBroadcast.station._id,
+                      name: track.sourceBroadcast.station.name,
+                      category: track.sourceBroadcast.station.category,
+                    }
+                  : null,
+              }
+            : null,
         })),
         pagination: {
           page,
