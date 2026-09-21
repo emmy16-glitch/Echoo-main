@@ -1,0 +1,10 @@
+node_modules
+coverage
+mongo-data
+uploads
+data
+test
+*.log
+.env
+.env.*
+!.env.example
