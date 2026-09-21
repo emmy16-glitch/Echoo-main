@@ -43,7 +43,20 @@ const s3Config = () => ({
 
 const s3Configured = () => {
   const config = s3Config();
-  return Boolean(config.endpoint && config.bucket && config.accessKeyId && config.secretAccessKey && config.publicBase);
+  const credentialsReady = Boolean(
+    config.endpoint &&
+    config.bucket &&
+    config.accessKeyId &&
+    config.secretAccessKey
+  );
+  if (!credentialsReady) return false;
+
+  // Private buckets do not need a public base URL. Playback is authorized by
+  // Echoo first, then redirected to a short-lived signed S3 URL using cloudKey.
+  if (!isCloudBucketPublic()) return true;
+
+  // Public buckets can redirect directly to their public object URL.
+  return Boolean(config.publicBase);
 };
 
 const runFfmpeg = (args, timeoutMs = 10 * 60 * 1000) =>
@@ -164,7 +177,10 @@ export async function uploadToObjectStorage(localPath, key, mimeType) {
       ContentType: mimeType,
     })
   );
-  return { url: `${config.publicBase}/${objectKey}`, objectKey };
+  return {
+    url: config.publicBase ? `${config.publicBase}/${objectKey}` : null,
+    objectKey,
+  };
 }
 
 // Buckets that cost nothing stay PRIVATE (Backblaze charges $1 to enable
