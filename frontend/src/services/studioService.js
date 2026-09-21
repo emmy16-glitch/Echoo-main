@@ -1,4 +1,11 @@
-import { apiFetch, apiRequest, buildMediaUrl } from "./api.js";
+import {
+  API_BASE_URL,
+  apiFetch,
+  apiRequest,
+  buildMediaUrl,
+  getCurrentAccessToken,
+  refreshSessionAccessToken,
+} from "./api.js";
 
 const readResponse = async (response) => {
   const contentType = response.headers.get("content-type") || "";
@@ -199,7 +206,39 @@ const studioService = {
       throw error;
     }
 
-    const blob = await response.blob();
+    const total = Math.max(0, Number(response.headers.get("content-length")) || 0);
+    const onProgress = typeof metadata?.onProgress === "function" ? metadata.onProgress : null;
+    let blob;
+
+    if (onProgress && response.body?.getReader) {
+      const reader = response.body.getReader();
+      const chunks = [];
+      let loaded = 0;
+      onProgress({ loaded: 0, total, percent: total > 0 ? 0 : null });
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value?.byteLength) {
+          chunks.push(value);
+          loaded += value.byteLength;
+          onProgress({
+            loaded,
+            total,
+            percent: total > 0 ? Math.max(0, Math.min(100, Math.round((loaded / total) * 100))) : null,
+          });
+        }
+      }
+
+      blob = new Blob(chunks, {
+        type: response.headers.get("content-type") || metadata?.mimeType || "application/octet-stream",
+      });
+      onProgress({ loaded: blob.size, total: total || blob.size, percent: 100 });
+    } else {
+      blob = await response.blob();
+      onProgress?.({ loaded: blob.size, total: total || blob.size, percent: 100 });
+    }
+
     const objectUrl = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = objectUrl;
@@ -248,6 +287,136 @@ const studioService = {
     });
 
     return readResponse(response);
+  },
+
+  uploadAudioWithProgress: async ({
+    file,
+    coverFile = null,
+    title,
+    description = "",
+    genre = "Other",
+    tags = [],
+    isPublic = true,
+    broadcastId = null,
+    onProgress,
+    timeoutMs = 120000,
+    retried = false,
+  }) => {
+    if (!file) throw new Error("Please choose an audio file.");
+    if (!API_BASE_URL) throw new Error("Echoo production API is not configured.");
+
+    const duration = await readAudioDuration(file);
+    const formData = new FormData();
+    formData.append("audio", file);
+    if (coverFile) formData.append("cover", coverFile);
+    formData.append("title", title?.trim() || file.name);
+    formData.append("description", String(description || "").trim());
+    formData.append("genre", genre || "Other");
+    formData.append("tags", JSON.stringify(Array.isArray(tags) ? tags : []));
+    formData.append("isPublic", isPublic ? "true" : "false");
+    if (duration > 0) formData.append("duration", String(duration));
+    if (broadcastId) formData.append("broadcastId", String(broadcastId));
+
+    const emit = (loaded, total) => {
+      try {
+        const percent = total > 0
+          ? Math.max(0, Math.min(100, Math.round((loaded / total) * 100)))
+          : null;
+        onProgress?.({ loaded, total, percent });
+      } catch {
+        // Progress observers must never break the transfer.
+      }
+    };
+
+    const sendOnce = (accessToken) => new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", `${API_BASE_URL}/audio/upload`);
+      if (accessToken) xhr.setRequestHeader("Authorization", `Bearer ${accessToken}`);
+      xhr.timeout = Math.max(10000, Number(timeoutMs) || 120000);
+      xhr.responseType = "text";
+      emit(0, file.size || 0);
+
+      if (xhr.upload) {
+        xhr.upload.onprogress = (event) => {
+          if (event?.lengthComputable) emit(event.loaded, event.total);
+          else emit(event?.loaded || 0, file.size || 0);
+        };
+      }
+
+      xhr.onload = () => {
+        const status = xhr.status || 0;
+        let data = null;
+        try {
+          const text = String(xhr.responseText || xhr.response || "");
+          data = text ? JSON.parse(text) : null;
+        } catch {
+          data = null;
+        }
+
+        if (status >= 200 && status < 300) {
+          emit(file.size || 0, file.size || 0);
+          resolve(data);
+          return;
+        }
+        if (status === 401 && !retried) {
+          resolve({ __echooRetryAuth: true });
+          return;
+        }
+
+        const error = new Error(
+          data?.error?.message || data?.message || `Upload failed (${status || "network"}).`
+        );
+        error.code = data?.error?.code || (status === 0 ? "UPLOAD_NETWORK_ERROR" : "UPLOAD_FAILED");
+        error.status = status;
+        reject(error);
+      };
+
+      xhr.onerror = () => {
+        const error = new Error("Network error during upload. Your local/source file is unchanged — check your connection and retry.");
+        error.code = "UPLOAD_NETWORK_ERROR";
+        error.status = 0;
+        reject(error);
+      };
+
+      xhr.ontimeout = () => {
+        const error = new Error("Upload timed out. Your source file is unchanged — retry on a stronger connection.");
+        error.code = "UPLOAD_TIMEOUT";
+        error.status = 0;
+        reject(error);
+      };
+
+      xhr.onabort = () => {
+        const error = new Error("Upload was cancelled.");
+        error.code = "UPLOAD_ABORTED";
+        error.status = 0;
+        reject(error);
+      };
+
+      xhr.send(formData);
+    });
+
+    const first = await sendOnce(getCurrentAccessToken());
+    if (first && first.__echooRetryAuth && !retried) {
+      const fresh = await refreshSessionAccessToken().catch(() => "");
+      const second = await sendOnce(fresh || getCurrentAccessToken());
+      if (second && second.__echooRetryAuth) {
+        const error = new Error("Your session has expired. Please log in again.");
+        error.code = "SESSION_EXPIRED";
+        error.status = 401;
+        throw error;
+      }
+      if (!second || second.__echooRetryAuth) throw new Error("Upload failed.");
+      return second;
+    }
+
+    if (first && first.__echooRetryAuth) {
+      const error = new Error("Your session has expired. Please log in again.");
+      error.code = "SESSION_EXPIRED";
+      error.status = 401;
+      throw error;
+    }
+
+    return first;
   },
 };
 
