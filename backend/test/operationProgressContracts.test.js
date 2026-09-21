@@ -56,6 +56,19 @@ test('timing copy remains human-readable and never invents an ETA without rate d
   assert.match(text, /5\.0 MB of 10\.0 MB/);
   assert.match(text, /50%/);
   assert.match(text, /estimating time left/);
+
+  const staleText = transferProgressText({
+    loaded: 5 * 1024 * 1024,
+    total: 10 * 1024 * 1024,
+    percent: 50,
+    elapsedSeconds: 12,
+    bytesPerSecond: 1024 * 1024,
+    etaSeconds: 5,
+    lastAt: 1000,
+  }, 8000);
+  assert.doesNotMatch(staleText, /\/s/);
+  assert.doesNotMatch(staleText, /left/);
+  assert.match(staleText, /waiting for transfer data/);
 });
 
 test('Creator Broadcast shows elapsed stages and byte-based recording ETA', async () => {
@@ -93,6 +106,8 @@ test('manual Creator upload uses measurable XHR progress instead of a spinner-on
   assert.match(studio, /transferProgressText\(uploadProgress\)/);
   assert.match(studio, /Uploading \$\{/);
   assert.match(studio, /Upload complete — verifying/);
+  assert.match(studio, /backgroundRecordingProgress/);
+  assert.match(studio, /Saving recording in background/);
 });
 
 test('recording downloads stream progress when response bodies are readable', async () => {
