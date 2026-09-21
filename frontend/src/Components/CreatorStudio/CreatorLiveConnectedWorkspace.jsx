@@ -147,6 +147,7 @@ const CreatorLiveConnectedWorkspace = ({
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [recordingProgress, setRecordingProgress] = useState(null);
+  const [sessionOperation, setSessionOperation] = useState(null);
   const endBroadcastButtonRef = useRef(null);
   const endBroadcastDialogRef = useRef(null);
   const endingDialogRef = useRef(null);
@@ -292,6 +293,7 @@ const CreatorLiveConnectedWorkspace = ({
       const status = String(detail.status || '');
 
       if (status === 'started') {
+        setSessionOperation(null);
         setRecordingProgress({
           key: detail.key,
           title: detail.title || 'Broadcast recording',
@@ -386,6 +388,19 @@ const CreatorLiveConnectedWorkspace = ({
     }, 1000);
     return () => window.clearInterval(ticker);
   }, [recordingProgress?.stage, recordingProgress?.startedAt]);
+
+  useEffect(() => {
+    if (!sessionOperation?.startedAt) return undefined;
+    const ticker = window.setInterval(() => {
+      setSessionOperation((current) => current?.startedAt
+        ? {
+            ...current,
+            elapsedSeconds: Math.max(0, (Date.now() - current.startedAt) / 1000),
+          }
+        : current);
+    }, 1000);
+    return () => window.clearInterval(ticker);
+  }, [sessionOperation?.startedAt, sessionOperation?.stage]);
 
   useEffect(() => {
     const onOffline = () => {
@@ -628,11 +643,21 @@ const CreatorLiveConnectedWorkspace = ({
     try {
       setGoingLive(true);
       setError('');
-      setMessage('Connecting your live room…');
+      setSessionOperation({
+        kind: 'go-live',
+        stage: 'preparing',
+        startedAt: Date.now(),
+        elapsedSeconds: 0,
+      });
+      setMessage('Preparing your broadcast…');
       setMixerState(liveMixerSnapshot);
       const prepareStartedAt = performance.now();
       broadcast = await prepareImmediateBroadcast(liveMixerSnapshot);
       const preparedAt = performance.now();
+      setSessionOperation((current) => current
+        ? { ...current, stage: 'opening-room' }
+        : current);
+      setMessage('Opening the live audio room…');
 
       let connection = null;
       if (broadcast.status === 'starting') {
@@ -648,6 +673,11 @@ const CreatorLiveConnectedWorkspace = ({
       if (!connection?.token || !liveKitUrl) {
         throw new Error('Echoo could not open the live audio room.');
       }
+
+      setSessionOperation((current) => current
+        ? { ...current, stage: 'publishing-audio' }
+        : current);
+      setMessage('Connecting your audio to listeners…');
 
       const publishResult = await startLiveKitPublishing({
         url: liveKitUrl,
@@ -673,6 +703,7 @@ const CreatorLiveConnectedWorkspace = ({
         (item) => String(item.id) === String(liveBroadcast.id) ? liveBroadcast : item
       ));
       setMessage('You are live.');
+      setSessionOperation(null);
       clearPreparedBroadcast();
       window.dispatchEvent(new CustomEvent('echoo:creator-state-changed'));
       console.info('[Echoo Perf] go-live', {
@@ -703,6 +734,7 @@ const CreatorLiveConnectedWorkspace = ({
       // Clear the in-progress notice — otherwise "Connecting your live room…"
       // lingers under the error after a failed attempt.
       setMessage('');
+      setSessionOperation(null);
       setError(liveError?.message || 'Echoo could not start the broadcast.');
     } finally {
       setGoingLive(false);
@@ -755,14 +787,23 @@ const CreatorLiveConnectedWorkspace = ({
       setConfirmEndOpen(false);
       setEnding(true);
       setError('');
-      setMessage('Ending broadcast…');
+      setSessionOperation({
+        kind: 'end-broadcast',
+        stage: 'stopping-live-audio',
+        startedAt: Date.now(),
+        elapsedSeconds: 0,
+      });
+      setMessage('Stopping live audio…');
 
       // Realtime shutdown is first. Recording flush deliberately follows it.
       const backendEnd = batch3Service.endBroadcastRealtime(broadcastId);
       const unpublishStartedAt = performance.now();
       await stopLiveKitPublishing();
       setMasterMuted(false);
-      markOffAir('Broadcast audio stopped. Saving your recording…');
+      markOffAir('Broadcast audio stopped. Finalizing your local master…');
+      setSessionOperation((current) => current
+        ? { ...current, stage: 'finalizing-local-master' }
+        : current);
       setEnding(false);
       console.info('[Echoo Perf] end-broadcast realtime stopped', {
         timeToUnpublishMs: Math.round(performance.now() - unpublishStartedAt),
@@ -778,9 +819,20 @@ const CreatorLiveConnectedWorkspace = ({
           setError('Broadcast audio stopped, but Echoo could not finalize the server session. Retry cleanup from Broadcast settings.');
           console.warn('[Echoo Live] server end failed after local unpublish:', backendError?.message || backendError);
         }
+        setSessionOperation((current) => current
+          ? { ...current, stage: 'preparing-server-save' }
+          : current);
         const recordingResult = await batch3Service.finalizeBroadcastRecording(broadcastId, endedResponse?.data || broadcastSnapshot);
         if (!recordingResult.recordingReady) {
+          setSessionOperation((current) => current
+            ? { ...current, stage: 'local-safe' }
+            : current);
           setError((current) => current || RECORDING_FINALIZATION_WARNING);
+        } else {
+          // The upload event takes over the visible progress from here.
+          window.setTimeout(() => {
+            setSessionOperation((current) => current?.kind === 'end-broadcast' ? null : current);
+          }, 1200);
         }
         console.info('[Echoo Perf] end-broadcast', {
           timeToOffAirMs: Math.round(performance.now() - endStartedAt),
@@ -789,6 +841,7 @@ const CreatorLiveConnectedWorkspace = ({
         });
       })();
     } catch (endError) {
+      setSessionOperation(null);
       setError(endError?.message || 'Could not end the broadcast.');
       setMessage('');
     } finally {
@@ -941,6 +994,38 @@ const CreatorLiveConnectedWorkspace = ({
       {error && <div className="ec2-notice" role="alert">{error}</div>}
       {message && message !== 'You are live.' && (
         <div className="ec2-notice ec2-notice--info" role="status">{message}</div>
+      )}
+
+      {sessionOperation && (
+        <div className="ec2-operation-progress" role="status" aria-live="polite">
+          <div className="ec2-operation-progress__head">
+            <strong>
+              {sessionOperation.stage === 'preparing'
+                ? 'Preparing broadcast'
+                : sessionOperation.stage === 'opening-room'
+                  ? 'Opening live audio room'
+                  : sessionOperation.stage === 'publishing-audio'
+                    ? 'Connecting audio to listeners'
+                    : sessionOperation.stage === 'stopping-live-audio'
+                      ? 'Stopping live audio'
+                      : sessionOperation.stage === 'finalizing-local-master'
+                        ? 'Finalizing local recording master'
+                        : sessionOperation.stage === 'preparing-server-save'
+                          ? 'Preparing recording for server save'
+                          : 'Recording is safe locally'}
+            </strong>
+            <span>{formatElapsedTime(sessionOperation.elapsedSeconds || 0)} elapsed</span>
+          </div>
+          <small>
+            {sessionOperation.stage === 'local-safe'
+              ? 'The local master is protected. Echoo is waiting for a successful server save before cleanup.'
+              : sessionOperation.stage === 'publishing-audio'
+                ? 'Echoo is waiting for the live audio publication to become usable by listeners.'
+                : sessionOperation.stage === 'finalizing-local-master'
+                  ? 'The live room is already off air. Echoo is closing and validating the local recording.'
+                  : 'This stage has no trustworthy percentage, so Echoo shows elapsed time instead.'}
+          </small>
+        </div>
       )}
 
       {recordingProgress && !['done', 'error'].includes(recordingProgress.stage) && (
