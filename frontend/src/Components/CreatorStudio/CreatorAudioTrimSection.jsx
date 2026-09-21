@@ -64,14 +64,6 @@ const CreatorAudioTrimSection = ({ track, onChanged, onClose, onNotice }) => {
   });
   const selectedFormat = availableFormats.find((option) => option.id === pcFormat) || availableFormats[0] || null;
 
-  useEffect(() => {
-    if (!availableFormats.length) return;
-    if (!availableFormats.some((option) => option.id === pcFormat)) {
-      setPcFormat(availableFormats[0].id);
-      setPcMessage('');
-    }
-  }, [trackId, localMasterMime, pcFormat]);
-
   useEffect(() => () => {
     window.clearTimeout(previewTimerRef.current);
     try { previewAudioRef.current?.pause(); } catch { /* noop */ }
@@ -189,7 +181,7 @@ const CreatorAudioTrimSection = ({ track, onChanged, onClose, onNotice }) => {
     setPcMessage('');
     try {
       let audioId = id;
-      if (pcFormat === 'mp3' && id) {
+      if (selectedFormat.id === 'mp3' && id) {
         setMp3Ready(false);
         await waitForServerMp3(id, { attempts: 6, delayMs: 2500 }).catch(() => {});
         setMp3Ready(true);
@@ -339,7 +331,7 @@ const CreatorAudioTrimSection = ({ track, onChanged, onClose, onNotice }) => {
                   type="radio"
                   name={`echoo-device-format-${trackId}`}
                   value={option.id}
-                  checked={pcFormat === option.id}
+                  checked={selectedFormat?.id === option.id}
                   onChange={() => {
                     setPcFormat(option.id);
                     setPcMessage('');
