@@ -393,9 +393,13 @@ const ListenerV2Layout = () => {
       setPlayerError('Choose an audio track first.');
       return;
     }
-    if (audio.paused) void playAudioElement(audio);
-    else audio.pause();
-  }, [currentTrack?.fileUrl, playAudioElement]);
+    if (audio.paused) {
+      if (playbackState === 'error') audio.load();
+      void playAudioElement(audio);
+    } else {
+      audio.pause();
+    }
+  }, [currentTrack?.fileUrl, playbackState, playAudioElement]);
 
   const seekTo = useCallback((seconds) => {
     const audio = audioRef.current;
@@ -566,9 +570,18 @@ const ListenerV2Layout = () => {
           <span className="listener-v2-player-art"><Artwork src={currentTrack.coverArt} /></span>
           <div className="listener-v2-player-copy">
             <strong>{currentTrack.title}</strong>
-            <span role={playerError ? 'alert' : undefined}>{playerError || currentTrack.subtitle}</span>
+            <span role={playerError ? 'alert' : undefined}>
+              {playerError || (playbackState === 'buffering' ? 'Buffering…' : currentTrack.subtitle)}
+            </span>
           </div>
-          <button type="button" className="listener-v2-player-play" onClick={togglePlay} aria-label={isPlaying ? 'Pause' : 'Play'}>{isPlaying ? <FiPause /> : <FiPlay />}</button>
+          <button
+            type="button"
+            className="listener-v2-player-play"
+            onClick={togglePlay}
+            aria-label={playerError ? 'Retry playback' : isPlaying ? 'Pause' : 'Play'}
+          >
+            {isPlaying ? <FiPause /> : <FiPlay />}
+          </button>
           <div className="listener-v2-player-progress"><span style={{ width: `${duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0}%` }} /></div>
         </section>
       )}
