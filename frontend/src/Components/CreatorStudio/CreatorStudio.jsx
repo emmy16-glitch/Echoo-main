@@ -59,6 +59,7 @@ const EMPTY_UPLOAD = {
 };
 
 const MAX_COVER_SIZE = 5 * 1024 * 1024;
+const RECORDING_UPLOAD_EVENT = 'echoo:recording-upload';
 const COVER_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const AUDIO_EXTENSIONS = new Set([
   'mp3', 'm4a', 'aac', 'wav', 'ogg', 'oga', 'opus', 'flac', 'webm',
@@ -134,6 +135,7 @@ const CreatorStudioBody = () => {
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(null);
+  const [backgroundRecordingProgress, setBackgroundRecordingProgress] = useState(null);
   const [uploadForm, setUploadForm] = useState(EMPTY_UPLOAD);
 
   const creatorSetup = useMemo(() => readJson('creatorSetup', {}), []);
@@ -212,6 +214,101 @@ const CreatorStudioBody = () => {
     window.addEventListener('echoo:creator-audio-changed', onCreatorAudioChanged);
     return () => window.removeEventListener('echoo:creator-audio-changed', onCreatorAudioChanged);
   }, []);
+
+  useEffect(() => {
+    const onRecordingUpload = (event) => {
+      const detail = event?.detail || {};
+      const status = String(detail.status || '');
+
+      if (status === 'started') {
+        setBackgroundRecordingProgress({
+          key: detail.key,
+          title: detail.title || 'Broadcast recording',
+          stage: 'uploading',
+          ...updateTransferEstimate(null, {
+            loaded: 0,
+            total: detail.total || 0,
+          }),
+        });
+        return;
+      }
+
+      if (status === 'progress') {
+        setBackgroundRecordingProgress((current) => {
+          if (current?.key && detail.key && current.key !== detail.key) return current;
+          const next = updateTransferEstimate(current, {
+            loaded: detail.loaded || 0,
+            total: detail.total || current?.total || 0,
+          });
+          return {
+            ...(current || {}),
+            ...next,
+            key: detail.key || current?.key,
+            title: detail.title || current?.title || 'Broadcast recording',
+            stage: next.percent >= 100 ? 'verifying' : 'uploading',
+          };
+        });
+        return;
+      }
+
+      if (status === 'done') {
+        setBackgroundRecordingProgress((current) => ({
+          ...(current || {}),
+          key: detail.key || current?.key,
+          title: detail.title || current?.title || 'Broadcast recording',
+          stage: 'done',
+          percent: 100,
+          completedAt: Date.now(),
+        }));
+        window.setTimeout(() => {
+          setBackgroundRecordingProgress((current) => current?.stage === 'done' ? null : current);
+        }, 4200);
+        return;
+      }
+
+      if (status === 'recovered') {
+        setBackgroundRecordingProgress({
+          key: detail.key || 'recovered',
+          title: detail.title || 'Recovered recording',
+          stage: 'recovered',
+          startedAt: Date.now(),
+          elapsedSeconds: 0,
+          percent: 0,
+          loaded: 0,
+          total: 0,
+        });
+        return;
+      }
+
+      if (status === 'error') {
+        setBackgroundRecordingProgress((current) => ({
+          ...(current || {}),
+          key: detail.key || current?.key,
+          title: detail.title || current?.title || 'Broadcast recording',
+          stage: navigator.onLine === false ? 'waiting-network' : 'error',
+          message: detail.message || 'Could not save this recording yet.',
+        }));
+      }
+    };
+
+    window.addEventListener(RECORDING_UPLOAD_EVENT, onRecordingUpload);
+    return () => window.removeEventListener(RECORDING_UPLOAD_EVENT, onRecordingUpload);
+  }, []);
+
+  useEffect(() => {
+    if (!backgroundRecordingProgress?.startedAt || ['done', 'error'].includes(backgroundRecordingProgress.stage)) {
+      return undefined;
+    }
+    const interval = window.setInterval(() => {
+      setBackgroundRecordingProgress((current) => current?.startedAt
+        ? {
+            ...current,
+            elapsedSeconds: Math.max(0, (Date.now() - current.startedAt) / 1000),
+          }
+        : current);
+    }, 1000);
+    return () => window.clearInterval(interval);
+  }, [backgroundRecordingProgress?.stage, backgroundRecordingProgress?.startedAt]);
 
   useEffect(() => {
     mainScrollRef.current?.scrollTo({ top: 0, left: 0, behavior: 'auto' });
@@ -541,6 +638,49 @@ const CreatorStudioBody = () => {
 
         {error && <div className="studio-alert error"><FaExclamationCircle /><span>{error}</span><button type="button" onClick={() => setError('')}><FaTimes /></button></div>}
         {notice && <div className="studio-alert success"><FaCloudUploadAlt /><span>{notice}</span><button type="button" onClick={() => setNotice('')}><FaTimes /></button></div>}
+
+        {backgroundRecordingProgress && !['Broadcast', 'Recordings'].includes(activeNav) && (
+          <div className={`studio-global-progress is-${backgroundRecordingProgress.stage}`} role="status" aria-live="polite">
+            <div className="studio-global-progress__head">
+              <strong>
+                {backgroundRecordingProgress.stage === 'done'
+                  ? 'Recording saved safely'
+                  : backgroundRecordingProgress.stage === 'error'
+                    ? 'Recording save needs attention'
+                    : backgroundRecordingProgress.stage === 'waiting-network'
+                      ? 'Waiting for connection'
+                      : backgroundRecordingProgress.stage === 'recovered'
+                        ? 'Recovered recording is protected locally'
+                        : backgroundRecordingProgress.stage === 'verifying'
+                          ? 'Upload complete — verifying server copy'
+                          : 'Saving recording in background'}
+              </strong>
+              <span>
+                {backgroundRecordingProgress.stage === 'uploading'
+                  ? `${Math.max(0, Math.min(100, Math.round(backgroundRecordingProgress.percent || 0)))}%`
+                  : `${formatElapsedTime(backgroundRecordingProgress.elapsedSeconds || 0)} elapsed`}
+              </span>
+            </div>
+            {['uploading', 'verifying'].includes(backgroundRecordingProgress.stage) && (
+              <div className="studio-global-progress__bar" aria-hidden="true">
+                <i style={{ width: `${Math.max(2, Math.min(100, backgroundRecordingProgress.percent || 0))}%` }} />
+              </div>
+            )}
+            <small>
+              {backgroundRecordingProgress.stage === 'waiting-network'
+                ? 'Your local master is safe. Echoo will continue when the connection is available.'
+                : backgroundRecordingProgress.stage === 'recovered'
+                  ? 'Echoo will keep the local safety master until the server copy is confirmed.'
+                  : backgroundRecordingProgress.stage === 'error'
+                    ? backgroundRecordingProgress.message || 'Open Recordings to retry.'
+                    : backgroundRecordingProgress.stage === 'verifying'
+                      ? `Server verification in progress · ${formatElapsedTime(backgroundRecordingProgress.elapsedSeconds || 0)} elapsed`
+                      : backgroundRecordingProgress.stage === 'done'
+                        ? backgroundRecordingProgress.title
+                        : transferProgressText(backgroundRecordingProgress)}
+            </small>
+          </div>
+        )}
 
         <div className="studio-view">{renderWorkspace()}</div>
         <footer className="studio-footer"><span>© 2026 Echoo.</span><span>Audio-first creator platform</span></footer>
