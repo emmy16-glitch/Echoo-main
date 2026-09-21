@@ -155,3 +155,32 @@ test('CI executes the browser audit and syntax-checks new security controllers',
   assert.match(workflow, /broadcastProcessingController\.js/);
   assert.match(workflow, /audioDownloadAccess\.js/);
 });
+
+
+test('recording management keeps trim copies safe and prevents cramped or mislabeled exports', async () => {
+  const trim = await frontendSource('src/Components/CreatorStudio/CreatorAudioTrimSection.jsx');
+  const modal = await frontendSource('src/Components/CreatorStudio/CreatorAudioDetailModal.jsx');
+  const modalCss = await frontendSource('src/Components/CreatorStudio/CreatorAudioDetailModal.css');
+  const recordingsCss = await frontendSource('src/Components/CreatorStudio/CreatorCollectionsWorkspace.css');
+  const exportService = await frontendSource('src/services/recordingExportService.js');
+
+  assert.doesNotMatch(trim, /studioService\.deleteAudio\(id\)/);
+  assert.match(trim, /Trimmed copy saved to Recordings\. The original is unchanged\./);
+  assert.match(trim, /availableFormats/);
+  assert.match(trim, /Export to this device/);
+  assert.match(modal, /Download stored file/);
+
+  assert.match(exportService, /Server MP3 is still being prepared/);
+  assert.match(exportService, /sourceMime\.includes\('wav'\)/);
+  assert.match(exportService, /sourceMime\.includes\('webm'\)/);
+  assert.match(exportService, /suggestedName:\s*filename/);
+  assert.doesNotMatch(exportService, /suggestedName:\s*suggestedInLibrary/);
+
+  assert.doesNotMatch(
+    modalCss,
+    /grid-template-columns:\s*minmax\(190px,\s*1fr\)\s*repeat\(2,\s*minmax\(120px,\s*150px\)\)\s*auto/
+  );
+  assert.match(modalCss, /\.creator-audio-trim\s*\{[\s\S]*grid-template-columns:\s*minmax\(0,\s*1\.18fr\)\s*minmax\(290px,\s*\.82fr\)/);
+  assert.match(modalCss, /\.creator-audio-device-formats\s*\{[\s\S]*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/);
+  assert.match(recordingsCss, /\.recordings-row\s*\{[\s\S]*grid-template-columns:\s*repeat\(2,minmax\(0,1fr\)\)/);
+});
