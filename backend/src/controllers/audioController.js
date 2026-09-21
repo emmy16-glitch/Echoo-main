@@ -672,11 +672,21 @@ export async function deleteAudio(req, res, next) {
         ? safeLocalMediaPath('audio-covers', path.basename(audio.coverArt))
         : null;
 
-    // Once the logical delete is durable, remove local bytes best-effort. The
-    // record remains as an audit/tombstone while old static URLs stop working.
+    // Once the logical delete is durable, remove backing bytes best-effort.
+    // Private object storage is cleaned as well so an already-issued signed
+    // URL cannot keep serving a recording after the object itself is deleted.
+    const cloudCleanup = audio.storage === 'cloud' && audio.cloudKey
+      ? import('../services/audioArchiveService.js')
+          .then(({ deleteCloudObject }) => deleteCloudObject(audio.cloudKey))
+          .catch((cloudError) => {
+            console.warn('[audio-delete] cloud cleanup warning:', cloudError?.message || cloudError);
+          })
+      : Promise.resolve();
+
     await Promise.all([
       removeLocalFile(audioPath),
       removeLocalFile(coverPath),
+      cloudCleanup,
     ]);
 
     return res.status(200).json({
