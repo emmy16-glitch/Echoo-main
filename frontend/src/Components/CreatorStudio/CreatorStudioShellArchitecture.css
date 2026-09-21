@@ -72,7 +72,7 @@
     overflow: visible !important;
     /* The shared header is sticky. Keep the broadcast hero visibly below it
        instead of allowing the hero's first row to sit under the header. */
-    padding-top: 22px !important;
+    padding-top: 18px !important;
   }
 
   html body #root .studio-page.studio-final-shell.studio-v2-shell > .studio-main::-webkit-scrollbar {
