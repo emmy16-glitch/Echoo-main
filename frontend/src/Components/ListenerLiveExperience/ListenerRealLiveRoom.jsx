@@ -661,7 +661,17 @@ const ListenerRealLiveRoom = () => {
           <img className="listener-v2-room-watermark" src={echooMark} alt="" aria-hidden="true" />
           {isLive && (
             <div className="listener-v2-room-waveform-wrap">
-              <BroadcastWaveform live={isLive} analyser={liveState?.analyser} />
+              <BroadcastWaveform
+                live={isLive}
+                analyser={liveState?.analyser}
+                mode={
+                  liveState?.isPlaying
+                    ? 'live'
+                    : hasProgramTrack
+                      ? 'paused'
+                      : 'idle'
+                }
+              />
             </div>
           )}
           <div className="listener-v2-room-artwork">

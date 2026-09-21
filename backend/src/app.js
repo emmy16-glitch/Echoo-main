@@ -34,6 +34,13 @@ import {
 } from './services/broadcastProcessingService.js';
 
 const app = express();
+
+// Staging/preview deployments sit behind local reverse proxies (Vite preview
+// proxy, Cloudflare tunnel) that set X-Forwarded-For. Trust loopback proxies
+// only, so express-rate-limit reads the real client IP instead of throwing
+// ERR_ERL_UNEXPECTED_X_FORWARDED_FOR on every request. Never trust arbitrary
+// upstream proxies.
+app.set('trust proxy', 'loopback');
 const PORT = env.port || 5017;
 
 const normalizeOrigin = (value = '') => String(value).trim().replace(/\/$/, '');

@@ -3,14 +3,20 @@ import { useEffect, useRef } from 'react';
 const BAR_COUNT = 56;
 
 /**
- * A deliberately lightweight visualiser. It remains gently active before a
- * source is connected, then takes its energy from the canonical mixer state.
+ * A deliberately lightweight visualiser with three honest states:
+ * - mode="live":   dances with the real analyser energy while audio plays.
+ * - mode="paused":  frozen flat bars — the source exists but is not playing.
+ * - mode="idle":    renders nothing — no fake dancing when there is no audio.
  * Canvas avoids turning audio-frame updates into React renders.
  */
-export default function BroadcastWaveform({ live = false, level = 0, analyser = null }) {
+export default function BroadcastWaveform({ live = false, level = 0, analyser = null, mode = null }) {
   const canvasRef = useRef(null);
   const levelRef = useRef(level);
   const analyserRef = useRef(analyser);
+
+  // Backwards compatible: callers that only pass `live` keep the old
+  // behaviour (animated while live). New callers pass an explicit mode.
+  const resolvedMode = mode || (live ? 'live' : 'idle');
 
   useEffect(() => {
     levelRef.current = Number(level) || 0;
@@ -61,7 +67,10 @@ export default function BroadcastWaveform({ live = false, level = 0, analyser = 
       }
 
       const baseEnergy = Math.min(1, Math.max(0, currentLevel));
-      const time = reducedMotion ? 0 : timestamp / 1000;
+      // Paused sources hold a frozen, nearly-flat frame: no dancing while the
+      // listener is not hearing anything.
+      const frozen = resolvedMode === 'paused';
+      const time = reducedMotion || frozen ? 0 : timestamp / 1000;
       const waveformWidth = bounds.width * .82;
       const waveformStart = (bounds.width - waveformWidth) / 2;
       const spacing = waveformWidth / BAR_COUNT;
@@ -85,8 +94,6 @@ export default function BroadcastWaveform({ live = false, level = 0, analyser = 
 
       for (let index = 0; index < BAR_COUNT; index += 1) {
         const position = index / (BAR_COUNT - 1);
-        // Match the source's asymmetric cluster rhythm: a moderate early
-        // burst, a dominant middle peak, then a second late peak.
         const envelope = [
           [0.14, 0.26, 0.05],
           [0.30, 0.53, 0.07],
@@ -101,7 +108,11 @@ export default function BroadcastWaveform({ live = false, level = 0, analyser = 
 
         // When using an analyser, scale down the artificial organic movement based on actual audio energy to reflect silence
         const idleFactor = currentAnalyser ? Math.min(1, baseEnergy * 8) : 1;
-        const amplitude = Math.min(0.94, (idleFactor * (0.08 + envelope * organic)) + (audioEnergy * 1.2));
+        // Match the source's asymmetric cluster rhythm: a moderate early
+        // burst, a dominant middle peak, then a second late peak.
+        const amplitude = frozen
+          ? 0.03
+          : Math.min(0.94, (idleFactor * (0.08 + envelope * organic)) + (audioEnergy * 1.2));
 
         const barHeight = Math.max(3, amplitude * bounds.height);
         const x = waveformStart + index * spacing + spacing / 2;
@@ -113,12 +124,13 @@ export default function BroadcastWaveform({ live = false, level = 0, analyser = 
         context.stroke();
       }
       context.globalAlpha = 1;
-      if (!reducedMotion) animationFrame = window.requestAnimationFrame(render);
+      if (!reducedMotion && !frozen) animationFrame = window.requestAnimationFrame(render);
     };
 
     render();
     return () => window.cancelAnimationFrame(animationFrame);
-  }, [live]);
+  }, [live, resolvedMode]);
 
+  if (resolvedMode === 'idle') return null;
   return <canvas ref={canvasRef} className="ec2-waveform" aria-label={live ? 'Live audio waveform' : 'Off air audio waveform'} />;
 }
