@@ -69,13 +69,20 @@ const extensionForMime = (mimeType = "") => {
 };
 
 const safeDownloadName = ({ title, originalName, mimeType } = {}) => {
-  if (String(originalName || "").trim()) return String(originalName).trim();
-  const base = String(title || "echoo-audio")
+  const extension = extensionForMime(mimeType);
+  const original = String(originalName || '').trim();
+  const originalStem = original
+    ? original.replace(/\.[^/.]+$/, '')
+    : '';
+  const base = String(originalStem || title || 'echoo-audio')
     .trim()
-    .replace(/[^a-z0-9-_ ]+/gi, "")
-    .replace(/\s+/g, "-")
-    .slice(0, 90) || "echoo-audio";
-  return `${base}${extensionForMime(mimeType)}`;
+    .replace(/[^a-z0-9-_ ]+/gi, '')
+    .replace(/\s+/g, '-')
+    .slice(0, 90) || 'echoo-audio';
+
+  // The canonical server copy may have been transcoded after upload (for
+  // example WAV -> MP3). Never keep the stale original extension on new bytes.
+  return extension === '.audio' && original ? original : `${base}${extension}`;
 };
 
 let fallbackPlaybackObjectUrl = "";
