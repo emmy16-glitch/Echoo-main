@@ -38,6 +38,9 @@ import { notifyDesktop, onDesktopRoomCommand, setDesktopRoomState } from '../../
 import './CreatorBroadcastApproved.css';
 
 const pad = (value) => String(value).padStart(2, '0');
+const RECORDING_UPLOAD_EVENT = 'echoo:recording-upload';
+const RECORDING_FINALIZATION_WARNING =
+  'Broadcast ended, but recording finalization needs attention. Your local master is protected.';
 
 const formatTimer = (seconds) => {
   const value = Math.max(0, Number(seconds) || 0);
@@ -276,6 +279,42 @@ const CreatorLiveConnectedWorkspace = ({
     window.addEventListener('echoo:publisher-health', onPublisherHealth);
     return () => window.removeEventListener('echoo:publisher-health', onPublisherHealth);
   }, []);
+
+  useEffect(() => {
+    const onRecordingUpload = (event) => {
+      const detail = event?.detail || {};
+      const status = String(detail.status || '');
+
+      if (status === 'started' || status === 'progress') {
+        if (!currentLiveBroadcast?.id) {
+          setMessage('Recording is safe locally. Saving to Recordings…');
+        }
+        return;
+      }
+
+      if (status === 'done') {
+        setError((current) => current === RECORDING_FINALIZATION_WARNING ? '' : current);
+        window.clearTimeout(offAirNoticeTimeoutRef.current);
+        setMessage('Recording saved safely to Recordings.');
+        offAirNoticeTimeoutRef.current = window.setTimeout(() => setMessage(''), 4200);
+        return;
+      }
+
+      if (status === 'recovered') {
+        if (!currentLiveBroadcast?.id) {
+          setMessage('A protected local recording was recovered. Echoo will keep it until the server copy is safe.');
+        }
+        return;
+      }
+
+      if (status === 'error') {
+        setError(detail.message || RECORDING_FINALIZATION_WARNING);
+      }
+    };
+
+    window.addEventListener(RECORDING_UPLOAD_EVENT, onRecordingUpload);
+    return () => window.removeEventListener(RECORDING_UPLOAD_EVENT, onRecordingUpload);
+  }, [currentLiveBroadcast?.id]);
 
   useEffect(() => {
     if (!currentLiveBroadcast?.id || ending) return undefined;
@@ -651,7 +690,7 @@ const CreatorLiveConnectedWorkspace = ({
         }
         const recordingResult = await batch3Service.finalizeBroadcastRecording(broadcastId, endedResponse?.data || broadcastSnapshot);
         if (!recordingResult.recordingReady) {
-          setError((current) => current || 'Broadcast ended, but recording finalization needs attention. Your local master is protected.');
+          setError((current) => current || RECORDING_FINALIZATION_WARNING);
         }
         console.info('[Echoo Perf] end-broadcast', {
           timeToOffAirMs: Math.round(performance.now() - endStartedAt),
