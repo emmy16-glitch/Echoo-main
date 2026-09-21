@@ -917,7 +917,19 @@ const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = n
               </div>
               <small>{ECHOO_REALTIME_AUDIO_PROFILES[normalizeRealtimeAudioProfile(qualityProfile)].description}</small>
             </div>
-            <button type="button" className="eam-approved-go-live" onClick={onGoLive} disabled={goLiveBusy}><FiRadio />{goLiveBusy ? 'Starting…' : 'Go Live'}</button><p>Review your mix before going live.</p><button type="button" className="eam-approved-test-mix" onClick={testProcessedAudio} disabled={monitorWorking || workingChannel === 'host'}><FiVolume2 /> {testingAudio && monitoring.enabled ? 'Stop testing' : 'Test your mix'}</button>
+            <button type="button" className="eam-approved-go-live" onClick={onGoLive} disabled={goLiveBusy}><FiRadio />{goLiveBusy ? 'Starting…' : 'Go Live'}</button>
+            <p>Review your levels before going live.</p>
+            <button
+              type="button"
+              className="eam-approved-test-mix"
+              onClick={testProcessedAudio}
+              disabled={monitorWorking || workingChannel === 'host'}
+              aria-pressed={Boolean(testingAudio && monitoring.enabled)}
+              title="Privately hear the same processed master mix your listeners will receive"
+            >
+              <FiVolume2 /> {testingAudio && monitoring.enabled ? 'Stop preview' : 'Preview listener mix'}
+            </button>
+            <small className="eam-approved-preview-help">Private preview — only you can hear it. This does not start a broadcast.</small>
           </aside>
         </div>
       </section>
