@@ -43,6 +43,9 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
   const outputRef = useRef('');
   const attachedRef = useRef(new Set());
   const programParticipantRef = useRef(null);
+  const volumeRef = useRef(1);
+  const mutedRef = useRef(false);
+  const playbackIntentRef = useRef('play');
   const [retryVersion, setRetryVersion] = useState(0);
   const [status, setStatus] = useState(isLive ? 'connecting' : 'disconnected');
   const [needsAudioStart, setNeedsAudioStart] = useState(false);
@@ -52,6 +55,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
   const [trackCount, setTrackCount] = useState(0);
   const [liveVolume, setLiveVolume] = useState(1);
   const [liveMuted, setLiveMuted] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [analyser, setAnalyser] = useState(null);
   const audioCtxRef = useRef(null);
   const [programAudioLevel, setProgramAudioLevel] = useState(0);
@@ -72,6 +76,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       smoothedAudioLevel = 0;
       setProgramAudioLevel(0);
       setTrackCount(0);
+      setIsPlaying(false);
       setAnalyser(null);
       if (audioCtxRef.current) {
         try { audioCtxRef.current.close(); } catch { /* ignore */ }
@@ -138,8 +143,8 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       const element = track.attach();
       element.autoplay = true;
       element.controls = false;
-      element.muted = false;
-      element.volume = 1;
+      element.muted = mutedRef.current;
+      element.volume = volumeRef.current;
       element.setAttribute('playsinline', '');
       element.style.display = 'block';
 
@@ -157,6 +162,18 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       audioHostRef.current?.appendChild(element);
       setTrackCount((current) => current + 1);
 
+      const syncElementPlayback = () => {
+        if (disposed || roomRef.current !== room) return;
+        const elements = Array.from(audioHostRef.current?.querySelectorAll('audio') || []);
+        const playing = elements.some((candidate) => !candidate.paused && !candidate.ended);
+        setIsPlaying(playing);
+        setStatus(playing ? 'listening' : 'connected');
+      };
+      element.addEventListener('play', syncElementPlayback);
+      element.addEventListener('playing', syncElementPlayback);
+      element.addEventListener('pause', syncElementPlayback);
+      element.addEventListener('ended', syncElementPlayback);
+
       if (track.mediaStreamTrack && !audioCtxRef.current) {
         try {
           const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -171,12 +188,20 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
         }
       }
 
+      if (playbackIntentRef.current === 'pause') {
+        setNeedsAudioStart(false);
+        setIsPlaying(false);
+        setStatus('connected');
+        return;
+      }
+
       try {
         console.log(`[Echoo LiveKit] Attempting autoplay for track: ${id}`);
         await element.play();
         console.log(`[Echoo LiveKit] Autoplay SUCCESS for track: ${id}`);
         if (!disposed && roomRef.current === room) {
           setNeedsAudioStart(false);
+          setIsPlaying(true);
           setStatus('listening');
         }
       } catch (playError) {
@@ -281,6 +306,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
         }
         if (!disposed) {
           setTrackCount((current) => Math.max(0, current - 1));
+          if (attachedRef.current.size === 0) setIsPlaying(false);
           setStatus('connected');
         }
       });
@@ -290,7 +316,10 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       });
       room.on(RoomEvent.Reconnected, () => {
         if (!disposed && roomRef.current === room) {
-          setStatus(attachedRef.current.size ? 'listening' : 'connected');
+          const elements = Array.from(audioHostRef.current?.querySelectorAll('audio') || []);
+          const playing = elements.some((element) => !element.paused && !element.ended);
+          setIsPlaying(playing);
+          setStatus(playing ? 'listening' : 'connected');
           attachExisting(room).catch(() => {});
         }
       });
@@ -298,6 +327,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
         if (!disposed && roomRef.current === room) {
           smoothedAudioLevel = 0;
           setProgramAudioLevel(0);
+          setIsPlaying(false);
           setStatus('disconnected');
         }
       });
@@ -318,8 +348,12 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
         if (!disposed && roomRef.current === room) {
           const hasAudio = attachedRef.current.size > 0;
           const canPlay = room.canPlaybackAudio;
-          setNeedsAudioStart(hasAudio && !canPlay);
-          if (hasAudio && canPlay) setStatus('listening');
+          setNeedsAudioStart(hasAudio && !canPlay && playbackIntentRef.current === 'play');
+          const elements = Array.from(audioHostRef.current?.querySelectorAll('audio') || []);
+          const playing = elements.some((element) => !element.paused && !element.ended);
+          setIsPlaying(playing);
+          if (playing) setStatus('listening');
+          else if (hasAudio) setStatus('connected');
         }
       });
       room.on(RoomEvent.MediaDevicesChanged, loadOutputs);
@@ -345,9 +379,13 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       const hasPlayingAudio = audioElements.some(
         (element) => !element.paused && !element.ended
       );
+      setIsPlaying(hasPlayingAudio);
       setStatus(hasPlayingAudio ? 'listening' : 'connected');
       setNeedsAudioStart(
-        attachedRef.current.size > 0 && !hasPlayingAudio
+        playbackIntentRef.current === 'play' &&
+        attachedRef.current.size > 0 &&
+        !hasPlayingAudio &&
+        !room.canPlaybackAudio
       );
     };
 
@@ -384,50 +422,130 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
 
   const startAudio = useCallback(async () => {
     const room = roomRef.current;
-    if (!room) return;
+    if (!room) return false;
+    playbackIntentRef.current = 'play';
     try {
       setError('');
       await room.startAudio();
-      audioCtxRef.current?.resume?.();
+      await audioCtxRef.current?.resume?.();
       const elements = Array.from(audioHostRef.current?.querySelectorAll('audio') || []);
-      for (const element of elements) await element.play();
+      for (const element of elements) {
+        element.volume = volumeRef.current;
+        element.muted = mutedRef.current;
+        await element.play();
+      }
       setNeedsAudioStart(false);
+      setIsPlaying(elements.length > 0);
       if (elements.length) setStatus('listening');
+      return elements.length > 0;
     } catch (startError) {
+      setIsPlaying(false);
       setNeedsAudioStart(true);
       setError(startError?.message || 'Tap again to start the live audio.');
+      return false;
     }
   }, []);
 
-  const togglePlayback = useCallback(async () => {
-    if (needsAudioStart) {
-      await startAudio();
-      return;
-    }
+  const playAudio = useCallback(async () => {
+    playbackIntentRef.current = 'play';
+    if (needsAudioStart) return startAudio();
 
     const elements = Array.from(audioHostRef.current?.querySelectorAll('audio') || []);
-    if (!elements.length) return;
-    const shouldPlay = elements.every((element) => element.paused);
+    if (!elements.length) return false;
     try {
-      if (shouldPlay) audioCtxRef.current?.resume?.();
-      await Promise.all(elements.map((element) => (shouldPlay ? element.play() : element.pause())));
-      setStatus(shouldPlay ? 'listening' : 'connected');
+      setError('');
+      await audioCtxRef.current?.resume?.();
+      for (const element of elements) {
+        element.volume = volumeRef.current;
+        element.muted = mutedRef.current;
+        await element.play();
+      }
+      setNeedsAudioStart(false);
+      setIsPlaying(true);
+      setStatus('listening');
+      return true;
     } catch (playError) {
+      setIsPlaying(false);
       setNeedsAudioStart(true);
       setError(playError?.message || 'Tap again to start the live audio.');
+      return false;
     }
   }, [needsAudioStart, startAudio]);
 
-  const toggleMute = useCallback(() => {
+  const pauseAudio = useCallback(() => {
+    playbackIntentRef.current = 'pause';
     const elements = Array.from(audioHostRef.current?.querySelectorAll('audio') || []);
-    const nextMuted = elements.some((element) => !element.muted);
+    elements.forEach((element) => element.pause());
+    setNeedsAudioStart(false);
+    setIsPlaying(false);
+    if (elements.length) setStatus('connected');
+  }, []);
+
+  const stopAudio = useCallback(() => {
+    pauseAudio();
+  }, [pauseAudio]);
+
+  const togglePlayback = useCallback(async () => {
+    if (isPlaying) {
+      pauseAudio();
+      return;
+    }
+    await playAudio();
+  }, [isPlaying, pauseAudio, playAudio]);
+
+  const toggleMute = useCallback(() => {
+    const nextMuted = !mutedRef.current;
+    mutedRef.current = nextMuted;
+    const elements = Array.from(audioHostRef.current?.querySelectorAll('audio') || []);
     elements.forEach((element) => { element.muted = nextMuted; });
     setLiveMuted(nextMuted);
   }, []);
 
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return undefined;
+
+    if (!isLive) {
+      try {
+        navigator.mediaSession.metadata = null;
+        navigator.mediaSession.playbackState = 'none';
+      } catch {
+        // Media Session is a best-effort enhancement.
+      }
+      return undefined;
+    }
+
+    try {
+      navigator.mediaSession.metadata = new window.MediaMetadata({
+        title: track?.title || 'Live on Echoo',
+        artist: track?.subtitle || 'Echoo Creator',
+        album: 'Echoo Live',
+        artwork: track?.coverArt
+          ? [{ src: track.coverArt, sizes: '512x512', type: 'image/png' }]
+          : [],
+      });
+      navigator.mediaSession.setActionHandler('play', () => { void playAudio(); });
+      navigator.mediaSession.setActionHandler('pause', pauseAudio);
+      navigator.mediaSession.setActionHandler('stop', stopAudio);
+    } catch {
+      // Unsupported Media Session features must not affect playback.
+    }
+
+    return () => {
+      try {
+        navigator.mediaSession.setActionHandler('play', null);
+        navigator.mediaSession.setActionHandler('pause', null);
+        navigator.mediaSession.setActionHandler('stop', null);
+      } catch {
+        // Already torn down.
+      }
+    };
+  }, [isLive, track?.title, track?.subtitle, track?.coverArt, playAudio, pauseAudio, stopAudio]);
+
   const changeVolume = useCallback((value) => {
     const nextVolume = Math.max(0, Math.min(1, Number(value) || 0));
     const nextMuted = nextVolume === 0;
+    volumeRef.current = nextVolume;
+    mutedRef.current = nextMuted;
     const elements = Array.from(audioHostRef.current?.querySelectorAll('audio') || []);
     elements.forEach((element) => {
       element.volume = nextVolume;
@@ -438,8 +556,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
   }, []);
 
   const changeOutput = async (deviceId) => {
-    setOutputDeviceId(deviceId);
-    outputRef.current = deviceId;
+    const previousDeviceId = outputRef.current;
     setError('');
     const elements = Array.from(audioHostRef.current?.querySelectorAll('audio') || []);
     const target = deviceId || 'default';
@@ -449,7 +566,11 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
         throw new Error('This browser does not support choosing a separate audio output device.');
       }
       for (const element of configurable) await element.setSinkId(target);
+      outputRef.current = deviceId;
+      setOutputDeviceId(deviceId);
     } catch (outputError) {
+      outputRef.current = previousDeviceId;
+      setOutputDeviceId(previousDeviceId);
       setError(outputError?.message || 'Could not switch the listening output.');
     }
   };
@@ -457,7 +578,18 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
   useEffect(() => {
     onStateChange?.({
       active: Boolean(isLive),
-      isPlaying: status === 'listening',
+      isPlaying,
+      playbackState: needsAudioStart
+        ? 'blocked'
+        : isPlaying
+          ? 'playing'
+          : trackCount > 0
+            ? 'paused'
+            : 'idle',
+      connectionStatus: status,
+      canPlay: trackCount > 0 || needsAudioStart,
+      canReconnect: status === 'error' || status === 'disconnected',
+      userPaused: playbackIntentRef.current === 'pause',
       track: isLive && track ? { ...track, isLive: true } : null,
       playerError: error,
       status,
@@ -468,6 +600,9 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       analyser,
       audioLevel: programAudioLevel,
       onTogglePlay: togglePlayback,
+      onPlay: playAudio,
+      onPause: pauseAudio,
+      onReconnect: () => setRetryVersion((current) => current + 1),
       onToggleMute: toggleMute,
       onVolumeChange: changeVolume,
     });
@@ -480,6 +615,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
     isLive,
     track,
     status,
+    isPlaying,
     error,
     needsAudioStart,
     liveVolume,
@@ -488,6 +624,8 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
     analyser,
     programAudioLevel,
     togglePlayback,
+    playAudio,
+    pauseAudio,
     toggleMute,
     changeVolume,
   ]);
@@ -496,16 +634,23 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
 
   const detail = needsAudioStart
     ? 'Audio received — tap to allow playback'
-    : trackCount > 0
-      ? 'Echoo studio mix received'
-      : 'Waiting for the creator to publish the studio mix';
+    : trackCount > 0 && !isPlaying
+      ? 'Paused on this device'
+      : trackCount > 0
+        ? 'Echoo studio mix received'
+        : 'Waiting for the creator to publish the studio mix';
+
+  const statusCopy =
+    status === 'connected' && trackCount > 0 && !needsAudioStart
+      ? 'Paused'
+      : STATUS_COPY[status] || 'Live audio';
 
   return (
     <section className={`echoo-livekit-listener ${status}`} aria-live="polite">
       <div className="echoo-livekit-listener-icon"><FaHeadphones /></div>
 
       <div className="echoo-livekit-listener-copy">
-        <strong>{STATUS_COPY[status] || 'Live audio'}</strong>
+        <strong>{statusCopy}</strong>
         <span>{detail}</span>
         {error && <small>{error}</small>}
       </div>
