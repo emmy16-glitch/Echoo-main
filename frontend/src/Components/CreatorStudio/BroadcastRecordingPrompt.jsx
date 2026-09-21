@@ -19,6 +19,17 @@ import './BroadcastRecordingPrompt.css';
 
 const PENDING_RECORDING_DECISION_KEY = '__echooPendingBroadcastRecording';
 const SAVED_AUTO_DISMISS_MS = 5000;
+const RECORDING_UPLOAD_EVENT = 'echoo:recording-upload';
+
+// Workstation reconciliation channel (CreatorLiveConnectedWorkspace listens):
+// started/progress/done/recovered/error. Without these dispatches the
+// workstation's upload listener is dead code and stale warnings persist.
+const announceRecordingUpload = (status, detail = {}) => {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent(RECORDING_UPLOAD_EVENT, {
+    detail: { status, ...detail },
+  }));
+};
 
 // Server error codes mapped to creator-safe language. Raw backend error
 // text is never rendered directly; every recovery code gets plain language.
@@ -149,6 +160,9 @@ const BroadcastRecordingPrompt = () => {
       setPending(detail);
       setError('');
       setErrorCode('');
+      if (detail?.recording?.recoveredAfterRestart) {
+        announceRecordingUpload('recovered', { broadcastId: detail.recording.broadcastId });
+      }
       setSaved(false);
       setSavedRecordingId('');
       setRetryToken(0);
@@ -201,6 +215,7 @@ const BroadcastRecordingPrompt = () => {
       clearPendingBroadcastRecording(recording.broadcastId);
       window.dispatchEvent(new CustomEvent('echoo:creator-audio-changed'));
       window.dispatchEvent(new CustomEvent('echoo:creator-state-changed'));
+      announceRecordingUpload('done', { broadcastId: recording.broadcastId, recordingId: id });
       if (id) setSavedRecordingId(id);
       setSaved(true);
       setSaving(false);
@@ -211,6 +226,7 @@ const BroadcastRecordingPrompt = () => {
         setSaving(true);
         setError('');
         setErrorCode('');
+        announceRecordingUpload('started', { broadcastId: recording.broadcastId });
         const uploadResponse = await autosaveFinishedRecording({ recording, broadcast });
         rememberPendingRecording({ ...pending, recording });
 
@@ -228,8 +244,10 @@ const BroadcastRecordingPrompt = () => {
         }
 
         setSaving(false);
-        setError(friendlyRecoveryMessage(saveError, recording));
+        const friendly = friendlyRecoveryMessage(saveError, recording);
+        setError(friendly);
         setErrorCode(saveError?.code || '');
+        announceRecordingUpload('error', { broadcastId: recording.broadcastId, message: friendly });
       }
     };
 
