@@ -134,14 +134,17 @@ test('recording completion retries and automatic save preserves recovery state',
   assert.match(banner, /Discard/);
 });
 
-test('protected downloads use one canonical authorization boundary from route to bytes', async () => {
+test('protected downloads use one canonical authorization boundary from local or cloud bytes', async () => {
   const routes = await source('src/routes/audioRoutes.js');
   const middleware = await source('src/middleware/audioDownloadAccess.js');
   const controller = await source('src/controllers/audioDownloadController.js');
   assert.match(routes, /requireAudioDownloadAccess/);
   assert.match(routes, /downloadAuthorizedAudio/);
   assert.match(middleware, /canAccessReplayAudio/);
+  assert.match(middleware, /storage cloudKey cloudUrl/);
   assert.match(controller, /req\.audioAccessRecord/);
+  assert.match(controller, /audio\.storage === 'cloud'/);
+  assert.match(controller, /getCloudObject\(audio\.cloudKey\)/);
   assert.doesNotMatch(routes, /downloadAudio\)/);
 });
 
@@ -163,6 +166,7 @@ test('recording management keeps trim copies safe and prevents cramped or mislab
   const modalCss = await frontendSource('src/Components/CreatorStudio/CreatorAudioDetailModal.css');
   const recordingsCss = await frontendSource('src/Components/CreatorStudio/CreatorCollectionsWorkspace.css');
   const exportService = await frontendSource('src/services/recordingExportService.js');
+  const studioService = await frontendSource('src/services/studioService.js');
 
   assert.doesNotMatch(trim, /studioService\.deleteAudio\(id\)/);
   assert.match(trim, /Trimmed copy saved to Recordings\. The original is unchanged\./);
@@ -175,6 +179,8 @@ test('recording management keeps trim copies safe and prevents cramped or mislab
   assert.match(exportService, /sourceMime\.includes\('webm'\)/);
   assert.match(exportService, /suggestedName:\s*filename/);
   assert.doesNotMatch(exportService, /suggestedName:\s*suggestedInLibrary/);
+  assert.match(studioService, /original\.replace\/\\\.\[\^\/\.\]\+\$\//);
+  assert.match(studioService, /canonical server copy may have been transcoded/);
 
   assert.doesNotMatch(
     modalCss,
