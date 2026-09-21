@@ -52,6 +52,25 @@ const CreatorAudioTrimSection = ({ track, onChanged, onClose, onNotice }) => {
   const previewTimerRef = useRef(null);
 
   const localMaster = peekLocalMaster(trackId);
+  const localMasterMime = String(localMaster?.mimeType || localMaster?.blob?.type || '').toLowerCase();
+  const availableFormats = RECORDING_PC_FORMATS.filter((option) => {
+    if (option.id === 'mp3') return Boolean(trackId);
+    if (!localMaster?.blob?.size) return false;
+    if (option.id === 'wav') return localMasterMime.includes('wav');
+    if (option.id === 'opus') {
+      return localMasterMime.includes('opus') || localMasterMime.includes('ogg') || localMasterMime.includes('webm');
+    }
+    return false;
+  });
+  const selectedFormat = availableFormats.find((option) => option.id === pcFormat) || availableFormats[0] || null;
+
+  useEffect(() => {
+    if (!availableFormats.length) return;
+    if (!availableFormats.some((option) => option.id === pcFormat)) {
+      setPcFormat(availableFormats[0].id);
+      setPcMessage('');
+    }
+  }, [trackId, localMasterMime, pcFormat]);
 
   useEffect(() => () => {
     window.clearTimeout(previewTimerRef.current);
@@ -151,14 +170,9 @@ const CreatorAudioTrimSection = ({ track, onChanged, onClose, onNotice }) => {
         timeoutMs: 120000,
         onProgress: ({ percent }) => setSaveProgress(percent || 0),
       });
-      const newId = String(response?.data?.id || response?.data?._id || '');
-      // Replace the original with the trimmed version.
-      if (newId && newId !== id) {
-        await studioService.deleteAudio(id).catch(() => {});
-      }
       window.dispatchEvent(new CustomEvent('echoo:creator-audio-changed'));
       window.dispatchEvent(new CustomEvent('echoo:creator-state-changed'));
-      onNotice?.(`Trimmed version saved${wasCut ? '' : ' (full length)'}.`);
+      onNotice?.('Trimmed copy saved to Recordings. The original is unchanged.');
       onChanged?.(response?.data);
       onClose?.();
     } catch (saveError) {
@@ -170,7 +184,7 @@ const CreatorAudioTrimSection = ({ track, onChanged, onClose, onNotice }) => {
   const saveToDevice = async () => {
     const id = getId(track);
     const master = peekLocalMaster(id);
-    if (!id && !master?.blob?.size) return;
+    if ((!id && !master?.blob?.size) || !selectedFormat) return;
     setPcSaving(true);
     setPcMessage('');
     try {
@@ -183,10 +197,13 @@ const CreatorAudioTrimSection = ({ track, onChanged, onClose, onNotice }) => {
       const result = await saveRecordingToPc({
         blob: master?.blob || null,
         title: track?.title || 'Echoo recording',
-        format: pcFormat,
+        format: selectedFormat.id,
         audioId,
       });
-      setPcMessage(result?.cancelled ? 'Save cancelled.' : `${pcFormat.toUpperCase()} saved to your device. Saved successfully!`);
+      const savedLabel = selectedFormat.id === 'opus' && localMasterMime.includes('webm')
+        ? 'WebM / Opus'
+        : selectedFormat.label;
+      setPcMessage(result?.cancelled ? 'Save cancelled.' : `${savedLabel} saved to your device.`);
     } catch (deviceError) {
       setPcMessage(deviceError?.message || 'Could not save to this device.');
     } finally {
@@ -196,85 +213,168 @@ const CreatorAudioTrimSection = ({ track, onChanged, onClose, onNotice }) => {
 
   return (
     <div className="creator-audio-trim">
-      <header className="creator-audio-trim-head">
-        <strong><FaCut /> Trim & keep a copy</strong>
-        <span>{sourceState === 'ready' && duration ? `${formatClock(start)} – ${formatClock(selectionEnd)} of ${formatClock(duration)}` : 'Crop anytime, save as MP3'}</span>
-      </header>
-
-      {sourceState === 'idle' && (
-        <button type="button" className="creator-audio-trim-load eb-press" onClick={loadSource}>
-          <FaCut /> {localMaster ? 'Trim this recording (instant)' : 'Load trimmer'}
-        </button>
-      )}
-
-      {sourceState === 'loading' && (
-        <div className="creator-audio-trim-loading">
-          <span>Preparing waveform… {progress}% ({sourceLabel})</span>
-          <i><b style={{ width: `${Math.max(2, progress)}%` }} /></i>
-        </div>
-      )}
-
-      {sourceState === 'ready' && (
-        <>
-          <div className="creator-audio-trim-wave" role="img" aria-label="Recording waveform">
-            {peaks.map((peak, index) => {
-              const pos = peaks.length <= 1 ? 0 : index / (peaks.length - 1);
-              const time = pos * duration;
-              const selected = time >= start && time <= selectionEnd;
-              return <i key={index} style={{ height: `${Math.max(4, Math.round(peak * 100))}%` }} className={selected ? 'is-selected' : 'is-cut'} />;
-            })}
+      <section className="creator-audio-trim-card" aria-labelledby={`creator-audio-trim-title-${trackId}`}>
+        <header className="creator-audio-trim-head">
+          <div>
+            <strong id={`creator-audio-trim-title-${trackId}`}><FaCut /> Trim recording</strong>
+            <span>
+              {sourceState === 'ready' && duration
+                ? 'Choose the part you want to keep, then save it as a new recording.'
+                : 'Create a trimmed copy without changing the original.'}
+            </span>
           </div>
-          <label className="creator-audio-trim-slider">
-            <span>Start <b>{formatClock(start)}</b></span>
-            <input type="range" min={0} max={Math.max(1, Math.floor(duration))} step={1}
-              value={Math.min(Math.floor(start), Math.floor(selectionEnd))} disabled={saving}
-              onChange={(event) => { stopPreview(); setStart(Math.min(Number(event.target.value), selectionEnd)); }} />
-          </label>
-          <label className="creator-audio-trim-slider">
-            <span>End <b>{formatClock(selectionEnd)}</b></span>
-            <input type="range" min={0} max={Math.max(1, Math.floor(duration))} step={1}
-              value={Math.floor(selectionEnd)} disabled={saving}
-              onChange={(event) => { stopPreview(); setEnd(Math.max(Number(event.target.value), start)); }} />
-          </label>
-          <div className="creator-audio-trim-row">
-            <button type="button" onClick={previewSelection} disabled={saving || previewing}>
-              {previewing ? <FaStop /> : <FaPlay />} {previewing ? 'Playing…' : 'Preview'}
-            </button>
-            <span>{isFullLength ? 'Full recording' : `${formatClock(selectedSeconds)} selected`}</span>
-          </div>
-          <audio ref={previewAudioRef} preload="auto" onEnded={stopPreview} hidden />
-          {saving && (
-            <div className="creator-audio-trim-loading">
-              <span>Uploading trimmed version… {saveProgress}%</span>
-              <i><b style={{ width: `${Math.max(2, saveProgress)}%` }} /></i>
-            </div>
+          {sourceState === 'ready' && duration > 0 && (
+            <span className="creator-audio-trim-selection">
+              {formatClock(start)} – {formatClock(selectionEnd)} of {formatClock(duration)}
+            </span>
           )}
-          <button type="button" className="creator-audio-trim-save eb-press" onClick={saveTrimmed} disabled={saving}>
-            <FaSave /> {saving ? `Saving… ${saveProgress}%` : isFullLength ? 'Save (replaces this recording)' : `Save trimmed (${formatClock(selectedSeconds)}) — replaces original`}
+        </header>
+
+        {sourceState === 'idle' && (
+          <button type="button" className="creator-audio-trim-load eb-press" onClick={loadSource}>
+            <FaCut /> {localMaster ? 'Open trimmer' : 'Load trimmer'}
           </button>
-        </>
-      )}
+        )}
 
-      {error && <div className="creator-audio-modal-error" role="alert">{error}</div>}
+        {sourceState === 'loading' && (
+          <div className="creator-audio-trim-loading">
+            <span>Preparing waveform… {progress}% ({sourceLabel})</span>
+            <i><b style={{ width: `${Math.max(2, progress)}%` }} /></i>
+          </div>
+        )}
 
-      <div className="creator-audio-device">
-        <strong>Save to this device</strong>
-        <div className="creator-audio-device-formats" role="radiogroup" aria-label="Device save format">
-          {RECORDING_PC_FORMATS.map((option) => (
-            <label key={option.id} className={pcFormat === option.id ? 'is-selected' : ''}>
-              <input type="radio" name={`echoo-device-format-${trackId}`} value={option.id}
-                checked={pcFormat === option.id}
-                onChange={() => { setPcFormat(option.id); setPcMessage(''); }} />
-              <span>{option.label}</span>
-            </label>
-          ))}
+        {sourceState === 'ready' && (
+          <>
+            <div className="creator-audio-trim-wave" role="img" aria-label="Recording waveform">
+              {peaks.map((peak, index) => {
+                const pos = peaks.length <= 1 ? 0 : index / (peaks.length - 1);
+                const time = pos * duration;
+                const selected = time >= start && time <= selectionEnd;
+                return <i key={index} style={{ height: `${Math.max(4, Math.round(peak * 100))}%` }} className={selected ? 'is-selected' : 'is-cut'} />;
+              })}
+            </div>
+
+            <div className="creator-audio-trim-range-grid">
+              <label className="creator-audio-trim-slider">
+                <span>Start <b>{formatClock(start)}</b></span>
+                <input
+                  type="range"
+                  min={0}
+                  max={Math.max(1, Math.floor(duration))}
+                  step={1}
+                  value={Math.min(Math.floor(start), Math.floor(selectionEnd))}
+                  disabled={saving}
+                  onChange={(event) => {
+                    stopPreview();
+                    setStart(Math.min(Number(event.target.value), selectionEnd));
+                  }}
+                />
+              </label>
+              <label className="creator-audio-trim-slider">
+                <span>End <b>{formatClock(selectionEnd)}</b></span>
+                <input
+                  type="range"
+                  min={0}
+                  max={Math.max(1, Math.floor(duration))}
+                  step={1}
+                  value={Math.floor(selectionEnd)}
+                  disabled={saving}
+                  onChange={(event) => {
+                    stopPreview();
+                    setEnd(Math.max(Number(event.target.value), start));
+                  }}
+                />
+              </label>
+            </div>
+
+            <div className="creator-audio-trim-row">
+              <button type="button" onClick={previewSelection} disabled={saving || previewing}>
+                {previewing ? <FaStop /> : <FaPlay />} {previewing ? 'Playing…' : 'Preview selection'}
+              </button>
+              <span>{isFullLength ? 'Full recording selected' : `${formatClock(selectedSeconds)} selected`}</span>
+            </div>
+
+            <audio ref={previewAudioRef} preload="auto" onEnded={stopPreview} hidden />
+
+            {saving && (
+              <div className="creator-audio-trim-loading">
+                <span>Uploading trimmed copy… {saveProgress}%</span>
+                <i><b style={{ width: `${Math.max(2, saveProgress)}%` }} /></i>
+              </div>
+            )}
+
+            <button
+              type="button"
+              className="creator-audio-trim-save eb-press"
+              onClick={saveTrimmed}
+              disabled={saving || isFullLength}
+            >
+              <FaSave />
+              {saving
+                ? `Saving copy… ${saveProgress}%`
+                : isFullLength
+                  ? 'Adjust the trim range to save a copy'
+                  : `Save trimmed copy (${formatClock(selectedSeconds)})`}
+            </button>
+          </>
+        )}
+
+        {error && <div className="creator-audio-modal-error" role="alert">{error}</div>}
+      </section>
+
+      <section className="creator-audio-device" aria-labelledby={`creator-audio-export-title-${trackId}`}>
+        <div className="creator-audio-device-copy">
+          <strong id={`creator-audio-export-title-${trackId}`}>Export to this device</strong>
+          <span>Create a separate file for sharing or editing. Your Echoo recording stays unchanged.</span>
         </div>
-        <button type="button" onClick={saveToDevice} disabled={pcSaving}>
-          <FaDownload /> {pcSaving ? 'Saving…' : !mp3Ready && pcFormat === 'mp3' ? 'Preparing MP3…' : `Save ${pcFormat.toUpperCase()} to device`}
-        </button>
-        {pcMessage && <span className="creator-audio-device-message">{pcMessage}</span>}
-        {!localMaster && <small>Opus/WAV use the instant local master when this take was just recorded; otherwise the server file is used.</small>}
-      </div>
+
+        <div className="creator-audio-device-formats" role="radiogroup" aria-label="Export format">
+          {availableFormats.map((option) => {
+            const displayLabel = option.id === 'opus' && localMasterMime.includes('webm')
+              ? 'WebM / Opus'
+              : option.label;
+            return (
+              <label key={option.id} className={pcFormat === option.id ? 'is-selected' : ''}>
+                <input
+                  type="radio"
+                  name={`echoo-device-format-${trackId}`}
+                  value={option.id}
+                  checked={pcFormat === option.id}
+                  onChange={() => {
+                    setPcFormat(option.id);
+                    setPcMessage('');
+                  }}
+                />
+                <span>{displayLabel}</span>
+                <small>{option.hint}</small>
+              </label>
+            );
+          })}
+        </div>
+
+        {selectedFormat ? (
+          <button type="button" className="creator-audio-device-save" onClick={saveToDevice} disabled={pcSaving}>
+            <FaDownload />
+            {pcSaving
+              ? 'Saving…'
+              : !mp3Ready && selectedFormat.id === 'mp3'
+                ? 'Preparing MP3…'
+                : `Save ${selectedFormat.id === 'opus' && localMasterMime.includes('webm') ? 'WebM / Opus' : selectedFormat.label}`}
+          </button>
+        ) : (
+          <div className="creator-audio-device-unavailable" role="status">
+            No export format is available for this recording yet.
+          </div>
+        )}
+
+        {pcMessage && <span className="creator-audio-device-message" role="status">{pcMessage}</span>}
+
+        <small className="creator-audio-device-help">
+          {localMaster?.blob?.size
+            ? 'Lossless or compressed master formats are available only while this device still has the local master.'
+            : 'This device no longer has the local master, so Echoo can export the stored MP3 copy only.'}
+        </small>
+      </section>
     </div>
   );
 };
