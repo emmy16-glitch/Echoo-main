@@ -10,6 +10,7 @@ COPY . .
 # Echoo uses same-origin API and Socket.IO routing in the Vercel services project.
 # LiveKit/public-link fallbacks remain blank because the backend/browser origin
 # provides the canonical values at runtime.
+ENV VITE_BUILD_BASE=/
 ENV VITE_API_URL=/api
 ENV VITE_PUBLIC_APP_ORIGIN=
 ENV VITE_LIVEKIT_URL=
