@@ -590,23 +590,33 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged, onAddToCollection 
         />
 
         <div className="creator-audio-modal-actions">
-            {onAddToCollection && <button type="button" onClick={onAddToCollection}>Add to Collection</button>}
-            <button type="button" onClick={toggleVisibility} disabled={visibilitySaving}>
-              {visibility ? <FaLock /> : <FaGlobe />}
-              {visibilitySaving
-                ? 'Saving...'
-                : visibility
-                  ? 'Make private'
-                  : 'Publish to listeners'}
-            </button>
+          <button
+            type="button"
+            className={visibility ? 'visibility is-public' : 'visibility is-private'}
+            onClick={toggleVisibility}
+            disabled={visibilitySaving}
+          >
+            {visibility ? <FaLock /> : <FaGlobe />}
+            {visibilitySaving
+              ? 'Saving...'
+              : visibility
+                ? 'Make private'
+                : 'Publish to listeners'}
+          </button>
 
-            <button type="button" className="download" onClick={downloadOriginal} disabled={downloading}>
-              <FaDownload /> {downloading ? 'Preparing download...' : 'Download original'}
+          {onAddToCollection && (
+            <button type="button" className="collection" onClick={onAddToCollection}>
+              Add to Collection
             </button>
-          </div>
+          )}
+
+          <button type="button" className="download" onClick={downloadOriginal} disabled={downloading}>
+            <FaDownload /> {downloading ? 'Preparing download...' : 'Download stored file'}
+          </button>
+        </div>
 
         <p className="creator-audio-quality-note">
-          Playback uses Echoo’s protected range stream. Downloads still use the exact stored original with no extra transcoding.
+          Export creates a separate copy for your device. “Download stored file” retrieves Echoo’s current server copy without another conversion.
         </p>
       </section>
     </div>
