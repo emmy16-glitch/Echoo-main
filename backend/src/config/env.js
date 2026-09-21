@@ -104,7 +104,12 @@ export const env = Object.freeze({
     resolvedClientOrigins.length > 0
       ? resolvedClientOrigins
       : defaultClientOrigins,
-  clientOriginSuffixes: parseList(process.env.CLIENT_ORIGIN_SUFFIXES || ''),
+  clientOriginSuffixes: parseList(process.env.CLIENT_ORIGIN_SUFFIXES || (
+    // Vercel preview deployments get per-deploy hostnames (*.vercel.app)
+    // that are not all enumerated above; trust the platform suffix so any
+    // echoo-staging preview URL passes origin checks without per-URL config.
+    vercelClientOrigins.length ? 'vercel.app' : ''
+  )),
   mongodbUri: requireValue('MONGODB_URI', 'mongodb://127.0.0.1:27017/echoo'),
   jwtSecret,
   jwtRefreshSecret: requireValue('JWT_REFRESH_SECRET', jwtSecret),

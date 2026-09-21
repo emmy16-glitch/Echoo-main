@@ -4,6 +4,11 @@ import { env } from './env.js';
 
 let isConnected = false;
 let desktopMemoryServer = null;
+// Serverless runtimes (Vercel Fluid) import this module once per instance and
+// serve many requests concurrently. Coalesce simultaneous first-request
+// connects into a single mongoose.connect() so a cold-start burst cannot open
+// parallel connection attempts.
+let connectPromise = null;
 
 const boundedInteger = (value, fallback, min, max) => {
   const parsed = Number.parseInt(value, 10);
@@ -14,6 +19,10 @@ const boundedInteger = (value, fallback, min, max) => {
 export async function connectDatabase() {
   if (isConnected) {
     console.log('Database already connected');
+    return;
+  }
+  if (connectPromise) {
+    await connectPromise;
     return;
   }
 
@@ -30,34 +39,42 @@ export async function connectDatabase() {
     Math.min(10, maxPoolSize)
   );
 
-  try {
-    console.log('Connecting to MongoDB...');
-    await mongoose.connect(env.mongodbUri, {
-      // Live rooms can create short bursts of auth/chat/presence requests when
-      // many listeners arrive together. A slightly larger bounded pool keeps
-      // those requests flowing without opening one DB connection per listener.
-      maxPoolSize,
-      minPoolSize,
-      maxConnecting: 4,
-      waitQueueTimeoutMS: 10000,
-      // Packaged desktop tries the machine-local server first but must not
-      // hang the app boot when none exists — the in-memory fallback below
-      // takes over within a few seconds.
-      serverSelectionTimeoutMS: isDesktopRuntime() ? 2500 : 5000,
-      socketTimeoutMS: 45000,
-    });
-    isConnected = true;
-    console.log('MongoDB connected successfully');
-    console.log('MongoDB pool:', { minPoolSize, maxPoolSize });
-  } catch (error) {
-    if (isDesktopRuntime()) {
-      console.warn('No machine-local MongoDB found — starting the desktop database instead.');
-      await connectDesktopMemoryDatabase({ maxPoolSize, minPoolSize });
-      return;
+  connectPromise = (async () => {
+    try {
+      console.log('Connecting to MongoDB...');
+      await mongoose.connect(env.mongodbUri, {
+        // Live rooms can create short bursts of auth/chat/presence requests when
+        // many listeners arrive together. A slightly larger bounded pool keeps
+        // those requests flowing without opening one DB connection per listener.
+        maxPoolSize,
+        minPoolSize,
+        maxConnecting: 4,
+        waitQueueTimeoutMS: 10000,
+        // Packaged desktop tries the machine-local server first but must not
+        // hang the app boot when none exists — the in-memory fallback below
+        // takes over within a few seconds.
+        serverSelectionTimeoutMS: isDesktopRuntime() ? 2500 : 5000,
+        socketTimeoutMS: 45000,
+      });
+      isConnected = true;
+      console.log('MongoDB connected successfully');
+      console.log('MongoDB pool:', { minPoolSize, maxPoolSize });
+    } catch (error) {
+      if (isDesktopRuntime()) {
+        console.warn('No machine-local MongoDB found — starting the desktop database instead.');
+        await connectDesktopMemoryDatabase({ maxPoolSize, minPoolSize });
+        return;
+      }
+      console.error('Failed to connect to MongoDB:', error);
+      throw error;
+    } finally {
+      // Clear the cached attempt so a failed cold-start connect is retried by
+      // the next request instead of sticking every request to a rejection.
+      if (!isConnected) connectPromise = null;
     }
-    console.error('Failed to connect to MongoDB:', error);
-    throw error;
-  }
+  })();
+
+  await connectPromise;
 }
 
 export async function disconnectDatabase() {

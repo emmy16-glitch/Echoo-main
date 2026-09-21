@@ -178,6 +178,23 @@ app.use(
   })
 );
 
+// Serverless runtimes (Vercel Fluid) import this module instead of running it
+// as a long-lived process, so startServer()'s boot-time connectDatabase()
+// never runs there. Ensure one cached connection per instance on first API
+// traffic instead. Long-lived servers are unaffected (already connected).
+const isServerlessRuntime =
+  process.env.VERCEL === '1' || Boolean(process.env.VERCEL_URL?.trim());
+if (isServerlessRuntime) {
+  app.use('/api', async (req, res, next) => {
+    try {
+      await connectDatabase();
+      next();
+    } catch (error) {
+      next(error);
+    }
+  });
+}
+
 app.use('/api', routes);
 
 app.use((req, res) => {
@@ -603,3 +620,9 @@ export {
   normalizeApiError,
   isAllowedOrigin,
 };
+
+// Vercel Functions convention: the default export of a Node.js service
+// entrypoint is the HTTP server to serve (Express + Socket.IO here, matching
+// Vercel's documented Express/WebSocket pattern). Long-lived `node src/app.js`
+// boots are unaffected (isEntrypoint guard above).
+export default server;

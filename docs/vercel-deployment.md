@@ -123,3 +123,27 @@ Verify all of the following against the deployed Vercel URL:
 8. The finished replay is streamable after a fresh backend container/redeploy.
 9. MP3 archive is present in object storage.
 10. OPFS local master is not removed before the server reports the recording safe.
+
+## Staging instance (`echoo-staging`)
+
+Public staging/test environment in team `emmy16-glitchs-projects`, connected
+to `emmy16-glitch/Echoo-main` branch `main`. Vercel's "production"
+environment is Echoo staging by design — the real deployment
+(`https://echoo.digi02.org`) is managed separately and must never be touched
+from this workflow.
+
+Concrete staging values (non-secret):
+
+- MongoDB Atlas (`echoo-dev` cluster): database **`echoo-staging`**.
+  Atlas network access includes `0.0.0.0/0` on the ECHOO Development project
+  only, because Vercel egress IPs are dynamic.
+- Backblaze B2 (S3 API): bucket `echoorecordings`, prefix **`echoo-staging`**,
+  private bucket, no `AUDIO_S3_PUBLIC_BASE`.
+- LiveKit Cloud: `wss://echoo-cdpcubcr.livekit.cloud` (key/secret server-only).
+- Frontend image bakes `VITE_API_URL=/api` and `VITE_BUILD_BASE=/`.
+- Env source of truth: `$HOME/echoo-vercel-production.env` (never commit,
+  never print), mirrored to Vercel `production` + `preview` targets.
+
+Keep `.vercelignore` comprehensive: the working tree contains multi-GB
+local-only trees (whisper venv, `desktop/dist`, duplicate checkouts,
+media-server trees, snapshots) that must never upload to Vercel.
