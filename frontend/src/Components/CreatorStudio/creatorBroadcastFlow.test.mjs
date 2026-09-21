@@ -83,12 +83,13 @@ test('End makes the listener path OFF AIR before recording finalization', async 
   const endAt = workspace.indexOf('const endBroadcast = async');
   const endBody = workspace.slice(endAt, workspace.indexOf('const copyLiveLink', endAt));
   const unpublishAt = endBody.indexOf('await stopLiveKitPublishing()');
-  const offAirAt = endBody.indexOf("markOffAir('Broadcast audio stopped. Saving your recording…')");
+  const offAirAt = endBody.indexOf("markOffAir('Broadcast audio stopped. Finalizing your local master…')");
   const finalizeAt = endBody.indexOf('finalizeBroadcastRecording');
 
   assert.ok(unpublishAt >= 0 && offAirAt > unpublishAt && finalizeAt > offAirAt);
   assert.match(endBody, /const backendEnd = batch3Service\.endBroadcastRealtime/);
   assert.match(endBody, /\[Echoo Perf\] end-broadcast realtime stopped/);
+  assert.match(endBody, /The upload event takes over the visible progress from here/);
 });
 
 test('OFF AIR reset clears session state while the stereo workstation remains canonical', async () => {
