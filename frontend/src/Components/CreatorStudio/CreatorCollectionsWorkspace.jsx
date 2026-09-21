@@ -361,7 +361,7 @@ export default function CreatorCollectionsWorkspace({
             if (current?.kind !== 'download' || current?.key !== String(id)) return current;
             return {
               ...current,
-              ...updateTransferEstimate(current, { loaded, total }),
+              ...updateTransferEstimate(current, { loaded, total: total || current.total || 0 }),
               stage: 'downloading',
             };
           });
