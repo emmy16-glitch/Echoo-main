@@ -13,7 +13,8 @@ const WAV_BYTES_PER_SAMPLE = WAV_BIT_DEPTH / 8;
 const WAV_MIME_TYPE = 'audio/wav';
 const MAX_WAV_DATA_BYTES = 0xffffffff - 44;
 const OPFS_DIRECTORY = 'echoo-live-recordings';
-const STALE_OPFS_FILE_MS = 24 * 60 * 60 * 1000;
+const OPFS_MANIFEST_KEY = 'echoo:recoverable-broadcast-recording:v1';
+const OPFS_CHECKPOINT_MS = 15_000;
 
 const OPUS_FALLBACK_BITRATE = 256000;
 const QUALITY_CHUNK_SECONDS = 10;
@@ -29,6 +30,46 @@ const MAX_QUEUED_PCM_SECONDS = 30;
 
 let activeRecording = null;
 let pendingRecording = null;
+
+const readRecoveryManifest = () => {
+  if (typeof localStorage === 'undefined') return null;
+  try {
+    const value = JSON.parse(localStorage.getItem(OPFS_MANIFEST_KEY) || 'null');
+    return value?.storageName && value?.broadcastId ? value : null;
+  } catch {
+    return null;
+  }
+};
+
+const writeRecoveryManifest = (recording, status = 'recording') => {
+  if (typeof localStorage === 'undefined' || !recording?.storageName) return;
+  try {
+    localStorage.setItem(OPFS_MANIFEST_KEY, JSON.stringify({
+      version: 1,
+      status,
+      broadcastId: recording.broadcastId,
+      title: recording.title,
+      storageName: recording.storageName,
+      startedAt: recording.startedAt,
+      endedAt: recording.endedAt || null,
+      sampleRate: Number(recording.sampleRate) || WAV_TARGET_SAMPLE_RATE,
+      dataBytes: Number(recording.committedDataBytes ?? recording.dataBytes) || 0,
+      channels: WAV_CHANNELS,
+      bitDepth: WAV_BIT_DEPTH,
+      updatedAt: Date.now(),
+    }));
+  } catch (error) {
+    console.warn('[Echoo Recording] could not persist recovery metadata', error?.message || error);
+  }
+};
+
+const clearRecoveryManifest = (storageName = '') => {
+  if (typeof localStorage === 'undefined') return;
+  const current = readRecoveryManifest();
+  if (!storageName || current?.storageName === storageName) {
+    localStorage.removeItem(OPFS_MANIFEST_KEY);
+  }
+};
 
 const supportsOpfs = () =>
   typeof navigator !== 'undefined' &&
@@ -311,26 +352,6 @@ const safeRemoveOpfsEntry = async (directory, name) => {
   }
 };
 
-const cleanupStaleOpfsRecordings = async (directory) => {
-  if (!directory?.entries) return;
-
-  try {
-    for await (const [name, handle] of directory.entries()) {
-      if (handle?.kind !== 'file' || !name.startsWith('echoo-tmp-')) continue;
-      try {
-        const file = await handle.getFile();
-        if (Date.now() - Number(file.lastModified || 0) > STALE_OPFS_FILE_MS) {
-          await safeRemoveOpfsEntry(directory, name);
-        }
-      } catch {
-        // Ignore one unreadable stale entry; it should never block a new take.
-      }
-    }
-  } catch {
-    // Directory enumeration is an optional cleanup only.
-  }
-};
-
 const openLosslessRecordingFile = async (broadcastId) => {
   if (!supportsOpfs()) {
     throw new Error('Browser-backed recording storage is not available.');
@@ -338,7 +359,6 @@ const openLosslessRecordingFile = async (broadcastId) => {
 
   const root = await navigator.storage.getDirectory();
   const directory = await root.getDirectoryHandle(OPFS_DIRECTORY, { create: true });
-  void cleanupStaleOpfsRecordings(directory);
 
   const safeId = cleanFilenamePart(broadcastId).slice(0, 50);
   const randomPart =
@@ -353,10 +373,42 @@ const openLosslessRecordingFile = async (broadcastId) => {
   return { directory, fileHandle, writable, storageName };
 };
 
+const checkpointLosslessRecording = async (recording, status = 'recording') => {
+  if (!recording?.writable || recording.writeError) return;
+  const committedBytes = Number(recording.committedDataBytes) || 0;
+  const header = createWavHeader({
+    dataBytes: committedBytes,
+    sampleRate: Number(recording.sampleRate) || WAV_TARGET_SAMPLE_RATE,
+    channels: WAV_CHANNELS,
+    bitDepth: WAV_BIT_DEPTH,
+  });
+  await recording.writable.seek(0);
+  await recording.writable.write(header);
+  await recording.writable.close();
+  recording.writable = await recording.fileHandle.createWritable({ keepExistingData: true });
+  await recording.writable.seek(44 + committedBytes);
+  writeRecoveryManifest(recording, status);
+};
+
+const queueLosslessCheckpoint = (recording, status = 'recording') => {
+  if (!recording || recording.stopping || recording.writeError) return recording?.writeChain;
+  recording.writeChain = recording.writeChain
+    .then(() => checkpointLosslessRecording(recording, status))
+    .catch((error) => {
+      recording.writeError = error;
+      writeRecoveryManifest(recording, 'recovery_required');
+      console.error('[Echoo Recording] durable checkpoint failed:', error?.message || error);
+    });
+  return recording.writeChain;
+};
+
 const stopLosslessRecording = async (recording, { keep = true } = {}) => {
   if (!recording) return null;
 
   try {
+    recording.stopping = true;
+    window.clearInterval(recording.checkpointTimer);
+    window.removeEventListener('pagehide', recording.onPageHide);
     if (recording.capture) {
       await recording.capture.stop();
       recording.capture = null;
@@ -390,6 +442,7 @@ const stopLosslessRecording = async (recording, { keep = true } = {}) => {
       await recording.writable?.close();
       recording.writable = null;
       await safeRemoveOpfsEntry(recording.directory, recording.storageName);
+      clearRecoveryManifest(recording.storageName);
       return null;
     }
 
@@ -405,6 +458,9 @@ const stopLosslessRecording = async (recording, { keep = true } = {}) => {
     await recording.writable.write(header);
     await recording.writable.close();
     recording.writable = null;
+    recording.committedDataBytes = recording.dataBytes;
+    recording.endedAt = Date.now();
+    writeRecoveryManifest(recording, 'pending_upload');
 
     const file = await recording.fileHandle.getFile();
     const durationSeconds = recording.dataBytes /
@@ -431,8 +487,10 @@ const stopLosslessRecording = async (recording, { keep = true } = {}) => {
       qualityChunkErrors: recording.qualityChunkErrors,
       qualityCompletionPending: Boolean(recording.qualityCompletionPending),
       qualityCompletionError: recording.qualityCompletionError || '',
-      dispose: () =>
-        safeRemoveOpfsEntry(recording.directory, recording.storageName),
+      dispose: async () => {
+        await safeRemoveOpfsEntry(recording.directory, recording.storageName);
+        clearRecoveryManifest(recording.storageName);
+      },
     };
   } catch (error) {
     try {
@@ -441,7 +499,12 @@ const stopLosslessRecording = async (recording, { keep = true } = {}) => {
       // Ignore close failure while unwinding the recorder.
     }
     recording.writable = null;
-    await safeRemoveOpfsEntry(recording.directory, recording.storageName);
+    if (keep && (recording.committedDataBytes || recording.dataBytes)) {
+      writeRecoveryManifest(recording, 'recovery_required');
+    } else {
+      await safeRemoveOpfsEntry(recording.directory, recording.storageName);
+      clearRecoveryManifest(recording.storageName);
+    }
     throw error;
   }
 };
@@ -461,6 +524,7 @@ const startLosslessRecording = async ({ broadcastId, title }) => {
     mode: 'lossless-wav',
     capture: null,
     dataBytes: 0,
+    committedDataBytes: 0,
     broadcastId: String(broadcastId || ''),
     title,
     startedAt: Date.now(),
@@ -478,6 +542,9 @@ const startLosslessRecording = async ({ broadcastId, title }) => {
     qualityChunkStarted: false,
     qualityCompletionPending: false,
     qualityCompletionError: '',
+    stopping: false,
+    checkpointTimer: null,
+    onPageHide: null,
     ...storage,
   };
 
@@ -500,7 +567,10 @@ const startLosslessRecording = async ({ broadcastId, title }) => {
         recording.dataBytes += pcm.byteLength;
         appendQualityPcm(recording, buffer);
         recording.writeChain = recording.writeChain
-          .then(() => recording.writable.write(pcm))
+          .then(async () => {
+            await recording.writable.write(pcm);
+            recording.committedDataBytes += pcm.byteLength;
+          })
           .catch((error) => {
             recording.writeError = error;
             console.error(
@@ -513,6 +583,14 @@ const startLosslessRecording = async ({ broadcastId, title }) => {
 
     recording.capture = capture;
     recording.sampleRate = capture.sampleRate;
+    writeRecoveryManifest(recording, 'recording');
+    recording.checkpointTimer = window.setInterval(
+      () => { void queueLosslessCheckpoint(recording); },
+      OPFS_CHECKPOINT_MS
+    );
+    recording.onPageHide = () => { void queueLosslessCheckpoint(recording, 'recovery_required'); };
+    window.addEventListener('pagehide', recording.onPageHide);
+    void navigator.storage?.persist?.().catch(() => false);
   } catch (error) {
     try {
       await recording.writable.close();
@@ -520,6 +598,7 @@ const startLosslessRecording = async ({ broadcastId, title }) => {
       // Ignore close failure while unwinding setup.
     }
     await safeRemoveOpfsEntry(recording.directory, recording.storageName);
+    clearRecoveryManifest(recording.storageName);
     throw error;
   }
 
@@ -800,6 +879,69 @@ export const finishBroadcastRecording = async (broadcastId) => {
   return finished;
 };
 
+/**
+ * Reopen the last checkpointed OPFS master after a reload/browser crash.
+ * Blob composition is lazy: the large audio payload is not decoded or copied
+ * onto the main thread.
+ */
+export const recoverPendingBroadcastRecording = async () => {
+  if (pendingRecording?.blob?.size) return pendingRecording;
+  if (!supportsOpfs()) return null;
+  const manifest = readRecoveryManifest();
+  if (!manifest?.storageName) return null;
+
+  try {
+    const root = await navigator.storage.getDirectory();
+    const directory = await root.getDirectoryHandle(OPFS_DIRECTORY);
+    const fileHandle = await directory.getFileHandle(manifest.storageName);
+    const sourceFile = await fileHandle.getFile();
+    const dataBytes = Math.max(0, sourceFile.size - 44);
+    if (!dataBytes) return null;
+    const sampleRate = Number(manifest.sampleRate) || WAV_TARGET_SAMPLE_RATE;
+    const header = createWavHeader({
+      dataBytes,
+      sampleRate,
+      channels: WAV_CHANNELS,
+      bitDepth: WAV_BIT_DEPTH,
+    });
+    const blob = new Blob([header, sourceFile.slice(44)], { type: WAV_MIME_TYPE });
+    const startedAt = Number(manifest.startedAt) || Number(sourceFile.lastModified) || Date.now();
+    const endedAt = Number(manifest.endedAt) || Number(sourceFile.lastModified) || Date.now();
+    const recording = {
+      broadcastId: String(manifest.broadcastId),
+      blob,
+      mimeType: WAV_MIME_TYPE,
+      durationSeconds: Math.max(1, dataBytes / (sampleRate * WAV_CHANNELS * WAV_BYTES_PER_SAMPLE)),
+      sampleRate,
+      channels: WAV_CHANNELS,
+      bitDepth: WAV_BIT_DEPTH,
+      lossless: true,
+      recordingFormat: 'pcm-wav',
+      captureSource: 'echoo-post-master-bus',
+      storageMode: 'opfs-recovered',
+      audioBitsPerSecond: sampleRate * WAV_CHANNELS * WAV_BIT_DEPTH,
+      startedAt: new Date(startedAt).toISOString(),
+      endedAt: new Date(endedAt).toISOString(),
+      filename: `${cleanFilenamePart(manifest.title)}-${recordingDatePart(startedAt)}.wav`,
+      recoveredAfterRestart: true,
+      qualityChunkCount: 0,
+      qualityChunkErrors: [],
+      qualityCompletionPending: false,
+      qualityCompletionError: '',
+      dispose: async () => {
+        await safeRemoveOpfsEntry(directory, manifest.storageName);
+        clearRecoveryManifest(manifest.storageName);
+      },
+    };
+    pendingRecording = recording;
+    return recording;
+  } catch (error) {
+    if (error?.name === 'NotFoundError') clearRecoveryManifest(manifest.storageName);
+    console.warn('[Echoo Recording] could not reopen checkpointed master', error?.message || error);
+    return null;
+  }
+};
+
 export const retryBroadcastQualityCompletion = async (recording) => {
   if (!recording?.qualityCompletionPending || !recording?.broadcastId) return true;
 
@@ -876,6 +1018,7 @@ export default {
   ensureBroadcastRecording,
   finishBroadcastRecording,
   retryBroadcastQualityCompletion,
+  recoverPendingBroadcastRecording,
   announceFinishedBroadcastRecording,
   discardBroadcastRecording,
   clearPendingBroadcastRecording,

@@ -1,4 +1,4 @@
-const configuredApiBase = String(import.meta.env.VITE_API_URL || '')
+const configuredApiBase = String(import.meta.env?.VITE_API_URL || '')
   .trim()
   .replace(/\/$/, '');
 const isEchooDesktopRuntime = () =>
@@ -23,7 +23,7 @@ const developmentApiBase = () => {
 
 export const API_BASE_URL =
   configuredApiBase ||
-  (import.meta.env.DEV || localRuntime ? developmentApiBase() : '');
+  (import.meta.env?.DEV || localRuntime ? developmentApiBase() : '');
 
 export const API_ORIGIN =
   API_BASE_URL.replace(/\/api\/?$/, '');

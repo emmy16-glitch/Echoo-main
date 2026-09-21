@@ -63,9 +63,16 @@ const CreatorBroadcastProcessing = ({ broadcast: initialBroadcast, onStartAnothe
 
   useEffect(() => {
     refresh();
-    const timer = window.setInterval(refresh, 3000);
+    // Transcription pause: keep audio/replay status fresh without hot-polling
+    // transcript work. Active transcript jobs poll every 3s; a disabled
+    // transcript with no active jobs polls every 15s.
+    const hasActiveTranscriptJob = (processing.jobs || []).some(
+      (job) => String(job?.jobType || '').startsWith('transcript_') && ['queued', 'processing'].includes(job.status)
+    );
+    const intervalMs = status.transcript === 'disabled' && !hasActiveTranscriptJob ? 15000 : 3000;
+    const timer = window.setInterval(refresh, intervalMs);
     return () => window.clearInterval(timer);
-  }, [refresh]);
+  }, [refresh, processing.jobs, status.transcript]);
 
   useEffect(() => {
     if (!broadcastId) return undefined;

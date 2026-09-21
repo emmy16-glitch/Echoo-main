@@ -525,11 +525,11 @@ const ListenerRealLiveRoom = () => {
     ? 'Audio disconnected'
     : show.mediaState === 'audio_paused'
       ? 'Broadcast paused'
-      : audioState === 'listening'
+      : audioState === 'playing'
         ? 'Audio live'
-        : audioState === 'connecting' || show.mediaState === 'creator_connecting'
+        : ['connecting', 'reconnecting'].includes(audioState) || show.mediaState === 'creator_connecting'
           ? 'Creator connecting'
-          : audioState === 'connected' || show.mediaState === 'waiting_for_creator'
+          : ['waiting_for_program', 'recovering_audio', 'autoplay_blocked'].includes(audioState) || show.mediaState === 'waiting_for_creator'
             ? 'Waiting for creator'
             : 'Audio disconnected';
 

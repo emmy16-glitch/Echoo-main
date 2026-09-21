@@ -105,7 +105,9 @@ test('run6: current Channel cards preserve title and Follow geometry', async ({ 
   await settle(page);
 
   const cards = page.locator('.listener-v2-station-card:visible');
-  expect(await cards.count(), `${testInfo.project.name}: expected Channel cards`).toBeGreaterThan(0);
+  // Search results stream in after navigation; poll (instead of a one-shot
+  // count) so full-suite runs stay stable when the dev server lags a little.
+  await expect.poll(() => cards.count(), `${testInfo.project.name}: expected Channel cards`).toBeGreaterThan(0);
 
   for (let index = 0; index < await cards.count(); index += 1) {
     const card = cards.nth(index);
@@ -139,7 +141,7 @@ test('run6: current Broadcast workstation and mixer remain usable at every break
   await settle(page);
 
   const workstation = page.locator('.ec2-broadcast:visible').first();
-  const mixer = page.locator('.eam-approved-mixer:visible').first();
+  const mixer = page.locator('section.eam-approved:visible').first();
   await expect(workstation).toBeVisible();
   await expect(mixer).toBeVisible();
 
@@ -157,7 +159,7 @@ test('run6: current Broadcast workstation and mixer remain usable at every break
     expect(stripRect.writingMode, `${testInfo.project.name}: mixer strip ${index + 1} vertical`).toBe('horizontal-tb');
   }
 
-  const actionButtons = page.locator('.eam-approved-actions button:visible, .eam-approved-master button:visible');
+  const actionButtons = page.locator('.eam-approved-strip button:visible');
   for (let index = 0; index < await actionButtons.count(); index += 1) {
     const action = actionButtons.nth(index);
     const rect = await rectOf(action);

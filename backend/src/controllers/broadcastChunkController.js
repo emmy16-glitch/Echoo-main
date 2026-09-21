@@ -8,6 +8,7 @@ import {
   startBroadcastOutputs,
   stopBroadcastOutputs,
 } from '../services/broadcastOutputService.js';
+import { isTranscriptionConfigured } from '../services/transcriptionGateway.js';
 
 const CHUNK_DIR = path.join(process.cwd(), 'uploads', 'transcript-chunks');
 const MAX_CHUNK_DURATION_MS = 60_000;
@@ -36,6 +37,10 @@ const validWavUpload = (file) => Boolean(
 );
 
 const ensureQualityJob = async (broadcastId, chunk) => {
+  // Transcription pause: recording/master PCM chunks remain active (the chunk
+  // is still stored and forwarded to MP3/FLAC outputs at upload time), but no
+  // transcript quality jobs are created when Whisper is not configured.
+  if (!isTranscriptionConfigured()) return;
   await BroadcastProcessingJob.updateOne(
     { broadcastId, jobType: 'transcript_quality_chunk', chunkId: chunk._id },
     {

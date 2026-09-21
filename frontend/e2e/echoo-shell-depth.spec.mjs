@@ -70,7 +70,7 @@ test('Listener canonical routes stay inside one ListenerV2 shell', async ({ page
   }
 
   await page.goto('/listen/channels');
-  await expect(page.getByRole('heading', { name: 'Channels' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Channels', exact: true })).toBeVisible();
   await expect(page.getByPlaceholder('Search Channels...')).toBeVisible();
 });
 

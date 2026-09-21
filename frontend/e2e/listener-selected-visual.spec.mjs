@@ -1,6 +1,6 @@
 import { expect, test } from 'playwright/test';
 
-const BASE = process.env.ECHOO_QA_BASE_URL || 'http://127.0.0.1:5173';
+const BASE = process.env.ECHOO_QA_BASE_URL || 'http://127.0.0.1:4173';
 
 const listener = {
   id: '507f1f77bcf86cd799439012',
@@ -168,6 +168,7 @@ const capture = async (page, testInfo, route, label, activeLabel, afterLoad) => 
 test.use({ viewport: { width: 1536, height: 1024 }, baseURL: BASE, colorScheme: 'dark' });
 
 test('capture strict Listener 2.0 core surfaces', async ({ page }, testInfo) => {
+  test.slow();
   await mockApi(page);
   page.on('pageerror', (error) => console.log('PAGE_ERROR=' + error.message));
   page.on('console', (message) => {

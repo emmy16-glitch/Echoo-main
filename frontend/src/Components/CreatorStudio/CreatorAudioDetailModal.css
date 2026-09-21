@@ -394,6 +394,40 @@
   line-height: 1.55;
 }
 
+.creator-audio-trim {
+  display: grid;
+  grid-template-columns: minmax(190px, 1fr) repeat(2, minmax(120px, 150px)) auto;
+  gap: 12px;
+  align-items: end;
+  padding: 14px;
+  border: 1px solid #d9e2f2;
+  border-radius: 12px;
+  background: #f8faff;
+}
+
+.creator-audio-trim > div { align-self: center; }
+.creator-audio-trim strong,
+.creator-audio-trim span { display: block; }
+.creator-audio-trim span { margin-top: 4px; color: #667085; font-size: 10px; }
+.creator-audio-trim label { color: #344054; font-size: 10px; font-weight: 700; }
+.creator-audio-trim input {
+  width: 100%;
+  margin-top: 5px;
+  padding: 9px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+}
+.creator-audio-trim button {
+  min-height: 38px;
+  padding: 0 13px;
+  border: 0;
+  border-radius: 9px;
+  background: #155eef;
+  color: #fff;
+  font-weight: 750;
+}
+
 @media (max-width: 760px) {
   .creator-audio-modal-overlay {
     align-items: end;
@@ -440,6 +474,9 @@
   .creator-audio-transport-controls {
     flex-direction: column;
   }
+
+  .creator-audio-trim { grid-template-columns: 1fr 1fr; }
+  .creator-audio-trim > div { grid-column: 1 / -1; }
 
   .creator-audio-volume {
     width: 100%;

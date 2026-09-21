@@ -62,7 +62,10 @@ test('unified account boundaries survive deep links and reloads', async ({ page 
   await expect(page).toHaveURL(/\/listen\/history$/);
 
   await page.goto('/creator-studio');
-  await expect(page).toHaveURL(/\/listen\/?$/);
+  // Listeners without the creator capability land on Channel setup (same
+  // account), not back on Listener discovery.
+  await expect(page).toHaveURL(/\/creator-studio\/?$/);
+  await expect(page.getByRole('heading', { name: 'Create your Channel' })).toBeVisible();
 
   await page.evaluate((user) => {
     localStorage.setItem('user', JSON.stringify(user));
@@ -124,7 +127,8 @@ test('Listener Live recovers from a real API outage without a page reload', asyn
     await route.continue();
   });
 
-  await page.goto('/listen');
+  // The outage error/retry surface lives on the Live catalog.
+  await page.goto('/listen/live');
   await expect(page.getByText('We couldn’t reach Echoo.')).toBeVisible({ timeout: 10_000 });
   const retry = page.getByRole('button', { name: 'Try again' }).first();
   await expect(retry).toBeVisible();
@@ -169,7 +173,9 @@ test('rapid current Listener navigation plus browser back and forward stays stab
 test('keyboard skip navigation and reduced-motion preference remain usable', async ({ page }) => {
   await authenticate(page, 'listener');
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.goto('/listen/search');
+  // The search route autofocuses its search field by design; assert the skip
+  // link from a neutral route where it is the first tab stop.
+  await page.goto('/listen');
   await settle(page);
 
   await page.keyboard.press('Tab');
@@ -182,7 +188,9 @@ test('keyboard skip navigation and reduced-motion preference remain usable', asy
 
 test('Creator Upload Audio modal can open and close repeatedly without overlay leakage', async ({ page }) => {
   await authenticate(page, 'creator');
-  await page.goto('/creator-studio');
+  // The studio upload dialog lives on the Audio workspace; Recordings uses a
+  // direct file picker instead of a modal.
+  await page.goto('/creator-studio/audio');
   await settle(page);
 
   const opener = page.getByRole('button', { name: /upload audio/i }).first();

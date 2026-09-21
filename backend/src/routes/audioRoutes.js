@@ -12,6 +12,7 @@ import {
   getAudio,
   getAudioById,
   updateAudio,
+  trimAudio,
   deleteAudio,
   incrementPlays,
   getAudioCover,
@@ -395,6 +396,7 @@ router.patch(
   cleanupUploadError
 );
 router.patch('/:id', validateAudioId, authenticate, requireCreator, updateAudio);
+router.post('/:id/trim', validateAudioId, authenticate, requireCreator, express.json({ limit: '8kb' }), trimAudio);
 router.delete('/:id', validateAudioId, authenticate, requireCreator, deleteAudio);
 router.post('/:id/play', validateAudioId, authenticate, incrementPlays);
 router.post('/:id/like', validateAudioId, authenticate, toggleAudioLike);

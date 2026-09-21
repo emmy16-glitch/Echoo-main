@@ -187,7 +187,7 @@ test('a creator without a Channel receives a clear setup path without horizontal
   await page.route('**/api/stations/mine/all**', (route) => fulfill(route, []));
   await page.goto('/creator-studio');
 
-  await expect(page.getByRole('heading', { name: 'Set up your Channel' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Create your Channel' })).toBeVisible();
   await expect(page.getByText('Your Channel is your public home on Echoo.', { exact: false })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Set up Channel' })).toBeVisible();
   await expect(page.getByText('One Channel, one public home', { exact: true })).toHaveCount(0);

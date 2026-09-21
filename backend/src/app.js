@@ -26,6 +26,7 @@ import {
   detachTranscriptionSocket,
   flushTranscriptionSession,
   ingestTranscriptionFrame,
+  isTranscriptionConfigured,
 } from './services/transcriptionGateway.js';
 import {
   startBroadcastProcessingWorker,
@@ -33,7 +34,7 @@ import {
 } from './services/broadcastProcessingService.js';
 
 const app = express();
-const PORT = env.port || 5001;
+const PORT = env.port || 5017;
 
 const normalizeOrigin = (value = '') => String(value).trim().replace(/\/$/, '');
 const allowedOrigins = new Set(env.clientOrigins.map(normalizeOrigin));
@@ -66,7 +67,7 @@ const isAllowedOrigin = (origin) => {
       const parsed = new URL(normalized);
       return (
         parsed.protocol === 'http:' &&
-        parsed.port === '5173' &&
+        parsed.port === '5273' &&
         ['localhost', '127.0.0.1'].includes(parsed.hostname)
       );
     } catch {
@@ -290,6 +291,27 @@ const schedulePresenceChanged = (broadcastId) => {
 
 io.use(async (socket, next) => {
   try {
+    // Shared listen links: guests join realtime rooms without an account to
+    // receive chat/status/presence events read-only. Identity is a
+    // server-sanitized `guest:<id>` label — never a user record — so guests
+    // can never be owners, post chat (REST stays auth-gated), or attach to
+    // transcription sessions (guarded per-handler below).
+    if (socket.handshake.auth?.guest === true) {
+      const rawId = String(socket.handshake.auth?.guestId || '').slice(0, 80);
+      const safeId = rawId.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 80) || randomUUID();
+      const rawName = String(socket.handshake.auth?.name || '').trim().slice(0, 40);
+      socket.data.guest = true;
+      socket.data.userId = `guest:${safeId}`;
+      socket.data.user = {
+        id: `guest:${safeId}`,
+        username: null,
+        displayName: rawName || 'Echoo Guest',
+        avatar: null,
+        guest: true,
+      };
+      return next();
+    }
+
     const authToken = socket.handshake.auth?.token;
     const authHeader = socket.handshake.headers?.authorization;
     const bearerToken =
@@ -415,6 +437,12 @@ io.on('connection', (socket) => {
 
   socket.on('transcription:attach', async ({ sessionId } = {}, acknowledge) => {
     try {
+      if (!isTranscriptionConfigured()) {
+        throw Object.assign(new Error('Transcription is disabled'), { code: 'TRANSCRIPTION_DISABLED' });
+      }
+      if (socket.data.guest) {
+        throw new Error('Guest sessions cannot attach transcription sessions');
+      }
       if (!sessionId || !mongoose.isValidObjectId(sessionId)) {
         throw new Error('A valid transcript session ID is required');
       }
@@ -433,6 +461,12 @@ io.on('connection', (socket) => {
 
   socket.on('transcription:pcm', ({ sessionId, frameIndex, data } = {}, acknowledge) => {
     try {
+      if (!isTranscriptionConfigured()) {
+        throw Object.assign(new Error('Transcription is disabled'), { code: 'TRANSCRIPTION_DISABLED' });
+      }
+      if (socket.data.guest) {
+        throw new Error('Guest sessions cannot send transcription audio');
+      }
       const result = ingestTranscriptionFrame({
         sessionId,
         userId: socket.data.userId,
@@ -450,6 +484,12 @@ io.on('connection', (socket) => {
 
   socket.on('transcription:flush', async ({ sessionId } = {}, acknowledge) => {
     try {
+      if (!isTranscriptionConfigured()) {
+        throw Object.assign(new Error('Transcription is disabled'), { code: 'TRANSCRIPTION_DISABLED' });
+      }
+      if (socket.data.guest) {
+        throw new Error('Guest sessions cannot flush transcription sessions');
+      }
       const owned = await attachTranscriptionSession({
         sessionId,
         userId: socket.data.userId,

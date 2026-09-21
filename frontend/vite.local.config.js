@@ -2,7 +2,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import process from "node:process";
 
-const localPort = Number(process.env.VITE_PORT || "5173");
+const localPort = Number(process.env.VITE_PORT || "5273");
 
 export default defineConfig({
   plugins: [react()],
@@ -14,18 +14,18 @@ export default defineConfig({
 
     proxy: {
       "/api": {
-        target: "http://127.0.0.1:5001",
+        target: "http://127.0.0.1:5017",
         changeOrigin: true
       },
 
       "/socket.io": {
-        target: "http://127.0.0.1:5001",
+        target: "http://127.0.0.1:5017",
         changeOrigin: true,
         ws: true
       },
 
       "/uploads": {
-        target: "http://127.0.0.1:5001",
+        target: "http://127.0.0.1:5017",
         changeOrigin: true
       }
     }

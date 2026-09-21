@@ -37,6 +37,22 @@ npm run build:android:production
 
 Production build configuration must be reviewed before release because it may produce a Play Store-oriented artifact rather than the directly installable preview APK.
 
+## Background audio (minimized app keeps playing)
+
+- Recorded music/audio: `expo-audio` with `shouldPlayInBackground` + lock-screen
+  controls, backed by its media foreground service. Requires the
+  `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MEDIA_PLAYBACK`, and
+  `POST_NOTIFICATIONS` permissions already declared in `app.json`.
+- Live rooms (LiveKit): covered by the local `echoo-live-audio-service` Expo
+  module (`mobile/modules/echoo-live-audio-service`), which runs a
+  `mediaPlayback` foreground service with a lock-screen notification for
+  exactly as long as a live room is connected. Swiping the app away stops it.
+- iOS needs nothing extra (audio background mode is set).
+- On-device check after installing a fresh build: play a recording, minimize
+  60 seconds → audio continues with lock-screen controls; join a live room,
+  minimize → audio continues with an "Echoo • LIVE" notification; swipe away
+  → audio stops.
+
 ## Support-data boundary
 
 The current application uses only the consented, recipient-free email-draft escalation control. It does **not** submit or store support requests. If a verified Echoo team inbox is enabled later, support requests require explicit submission consent, a maximum 10-day retention period, a deletion-request path, and review by the existing `support-admin`/admin before any recurring issue becomes a curated-help topic. Topic updates remain deterministic and approval-only; no user feedback may be automatically published or sent to an external AI service.

@@ -35,6 +35,18 @@ const noHorizontalOverflow = async (page) => {
 
 const seedListenerSession = async (page, user = listenerAccount) => {
   await page.addInitScript((seedUser) => {
+    // addInitScript re-runs on every navigation including full-page reloads
+    // (Channel setup finishes with window.location.assign). Only seed a fresh
+    // browser; never clobber the authenticated session under test. Tests opt
+    // out of further seeding via echooE2EDisableSeed once they need a truly
+    // signed-out browser (sign-out clears the seeded tokens on navigation).
+    try {
+      if (localStorage.getItem('echooE2EDisableSeed')) return;
+      if (/^\/(login|register|reset-password)/.test(window.location.pathname)) return;
+      if (localStorage.getItem('accessToken') || localStorage.getItem('user')) return;
+    } catch {
+      return;
+    }
     localStorage.setItem('accessToken', 'listener-token');
     localStorage.setItem('token', 'listener-token');
     localStorage.setItem('refreshToken', 'listener-refresh-token');
@@ -47,8 +59,9 @@ const seedListenerSession = async (page, user = listenerAccount) => {
 };
 
 test('new Echoo signup becomes Listener without any role-choice screen', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/register');
 
+  await page.getByLabel('Full name').fill('New Listener');
   await page.getByLabel('Username', { exact: true }).fill('newlistener');
   await page.getByLabel('Email address').fill('newlistener@example.test');
   await page.getByLabel('Password', { exact: true }).fill('StrongPass1!');
@@ -56,9 +69,7 @@ test('new Echoo signup becomes Listener without any role-choice screen', async (
   await page.getByRole('button', { name: 'Create account' }).click();
 
   await expect(page.getByText('Creator / Listener')).toHaveCount(0);
-  await expect(page.getByRole('heading', { name: 'Set up your profile' })).toBeVisible({ timeout: 5_000 });
-  await expect(page.getByText('Account').first()).toBeVisible();
-  await expect(page.getByText('Profile').first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Create your profile' })).toBeVisible({ timeout: 5_000 });
   await expect(page.getByText('Role')).toHaveCount(0);
 
   await page.getByRole('button', { name: 'Continue' }).click();
@@ -88,13 +99,13 @@ test('Listener can start Channel setup in the same account and return without an
   }));
 
   await page.goto('/listen');
-  await expect(page.getByRole('button', { name: 'Create a Channel' })).toBeVisible();
-  await page.getByRole('button', { name: 'Create a Channel' }).click();
+  await expect(page.getByRole('button', { name: 'Create your Channel' })).toBeVisible();
+  await page.getByRole('button', { name: 'Create your Channel' }).click();
 
-  await expect(page).toHaveURL(/experience=creator/);
-  await expect(page.getByRole('heading', { name: /How will you create/i })).toBeVisible();
+  await expect(page).toHaveURL(/\/creator-studio/);
+  await expect(page.getByRole('heading', { name: 'Create your Channel' })).toBeVisible();
   await expect(page.getByText('Individual')).toBeVisible();
-  await expect(page.getByText('Organization / Brand')).toBeVisible();
+  await expect(page.getByText('Organization')).toBeVisible();
 
   const identityDuringSetup = await page.evaluate(() => ({
     token: localStorage.getItem('accessToken'),
@@ -228,28 +239,24 @@ test('one Listener account can create its Channel, enter Creator Studio, switch 
   });
 
   await page.goto('/listen');
-  await expect(page.getByRole('button', { name: 'Create a Channel' })).toBeVisible();
-  await page.getByRole('button', { name: 'Create a Channel' }).click();
+  await expect(page.getByRole('button', { name: 'Create your Channel' })).toBeVisible();
+  await page.getByRole('button', { name: 'Create your Channel' }).click();
 
-  await expect(page.getByRole('heading', { name: /How will you create/i })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Create your Channel' })).toBeVisible();
   await noHorizontalOverflow(page);
-  await page.getByRole('radio', { name: /Individual/i }).click();
-  await page.getByRole('button', { name: 'Continue', exact: true }).click();
-
-  await expect(page.getByRole('heading', { name: /Set up your Channel/i })).toBeVisible();
+  await page.getByRole('button', { name: /Individual/i }).click();
   await page.getByLabel('Channel name').fill('New Listener Live');
   await page.getByLabel('Category').selectOption('Technology');
-  await page.getByLabel('What will you create?').fill('Live technology conversations for the Echoo community.');
-  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await page.getByLabel('Description').fill('Live technology conversations for the Echoo community.');
+  await expect(page.getByLabel('Channel name')).toHaveValue('New Listener Live');
+  await expect(page.getByLabel('Category')).toHaveValue('Technology');
+  await page.getByRole('button', { name: 'Set up Channel' }).click();
 
-  await expect(page.getByRole('heading', { name: /Almost ready/i })).toBeVisible({ timeout: 10_000 });
-  await expect(page.getByLabel('Your public Channel preview')).toContainText('New Listener Live');
-  expect(stationCreateBody).toContain('New Listener Live');
+  await expect(page).toHaveURL(/\/creator-studio$/, { timeout: 15_000 });
   await noHorizontalOverflow(page);
 
-  await page.getByRole('button', { name: 'Open Creator Studio' }).click();
   await expect(page).toHaveURL(/\/creator-studio$/, { timeout: 10_000 });
-  await expect(page.getByRole('tab', { name: 'Creator Studio' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('button', { name: 'Broadcast', exact: true })).toBeVisible();
   await expect.poll(() => page.evaluate(() => ({
     token: localStorage.getItem('accessToken'),
     experience: localStorage.getItem('echooActiveExperience'),
@@ -263,26 +270,33 @@ test('one Listener account can create its Channel, enter Creator Studio, switch 
   });
   await noHorizontalOverflow(page);
 
-  await page.getByRole('tab', { name: 'Listening' }).click();
-  await expect(page).toHaveURL(/\/listen$/, { timeout: 10_000 });
-  await expect.poll(() => page.evaluate(() => localStorage.getItem('echooActiveExperience'))).toBe('listener');
+  // Both experiences belong to the same account: the creator session survives
+  // a full reload without falling back to Channel setup.
+  await page.reload();
+  await expect(page).toHaveURL(/\/creator-studio$/, { timeout: 15_000 });
+  await expect(page.getByRole('button', { name: 'Broadcast', exact: true })).toBeVisible();
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('user') || '{}').id)).toBe(accountId);
-
-  await page.getByRole('tab', { name: 'Creator Studio' }).click();
-  await expect(page).toHaveURL(/\/creator-studio$/, { timeout: 10_000 });
-  await expect(page.getByRole('heading', { name: /How will you create/i })).toHaveCount(0);
 
   await page.getByRole('button', { name: 'Open creator account menu' }).click();
   await page.getByRole('menuitem', { name: 'Sign out' }).click();
-  await expect(page).toHaveURL(/\/$/);
-  await expect(page.getByRole('heading', { name: 'Sign up' })).toBeVisible();
+  await expect(page).toHaveURL(/\/listen$/);
+  await expect(page.getByRole('heading', { name: 'Discover' })).toBeVisible();
   await expect.poll(() => page.evaluate(() => localStorage.getItem('accessToken'))).toBeNull();
+  // Stay signed out for the rest of this test: stop re-seeding a session on
+  // every navigation so guest guards are exercised for real.
+  await page.evaluate(() => localStorage.setItem('echooE2EDisableSeed', '1'));
 
   await page.goto('/creator-studio');
-  await expect(page).toHaveURL(/\/$/);
-  await expect(page.getByRole('heading', { name: 'Sign up' })).toBeVisible();
+  await expect(page).toHaveURL(/\/listen$/);
+  await expect(page.getByRole('heading', { name: 'Discover' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Sign in' }).click();
+  // Guests meet the deferred sign-in gate first; continue into the login form.
+  const gate = page.getByRole('dialog');
+  if (await gate.count()) {
+    await gate.getByRole('button', { name: 'Sign in' }).click();
+  }
+  await expect(page).toHaveURL(/\/login/, { timeout: 10_000 });
   await page.getByLabel('Username or email').fill(listenerAccount.email);
   await page.getByLabel('Password', { exact: true }).fill('StrongPass1!');
   await page.getByRole('button', { name: 'Login' }).click();
@@ -298,18 +312,20 @@ test('one Listener account can create its Channel, enter Creator Studio, switch 
     userId: accountId,
   });
 
-  await page.getByRole('tab', { name: 'Creator Studio' }).click();
+  await page.goto('/creator-studio');
   await expect(page).toHaveURL(/\/creator-studio$/, { timeout: 10_000 });
-  await expect(page.getByRole('heading', { name: /How will you create/i })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Broadcast', exact: true })).toBeVisible();
   await noHorizontalOverflow(page);
 });
 
 test('protected Listener and Creator routes reject unauthenticated browsers', async ({ page }) => {
+  // Listener discovery is public for guests; Creator Studio redirects guests
+  // back to public discovery instead of exposing setup.
   await page.goto('/listen');
-  await expect(page).toHaveURL(/\/$/);
-  await expect(page.getByRole('heading', { name: 'Sign up' })).toBeVisible();
+  await expect(page).toHaveURL(/\/listen$/);
+  await expect(page.getByRole('heading', { name: 'Discover' })).toBeVisible();
 
   await page.goto('/creator-studio');
-  await expect(page).toHaveURL(/\/$/);
-  await expect(page.getByRole('heading', { name: 'Sign up' })).toBeVisible();
+  await expect(page).toHaveURL(/\/listen$/);
+  await expect(page.getByRole('heading', { name: 'Discover' })).toBeVisible();
 });

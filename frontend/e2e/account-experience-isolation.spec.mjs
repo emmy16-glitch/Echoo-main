@@ -38,10 +38,17 @@ test('one authenticated account owns both Listener and Creator experiences witho
   await page.route('**/api/auth/me', (route) => route.fulfill({ json: { data: { user: accountB } } }));
 
   await page.goto('/');
-  await page.getByRole('button', { name: 'Sign in' }).click();
+  await expect(page).toHaveURL(/\/listen$/);
+  await page.getByRole('button', { name: 'Sign in' }).first().click();
+  // Guests meet the deferred sign-in gate first; continue into login.
+  const gate = page.getByRole('dialog');
+  if (await gate.count()) {
+    await gate.getByRole('button', { name: 'Sign in' }).click();
+  }
+  await expect(page).toHaveURL(/\/login/, { timeout: 10_000 });
   await page.getByLabel('Username or email').fill('account-b');
   await page.getByLabel('Password', { exact: true }).fill('Password123!');
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await page.getByRole('button', { name: 'Login', exact: true }).click();
 
   // A fresh login always opens the Listener experience. Creator remains a
   // capability of the same account and can be entered without re-authentication.
@@ -60,7 +67,9 @@ test('one authenticated account owns both Listener and Creator experiences witho
     token: 'account-b-token',
     staleProfileImage: null,
     staleProfileBio: null,
-    activeExperience: null,
+    // A fresh login defaults to the Listener workspace; Account A's Creator
+    // workspace must never leak into Account B's session.
+    activeExperience: 'listener',
     staleDownloads: null,
     staleCreatorAudio: null,
     staleBroadcast: null,

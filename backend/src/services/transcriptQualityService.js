@@ -386,6 +386,25 @@ export async function processTranscriptQualityChunk(chunkId) {
   const chunk = await BroadcastAudioChunk.findById(chunkId);
   if (!chunk) throw new Error('Transcript quality chunk not found');
 
+  // Transcription pause: never open Whisper sockets or run the quality model.
+  // The chunk PCM already fed MP3/FLAC outputs at upload time, so just retire
+  // the file without network/CPU work and without retry loops.
+  const transcriptionConfigured = Boolean(String(
+    process.env.WHISPER_QUALITY_FLOW_URL || process.env.WHISPER_FLOW_URL || ''
+  ).trim() && String(
+    process.env.WHISPER_QUALITY_FLOW_API_KEY || process.env.WHISPER_FLOW_API_KEY || process.env.WHISPER_FLOW_AUTH_TOKEN || ''
+  ).trim());
+  if (!transcriptionConfigured) {
+    await fs.rm(chunk.filePath, { force: true }).catch(() => null);
+    if (chunk.status !== 'completed') {
+      chunk.status = 'completed';
+      chunk.error = null;
+      chunk.processedAt = new Date();
+      await chunk.save().catch(() => null);
+    }
+    return { updated: 0, created: 0, hidden: 0, segments: 0, disabled: true, chunkId: String(chunk._id) };
+  }
+
   // If the chunk body was already reconciled and persisted before a worker
   // crash, recovering the job must not transcribe/apply it a second time.
   if (chunk.status === 'completed') {

@@ -246,6 +246,14 @@ const waitUntil = async (predicate, timeoutMs) => {
 
 const scheduleProviderReconnect = async (runtime, cause) => {
   if (runtime.closed || runtime.flushing || runtime.reconnectTimer) return;
+  if (!isTranscriptionConfigured()) {
+    runtime.closed = true;
+    runtime.frames.length = 0;
+    runtime.bufferedBytes = 0;
+    try { runtime.provider?.close(); } catch { /* already closed */ }
+    runtimes.delete(String(runtime.session._id));
+    return;
+  }
   runtime.retryCount += 1;
   await recordRuntimeError(runtime, cause, { retryable: runtime.retryCount <= maxRetries(), code: 'WHISPER_FLOW_DISCONNECTED' });
   if (runtime.retryCount > maxRetries()) {
@@ -398,7 +406,18 @@ const loadOwnedSession = async (sessionId, userId) => {
 
 export const isTranscriptionConfigured = () => Boolean(providerUrl() && providerApiKey());
 
+// Transcription pause contract (WHISPER_FLOW_URL blank => disabled):
+// - live Whisper WebSocket sessions are never opened
+// - PCM forwarding, retries, and flush/finalize network work are skipped
+// - recording/master PCM chunks and MP3/FLAC outputs are unaffected (they do
+//   not flow through this gateway)
+const transcriptionDisabledError = () => Object.assign(
+  new Error('Transcription is disabled (WHISPER_FLOW_URL is not configured)'),
+  { code: 'TRANSCRIPTION_DISABLED' }
+);
+
 export async function attachTranscriptionSession({ sessionId, userId, socketId }) {
+  if (!isTranscriptionConfigured()) throw transcriptionDisabledError();
   const owned = await loadOwnedSession(sessionId, userId);
   if (!owned) throw Object.assign(new Error('Transcript session is unavailable'), { code: 'SESSION_NOT_FOUND' });
   const runtime = runtimeForSession(owned.session, owned.startedAt, owned.inlineQuality);
@@ -410,6 +429,7 @@ export async function attachTranscriptionSession({ sessionId, userId, socketId }
 }
 
 export function ingestTranscriptionFrame({ sessionId, userId, socketId, frameIndex, data }) {
+  if (!isTranscriptionConfigured()) throw transcriptionDisabledError();
   const runtime = runtimes.get(String(sessionId));
   if (!runtime || String(runtime.session.creatorId) !== String(userId) || !runtime.socketIds.has(socketId)) {
     throw Object.assign(new Error('Transcript session is not attached'), { code: 'SESSION_NOT_ATTACHED' });
@@ -442,6 +462,12 @@ export function ingestTranscriptionFrame({ sessionId, userId, socketId, frameInd
 }
 
 export async function flushTranscriptionSession(sessionId, { reason = 'broadcast-ended', finalize = true } = {}) {
+  if (!isTranscriptionConfigured()) {
+    const existing = await TranscriptSession.findById(sessionId);
+    if (!existing) return null;
+    runtimes.delete(String(sessionId));
+    return publicSession(existing);
+  }
   const runtime = runtimes.get(String(sessionId));
   if (runtime?.flushing) {
     await waitUntil(() => runtime.closed, PROVIDER_READY_TIMEOUT_MS + PROVIDER_FLUSH_TIMEOUT_MS);
@@ -514,6 +540,7 @@ export async function flushTranscriptionSession(sessionId, { reason = 'broadcast
 }
 
 export async function flushBroadcastTranscription(broadcastId) {
+  if (!isTranscriptionConfigured()) return { disabled: true, finalized: false };
   const sessions = await TranscriptSession.find({ broadcastId, state: { $in: ['starting', 'connecting', 'connected', 'reconnecting', 'flushing'] } });
   await Promise.allSettled(sessions.map((session) => flushTranscriptionSession(session._id, { reason: 'broadcast-ended', finalize: false })));
   return finalizeConfirmedTranscript({ broadcastId, io: socketServer });

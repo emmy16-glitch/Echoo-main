@@ -73,7 +73,7 @@ const configuredClientOrigins = parseList(
 );
 const defaultClientOrigins = nodeEnv === 'production'
   ? []
-  : ['http://localhost:5173', 'http://127.0.0.1:5173'];
+  : ['http://localhost:5273', 'http://127.0.0.1:5273'];
 const jwtSecret = requireValue('JWT_SECRET', 'dev-secret-key-change-in-production');
 
 export const env = Object.freeze({
@@ -81,7 +81,7 @@ export const env = Object.freeze({
   isDevelopment: nodeEnv === 'development',
   isProduction: nodeEnv === 'production',
   isTest: nodeEnv === 'test',
-  port: parsePort(process.env.PORT || '5001'),
+  port: parsePort(process.env.PORT || '5017'),
   clientOrigins:
     configuredClientOrigins.length > 0
       ? configuredClientOrigins

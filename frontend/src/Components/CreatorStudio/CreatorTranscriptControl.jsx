@@ -56,6 +56,7 @@ const mergeMoment = (items, value) => {
 };
 
 const CreatorTranscriptControl = ({ broadcastId, transcriptState = 'connecting', whisperHealth = {} }) => {
+  const transcriptionDisabled = transcriptState === 'disabled';
   const [segments, setSegments] = useState([]);
   const [moments, setMoments] = useState([]);
   const [settings, setSettings] = useState({ showToListeners: true, language: 'en', autoPublishCorrections: true, delayMs: 0 });
@@ -68,7 +69,7 @@ const CreatorTranscriptControl = ({ broadcastId, transcriptState = 'connecting',
   const listRef = useRef(null);
 
   const load = useCallback(async () => {
-    if (!broadcastId) return;
+    if (!broadcastId || transcriptionDisabled) return;
     try {
       const [transcript, saved] = await Promise.all([
         transcriptService.getBroadcast(broadcastId, { limit: 200 }),
@@ -80,12 +81,12 @@ const CreatorTranscriptControl = ({ broadcastId, transcriptState = 'connecting',
     } catch (loadError) {
       setError(loadError?.message || 'Could not load transcript controls.');
     }
-  }, [broadcastId]);
+  }, [broadcastId, transcriptionDisabled]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { if (!transcriptionDisabled) load(); }, [load, transcriptionDisabled]);
 
   useEffect(() => {
-    if (!broadcastId) return undefined;
+    if (!broadcastId || transcriptionDisabled) return undefined;
     let active = true;
     let socket = null;
     realtimeService.joinBroadcast(broadcastId).then((connectedSocket) => {
@@ -114,7 +115,7 @@ const CreatorTranscriptControl = ({ broadcastId, transcriptState = 'connecting',
       socket?.__echooCreatorTranscriptCleanup?.();
       realtimeService.leaveBroadcast(broadcastId).catch(() => {});
     };
-  }, [broadcastId]);
+  }, [broadcastId, transcriptionDisabled]);
 
   useEffect(() => {
     if (!autoScroll || query || !listRef.current) return;
@@ -188,6 +189,17 @@ const CreatorTranscriptControl = ({ broadcastId, transcriptState = 'connecting',
     `echoo-transcript-${broadcastId}.txt`,
     finalSegments.map((segment) => `${formatTime(segment.startMs)}  ${segment.speaker}\n${segment.text}`).join('\n\n')
   );
+
+  if (transcriptionDisabled) {
+    return (
+      <div className="ecbs-transcript-layout">
+        <section className="ecbs-transcript-card">
+          <header className="ecbs-panel-title"><div><h2>Live Transcript Control</h2><p>Transcription is currently paused. Recording continues normally.</p></div><span><i /> Disabled</span></header>
+          <div className="ecbs-transcript-empty">Transcription is disabled. Existing transcript data is preserved and no live transcription work is running.</div>
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="ecbs-transcript-layout">

@@ -572,7 +572,9 @@ export async function cancelBroadcast(req, res, next) {
     }
 
     if (broadcast.livekitRoomName || broadcast.livekitEgressId || broadcast.livekitIngressId) {
-      await flushBroadcastTranscription(broadcastId).catch(() => null);
+      if (isTranscriptionConfigured()) {
+        await flushBroadcastTranscription(broadcastId).catch(() => null);
+      }
       await stopLiveResourcesBestEffort({
         broadcastId,
         egressId: broadcast.livekitEgressId,
@@ -587,7 +589,7 @@ export async function cancelBroadcast(req, res, next) {
     broadcast.livekitEgressId = null;
     broadcast.livekitIngressId = null;
     broadcast.mediaState = 'audio_disconnected';
-    broadcast.transcriptState = 'completed';
+    broadcast.transcriptState = isTranscriptionConfigured() ? 'completed' : 'disabled';
     broadcast.programTrackSid = null;
     broadcast.programTrackName = null;
     await broadcast.save();

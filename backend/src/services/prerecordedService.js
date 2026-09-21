@@ -60,7 +60,7 @@ const ownerPlaybackUrl = async (audio, broadcast) => {
     // the public URL is not configured (the /stream endpoint authorizes every
     // request against current visibility, so a leaked URL still cannot open a
     // private or deleted track).
-    const port = Number(process.env.PORT || '5001');
+    const port = Number(process.env.PORT || '5017');
     const host =
       process.env.ECHOO_API_HOST ||
       (process.env.NODE_ENV === 'production' ? '127.0.0.1' : '127.0.0.1');

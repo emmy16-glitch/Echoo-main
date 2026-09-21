@@ -15,14 +15,26 @@ const ListenerSavedMoments = () => {
   const [moments, setMoments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [needsAuth, setNeedsAuth] = useState(false);
   const [workingId, setWorkingId] = useState('');
 
   const load = useCallback(async () => {
+    // Logged-out visitors have no saved moments to fetch — a 401 here is "not
+    // signed in", not a service failure, so skip the request and render the
+    // sign-in state instead of an error banner over the empty state.
+    if (!localStorage.getItem('accessToken')) {
+      setMoments([]);
+      setError('');
+      setNeedsAuth(true);
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       const response = await savedMomentService.list();
       setMoments(response?.data || []);
       setError('');
+      setNeedsAuth(false);
     } catch (loadError) { setError(loadError?.message || 'Saved moments could not be loaded.'); }
     finally { setLoading(false); }
   }, []);
@@ -47,7 +59,9 @@ const ListenerSavedMoments = () => {
     <div className="lsm-page">
       <header><span>YOUR LIBRARY</span><h1>Saved Moments</h1><p>Return to the words and audio worth keeping.</p></header>
       {error && <div className="lsm-error" role="alert">{error}</div>}
-      {loading ? <div className="lsm-state">Loading saved moments...</div> : moments.length ? (
+      {loading ? <div className="lsm-state">Loading saved moments...</div> : needsAuth ? (
+        <div className="lsm-state"><FiBookmark /><h2>Sign in to see saved moments</h2><p>Saved moments sync with your account — sign in and everything you keep will appear here.</p><button type="button" onClick={() => navigate('/login')}>Sign in</button></div>
+      ) : moments.length ? (
         <section className="lsm-list" aria-label="Saved moments">
           {moments.map((moment) => (
             <article key={moment.id}>

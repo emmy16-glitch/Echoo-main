@@ -182,7 +182,7 @@ export async function streamAudio(req, res, next) {
     const audio = await Audio.findOne({
       _id: audioId,
       isDeleted: false,
-    }).select(
+    }    ).select(
       '_id artist isPublic visibility publicationStatus sourceBroadcast filename fileKey mimeType originalName duration fileSize'
     );
 
@@ -194,6 +194,8 @@ export async function streamAudio(req, res, next) {
 
     await authorizeGrant(audio, grant);
 
+    // Recordings live on the Echoo server (uploads/audio) and stream from
+    // local disk with ranged responses below.
     const absolutePath = safeLocalAudioPath(audio);
     if (!absolutePath) {
       return res.status(404).json({

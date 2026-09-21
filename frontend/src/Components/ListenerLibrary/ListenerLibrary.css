@@ -464,6 +464,7 @@
   color: #101828;
 }
 .al-clear {
+  min-height: 28px;
   border: 0;
   background: transparent;
   color: #1769d3;

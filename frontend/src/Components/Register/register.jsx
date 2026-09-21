@@ -167,6 +167,11 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
     localStorage.setItem("token", accessToken);
     if (refreshToken) localStorage.setItem("refreshToken", refreshToken);
     localStorage.setItem("user", JSON.stringify(user));
+    // login/register wipe workspace preference via clearAuthTokens: restore the
+    // default Listener workspace so route guards never see a null experience.
+    if (!localStorage.getItem("echooActiveExperience")) {
+      localStorage.setItem("echooActiveExperience", "listener");
+    }
     return user;
   };
 

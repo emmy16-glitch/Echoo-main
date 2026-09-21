@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useNavigate, useOutletContext } from 'react-router-dom';
 import {
   FaCheck,
   FaClock,
@@ -79,6 +79,7 @@ const normalizedRow = (download) => {
 };
 
 const ListenerDownloadsConnected = () => {
+  const navigate = useNavigate();
   const { playTrack, currentTrack, isPlaying, togglePlay } = useOutletContext();
   const [toast, setToast] = useState({ open: false, type: 'info', title: '', message: '' });
   const notify = useCallback((message, type = 'info') => {
@@ -91,6 +92,7 @@ const ListenerDownloadsConnected = () => {
   }, []);
 
   const [items, setItems] = useState([]);
+  const [needsAuth, setNeedsAuth] = useState(false);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('all');
   const [busyId, setBusyId] = useState('');
@@ -103,9 +105,18 @@ const ListenerDownloadsConnected = () => {
       const raw = response?.data || {};
       const downloads = Array.isArray(raw.downloads) ? raw.downloads : [];
       setItems(downloads.map(normalizedRow).filter(Boolean));
+      setNeedsAuth(false);
     } catch (error) {
       console.error('Downloads load failed', error);
-      if (!silent) notify('Could not load downloads', 'error');
+      // Logged-out visitors get a 401 here — that is "not signed in", not a
+      // service failure. Show the sign-in state instead of stacking a
+      // "Something went wrong" toast on top of the empty state.
+      if (!localStorage.getItem('accessToken')) {
+        setNeedsAuth(true);
+      } else if (!silent) {
+        setNeedsAuth(false);
+        notify('Could not load downloads', 'error');
+      }
     } finally {
       if (!silent) setLoading(false);
     }
@@ -211,6 +222,15 @@ const ListenerDownloadsConnected = () => {
 
       {loading ? (
         <div className="ld-empty ld-empty-loading">Loading your downloads…</div>
+      ) : needsAuth ? (
+        <div className="ld-empty">
+          <FaClock />
+          <strong>Sign in to see your downloads.</strong>
+          <p>Downloads sync with your account — sign in and your offline audio will appear here.</p>
+          <button type="button" className="ld-tab ld-tab-active" onClick={() => navigate('/login')}>
+            Sign in
+          </button>
+        </div>
       ) : filtered.length === 0 ? (
         <div className="ld-empty">
           <FaClock />

@@ -11,6 +11,8 @@ import User from '../models/User.js';
 import { createNotification } from './notificationController.js';
 import { createGeneratedAudioCover } from '../utils/audioCover.js';
 import { canAccessReplayAudio } from '../services/assetAccessService.js';
+import { archiveRecordingAudio } from '../services/audioArchiveService.js';
+import { trimAudioFile } from '../services/audioTrimService.js';
 import { sendGeneratedCover } from '../utils/generatedCoverResponse.js';
 
 const safeDuration = (value) => {
@@ -66,6 +68,55 @@ const removeLocalFile = async (absolutePath) => {
       console.warn('Audio media cleanup warning:', error?.message || error);
     }
   }
+};
+
+const removeIncomingUploadFiles = async (audioFile, coverFile) => {
+  await Promise.all([
+    removeLocalFile(audioFile?.path),
+    removeLocalFile(coverFile?.path),
+  ]);
+};
+
+const populatedAudioById = (id) => Audio.findById(id)
+  .populate(
+    'artist',
+    'username displayName avatar creatorProfile.artistName creatorProfile.organizationName userType'
+  )
+  .populate(
+    'sourceBroadcast',
+    'title description startedAt endedAt station creator assetStatus assetVisibility generatedHighlights generatedChapters'
+  );
+
+const reconcileExistingReplay = async ({ sourceBroadcast, existingAudio, audioFile, coverFile, req, res }) => {
+  await removeIncomingUploadFiles(audioFile, coverFile);
+  await Broadcast.updateOne(
+    { _id: sourceBroadcast._id },
+    {
+      $set: {
+        replayAudio: existingAudio._id,
+        recordingUrl: String(existingAudio._id),
+        'assetStatus.audio': 'ready',
+        'assetVisibility.audio': existingAudio.visibility || 'private',
+      },
+    }
+  );
+  await Promise.all([
+    TranscriptSegment.updateMany(
+      { broadcastId: sourceBroadcast._id, isFinal: true, audioId: null },
+      { $set: { audioId: existingAudio._id } }
+    ),
+    SavedMoment.updateMany(
+      { broadcastId: sourceBroadcast._id, audioId: null },
+      { $set: { audioId: existingAudio._id } }
+    ),
+  ]);
+  req.audioUploadCommitted = true;
+  const responseAudio = await populatedAudioById(existingAudio._id).catch(() => existingAudio);
+  return res.status(200).json({
+    data: responseAudio || existingAudio,
+    reconciled: true,
+    timestamp: new Date().toISOString(),
+  });
 };
 
 async function notifyFollowersOfRelease(creator, audio) {
@@ -175,6 +226,25 @@ export async function uploadAudio(req, res, next) {
         error.code = 'BROADCAST_NOT_READY_FOR_REPLAY';
         throw error;
       }
+
+      // The broadcast ID is the replay idempotency key. A client may retry
+      // after the server committed an upload but its response was lost; in
+      // that case discard the retry bytes and return the canonical replay.
+      const existingReplay = await Audio.findOne({
+        sourceBroadcast: sourceBroadcast._id,
+        artist: req.userId,
+        isDeleted: false,
+      });
+      if (existingReplay) {
+        return await reconcileExistingReplay({
+          sourceBroadcast,
+          existingAudio: existingReplay,
+          audioFile,
+          coverFile,
+          req,
+          res,
+        });
+      }
     }
 
     const audio = new Audio({
@@ -200,7 +270,28 @@ export async function uploadAudio(req, res, next) {
       sourceBroadcast: sourceBroadcast?._id || null,
     });
 
-    await audio.save();
+    try {
+      await audio.save();
+    } catch (saveError) {
+      if (sourceBroadcast && saveError?.code === 11000) {
+        const existingReplay = await Audio.findOne({
+          sourceBroadcast: sourceBroadcast._id,
+          artist: req.userId,
+          isDeleted: false,
+        });
+        if (existingReplay) {
+          return await reconcileExistingReplay({
+            sourceBroadcast,
+            existingAudio: existingReplay,
+            audioFile,
+            coverFile,
+            req,
+            res,
+          });
+        }
+      }
+      throw saveError;
+    }
 
     if (sourceBroadcast) {
       const previousReplayAudio = sourceBroadcast.replayAudio || null;
@@ -259,6 +350,15 @@ export async function uploadAudio(req, res, next) {
         audioId: String(audio._id),
       });
     }
+
+    // Replay recordings (and only replays — uploaded music keeps its original
+    // encoding): compress the giant WAV master to Opus on this server.
+    // Best-effort by contract — failures keep the original file and never
+    // fail the upload. Runs before the committed flag so the saved doc
+    // already carries the final fileSize/mimeType.
+    if (sourceBroadcast && audioFile?.path) {
+      await archiveRecordingAudio({ audio, localPath: audioFile.path });
+    }
     // From this point the media bytes and Mongo record belong together. The
     // upload error middleware must not delete files merely because a secondary
     // populate/notification step failed after the authoritative save.
@@ -268,12 +368,7 @@ export async function uploadAudio(req, res, next) {
 
     let responseAudio = audio;
     try {
-      responseAudio = await Audio.findById(audio._id)
-        .populate(
-          'artist',
-          'username displayName avatar creatorProfile.artistName creatorProfile.organizationName userType'
-        )
-        .populate('sourceBroadcast', 'title description startedAt endedAt station creator assetStatus assetVisibility generatedHighlights generatedChapters') || audio;
+      responseAudio = await populatedAudioById(audio._id) || audio;
     } catch (populateError) {
       console.warn(
         'Audio upload populate warning:',
@@ -475,6 +570,66 @@ export async function updateAudio(req, res, next) {
     });
   } catch (error) {
     next(error);
+  }
+}
+
+export async function trimAudio(req, res, next) {
+  let outputPath = '';
+  try {
+    const audio = await Audio.findOne({ _id: req.params.id, isDeleted: false });
+    if (!audio) {
+      return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Audio not found' } });
+    }
+    if (String(audio.artist) !== String(req.userId)) {
+      return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'You do not own this audio' } });
+    }
+
+    const originalFilename = path.basename(String(audio.filename || audio.fileKey || ''));
+    const sourcePath = safeLocalMediaPath('audio', originalFilename);
+    const result = await trimAudioFile({
+      sourcePath,
+      startSeconds: req.body?.startSeconds,
+      endSeconds: req.body?.endSeconds,
+      sourceDuration: audio.duration,
+    });
+    outputPath = result.outputPath;
+
+    // The compare on filename prevents concurrent trims from silently
+    // overwriting one another. The original remains untouched until this
+    // authoritative document update succeeds.
+    const updated = await Audio.findOneAndUpdate(
+      { _id: audio._id, artist: req.userId, isDeleted: false, filename: originalFilename },
+      {
+        $set: {
+          filename: result.outputFilename,
+          fileKey: result.outputFilename,
+          fileSize: result.fileSize,
+          duration: result.duration,
+          'lastTrim.startSeconds': result.range.start,
+          'lastTrim.endSeconds': result.range.end,
+          'lastTrim.sourceDuration': Number(audio.duration) || null,
+          'lastTrim.trimmedAt': new Date(),
+        },
+      },
+      { new: true, runValidators: true }
+    );
+    if (!updated) {
+      const conflict = new Error('This recording changed while it was being trimmed. Reload and try again.');
+      conflict.status = 409;
+      conflict.code = 'TRIM_CONFLICT';
+      throw conflict;
+    }
+    outputPath = '';
+    if (sourcePath !== result.outputPath) await removeLocalFile(sourcePath);
+
+    return res.status(200).json({
+      data: updated,
+      processing: 'server',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    if (outputPath) await removeLocalFile(outputPath);
+    return next(error);
   }
 }
 

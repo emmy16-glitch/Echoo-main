@@ -34,10 +34,46 @@ preserves Echoo's existing voice path. The Master Output is
 always marked program/music audio and is not passed through speech processing.
 
 Listener playback attaches only the named `echoo-studio-mix` LiveKit publication
-to a native HTML audio element. It does not create an AudioContext, downmix to
-mono, apply speech enhancement, or switch to the radio MP3 URL. WebRTC/LiveKit
+to a native HTML audio element. A read-only analyser may observe the remote
+`MediaStreamTrack` for UI metering, but playback is not routed through that
+`AudioContext`; Echoo does not downmix to mono, apply speech enhancement, or
+switch to the radio MP3 URL. WebRTC/LiveKit
 therefore chooses the highest stereo Opus quality that the listener's negotiated
 connection can sustain; listener volume/mute are native element controls only.
+
+Both sides use explicit recovery state machines. A creator transport watchdog
+checks outbound byte/packet progress and, after a sustained stall, replaces the
+LiveKit room and republishes the same mixer track with a fresh token. This does
+not create a new broadcast or recorder. A listener validates the canonical
+publication, current track, DOM attachment, and actual media-element playback;
+stale attachments are detached and rebuilt. Recovery retries are bounded at
+0/1/2/4/8 seconds plus jitter and can be cancelled by broadcast end/unmount.
+
+## Local recording durability and replay save
+
+The preferred recorder writes 48 kHz stereo 24-bit PCM directly to OPFS. It
+does not retain the long recording in JavaScript memory. Every 15 seconds the
+writer is serialized behind queued PCM writes, writes a valid current WAV
+header, closes (committing the file), reopens with existing data, and resumes at
+the exact byte offset. A small localStorage manifest identifies the broadcast,
+OPFS file, format, and timing. On reload, Echoo reopens the file and offers the
+checkpointed master for the normal replay upload. No age-based cleanup silently
+deletes recoverable masters.
+
+The source broadcast ID is the replay upload idempotency key. If a response is
+lost after commit, a retry returns and relinks the existing canonical Audio
+record while deleting only the newly retried upload bytes. The OPFS file is
+removed only after confirmed upload reconciliation or explicit discard.
+
+## Saved recording trims
+
+Saved recordings are trimmed on the backend. The browser sends start/end
+timestamps; FFmpeg writes a separate file and FFprobe validates non-empty audio
+and duration. A conditional database update swaps the Audio record to that file.
+The original is deleted only after the database update succeeds. Invalid ranges,
+FFmpeg failures, and concurrent-edit conflicts preserve the original.
+
+This keeps long-form decoding and re-encoding off the browser main thread.
 
 ## Limiter and master metering
 
@@ -86,8 +122,8 @@ can sustain it.
 
 Evaluate chunked browser-side FLAC capture with low-priority/resumable uploads only
 after CPU, thermal, memory, and battery benchmarking. A possible design is Master
-PCM to FLAC chunks, bounded persistent local storage, then periodic resumable upload
-to backend/object storage. It needs crash recovery, capability detection, and must
+ PCM to FLAC chunks, bounded persistent local storage, then periodic resumable upload
+to the backend. It needs crash recovery, capability detection, and must
 never destabilize realtime audio; WASM FLAC is not production architecture today.
 
 For large passive audiences, a future master branch may use AAC/HLS/CDN while
@@ -110,3 +146,14 @@ codec tiers are future work, not part of this implementation.
 5. Stop Icecast or make FFmpeg unavailable. Confirm radio/archive records `failed`
    while creator and listener LiveKit audio remain active, then end a broadcast and
    confirm no encoder processes remain.
+6. During a live session, disable networking for 5–15 seconds. Confirm creator
+   state moves through reconnecting/recovering, the same broadcast resumes, and
+   the recording start timestamp does not change. Confirm listeners return to
+   `playing` without duplicate `<audio>` elements.
+7. Leave a recording active for at least 20 seconds, then simulate a page crash.
+   Reload and confirm the recording prompt recovers the last committed OPFS
+   checkpoint. Retry the upload after dropping one response and confirm only one
+   replay exists for the broadcast.
+8. Trim a saved replay and inspect it with `ffprobe`. Repeat with an invalid
+   range and with FFmpeg unavailable; in both failures, confirm the original
+   stored file still plays.

@@ -7,12 +7,12 @@ import {
   FaSyncAlt,
 } from 'react-icons/fa';
 
-import studioService from '../../services/studioService.js';
 import {
   BROADCAST_RECORDING_READY_EVENT,
   clearPendingBroadcastRecording,
-  retryBroadcastQualityCompletion,
+  recoverPendingBroadcastRecording,
 } from '../../services/broadcastRecordingService.js';
+import { autosaveFinishedRecording } from '../../services/recordingAutosave.js';
 import './BroadcastRecordingPrompt.css';
 
 const PENDING_RECORDING_DECISION_KEY = '__echooPendingBroadcastRecording';
@@ -79,23 +79,6 @@ const formatRecordingQuality = (recording) => {
     : 'Opus fallback';
 };
 
-const safeFilename = (title, recording) => {
-  const fallback = String(recording?.filename || '').toLowerCase();
-  const mimeType = String(recording?.mimeType || '').toLowerCase();
-  const extension =
-    fallback.endsWith('.wav') || mimeType === 'audio/wav'
-      ? 'wav'
-      : fallback.endsWith('.ogg') || mimeType.includes('ogg')
-        ? 'ogg'
-        : 'webm';
-  const clean = String(title || 'Echoo live recording')
-    .trim()
-    .replace(/[^a-z0-9]+/gi, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 80) || 'Echoo-live-recording';
-  return `${clean}.${extension}`;
-};
-
 const BroadcastRecordingPrompt = () => {
   const [pending, setPending] = useState(readRecoveredPendingRecording);
   const [saving, setSaving] = useState(false);
@@ -135,8 +118,9 @@ const BroadcastRecordingPrompt = () => {
   }, [dismissSavedRecording]);
 
   useEffect(() => {
+    let active = true;
     const applyPendingRecording = (detail) => {
-      if (!detail?.recording?.blob?.size) return;
+      if (!active || !detail?.recording?.blob?.size) return;
       rememberPendingRecording(detail);
       setPending(detail);
       setError('');
@@ -150,16 +134,27 @@ const BroadcastRecordingPrompt = () => {
       applyPendingRecording(event?.detail || null);
     };
 
-    const recoverPendingRecording = () => {
+    const recoverPendingRecording = async () => {
       const recovered = readRecoveredPendingRecording();
-      if (recovered) applyPendingRecording(recovered);
+      if (recovered) {
+        applyPendingRecording(recovered);
+        return;
+      }
+      const recording = await recoverPendingBroadcastRecording();
+      if (recording) {
+        applyPendingRecording({
+          recording,
+          broadcast: { id: recording.broadcastId, title: 'Recovered live broadcast recording' },
+        });
+      }
     };
 
-    recoverPendingRecording();
+    void recoverPendingRecording();
     window.addEventListener(BROADCAST_RECORDING_READY_EVENT, onRecordingReady);
     window.addEventListener('pageshow', recoverPendingRecording);
 
     return () => {
+      active = false;
       window.removeEventListener(BROADCAST_RECORDING_READY_EVENT, onRecordingReady);
       window.removeEventListener('pageshow', recoverPendingRecording);
     };
@@ -187,42 +182,11 @@ const BroadcastRecordingPrompt = () => {
     };
 
     const saveAutomatically = async () => {
-      const title = broadcast?.title || 'Live broadcast recording';
-      const description = broadcast?.description || '';
-
       try {
         setSaving(true);
         setError('');
-
-        if (recording.qualityCompletionPending) {
-          await retryBroadcastQualityCompletion(recording);
-          rememberPendingRecording({ ...pending, recording });
-        }
-
-        const file = new File(
-          [recording.blob],
-          safeFilename(title, recording),
-          { type: recording.mimeType || recording.blob.type || 'audio/wav' }
-        );
-
-        const uploadResponse = await studioService.uploadAudio({
-          file,
-          title,
-          description:
-            description ||
-            `Recorded live on Echoo. Broadcast recording from ${new Date(recording.startedAt).toLocaleString()}.`,
-          genre: 'Other',
-          tags: [
-            'live-recording',
-            'broadcast',
-            recording.lossless ? 'lossless-master' : 'recording-fallback',
-          ],
-          // Completed broadcasts are saved automatically. Visibility is managed
-          // later from Recordings rather than interrupting End Broadcast with a
-          // publish/private decision.
-          isPublic: false,
-          broadcastId: recording.broadcastId,
-        });
+        const uploadResponse = await autosaveFinishedRecording({ recording, broadcast });
+        rememberPendingRecording({ ...pending, recording });
 
         markSaved(String(uploadResponse?.data?.id || uploadResponse?.data?._id || ''));
       } catch (saveError) {

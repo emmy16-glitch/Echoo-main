@@ -89,6 +89,7 @@ const relativeTime = (value) => {
 const ListenerNotificationsConnected = () => {
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
+  const [needsAuth, setNeedsAuth] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('all');
@@ -111,9 +112,18 @@ const ListenerNotificationsConnected = () => {
       const items = response?.data?.notifications || [];
       setNotifications(items);
       setUnreadCount(Number(response?.data?.unreadCount) || 0);
+      setNeedsAuth(false);
     } catch (error) {
       console.error('Notifications load failed', error);
-      if (!silent) notify('Could not load notifications', 'error');
+      // Logged-out visitors get a 401 here — that is "not signed in", not a
+      // service failure. Show the sign-in state instead of stacking a
+      // "Something went wrong" toast on top of the empty state.
+      if (!localStorage.getItem('accessToken')) {
+        setNeedsAuth(true);
+      } else if (!silent) {
+        setNeedsAuth(false);
+        notify('Could not load notifications', 'error');
+      }
     } finally {
       if (!silent) setLoading(false);
     }
@@ -217,6 +227,15 @@ const ListenerNotificationsConnected = () => {
 
       {loading ? (
         <div className="ln-empty ln-empty-loading">Loading your notifications…</div>
+      ) : needsAuth ? (
+        <div className="ln-empty">
+          <FaClock />
+          <strong>Sign in to see your notifications.</strong>
+          <p>You will be notified here when stations go live and new episodes drop — once you are signed in.</p>
+          <button type="button" className="ln-mark-all" onClick={() => navigate('/login')}>
+            Sign in
+          </button>
+        </div>
       ) : filtered.length === 0 ? (
         <div className="ln-empty">
           <FaClock />

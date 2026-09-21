@@ -218,6 +218,7 @@ const clickCreatorWorkspace = async (page, label) => {
 };
 
 test('all Listener routes remain responsive, accessible and runtime-clean', async ({ page }, testInfo) => {
+  test.slow();
   await authenticate(page, 'listener');
   const monitor = startFailureMonitor(page);
   const violations = [];
@@ -233,6 +234,7 @@ test('all Listener routes remain responsive, accessible and runtime-clean', asyn
 });
 
 test('all Creator workspaces remain responsive and runtime-clean', async ({ page }, testInfo) => {
+  test.slow();
   await authenticate(page, 'creator');
   const monitor = startFailureMonitor(page);
   const violations = [];

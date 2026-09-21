@@ -11,6 +11,7 @@ import {
 
 import batch4Service, { normalizeChatMessage } from '../../services/batch4Service';
 import realtimeService from '../../services/realtimeService';
+import { notifyDesktop } from '../../services/desktopBridge';
 import { CHAT_EMOJIS, REACTION_EMOJIS } from '../../constants/liveChatEmoji';
 import '../../styles/live-chat-interactions.css';
 
@@ -105,7 +106,15 @@ const CreatorLiveChatPanel = ({ broadcastId, listenerCount = 0 }) => {
         if (!active) return;
         setRealtimeState('connected');
 
-        const onMessage = (payload) => mergeMessage(payload);
+        const onMessage = (payload) => {
+          mergeMessage(payload);
+          // Native desktop alert for messages from OTHER people (never your own echo).
+          // No-op in browsers — notifyDesktop only fires inside Echoo Desktop.
+          const normalized = normalizeChatMessage(payload);
+          if (normalized && String(normalized.userId || '') !== String(user?.id || '')) {
+            notifyDesktop('message');
+          }
+        };
         const onDeleted = ({ messageId } = {}) => {
           setMessages((current) => current.filter((item) => !sameId(item.id, messageId)));
           setPinned((current) => current.filter((item) => !sameId(item.id, messageId)));
@@ -164,7 +173,7 @@ const CreatorLiveChatPanel = ({ broadcastId, listenerCount = 0 }) => {
       socket?.__echooCreatorChatCleanup?.();
       realtimeService.leaveBroadcast(broadcastId).catch(() => {});
     };
-  }, [broadcastId, loadChat, mergeMessage]);
+  }, [broadcastId, loadChat, mergeMessage, user?.id]);
 
   useEffect(() => {
     if (loading) return;

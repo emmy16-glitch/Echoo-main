@@ -3,16 +3,27 @@ import { Room, RoomEvent, Track } from 'livekit-client';
 import { FaHeadphones, FaRedoAlt, FaVolumeUp } from 'react-icons/fa';
 
 import batch3Service from '../../services/batch3Service';
+import {
+  LISTENER_PLAYBACK_WATCHDOG_MS,
+  LIVE_RECOVERY_DELAYS_MS,
+  mediaElementIsPlaying,
+  mediaTrackIsLive,
+  recoveryDelayMs,
+  roomIsConnected,
+} from '../../services/liveRecoveryPolicy';
 import { resolveLiveKitUrl } from '../../services/livekitUrl';
 import './LiveKitListenerPlayer.css';
 
 const STATUS_COPY = {
+  idle: 'Live audio',
   connecting: 'Creator connecting',
-  connected: 'Waiting for creator',
-  listening: 'Audio live',
-  reconnecting: 'Audio disconnected',
+  waiting_for_program: 'Waiting for creator',
+  playing: 'Audio live',
+  reconnecting: 'Reconnecting…',
+  recovering_audio: 'Recovering audio…',
+  autoplay_blocked: 'Audio ready',
   disconnected: 'Audio disconnected',
-  error: 'Audio disconnected',
+  failed: 'Audio disconnected',
 };
 
 const isEchooProgramPublication = (publication) => {
@@ -41,10 +52,13 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
   const roomRef = useRef(null);
   const audioHostRef = useRef(null);
   const outputRef = useRef('');
-  const attachedRef = useRef(new Set());
+  const attachedRef = useRef(new Map());
   const programParticipantRef = useRef(null);
+  const reconnectAttemptRef = useRef(0);
+  const reconnectTimerRef = useRef(null);
+  const needsAudioStartRef = useRef(false);
   const [retryVersion, setRetryVersion] = useState(0);
-  const [status, setStatus] = useState(isLive ? 'connecting' : 'disconnected');
+  const [status, setStatus] = useState(isLive ? 'connecting' : 'idle');
   const [needsAudioStart, setNeedsAudioStart] = useState(false);
   const [error, setError] = useState('');
   const [outputs, setOutputs] = useState([]);
@@ -61,12 +75,34 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
   }, [outputDeviceId]);
 
   useEffect(() => {
+    needsAudioStartRef.current = needsAudioStart;
+  }, [needsAudioStart]);
+
+  useEffect(() => {
+    reconnectAttemptRef.current = 0;
+    window.clearTimeout(reconnectTimerRef.current);
+    reconnectTimerRef.current = null;
+  }, [broadcastId, isLive]);
+
+  useEffect(() => {
     if (!broadcastId || !isLive) return undefined;
     let disposed = false;
     let audioLevelTimer = null;
+    let playbackWatchdogTimer = null;
     let smoothedAudioLevel = 0;
 
+    const detachAttachment = (id) => {
+      const entry = attachedRef.current.get(id);
+      if (!entry) return;
+      attachedRef.current.delete(id);
+      try { entry.track?.detach?.(entry.element); } catch { /* already detached */ }
+      try { entry.element?.pause?.(); } catch { /* already paused */ }
+      entry.element?.remove?.();
+      setTrackCount(attachedRef.current.size);
+    };
+
     const clearAudio = () => {
+      Array.from(attachedRef.current.keys()).forEach(detachAttachment);
       attachedRef.current.clear();
       programParticipantRef.current = null;
       smoothedAudioLevel = 0;
@@ -81,6 +117,59 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
         try { element.pause(); } catch { /* ignore */ }
         element.remove();
       });
+    };
+
+    const currentAttachmentIsHealthy = (entry) => Boolean(
+      entry &&
+      mediaTrackIsLive(entry.track) &&
+      entry.element?.srcObject &&
+      entry.element.isConnected &&
+      !entry.element.ended
+    );
+
+    const markPlaybackState = () => {
+      if (disposed) return false;
+      const entries = Array.from(attachedRef.current.values());
+      const playing = entries.some((entry) => currentAttachmentIsHealthy(entry) && mediaElementIsPlaying(entry.element));
+      if (playing) {
+        reconnectAttemptRef.current = 0;
+        needsAudioStartRef.current = false;
+        setNeedsAudioStart(false);
+        setStatus('playing');
+        return true;
+      }
+      if (entries.some(currentAttachmentIsHealthy)) {
+        setStatus('recovering_audio');
+      } else {
+        setStatus('waiting_for_program');
+      }
+      return false;
+    };
+
+    const scheduleHardReconnect = (reason) => {
+      if (disposed || reconnectTimerRef.current || !broadcastId || !isLive) return;
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        setStatus('reconnecting');
+        return;
+      }
+      const attempt = reconnectAttemptRef.current;
+      if (attempt >= LIVE_RECOVERY_DELAYS_MS.length) {
+        setStatus('failed');
+        setError('Live audio could not recover automatically. Retry the connection.');
+        return;
+      }
+      reconnectAttemptRef.current += 1;
+      setStatus('reconnecting');
+      const delay = recoveryDelayMs(attempt);
+      console.warn('[Echoo Live][Listener] scheduling hard reconnect', {
+        broadcastId,
+        attempt: attempt + 1,
+        reason,
+      });
+      reconnectTimerRef.current = window.setTimeout(() => {
+        reconnectTimerRef.current = null;
+        if (!disposed) setRetryVersion((current) => current + 1);
+      }, delay);
     };
 
     const startProgramLevelTelemetry = () => {
@@ -131,8 +220,23 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       if (participant) programParticipantRef.current = participant;
 
       const id = String(track.sid || track.mediaStreamTrack?.id || 'audio');
-      if (attachedRef.current.has(id)) return;
-      attachedRef.current.add(id);
+      const existing = attachedRef.current.get(id);
+      if (currentAttachmentIsHealthy(existing) && existing.track === track) {
+        try {
+          await existing.element.play();
+          markPlaybackState();
+        } catch (playError) {
+          setNeedsAudioStart(true);
+          needsAudioStartRef.current = true;
+          setStatus(playError?.name === 'NotAllowedError' ? 'autoplay_blocked' : 'recovering_audio');
+        }
+        return;
+      }
+      if (existing) detachAttachment(id);
+      // The listener must render exactly one canonical program element. A
+      // creator republish can retain a prior SID briefly while the replacement
+      // arrives, so stale attachments are explicitly removed here.
+      Array.from(attachedRef.current.keys()).forEach(detachAttachment);
 
       console.log(`[Echoo LiveKit] Attaching track: ${id}`);
       const element = track.attach();
@@ -155,7 +259,18 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       }
 
       audioHostRef.current?.appendChild(element);
-      setTrackCount((current) => current + 1);
+      attachedRef.current.set(id, { id, track, publication, element, room });
+      setTrackCount(attachedRef.current.size);
+      const onPlayable = () => markPlaybackState();
+      const onEnded = () => {
+        if (!disposed && roomRef.current === room) {
+          detachAttachment(id);
+          setStatus('recovering_audio');
+        }
+      };
+      element.addEventListener('playing', onPlayable);
+      element.addEventListener('canplay', onPlayable);
+      element.addEventListener('ended', onEnded, { once: true });
 
       if (track.mediaStreamTrack && !audioCtxRef.current) {
         try {
@@ -177,13 +292,15 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
         console.log(`[Echoo LiveKit] Autoplay SUCCESS for track: ${id}`);
         if (!disposed && roomRef.current === room) {
           setNeedsAudioStart(false);
-          setStatus('listening');
+          needsAudioStartRef.current = false;
+          markPlaybackState();
         }
       } catch (playError) {
         console.warn(`[Echoo LiveKit] Autoplay BLOCKED for track: ${id}`, playError);
         if (!disposed && roomRef.current === room) {
           setNeedsAudioStart(true);
-          setStatus('connected');
+          needsAudioStartRef.current = true;
+          setStatus(playError?.name === 'NotAllowedError' ? 'autoplay_blocked' : 'recovering_audio');
           if (playError?.name !== 'NotAllowedError') {
             setError(playError?.message || 'The live track arrived but playback did not start.');
           }
@@ -224,12 +341,14 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
         });
       });
       await Promise.allSettled(tasks);
+      markPlaybackState();
     };
 
     const connect = async () => {
-      setStatus('connecting');
+      setStatus(retryVersion > 0 ? 'recovering_audio' : 'connecting');
       setError('');
       setNeedsAudioStart(false);
+      needsAudioStartRef.current = false;
       clearAudio();
 
       const previousRoom = roomRef.current;
@@ -272,16 +391,14 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
         if (roomRef.current !== room) return;
         const id = String(track.sid || track.mediaStreamTrack?.id || 'audio');
         if (!attachedRef.current.has(id)) return;
-        attachedRef.current.delete(id);
-        try { track.detach().forEach((element) => element.remove()); } catch { /* ignore */ }
+        detachAttachment(id);
         if (isEchooProgramPublication(publication)) {
           programParticipantRef.current = null;
           smoothedAudioLevel = 0;
           setProgramAudioLevel(0);
         }
         if (!disposed) {
-          setTrackCount((current) => Math.max(0, current - 1));
-          setStatus('connected');
+          setStatus('recovering_audio');
         }
       });
 
@@ -290,28 +407,19 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       });
       room.on(RoomEvent.Reconnected, () => {
         if (!disposed && roomRef.current === room) {
-          setStatus(attachedRef.current.size ? 'listening' : 'connected');
-          attachExisting(room).catch(() => {});
+          setStatus('recovering_audio');
+          attachExisting(room).catch((recoveryError) => {
+            setError(recoveryError?.message || 'Could not restore live audio.');
+            scheduleHardReconnect('reattach_failed');
+          });
         }
       });
-      room.on(RoomEvent.Disconnected, () => {
+      room.on(RoomEvent.Disconnected, (reason) => {
         if (!disposed && roomRef.current === room) {
           smoothedAudioLevel = 0;
           setProgramAudioLevel(0);
           setStatus('disconnected');
-        }
-      });
-
-      // LiveKit signals an expiring token through a Disconnect with
-      // DisconnectReason.TokenExpired. Re-fetch credentials and reconnect
-      // automatically instead of dropping the listener to a manual retry.
-      room.on(RoomEvent.Disconnected, (reason) => {
-        if (disposed || roomRef.current !== room) return;
-        const tokenExpired =
-          reason === 2 /* DisconnectReason.TokenExpired */ ||
-          String(reason || '').toLowerCase().includes('token');
-        if (tokenExpired && broadcastId && isLive) {
-          setRetryVersion((current) => current + 1);
+          scheduleHardReconnect(`room_disconnected:${String(reason ?? '')}`);
         }
       });
       room.on(RoomEvent.AudioPlaybackStatusChanged, () => {
@@ -319,7 +427,8 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
           const hasAudio = attachedRef.current.size > 0;
           const canPlay = room.canPlaybackAudio;
           setNeedsAudioStart(hasAudio && !canPlay);
-          if (hasAudio && canPlay) setStatus('listening');
+          needsAudioStartRef.current = hasAudio && !canPlay;
+          if (hasAudio && canPlay) markPlaybackState();
         }
       });
       room.on(RoomEvent.MediaDevicesChanged, loadOutputs);
@@ -345,10 +454,12 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       const hasPlayingAudio = audioElements.some(
         (element) => !element.paused && !element.ended
       );
-      setStatus(hasPlayingAudio ? 'listening' : 'connected');
+      reconnectAttemptRef.current = 0;
+      setStatus(hasPlayingAudio ? 'playing' : attachedRef.current.size ? 'recovering_audio' : 'waiting_for_program');
       setNeedsAudioStart(
         attachedRef.current.size > 0 && !hasPlayingAudio
       );
+      needsAudioStartRef.current = attachedRef.current.size > 0 && !hasPlayingAudio;
     };
 
     connect().catch(async (connectError) => {
@@ -367,14 +478,53 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       }
 
       if (!disposed) {
-        setStatus('error');
+        setStatus('failed');
         setError(connectError?.message || 'Could not connect to the live broadcast.');
+        scheduleHardReconnect('connect_failed');
       }
     });
+
+    const onOffline = () => {
+      if (!disposed) setStatus('reconnecting');
+    };
+    const onOnline = () => {
+      if (!disposed && !roomIsConnected(roomRef.current)) scheduleHardReconnect('browser_online');
+    };
+    window.addEventListener('offline', onOffline);
+    window.addEventListener('online', onOnline);
+
+    playbackWatchdogTimer = window.setInterval(() => {
+      if (disposed) return;
+      const room = roomRef.current;
+      if (!roomIsConnected(room)) return;
+      const entries = Array.from(attachedRef.current.values());
+      if (!entries.length || !entries.some(currentAttachmentIsHealthy)) {
+        setStatus('recovering_audio');
+        attachExisting(room).catch(() => scheduleHardReconnect('watchdog_missing_attachment'));
+        return;
+      }
+      if (!entries.some((entry) => mediaElementIsPlaying(entry.element)) && !needsAudioStartRef.current) {
+        setStatus('recovering_audio');
+        entries.forEach((entry) => {
+          entry.element.play().then(markPlaybackState).catch((playError) => {
+            if (playError?.name === 'NotAllowedError') {
+              setNeedsAudioStart(true);
+              needsAudioStartRef.current = true;
+              setStatus('autoplay_blocked');
+            }
+          });
+        });
+      }
+    }, LISTENER_PLAYBACK_WATCHDOG_MS);
 
     return () => {
       disposed = true;
       if (audioLevelTimer) window.clearInterval(audioLevelTimer);
+      if (playbackWatchdogTimer) window.clearInterval(playbackWatchdogTimer);
+      window.clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+      window.removeEventListener('offline', onOffline);
+      window.removeEventListener('online', onOnline);
       const room = roomRef.current;
       roomRef.current = null;
       clearAudio();
@@ -392,9 +542,11 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       const elements = Array.from(audioHostRef.current?.querySelectorAll('audio') || []);
       for (const element of elements) await element.play();
       setNeedsAudioStart(false);
-      if (elements.length) setStatus('listening');
+      needsAudioStartRef.current = false;
+      if (elements.length) setStatus('playing');
     } catch (startError) {
       setNeedsAudioStart(true);
+      needsAudioStartRef.current = true;
       setError(startError?.message || 'Tap again to start the live audio.');
     }
   }, []);
@@ -411,9 +563,10 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
     try {
       if (shouldPlay) audioCtxRef.current?.resume?.();
       await Promise.all(elements.map((element) => (shouldPlay ? element.play() : element.pause())));
-      setStatus(shouldPlay ? 'listening' : 'connected');
+      setStatus(shouldPlay ? 'playing' : 'idle');
     } catch (playError) {
       setNeedsAudioStart(true);
+      needsAudioStartRef.current = true;
       setError(playError?.message || 'Tap again to start the live audio.');
     }
   }, [needsAudioStart, startAudio]);
@@ -424,6 +577,57 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
     elements.forEach((element) => { element.muted = nextMuted; });
     setLiveMuted(nextMuted);
   }, []);
+
+  // Lock-screen / background-tab controls (mobile browsers, minimized
+  // windows): without these the OS shows no metadata and some platforms
+  // deprioritize the page's audio. Playback itself already survives
+  // backgrounding — this keeps the user in control while it does.
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return undefined;
+    if (!isLive) {
+      try {
+        navigator.mediaSession.metadata = null;
+        navigator.mediaSession.playbackState = 'none';
+      } catch {
+        // Media Session is best-effort enhancement.
+      }
+      return undefined;
+    }
+    try {
+      navigator.mediaSession.metadata = new window.MediaMetadata({
+        title: track?.title || 'Live on Echoo',
+        artist: track?.subtitle || 'Echoo Creator',
+        album: 'Echoo Live',
+        artwork: track?.coverArt
+          ? [{ src: track.coverArt, sizes: '512x512', type: 'image/png' }]
+          : [],
+      });
+    } catch {
+      // Older browsers accept playback without metadata.
+    }
+    let disposed = false;
+    const setHandlers = () => {
+      if (disposed) return;
+      try {
+        navigator.mediaSession.setActionHandler('play', () => { void togglePlayback(); });
+        navigator.mediaSession.setActionHandler('pause', () => { void togglePlayback(); });
+        navigator.mediaSession.setActionHandler('stop', () => { void togglePlayback(); });
+      } catch {
+        // Unsupported actions throw per spec — safe to ignore.
+      }
+    };
+    setHandlers();
+    return () => {
+      disposed = true;
+      try {
+        navigator.mediaSession.setActionHandler('play', null);
+        navigator.mediaSession.setActionHandler('pause', null);
+        navigator.mediaSession.setActionHandler('stop', null);
+      } catch {
+        // Already torn down.
+      }
+    };
+  }, [isLive, track?.title, track?.subtitle, track?.coverArt, togglePlayback]);
 
   const changeVolume = useCallback((value) => {
     const nextVolume = Math.max(0, Math.min(1, Number(value) || 0));
@@ -457,7 +661,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
   useEffect(() => {
     onStateChange?.({
       active: Boolean(isLive),
-      isPlaying: status === 'listening',
+      isPlaying: status === 'playing',
       track: isLive && track ? { ...track, isLive: true } : null,
       playerError: error,
       status,
@@ -471,6 +675,15 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       onToggleMute: toggleMute,
       onVolumeChange: changeVolume,
     });
+
+    // Keep the lock-screen transport icon truthful (playing vs paused).
+    try {
+      if (typeof navigator !== 'undefined' && 'mediaSession' in navigator && isLive) {
+        navigator.mediaSession.playbackState = status === 'playing' ? 'playing' : 'paused';
+      }
+    } catch {
+      // Best-effort only.
+    }
 
     return () => {
       onStateChange?.({ active: false, track: null, isPlaying: false, playerError: '', audioLevel: 0 });
@@ -497,7 +710,9 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
   const detail = needsAudioStart
     ? 'Audio received — tap to allow playback'
     : trackCount > 0
-      ? 'Echoo studio mix received'
+      ? status === 'recovering_audio'
+        ? 'Studio mix found — restoring playback'
+        : 'Echoo studio mix received'
       : 'Waiting for the creator to publish the studio mix';
 
   return (
@@ -530,8 +745,11 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
         </button>
       )}
 
-      {(status === 'error' || status === 'disconnected') && (
-        <button type="button" className="echoo-livekit-retry" onClick={() => setRetryVersion((current) => current + 1)}>
+      {(status === 'failed' || status === 'disconnected') && (
+        <button type="button" className="echoo-livekit-retry" onClick={() => {
+          reconnectAttemptRef.current = 0;
+          setRetryVersion((current) => current + 1);
+        }}>
           <FaRedoAlt /> Reconnect
         </button>
       )}

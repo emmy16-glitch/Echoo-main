@@ -15,6 +15,8 @@ import './CreatorStudio.identity.css';
 import './CreatorStudioShellFinal.css';
 import './CreatorStudioV2Shell.css';
 import './CreatorStudioShellArchitecture.css';
+import './CreatorListenerAligned.css';
+import EchooAtmosphere from '../UI/EchooAtmosphere';
 import echooLogo from '../Assets/echoo-logo-mark.png';
 import echooDecorativeLogo from '../Assets/echoo-logo.png';
 import studioService from '../../services/studioService';
@@ -242,6 +244,15 @@ const CreatorStudioBody = () => {
     }
   };
 
+  useEffect(() => {
+    if (!uploadOpen) return undefined;
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') closeUpload();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  });
+
   const handleUploadChange = (event) => {
     const { name, value, checked, files, type } = event.target;
 
@@ -443,6 +454,7 @@ const CreatorStudioBody = () => {
 
   return (
     <div className="studio-page studio-final-shell studio-v2-shell">
+      <EchooAtmosphere role="creator" className="studio-atmosphere" />
       <aside className="studio-sidebar">
         <div className="studio-sidebar-head">
           <button type="button" className="studio-brand" onClick={() => navigateStudio('Broadcast')} aria-label="Echoo Broadcast">
@@ -498,7 +510,7 @@ const CreatorStudioBody = () => {
 
       {uploadOpen && (
         <div className="studio-modal-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) closeUpload(); }}>
-          <div className="studio-upload-modal studio-upload-modal-artwork">
+          <div className="studio-upload-modal studio-upload-modal-artwork" role="dialog" aria-modal="true" aria-label="Upload audio and artwork">
             <div className="upload-modal-header">
               <div>
                 <h2>Upload audio & artwork</h2>

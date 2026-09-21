@@ -8,7 +8,12 @@
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
-    <title>echoo</title>
+    <title>Echoo</title>
+    <!-- Identity marker for dev tooling: desktop/dev-all health checks fetch
+         this page and require this exact tag before trusting the dev server.
+         A bare HTTP 200 is NOT proof (shared machine: another user's server
+         may own the port). Do not remove or rename. -->
+    <meta name="echoo-app" content="echoo-frontend" />
     <meta
       name="theme-color"
       content="#FAFAFA"

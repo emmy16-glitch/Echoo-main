@@ -23,6 +23,8 @@ import {
   getUpcomingBroadcasts,
   getLiveBroadcast,
   getListenerLiveKitToken,
+  getGuestListenerToken,
+  getPublicBroadcast,
   getPlaybackInfo,
 } from '../controllers/broadcastController.js';
 import {
@@ -96,6 +98,10 @@ router.get(
 );
 router.get('/:broadcastId/presence', getBroadcastPresenceCached);
 router.get('/:broadcastId/playback', getPlaybackInfo);
+// Shared listen links: public broadcast card + guest listener credentials.
+// No account needed; the controllers enforce live+public, and token issuance
+// carries the same per-IP rate limit as authenticated listener tokens.
+router.get('/:broadcastId/public', getPublicBroadcast);
 
 // Creator-owned broadcast collection.
 router.get('/mine/all', authenticate, requireCreator, getCreatorBroadcasts);
@@ -146,6 +152,11 @@ router.post(
   authenticate,
   livekitTokenLimiter,
   getListenerLiveKitToken
+);
+router.post(
+  '/:broadcastId/guest-token',
+  livekitTokenLimiter,
+  getGuestListenerToken
 );
 
 export default router;

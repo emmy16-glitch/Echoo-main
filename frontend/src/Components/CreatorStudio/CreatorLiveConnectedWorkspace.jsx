@@ -28,8 +28,8 @@ import {
   saveRealtimeAudioProfile,
 } from '../../services/realtimeAudioQuality';
 import {
-  getActiveLiveKitRoom,
   getLiveKitPublishingState,
+  retryLiveKitPublishingRecovery,
   startLiveKitPublishing,
   stopLiveKitPublishing,
 } from '../../services/livekitPublisher';
@@ -526,6 +526,7 @@ const CreatorLiveConnectedWorkspace = ({
         broadcastId: broadcast.id,
         mediaTrack,
         qualityProfile: realtimeQualityProfile,
+        credentialProvider: () => batch3Service.getLiveKitToken(broadcast.id),
       });
 
       // A successful canonical-program publication is the honest LIVE moment.
@@ -685,6 +686,19 @@ const CreatorLiveConnectedWorkspace = ({
     }
   };
 
+  const retryAudioConnection = async () => {
+    try {
+      setError('');
+      setMessage('Recovering the live audio connection…');
+      const recovered = await retryLiveKitPublishingRecovery();
+      if (!recovered) throw new Error('Automatic audio recovery is still unavailable.');
+      setMessage('Live audio recovered.');
+    } catch (recoveryError) {
+      setMessage('');
+      setError(recoveryError?.message || 'Could not recover the live audio connection.');
+    }
+  };
+
   if (loading) {
     return <div className="ebsx-loading">Loading Broadcast Studio...</div>;
   }
@@ -715,12 +729,18 @@ const CreatorLiveConnectedWorkspace = ({
   // Channel identity is independent of the selected program/broadcast. The
   // canonical station is always the first backend-ordered station.
   const liveStation = selectedStation;
-  const activeRoom = isLive ? getActiveLiveKitRoom() : null;
-  const creatorConnected = presence.creatorConnected || Boolean(activeRoom);
-  const audioPublished =
-    currentLiveBroadcast?.mediaState === 'audio_live' ||
-    publisherHealth?.audio === 'published';
-  const connectionHealthy = creatorConnected && audioPublished;
+  const connectionHealthy = Boolean(
+    isLive &&
+    publisherHealth?.connected === true &&
+    String(publisherHealth?.broadcastId || '') === String(currentLiveBroadcast?.id || '')
+  );
+  const connectionLabel = connectionHealthy
+    ? 'Connected'
+    : publisherHealth?.phase === 'failed'
+      ? 'Audio connection lost'
+      : publisherHealth?.phase === 'recovering'
+        ? 'Recovering audio…'
+        : 'Reconnecting…';
   const heroState = ending ? 'ending' : isLive ? 'live' : 'off-air';
 
   return (
@@ -756,8 +776,13 @@ const CreatorLiveConnectedWorkspace = ({
               <div className={`ec2-live-fact ${mixerState?.recordingTapActive ? 'is-recording' : ''}`}><strong>{mixerState?.recordingTapActive ? 'Recording' : 'Preparing recording'}</strong></div>
               <div className="ec2-live-fact"><FiClock aria-hidden="true" /><strong>Live for {formatTimer(elapsed)}</strong></div>
               <span className={`ec2-live-connection ${connectionHealthy ? 'is-healthy' : ''}`}>
-                {connectionHealthy ? 'Connected' : 'Connecting…'}
+                {connectionLabel}
               </span>
+              {publisherHealth?.phase === 'failed' && (
+                <button type="button" className="ec2-copy-live" onClick={retryAudioConnection}>
+                  <FiRadio /> Retry audio
+                </button>
+              )}
               <button type="button" className="ec2-copy-live ec2-copy-live--hero" onClick={copyLiveLink}>
                 <FiCopy /> {linkCopied ? 'Copied' : 'Copy live link'}
               </button>

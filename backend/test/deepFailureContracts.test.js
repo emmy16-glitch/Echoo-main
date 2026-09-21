@@ -114,13 +114,14 @@ test('prerequisite waiting does not burn processing retry attempts', async () =>
 test('recording completion retries and automatic save preserves recovery state', async () => {
   const recording = await frontendSource('src/services/broadcastRecordingService.js');
   const prompt = await frontendSource('src/Components/CreatorStudio/BroadcastRecordingPrompt.jsx');
+  const autosave = await frontendSource('src/services/recordingAutosave.js');
   assert.match(recording, /QUALITY_CHUNK_COMPLETE_RETRIES/);
   assert.match(recording, /completeQualityChunks/);
   assert.match(recording, /qualityCompletionPending/);
   assert.match(recording, /retryBroadcastQualityCompletion/);
-  assert.match(prompt, /retryBroadcastQualityCompletion/);
-  assert.match(prompt, /studioService\.uploadAudio/);
-  assert.match(prompt, /isPublic:\s*false/);
+  assert.match(autosave, /retryBroadcastQualityCompletion/);
+  assert.match(autosave, /studioService\.uploadAudio/);
+  assert.match(autosave, /isPublic:\s*false/);
   assert.match(prompt, /REPLAY_ALREADY_EXISTS/);
   assert.match(prompt, /beforeunload/);
   assert.match(prompt, /Echoo automatically saves every completed broadcast/);

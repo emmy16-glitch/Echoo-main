@@ -91,3 +91,6 @@ frontend/e2e/screenshots/
 
 # Local test/audit output
 echoo-audit-result.txt
+
+# Baked installer secrets (LiveKit creds for zero-config installs) — NEVER commit.
+desktop/.bundled-server-env

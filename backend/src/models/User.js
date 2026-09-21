@@ -123,7 +123,10 @@ const userSchema = new mongoose.Schema(
       },
       category: {
         type: String,
-        enum: ['Music', 'Podcast', 'Education', 'Entertainment', 'News', 'Sports', 'Technology', 'Spiritual', 'Comedy', 'Storytelling', 'Other'],
+        // Superset of the Station category enum (see Station.js): the Channel
+        // setup flow writes the station-style value here, so both models must
+        // accept the same strings or onboarding 400s on valid categories.
+        enum: ['Faith & Spirituality', 'Education', 'News & Politics', 'News', 'Business', 'Health & Wellness', 'Entertainment', 'Technology', 'Sports', 'Music', 'Podcast', 'Comedy', 'Storytelling', 'Spiritual', 'Other'],
       },
       about: {
         type: String,

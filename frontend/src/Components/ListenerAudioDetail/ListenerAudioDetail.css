@@ -27,7 +27,7 @@
 .replay-about h2,
 .replay-moments h2 { margin: 0; color: var(--echoo-ds-ink); font-size: var(--echoo-ds-small-size); }
 .replay-about p { margin: var(--echoo-space-3) 0 0; color: var(--echoo-ds-text); font-size: var(--echoo-ds-caption-size); line-height: 1.6; }
-.replay-about button { margin-top: var(--echoo-space-3); padding: 0; border: 0; background: transparent; color: var(--echoo-ds-brand); font-size: var(--echoo-ds-caption-size); font-weight: 600; cursor: pointer; }
+.replay-about button { margin-top: var(--echoo-space-3); min-height: 28px; padding: 0; border: 0; background: transparent; color: var(--echoo-ds-brand); font-size: var(--echoo-ds-caption-size); font-weight: 600; cursor: pointer; }
 .replay-about--wide { min-height: 220px; }
 .replay-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0; overflow: hidden; }
 .replay-facts > div { display: grid; gap: var(--echoo-space-1); min-height: 76px; padding: var(--echoo-space-3); border-right: 1px solid var(--echoo-ds-line); border-bottom: 1px solid var(--echoo-ds-line); }

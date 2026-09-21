@@ -6,13 +6,14 @@ const read = (relativePath) => readFile(new URL(relativePath, import.meta.url), 
 
 test('Individual and Organization setup provision the canonical Channel before completion', async () => {
   const source = await read('../CreatorSetup/CreatorSetup.jsx');
-  const individualStart = source.indexOf('const finishIndividualSetup');
-  const organizationStart = source.indexOf('const finishOrganizationSetup');
-  const individual = source.slice(individualStart, organizationStart);
-  const organization = source.slice(organizationStart, source.indexOf('const handleContinue', organizationStart));
+  const submitStart = source.indexOf('const submit = async');
+  const submit = source.slice(submitStart, source.indexOf('return (', submitStart));
+  const channelAt = submit.indexOf('await ensureCanonicalChannel');
+  const completeAt = submit.indexOf('await onboardingService.complete');
 
-  assert.ok(individual.indexOf('await ensureCanonicalStation') < individual.indexOf('await onboardingService.complete'));
-  assert.ok(organization.indexOf('await ensureCanonicalStation') < organization.indexOf('await onboardingService.complete'));
+  assert.ok(channelAt >= 0 && channelAt < completeAt);
+  assert.match(submit, /creatorType:\s*'individual'/);
+  assert.match(submit, /creatorType:\s*'organization'/);
 });
 
 test('creator setup treats an already-created Channel as a recoverable retry', async () => {
@@ -20,7 +21,7 @@ test('creator setup treats an already-created Channel as a recoverable retry', a
   const api = await read('../../services/api.js');
   const auth = await read('../../../../backend/src/controllers/authController.js');
 
-  assert.match(setup, /error\?\.code !== "CHANNEL_ALREADY_EXISTS"/);
+  assert.match(setup, /error\?\.code !== ['"]CHANNEL_ALREADY_EXISTS['"]/);
   assert.match(setup, /const retry = await batch2Service\.getMyStations\(\)/);
   assert.match(api, /'CHANNEL_ALREADY_EXISTS'/);
   assert.match(auth, /code: 'EMAIL_EXISTS'/);

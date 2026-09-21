@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useNavigate, useOutletContext } from 'react-router-dom';
 import {
   FaCheck,
   FaClock,
@@ -88,12 +88,14 @@ const normalizedTrack = (item) => {
 };
 
 const ListenerHistoryConnected = () => {
+  const navigate = useNavigate();
   const { playTrack, currentTrack, isPlaying, togglePlay } = useOutletContext();
   const [toast, setToast] = useState({ open: false, type: 'info', title: '', message: '' });
   const notify = useCallback((message, type = 'info') => {
     setToast({ open: true, type, title: type === 'error' ? 'Something went wrong' : 'History', message });
   }, []);
   const [items, setItems] = useState([]);
+  const [needsAuth, setNeedsAuth] = useState(false);
   const [stats, setStats] = useState({
     totalPlays: 0,
     totalListeningTime: 0,
@@ -156,10 +158,19 @@ const ListenerHistoryConnected = () => {
       const history = Array.isArray(raw.history) ? raw.history : [];
       const tracks = history.map(normalizedTrack).filter(Boolean);
       setItems(tracks);
+      setNeedsAuth(false);
       if (!silent) await loadStats();
     } catch (error) {
       console.error('History load failed', error);
-      if (!silent) notify('Could not load listening history', 'error');
+      // Logged-out visitors get a 401 here — that is "not signed in", not a
+      // service failure. Show the sign-in state instead of stacking a
+      // "Something went wrong" toast on top of the empty state.
+      if (!localStorage.getItem('accessToken')) {
+        setNeedsAuth(true);
+      } else if (!silent) {
+        setNeedsAuth(false);
+        notify('Could not load listening history', 'error');
+      }
     } finally {
       if (!silent) setLoading(false);
     }
@@ -318,6 +329,15 @@ const ListenerHistoryConnected = () => {
 
           {loading ? (
             <div className="lh-empty lh-empty-loading">Loading your listening history…</div>
+          ) : needsAuth ? (
+            <div className="lh-empty">
+              <FaClock />
+              <strong>Sign in to see your history.</strong>
+              <p>Listening history is personal — sign in and everything you play will be tracked here.</p>
+              <button type="button" className="lh-clear-btn" onClick={() => navigate('/login')}>
+                Sign in
+              </button>
+            </div>
           ) : filtered.length === 0 ? (
             <div className="lh-empty">
               <FaClock />

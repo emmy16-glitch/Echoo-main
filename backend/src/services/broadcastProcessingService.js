@@ -4,7 +4,7 @@ import BroadcastAudioChunk from '../models/BroadcastAudioChunk.js';
 import Notification from '../models/Notification.js';
 import TranscriptSegment from '../models/TranscriptSegment.js';
 import TranscriptSession from '../models/TranscriptSession.js';
-import { flushBroadcastTranscription } from './transcriptionGateway.js';
+import { flushBroadcastTranscription, isTranscriptionConfigured } from './transcriptionGateway.js';
 import {
   markTranscriptQualityChunkFailed,
   processTranscriptQualityChunk,
@@ -78,6 +78,7 @@ const completeAudio = async (broadcast) => {
 };
 
 const completeTranscript = async (broadcast) => {
+  if (!isTranscriptionConfigured()) return;
   if (broadcast.assetStatus?.transcript === 'published') return;
 
   const [qualityPending, qualityFailed] = await Promise.all([
@@ -139,6 +140,7 @@ const completeTranscript = async (broadcast) => {
 };
 
 const processQualityChunk = async (job) => {
+  if (!isTranscriptionConfigured()) return { disabled: true, chunkId: String(job.chunkId || '') };
   if (!job.chunkId) throw new Error('Transcript quality job is missing chunkId');
   await BroadcastAudioChunk.updateOne(
     { _id: job.chunkId, status: { $ne: 'completed' } },
@@ -156,6 +158,7 @@ const processQualityChunk = async (job) => {
 };
 
 const improveTranscript = async (broadcast) => {
+  if (!isTranscriptionConfigured()) return;
   if (broadcast.assetStatus?.transcript === 'published') return;
 
   const completionJob = await BroadcastProcessingJob.findOne({
@@ -207,6 +210,7 @@ const ensureTranscriptUsable = (broadcast, purpose) => {
 };
 
 const detectHighlights = async (broadcast) => {
+  if (!isTranscriptionConfigured()) return;
   ensureTranscriptUsable(broadcast, 'detecting highlights');
   broadcast.assetStatus.highlights = 'processing';
   const candidates = await TranscriptSegment.find({
@@ -224,6 +228,7 @@ const detectHighlights = async (broadcast) => {
 };
 
 const generateChapters = async (broadcast) => {
+  if (!isTranscriptionConfigured()) return;
   ensureTranscriptUsable(broadcast, 'generating chapters');
   broadcast.assetStatus.chapters = 'processing';
   const segments = await TranscriptSegment.find({ broadcastId: broadcast._id, isFinal: true, isHidden: false })

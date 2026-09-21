@@ -557,6 +557,12 @@ export async function createTranscriptSession(req, res, next) {
 export async function flushTranscriptSession(req, res, next) {
   try {
     validId(req.params.sessionId, 'session');
+    if (!isTranscriptionConfigured()) {
+      return res.status(200).json({
+        data: { configured: false, session: null },
+        timestamp: new Date().toISOString(),
+      });
+    }
     const session = await TranscriptSession.findOne({
       _id: req.params.sessionId,
       creatorId: req.userId,

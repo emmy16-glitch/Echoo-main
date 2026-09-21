@@ -177,6 +177,11 @@ export const getWhisperFlowState = () => ({
   lastAcknowledgedFrame: Number(activeSession?.lastAcknowledgedFrame ?? -1),
 });
 
+// Transcription pause contract: the browser never auto-starts Whisper work.
+// startWhisperFlowTranscription returns { configured:false } when the backend
+// reports transcription disabled, without creating AudioContext/worklets.
+export const isWhisperTranscriptionActive = () => Boolean(activeSession);
+
 const drainForBackgroundHandoff = async (session, timeoutMs = 2000) => {
   const deadline = Date.now() + timeoutMs;
   while (session.frames.length && session.socket.connected && Date.now() < deadline) {
@@ -337,4 +342,5 @@ export default {
   startWhisperFlowTranscription,
   stopWhisperFlowTranscription,
   getWhisperFlowState,
+  isWhisperTranscriptionActive,
 };

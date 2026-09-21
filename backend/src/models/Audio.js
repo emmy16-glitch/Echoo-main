@@ -72,6 +72,22 @@ const audioSchema = new mongoose.Schema(
       required: true,
       unique: true,
     },
+    // Recordings stay on the Echoo server (uploads/audio). `storage` is kept
+    // as a legacy marker and is always 'local' for new recordings; the
+    // cloudUrl/cloudKey fields below are deprecated leftovers and stay null.
+    storage: {
+      type: String,
+      enum: ['local', 'cloud'],
+      default: 'local',
+    },
+    cloudUrl: {
+      type: String,
+      default: null,
+    },
+    cloudKey: {
+      type: String,
+      default: null,
+    },
     mimeType: {
       type: String,
       required: true,
@@ -79,6 +95,12 @@ const audioSchema = new mongoose.Schema(
     duration: {
       type: Number,
       default: 0,
+    },
+    lastTrim: {
+      startSeconds: { type: Number, default: null },
+      endSeconds: { type: Number, default: null },
+      sourceDuration: { type: Number, default: null },
+      trimmedAt: { type: Date, default: null },
     },
     coverArt: {
       type: String,
@@ -153,6 +175,8 @@ const audioSchema = new mongoose.Schema(
         delete ret._id;
         delete ret.filename;
         delete ret.fileKey;
+        delete ret.cloudUrl;
+        delete ret.cloudKey;
         return ret;
       },
     },

@@ -8,7 +8,11 @@ import {
 } from 'react-icons/fa';
 
 import './CreatorSetup.css';
+import '../CreatorStudio/CreatorListenerAligned.css';
 import echooLogo from '../Assets/echoo-logo.png';
+// Decorative background artwork for the setup panel (opacity 0.12, aria-hidden).
+// Previously referenced an undefined `echooArtwork` identifier, which crashed
+// the whole screen with a ReferenceError on render.
 import echooArtwork from '../Assets/echoo-role-headphones-microphone.png';
 import LoadingButton from '../UI/LoadingButton';
 import Toast from '../UI/Toast';
@@ -163,6 +167,11 @@ export default function CreatorSetup({ onCreatorReady }) {
 
     try {
       setSaving(true);
+
+      // Listeners don't have the creator capability yet — grant it first.
+      // Without this, chooseCreatorType rejects with 403 and Channel setup
+      // can never succeed for a brand-new user (empty-DB dead end).
+      await onboardingService.activateCreator();
 
       await onboardingService.chooseCreatorType(
         isOrganization

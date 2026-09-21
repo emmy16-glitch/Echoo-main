@@ -1,139 +1,179 @@
-# Echoo Desktop Studio
+# Echoo Desktop — release guide
 
-## Linux installation
+Native shell around the React frontend (`../frontend`) **with its own bundled
+Echoo API** (`../backend` via `extraResources`, run with
+`ELECTRON_RUN_AS_NODE`). End users install one file and get everything —
+no Node, no MongoDB, no terminal.
 
-The **`.deb` file is an installer package, not a directly runnable program**. After downloading the current `Echoo-Studio-<version>-amd64.deb` asset, install it with your distribution’s software installer or run:
+## Standalone runtime (packaged app)
 
-```bash
-cd ~/Downloads
-sudo apt install ./Echoo-Studio-<version>-amd64.deb
-```
+- On launch the shell probes `http://127.0.0.1:5017/api/health`. If an Echoo
+  API is already there (e.g. a developer running the repo stack), it is
+  reused; otherwise the bundled server is spawned and stopped on quit.
+- Server data (uploads, transcript chunks) lives in per-user app storage
+  (`server-data/` under Electron `userData`), never in the read-only bundle.
+  Per-machine JWT secrets are generated once (`echoo-server-secrets.json`,
+  mode 0600) unless `JWT_SECRET`/`JWT_REFRESH_SECRET` are set in the env.
+- Database: the bundled server uses the machine-local MongoDB when one
+  answers, else boots an embedded MongoDB (`mongodb-memory-server`,
+  `ECHOO_DESKTOP=1` path in `backend/src/config/database.js`) with data files
+  in `server-data/mongo-data` (persists across restarts). **First launch
+  downloads the mongod binary once (~120 MB, needs internet)** into the OS
+  cache; later launches are fully offline.
+- Dev (`npm run dev` / `npm start`) never spawns anything extra: if the repo
+  backend is already up it is reused, otherwise the dev entrypoint is
+  available at `../../backend/src/app.js` — start it with
+  `cd backend && npm run dev` as usual.
 
-Then open **Echoo Studio** from the application launcher, or run `echoo-studio` from a terminal. Do **not** use `chmod +x` or try to run the `.deb` file directly.
+## Going live (LiveKit audio server)
 
-For distributions that do not use Debian packages, download the AppImage instead and run:
+The Creator "Go Live" flow needs a LiveKit WebRTC server. Without one the
+backend fails the start-broadcast call and the app now says so plainly
+("Live audio is not set up on this Echoo server yet") instead of a generic
+error. Two ways to provide it:
 
-```bash
-chmod +x Echoo-Studio-<version>-x86_64.AppImage
-./Echoo-Studio-<version>-x86_64.AppImage
-```
+- **Local dev:** `livekit-server --dev --port 7880` (placeholder credentials
+  `devkey` / `secret` — local only), plus in `backend/.env`:
+  `LIVEKIT_URL=ws://127.0.0.1:7880`, `LIVEKIT_PUBLIC_URL=ws://127.0.0.1:7880`,
+  `LIVEKIT_API_KEY=devkey`, `LIVEKIT_API_SECRET=secret`. The repo
+  `npm run dev:all` script starts this automatically when the binary exists.
+- **Real deployments:** a LiveKit Cloud project (or self-hosted server) with
+  public `wss://` URLs — set the same four vars to the real values. For the
+  packaged desktop's bundled server, put them in a `.env` file inside
+  `server-data/` (the bundled backend's working directory, loaded by dotenv).
 
-Maintainers can create the Linux distribution assets with `npm run build:linux`. This produces a `.deb` installer, an AppImage, and a compressed tarball in `desktop/dist/`.
+## Dev quickstart (recommended)
 
-### Verified Ubuntu release — v1.0.5
-
-The current Linux delivery was built and validated on Ubuntu. The packaged-shell check exercised the secure desktop bridge, persisted default-off desktop-alert preferences, background-room retention, and the tray actions for open, mute, unmute, and leave room.
-
-| Artifact | Intended use | SHA-256 |
-|---|---|---|
-| `Echoo-Studio-1.0.5-amd64.deb` | Recommended for Ubuntu and other Debian-based distributions | `7aa0978e21c9971b537ea747894fc6326058843bcd64f2b11f1e05489de83237` |
-| `Echoo-Studio-1.0.5-x86_64.AppImage` | Portable alternative for supported Linux distributions | `9cd6b5e0a1dc32a908ac31fe93ee4935058d9e0dbf4e86cd1a147f1931be63b8` |
-| `Echoo-Studio-1.0.5-x64.tar.gz` | Manual archive alternative | `895fec0f7e63242f40cbc12fc470624f70a613a4b311c5147a9ac901e2f5bb4a` |
-
-Check a downloaded file before installing it with `sha256sum <filename>` and compare the result with the matching value above. Linux artifacts are currently unsigned; the public download buttons are intentionally served by the Echoo landing page so the private source repository remains private.
-
-Echoo Desktop Studio is the secure native shell for the live Echoo audio platform. Built with **Electron**, it loads the production application at [echoo.digi02.org](https://echoo.digi02.org) by default while retaining the product’s web design language, WebRTC capabilities, and creator/listener workflows.
-
-## 🚀 Features
-- **Live by default**: Opens the production Echoo application without requiring a local frontend server.
-- **Secure shell**: Keeps Node APIs isolated from web content and only exposes a minimal native bridge.
-- **Resilient experience**: Shows a branded recovery view if the live service cannot be reached.
-- **Native controls**: Provides standard platform menus, zoom/full-screen support, and safe external-link handling.
-- **Granular notification settings**: Listener and creator settings provide a device-local master switch plus separate controls for live-room messages, room-started, and room-ended alerts. Alerts remain off until enabled, use neutral status copy only, and never include room names or message text.
-- **Cross-platform packaging**: Builds NSIS for Windows, DMG for macOS, and DEB, AppImage, and compressed archive targets for Linux.
-
----
-
-## 🛠 Installation & Development
-
-### Prerequisites
-- [Node.js](https://nodejs.org/) (v18 or higher)
-- [npm](https://www.npmjs.com/)
-
-### Setup
-1. Navigate to the desktop directory:
-   ```bash
-   cd desktop
-   ```
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-### Running in Development
-To launch the desktop app against the live Echoo experience:
-```bash
-npm start
-```
-
-For local frontend development, point the shell at your Vite server explicitly:
-```bash
-NODE_ENV=development ECHOO_URL=http://localhost:5174 npm run dev
-```
-
-The desktop shell intentionally loads the website; it is not an offline broadcaster. A working internet connection is required for authentication and live audio rooms.
-
-### Desktop validation
-
-Run the native-shell smoke test before packaging:
-```bash
-npm test
-```
-
-The test starts Electron against a controlled local fixture and confirms that the secure bridge is available while Node remains unavailable to web content.
-
-For a release-candidate Linux package, run the packaged-shell validation after `npm run build:linux`:
+From the repo root, one command starts everything in order with readiness
+polling (no fixed sleeps, no three-terminal juggling):
 
 ```bash
-node verify-packaged-shell.mjs
+npm run dev:all
+# overrides: VITE_PORT=5274 npm run dev:all   (frontend on another port)
+#            PORT=5018 npm run dev:all        (backend on another port)
 ```
 
-This launches `dist/linux-unpacked/echoo-studio`, verifies that an active room survives the native close-to-tray path, and exercises the tray action handlers for **Open Echoo**, **mute**, **unmute**, and **leave room**. It also verifies the packaged app’s persisted desktop-alert master switch, allowlisted per-event settings, event-disabled gate, and enabled-event path. Desktop notifications are disabled until a user enables **Desktop notifications** from the tray; enabled alerts use neutral Echoo status copy rather than room or message content.
+This starts MongoDB (if needed) → backend (waits for `/api/health`) →
+frontend (waits for HTTP 200) → desktop (foreground; Ctrl-C stops all three).
+Service logs: `/tmp/echoo-backend-dev.log`, `/tmp/echoo-frontend-dev.log`.
 
-Users can also control the same device-local preference inside Echoo Desktop through **Settings → Notifications**. Listener and creator views expose a master **Show desktop alerts** switch and supported per-event options for **Live-room messages**, **Room started**, and **Room ended**. The in-app panels read and write only an allowlisted native preference through the restricted preload bridge; they never store notification choices in room or message data. Creator follower and release settings remain account preferences and do not imply native desktop alerts until the app emits corresponding events.
+Per-service equivalents (run from the service dir, **not** the repo root —
+“Missing script: dev” from the root just means wrong directory):
 
----
-
-## 📦 Building the Executables
-
-You can generate production-ready installers for your specific operating system.
-
-### Windows (.exe)
-Generates a standalone NSIS installer:
 ```bash
-npm run build -- --win
+cd backend  && npm run dev   # needs MongoDB: npm run db:local (first time: seed via seed:local-demo)
+cd frontend && npm run dev   # Vite on $VITE_PORT or 5273
+cd desktop  && npm run dev   # resolves the Vite port, waits for it, launches Electron
 ```
 
-The v1.0.5 Windows release asset is `Echoo Studio Setup 1.0.5.exe`. On a Linux build host, install Wine with both 64-bit and 32-bit support before cross-building the NSIS package. The resulting installer can be statically verified as a Windows PE/NSIS archive; use a Windows environment or the Windows CI job for the native build validation.
+### Shared-server warning: ports AND identity checks
 
-### macOS (.dmg)
-Generates a Disk Image (requires a Mac for final signing/packaging):
+This repo is developed on a shared multi-user Linux machine, so the defaults
+are deliberately project-specific, not framework defaults:
+
+- frontend Vite: **5273** (not Vite's 5173 — routinely owned by other users here)
+- backend API: **5017** (not 5001 — also observed squatted)
+
+The single source of truth is `frontend/vite.config.js` (`VITE_PORT` override)
+for the frontend and `backend/src/config/env.js` (`PORT` override) for the API;
+the Vite proxy, CORS origins, and desktop CSP/connect-src follow those values.
+
+A bare HTTP 200 is not proof on this machine — it may be someone else's dev
+server on a squatted port (this actually happened: Electron loaded a foreign
+"DigiVolt" page believing it was Echoo). So every readiness gate verifies APP
+IDENTITY, not just liveness:
+
+- `frontend/index.html` carries `<meta name="echoo-app" content="echoo-frontend">`
+- `dev-all.sh` requires that marker in the served HTML, and requires
+  `/api/health` to return Echoo's shape (`status "ok"` + `service "echoo-api"`)
+- `desktop/scripts/dev-launcher.js` and `main.js` re-verify the marker before
+  `loadURL` — two independent gates, so neither alone can slip a false positive
+  through. Mismatch aborts with "port responded but the content doesn't look
+  like Echoo" instead of launching.
+
+Stale-port protection: every `npm run dev` first runs a port check
+(`scripts/check-ports.sh`) that fails LOUDLY with the occupant's PID instead of
+starting on top of it — never auto-kills. The frontend also uses
+`vite --strictPort`, so a squatted port can never silently fall back to
+5174/5175/... behind Electron's back. If Electron itself can't reach the dev
+server it shows an error screen naming the expected port (or set
+`ECHOO_DEV_URL=http://localhost:XXXX npm run dev` in desktop/).
+
+## Run / package (from desktop/)
+
 ```bash
-npm run build -- --mac
+npm run dev        # dev shell (resolves + waits for the Vite server first)
+npm start          # raw Electron entry (same window, but ensure the dev server is up yourself)
+npm run dist       # frontend build + electron-builder for current OS
+npm run dist:linux # … --linux only → dist/Echoo-0.2.0.AppImage
+npm run dist:win   # … --win only → dist/Echoo Setup 0.2.0.exe (NSIS installer, builds on Linux via Wine)
+npm run dist:mac   # … --mac only (DMG; best built on a Mac)
 ```
 
-### Release delivery and signing
+Installers are per-OS but ship the identical app: React frontend + bundled
+Echoo API + embedded-DB fallback. The Windows build is unsigned until a cert
+is configured (`CSC_LINK`/`CSC_KEY_PASSWORD`), so SmartScreen shows an
+"Unknown publisher" prompt — expected, not a bug. First launch on any OS
+downloads the mongod binary once (~120 MB) when no local MongoDB answers.
 
-Echoo’s source repository remains private. Public installer downloads are delivered from the Echoo landing page rather than from unauthenticated GitHub release URLs. Current v1.0.5 Windows, macOS, and Linux downloads are **unsigned** and the release selector discloses that status before download; platform security prompts are expected until signed replacements are published. For Ubuntu, choose the `.deb` option from the release page; AppImage and `.tar.gz` remain available as manual alternatives.
+`desktop/` deps are intentionally minimal: `electron`, `electron-builder`,
+`electron-log` (structured logs), `electron-updater` (GitHub Releases updates).
 
-The GitHub Actions workflow in the user's repository builds and verifies the Windows installer and macOS DMG on native runners before retaining release artifacts. To replace the unsigned downloads, add platform credentials as repository Actions secrets: an Authenticode certificate and password for Windows, plus a Developer ID Application certificate and Apple notarization API credentials for macOS. The workflow can then sign and notarize the platform builds without committing credentials or publishing the private source repository.
+## Code signing & notarization
 
-### Linux (.deb, AppImage, and .tar.gz)
-Generates the supported Linux distribution artifacts:
-```bash
-npm run build:linux
-```
+Scaffolding is committed; certs are NOT. Until they exist, builds succeed but
+OSes warn on install — that is expected, not a bug.
 
----
+### macOS (DMG)
 
-## 📂 Project Structure
-- `main.js`: The Electron main process (handles window management).
-- `preload.js`: The security bridge between native features and the web app.
-- `build/`: Contains platform-specific icons (`icon.ico`, `icon.icns`, and Linux PNG assets).
-- `offline.html`: Branded recovery page shown when Echoo cannot be reached.
-- `test-audio-controls.mjs`: Electron shell and secure-bridge smoke test.
-- `verify-packaged-shell.mjs`: Packaged Linux shell validation for background-room and tray-command paths.
-- `dist/`: The output folder for built executables.
+Needs a paid Apple Developer account + Developer ID Application certificate in
+the signing keychain/CI runner, plus these env vars at build time:
 
-## 🤝 Contributing
-For issues or feature requests related to the desktop wrapper, please refer to the main repository documentation.
+| Env var | Purpose |
+|---|---|
+| `APPLE_ID` | Apple ID enrolled in the Developer Program |
+| `APPLE_APP_SPECIFIC_PASSWORD` | App-specific password for that ID |
+| `APPLE_TEAM_ID` | 10-char Team ID |
+| `CSC_LINK` / `CSC_KEY_PASSWORD` | (optional) .p12 cert if not in keychain |
+
+How it works: `build.mac.hardenedRuntime: true` + `entitlements.mac.plist`
+(microphone for creators, JIT allowances Electron requires) apply at sign time;
+`scripts/afterSign.js` notarizes + staples when the `APPLE_*` vars are present
+and **skips with a warning** when they aren't. Also add
+`npm install --save-dev @electron/notarize` once certs exist.
+Unsigned result: Gatekeeper blocks with “cannot be opened because the developer
+cannot be verified” (right-click → Open still works).
+
+### Windows (NSIS)
+
+electron-builder signs automatically when these env vars are set:
+
+| Env var | Purpose |
+|---|---|
+| `CSC_LINK` | Path/URL to the code-signing .pfx/.p12 (or Azure Trusted Signing config) |
+| `CSC_KEY_PASSWORD` | Cert password |
+
+Unsigned result: SmartScreen “Unknown publisher” warning on install.
+
+## Auto-updates
+
+Published via GitHub Releases (`emmy16-glitch/Echoo-main`) — attach the
+installer artifacts from a tagged release and `electron-updater` picks them up
+on next launch (packaged builds only). The check is fire-and-forget: offline or
+no releases yet → warning in the log, app starts normally. “Update downloaded”
+shows a Restart-now/Later prompt.
+
+## Pre-release testing matrix
+
+| # | Check | mac | win | linux |
+|---|---|---|---|---|
+| 1 | Fresh `npm run dist` → installer builds | ☐ | ☐ | ☐ |
+| 2 | Fresh install → login/stream == browser | ☐ | ☐ | ☐ |
+| 3 | Quit + relaunch preserves auto-launch | ☐ | ☐ | ☐ |
+| 4 | 2nd launch focuses existing window | ☐ | ☐ | ☐ |
+| 5 | Kill backend mid-session → retry page, no crash | ☐ | ☐ | ☐ |
+| 6 | Signed/notarized → no OS install warning | ☐ | ☐ | n/a |
+
+Linux notes: verify on the AppImage target (`dist:linux`). `setLoginItemSettings`
+works on AppImage but is a no-op under Snap/Flatpak confinement (we don't ship
+those — see the comment at the auto-launch IPC handler in `src/main.js`).

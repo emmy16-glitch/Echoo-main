@@ -1,68 +1,92 @@
 {
-  "name": "echoo-studio",
-  "version": "1.0.5",
-  "desktopName": "echoo-studio",
-  "main": "main.js",
-  "scripts": {
-    "start": "electron .",
-    "dev": "NODE_ENV=development electron .",
-    "build": "electron-builder",
-    "build:linux": "electron-builder --linux deb AppImage tar.gz",
-    "test": "node --test test-audio-controls.mjs"
-  },
-  "build": {
-    "appId": "com.echoo.studio",
-    "productName": "Echoo Studio",
-    "executableName": "echoo-studio",
-    "directories": {
-      "output": "dist"
-    },
-    "files": [
-      "main.js",
-      "preload.js",
-      "offline.html",
-      "build/**/*",
-      "package.json"
-    ],
-    "win": {
-      "target": "nsis",
-      "icon": "build/icon.ico"
-    },
-    "mac": {
-      "target": "dmg",
-      "icon": "build/icon.icns"
-    },
-    "linux": {
-      "target": [
-        "AppImage",
-        "deb",
-        "tar.gz",
-        "dir"
-      ],
-      "icon": "build/icons/512x512.png",
-      "category": "AudioVideo",
-      "syncDesktopName": true,
-      "artifactName": "Echoo-Studio-${version}-${arch}.${ext}"
-    }
-  },
-  "keywords": [],
-  "author": {
-    "name": "Echoo Team",
-    "email": "support@echoo.com"
-  },
-  "homepage": "https://echoo.digi02.org",
-  "license": "UNLICENSED",
-  "description": "Echoo Studio - Real-time Audio Broadcasting Desktop App",
+  "name": "echoo-desktop",
+  "version": "0.2.0",
+  "description": "Echoo native desktop shell (Electron wrapper around the React frontend)",
+  "main": "src/main.js",
+  "private": true,
+  "desktopName": "echoo-desktop",
   "repository": {
     "type": "git",
-    "url": "https://github.com/effiukp/Echoo-main.git"
+    "url": "https://github.com/emmy16-glitch/Echoo-main.git"
+  },
+    "scripts": {
+        "start": "electron .",
+        "dev": "node scripts/dev-launcher.js",
+        "dist": "node scripts/prepare-bundled-backend.js && npm run build --prefix ../frontend && electron-builder",
+        "dist:linux": "node scripts/prepare-bundled-backend.js && npm run build --prefix ../frontend && electron-builder --linux",
+        "dist:mac": "node scripts/prepare-bundled-backend.js && npm run build --prefix ../frontend && electron-builder --mac",
+        "dist:win": "node scripts/prepare-bundled-backend.js && npm run build --prefix ../frontend && electron-builder --win"
+    },
+  "dependencies": {
+    "electron-log": "^5.4.2",
+    "electron-updater": "^6.7.2"
   },
   "devDependencies": {
-    "electron": "^43.4.1",
+    "electron": "^41.7.1",
     "electron-builder": "^26.15.3"
   },
-  "dependencies": {
-    "@playwright/test": "^1.62.1",
-    "playwright": "^1.62.1"
+  "build": {
+    "appId": "com.echoo.desktop",
+    "productName": "Echoo",
+    "copyright": "Copyright © 2026 Echoo",
+    "afterSign": "scripts/afterSign.js",
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "package.json",
+      {
+        "from": "../frontend/dist",
+        "to": "frontend-dist",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "extraResources": [
+      {
+        "from": "../backend/src",
+        "to": "backend/src"
+      },
+      {
+        "from": "../backend/package.json",
+        "to": "backend/package.json"
+      },
+      {
+        "from": ".bundled-server-env",
+        "to": "backend/server-defaults.env"
+      },
+      {
+        "from": "../backend/node_modules",
+        "to": "backend/node_modules",
+        "filter": [
+          "**/*",
+          "!**/*.log",
+          "!**/.cache/**/*"
+        ]
+      }
+    ],
+    "mac": {
+      "target": "dmg",
+      "icon": "assets/icon.icns",
+      "hardenedRuntime": true,
+      "entitlements": "entitlements.mac.plist",
+      "entitlementsInherit": "entitlements.mac.plist",
+      "notarize": false
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.ico"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "assets/icon.png",
+      "category": "AudioVideo",
+      "syncDesktopName": true
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "emmy16-glitch",
+      "repo": "Echoo-main"
+    }
   }
 }

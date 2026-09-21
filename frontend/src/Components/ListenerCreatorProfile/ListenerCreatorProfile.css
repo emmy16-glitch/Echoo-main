@@ -8,6 +8,7 @@
 .lcp-back {
   display: inline-flex;
   align-items: center;
+  min-height: 28px;
   gap: 8px;
   margin-bottom: 20px;
   border: 0;

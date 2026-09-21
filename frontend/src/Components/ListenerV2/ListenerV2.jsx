@@ -357,6 +357,40 @@ const ListenerV2Layout = () => {
     else audio.pause();
   }, [currentTrack?.fileUrl]);
 
+  const seekTo = useCallback((seconds) => {
+    const audio = audioRef.current;
+    const target = Math.max(0, Number(seconds) || 0);
+    if (!audio) return target;
+    try {
+      if (Number.isFinite(audio.duration) && audio.duration > 0) {
+        audio.currentTime = Math.min(target, audio.duration);
+      } else {
+        audio.currentTime = target;
+      }
+    } catch {
+      // Seeking before metadata is available throws in some browsers; the
+      // time-update handler will converge once the media loads.
+    }
+    setCurrentTime(target);
+    return target;
+  }, []);
+
+  const playTrackAt = useCallback((track, seconds, incomingQueue = []) => {
+    const normalized = normalizePlayable(track);
+    const requestedSeek = Math.max(0, Number(seconds) || 0);
+    if (!normalized?.fileUrl) return false;
+    if (idOf(normalized) === idOf(currentTrack) && audioRef.current) {
+      seekTo(requestedSeek);
+      if (audioRef.current.paused) audioRef.current.play().catch(() => {});
+      return true;
+    }
+    const played = playTrack(normalized, incomingQueue);
+    if (played && requestedSeek > 0) {
+      window.setTimeout(() => seekTo(requestedSeek), 350);
+    }
+    return played;
+  }, [currentTrack, playTrack, seekTo]);
+
   const playNext = () => {
     if (!queue.length || !currentTrack) return;
     const index = queue.findIndex((item) => idOf(item) === idOf(currentTrack));
@@ -406,7 +440,7 @@ const ListenerV2Layout = () => {
       </header>}
 
       <main className={`listener-v2-main${currentTrack && !isLiveRoom ? ' has-player' : ''}`}>
-        <Outlet context={{ playTrack, currentTrack, isPlaying, togglePlay, setLivePlayerState }} />
+        <Outlet context={{ playTrack, playTrackAt, seekTo, playNext, currentTrack, currentTime, duration, queue, isPlaying, togglePlay, setLivePlayerState }} />
       </main>
 
       <audio
@@ -479,6 +513,7 @@ const LiveCatalog = () => {
 
   return (
     <div className="listener-v2-page listener-v2-live-page">
+      <ListenerHeroArtwork />
       <section className="listener-v2-live-panel">
         <div className="listener-v2-page-header">
           <div><h1>Live now</h1><p>Listen to what’s happening right now.</p></div>
@@ -557,12 +592,22 @@ const ListenerV2Live = () => <LiveCatalog />;
 
 const ListenerV2Following = () => {
   const navigate = useNavigate();
+  const { isGuest } = useGuestAuth();
   const [stations, setStations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState('');
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
+    // Logged-out visitors have no follow list to fetch — a 401 here is "not
+    // signed in", not a connection failure, so skip the request entirely and
+    // render the sign-in state instead of an error banner.
+    if (isGuest) {
+      setStations([]);
+      setError('');
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       const stationResult = await followService.getFollowingStations();
@@ -573,7 +618,7 @@ const ListenerV2Following = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isGuest]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -617,6 +662,8 @@ const ListenerV2Following = () => {
 
       {loading ? (
         <div className="listener-v2-following-skeleton" aria-label="Loading followed Channels"><span /><span /><span /></div>
+      ) : isGuest ? (
+        <EmptyState icon={<FiHeadphones />} title="Sign in to see followed Channels" copy="Following is personal — sign in and the Channels you follow will appear here." action={() => navigate('/login')} actionLabel="Sign in" />
       ) : error ? (
         <EmptyState icon={<FiHeadphones />} title="Following couldn’t load" copy="Check your connection and try again." action={load} actionLabel="Try again" />
       ) : stations.length ? (
@@ -697,7 +744,10 @@ const ListenerV2Categories = () => {
       const [stationsResult, followedResult] = await Promise.allSettled(requests);
       if (stationsResult.status === 'rejected') throw stationsResult.reason;
       setStations((Array.isArray(stationsResult.value?.data) ? stationsResult.value.data : []).filter((item) => item?.isPublic !== false));
-      if (followedResult.status === 'fulfilled') setFollowingIds(new Set((followedResult.value?.data || []).map(idOf).filter(Boolean)));
+      // Guests only issue the stations request, so followedResult is undefined
+      // for them — guard before reading .status (previously threw
+      // "Cannot read properties of undefined" and rendered as an error banner).
+      if (followedResult && followedResult.status === 'fulfilled') setFollowingIds(new Set((followedResult.value?.data || []).map(idOf).filter(Boolean)));
       setError('');
     } catch (loadError) {
       setError(loadError?.message || 'Channels could not be loaded.');
@@ -746,6 +796,7 @@ const ListenerV2Categories = () => {
 
   return (
     <div className="listener-v2-page">
+      <ListenerHeroArtwork />
       <div className="listener-v2-page-header listener-v2-page-header--categories">
         <div><h1>Channels</h1><p>Find Channels by topic and community.</p></div>
         <SearchField value={query} onChange={setQuery} placeholder="Search Channels..." />
@@ -840,6 +891,7 @@ const ListenerV2Search = () => {
 
   return (
     <div className="listener-v2-page listener-v2-search-page">
+      <ListenerHeroArtwork />
       <header className="listener-v2-page-title"><h1>Search</h1><p>Find live events, Channels, creators and recorded audio.</p></header>
       <SearchField value={query} onChange={setQuery} placeholder="Search Echoo..." autoFocus />
       {error && <div className="listener-v2-error" role="alert">{error}</div>}
