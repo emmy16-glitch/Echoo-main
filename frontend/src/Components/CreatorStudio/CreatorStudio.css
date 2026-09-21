@@ -331,6 +331,27 @@
 .studio-upload-progress.is-error { border-color:#efc8c3; background:#fff6f4; }
 .studio-upload-progress.is-waiting-network { border-color:#ead7a8; background:#fffaf0; }
 
+.studio-global-progress {
+  display:grid;
+  gap:7px;
+  margin:12px 20px 0;
+  padding:11px 13px;
+  border:1px solid #cbdafa;
+  border-radius:10px;
+  background:#f8fbff;
+  color:#20385f;
+}
+.studio-global-progress.is-done { border-color:#bfe5ca; background:#f4fbf6; color:#256c39; }
+.studio-global-progress.is-error { border-color:#efc8c3; background:#fff6f4; color:#a2382f; }
+.studio-global-progress.is-waiting-network,
+.studio-global-progress.is-recovered { border-color:#ead7a8; background:#fffaf0; color:#806116; }
+.studio-global-progress__head { display:flex; align-items:center; justify-content:space-between; gap:16px; }
+.studio-global-progress__head strong { font-size:12px; }
+.studio-global-progress__head span { flex:none; color:#627492; font-size:10px; font-weight:700; font-variant-numeric:tabular-nums; }
+.studio-global-progress > small { color:#6d7d96; font-size:10px; line-height:1.4; }
+.studio-global-progress__bar { height:7px; overflow:hidden; border-radius:999px; background:#e2e9f4; }
+.studio-global-progress__bar > i { display:block; height:100%; border-radius:inherit; background:#246bfe; transition:width .2s ease; }
+
 .studio-upload-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
 .studio-upload-actions button { min-height: 38px; display: inline-flex; align-items: center; gap: 7px; padding: 0 12px; border: 1px solid #dce4ed; border-radius: 9px; background: #fff; color: #40516a; cursor: pointer; font-weight: 700; }
 .studio-upload-actions button.primary { border-color: #246bfe; background: #246bfe; color: #fff; }
@@ -511,4 +532,9 @@
   .studio-footer { padding: 16px 14px 22px; }
   .studio-form-row { grid-template-columns: 1fr; }
   .studio-upload-artwork-column { grid-template-columns: 94px minmax(0,1fr); }
+}
+
+@media (max-width:640px) {
+  .studio-global-progress { margin:10px 12px 0; }
+  .studio-global-progress__head { align-items:flex-start; flex-direction:column; gap:4px; }
 }
