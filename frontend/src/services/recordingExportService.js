@@ -37,10 +37,10 @@ const downloadViaAnchor = async (blob, filename) => {
   }
 };
 
-// WAV = the local master blob captured during the broadcast (instant, offline).
-// MP3 = the automatic server copy (normalised by the backend right after
-// upload). Opus = the local master bytes (instant, best for phones).
-// Falls back to the local master when the server copy is not ready.
+// WAV = a matching local WAV master captured during the broadcast.
+// MP3 = the automatic server copy (normalised by the backend after upload).
+// Opus is offered only when the local master is already an Opus-compatible
+// OGG/WebM container; Echoo never renames WAV bytes to an Opus extension.
 export const fetchServerRecordingBlob = async (audioId) => {
   const response = await apiFetch(`/audio/${encodeURIComponent(audioId)}/download`);
   if (!response.ok) throw new Error('Server MP3 is not ready yet. Try again in a few seconds.');
@@ -87,7 +87,7 @@ export const saveRecordingToPc = async ({ blob, title, format, audioId }) => {
     if (!bytes?.size || !sourceMime.includes('wav')) {
       throw new Error('The WAV master is no longer available on this device.');
     }
-    mime = sourceMime || 'audio/wav';
+    mime = 'audio/wav';
     extension = 'wav';
   } else {
     if (!bytes?.size || !(sourceMime.includes('opus') || sourceMime.includes('ogg') || sourceMime.includes('webm'))) {
@@ -95,13 +95,13 @@ export const saveRecordingToPc = async ({ blob, title, format, audioId }) => {
     }
     if (sourceMime.includes('webm')) {
       extension = 'webm';
-      mime = sourceMime || 'audio/webm';
+      mime = 'audio/webm';
     } else if (sourceMime.includes('ogg')) {
       extension = 'ogg';
-      mime = sourceMime || 'audio/ogg';
+      mime = 'audio/ogg';
     } else {
       extension = 'opus';
-      mime = sourceMime || 'audio/ogg;codecs=opus';
+      mime = 'audio/ogg';
     }
   }
 
