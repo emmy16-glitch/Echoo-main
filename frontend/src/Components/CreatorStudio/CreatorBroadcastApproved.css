@@ -487,6 +487,48 @@
   color: #36527f;
 }
 
+.ec2-operation-progress {
+  display:grid;
+  gap:8px;
+  margin:0 0 14px;
+  padding:12px 14px;
+  border:1px solid #cddcff;
+  border-radius:10px;
+  background:#f8fbff;
+  color:#20385f;
+}
+.ec2-operation-progress__head {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+}
+.ec2-operation-progress__head strong { font-size:12.5px; }
+.ec2-operation-progress__head span,
+.ec2-operation-progress > small {
+  color:#5e7192;
+  font-size:10.5px;
+  line-height:1.4;
+}
+.ec2-operation-progress__head span {
+  flex:none;
+  font-variant-numeric:tabular-nums;
+  font-weight:700;
+}
+.ec2-operation-progress__bar {
+  height:7px;
+  overflow:hidden;
+  border-radius:999px;
+  background:#e2e9f4;
+}
+.ec2-operation-progress__bar > i {
+  display:block;
+  height:100%;
+  border-radius:inherit;
+  background:#246bfe;
+  transition:width .2s ease;
+}
+
 /* LIVE is a state of the approved workstation, not a separate console. */
 .ec2-broadcast.is-live .eam-approved-live-actions {
   display: none !important;
@@ -927,4 +969,8 @@ html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-workstation
   .ec2-broadcast .eam-approved-media-actions button {
     flex: 1 1 120px;
   }
+}
+
+@media (max-width: 640px) {
+  .ec2-operation-progress__head { align-items:flex-start; flex-direction:column; gap:4px; }
 }

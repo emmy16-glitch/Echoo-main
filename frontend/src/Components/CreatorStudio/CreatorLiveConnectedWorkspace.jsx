@@ -34,6 +34,11 @@ import {
   stopLiveKitPublishing,
 } from '../../services/livekitPublisher';
 import realtimeService from '../../services/realtimeService';
+import {
+  formatElapsedTime,
+  transferProgressText,
+  updateTransferEstimate,
+} from '../../services/progressTiming';
 import { notifyDesktop, onDesktopRoomCommand, setDesktopRoomState } from '../../services/desktopBridge';
 import './CreatorBroadcastApproved.css';
 
@@ -141,6 +146,8 @@ const CreatorLiveConnectedWorkspace = ({
   const [linkCopied, setLinkCopied] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [recordingProgress, setRecordingProgress] = useState(null);
+  const [sessionOperation, setSessionOperation] = useState(null);
   const endBroadcastButtonRef = useRef(null);
   const endBroadcastDialogRef = useRef(null);
   const endingDialogRef = useRef(null);
@@ -285,22 +292,66 @@ const CreatorLiveConnectedWorkspace = ({
       const detail = event?.detail || {};
       const status = String(detail.status || '');
 
-      if (status === 'started' || status === 'progress') {
+      if (status === 'started') {
+        setSessionOperation(null);
+        setRecordingProgress({
+          key: detail.key,
+          title: detail.title || 'Broadcast recording',
+          stage: 'uploading',
+          ...updateTransferEstimate(null, {
+            loaded: 0,
+            total: detail.total || 0,
+          }),
+        });
         if (!currentLiveBroadcast?.id) {
-          setMessage('Recording is safe locally. Saving to Recordings…');
+          setMessage('Recording is safe locally. Uploading the server copy…');
         }
+        return;
+      }
+
+      if (status === 'progress') {
+        setRecordingProgress((current) => {
+          if (current?.key && detail.key && current.key !== detail.key) return current;
+          const next = updateTransferEstimate(current, {
+            loaded: detail.loaded || 0,
+            total: detail.total || current?.total || 0,
+          });
+          return {
+            ...(current || {}),
+            ...next,
+            key: detail.key || current?.key,
+            title: detail.title || current?.title || 'Broadcast recording',
+            stage: next.percent >= 100 ? 'verifying' : 'uploading',
+          };
+        });
         return;
       }
 
       if (status === 'done') {
         setError((current) => current === RECORDING_FINALIZATION_WARNING ? '' : current);
+        setRecordingProgress((current) => current
+          ? { ...current, stage: 'done', percent: 100, completedAt: Date.now() }
+          : null);
         window.clearTimeout(offAirNoticeTimeoutRef.current);
         setMessage('Recording saved safely to Recordings.');
-        offAirNoticeTimeoutRef.current = window.setTimeout(() => setMessage(''), 4200);
+        offAirNoticeTimeoutRef.current = window.setTimeout(() => {
+          setMessage('');
+          setRecordingProgress(null);
+        }, 4200);
         return;
       }
 
       if (status === 'recovered') {
+        setRecordingProgress({
+          key: detail.key || 'recovered',
+          title: detail.title || 'Recovered recording',
+          stage: 'recovered',
+          startedAt: Date.now(),
+          elapsedSeconds: 0,
+          percent: 0,
+          loaded: 0,
+          total: 0,
+        });
         if (!currentLiveBroadcast?.id) {
           setMessage('A protected local recording was recovered. Echoo will keep it until the server copy is safe.');
         }
@@ -308,6 +359,14 @@ const CreatorLiveConnectedWorkspace = ({
       }
 
       if (status === 'error') {
+        setRecordingProgress((current) => ({
+          ...(current || {}),
+          key: detail.key || current?.key,
+          title: detail.title || current?.title || 'Broadcast recording',
+          stage: navigator.onLine === false ? 'waiting-network' : 'error',
+          message: detail.message || RECORDING_FINALIZATION_WARNING,
+          failedAt: Date.now(),
+        }));
         setError(detail.message || RECORDING_FINALIZATION_WARNING);
       }
     };
@@ -315,6 +374,52 @@ const CreatorLiveConnectedWorkspace = ({
     window.addEventListener(RECORDING_UPLOAD_EVENT, onRecordingUpload);
     return () => window.removeEventListener(RECORDING_UPLOAD_EVENT, onRecordingUpload);
   }, [currentLiveBroadcast?.id]);
+
+  useEffect(() => {
+    if (!recordingProgress || ['done', 'error'].includes(recordingProgress.stage)) return undefined;
+    const ticker = window.setInterval(() => {
+      setRecordingProgress((current) => {
+        if (!current?.startedAt) return current;
+        return {
+          ...current,
+          elapsedSeconds: Math.max(0, (Date.now() - current.startedAt) / 1000),
+        };
+      });
+    }, 1000);
+    return () => window.clearInterval(ticker);
+  }, [recordingProgress?.stage, recordingProgress?.startedAt]);
+
+  useEffect(() => {
+    if (!sessionOperation?.startedAt) return undefined;
+    const ticker = window.setInterval(() => {
+      setSessionOperation((current) => current?.startedAt
+        ? {
+            ...current,
+            elapsedSeconds: Math.max(0, (Date.now() - current.startedAt) / 1000),
+          }
+        : current);
+    }, 1000);
+    return () => window.clearInterval(ticker);
+  }, [sessionOperation?.startedAt, sessionOperation?.stage]);
+
+  useEffect(() => {
+    const onOffline = () => {
+      setRecordingProgress((current) => current && !['done', 'error'].includes(current.stage)
+        ? { ...current, stage: 'waiting-network' }
+        : current);
+    };
+    const onOnline = () => {
+      setRecordingProgress((current) => current?.stage === 'waiting-network'
+        ? { ...current, stage: 'uploading', lastAt: Date.now(), lastLoaded: current.loaded || 0 }
+        : current);
+    };
+    window.addEventListener('offline', onOffline);
+    window.addEventListener('online', onOnline);
+    return () => {
+      window.removeEventListener('offline', onOffline);
+      window.removeEventListener('online', onOnline);
+    };
+  }, []);
 
   useEffect(() => {
     if (!currentLiveBroadcast?.id || ending) return undefined;
@@ -538,11 +643,21 @@ const CreatorLiveConnectedWorkspace = ({
     try {
       setGoingLive(true);
       setError('');
-      setMessage('Connecting your live room…');
+      setSessionOperation({
+        kind: 'go-live',
+        stage: 'preparing',
+        startedAt: Date.now(),
+        elapsedSeconds: 0,
+      });
+      setMessage('Preparing your broadcast…');
       setMixerState(liveMixerSnapshot);
       const prepareStartedAt = performance.now();
       broadcast = await prepareImmediateBroadcast(liveMixerSnapshot);
       const preparedAt = performance.now();
+      setSessionOperation((current) => current
+        ? { ...current, stage: 'opening-room' }
+        : current);
+      setMessage('Opening the live audio room…');
 
       let connection = null;
       if (broadcast.status === 'starting') {
@@ -558,6 +673,11 @@ const CreatorLiveConnectedWorkspace = ({
       if (!connection?.token || !liveKitUrl) {
         throw new Error('Echoo could not open the live audio room.');
       }
+
+      setSessionOperation((current) => current
+        ? { ...current, stage: 'publishing-audio' }
+        : current);
+      setMessage('Connecting your audio to listeners…');
 
       const publishResult = await startLiveKitPublishing({
         url: liveKitUrl,
@@ -584,6 +704,7 @@ const CreatorLiveConnectedWorkspace = ({
         (item) => String(item.id) === String(liveBroadcast.id) ? liveBroadcast : item
       ));
       setMessage('You are live.');
+      setSessionOperation(null);
       clearPreparedBroadcast();
       window.dispatchEvent(new CustomEvent('echoo:creator-state-changed'));
       console.info('[Echoo Perf] go-live', {
@@ -614,6 +735,7 @@ const CreatorLiveConnectedWorkspace = ({
       // Clear the in-progress notice — otherwise "Connecting your live room…"
       // lingers under the error after a failed attempt.
       setMessage('');
+      setSessionOperation(null);
       setError(liveError?.message || 'Echoo could not start the broadcast.');
     } finally {
       setGoingLive(false);
@@ -666,14 +788,23 @@ const CreatorLiveConnectedWorkspace = ({
       setConfirmEndOpen(false);
       setEnding(true);
       setError('');
-      setMessage('Ending broadcast…');
+      setSessionOperation({
+        kind: 'end-broadcast',
+        stage: 'stopping-live-audio',
+        startedAt: Date.now(),
+        elapsedSeconds: 0,
+      });
+      setMessage('Stopping live audio…');
 
       // Realtime shutdown is first. Recording flush deliberately follows it.
       const backendEnd = batch3Service.endBroadcastRealtime(broadcastId);
       const unpublishStartedAt = performance.now();
       await stopLiveKitPublishing();
       setMasterMuted(false);
-      markOffAir('Broadcast audio stopped. Saving your recording…');
+      markOffAir('Broadcast audio stopped. Finalizing your local master…');
+      setSessionOperation((current) => current
+        ? { ...current, stage: 'finalizing-local-master' }
+        : current);
       setEnding(false);
       console.info('[Echoo Perf] end-broadcast realtime stopped', {
         timeToUnpublishMs: Math.round(performance.now() - unpublishStartedAt),
@@ -689,9 +820,20 @@ const CreatorLiveConnectedWorkspace = ({
           setError('Broadcast audio stopped, but Echoo could not finalize the server session. Retry cleanup from Broadcast settings.');
           console.warn('[Echoo Live] server end failed after local unpublish:', backendError?.message || backendError);
         }
+        setSessionOperation((current) => current
+          ? { ...current, stage: 'preparing-server-save' }
+          : current);
         const recordingResult = await batch3Service.finalizeBroadcastRecording(broadcastId, endedResponse?.data || broadcastSnapshot);
         if (!recordingResult.recordingReady) {
+          setSessionOperation((current) => current
+            ? { ...current, stage: 'local-safe' }
+            : current);
           setError((current) => current || RECORDING_FINALIZATION_WARNING);
+        } else {
+          // The upload event takes over the visible progress from here.
+          window.setTimeout(() => {
+            setSessionOperation((current) => current?.kind === 'end-broadcast' ? null : current);
+          }, 1200);
         }
         console.info('[Echoo Perf] end-broadcast', {
           timeToOffAirMs: Math.round(performance.now() - endStartedAt),
@@ -700,6 +842,7 @@ const CreatorLiveConnectedWorkspace = ({
         });
       })();
     } catch (endError) {
+      setSessionOperation(null);
       setError(endError?.message || 'Could not end the broadcast.');
       setMessage('');
     } finally {
@@ -876,6 +1019,77 @@ const CreatorLiveConnectedWorkspace = ({
       {error && <div className="ec2-notice" role="alert">{error}</div>}
       {message && message !== 'You are live.' && (
         <div className="ec2-notice ec2-notice--info" role="status">{message}</div>
+      )}
+
+      {sessionOperation && (
+        <div className="ec2-operation-progress" role="status" aria-live="polite">
+          <div className="ec2-operation-progress__head">
+            <strong>
+              {sessionOperation.stage === 'preparing'
+                ? 'Preparing broadcast'
+                : sessionOperation.stage === 'opening-room'
+                  ? 'Opening live audio room'
+                  : sessionOperation.stage === 'publishing-audio'
+                    ? 'Connecting audio to listeners'
+                    : sessionOperation.stage === 'stopping-live-audio'
+                      ? 'Stopping live audio'
+                      : sessionOperation.stage === 'finalizing-local-master'
+                        ? 'Finalizing local recording master'
+                        : sessionOperation.stage === 'preparing-server-save'
+                          ? 'Preparing recording for server save'
+                          : 'Recording is safe locally'}
+            </strong>
+            <span>{formatElapsedTime(sessionOperation.elapsedSeconds || 0)} elapsed</span>
+          </div>
+          <small>
+            {sessionOperation.stage === 'local-safe'
+              ? 'The local master is protected. Echoo is waiting for a successful server save before cleanup.'
+              : sessionOperation.stage === 'publishing-audio'
+                ? 'Echoo is waiting for the live audio publication to become usable by listeners.'
+                : sessionOperation.stage === 'finalizing-local-master'
+                  ? 'The live room is already off air. Echoo is closing and validating the local recording.'
+                  : 'This stage has no trustworthy percentage, so Echoo shows elapsed time instead.'}
+          </small>
+        </div>
+      )}
+
+      {recordingProgress && !['done', 'error'].includes(recordingProgress.stage) && (
+        <div className="ec2-operation-progress" role="status" aria-live="polite">
+          <div className="ec2-operation-progress__head">
+            <strong>
+              {recordingProgress.stage === 'waiting-network'
+                ? 'Waiting for connection'
+                : recordingProgress.stage === 'recovered'
+                  ? 'Recovered recording is protected locally'
+                  : recordingProgress.stage === 'verifying'
+                    ? 'Upload complete — verifying server copy'
+                    : 'Saving recording to Echoo'}
+            </strong>
+            <span>
+              {recordingProgress.stage === 'uploading'
+                ? `${Math.max(0, Math.min(100, Math.round(recordingProgress.percent || 0)))}%`
+                : `${formatElapsedTime(recordingProgress.elapsedSeconds || 0)} elapsed`}
+            </span>
+          </div>
+          {recordingProgress.stage === 'uploading' || recordingProgress.stage === 'verifying' ? (
+            <>
+              <div className="ec2-operation-progress__bar" aria-hidden="true">
+                <i style={{ width: `${Math.max(2, Math.min(100, recordingProgress.percent || 0))}%` }} />
+              </div>
+              <small>
+                {recordingProgress.stage === 'verifying'
+                  ? `Server verification in progress · ${formatElapsedTime(recordingProgress.elapsedSeconds || 0)} elapsed`
+                  : transferProgressText(recordingProgress)}
+              </small>
+            </>
+          ) : (
+            <small>
+              {recordingProgress.stage === 'waiting-network'
+                ? 'Your local master is safe. Echoo will continue when the connection is available.'
+                : 'Nothing is being deleted while Echoo waits for the server copy to become safe.'}
+            </small>
+          )}
+        </div>
       )}
 
       <CreatorAudioMixer

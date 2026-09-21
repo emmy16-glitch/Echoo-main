@@ -19,11 +19,17 @@ import { buildMediaUrl } from '../../services/api.js';
 import studioService from '../../services/studioService.js';
 import collectionService from '../../services/collectionService.js';
 import { buildGeneratedAudioCoverUrl } from '../../audioCover/audioCover.js';
+import {
+  formatElapsedTime,
+  transferProgressText,
+  updateTransferEstimate,
+} from '../../services/progressTiming.js';
 import CreatorAudioDetailModal from './CreatorAudioDetailModal.jsx';
 import './CreatorCollectionsWorkspace.css';
 
 const getId = (track) => track?.id || track?._id || null;
 const PENDING_RECORDING_KEY = 'echooAddRecordingToCollection';
+const RECORDING_UPLOAD_EVENT = 'echoo:recording-upload';
 
 const parseDurationSeconds = (value) => {
   if (typeof value === 'number') return Math.max(0, value);
@@ -131,6 +137,7 @@ export default function CreatorCollectionsWorkspace({
   const [uploading, setUploading] = useState(false);
   const [collectionPickerTrack, setCollectionPickerTrack] = useState(null);
   const [collectionChoices, setCollectionChoices] = useState([]);
+  const [transferOperation, setTransferOperation] = useState(null);
   const audioRef = useRef(null);
   const fileRef = useRef(null);
 
@@ -138,6 +145,94 @@ export default function CreatorCollectionsWorkspace({
     audioRef.current?.pause?.();
     studioService.releaseFallbackPlaybackUrl?.();
   }, []);
+
+  useEffect(() => {
+    const onRecordingUpload = (event) => {
+      const detail = event?.detail || {};
+      const status = String(detail.status || '');
+
+      if (status === 'started') {
+        setTransferOperation({
+          kind: 'recording-save',
+          key: detail.key,
+          title: detail.title || 'Broadcast recording',
+          stage: 'uploading',
+          ...updateTransferEstimate(null, { loaded: 0, total: detail.total || 0 }),
+        });
+        return;
+      }
+
+      if (status === 'progress') {
+        setTransferOperation((current) => {
+          if (current?.kind !== 'recording-save') return current;
+          if (current?.key && detail.key && current.key !== detail.key) return current;
+          const next = updateTransferEstimate(current, {
+            loaded: detail.loaded || 0,
+            total: detail.total || current?.total || 0,
+          });
+          return {
+            ...current,
+            ...next,
+            stage: next.percent >= 100 ? 'verifying' : 'uploading',
+          };
+        });
+        return;
+      }
+
+      if (status === 'done') {
+        setTransferOperation((current) => current?.kind === 'recording-save'
+          ? { ...current, stage: 'done', percent: 100, completedAt: Date.now() }
+          : current);
+        window.setTimeout(() => {
+          setTransferOperation((current) => current?.kind === 'recording-save' && current.stage === 'done' ? null : current);
+        }, 4500);
+        return;
+      }
+
+      if (status === 'recovered') {
+        setTransferOperation({
+          kind: 'recording-save',
+          key: detail.key || 'recovered',
+          title: detail.title || 'Recovered recording',
+          stage: 'recovered',
+          startedAt: Date.now(),
+          elapsedSeconds: 0,
+          percent: 0,
+          loaded: 0,
+          total: 0,
+        });
+        return;
+      }
+
+      if (status === 'error') {
+        setTransferOperation((current) => ({
+          ...(current || {}),
+          kind: 'recording-save',
+          key: detail.key || current?.key,
+          title: detail.title || current?.title || 'Broadcast recording',
+          stage: navigator.onLine === false ? 'waiting-network' : 'error',
+          message: detail.message || 'Could not save this recording yet.',
+        }));
+      }
+    };
+
+    window.addEventListener(RECORDING_UPLOAD_EVENT, onRecordingUpload);
+    return () => window.removeEventListener(RECORDING_UPLOAD_EVENT, onRecordingUpload);
+  }, []);
+
+  useEffect(() => {
+    if (!transferOperation || ['done', 'error'].includes(transferOperation.stage)) return undefined;
+    const interval = window.setInterval(() => {
+      setTransferOperation((current) => {
+        if (!current?.startedAt) return current;
+        return {
+          ...current,
+          elapsedSeconds: Math.max(0, (Date.now() - current.startedAt) / 1000),
+        };
+      });
+    }, 1000);
+    return () => window.clearInterval(interval);
+  }, [transferOperation?.stage, transferOperation?.startedAt]);
 
   const counts = useMemo(() => {
     const published = tracks.filter((track) => recordingVisibility(track) === 'published').length;
@@ -250,13 +345,39 @@ export default function CreatorCollectionsWorkspace({
     try {
       setBusyId(String(id));
       setError('');
+      setTransferOperation({
+        kind: 'download',
+        key: String(id),
+        title: recordingDisplayTitle(track),
+        stage: 'downloading',
+        ...updateTransferEstimate(null, { loaded: 0, total: Number(track.fileSize) || 0 }),
+      });
       await studioService.downloadAudio(id, {
-        title: track.title,
+        title: recordingDisplayTitle(track),
         originalName: track.originalName,
         mimeType: track.mimeType,
+        onProgress: ({ loaded, total }) => {
+          setTransferOperation((current) => {
+            if (current?.kind !== 'download' || current?.key !== String(id)) return current;
+            return {
+              ...current,
+              ...updateTransferEstimate(current, { loaded, total: total || current.total || 0 }),
+              stage: 'downloading',
+            };
+          });
+        },
       });
+      setTransferOperation((current) => current?.kind === 'download' && current?.key === String(id)
+        ? { ...current, stage: 'done', percent: 100, completedAt: Date.now() }
+        : current);
+      window.setTimeout(() => {
+        setTransferOperation((current) => current?.kind === 'download' && current?.key === String(id) && current.stage === 'done' ? null : current);
+      }, 3500);
       setMenuId('');
     } catch (downloadError) {
+      setTransferOperation((current) => current?.kind === 'download' && current?.key === String(id)
+        ? { ...current, stage: 'error', message: downloadError?.message || 'Could not download this recording.' }
+        : current);
       setError(downloadError?.message || 'Could not download this recording.');
     } finally {
       setBusyId('');
@@ -318,21 +439,48 @@ export default function CreatorCollectionsWorkspace({
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file || uploading) return;
+    const title = String(file.name || 'New recording').replace(/\.[^/.]+$/, '');
     try {
       setUploading(true);
       setError('');
-      const title = String(file.name || 'New recording').replace(/\.[^/.]+$/, '');
-      await studioService.uploadAudio({
+      setTransferOperation({
+        kind: 'manual-upload',
+        key: `manual:${Date.now()}`,
+        title,
+        stage: 'uploading',
+        ...updateTransferEstimate(null, { loaded: 0, total: file.size || 0 }),
+      });
+      await studioService.uploadAudioWithProgress({
         file,
         title,
         description: '',
         genre: 'Other',
         tags: [],
         isPublic: false,
+        onProgress: ({ loaded, total }) => {
+          setTransferOperation((current) => {
+            if (current?.kind !== 'manual-upload') return current;
+            const next = updateTransferEstimate(current, { loaded, total });
+            return {
+              ...current,
+              ...next,
+              stage: next.percent >= 100 ? 'verifying' : 'uploading',
+            };
+          });
+        },
       });
+      setTransferOperation((current) => current?.kind === 'manual-upload'
+        ? { ...current, stage: 'done', percent: 100, completedAt: Date.now() }
+        : current);
+      window.setTimeout(() => {
+        setTransferOperation((current) => current?.kind === 'manual-upload' && current.stage === 'done' ? null : current);
+      }, 4000);
       announce('Audio uploaded privately. You can make it public when ready.');
       refresh();
     } catch (uploadError) {
+      setTransferOperation((current) => current?.kind === 'manual-upload'
+        ? { ...current, stage: navigator.onLine === false ? 'waiting-network' : 'error', message: uploadError?.message || 'Could not upload this audio.' }
+        : current);
       setError(uploadError?.message || 'Could not upload this audio.');
     } finally {
       setUploading(false);
@@ -378,6 +526,53 @@ export default function CreatorCollectionsWorkspace({
         <div className={`recordings-feedback ${error ? 'is-error' : ''}`} role={error ? 'alert' : 'status'}>
           {error || notice}
           {error && <button type="button" onClick={() => setError('')}>Dismiss</button>}
+        </div>
+      )}
+
+      {transferOperation && (
+        <div className={`recordings-operation is-${transferOperation.stage}`} role="status" aria-live="polite">
+          <div className="recordings-operation-head">
+            <strong>
+              {transferOperation.stage === 'done'
+                ? transferOperation.kind === 'download'
+                  ? 'Download ready'
+                  : 'Saved successfully'
+                : transferOperation.stage === 'error'
+                  ? 'Operation needs attention'
+                  : transferOperation.stage === 'waiting-network'
+                    ? 'Waiting for connection'
+                    : transferOperation.stage === 'recovered'
+                      ? 'Recovered recording is protected locally'
+                      : transferOperation.stage === 'verifying'
+                        ? 'Transfer complete — verifying'
+                        : transferOperation.kind === 'download'
+                          ? 'Downloading recording'
+                          : 'Saving to Echoo'}
+            </strong>
+            <span>
+              {['uploading', 'downloading'].includes(transferOperation.stage)
+                ? `${Math.max(0, Math.min(100, Math.round(transferOperation.percent || 0)))}%`
+                : `${formatElapsedTime(transferOperation.elapsedSeconds || 0)} elapsed`}
+            </span>
+          </div>
+          {['uploading', 'downloading', 'verifying'].includes(transferOperation.stage) && (
+            <div className="recordings-operation-bar" aria-hidden="true">
+              <i style={{ width: `${Math.max(2, Math.min(100, transferOperation.percent || 0))}%` }} />
+            </div>
+          )}
+          <small>
+            {transferOperation.stage === 'waiting-network'
+              ? 'Your local/source file is safe. Retry when the connection is available.'
+              : transferOperation.stage === 'recovered'
+                ? 'Echoo will keep the protected local master until the server copy is confirmed.'
+                : transferOperation.stage === 'verifying'
+                  ? `Server verification in progress · ${formatElapsedTime(transferOperation.elapsedSeconds || 0)} elapsed`
+                  : transferOperation.stage === 'error'
+                    ? transferOperation.message || 'Please retry.'
+                    : transferOperation.stage === 'done'
+                      ? transferOperation.title
+                      : transferProgressText(transferOperation)}
+          </small>
         </div>
       )}
 
