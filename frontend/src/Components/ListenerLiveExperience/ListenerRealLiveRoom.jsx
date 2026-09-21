@@ -529,7 +529,9 @@ const ListenerRealLiveRoom = () => {
     ? 'Audio disconnected'
     : show.mediaState === 'audio_paused'
       ? 'Broadcast paused'
-      : connectionStatus === 'reconnecting'
+      : connectionStatus === 'holding'
+        ? 'Weak connection — staying live'
+        : connectionStatus === 'reconnecting'
         ? 'Reconnecting audio…'
         : needsReconnect
           ? 'Audio disconnected'

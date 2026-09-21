@@ -22,6 +22,7 @@ const STATUS_COPY = {
   connected: 'Waiting for creator',
   listening: 'Audio live',
   reconnecting: 'Reconnecting audio',
+  holding: 'Weak connection — holding live audio',
   recovering_audio: 'Recovering audio…',
   autoplay_blocked: 'Audio ready — tap Play',
   disconnected: 'Audio disconnected',
@@ -58,6 +59,14 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
   const programParticipantRef = useRef(null);
   const reconnectAttemptRef = useRef(0);
   const reconnectTimerRef = useRef(null);
+  // Consecutive watchdog misses while the room itself reports connected.
+  // Transient mobile-network blips recover on their own — only a sustained
+  // gap (several misses in a row) triggers a full room reconnect.
+  const watchdogMissStreakRef = useRef(0);
+  // LiveKit's own connection state. While it reports reconnecting, its
+  // internal ICE/signalling recovery owns the outage and our watchdog must
+  // hold (not tear the room down and start a reconnect storm).
+  const roomLinkRef = useRef('connected');
   const needsAudioStartRef = useRef(false);
   const volumeRef = useRef(1);
   const mutedRef = useRef(false);
@@ -140,10 +149,17 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       const playing = entries.some((entry) => currentAttachmentIsHealthy(entry) && mediaElementIsPlaying(entry.element));
       if (playing) {
         reconnectAttemptRef.current = 0;
+        watchdogMissStreakRef.current = 0;
         needsAudioStartRef.current = false;
         setNeedsAudioStart(false);
         setStatus('playing');
         return true;
+      }
+      if (roomLinkRef.current === 'reconnecting') {
+        // LiveKit is already repairing the transport. Hold the shared live
+        // source instead of reporting the creator as gone.
+        setStatus('holding');
+        return false;
       }
       if (entries.some(currentAttachmentIsHealthy)) {
         setStatus('recovering_audio');
@@ -159,15 +175,16 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
         setStatus('reconnecting');
         return;
       }
+      // Never give up while the broadcast is still live: transient mobile
+      // blips must not end in a permanent 'failed' state. Backoff grows to a
+      // 30s ceiling and retries continue until the listener leaves.
       const attempt = reconnectAttemptRef.current;
-      if (attempt >= LIVE_RECOVERY_DELAYS_MS.length) {
-        setStatus('failed');
-        setError('Live audio could not recover automatically. Retry the connection.');
-        return;
-      }
       reconnectAttemptRef.current += 1;
-      setStatus('reconnecting');
-      const delay = recoveryDelayMs(attempt);
+      setStatus(roomLinkRef.current === 'reconnecting' ? 'holding' : 'reconnecting');
+      const capped = attempt < LIVE_RECOVERY_DELAYS_MS.length
+        ? recoveryDelayMs(attempt)
+        : Math.min(30000, 8000 * 2 ** Math.min(4, attempt - LIVE_RECOVERY_DELAYS_MS.length));
+      const delay = Math.max(0, capped);
       console.warn('[Echoo Live][Listener] scheduling hard reconnect', {
         broadcastId,
         attempt: attempt + 1,
@@ -432,10 +449,15 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       });
 
       room.on(RoomEvent.Reconnecting, () => {
-        if (!disposed && roomRef.current === room) setStatus('reconnecting');
+        if (!disposed && roomRef.current === room) {
+          roomLinkRef.current = 'reconnecting';
+          setStatus(attachedRef.current.size > 0 ? 'holding' : 'reconnecting');
+        }
       });
       room.on(RoomEvent.Reconnected, () => {
         if (!disposed && roomRef.current === room) {
+          roomLinkRef.current = 'connected';
+          watchdogMissStreakRef.current = 0;
           const elements = Array.from(audioHostRef.current?.querySelectorAll('audio') || []);
           const playing = elements.some((element) => !element.paused && !element.ended);
           setIsPlaying(playing);
@@ -448,6 +470,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       });
       room.on(RoomEvent.Disconnected, (reason) => {
         if (!disposed && roomRef.current === room) {
+          roomLinkRef.current = 'reconnecting';
           smoothedAudioLevel = 0;
           setProgramAudioLevel(0);
           setIsPlaying(false);
@@ -484,6 +507,8 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       await loadOutputs();
       await attachExisting(room);
       startProgramLevelTelemetry();
+      roomLinkRef.current = 'connected';
+      watchdogMissStreakRef.current = 0;
 
       const audioElements = Array.from(
         audioHostRef.current?.querySelectorAll('audio') || []
@@ -538,12 +563,25 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       if (disposed) return;
       const room = roomRef.current;
       if (!roomIsConnected(room)) return;
-      const entries = Array.from(attachedRef.current.values());
-      if (!entries.length || !entries.some(currentAttachmentIsHealthy)) {
-        setStatus('recovering_audio');
-        attachExisting(room).catch(() => scheduleHardReconnect('watchdog_missing_attachment'));
+      // LiveKit's own transport recovery owns the outage — hold the shared
+      // live source and stay quiet instead of tearing the room down.
+      if (roomLinkRef.current === 'reconnecting') {
+        setStatus(attachedRef.current.size > 0 ? 'holding' : 'reconnecting');
         return;
       }
+      const entries = Array.from(attachedRef.current.values());
+      if (!entries.length || !entries.some(currentAttachmentIsHealthy)) {
+        watchdogMissStreakRef.current += 1;
+        setStatus('recovering_audio');
+        if (watchdogMissStreakRef.current >= 3) {
+          watchdogMissStreakRef.current = 0;
+          scheduleHardReconnect('watchdog_missing_attachment');
+        } else {
+          attachExisting(room).catch(() => scheduleHardReconnect('watchdog_missing_attachment'));
+        }
+        return;
+      }
+      watchdogMissStreakRef.current = 0;
       if (!entries.some((entry) => mediaElementIsPlaying(entry.element)) && !needsAudioStartRef.current) {
         setStatus('recovering_audio');
         entries.forEach((entry) => {
