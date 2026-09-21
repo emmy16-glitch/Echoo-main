@@ -1,10 +1,8 @@
 import { apiFetch } from './api.js';
 
-// Library folder name shown to the creator. Browsers cannot create
-// ~/Desktop/<name> silently — the File System Access picker opens on the
-// Desktop (where supported) with `Echoo Recordings/<file>` as the suggested
-// name, so one click creates the library layout. The Electron desktop app
-// creates ~/Desktop/Echoo Recordings directly via its native save dialog.
+// Library folder name used by the desktop app. Browsers cannot silently
+// create ~/Desktop/<name>; their save picker opens at the Desktop and suggests
+// the filename only. The Electron app can create/use Echoo Recordings itself.
 export const ECHOO_RECORDINGS_LIBRARY = 'Echoo Recordings';
 
 export const RECORDING_PC_FORMATS = [
@@ -44,7 +42,12 @@ const downloadViaAnchor = async (blob, filename) => {
 export const fetchServerRecordingBlob = async (audioId) => {
   const response = await apiFetch(`/audio/${encodeURIComponent(audioId)}/download`);
   if (!response.ok) throw new Error('Server MP3 is not ready yet. Try again in a few seconds.');
-  return response.blob();
+  const blob = await response.blob();
+  const mimeType = String(blob.type || response.headers.get('content-type') || '').toLowerCase();
+  if (!(mimeType.includes('mpeg') || mimeType.includes('mp3'))) {
+    throw new Error('Server MP3 is still being prepared. Try again in a few seconds.');
+  }
+  return blob;
 };
 
 // Poll the server until the automatic MP3 transcode finishes.
@@ -107,7 +110,6 @@ export const saveRecordingToPc = async ({ blob, title, format, audioId }) => {
 
   if (!bytes?.size) throw new Error('Recording bytes are not available.');
   const filename = `${base}.${extension}`;
-  const suggestedInLibrary = `${ECHOO_RECORDINGS_LIBRARY}/${filename}`;
 
   // 1) Electron desktop: native dialog defaulting to ~/Desktop/Echoo Recordings.
   if (isDesktopBridge() && typeof window.echooDesktop.saveRecording === 'function') {
@@ -123,12 +125,12 @@ export const saveRecordingToPc = async ({ blob, title, format, audioId }) => {
     return { saved: true, path: result.path || '', filename };
   }
 
-  // 2) Chromium browsers: File System Access picker, opened on the Desktop
-  // with the library path as the suggested name.
+  // 2) Chromium browsers: File System Access picker, opened on the Desktop.
+  // suggestedName must be a filename, not a nested path.
   if (typeof window.showSaveFilePicker === 'function') {
     try {
       const handle = await window.showSaveFilePicker({
-        suggestedName: suggestedInLibrary,
+        suggestedName: filename,
         startIn: 'desktop',
         types: [
           {
