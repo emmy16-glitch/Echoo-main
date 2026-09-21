@@ -207,7 +207,7 @@ export const trimBufferToWavBlob = (buffer, startSec, endSec) => {
       try {
         sample = buffer.getChannelData(c)[startSample + f] || 0;
       } catch {
-        sample = 0;
+        // keep default 0 when channel data is unavailable
       }
       const clamped = Math.max(-1, Math.min(1, sample));
       const signed = clamped < 0 ? Math.round(clamped * 0x800000) : Math.round(clamped * 0x7fffff);

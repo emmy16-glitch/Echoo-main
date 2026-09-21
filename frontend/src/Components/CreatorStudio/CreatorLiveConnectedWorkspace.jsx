@@ -387,6 +387,8 @@ const CreatorLiveConnectedWorkspace = ({
       });
     }, 1000);
     return () => window.clearInterval(ticker);
+    // Intentional deps: only restart ticker on stage/startedAt change, not every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recordingProgress?.stage, recordingProgress?.startedAt]);
 
   useEffect(() => {

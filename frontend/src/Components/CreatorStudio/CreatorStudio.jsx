@@ -541,7 +541,7 @@ const CreatorStudioBody = () => {
   };
 
   const renderWorkspace = () => {
-    let node = null;
+    let node;
     switch (activeNav) {
       case 'Audio':
         node = (

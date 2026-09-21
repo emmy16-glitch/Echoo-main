@@ -232,6 +232,8 @@ export default function CreatorCollectionsWorkspace({
       });
     }, 1000);
     return () => window.clearInterval(interval);
+    // Intentional deps: only restart ticker on stage/startedAt change, not every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [transferOperation?.stage, transferOperation?.startedAt]);
 
   const counts = useMemo(() => {

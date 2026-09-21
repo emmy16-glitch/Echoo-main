@@ -74,8 +74,8 @@ export const saveRecordingToPc = async ({ blob, title, format, audioId }) => {
   // comes from Echoo's canonical server copy.
   let bytes = blob;
   const sourceMime = String(blob?.type || '').toLowerCase();
-  let extension = choice;
-  let mime = choice === 'mp3' ? 'audio/mpeg' : sourceMime;
+  let extension;
+  let mime;
 
   if (choice === 'mp3') {
     if (!audioId) throw new Error('The stored MP3 copy is not available yet.');

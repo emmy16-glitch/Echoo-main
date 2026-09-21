@@ -357,7 +357,7 @@ const studioService = {
           const text = String(xhr.responseText || xhr.response || "");
           data = text ? JSON.parse(text) : null;
         } catch {
-          data = null;
+          // keep data as null when response is not JSON
         }
 
         if (status >= 200 && status < 300) {
