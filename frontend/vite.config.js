@@ -16,15 +16,21 @@ const localBackendProxy = {
   '/api': {
     target: backendProxyTarget,
     changeOrigin: true,
+    // Forward the browser's address (X-Forwarded-For) so the backend's
+    // per-IP rate limiters (e.g. LiveKit token issuance) see real clients
+    // instead of lumping every tunnel/proxied user into one shared bucket.
+    xfwd: true,
   },
   '/socket.io': {
     target: backendProxyTarget,
     changeOrigin: true,
     ws: true,
+    xfwd: true,
   },
   '/uploads': {
     target: backendProxyTarget,
     changeOrigin: true,
+    xfwd: true,
   },
 }
 
