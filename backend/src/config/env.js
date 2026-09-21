@@ -26,18 +26,33 @@ function parseList(value = '') {
 
 const nodeEnv = process.env.NODE_ENV || 'development';
 
+const vercelOriginHosts = [
+  process.env.VERCEL_PROJECT_PRODUCTION_URL,
+  process.env.VERCEL_BRANCH_URL,
+  process.env.VERCEL_URL,
+]
+  .map((value) => String(value || '').trim().replace(/^https?:\/\//, '').replace(/\/$/, ''))
+  .filter(Boolean);
+
+const vercelClientOrigins = Array.from(
+  new Set(vercelOriginHosts.map((host) => `https://${host}`))
+);
+
 if (nodeEnv === 'production') {
   const required = [
     'MONGODB_URI',
     'JWT_SECRET',
     'JWT_REFRESH_SECRET',
-    'CLIENT_ORIGINS',
     'LIVEKIT_URL',
     'LIVEKIT_PUBLIC_URL',
     'LIVEKIT_API_KEY',
     'LIVEKIT_API_SECRET',
   ];
   const missing = required.filter((name) => !process.env[name]?.trim());
+
+  if (!process.env.CLIENT_ORIGINS?.trim() && vercelClientOrigins.length === 0) {
+    missing.push('CLIENT_ORIGINS');
+  }
 
   if (missing.length) {
     throw new Error(
@@ -72,8 +87,11 @@ const configuredClientOrigins = parseList(
   process.env.CLIENT_ORIGINS || process.env.CLIENT_ORIGIN || ''
 );
 const defaultClientOrigins = nodeEnv === 'production'
-  ? []
+  ? vercelClientOrigins
   : ['http://localhost:5273', 'http://127.0.0.1:5273'];
+const resolvedClientOrigins = Array.from(
+  new Set([...configuredClientOrigins, ...vercelClientOrigins])
+);
 const jwtSecret = requireValue('JWT_SECRET', 'dev-secret-key-change-in-production');
 
 export const env = Object.freeze({
@@ -83,8 +101,8 @@ export const env = Object.freeze({
   isTest: nodeEnv === 'test',
   port: parsePort(process.env.PORT || '5017'),
   clientOrigins:
-    configuredClientOrigins.length > 0
-      ? configuredClientOrigins
+    resolvedClientOrigins.length > 0
+      ? resolvedClientOrigins
       : defaultClientOrigins,
   clientOriginSuffixes: parseList(process.env.CLIENT_ORIGIN_SUFFIXES || ''),
   mongodbUri: requireValue('MONGODB_URI', 'mongodb://127.0.0.1:27017/echoo'),
@@ -100,7 +118,10 @@ export const env = Object.freeze({
   whisperQualityModel: String(process.env.WHISPER_QUALITY_MODEL || process.env.WHISPER_MODEL || 'faster-whisper-large-v3-turbo').trim(),
   whisperModel: String(process.env.WHISPER_MODEL || 'faster-whisper-large-v3-turbo').trim(),
   whisperLanguage: String(process.env.WHISPER_LANGUAGE || 'en').trim(),
-  frontendUrl: requireValue('FRONTEND_URL', 'http://localhost:5273'),
+  frontendUrl: requireValue(
+    'FRONTEND_URL',
+    vercelClientOrigins[0] || 'http://localhost:5273'
+  ),
   resendApiKey: requireValue('RESEND_API_KEY', ''),
   emailFrom: requireValue('EMAIL_FROM', process.env.MAIL_FROM || ''),
   newSigninAlertsEnabled:
