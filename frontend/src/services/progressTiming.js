@@ -88,7 +88,7 @@ export const updateTransferEstimate = (previous = null, {
   };
 };
 
-export const transferProgressText = (progress = {}) => {
+export const transferProgressText = (progress = {}, now = Date.now()) => {
   const parts = [];
   if (Number(progress.total) > 0) {
     parts.push(`${formatTransferBytes(progress.loaded)} of ${formatTransferBytes(progress.total)}`);
@@ -96,13 +96,18 @@ export const transferProgressText = (progress = {}) => {
   if (Number.isFinite(Number(progress.percent))) {
     parts.push(`${Math.max(0, Math.min(100, Number(progress.percent) || 0))}%`);
   }
-  const rate = formatTransferRate(progress.bytesPerSecond);
+
+  const lastAt = Number(progress.lastAt) || 0;
+  const sampleFresh = !lastAt || Math.max(0, Number(now) - lastAt) <= 5000;
+  const rate = sampleFresh ? formatTransferRate(progress.bytesPerSecond) : '';
   if (rate) parts.push(rate);
-  const remaining = formatTimeRemaining(progress.etaSeconds);
+
+  const remaining = sampleFresh ? formatTimeRemaining(progress.etaSeconds) : '';
   if (remaining) parts.push(remaining);
   else if ((Number(progress.elapsedSeconds) || 0) >= 2 && Number(progress.percent) < 100) {
-    parts.push('estimating time left…');
+    parts.push(sampleFresh ? 'estimating time left…' : 'waiting for transfer data…');
   }
+
   return parts.filter(Boolean).join(' · ');
 };
 
