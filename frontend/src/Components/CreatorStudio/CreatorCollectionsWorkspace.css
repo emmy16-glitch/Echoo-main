@@ -231,11 +231,91 @@
   .recordings-heading-copy h1 { font-size:30px; }
   .recordings-heading { margin-left:0; margin-right:0; }
   .recordings-toolbar { padding:14px; }
-  .recordings-tabs { grid-template-columns:1fr 1fr; height:auto; }
-  .recordings-tabs button { min-height:42px; }
+  .recordings-tabs {
+    min-width:0;
+    width:100%;
+    height:auto;
+    grid-template-columns:repeat(3,minmax(0,1fr));
+  }
+  .recordings-tabs button {
+    min-height:44px;
+    padding:7px 5px;
+    font-size:10.5px;
+    line-height:1.25;
+  }
   .recordings-tools { flex-direction:column; }
   .recordings-filter-wrap,.recordings-filter { width:100%; }
-  .recordings-table { padding:0 14px; }
+
+  /* Mobile recordings are cards, not a 1260px desktop table squeezed into a phone. */
+  .recordings-table {
+    padding:12px;
+    overflow:visible;
+  }
+  .recordings-table-head {
+    display:none;
+  }
+  .recordings-row {
+    min-width:0;
+    min-height:0;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:12px 14px;
+    margin:0 0 12px;
+    padding:14px;
+    border:1px solid #e2e8f2;
+    border-radius:12px;
+    background:#fff;
+    box-shadow:0 5px 18px rgba(7,22,56,.035);
+  }
+  .recordings-recording-cell {
+    grid-column:1 / -1;
+    gap:12px;
+  }
+  .recordings-art {
+    width:116px;
+    height:72px;
+    flex-basis:116px;
+  }
+  .recordings-copy {
+    align-content:center;
+  }
+  .recordings-title {
+    font-size:13px;
+    white-space:normal;
+    line-height:1.3;
+  }
+  .recordings-copy p,
+  .recordings-copy span {
+    white-space:normal;
+    line-height:1.35;
+  }
+  .recordings-duration {
+    display:none;
+  }
+  .recordings-date,
+  .recordings-save-cell,
+  .recordings-status-cell {
+    min-width:0;
+  }
+  .recordings-date {
+    align-content:center;
+  }
+  .recordings-save-state,
+  .recordings-status {
+    max-width:100%;
+  }
+  .recordings-actions {
+    grid-column:1 / -1;
+    width:100%;
+    gap:8px;
+    flex-wrap:wrap;
+  }
+  .recordings-primary-action {
+    flex:1 1 150px;
+  }
+  .recordings-more-wrap {
+    margin-left:auto;
+  }
+
   .recordings-footer { grid-template-columns:1fr; justify-items:center; padding:14px; text-align:center; }
   .recordings-page-size { justify-self:center; }
 }
@@ -246,4 +326,46 @@
 
 @media (max-width:760px) {
   .recordings-operation-head { align-items:flex-start; flex-direction:column; gap:4px; }
+}
+
+
+@media (max-width:460px) {
+  .recordings-heading-copy h1 { font-size:27px; }
+  .recordings-tabs {
+    grid-template-columns:1fr;
+  }
+  .recordings-tabs button + button {
+    border-top:1px solid #edf1f6;
+  }
+  .recordings-row {
+    grid-template-columns:1fr;
+    padding:12px;
+  }
+  .recordings-recording-cell,
+  .recordings-date,
+  .recordings-save-cell,
+  .recordings-status-cell,
+  .recordings-actions {
+    grid-column:1;
+  }
+  .recordings-recording-cell {
+    align-items:flex-start;
+  }
+  .recordings-art {
+    width:104px;
+    height:68px;
+    flex-basis:104px;
+  }
+  .recordings-actions {
+    display:grid;
+    grid-template-columns:minmax(0,1fr) 42px 42px 38px;
+  }
+  .recordings-primary-action {
+    min-width:0;
+    width:100%;
+  }
+  .recordings-icon-action,
+  .recordings-more {
+    width:100%;
+  }
 }
