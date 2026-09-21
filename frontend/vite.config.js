@@ -31,7 +31,7 @@ export default defineConfig({
   // (Electron loadFile). Absolute '/assets/...' refs resolve to file:///assets
   // under file:// and 404 — that was the packaged-app blank window. Dev server
   // serving is unaffected (base only rewrites build output).
-  base: './',
+  base: process.env.VITE_BUILD_BASE || './',
   server: {
     host: '0.0.0.0',
     port: localPort,
