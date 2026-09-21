@@ -100,7 +100,7 @@ export const env = Object.freeze({
   whisperQualityModel: String(process.env.WHISPER_QUALITY_MODEL || process.env.WHISPER_MODEL || 'faster-whisper-large-v3-turbo').trim(),
   whisperModel: String(process.env.WHISPER_MODEL || 'faster-whisper-large-v3-turbo').trim(),
   whisperLanguage: String(process.env.WHISPER_LANGUAGE || 'en').trim(),
-  frontendUrl: requireValue('FRONTEND_URL', 'http://localhost:5174'),
+  frontendUrl: requireValue('FRONTEND_URL', 'http://localhost:5273'),
   resendApiKey: requireValue('RESEND_API_KEY', ''),
   emailFrom: requireValue('EMAIL_FROM', process.env.MAIL_FROM || ''),
   newSigninAlertsEnabled:

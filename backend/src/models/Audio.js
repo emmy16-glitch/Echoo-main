@@ -72,9 +72,10 @@ const audioSchema = new mongoose.Schema(
       required: true,
       unique: true,
     },
-    // Recordings stay on the Echoo server (uploads/audio). `storage` is kept
-    // as a legacy marker and is always 'local' for new recordings; the
-    // cloudUrl/cloudKey fields below are deprecated leftovers and stay null.
+    // Cloud archive (see services/audioArchiveService.js). Local files keep
+    // storage 'local'; archived replays flip to 'cloud' with the object URL.
+    // Playback always goes through signed /stream URLs — the raw cloud URL is
+    // never exposed in API output (stripped in toJSON below like fileKey).
     storage: {
       type: String,
       enum: ['local', 'cloud'],
@@ -184,6 +185,7 @@ const audioSchema = new mongoose.Schema(
 );
 
 audioSchema.index({ artist: 1, createdAt: -1 });
+audioSchema.index({ artist: 1, isDeleted: 1, createdAt: -1 });
 audioSchema.index({ title: 'text', description: 'text', tags: 'text' });
 audioSchema.index({ isPublic: 1, createdAt: -1 });
 audioSchema.index({ publicationStatus: 1, visibility: 1, createdAt: -1 });

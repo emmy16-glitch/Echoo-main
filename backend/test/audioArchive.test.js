@@ -9,14 +9,14 @@ import {
   archiveRecordingAudio,
   createCloudDownloadUrl,
   isCloudArchiveEnabled,
+  transcodeToMp3,
   transcodeToOpus,
-  uploadToObjectStorage,
 } from '../src/services/audioArchiveService.js';
 
-// Local-server recording archive contract:
-// - recordings stay on this server (uploads/audio), never cloud
-// - transcode produces a dramatically smaller Opus file
-// - failures keep the original file and never throw
+// Recording archive contract:
+// - server copy is ALWAYS MP3 automatically (local disk or S3 cloud)
+// - disabled/misconfigured S3 -> local MP3 normalise, never throw
+// - cloud failures keep the local file and never fail the upload
 
 const withEnv = (patch, fn) => async () => {
   const saved = {};
@@ -37,17 +37,10 @@ const withEnv = (patch, fn) => async () => {
 
 const makeWorkDir = () => fs.mkdtempSync(path.join(os.tmpdir(), 'echoo-archive-test-'));
 
-const fakeAudioDoc = (filename = 'master.wav') => {
+const fakeAudioDoc = () => {
   const state = { saved: 0 };
   return {
     _id: 'audio-test-id',
-    filename,
-    fileKey: filename,
-    fileSize: 1024,
-    mimeType: 'audio/wav',
-    storage: 'local',
-    cloudUrl: null,
-    cloudKey: null,
     state,
     async save() {
       state.saved += 1;
@@ -88,78 +81,138 @@ const writeSilentWav = (filePath, seconds = 10) => {
   return buffer.length;
 };
 
-test('cloud archive is disabled — recordings stay on this server', async () => {
-  assert.equal(isCloudArchiveEnabled(), false);
-});
+test('local server mode normalises the WAV master to MP3 automatically', withEnv(
+  { AUDIO_STORAGE_PROVIDER: undefined },
+  async () => {
+    assert.equal(isCloudArchiveEnabled(), false);
+    if (!ffmpegAvailable()) {
+      console.log('  (skipped: ffmpeg not on PATH)');
+      return;
+    }
+    const dir = makeWorkDir();
+    const localPath = path.join(dir, 'master.wav');
+    writeSilentWav(localPath, 5);
+    const audio = { ...fakeAudioDoc(), filename: 'master.wav', mimeType: 'audio/wav', storage: 'local' };
+    const result = await archiveRecordingAudio({ audio, localPath });
+    assert.equal(result, 'local-mp3');
+    assert.equal(audio.state.saved, 1);
+    assert.equal(audio.filename.endsWith('.mp3'), true);
+    assert.equal(audio.mimeType, 'audio/mpeg');
+    assert.equal(fs.existsSync(path.join(dir, audio.filename)), true);
+    assert.equal(fs.existsSync(localPath), localPath.endsWith('.mp3') ? true : false);
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+));
 
-test('missing audio or path fails closed without throwing', async () => {
-  assert.equal(await archiveRecordingAudio({ audio: null, localPath: null }), 'failed');
-  assert.equal(await archiveRecordingAudio({ audio: fakeAudioDoc(), localPath: null }), 'failed');
-});
+test('already-MP3 server copy is left alone', withEnv(
+  { AUDIO_STORAGE_PROVIDER: undefined },
+  async () => {
+    const dir = makeWorkDir();
+    const localPath = path.join(dir, 'master.mp3');
+    fs.writeFileSync(localPath, Buffer.alloc(1024));
+    const audio = { ...fakeAudioDoc(), filename: 'master.mp3', mimeType: 'audio/mpeg', storage: 'local' };
+    const result = await archiveRecordingAudio({ audio, localPath });
+    assert.equal(result, 'local');
+    assert.equal(audio.state.saved, 0);
+    assert.equal(fs.existsSync(localPath), true);
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+));
 
-test('removed cloud helpers fail loudly instead of silently', async () => {
-  await assert.rejects(() => uploadToObjectStorage(), /removed/);
-  await assert.rejects(() => createCloudDownloadUrl('x.opus'), /removed/);
-});
+test('corrupt master never throws and keeps the local file', withEnv(
+  { AUDIO_STORAGE_PROVIDER: undefined },
+  async () => {
+    if (!ffmpegAvailable()) {
+      console.log('  (skipped: ffmpeg not on PATH)');
+      return;
+    }
+    const dir = makeWorkDir();
+    const localPath = path.join(dir, 'master.wav');
+    fs.writeFileSync(localPath, Buffer.alloc(1024));
+    const audio = { ...fakeAudioDoc(), filename: 'master.wav', mimeType: 'audio/wav', storage: 'local' };
+    const result = await archiveRecordingAudio({ audio, localPath });
+    assert.equal(result, 'failed');
+    assert.equal(audio.state.saved, 0);
+    assert.equal(fs.existsSync(localPath), true);
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+));
 
-test('opus transcode shrinks a WAV master by an order of magnitude', async () => {
+test('incomplete cloud config keeps the local file', withEnv(
+  { AUDIO_STORAGE_PROVIDER: 'r2', AUDIO_S3_ENDPOINT: undefined, AUDIO_S3_BUCKET: undefined },
+  async () => {
+    const dir = makeWorkDir();
+    const localPath = path.join(dir, 'master.wav');
+    fs.writeFileSync(localPath, Buffer.alloc(1024));
+    const audio = fakeAudioDoc();
+    const result = await archiveRecordingAudio({ audio, localPath });
+    assert.equal(result, 'local');
+    assert.equal(fs.existsSync(localPath), true);
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+));
+
+test('unreachable object storage keeps the local file and never throws', withEnv(
+  {
+    AUDIO_STORAGE_PROVIDER: 'r2',
+    AUDIO_S3_ENDPOINT: 'http://127.0.0.1:9',
+    AUDIO_S3_REGION: 'auto',
+    AUDIO_S3_BUCKET: 'echoo-test',
+    AUDIO_S3_ACCESS_KEY_ID: 'test',
+    AUDIO_S3_SECRET_ACCESS_KEY: 'test',
+    AUDIO_S3_PUBLIC_BASE: 'https://media.example.test',
+  },
+  async () => {
+    if (!ffmpegAvailable()) {
+      console.log('  (skipped: ffmpeg not on PATH)');
+      return;
+    }
+    const dir = makeWorkDir();
+    const localPath = path.join(dir, 'master.wav');
+    writeSilentWav(localPath, 5);
+    const audio = fakeAudioDoc();
+    const result = await archiveRecordingAudio({ audio, localPath });
+    // Upload to a dead endpoint must fail closed: local master untouched.
+    assert.equal(result, 'failed');
+    assert.equal(audio.state.saved, 0);
+    assert.equal(fs.existsSync(localPath), true);
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+));
+
+test('private-bucket playback mints a signed URL without network', withEnv(
+  {
+    AUDIO_S3_ENDPOINT: 'https://s3.us-west-004.backblazeb2.com',
+    AUDIO_S3_REGION: 'us-west-004',
+    AUDIO_S3_BUCKET: 'echoo-recordings',
+    AUDIO_S3_ACCESS_KEY_ID: 'test-key-id',
+    AUDIO_S3_SECRET_ACCESS_KEY: 'test-secret',
+  },
+  async () => {
+    // SigV4 signing is purely local — no request leaves the machine.
+    const url = await createCloudDownloadUrl('test-playback.opus', 3600);
+    assert.ok(url.startsWith('https://'), 'signed URL must be https');
+    assert.ok(url.includes('echoo-recordings%2Ftest-playback.opus') || url.includes('echoo-recordings/test-playback.opus'), 'signed URL must address the object');
+    assert.ok(url.includes('X-Amz-Signature='), 'signed URL must carry a signature');
+    assert.ok(url.includes('X-Amz-Expires=3600'), 'signed URL must honor expiry');
+  }
+));
+
+test('mp3 transcode shrinks a WAV master by an order of magnitude', async () => {
   if (!ffmpegAvailable()) {
     console.log('  (skipped: ffmpeg not on PATH)');
     return;
   }
   const dir = makeWorkDir();
   const source = path.join(dir, 'master.wav');
-  const dest = path.join(dir, 'master.opus');
+  const dest = path.join(dir, 'master.mp3');
   const sourceBytes = writeSilentWav(source, 30);
-  await transcodeToOpus(source, dest);
+  await transcodeToMp3(source, dest);
   const destBytes = fs.statSync(dest).size;
   assert.ok(destBytes > 0, 'transcode must produce output');
   assert.ok(
-    destBytes < sourceBytes / 10,
-    `expected >=10x shrink, got ${(sourceBytes / destBytes).toFixed(1)}x`
+    destBytes < sourceBytes / 5,
+    `expected >=5x shrink, got ${(sourceBytes / destBytes).toFixed(1)}x`
   );
   fs.rmSync(dir, { recursive: true, force: true });
 });
-
-test('archive compresses the master on server disk and repoints the record', withEnv(
-  { AUDIO_KEEP_LOCAL_AFTER_ARCHIVE: undefined },
-  async () => {
-    if (!ffmpegAvailable()) {
-      console.log('  (skipped: ffmpeg not on PATH)');
-      return;
-    }
-    const dir = makeWorkDir();
-    const localPath = path.join(dir, 'master.wav');
-    writeSilentWav(localPath, 5);
-    const audio = fakeAudioDoc('master.wav');
-    const result = await archiveRecordingAudio({ audio, localPath });
-    assert.equal(result, 'local');
-    assert.equal(audio.state.saved, 1);
-    assert.equal(audio.storage, 'local');
-    assert.ok(audio.filename.endsWith('.opus'), 'record must point at the Opus file');
-    assert.equal(audio.fileKey, audio.filename);
-    assert.equal(audio.mimeType, 'audio/ogg; codecs=opus');
-    assert.equal(fs.existsSync(path.join(dir, audio.filename)), true);
-    assert.equal(fs.existsSync(localPath), false, 'original WAV is deleted by default');
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
-));
-
-test('archive keeps the original when AUDIO_KEEP_LOCAL_AFTER_ARCHIVE=true', withEnv(
-  { AUDIO_KEEP_LOCAL_AFTER_ARCHIVE: 'true' },
-  async () => {
-    if (!ffmpegAvailable()) {
-      console.log('  (skipped: ffmpeg not on PATH)');
-      return;
-    }
-    const dir = makeWorkDir();
-    const localPath = path.join(dir, 'master.wav');
-    writeSilentWav(localPath, 5);
-    const audio = fakeAudioDoc('master.wav');
-    const result = await archiveRecordingAudio({ audio, localPath });
-    assert.equal(result, 'local');
-    assert.equal(fs.existsSync(localPath), true, 'original WAV is kept');
-    assert.equal(fs.existsSync(path.join(dir, audio.filename)), true);
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
-));

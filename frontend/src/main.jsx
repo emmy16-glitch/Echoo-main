@@ -2,7 +2,6 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.jsx";
 import AppErrorBoundary from "./Components/System/AppErrorBoundary.jsx";
-import BroadcastRecordingPrompt from "./Components/CreatorStudio/BroadcastRecordingPrompt.jsx";
 import settingsService from "./services/settingsService.js";
 import { installDesktopLifecycle } from "./services/desktopLifecycle.js";
 import { initializeEchooTheme } from "./theme/themePreference.js";
@@ -10,6 +9,9 @@ import "./accessibility/installPlayerKeyboardAccess.js";
 import "./accessibility/installUiSemanticRepairs.js";
 import "./index.css";
 import "./theme/EchooTheme.css";
+import "./styles/echoo-tokens-plus.css";
+import "./styles/echoo-motion.css";
+import "./styles/echoo-primitives.css";
 
 import "./styles/echoo-phase13-final.css";
 import "./styles/echoo-final-visual-correction.css";
@@ -79,7 +81,6 @@ ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <AppErrorBoundary>
       <App />
-      <BroadcastRecordingPrompt />
     </AppErrorBoundary>
   </React.StrictMode>
 );

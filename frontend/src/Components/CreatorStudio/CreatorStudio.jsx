@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   FaCloudUploadAlt,
@@ -23,19 +23,27 @@ import studioService from '../../services/studioService';
 import { api } from '../../services/api';
 import { buildGeneratedAudioCoverUrl } from '../../audioCover/audioCover';
 import ListenerLiveConnected from '../ListenerLive/ListenerLiveConnected';
-import CreatorDiscoverWorkspace from './CreatorDiscoverWorkspace';
 import { CreatorStudioStateProvider } from './CreatorStudioState';
-import CreatorContentWorkspace from './CreatorContentWorkspace';
-import CreatorBroadcastWorkspace from './CreatorLiveConnectedWorkspace';
-import CreatorStationsWorkspace from './CreatorStationsWorkspace';
-import CreatorAudienceWorkspace from './CreatorAudienceWorkspace';
-import CreatorAnalyticsWorkspace from './CreatorAnalyticsConnectedWorkspace';
-import CreatorScheduleEventsWorkspace from './CreatorScheduleEventsWorkspace';
-import CreatorBroadcastSettingsWorkspace from './CreatorBroadcastSettingsWorkspace';
-import CreatorSettingsWorkspace from './CreatorSettingsWorkspace';
-import CreatorNotificationsWorkspace from './CreatorNotificationsWorkspace';
-import CreatorRecordingsWorkspace from './CreatorCollectionsWorkspace';
-import CreatorCollectionWorkspace from './CreatorCollectionWorkspace';
+// Lazy workspaces: each tab loads only its own code, so Channels/Recordings
+// open instantly instead of downloading every workspace up-front.
+const CreatorDiscoverWorkspace = lazy(() => import('./CreatorDiscoverWorkspace'));
+const CreatorContentWorkspace = lazy(() => import('./CreatorContentWorkspace'));
+const CreatorBroadcastWorkspace = lazy(() => import('./CreatorLiveConnectedWorkspace'));
+const CreatorStationsWorkspace = lazy(() => import('./CreatorStationsWorkspace'));
+const CreatorAudienceWorkspace = lazy(() => import('./CreatorAudienceWorkspace'));
+const CreatorAnalyticsWorkspace = lazy(() => import('./CreatorAnalyticsConnectedWorkspace'));
+const CreatorScheduleEventsWorkspace = lazy(() => import('./CreatorScheduleEventsWorkspace'));
+const CreatorBroadcastSettingsWorkspace = lazy(() => import('./CreatorBroadcastSettingsWorkspace'));
+const CreatorSettingsWorkspace = lazy(() => import('./CreatorSettingsWorkspace'));
+const CreatorNotificationsWorkspace = lazy(() => import('./CreatorNotificationsWorkspace'));
+const CreatorRecordingsWorkspace = lazy(() => import('./CreatorCollectionsWorkspace'));
+const CreatorCollectionWorkspace = lazy(() => import('./CreatorCollectionWorkspace'));
+
+const WorkspaceFallback = () => (
+  <div className="channels-grid is-loading" aria-label="Loading workspace">
+    {Array.from({ length: 6 }, (_, index) => <div className="channels-skeleton" key={index}><i /><span /><span /><span /></div>)}
+  </div>
+);
 import AccountExperienceMenu from '../Shared/AccountExperienceMenu';
 
 const GENRES = [
@@ -186,7 +194,7 @@ const CreatorStudioBody = () => {
         setLoading(true);
         setError('');
         if (activeNav === 'Audio' || activeNav === 'Broadcast' || activeNav === 'Recordings') {
-          const response = await studioService.getContent({ page: contentPage, limit: 50 });
+          const response = await studioService.getContent({ page: contentPage, limit: 20 });
           if (active) setContent(response?.data || { tracks: [], pagination: {} });
         }
         if (activeNav === 'Audience') {
@@ -202,6 +210,18 @@ const CreatorStudioBody = () => {
     load();
     return () => { active = false; };
   }, [activeNav, contentPage, refreshKey]);
+
+  // Global toast for recording saves and other workspace events.
+  useEffect(() => {
+    const onToast = (event) => {
+      const message = String(event?.detail?.message || '').trim();
+      if (!message) return;
+      if (event?.detail?.type === 'error') setError(message);
+      else setNotice(message);
+    };
+    window.addEventListener('echoo:toast', onToast);
+    return () => window.removeEventListener('echoo:toast', onToast);
+  }, []);
 
   useEffect(() => {
     const onCreatorAudioChanged = () => setRefreshKey((value) => value + 1);
@@ -376,9 +396,10 @@ const CreatorStudioBody = () => {
   };
 
   const renderWorkspace = () => {
+    let node = null;
     switch (activeNav) {
       case 'Audio':
-        return (
+        node = (
           <CreatorContentWorkspace
             tracks={Array.isArray(content?.tracks) ? content.tracks : []}
             loading={loading}
@@ -391,14 +412,17 @@ const CreatorStudioBody = () => {
             onChanged={() => setRefreshKey((value) => value + 1)}
           />
         );
+        break;
       case 'Stations':
       case 'Station':
-        return <CreatorStationsWorkspace studioName={studioName} onNavigate={navigateStudio} onOpenRecording={(id) => routerNavigate(`/creator-studio/recordings/${encodeURIComponent(id)}`)} />;
+        node = <CreatorStationsWorkspace studioName={studioName} onNavigate={navigateStudio} onOpenRecording={(id) => routerNavigate(`/creator-studio/recordings/${encodeURIComponent(id)}`)} />;
+        break;
       case 'Discover':
-        return <CreatorDiscoverWorkspace onNavigate={navigateStudio} />;
+        node = <CreatorDiscoverWorkspace onNavigate={navigateStudio} />;
+        break;
       case 'Recordings': {
         const selectedRecordingId = location.pathname.split('/')[3] || '';
-        return (
+        node = (
           <CreatorRecordingsWorkspace
             tracks={Array.isArray(content?.tracks) ? content.tracks : []}
             studioName={studioName}
@@ -408,10 +432,11 @@ const CreatorStudioBody = () => {
             onCloseRecording={() => routerNavigate('/creator-studio/recordings')}
           />
         );
+        break;
       }
       case 'Collections': {
         const selectedCollectionId = location.pathname.split('/')[3] || '';
-        return (
+        node = (
           <CreatorCollectionWorkspace
             collectionId={selectedCollectionId}
             studioName={studioName}
@@ -419,14 +444,17 @@ const CreatorStudioBody = () => {
             onBack={() => routerNavigate('/creator-studio/collections')}
           />
         );
+        break;
       }
       case 'Schedule':
-        return <CreatorScheduleEventsWorkspace onNavigate={navigateStudio} />;
+        node = <CreatorScheduleEventsWorkspace onNavigate={navigateStudio} />;
+        break;
       case 'BroadcastSettings':
-        return <CreatorBroadcastSettingsWorkspace onNavigate={navigateStudio} />;
+        node = <CreatorBroadcastSettingsWorkspace onNavigate={navigateStudio} />;
+        break;
       case 'Broadcast':
       case 'Home':
-        return (
+        node = (
           <CreatorBroadcastWorkspace
             key="broadcast"
             studioName={studioName}
@@ -437,19 +465,26 @@ const CreatorStudioBody = () => {
             onClearPreparedBroadcast={clearPreparedBroadcast}
           />
         );
+        break;
       case 'Explore Live':
-        return <ListenerLiveConnected />;
+        node = <ListenerLiveConnected />;
+        break;
       case 'Audience':
-        return <CreatorAudienceWorkspace audience={audience} loading={loading} onNavigate={navigateStudio} />;
+        node = <CreatorAudienceWorkspace audience={audience} loading={loading} onNavigate={navigateStudio} />;
+        break;
       case 'Analytics':
-        return <CreatorAnalyticsWorkspace onNavigate={navigateStudio} />;
+        node = <CreatorAnalyticsWorkspace onNavigate={navigateStudio} />;
+        break;
       case 'Settings':
-        return <CreatorSettingsWorkspace />;
+        node = <CreatorSettingsWorkspace />;
+        break;
       case 'Notifications':
-        return <CreatorNotificationsWorkspace onNavigate={navigateStudio} />;
+        node = <CreatorNotificationsWorkspace onNavigate={navigateStudio} />;
+        break;
       default:
-        return null;
+        node = null;
     }
+    return <Suspense fallback={<WorkspaceFallback />}>{node}</Suspense>;
   };
 
   return (
@@ -501,10 +536,10 @@ const CreatorStudioBody = () => {
           </div>
         </header>
 
-        {error && <div className="studio-alert error"><FaExclamationCircle /><span>{error}</span><button type="button" onClick={() => setError('')}><FaTimes /></button></div>}
-        {notice && <div className="studio-alert success"><FaCloudUploadAlt /><span>{notice}</span><button type="button" onClick={() => setNotice('')}><FaTimes /></button></div>}
+        {error && <div className="studio-alert error eb-shake" key={error}><FaExclamationCircle /><span>{error}</span><button type="button" onClick={() => setError('')}><FaTimes /></button></div>}
+        {notice && <div className="studio-alert success eb-toast-in" key={notice}><FaCloudUploadAlt /><span>{notice}</span><button type="button" onClick={() => setNotice('')}><FaTimes /></button></div>}
 
-        <div className="studio-view">{renderWorkspace()}</div>
+        <div className="studio-view eb-page-in" key={activeNav}>{renderWorkspace()}</div>
         <footer className="studio-footer"><span>© 2026 Echoo.</span><span>Audio-first creator platform</span></footer>
       </main>
 

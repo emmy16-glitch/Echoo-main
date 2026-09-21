@@ -1,5 +1,4 @@
 import Broadcast from '../models/Broadcast.js';
-import Station from '../models/Station.js';
 import User from '../models/User.js';
 import ChatMessage from '../models/ChatMessage.js';
 
@@ -9,13 +8,20 @@ export async function getLiveStudioState(req, res, next) {
     const userId = req.userId;
     const { broadcastId } = req.params;
 
-    const broadcast = await Broadcast.findOne({
-      _id: broadcastId,
-      creator: userId,
-      isDeleted: false,
-    })
-      .populate('station', 'name description coverArt')
-      .populate('creator', 'username displayName avatar');
+    const [broadcast, chatCount] = await Promise.all([
+      Broadcast.findOne({
+        _id: broadcastId,
+        creator: userId,
+        isDeleted: false,
+      })
+        .populate('station', 'name description coverArt isLive')
+        .populate('creator', 'username displayName avatar')
+        .lean(),
+      ChatMessage.countDocuments({
+        broadcastId,
+        isDeleted: false,
+      }),
+    ]);
 
     if (!broadcast) {
       return res.status(404).json({
@@ -23,17 +29,13 @@ export async function getLiveStudioState(req, res, next) {
       });
     }
 
-    // Get chat messages count
-    const chatCount = await ChatMessage.countDocuments({
-      broadcastId,
-      isDeleted: false,
-    });
-
     // Get listener count (simulated)
     const listenerCount = broadcast.listenerCount || 0;
 
-    // Get station info
-    const station = await Station.findById(broadcast.station);
+    // Station already populated above — no second fetch.
+    const station = broadcast.station && typeof broadcast.station === 'object'
+      ? broadcast.station
+      : null;
 
     return res.status(200).json({
       data: {
@@ -91,28 +93,27 @@ export async function getBroadcastStats(req, res, next) {
     const userId = req.userId;
     const { broadcastId } = req.params;
 
-    const broadcast = await Broadcast.findOne({
-      _id: broadcastId,
-      creator: userId,
-      isDeleted: false,
-    });
+    const [broadcast, totalMessages, uniqueUsers] = await Promise.all([
+      Broadcast.findOne({
+        _id: broadcastId,
+        creator: userId,
+        isDeleted: false,
+      }).lean(),
+      ChatMessage.countDocuments({
+        broadcastId,
+        isDeleted: false,
+      }),
+      ChatMessage.distinct('userId', {
+        broadcastId,
+        isDeleted: false,
+      }),
+    ]);
 
     if (!broadcast) {
       return res.status(404).json({
         error: { code: 'NOT_FOUND', message: 'Broadcast not found' }
       });
     }
-
-    // Get chat messages
-    const totalMessages = await ChatMessage.countDocuments({
-      broadcastId,
-      isDeleted: false,
-    });
-
-    const uniqueUsers = await ChatMessage.distinct('userId', {
-      broadcastId,
-      isDeleted: false,
-    });
 
     // Get listening data (simulated)
     const listeningData = {

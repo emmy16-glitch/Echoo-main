@@ -60,6 +60,16 @@ const isAllowedOrigin = (origin) => {
   if (!origin) return true;
 
   const normalized = normalizeOrigin(origin);
+
+  // The packaged desktop shell loads over file://, so its fetch/Socket.IO
+  // handshake arrives with `Origin: null`. Without this the bundled backend
+  // (ECHOO_DESKTOP=1, spawned by the Electron shell) rejects every API call
+  // from the installed Windows app and it sits on a blank/loading screen.
+  // Scoped to the desktop runtime only — server deployments still deny it.
+  if ((normalized === 'null' || normalized === 'file://') && process.env.ECHOO_DESKTOP === '1') {
+    return true;
+  }
+
   if (allowedOrigins.has(normalized) || matchesOriginSuffix(normalized)) return true;
 
   if (env.isDevelopment) {

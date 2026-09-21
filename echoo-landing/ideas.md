@@ -1,4 +1,4 @@
-# Echoo Studio v1.0.3 — Design Exploration
+# Echoo Studio v1.0.5 — Design Exploration
 
 ## Three Initial Directions
 
@@ -49,7 +49,7 @@ The release site uses the corrected **Echoo Blue / White** direction throughout.
 
 ## Main Website Extension
 
-The main homepage will use the same white, Echoo Blue, and Soft Echoo Blue system, but will shift its focus from a version announcement to the broader product story: why Echoo exists, how a live room moves, and how the desktop app fits the creator workflow. The v1.0.3 release remains a dedicated `/release` page, reachable from the global navigation, the desktop section, and the homepage release callout.
+The main homepage will use the same white, Echoo Blue, and Soft Echoo Blue system, but will shift its focus from a version announcement to the broader product story: why Echoo exists, how a live room moves, and how the desktop app fits the creator workflow. The v1.0.5 release remains a dedicated `/release` page, reachable from the global navigation, the desktop section, and the homepage release callout.
 
 ## Product Showcase Asset Note
 

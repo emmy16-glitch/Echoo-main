@@ -107,7 +107,7 @@ test('partial Creator cannot bypass Channel setup with a direct Studio URL', asy
   await page.goto('/creator-studio/channels');
   await expect(page).toHaveURL(/\/creator-studio\/channels$/);
   await expect(page.getByRole('heading', { name: 'Create your Channel' })).toBeVisible();
-  await expect(page.getByText("A few quick details and you're ready to broadcast.")).toBeVisible();
+  await expect(page.getByText('Your space to broadcast, share recordings and grow your audience.')).toBeVisible();
   expect(errors).toEqual([]);
 });
 

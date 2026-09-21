@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import {
   FaCheck,
@@ -145,34 +145,49 @@ const ListenerHistoryConnected = () => {
     }
   }, []);
 
+  // Guards overlapping loads (mount + focus sync firing together, React
+  // StrictMode double-mount in dev) so one logical refresh costs one request.
+  const loadInflightRef = useRef(null);
   const load = useCallback(async ({ silent = false } = {}) => {
-    try {
-      if (!silent) setLoading(true);
-      const response = await batch6Service.getHistory({
-        page: 1,
-        limit: 100,
-        type: 'all',
-        sort: 'recent',
-      });
-      const raw = response?.data || {};
-      const history = Array.isArray(raw.history) ? raw.history : [];
-      const tracks = history.map(normalizedTrack).filter(Boolean);
-      setItems(tracks);
-      setNeedsAuth(false);
-      if (!silent) await loadStats();
-    } catch (error) {
-      console.error('History load failed', error);
-      // Logged-out visitors get a 401 here — that is "not signed in", not a
-      // service failure. Show the sign-in state instead of stacking a
-      // "Something went wrong" toast on top of the empty state.
-      if (!localStorage.getItem('accessToken')) {
-        setNeedsAuth(true);
-      } else if (!silent) {
+    if (loadInflightRef.current) {
+      try { await loadInflightRef.current; } catch { /* shared attempt settled */ }
+      return;
+    }
+    const task = (async () => {
+      try {
+        if (!silent) setLoading(true);
+        const response = await batch6Service.getHistory({
+          page: 1,
+          limit: 100,
+          type: 'all',
+          sort: 'recent',
+        });
+        const raw = response?.data || {};
+        const history = Array.isArray(raw.history) ? raw.history : [];
+        const tracks = history.map(normalizedTrack).filter(Boolean);
+        setItems(tracks);
         setNeedsAuth(false);
-        notify('Could not load listening history', 'error');
+        if (!silent) await loadStats();
+      } catch (error) {
+        console.error('History load failed', error);
+        // Logged-out visitors get a 401 here — that is "not signed in", not
+        // a service failure. Show the sign-in state instead of stacking a
+        // "Something went wrong" toast on top of the empty state.
+        if (!localStorage.getItem('accessToken')) {
+          setNeedsAuth(true);
+        } else if (!silent) {
+          setNeedsAuth(false);
+          notify('Could not load listening history', 'error');
+        }
+      } finally {
+        if (!silent) setLoading(false);
       }
+    })();
+    loadInflightRef.current = task;
+    try {
+      await task;
     } finally {
-      if (!silent) setLoading(false);
+      if (loadInflightRef.current === task) loadInflightRef.current = null;
     }
   }, [loadStats, notify]);
 

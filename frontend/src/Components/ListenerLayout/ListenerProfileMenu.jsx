@@ -116,7 +116,13 @@ const ListenerProfileMenu = ({
 
     sessionStorage.clear();
 
-    window.location.replace("/");
+    // file:// (packaged desktop + HashRouter) has no '/' document outside the
+    // bundle — navigate through the hash so logout never blanks the window.
+    if (window.echooDesktop?.isDesktop === true || window.location.protocol === 'file:') {
+      window.location.replace("#/");
+    } else {
+      window.location.replace("/");
+    }
   };
 
   return (

@@ -347,6 +347,7 @@ const broadcastSchema = new mongoose.Schema(
 
 broadcastSchema.index({ station: 1, startTime: -1 });
 broadcastSchema.index({ creator: 1, startTime: -1 });
+broadcastSchema.index({ creator: 1, status: 1, isDeleted: 1, endedAt: -1 });
 broadcastSchema.index({ status: 1, startTime: 1 });
 broadcastSchema.index({ startTime: 1, endTime: 1 });
 broadcastSchema.index({ status: 1, mediaState: 1, updatedAt: -1 });

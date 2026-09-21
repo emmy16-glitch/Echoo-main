@@ -45,65 +45,18 @@ Run `npm audit` for details.
 ```
 
 ## Expo config
-```text
-      [32m'expo-splash-screen'[39m,
-      {
-        image: [32m'./assets/images/splash-icon.png'[39m,
-        imageWidth: [33m200[39m,
-        resizeMode: [32m'contain'[39m,
-        backgroundColor: [32m'#F6F8FC'[39m,
-        dark: {
-          backgroundColor: [32m'#071126'[39m
-        }
-      }
-    ]
-  ],
-  description: [90mundefined[39m,
-  sdkVersion: [32m'54.0.0'[39m,
-  platforms: [
-    [32m'ios'[39m,
-    [32m'android'[39m,
-    [32m'web'[39m
-  ],
-  ios: {
-    supportsTablet: [33mtrue[39m,
-    bitcode: [33mfalse[39m
-  },
-  android: {
-    edgeToEdgeEnabled: [33mtrue[39m,
-    predictiveBackGestureEnabled: [33mfalse[39m,
-    package: [32m'com.anonymous.mobile'[39m,
-    permissions: [
-      [32m'android.permission.ACCESS_NETWORK_STATE'[39m,
-      [32m'android.permission.CAMERA'[39m,
-      [32m'android.permission.INTERNET'[39m,
-      [32m'android.permission.MODIFY_AUDIO_SETTINGS'[39m,
-      [32m'android.permission.RECORD_AUDIO'[39m,
-      [32m'android.permission.SYSTEM_ALERT_WINDOW'[39m,
-      [32m'android.permission.WAKE_LOCK'[39m,
-      [32m'android.permission.BLUETOOTH'[39m
-    ],
-    adaptiveIcon: {
-      backgroundColor: [32m'#E6F4FE'[39m,
-      foregroundImage: [32m'./assets/images/android-icon-foreground.png'[39m,
-      backgroundImage: [32m'./assets/images/android-icon-background.png'[39m,
-      monochromeImage: [32m'./assets/images/android-icon-monochrome.png'[39m
-    }
-  },
-  web: {
-    output: [32m'static'[39m,
-    favicon: [32m'./assets/images/favicon.png'[39m
-  },
-  experiments: {
-    typedRoutes: [33mtrue[39m,
-    reactCompiler: [33mtrue[39m
-  },
-  extra: {
-    router: {}
-  },
-  androidStatusBar: {
-    backgroundColor: [32m'#F6F8FC'[39m
-  }
-}
 
+> The recorded `expo config` dump below is from commit `c07989d` and no
+> longer matches `mobile/app.json` — do not treat it as current. Current
+> values (verified against `mobile/app.json`): `android.package`
+> `org.digi02.echoo`; splash `backgroundColor` `#FFFFFF` (dark `#020408`);
+> `adaptiveIcon` single `./assets/images/adaptive-icon.png` + `#FFFFFF`;
+> permissions include `FOREGROUND_SERVICE`,
+> `FOREGROUND_SERVICE_MEDIA_PLAYBACK`, `POST_NOTIFICATIONS`;
+> `scheme: echoo`, `owner: effiukp-dev`,
+> `extra.eas.projectId: 4e270bb3-9d11-4bcf-b5f4-bffc97049db4`.
+> Re-run `npx expo config --type public` in `mobile/` to refresh this record.
+
+```text
+(superseded — see note above)
 ```

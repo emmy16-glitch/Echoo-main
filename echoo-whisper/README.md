@@ -18,6 +18,7 @@ or use `wss://` through an internal TLS proxy. Set the same
 persistent `/models` volume and loaded once during startup.
 
 For CPU-only development, run the Python service directly with
-`WHISPER_DEVICE=cpu` and `WHISPER_COMPUTE_TYPE=int8`. The `medium` model is
-intended for a CUDA production host.
+`WHISPER_DEVICE=cpu` and `WHISPER_COMPUTE_TYPE=int8`. The default
+`faster-whisper-large-v3-turbo` model (see `WHISPER_MODEL` in
+`.env.example`) is intended for a CUDA production host.
 

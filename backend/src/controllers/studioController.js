@@ -30,7 +30,9 @@ function periodRange(period = '7d') {
 }
 
 async function requireCreator(userId, res) {
-  const user = await User.findById(userId);
+  // Lean auth gate: only the fields the gate checks. The full User document
+  // (listening history, preferences) must never load on every Studio call.
+  const user = await User.findById(userId).select('_id userType').lean();
 
   if (!user) {
     res.status(404).json({
@@ -72,7 +74,8 @@ export async function getDashboardOverview(req, res, next) {
       Audio.find({ artist: req.userId, isDeleted: false })
         .sort({ createdAt: -1 })
         .limit(5)
-        .select('title createdAt duration playCount likeCount coverArt genre isPublic artist'),
+        .select('title createdAt duration playCount likeCount coverArt genre isPublic artist')
+        .lean(),
       Audio.countDocuments({ artist: req.userId, isDeleted: false }),
       Audio.aggregate([
         { $match: { artist: user._id, isDeleted: false } },
@@ -83,12 +86,13 @@ export async function getDashboardOverview(req, res, next) {
         creator: req.userId,
         status: { $in: ['starting', 'live'] },
         isDeleted: false,
-      }).select('listenerCount peakListeners status startedAt title'),
+      }).select('listenerCount peakListeners status startedAt title').lean(),
+      // Bounded: only recent history is needed for the peak stat.
       Broadcast.find({
         creator: req.userId,
         status: 'completed',
         isDeleted: false,
-      }).select('listenerCount peakListeners startedAt endedAt'),
+      }).select('peakListeners').sort({ endedAt: -1 }).limit(100).lean(),
       Broadcast.find({
         creator: req.userId,
         status: 'scheduled',
@@ -97,7 +101,8 @@ export async function getDashboardOverview(req, res, next) {
       })
         .populate('station', 'name coverArt category')
         .sort({ startTime: 1 })
-        .limit(8),
+        .limit(8)
+        .lean(),
     ]);
 
     const totalPlays = playsResult[0]?.total || 0;
@@ -115,7 +120,10 @@ export async function getDashboardOverview(req, res, next) {
         ? Number(((totalPlays / followersCount) * 100).toFixed(1))
         : 0;
 
-    return res.status(200).json({
+    return res
+      .status(200)
+      .set('Cache-Control', 'private, max-age=30')
+      .json({
       data: {
         stats: {
           listeners: liveListeners,
@@ -170,13 +178,16 @@ export async function getStudioAnalytics(req, res, next) {
       Analytics.find({
         userId: req.userId,
         date: { $gte: startDate, $lte: endDate },
-      }).sort({ date: 1 }),
+      }).sort({ date: 1 }).lean(),
+      // Bounded: analytics rolls up recent catalog, not entire history.
       Audio.find({
         artist: req.userId,
         isDeleted: false,
       })
         .sort({ createdAt: -1 })
-        .select('title playCount likeCount duration createdAt'),
+        .limit(200)
+        .select('title playCount likeCount duration createdAt')
+        .lean(),
       Broadcast.find({
         creator: req.userId,
         status: 'completed',
@@ -184,7 +195,9 @@ export async function getStudioAnalytics(req, res, next) {
         endedAt: { $gte: startDate, $lte: endDate },
       })
         .sort({ endedAt: -1 })
-        .select('title listenerCount peakListeners startedAt endedAt'),
+        .limit(200)
+        .select('title listenerCount peakListeners startedAt endedAt')
+        .lean(),
     ]);
 
     const summaryFromEvents = analytics.reduce(
@@ -210,7 +223,10 @@ export async function getStudioAnalytics(req, res, next) {
       0
     );
 
-    return res.status(200).json({
+    return res
+      .status(200)
+      .set('Cache-Control', 'private, max-age=30')
+      .json({
       data: {
         period,
         startDate,
@@ -275,11 +291,14 @@ export async function getContentList(req, res, next) {
             path: 'station',
             select: 'name category',
           },
-        }),
+        }).lean(),
       Audio.countDocuments(filter),
     ]);
 
-    return res.status(200).json({
+    return res
+      .status(200)
+      .set('Cache-Control', 'private, max-age=15')
+      .json({
       data: {
         tracks: tracks.map((track) => ({
           id: track._id,
@@ -342,20 +361,21 @@ export async function getAudienceAnalytics(req, res, next) {
     const followFilter = { following: req.userId, status: 'accepted' };
     const [follows, totalFollowers, completedBroadcasts, liveBroadcasts] = await Promise.all([
       Follow.find(followFilter)
-        .populate('follower', 'username displayName avatar bio userType isActive')
+        .populate('follower', 'username displayName avatar userType isActive')
         .sort({ createdAt: -1 })
-        .limit(100),
+        .limit(100)
+        .lean(),
       Follow.countDocuments(followFilter),
       Broadcast.find({
         creator: req.userId,
         status: 'completed',
         isDeleted: false,
-      }).select('peakListeners listenerCount startedAt endedAt'),
+      }).select('peakListeners').sort({ endedAt: -1 }).limit(200).lean(),
       Broadcast.find({
         creator: req.userId,
         status: { $in: ['starting', 'live'] },
         isDeleted: false,
-      }).select('peakListeners listenerCount startedAt'),
+      }).select('peakListeners listenerCount startedAt').lean(),
     ]);
 
     const peak = Math.max(
@@ -377,7 +397,10 @@ export async function getAudienceAnalytics(req, res, next) {
       0
     );
 
-    return res.status(200).json({
+    return res
+      .status(200)
+      .set('Cache-Control', 'private, max-age=30')
+      .json({
       data: {
         totalFollowers,
         followers: follows

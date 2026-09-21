@@ -38,7 +38,7 @@ const ChannelCard = memo(function ChannelCard({ row, view, onListen }) {
   const open = () => onListen(row);
   return (
     <article
-      className={`channels-card ${view === 'list' ? 'is-list' : ''}`}
+      className={`channels-card eb-card-stack ${view === 'list' ? 'is-list' : ''}`}
       role="link"
       tabIndex="0"
       aria-label={`Open ${row.name}`}
@@ -122,29 +122,45 @@ export default function CreatorChannelsWorkspace() {
   }, [loadChannels, refreshedAt]);
 
   useEffect(() => {
-    const broadcastIds = liveBroadcasts.map((item) => item.id).filter(Boolean);
+    const broadcastIds = liveBroadcasts.map((item) => item.id).filter(Boolean).slice(0, 12);
     if (!broadcastIds.length) return undefined;
     let disposed = false;
     let socket = null;
+    let presenceTimer = null;
+    const pendingPresence = new Set(broadcastIds);
 
-    const refreshPresence = async (broadcastId) => {
-      try {
-        const next = await batch3Service.getPresence(broadcastId);
-        if (!disposed) {
-          setPresenceCounts((current) => ({
-            ...current,
-            [broadcastId]: Math.max(0, Number(next?.listenerCount) || 0),
-          }));
+    const flushPresence = async () => {
+      const batch = Array.from(pendingPresence).slice(0, 12);
+      pendingPresence.clear();
+      // Small staggered batches: 1 discovery already done, presence no longer hammers N requests at once.
+      for (const broadcastId of batch) {
+        if (disposed) return;
+        try {
+          const next = await batch3Service.getPresence(broadcastId);
+          if (!disposed) {
+            setPresenceCounts((current) => ({
+              ...current,
+              [broadcastId]: Math.max(0, Number(next?.listenerCount) || 0),
+            }));
+          }
+        } catch {
+          // Keep the canonical discovery count if live presence sync is unavailable.
         }
-      } catch {
-        // Keep the canonical discovery count if live presence sync is unavailable.
       }
     };
+    const queuePresence = (broadcastId) => {
+      pendingPresence.add(String(broadcastId));
+      window.clearTimeout(presenceTimer);
+      presenceTimer = window.setTimeout(flushPresence, 350);
+    };
 
-    Promise.all(broadcastIds.map((broadcastId) => realtimeService.joinBroadcast(broadcastId)))
-      .then((connections) => {
+    const refreshPresence = (broadcastId) => queuePresence(broadcastId);
+
+    // Join only one shared socket instead of N sockets.
+    realtimeService.joinBroadcast(broadcastIds[0])
+      .then((connection) => {
         if (disposed) return;
-        socket = connections[0] || null;
+        socket = connection || null;
         const onPresence = (payload) => {
           if (payload?.broadcastId && broadcastIds.includes(String(payload.broadcastId))) {
             refreshPresence(String(payload.broadcastId));
@@ -165,16 +181,17 @@ export default function CreatorChannelsWorkspace() {
           socket?.off('listener_count_updated', onStatus);
           socket?.off('broadcast:status', onStatus);
         };
-        broadcastIds.forEach(refreshPresence);
+        flushPresence();
       })
       .catch(() => {
-        broadcastIds.forEach(refreshPresence);
+        flushPresence();
       });
 
     return () => {
       disposed = true;
+      window.clearTimeout(presenceTimer);
       socket?.__echooChannelsCleanup?.();
-      broadcastIds.forEach((broadcastId) => realtimeService.leaveBroadcast(broadcastId).catch(() => {}));
+      realtimeService.leaveBroadcast(broadcastIds[0]).catch(() => {});
     };
   }, [liveBroadcasts, loadChannels]);
 

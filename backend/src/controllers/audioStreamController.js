@@ -182,8 +182,8 @@ export async function streamAudio(req, res, next) {
     const audio = await Audio.findOne({
       _id: audioId,
       isDeleted: false,
-    }    ).select(
-      '_id artist isPublic visibility publicationStatus sourceBroadcast filename fileKey mimeType originalName duration fileSize'
+    }).select(
+      '_id artist isPublic visibility publicationStatus sourceBroadcast filename fileKey mimeType originalName duration fileSize storage cloudUrl'
     );
 
     if (!audio) {
@@ -194,8 +194,33 @@ export async function streamAudio(req, res, next) {
 
     await authorizeGrant(audio, grant);
 
-    // Recordings live on the Echoo server (uploads/audio) and stream from
-    // local disk with ranged responses below.
+    // Cloud-archived recordings stream straight from object storage: auth was
+    // already enforced by the signed stream-token grant above, and players
+    // transparently follow the redirect (re-issuing Range requests, which
+    // S3-compatible stores support). Public buckets redirect to the object
+    // URL; private buckets (the free no-card setup) get a short-lived signed
+    // URL minted just for this playback. Local files keep ranged streaming.
+    if (audio.storage === 'cloud' && (audio.cloudKey || audio.cloudUrl)) {
+      const { isCloudBucketPublic, createCloudDownloadUrl } = await import(
+        '../services/audioArchiveService.js'
+      );
+      if (isCloudBucketPublic() && String(audio.cloudUrl || '').startsWith('http')) {
+        return res.redirect(audio.cloudUrl);
+      }
+      try {
+        const signed = await createCloudDownloadUrl(audio.cloudKey || audio.cloudUrl);
+        return res.redirect(signed);
+      } catch (error) {
+        console.warn('[audio-stream] cloud signed URL failed:', error?.message || error);
+        return res.status(503).json({
+          error: {
+            code: 'AUDIO_STREAM_UNAVAILABLE',
+            message: 'Echoo could not prepare this audio stream.',
+          },
+        });
+      }
+    }
+
     const absolutePath = safeLocalAudioPath(audio);
     if (!absolutePath) {
       return res.status(404).json({

@@ -544,11 +544,11 @@
   .est-broadcast-art { grid-area: art; height: 100%; min-height: 105px; aspect-ratio: auto; }
   .est-broadcast-copy { grid-area: copy; min-height: 0; padding: 11px 11px 4px; }
   .est-broadcast-copy h3 { font-size: 12px; }
-  .est-broadcast-copy p { margin-top: 4px; font-size: 9px; }
+  .est-broadcast-copy p { margin-top: 4px; font-size: 10px; }
   .est-broadcast-card footer { grid-area: footer; min-height: 42px; padding: 4px 10px 8px; border-top: 0; }
-  .est-broadcast-card footer > span { font-size: 8px; }
-  .est-broadcast-card footer button { min-height: 29px; padding: 0 9px; font-size: 8px; }
-  .est-broadcast-art > span { top: 7px; left: 7px; font-size: 7px; }
+  .est-broadcast-card footer > span { font-size: 10px; }
+  .est-broadcast-card footer button { min-height: 29px; padding: 0 9px; font-size: 10px; }
+  .est-broadcast-art > span { top: 7px; left: 7px; font-size: 10px; }
   .est-broadcast-art > i { display: none; }
   .est-form-grid { grid-template-columns: 1fr; padding: 16px; }
   .est-form-grid label.wide,

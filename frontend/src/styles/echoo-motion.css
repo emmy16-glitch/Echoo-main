@@ -1,0 +1,144 @@
+/* Echoo motion system — transitions.dev essentials, CSS-native.
+   Every transition honors prefers-reduced-motion. Durations stay short:
+   motion here is feedback, never waiting. */
+
+/* Base: views fade/slide on mount (page side-by-side lite). */
+@keyframes eb-page-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.eb-page-in { animation: eb-page-in 240ms var(--eb-ease-out, cubic-bezier(.22, 1, .36, 1)) both; }
+
+/* Modal open/close (scale + fade). */
+@keyframes eb-modal-in {
+  from { opacity: 0; transform: scale(.96) translateY(8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+.eb-modal-in { animation: eb-modal-in 200ms var(--eb-ease-out, cubic-bezier(.22, 1, .36, 1)) both; }
+@keyframes eb-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+.eb-backdrop-in { animation: eb-backdrop-in 160ms ease-out both; }
+
+/* Toast open/close (rise + blur + scale, beUI stacked-toast feel). */
+@keyframes eb-toast-in {
+  from { opacity: 0; transform: translateY(12px) scale(.97); filter: blur(4px); }
+  to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+}
+.eb-toast-in { animation: eb-toast-in 260ms var(--eb-spring-soft, cubic-bezier(.3, 1.2, .4, 1)) both; }
+
+/* Skeleton loader → content reveal (pulse to cross-fade). */
+@keyframes eb-skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .45; }
+}
+.eb-skeleton { animation: eb-skeleton-pulse 1.4s ease-in-out infinite; }
+@keyframes eb-content-reveal {
+  from { opacity: 0; filter: blur(3px); }
+  to { opacity: 1; filter: blur(0); }
+}
+.eb-content-reveal { animation: eb-content-reveal 260ms ease-out both; }
+
+/* Error state shake (cubic-bezier, transitions.dev). */
+@keyframes eb-shake {
+  10%, 90% { transform: translateX(-1px); }
+  20%, 80% { transform: translateX(2px); }
+  30%, 50%, 70% { transform: translateX(-4px); }
+  40%, 60% { transform: translateX(4px); }
+}
+.eb-shake { animation: eb-shake .5s cubic-bezier(.36, .07, .19, .97) both; }
+
+/* Spinner → success check morph helper (draw-on check). */
+@keyframes eb-check-draw {
+  from { stroke-dashoffset: 48; }
+  to { stroke-dashoffset: 0; }
+}
+.eb-check-draw { stroke-dasharray: 48; animation: eb-check-draw 420ms ease-out .1s both; }
+@keyframes eb-pop-in {
+  0% { opacity: 0; transform: scale(.6); }
+  60% { opacity: 1; transform: scale(1.08); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.eb-pop-in { animation: eb-pop-in 320ms var(--eb-spring, cubic-bezier(.34, 1.4, .44, 1)) both; }
+
+/* Number pop-in (digit flip lite: blur + stagger via --eb-i). */
+@keyframes eb-number-pop {
+  from { opacity: 0; transform: translateY(8px); filter: blur(3px); }
+  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+.eb-number-pop { animation: eb-number-pop 300ms ease-out both; animation-delay: calc(var(--eb-i, 0) * 45ms); }
+
+/* Text states swap (blur cross-fade). */
+@keyframes eb-text-swap {
+  from { opacity: 0; filter: blur(4px); }
+  to { opacity: 1; filter: blur(0); }
+}
+.eb-text-swap { animation: eb-text-swap 200ms ease-out both; }
+
+/* Icon swap (scale + blur). */
+@keyframes eb-icon-swap {
+  from { opacity: 0; transform: scale(.7); filter: blur(2px); }
+  to { opacity: 1; transform: scale(1); filter: blur(0); }
+}
+.eb-icon-swap { animation: eb-icon-swap 180ms ease-out both; }
+
+/* Sliding pill indicator base for tabs (positioned by JS or grid). */
+.eb-tab-pill { transition: transform 260ms var(--eb-spring-soft, cubic-bezier(.3, 1.2, .4, 1)), width 260ms ease; }
+
+/* Shimmer text sweep (loading/thinking states, Beautiful UI). */
+@keyframes eb-shimmer-sweep {
+  from { background-position: -200% 0; }
+  to { background-position: 200% 0; }
+}
+.eb-shimmer-text {
+  background: linear-gradient(100deg, var(--eb-muted-foreground, #667085) 30%, var(--eb-foreground, #101828) 50%, var(--eb-muted-foreground, #667085) 70%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: eb-shimmer-sweep 1.8s linear infinite;
+}
+
+/* Accordion open (grid-rows trick). */
+.eb-accordion-panel { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 280ms var(--eb-ease-out, cubic-bezier(.22, 1, .36, 1)); }
+.eb-accordion-panel.open { grid-template-rows: 1fr; }
+.eb-accordion-panel > div { overflow: hidden; }
+
+/* Success check with blur + rotate (transitions.dev). */
+@keyframes eb-success-check {
+  from { opacity: 0; transform: rotate(-12deg) scale(.7); filter: blur(3px); }
+  to { opacity: 1; transform: rotate(0) scale(1); filter: blur(0); }
+}
+.eb-success-check { animation: eb-success-check 380ms var(--eb-spring, cubic-bezier(.34, 1.4, .44, 1)) both; }
+
+/* Like-button particle burst lite. */
+@keyframes eb-burst {
+  0% { opacity: 1; transform: scale(.4); }
+  100% { opacity: 0; transform: scale(1.6); }
+}
+.eb-burst { animation: eb-burst 420ms ease-out both; }
+
+/* Card stack hover fan (transitions.dev card stack). */
+.eb-card-stack { transition: transform 260ms var(--eb-spring-soft, cubic-bezier(.3, 1.2, .4, 1)), box-shadow 260ms ease; }
+.eb-card-stack:hover { transform: translateY(-4px); box-shadow: var(--eb-shadow-lg, 0 16px 48px rgba(16, 24, 40, .16)); }
+
+/* beUI spring press for any button (additive, opt-in). */
+.eb-press { transition: transform 120ms var(--eb-spring, cubic-bezier(.34, 1.4, .44, 1)); }
+.eb-press:active:not(:disabled) { transform: scale(.95); }
+
+/* Elapsed-time loader dots (Beautiful UI loading state). */
+@keyframes eb-dot-pulse {
+  0%, 100% { opacity: .25; transform: scale(.85); }
+  50% { opacity: 1; transform: scale(1); }
+}
+.eb-dots > i { animation: eb-dot-pulse 1.1s ease-in-out infinite; }
+.eb-dots > i:nth-child(2) { animation-delay: .15s; }
+.eb-dots > i:nth-child(3) { animation-delay: .3s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .eb-page-in, .eb-modal-in, .eb-backdrop-in, .eb-toast-in, .eb-content-reveal,
+  .eb-shake, .eb-pop-in, .eb-number-pop, .eb-text-swap, .eb-icon-swap,
+  .eb-success-check, .eb-burst, .eb-shimmer-text, .eb-check-draw {
+    animation: none;
+  }
+  .eb-skeleton, .eb-dots > i { animation-duration: 2.4s; }
+  .eb-card-stack:hover { transform: none; }
+}

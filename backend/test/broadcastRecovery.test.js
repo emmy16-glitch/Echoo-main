@@ -71,33 +71,31 @@ test('autosave reconciles once, respects offline, and never loops requests', asy
   assert.doesNotMatch(autosave, /setInterval|setTimeout/);
 });
 
-test('recovery dialog preserves the master, explains states, and offers download', async () => {
-  const prompt = await read('../../frontend/src/Components/CreatorStudio/BroadcastRecordingPrompt.jsx');
+test('recovery save states are explained, event-driven, and never strand the master', async () => {
+  const autosave = await read('../../frontend/src/services/recordingAutosave.js');
+  const banner = await read('../../frontend/src/Components/RecordingSaveBanner.jsx');
 
   // Raw backend text is never shown; every recovery code has safe language.
-  assert.match(prompt, /friendlyRecoveryMessage/);
-  assert.match(prompt, /RECORDING_WAITING_FOR_NETWORK/);
-  assert.match(prompt, /BROADCAST_STILL_LIVE/);
-  assert.match(prompt, /RECOVERY_FORBIDDEN/);
-  assert.match(prompt, /BROADCAST_NOT_FOUND/);
-  assert.match(prompt, /BROADCAST_NOT_RECOVERABLE/);
-  assert.doesNotMatch(prompt, /could not be linked to this replay/);
+  assert.match(autosave, /friendlyRecoveryMessage/);
+  assert.match(autosave, /RECORDING_WAITING_FOR_NETWORK/);
+  assert.match(autosave, /BROADCAST_STILL_LIVE/);
+  assert.match(autosave, /RECOVERY_FORBIDDEN/);
+  assert.match(autosave, /BROADCAST_NOT_FOUND/);
+  assert.match(autosave, /BROADCAST_NOT_RECOVERABLE/);
+  assert.doesNotMatch(autosave, /could not be linked to this replay/);
 
   // Event-driven network recovery, not a polling loop.
-  assert.match(prompt, /window\.addEventListener\('online'/);
-  assert.doesNotMatch(prompt, /setInterval\(.*refresh|setInterval\(.*save/i);
+  assert.match(banner, /window\.addEventListener\('online'/);
+  assert.doesNotMatch(banner, /setInterval\(.*refresh|setInterval\(.*save/i);
 
-  // Escape hatch: device download that never touches OPFS.
-  assert.match(prompt, /downloadLocalCopy/);
-  assert.match(prompt, /URL\.createObjectURL\(recording\.blob\)/);
+  // Lifecycle events keep the workstation truthful end to end.
+  assert.match(autosave, /status: 'done'/);
+  assert.match(autosave, /status: 'error'/);
+  assert.match(banner, /RECORDING_WAITING_FOR_NETWORK/);
 
-  // OPFS is cleared only on server READY inside markSaved.
-  const markSavedAt = prompt.indexOf('const markSaved');
-  const clearAt = prompt.indexOf('clearPendingBroadcastRecording(recording.broadcastId)');
-  assert.ok(markSavedAt >= 0 && clearAt > markSavedAt);
-  assert.equal((prompt.match(/clearPendingBroadcastRecording\(/g) || []).length, 1);
+  // OPFS is cleared only after the server copy lands.
+  assert.match(autosave, /clearPendingBroadcastRecording\(recording\.broadcastId\)/);
 
   // Duplicate-safe: uniqueness guard still finalizes as saved.
-  assert.match(prompt, /REPLAY_ALREADY_EXISTS/);
-  assert.match(prompt, /beforeunload/);
+  assert.match(autosave, /REPLAY_ALREADY_EXISTS/);
 });

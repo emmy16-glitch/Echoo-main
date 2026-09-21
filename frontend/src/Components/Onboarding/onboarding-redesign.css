@@ -96,7 +96,7 @@
 .eor-hero-copy h1 {
   margin: 0;
   color: var(--eor-navy);
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: var(--sans);
   font-size: clamp(50px, 5.5vw, 80px);
   line-height: 0.97;
   font-weight: 700;

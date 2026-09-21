@@ -8,12 +8,11 @@
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
-    <title>Echoo</title>
-    <!-- Identity marker for dev tooling: desktop/dev-all health checks fetch
-         this page and require this exact tag before trusting the dev server.
-         A bare HTTP 200 is NOT proof (shared machine: another user's server
-         may own the port). Do not remove or rename. -->
-    <meta name="echoo-app" content="echoo-frontend" />
+    <title>echoo</title>
+    <!-- Identity marker required by the desktop dev-server gate
+         (desktop/src/main.js) and scripts/dev-all.sh: proves a listening
+         port is actually serving Echoo and not a squatter on shared machines. -->
+    <meta name="echoo-app" content="echoo" />
     <meta
       name="theme-color"
       content="#FAFAFA"

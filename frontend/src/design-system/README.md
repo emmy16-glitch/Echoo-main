@@ -31,7 +31,7 @@ so component names and ownership stay stable if internals move later.
 
 ## Composition
 
-- Use `EchooAppShell` for authenticated Creator and Listener routes.
+- Use `AppShell` for authenticated Creator and Listener routes.
 - Supply route-specific navigation, search, top actions, and a persistent slot.
 - Keep page content inside the shell's main view. The shared player belongs in
   `persistentSlot` so it survives nested route changes.

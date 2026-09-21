@@ -149,8 +149,18 @@ test('rapid current Listener navigation plus browser back and forward stays stab
   await expect(page).toHaveURL(/\/listen\/following$/);
 
   const headerSearch = page.getByPlaceholder('Search live Channels...');
-  await headerSearch.fill('Echoo');
-  await headerSearch.press('Enter');
+  if (await headerSearch.isVisible()) {
+    await headerSearch.fill('Echoo');
+    await headerSearch.press('Enter');
+  } else {
+    // Small viewports hide the header search by design; the bottom
+    // navigation carries Search instead.
+    await page.locator('.listener-v2-mobile-nav').getByRole('button', { name: 'Search' }).click();
+    await expect(page).toHaveURL(/\/listen\/search$/);
+    const pageSearch = page.getByLabel('Search Echoo');
+    await pageSearch.fill('Echoo');
+    await pageSearch.press('Enter');
+  }
   await expect(page).toHaveURL(/\/listen\/search\?q=Echoo$/);
 
   await page.getByRole('button', { name: 'Open listener account menu' }).click();

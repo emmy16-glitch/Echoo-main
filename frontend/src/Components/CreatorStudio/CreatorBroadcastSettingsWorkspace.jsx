@@ -10,6 +10,7 @@ import {
 } from 'react-icons/fi';
 
 import batch2Service from '../../services/batch2Service';
+import DurationPicker from '../UI/DurationPicker.jsx';
 import './CreatorBroadcastSettingsWorkspace.css';
 
 const IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -34,6 +35,7 @@ const emptyForm = () => ({
   description: '',
   date: '',
   time: '',
+  durationMinutes: 60,
   artwork: '',
   artworkChanged: false,
   isPublic: true,
@@ -79,6 +81,9 @@ export default function CreatorBroadcastSettingsWorkspace({ onNavigate }) {
         description: selected.description || '',
         date: formDate(selected.startTime),
         time: formTime(selected.startTime),
+        durationMinutes: selected.startTime && selected.endTime
+          ? Math.max(15, Math.round((new Date(selected.endTime) - new Date(selected.startTime)) / 60000))
+          : 60,
         artwork: selected.eventArtwork || selected.coverArt || '',
         artworkChanged: false,
         isPublic: selected.isPublic !== false,
@@ -138,6 +143,7 @@ export default function CreatorBroadcastSettingsWorkspace({ onNavigate }) {
         title: form.title.trim(),
         description: form.description.trim(),
         startTime: start.toISOString(),
+        endTime: new Date(start.getTime() + Math.max(15, Number(form.durationMinutes) || 60) * 60000).toISOString(),
         isPublic: form.isPublic,
       };
       if (form.artworkChanged) payload.coverArt = form.artwork || null;
@@ -263,9 +269,19 @@ export default function CreatorBroadcastSettingsWorkspace({ onNavigate }) {
 
           <div className="broadcast-settings-row">
             <label>
+              <span><FiClock /> Planned length</span>
+              <DurationPicker
+                value={form.durationMinutes}
+                onChange={(value) => update('durationMinutes', value)}
+                disabled={!editable}
+              />
+            </label>
+            <label>
               <span>Timezone</span>
               <input value={timezone} readOnly aria-readonly="true" />
             </label>
+          </div>
+          <div className="broadcast-settings-row">
             <label>
               <span>Visibility</span>
               <select value={form.isPublic ? 'public' : 'private'} onChange={(event) => update('isPublic', event.target.value === 'public')} disabled={!editable}>

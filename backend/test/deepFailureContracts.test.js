@@ -113,19 +113,25 @@ test('prerequisite waiting does not burn processing retry attempts', async () =>
 
 test('recording completion retries and automatic save preserves recovery state', async () => {
   const recording = await frontendSource('src/services/broadcastRecordingService.js');
-  const prompt = await frontendSource('src/Components/CreatorStudio/BroadcastRecordingPrompt.jsx');
   const autosave = await frontendSource('src/services/recordingAutosave.js');
+  const banner = await frontendSource('src/Components/RecordingSaveBanner.jsx');
   assert.match(recording, /QUALITY_CHUNK_COMPLETE_RETRIES/);
   assert.match(recording, /completeQualityChunks/);
   assert.match(recording, /qualityCompletionPending/);
   assert.match(recording, /retryBroadcastQualityCompletion/);
+  // Background autosave replaced BroadcastRecordingPrompt modal (8f3c5fa):
+  // End Broadcast auto-uploads, banner shows progress/retry/recovery.
   assert.match(autosave, /retryBroadcastQualityCompletion/);
-  assert.match(autosave, /studioService\.uploadAudio/);
+  assert.match(autosave, /uploadAudioWithProgress/);
   assert.match(autosave, /isPublic:\s*false/);
-  assert.match(prompt, /REPLAY_ALREADY_EXISTS/);
-  assert.match(prompt, /beforeunload/);
-  assert.match(prompt, /Echoo automatically saves every completed broadcast/);
-  assert.doesNotMatch(prompt, /discard-replay/);
+  assert.match(autosave, /REPLAY_ALREADY_EXISTS/);
+  assert.match(autosave, /rememberLocalMaster/);
+  assert.match(banner, /beforeunload/);
+  assert.match(banner, /Retry/);
+  assert.match(banner, /Saved to Recordings as MP3/);
+  assert.match(banner, /keep this tab open/);
+  assert.match(banner, /Upload/);
+  assert.match(banner, /Discard/);
 });
 
 test('protected downloads use one canonical authorization boundary from route to bytes', async () => {

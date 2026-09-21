@@ -2,6 +2,7 @@ import { Component, useEffect, useState, Suspense, lazy } from 'react';
 import { FiAlertTriangle } from 'react-icons/fi';
 import {
   BrowserRouter,
+  HashRouter,
   Navigate,
   Route,
   Routes,
@@ -56,6 +57,8 @@ const ListenerAudioDetail = lazy(loadListenerAudioDetail);
 const ListenerRealLiveRoom = lazy(loadListenerLiveRoom);
 const ListenerRealStationProfile = lazy(loadListenerStationProfile);
 const ListenerCollectionDetail = lazy(loadListenerCollectionDetail);
+import RecordingSaveBanner, { RecordingAutosaveMount } from './Components/RecordingSaveBanner.jsx';
+import CommandPalette from './Components/Shared/CommandPalette.jsx';
 
 import EchooExperienceOrchestrator from './Components/EchooSystem/EchooExperienceOrchestrator';
 import EchooMobileNavigation from './Components/EchooSystem/EchooMobileNavigation';
@@ -295,8 +298,16 @@ const ListenerRoutePrefetch = () => {
 };
 
 function App() {
+  // The packaged desktop shell loads over file:// (loadFile), where the HTML5
+  // history API has no server to resolve deep links — BrowserRouter renders a
+  // blank window there. HashRouter keeps every route after '#' so the installed
+  // Windows/macOS/Linux app always boots. The web build keeps BrowserRouter.
+  const isDesktopFileRuntime =
+    typeof window !== 'undefined' &&
+    (window.echooDesktop?.isDesktop === true || window.location.protocol === 'file:');
+  const Router = isDesktopFileRuntime ? HashRouter : BrowserRouter;
   return (
-    <BrowserRouter>
+    <Router>
       <GuestAuthProvider>
       <ImageCropProvider>
         <a className="echoo-skip-to-content" href="#echoo-route-content">
@@ -364,9 +375,12 @@ function App() {
             <Route path="*" element={<DefaultRedirect />} />
           </Routes>
         </div>
+        <RecordingAutosaveMount />
+        <RecordingSaveBanner />
+        <CommandPalette />
       </ImageCropProvider>
       </GuestAuthProvider>
-    </BrowserRouter>
+    </Router>
   );
 }
 

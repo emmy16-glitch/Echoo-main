@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   FaCamera,
-  FaCut,
   FaDownload,
   FaEdit,
   FaGlobe,
@@ -17,10 +16,10 @@ import {
 
 import { buildMediaUrl } from '../../services/api.js';
 import studioService from '../../services/studioService.js';
-import { trimSavedAudio, validateAudioTrimRange } from '../../services/audioTrimService.js';
 import recordingArtworkService from '../../services/recordingArtworkService.js';
 import { CREATOR_RENAME_UNDO_WINDOW_MS } from '../../config/playerFeedback.js';
 import Toast from '../UI/Toast';
+import CreatorAudioTrimSection from './CreatorAudioTrimSection.jsx';
 import './CreatorAudioDetailModal.css';
 
 const getId = (track) => track?.id || track?._id || null;
@@ -84,11 +83,8 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged, onAddToCollection 
     undoTitle: '',
   });
   const [downloading, setDownloading] = useState(false);
-  const [trimOpen, setTrimOpen] = useState(false);
-  const [trimStart, setTrimStart] = useState('0');
-  const [trimEnd, setTrimEnd] = useState('');
-  const [trimming, setTrimming] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
 
   const trackId = getId(track);
   const legacyFileUrl = useMemo(
@@ -165,10 +161,7 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged, onAddToCollection 
     if (!audio) return undefined;
 
     const syncMetadata = () => {
-      if (Number.isFinite(audio.duration)) {
-        setDuration(audio.duration);
-        setTrimEnd((current) => current || audio.duration.toFixed(1));
-      }
+      if (Number.isFinite(audio.duration)) setDuration(audio.duration);
     };
     const syncTime = () => setCurrentTime(audio.currentTime || 0);
     const handlePlay = () => setIsPlaying(true);
@@ -399,39 +392,9 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged, onAddToCollection 
     }
   };
 
-  const trimRecording = async () => {
-    const id = getId(track);
-    if (!id || trimming) return;
-    try {
-      setTrimming(true);
-      setError('');
-      const range = validateAudioTrimRange({
-        startSeconds: trimStart,
-        endSeconds: trimEnd,
-        duration,
-      });
-      audioRef.current?.pause();
-      const response = await trimSavedAudio(id, range);
-      const nextDuration = Number(response?.data?.duration) || range.endSeconds - range.startSeconds;
-      setDuration(nextDuration);
-      setCurrentTime(0);
-      setTrimStart('0');
-      setTrimEnd(nextDuration.toFixed(1));
-      const stream = await studioService.getAudioStreamUrl(id);
-      setFileUrl(stream.streamUrl);
-      setTrimOpen(false);
-      window.dispatchEvent(new CustomEvent('echoo:creator-audio-changed'));
-      onChanged?.(response?.data);
-    } catch (trimError) {
-      setError(trimError?.message || 'Echoo could not trim this recording. The original is unchanged.');
-    } finally {
-      setTrimming(false);
-    }
-  };
-
   return (
     <div
-      className="creator-audio-modal-overlay"
+      className="creator-audio-modal-overlay eb-backdrop-in eb-sheet"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose?.();
       }}
@@ -456,8 +419,16 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged, onAddToCollection 
         duration={3000}
         onClose={() => setArtworkToast(false)}
       />
+      <Toast
+        open={Boolean(notice)}
+        type="success"
+        title="Saved"
+        message={notice}
+        duration={4000}
+        onClose={() => setNotice('')}
+      />
       <section
-        className="creator-audio-modal"
+        className="creator-audio-modal eb-modal-in"
         role="dialog"
         aria-modal="true"
         aria-labelledby="creator-audio-modal-title"
@@ -611,31 +582,15 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged, onAddToCollection 
         )}
         {error && <div className="creator-audio-modal-error" role="alert">{error}</div>}
 
-        {trimOpen && (
-          <section className="creator-audio-trim" aria-labelledby="creator-audio-trim-title">
-            <div>
-              <strong id="creator-audio-trim-title">Trim recording on the server</strong>
-              <span>The original stays in place until the trimmed file is verified and saved.</span>
-            </div>
-            <label>
-              Start (seconds)
-              <input type="number" min="0" max={Math.max(0, duration)} step="0.1" value={trimStart} onChange={(event) => setTrimStart(event.target.value)} disabled={trimming} />
-            </label>
-            <label>
-              End (seconds)
-              <input type="number" min="0.1" max={Math.max(0.1, duration)} step="0.1" value={trimEnd} onChange={(event) => setTrimEnd(event.target.value)} disabled={trimming} />
-            </label>
-            <button type="button" onClick={trimRecording} disabled={trimming || !trimEnd}>
-              <FaCut /> {trimming ? 'Processing trim…' : 'Apply trim'}
-            </button>
-          </section>
-        )}
+        <CreatorAudioTrimSection
+          track={track}
+          onChanged={onChanged}
+          onClose={onClose}
+          onNotice={setNotice}
+        />
 
         <div className="creator-audio-modal-actions">
             {onAddToCollection && <button type="button" onClick={onAddToCollection}>Add to Collection</button>}
-            <button type="button" onClick={() => setTrimOpen((current) => !current)} disabled={trimming || !duration}>
-              <FaCut /> {trimOpen ? 'Close trim' : 'Trim recording'}
-            </button>
             <button type="button" onClick={toggleVisibility} disabled={visibilitySaving}>
               {visibility ? <FaLock /> : <FaGlobe />}
               {visibilitySaving

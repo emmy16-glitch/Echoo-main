@@ -125,6 +125,7 @@ const SearchField = ({ value, onChange, placeholder, autoFocus = false, onKeyDow
       value={value}
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
+      aria-label={placeholder}
       autoFocus={autoFocus}
       onKeyDown={onKeyDown}
     />
@@ -1012,7 +1013,18 @@ const ListenerV2Search = () => {
     <div className="listener-v2-page listener-v2-search-page">
       <ListenerHeroArtwork />
       <header className="listener-v2-page-title"><h1>Search</h1><p>Find live events, Channels, creators and recorded audio.</p></header>
-      <SearchField value={query} onChange={setQuery} placeholder="Search Echoo..." autoFocus />
+      <SearchField
+        value={query}
+        onChange={setQuery}
+        placeholder="Search Echoo..."
+        autoFocus
+        onKeyDown={(event) => {
+          if (event.key !== 'Enter' || !query.trim()) return;
+          // Replace so repeated searches don't stack history entries —
+          // Back always leaves search instead of cycling old queries.
+          navigate(`/listen/search?q=${encodeURIComponent(query.trim())}`, { replace: true });
+        }}
+      />
       {error && <div className="listener-v2-error" role="alert">{error}</div>}
       {loading && <div className="listener-v2-search-status">Searching Echoo…</div>}
 
