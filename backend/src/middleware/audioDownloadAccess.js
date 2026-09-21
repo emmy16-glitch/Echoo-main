@@ -7,7 +7,7 @@ export async function requireAudioDownloadAccess(req, res, next) {
       _id: req.params.id,
       isDeleted: false,
     }).select(
-      '_id artist isPublic visibility publicationStatus sourceBroadcast filename fileKey mimeType originalName'
+      '_id artist isPublic visibility publicationStatus sourceBroadcast filename fileKey mimeType originalName fileSize storage cloudKey cloudUrl'
     );
 
     if (!audio) {
