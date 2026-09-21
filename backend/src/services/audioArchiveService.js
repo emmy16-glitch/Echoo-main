@@ -212,6 +212,16 @@ export async function getCloudObject(objectKey) {
   return client.send(new GetObjectCommand({ Bucket: config.bucket, Key: cleanKey }));
 }
 
+export async function deleteCloudObject(objectKey) {
+  const cleanKey = String(objectKey || '').trim();
+  if (!cleanKey) return false;
+  const { DeleteObjectCommand } = await import('@aws-sdk/client-s3');
+  const config = s3Config();
+  const client = await getS3Client();
+  await client.send(new DeleteObjectCommand({ Bucket: config.bucket, Key: cleanKey }));
+  return true;
+}
+
 const removeQuietly = async (absolutePath) => {
   if (!absolutePath) return;
   try {
@@ -325,5 +335,6 @@ export default {
   uploadToObjectStorage,
   createCloudDownloadUrl,
   getCloudObject,
+  deleteCloudObject,
   archiveRecordingAudio,
 };
