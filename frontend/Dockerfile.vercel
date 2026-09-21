@@ -1,0 +1,29 @@
+FROM node:22-alpine AS build
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm ci
+
+COPY . .
+
+# Echoo uses same-origin API and Socket.IO routing in the Vercel services project.
+# LiveKit/public-link fallbacks remain blank because the backend/browser origin
+# provides the canonical values at runtime.
+ENV VITE_API_URL=/api
+ENV VITE_PUBLIC_APP_ORIGIN=
+ENV VITE_LIVEKIT_URL=
+ENV VITE_SYNTHETIC_AUDIO=false
+
+RUN npm run build
+
+FROM node:22-alpine
+
+RUN npm install --global serve@14.2.4
+
+WORKDIR /app
+COPY --from=build /app/dist ./dist
+
+ENV NODE_ENV=production
+
+CMD ["sh", "-c", "serve -s dist -l ${PORT:-3000}"]
