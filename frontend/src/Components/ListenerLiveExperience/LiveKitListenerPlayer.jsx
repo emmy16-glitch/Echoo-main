@@ -10,7 +10,7 @@ const STATUS_COPY = {
   connecting: 'Creator connecting',
   connected: 'Waiting for creator',
   listening: 'Audio live',
-  reconnecting: 'Audio disconnected',
+  reconnecting: 'Reconnecting audio',
   disconnected: 'Audio disconnected',
   error: 'Audio disconnected',
 };
@@ -574,6 +574,16 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       setError(outputError?.message || 'Could not switch the listening output.');
     }
   };
+
+  useEffect(() => {
+    try {
+      if (typeof navigator !== 'undefined' && 'mediaSession' in navigator && isLive) {
+        navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+      }
+    } catch {
+      // Lock-screen transport state is best-effort only.
+    }
+  }, [isLive, isPlaying]);
 
   useEffect(() => {
     onStateChange?.({
