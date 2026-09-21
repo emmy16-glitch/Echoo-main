@@ -203,6 +203,15 @@ export async function createCloudDownloadUrl(objectKey, expiresInSeconds = 6 * 6
   );
 }
 
+export async function getCloudObject(objectKey) {
+  const cleanKey = String(objectKey || '').trim();
+  if (!cleanKey) throw new Error('Cloud audio object key is missing');
+  const { GetObjectCommand } = await import('@aws-sdk/client-s3');
+  const config = s3Config();
+  const client = await getS3Client();
+  return client.send(new GetObjectCommand({ Bucket: config.bucket, Key: cleanKey }));
+}
+
 const removeQuietly = async (absolutePath) => {
   if (!absolutePath) return;
   try {
@@ -315,5 +324,6 @@ export default {
   transcodeToMp3,
   uploadToObjectStorage,
   createCloudDownloadUrl,
+  getCloudObject,
   archiveRecordingAudio,
 };
