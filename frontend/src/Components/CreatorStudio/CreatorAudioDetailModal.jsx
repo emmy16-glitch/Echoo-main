@@ -198,6 +198,14 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged, onAddToCollection 
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [onClose]);
 
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, []);
+
   if (!track) return null;
 
   const togglePlayback = async () => {
