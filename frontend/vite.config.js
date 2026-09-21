@@ -2,18 +2,28 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import process from 'node:process'
 
+// Backend target for the local /api, /socket.io and /uploads proxy.
+// Default is the project-standard local backend (5017); staging or custom
+// setups override per-run, e.g. VITE_BACKEND_PROXY_URL=http://127.0.0.1:5517.
+// Dev/preview only — production bundles use same-origin VITE_API_URL instead.
+const backendProxyTarget = (
+  process.env.VITE_BACKEND_PROXY_URL || 'http://127.0.0.1:5017'
+)
+  .trim()
+  .replace(/\/$/, '') || 'http://127.0.0.1:5017';
+
 const localBackendProxy = {
   '/api': {
-    target: 'http://127.0.0.1:5017',
+    target: backendProxyTarget,
     changeOrigin: true,
   },
   '/socket.io': {
-    target: 'http://127.0.0.1:5017',
+    target: backendProxyTarget,
     changeOrigin: true,
     ws: true,
   },
   '/uploads': {
-    target: 'http://127.0.0.1:5017',
+    target: backendProxyTarget,
     changeOrigin: true,
   },
 }
@@ -23,6 +33,9 @@ const localBackendProxy = {
 // people's servers. 5273 was verified free there and is unlikely to collide
 // with common defaults. Override per-run with VITE_PORT if ever needed.
 const localPort = Number(process.env.VITE_PORT || '5273');
+// Bind address for dev/preview servers. Default keeps LAN development
+// working; staging/localhost-only runs set VITE_HOST=127.0.0.1.
+const localHost = process.env.VITE_HOST || '0.0.0.0';
 
 export default defineConfig({
   plugins: [react()],
@@ -33,7 +46,7 @@ export default defineConfig({
   // serving is unaffected (base only rewrites build output).
   base: process.env.VITE_BUILD_BASE || './',
   server: {
-    host: '0.0.0.0',
+    host: localHost,
     port: localPort,
     // strictPort is enforced via the `dev` script (`vite --strictPort`): a
     // squatted port must FAIL LOUDLY so the developer notices the conflict,
@@ -45,7 +58,7 @@ export default defineConfig({
   },
   // Preview uses the same configurable default and local API proxy.
   preview: {
-    host: '0.0.0.0',
+    host: localHost,
     port: localPort,
     strictPort: false,
     allowedHosts: true,
