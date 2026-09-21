@@ -704,6 +704,20 @@ const ListenerRealLiveRoom = () => {
             )}
           </div>
 
+          {isLive && joined && Boolean(liveState?.needsAudioStart) && (
+            <button
+              type="button"
+              className="listener-v2-room-tap-to-play"
+              onClick={togglePlayback}
+            >
+              <FaPlay aria-hidden="true" />
+              <span>
+                <strong>Tap to hear the live audio</strong>
+                <small>Your browser blocked autoplay — one tap starts it</small>
+              </span>
+            </button>
+          )}
+
           <div className="listener-v2-room-controls">
             <button
               type="button"
