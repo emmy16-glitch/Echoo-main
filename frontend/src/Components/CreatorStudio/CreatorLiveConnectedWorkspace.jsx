@@ -34,6 +34,11 @@ import {
   stopLiveKitPublishing,
 } from '../../services/livekitPublisher';
 import realtimeService from '../../services/realtimeService';
+import {
+  formatElapsedTime,
+  transferProgressText,
+  updateTransferEstimate,
+} from '../../services/progressTiming';
 import { notifyDesktop, onDesktopRoomCommand, setDesktopRoomState } from '../../services/desktopBridge';
 import './CreatorBroadcastApproved.css';
 
@@ -141,6 +146,7 @@ const CreatorLiveConnectedWorkspace = ({
   const [linkCopied, setLinkCopied] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [recordingProgress, setRecordingProgress] = useState(null);
   const endBroadcastButtonRef = useRef(null);
   const endBroadcastDialogRef = useRef(null);
   const endingDialogRef = useRef(null);
@@ -285,22 +291,65 @@ const CreatorLiveConnectedWorkspace = ({
       const detail = event?.detail || {};
       const status = String(detail.status || '');
 
-      if (status === 'started' || status === 'progress') {
+      if (status === 'started') {
+        setRecordingProgress({
+          key: detail.key,
+          title: detail.title || 'Broadcast recording',
+          stage: 'uploading',
+          ...updateTransferEstimate(null, {
+            loaded: 0,
+            total: detail.total || 0,
+          }),
+        });
         if (!currentLiveBroadcast?.id) {
-          setMessage('Recording is safe locally. Saving to Recordings…');
+          setMessage('Recording is safe locally. Uploading the server copy…');
         }
+        return;
+      }
+
+      if (status === 'progress') {
+        setRecordingProgress((current) => {
+          if (current?.key && detail.key && current.key !== detail.key) return current;
+          const next = updateTransferEstimate(current, {
+            loaded: detail.loaded || 0,
+            total: detail.total || current?.total || 0,
+          });
+          return {
+            ...(current || {}),
+            ...next,
+            key: detail.key || current?.key,
+            title: detail.title || current?.title || 'Broadcast recording',
+            stage: next.percent >= 100 ? 'verifying' : 'uploading',
+          };
+        });
         return;
       }
 
       if (status === 'done') {
         setError((current) => current === RECORDING_FINALIZATION_WARNING ? '' : current);
+        setRecordingProgress((current) => current
+          ? { ...current, stage: 'done', percent: 100, completedAt: Date.now() }
+          : null);
         window.clearTimeout(offAirNoticeTimeoutRef.current);
         setMessage('Recording saved safely to Recordings.');
-        offAirNoticeTimeoutRef.current = window.setTimeout(() => setMessage(''), 4200);
+        offAirNoticeTimeoutRef.current = window.setTimeout(() => {
+          setMessage('');
+          setRecordingProgress(null);
+        }, 4200);
         return;
       }
 
       if (status === 'recovered') {
+        setRecordingProgress({
+          key: detail.key || 'recovered',
+          title: detail.title || 'Recovered recording',
+          stage: 'recovered',
+          startedAt: Date.now(),
+          elapsedSeconds: 0,
+          percent: 0,
+          loaded: 0,
+          total: 0,
+        });
         if (!currentLiveBroadcast?.id) {
           setMessage('A protected local recording was recovered. Echoo will keep it until the server copy is safe.');
         }
@@ -308,6 +357,14 @@ const CreatorLiveConnectedWorkspace = ({
       }
 
       if (status === 'error') {
+        setRecordingProgress((current) => ({
+          ...(current || {}),
+          key: detail.key || current?.key,
+          title: detail.title || current?.title || 'Broadcast recording',
+          stage: navigator.onLine === false ? 'waiting-network' : 'error',
+          message: detail.message || RECORDING_FINALIZATION_WARNING,
+          failedAt: Date.now(),
+        }));
         setError(detail.message || RECORDING_FINALIZATION_WARNING);
       }
     };
@@ -315,6 +372,39 @@ const CreatorLiveConnectedWorkspace = ({
     window.addEventListener(RECORDING_UPLOAD_EVENT, onRecordingUpload);
     return () => window.removeEventListener(RECORDING_UPLOAD_EVENT, onRecordingUpload);
   }, [currentLiveBroadcast?.id]);
+
+  useEffect(() => {
+    if (!recordingProgress || ['done', 'error'].includes(recordingProgress.stage)) return undefined;
+    const ticker = window.setInterval(() => {
+      setRecordingProgress((current) => {
+        if (!current?.startedAt) return current;
+        return {
+          ...current,
+          elapsedSeconds: Math.max(0, (Date.now() - current.startedAt) / 1000),
+        };
+      });
+    }, 1000);
+    return () => window.clearInterval(ticker);
+  }, [recordingProgress?.stage, recordingProgress?.startedAt]);
+
+  useEffect(() => {
+    const onOffline = () => {
+      setRecordingProgress((current) => current && !['done', 'error'].includes(current.stage)
+        ? { ...current, stage: 'waiting-network' }
+        : current);
+    };
+    const onOnline = () => {
+      setRecordingProgress((current) => current?.stage === 'waiting-network'
+        ? { ...current, stage: 'uploading', lastAt: Date.now(), lastLoaded: current.loaded || 0 }
+        : current);
+    };
+    window.addEventListener('offline', onOffline);
+    window.addEventListener('online', onOnline);
+    return () => {
+      window.removeEventListener('offline', onOffline);
+      window.removeEventListener('online', onOnline);
+    };
+  }, []);
 
   useEffect(() => {
     if (!currentLiveBroadcast?.id || ending) return undefined;
@@ -851,6 +941,45 @@ const CreatorLiveConnectedWorkspace = ({
       {error && <div className="ec2-notice" role="alert">{error}</div>}
       {message && message !== 'You are live.' && (
         <div className="ec2-notice ec2-notice--info" role="status">{message}</div>
+      )}
+
+      {recordingProgress && !['done', 'error'].includes(recordingProgress.stage) && (
+        <div className="ec2-operation-progress" role="status" aria-live="polite">
+          <div className="ec2-operation-progress__head">
+            <strong>
+              {recordingProgress.stage === 'waiting-network'
+                ? 'Waiting for connection'
+                : recordingProgress.stage === 'recovered'
+                  ? 'Recovered recording is protected locally'
+                  : recordingProgress.stage === 'verifying'
+                    ? 'Upload complete — verifying server copy'
+                    : 'Saving recording to Echoo'}
+            </strong>
+            <span>
+              {recordingProgress.stage === 'uploading'
+                ? `${Math.max(0, Math.min(100, Math.round(recordingProgress.percent || 0)))}%`
+                : `${formatElapsedTime(recordingProgress.elapsedSeconds || 0)} elapsed`}
+            </span>
+          </div>
+          {recordingProgress.stage === 'uploading' || recordingProgress.stage === 'verifying' ? (
+            <>
+              <div className="ec2-operation-progress__bar" aria-hidden="true">
+                <i style={{ width: `${Math.max(2, Math.min(100, recordingProgress.percent || 0))}%` }} />
+              </div>
+              <small>
+                {recordingProgress.stage === 'verifying'
+                  ? `Server verification in progress · ${formatElapsedTime(recordingProgress.elapsedSeconds || 0)} elapsed`
+                  : transferProgressText(recordingProgress)}
+              </small>
+            </>
+          ) : (
+            <small>
+              {recordingProgress.stage === 'waiting-network'
+                ? 'Your local master is safe. Echoo will continue when the connection is available.'
+                : 'Nothing is being deleted while Echoo waits for the server copy to become safe.'}
+            </small>
+          )}
+        </div>
       )}
 
       <CreatorAudioMixer
