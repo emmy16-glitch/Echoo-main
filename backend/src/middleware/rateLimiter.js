@@ -70,7 +70,7 @@ export const searchLimiter = limiter({
 // bounding token-spam abuse (spawning cheap listener participants).
 export const livekitTokenLimiter = limiter({
   windowMs: 15 * 60 * 1000,
-  limit: 60,
+  limit: 500,
   code: 'LIVEKIT_TOKEN_LIMIT_EXCEEDED',
   message: 'LiveKit token requests exceeded, please try again later.',
 });
