@@ -8,9 +8,9 @@ import { apiFetch } from './api.js';
 export const ECHOO_RECORDINGS_LIBRARY = 'Echoo Recordings';
 
 export const RECORDING_PC_FORMATS = [
-  { id: 'mp3', label: 'MP3', hint: 'Small, universal — matches server copy' },
-  { id: 'opus', label: 'Opus', hint: 'Smallest — best for phones' },
-  { id: 'wav', label: 'WAV', hint: 'Lossless master — best for editing' },
+  { id: 'mp3', label: 'MP3', hint: 'Recommended · small and widely supported' },
+  { id: 'opus', label: 'Opus', hint: 'Compressed local master when available' },
+  { id: 'wav', label: 'WAV', hint: 'Lossless local master for editing' },
 ];
 
 export const cleanRecordingBase = (title = 'Echoo live recording') =>
@@ -64,26 +64,50 @@ export const waitForServerMp3 = async (audioId, { attempts = 10, delayMs = 3000 
 export const saveRecordingToPc = async ({ blob, title, format, audioId }) => {
   if (!blob?.size && !audioId) throw new Error('Nothing to save yet.');
   const choice = format === 'wav' ? 'wav' : format === 'opus' ? 'opus' : 'mp3';
-  const extension = choice === 'opus' ? 'opus' : choice;
   const base = cleanRecordingBase(title);
-  const filename = `${base}.${extension}`;
-  const suggestedInLibrary = `${ECHOO_RECORDINGS_LIBRARY}/${filename}`;
 
-  // Resolve the bytes: WAV/Opus always use the local master (instant);
-  // MP3 prefers the automatic server copy so the PC file matches Echoo storage.
+  // Resolve the bytes and keep the filename/container truthful. WAV and Opus
+  // are only valid when this device still has a matching local master. MP3
+  // comes from Echoo's canonical server copy.
   let bytes = blob;
-  let mime = choice === 'wav' ? 'audio/wav' : choice === 'opus' ? 'audio/ogg;codecs=opus' : 'audio/mpeg';
-  if (choice === 'mp3' && audioId) {
+  const sourceMime = String(blob?.type || '').toLowerCase();
+  let extension = choice;
+  let mime = choice === 'mp3' ? 'audio/mpeg' : sourceMime;
+
+  if (choice === 'mp3') {
+    if (!audioId) throw new Error('The stored MP3 copy is not available yet.');
     try {
       bytes = await fetchServerRecordingBlob(audioId);
+      mime = 'audio/mpeg';
+      extension = 'mp3';
     } catch {
-      // Server transcode still running — save the local master bytes under
-      // the .mp3 name is wrong, so keep the WAV master and let the caller
-      // surface the retry message.
-      throw new Error('Server MP3 is still being prepared. Save WAV or Opus now, or retry MP3 in a few seconds.');
+      throw new Error('Server MP3 is still being prepared. Retry in a few seconds.');
+    }
+  } else if (choice === 'wav') {
+    if (!bytes?.size || !sourceMime.includes('wav')) {
+      throw new Error('The WAV master is no longer available on this device.');
+    }
+    mime = sourceMime || 'audio/wav';
+    extension = 'wav';
+  } else {
+    if (!bytes?.size || !(sourceMime.includes('opus') || sourceMime.includes('ogg') || sourceMime.includes('webm'))) {
+      throw new Error('The compressed Opus master is no longer available on this device.');
+    }
+    if (sourceMime.includes('webm')) {
+      extension = 'webm';
+      mime = sourceMime || 'audio/webm';
+    } else if (sourceMime.includes('ogg')) {
+      extension = 'ogg';
+      mime = sourceMime || 'audio/ogg';
+    } else {
+      extension = 'opus';
+      mime = sourceMime || 'audio/ogg;codecs=opus';
     }
   }
+
   if (!bytes?.size) throw new Error('Recording bytes are not available.');
+  const filename = `${base}.${extension}`;
+  const suggestedInLibrary = `${ECHOO_RECORDINGS_LIBRARY}/${filename}`;
 
   // 1) Electron desktop: native dialog defaulting to ~/Desktop/Echoo Recordings.
   if (isDesktopBridge() && typeof window.echooDesktop.saveRecording === 'function') {
