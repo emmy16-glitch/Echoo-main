@@ -1079,7 +1079,7 @@
   .eam-approved-media-progress, .eam-approved-media-levels, .eam-approved-media-actions { grid-column: 1 / -1; }
   .eam-approved-media-actions { flex-wrap: wrap; }
   .eam-approved-media-actions button { flex: 1; }
-  .eam-approved-monitor, .eam-approved-mute, .eam-approved-select, .eam-approved-add-audio { min-height: 44px; }
+  .eam-approved-monitor, .eam-approved-mute, .eam-approved-select, .eam-approved-add-audio { min-height: 45px; }
   .eam-approved-quality { grid-template-columns: 1fr; gap: 6px; }
   .eam-approved-quality small { grid-column: auto; }
 }
