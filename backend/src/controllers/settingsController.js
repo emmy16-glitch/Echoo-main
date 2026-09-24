@@ -2,14 +2,14 @@ import User from '../models/User.js';
 import bcrypt from 'bcryptjs';
 
 const CREATOR_AUDIO_DEFAULTS = Object.freeze({
-  audioMode: 'enhanced',
-  noiseReduction: 45,
-  echoRemoval: true,
-  voiceWarmth: 35,
-  voiceClarity: 45,
-  deEsser: 30,
-  volumeBalance: 45,
-  protectLoudSounds: true,
+  audioMode: 'raw',
+  noiseReduction: 0,
+  echoRemoval: false,
+  voiceWarmth: 0,
+  voiceClarity: 0,
+  deEsser: 0,
+  volumeBalance: 0,
+  protectLoudSounds: false,
   masterVolume: 100,
 });
 
@@ -19,7 +19,7 @@ const clampPercent = (value, fallback) => {
 };
 
 export const normalizeCreatorAudioPreferences = (value = {}) => ({
-  audioMode: value.audioMode === 'raw' ? 'raw' : 'enhanced',
+  audioMode: value.audioMode === 'enhanced' ? 'enhanced' : 'raw',
   noiseReduction: clampPercent(value.noiseReduction, CREATOR_AUDIO_DEFAULTS.noiseReduction),
   echoRemoval: typeof value.echoRemoval === 'boolean'
     ? value.echoRemoval
