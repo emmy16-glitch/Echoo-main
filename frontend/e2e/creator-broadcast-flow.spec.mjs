@@ -153,18 +153,21 @@ test('Creator broadcast moves through OFF AIR, LIVE, confirmation, ending, saved
   await expect(page.getByText('READY TO BROADCAST', { exact: true })).toBeVisible();
 
   await announceRecording(page);
-  await expect(page.getByRole('dialog', { name: 'Recording saved!' })).toBeVisible({ timeout: 12_000 });
-  await expect(page.getByRole('button', { name: 'Close' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'View recording' })).toBeVisible();
+  const savedBanner = page.getByRole('status').filter({ hasText: 'Saved to Recordings as MP3' });
+  await expect(savedBanner).toBeVisible({ timeout: 12_000 });
+  await expect(savedBanner.getByRole('button', { name: 'Dismiss' })).toBeVisible();
+  await expect(savedBanner.getByRole('button', { name: 'View', exact: true })).toBeVisible();
   await page.screenshot({ path: 'design-qa-evidence/broadcast-approved/recording-saved-1536x1024.png' });
-  await expect(page.getByRole('dialog', { name: 'Recording saved!' })).toHaveCount(0, { timeout: 7_000 });
+  await savedBanner.getByRole('button', { name: 'Dismiss' }).click();
+  await expect(savedBanner).toHaveCount(0);
   await expect(page.getByText('READY TO BROADCAST', { exact: true })).toBeVisible();
 
   await announceRecording(page, '507f1f77bcf86cd799439105');
-  await expect(page.getByRole('dialog', { name: 'Recording saved!' })).toBeVisible({ timeout: 12_000 });
-  await page.getByRole('button', { name: 'View recording' }).click();
+  const secondSavedBanner = page.getByRole('status').filter({ hasText: 'Saved to Recordings as MP3' });
+  await expect(secondSavedBanner).toBeVisible({ timeout: 12_000 });
+  await secondSavedBanner.getByRole('button', { name: 'View', exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/creator-studio/recordings/${RECORDING_ID}$`));
-  await expect(page.getByRole('dialog', { name: 'Recording saved!' })).toHaveCount(0);
+  await expect(secondSavedBanner).toHaveCount(0);
 
   expect(pageErrors).toEqual([]);
 });

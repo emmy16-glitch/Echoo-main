@@ -1,0 +1,172 @@
+/*
+ * One viewport contract for modal surfaces.
+ *
+ * Feature styles still own each dialog's visual design. This layer only owns
+ * the invariants that prevent a popup from escaping the usable viewport,
+ * falling behind Creator mobile navigation, or hiding its action row.
+ */
+
+html body:has([aria-modal="true"]) {
+  overflow: hidden;
+}
+
+html body :is(
+  .est-modal-backdrop,
+  .studio-modal-overlay,
+  .schedule-modal-overlay,
+  .creator-collections-modal,
+  .recordings-collection-picker,
+  .creator-audio-modal-overlay,
+  .ec2-dialog-backdrop,
+  .ecbs-end-dialog,
+  .lb-modal-backdrop,
+  .eb-palette-overlay,
+  .echoo-crop-overlay
+) {
+  box-sizing: border-box;
+  align-items: center !important;
+  justify-items: center !important;
+  padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)) !important;
+  overflow: auto !important;
+  overscroll-behavior: contain;
+}
+
+html body :is(
+  .est-modal-backdrop,
+  .studio-modal-overlay,
+  .schedule-modal-overlay,
+  .creator-audio-modal-overlay,
+  .ec2-dialog-backdrop,
+  .ecbs-end-dialog,
+  .lb-modal-backdrop,
+  .eb-palette-overlay
+) {
+  z-index: 240000 !important;
+}
+
+html body :is(
+  .est-form,
+  .studio-upload-modal,
+  .schedule-modal,
+  .creator-collections-dialog,
+  .recordings-collection-picker > section,
+  .creator-audio-modal,
+  .ec2-end-dialog,
+  .ecbs-end-dialog > section,
+  .lb-modal,
+  .eb-palette,
+  .echoo-crop-dialog
+) {
+  box-sizing: border-box;
+  max-width: calc(100vw - 24px) !important;
+  max-height: calc(100dvh - 24px) !important;
+  margin: auto !important;
+}
+
+/* The Channel form is intentionally a compact dialog, not a near-fullscreen
+   page. Header and actions remain fixed while only its form body scrolls. */
+html body .est-form.est-form {
+  width: min(620px, calc(100vw - 24px)) !important;
+  max-height: min(640px, calc(100dvh - 24px)) !important;
+  display: grid !important;
+  grid-template-rows: auto minmax(0, 1fr) auto !important;
+  overflow: hidden !important;
+}
+
+html body .est-form-grid {
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+}
+
+html body .est-form-actions {
+  position: relative !important;
+  bottom: auto !important;
+  z-index: 2;
+  margin-top: 0 !important;
+  box-shadow: 0 -8px 20px rgba(16, 24, 40, .05);
+}
+
+@media (max-width: 600px), (max-height: 720px) {
+  html body :is(
+    .est-modal-backdrop,
+    .studio-modal-overlay,
+    .schedule-modal-overlay,
+    .creator-collections-modal,
+    .recordings-collection-picker,
+    .creator-audio-modal-overlay,
+    .ec2-dialog-backdrop,
+    .ecbs-end-dialog,
+    .lb-modal-backdrop,
+    .eb-palette-overlay,
+    .echoo-crop-overlay
+  ) {
+    padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)) !important;
+  }
+
+  html body :is(
+    .est-form,
+    .studio-upload-modal,
+    .schedule-modal,
+    .creator-collections-dialog,
+    .recordings-collection-picker > section,
+    .creator-audio-modal,
+    .ec2-end-dialog,
+    .ecbs-end-dialog > section,
+    .lb-modal,
+    .eb-palette,
+    .echoo-crop-dialog
+  ) {
+    width: min(100%, calc(100vw - 16px)) !important;
+    max-width: calc(100vw - 16px) !important;
+    max-height: calc(100dvh - 16px) !important;
+    border-radius: 14px !important;
+  }
+
+  /* Keep the Channel editor compact on short-but-wide displays too. The
+     generic short-viewport rule above deliberately lets other dialogs use
+     the available width, so this dialog-specific cap must follow it. */
+  html body .est-form.est-form {
+    width: min(620px, calc(100vw - 16px)) !important;
+    max-width: min(620px, calc(100vw - 16px)) !important;
+  }
+
+  html body .est-form-head {
+    padding: 12px 14px 10px !important;
+  }
+
+  html body .est-form-head h2 {
+    font-size: 18px !important;
+  }
+
+  html body .est-form-head p {
+    margin-top: 3px !important;
+    font-size: 10px !important;
+  }
+
+  html body .est-form-grid {
+    gap: 10px !important;
+    padding: 11px 14px !important;
+  }
+
+  html body .est-form-grid textarea {
+    min-height: 64px !important;
+    max-height: 76px !important;
+  }
+
+  html body .est-brand-preview {
+    width: 72px !important;
+    height: 72px !important;
+  }
+
+  html body .est-brand-editor {
+    grid-template-columns: 72px minmax(0, 1fr) !important;
+    padding: 8px !important;
+  }
+
+  html body .est-form-actions {
+    padding: 8px 14px max(10px, env(safe-area-inset-bottom)) !important;
+  }
+}

@@ -19,6 +19,7 @@ import {
 const PROGRAM_TRACK_NAME = 'echoo-studio-mix';
 const DEV_TRACK_NAME = 'echoo-dev-test-audio';
 const WATCHDOG_INTERVAL_MS = 5000;
+const ROOM_DISCONNECT_DEADLINE_MS = 4000;
 
 let activeRoom = null;
 let activeBroadcastId = null;
@@ -199,8 +200,27 @@ const cancelRecoveryTimer = (candidate) => {
 
 const detachRoom = async (room) => {
   if (!room) return;
-  try { await room.disconnect(); } catch (error) {
-    console.warn('[Echoo Live][Creator] room disconnect warning', error?.message || error);
+  let deadlineTimer = null;
+  let deadlineReached = false;
+  const disconnect = Promise.resolve()
+    .then(() => room.disconnect())
+    .catch((error) => {
+      console.warn('[Echoo Live][Creator] room disconnect warning', error?.message || error);
+    });
+  const deadline = new Promise((resolve) => {
+    deadlineTimer = window.setTimeout(() => {
+      deadlineReached = true;
+      resolve();
+    }, ROOM_DISCONNECT_DEADLINE_MS);
+  });
+
+  await Promise.race([disconnect, deadline]);
+  window.clearTimeout(deadlineTimer);
+  if (deadlineReached) {
+    // LiveKit owns the in-flight cleanup promise. The session references were
+    // already cleared, so a slow provider disconnect must not trap the Creator
+    // in the ENDING overlay after listeners are already off air.
+    console.warn('[Echoo Live][Creator] room disconnect exceeded the UI deadline');
   }
 };
 

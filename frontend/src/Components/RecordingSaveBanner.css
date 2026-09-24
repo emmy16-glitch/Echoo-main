@@ -75,5 +75,17 @@
 @keyframes echoo-save-banner-spin { to { transform: rotate(360deg); } }
 
 @media (max-width: 640px) {
-  .echoo-save-banner { bottom: 12px; }
+  .echoo-save-banner {
+    bottom: calc(78px + env(safe-area-inset-bottom, 0px));
+    width: calc(100vw - 16px);
+    padding: 10px;
+    border-radius: 12px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .echoo-save-banner-body { min-width: calc(100% - 34px); }
+  .echoo-save-banner-body > strong { white-space: normal; }
+  .echoo-save-banner > button { min-height: 40px; margin-left: auto; }
 }

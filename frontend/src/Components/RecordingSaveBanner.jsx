@@ -37,7 +37,7 @@ const RecordingSaveBanner = () => {
   }, []);
 
   const flashDone = useCallback((detail) => {
-    setState({ kind: 'done', title: detail.title, audioId: detail.audioId });
+    setState({ kind: 'done', title: detail.title, audioId: detail.audioId, localCopy: detail.localCopy || null });
     window.clearTimeout(hideTimerRef.current);
     hideTimerRef.current = window.setTimeout(hide, 12000);
   }, [hide]);
@@ -156,7 +156,11 @@ const RecordingSaveBanner = () => {
           <FaCheckCircle aria-hidden="true" />
           <div className="echoo-save-banner-body">
             <strong>Saved to Recordings as MP3</strong>
-            <span>{state.title}</span>
+            <span>
+              {state.localCopy?.saved
+                ? `${state.title} · ${String(state.localCopy.format || '').toUpperCase()} safety copy downloaded to this PC`
+                : state.title}
+            </span>
           </div>
           {state.audioId && <button type="button" className="eb-press" onClick={openRecording}>View</button>}
           <button type="button" className="eb-press" aria-label="Dismiss" onClick={hide}><FaTimes /></button>

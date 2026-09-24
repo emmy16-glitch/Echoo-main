@@ -175,6 +175,10 @@ test('recording management keeps trim copies safe and prevents cramped or mislab
   assert.match(modal, /Download stored file/);
 
   assert.match(exportService, /Server MP3 is still being prepared/);
+  assert.match(exportService, /saveAutomaticLocalCopy/);
+  assert.match(exportService, /destination:\s*'browser-downloads'/);
+  assert.match(exportService, /sourceMime\.includes\('wav'\)/);
+  assert.match(exportService, /waitForServerMp3\(audioId/);
   assert.match(exportService, /sourceMime\.includes\('wav'\)/);
   assert.match(exportService, /sourceMime\.includes\('webm'\)/);
   assert.match(exportService, /suggestedName:\s*filename/);

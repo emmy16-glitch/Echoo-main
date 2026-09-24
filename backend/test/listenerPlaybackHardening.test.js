@@ -14,6 +14,7 @@ test('live listener keeps playback intent, device volume, and explicit recovery 
   assert.match(player, /element\.volume\s*=\s*volumeRef\.current/);
   assert.match(player, /element\.muted\s*=\s*mutedRef\.current/);
   assert.match(player, /onReconnect:\s*\(\)\s*=>\s*setRetryVersion/);
+  assert.match(player, /const onOnline[\s\S]*scheduleHardReconnect\('browser_online'\)/);
   assert.match(player, /isPlaying,/);
   assert.match(player, /playbackState:/);
 

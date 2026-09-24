@@ -85,7 +85,12 @@ The live site is stale. Deploy the latest repo code and rebuild:
    to push first — the desktop apps already ship newer frontend code and the
    server must be at least as new).
 2. `npm install` in `backend/` (production deps only is fine).
-3. `npm run build` in `frontend/`, serve the fresh `dist/`.
+3. Build the web bundle in `frontend/` with
+   `VITE_API_URL=/api VITE_BUILD_BASE=/ npm run build`, then serve the fresh
+   `dist/`. The `/` base is required for direct SPA links such as
+   `/listen/live/:broadcastId`; the default relative base is reserved for the
+   packaged desktop app and resolves assets under the deep-link path in a web
+   deployment.
 4. Restart the backend.
 
 Minimum server capabilities the desktop apps depend on (fail the handoff if

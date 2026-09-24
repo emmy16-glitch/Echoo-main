@@ -182,6 +182,11 @@ test('Broadcast workstation compacts cleanly across the complete viewport matrix
   }
 
   broadcasts = [liveBroadcast];
+  // Replace the route explicitly before reload. Keeping a mutable closure in
+  // the handler is timing-sensitive when this viewport matrix runs in several
+  // Playwright projects at once.
+  await page.unroute('**/api/broadcasts/mine/all**');
+  await page.route('**/api/broadcasts/mine/all**', (route) => fulfill(route, broadcasts));
   for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
     await page.setViewportSize(viewport);
     await page.reload();

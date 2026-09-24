@@ -871,15 +871,77 @@ const CreatorLiveConnectedWorkspace = ({
   };
 
   const retryAudioConnection = async () => {
+    if (!currentLiveBroadcast?.id || goingLive || ending) return;
+
+    const broadcastId = currentLiveBroadcast.id;
     try {
+      setGoingLive(true);
       setError('');
       setMessage('Recovering the live audio connection…');
-      const recovered = await retryLiveKitPublishingRecovery();
+
+      const publishingState = getLiveKitPublishingState();
+      let recovered = false;
+
+      // A transient LiveKit disconnect retains an in-memory publisher session,
+      // so use its credential refresh and bounded retry policy first.
+      if (String(publishingState?.broadcastId || '') === String(broadcastId)) {
+        try {
+          recovered = await retryLiveKitPublishingRecovery();
+        } catch (recoveryError) {
+          if (!/no active broadcast to recover/i.test(recoveryError?.message || '')) {
+            throw recoveryError;
+          }
+        }
+      }
+
+      // A page reload (including a dev-server/HMR restart) destroys the
+      // module-level LiveKit session. Rebuild it against the already-live
+      // broadcast instead of leaving the creator and listeners in a permanent
+      // "Reconnecting" state.
+      if (!recovered) {
+        const liveMixerSnapshot = getEchooMixerState();
+        const liveSourceIds = getValidAudioSourceIds(liveMixerSnapshot);
+        if (!liveSourceIds.length) {
+          throw new Error(
+            'Your browser audio was disconnected. Use Add audio to share the browser tab again, then choose Reconnect live audio.'
+          );
+        }
+
+        const mediaTrack = getEchooMixerOutputTrack();
+        if (!mediaTrack || mediaTrack.readyState === 'ended') {
+          throw new Error(
+            'The studio mix is not ready. Reconnect an audio source, then choose Reconnect live audio.'
+          );
+        }
+
+        const connection = await batch3Service.getLiveKitToken(broadcastId);
+        const liveKitUrl = connection?.livekitUrl || import.meta.env.VITE_LIVEKIT_URL;
+        if (!connection?.token || !liveKitUrl) {
+          throw new Error('Echoo could not refresh the live audio room credentials.');
+        }
+
+        await startLiveKitPublishing({
+          url: liveKitUrl,
+          token: connection.token,
+          broadcastId,
+          mediaTrack,
+          qualityProfile: realtimeQualityProfile,
+          credentialProvider: () => batch3Service.getLiveKitToken(broadcastId),
+        });
+        recovered = true;
+      }
+
       if (!recovered) throw new Error('Automatic audio recovery is still unavailable.');
+      setMixerState(getEchooMixerState());
       setMessage('Live audio recovered.');
+      void batch3Service.confirmBroadcastLive(broadcastId).catch((confirmError) => {
+        console.warn('[Echoo Live] recovery confirmation delayed:', confirmError?.message || confirmError);
+      });
     } catch (recoveryError) {
       setMessage('');
       setError(recoveryError?.message || 'Could not recover the live audio connection.');
+    } finally {
+      setGoingLive(false);
     }
   };
 
@@ -962,9 +1024,15 @@ const CreatorLiveConnectedWorkspace = ({
               <span className={`ec2-live-connection ${connectionHealthy ? 'is-healthy' : ''}`}>
                 {connectionLabel}
               </span>
-              {publisherHealth?.phase === 'failed' && (
-                <button type="button" className="ec2-copy-live" onClick={retryAudioConnection}>
-                  <FiRadio /> Retry audio
+              {!connectionHealthy && (
+                <button
+                  type="button"
+                  className="ec2-copy-live"
+                  onClick={retryAudioConnection}
+                  disabled={goingLive || ending}
+                >
+                  {goingLive ? <FiLoader aria-hidden="true" /> : <FiRadio aria-hidden="true" />}
+                  {goingLive ? 'Reconnecting…' : 'Reconnect live audio'}
                 </button>
               )}
               <button type="button" className="ec2-copy-live ec2-copy-live--hero" onClick={copyLiveLink}>

@@ -78,8 +78,24 @@ test('LIVE is set by the published program track, with confirmation and recordin
   assert.doesNotMatch(batch3.slice(startAt, confirmServiceAt), /checkLiveKitReadiness\s*\(/);
 });
 
+test('a database-live broadcast can rebuild its publisher after a page reload', async () => {
+  const workspace = await read('./CreatorLiveConnectedWorkspace.jsx');
+  const retryAt = workspace.indexOf('const retryAudioConnection = async');
+  const retryBody = workspace.slice(retryAt, workspace.indexOf('if (loading)', retryAt));
+
+  assert.match(retryBody, /getLiveKitPublishingState\(\)/);
+  assert.match(retryBody, /retryLiveKitPublishingRecovery\(\)/);
+  assert.match(retryBody, /getValidAudioSourceIds\(liveMixerSnapshot\)/);
+  assert.match(retryBody, /batch3Service\.getLiveKitToken\(broadcastId\)/);
+  assert.match(retryBody, /await startLiveKitPublishing\(\{/);
+  assert.match(retryBody, /Your browser audio was disconnected/);
+  assert.match(workspace, /!connectionHealthy && \(/);
+  assert.match(workspace, /Reconnect live audio/);
+});
+
 test('End makes the listener path OFF AIR before recording finalization', async () => {
   const workspace = await read('./CreatorLiveConnectedWorkspace.jsx');
+  const publisher = await read('../../services/livekitPublisher.js');
   const endAt = workspace.indexOf('const endBroadcast = async');
   const endBody = workspace.slice(endAt, workspace.indexOf('const copyLiveLink', endAt));
   const unpublishAt = endBody.indexOf('await stopLiveKitPublishing()');
@@ -90,6 +106,8 @@ test('End makes the listener path OFF AIR before recording finalization', async 
   assert.match(endBody, /const backendEnd = batch3Service\.endBroadcastRealtime/);
   assert.match(endBody, /\[Echoo Perf\] end-broadcast realtime stopped/);
   assert.match(endBody, /The upload event takes over the visible progress from here/);
+  assert.match(publisher, /ROOM_DISCONNECT_DEADLINE_MS/);
+  assert.match(publisher, /Promise\.race\(\[disconnect, deadline\]\)/);
 });
 
 test('OFF AIR reset clears session state while the stereo workstation remains canonical', async () => {
@@ -107,7 +125,7 @@ test('OFF AIR reset clears session state while the stereo workstation remains ca
   assert.match(resetBody, /setLinkCopied\(false\)/);
   assert.doesNotMatch(resetBody, /resetEchooMixer/);
   assert.match(workspace, /window\.setTimeout\(\(\) => setMessage\(''\), 3000\)/);
-  assert.match(shell, /padding-top: 22px !important/);
+  assert.match(shell, /padding-top: 18px !important/);
   assert.match(heroCss, /animation: ec2-live-ticker 36s linear infinite/);
   assert.match(heroCss, /\.ec2-off-air-details > p \{\s*grid-column: 1 \/ -1;/);
 

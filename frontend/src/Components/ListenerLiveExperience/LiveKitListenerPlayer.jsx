@@ -554,7 +554,12 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       if (!disposed) setStatus('reconnecting');
     };
     const onOnline = () => {
-      if (!disposed && !roomIsConnected(roomRef.current)) scheduleHardReconnect('browser_online');
+      // A browser can report the LiveKit room as "connected" after the
+      // network returns even though its inbound RTP path is permanently
+      // stalled. Rejoin once with fresh credentials after every real offline
+      // transition instead of trusting that stale state and showing
+      // "Audio live" over silence.
+      if (!disposed) scheduleHardReconnect('browser_online');
     };
     window.addEventListener('offline', onOffline);
     window.addEventListener('online', onOnline);

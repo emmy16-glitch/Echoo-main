@@ -183,6 +183,13 @@ export async function uploadToObjectStorage(localPath, key, mimeType) {
   };
 }
 
+// Private buckets intentionally have no public URL. Keep archive diagnostics
+// useful without treating that valid null URL as an upload failure.
+export const archiveDestinationLabel = ({ url, objectKey } = {}) => {
+  const destination = String(url || (objectKey ? `private://${objectKey}` : 'private object'));
+  return destination.length > 80 ? `${destination.slice(0, 80)}...` : destination;
+};
+
 // Buckets that cost nothing stay PRIVATE (Backblaze charges $1 to enable
 // public buckets). Playback then needs a short-lived signed URL minted at
 // stream time — the signed /stream grant already authorized the request, so
@@ -312,7 +319,7 @@ export async function archiveRecordingAudio({ audio, localPath }) {
     await audio.save();
 
     console.info(
-      `[audio-archive] replay ${audio._id} archived to cloud MP3 (${(stat.size / 1048576).toFixed(1)} MB): ${url.slice(0, 80)}...`
+      `[audio-archive] replay ${audio._id} archived to cloud MP3 (${(stat.size / 1048576).toFixed(1)} MB): ${archiveDestinationLabel({ url, objectKey })}`
     );
 
     if (!keepLocal()) {
@@ -333,6 +340,7 @@ export default {
   transcodeToOpus,
   transcodeToMp3,
   uploadToObjectStorage,
+  archiveDestinationLabel,
   createCloudDownloadUrl,
   getCloudObject,
   deleteCloudObject,

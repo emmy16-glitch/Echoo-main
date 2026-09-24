@@ -6,6 +6,7 @@ import {
   recoverOrphanedLosslessRecording,
   retryBroadcastQualityCompletion,
 } from './broadcastRecordingService.js';
+import { saveAutomaticLocalCopy } from './recordingExportService.js';
 
 // ---------------------------------------------------------------------------
 // Background recording autosave: after End Broadcast the full master uploads
@@ -58,6 +59,7 @@ export const forgetLocalMaster = (key) => {
 };
 
 const activeUploads = new Map();
+const automaticLocalCopies = new Set();
 
 const notifySaved = (message) => {
   window.dispatchEvent(new CustomEvent('echoo:toast', { detail: { message, type: 'success' } }));
@@ -89,8 +91,20 @@ export const startAutosave = async ({ recording, broadcast } = {}) => {
 
   const title = broadcast?.title || 'Live broadcast recording';
   const task = (async () => {
+    let localCopy = null;
     try {
       emit({ status: 'started', key, title, total: recording.blob.size });
+
+      // Protect the creator's take on their own PC before depending on the
+      // network. Browsers use the configured Downloads folder; native desktop
+      // builds use their Echoo Recordings bridge. Retry never duplicates it.
+      if (!automaticLocalCopies.has(key)) {
+        localCopy = await saveAutomaticLocalCopy({
+          blob: recording.blob,
+          title,
+        }).catch((error) => ({ saved: false, error: error?.message || String(error) }));
+        if (localCopy?.saved) automaticLocalCopies.add(key);
+      }
 
       // Offline is detected before any request so no failing requests are
       // issued in a loop. The banner retries on reconnect.
@@ -140,6 +154,14 @@ export const startAutosave = async ({ recording, broadcast } = {}) => {
       }
 
       const audioId = String(uploadResponse?.data?.id || uploadResponse?.data?._id || '');
+      if (!automaticLocalCopies.has(key)) {
+        localCopy = await saveAutomaticLocalCopy({
+          blob: recording.blob,
+          title,
+          audioId,
+        }).catch((error) => ({ saved: false, error: error?.message || String(error) }));
+        if (localCopy?.saved) automaticLocalCopies.add(key);
+      }
       rememberLocalMaster(audioId, { blob: recording.blob, title, mimeType: uploadMime });
       if (recording.broadcastId) {
         rememberLocalMaster(`broadcast:${recording.broadcastId}`, { blob: recording.blob, title, mimeType: uploadMime, audioId });
@@ -147,7 +169,7 @@ export const startAutosave = async ({ recording, broadcast } = {}) => {
       clearPendingBroadcastRecording(recording.broadcastId);
       window.dispatchEvent(new CustomEvent('echoo:creator-audio-changed'));
       window.dispatchEvent(new CustomEvent('echoo:creator-state-changed'));
-      emit({ status: 'done', key, title, audioId });
+      emit({ status: 'done', key, title, audioId, localCopy });
       notifySaved(`“${title}” saved to Recordings as MP3.`);
       return { audioId, title };
     } catch (error) {

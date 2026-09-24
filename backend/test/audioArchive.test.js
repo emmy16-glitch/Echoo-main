@@ -6,6 +6,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 import {
+  archiveDestinationLabel,
   archiveRecordingAudio,
   createCloudDownloadUrl,
   isCloudArchiveEnabled,
@@ -197,6 +198,17 @@ test('private-bucket playback mints a signed URL without network', withEnv(
     assert.ok(url.includes('X-Amz-Expires=3600'), 'signed URL must honor expiry');
   }
 ));
+
+test('private cloud archives can be logged without a public URL', () => {
+  assert.equal(
+    archiveDestinationLabel({ url: null, objectKey: 'echoo-recordings/private-test.mp3' }),
+    'private://echoo-recordings/private-test.mp3'
+  );
+  assert.equal(
+    archiveDestinationLabel({ url: 'https://media.example.test/replay.mp3', objectKey: 'ignored.mp3' }),
+    'https://media.example.test/replay.mp3'
+  );
+});
 
 test('mp3 transcode shrinks a WAV master by an order of magnitude', async () => {
   if (!ffmpegAvailable()) {

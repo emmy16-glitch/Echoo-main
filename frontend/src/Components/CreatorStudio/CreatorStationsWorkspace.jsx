@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   FaBroadcastTower,
   FaEdit,
@@ -132,6 +133,23 @@ const CreatorStationsWorkspace = ({ onNavigate, onOpenRecording }) => {
   useEffect(() => {
     loadChannel();
   }, [loadChannel]);
+
+  useEffect(() => {
+    if (!formOpen) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event) => {
+      if (event.key !== 'Escape' || saving) return;
+      setFormOpen(false);
+      setForm(EMPTY_FORM());
+      if (logoInputRef.current) logoInputRef.current.value = '';
+    };
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [formOpen, saving]);
 
   // /stations/mine/all is ordered by the backend canonical Channel rule.
   // Do not reselect it from a broadcast, profile name, or stale local state.
@@ -460,7 +478,7 @@ const CreatorStationsWorkspace = ({ onNavigate, onOpenRecording }) => {
             <header className="est-recent-head">
               <div>
                 <h2>Recent broadcasts</h2>
-                <p>Your latest live sessions and recordings.</p>
+                <p>Your latest live sessions and saved replays.</p>
               </div>
               <button type="button" onClick={() => onNavigate?.('Recordings')}>View all</button>
             </header>
@@ -480,7 +498,7 @@ const CreatorStationsWorkspace = ({ onNavigate, onOpenRecording }) => {
                     <article className={`est-broadcast-card${live ? ' is-live' : ''}`} key={idOf(broadcast)}>
                       <div className={`est-broadcast-art${ownArtwork ? '' : ' is-channel-fallback'}`}>
                         <img src={broadcastArtwork(broadcast, channel, channelArtwork)} alt="" />
-                        <span className={live ? 'live' : 'recording'}>{live ? 'LIVE' : 'RECORDING'}</span>
+                        <span className={live ? 'live' : 'replay'}>{live ? 'LIVE' : 'REPLAY'}</span>
                         {!live && <i><FaPlay /></i>}
                       </div>
                       <div className="est-broadcast-copy">
@@ -488,9 +506,9 @@ const CreatorStationsWorkspace = ({ onNavigate, onOpenRecording }) => {
                         <p>{meta || 'Recent broadcast'}</p>
                       </div>
                       <footer>
-                        <span>{live ? <><FaUsers /> {formatNumber(broadcast.listenerCount)} listening</> : 'Recording available'}</span>
+                        <span>{live ? <><FaUsers /> {formatNumber(broadcast.listenerCount)} listening</> : 'Replay ready'}</span>
                         <button type="button" onClick={() => openRecentBroadcast(broadcast)}>
-                          {live ? 'Open Studio' : 'View recording'}
+                          {live ? 'Open Studio' : 'Open replay'}
                         </button>
                       </footer>
                     </article>
@@ -504,13 +522,19 @@ const CreatorStationsWorkspace = ({ onNavigate, onOpenRecording }) => {
         </>
       )}
 
-      {formOpen && (
+      {formOpen && createPortal((
         <div className="est-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) closeForm(); }}>
-          <form className="est-form" onSubmit={submitChannel}>
+          <form
+            className="est-form"
+            onSubmit={submitChannel}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="est-channel-form-title"
+          >
             <header className="est-form-head">
               <div>
                 <span>{channel ? 'EDIT CHANNEL' : 'CHANNEL SETUP'}</span>
-                <h2>{channel ? 'Edit Channel' : 'Create your Channel'}</h2>
+                <h2 id="est-channel-form-title">{channel ? 'Edit Channel' : 'Create your Channel'}</h2>
                 <p>Update the public identity listeners see across Echoo.</p>
               </div>
               <button type="button" onClick={closeForm} aria-label="Close Channel form"><FaTimes /></button>
@@ -566,7 +590,7 @@ const CreatorStationsWorkspace = ({ onNavigate, onOpenRecording }) => {
             </footer>
           </form>
         </div>
-      )}
+      ), document.body)}
     </section>
   );
 };

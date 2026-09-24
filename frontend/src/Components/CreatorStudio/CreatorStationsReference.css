@@ -277,7 +277,7 @@
   font-weight: 820;
 }
 .est-broadcast-art > span.live { background: var(--est-red); }
-.est-broadcast-art > span.recording { background: var(--est-blue); }
+.est-broadcast-art > span.replay { background: var(--est-blue); }
 .est-broadcast-art > i {
   position: absolute;
   top: 10px;

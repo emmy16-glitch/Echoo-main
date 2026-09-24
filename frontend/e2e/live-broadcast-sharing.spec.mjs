@@ -118,6 +118,24 @@ test('LIVE controls copy the permanent live URL and survive refresh', async ({ p
   await expect(page.getByRole('button', { name: 'Copied' })).toBeVisible();
 });
 
+test('a stale LIVE page offers publisher recovery and explains how to restore browser audio', async ({ page }) => {
+  await authenticate(page, creator);
+  await page.route('**/api/stations/mine/all', (route) => route.fulfill({
+    json: { data: { stations: [station] } },
+  }));
+  await page.route('**/api/broadcasts/mine/all', (route) => route.fulfill({
+    json: { data: [liveBroadcast] },
+  }));
+
+  await page.goto('/creator-studio');
+  const reconnect = page.getByRole('button', { name: 'Reconnect live audio' });
+  await expect(reconnect).toBeVisible();
+  await reconnect.click();
+  await expect(page.getByRole('alert')).toContainText(
+    'Use Add audio to share the browser tab again, then choose Reconnect live audio.'
+  );
+});
+
 test('OFF AIR hides sharing controls and keeps the existing Go Live action', async ({ page }) => {
   await authenticate(page, creator);
   await page.route('**/api/stations/mine/all', (route) => route.fulfill({
