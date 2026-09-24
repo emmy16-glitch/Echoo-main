@@ -1,29 +1,335 @@
 # Deployment & operations
 
+> **Read [../HOSTING.md](../HOSTING.md) before deploying or updating Echoo.**
+> It is the authoritative hosting contract. In particular, the backend must have
+> **both FFmpeg and FFprobe** before a deployment can be called recording-ready.
+
 ## Environments
 
-| Environment | Frontend | API | Database | Status |
+| Environment | Frontend | API | Database | Purpose |
 |---|---|---|---|---|
-| Local dev | `localhost:5273` (Vite) | `localhost:5017` (node) | local MongoDB | Primary dev loop (`sh scripts/dev-all.sh` from the repo root) |
-| Hosted site | https://echoo.digi02.org/ | same origin (`/api`) | managed with the host | Live; see below |
-| Desktop installs | hosted app (default) | hosted API (opt-in local server) | n/a (local MongoDB only with the local-backend opt-in) | Shipped via GitHub Releases |
+| Local dev | `localhost:5273` | `localhost:5017` | local/shared MongoDB | Development |
+| Vercel `echoo-staging` | Vercel project URL | same origin | staging database | Test/staging only |
+| Digi02 production | `https://echoo.digi02.org/` | same origin `/api` | production database | Real hosted deployment |
+| Desktop installs | hosted app by default | hosted API | hosted DB | Thin client |
 
-## Hosted site — echoo.digi02.org
+Do not treat the Vercel staging project's "production" target as Echoo's real
+production environment. The real public deployment is currently
+`https://echoo.digi02.org/`.
 
-The public web deployment: frontend + API on one origin behind Cloudflare. Last verified 2026-09-15: healthy (`/api/health` → ok), but serving a **stale frontend build** (no `echoo-app` identity marker) and its backend denies desktop origins (`CORS_ORIGIN_DENIED` for `Origin: null`) with unknown LiveKit configuration.
+## Production dependency gate
 
-**To bring it current**, its operator works through [`HOSTED-SERVER-SYNC.md`](../HOSTED-SERVER-SYNC.md): enable the scoped desktop `file://` allowance (`ECHOO_DESKTOP=1`, see Task 1 — never a blanket `"null"` allowlist), set the four `LIVEKIT_*` Cloud vars, deploy the latest code, and pass the five verification checks. Desktop installers pointed at `https://echoo.digi02.org/api` ship after that goes green.
+A production-capable backend requires:
 
-## Production checklist (any host)
+- Node.js 20+;
+- MongoDB;
+- LiveKit Cloud or a correctly exposed self-hosted LiveKit server;
+- **FFmpeg**;
+- **FFprobe**;
+- persistent recording storage;
+- frontend reverse-proxy/static hosting;
+- optional Whisper transcription.
 
-1. **Env:** `NODE_ENV=production` with `MONGODB_URI`, `JWT_SECRET`, `JWT_REFRESH_SECRET`, `CLIENT_ORIGINS`, and the four `LIVEKIT_*` vars (production requires public `wss://` LiveKit URLs). See `backend/.env.example` and `backend/.env.production.example`.
-2. **LiveKit:** LiveKit Cloud project (URL + key + secret). Local `livekit-server --dev` is dev-only.
-3. **Recording tools:** install both `ffmpeg` and `ffprobe` on the backend host. Echoo requires them for automatic live-replay MP3 creation and server-side trimming. Verify `GET /api/health/recording` returns `automaticServerMp3: true` before a production broadcast.
-4. **Storage:** recordings stay on local disk by default; S3-compatible bucket for durable recording storage (`AUDIO_*` vars; live replays use `AUDIO_REPLAY_MP3_BITRATE`, default `320k`). See `backend/.env.example`.
-5. **CORS:** production allowlist is explicit — the web origin only. Desktop `file://` shells are allowed solely through the scoped `ECHOO_DESKTOP=1` guard in `isAllowedOrigin`, never a blanket `"null"` entry (see `HOSTED-SERVER-SYNC.md` Task 1).
-6. **Frontend:** `npm run build` in `frontend/`, serve `dist/` (verify the `echoo-app` marker in the served HTML).
-7. **Transcription (optional):** Whisper gateway per [`transcription.md`](transcription.md); the app runs fine without it.
+Verify the binaries from the same account/container that runs Node:
+
+```bash
+ffmpeg -version
+ffprobe -version
+```
+
+If either command fails, automatic server MP3 replays and saved-recording
+trimming are not ready.
+
+On Ubuntu/Debian:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y ffmpeg
+```
+
+If the binaries are installed outside `PATH`, configure:
+
+```env
+FFMPEG_PATH=/absolute/path/to/ffmpeg
+FFPROBE_PATH=/absolute/path/to/ffprobe
+```
+
+## Required production environment
+
+Use `backend/.env.example` as the source of truth and keep real values out of Git.
+
+Minimum groups:
+
+```env
+NODE_ENV=production
+MONGODB_URI=<production mongodb uri>
+
+JWT_SECRET=<strong secret>
+JWT_REFRESH_SECRET=<different strong secret>
+
+CLIENT_ORIGINS=https://your-domain.example
+
+LIVEKIT_URL=wss://<livekit host>
+LIVEKIT_PUBLIC_URL=wss://<livekit host>
+LIVEKIT_API_KEY=<server-only key>
+LIVEKIT_API_SECRET=<server-only secret>
+
+FFMPEG_PATH=ffmpeg
+FFPROBE_PATH=ffprobe
+AUDIO_REPLAY_MP3_BITRATE=320k
+```
+
+Whisper is optional. LiveKit is not optional for live broadcasting. FFmpeg and
+FFprobe are not optional for a recording-capable production backend.
+
+## Recording architecture that hosting must preserve
+
+Echoo does **not** upload one huge final WAV when the creator ends a show.
+
+```text
+browser master
+  +--> LiveKit -> listeners
+  |
+  +--> bounded PCM/WAV chunks -> backend FFmpeg replay encoder
+                                  |
+End Broadcast --------------------+
+                                  |
+                                  v
+                           canonical MP3 replay
+                                  |
+                        persistent disk or S3
+```
+
+The browser OPFS WAV is a local recovery/lossless-export master. It must not be
+turned back into the normal giant final upload.
+
+The canonical live replay defaults to:
+
+```env
+AUDIO_REPLAY_MP3_BITRATE=320k
+```
+
+Approximate file sizes at 320 kbps:
+
+- 10 minutes: ~24 MB
+- 30 minutes: ~72 MB
+- 1 hour: ~144 MB
+
+A 500 MB+ WAV request at End Broadcast is a regression, not a reason to raise
+the reverse-proxy body limit.
+
+## Recording storage
+
+### Persistent VPS / bare-metal host
+
+If `AUDIO_STORAGE_PROVIDER` is unset, finished MP3 files can stay under:
+
+```text
+backend/uploads/audio/
+```
+
+That directory must be:
+
+- writable by the backend process;
+- persistent across service restarts and code pulls;
+- included in backup/restore policy;
+- never replaced by a temporary deployment directory.
+
+### Ephemeral/container/serverless host
+
+Use S3-compatible object storage:
+
+```env
+AUDIO_STORAGE_PROVIDER=s3
+AUDIO_S3_BUCKET_PUBLIC=false
+AUDIO_S3_ENDPOINT=<endpoint>
+AUDIO_S3_REGION=<region or auto>
+AUDIO_S3_BUCKET=<private bucket>
+AUDIO_S3_ACCESS_KEY_ID=<secret>
+AUDIO_S3_SECRET_ACCESS_KEY=<secret>
+AUDIO_S3_PREFIX=echoo-recordings
+AUDIO_KEEP_LOCAL_AFTER_ARCHIVE=false
+```
+
+Backblaze B2 S3 API, Cloudflare R2, AWS S3, and compatible providers are suitable.
+
+Never claim recordings are durable on an ephemeral container filesystem.
+
+## Saved-recording trimming
+
+Trimming is server-side and non-destructive.
+
+The client sends only start/end timestamps. The backend:
+
+1. obtains the already-saved source recording;
+2. verifies FFmpeg/FFprobe;
+3. creates a new trimmed media file;
+4. creates a separate private Audio record;
+5. leaves the original recording unchanged.
+
+For MP3 input, trimming uses stream-copy where possible, avoiding another lossy
+MP3 re-encode.
+
+A correct trim must not upload a new giant browser WAV.
+
+## Frontend production build
+
+For a normal same-origin deployment:
+
+```bash
+cd frontend
+npm install
+VITE_API_URL=/api \
+VITE_BUILD_BASE=/ \
+VITE_PUBLIC_APP_ORIGIN=https://your-domain.example \
+npm run build
+```
+
+Serve `frontend/dist/` with SPA fallback.
+
+For Digi02 production:
+
+```env
+VITE_API_URL=/api
+VITE_BUILD_BASE=/
+VITE_PUBLIC_APP_ORIGIN=https://echoo.digi02.org
+```
+
+Do not bake a Vercel staging URL into the Digi02 production build.
+
+## Reverse proxy / routing
+
+A typical same-origin host routes:
+
+- `/` and frontend deep links -> Vite `dist/` with SPA fallback;
+- `/api/*` -> Echoo backend;
+- `/socket.io/*` -> Echoo backend with websocket upgrade;
+- `/uploads/*` -> backend/static media when local storage is used.
+
+Preserve websocket upgrade support for Socket.IO.
+
+## CORS and desktop thin clients
+
+The production browser origin should be explicitly trusted.
+
+Echoo Desktop uses a hosted thin-client flow. Its `file://` context can send
+`Origin: null`. The backend contains a scoped allowance enabled by:
+
+```env
+ECHOO_DESKTOP=1
+```
+
+Do not replace this with a blanket wildcard or globally allow every `null`
+origin. See `HOSTED-SERVER-SYNC.md`.
+
+## LiveKit
+
+Production requires:
+
+```env
+LIVEKIT_URL=wss://...
+LIVEKIT_PUBLIC_URL=wss://...
+LIVEKIT_API_KEY=...
+LIVEKIT_API_SECRET=...
+```
+
+The public URL must be reachable by browsers. Do not use localhost/private
+addresses in production.
+
+Guest and authenticated listeners obtain credentials differently, but both enter
+the same canonical LiveKit listener playback path.
+
+## Mandatory health checks
+
+After installing dependencies, configuring environment, and restarting the
+backend:
+
+```bash
+curl -fsS https://your-domain.example/api/health
+curl -fsS https://your-domain.example/api/health/recording
+```
+
+The recording probe must return HTTP 200 and report:
+
+```text
+ffmpeg: available
+ffprobe: available
+automaticServerMp3: true
+trimming: true
+```
+
+Also verify the deployed frontend identity:
+
+```bash
+curl -fsS https://your-domain.example/ | grep 'name="echoo-app"'
+```
+
+A deployment is not recording-ready merely because `/api/health` succeeds.
+
+## Mandatory real acceptance test
+
+Before announcing a production deployment as complete:
+
+1. sign in/register;
+2. creator starts a broadcast;
+3. separate browser/phone listener opens the shared link;
+4. listener hears the real LiveKit program;
+5. allow multiple recording chunks to upload;
+6. end the show;
+7. confirm no HTTP 413 giant final WAV upload;
+8. confirm one server MP3 appears in Recordings;
+9. refresh and play beginning/middle/end;
+10. restart/redeploy backend and confirm the recording survives;
+11. create a trimmed copy and verify both trimmed copy and original play;
+12. verify MP3/WAV/server-only device-copy preference.
+
+See [../HOSTING.md](../HOSTING.md) for the complete acceptance contract.
+
+## Digi02 production updates
+
+For `https://echoo.digi02.org/`, use
+[../HOSTED-SERVER-SYNC.md](../HOSTED-SERVER-SYNC.md).
+
+That runbook includes:
+
+- pulling current `main`;
+- FFmpeg/FFprobe validation;
+- production LiveKit configuration;
+- frontend build;
+- backend restart;
+- recording health probe;
+- end-to-end verification.
+
+## Vercel staging
+
+Vercel is a staging/test deployment for Echoo. See
+[vercel-deployment.md](vercel-deployment.md).
+
+Containerized staging must install FFmpeg in the backend image and use persistent
+object storage for canonical recordings.
 
 ## Desktop releases
 
-Built from `desktop/` (`npm run dist:linux` → AppImage, `npm run dist:win` → NSIS `.exe`, `npm run dist:mac` → DMG). Default builds are hosted thin clients pointed at the live API, so a fresh download is in sync as soon as the hosted site is green (Tasks above). Bundling a local API server is an explicit opt-in (`npm run dist:win:local-backend`); `LIVEKIT_*` can be baked for that path. Published artifacts + update manifests (`latest*.yml`) attach to a GitHub Release (e.g. `v1.0.6`); the in-app updater consumes them. Unsigned builds install with the expected OS warnings — signing needs `CSC_LINK`/`APPLE_*` as documented in `desktop/README.md`.
+Build from `desktop/`:
+
+```bash
+npm run dist:linux
+npm run dist:win
+npm run dist:mac
+```
+
+Default desktop builds are hosted thin clients. Their recording/server behavior
+therefore depends on the hosted backend being fully configured, including
+FFmpeg/FFprobe and durable recording storage.
+
+## Operational rule for AI agents
+
+If an AI agent is asked to host/deploy/update Echoo, it must read:
+
+1. [../AGENTS.md](../AGENTS.md)
+2. [../HOSTING.md](../HOSTING.md)
+3. this file
+4. [../backend/.env.example](../backend/.env.example)
+
+It must not claim success until required health checks pass. Historical files in
+`docs/archive/` are not current deployment authority.
