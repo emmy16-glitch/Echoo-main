@@ -49,11 +49,16 @@ contextBridge.exposeInMainWorld('echooDesktop', {
   },
   quitReady: () => ipcRenderer.send('echoo:quit-ready'),
 
-  // Creator recording library: renderer asks MP3 vs WAV first; main opens
-  // the native dialog in ~/Desktop/Echoo Recordings and writes the bytes.
+  // Creator recording library. Automatic copies go straight into the
+  // organized ~/Desktop/Echoo Recordings/<year>/<month>/ library. Explicit
+  // exports keep the native Save dialog.
   saveRecording: (options) => ipcRenderer.invoke('echoo:save-recording', {
     filename: String(options?.filename || ''),
     format: options?.format === 'wav' ? 'wav' : 'mp3',
     data: options?.data,
+    automatic: options?.automatic === true,
+    startedAt: options?.startedAt || null,
   }),
+  openRecordingsFolder: (targetPath = '') =>
+    ipcRenderer.invoke('echoo:open-recordings-folder', String(targetPath || '')),
 });
