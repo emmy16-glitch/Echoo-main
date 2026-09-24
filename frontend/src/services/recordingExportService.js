@@ -104,14 +104,12 @@ export const waitForServerMp3 = async (audioId, { attempts = 10, delayMs = 3000 
 };
 
 // End Broadcast has no active save-button gesture, so a browser cannot write
-// to an arbitrary folder silently. On PCs we create a normal browser download
-// (therefore using the browser's configured Downloads path); the desktop app
-// uses its native Echoo Recordings bridge.
+// to an arbitrary folder silently. Web builds use the browser's normal
+// download storage; Echoo Desktop can write directly into Echoo Recordings.
 //
-// The normal automatic copy is ALWAYS the canonical server MP3 (fetched by
-// audioId). A local WAV blob is never auto-downloaded just because the
-// temporary recovery master happens to be WAV — that 500MB+ surprise is
-// exactly what the server-finalization architecture removed.
+// The creator chooses the device policy once: recommended server MP3, the
+// temporary lossless WAV master, or server-only. WAV is never chosen merely
+// because it happens to exist; it is an explicit persistent preference.
 export const saveAutomaticLocalCopy = async ({
   blob,
   title,
