@@ -32,7 +32,8 @@ test('creator audio preferences are bounded and use explicit raw or enhanced mod
     protectLoudSounds: false,
     masterVolume: 100,
   });
-  assert.equal(normalizeCreatorAudioPreferences({ audioMode: 'unknown' }).audioMode, 'enhanced');
+  assert.equal(normalizeCreatorAudioPreferences({ audioMode: 'unknown' }).audioMode, 'raw');
+  assert.equal(normalizeCreatorAudioPreferences({ audioMode: 'enhanced' }).audioMode, 'enhanced');
 });
 
 test('creator accounts receive persistent audio defaults in the backend model', async () => {
@@ -46,8 +47,9 @@ test('creator accounts receive persistent audio defaults in the backend model', 
   });
 
   await user.validate();
-  assert.equal(user.preferences.creatorAudio.audioMode, 'enhanced');
-  assert.equal(user.preferences.creatorAudio.echoRemoval, true);
+  assert.equal(user.preferences.creatorAudio.audioMode, 'raw');
+  assert.equal(user.preferences.creatorAudio.echoRemoval, false);
+  assert.equal(user.preferences.creatorAudio.noiseReduction, 0);
   assert.equal(user.preferences.creatorAudio.masterVolume, 100);
   assert.equal(user.preferences.creatorTranscript.language, 'en');
   assert.equal(user.preferences.creatorTranscript.showCaptions, true);

@@ -1,5 +1,5 @@
 import './ListenerHeroArtwork.css';
-import audioArtwork from '../Assets/echoo-role-headphones-microphone.png';
+import audioArtwork from '../Assets/echoo-auth-cinematic-headphones.jpeg';
 
 /** Decorative Echoo artwork that never owns layout or pointer events. */
 export default function ListenerHeroArtwork({ className = '' }) {

@@ -172,6 +172,19 @@ const server = http.createServer(async (req, res) => {
   const path = url.pathname.replace(/^\/api/, '');
   const user = tokenUser(req);
 
+  // The product intentionally loads Socket.IO from the backend at runtime.
+  // This HTTP-only fixture does not host a realtime server, so return valid
+  // JavaScript that leaves window.io unset. The loader then takes its normal
+  // graceful fallback path without WebKit trying to parse JSON as JavaScript.
+  if (path === '/socket.io/socket.io.js') {
+    res.writeHead(200, {
+      'content-type': 'application/javascript; charset=utf-8',
+      'access-control-allow-origin': '*',
+      'cache-control': 'no-store',
+    });
+    return res.end('/* Echoo E2E: realtime client intentionally unavailable. */');
+  }
+
   if (path === '/health') return json(res, 200, { status: 'ok' });
   if (path === '/auth/register' && req.method === 'POST') {
     const payload = await readJson(req);

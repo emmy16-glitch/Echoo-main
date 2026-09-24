@@ -108,8 +108,10 @@ const assembleChunksToMp3 = async ({ chunks, outputPath, bitrate }) => {
 };
 
 const mp3Bitrate = () => {
-  const raw = String(process.env.AUDIO_MP3_BITRATE || '192k').trim() || '192k';
-  return /^\d+k$/i.test(raw) ? raw.toLowerCase() : '192k';
+  // Live replays are a high-fidelity derivative of the 48 kHz PCM master.
+  // Keep this independent from generic/manual-upload archive settings.
+  const raw = String(process.env.AUDIO_REPLAY_MP3_BITRATE || '320k').trim() || '320k';
+  return /^\d+k$/i.test(raw) ? raw.toLowerCase() : '320k';
 };
 
 const estimateDurationSeconds = ({ chunks, pcmBytes }) => {

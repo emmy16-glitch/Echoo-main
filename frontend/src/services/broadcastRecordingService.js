@@ -481,8 +481,11 @@ const stopLosslessRecording = async (recording, { keep = true } = {}) => {
     const file = await recording.fileHandle.getFile();
     const durationSeconds = recording.dataBytes /
       (sampleRate * WAV_CHANNELS * WAV_BYTES_PER_SAMPLE);
-    clearRecoveryMetadata(recording.broadcastId);
 
+    // Keep the pending_upload recovery manifest until server-side MP3
+    // persistence is confirmed. The autosave success path disposes this OPFS
+    // master and clears the manifest; a tab close before then must remain
+    // recoverable.
     return {
       broadcastId: recording.broadcastId,
       blob: file,
@@ -1056,7 +1059,9 @@ export const recoverOrphanedLosslessRecording = async () => {
     }
     const sampleRate = Number(meta.sampleRate) || WAV_TARGET_SAMPLE_RATE;
     try {
-      const writable = await fileHandle.createWritable();
+      // createWritable() truncates by default. Recovery is only patching the
+      // 44-byte WAV header, so preserve the PCM body already stored in OPFS.
+      const writable = await fileHandle.createWritable({ keepExistingData: true });
       await writable.seek(0);
       await writable.write(createWavHeader({
         dataBytes,
@@ -1092,7 +1097,11 @@ export const recoverOrphanedLosslessRecording = async () => {
       qualityCompletionPending: false,
       qualityCompletionError: '',
       recovered: true,
-      dispose: () => safeRemoveOpfsEntry(directory, meta.storageName),
+      recoveredAfterRestart: true,
+      dispose: async () => {
+        await safeRemoveOpfsEntry(directory, meta.storageName);
+        clearRecoveryManifest(meta.storageName);
+      },
     };
     pendingRecording = recording;
     return { recording, broadcast: { title: String(meta.title || 'Echoo live recording') } };

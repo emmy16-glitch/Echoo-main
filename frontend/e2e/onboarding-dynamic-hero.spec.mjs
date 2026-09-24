@@ -177,14 +177,18 @@ test('listener can create a Channel and enter Creator Studio with the same accou
   await page.getByLabel('Channel name').fill('Journey Channel');
   await page.getByLabel('Category').selectOption('Technology');
   await page.getByLabel('Description').fill('A real Channel created by the full Echoo browser journey.');
-  await page.getByRole('button', { name: 'Set up Channel' }).click();
+  await page.getByRole('button', { name: 'Create Channel' }).click();
 
+  // Creator setup intentionally performs a full navigation so the completed
+  // account state is re-hydrated from the canonical route. Wait for that
+  // navigation before reading localStorage; evaluating during location.assign
+  // races the page execution context in Chromium.
+  await expect(page).toHaveURL(/\/creator-studio$/);
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('user') || '{}'))).toMatchObject({
     userType: 'creator',
     onboardingCompleted: true,
     creatorProfile: { creatorType: 'individual' },
   });
-  await expect(page).toHaveURL(/\/creator-studio$/);
   await expect(page.getByRole('button', { name: 'Broadcast', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Channel', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Recordings', exact: true })).toBeVisible();

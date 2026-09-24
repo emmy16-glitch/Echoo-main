@@ -219,18 +219,21 @@ const userSchema = new mongoose.Schema(
         },
       },
       creatorAudio: {
+        // Preserve the input signal unless the creator explicitly chooses
+        // Enhanced Audio. This keeps broadcasts/recordings faithful to the
+        // microphone or interface instead of silently colouring the sound.
         audioMode: {
           type: String,
           enum: ['raw', 'enhanced'],
-          default: 'enhanced',
+          default: 'raw',
         },
-        noiseReduction: { type: Number, min: 0, max: 100, default: 45 },
-        echoRemoval: { type: Boolean, default: true },
-        voiceWarmth: { type: Number, min: 0, max: 100, default: 35 },
-        voiceClarity: { type: Number, min: 0, max: 100, default: 45 },
-        deEsser: { type: Number, min: 0, max: 100, default: 30 },
-        volumeBalance: { type: Number, min: 0, max: 100, default: 45 },
-        protectLoudSounds: { type: Boolean, default: true },
+        noiseReduction: { type: Number, min: 0, max: 100, default: 0 },
+        echoRemoval: { type: Boolean, default: false },
+        voiceWarmth: { type: Number, min: 0, max: 100, default: 0 },
+        voiceClarity: { type: Number, min: 0, max: 100, default: 0 },
+        deEsser: { type: Number, min: 0, max: 100, default: 0 },
+        volumeBalance: { type: Number, min: 0, max: 100, default: 0 },
+        protectLoudSounds: { type: Boolean, default: false },
         masterVolume: { type: Number, min: 0, max: 100, default: 100 },
       },
       creatorTranscript: {

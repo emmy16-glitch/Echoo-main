@@ -96,6 +96,7 @@ test('login accepts both @username and email and exposes working recovery', asyn
   await page.getByRole('button', { name: 'Login', exact: true }).click();
 
   await expect(page).toHaveURL(/\/listen$/);
+  await expect(page.getByRole('heading', { name: 'Discover' })).toBeVisible();
   expect(loginPayloads[0]).toEqual({ username: 'echo-listener', password: 'Password123!' });
   await expect.poll(() => page.evaluate(() => localStorage.getItem('accessToken'))).toBe('listener-token');
 
@@ -109,6 +110,7 @@ test('login accepts both @username and email and exposes working recovery', asyn
   await page.getByLabel('Password', { exact: true }).fill('Password123!');
   await page.getByRole('button', { name: 'Login', exact: true }).click();
   await expect(page).toHaveURL(/\/listen$/);
+  await expect(page.getByRole('heading', { name: 'Discover' })).toBeVisible();
   expect(loginPayloads[1]).toEqual({ username: 'listener@example.test', password: 'Password123!' });
 
   await page.evaluate(() => {

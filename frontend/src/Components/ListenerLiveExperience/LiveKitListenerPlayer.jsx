@@ -402,10 +402,22 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
         try { await previousRoom.disconnect(); } catch { /* ignore */ }
       }
 
-      const credentials = guest
-        ? await batch3Service.getGuestListenerToken(broadcastId)
-        : await batch3Service.getListenerLiveKitToken(broadcastId);
+      // Guest/account is an authorization concern only. From this call
+      // forward every listener uses the exact same room, subscription,
+      // attachment, autoplay and recovery path.
+      const credentials = await batch3Service.getListenerCredentials(broadcastId, { guest });
       const liveKitUrl = resolveLiveKitUrl(credentials?.livekitUrl);
+      try {
+        const host = liveKitUrl ? new URL(liveKitUrl).hostname : '';
+        console.info('[Echoo Listener] credentials resolved', {
+          broadcastId,
+          authMode: credentials?.guest ? 'guest' : 'account',
+          livekitHost: host,
+          roomName: credentials?.roomName || '',
+        });
+      } catch {
+        // Diagnostics are best-effort and must never block playback.
+      }
       if (!credentials?.token || !liveKitUrl) {
         throw new Error('Echoo did not return listener audio credentials.');
       }

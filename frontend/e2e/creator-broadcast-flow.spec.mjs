@@ -73,10 +73,25 @@ const installBaseRoutes = async (page, broadcasts) => {
     peakListeners: 0,
     creatorConnected: true,
   }));
-  await page.route('**/api/audio/upload', (route) => fulfill(route, {
-    id: RECORDING_ID,
-    _id: RECORDING_ID,
-    title: liveBroadcast.title,
+  // Live recordings finalize from bounded chunks already received by the
+  // backend. The browser must never upload the final WAV through /audio/upload.
+  await page.route('**/api/broadcasts/*/recording-chunks/complete', (route) => fulfill(route, {
+    replay: {
+      status: 'ready',
+      audioId: RECORDING_ID,
+      format: 'mp3',
+      mimeType: 'audio/mpeg',
+    },
+  }));
+  await page.route(`**/api/audio/${RECORDING_ID}/download`, (route) => route.fulfill({
+    status: 200,
+    contentType: 'audio/mpeg',
+    body: 'ID3echoo-test-mp3',
+  }));
+  await page.route('**/api/audio/upload', (route) => route.fulfill({
+    status: 500,
+    contentType: 'application/json',
+    body: JSON.stringify({ error: { code: 'GIANT_WAV_UPLOAD_REGRESSION', message: 'Live replay must not use /audio/upload.' } }),
   }));
   await page.route('**/api/**', (route) => route.fallback());
 };
@@ -192,7 +207,7 @@ test('a creator without a Channel receives a clear setup path without horizontal
 
   await expect(page.getByRole('heading', { name: 'Create your Channel' })).toBeVisible();
   await expect(page.getByText('Your Channel is your public home on Echoo.', { exact: false })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Set up Channel' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Create Channel' })).toBeVisible();
   await expect(page.getByText('One Channel, one public home', { exact: true })).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
 
@@ -202,7 +217,7 @@ test('a creator without a Channel receives a clear setup path without horizontal
     expect(card?.height).toBeLessThanOrEqual(390);
   }
 
-  await page.getByRole('button', { name: 'Set up Channel' }).click();
+  await page.getByRole('button', { name: 'Create Channel' }).click();
   await expect(page).toHaveURL(/\/creator-studio\/channels$/);
   await expect(page.getByRole('heading', { name: 'Channel', exact: true })).toBeVisible();
 });

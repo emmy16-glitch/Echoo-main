@@ -250,7 +250,7 @@ test('one Listener account can create its Channel, enter Creator Studio, switch 
   await page.getByLabel('Description').fill('Live technology conversations for the Echoo community.');
   await expect(page.getByLabel('Channel name')).toHaveValue('New Listener Live');
   await expect(page.getByLabel('Category')).toHaveValue('Technology');
-  await page.getByRole('button', { name: 'Set up Channel' }).click();
+  await page.getByRole('button', { name: 'Create Channel' }).click();
 
   await expect(page).toHaveURL(/\/creator-studio$/, { timeout: 15_000 });
   await noHorizontalOverflow(page);
