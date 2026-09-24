@@ -44,6 +44,59 @@ const safeTitle = (value, fallback = 'Live broadcast recording') => String(value
   .replace(/^-+|-+$/g, '')
   .slice(0, 80) || fallback;
 
+const cleanHumanSegment = (value = '', fallback = '') =>
+  String(value || fallback)
+    .trim()
+    .replace(/[\\/:*?"<>|]+/g, '-')
+    .replace(/\s+/g, ' ')
+    .slice(0, 64)
+    .trim();
+
+const recordingDateStamp = (value = Date.now()) => {
+  const date = new Date(value || Date.now());
+  const safe = Number.isNaN(date.getTime()) ? new Date() : date;
+  const pad = (part) => String(part).padStart(2, '0');
+  return `${safe.getFullYear()}-${pad(safe.getMonth() + 1)}-${pad(safe.getDate())} ${pad(safe.getHours())}-${pad(safe.getMinutes())}`;
+};
+
+const buildHumanRecordingName = ({ title, channelName, startedAt } = {}) => {
+  const parts = ['Echoo'];
+  const channel = cleanHumanSegment(channelName);
+  const recordingTitle = cleanHumanSegment(title, 'Live broadcast');
+  if (channel && channel.toLowerCase() !== recordingTitle.toLowerCase()) parts.push(channel);
+  parts.push(recordingTitle, recordingDateStamp(startedAt));
+  return `${parts.join(' - ')}.mp3`;
+};
+
+const applyEchooMp3Metadata = async ({ filePath, title, artist, startedAt } = {}) => {
+  const taggedPath = `${filePath}.tagged.mp3`;
+  try {
+    const year = String(new Date(startedAt || Date.now()).getFullYear());
+    const result = spawnSync(
+      ffmpegPath(),
+      [
+        '-hide_banner', '-loglevel', 'error', '-y',
+        '-i', filePath,
+        '-map', '0:a:0',
+        '-c', 'copy',
+        '-metadata', `title=${cleanHumanSegment(title, 'Live broadcast')}`,
+        '-metadata', `artist=${cleanHumanSegment(artist, 'Echoo Creator')}`,
+        '-metadata', 'album=Echoo Recordings',
+        '-metadata', `date=${year}`,
+        '-metadata', 'comment=Recorded with Echoo',
+        taggedPath,
+      ],
+      { encoding: 'utf8', timeout: 60_000 }
+    );
+    if (result.status !== 0) return false;
+    await fs.rename(taggedPath, filePath);
+    return true;
+  } catch {
+    await fs.rm(taggedPath, { force: true }).catch(() => null);
+    return false;
+  }
+};
+
 const fileExists = async (filePath) => {
   try {
     await fs.access(filePath, fsConstants.F_OK);
@@ -156,14 +209,17 @@ async function finalizeInner({ broadcastId, creatorId, expectedChunkCount, uploa
   }
 
   const broadcast = await Broadcast.findOne({ _id: broadcastId, isDeleted: false })
-    .select('_id creator title description status replayAudioId replayStatus');
+    .select('_id creator station title description status replayAudioId replayStatus startedAt startTime')
+    .populate('creator', 'displayName username creatorProfile.artistName creatorProfile.organizationName')
+    .populate('station', 'name');
   if (!broadcast) {
     const error = new Error('Broadcast not found.');
     error.status = 404;
     error.code = 'BROADCAST_NOT_FOUND';
     throw error;
   }
-  if (creatorId && String(broadcast.creator) !== String(creatorId)) {
+  const broadcastCreatorId = String(broadcast.creator?._id || broadcast.creator || '');
+  if (creatorId && broadcastCreatorId !== String(creatorId)) {
     const error = new Error('Only the broadcast creator can finalize its recording.');
     error.status = 403;
     error.code = 'REPLAY_FORBIDDEN';
@@ -287,20 +343,39 @@ async function finalizeInner({ broadcastId, creatorId, expectedChunkCount, uploa
     error.code = 'REPLAY_VERIFY_FAILED';
     throw error;
   }
+  const creatorName =
+    broadcast.creator?.creatorProfile?.artistName ||
+    broadcast.creator?.creatorProfile?.organizationName ||
+    broadcast.creator?.displayName ||
+    broadcast.creator?.username ||
+    'Echoo Creator';
+  const channelName = broadcast.station?.name || '';
+  await applyEchooMp3Metadata({
+    filePath: finalPath,
+    title: broadcast.title,
+    artist: channelName || creatorName,
+    startedAt: broadcast.startedAt || broadcast.startTime || Date.now(),
+  }).catch(() => false);
+
   const stat = await fs.stat(finalPath);
   const duration = probeMp3DurationSeconds(finalPath) || estimateDurationSeconds({ chunks, pcmBytes: replayBytes });
 
   const title = safeTitle(broadcast.title);
+  const humanFilename = buildHumanRecordingName({
+    title: broadcast.title,
+    channelName,
+    startedAt: broadcast.startedAt || broadcast.startTime || Date.now(),
+  });
   let audio = null;
   try {
     audio = await Audio.create({
       title,
       description: String(broadcast.description || '').slice(0, 2000),
-      artist: broadcast.creator,
+      artist: broadcastCreatorId,
       sourceBroadcast: broadcast._id,
       filename,
       fileUrl: `/uploads/audio/${filename}`,
-      originalName: `${title}.mp3`,
+      originalName: humanFilename,
       fileSize: stat.size,
       fileKey,
       mimeType: 'audio/mpeg',
