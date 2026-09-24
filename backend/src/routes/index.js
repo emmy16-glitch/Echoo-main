@@ -32,6 +32,7 @@ import livekitWebhookRoutes from './livekitWebhookRoutes.js';
 import feedbackRoutes from './feedbackRoutes.js';
 import { uploadLimiter } from '../middleware/rateLimiter.js';
 import { getTranscriptionGatewayDiagnostics } from '../services/transcriptionGateway.js';
+import { checkFfmpegCapability } from '../services/audioTrimService.js';
 
 const router = express.Router();
 
@@ -81,6 +82,20 @@ router.get('/health/livekit', async (req, res) => {
       timestamp: new Date().toISOString(),
     });
   }
+});
+
+router.get('/health/recording', async (req, res) => {
+  const capability = await checkFfmpegCapability();
+  return res.status(capability.ok ? 200 : 503).json({
+    status: capability.ok ? 'ok' : 'error',
+    service: 'recording-pipeline',
+    ffmpeg: capability.ok ? 'available' : 'missing',
+    ffprobe: capability.ok ? 'available' : 'missing',
+    automaticServerMp3: capability.ok,
+    trimming: capability.ok,
+    message: capability.message || undefined,
+    timestamp: new Date().toISOString(),
+  });
 });
 
 router.get('/health/transcription', (req, res) => {
