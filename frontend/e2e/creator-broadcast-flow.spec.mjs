@@ -173,7 +173,7 @@ test('Creator broadcast moves through OFF AIR, LIVE, confirmation, ending, saved
   await expect(page.getByText('READY TO BROADCAST', { exact: true })).toBeVisible();
 
   await announceRecording(page);
-  const savedBanner = page.getByRole('status').filter({ hasText: 'Recording saved' });
+  const savedBanner = page.locator('.echoo-save-banner.is-done').filter({ hasText: 'Recording saved' });
   await expect(savedBanner).toBeVisible({ timeout: 12_000 });
   await expect(savedBanner.getByRole('button', { name: 'Dismiss' })).toBeVisible();
   await expect(savedBanner.getByRole('button', { name: 'Play recording', exact: true })).toBeVisible();
@@ -183,7 +183,7 @@ test('Creator broadcast moves through OFF AIR, LIVE, confirmation, ending, saved
   await expect(page.getByText('READY TO BROADCAST', { exact: true })).toBeVisible();
 
   await announceRecording(page, '507f1f77bcf86cd799439105');
-  const secondSavedBanner = page.getByRole('status').filter({ hasText: 'Recording saved' });
+  const secondSavedBanner = page.locator('.echoo-save-banner.is-done').filter({ hasText: 'Recording saved' });
   await expect(secondSavedBanner).toBeVisible({ timeout: 12_000 });
   await secondSavedBanner.getByRole('button', { name: 'Play recording', exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/creator-studio/recordings/${RECORDING_ID}$`));
