@@ -7,8 +7,10 @@ import {
   peekLocalMaster,
   forgetLocalMaster,
   retryAutosave,
+  completeDeviceCopyChoice,
   uploadRecoveredTake,
 } from '../services/recordingAutosave.js';
+import { openDesktopRecordingsFolder } from '../services/desktopBridge.js';
 import './RecordingSaveBanner.css';
 
 const formatBytes = (bytes) => {
@@ -37,7 +39,7 @@ const RecordingSaveBanner = () => {
   }, []);
 
   const flashDone = useCallback((detail) => {
-    setState({ kind: 'done', title: detail.title, audioId: detail.audioId, localCopy: detail.localCopy || null });
+    setState({ kind: 'done', key: detail.key, title: detail.title, audioId: detail.audioId, localCopy: detail.localCopy || null });
     window.clearTimeout(hideTimerRef.current);
     hideTimerRef.current = window.setTimeout(hide, 12000);
   }, [hide]);
@@ -60,6 +62,16 @@ const RecordingSaveBanner = () => {
           setState((current) => current?.key === detail.key
             ? { ...current, kind: 'uploading', percent: detail.percent || 0, loaded: detail.loaded || 0, total: detail.total || current.total }
             : current);
+          break;
+        case 'device-choice':
+          window.clearTimeout(hideTimerRef.current);
+          setState({
+            kind: 'device-choice',
+            key: detail.key,
+            title: detail.title,
+            audioId: detail.audioId,
+            channelName: detail.channelName || '',
+          });
           break;
         case 'done':
           flashDone(detail);
@@ -128,6 +140,23 @@ const RecordingSaveBanner = () => {
     }
   };
 
+  const chooseDeviceCopy = async (format) => {
+    if (!state?.key || state.choosing) return;
+    setState((current) => (current ? { ...current, choosing: format } : current));
+    try {
+      await completeDeviceCopyChoice(state.key, format);
+    } catch (choiceError) {
+      setState((current) => (current
+        ? { ...current, choosing: '', choiceError: choiceError?.message || 'Could not save the device copy.' }
+        : current));
+    }
+  };
+
+  const openLocalFolder = async () => {
+    if (!state?.localCopy?.path) return;
+    await openDesktopRecordingsFolder(state.localCopy.path).catch(() => {});
+  };
+
   const uploadRecovered = async () => {
     const master = peekLocalMaster('recovered');
     if (!master?.recording?.blob?.size && !master?.blob?.size) {
@@ -165,18 +194,43 @@ const RecordingSaveBanner = () => {
           </div>
         </>
       )}
+      {state.kind === 'device-choice' && (
+        <>
+          <FaCheckCircle aria-hidden="true" />
+          <div className="echoo-save-banner-body">
+            <strong>Saved safely to Echoo as MP3</strong>
+            <span>
+              Choose once how this device should automatically keep future broadcast copies.
+              You can change this later in Settings → Recordings.
+            </span>
+            {state.choiceError && <span className="echoo-save-banner-choice-error">{state.choiceError}</span>}
+          </div>
+          <div className="echoo-save-banner-choices" aria-label="Automatic device recording format">
+            <button type="button" onClick={() => chooseDeviceCopy('mp3')} disabled={Boolean(state.choosing)}>
+              {state.choosing === 'mp3' ? 'Saving…' : 'MP3 · Recommended'}
+            </button>
+            <button type="button" onClick={() => chooseDeviceCopy('wav')} disabled={Boolean(state.choosing)}>
+              {state.choosing === 'wav' ? 'Saving…' : 'WAV · Lossless'}
+            </button>
+            <button type="button" onClick={() => chooseDeviceCopy('none')} disabled={Boolean(state.choosing)}>
+              Server only
+            </button>
+          </div>
+        </>
+      )}
       {state.kind === 'done' && (
         <>
           <FaCheckCircle aria-hidden="true" />
           <div className="echoo-save-banner-body">
-            <strong>Saved to Recordings as MP3</strong>
+            <strong>Recording saved</strong>
             <span>
               {state.localCopy?.saved
-                ? `${state.title} · ${String(state.localCopy.format || '').toUpperCase()} safety copy downloaded to this PC`
-                : state.title}
+                ? `Server MP3 · ${String(state.localCopy.format || '').toUpperCase()} device copy · ${state.localCopy.filename || state.title}`
+                : `Server MP3 · ${state.title}`}
             </span>
           </div>
-          {state.audioId && <button type="button" className="eb-press" onClick={openRecording}>View</button>}
+          {state.audioId && <button type="button" className="eb-press" onClick={openRecording}>Play recording</button>}
+          {state.localCopy?.path && <button type="button" className="eb-press" onClick={openLocalFolder}>Open folder</button>}
           <button type="button" className="eb-press" aria-label="Dismiss" onClick={hide}><FaTimes /></button>
         </>
       )}

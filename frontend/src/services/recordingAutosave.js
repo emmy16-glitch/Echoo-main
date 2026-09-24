@@ -6,6 +6,10 @@ import {
   retryBroadcastQualityCompletion,
 } from './broadcastRecordingService.js';
 import { saveAutomaticLocalCopy } from './recordingExportService.js';
+import {
+  chooseRecordingDeviceFormat,
+  getRecordingDevicePreferences,
+} from './recordingDevicePreferences.js';
 
 // ---------------------------------------------------------------------------
 // Background recording autosave: after End Broadcast the full master uploads
@@ -115,22 +119,70 @@ const startAutosaveLive = async ({ recording, broadcast, key }) => {
 
       if (replay.status === 'ready' && replay.audioId) {
         const audioId = String(replay.audioId);
-        // Normal automatic PC copy is the server MP3 — never the giant local
-        // WAV just because the temporary recovery master is WAV.
-        let localCopy = null;
-        if (!automaticLocalCopies.has(key)) {
-          localCopy = await saveAutomaticLocalCopy({ title, audioId })
-            .catch((error) => ({ saved: false, error: error?.message || String(error) }));
-          if (localCopy?.saved) automaticLocalCopies.add(key);
+        const channelName =
+          broadcast?.station?.name ||
+          broadcast?.channel?.name ||
+          broadcast?.stationName ||
+          broadcast?.channelName ||
+          '';
+        const startedAt = recording.startedAt || broadcast?.startedAt || broadcast?.startTime || null;
+        const preferences = getRecordingDevicePreferences();
+
+        // The server MP3 is already durable. On the first completed recording
+        // for this device, ask once how future local copies should be kept.
+        // Hold the local WAV master until that choice is made so WAV remains a
+        // truthful lossless option rather than a renamed/transcoded fake.
+        if (!preferences.decided) {
+          rememberLocalMaster(`device-choice:${key}`, {
+            blob: recording.blob,
+            title,
+            mimeType: recording.mimeType || recording.blob?.type,
+            broadcast,
+            recording,
+            audioId,
+            channelName,
+            startedAt,
+          });
+          window.dispatchEvent(new CustomEvent('echoo:creator-audio-changed'));
+          window.dispatchEvent(new CustomEvent('echoo:creator-state-changed'));
+          emit({
+            status: 'device-choice',
+            key,
+            title,
+            audioId,
+            channelName,
+            startedAt,
+            serverFormat: 'mp3',
+          });
+          notifySaved(`“${title}” saved safely to Echoo as MP3. Choose how this device should keep future copies.`);
+          return { audioId, title, duplicate: Boolean(replay.duplicate), needsDeviceChoice: true };
         }
-        // Canonical persistence confirmed: drop the temporary OPFS WAV master.
+
+        let localCopy = null;
+        if (preferences.autoSave && !automaticLocalCopies.has(key)) {
+          localCopy = await saveAutomaticLocalCopy({
+            blob: recording.blob,
+            title,
+            audioId,
+            format: preferences.format,
+            channelName,
+            startedAt,
+          }).catch((error) => ({ saved: false, error: error?.message || String(error), format: preferences.format }));
+          if (localCopy?.saved) automaticLocalCopies.add(key);
+        } else if (!preferences.autoSave) {
+          localCopy = { saved: false, skipped: 'device-copy-disabled' };
+        }
+
+        // Server persistence is confirmed. Once the remembered device policy
+        // has been applied (or the creator chose server-only), the temporary
+        // OPFS WAV is no longer needed for this completed take.
         try { await recording.dispose?.(); } catch { /* already disposed */ }
         clearPendingBroadcastRecording(recording.broadcastId);
         forgetLocalMaster(`pending:${key}`);
         window.dispatchEvent(new CustomEvent('echoo:creator-audio-changed'));
         window.dispatchEvent(new CustomEvent('echoo:creator-state-changed'));
         emit({ status: 'done', key, title, audioId, localCopy, format: 'mp3' });
-        notifySaved(localCopy?.saved ? `“${title}” saved to Recordings and your device.` : `“${title}” saved to Recordings.`);
+        notifySaved(localCopy?.saved ? `“${title}” saved to Echoo and this device.` : `“${title}” saved to Echoo Recordings.`);
         return { audioId, title, duplicate: Boolean(replay.duplicate) };
       }
 
@@ -170,6 +222,47 @@ const startAutosaveLive = async ({ recording, broadcast, key }) => {
   activeUploads.set(key, task);
   task.catch(() => {});
   return task;
+};
+
+export const completeDeviceCopyChoice = async (key, format = 'mp3') => {
+  const pending = peekLocalMaster(`device-choice:${key}`);
+  if (!pending?.recording || !pending?.audioId) return null;
+
+  const preferences = chooseRecordingDeviceFormat(format);
+  let localCopy = { saved: false, skipped: 'device-copy-disabled' };
+
+  if (preferences.autoSave) {
+    localCopy = await saveAutomaticLocalCopy({
+      blob: pending.blob,
+      title: pending.title,
+      audioId: pending.audioId,
+      format: preferences.format,
+      channelName: pending.channelName,
+      startedAt: pending.startedAt,
+    }).catch((error) => ({
+      saved: false,
+      error: error?.message || String(error),
+      format: preferences.format,
+    }));
+    if (localCopy?.saved) automaticLocalCopies.add(String(key));
+  }
+
+  try { await pending.recording.dispose?.(); } catch { /* already disposed */ }
+  clearPendingBroadcastRecording(pending.recording.broadcastId);
+  forgetLocalMaster(`device-choice:${key}`);
+  forgetLocalMaster(`pending:${key}`);
+  emit({
+    status: 'done',
+    key,
+    title: pending.title,
+    audioId: pending.audioId,
+    localCopy,
+    format: 'mp3',
+  });
+  notifySaved(localCopy?.saved
+    ? `“${pending.title}” saved to Echoo and this device.`
+    : `“${pending.title}” saved to Echoo Recordings.`);
+  return { audioId: pending.audioId, localCopy, preferences };
 };
 
 export const retryAutosave = async (key) => {
@@ -224,6 +317,7 @@ export default {
   installRecordingAutosave,
   startAutosave,
   retryAutosave,
+  completeDeviceCopyChoice,
   uploadRecoveredTake,
   rememberLocalMaster,
   peekLocalMaster,

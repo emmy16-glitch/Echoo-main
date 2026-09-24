@@ -123,13 +123,18 @@ test('recording completion retries and automatic save preserves recovery state',
   // upload): End Broadcast finalizes, banner shows finalizing/retry/recovery.
   assert.match(autosave, /retryBroadcastQualityCompletion/);
   assert.match(autosave, /finalizeServerReplay/);
-  assert.match(autosave, /saveAutomaticLocalCopy\(\{\s*title,\s*audioId\s*\}\)/);
+  assert.match(autosave, /getRecordingDevicePreferences/);
+  assert.match(autosave, /saveAutomaticLocalCopy\(\{/);
+  assert.match(autosave, /format:\s*preferences\.format/);
+  assert.match(autosave, /completeDeviceCopyChoice/);
   assert.doesNotMatch(autosave, /uploadAudioWithProgress/);
   assert.doesNotMatch(autosave, /new File\(\[recording\.blob/);
   assert.match(autosave, /rememberLocalMaster/);
   assert.match(banner, /beforeunload/);
   assert.match(banner, /Retry/);
   assert.match(banner, /Finalizing/);
+  assert.match(banner, /MP3 · Recommended/);
+  assert.match(banner, /WAV · Lossless/);
   assert.match(banner, /keep this tab open/);
   assert.match(banner, /Upload/);
   assert.match(banner, /Discard/);

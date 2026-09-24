@@ -80,14 +80,14 @@ const buildAudioSnapshot = (state, qualityProfile) => {
 
   return {
     audioConfiguration: {
-      audioMode: settings.audioMode === 'raw' ? 'raw' : 'enhanced',
-      noiseReduction: percentToRatio(settings.noiseReduction, 0.45),
-      echoRemoval: settings.echoRemoval !== false,
-      voiceWarmth: percentToRatio(settings.voiceWarmth, 0.35),
-      voiceClarity: percentToRatio(settings.voiceClarity, 0.45),
-      deEsser: percentToRatio(settings.deEsser, 0.3),
-      volumeBalance: percentToRatio(settings.volumeBalance, 0.45),
-      protectLoudSounds: settings.protectLoudSounds !== false,
+      audioMode: settings.audioMode === 'enhanced' ? 'enhanced' : 'raw',
+      noiseReduction: percentToRatio(settings.noiseReduction, 0),
+      echoRemoval: settings.echoRemoval === true,
+      voiceWarmth: percentToRatio(settings.voiceWarmth, 0),
+      voiceClarity: percentToRatio(settings.voiceClarity, 0),
+      deEsser: percentToRatio(settings.deEsser, 0),
+      volumeBalance: percentToRatio(settings.volumeBalance, 0),
+      protectLoudSounds: settings.protectLoudSounds === true,
       masterVolume: Math.max(0, Math.min(1.5, Number(state?.master?.gain) || 0)),
     },
     audioSources: sourceDefinitions.map(([key, type, fallbackLabel]) => {

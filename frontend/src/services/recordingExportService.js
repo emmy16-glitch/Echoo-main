@@ -18,6 +18,37 @@ export const cleanRecordingBase = (title = 'Echoo live recording') =>
     .replace(/^-+|-+$/g, '')
     .slice(0, 80) || 'Echoo-live-recording';
 
+const cleanHumanSegment = (value = '') =>
+  String(value || '')
+    .trim()
+    .replace(/[\\/:*?"<>|]+/g, '-')
+    .replace(/\s+/g, ' ')
+    .replace(/\s*-\s*/g, ' - ')
+    .slice(0, 64)
+    .trim();
+
+export const formatRecordingDateStamp = (value = Date.now()) => {
+  const date = new Date(value || Date.now());
+  const safe = Number.isNaN(date.getTime()) ? new Date() : date;
+  const pad = (part) => String(part).padStart(2, '0');
+  return `${safe.getFullYear()}-${pad(safe.getMonth() + 1)}-${pad(safe.getDate())} ${pad(safe.getHours())}-${pad(safe.getMinutes())}`;
+};
+
+export const buildRecordingFilename = ({
+  title = 'Live broadcast',
+  channelName = '',
+  startedAt = null,
+  format = 'mp3',
+} = {}) => {
+  const extension = format === 'wav' ? 'wav' : format === 'opus' ? 'opus' : 'mp3';
+  const channel = cleanHumanSegment(channelName);
+  const recordingTitle = cleanHumanSegment(title) || 'Live broadcast';
+  const parts = ['Echoo'];
+  if (channel && channel.toLowerCase() !== recordingTitle.toLowerCase()) parts.push(channel);
+  parts.push(recordingTitle, formatRecordingDateStamp(startedAt || Date.now()));
+  return `${parts.join(' - ')}.${extension}`;
+};
+
 const isDesktopBridge = () =>
   typeof window !== 'undefined' && window.echooDesktop?.isDesktop === true;
 
@@ -73,63 +104,81 @@ export const waitForServerMp3 = async (audioId, { attempts = 10, delayMs = 3000 
 };
 
 // End Broadcast has no active save-button gesture, so a browser cannot write
-// to an arbitrary folder silently. On PCs we create a normal browser download
-// (therefore using the browser's configured Downloads path); the desktop app
-// uses its native Echoo Recordings bridge.
+// to an arbitrary folder silently. Web builds use the browser's normal
+// download storage; Echoo Desktop can write directly into Echoo Recordings.
 //
-// The normal automatic copy is ALWAYS the canonical server MP3 (fetched by
-// audioId). A local WAV blob is never auto-downloaded just because the
-// temporary recovery master happens to be WAV — that 500MB+ surprise is
-// exactly what the server-finalization architecture removed.
-export const saveAutomaticLocalCopy = async ({ blob, title, audioId } = {}) => {
-  if (!isLikelyPc()) return { saved: false, skipped: 'not-pc' };
+// The creator chooses the device policy once: recommended server MP3, the
+// temporary lossless WAV master, or server-only. WAV is never chosen merely
+// because it happens to exist; it is an explicit persistent preference.
+export const saveAutomaticLocalCopy = async ({
+  blob,
+  title,
+  audioId,
+  format = 'mp3',
+  channelName = '',
+  startedAt = null,
+} = {}) => {
+  if (format === 'none') return { saved: false, skipped: 'device-copy-disabled' };
 
-  if (audioId) {
-    const bytes = await waitForServerMp3(audioId, { attempts: 4, delayMs: 1500 });
-    if (!bytes?.size) return { saved: false, skipped: 'waiting-for-server-mp3' };
-    const filename = `${cleanRecordingBase(title)}.mp3`;
-    if (isDesktopBridge() && typeof window.echooDesktop.saveRecording === 'function') {
-      const result = await window.echooDesktop.saveRecording({
-        filename,
-        format: 'mp3',
-        mimeType: 'audio/mpeg',
-        data: new Uint8Array(await bytes.arrayBuffer()),
-        automatic: true,
-      });
-      if (result?.cancelled) return { saved: false, cancelled: true, format: 'mp3' };
-      if (!result?.saved) throw new Error(result?.error || 'Desktop safety-copy save failed.');
-      return { saved: true, filename, format: 'mp3', path: result.path || '' };
+  const choice = format === 'wav' ? 'wav' : 'mp3';
+  let bytes = null;
+  let mimeType = 'audio/mpeg';
+
+  if (choice === 'wav') {
+    const sourceMime = String(blob?.type || '').toLowerCase();
+    if (!blob?.size || !sourceMime.includes('wav')) {
+      return { saved: false, skipped: 'wav-master-unavailable', format: 'wav' };
     }
-    await downloadViaAnchor(bytes, filename);
-    return { saved: true, filename, format: 'mp3', destination: 'browser-downloads' };
+    bytes = blob;
+    mimeType = 'audio/wav';
+  } else {
+    if (!audioId) return { saved: false, skipped: 'server-mp3-unavailable', format: 'mp3' };
+    bytes = await waitForServerMp3(audioId, { attempts: 4, delayMs: 1500 });
+    if (!bytes?.size) return { saved: false, skipped: 'waiting-for-server-mp3', format: 'mp3' };
   }
 
-  // No server asset (recovered orphan take with no broadcast link): fall back
-  // to whatever local bytes exist so the take is never silently dropped.
-  const bytes = blob?.size ? blob : null;
-  if (!bytes) return { saved: false, skipped: 'no-source-bytes' };
-  const sourceMime = String(bytes.type || '').toLowerCase();
-  const format = sourceMime.includes('wav') ? 'wav' : 'mp3';
-  const mimeType = format === 'wav' ? 'audio/wav' : 'audio/mpeg';
-  const filename = `${cleanRecordingBase(title)}.${format}`;
+  const filename = buildRecordingFilename({
+    title,
+    channelName,
+    startedAt,
+    format: choice,
+  });
+
   if (isDesktopBridge() && typeof window.echooDesktop.saveRecording === 'function') {
     const result = await window.echooDesktop.saveRecording({
       filename,
-      format,
+      format: choice,
       mimeType,
       data: new Uint8Array(await bytes.arrayBuffer()),
       automatic: true,
+      startedAt: startedAt || null,
     });
-    if (result?.cancelled) return { saved: false, cancelled: true, format };
-    if (!result?.saved) throw new Error(result?.error || 'Desktop safety-copy save failed.');
-    return { saved: true, filename, format, path: result.path || '' };
+    if (result?.cancelled) return { saved: false, cancelled: true, format: choice };
+    if (!result?.saved) throw new Error(result?.error || 'Desktop recording save failed.');
+    return {
+      saved: true,
+      filename,
+      format: choice,
+      path: result.path || '',
+      destination: ECHOO_RECORDINGS_LIBRARY,
+    };
   }
 
+  // Browsers cannot create an arbitrary "Echoo Recordings" folder silently.
+  // Use the browser's download storage on both computers and phones. The
+  // human-readable Echoo filename keeps every take recognizable without
+  // renaming; native Echoo apps use the real Echoo Recordings folder above.
   await downloadViaAnchor(bytes, filename);
-  return { saved: true, filename, format, destination: 'browser-downloads' };
+  return {
+    saved: true,
+    filename,
+    format: choice,
+    destination: 'browser-downloads',
+    deviceKind: isLikelyPc() ? 'computer' : 'mobile',
+  };
 };
 
-export const saveRecordingToPc = async ({ blob, title, format, audioId }) => {
+export const saveRecordingToPc = async ({ blob, title, format, audioId, channelName = '', startedAt = null }) => {
   if (!blob?.size && !audioId) throw new Error('Nothing to save yet.');
   const choice = format === 'wav' ? 'wav' : format === 'opus' ? 'opus' : 'mp3';
   const base = cleanRecordingBase(title);
@@ -174,7 +223,12 @@ export const saveRecordingToPc = async ({ blob, title, format, audioId }) => {
   }
 
   if (!bytes?.size) throw new Error('Recording bytes are not available.');
-  const filename = `${base}.${extension}`;
+  const filename = buildRecordingFilename({
+    title: title || base,
+    channelName,
+    startedAt,
+    format: extension === 'wav' ? 'wav' : extension === 'opus' || extension === 'ogg' || extension === 'webm' ? 'opus' : 'mp3',
+  }).replace(/\.opus$/i, `.${extension}`);
 
   // 1) Electron desktop: native dialog defaulting to ~/Desktop/Echoo Recordings.
   if (isDesktopBridge() && typeof window.echooDesktop.saveRecording === 'function') {
@@ -223,6 +277,8 @@ export default {
   ECHOO_RECORDINGS_LIBRARY,
   RECORDING_PC_FORMATS,
   cleanRecordingBase,
+  buildRecordingFilename,
+  formatRecordingDateStamp,
   isLikelyPc,
   downloadViaAnchor,
   saveAutomaticLocalCopy,

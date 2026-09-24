@@ -89,6 +89,10 @@ test('broadcasts persist privacy-safe source snapshots and authoritative pause s
   assert.ok(mediaState.enumValues.includes('audio_paused'));
   assert.ok(Broadcast.schema.path('audioSources'));
   assert.ok(Broadcast.schema.path('audioConfiguration.audioMode'));
+  assert.equal(Broadcast.schema.path('audioConfiguration.audioMode').defaultValue, 'raw');
+  assert.equal(Broadcast.schema.path('audioConfiguration.noiseReduction').defaultValue, 0);
+  assert.equal(Broadcast.schema.path('audioConfiguration.echoRemoval').defaultValue, false);
+  assert.equal(Broadcast.schema.path('audioConfiguration.protectLoudSounds').defaultValue, false);
   assert.equal(Broadcast.schema.path('audioSources.deviceId'), undefined);
 });
 

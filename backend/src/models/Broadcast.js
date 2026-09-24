@@ -212,14 +212,15 @@ const broadcastSchema = new mongoose.Schema(
       index: true,
     },
     audioConfiguration: {
-      audioMode: { type: String, enum: ['raw', 'enhanced'], default: 'enhanced' },
-      noiseReduction: { type: Number, min: 0, max: 1, default: 0.45 },
-      echoRemoval: { type: Boolean, default: true },
-      voiceWarmth: { type: Number, min: 0, max: 1, default: 0.35 },
-      voiceClarity: { type: Number, min: 0, max: 1, default: 0.45 },
-      deEsser: { type: Number, min: 0, max: 1, default: 0.3 },
-      volumeBalance: { type: Number, min: 0, max: 1, default: 0.45 },
-      protectLoudSounds: { type: Boolean, default: true },
+      // Preserve original source audio unless Enhanced Audio is explicitly on.
+      audioMode: { type: String, enum: ['raw', 'enhanced'], default: 'raw' },
+      noiseReduction: { type: Number, min: 0, max: 1, default: 0 },
+      echoRemoval: { type: Boolean, default: false },
+      voiceWarmth: { type: Number, min: 0, max: 1, default: 0 },
+      voiceClarity: { type: Number, min: 0, max: 1, default: 0 },
+      deEsser: { type: Number, min: 0, max: 1, default: 0 },
+      volumeBalance: { type: Number, min: 0, max: 1, default: 0 },
+      protectLoudSounds: { type: Boolean, default: false },
       masterVolume: { type: Number, min: 0, max: 1.5, default: 1 },
     },
     audioSources: [{

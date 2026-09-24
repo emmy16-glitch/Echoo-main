@@ -1080,12 +1080,42 @@ function registerIpc() {
   ipcMain.handle('echoo:save-recording', async (_event, options = {}) => {
     try {
       const format = String(options?.format || 'mp3').toLowerCase() === 'wav' ? 'wav' : 'mp3';
-      const rawName = String(options?.filename || `echoo-recording.${format}`)
+      const rawName = String(options?.filename || `Echoo - recording.${format}`)
         .replace(/[\\/:*?"<>|]/g, '-')
-        .slice(0, 120) || `echoo-recording.${format}`;
+        .slice(0, 180) || `Echoo - recording.${format}`;
       const filename = rawName.toLowerCase().endsWith(`.${format}`) ? rawName : `${rawName}.${format}`;
-      const libraryDir = path.join(app.getPath('desktop'), 'Echoo Recordings');
+      const baseLibraryDir = path.join(app.getPath('desktop'), 'Echoo Recordings');
+
+      const recordedAt = new Date(options?.startedAt || Date.now());
+      const safeDate = Number.isNaN(recordedAt.getTime()) ? new Date() : recordedAt;
+      const yearDir = String(safeDate.getFullYear());
+      const month = String(safeDate.getMonth() + 1).padStart(2, '0');
+      const monthName = safeDate.toLocaleString('en', { month: 'long' });
+      const libraryDir = options?.automatic === true
+        ? path.join(baseLibraryDir, yearDir, `${month} - ${monthName}`)
+        : baseLibraryDir;
       await fs.promises.mkdir(libraryDir, { recursive: true });
+
+      const buffer = Buffer.isBuffer(options?.data) ? options.data : Buffer.from(options?.data || []);
+      if (!buffer.length) return { saved: false, error: 'Recording bytes are empty.' };
+
+      if (options?.automatic === true) {
+        const parsed = path.parse(filename);
+        let destination = path.join(libraryDir, filename);
+        let copyNumber = 2;
+        while (fs.existsSync(destination)) {
+          destination = path.join(libraryDir, `${parsed.name} (${copyNumber})${parsed.ext}`);
+          copyNumber += 1;
+        }
+        await fs.promises.writeFile(destination, buffer);
+        return {
+          saved: true,
+          path: destination,
+          folder: libraryDir,
+          automatic: true,
+        };
+      }
+
       const result = await dialog.showSaveDialog(mainWindow, {
         title: `Save recording as ${format.toUpperCase()} — Echoo Recordings`,
         defaultPath: path.join(libraryDir, filename),
@@ -1094,13 +1124,27 @@ function registerIpc() {
           : [{ name: 'MP3 audio', extensions: ['mp3'] }, { name: 'All files', extensions: ['*'] }],
       });
       if (result.canceled || !result.filePath) return { saved: false, cancelled: true };
-      const buffer = Buffer.isBuffer(options?.data) ? options.data : Buffer.from(options?.data || []);
-      if (!buffer.length) return { saved: false, error: 'Recording bytes are empty.' };
       await fs.promises.writeFile(result.filePath, buffer);
-      return { saved: true, path: result.filePath };
+      return { saved: true, path: result.filePath, folder: path.dirname(result.filePath) };
     } catch (error) {
       log.warn('[echoo-desktop] save-recording failed:', error.message);
       return { saved: false, error: error?.message || String(error) };
+    }
+  });
+
+  ipcMain.handle('echoo:open-recordings-folder', async (_event, targetPath) => {
+    try {
+      const baseLibraryDir = path.join(app.getPath('desktop'), 'Echoo Recordings');
+      await fs.promises.mkdir(baseLibraryDir, { recursive: true });
+      const requested = String(targetPath || '').trim();
+      const folder = requested
+        ? (fs.existsSync(requested) && fs.statSync(requested).isDirectory() ? requested : path.dirname(requested))
+        : baseLibraryDir;
+      const result = await shell.openPath(folder);
+      return result ? { opened: false, error: result } : { opened: true, path: folder };
+    } catch (error) {
+      log.warn('[echoo-desktop] open recordings folder failed:', error.message);
+      return { opened: false, error: error?.message || String(error) };
     }
   });
 

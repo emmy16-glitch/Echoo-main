@@ -124,6 +124,8 @@ test('finalize assembles chunks into a real MP3 Audio replay', async () => {
   assert.ok(audio);
   assert.equal(audio.mimeType, 'audio/mpeg');
   assert.ok(String(audio.filename).endsWith('.mp3'));
+  assert.match(String(audio.originalName), /^Echoo - /);
+  assert.ok(String(audio.originalName).endsWith('.mp3'));
   assert.equal(String(audio.sourceBroadcast), bid);
   assert.ok(audio.fileSize > 1000);
   assert.ok(Number(audio.duration) > 0);

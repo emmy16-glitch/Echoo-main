@@ -154,3 +154,36 @@
     max-width: 76px !important;
   }
 }
+
+
+/* Navigation structure: desktop keeps the existing column layout; phone
+   layouts use one max-content inner track inside the bounded nav scroller.
+   This prevents item shrinkage from other legacy shell styles. */
+.studio-final-shell .studio-navigation-track {
+  display: contents;
+}
+
+@media (max-width: 760px) {
+  html body #root .studio-page.studio-final-shell.studio-v2-shell > .studio-sidebar > .studio-navigation {
+    width: calc(100vw - 16px) !important;
+    max-width: calc(100vw - 16px) !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+  }
+
+  html body #root .studio-page.studio-final-shell.studio-v2-shell > .studio-sidebar > .studio-navigation > .studio-navigation-track {
+    width: max-content !important;
+    min-width: max-content !important;
+    display: flex !important;
+    flex: 0 0 auto !important;
+    align-items: stretch !important;
+    gap: 3px !important;
+  }
+
+  html body #root .studio-page.studio-final-shell.studio-v2-shell > .studio-sidebar > .studio-navigation > .studio-navigation-track > .studio-nav-item {
+    width: 80px !important;
+    min-width: 80px !important;
+    max-width: 80px !important;
+    flex: 0 0 80px !important;
+  }
+}
