@@ -7,7 +7,7 @@ const ffmpegPath = () => String(process.env.FFMPEG_PATH || 'ffmpeg').trim() || '
 const ffprobePath = () => String(process.env.FFPROBE_PATH || 'ffprobe').trim() || 'ffprobe';
 const MAX_TRIM_SECONDS = 24 * 60 * 60;
 const CAPABILITY_CACHE_MS = 60_000;
-let capabilityCache = { checkedAt: 0, ok: false, message: '' };
+let capabilityCache = { checkedAt: 0, ok: false, ffmpeg: false, ffprobe: false, message: '' };
 
 const trimError = (status, code, message) => Object.assign(new Error(message), { status, code });
 
@@ -37,6 +37,8 @@ export const checkFfmpegCapability = async ({ force = false } = {}) => {
   capabilityCache = {
     checkedAt: now,
     ok,
+    ffmpeg: ffmpegOk,
+    ffprobe: ffprobeOk,
     message: ok
       ? ''
       : 'FFmpeg and FFprobe are required on this Echoo server for automatic MP3 recordings and trimming.',
