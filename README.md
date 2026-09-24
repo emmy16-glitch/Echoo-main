@@ -46,7 +46,7 @@
 2. **Go Live — Broadcast.** One click opens the LiveKit room; presence flips to live, followers can join.
 3. **Share — Grow.** Copy the listen link (`/listen/live/:id`) — anyone opening it hears the show instantly, account or not.
 4. **Engage — Chat.** Signed-in listeners chat and react live; guests watch the conversation stream read-only.
-5. **End — Trim & keep.** Ending the broadcast opens a trim screen (waveform, start/end handles, preview). Saving uploads the chosen part; the server stores it as MP3 (~86 MB/hour) as a private draft. Creators can also save an MP3 or WAV copy into the `Desktop/Echoo Recordings` library on their own PC.
+5. **End — Save & keep.** While live, Echoo sends bounded master-audio chunks to the backend. Ending the broadcast finalizes the already-received audio into a high-fidelity MP3 (~144 MB/hour at the default 320k replay bitrate) as a private draft — there is no giant final WAV upload. Creators can still export a local WAV master explicitly while its recovery copy exists.
 6. **Replay — Publish.** Review in Recordings, publish — listeners stream or download on demand.
 
 One connected loop:
@@ -126,15 +126,15 @@ Backend knobs: `LIVEKIT_URL`, `LIVEKIT_PUBLIC_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_
 
 ## Recordings & storage implementation
 
-The browser captures a 24-bit/48 kHz stereo WAV master (~660 MB/hour) to local OPFS storage during the show. On broadcast end it opens a trim screen (waveform + start/end handles + preview); the creator saves the chosen part and the backend then:
+During the show, the browser keeps a temporary 24-bit/48 kHz PCM recovery master in OPFS and uploads bounded chunks. Those chunks also feed the server replay encoder, so End Broadcast finalizes server-side instead of uploading one huge WAV.
 
-1. Links it as the broadcast's replay (private draft).
-2. Normalises it to MP3 (`AUDIO_MP3_BITRATE`, default `192k` stereo ≈ 86 MB/hour) — the canonical server copy, on local disk or S3 when configured (local WAV deleted; kept on any failure — archiving never breaks the upload).
-3. Offers a PC copy: the creator picks **MP3** (the server copy) or **WAV** (the local master) and saves it into the `Desktop/Echoo Recordings` library folder.
+1. The backend finalizes one idempotent replay for the broadcast from the streamed MP3 output, with deterministic chunk assembly as a recovery fallback.
+2. The canonical live replay is a real MP3 (`AUDIO_REPLAY_MP3_BITRATE`, default `320k` stereo ≈ 144 MB/hour), stored locally or archived to S3-compatible object storage.
+3. The temporary OPFS master is kept on failure and cleared only after canonical persistence is confirmed. MP3 is the normal device copy; WAV remains an explicit lossless export while the local master exists.
 
 Playback always resolves through signed, time-limited `/api/audio/:id/stream` URLs: local files stream with HTTP ranges; cloud files redirect (public buckets) or mint short-lived object URLs (private buckets). Only replays are transcoded; uploaded music keeps its original encoding.
 
-No cloud account needed: recordings stay on the server's local disk by default (≈ 86 MB/hour at 192k). S3-compatible object storage is optional via [backend/.env.example](backend/.env.example) (`AUDIO_*`).
+For durable hosted deployments, canonical recordings use S3-compatible object storage. Live replays are ≈144 MB/hour at the default 320k replay bitrate; see [backend/.env.example](backend/.env.example) (`AUDIO_*`).
 
 ## Limits and honesty rules
 
