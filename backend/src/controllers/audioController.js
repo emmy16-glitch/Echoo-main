@@ -659,7 +659,7 @@ export async function trimAudio(req, res, next) {
     const source = await materializeTrimSource(audio);
     cleanupSource = source.cleanup;
 
-    const outputDirectory = safeLocalMediaPath('audio', '.');
+    const outputDirectory = path.join(process.cwd(), 'uploads', 'audio');
     const result = await trimAudioFile({
       sourcePath: source.sourcePath,
       startSeconds: req.body?.startSeconds,
