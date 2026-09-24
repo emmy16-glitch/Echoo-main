@@ -62,12 +62,6 @@ const ensureQualityJob = async (broadcastId, chunk) => {
 
 export async function startBroadcastAudioChunks(req, res, next) {
   try {
-    // Echoo promises an automatic server MP3 for every completed live show.
-    // Fail this recording-path handshake clearly when the host cannot provide
-    // FFmpeg/FFprobe, instead of allowing a show to end with a mysterious
-    // missing replay. LiveKit itself remains independent.
-    await assertFfmpegAvailable();
-
     const broadcast = await Broadcast.findOne({
       _id: req.params.broadcastId,
       creator: req.userId,
@@ -77,6 +71,12 @@ export async function startBroadcastAudioChunks(req, res, next) {
     if (!['starting', 'live'].includes(broadcast.status)) {
       return res.status(409).json({ error: { code: 'INVALID_BROADCAST_STATE', message: 'Quality chunking can only start for a running broadcast.' } });
     }
+
+    // Echoo promises an automatic server MP3 for every completed live show.
+    // Fail this recording-path handshake clearly when the host cannot provide
+    // FFmpeg/FFprobe, instead of allowing a show to end with a mysterious
+    // missing replay. LiveKit itself remains independent.
+    await assertFfmpegAvailable();
 
     if (!broadcast.qualityChunkingStartedAt || broadcast.qualityChunkingCompletedAt) {
       const existingCount = await BroadcastAudioChunk.countDocuments({ broadcastId: broadcast._id });
