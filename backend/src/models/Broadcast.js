@@ -273,6 +273,23 @@ const broadcastSchema = new mongoose.Schema(
       reason: { type: String, default: null },
       error: { type: String, default: null },
     },
+    // Canonical server replay MP3 produced at End Broadcast from the bounded
+    // recording chunks (never a giant client upload). Independent of the
+    // optional radio/FLAC/transcription branches.
+    replayOutput: {
+      status: { type: String, enum: ['idle', 'starting', 'active', 'stopping', 'completed', 'failed'], default: 'idle' },
+      codec: { type: String, default: null },
+      sampleRate: { type: Number, default: null },
+      channels: { type: Number, default: null },
+      bitrate: { type: String, default: null },
+      sourceStage: { type: String, enum: ['pre_opus_pcm', 'post_opus_pcm', null], default: null },
+      storageKey: { type: String, default: null, select: false },
+      replayBytes: { type: Number, default: 0 },
+      reason: { type: String, default: null },
+      error: { type: String, default: null },
+    },
+    replayAudioId: { type: mongoose.Schema.Types.ObjectId, ref: 'Audio', default: null },
+    replayStatus: { type: String, enum: ['none', 'ready', 'incomplete', 'empty', 'failed'], default: 'none' },
     captionSettings: {
       // Retained for compatibility with creator settings. Live listeners never
       // receive transcript data; replay publication is controlled separately.

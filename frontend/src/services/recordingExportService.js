@@ -75,20 +75,42 @@ export const waitForServerMp3 = async (audioId, { attempts = 10, delayMs = 3000 
 // End Broadcast has no active save-button gesture, so a browser cannot write
 // to an arbitrary folder silently. On PCs we create a normal browser download
 // (therefore using the browser's configured Downloads path); the desktop app
-// uses its native Echoo Recordings bridge. WAV is preferred while its lossless
-// local master exists, otherwise the canonical server MP3 is downloaded.
+// uses its native Echoo Recordings bridge.
+//
+// The normal automatic copy is ALWAYS the canonical server MP3 (fetched by
+// audioId). A local WAV blob is never auto-downloaded just because the
+// temporary recovery master happens to be WAV — that 500MB+ surprise is
+// exactly what the server-finalization architecture removed.
 export const saveAutomaticLocalCopy = async ({ blob, title, audioId } = {}) => {
   if (!isLikelyPc()) return { saved: false, skipped: 'not-pc' };
 
-  const sourceMime = String(blob?.type || '').toLowerCase();
-  const useWav = Boolean(blob?.size && sourceMime.includes('wav'));
-  let bytes = useWav ? blob : null;
-  const format = useWav ? 'wav' : 'mp3';
-  const mimeType = useWav ? 'audio/wav' : 'audio/mpeg';
+  if (audioId) {
+    const bytes = await waitForServerMp3(audioId, { attempts: 4, delayMs: 1500 });
+    if (!bytes?.size) return { saved: false, skipped: 'waiting-for-server-mp3' };
+    const filename = `${cleanRecordingBase(title)}.mp3`;
+    if (isDesktopBridge() && typeof window.echooDesktop.saveRecording === 'function') {
+      const result = await window.echooDesktop.saveRecording({
+        filename,
+        format: 'mp3',
+        mimeType: 'audio/mpeg',
+        data: new Uint8Array(await bytes.arrayBuffer()),
+        automatic: true,
+      });
+      if (result?.cancelled) return { saved: false, cancelled: true, format: 'mp3' };
+      if (!result?.saved) throw new Error(result?.error || 'Desktop safety-copy save failed.');
+      return { saved: true, filename, format: 'mp3', path: result.path || '' };
+    }
+    await downloadViaAnchor(bytes, filename);
+    return { saved: true, filename, format: 'mp3', destination: 'browser-downloads' };
+  }
 
-  if (!bytes && audioId) bytes = await waitForServerMp3(audioId, { attempts: 4, delayMs: 1500 });
-  if (!bytes?.size) return { saved: false, skipped: 'waiting-for-server-mp3' };
-
+  // No server asset (recovered orphan take with no broadcast link): fall back
+  // to whatever local bytes exist so the take is never silently dropped.
+  const bytes = blob?.size ? blob : null;
+  if (!bytes) return { saved: false, skipped: 'no-source-bytes' };
+  const sourceMime = String(bytes.type || '').toLowerCase();
+  const format = sourceMime.includes('wav') ? 'wav' : 'mp3';
+  const mimeType = format === 'wav' ? 'audio/wav' : 'audio/mpeg';
   const filename = `${cleanRecordingBase(title)}.${format}`;
   if (isDesktopBridge() && typeof window.echooDesktop.saveRecording === 'function') {
     const result = await window.echooDesktop.saveRecording({

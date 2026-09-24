@@ -51,6 +51,11 @@ const RecordingSaveBanner = () => {
           setElapsed(0);
           setState({ kind: 'uploading', key: detail.key, title: detail.title, percent: 0, loaded: 0, total: detail.total || 0, startedAt: Date.now() });
           break;
+        case 'finalizing':
+          window.clearTimeout(hideTimerRef.current);
+          setElapsed(0);
+          setState({ kind: 'finalizing', key: detail.key, title: detail.title, startedAt: Date.now() });
+          break;
         case 'progress':
           setState((current) => current?.key === detail.key
             ? { ...current, kind: 'uploading', percent: detail.percent || 0, loaded: detail.loaded || 0, total: detail.total || current.total }
@@ -78,7 +83,7 @@ const RecordingSaveBanner = () => {
   }, [flashDone]);
 
   useEffect(() => {
-    if (state?.kind !== 'uploading') return undefined;
+    if (state?.kind !== 'uploading' && state?.kind !== 'finalizing') return undefined;
     const protect = (event) => {
       event.preventDefault();
       event.returnValue = '';
@@ -129,7 +134,7 @@ const RecordingSaveBanner = () => {
       hide();
       return;
     }
-    const recording = master.recording || { blob: master.blob, mimeType: master.mimeType, broadcastId: '', startedAt: new Date().toISOString() };
+    const recording = master.recording || { blob: master.blob, mimeType: master.mimeType, broadcastId: master.broadcast?.id || '', startedAt: new Date().toISOString() };
     hide();
     await uploadRecoveredTake({ recording, broadcast: master.broadcast || { title: master.title } }).catch(() => {});
   };
@@ -141,6 +146,15 @@ const RecordingSaveBanner = () => {
 
   return (
     <div className={`echoo-save-banner is-${state.kind}`} role="status" aria-live="polite">
+      {state.kind === 'finalizing' && (
+        <>
+          <FaSyncAlt className="spin" aria-hidden="true" />
+          <div className="echoo-save-banner-body">
+            <strong>Finalizing “{state.title}”</strong>
+            <span>Building the server MP3 — keep this tab open</span>
+          </div>
+        </>
+      )}
       {state.kind === 'uploading' && (
         <>
           <FaSyncAlt className="spin" aria-hidden="true" />

@@ -1,4 +1,3 @@
-import studioService from './studioService.js';
 import batch3Service from './batch3Service.js';
 import {
   BROADCAST_RECORDING_READY_EVENT,
@@ -20,23 +19,6 @@ export const RECORDING_UPLOAD_EVENT = 'echoo:recording-upload';
 
 const emit = (detail) => {
   window.dispatchEvent(new CustomEvent(RECORDING_UPLOAD_EVENT, { detail }));
-};
-
-const safeFilename = (title, recording) => {
-  const fallback = String(recording?.filename || '').toLowerCase();
-  const mimeType = String(recording?.mimeType || '').toLowerCase();
-  const extension =
-    fallback.endsWith('.wav') || mimeType === 'audio/wav'
-      ? 'wav'
-      : fallback.endsWith('.ogg') || mimeType.includes('ogg')
-        ? 'ogg'
-        : 'webm';
-  const clean = String(title || 'Echoo live recording')
-    .trim()
-    .replace(/[^a-z0-9]+/gi, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 80) || 'Echoo-live-recording';
-  return `${clean}.${extension}`;
 };
 
 // Local masters for just-saved takes: { blob, title, mimeType } by audio id
@@ -71,6 +53,10 @@ const friendlyRecoveryMessage = (error) => {
   switch (error?.code) {
     case 'RECORDING_WAITING_FOR_NETWORK':
       return 'Recording is safe on this device. Echoo will continue saving when your connection returns.';
+    case 'REPLAY_FINALIZE_RETRY':
+      return 'Couldn’t finish saving this recording. Your recovery copy is still safe on this device.';
+    case 'REPLAY_NOT_READY':
+      return 'The server has no recording for this broadcast yet. Your recovery copy is still safe on this device.';
     case 'BROADCAST_STILL_LIVE':
       return 'This broadcast still looks live in another session, so Echoo left it untouched. End it there first — the local master stays safe here.';
     case 'RECOVERY_FORBIDDEN':
@@ -85,29 +71,32 @@ const friendlyRecoveryMessage = (error) => {
 };
 
 export const startAutosave = async ({ recording, broadcast } = {}) => {
-  if (!recording?.blob?.size) return null;
+  if (!recording?.blob?.size && !recording?.broadcastId) return null;
+  const broadcastId = String(recording.broadcastId || broadcast?.id || '');
+  // Without a broadcast link there are no server chunks to finalize. Keep the
+  // orphaned take in recovery instead of building a giant one-shot upload.
+  if (!broadcastId) {
+    const error = new Error('This take is not linked to a broadcast.');
+    error.code = 'REPLAY_NOT_READY';
+    emit({ status: 'error', key: `orphan-${Date.now()}`, title: broadcast?.title || 'Live broadcast recording', code: error.code, message: friendlyRecoveryMessage(error), retryable: false });
+    throw error;
+  }
   const key = String(recording.broadcastId || broadcast?.id || `${Date.now()}`);
   if (activeUploads.has(key)) return activeUploads.get(key);
 
+  return startAutosaveLive({ recording: { ...recording, broadcastId }, broadcast, key });
+};
+
+// Live broadcast path: the bounded chunks already streamed during the show
+// become the canonical server MP3. There is deliberately NO giant WAV upload
+// here — End Broadcast finalizes server-side.
+const startAutosaveLive = async ({ recording, broadcast, key }) => {
   const title = broadcast?.title || 'Live broadcast recording';
   const task = (async () => {
-    let localCopy = null;
     try {
-      emit({ status: 'started', key, title, total: recording.blob.size });
+      emit({ status: 'started', key, title });
+      emit({ status: 'finalizing', key, title });
 
-      // Protect the creator's take on their own PC before depending on the
-      // network. Browsers use the configured Downloads folder; native desktop
-      // builds use their Echoo Recordings bridge. Retry never duplicates it.
-      if (!automaticLocalCopies.has(key)) {
-        localCopy = await saveAutomaticLocalCopy({
-          blob: recording.blob,
-          title,
-        }).catch((error) => ({ saved: false, error: error?.message || String(error) }));
-        if (localCopy?.saved) automaticLocalCopies.add(key);
-      }
-
-      // Offline is detected before any request so no failing requests are
-      // issued in a loop. The banner retries on reconnect.
       if (typeof navigator !== 'undefined' && navigator.onLine === false) {
         const offline = new Error('Waiting for network');
         offline.code = 'RECORDING_WAITING_FOR_NETWORK';
@@ -115,81 +104,63 @@ export const startAutosave = async ({ recording, broadcast } = {}) => {
       }
 
       if (recording.qualityCompletionPending) {
-        await retryBroadcastQualityCompletion(recording);
+        await retryBroadcastQualityCompletion(recording).catch(() => null);
       }
 
-      const uploadMime = recording.mimeType || recording.blob.type || 'audio/wav';
-      const file = new File([recording.blob], safeFilename(title, recording), { type: uploadMime });
-
-      const uploadOnce = async () => await studioService.uploadAudioWithProgress({
-        file,
-        title,
-        description:
-          broadcast?.description ||
-          `Recorded live on Echoo. Broadcast recording from ${new Date(recording.startedAt).toLocaleString()}.`,
-        genre: 'Other',
-        tags: [
-          'live-recording',
-          'broadcast',
-          recording.lossless ? 'lossless-master' : 'recording-fallback',
-        ],
-        isPublic: false,
-        broadcastId: recording.broadcastId,
-        timeoutMs: 120000,
-        onProgress: ({ loaded, total, percent }) => {
-          emit({ status: 'progress', key, title, loaded, total, percent });
-        },
+      const finalizeResponse = await batch3Service.finalizeServerReplay(recording.broadcastId, {
+        qualityChunkCount: Number(recording.qualityChunkIndex ?? recording.qualityChunkCount) || 0,
+        qualityChunkUploadErrors: Array.isArray(recording.qualityChunkErrors) ? recording.qualityChunkErrors.length : 0,
       });
+      const replay = finalizeResponse?.data?.replay || {};
 
-      let uploadResponse;
-      try {
-        uploadResponse = await uploadOnce();
-      } catch (uploadError) {
-        // Interrupted End Broadcast leaves the broadcast un-linkable. Reconcile
-        // the lifecycle exactly once, then retry the upload exactly once.
-        if (uploadError?.code !== 'BROADCAST_NOT_READY_FOR_REPLAY' || !recording.broadcastId) throw uploadError;
-        const recovery = await batch3Service.recoverBroadcast(recording.broadcastId);
-        if (!recovery?.data?.readyForUpload) throw uploadError;
-        uploadResponse = await uploadOnce();
-      }
-
-      const audioId = String(uploadResponse?.data?.id || uploadResponse?.data?._id || '');
-      if (!automaticLocalCopies.has(key)) {
-        localCopy = await saveAutomaticLocalCopy({
-          blob: recording.blob,
-          title,
-          audioId,
-        }).catch((error) => ({ saved: false, error: error?.message || String(error) }));
-        if (localCopy?.saved) automaticLocalCopies.add(key);
-      }
-      rememberLocalMaster(audioId, { blob: recording.blob, title, mimeType: uploadMime });
-      if (recording.broadcastId) {
-        rememberLocalMaster(`broadcast:${recording.broadcastId}`, { blob: recording.blob, title, mimeType: uploadMime, audioId });
-      }
-      clearPendingBroadcastRecording(recording.broadcastId);
-      window.dispatchEvent(new CustomEvent('echoo:creator-audio-changed'));
-      window.dispatchEvent(new CustomEvent('echoo:creator-state-changed'));
-      emit({ status: 'done', key, title, audioId, localCopy });
-      notifySaved(`“${title}” saved to Recordings as MP3.`);
-      return { audioId, title };
-    } catch (error) {
-      if (error?.code === 'REPLAY_ALREADY_EXISTS') {
+      if (replay.status === 'ready' && replay.audioId) {
+        const audioId = String(replay.audioId);
+        // Normal automatic PC copy is the server MP3 — never the giant local
+        // WAV just because the temporary recovery master is WAV.
+        let localCopy = null;
+        if (!automaticLocalCopies.has(key)) {
+          localCopy = await saveAutomaticLocalCopy({ title, audioId })
+            .catch((error) => ({ saved: false, error: error?.message || String(error) }));
+          if (localCopy?.saved) automaticLocalCopies.add(key);
+        }
+        // Canonical persistence confirmed: drop the temporary OPFS WAV master.
+        try { await recording.dispose?.(); } catch { /* already disposed */ }
         clearPendingBroadcastRecording(recording.broadcastId);
+        forgetLocalMaster(`pending:${key}`);
         window.dispatchEvent(new CustomEvent('echoo:creator-audio-changed'));
         window.dispatchEvent(new CustomEvent('echoo:creator-state-changed'));
-        emit({ status: 'done', key, title, audioId: '', duplicate: true });
-        notifySaved(`“${title}” is already in Recordings.`);
-        return { audioId: '', title, duplicate: true };
+        emit({ status: 'done', key, title, audioId, localCopy, format: 'mp3' });
+        notifySaved(localCopy?.saved ? `“${title}” saved to Recordings and your device.` : `“${title}” saved to Recordings.`);
+        return { audioId, title, duplicate: Boolean(replay.duplicate) };
       }
+
+      if (replay.status === 'incomplete' || replay.status === 'failed') {
+        const error = new Error('Server finalization needs another attempt.');
+        error.code = 'REPLAY_FINALIZE_RETRY';
+        error.replay = replay;
+        throw error;
+      }
+
+      // 'empty' (or unknown): no durable server audio yet. Keep the local
+      // recovery master and let the creator retry explicitly.
+      const error = new Error('No server recording was produced yet.');
+      error.code = 'REPLAY_NOT_READY';
+      error.replay = replay;
+      throw error;
+    } catch (error) {
       emit({
         status: 'error',
         key,
         title,
         code: error?.code || '',
         message: friendlyRecoveryMessage(error),
+        retryable: true,
       });
-      // Keep the master for Retry (banner) and for trim-later.
-      rememberLocalMaster(`pending:${key}`, { blob: recording.blob, title, mimeType: recording.mimeType || recording.blob.type, broadcast, recording });
+      // Keep the master for Retry (banner) and for trim-later. Never delete
+      // the creator's only copy until canonical persistence is confirmed.
+      if (recording?.blob?.size) {
+        rememberLocalMaster(`pending:${key}`, { blob: recording.blob, title, mimeType: recording.mimeType || recording.blob.type, broadcast, recording });
+      }
       throw error;
     } finally {
       activeUploads.delete(key);
@@ -211,7 +182,8 @@ export const retryAutosave = async (key) => {
 export const uploadRecoveredTake = async ({ recording, broadcast } = {}) => {
   if (!recording?.blob?.size) return null;
   forgetLocalMaster('recovered');
-  return startAutosave({ recording, broadcast });
+  const broadcastId = String(recording.broadcastId || broadcast?.id || '');
+  return startAutosave({ recording: { ...recording, broadcastId }, broadcast });
 };
 
 // Headless mount: listens for finished broadcasts + offers boot recovery.

@@ -58,16 +58,16 @@ test('recovery route is creator-gated and upload keeps its idempotency key', asy
   assert.match(audio, /unique:\s*true/);
 });
 
-test('autosave reconciles once, respects offline, and never loops requests', async () => {
+test('autosave finalizes server-side, respects offline, and never loops requests', async () => {
   const autosave = await read('../../frontend/src/services/recordingAutosave.js');
 
   assert.match(autosave, /navigator\.onLine === false/);
   assert.match(autosave, /RECORDING_WAITING_FOR_NETWORK/);
-  assert.match(autosave, /BROADCAST_NOT_READY_FOR_REPLAY/);
-  assert.match(autosave, /recoverBroadcast/);
-  // Exactly one recovery call followed by exactly one upload retry.
-  assert.equal((autosave.match(/uploadOnce\(\)/g) || []).length, 2);
-  assert.equal((autosave.match(/recoverBroadcast\(/g) || []).length, 1);
+  // Server finalization replaced the giant client upload: no giant WAV File
+  // construction, no one-shot multipart upload of the master blob.
+  assert.match(autosave, /finalizeServerReplay/);
+  assert.doesNotMatch(autosave, /new File\(\[recording\.blob/);
+  assert.doesNotMatch(autosave, /uploadAudioWithProgress/);
   assert.doesNotMatch(autosave, /setInterval|setTimeout/);
 });
 
@@ -96,6 +96,6 @@ test('recovery save states are explained, event-driven, and never strand the mas
   // OPFS is cleared only after the server copy lands.
   assert.match(autosave, /clearPendingBroadcastRecording\(recording\.broadcastId\)/);
 
-  // Duplicate-safe: uniqueness guard still finalizes as saved.
-  assert.match(autosave, /REPLAY_ALREADY_EXISTS/);
+  // Duplicate-safe: repeat finalization resolves to the same replay.
+  assert.match(autosave, /replay\.duplicate/);
 });

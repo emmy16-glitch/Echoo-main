@@ -8,6 +8,7 @@ import {
   startBroadcastOutputs,
   stopBroadcastOutputs,
 } from '../services/broadcastOutputService.js';
+import { finalizeBroadcastReplay } from '../services/broadcastReplayService.js';
 import { isTranscriptionConfigured } from '../services/transcriptionGateway.js';
 
 const CHUNK_DIR = path.join(process.cwd(), 'uploads', 'transcript-chunks');
@@ -134,8 +135,24 @@ export async function completeBroadcastAudioChunks(req, res, next) {
     }).catch((error) => {
       console.warn('[Echoo Outputs] stop warning:', error?.message || error);
     });
+    // Server-side replay finalization: the bounded chunks already received
+    // become the canonical MP3. No giant client upload is ever required.
+    // Failures here never fail the close itself — the local recovery master
+    // stays alive and an explicit retry resumes from the same chunks.
+    let replay = { status: 'empty', audioId: null };
+    try {
+      replay = await finalizeBroadcastReplay({
+        broadcastId: String(broadcast._id),
+        creatorId: String(req.userId || ''),
+        expectedChunkCount: Math.max(chunkCount, qualityChunkCount),
+        uploadErrors: qualityChunkUploadErrors,
+      });
+    } catch (error) {
+      console.warn('[Echoo Replay] finalize warning:', error?.message || error);
+      replay = { status: 'failed', audioId: null, code: error?.code || 'REPLAY_FINALIZE_FAILED' };
+    }
     return res.status(200).json({
-      data: { broadcastId: String(broadcast._id), qualityChunkCount: Math.max(chunkCount, qualityChunkCount), qualityChunkUploadErrors },
+      data: { broadcastId: String(broadcast._id), qualityChunkCount: Math.max(chunkCount, qualityChunkCount), qualityChunkUploadErrors, replay },
       timestamp: new Date().toISOString(),
     });
   } catch (error) {

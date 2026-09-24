@@ -391,6 +391,15 @@ const batch3Service = {
       method: 'POST',
     }),
 
+  // Server-side replay finalization: the bounded chunks already received
+  // become the canonical MP3. No giant client upload. Returns the backend
+  // payload including `replay: { status, audioId }`.
+  finalizeServerReplay: async (broadcastId, { qualityChunkCount = 0, qualityChunkUploadErrors = 0 } = {}) =>
+    apiRequest(`/broadcasts/${encodeURIComponent(broadcastId)}/recording-chunks/complete`, {
+      method: 'POST',
+      body: JSON.stringify({ qualityChunkCount, qualityChunkUploadErrors }),
+    }),
+
   updateAssetVisibility: async (broadcastId, values) =>
     apiRequest(`/broadcasts/${encodeURIComponent(broadcastId)}/asset-visibility`, {
       method: 'PATCH',

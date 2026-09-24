@@ -32,7 +32,7 @@ test('End Broadcast opens an app dialog and only the confirmed action calls the 
   assert.match(source, /aria-modal="true"/);
 });
 
-test('Recording Saved is gated by real backend completion and real upload success', async () => {
+test('Recording Saved is gated by real server finalization, never a giant upload', async () => {
   const service = await read('../../services/batch3Service.js');
   const autosave = await read('../../services/recordingAutosave.js');
   const banner = await read('../RecordingSaveBanner.jsx');
@@ -42,19 +42,22 @@ test('Recording Saved is gated by real backend completion and real upload succes
   const finalizeSection = service.slice(finalizeStart, service.indexOf('getProcessing:', finalizeStart));
   const apiCompletion = realtimeSection.indexOf("/end`");
   const readyAnnouncement = finalizeSection.indexOf('announceFinishedBroadcastRecording');
-  const uploadCompletion = autosave.indexOf('await studioService.uploadAudioWithProgress');
-  const doneEmit = autosave.indexOf("status: 'done'", uploadCompletion);
+  // Server finalization replaced the giant client WAV upload.
+  const finalizeCall = autosave.indexOf('finalizeServerReplay');
+  const doneEmit = autosave.indexOf("status: 'done'", finalizeCall);
+  const serverCopy = autosave.indexOf('saveAutomaticLocalCopy({ title, audioId })', finalizeCall);
 
   assert.ok(apiCompletion >= 0);
   assert.ok(readyAnnouncement >= 0);
-  assert.ok(uploadCompletion >= 0 && doneEmit > uploadCompletion);
-  assert.match(banner, /Saved to Recordings as MP3/);
+  assert.ok(finalizeCall >= 0 && doneEmit > finalizeCall);
+  assert.ok(serverCopy > finalizeCall, 'automatic PC copy uses the server MP3');
+  assert.doesNotMatch(autosave, /uploadAudioWithProgress/);
+  assert.doesNotMatch(autosave, /new File\(\[recording\.blob/);
+  assert.match(banner, /Finalizing/);
   assert.match(banner, /View in Recordings|View/);
   assert.match(banner, /Retry/);
-  assert.match(autosave, /REPLAY_ALREADY_EXISTS/);
-  // Interrupted End Broadcast reconciles once before re-uploading, waits
-  // for network event-driven, and surfaces creator-safe error language.
-  assert.match(autosave, /batch3Service\.recoverBroadcast/);
+  assert.match(autosave, /replay\.duplicate/);
+  // Interrupted End Broadcast keeps recovery event-driven with creator-safe language.
   assert.match(autosave, /RECORDING_WAITING_FOR_NETWORK/);
   assert.match(autosave, /friendlyRecoveryMessage/);
   assert.match(banner, /RECORDING_WAITING_FOR_NETWORK/);

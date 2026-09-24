@@ -119,16 +119,17 @@ test('recording completion retries and automatic save preserves recovery state',
   assert.match(recording, /completeQualityChunks/);
   assert.match(recording, /qualityCompletionPending/);
   assert.match(recording, /retryBroadcastQualityCompletion/);
-  // Background autosave replaced BroadcastRecordingPrompt modal (8f3c5fa):
-  // End Broadcast auto-uploads, banner shows progress/retry/recovery.
+  // Background autosave finalizes the server-side replay (no giant client
+  // upload): End Broadcast finalizes, banner shows finalizing/retry/recovery.
   assert.match(autosave, /retryBroadcastQualityCompletion/);
-  assert.match(autosave, /uploadAudioWithProgress/);
-  assert.match(autosave, /isPublic:\s*false/);
-  assert.match(autosave, /REPLAY_ALREADY_EXISTS/);
+  assert.match(autosave, /finalizeServerReplay/);
+  assert.match(autosave, /saveAutomaticLocalCopy\(\{\s*title,\s*audioId\s*\}\)/);
+  assert.doesNotMatch(autosave, /uploadAudioWithProgress/);
+  assert.doesNotMatch(autosave, /new File\(\[recording\.blob/);
   assert.match(autosave, /rememberLocalMaster/);
   assert.match(banner, /beforeunload/);
   assert.match(banner, /Retry/);
-  assert.match(banner, /Saved to Recordings as MP3/);
+  assert.match(banner, /Finalizing/);
   assert.match(banner, /keep this tab open/);
   assert.match(banner, /Upload/);
   assert.match(banner, /Discard/);

@@ -18,6 +18,19 @@ const archiveDirectory = () => path.resolve(
   process.env.MASTER_ARCHIVE_DIR || path.join(process.cwd(), 'data', 'broadcast-masters')
 );
 
+// Canonical replay MP3 directory. The replay encoder always runs (unlike the
+// optional radio/FLAC branches) so End Broadcast can finalize a server-side
+// MP3 without any giant client upload.
+const replayDirectory = () => path.resolve(
+  process.env.REPLAY_ARCHIVE_DIR || path.join(process.cwd(), 'uploads', 'replay')
+);
+const replayFilePath = (id) => path.join(replayDirectory(), `${id}.mp3`);
+
+const mp3Bitrate = () => {
+  const raw = String(process.env.AUDIO_MP3_BITRATE || '192k').trim() || '192k';
+  return /^\d+k$/i.test(raw) ? raw.toLowerCase() : '192k';
+};
+
 const radioConfig = () => {
   if (!enabled('RADIO_STREAM_ENABLED')) return null;
   const host = String(process.env.RADIO_STREAM_HOST || '').trim();
@@ -116,6 +129,7 @@ export async function startBroadcastOutputs(broadcastId) {
 
   const radio = radioConfig();
   const useArchive = archiveEnabled();
+  const bitrate = mp3Bitrate();
   const snapshot = {
     radioOutput: radio
       ? state('starting', { codec: 'mp3', sampleRate: SAMPLE_RATE, channels: CHANNELS, bitrate: 320000, publicUrl: radio.publicUrl })
@@ -123,8 +137,12 @@ export async function startBroadcastOutputs(broadcastId) {
     masterRecording: useArchive
       ? state('starting', { codec: 'flac', sampleRate: SAMPLE_RATE, channels: CHANNELS, bitDepth: BIT_DEPTH, sourceStage: 'pre_opus_pcm' })
       : state('idle', { reason: 'Master archive is disabled.' }),
+    // The canonical replay MP3 is independent of the radio and FLAC archive
+    // branches: it starts for every broadcast so finalization never depends
+    // on optional features being enabled.
+    replayOutput: state('starting', { codec: 'mp3', sampleRate: SAMPLE_RATE, channels: CHANNELS, bitrate, sourceStage: 'pre_opus_pcm' }),
   };
-  const session = { id, radio: null, archive: null, snapshot, failures: new Set() };
+  const session = { id, radio: null, archive: null, replay: null, replayBytes: 0, snapshot, failures: new Set() };
   sessions.set(id, session);
   await persist(id, snapshot);
 
@@ -170,6 +188,30 @@ export async function startBroadcastOutputs(broadcastId) {
     }
   }
 
+  // Canonical replay encoder: always on, failures isolated to the snapshot.
+  // A missing FFmpeg binary or unwritable disk must never reject the live
+  // path or the chunk transport.
+  try {
+    const directory = replayDirectory();
+    await fs.mkdir(directory, { recursive: true });
+    const storageKey = `${id}.mp3`;
+    const outputPath = path.join(directory, storageKey);
+    session.replay = spawnEncoder({
+      label: 'replay MP3 encoder',
+      args: ['-hide_banner', '-loglevel', 'error', '-f', 's24le', '-ar', String(SAMPLE_RATE), '-ac', String(CHANNELS), '-i', 'pipe:0', '-vn', '-c:a', 'libmp3lame', '-b:a', bitrate, '-f', 'mp3', outputPath],
+      onFailure: async (error) => {
+        if (session.failures.has('replay')) return;
+        session.failures.add('replay');
+        session.snapshot.replayOutput = state('failed', { ...session.snapshot.replayOutput, storageKey, error: String(error?.message || error).slice(0, 1000) });
+        await persist(id, { replayOutput: session.snapshot.replayOutput });
+        console.warn('[Echoo Outputs] replay encoder failed; LiveKit continues:', error?.message || error);
+      },
+    });
+    session.snapshot.replayOutput = state('active', { ...session.snapshot.replayOutput, storageKey });
+  } catch (error) {
+    session.snapshot.replayOutput = state('failed', { ...session.snapshot.replayOutput, error: String(error?.message || error) });
+  }
+
   await persist(id, session.snapshot);
   return session.snapshot;
 }
@@ -177,16 +219,28 @@ export async function startBroadcastOutputs(broadcastId) {
 export async function appendBroadcastOutputPcm(broadcastId, wavBuffer) {
   const session = sessions.get(safeFileId(broadcastId));
   if (!session) return;
-  const pcm = pcmFromWavChunk(wavBuffer);
-  await Promise.allSettled([writeEncoder(session.radio, pcm), writeEncoder(session.archive, pcm)]);
+  let pcm = null;
+  try {
+    pcm = pcmFromWavChunk(wavBuffer);
+  } catch {
+    return;
+  }
+  session.replayBytes += pcm.length;
+  await Promise.allSettled([writeEncoder(session.radio, pcm), writeEncoder(session.archive, pcm), writeEncoder(session.replay, pcm)]);
 }
+
+export const getReplayOutputFile = (broadcastId) => {
+  const id = safeFileId(broadcastId);
+  if (!id) return null;
+  return { path: replayFilePath(id), storageKey: `${id}.mp3` };
+};
 
 export async function stopBroadcastOutputs(broadcastId, { incomplete = false } = {}) {
   const id = safeFileId(broadcastId);
   const session = sessions.get(id);
   if (!session) return null;
   sessions.delete(id);
-  await Promise.allSettled([finishEncoder(session.radio), finishEncoder(session.archive)]);
+  await Promise.allSettled([finishEncoder(session.radio), finishEncoder(session.archive), finishEncoder(session.replay)]);
   if (session.snapshot.radioOutput.status === 'active') {
     session.snapshot.radioOutput = state(
       incomplete ? 'failed' : 'completed',
@@ -197,6 +251,14 @@ export async function stopBroadcastOutputs(broadcastId, { incomplete = false } =
     session.snapshot.masterRecording = state(
       incomplete ? 'failed' : 'completed',
       incomplete ? { ...session.snapshot.masterRecording, error: 'PCM transport ended before all archive audio was delivered.' } : session.snapshot.masterRecording
+    );
+  }
+  if (session.snapshot.replayOutput.status === 'active') {
+    session.snapshot.replayOutput = state(
+      incomplete ? 'failed' : 'completed',
+      incomplete
+        ? { ...session.snapshot.replayOutput, error: 'PCM transport ended before all replay audio was delivered.', replayBytes: session.replayBytes }
+        : { ...session.snapshot.replayOutput, replayBytes: session.replayBytes }
     );
   }
   await persist(id, session.snapshot);
