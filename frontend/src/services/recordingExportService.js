@@ -153,6 +153,7 @@ export const saveAutomaticLocalCopy = async ({
       mimeType,
       data: new Uint8Array(await bytes.arrayBuffer()),
       automatic: true,
+      startedAt: startedAt || null,
     });
     if (result?.cancelled) return { saved: false, cancelled: true, format: choice };
     if (!result?.saved) throw new Error(result?.error || 'Desktop recording save failed.');
