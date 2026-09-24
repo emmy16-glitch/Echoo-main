@@ -43,25 +43,17 @@ export const loadListenerLiveRoom = cachedLoader(() => import('../Components/Lis
 export const loadListenerStationProfile = cachedLoader(() => import('../Components/ListenerLiveExperience/ListenerRealStationProfile'));
 export const loadListenerCollectionDetail = cachedLoader(() => import('../Components/ListenerCollectionDetail/ListenerCollectionDetail'));
 
-const LISTENER_ROUTE_LOADERS = [
+// Idle prefetch only the small set of high-frequency Listener surfaces.
+ // Eagerly importing every detail route caused aborted module requests during
+ // fast login/logout/navigation in Firefox and could trip React.lazy's error
+ // boundary. Detail routes remain cached on first real navigation.
+const LISTENER_ROUTE_PREFETCH = [
   loadListenerHome,
   loadListenerSearch,
   loadListenerLive,
   loadListenerStations,
-  loadListenerLibrary,
   loadListenerFollowing,
-  loadListenerPlaylist,
-  loadListenerSavedMoments,
-  loadListenerHistory,
-  loadListenerDownloads,
-  loadListenerCreatorProfile,
-  loadListenerNotifications,
-  loadListenerSettings,
-  loadListenerAudioDetail,
-  loadListenerLiveRoom,
-  loadListenerStationProfile,
-  loadListenerCollectionDetail,
 ];
 
 export const preloadListenerRoutes = () =>
-  Promise.all(LISTENER_ROUTE_LOADERS.map((load) => load().catch(() => null)));
+  Promise.all(LISTENER_ROUTE_PREFETCH.map((load) => load().catch(() => null)));
