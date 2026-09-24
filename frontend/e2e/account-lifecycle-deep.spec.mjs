@@ -92,7 +92,12 @@ test('leaving interrupted Channel setup persists Listener mode across reload', a
 
   await page.getByRole('button', { name: 'Back to Listener' }).click();
   await expect(page).toHaveURL(/\/listen$/);
+  await expect(page.getByRole('heading', { name: 'Discover' })).toBeVisible();
   await expect.poll(() => page.evaluate(() => localStorage.getItem('echooActiveExperience'))).toBe('listener');
+  // Let the Listener shell's initial deterministic API requests settle before
+  // intentionally reloading. WebKit otherwise reports the aborted requests as
+  // access-control failures even though the page and CORS contract are valid.
+  await page.waitForLoadState('networkidle');
 
   await page.reload();
   await expect(page).toHaveURL(/\/listen$/);
