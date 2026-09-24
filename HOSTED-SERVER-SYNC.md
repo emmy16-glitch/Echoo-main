@@ -63,8 +63,8 @@ Restart the backend afterwards.
 ```env
 LIVEKIT_URL=wss://echoo-cdpcubcr.livekit.cloud
 LIVEKIT_PUBLIC_URL=wss://echoo-cdpcubcr.livekit.cloud
-LIVEKIT_API_KEY=APIPctiUYQbPy73
-LIVEKIT_API_SECRET=ugsfWPi0JLTsSUKxGGIEAL3RXe9SeC9c1rbfUY4eix5E
+LIVEKIT_API_KEY=<set-in-server-environment>
+LIVEKIT_API_SECRET=<set-in-server-environment>
 ```
 
 Notes:
