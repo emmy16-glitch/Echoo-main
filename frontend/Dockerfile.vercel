@@ -12,7 +12,9 @@ COPY . .
 # provides the canonical values at runtime.
 ENV VITE_BUILD_BASE=/
 ENV VITE_API_URL=/api
-ENV VITE_PUBLIC_APP_ORIGIN=
+# Always share the stable staging alias, never an immutable deployment URL.
+# This prevents copied live links from pinning listeners to an older frontend.
+ENV VITE_PUBLIC_APP_ORIGIN=https://echoo-staging.vercel.app
 ENV VITE_LIVEKIT_URL=
 ENV VITE_SYNTHETIC_AUDIO=false
 
