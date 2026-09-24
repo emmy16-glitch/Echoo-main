@@ -51,29 +51,68 @@ stale attachments are detached and rebuilt. Recovery retries are bounded at
 
 ## Local recording durability and replay save
 
-The preferred recorder writes 48 kHz stereo 24-bit PCM directly to OPFS. It
-does not retain the long recording in JavaScript memory. Every 15 seconds the
-writer is serialized behind queued PCM writes, writes a valid current WAV
-header, closes (committing the file), reopens with existing data, and resumes at
-the exact byte offset. A small localStorage manifest identifies the broadcast,
-OPFS file, format, and timing. On reload, Echoo reopens the file and offers the
-checkpointed master for the normal replay upload. No age-based cleanup silently
-deletes recoverable masters.
+Echoo has two complementary recording durability paths.
 
-The source broadcast ID is the replay upload idempotency key. If a response is
-lost after commit, a retry returns and relinks the existing canonical Audio
-record while deleting only the newly retried upload bytes. The OPFS file is
-removed only after confirmed upload reconciliation or explicit discard.
+### Browser recovery master
+
+The preferred browser recorder writes 48 kHz stereo 24-bit PCM directly to
+OPFS. It does not retain a long recording in JavaScript memory. Every 15 seconds
+the writer checkpoints a valid WAV header and persists a recovery manifest.
+
+This OPFS WAV is a **local recovery/lossless-export master**. It is not the
+normal server replay upload.
+
+On reload/crash recovery, Echoo can reopen the checkpointed file. The local
+master remains available until the canonical server replay is confirmed safe or
+the creator explicitly discards it.
+
+### Canonical server replay
+
+While the show is live, the same protected master bus also produces bounded
+48 kHz stereo PCM/WAV chunks. Those chunks are authenticated and sent to the
+backend during the show. They feed the required replay encoder independently of
+LiveKit listener delivery.
+
+At End Broadcast:
+
+1. the browser flushes pending recording chunks;
+2. the backend verifies chunk/finalization state;
+3. FFmpeg finalizes the canonical MP3 replay (default
+   `AUDIO_REPLAY_MP3_BITRATE=320k`);
+4. exactly one replay Audio record is linked idempotently to the broadcast;
+5. the MP3 remains on persistent local storage or is archived to configured
+   S3-compatible storage;
+6. only after canonical persistence is confirmed may the browser recovery master
+   be cleared.
+
+The source broadcast ID/replay file key is the idempotency boundary. Retrying
+completion must return/reconcile the existing replay rather than create a second
+recording.
+
+**FFmpeg and FFprobe are mandatory for this production recording path.** The
+backend exposes `GET /api/health/recording`; a recording-capable deployment must
+return HTTP 200 with `automaticServerMp3: true` and `trimming: true`.
+
+A huge final WAV POST at End Broadcast is an architecture regression. Do not
+solve it by increasing proxy/body limits.
 
 ## Saved recording trims
 
-Saved recordings are trimmed on the backend. The browser sends start/end
-timestamps; FFmpeg writes a separate file and FFprobe validates non-empty audio
-and duration. A conditional database update swaps the Audio record to that file.
-The original is deleted only after the database update succeeds. Invalid ranges,
-FFmpeg failures, and concurrent-edit conflicts preserve the original.
+Saved recordings are trimmed on the backend and trimming is non-destructive.
 
-This keeps long-form decoding and re-encoding off the browser main thread.
+The browser sends only `startSeconds` and `endSeconds`. The backend obtains
+the already-saved source recording (local disk or configured object storage),
+runs FFmpeg, validates the output, and creates a **separate private trimmed Audio
+record**. The original remains unchanged.
+
+For MP3 source recordings, Echoo uses FFmpeg stream copy where possible instead
+of another lossy MP3 re-encode. This keeps trimming fast and avoids unnecessary
+quality loss.
+
+Invalid ranges, missing FFmpeg/FFprobe, object-storage read failures, or trim
+errors leave the original untouched. The browser never creates and uploads a
+large replacement WAV merely to trim a saved replay.
+
 
 ## Limiter and master metering
 
@@ -106,8 +145,10 @@ source was itself 24-bit. If AudioWorklet/OPFS capture is unavailable, Echoo fal
 back to a local Opus recording marked `opus-fallback`; it is never called lossless.
 
 Enable `MASTER_ARCHIVE_ENABLED=true` and set `MASTER_ARCHIVE_DIR` to a private,
-persisted backend volume. FFmpeg must be installed (or `FFMPEG_PATH` supplied).
-Enable radio only with all `RADIO_STREAM_*` settings present; `RADIO_PUBLIC_BASE_URL`
+persisted backend volume. The backend already requires FFmpeg + FFprobe for
+canonical replay MP3 and trimming; use `FFMPEG_PATH` / `FFPROBE_PATH` only
+when the binaries are not on PATH. Enable radio only with all `RADIO_STREAM_*`
+settings present; `RADIO_PUBLIC_BASE_URL`
 is optional and contains no secret. Archive files are not written under `/uploads`
 and are not made public by this integration.
 
@@ -139,21 +180,27 @@ codec tiers are future work, not part of this implementation.
    Max (510 kbps, RED off). For each, inspect `outbound-rtp` stats:
    codec must be Opus, channels stereo when supported, and bitrate is an observed
    value rather than an assumed profile value.
-3. With FFmpeg and archive enabled, end a short broadcast and inspect the private
-   archive FLAC with `ffprobe`; it should report 48 kHz, two channels and 24-bit.
+3. Before any recording test, call `GET /api/health/recording` and confirm
+   FFmpeg + FFprobe are available. End a short broadcast and confirm exactly one
+   canonical MP3 replay is created and remains playable after refresh. If the
+   optional master archive is enabled, also inspect the private FLAC with
+   `ffprobe`; it should report 48 kHz, two channels and 24-bit.
 4. With Icecast configured, open only the external radio URL in a separate player;
    Listener UI continues using LiveKit and must not play both paths.
-5. Stop Icecast or make FFmpeg unavailable. Confirm radio/archive records `failed`
-   while creator and listener LiveKit audio remain active, then end a broadcast and
-   confirm no encoder processes remain.
+5. Stop Icecast and confirm the optional radio branch can fail without stopping
+   creator/listener LiveKit audio. Separately, make FFmpeg unavailable in a test
+   environment and confirm `/api/health/recording` returns 503 and Echoo clearly
+   reports server recording/trimming unavailable instead of pretending the MP3
+   will be saved.
 6. During a live session, disable networking for 5–15 seconds. Confirm creator
    state moves through reconnecting/recovering, the same broadcast resumes, and
    the recording start timestamp does not change. Confirm listeners return to
    `playing` without duplicate `<audio>` elements.
 7. Leave a recording active for at least 20 seconds, then simulate a page crash.
-   Reload and confirm the recording prompt recovers the last committed OPFS
-   checkpoint. Retry the upload after dropping one response and confirm only one
-   replay exists for the broadcast.
-8. Trim a saved replay and inspect it with `ffprobe`. Repeat with an invalid
-   range and with FFmpeg unavailable; in both failures, confirm the original
-   stored file still plays.
+   Reload and confirm the OPFS recovery master reopens from the last committed
+   checkpoint. Retry server replay completion after dropping one response and
+   confirm only one replay exists for the broadcast.
+8. Trim a saved replay and inspect the new trimmed copy. Confirm the original is
+   unchanged. Repeat with an invalid range and with FFmpeg unavailable; in both
+   failures, confirm the original stored file still plays and no giant browser
+   WAV upload occurs.
