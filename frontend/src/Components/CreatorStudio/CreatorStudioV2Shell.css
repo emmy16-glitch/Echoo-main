@@ -665,37 +665,55 @@
     box-shadow:0 -8px 24px rgba(18,35,61,.05) !important;
   }
   .studio-v2-shell .studio-sidebar-watermark { display: none; }
+  /* Six Creator destinations do not fit legibly into a 390px phone.
+     Keep real tap targets and let the bottom navigation scroll horizontally
+     instead of squeezing labels down to 8px. */
   .studio-v2-shell .studio-navigation {
-    height:58px !important;
-    grid-template-columns:repeat(6,minmax(0,1fr)) !important;
+    width: calc(100vw - 16px) !important;
+    max-width: calc(100vw - 16px) !important;
+    height: 62px !important;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: stretch !important;
+    justify-content: flex-start !important;
+    gap: 3px !important;
+    grid-template-columns: none !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scrollbar-width: none;
+    scroll-snap-type: x proximity;
   }
+  .studio-v2-shell .studio-navigation::-webkit-scrollbar { display:none; }
+
   .studio-v2-shell .studio-nav-item,
-  .studio-v2-shell.sidebar-collapsed .studio-nav-item {
-    min-width:0 !important;
-    flex-basis:auto !important;
+  .studio-v2-shell.sidebar-collapsed .studio-nav-item,
+  html body #root .studio-page.studio-final-shell.studio-v2-shell .studio-navigation .studio-nav-item,
+  html body #root .studio-page.studio-final-shell.studio-v2-shell.sidebar-expanded .studio-navigation .studio-nav-item {
+    width:80px !important;
+    min-width:80px !important;
+    max-width:80px !important;
+    flex:0 0 80px !important;
+    gap:3px !important;
+    padding:4px 3px !important;
     color:#66758e !important;
+    scroll-snap-align:start;
   }
   .studio-v2-shell .studio-nav-item.active {
     background:#edf4ff !important;
     color:#0758f7 !important;
   }
 
-  html body #root .studio-page.studio-final-shell.studio-v2-shell .studio-navigation .studio-nav-item,
-  html body #root .studio-page.studio-final-shell.studio-v2-shell.sidebar-expanded .studio-navigation .studio-nav-item {
-    min-width: 0 !important;
-    gap: 2px !important;
-    padding: 4px 1px !important;
-  }
-
   html body #root .studio-page.studio-final-shell.studio-v2-shell .studio-nav-label {
-    width: 100% !important;
-    min-width: 0 !important;
-    overflow: hidden !important;
-    font-size: 8px !important;
-    line-height: 10px !important;
-    text-align: center !important;
-    text-overflow: clip !important;
-    white-space: normal !important;
+    width:100% !important;
+    min-width:0 !important;
+    max-width:76px !important;
+    display:block !important;
+    overflow:hidden !important;
+    font-size:11px !important;
+    line-height:12px !important;
+    text-align:center !important;
+    text-overflow:ellipsis !important;
+    white-space:nowrap !important;
   }
 
   html body #root .studio-page.studio-final-shell.studio-v2-shell:has(.studio-view > .ec2-broadcast) .studio-topbar-final {
