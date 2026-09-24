@@ -21,13 +21,19 @@ publication, subscribed track, DOM attachment, and media playback state must
 all be revalidated after reconnect.
 
 Ending is the only normal boundary that stops publication and finalizes the
-recorder. The backend end endpoint is idempotent. A finished local master stays
-recoverable until the replay upload is confirmed; upload retries reconcile by
-broadcast ID rather than creating another replay.
+recorder. The backend end endpoint is idempotent. During the show, bounded PCM/WAV
+chunks feed the backend replay encoder. The browser OPFS master stays recoverable
+until canonical server MP3 persistence is confirmed; completion retries reconcile
+by broadcast ID rather than creating another replay.
 
-Large replay trims are server jobs. The browser sends timestamps; FFmpeg writes
-a temporary output, validation completes, and only then is the stored media
-reference replaced. The original is retained on every failure path.
+FFmpeg and FFprobe are required on the backend for automatic server MP3
+finalization and saved-recording trimming. `GET /api/health/recording` is the
+deployment readiness gate for those capabilities.
+
+Large replay trims are server jobs. The browser sends timestamps only; FFmpeg
+reads the already-saved source, writes a separate trimmed output, validation
+completes, and a new private Audio record is created. The original recording is
+never replaced by a successful trim and remains untouched on every failure path.
 
 ## Recovery invariants
 
@@ -40,7 +46,9 @@ reference replaced. The original is retained on every failure path.
   state; backend presence is supplementary.
 - Listener "playing" requires a current canonical track and a usable,
   non-ended media element rather than a remembered track ID.
-- OPFS data is deleted only after confirmed persistence or explicit discard.
+- OPFS data is deleted only after confirmed canonical server persistence or explicit discard.
+- End Broadcast must never depend on one giant final WAV upload.
+- Exactly one canonical replay MP3 is linked per broadcast; trimming creates separate copies.
 
 ## Server coordination
 
@@ -48,3 +56,12 @@ LiveKit webhooks preserve a live broadcast through a configurable creator
 disconnect grace window (20 seconds by default). A republishing creator cancels
 the pending terminal transition. Presence continues to distinguish logical
 broadcast status from current creator transport presence.
+
+
+## Hosting requirement
+
+Any operator or AI agent deploying this reliability path must read
+[../HOSTING.md](../HOSTING.md). A deployment is not recording-ready until both
+`ffmpeg -version` and `ffprobe -version` succeed in the backend runtime and
+`GET /api/health/recording` reports `automaticServerMp3: true` and
+`trimming: true`.
