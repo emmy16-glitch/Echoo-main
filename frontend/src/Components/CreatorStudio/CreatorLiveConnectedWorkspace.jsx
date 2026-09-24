@@ -859,7 +859,11 @@ const CreatorLiveConnectedWorkspace = ({
     try {
       // new URL() throws on file:// (packaged desktop: origin 'null') — a
       // share link needs an http(s) origin the desktop shell cannot provide.
-      const url = new URL(path, window.location.origin).toString();
+      const configuredOrigin = String(import.meta.env?.VITE_PUBLIC_APP_ORIGIN || '')
+        .trim()
+        .replace(/\/$/, '');
+      const shareOrigin = configuredOrigin || window.location.origin;
+      const url = new URL(path, shareOrigin).toString();
       if (!navigator.clipboard?.writeText) throw new Error('Clipboard unavailable');
       await navigator.clipboard.writeText(url);
       setError('');
