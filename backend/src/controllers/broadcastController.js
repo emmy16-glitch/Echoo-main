@@ -52,14 +52,16 @@ const clamp = (value, minimum, maximum, fallback) => {
 };
 
 const sanitizeAudioConfiguration = (value = {}) => ({
-  audioMode: value.audioMode === 'raw' ? 'raw' : 'enhanced',
-  noiseReduction: clamp(value.noiseReduction, 0, 1, 0.45),
-  echoRemoval: value.echoRemoval !== false,
-  voiceWarmth: clamp(value.voiceWarmth, 0, 1, 0.35),
-  voiceClarity: clamp(value.voiceClarity, 0, 1, 0.45),
-  deEsser: clamp(value.deEsser, 0, 1, 0.3),
-  volumeBalance: clamp(value.volumeBalance, 0, 1, 0.45),
-  protectLoudSounds: value.protectLoudSounds !== false,
+  // Unknown/missing values must stay transparent. Enhanced processing only
+  // exists when the creator explicitly selected Enhanced Audio.
+  audioMode: value.audioMode === 'enhanced' ? 'enhanced' : 'raw',
+  noiseReduction: clamp(value.noiseReduction, 0, 1, 0),
+  echoRemoval: value.echoRemoval === true,
+  voiceWarmth: clamp(value.voiceWarmth, 0, 1, 0),
+  voiceClarity: clamp(value.voiceClarity, 0, 1, 0),
+  deEsser: clamp(value.deEsser, 0, 1, 0),
+  volumeBalance: clamp(value.volumeBalance, 0, 1, 0),
+  protectLoudSounds: value.protectLoudSounds === true,
   masterVolume: clamp(value.masterVolume, 0, 1.5, 1),
 });
 
