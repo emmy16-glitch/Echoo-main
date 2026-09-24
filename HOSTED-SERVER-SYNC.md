@@ -1,30 +1,44 @@
 # Echoo hosted-server sync — instructions for the server AI/agent
 
-> **Read this whole file first, then do every task in order, then verify.**
-> Goal: make `https://echoo.digi02.org/` the ONE shared backend for the web
-> app and the Echoo Desktop apps (Windows `.exe` / Linux AppImage), with
-> LiveKit Cloud audio, so any install can sign up and go live with zero setup.
+> **Read [HOSTING.md](HOSTING.md) first, then read this whole file, then do every
+> task in order and verify.**
+> Goal: keep `https://echoo.digi02.org/` as the ONE shared production backend
+> for web and Echoo Desktop, with LiveKit Cloud audio and automatic server MP3
+> recordings. This runbook is specifically for the Digi02 host.
 
 ---
 
-## 0. Background (how the pieces fit)
+## 0. Background and mandatory recording gate
 
-- Desktop installs currently spawn an isolated local backend each, so every
-  machine is its own island: users, channels, broadcasts and presence are
-  invisible across machines. LiveKit Cloud is already shared, but broadcast
-  discovery is not.
-- Target architecture: **one hosted backend** (this server) + LiveKit Cloud.
-  New desktop installers will then be pointed at `https://echoo.digi02.org/api`
-  and every user lands in the same world.
-- Verified facts about this server (2026-09-15, by the desktop engineer):
-  - `GET /` → 200, serves an Echoo frontend BUT a stale bundle
-    (`assets/index-BVRpHhhk.js`, **no** `<meta name="echoo-app">` marker).
-  - `GET /api/health` → `{"status":"ok","service":"echoo-api"}`.
-  - Desktop access is **blocked**: `POST /api/auth/login` with
-    `Origin: null` returns `{"error":{"code":"CORS_ORIGIN_DENIED", ...}}`.
-    (Electron runs over `file://`, so Chromium sends the literal origin
-    string `"null"` — the backend must accept it. See Task 1.)
-  - LiveKit configuration on this server is **unknown** — Task 2 covers it.
+Target architecture:
+
+- one hosted Echoo backend at `https://echoo.digi02.org/api`;
+- one shared production MongoDB;
+- LiveKit Cloud for realtime creator/listener audio;
+- FFmpeg + FFprobe on Digi02 for automatic replay MP3 and trimming;
+- persistent canonical recording storage;
+- web and desktop clients using the same hosted world.
+
+Before touching the deployment, verify the operator/AI has read:
+
+1. [HOSTING.md](HOSTING.md)
+2. [AGENTS.md](AGENTS.md)
+3. [docs/deployment.md](docs/deployment.md)
+4. [backend/.env.example](backend/.env.example)
+
+Do not use `docs/archive/` as current deployment instructions.
+
+The production handoff fails if either of these commands fails in the backend
+runtime:
+
+```bash
+ffmpeg -version
+ffprobe -version
+```
+
+LiveKit can still carry realtime audio without them, but Echoo cannot guarantee
+automatic server MP3 replay finalization or saved-recording trimming.
+
 
 ---
 
@@ -77,31 +91,48 @@ Notes:
 
 ---
 
-## Task 3 — Deploy fresh code (frontend AND backend)
+## Task 3 — Deploy the latest code (frontend AND backend)
 
-The live site is stale. Deploy the latest repo code and rebuild:
+Do not assume the currently running bundle/process is current. Pull `main`,
+verify environment/runtime dependencies, rebuild the frontend, and restart the
+backend using the host's existing process manager:
 
 1. Sync your checkout to the newest `main` (if it is behind, ask okunlola
    to push first — the desktop apps already ship newer frontend code and the
    server must be at least as new).
 2. `npm install` in `backend/` (production deps only is fine).
-3. Verify the recording binaries before any live test:
+3. Verify `backend/.env` contains the production values needed for MongoDB,
+   JWT, CORS, LiveKit and recording. At minimum, the recording-specific values
+   should resolve to:
+   ```env
+   FFMPEG_PATH=ffmpeg
+   FFPROBE_PATH=ffprobe
+   AUDIO_REPLAY_MP3_BITRATE=320k
+   ```
+   Keep all real secrets server-only.
+4. Verify the recording binaries before any live test:
    ```bash
    ffmpeg -version
    ffprobe -version
    ```
    Both are required. If either command is missing, install the distro FFmpeg package first; Echoo cannot finalize automatic server MP3 replays or trim saved recordings without them.
-4. Build the web bundle in `frontend/` with
-   `VITE_API_URL=/api VITE_BUILD_BASE=/ npm run build`, then serve the fresh
-   `dist/`. The `/` base is required for direct SPA links such as
+5. Confirm recording storage is persistent. If using local server storage,
+   `backend/uploads/audio/` must be writable and survive pulls/restarts. If
+   Digi02 is changed to an ephemeral/container deployment, configure the
+   `AUDIO_S3_*` object-storage variables from `backend/.env.example`.
+6. Build the web bundle in `frontend/` with
+   `VITE_API_URL=/api VITE_BUILD_BASE=/ VITE_PUBLIC_APP_ORIGIN=https://echoo.digi02.org npm run build`,
+   then serve the fresh `dist/`. The `/` base is required for direct SPA links such as
    `/listen/live/:broadcastId`; the default relative base is reserved for the
    packaged desktop app and resolves assets under the deep-link path in a web
    deployment.
-5. Restart the backend.
+7. Restart the backend.
 
 Minimum server capabilities the desktop apps depend on (fail the handoff if
 any are missing — do not paper over them):
 - `GET /api/health` → `{"status":"ok","service":"echoo-api"}`
+- `GET /api/health/recording` → HTTP 200 with FFmpeg + FFprobe available,
+  `automaticServerMp3: true`, `trimming: true`
 - Auth: register / login / refresh / me
 - Broadcast lifecycle: prepare, start, LiveKit token, confirm-live, cancel,
   end-realtime, creator broadcast list, single broadcast fetch, presence
@@ -119,34 +150,69 @@ any are missing — do not paper over them):
 
 ---
 
-## Task 4 — Verify everything (all six must pass; report each result)
+## Task 4 — Verify everything (all checks are required)
 
-1. `curl -s https://echoo.digi02.org/api/health` → `status "ok"`,
-   `service "echoo-api"`.
-2. `curl -s https://echoo.digi02.org/api/health/recording` → HTTP 200 with
-   `automaticServerMp3: true` and `trimming: true`.
-3. `curl -s https://echoo.digi02.org/ | grep -o 'name="echoo-app"[^>]*'` →
-   prints the marker (proves fresh frontend is live).
-4. Desktop-origin check (must NOT return `CORS_ORIGIN_DENIED`; an auth error
-   such as invalid credentials is the CORRECT answer here):
+1. API identity:
+   ```bash
+   curl -fsS https://echoo.digi02.org/api/health
+   ```
+   Must report Echoo API healthy.
+
+2. Recording runtime:
+   ```bash
+   curl -fsS https://echoo.digi02.org/api/health/recording
+   ```
+   Must return HTTP 200 with `ffmpeg: available`, `ffprobe: available`,
+   `automaticServerMp3: true`, and `trimming: true`.
+
+3. Fresh frontend identity:
+   ```bash
+   curl -fsS https://echoo.digi02.org/ | grep -o 'name="echoo-app"[^>]*'
+   ```
+
+4. Desktop-origin CORS check must **not** return `CORS_ORIGIN_DENIED`:
    ```bash
    curl -s -X POST https://echoo.digi02.org/api/auth/login \
      -H "Origin: null" -H "Content-Type: application/json" \
      -d '{"email":"x","password":"y"}'
    ```
-5. With the Task 2 credentials, create and then delete a test room against
-   `https://echoo-cdpcubcr.livekit.cloud` (proves Cloud linkage; use the
-   `livekit-server-sdk` `RoomServiceClient` or `livekit-cli`/`lk`).
-6. End-to-end in a real browser on the site: register a fresh account and go
-   live as a creator — the stream must actually start (no
-   `LIVEKIT_CONFIG_MISSING`, no generic service error).
+   Invalid credentials are acceptable for this probe; CORS denial is not.
+
+5. LiveKit linkage: with the configured server credentials, create and delete a
+   test room using the LiveKit server SDK or `lk` CLI. Do not print secrets.
+
+6. Browser lifecycle: register/sign in, create/use a Channel, start a public
+   broadcast, and confirm the creator reaches live state.
+
+7. Separate listener: open the shared link on another browser/device (preferably
+   a phone on another network) and confirm real `echoo-studio-mix` audio plays.
+
+8. Recording save: allow several bounded recording chunks, then End Broadcast.
+   Confirm:
+   - no giant final WAV request;
+   - no HTTP 413;
+   - one canonical server MP3 appears in Recordings;
+   - the MP3 plays from beginning, middle and end after refresh.
+
+9. Durability: restart the backend and confirm that replay still plays. If local
+   disk is being used, this proves the uploads path is persistent; if object
+   storage is used, it proves archive/playback configuration is correct.
+
+10. Trim: in Recordings, create a trim. Confirm a separate trimmed recording
+    appears and plays, while the original recording still exists and plays.
+
+11. Device copy: verify the remembered MP3/WAV/server-only preference behaves as
+    configured. On Echoo Desktop, automatic device copies should be organized in
+    the Echoo Recordings folder; web/mobile follows browser download rules.
+
+Do not call the server production-ready if any required check above is unverified.
 
 ---
 
 ## Report back (required)
 
-Reply with: the deployed commit hash, pass/fail for each of the six checks
-above (paste the outputs), and confirmation that no secrets were committed
-or logged. Once this is green, the desktop engineer cuts new installers
-pointed at `https://echoo.digi02.org/api` — nothing on the server side
-remains.
+Reply with: the deployed commit hash, pass/fail for every required check above,
+the `/api/health/recording` result, recording storage mode (persistent local
+disk or S3-compatible object storage), and confirmation that no secrets were
+committed or logged. State any real-browser steps that still require a human
+instead of marking them passed without evidence.
