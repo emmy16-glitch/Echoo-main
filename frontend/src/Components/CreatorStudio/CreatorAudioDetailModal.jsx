@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   FaCamera,
   FaDownload,
@@ -400,7 +401,9 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged, onAddToCollection 
     }
   };
 
-  return (
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
     <div
       className="creator-audio-modal-overlay eb-backdrop-in eb-sheet"
       onMouseDown={(event) => {
@@ -627,7 +630,8 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged, onAddToCollection 
           Export creates a separate copy for your device. “Download stored file” retrieves Echoo’s current server copy without another conversion.
         </p>
       </section>
-    </div>
+    </div>,
+    document.body
   );
 };
 
