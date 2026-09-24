@@ -107,7 +107,7 @@ test('partial Creator cannot bypass Channel setup with a direct Studio URL', asy
   await page.goto('/creator-studio/channels');
   await expect(page).toHaveURL(/\/creator-studio\/channels$/);
   await expect(page.getByRole('heading', { name: 'Create your Channel' })).toBeVisible();
-  await expect(page.getByText('Your space to broadcast, share recordings and grow your audience.')).toBeVisible();
+  await expect(page.getByText('Set up the identity listeners will see when you broadcast. You can change these details later in Creator Studio.')).toBeVisible();
   expect(errors).toEqual([]);
 });
 
@@ -192,7 +192,7 @@ test('Channel creation race recovers the existing canonical Channel instead of t
   await page.getByLabel('Channel name').fill('Lifecycle QA Channel');
   await page.getByLabel('Category').selectOption('Technology');
   await page.getByLabel('Description').fill('Lifecycle QA Channel.');
-  await page.getByRole('button', { name: 'Set up Channel' }).click();
+  await page.getByRole('button', { name: 'Create Channel' }).click();
 
   await expect(page).toHaveURL(/\/creator-studio(?:\/broadcast)?$/);
   await expect(page.getByRole('button', { name: 'Channel', exact: true })).toBeVisible();
