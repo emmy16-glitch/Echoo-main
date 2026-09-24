@@ -264,16 +264,18 @@
   }
 
   html body #root#root .studio-v2-shell .echoo-mode-switcher {
-    width: 138px !important;
-    height: 34px !important;
-    flex: 0 0 138px !important;
+    width: 150px !important;
+    height: 44px !important;
+    flex: 0 0 150px !important;
   }
 
   html body #root#root .studio-v2-shell .echoo-mode-switcher button {
-    height: 26px !important;
+    min-width: 72px !important;
+    min-height: 44px !important;
+    height: 44px !important;
     padding: 0 8px !important;
     font-size: 10.5px !important;
-    line-height: 26px !important;
+    line-height: 44px !important;
   }
 
   html body #root#root .studio-v2-shell .echoo-account-toolbar .echoo-account-toolbar__notification,
