@@ -14,6 +14,7 @@ export async function downloadAuthorizedAudio(req, res, next) {
     }
 
     const storedFilename = path.basename(String(audio.filename || audio.fileKey || ''));
+    const downloadFilename = path.basename(String(audio.originalName || storedFilename || 'Echoo recording.mp3'));
     if (!storedFilename) {
       return res.status(404).json({
         error: {
@@ -66,7 +67,7 @@ export async function downloadAuthorizedAudio(req, res, next) {
       res.setHeader('Content-Type', object.ContentType || audio.mimeType || 'application/octet-stream');
       const contentLength = Number(object.ContentLength || audio.fileSize || 0);
       if (contentLength > 0) res.setHeader('Content-Length', String(contentLength));
-      res.attachment(storedFilename);
+      res.attachment(downloadFilename);
 
       if (typeof body.pipe === 'function') {
         body.once?.('error', (streamError) => {
@@ -120,7 +121,7 @@ export async function downloadAuthorizedAudio(req, res, next) {
 
     return res.download(
       absolutePath,
-      storedFilename,
+      downloadFilename,
       (downloadError) => {
         if (downloadError && !res.headersSent) next(downloadError);
       }
