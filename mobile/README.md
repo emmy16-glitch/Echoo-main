@@ -1,5 +1,9 @@
 # Echoo Mobile
 
+> **Hosting the backend used by this app?** Read [../HOSTING.md](../HOSTING.md).
+> Mobile clients depend on the same hosted Echoo API/LiveKit world. Automatic
+> server MP3 replay and trimming require FFmpeg + FFprobe on that backend.
+
 Echoo Mobile is the React Native/Expo companion application for Echoo live-audio experiences. It is kept as a separate subproject from `frontend`, `desktop`, and `echoo-landing`.
 
 ## Run locally

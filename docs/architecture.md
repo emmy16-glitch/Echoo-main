@@ -24,20 +24,21 @@
 └────────────────────────┘   └──────────────────┘
 ```
 
-Realtime product events (chat, presence, status) travel over Socket.IO from the API process. Live audio bytes travel creator → LiveKit → listeners and never touch the API.
+Realtime product events (chat, presence, status) travel over Socket.IO from the API process. Live listener audio travels creator → LiveKit → listeners. Separately, bounded post-master PCM/WAV recording chunks travel creator → Echoo backend for canonical replay finalization; the API does not relay live audio per listener.
 
 ## Authority rules
 
 - **One shared backend per environment.** Every install in an environment talks to the same API + database; that is what makes a broadcast visible to everyone. (Desktop installers can bundle a local server for offline/single-machine use, but a shared world needs the hosted API — see `deployment.md`.)
 - **LiveKit is the live media authority.** Playback attaches only to the named `echoo-studio-mix` publication; tokens are short-lived, subscriber-only for listeners, and reissued on reconnect.
 - **Private media by default.** Recording files, covers, and replays resolve through signed, time-limited stream URLs. Cloud object URLs are never exposed in API output.
+- **Recording runtime is a backend capability.** Automatic replay MP3 and saved-recording trim require FFmpeg + FFprobe. Production readiness is exposed by `GET /api/health/recording`.
 - **Public data is explicit.** Only broadcasts flagged public appear in discovery, shared links, and guest endpoints; private broadcasts 404 like missing ones.
 - **Single API process for realtime.** Socket.IO runs in-process; multi-instance API deployment needs a shared adapter before rooms can span processes.
 - **No mock data.** The product never serves fabricated shows, counts, or transcripts; empty states are honest.
 
 ## Broadcast lifecycle (happy path)
 
-`scheduled → starting → live → ending → completed` (plus `cancelled`/`failed` exits). Going live mints the LiveKit room and creator token; ending it triggers the recording pipeline (master finalize → creator trim/crop review → MP3 normalise → cloud archive → replay link) and background processing jobs (transcript, highlights, chapters).
+`scheduled → starting → live → ending → completed` (plus `cancelled`/`failed` exits). Going live mints the LiveKit room and creator token. During the show, bounded master-audio chunks feed the backend replay pipeline. Ending flushes/finalizes those chunks into the canonical MP3 replay and links it idempotently to the broadcast. Trimming is a later non-destructive Recordings action that creates a separate private copy; it is not part of the End Broadcast save path.
 
 ## Clients
 
@@ -51,3 +52,19 @@ Realtime product events (chat, presence, status) travel over Socket.IO from the 
 - [Audio pipeline](audio-architecture.md) — capture, mixer, publishing profiles, listener attach.
 - [Transcription](transcription.md) — Whisper gateway deployment and behavior.
 - [Desktop internals](../desktop/README.md) — IPC contract, CSP, updater, release matrix.
+
+
+## Hosting authority
+
+Deployment/runtime requirements are defined in [../HOSTING.md](../HOSTING.md).
+An AI or human operator must not infer hosting solely from this architecture
+diagram. In particular, FFmpeg + FFprobe and persistent recording storage are
+mandatory for a recording-capable production backend.
+
+
+## Recording host dependency
+
+The backend requires **FFmpeg and FFprobe** for automatic server MP3 replay
+finalization and server-side trimming. Hosting agents must verify
+`GET /api/health/recording` before declaring a deployment ready. See
+[../HOSTING.md](../HOSTING.md).

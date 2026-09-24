@@ -12,10 +12,18 @@
 | 📦 Repository | [https://github.com/emmy16-glitch/Echoo-main](https://github.com/emmy16-glitch/Echoo-main) |
 | 📖 Full docs hub | [docs/README.md](docs/README.md) |
 | 🖥️ Desktop downloads | [GitHub Releases](https://github.com/emmy16-glitch/Echoo-main/releases) |
+| 🚨 **Hosting / deploy first-read** | **[HOSTING.md](HOSTING.md)** |
 | 🚀 Deployment guide | [docs/deployment.md](docs/deployment.md) |
 | 🎙️ 60-second go-live | [The go-live loop](#the-60-second-go-live-loop) |
 
 ---
+
+> [!IMPORTANT]
+> **Hosting or updating an Echoo server? Read [HOSTING.md](HOSTING.md) before deploying.**
+> The backend requires **both FFmpeg and FFprobe** for automatic server MP3
+> recordings and server-side trimming. A frontend build or healthy `/api/health`
+> alone does **not** prove recording works. AI/automation agents must also follow
+> [AGENTS.md](AGENTS.md).
 
 ## Table of contents
 
@@ -60,7 +68,7 @@ Echoo is deliberately **not** another upload-and-wait audio host. It separates l
 - **LiveKit Cloud** routes real-time audio — the API never touches per-listener audio bytes, so a room scales without server load.
 - **Guest-first listening** — shared links work with zero signup; accounts unlock chat, follows, and libraries, and guest sessions migrate into new accounts.
 - **Honest states everywhere** — empty rooms, offline servers, and unconfigured audio say exactly what is wrong instead of spinning or faking.
-- **Recordings are trim-then-save** — ending a broadcast opens a trim/crop screen; the part you keep is saved, never the raw master by accident.
+- **Recordings save first, trim non-destructively later** — the server automatically finalizes the canonical MP3 at End Broadcast; Creator Recordings can then create a separate trimmed copy without overwriting the original.
 - **One shared world per environment** — every install talks to the same API + database, so a broadcast is visible to everyone. No mock shows, counts, or transcripts, ever.
 
 ## Features
@@ -158,7 +166,8 @@ See [docs/deployment.md](docs/deployment.md).
 
 - Node.js `>= 20` (repo runs on 20.x)
 - Python `3.10` for the Whisper transcription service (optional)
-- MongoDB (local or a URI), FFmpeg on PATH (recording transcode)
+- MongoDB (local or a URI)
+- **FFmpeg + FFprobe on the backend PATH** — mandatory for automatic server MP3 replay finalization and saved-recording trimming
 
 ### 1. Full stack (one command)
 
@@ -179,7 +188,7 @@ cd mobile   && npm start                              # Expo (see mobile/README.
 
 Ports are project-specific, not framework defaults (`5273`/`5017`), and every readiness gate verifies app identity — see [docs/getting-started.md](docs/getting-started.md).
 
-> Without LiveKit keys, a Whisper gateway, or cloud storage, Echoo still runs its account/discovery/replay surface and clearly reports which integrations are unavailable.
+> Whisper and cloud object storage are optional in supported deployments. **FFmpeg/FFprobe are not optional for a production recording-capable backend.** Without LiveKit keys, live broadcasting is unavailable; without FFmpeg/FFprobe, automatic server MP3 recording and trimming are unavailable. Echoo reports these states explicitly.
 
 ## Environment variables
 
@@ -189,7 +198,7 @@ Ports are project-specific, not framework defaults (`5273`/`5017`), and every re
 | Frontend | build-time | `VITE_API_URL` (packaged/desktop override), `VITE_PUBLIC_APP_ORIGIN` (share links), `VITE_LIVEKIT_URL` (fallback) |
 | Desktop | build-time | `LIVEKIT_*` (baked into installers for zero-config go-live) |
 
-See [backend/.env.example](backend/.env.example) for defaults and semantics.
+See [backend/.env.example](backend/.env.example) for defaults and semantics. For hosting, follow [HOSTING.md](HOSTING.md) before copying values into production.
 
 ## Verification
 
@@ -204,6 +213,7 @@ GitHub Actions (`echoo-check`) runs lint, build, and checks on every push to `ma
 ## API diagnostics
 
 - `GET /api/health` — `{status: "ok", service: "echoo-api"}`
+- `GET /api/health/recording` — FFmpeg/FFprobe readiness; production recording requires HTTP 200 with `automaticServerMp3: true` and `trimming: true`
 - `GET /api/broadcasts/:id/presence` — public listener counts (no auth)
 - `GET /api/broadcasts/:id/public` — public broadcast card for share links (no auth)
 - `POST /api/broadcasts/:id/guest-token` — guest listener credentials (no auth, rate-limited)
@@ -239,6 +249,7 @@ Backend source map: see [docs/architecture.md](docs/architecture.md).
 
 - Desktop installers ship from [GitHub Releases](https://github.com/emmy16-glitch/Echoo-main/releases) with update manifests the in-app updater consumes.
 - Mobile preview APKs ship from EAS (`mobile/APK_BUILD.md`).
+- **Mandatory host/deploy contract:** [HOSTING.md](HOSTING.md). Read it before provisioning or updating any server.
 - Self-hosting checklist (env, LiveKit Cloud, storage, CORS, fresh frontend): [docs/deployment.md](docs/deployment.md).
 
 ## Product truth rules
@@ -259,6 +270,8 @@ If evidence is unavailable, the product says so. If an integration fails, the UI
 
 | Document | Contents |
 |---|---|
+| [HOSTING.md](HOSTING.md) | **Mandatory hosting/deployment first-read; FFmpeg, storage, env, verification** |
+| [AGENTS.md](AGENTS.md) | Instructions for AI coding/hosting agents |
 | [docs/README.md](docs/README.md) | Docs hub / reading order |
 | [docs/product.md](docs/product.md) | Roles, journeys, feature map |
 | [docs/getting-started.md](docs/getting-started.md) | Dev stack, ports, env, tests |

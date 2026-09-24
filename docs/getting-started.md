@@ -2,7 +2,22 @@
 
 ## Prerequisites
 
-Node.js 20+, MongoDB (local or a URI), FFmpeg on PATH (recording transcode), and — for going live locally — a LiveKit server (`livekit-server --dev` works).
+- Node.js 20+
+- MongoDB (local or a URI)
+- **FFmpeg and FFprobe on PATH** — required for automatic server MP3 replay finalization and server-side trimming
+- for going live locally, a LiveKit server (`livekit-server --dev` works)
+- Python 3.10 only if you are running the optional Whisper transcription service
+
+Verify recording tools before debugging the app:
+
+```bash
+ffmpeg -version
+ffprobe -version
+```
+
+If either binary is missing, the live WebRTC path can still be developed, but
+the backend is not recording-capable. For any real host/deployment task, read
+[../HOSTING.md](../HOSTING.md) first.
 
 ## One-command dev stack
 
@@ -39,7 +54,19 @@ Every readiness gate verifies **app identity**, not just liveness: the frontend 
 cp backend/.env.example backend/.env   # then fill in LiveKit + storage keys
 ```
 
-Key groups in `backend/.env.example`: API/JWT, MongoDB, LiveKit (`LIVEKIT_*`), recording archive (`AUDIO_*`, S3-compatible), transcription (Whisper, optional), radio/master outputs (optional). Never commit real secrets — `.env` files are gitignored.
+Key groups in `backend/.env.example`: API/JWT, MongoDB, LiveKit (`LIVEKIT_*`),
+recording tools (`FFMPEG_PATH`, `FFPROBE_PATH`), recording archive
+(`AUDIO_*`, S3-compatible), transcription (Whisper, optional), radio/master
+outputs (optional). Never commit real secrets — `.env` files are gitignored.
+
+For local recording verification after the backend starts:
+
+```bash
+curl -fsS http://127.0.0.1:5017/api/health/recording
+```
+
+It should report FFmpeg/FFprobe available and both automatic server MP3 and
+trimming enabled.
 
 ## Tests
 
@@ -48,3 +75,14 @@ cd backend  && npm test     # node --test suite (DB layer faked where noted)
 cd frontend && node --test src/services/*.test.mjs src/Components/CreatorStudio/*.test.mjs
 cd mobile   && npx tsc --noEmit && npx eslint src modules/echoo-live-audio-service/src
 ```
+
+
+## Recording note
+
+The normal live recording path uses bounded audio chunks during the show and
+server-side MP3 finalization at End Broadcast. The browser's OPFS WAV is a local
+recovery/lossless-export master. Do not test or implement the old pattern of
+uploading one giant final WAV at the end.
+
+Saved recordings are trimmed later on the backend. The client sends timestamps;
+the original recording is preserved and a separate trimmed copy is created.

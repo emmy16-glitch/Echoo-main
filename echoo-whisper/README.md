@@ -1,5 +1,10 @@
 # Echoo Whisper Flow
 
+> Whisper is an optional transcription service. It is **not** the live replay
+> recorder. A full Echoo host must still satisfy [../HOSTING.md](../HOSTING.md),
+> including FFmpeg + FFprobe on the Echoo backend for automatic MP3 replay and
+> server-side trimming.
+
 Self-hosted, authenticated streaming transcription for Echoo's post-master PCM
 branch. It is not an audio relay and is never on the LiveKit delivery path.
 

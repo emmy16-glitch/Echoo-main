@@ -1,5 +1,11 @@
 # Echoo Desktop — release guide
 
+> **Hosted thin-client releases depend on a fully configured Echoo server.**
+> Before updating the hosted backend or cutting a release, read
+> [../HOSTING.md](../HOSTING.md). The hosted backend must have FFmpeg + FFprobe
+> and pass `/api/health/recording`; otherwise automatic server MP3 recording
+> and trimming are not ready.
+
 Native shell around the React frontend (`../frontend`). Default builds are
 **hosted thin clients** for `https://echoo.digi02.org` — end users install one
 file and land in the same world as the web app: no Node, no MongoDB, no
@@ -27,6 +33,28 @@ opt-in (`ECHOO_LOCAL_BACKEND=1`, offline development).
 - Dev (`npm run dev` / `npm start`) never spawns anything extra: if the repo
   backend is already up it is reused, otherwise start it with
   `cd backend && npm run dev` as usual (`../backend/src/app.js` from `desktop/`).
+
+## Hosted recording dependency
+
+Default Desktop builds are thin clients. They do **not** make the hosted server's
+recording dependencies disappear. The production backend must provide:
+
+- FFmpeg + FFprobe;
+- automatic canonical MP3 replay finalization;
+- persistent local or S3-compatible recording storage;
+- server-side non-destructive trim copies.
+
+Echoo Desktop's automatic local device copy is separate: it can organize files
+under `Desktop/Echoo Recordings/<year>/<month>/`, but the canonical server replay
+still depends on the hosted backend.
+
+Verify the host before release:
+
+```bash
+curl -fsS https://echoo.digi02.org/api/health/recording
+```
+
+It must report `automaticServerMp3: true` and `trimming: true`.
 
 ## Going live (LiveKit audio server)
 
