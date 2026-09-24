@@ -10,7 +10,7 @@
   html body #root#root .studio-page.studio-final-shell.studio-v2-shell {
     --studio-sidebar-width: 204px !important;
     --creator-shell-sidebar-width: 204px !important;
-    --creator-shell-topbar-height: 68px !important;
+    --creator-shell-topbar-height: 66px !important;
     grid-template-columns: 204px minmax(0, 1fr) !important;
   }
 
@@ -76,8 +76,8 @@
   html body #root#root #echoo-main-content.studio-main > .studio-topbar-final {
     position: sticky !important;
     top: 0 !important;
-    height: 68px !important;
-    min-height: 68px !important;
+    height: 66px !important;
+    min-height: 66px !important;
     padding: 0 28px !important;
   }
 
@@ -140,9 +140,9 @@
   }
 
   html body #root#root .studio-page.studio-final-shell.studio-v2-shell .studio-navigation {
-    width: 100% !important;
+    width: calc(100vw - 16px) !important;
     min-width: 0 !important;
-    max-width: 100% !important;
+    max-width: calc(100vw - 16px) !important;
     height: 62px !important;
     flex: 1 1 auto !important;
     display: flex !important;
