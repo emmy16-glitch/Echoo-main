@@ -116,8 +116,10 @@ export const getCachedCreatorAudioSettings = () => {
     const key = accountStorageKey(STORAGE_KEY);
     const value = JSON.parse((key && storage()?.getItem(key)) || 'null');
     if (!migrationAlreadyApplied() && isLegacyEnhancedDefault(value)) {
-      markMigrationApplied();
-      return cacheCreatorAudioSettings(DEFAULT_CREATOR_AUDIO_SETTINGS);
+      // Keep the local mixer transparent immediately, but do not mark the
+      // migration complete yet. loadCreatorAudioSettings() still needs to
+      // migrate the persisted server preference.
+      return { ...DEFAULT_CREATOR_AUDIO_SETTINGS };
     }
     return normalizeCreatorAudioSettings(value || DEFAULT_CREATOR_AUDIO_SETTINGS);
   } catch {
@@ -135,11 +137,13 @@ export const loadCreatorAudioSettings = async () => {
     // untouched preset once; any customized Enhanced Audio settings remain.
     if (!migrationAlreadyApplied() && isLegacyEnhancedDefault(remote)) {
       const migrated = cacheCreatorAudioSettings(DEFAULT_CREATOR_AUDIO_SETTINGS);
-      markMigrationApplied();
       try {
         const saved = await settingsService.updatePreferences({ creatorAudio: migrated });
+        markMigrationApplied();
         return cacheCreatorAudioSettings(saved?.data?.preferences?.creatorAudio || migrated);
       } catch {
+        // Stay transparent for this session and retry the server migration on
+        // the next settings load rather than reverting to the legacy preset.
         return migrated;
       }
     }
