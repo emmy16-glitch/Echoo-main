@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FiAlertTriangle,
-  FiCheckCircle,
   FiClock,
   FiCopy,
   FiLoader,
@@ -960,15 +959,10 @@ const CreatorLiveConnectedWorkspace = ({
           <span className="ec2-no-channel-eyebrow">CHANNEL SETUP</span>
           <h1 id="ec2-no-channel-title">Create your Channel</h1>
           <p>
-            Your Channel is your public home on Echoo. Listeners will find your live broadcasts, recordings and collections here.
+            Your Channel is your public home on Echoo. Choose a name and category, add artwork if you want, then start broadcasting when you are ready.
           </p>
-          <ul>
-            <li><FiCheckCircle aria-hidden="true" /> Choose a Channel name and category</li>
-            <li><FiCheckCircle aria-hidden="true" /> Add your artwork</li>
-            <li><FiCheckCircle aria-hidden="true" /> Start broadcasting</li>
-          </ul>
           <button type="button" onClick={() => onNavigate?.('Station')}>
-            Set up Channel
+            Create Channel
           </button>
         </div>
       </section>
