@@ -58,6 +58,7 @@ test('backend broadcasts media state and accepts only Echoo program-track webhoo
 test('listener consumes real LiveKit states without receiving live transcript data', async () => {
   const player = await source('../../frontend/src/Components/ListenerLiveExperience/LiveKitListenerPlayer.jsx');
   const room = await source('../../frontend/src/Components/ListenerLiveExperience/ListenerRealLiveRoom.jsx');
+  const service = await source('../../frontend/src/services/batch3Service.js');
 
   for (const label of [
     'Waiting for creator',
@@ -65,6 +66,13 @@ test('listener consumes real LiveKit states without receiving live transcript da
     'Audio live',
     'Audio disconnected',
   ]) assert.match(player + room, new RegExp(label));
+
+  // Guest and signed-in users may obtain different subscriber credentials,
+  // but both must enter this one canonical LiveKit playback engine.
+  assert.match(service, /getListenerCredentials/);
+  assert.match(player, /batch3Service\.getListenerCredentials\(broadcastId, \{ guest \}\)/);
+  assert.doesNotMatch(player, /batch3Service\.getGuestListenerToken/);
+  assert.doesNotMatch(player, /batch3Service\.getListenerLiveKitToken/);
 
   assert.doesNotMatch(room, /transcript:segment/);
   assert.doesNotMatch(room, /transcript:finalized/);
