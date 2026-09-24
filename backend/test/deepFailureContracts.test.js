@@ -173,12 +173,28 @@ test('recording management keeps trim copies safe and prevents cramped or mislab
   const recordingsCss = await frontendSource('src/Components/CreatorStudio/CreatorCollectionsWorkspace.css');
   const exportService = await frontendSource('src/services/recordingExportService.js');
   const studioService = await frontendSource('src/services/studioService.js');
+  const trimController = await source('src/controllers/audioController.js');
+  const trimService = await source('src/services/audioTrimService.js');
+  const routes = await source('src/routes/index.js');
 
   assert.doesNotMatch(trim, /studioService\.deleteAudio\(id\)/);
+  assert.doesNotMatch(trim, /uploadAudioWithProgress/);
+  assert.doesNotMatch(trim, /new File\(/);
+  assert.match(trim, /trimSavedAudio\(id/);
   assert.match(trim, /Trimmed copy saved to Recordings\. The original is unchanged\./);
   assert.match(trim, /availableFormats/);
   assert.match(trim, /Export to this device/);
   assert.match(modal, /Download stored file/);
+  assert.match(modal, /createPortal/);
+  assert.match(modal, /document\.body/);
+
+  assert.match(trimController, /const copy = await Audio\.create/);
+  assert.match(trimController, /sourcePreserved:\s*true/);
+  assert.match(trimController, /sourceBroadcast:\s*null/);
+  assert.doesNotMatch(trimController, /findOneAndUpdate\([\s\S]{0,1000}'lastTrim\.startSeconds'/);
+  assert.match(trimService, /case '\.mp3': return \['-c:a', 'copy'\]/);
+  assert.match(trimService, /FFMPEG_REQUIRED/);
+  assert.match(routes, /health\/recording/);
 
   assert.match(exportService, /Server MP3 is still being prepared/);
   assert.match(exportService, /saveAutomaticLocalCopy/);
