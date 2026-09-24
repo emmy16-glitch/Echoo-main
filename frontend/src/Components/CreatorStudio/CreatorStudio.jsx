@@ -643,19 +643,21 @@ const CreatorStudioBody = () => {
         </div>
 
         <nav className="studio-navigation" aria-label="Creator Studio">
-          {navItems.map((item) => (
-            <button
-              type="button"
-              key={item.workspace}
-              className={`studio-nav-item ${activeNav === item.workspace ? 'active' : ''}`}
-              onClick={() => navigateStudio(item.workspace)}
-              title={item.label}
-              aria-label={item.label}
-              aria-current={activeNav === item.workspace ? 'page' : undefined}
-            >
-              <span className="studio-nav-icon">{item.icon}</span><span className="studio-nav-label">{item.label}</span>
-            </button>
-          ))}
+          <div className="studio-navigation-track">
+            {navItems.map((item) => (
+              <button
+                type="button"
+                key={item.workspace}
+                className={`studio-nav-item ${activeNav === item.workspace ? 'active' : ''}`}
+                onClick={() => navigateStudio(item.workspace)}
+                title={item.label}
+                aria-label={item.label}
+                aria-current={activeNav === item.workspace ? 'page' : undefined}
+              >
+                <span className="studio-nav-icon">{item.icon}</span><span className="studio-nav-label">{item.label}</span>
+              </button>
+            ))}
+          </div>
         </nav>
 
         <img className="studio-sidebar-watermark" src={echooDecorativeLogo} alt="" aria-hidden="true" />
