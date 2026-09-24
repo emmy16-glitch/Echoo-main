@@ -75,3 +75,11 @@ export const quitDesktopReady = () => {
   if (!isEchooDesktop()) return;
   desktop().quitReady();
 };
+
+
+export const openDesktopRecordingsFolder = (targetPath = '') => {
+  if (!isEchooDesktop() || typeof desktop()?.openRecordingsFolder !== 'function') {
+    return Promise.resolve({ opened: false, unsupported: true });
+  }
+  return desktop().openRecordingsFolder(targetPath);
+};
