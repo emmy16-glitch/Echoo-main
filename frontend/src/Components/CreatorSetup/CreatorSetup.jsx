@@ -1,18 +1,13 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   FaBuilding,
-  FaCheck,
-  FaChevronDown,
   FaUpload,
   FaUser,
 } from 'react-icons/fa';
 
+import '../Onboarding/onboarding-system.css';
 import './CreatorSetup.css';
-import echooLogo from '../Assets/echoo-logo.png';
-// Decorative background artwork for the setup panel (opacity 0.12, aria-hidden).
-// Previously referenced an undefined `echooArtwork` identifier, which crashed
-// the whole screen with a ReferenceError on render.
-import echooArtwork from '../Assets/echoo-role-headphones-microphone.png';
+import echooLogoMark from '../Assets/echoo-logo-mark.png';
 import LoadingButton from '../UI/LoadingButton';
 import Toast from '../UI/Toast';
 import onboardingService from '../../services/onboardingService';
@@ -29,6 +24,8 @@ const organizationTypes = [
   { value: 'organization', label: 'Organization' },
   { value: 'other', label: 'Other' },
 ];
+
+const DESCRIPTION_MAX = 300;
 
 const getStoredUser = () => {
   try {
@@ -91,16 +88,44 @@ export default function CreatorSetup({ onCreatorReady }) {
   );
   const [artwork, setArtwork] = useState('');
   const [saving, setSaving] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
   const [toast, setToast] = useState({ open: false, type: 'info', title: '', message: '' });
 
+  const nameInputRef = useRef(null);
+  const categorySelectRef = useRef(null);
+  const descriptionRef = useRef(null);
+  const orgTypeSelectRef = useRef(null);
+  const artworkInputRef = useRef(null);
+
   const isOrganization = creatorType === 'organization';
-  const formComplete = Boolean(
-    creatorType &&
-    channelName.trim() &&
-    category &&
-    description.trim() &&
-    (!isOrganization || organizationType)
-  );
+
+  const validate = (values = { channelName, category, description, organizationType, isOrganization }) => {
+    const errors = {};
+    if (!values.channelName.trim()) {
+      errors.channelName = 'Give your Channel a name.';
+    } else if (values.channelName.trim().length < 2) {
+      errors.channelName = 'Channel name needs at least 2 characters.';
+    }
+    if (!values.category) {
+      errors.category = 'Choose a category.';
+    }
+    if (!values.description.trim()) {
+      errors.description = 'Add a short description so listeners know what to expect.';
+    }
+    if (values.isOrganization && !values.organizationType) {
+      errors.organizationType = 'Choose the organization type.';
+    }
+    return errors;
+  };
+
+  const clearFieldError = (field) => {
+    setFieldErrors((current) => {
+      if (!current[field]) return current;
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+  };
 
   const showError = (title, message) => {
     setToast({ open: true, type: 'error', title, message });
@@ -116,6 +141,8 @@ export default function CreatorSetup({ onCreatorReady }) {
 
   const handleArtwork = async (event) => {
     const file = event.target.files?.[0];
+    // Reset the input so choosing the same file again still fires onChange.
+    event.target.value = '';
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
@@ -133,6 +160,11 @@ export default function CreatorSetup({ onCreatorReady }) {
     } catch (error) {
       showError('Could not process image', error.message || 'Try another image.');
     }
+  };
+
+  const removeArtwork = () => {
+    setArtwork('');
+    artworkInputRef.current?.focus();
   };
 
   const ensureCanonicalChannel = async () => {
@@ -160,9 +192,23 @@ export default function CreatorSetup({ onCreatorReady }) {
     }
   };
 
+  const focusFieldError = (errors) => {
+    if (errors.channelName) nameInputRef.current?.focus();
+    else if (errors.category) categorySelectRef.current?.focus();
+    else if (errors.description) descriptionRef.current?.focus();
+    else if (errors.organizationType) orgTypeSelectRef.current?.focus();
+  };
+
   const submit = async (event) => {
     event.preventDefault();
-    if (!formComplete || saving) return;
+    if (saving) return;
+
+    const errors = validate();
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      focusFieldError(errors);
+      return;
+    }
 
     try {
       setSaving(true);
@@ -236,14 +282,31 @@ export default function CreatorSetup({ onCreatorReady }) {
       // rather than retaining the incomplete capability from its first render.
       window.location.assign('/creator-studio');
     } catch (error) {
+      // A taken Channel name is a field problem, not a toast: point at the
+      // name field, keep every entered value, and let retry succeed once the
+      // name changes. No duplicate Channel can result — the backend enforces
+      // one Channel per creator and unique slugs.
+      if (error?.code === 'STATION_NAME_TAKEN') {
+        setFieldErrors((current) => ({
+          ...current,
+          channelName: 'That Channel name is already taken. Try another name.',
+        }));
+        nameInputRef.current?.focus();
+        return;
+      }
       showError('Could not set up your Channel', error.message || 'Check your connection and try again.');
     } finally {
       setSaving(false);
     }
   };
 
+  const nameErrorId = fieldErrors.channelName ? 'channel-name-error' : undefined;
+  const categoryErrorId = fieldErrors.category ? 'channel-category-error' : undefined;
+  const descriptionErrorId = fieldErrors.description ? 'channel-description-error' : undefined;
+  const orgTypeErrorId = fieldErrors.organizationType ? 'channel-org-type-error' : undefined;
+
   return (
-    <main className="channel-setup-page">
+    <main className="echoo-onboard-page channel-setup-page">
       <Toast
         open={toast.open}
         type={toast.type}
@@ -252,160 +315,215 @@ export default function CreatorSetup({ onCreatorReady }) {
         onClose={() => setToast((current) => ({ ...current, open: false }))}
       />
 
-      <div className="channel-setup-layout" aria-labelledby="channel-setup-title">
-        <aside className="channel-setup-left">
-          <div className="channel-setup-left-inner">
-            <img src={echooLogo} alt="Echoo" className="channel-setup-logo" />
-            <div className="channel-setup-audio-identity">
-              <FaUser aria-hidden="true" className="audio-identity-icon" />
-              <div className="audio-identity-text">
-                <h2>Creator space</h2>
-                <p className="audio-identity-sub">A home for your broadcasts, recordings and community.</p>
+      <div className="echoo-onboard-shell">
+        <header className="echoo-onboard-topbar">
+          <span className="echoo-onboard-brand">
+            <img src={echooLogoMark} alt="" aria-hidden="true" />
+            <span aria-label="Echoo">echoo</span>
+          </span>
+          <button type="button" className="echoo-onboard-back" onClick={backToListener} disabled={saving}>
+            Back to Listener
+          </button>
+        </header>
+
+        <div className="channel-setup-layout" aria-labelledby="channel-setup-title">
+          <section className="channel-setup-intro">
+            <p className="channel-setup-eyebrow">CREATOR SETUP</p>
+            <h1 id="channel-setup-title">Create your Channel</h1>
+            <p>Set up the identity listeners will see when you broadcast. You can change these details later in Creator Studio.</p>
+            <div className="channel-setup-promise">
+              <span className="channel-setup-promise-dot" aria-hidden="true">1</span>
+              <div>
+                <strong>One quick setup</strong>
+                <span>Choose your creator identity, name your Channel, and add a short description.</span>
               </div>
             </div>
-            <h1 id="channel-setup-title" className="channel-setup-hero">Create your Channel</h1>
-            <p className="channel-setup-blurb">Your space to broadcast, share recordings and grow your audience.</p>
-          </div>
-          <img src={echooArtwork} alt="" aria-hidden="true" className="channel-setup-artwork" />
-        </aside>
-
-        <section className="channel-setup-right">
-          <form className="channel-setup-card" onSubmit={submit} noValidate>
-            <div className="channel-setup-card-inner">
-              <p className="channel-setup-kicker">CHANNEL SETUP</p>
-              <h2 className="card-title">Channel details</h2>
-              <p className="card-sub">A few quick details and you're ready to broadcast.</p>
-              <div className="channel-setup-checklist" aria-label="Channel setup includes">
-                <div><FaCheck aria-hidden="true" /> Choose a name and category</div>
-                <div><FaCheck aria-hidden="true" /> Add Channel artwork</div>
-                <div><FaCheck aria-hidden="true" /> Start broadcasting</div>
+            <div className="channel-setup-promise">
+              <span className="channel-setup-promise-dot" aria-hidden="true">2</span>
+              <div>
+                <strong>Artwork is optional</strong>
+                <span>You can publish now and add or change your Channel artwork later.</span>
               </div>
-          <fieldset className="channel-type-fieldset">
-            <legend>Creator identity</legend>
-            <div className="channel-type-options">
-              <button
-                type="button"
-                className={creatorType === 'individual' ? 'is-selected' : ''}
-                aria-pressed={creatorType === 'individual'}
-                onClick={() => setCreatorType('individual')}
-                disabled={saving}
-              >
-                <FaUser aria-hidden="true" />
-                <span><strong>Individual</strong><small>Create as yourself</small></span>
-              </button>
-              <button
-                type="button"
-                className={creatorType === 'organization' ? 'is-selected' : ''}
-                aria-pressed={creatorType === 'organization'}
-                onClick={() => setCreatorType('organization')}
-                disabled={saving}
-              >
-                <FaBuilding aria-hidden="true" />
-                <span><strong>Organization</strong><small>Brand, church or community</small></span>
-              </button>
             </div>
-          </fieldset>
+          </section>
 
-          <div className="channel-setup-fields">
-            <label className="channel-setup-field">
-              <span>Channel name</span>
-              <input
-                value={channelName}
-                onChange={(event) => setChannelName(event.target.value)}
-                maxLength={100}
-                placeholder="e.g. The Daily Brief"
-                autoComplete="organization"
-                required
-              />
-            </label>
+          <section className="echoo-onboard-card" aria-labelledby="channel-details-title">
+            <div className="echoo-onboard-card-head">
+              <h2 id="channel-details-title">Channel details</h2>
+              <p>This is how your Channel will appear to listeners.</p>
+            </div>
 
-            {isOrganization && (
-              <label className="channel-setup-field">
-                <span>Organization type</span>
-                <span className="channel-select-wrap">
-                  <select
-                    value={organizationType}
-                    onChange={(event) => setOrganizationType(event.target.value)}
-                    required
+            <form className="channel-setup-form" onSubmit={submit} noValidate>
+              <fieldset className="channel-setup-identity">
+                <legend className="echoo-onboard-legend">Creator identity</legend>
+                <div className="echoo-onboard-identity">
+                  <button
+                    type="button"
+                    className={creatorType === 'individual' ? 'is-selected' : ''}
+                    aria-pressed={creatorType === 'individual'}
+                    onClick={() => setCreatorType('individual')}
+                    disabled={saving}
                   >
-                    <option value="">Select type</option>
-                    {organizationTypes.map((type) => (
-                      <option key={type.value} value={type.value}>{type.label}</option>
-                    ))}
+                    <span className="identity-icon" aria-hidden="true"><FaUser /></span>
+                    <span><strong>Individual</strong><small>Create as yourself</small></span>
+                  </button>
+                  <button
+                    type="button"
+                    className={creatorType === 'organization' ? 'is-selected' : ''}
+                    aria-pressed={creatorType === 'organization'}
+                    onClick={() => setCreatorType('organization')}
+                    disabled={saving}
+                  >
+                    <span className="identity-icon" aria-hidden="true"><FaBuilding /></span>
+                    <span><strong>Organization</strong><small>Brand, church or community</small></span>
+                  </button>
+                </div>
+              </fieldset>
+
+              <div className="channel-setup-grid">
+                <div className="echoo-onboard-field">
+                  <label htmlFor="channel-name">Channel name</label>
+                  <input
+                    id="channel-name"
+                    ref={nameInputRef}
+                    value={channelName}
+                    onChange={(event) => { setChannelName(event.target.value); clearFieldError('channelName'); }}
+                    onBlur={() => {
+                      if (channelName.trim()) clearFieldError('channelName');
+                    }}
+                    maxLength={100}
+                    placeholder="e.g. The Daily Brief"
+                    autoComplete="organization"
+                    required
+                    aria-invalid={Boolean(fieldErrors.channelName)}
+                    aria-describedby={nameErrorId}
+                    disabled={saving}
+                  />
+                  {fieldErrors.channelName && (
+                    <p className="echoo-onboard-error" id="channel-name-error" role="alert">{fieldErrors.channelName}</p>
+                  )}
+                </div>
+
+                <div className="echoo-onboard-field">
+                  <label htmlFor="channel-category">Category</label>
+                  <select
+                    id="channel-category"
+                    ref={categorySelectRef}
+                    value={category}
+                    onChange={(event) => { setCategory(event.target.value); clearFieldError('category'); }}
+                    required
+                    aria-invalid={Boolean(fieldErrors.category)}
+                    aria-describedby={categoryErrorId}
+                    disabled={saving}
+                  >
+                    <option value="">Select category</option>
+                    {categories.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
                   </select>
-                  <FaChevronDown aria-hidden="true" />
-                </span>
-              </label>
-            )}
+                  {fieldErrors.category && (
+                    <p className="echoo-onboard-error" id="channel-category-error" role="alert">{fieldErrors.category}</p>
+                  )}
+                </div>
 
-            <label className="channel-setup-field">
-              <span>Category</span>
-              <span className="channel-select-wrap">
-                <select value={category} onChange={(event) => setCategory(event.target.value)} required>
-                  <option value="">Select category</option>
-                  {categories.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-                </select>
-                <FaChevronDown aria-hidden="true" />
-              </span>
-            </label>
+                {isOrganization && (
+                  <div className="echoo-onboard-field channel-setup-org-reveal">
+                    <label htmlFor="channel-org-type">Organization type</label>
+                    <select
+                      id="channel-org-type"
+                      ref={orgTypeSelectRef}
+                      value={organizationType}
+                      onChange={(event) => { setOrganizationType(event.target.value); clearFieldError('organizationType'); }}
+                      required
+                      aria-invalid={Boolean(fieldErrors.organizationType)}
+                      aria-describedby={orgTypeErrorId}
+                      disabled={saving}
+                    >
+                      <option value="">Select type</option>
+                      {organizationTypes.map((type) => (
+                        <option key={type.value} value={type.value}>{type.label}</option>
+                      ))}
+                    </select>
+                    {fieldErrors.organizationType && (
+                      <p className="echoo-onboard-error" id="channel-org-type-error" role="alert">{fieldErrors.organizationType}</p>
+                    )}
+                  </div>
+                )}
 
-            <label className="channel-setup-field channel-setup-field--wide">
-              <span>Description</span>
-              <textarea
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-                maxLength={300}
-                placeholder="What should listeners expect from this Channel?"
-                required
-              />
-              <small>{description.length}/300</small>
-            </label>
+                <div className="echoo-onboard-field echoo-onboard-field-wide">
+                  <label htmlFor="channel-description">Description</label>
+                  <div className="channel-setup-textarea-wrap">
+                    <textarea
+                      id="channel-description"
+                      ref={descriptionRef}
+                      value={description}
+                      onChange={(event) => { setDescription(event.target.value); clearFieldError('description'); }}
+                      maxLength={DESCRIPTION_MAX}
+                      placeholder="What should listeners expect from this Channel?"
+                      required
+                      aria-invalid={Boolean(fieldErrors.description)}
+                      aria-describedby={descriptionErrorId ? `${descriptionErrorId} channel-description-counter` : 'channel-description-counter'}
+                      disabled={saving}
+                    />
+                    <span className="channel-setup-counter" id="channel-description-counter">{description.length}/{DESCRIPTION_MAX}</span>
+                  </div>
+                  {fieldErrors.description && (
+                    <p className="echoo-onboard-error" id="channel-description-error" role="alert">{fieldErrors.description}</p>
+                  )}
+                </div>
 
-            <div className="channel-artwork-field channel-setup-field--wide">
-              <span className="channel-artwork-label">Channel artwork <small>Optional</small></span>
-              <label className="channel-artwork-picker" htmlFor="channel-artwork-input">
-                <span className="channel-artwork-preview">
-                  {artwork
-                    ? <img src={artwork} alt="Channel artwork preview" />
-                    : <FaUpload aria-hidden="true" />}
-                </span>
-                <span>
-                  <strong>{artwork ? 'Change artwork' : 'Choose artwork'}</strong>
-                  <small>JPG, PNG or WebP · max 10 MB</small>
-                </span>
-              </label>
-              <input
-                id="channel-artwork-input"
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                onChange={handleArtwork}
-                hidden
-              />
-            </div>
-          </div>
+                <div className="echoo-onboard-field echoo-onboard-field-wide">
+                  <span className="echoo-onboard-legend" id="channel-artwork-label">
+                    Channel artwork <span className="channel-setup-optional">Optional</span>
+                  </span>
+                  <label className="channel-setup-upload" htmlFor="channel-artwork-input" aria-labelledby="channel-artwork-label">
+                    <span className="channel-setup-upload-icon" aria-hidden="true">
+                      {artwork
+                        ? <img src={artwork} alt="Channel artwork preview" />
+                        : <FaUpload />}
+                    </span>
+                    <span>
+                      <strong>{artwork ? 'Change artwork' : 'Choose artwork'}</strong>
+                      <small>JPG, PNG or WebP · max 10 MB</small>
+                    </span>
+                  </label>
+                  <input
+                    id="channel-artwork-input"
+                    ref={artworkInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={handleArtwork}
+                    hidden
+                    disabled={saving}
+                  />
+                  {artwork && (
+                    <button type="button" className="channel-setup-artwork-remove" onClick={removeArtwork} disabled={saving}>
+                      Remove artwork
+                    </button>
+                  )}
+                </div>
+              </div>
 
-              <footer className="channel-setup-actions">
+              <div className="echoo-onboard-actions">
                 <button
                   type="button"
-                  className="channel-setup-secondary"
+                  className="echoo-onboard-btn echoo-onboard-btn-secondary"
                   onClick={backToListener}
                   disabled={saving}
                 >
-                  Back to Listener
+                  Cancel
                 </button>
                 <LoadingButton
                   type="submit"
-                  className="channel-setup-primary"
-                  disabled={!formComplete}
+                  className="echoo-onboard-btn echoo-onboard-btn-primary"
                   loading={saving}
-                  loadingText="Setting up Channel…"
+                  loadingText="Creating Channel…"
                 >
-                  Set up Channel
+                  Create Channel
                 </LoadingButton>
-              </footer>
-            </div>
-          </form>
-        </section>
+              </div>
+              <p className="channel-setup-help">You can edit your Channel later in Creator Studio.</p>
+            </form>
+          </section>
+        </div>
       </div>
     </main>
   );
