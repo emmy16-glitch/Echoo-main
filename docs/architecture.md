@@ -24,7 +24,7 @@
 └────────────────────────┘   └──────────────────┘
 ```
 
-Realtime product events (chat, presence, status) travel over Socket.IO from the API process. Live audio bytes travel creator → LiveKit → listeners and never touch the API.
+Realtime product events (chat, presence, status) travel over Socket.IO from the API process. Live listener audio travels creator → LiveKit → listeners. Separately, bounded post-master PCM/WAV recording chunks travel creator → Echoo backend for canonical replay finalization; the API does not relay live audio per listener.
 
 ## Authority rules
 
@@ -60,3 +60,11 @@ Deployment/runtime requirements are defined in [../HOSTING.md](../HOSTING.md).
 An AI or human operator must not infer hosting solely from this architecture
 diagram. In particular, FFmpeg + FFprobe and persistent recording storage are
 mandatory for a recording-capable production backend.
+
+
+## Recording host dependency
+
+The backend requires **FFmpeg and FFprobe** for automatic server MP3 replay
+finalization and server-side trimming. Hosting agents must verify
+`GET /api/health/recording` before declaring a deployment ready. See
+[../HOSTING.md](../HOSTING.md).
