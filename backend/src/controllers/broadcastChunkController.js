@@ -9,6 +9,7 @@ import {
   stopBroadcastOutputs,
 } from '../services/broadcastOutputService.js';
 import { finalizeBroadcastReplay } from '../services/broadcastReplayService.js';
+import { assertFfmpegAvailable } from '../services/audioTrimService.js';
 import { isTranscriptionConfigured } from '../services/transcriptionGateway.js';
 
 const CHUNK_DIR = path.join(process.cwd(), 'uploads', 'transcript-chunks');
@@ -71,6 +72,12 @@ export async function startBroadcastAudioChunks(req, res, next) {
       return res.status(409).json({ error: { code: 'INVALID_BROADCAST_STATE', message: 'Quality chunking can only start for a running broadcast.' } });
     }
 
+    // Echoo promises an automatic server MP3 for every completed live show.
+    // Fail this recording-path handshake clearly when the host cannot provide
+    // FFmpeg/FFprobe, instead of allowing a show to end with a mysterious
+    // missing replay. LiveKit itself remains independent.
+    await assertFfmpegAvailable();
+
     if (!broadcast.qualityChunkingStartedAt || broadcast.qualityChunkingCompletedAt) {
       const existingCount = await BroadcastAudioChunk.countDocuments({ broadcastId: broadcast._id });
       await Broadcast.updateOne(
@@ -85,9 +92,9 @@ export async function startBroadcastAudioChunks(req, res, next) {
         }
       );
     }
-    // This starts only optional, server-side branches. A missing FFmpeg/Icecast
-    // setup is represented in output metadata and never rejects the WebRTC live
-    // path or the authenticated quality-chunk transport.
+    // The canonical replay branch is required here because the product
+    // guarantees an automatic server MP3. Optional radio/FLAC branches may
+    // still fail independently without affecting LiveKit.
     const outputs = await startBroadcastOutputs(String(broadcast._id)).catch((error) => ({
       radioOutput: { status: 'failed', error: String(error?.message || error) },
       masterRecording: { status: 'failed', error: String(error?.message || error) },

@@ -18,10 +18,11 @@ The public web deployment: frontend + API on one origin behind Cloudflare. Last 
 
 1. **Env:** `NODE_ENV=production` with `MONGODB_URI`, `JWT_SECRET`, `JWT_REFRESH_SECRET`, `CLIENT_ORIGINS`, and the four `LIVEKIT_*` vars (production requires public `wss://` LiveKit URLs). See `backend/.env.example` and `backend/.env.production.example`.
 2. **LiveKit:** LiveKit Cloud project (URL + key + secret). Local `livekit-server --dev` is dev-only.
-3. **Storage:** recordings stay on local disk by default; S3-compatible bucket for durable recording storage (`AUDIO_*` vars; live replays use `AUDIO_REPLAY_MP3_BITRATE`, default `320k`). See `backend/.env.example`.
-4. **CORS:** production allowlist is explicit — the web origin only. Desktop `file://` shells are allowed solely through the scoped `ECHOO_DESKTOP=1` guard in `isAllowedOrigin`, never a blanket `"null"` entry (see `HOSTED-SERVER-SYNC.md` Task 1).
-5. **Frontend:** `npm run build` in `frontend/`, serve `dist/` (verify the `echoo-app` marker in the served HTML).
-6. **Transcription (optional):** Whisper gateway per [`transcription.md`](transcription.md); the app runs fine without it.
+3. **Recording tools:** install both `ffmpeg` and `ffprobe` on the backend host. Echoo requires them for automatic live-replay MP3 creation and server-side trimming. Verify `GET /api/health/recording` returns `automaticServerMp3: true` before a production broadcast.
+4. **Storage:** recordings stay on local disk by default; S3-compatible bucket for durable recording storage (`AUDIO_*` vars; live replays use `AUDIO_REPLAY_MP3_BITRATE`, default `320k`). See `backend/.env.example`.
+5. **CORS:** production allowlist is explicit — the web origin only. Desktop `file://` shells are allowed solely through the scoped `ECHOO_DESKTOP=1` guard in `isAllowedOrigin`, never a blanket `"null"` entry (see `HOSTED-SERVER-SYNC.md` Task 1).
+6. **Frontend:** `npm run build` in `frontend/`, serve `dist/` (verify the `echoo-app` marker in the served HTML).
+7. **Transcription (optional):** Whisper gateway per [`transcription.md`](transcription.md); the app runs fine without it.
 
 ## Desktop releases
 

@@ -6,8 +6,51 @@ import { randomUUID } from 'node:crypto';
 const ffmpegPath = () => String(process.env.FFMPEG_PATH || 'ffmpeg').trim() || 'ffmpeg';
 const ffprobePath = () => String(process.env.FFPROBE_PATH || 'ffprobe').trim() || 'ffprobe';
 const MAX_TRIM_SECONDS = 24 * 60 * 60;
+const CAPABILITY_CACHE_MS = 60_000;
+let capabilityCache = { checkedAt: 0, ok: false, ffmpeg: false, ffprobe: false, message: '' };
 
 const trimError = (status, code, message) => Object.assign(new Error(message), { status, code });
+
+const binaryAvailable = (command) => new Promise((resolve) => {
+  const child = spawn(command, ['-version'], { stdio: 'ignore' });
+  let settled = false;
+  const finish = (ok) => {
+    if (settled) return;
+    settled = true;
+    resolve(Boolean(ok));
+  };
+  child.on('error', () => finish(false));
+  child.on('close', (code) => finish(code === 0));
+});
+
+export const checkFfmpegCapability = async ({ force = false } = {}) => {
+  const now = Date.now();
+  if (!force && capabilityCache.checkedAt && now - capabilityCache.checkedAt < CAPABILITY_CACHE_MS) {
+    return { ...capabilityCache };
+  }
+
+  const [ffmpegOk, ffprobeOk] = await Promise.all([
+    binaryAvailable(ffmpegPath()),
+    binaryAvailable(ffprobePath()),
+  ]);
+  const ok = ffmpegOk && ffprobeOk;
+  capabilityCache = {
+    checkedAt: now,
+    ok,
+    ffmpeg: ffmpegOk,
+    ffprobe: ffprobeOk,
+    message: ok
+      ? ''
+      : 'FFmpeg and FFprobe are required on this Echoo server for automatic MP3 recordings and trimming.',
+  };
+  return { ...capabilityCache };
+};
+
+export const assertFfmpegAvailable = async () => {
+  const capability = await checkFfmpegCapability();
+  if (capability.ok) return capability;
+  throw trimError(503, 'FFMPEG_REQUIRED', capability.message);
+};
 
 export const validateTrimRange = ({ startSeconds, endSeconds, sourceDuration = 0 }) => {
   const start = Number(startSeconds);
@@ -54,7 +97,7 @@ const run = (command, args, timeoutMs) => new Promise((resolve, reject) => {
 const encodingArgs = (extension) => {
   switch (extension) {
     case '.wav': return ['-c:a', 'pcm_s24le', '-ar', '48000', '-ac', '2'];
-    case '.mp3': return ['-c:a', 'libmp3lame', '-b:a', '128k'];
+    case '.mp3': return ['-c:a', 'copy'];
     case '.m4a':
     case '.aac': return ['-c:a', 'aac', '-b:a', '128k'];
     case '.flac': return ['-c:a', 'flac'];
@@ -82,7 +125,8 @@ const probeDuration = async (filePath) => {
   return duration;
 };
 
-export const trimAudioFile = async ({ sourcePath, startSeconds, endSeconds, sourceDuration = 0 }) => {
+export const trimAudioFile = async ({ sourcePath, startSeconds, endSeconds, sourceDuration = 0, outputDirectory = '' }) => {
+  await assertFfmpegAvailable();
   const range = validateTrimRange({ startSeconds, endSeconds, sourceDuration });
   const source = path.resolve(String(sourcePath || ''));
   const stat = await fs.promises.stat(source).catch(() => null);
@@ -91,13 +135,16 @@ export const trimAudioFile = async ({ sourcePath, startSeconds, endSeconds, sour
   }
   const extension = path.extname(source).toLowerCase() || '.ogg';
   const outputFilename = `${path.basename(source, extension)}-trim-${randomUUID()}${extension}`;
-  const outputPath = path.join(path.dirname(source), outputFilename);
+  const targetDirectory = outputDirectory ? path.resolve(outputDirectory) : path.dirname(source);
+  await fs.promises.mkdir(targetDirectory, { recursive: true });
+  const outputPath = path.join(targetDirectory, outputFilename);
 
   try {
     await run(ffmpegPath(), [
       '-hide_banner', '-loglevel', 'error', '-y',
       '-ss', range.start.toFixed(6), '-i', source,
       '-t', range.duration.toFixed(6), '-vn',
+      '-map_metadata', '0',
       ...encodingArgs(extension),
       outputPath,
     ], 20 * 60 * 1000);
@@ -114,4 +161,9 @@ export const trimAudioFile = async ({ sourcePath, startSeconds, endSeconds, sour
   }
 };
 
-export default { trimAudioFile, validateTrimRange };
+export default {
+  trimAudioFile,
+  validateTrimRange,
+  checkFfmpegCapability,
+  assertFfmpegAvailable,
+};

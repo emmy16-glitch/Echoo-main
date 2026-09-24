@@ -263,7 +263,12 @@ const startQualityChunking = async (recording) => {
       });
       if (!response.ok) {
         const data = await response.json().catch(() => null);
-        throw new Error(data?.error?.message || `Could not start quality chunking (${response.status})`);
+        const startError = new Error(
+          data?.error?.message || `Could not start quality chunking (${response.status})`
+        );
+        startError.code = data?.error?.code || 'RECORDING_PIPELINE_START_FAILED';
+        startError.status = response.status;
+        throw startError;
       }
       recording.qualityChunkStarted = true;
       void flushQualityChunk(recording);
@@ -839,6 +844,15 @@ export const ensureBroadcastRecording = async ({
     } catch (error) {
       const startMessage = error?.message || String(error);
       activeRecording.qualityChunkErrors.push({ chunkIndex: -2, message: startMessage });
+
+      if (error?.code === 'FFMPEG_REQUIRED' && typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('echoo:toast', {
+          detail: {
+            type: 'error',
+            message: 'Server recording is unavailable because FFmpeg/FFprobe is not installed. Your local safety master is still recording, but this broadcast cannot auto-save a server MP3 until the server is fixed.',
+          },
+        }));
+      }
 
       // The server may have accepted the idempotent start while all responses
       // were lost. Best-effort force-close records that ambiguous session as a

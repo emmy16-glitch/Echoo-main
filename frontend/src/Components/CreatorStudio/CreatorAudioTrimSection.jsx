@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { FaCut, FaDownload, FaPlay, FaSave, FaStop } from 'react-icons/fa';
 import { apiFetch } from '../../services/api.js';
-import studioService from '../../services/studioService.js';
 import {
   canTrimRecording,
   computePeaksAsync,
   decodeRecordingBlob,
-  trimBufferToWavBlob,
+  trimSavedAudio,
 } from '../../services/audioTrimService.js';
 import {
   RECORDING_PC_FORMATS,
@@ -39,7 +38,6 @@ const CreatorAudioTrimSection = ({ track, onChanged, onClose, onNotice }) => {
   const [end, setEnd] = useState(0);
   const [previewing, setPreviewing] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [saveProgress, setSaveProgress] = useState(0);
   const [error, setError] = useState('');
   const [pcFormat, setPcFormat] = useState('mp3');
   const [pcSaving, setPcSaving] = useState(false);
@@ -137,31 +135,21 @@ const CreatorAudioTrimSection = ({ track, onChanged, onClose, onNotice }) => {
 
   const saveTrimmed = async () => {
     const id = getId(track);
-    if (!id || saving || !bufferRef.current || !duration) return;
+    if (!id || saving || !duration || isFullLength) return;
     stopPreview();
     try {
       setSaving(true);
-      setSaveProgress(0);
       setError('');
-      let uploadBlob = sourceBlobRef.current;
-      let wasCut = false;
-      if (!isFullLength) {
-        const cut = trimBufferToWavBlob(bufferRef.current, start, selectionEnd);
-        uploadBlob = cut.blob;
-        wasCut = true;
-      }
-      const base = String(track?.title || 'Echoo recording').trim().replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').slice(0, 80) || 'Echoo-recording';
-      const file = new File([uploadBlob], `${base}${wasCut ? '-trimmed' : ''}.wav`, { type: 'audio/wav' });
-      const response = await studioService.uploadAudioWithProgress({
-        file,
-        title: `${track?.title || 'Echoo recording'}${wasCut ? ' (trimmed)' : ''}`,
-        description: track?.description || '',
-        genre: track?.genre || 'Other',
-        tags: Array.isArray(track?.tags) ? track.tags : [],
-        isPublic: Boolean(track?.isPublic),
-        timeoutMs: 120000,
-        onProgress: ({ percent }) => setSaveProgress(percent || 0),
+
+      // The browser sends only timestamps. FFmpeg trims the already-saved
+      // server recording and creates a separate private copy, so long shows
+      // never become another giant WAV upload and the original is untouched.
+      const response = await trimSavedAudio(id, {
+        startSeconds: start,
+        endSeconds: selectionEnd,
+        duration,
       });
+
       window.dispatchEvent(new CustomEvent('echoo:creator-audio-changed'));
       window.dispatchEvent(new CustomEvent('echoo:creator-state-changed'));
       onNotice?.('Trimmed copy saved to Recordings. The original is unchanged.');
@@ -191,6 +179,16 @@ const CreatorAudioTrimSection = ({ track, onChanged, onClose, onNotice }) => {
         title: track?.title || 'Echoo recording',
         format: selectedFormat.id,
         audioId,
+        channelName:
+          track?.sourceBroadcast?.station?.name ||
+          track?.station?.name ||
+          track?.channelName ||
+          '',
+        startedAt:
+          track?.sourceBroadcast?.startedAt ||
+          track?.startedAt ||
+          track?.createdAt ||
+          null,
       });
       const savedLabel = selectedFormat.id === 'opus' && localMasterMime.includes('webm')
         ? 'WebM / Opus'
@@ -211,8 +209,8 @@ const CreatorAudioTrimSection = ({ track, onChanged, onClose, onNotice }) => {
             <strong id={`creator-audio-trim-title-${trackId}`}><FaCut /> Trim recording</strong>
             <span>
               {sourceState === 'ready' && duration
-                ? 'Choose the part you want to keep, then save it as a new recording.'
-                : 'Create a trimmed copy without changing the original.'}
+                ? 'Choose the part you want to keep. Echoo trims the saved server copy without changing the original.'
+                : 'Create a separate trimmed copy. No large WAV upload is required.'}
             </span>
           </div>
           {sourceState === 'ready' && duration > 0 && (
@@ -289,9 +287,9 @@ const CreatorAudioTrimSection = ({ track, onChanged, onClose, onNotice }) => {
             <audio ref={previewAudioRef} preload="auto" onEnded={stopPreview} hidden />
 
             {saving && (
-              <div className="creator-audio-trim-loading">
-                <span>Uploading trimmed copy… {saveProgress}%</span>
-                <i><b style={{ width: `${Math.max(2, saveProgress)}%` }} /></i>
+              <div className="creator-audio-trim-loading" role="status">
+                <span>Creating trimmed copy on the Echoo server…</span>
+                <i><b style={{ width: '72%' }} /></i>
               </div>
             )}
 
@@ -303,7 +301,7 @@ const CreatorAudioTrimSection = ({ track, onChanged, onClose, onNotice }) => {
             >
               <FaSave />
               {saving
-                ? `Saving copy… ${saveProgress}%`
+                ? 'Saving trimmed copy…'
                 : isFullLength
                   ? 'Adjust the trim range to save a copy'
                   : `Save trimmed copy (${formatClock(selectedSeconds)})`}

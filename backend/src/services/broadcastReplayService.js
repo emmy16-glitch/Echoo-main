@@ -17,6 +17,7 @@ import {
   uploadToObjectStorage,
 } from './audioArchiveService.js';
 import { isTranscriptionConfigured } from './transcriptionGateway.js';
+import { assertFfmpegAvailable } from './audioTrimService.js';
 
 // ---------------------------------------------------------------------------
 // Canonical server replay finalization.
@@ -177,6 +178,7 @@ const estimateDurationSeconds = ({ chunks, pcmBytes }) => {
 };
 
 export async function finalizeBroadcastReplay({ broadcastId, creatorId, expectedChunkCount = 0, uploadErrors = 0 } = {}) {
+  await assertFfmpegAvailable();
   const bid = String(broadcastId || '');
   if (!bid) throw Object.assign(new Error('broadcastId is required'), { status: 400, code: 'INVALID_BROADCAST' });
 
