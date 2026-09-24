@@ -85,13 +85,19 @@ The live site is stale. Deploy the latest repo code and rebuild:
    to push first — the desktop apps already ship newer frontend code and the
    server must be at least as new).
 2. `npm install` in `backend/` (production deps only is fine).
-3. Build the web bundle in `frontend/` with
+3. Verify the recording binaries before any live test:
+   ```bash
+   ffmpeg -version
+   ffprobe -version
+   ```
+   Both are required. If either command is missing, install the distro FFmpeg package first; Echoo cannot finalize automatic server MP3 replays or trim saved recordings without them.
+4. Build the web bundle in `frontend/` with
    `VITE_API_URL=/api VITE_BUILD_BASE=/ npm run build`, then serve the fresh
    `dist/`. The `/` base is required for direct SPA links such as
    `/listen/live/:broadcastId`; the default relative base is reserved for the
    packaged desktop app and resolves assets under the deep-link path in a web
    deployment.
-4. Restart the backend.
+5. Restart the backend.
 
 Minimum server capabilities the desktop apps depend on (fail the handoff if
 any are missing — do not paper over them):
@@ -113,23 +119,25 @@ any are missing — do not paper over them):
 
 ---
 
-## Task 4 — Verify everything (all five must pass; report each result)
+## Task 4 — Verify everything (all six must pass; report each result)
 
 1. `curl -s https://echoo.digi02.org/api/health` → `status "ok"`,
    `service "echoo-api"`.
-2. `curl -s https://echoo.digi02.org/ | grep -o 'name="echoo-app"[^>]*'` →
+2. `curl -s https://echoo.digi02.org/api/health/recording` → HTTP 200 with
+   `automaticServerMp3: true` and `trimming: true`.
+3. `curl -s https://echoo.digi02.org/ | grep -o 'name="echoo-app"[^>]*'` →
    prints the marker (proves fresh frontend is live).
-3. Desktop-origin check (must NOT return `CORS_ORIGIN_DENIED`; an auth error
+4. Desktop-origin check (must NOT return `CORS_ORIGIN_DENIED`; an auth error
    such as invalid credentials is the CORRECT answer here):
    ```bash
    curl -s -X POST https://echoo.digi02.org/api/auth/login \
      -H "Origin: null" -H "Content-Type: application/json" \
      -d '{"email":"x","password":"y"}'
    ```
-4. With the Task 2 credentials, create and then delete a test room against
+5. With the Task 2 credentials, create and then delete a test room against
    `https://echoo-cdpcubcr.livekit.cloud` (proves Cloud linkage; use the
    `livekit-server-sdk` `RoomServiceClient` or `livekit-cli`/`lk`).
-5. End-to-end in a real browser on the site: register a fresh account and go
+6. End-to-end in a real browser on the site: register a fresh account and go
    live as a creator — the stream must actually start (no
    `LIVEKIT_CONFIG_MISSING`, no generic service error).
 
@@ -137,7 +145,7 @@ any are missing — do not paper over them):
 
 ## Report back (required)
 
-Reply with: the deployed commit hash, pass/fail for each of the five checks
+Reply with: the deployed commit hash, pass/fail for each of the six checks
 above (paste the outputs), and confirmation that no secrets were committed
 or logged. Once this is green, the desktop engineer cuts new installers
 pointed at `https://echoo.digi02.org/api` — nothing on the server side
