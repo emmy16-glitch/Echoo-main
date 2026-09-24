@@ -1,6 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 import mongoose from 'mongoose';
+import { randomUUID } from 'node:crypto';
+import { pipeline } from 'node:stream/promises';
 import Audio from '../models/Audio.js';
 import Playlist from '../models/Playlist.js';
 import Broadcast from '../models/Broadcast.js';
@@ -11,7 +13,7 @@ import User from '../models/User.js';
 import { createNotification } from './notificationController.js';
 import { createGeneratedAudioCover } from '../utils/audioCover.js';
 import { canAccessReplayAudio } from '../services/assetAccessService.js';
-import { archiveRecordingAudio } from '../services/audioArchiveService.js';
+import { archiveRecordingAudio, getCloudObject } from '../services/audioArchiveService.js';
 import { trimAudioFile } from '../services/audioTrimService.js';
 import { sendGeneratedCover } from '../utils/generatedCoverResponse.js';
 
@@ -68,6 +70,74 @@ const removeLocalFile = async (absolutePath) => {
       console.warn('Audio media cleanup warning:', error?.message || error);
     }
   }
+};
+
+const materializeTrimSource = async (audio) => {
+  const originalFilename = path.basename(String(audio?.filename || audio?.fileKey || ''));
+  if (!originalFilename) {
+    const error = new Error('This recording is missing its stored media filename.');
+    error.status = 404;
+    error.code = 'AUDIO_FILE_MISSING';
+    throw error;
+  }
+
+  const localPath = safeLocalMediaPath('audio', originalFilename);
+  const localStat = await fs.promises.stat(localPath).catch(() => null);
+  if (localStat?.isFile() && localStat.size > 0) {
+    return { sourcePath: localPath, cleanup: async () => {} };
+  }
+
+  if (audio?.storage !== 'cloud' || !audio?.cloudKey) {
+    const error = new Error('The recording file is missing from this Echoo server.');
+    error.status = 404;
+    error.code = 'AUDIO_FILE_MISSING';
+    throw error;
+  }
+
+  const extension = path.extname(originalFilename) || '.mp3';
+  const temporaryPath = safeLocalMediaPath(
+    'audio',
+    `.trim-source-${String(audio._id)}-${randomUUID()}${extension}`
+  );
+  const cloud = await getCloudObject(audio.cloudKey);
+  if (!cloud?.Body) {
+    const error = new Error('Echoo could not read the archived recording for trimming.');
+    error.status = 502;
+    error.code = 'CLOUD_AUDIO_UNAVAILABLE';
+    throw error;
+  }
+
+  try {
+    if (typeof cloud.Body.pipe === 'function') {
+      await pipeline(cloud.Body, fs.createWriteStream(temporaryPath));
+    } else if (typeof cloud.Body.transformToByteArray === 'function') {
+      const bytes = await cloud.Body.transformToByteArray();
+      await fs.promises.writeFile(temporaryPath, Buffer.from(bytes));
+    } else {
+      throw new Error('Unsupported cloud audio response body.');
+    }
+  } catch (error) {
+    await removeLocalFile(temporaryPath);
+    const wrapped = new Error(error?.message || 'Echoo could not download the archived recording for trimming.');
+    wrapped.status = 502;
+    wrapped.code = 'CLOUD_AUDIO_UNAVAILABLE';
+    throw wrapped;
+  }
+
+  return {
+    sourcePath: temporaryPath,
+    cleanup: async () => removeLocalFile(temporaryPath),
+  };
+};
+
+const trimmedOriginalName = (audio, extension) => {
+  const original = path.basename(String(audio?.originalName || audio?.title || 'Echoo recording'));
+  const originalExtension = path.extname(original);
+  const stem = path.basename(original, originalExtension || undefined)
+    .replace(/[\\/:*?"<>|]+/g, '-')
+    .trim()
+    .slice(0, 140) || 'Echoo recording';
+  return `${stem} - Trimmed${extension || originalExtension || '.mp3'}`;
 };
 
 const removeIncomingUploadFiles = async (audioFile, coverFile) => {
@@ -576,6 +646,7 @@ export async function updateAudio(req, res, next) {
 
 export async function trimAudio(req, res, next) {
   let outputPath = '';
+  let cleanupSource = async () => {};
   try {
     const audio = await Audio.findOne({ _id: req.params.id, isDeleted: false });
     if (!audio) {
@@ -585,51 +656,65 @@ export async function trimAudio(req, res, next) {
       return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'You do not own this audio' } });
     }
 
-    const originalFilename = path.basename(String(audio.filename || audio.fileKey || ''));
-    const sourcePath = safeLocalMediaPath('audio', originalFilename);
+    const source = await materializeTrimSource(audio);
+    cleanupSource = source.cleanup;
+
+    const outputDirectory = safeLocalMediaPath('audio', '.');
     const result = await trimAudioFile({
-      sourcePath,
+      sourcePath: source.sourcePath,
       startSeconds: req.body?.startSeconds,
       endSeconds: req.body?.endSeconds,
       sourceDuration: audio.duration,
+      outputDirectory,
     });
     outputPath = result.outputPath;
 
-    // The compare on filename prevents concurrent trims from silently
-    // overwriting one another. The original remains untouched until this
-    // authoritative document update succeeds.
-    const updated = await Audio.findOneAndUpdate(
-      { _id: audio._id, artist: req.userId, isDeleted: false, filename: originalFilename },
-      {
-        $set: {
-          filename: result.outputFilename,
-          fileKey: result.outputFilename,
-          fileSize: result.fileSize,
-          duration: result.duration,
-          'lastTrim.startSeconds': result.range.start,
-          'lastTrim.endSeconds': result.range.end,
-          'lastTrim.sourceDuration': Number(audio.duration) || null,
-          'lastTrim.trimmedAt': new Date(),
-        },
+    // Trimming is intentionally non-destructive. The source recording remains
+    // untouched and the selected range becomes a separate private draft in
+    // Recordings. This also avoids uploading a giant client-side WAV.
+    const extension = path.extname(result.outputFilename) || path.extname(audio.filename || '') || '.mp3';
+    const copy = await Audio.create({
+      title: `${String(audio.title || 'Echoo recording').trim()} (trimmed)`,
+      description: audio.description || '',
+      artist: audio.artist,
+      sourceBroadcast: null,
+      filename: result.outputFilename,
+      originalName: trimmedOriginalName(audio, extension),
+      fileSize: result.fileSize,
+      fileUrl: `/uploads/audio/${result.outputFilename}`,
+      fileKey: result.outputFilename,
+      storage: 'local',
+      mimeType: audio.mimeType || (extension === '.mp3' ? 'audio/mpeg' : 'application/octet-stream'),
+      duration: result.duration,
+      lastTrim: {
+        startSeconds: result.range.start,
+        endSeconds: result.range.end,
+        sourceDuration: Number(audio.duration) || null,
+        trimmedAt: new Date(),
       },
-      { new: true, runValidators: true }
-    );
-    if (!updated) {
-      const conflict = new Error('This recording changed while it was being trimmed. Reload and try again.');
-      conflict.status = 409;
-      conflict.code = 'TRIM_CONFLICT';
-      throw conflict;
-    }
-    outputPath = '';
-    if (sourcePath !== result.outputPath) await removeLocalFile(sourcePath);
+      coverArt: audio.coverArt || null,
+      coverArtMode: audio.coverArtMode || 'generated',
+      coverArtVariant: Number(audio.coverArtVariant) || 0,
+      genre: audio.genre || 'Other',
+      tags: [...new Set([...(Array.isArray(audio.tags) ? audio.tags : []), 'trimmed-copy'])].slice(0, 20),
+      isPublic: false,
+      visibility: 'private',
+      publicationStatus: 'draft',
+    });
 
-    return res.status(200).json({
-      data: updated,
+    outputPath = '';
+    await cleanupSource();
+    cleanupSource = async () => {};
+
+    return res.status(201).json({
+      data: copy,
       processing: 'server',
+      sourcePreserved: true,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
     if (outputPath) await removeLocalFile(outputPath);
+    await cleanupSource().catch(() => {});
     return next(error);
   }
 }
