@@ -172,7 +172,7 @@
 .recordings-status.is-draft i { background:#7b8798; }
 
 .recordings-save-cell { display:grid; gap:5px; min-width:0; }
-.recordings-save-cell > small { color:#74839a; font-size:9.5px; line-height:1.25; }
+.recordings-save-cell > small { color:#74839a; font-size:10px; line-height:1.3; }
 .recordings-save-state { width:max-content; display:inline-flex; align-items:center; gap:6px; padding:7px 10px; border-radius:7px; font-size:10px; font-weight:720; white-space:nowrap; }
 .recordings-save-state i { width:6px; height:6px; border-radius:50%; }
 .recordings-save-state.is-ready,.recordings-save-state.is-uploaded { background:#e8f8ec; color:#267b3a; }
