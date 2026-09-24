@@ -1,5 +1,8 @@
 # Echoo end-to-end smoke test
 
+> Before production deployment, read [HOSTING.md](HOSTING.md). The smoke test
+> assumes the backend has FFmpeg + FFprobe and persistent recording storage.
+
 Run this checklist against the exact candidate commit before production deployment or after substantial live/audio/auth changes.
 
 ## Services
@@ -7,9 +10,10 @@ Run this checklist against the exact candidate commit before production deployme
 Required for the current direct-listening path:
 
 - MongoDB
-- Echoo backend on port `5001` (local default)
+- Echoo backend on port `5017` (local default)
 - LiveKit
-- Echoo frontend on port `5174` (local default)
+- Echoo frontend on port `5273` (local default)
+- FFmpeg + FFprobe available to the backend process
 
 OvenMediaEngine and LiveKit Egress are not required for direct LiveKit listening.
 
@@ -18,12 +22,14 @@ OvenMediaEngine and LiveKit Egress are not required for direct LiveKit listening
 1. Open `/api/health`.
 2. Open `/api/health/ready` with MongoDB running and then with it unavailable in a disposable environment.
 3. Open `/api/health/livekit`.
+4. Open `/api/health/recording`.
 
 Expected:
 
 - liveness answers while the Node process is alive
 - readiness is 200 only when MongoDB is connected
 - LiveKit health reports its own dependency state independently
+- recording health is 200 only when both FFmpeg and FFprobe are available and reports `automaticServerMp3: true` plus `trimming: true`
 
 ## 2. Authentication and account state
 
@@ -135,7 +141,30 @@ Also verify:
 - listener UI shows ended state
 - peak listener snapshot remains available for analytics
 
-## 9. Schedule Later
+## 9. Automatic server recording and trimming
+
+Run a real short broadcast for long enough to send several recording chunks.
+
+At End Broadcast verify:
+
+1. the browser does **not** upload one giant final WAV;
+2. there is no HTTP 413;
+3. the backend finalizes exactly one canonical MP3 replay;
+4. the replay appears in Creator Recordings;
+5. refresh and play beginning/middle/end;
+6. restart the backend and confirm the replay still plays;
+7. create a saved-recording trim and confirm a separate trimmed copy appears;
+8. confirm the original recording still exists and plays;
+9. confirm the configured device copy policy (MP3/WAV/server-only) behaves correctly.
+
+Expected:
+
+- canonical replay is MP3 (default `AUDIO_REPLAY_MP3_BITRATE=320k`);
+- persistent local disk or configured S3-compatible storage survives restart;
+- trim sends timestamps rather than a huge replacement WAV;
+- FFmpeg failure is surfaced clearly and does not silently claim the replay was saved.
+
+## 10. Schedule Later
 
 1. Schedule a future Broadcast from the Broadcast workspace.
 2. Return to/enter the same Broadcast Studio.
@@ -143,7 +172,7 @@ Also verify:
 
 Expected: scheduled and immediate flows converge on the same mixer/live lifecycle.
 
-## 10. Protected prerecorded audio
+## 11. Protected prerecorded audio
 
 Creator:
 
@@ -165,7 +194,7 @@ Expected:
 - an old public stream grant stops working after the track becomes private
 - physical filename/fileKey is not exposed in ordinary Audio JSON
 
-## 11. Library, playback and queues
+## 12. Library, playback and queues
 
 1. Save a public track.
 2. Play, pause and resume it.
@@ -180,7 +209,7 @@ Expected:
 - listener progress updates do not modify canonical Audio duration/metadata
 - playlist reorder requires an exact permutation, not duplicate IDs
 
-## 12. Downloads
+## 13. Downloads
 
 1. Download a public track for offline use.
 2. Remove download metadata and download it again.
@@ -191,7 +220,7 @@ Expected:
 - deleted download records can be revived/recreated correctly
 - expiring signed stream tokens are not treated as permanent offline identifiers
 
-## 13. Search
+## 14. Search
 
 Search for real creator/station/audio titles and regex-like input such as `a+b`.
 
@@ -203,7 +232,7 @@ Expected:
 - honest empty results
 - request floods are throttled
 
-## 14. Settings
+## 15. Settings
 
 Test profile/preferences plus password/email changes, deactivation and reactivation on disposable accounts.
 
@@ -213,15 +242,17 @@ Expected:
 - sensitive operations are throttled
 - password/logout token-version changes invalidate older refresh tokens
 
-## 15. Empty account
+## 16. Empty account
 
 With an account that has no content/relationships, confirm honest empty states and zero real metrics. No bundled mock audio, fake listeners, creators, analytics or broadcasts should appear.
 
-## 16. Deployment-only validation
+## 17. Deployment-only validation
 
 Repository CI cannot prove physical audio/network capacity. Before claiming a listener target is supported, run against the deployed LiveKit/API environment:
 
+- `/api/health/recording` check on the deployed backend
 - multi-browser/device audio checks
+- automatic server MP3 + trim-copy checks
 - long-duration broadcast soak test
 - network-loss/recovery test
 - API presence burst probe
@@ -229,7 +260,7 @@ Repository CI cannot prove physical audio/network capacity. Before claiming a li
 
 Record the exact deployment, browser/device matrix and test result instead of inferring capacity from `maxParticipants` or CI alone.
 
-## 17. Continuous transcript quality pipeline
+## 18. Continuous transcript quality pipeline
 
 1. Start a broadcast with a creator account and verify the browser records the post-master mix.
 2. Confirm the backend receives authenticated `POST /api/broadcasts/:broadcastId/recording-chunks/start` before the first live chunk.
