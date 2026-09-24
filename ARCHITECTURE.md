@@ -8,7 +8,8 @@ This repository is the source of truth for the Echoo product.
 - `backend/` — Express + MongoDB API/control plane
 - Live media — LiveKit
 - Realtime application events — Socket.IO
-- Current prerecorded-media storage — local backend disk behind protected streaming endpoints
+- Prerecorded/recording storage — persistent local backend disk or S3-compatible object storage behind protected streaming endpoints
+- Recording runtime — FFmpeg + FFprobe on the backend (automatic replay MP3 + trimming)
 
 ## Core authority rules
 
@@ -120,9 +121,20 @@ MongoDB/REST is the persisted source of truth for chat. Socket.IO is the realtim
 
 Current Socket.IO state is process-local. A single backend process is supported today. Horizontal multi-instance deployment requires a shared Socket.IO adapter/state layer (for example Redis) before realtime rooms/events can be treated as cluster-wide.
 
-### Prerecorded audio and private media
+### Recordings, prerecorded audio and private media
 
-Physical audio bytes remain on local backend disk for the current implementation, but `/uploads/audio/...` is deliberately blocked.
+Live broadcasts send bounded post-master PCM/WAV chunks to the backend while the
+show is running. FFmpeg finalizes the canonical replay as MP3 at End Broadcast;
+the browser OPFS WAV is local recovery/lossless-export data, not the normal final
+server upload.
+
+Saved-recording trims are server-side and non-destructive: the client sends
+timestamps, the backend creates a separate trimmed recording, and the original
+remains unchanged.
+
+Physical audio bytes may remain on persistent local backend disk or be archived
+to configured S3-compatible object storage. Direct `/uploads/audio/...` access
+is deliberately blocked.
 
 Playback uses:
 
@@ -135,7 +147,9 @@ Every stream request rechecks the current Audio record. A previously issued publ
 
 The frontend must not persist signed stream tokens as permanent media identifiers.
 
-Future production scale should move the physical bytes to private object storage/CDN while preserving Echoo's authorization layer.
+Ephemeral/container/serverless deployments must use private object storage.
+Persistent VPS/bare-metal deployments may keep canonical MP3 files on durable
+local disk, while preserving Echoo's authorization layer.
 
 ### Follow relationships
 
@@ -172,6 +186,9 @@ Analytics and trend surfaces may show only recorded values. Echoo does not fabri
 - `/api/health` — process liveness
 - `/api/health/ready` — API readiness, currently requiring MongoDB
 - `/api/health/livekit` — explicit LiveKit connectivity/configuration check
+- `/api/health/recording` — FFmpeg/FFprobe recording readiness; a recording-capable production backend requires HTTP 200 with `automaticServerMp3: true` and `trimming: true`
+
+For host/deploy requirements, [HOSTING.md](HOSTING.md) is authoritative.
 
 ## Optional future media infrastructure
 
