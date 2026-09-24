@@ -192,7 +192,7 @@ test('a creator without a Channel receives a clear setup path without horizontal
 
   await expect(page.getByRole('heading', { name: 'Create your Channel' })).toBeVisible();
   await expect(page.getByText('Your Channel is your public home on Echoo.', { exact: false })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Set up Channel' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Create Channel' })).toBeVisible();
   await expect(page.getByText('One Channel, one public home', { exact: true })).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
 
@@ -202,7 +202,7 @@ test('a creator without a Channel receives a clear setup path without horizontal
     expect(card?.height).toBeLessThanOrEqual(390);
   }
 
-  await page.getByRole('button', { name: 'Set up Channel' }).click();
+  await page.getByRole('button', { name: 'Create Channel' }).click();
   await expect(page).toHaveURL(/\/creator-studio\/channels$/);
   await expect(page.getByRole('heading', { name: 'Channel', exact: true })).toBeVisible();
 });
