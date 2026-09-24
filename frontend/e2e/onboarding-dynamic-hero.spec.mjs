@@ -177,7 +177,7 @@ test('listener can create a Channel and enter Creator Studio with the same accou
   await page.getByLabel('Channel name').fill('Journey Channel');
   await page.getByLabel('Category').selectOption('Technology');
   await page.getByLabel('Description').fill('A real Channel created by the full Echoo browser journey.');
-  await page.getByRole('button', { name: 'Set up Channel' }).click();
+  await page.getByRole('button', { name: 'Create Channel' }).click();
 
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('user') || '{}'))).toMatchObject({
     userType: 'creator',
