@@ -4,6 +4,8 @@ import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import Audio from '../models/Audio.js';
 import Broadcast from '../models/Broadcast.js';
+import User from '../models/User.js';
+import Station from '../models/Station.js';
 import BroadcastAudioChunk from '../models/BroadcastAudioChunk.js';
 import {
   getReplayOutputFile,
@@ -209,16 +211,14 @@ async function finalizeInner({ broadcastId, creatorId, expectedChunkCount, uploa
   }
 
   const broadcast = await Broadcast.findOne({ _id: broadcastId, isDeleted: false })
-    .select('_id creator station title description status replayAudioId replayStatus startedAt startTime')
-    .populate('creator', 'displayName username creatorProfile.artistName creatorProfile.organizationName')
-    .populate('station', 'name');
+    .select('_id creator station title description status replayAudioId replayStatus startedAt startTime');
   if (!broadcast) {
     const error = new Error('Broadcast not found.');
     error.status = 404;
     error.code = 'BROADCAST_NOT_FOUND';
     throw error;
   }
-  const broadcastCreatorId = String(broadcast.creator?._id || broadcast.creator || '');
+  const broadcastCreatorId = String(broadcast.creator || '');
   if (creatorId && broadcastCreatorId !== String(creatorId)) {
     const error = new Error('Only the broadcast creator can finalize its recording.');
     error.status = 403;
@@ -343,13 +343,20 @@ async function finalizeInner({ broadcastId, creatorId, expectedChunkCount, uploa
     error.code = 'REPLAY_VERIFY_FAILED';
     throw error;
   }
+  const [creatorProfile, stationProfile] = await Promise.all([
+    User.findById(broadcast.creator)
+      .select('displayName username creatorProfile.artistName creatorProfile.organizationName')
+      .lean()
+      .catch(() => null),
+    Station.findById(broadcast.station).select('name').lean().catch(() => null),
+  ]);
   const creatorName =
-    broadcast.creator?.creatorProfile?.artistName ||
-    broadcast.creator?.creatorProfile?.organizationName ||
-    broadcast.creator?.displayName ||
-    broadcast.creator?.username ||
+    creatorProfile?.creatorProfile?.artistName ||
+    creatorProfile?.creatorProfile?.organizationName ||
+    creatorProfile?.displayName ||
+    creatorProfile?.username ||
     'Echoo Creator';
-  const channelName = broadcast.station?.name || '';
+  const channelName = stationProfile?.name || '';
   await applyEchooMp3Metadata({
     filePath: finalPath,
     title: broadcast.title,
