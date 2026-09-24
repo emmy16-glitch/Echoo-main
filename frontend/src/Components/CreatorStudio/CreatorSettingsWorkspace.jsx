@@ -14,12 +14,17 @@ import {
   setDesktopAutoLaunch,
   setDesktopNotificationPreferences,
 } from '../../services/desktopBridge';
+import {
+  getRecordingDevicePreferences,
+  chooseRecordingDeviceFormat,
+} from '../../services/recordingDevicePreferences.js';
 import './CreatorSettingsConnected.css';
 import './CreatorStudioRuntimeFixes.css';
 
 const TABS = [
   { id: 'profile', label: 'Profile' },
   { id: 'notifications', label: 'Notifications' },
+  { id: 'recordings', label: 'Recordings' },
   { id: 'security', label: 'Account & Security' },
 ];
 
@@ -49,6 +54,10 @@ const CreatorSettingsWorkspace = () => {
   const [desktopPreferenceLoading, setDesktopPreferenceLoading] = useState(isEchooDesktop());
   const [autoLaunch, setAutoLaunch] = useState(false);
   const [autoLaunchLoading, setAutoLaunchLoading] = useState(isEchooDesktop());
+  const initialRecordingPreferences = getRecordingDevicePreferences();
+  const [recordingChoice, setRecordingChoice] = useState(
+    initialRecordingPreferences.autoSave ? initialRecordingPreferences.format : 'none'
+  );
   const avatarInputRef = useRef(null);
   const isDesktop = isEchooDesktop();
 
@@ -205,6 +214,15 @@ const CreatorSettingsWorkspace = () => {
     } finally {
       setAutoLaunchLoading(false);
     }
+  };
+
+  const saveRecordingPreference = () => {
+    const saved = chooseRecordingDeviceFormat(recordingChoice);
+    setRecordingChoice(saved.autoSave ? saved.format : 'none');
+    setMessage(saved.autoSave
+      ? `Future broadcasts will automatically keep a ${saved.format.toUpperCase()} copy on this device.`
+      : 'Future broadcasts will stay on Echoo only unless you export them manually.');
+    setError('');
   };
 
   const saveEmail = async (event) => {
@@ -418,6 +436,78 @@ const CreatorSettingsWorkspace = () => {
               ))}
             </section>
           )}
+        </div>
+      )}
+
+          {activeTab === 'recordings' && (
+        <div className="creator-settings-section">
+          <section className="creator-settings-real-card creator-settings-recordings-card">
+            <div className="creator-settings-section-heading">
+              <h3>Recording copies</h3>
+              <p>Echoo always saves the canonical server replay automatically as a high-quality MP3. Choose once how this device should keep its own copy after each broadcast.</p>
+            </div>
+
+            <div className="creator-settings-server-copy">
+              <strong>Echoo server copy</strong>
+              <span>Automatic · MP3 · stored with the broadcast in Recordings</span>
+            </div>
+
+            <fieldset className="creator-settings-recording-options">
+              <legend>Automatic copy on this device</legend>
+              <label className={recordingChoice === 'mp3' ? 'selected' : ''}>
+                <input
+                  type="radio"
+                  name="recording-device-copy"
+                  value="mp3"
+                  checked={recordingChoice === 'mp3'}
+                  onChange={() => setRecordingChoice('mp3')}
+                />
+                <span>
+                  <strong>MP3 · Recommended</strong>
+                  <small>High quality, much smaller than WAV, and easy to play or share.</small>
+                </span>
+              </label>
+              <label className={recordingChoice === 'wav' ? 'selected' : ''}>
+                <input
+                  type="radio"
+                  name="recording-device-copy"
+                  value="wav"
+                  checked={recordingChoice === 'wav'}
+                  onChange={() => setRecordingChoice('wav')}
+                />
+                <span>
+                  <strong>WAV · Lossless master</strong>
+                  <small>Keeps the original PCM master for editing. Files can be hundreds of megabytes.</small>
+                </span>
+              </label>
+              <label className={recordingChoice === 'none' ? 'selected' : ''}>
+                <input
+                  type="radio"
+                  name="recording-device-copy"
+                  value="none"
+                  checked={recordingChoice === 'none'}
+                  onChange={() => setRecordingChoice('none')}
+                />
+                <span>
+                  <strong>Server only</strong>
+                  <small>Keep the automatic Echoo server MP3 and download a device copy only when you ask.</small>
+                </span>
+              </label>
+            </fieldset>
+
+            <div className="creator-settings-recording-location">
+              <strong>Where device copies go</strong>
+              <span>
+                {isDesktop
+                  ? 'Echoo Desktop files recordings into Desktop/Echoo Recordings/<year>/<month>.'
+                  : 'Web browsers save into their normal Downloads storage because websites cannot silently create arbitrary folders on a computer or phone.'}
+              </span>
+            </div>
+
+            <button type="button" onClick={saveRecordingPreference}>
+              <FaSave /> Save recording preference
+            </button>
+          </section>
         </div>
       )}
 
