@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { FaCut, FaDownload, FaPlay, FaSave, FaStop } from 'react-icons/fa';
 import { apiFetch } from '../../services/api.js';
-import studioService from '../../services/studioService.js';
 import {
   canTrimRecording,
   computePeaksAsync,
@@ -180,6 +179,16 @@ const CreatorAudioTrimSection = ({ track, onChanged, onClose, onNotice }) => {
         title: track?.title || 'Echoo recording',
         format: selectedFormat.id,
         audioId,
+        channelName:
+          track?.sourceBroadcast?.station?.name ||
+          track?.station?.name ||
+          track?.channelName ||
+          '',
+        startedAt:
+          track?.sourceBroadcast?.startedAt ||
+          track?.startedAt ||
+          track?.createdAt ||
+          null,
       });
       const savedLabel = selectedFormat.id === 'opus' && localMasterMime.includes('webm')
         ? 'WebM / Opus'
