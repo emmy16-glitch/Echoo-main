@@ -5,7 +5,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 
-import { trimAudioFile, validateTrimRange } from '../src/services/audioTrimService.js';
+import {
+  checkFfmpegCapability,
+  trimAudioFile,
+  validateTrimRange,
+} from '../src/services/audioTrimService.js';
 
 const run = (command, args) => new Promise((resolve, reject) => {
   const child = spawn(command, args, { stdio: 'ignore' });
@@ -44,4 +48,32 @@ test('server trim creates verified output and preserves the source', async (t) =
   assert.ok(result.duration > 0.9 && result.duration < 1.1);
   assert.equal((await fs.promises.stat(sourcePath)).size, before.size);
   assert.notEqual(result.outputPath, sourcePath);
+});
+
+
+test('recording pipeline reports FFmpeg and FFprobe availability', async () => {
+  const capability = await checkFfmpegCapability({ force: true });
+  assert.equal(capability.ok, true);
+});
+
+test('MP3 trim preserves the source and keeps MP3 without a quality re-encode', async (t) => {
+  const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'echoo-trim-mp3-'));
+  t.after(() => fs.promises.rm(directory, { recursive: true, force: true }));
+  const sourcePath = path.join(directory, 'source.mp3');
+  await run('ffmpeg', [
+    '-hide_banner', '-loglevel', 'error', '-y',
+    '-f', 'lavfi', '-i', 'sine=frequency=440:duration=3',
+    '-c:a', 'libmp3lame', '-b:a', '320k', sourcePath,
+  ]);
+  const before = await fs.promises.stat(sourcePath);
+  const result = await trimAudioFile({
+    sourcePath,
+    startSeconds: 0.5,
+    endSeconds: 2.5,
+    sourceDuration: 3,
+  });
+  assert.equal(path.extname(result.outputPath), '.mp3');
+  assert.ok(result.fileSize > 0);
+  assert.ok(result.duration > 1.8 && result.duration < 2.2);
+  assert.equal((await fs.promises.stat(sourcePath)).size, before.size);
 });
