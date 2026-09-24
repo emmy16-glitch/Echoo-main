@@ -330,6 +330,25 @@ const batch3Service = {
     return response?.data || {};
   },
 
+  // One canonical listener credential resolver. Authentication changes only
+  // how the subscriber token is obtained; every caller receives the same
+  // normalized shape and then enters the same LiveKit playback engine.
+  getListenerCredentials: async (broadcastId, { guest = false, name = '' } = {}) => {
+    const credentials = guest
+      ? await batch3Service.getGuestListenerToken(broadcastId, { name })
+      : await batch3Service.getListenerLiveKitToken(broadcastId);
+
+    return {
+      token: credentials?.token || null,
+      roomName: credentials?.roomName || null,
+      livekitUrl: credentials?.livekitUrl || null,
+      broadcastId: String(credentials?.broadcastId || broadcastId || ''),
+      mediaMode: credentials?.mediaMode || 'livekit-direct',
+      role: 'listener',
+      guest: Boolean(guest),
+    };
+  },
+
   getPresence: async (broadcastId) => {
     const response = await apiRequest(
       `/broadcasts/${encodeURIComponent(broadcastId)}/presence`,
