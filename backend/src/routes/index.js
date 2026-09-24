@@ -89,8 +89,8 @@ router.get('/health/recording', async (req, res) => {
   return res.status(capability.ok ? 200 : 503).json({
     status: capability.ok ? 'ok' : 'error',
     service: 'recording-pipeline',
-    ffmpeg: capability.ok ? 'available' : 'missing',
-    ffprobe: capability.ok ? 'available' : 'missing',
+    ffmpeg: capability.ffmpeg ? 'available' : 'missing',
+    ffprobe: capability.ffprobe ? 'available' : 'missing',
     automaticServerMp3: capability.ok,
     trimming: capability.ok,
     message: capability.message || undefined,
