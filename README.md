@@ -71,7 +71,7 @@ Echoo is deliberately **not** another upload-and-wait audio host. It separates l
 | 🔗 **Share links** | `/listen/live/:id` works account-free — public card, guest token, subscriber-only audio |
 | 💬 **Live chat** | Real-time messages, reactions, moderation (mute/pin/delete); read-only for guests |
 | 👥 **Presence** | Live listener counts, peak tracking, creator-connected state |
-| ⏺️ **Recordings** | Trim/crop before save, automatic server MP3 (~86 MB/hr), PC copy as MP3/WAV into `Desktop/Echoo Recordings`, cloud archive, publish/unpublish |
+| ⏺️ **Recordings** | Automatic 320k server MP3, non-destructive server-side trim copies, organized device MP3/WAV copies, cloud archive, publish/unpublish |
 | 📝 **Transcripts** | Optional live transcription with quality pipeline, review + publish flow |
 | 🔔 **Notifications** | In-app + native OS alerts (desktop) with per-type preferences |
 | 📴 **Offline & background** | Downloads, offline cache, background audio on web/desktop/mobile, lock-screen controls |
