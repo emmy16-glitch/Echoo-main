@@ -8,10 +8,12 @@
   z-index: 1450;
   inset: 0;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  padding: clamp(12px, 3vw, 28px);
-  overflow: hidden;
+  padding: clamp(12px, 3vh, 28px) clamp(12px, 3vw, 28px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   background: rgba(15, 23, 42, .52);
   backdrop-filter: blur(5px);
 }
@@ -19,7 +21,7 @@
 .creator-audio-modal {
   position: relative;
   width: min(900px, 100%);
-  max-height: min(92svh, 960px);
+  max-height: min(calc(100dvh - clamp(24px, 6vh, 56px)), 960px);
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -33,6 +35,7 @@
   box-shadow: 0 32px 100px rgba(16, 24, 40, .28);
   color: #101828;
   scrollbar-gutter: stable;
+  margin: auto 0;
 }
 
 .creator-audio-modal::-webkit-scrollbar {
@@ -674,7 +677,7 @@
   grid-column: 2;
   display: block;
   color: #667085;
-  font-size: 9.5px;
+  font-size: 10px;
   line-height: 1.3;
   overflow-wrap: normal;
   word-break: normal;
@@ -816,6 +819,7 @@
   .creator-audio-modal-overlay {
     align-items: flex-end;
     padding: 0;
+    overflow-y: auto;
   }
 
   .creator-audio-modal {
