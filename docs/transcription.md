@@ -1,5 +1,10 @@
 # Echoo transcription deployment
 
+> Transcription is optional. It does **not** replace the mandatory hosted
+> recording runtime. Before hosting Echoo, read [../HOSTING.md](../HOSTING.md);
+> the backend still requires FFmpeg + FFprobe for automatic server MP3 replay
+> finalization and saved-recording trimming.
+
 LiveKit remains the live media authority. The transcription gateway is an
 optional, failure-isolated server-side branch.
 
