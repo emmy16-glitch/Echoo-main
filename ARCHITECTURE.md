@@ -103,6 +103,8 @@ Listener LiveKit grants are receive-only:
 
 The listener attaches only to Echoo's named program publication rather than arbitrary remote audio tracks.
 
+Listener recovery has two layers: LiveKit owns short ICE/signalling recovery first, while Echoo's watchdog repairs stale attachments and, when available, checks remote receiver byte/packet progress. A media element that still says "playing" but whose RTP counters stop advancing is treated as a stalled transport and is rejoined with fresh listener credentials. Intentional listener Pause is never overridden by the watchdog.
+
 ### Presence
 
 LiveKit participants are authoritative for current live presence.
@@ -131,7 +133,8 @@ does not normally upload after the show.
 
 If LiveKit server recording fails, the OPFS master can be uploaded afterward in
 bounded chunks as a recovery path. That fallback never runs while listener
-WebRTC is live.
+WebRTC is live. Recording/FFmpeg work is therefore outside the realtime listener
+delivery path and must never be used as a fallback playback source.
 
 Saved-recording trims are server-side and non-destructive: the client sends
 timestamps, the backend creates a separate trimmed recording, and the original
