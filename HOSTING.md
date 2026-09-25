@@ -16,14 +16,20 @@ A hosted Echoo environment has these cooperating pieces:
 - Node.js/Express + Socket.IO backend.
 - MongoDB.
 - LiveKit Cloud or a properly reachable self-hosted LiveKit server.
+- **LiveKit Egress for primary server recording**. LiveKit Cloud includes the capability; self-hosted LiveKit requires the separate Egress service.
 - **FFmpeg + FFprobe on the backend host.**
 - Persistent recording storage: local persistent disk on a normal server, or
   S3-compatible object storage for ephemeral/container/serverless hosts.
 - Optional Whisper transcription service.
 
-LiveKit carries realtime listener audio. The Echoo backend owns identity,
-broadcast lifecycle, recording chunks, replay finalization, Recordings metadata,
-trimming, chat/presence, and signed media playback.
+LiveKit carries realtime listener audio. The listener path never waits for FFmpeg,
+recording finalization, transcription, or the recording WebSocket. LiveKit Egress
+subscribes server-side to the already-published program track, so primary recording
+does not add a second raw-audio upload from the creator browser.
+
+The Echoo backend owns identity, broadcast lifecycle, recording fallback chunks,
+replay finalization, Recordings metadata, trimming, chat/presence, and signed media
+playback.
 
 ## 2. FFmpeg and FFprobe are mandatory
 
