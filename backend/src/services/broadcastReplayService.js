@@ -170,10 +170,30 @@ const mp3Bitrate = () => {
   return /^\d+k$/i.test(raw) ? raw.toLowerCase() : '320k';
 };
 
-const estimateDurationSeconds = ({ chunks, pcmBytes }) => {
-  const fromChunks = chunks.reduce((total, chunk) => total + Math.max(0, (Number(chunk.endMs) || 0) - (Number(chunk.startMs) || 0)), 0) / 1000;
+export const estimateReplayDurationSeconds = ({
+  chunks = [],
+  serverPcmBytes = 0,
+  startedAt = null,
+  endedAt = null,
+} = {}) => {
+  const fromChunks = chunks.reduce(
+    (total, chunk) => total + Math.max(0, (Number(chunk.endMs) || 0) - (Number(chunk.startMs) || 0)),
+    0
+  ) / 1000;
   if (fromChunks > 0) return Math.round(fromChunks * 10) / 10;
-  if (pcmBytes > 0) return Math.round((pcmBytes / (48000 * 2 * 3)) * 10) / 10;
+
+  // LiveKit Track Egress feeds Echoo raw pcm_s16le: 48 kHz, stereo, 2 bytes
+  // per sample. Never estimate duration from the encoded MP3 file size.
+  const pcmBytes = Math.max(0, Number(serverPcmBytes) || 0);
+  if (pcmBytes > 0) {
+    return Math.round((pcmBytes / (48000 * 2 * 2)) * 10) / 10;
+  }
+
+  const start = new Date(startedAt || 0).getTime();
+  const end = new Date(endedAt || 0).getTime();
+  if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
+    return Math.round(((end - start) / 1000) * 10) / 10;
+  }
   return 0;
 };
 
@@ -213,7 +233,7 @@ async function finalizeInner({ broadcastId, creatorId, expectedChunkCount, uploa
   }
 
   const broadcast = await Broadcast.findOne({ _id: broadcastId, isDeleted: false })
-    .select('_id creator station title description status replayAudio replayAudioId replayStatus startedAt startTime');
+    .select('_id creator station title description status replayAudio replayAudioId replayStatus startedAt startTime endedAt serverRecording.pcmBytes');
   if (!broadcast) {
     const error = new Error('Broadcast not found.');
     error.status = 404;
@@ -373,7 +393,12 @@ async function finalizeInner({ broadcastId, creatorId, expectedChunkCount, uploa
   }).catch(() => false);
 
   const stat = await fs.stat(finalPath);
-  const duration = probeMp3DurationSeconds(finalPath) || estimateDurationSeconds({ chunks, pcmBytes: replayBytes });
+  const duration = probeMp3DurationSeconds(finalPath) || estimateReplayDurationSeconds({
+    chunks,
+    serverPcmBytes: broadcast.serverRecording?.pcmBytes,
+    startedAt: broadcast.startedAt || broadcast.startTime,
+    endedAt: broadcast.endedAt,
+  });
 
   const title = safeTitle(broadcast.title);
   const humanFilename = buildHumanRecordingName({
