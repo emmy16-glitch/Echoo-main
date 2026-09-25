@@ -46,11 +46,16 @@ checks outbound byte/packet progress and, after a sustained stall, replaces the
 LiveKit room and republishes the same mixer track with a fresh token. The
 watchdog is suspended while the creator intentionally pauses/mutes the live
 program, and a paused state is preserved across reconnect so recovery cannot
-briefly put paused audio back on air.
+briefly put paused audio back on air. The watchdog never treats an intentional
+mute/pause as evidence of a dead RTP sender.
 
 A listener validates the canonical publication, current track, DOM attachment,
 media-element playback, and—when the browser exposes them—remote receiver
-byte/packet counters. If the element still looks "playing" but inbound RTP stops
+byte/packet counters. Late listeners explicitly subscribe to an already-published
+canonical program track. Track replacement removes stale audio elements first;
+unexpected media-element end or a non-autoplay play failure enters recovery,
+whereas a browser autoplay-policy rejection remains a user-gesture action rather
+than causing reconnect churn. If the element still looks "playing" but inbound RTP stops
 progressing for consecutive watchdog samples, Echoo performs a fresh room join
 instead of sitting indefinitely on silent/stale audio. Intentional listener Pause
 is respected and is never auto-undone by the watchdog.
