@@ -250,9 +250,11 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
           await existing.element.play();
           markPlaybackState();
         } catch (playError) {
-          setNeedsAudioStart(true);
-          needsAudioStartRef.current = true;
-          setStatus(playError?.name === 'NotAllowedError' ? 'autoplay_blocked' : 'recovering_audio');
+          const blocked = playError?.name === 'NotAllowedError';
+          setNeedsAudioStart(blocked);
+          needsAudioStartRef.current = blocked;
+          setStatus(blocked ? 'autoplay_blocked' : 'recovering_audio');
+          if (!blocked) scheduleHardReconnect('existing_element_play_failed');
         }
         return;
       }
@@ -290,6 +292,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
         if (!disposed && roomRef.current === room) {
           detachAttachment(id);
           setStatus('recovering_audio');
+          attachExisting(room).catch(() => scheduleHardReconnect('program_element_ended'));
         }
       };
       element.addEventListener('playing', onPlayable);
@@ -343,11 +346,13 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       } catch (playError) {
         console.warn(`[Echoo LiveKit] Autoplay BLOCKED for track: ${id}`, playError);
         if (!disposed && roomRef.current === room) {
-          setNeedsAudioStart(true);
-          needsAudioStartRef.current = true;
-          setStatus(playError?.name === 'NotAllowedError' ? 'autoplay_blocked' : 'recovering_audio');
-          if (playError?.name !== 'NotAllowedError') {
+          const blocked = playError?.name === 'NotAllowedError';
+          setNeedsAudioStart(blocked);
+          needsAudioStartRef.current = blocked;
+          setStatus(blocked ? 'autoplay_blocked' : 'recovering_audio');
+          if (!blocked) {
             setError(playError?.message || 'The live track arrived but playback did not start.');
+            scheduleHardReconnect('new_element_play_failed');
           }
         }
       }
