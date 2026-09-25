@@ -201,10 +201,6 @@ const broadcastSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
-    livekitRecordingEgressId: {
-      type: String,
-      default: null,
-    },
     livekitIngressId: {
       type: String,
       default: null,
