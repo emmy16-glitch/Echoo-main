@@ -279,7 +279,13 @@ const RecordingSaveBanner = () => {
               <FaDownload /> {state.savingRecovery ? 'Saving…' : state.recoverySaved || state.recoveryCopy?.saved ? 'Save another recovery copy' : 'Save recovery copy'}
             </button>
           )}
-          <button type="button" className="eb-press" onClick={retry} disabled={state.retrying}>{state.retrying ? 'Retrying…' : 'Retry server save'}</button>
+          <button type="button" className="eb-press" onClick={retry} disabled={state.retrying}>
+            {state.retrying
+              ? 'Retrying…'
+              : state.code === 'DEVICE_COPY_FAILED'
+                ? 'Retry device copy'
+                : 'Retry server save'}
+          </button>
           {state.recoveryFilename && <span className="echoo-save-banner-choice-error">Saved: {state.recoveryFilename}</span>}
           {state.recoveryError && <span className="echoo-save-banner-choice-error">{state.recoveryError}</span>}
           <button type="button" className="eb-press" aria-label="Dismiss" onClick={hide}><FaTimes /></button>
