@@ -204,13 +204,25 @@ const createSession = async (broadcastId) => {
       'serverRecording.error': session.error.slice(0, 1000),
     });
     session.resolveClosed();
+    for (const socket of session.sockets) {
+      try { socket.close(1011, 'Recording encoder failed'); } catch { /* closed */ }
+    }
+    void finishSession(session);
   });
   child.once('close', async (code, signal) => {
     if (code !== 0 && code !== null) {
       session.failed = true;
       session.error = `FFmpeg stopped (code ${code}${signal ? `, signal ${signal}` : ''}): ${stderr.trim() || 'encoder error'}`;
+      await persist(broadcastId, {
+        'serverRecording.status': 'failed',
+        'serverRecording.error': session.error.slice(0, 1000),
+      });
+      for (const socket of session.sockets) {
+        try { socket.close(1011, 'Recording encoder stopped'); } catch { /* closed */ }
+      }
     }
     session.resolveClosed();
+    if (session.failed) void finishSession(session);
   });
 
   sessions.set(broadcastId, session);
