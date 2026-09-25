@@ -211,9 +211,11 @@ Use honest empty states instead.
 
 ## Optional transcript pipeline
 
-Transcription is optional and is deliberately independent of recording. When
-Whisper credentials are absent, no transcript jobs are created and End
-Broadcast / MP3 finalization never waits on transcription.
+Transcription is optional and is deliberately independent of recording. It is
+**off by default** and requires `TRANSCRIPTION_ENABLED=true` plus valid Whisper
+credentials before any transcript session/job can run. With the flag false, stale
+Whisper credentials do nothing, no transcript jobs are created, and End Broadcast /
+MP3 finalization never waits on transcription.
 
 If transcription is enabled later, transcript processing may use durable audio
 chunks and the existing `BroadcastProcessingJob` quality worker, but those
