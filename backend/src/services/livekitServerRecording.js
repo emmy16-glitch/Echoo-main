@@ -219,6 +219,7 @@ const getOrCreateSession = async (broadcastId) =>
 const finishSession = async (session) => {
   if (!session) return null;
   session.stopping = true;
+  expectedTracks.delete(session.broadcastId);
   if (session.handoffTimer) clearTimeout(session.handoffTimer);
   session.handoffTimer = null;
   await session.writeChain.catch(() => null);
@@ -294,6 +295,10 @@ const acceptRecordingSocket = async (socket, request) => {
 
   if (!broadcast) {
     socket.close(1008, 'Broadcast is not recordable');
+    return;
+  }
+  if (broadcast.serverRecording?.status === 'failed') {
+    socket.close(1011, 'Server recording is using browser recovery');
     return;
   }
 
@@ -441,6 +446,7 @@ export const ensureLiveKitServerRecording = async ({
     // silently create a replay containing only the later portion. The browser
     // OPFS master spans the whole show and becomes the authoritative recovery.
     if (recording?.status === 'failed' && recording?.startedAt) {
+      expectedTracks.delete(id);
       return {
         mode: 'browser-fallback',
         active: false,
@@ -522,6 +528,7 @@ export const ensureLiveKitServerRecording = async ({
         trackSid: track,
       };
     } catch (error) {
+      expectedTracks.delete(id);
       const session = sessions.get(id);
       if (session?.handoff && session.currentTrackSid === track) {
         session.failed = true;
