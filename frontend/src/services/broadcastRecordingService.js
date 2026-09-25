@@ -351,15 +351,26 @@ const startQualityChunking = async (recording) => {
       const response = await apiFetch(`/broadcasts/${recording.broadcastId}/recording-chunks/start`, {
         method: 'POST',
       });
+      const data = await response.json().catch(() => null);
       if (!response.ok) {
-        const data = await response.json().catch(() => null);
         const startError = new Error(
-          data?.error?.message || `Could not start quality chunking (${response.status})`
+          data?.error?.message || `Could not start recording pipeline (${response.status})`
         );
         startError.code = data?.error?.code || 'RECORDING_PIPELINE_START_FAILED';
         startError.status = response.status;
         throw startError;
       }
+
+      if (data?.data?.mode === 'server-egress') {
+        recording.serverRecordingPrimary = true;
+        recording.qualityChunkStarted = false;
+        console.info('[Echoo Recording] LiveKit server recording is primary; browser master is recovery-only', {
+          broadcastId: recording.broadcastId,
+        });
+        return true;
+      }
+
+      recording.serverRecordingPrimary = false;
       recording.qualityChunkStarted = true;
       void flushQualityChunk(recording);
       return true;
@@ -564,7 +575,12 @@ const stopLosslessRecording = async (recording, { keep = true } = {}) => {
 
     const file = await recording.fileHandle.getFile();
 
-    if (keep && recording.qualityChunkStarted && !recording.qualityChunkDisabled) {
+    if (
+      keep &&
+      !recording.serverRecordingPrimary &&
+      recording.qualityChunkStarted &&
+      !recording.qualityChunkDisabled
+    ) {
       await uploadLosslessMasterAfterLive(recording, file);
       try {
         await completeQualityChunks(recording);
@@ -603,6 +619,7 @@ const stopLosslessRecording = async (recording, { keep = true } = {}) => {
       limitReached: Boolean(recording.limitReached),
       qualityChunkCount: recording.qualityChunkIndex,
       qualityChunkErrors: recording.qualityChunkErrors,
+      serverRecordingPrimary: Boolean(recording.serverRecordingPrimary),
       qualityCompletionPending: Boolean(recording.qualityCompletionPending),
       qualityCompletionError: recording.qualityCompletionError || '',
       dispose: async () => {
@@ -660,6 +677,7 @@ const startLosslessRecording = async ({ broadcastId, title }) => {
     qualityChunkStarted: false,
     qualityCompletionPending: false,
     qualityCompletionError: '',
+    serverRecordingPrimary: false,
     stopping: false,
     checkpointTimer: null,
     onPageHide: null,
@@ -879,6 +897,7 @@ const activeRecordingSnapshot = (recording) => ({
   channels: recording?.mode === 'lossless-wav' ? WAV_CHANNELS : 2,
   bitDepth: recording?.mode === 'lossless-wav' ? WAV_BIT_DEPTH : null,
   qualityChunking: Boolean(recording?.qualityChunkStarted && !recording?.qualityChunkDisabled),
+  serverRecordingPrimary: Boolean(recording?.serverRecordingPrimary),
 });
 
 export const getBroadcastRecordingState = () => ({
@@ -906,6 +925,7 @@ export const getBroadcastRecordingState = () => ({
   channels: activeRecording?.mode === 'lossless-wav' ? WAV_CHANNELS : null,
   bitDepth: activeRecording?.mode === 'lossless-wav' ? WAV_BIT_DEPTH : null,
   qualityChunking: Boolean(activeRecording?.qualityChunkStarted && !activeRecording?.qualityChunkDisabled),
+  serverRecordingPrimary: Boolean(activeRecording?.serverRecordingPrimary),
 });
 
 export const ensureBroadcastRecording = async ({
@@ -1069,6 +1089,48 @@ export const recoverPendingBroadcastRecording = async () => {
     console.warn('[Echoo Recording] could not reopen checkpointed master', error?.message || error);
     return null;
   }
+};
+
+export const uploadRecoveryMasterToServer = async (recording) => {
+  if (!recording?.broadcastId || !recording?.blob?.size) {
+    throw new Error('No local recovery master is available for server rescue.');
+  }
+
+  const recovery = {
+    broadcastId: String(recording.broadcastId),
+    sampleRate: Number(recording.sampleRate) || WAV_TARGET_SAMPLE_RATE,
+    qualityBuffers: [],
+    qualitySampleCount: 0,
+    qualityChunkIndex: 0,
+    qualityCursorMs: 0,
+    qualityChain: Promise.resolve(),
+    qualityChunkErrors: [],
+    qualityChunkDisabled: false,
+    qualityChunkStarted: false,
+    qualityCompletionPending: false,
+    qualityCompletionError: '',
+    serverRecordingPrimary: false,
+  };
+
+  await startQualityChunking(recovery);
+  if (recovery.serverRecordingPrimary) {
+    return { recovered: false, mode: 'server-egress' };
+  }
+
+  await uploadLosslessMasterAfterLive(recovery, recording.blob);
+  await completeQualityChunks(recovery);
+  recording.qualityChunkCount = recovery.qualityChunkIndex;
+  recording.qualityChunkErrors = recovery.qualityChunkErrors;
+  recording.qualityCompletionPending = recovery.qualityCompletionPending;
+  recording.qualityCompletionError = recovery.qualityCompletionError;
+  recording.serverFallbackAttempted = true;
+
+  return {
+    recovered: true,
+    mode: 'browser-fallback',
+    qualityChunkCount: recovery.qualityChunkIndex,
+    qualityChunkUploadErrors: recovery.qualityChunkErrors.length,
+  };
 };
 
 export const retryBroadcastQualityCompletion = async (recording) => {

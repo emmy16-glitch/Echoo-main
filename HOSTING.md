@@ -80,29 +80,35 @@ ffprobe -version
 
 Echoo no longer relies on one giant WAV upload at End Broadcast.
 
-Current flow:
+Primary production flow:
 
 ```text
 Creator Master Output
         |
         +--> LiveKit -> listeners (realtime Opus)
         |
-        +--> bounded 48 kHz stereo PCM/WAV chunks -> Echoo backend
-                                                     |
-                                                     +-> live/final MP3 encoder
-                                                     |
-End Broadcast ---------------------------------------+
-                                                     |
-                                                     v
-                                           canonical replay MP3
-                                                     |
-                                      local persistent disk or S3
-                                                     |
-                                                     v
-                                             Creator Recordings
+        +--> LiveKit Track Egress
+                  |
+                  +--> signed Echoo WebSocket
+                              |
+                              +--> FFmpeg -> canonical MP3
+                                             |
+End Broadcast -------------------------------+
+                                             |
+                                  persistent disk or S3
+                                             |
+                                             v
+                                     Creator Recordings
+
+Browser OPFS WAV = recovery master only
 ```
 
-The browser also keeps a temporary lossless OPFS recovery WAV. That local master:
+This prevents a long show from requiring hundreds of MB or gigabytes of raw
+PCM to be uploaded from the creator device after the broadcast. LiveKit sends
+the already-published program track to the backend; FFmpeg performs the heavy
+recording work there.
+
+The browser still keeps a temporary lossless OPFS recovery WAV. That local master:
 
 - protects the creator if server persistence fails;
 - may be used for an explicit WAV device copy;
@@ -196,7 +202,13 @@ LIVEKIT_URL=wss://<livekit-host>
 LIVEKIT_PUBLIC_URL=wss://<livekit-host>
 LIVEKIT_API_KEY=<server-only key>
 LIVEKIT_API_SECRET=<server-only secret>
+LIVEKIT_SERVER_RECORDING_ENABLED=true
+# Optional on same-origin VPS deployments; otherwise set the public backend WS:
+LIVEKIT_RECORDING_WS_URL=wss://your-domain.example/api/internal/livekit-recording
 ```
+
+The recording WebSocket must terminate at the long-lived Echoo Node backend.
+It is not a browser endpoint and it does not require Whisper/transcription.
 
 Production LiveKit browser-facing URLs must be public/reachable `wss://` URLs,
 not localhost/private addresses.
@@ -302,6 +314,11 @@ Serve `frontend/dist/` with SPA fallback and proxy at least:
 - `/socket.io/*` -> backend;
 - `/uploads/*` -> backend when local media is served through the backend.
 
+When `LIVEKIT_SERVER_RECORDING_ENABLED=true`, the reverse proxy must also pass
+**WebSocket upgrades** for `/api/internal/livekit-recording` to the same long-lived
+Node backend. This is the private LiveKit-to-Echoo recording transport; browsers
+do not connect to it directly.
+
 For Digi02-specific update steps, use [HOSTED-SERVER-SYNC.md](HOSTED-SERVER-SYNC.md).
 
 ## 10. Mandatory post-deploy health checks
@@ -341,11 +358,15 @@ Before declaring the deployment complete:
 2. Creator starts a public broadcast.
 3. A second browser/device opens the shared link.
 4. Confirm the listener receives the actual `echoo-studio-mix` audio.
-5. Keep the show running long enough to send several recording chunks.
+5. While the show is healthy, confirm the browser is **not** continuously uploading
+   `/recording-chunks`; the normal path should be LiveKit Track Egress -> Echoo server.
 6. End Broadcast.
-7. Confirm the UI reaches Saved/Recordings without HTTP 413.
+7. Confirm the UI reaches Saved/Recordings without HTTP 413 and without a large
+   post-show WAV transfer.
 8. Confirm exactly one canonical MP3 replay exists and plays from beginning,
    middle and end after a page refresh.
+9. In a separate failure test, disable/break the server recorder and confirm the
+   browser OPFS master is retained and bounded recovery chunks are used only then.
 9. Restart/redeploy the backend and confirm the replay still plays.
 10. Open Recordings, select a range, Trim, and confirm:
     - a separate trimmed recording appears;

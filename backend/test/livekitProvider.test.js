@@ -370,6 +370,46 @@ test('startEgress refuses non-RTMP ingest URLs', async () => {
   );
 });
 
+
+test('startTrackRecordingEgress sends the program track to the Echoo recording websocket', async () => {
+  const LiveKitProvider = await loadProvider();
+  const calls = { args: null };
+  const fakeClient = {
+    startTrackEgress: async (roomName, websocketUrl, trackSid) => {
+      calls.args = { roomName, websocketUrl, trackSid };
+      return { egressId: 'EG_recording_123' };
+    },
+  };
+
+  const result = await withClientOverrides(
+    { egress: () => fakeClient },
+    () => LiveKitProvider.startTrackRecordingEgress(
+      'broadcast-123',
+      'TR_program_123',
+      'wss://echoo.example/api/internal/livekit-recording?signature=test'
+    )
+  );
+
+  assert.equal(result.egressId, 'EG_recording_123');
+  assert.deepEqual(calls.args, {
+    roomName: 'echoo-broadcast-broadcast-123',
+    websocketUrl: 'wss://echoo.example/api/internal/livekit-recording?signature=test',
+    trackSid: 'TR_program_123',
+  });
+});
+
+test('startTrackRecordingEgress refuses non-websocket destinations', async () => {
+  const LiveKitProvider = await loadProvider();
+  await assert.rejects(
+    LiveKitProvider.startTrackRecordingEgress(
+      'broadcast-123',
+      'TR_program_123',
+      'https://echoo.example/api/internal/livekit-recording'
+    ),
+    (error) => /WebSocket/i.test(error?.message || '')
+  );
+});
+
 test('stopIngress is best-effort and never throws on cleanup failure', async () => {
   const LiveKitProvider = await loadProvider();
   const result = await withClientOverrides(

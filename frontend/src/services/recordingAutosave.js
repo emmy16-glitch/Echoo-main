@@ -4,6 +4,7 @@ import {
   clearPendingBroadcastRecording,
   recoverOrphanedLosslessRecording,
   retryBroadcastQualityCompletion,
+  uploadRecoveryMasterToServer,
 } from './broadcastRecordingService.js';
 import { saveAutomaticLocalCopy, saveRecordingToPc } from './recordingExportService.js';
 import {
@@ -12,8 +13,9 @@ import {
 } from './recordingDevicePreferences.js';
 
 // ---------------------------------------------------------------------------
-// Background recording autosave: after End Broadcast the full master uploads
-// by itself — no modal, no blocking. Progress/success/failure is broadcast
+// Background recording autosave: after End Broadcast Echoo verifies/finalizes
+// the server MP3. The local master uploads only as emergency recovery when the
+// primary LiveKit server recording failed. Progress/success/failure is broadcast
 // as `echoo:recording-upload` window events consumed by RecordingSaveBanner.
 // The local master blob is kept in a tiny in-memory store keyed by audio id
 // so the Recordings detail can offer instant Trim + Opus/WAV device saves.
@@ -91,9 +93,10 @@ export const startAutosave = async ({ recording, broadcast } = {}) => {
   return startAutosaveLive({ recording: { ...recording, broadcastId }, broadcast, key });
 };
 
-// Live broadcast path: the bounded chunks already streamed during the show
-// become the canonical server MP3. There is deliberately NO giant WAV upload
-// here — End Broadcast finalizes server-side.
+// Normal live path: LiveKit server egress already delivered the published
+// program track to backend FFmpeg, so End Broadcast only finalizes the server
+// MP3. Browser PCM upload is reserved for emergency recovery if that primary
+// server recording failed.
 const startAutosaveLive = async ({ recording, broadcast, key }) => {
   const title = broadcast?.title || 'Live broadcast recording';
   const task = (async () => {
@@ -111,11 +114,32 @@ const startAutosaveLive = async ({ recording, broadcast, key }) => {
         await retryBroadcastQualityCompletion(recording).catch(() => null);
       }
 
-      const finalizeResponse = await batch3Service.finalizeServerReplay(recording.broadcastId, {
+      let finalizeResponse = await batch3Service.finalizeServerReplay(recording.broadcastId, {
         qualityChunkCount: Number(recording.qualityChunkIndex ?? recording.qualityChunkCount) || 0,
         qualityChunkUploadErrors: Array.isArray(recording.qualityChunkErrors) ? recording.qualityChunkErrors.length : 0,
       });
-      const replay = finalizeResponse?.data?.replay || {};
+      let replay = finalizeResponse?.data?.replay || {};
+
+      // Server egress is primary, but the local OPFS master is deliberately
+      // retained until the server MP3 is verified. If egress failed, recover
+      // automatically from that master using bounded chunks. This expensive
+      // upload is an emergency path only and never runs during the live show.
+      if (
+        replay.status !== 'ready' &&
+        !recording.serverFallbackAttempted &&
+        recording.blob?.size &&
+        String(recording.mimeType || recording.blob?.type || '').toLowerCase().includes('wav')
+      ) {
+        emit({ status: 'finalizing', key, title, recovery: true });
+        await uploadRecoveryMasterToServer(recording);
+        finalizeResponse = await batch3Service.finalizeServerReplay(recording.broadcastId, {
+          qualityChunkCount: Number(recording.qualityChunkCount) || 0,
+          qualityChunkUploadErrors: Array.isArray(recording.qualityChunkErrors)
+            ? recording.qualityChunkErrors.length
+            : 0,
+        });
+        replay = finalizeResponse?.data?.replay || {};
+      }
 
       if (replay.status === 'ready' && replay.audioId) {
         const audioId = String(replay.audioId);

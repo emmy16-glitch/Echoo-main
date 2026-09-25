@@ -17,6 +17,11 @@ import {
   releaseCreatorBroadcastLease,
 } from '../services/creatorBroadcastLease.js';
 import { stopBroadcastOutputs } from '../services/broadcastOutputService.js';
+import {
+  ensureLiveKitServerRecording,
+  isLiveKitServerRecordingEnabled,
+  stopLiveKitServerRecording,
+} from '../services/livekitServerRecording.js';
 
 const ACTIVE_STATUSES = new Set(['starting', 'live', 'ending']);
 
@@ -111,9 +116,14 @@ const releaseLeaseBestEffort = async (creatorId, broadcastId) => {
 };
 
 const stopLiveResourcesBestEffort = async ({ broadcastId, egressId, ingressId }) => {
-  // The browser normally closes its bounded PCM chunks first. This is a
-  // server-side safety net for disconnect/cancel/error paths, and is separate
-  // from LiveKit cleanup so an encoder problem cannot interrupt listeners.
+  // Server-side LiveKit recording is independent of listener delivery. Stop it
+  // first so FFmpeg can flush the canonical MP3 before the room is removed.
+  await stopLiveKitServerRecording(broadcastId).catch((error) => {
+    console.warn(`Server recording cleanup warning for ${broadcastId}:`, error?.message || error);
+  });
+
+  // Browser-chunk output sessions are the compatibility/recovery path. In the
+  // normal server-egress architecture this is a no-op.
   await stopBroadcastOutputs(broadcastId).catch((error) => {
     console.warn(`Broadcast output cleanup warning for ${broadcastId}:`, error?.message || error);
   });
@@ -229,6 +239,17 @@ export async function startBroadcast(req, res, next) {
     broadcast.lastPresenceSampleAt = new Date();
     broadcast.livekitEgressId = null;
     broadcast.livekitRoomName = null;
+    broadcast.serverRecording = {
+      status: 'idle',
+      transport: null,
+      egressId: null,
+      trackSid: null,
+      startedAt: null,
+      endedAt: null,
+      pcmBytes: 0,
+      fileBytes: 0,
+      error: null,
+    };
     broadcast.mediaState = 'creator_connecting';
     broadcast.transcriptState = 'disabled';
     broadcast.programTrackSid = null;
@@ -312,7 +333,7 @@ export async function startBroadcast(req, res, next) {
       broadcast.livekitEgressId = null;
       broadcast.livekitIngressId = null;
       broadcast.mediaState = 'audio_disconnected';
-      broadcast.transcriptState = 'failed';
+      broadcast.transcriptState = isTranscriptionConfigured() ? 'failed' : 'disabled';
       broadcast.programTrackSid = null;
       broadcast.programTrackName = null;
       await broadcast.save().catch((saveError) => {
@@ -338,7 +359,7 @@ export async function confirmBroadcastLive(req, res, next) {
     const { broadcastId } = req.params;
     if (!isValidId(broadcastId)) return invalidId(res);
 
-    const broadcast = await findOwnedBroadcast(broadcastId, req.userId);
+    let broadcast = await findOwnedBroadcast(broadcastId, req.userId);
     if (!broadcast) {
       return res.status(404).json({
         error: { code: 'NOT_FOUND', message: 'Broadcast not found' },
@@ -347,6 +368,26 @@ export async function confirmBroadcastLive(req, res, next) {
 
     if (broadcast.status === 'live') {
       await refreshCreatorBroadcastLease(req.userId, broadcastId).catch(() => null);
+
+      // A reconnect can publish a fresh LiveKit track SID. Reconcile recording
+      // against that new program track without ever blocking listener audio.
+      if (isLiveKitServerRecordingEnabled()) {
+        try {
+          const publisher = await waitForCreatorProgramAudio(broadcastId, req.userId);
+          await ensureLiveKitServerRecording({
+            broadcastId,
+            trackSid: publisher.trackSid,
+          });
+          const refreshed = await findOwnedBroadcast(broadcastId, req.userId);
+          if (refreshed) broadcast = refreshed;
+        } catch (recordingError) {
+          console.warn(
+            '[Echoo Server Recording] reconnect recorder warning:',
+            recordingError?.message || recordingError
+          );
+        }
+      }
+
       return res.status(200).json({
         data: broadcast,
         message: 'Broadcast is already live',
@@ -393,6 +434,32 @@ export async function confirmBroadcastLive(req, res, next) {
     broadcast.programTrackSid = publisher.trackSid || null;
     broadcast.programTrackName = publisher.trackName || 'echoo-studio-mix';
     await broadcast.save();
+
+    if (isLiveKitServerRecordingEnabled() && publisher.trackSid) {
+      try {
+        await ensureLiveKitServerRecording({
+          broadcastId,
+          trackSid: publisher.trackSid,
+        });
+        const refreshed = await findOwnedBroadcast(broadcastId, req.userId);
+        if (refreshed) broadcast = refreshed;
+      } catch (recordingError) {
+        console.warn(
+          '[Echoo Server Recording] primary recorder unavailable; browser recovery remains active:',
+          recordingError?.message || recordingError
+        );
+        await Broadcast.updateOne(
+          { _id: broadcastId },
+          {
+            $set: {
+              'serverRecording.status': 'failed',
+              'serverRecording.transport': 'browser-fallback',
+              'serverRecording.error': String(recordingError?.message || recordingError).slice(0, 1000),
+            },
+          }
+        ).catch(() => null);
+      }
+    }
 
     console.info('[Echoo Broadcast] live state confirmed', {
       broadcastId: String(broadcast._id),
@@ -720,7 +787,9 @@ export async function endBroadcast(req, res, next) {
       data: {
         broadcast,
         message: wasLive
-          ? 'Broadcast ended. Recording and transcript processing will continue in the background.'
+          ? (isTranscriptionConfigured()
+              ? 'Broadcast ended. Recording and transcript processing will continue in the background.'
+              : 'Broadcast ended. Recording finalization will continue in the background.')
           : 'Broadcast startup cancelled',
       },
       timestamp: new Date().toISOString(),

@@ -19,6 +19,7 @@ import LiveKitProvider from '../providers/livekit.js';
 import { clearBroadcastPresenceCache } from '../controllers/broadcastPresenceController.js';
 import { releaseCreatorBroadcastLease } from './creatorBroadcastLease.js';
 import { flushBroadcastTranscription } from './transcriptionGateway.js';
+import { stopLiveKitServerRecording } from './livekitServerRecording.js';
 
 const STUCK_STATES = ['starting', 'ending', 'live'];
 const REASON_PREFIX = 'Orphan sweep: ';
@@ -52,6 +53,13 @@ function isRecoverableState(doc) {
 
 async function reapLiveKitResources(doc) {
   if (!isLiveKitConfigured()) return;
+
+  await stopLiveKitServerRecording(String(doc._id)).catch((error) => {
+    console.warn(
+      `[orphan-sweep] server recording stop failed for ${doc._id}:`,
+      error?.message || error
+    );
+  });
 
   // Ingress first: a running ingress keeps publishing into the room, so the
   // room and egress are only fully cleaned once the source is gone.

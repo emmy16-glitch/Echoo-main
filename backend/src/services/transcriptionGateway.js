@@ -21,6 +21,8 @@ const clampInteger = (value, fallback, min, max) => {
   const number = Number(value);
   return Number.isFinite(number) ? Math.max(min, Math.min(max, Math.floor(number))) : fallback;
 };
+const transcriptionFeatureEnabled = () =>
+  /^(1|true|yes)$/i.test(String(process.env.TRANSCRIPTION_ENABLED || '').trim());
 const providerUrl = () => String(process.env.WHISPER_FLOW_URL || '').trim();
 const providerApiKey = () => String(process.env.WHISPER_FLOW_API_KEY || process.env.WHISPER_FLOW_AUTH_TOKEN || '').trim();
 const providerModel = () => String(process.env.WHISPER_MODEL || 'faster-whisper-large-v3-turbo').trim() || 'faster-whisper-large-v3-turbo';
@@ -404,9 +406,10 @@ const loadOwnedSession = async (sessionId, userId) => {
   };
 };
 
-export const isTranscriptionConfigured = () => Boolean(providerUrl() && providerApiKey());
+export const isTranscriptionConfigured = () =>
+  transcriptionFeatureEnabled() && Boolean(providerUrl() && providerApiKey());
 
-// Transcription pause contract (WHISPER_FLOW_URL blank => disabled):
+// Transcription pause contract (TRANSCRIPTION_ENABLED must be true, otherwise disabled):
 // - live Whisper WebSocket sessions are never opened
 // - PCM forwarding, retries, and flush/finalize network work are skipped
 // - recording/master PCM chunks and MP3/FLAC outputs are unaffected (they do

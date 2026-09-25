@@ -66,9 +66,15 @@ Never commit the filled `.env`.
 
 ## Recording architecture
 
-Echoo live recording uses bounded PCM/WAV chunks while the show is running.
-End Broadcast finalizes the canonical MP3 on the backend. The browser OPFS WAV
-is a recovery/lossless-export master, not the normal giant final upload.
+On a long-lived production backend, Echoo uses LiveKit Track Egress as the
+primary recorder. LiveKit sends the published program track to Echoo's signed
+recording WebSocket, and backend FFmpeg writes the canonical MP3 while the show
+is live. The browser OPFS WAV is a recovery/lossless-export master, not the
+normal server upload.
+
+If server egress is unavailable, Echoo can recover after the show by uploading
+that local master in bounded chunks. Transcription is optional and is not a
+dependency of MP3 recording or End Broadcast.
 
 Saved-recording trimming is server-side and non-destructive: the browser sends
 timestamps, the backend creates a separate trimmed copy, and the original remains

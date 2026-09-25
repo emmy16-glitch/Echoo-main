@@ -32,6 +32,10 @@ import {
   startBroadcastProcessingWorker,
   stopBroadcastProcessingWorker,
 } from './services/broadcastProcessingService.js';
+import {
+  attachLiveKitRecordingWebSocket,
+  closeLiveKitRecordingWebSocket,
+} from './services/livekitServerRecording.js';
 
 const app = express();
 
@@ -265,6 +269,7 @@ app.use((err, req, res, next) => {
 });
 
 const server = createServer(app);
+attachLiveKitRecordingWebSocket(server);
 
 const io = new Server(server, {
   cors: {
@@ -588,6 +593,7 @@ const shutdown = async (signal) => {
   socketBroadcastCache.clear();
   clearLiveKitWebhookTimers();
   stopBroadcastProcessingWorker();
+  closeLiveKitRecordingWebSocket();
 
   server.close(async () => {
     await disconnectDatabase();

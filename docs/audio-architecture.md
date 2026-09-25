@@ -68,22 +68,27 @@ the creator explicitly discards it.
 
 ### Canonical server replay
 
-While the show is live, the same protected master bus also produces bounded
-48 kHz stereo PCM/WAV chunks. Those chunks are authenticated and sent to the
-backend during the show. They feed the required replay encoder independently of
-LiveKit listener delivery.
+The creator publishes the protected master bus to LiveKit once. On a
+recording-capable long-lived backend, LiveKit Track Egress sends that published
+program track as raw PCM to Echoo's signed recording WebSocket. Backend FFmpeg
+encodes the canonical MP3 while listeners continue receiving the normal LiveKit
+Opus stream.
+
+The browser keeps a lossless OPFS master only for recovery. It uploads bounded
+PCM/WAV chunks after the show only if the primary server recorder failed.
 
 At End Broadcast:
 
-1. the browser flushes pending recording chunks;
-2. the backend verifies chunk/finalization state;
-3. FFmpeg finalizes the canonical MP3 replay (default
-   `AUDIO_REPLAY_MP3_BITRATE=320k`);
-4. exactly one replay Audio record is linked idempotently to the broadcast;
-5. the MP3 remains on persistent local storage or is archived to configured
+1. Echoo stops LiveKit recording egress before deleting the live room so backend
+   FFmpeg can flush the canonical MP3;
+2. the backend verifies that server MP3 rather than trusting a partial file;
+3. exactly one replay Audio record is linked idempotently to the broadcast;
+4. the MP3 remains on persistent local storage or is archived to configured
    S3-compatible storage;
-6. only after canonical persistence is confirmed may the browser recovery master
-   be cleared.
+5. only after canonical persistence is confirmed may the browser recovery master
+   be cleared;
+6. if the server recorder is incomplete or failed, Echoo then uploads the OPFS WAV
+   in bounded recovery chunks and finalizes the MP3 from those chunks.
 
 The source broadcast ID/replay file key is the idempotency boundary. Retrying
 completion must return/reconcile the existing replay rather than create a second
@@ -124,13 +129,17 @@ unavailable. Neither path claims oversampled inter-sample/true-peak protection; 
 dedicated true-peak limiter requires follow-up evaluation. The real master meter
 observes the protected final master.
 
-## Secondary outputs
+## Secondary outputs and recovery chunks
 
 The AudioWorklet tap is pre-Opus: it receives interleaved float PCM from the same
-post-master bus before the WebRTC encoder. It converts to 24-bit PCM and posts
-bounded 10-second authenticated WAV chunks to the backend. The backend validates
-each WAV as 48 kHz, stereo, 24-bit PCM and can feed two independent FFmpeg stdin
-processes:
+post-master bus before the WebRTC encoder. In the normal server-egress architecture,
+that PCM is written only to the browser OPFS recovery master while the show is live;
+it is **not** continuously uploaded to the backend.
+
+If the primary server recorder fails, Echoo may convert the OPFS master into bounded
+10-second authenticated WAV chunks **after the live WebRTC path has stopped**. The
+backend validates each recovery WAV as 48 kHz, stereo, 24-bit PCM. The legacy
+chunk-output path can also feed independent FFmpeg processes when explicitly used:
 
 ```
 Master PCM -> Opus / LiveKit (realtime)
@@ -153,11 +162,10 @@ is optional and contains no secret. Archive files are not written under `/upload
 and are not made public by this integration.
 
 Radio/archive failures update their independent optional-output status and do not
-stop LiveKit. On normal completion the browser flushes PCM before the lifecycle
-endpoint stops the encoders; backend lifecycle and LiveKit-disconnect paths provide
-an additional cleanup safety net. The raw PCM branch costs about 2.304 Mbps at
-48 kHz/stereo/24-bit in addition to WebRTC, so deploy it only on an upload path that
-can sustain it.
+stop LiveKit. The raw PCM browser-upload branch costs about 2.304 Mbps at
+48 kHz/stereo/24-bit, which is exactly why it must stay out of the healthy live path.
+Use it only as bounded post-live recovery/compatibility transport, never as a normal
+parallel upload competing with WebRTC.
 
 ## Future work (not implemented)
 

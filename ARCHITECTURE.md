@@ -123,10 +123,15 @@ Current Socket.IO state is process-local. A single backend process is supported 
 
 ### Recordings, prerecorded audio and private media
 
-Live broadcasts send bounded post-master PCM/WAV chunks to the backend while the
-show is running. FFmpeg finalizes the canonical replay as MP3 at End Broadcast;
-the browser OPFS WAV is local recovery/lossless-export data, not the normal final
-server upload.
+The primary long-lived-server recording path is LiveKit Track Egress. The
+creator publishes the post-master program track once; LiveKit sends that same
+track to Echoo's signed recording WebSocket and backend FFmpeg writes the
+canonical MP3. The browser OPFS WAV is local recovery/lossless-export data and
+does not normally upload after the show.
+
+If LiveKit server recording fails, the OPFS master can be uploaded afterward in
+bounded chunks as a recovery path. That fallback never runs while listener
+WebRTC is live.
 
 Saved-recording trims are server-side and non-destructive: the client sends
 timestamps, the backend creates a separate trimmed recording, and the original
@@ -190,9 +195,13 @@ Analytics and trend surfaces may show only recorded values. Echoo does not fabri
 
 For host/deploy requirements, [HOSTING.md](HOSTING.md) is authoritative.
 
-## Optional future media infrastructure
+## Media infrastructure
 
-LiveKit Egress and OvenMediaEngine code may remain for later recording/export/large passive-audience requirements. They are not required for the current direct LiveKit listener path and must not block current broadcasting.
+Direct LiveKit remains the listener transport. LiveKit Track Egress is the
+preferred server-recording path on long-lived backends, but a recorder failure
+must never interrupt or block the live listener stream. OvenMediaEngine remains
+optional legacy/future relay infrastructure and is not required for normal
+broadcasting.
 
 ## Mock-data policy
 
@@ -200,10 +209,16 @@ Production routes and connected product screens must not substitute fake broadca
 
 Use honest empty states instead.
 
-## Continuous transcript quality pipeline
+## Optional transcript pipeline
 
-Fast Whisper Flow transcription remains the live draft path from the post-master program. The browser recording branch also emits short PCM/WAV chunks while the broadcast is live. Each completed chunk is persisted as a `BroadcastAudioChunk` and queued through the existing `BroadcastProcessingJob` worker using `transcript_quality_chunk`.
+Transcription is optional and is deliberately independent of recording. It is
+**off by default** and requires `TRANSCRIPTION_ENABLED=true` plus valid Whisper
+credentials before any transcript session/job can run. With the flag false, stale
+Whisper credentials do nothing, no transcript jobs are created, and End Broadcast /
+MP3 finalization never waits on transcription.
 
-The quality worker runs the existing Whisper Flow protocol in quality mode, reconciles verified segments into the canonical `TranscriptSegment` model, preserves `originalText`, `editedText`, `qualityHistory`, revision numbers, confidence and processing provenance, and never overwrites creator-edited text. Broadcast finalization waits for queued quality chunks before marking the transcript `ready_for_review`; ending a show therefore flushes only the remaining live work rather than starting the quality pass from zero.
+If transcription is enabled later, transcript processing may use durable audio
+chunks and the existing `BroadcastProcessingJob` quality worker, but those
+jobs must not sit in the critical listener or server-recording path.
 
 The current product decision is deliberately private processing: no live transcript text is rendered to creators or listeners. The creator reviews and publishes the final transcript on the processing screen, and listeners see/search it only on the published replay.

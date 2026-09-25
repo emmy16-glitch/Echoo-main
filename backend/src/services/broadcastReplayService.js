@@ -207,13 +207,13 @@ async function finalizeInner({ broadcastId, creatorId, expectedChunkCount, uploa
   if (already) {
     await Broadcast.updateOne(
       { _id: broadcastId, replayAudioId: null },
-      { $set: { replayAudioId: already._id, replayStatus: 'ready' } }
+      { $set: { replayAudio: already._id, replayAudioId: already._id, replayStatus: 'ready' } }
     ).catch(() => null);
     return { status: 'ready', audioId: String(already._id), duplicate: true };
   }
 
   const broadcast = await Broadcast.findOne({ _id: broadcastId, isDeleted: false })
-    .select('_id creator station title description status replayAudioId replayStatus startedAt startTime');
+    .select('_id creator station title description status replayAudio replayAudioId replayStatus startedAt startTime');
   if (!broadcast) {
     const error = new Error('Broadcast not found.');
     error.status = 404;
@@ -227,9 +227,13 @@ async function finalizeInner({ broadcastId, creatorId, expectedChunkCount, uploa
     error.code = 'REPLAY_FORBIDDEN';
     throw error;
   }
-  if (broadcast.replayAudioId) {
-    await Broadcast.updateOne({ _id: broadcastId }, { $set: { replayStatus: 'ready' } }).catch(() => null);
-    return { status: 'ready', audioId: String(broadcast.replayAudioId), duplicate: true };
+  if (broadcast.replayAudio || broadcast.replayAudioId) {
+    const audioId = broadcast.replayAudio || broadcast.replayAudioId;
+    await Broadcast.updateOne(
+      { _id: broadcastId },
+      { $set: { replayAudio: audioId, replayAudioId: audioId, replayStatus: 'ready' } }
+    ).catch(() => null);
+    return { status: 'ready', audioId: String(audioId), duplicate: true };
   }
 
   const chunks = await BroadcastAudioChunk.find({ broadcastId }).sort({ chunkIndex: 1 });
@@ -290,7 +294,9 @@ async function finalizeInner({ broadcastId, creatorId, expectedChunkCount, uploa
       const handle = await fs.open(replayFile.path, 'r');
       await handle.read(header, 0, 4, 0);
       await handle.close();
-      if (isRealMp3Bytes(header)) mp3Source = 'stream';
+      if (isRealMp3Bytes(header) && probeMp3DurationSeconds(replayFile.path) > 0) {
+        mp3Source = 'stream';
+      }
     } catch {
       mp3Source = null;
     }
@@ -400,7 +406,7 @@ async function finalizeInner({ broadcastId, creatorId, expectedChunkCount, uploa
     if (error?.code === 11000) {
       const winner = await Audio.findOne({ fileKey }).select('_id');
       if (winner) {
-        await Broadcast.updateOne({ _id: broadcastId }, { $set: { replayAudioId: winner._id, replayStatus: 'ready' } }).catch(() => null);
+        await Broadcast.updateOne({ _id: broadcastId }, { $set: { replayAudio: winner._id, replayAudioId: winner._id, replayStatus: 'ready' } }).catch(() => null);
         return { status: 'ready', audioId: String(winner._id), duplicate: true };
       }
     }
@@ -439,7 +445,10 @@ async function finalizeInner({ broadcastId, creatorId, expectedChunkCount, uploa
   }
   if (replayFile) await fs.rm(replayFile.path, { force: true }).catch(() => null);
 
-  await Broadcast.updateOne({ _id: broadcastId }, { $set: { replayAudioId: audio._id, replayStatus: 'ready' } }).catch(() => null);
+  await Broadcast.updateOne(
+    { _id: broadcastId },
+    { $set: { replayAudio: audio._id, replayAudioId: audio._id, replayStatus: 'ready' } }
+  ).catch(() => null);
   return { status: 'ready', audioId: String(audio._id), duplicate: false, source: mp3Source, cloud: Boolean(cloudKey) };
 }
 
