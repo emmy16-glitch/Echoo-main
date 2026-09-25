@@ -359,7 +359,7 @@ export async function confirmBroadcastLive(req, res, next) {
     const { broadcastId } = req.params;
     if (!isValidId(broadcastId)) return invalidId(res);
 
-    const broadcast = await findOwnedBroadcast(broadcastId, req.userId);
+    let broadcast = await findOwnedBroadcast(broadcastId, req.userId);
     if (!broadcast) {
       return res.status(404).json({
         error: { code: 'NOT_FOUND', message: 'Broadcast not found' },
