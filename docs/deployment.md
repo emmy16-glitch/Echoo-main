@@ -24,6 +24,7 @@ A production-capable backend requires:
 - Node.js 20+;
 - MongoDB;
 - LiveKit Cloud or a correctly exposed self-hosted LiveKit server;
+- **LiveKit Egress** for the primary server recorder (included in LiveKit Cloud; separate service when self-hosting);
 - **FFmpeg**;
 - **FFprobe**;
 - persistent recording storage;
@@ -83,8 +84,10 @@ FFPROBE_PATH=ffprobe
 AUDIO_REPLAY_MP3_BITRATE=320k
 ```
 
-Whisper is optional. LiveKit is not optional for live broadcasting. FFmpeg and
-FFprobe are not optional for a recording-capable production backend.
+Whisper is optional. LiveKit is not optional for live broadcasting. LiveKit
+Egress is required for the primary server-recording path when
+`LIVEKIT_SERVER_RECORDING_ENABLED=true`. FFmpeg and FFprobe are not optional
+for a recording-capable production backend.
 
 ## Recording architecture that hosting must preserve
 
@@ -243,7 +246,9 @@ The public URL must be reachable by browsers. Do not use localhost/private
 addresses in production.
 
 Guest and authenticated listeners obtain credentials differently, but both enter
-the same canonical LiveKit listener playback path.
+the same canonical LiveKit listener playback path. Listener delivery is independent
+of recording/transcription: it must remain functional even if Egress, FFmpeg, the
+recording WebSocket, or Whisper fails.
 
 ## Mandatory health checks
 
