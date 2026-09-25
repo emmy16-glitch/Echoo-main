@@ -15,7 +15,7 @@ Required for the current direct-listening path:
 - Echoo frontend on port `5273` (local default)
 - FFmpeg + FFprobe available to the backend process
 
-OvenMediaEngine and LiveKit Egress are not required for direct LiveKit listening.
+OvenMediaEngine is not required for direct LiveKit listening. LiveKit Egress is also not part of the listener delivery path, but it **is required for the primary production server-recording path** when `LIVEKIT_SERVER_RECORDING_ENABLED=true`. LiveKit Cloud provides Egress; a self-hosted LiveKit deployment must run the Egress service separately.
 
 ## 1. Health
 
@@ -92,6 +92,8 @@ Expected LiveKit creator publication:
 - audio program is stereo where supported
 - DTX is disabled for the program profile
 - backend does not confirm LIVE until this publication exists
+- pause the creator program for >15 seconds and confirm the publisher watchdog does not reconnect it
+- resume and confirm bytes/packets progress again without a duplicate program publication
 
 ## 6. Listener direct audio
 
@@ -109,7 +111,10 @@ Expected:
 - real post-master creator program is audible
 - listener cannot publish microphone/media/data
 - unrelated remote audio tracks are not attached as the Echoo program
+- a listener joining after the creator is already live explicitly subscribes to the existing program publication
 - intentional listener Pause remains paused
+- a non-autoplay media-element failure triggers recovery instead of permanently showing Tap to hear
+- an ended/stale program element is reattached or causes a bounded fresh-room reconnect
 - stale/failed inbound RTP eventually triggers recovery instead of leaving a false "playing" silent state
 - listener reconnect does not use the replay MP3, FFmpeg, or OME
 
