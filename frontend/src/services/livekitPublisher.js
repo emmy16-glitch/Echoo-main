@@ -20,6 +20,7 @@ const PROGRAM_TRACK_NAME = 'echoo-studio-mix';
 const DEV_TRACK_NAME = 'echoo-dev-test-audio';
 const WATCHDOG_INTERVAL_MS = 5000;
 const ROOM_DISCONNECT_DEADLINE_MS = 4000;
+const CREATOR_RECOVERY_WINDOW_MS = 90_000;
 
 let activeRoom = null;
 let activeBroadcastId = null;
@@ -234,6 +235,7 @@ const attachRoomEvents = (room, candidate) => {
     if (!isCurrent(candidate) || activeRoom !== room) return;
     if (canonicalPublicationExists(room) && mediaTrackIsLive({ kind: 'audio', mediaStreamTrack: candidate.mediaTrack })) {
       candidate.recoveryAttempt = 0;
+      candidate.recoveryStartedAt = null;
       candidate.lastProgressAt = Date.now();
       publishHealth({
         phase: candidate.paused ? 'paused' : 'live',
@@ -376,7 +378,12 @@ const connectAndPublish = async (candidate, { url, token, recovery = false }) =>
 async function runPublisherRecovery(candidate, reason) {
   if (!isCurrent(candidate) || candidate.recoveryPromise) return candidate?.recoveryPromise;
   candidate.recoveryPromise = (async () => {
-    while (isCurrent(candidate) && candidate.recoveryAttempt < LIVE_RECOVERY_DELAYS_MS.length) {
+    candidate.recoveryStartedAt ||= Date.now();
+
+    while (
+      isCurrent(candidate) &&
+      Date.now() - candidate.recoveryStartedAt < CREATOR_RECOVERY_WINDOW_MS
+    ) {
       if (typeof navigator !== 'undefined' && navigator.onLine === false) {
         publishHealth({ phase: 'recovering', room: 'waiting_network', livekit: 'reconnecting', audio: 'recovering' });
         return false;
@@ -384,7 +391,9 @@ async function runPublisherRecovery(candidate, reason) {
       const attempt = candidate.recoveryAttempt;
       candidate.recoveryAttempt += 1;
       publishHealth({ phase: 'recovering', publication: 'missing', audio: 'recovering', recoveryAttempt: attempt + 1 });
-      const delay = recoveryDelayMs(attempt);
+      const delay = recoveryDelayMs(
+        Math.min(attempt, LIVE_RECOVERY_DELAYS_MS.length - 1)
+      );
       if (delay) await wait(delay);
       if (!isCurrent(candidate)) return false;
 
@@ -400,6 +409,7 @@ async function runPublisherRecovery(candidate, reason) {
           token: credentials.token,
           recovery: true,
         });
+        candidate.recoveryStartedAt = null;
         console.info('[Echoo Live][Recovery] creator audio recovered', {
           broadcastId: candidate.broadcastId,
           attempt: attempt + 1,
@@ -518,6 +528,7 @@ export const stopLiveKitPublishing = async () => {
 export const retryLiveKitPublishingRecovery = async () => {
   if (!session || session.stopping) throw new Error('There is no active broadcast to recover.');
   session.recoveryAttempt = 0;
+  session.recoveryStartedAt = null;
   return runPublisherRecovery(session, 'manual_retry');
 };
 
@@ -582,6 +593,7 @@ export const startLiveKitPublishing = async ({
     watchdogTimer: null,
     lastProgressAt: Date.now(),
     lastTransportSample: null,
+    recoveryStartedAt: null,
     paused: false,
     stopping: false,
   };
