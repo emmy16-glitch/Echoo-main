@@ -5,7 +5,10 @@ import LiveKitProvider from '../providers/livekit.js';
 import { stopBroadcastOutputs } from './broadcastOutputService.js';
 import { clearBroadcastPresenceCache } from '../controllers/broadcastPresenceController.js';
 import { releaseCreatorBroadcastLease } from './creatorBroadcastLease.js';
-import { flushBroadcastTranscription } from './transcriptionGateway.js';
+import {
+  flushBroadcastTranscription,
+  isTranscriptionConfigured,
+} from './transcriptionGateway.js';
 import {
   ensureLiveKitServerRecording,
   isLiveKitServerRecordingEnabled,
@@ -112,7 +115,9 @@ const endDisconnectedBroadcast = async (broadcastId, io) => {
 
   clearBroadcastPresenceCache(broadcast._id);
   emitStatus(io, broadcast);
-  await flushBroadcastTranscription(broadcast._id).catch(() => null);
+  if (isTranscriptionConfigured()) {
+    await flushBroadcastTranscription(broadcast._id).catch(() => null);
+  }
   if (broadcast.livekitIngressId) {
     await LiveKitProvider.stopIngress(broadcast.livekitIngressId).catch(() => null);
   }
@@ -134,7 +139,7 @@ const endDisconnectedBroadcast = async (broadcastId, io) => {
   broadcast.livekitIngressId = null;
   broadcast.livekitEgressId = null;
   broadcast.mediaState = 'audio_disconnected';
-  broadcast.transcriptState = 'completed';
+  broadcast.transcriptState = isTranscriptionConfigured() ? 'completed' : 'disabled';
   broadcast.programTrackSid = null;
   broadcast.programTrackName = null;
   await broadcast.save();
