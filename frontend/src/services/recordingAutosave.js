@@ -13,8 +13,9 @@ import {
 } from './recordingDevicePreferences.js';
 
 // ---------------------------------------------------------------------------
-// Background recording autosave: after End Broadcast the full master uploads
-// by itself — no modal, no blocking. Progress/success/failure is broadcast
+// Background recording autosave: after End Broadcast Echoo verifies/finalizes
+// the server MP3. The local master uploads only as emergency recovery when the
+// primary LiveKit server recording failed. Progress/success/failure is broadcast
 // as `echoo:recording-upload` window events consumed by RecordingSaveBanner.
 // The local master blob is kept in a tiny in-memory store keyed by audio id
 // so the Recordings detail can offer instant Trim + Opus/WAV device saves.
