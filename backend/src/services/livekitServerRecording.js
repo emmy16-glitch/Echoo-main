@@ -17,6 +17,8 @@ const STOP_TIMEOUT_MS = 8_000;
 const sessions = new Map();
 const startPromises = new Map();
 let websocketServer = null;
+let attachedHttpServer = null;
+let upgradeHandler = null;
 
 const enabled = (name) =>
   /^(1|true|yes)$/i.test(String(process.env[name] || '').trim());
@@ -337,12 +339,30 @@ const acceptRecordingSocket = async (socket, request) => {
 export const attachLiveKitRecordingWebSocket = (server) => {
   if (websocketServer || !server) return websocketServer;
 
+  // Echoo already has Socket.IO on this HTTP server. Use noServer mode and
+  // claim only the dedicated recording path so this listener cannot reject or
+  // consume Socket.IO/WebRTC-adjacent WebSocket upgrades.
   websocketServer = new WebSocketServer({
-    server,
-    path: RECORDING_PATH,
+    noServer: true,
     maxPayload: 1024 * 1024,
     perMessageDeflate: false,
   });
+  attachedHttpServer = server;
+
+  upgradeHandler = (request, socket, head) => {
+    let pathname = '';
+    try {
+      pathname = new URL(request.url || '/', 'http://echoo.internal').pathname;
+    } catch {
+      return;
+    }
+    if (pathname !== RECORDING_PATH) return;
+
+    websocketServer.handleUpgrade(request, socket, head, (ws) => {
+      websocketServer.emit('connection', ws, request);
+    });
+  };
+  server.on('upgrade', upgradeHandler);
 
   websocketServer.on('connection', (socket, request) => {
     void acceptRecordingSocket(socket, request).catch((error) => {
@@ -352,6 +372,23 @@ export const attachLiveKitRecordingWebSocket = (server) => {
   });
 
   return websocketServer;
+};
+
+export const closeLiveKitRecordingWebSocket = () => {
+  if (attachedHttpServer && upgradeHandler) {
+    attachedHttpServer.off('upgrade', upgradeHandler);
+  }
+  for (const session of sessions.values()) {
+    session.stopping = true;
+    try { session.socket?.close?.(1001, 'Echoo server shutting down'); } catch { /* closed */ }
+    try { session.child?.stdin?.end?.(); } catch { /* closing */ }
+  }
+  sessions.clear();
+  startPromises.clear();
+  try { websocketServer?.close(); } catch { /* closed */ }
+  websocketServer = null;
+  attachedHttpServer = null;
+  upgradeHandler = null;
 };
 
 export const ensureLiveKitServerRecording = async ({
@@ -508,6 +545,7 @@ export const stopLiveKitServerRecording = async (broadcastId) => {
 
 export default {
   attachLiveKitRecordingWebSocket,
+  closeLiveKitRecordingWebSocket,
   ensureLiveKitServerRecording,
   stopLiveKitServerRecording,
   isLiveKitServerRecordingEnabled,
