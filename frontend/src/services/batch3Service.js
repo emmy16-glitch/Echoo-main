@@ -382,20 +382,37 @@ const batch3Service = {
     };
   },
 
-  // Called after local LiveKit publication has stopped. The mixer program
-  // stays alive while its recorder flushes, preserving the completed take.
-  finalizeBroadcastRecording: async (broadcastId, broadcast = null) => {
+  // Called immediately after local LiveKit publication has stopped. The
+  // local master must stop at the same practical boundary as listener audio;
+  // server cleanup may continue in parallel. Announcement/autosave can be
+  // deferred until backend End Broadcast has finished.
+  finalizeBroadcastRecording: async (
+    broadcastId,
+    broadcast = null,
+    { announce = true } = {}
+  ) => {
     try {
       const recording = await finishBroadcastRecording(broadcastId);
-      if (!recording?.blob?.size) return { recordingReady: false, recording: null };
+      if (!recording?.blob?.size) return { recordingReady: false, recording: null, decision: null };
       const decision = { recording, broadcast: broadcast || null };
       rememberPendingRecordingDecision(decision);
-      announceFinishedBroadcastRecording(decision);
-      return { recordingReady: true, recording };
+      if (announce) announceFinishedBroadcastRecording(decision);
+      return { recordingReady: true, recording, decision };
     } catch (recordingError) {
       console.warn('[Echoo Recording] could not finalize local recording:', recordingError?.message || recordingError);
-      return { recordingReady: false, recording: null, error: recordingError };
+      return { recordingReady: false, recording: null, decision: null, error: recordingError };
     }
+  },
+
+  announceFinalizedBroadcastRecording: (decision, broadcast = null) => {
+    if (!decision?.recording?.blob?.size) return false;
+    const resolved = {
+      ...decision,
+      broadcast: broadcast || decision.broadcast || null,
+    };
+    rememberPendingRecordingDecision(resolved);
+    announceFinishedBroadcastRecording(resolved);
+    return true;
   },
 
   getProcessing: async (broadcastId) =>
