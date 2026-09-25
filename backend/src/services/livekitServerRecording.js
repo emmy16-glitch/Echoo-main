@@ -13,7 +13,7 @@ const CHANNELS = 2;
 const PCM_FORMAT = 's16le';
 const RECORDING_PATH = '/api/internal/livekit-recording';
 const SIGNATURE_TTL_MS = 5 * 60 * 1000;
-const STOP_TIMEOUT_MS = 20_000;
+const STOP_TIMEOUT_MS = 8_000;
 const sessions = new Map();
 const startPromises = new Map();
 let websocketServer = null;
@@ -321,6 +321,7 @@ const acceptRecordingSocket = async (socket, request) => {
         'serverRecording.status': 'failed',
         'serverRecording.error': session.error,
       });
+      void finishSession(session);
     }
   });
 
@@ -371,6 +372,17 @@ export const ensureLiveKitServerRecording = async ({
 
     const current = await Broadcast.findById(id).select('serverRecording');
     const recording = current?.serverRecording || null;
+
+    // Once a server recording has broken mid-show, do not restart it and
+    // silently create a replay containing only the later portion. The browser
+    // OPFS master spans the whole show and becomes the authoritative recovery.
+    if (recording?.status === 'failed' && recording?.startedAt) {
+      return {
+        mode: 'browser-fallback',
+        active: false,
+        reason: 'server-recording-interrupted',
+      };
+    }
 
     if (
       recording?.egressId &&
