@@ -248,6 +248,7 @@ const finishSession = async (session) => {
   await persist(session.broadcastId, {
     'serverRecording.status': completed ? 'completed' : 'failed',
     'serverRecording.endedAt': new Date(),
+    'serverRecording.egressId': null,
     'serverRecording.pcmBytes': session.pcmBytes,
     'serverRecording.fileBytes': fileBytes,
     'serverRecording.error': completed
@@ -496,6 +497,7 @@ export const stopLiveKitServerRecording = async (broadcastId) => {
   await persist(id, {
     'serverRecording.status': alreadyCompleted ? 'completed' : 'failed',
     'serverRecording.endedAt': new Date(),
+    'serverRecording.egressId': null,
     'serverRecording.fileBytes': fileBytes,
     'serverRecording.error': alreadyCompleted
       ? null
