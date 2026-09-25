@@ -15,9 +15,13 @@ import {
   stopLiveKitServerRecording,
 } from './livekitServerRecording.js';
 
+// Give the browser's bounded LiveKit recovery enough time to obtain fresh
+// credentials, reconnect ICE/signalling, and republish the same mixer track.
+// A 20s server cutoff can race a healthy mobile/network recovery and end the
+// show while the creator is still reconnecting.
 const CREATOR_DISCONNECT_GRACE_MS = Math.max(
-  5000,
-  Math.min(120000, Number(process.env.LIVEKIT_CREATOR_DISCONNECT_GRACE_MS) || 20000)
+  15000,
+  Math.min(180000, Number(process.env.LIVEKIT_CREATOR_DISCONNECT_GRACE_MS) || 90000)
 );
 const pendingDisconnects = new Map();
 let receiver = null;

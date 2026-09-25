@@ -46,6 +46,31 @@ test('mobile live room keeps autoplay and reconnect recovery controls available'
   assert.match(css, /echoo-livekit-start-audio,\.listener-v2-livekit-host \.echoo-livekit-retry\s*\{[^}]*min-height:\s*40px/i);
 });
 
+test('listener late-join subscription and non-autoplay failures remain recoverable', async () => {
+  const player = await source('../../frontend/src/Components/ListenerLiveExperience/LiveKitListenerPlayer.jsx');
+
+  assert.equal(
+    (player.match(/if \(publication\.track\?\.kind === Track\.Kind\.Audio\)/g) || []).length,
+    1,
+    'late-join publication handling must not contain a duplicated nested audio-track guard'
+  );
+  assert.match(player, /publication\.setSubscribed\(true\)/);
+  assert.match(player, /scheduleHardReconnect\('existing_element_play_failed'\)/);
+  assert.match(player, /scheduleHardReconnect\('new_element_play_failed'\)/);
+  assert.match(player, /scheduleHardReconnect\('program_element_ended'\)/);
+  assert.match(player, /const blocked = playError\?\.name === 'NotAllowedError'/);
+});
+
+test('creator publisher does not treat an intentional pause as a transport stall', async () => {
+  const publisher = await source('../../frontend/src/services/livekitPublisher.js');
+
+  assert.match(publisher, /candidate\.paused/);
+  assert.match(publisher, /if \(session\) session\.paused = Boolean\(paused\)/);
+  assert.match(publisher, /candidate\.recoveryPromise \|\|\s*candidate\.paused/s);
+  assert.match(publisher, /if \(candidate\.paused\) \{\s*await publication\.mute\(\)/s);
+  assert.match(publisher, /session\.lastProgressAt = Date\.now\(\)/);
+});
+
 test('listener replay shell exposes detail-page playback contract and metadata-driven seeking', async () => {
   const shell = await source('../../frontend/src/Components/ListenerV2/ListenerV2.jsx');
   const detail = await source('../../frontend/src/Components/ListenerAudioDetail/ListenerAudioDetail.jsx');
@@ -66,3 +91,41 @@ test('listener replay shell exposes detail-page playback contract and metadata-d
   assert.match(detail, /typeof player\.playTrackAt === 'function'/);
   assert.match(detail, /player\.seekTo\?\./);
 });
+
+test('listener recovery distinguishes autoplay policy from transient playback failures', async () => {
+  const player = await source('../../frontend/src/Components/ListenerLiveExperience/LiveKitListenerPlayer.jsx');
+
+  assert.match(player, /const autoplayBlocked = playError\?\.name === 'NotAllowedError'/);
+  assert.match(player, /needsAudioStartRef\.current = autoplayBlocked/);
+  assert.match(player, /playbackIntentRef\.current !== 'play'/);
+  assert.match(player, /!room\.canPlaybackAudio/);
+  assert.match(player, /getReceiverStats\(\)/);
+  assert.match(player, /watchdog_inbound_rtp_stalled/);
+  assert.match(player, /receiverStallStreak/);
+  assert.equal(
+    (player.match(/if \(publication\.track\?\.kind === Track\.Kind\.Audio\)/g) || []).length,
+    1,
+    'program publication subscription path should not contain a duplicated nested audio guard'
+  );
+});
+
+test('creator transport watchdog never treats an intentional pause as a stalled uplink', async () => {
+  const publisher = await source('../../frontend/src/services/livekitPublisher.js');
+
+  assert.match(publisher, /candidate\.paused/);
+  assert.match(
+    publisher,
+    /candidate\.recoveryPromise[\s\S]{0,120}candidate\.paused[\s\S]{0,160}!roomIsConnected/
+  );
+  assert.match(publisher, /if \(session\) session\.paused = Boolean\(paused\)/);
+  assert.match(publisher, /if \(candidate\.paused\) \{\s*await publication\.mute\(\)/);
+});
+
+test('backend creator disconnect grace exceeds a normal single reconnect attempt', async () => {
+  const webhook = await source('../src/services/livekitWebhookService.js');
+
+  assert.match(webhook, /LIVEKIT_CREATOR_DISCONNECT_GRACE_MS/);
+  assert.match(webhook, /\|\| 90000/);
+  assert.match(webhook, /Math\.min\(180000/);
+});
+

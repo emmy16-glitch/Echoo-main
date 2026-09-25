@@ -16,14 +16,20 @@ A hosted Echoo environment has these cooperating pieces:
 - Node.js/Express + Socket.IO backend.
 - MongoDB.
 - LiveKit Cloud or a properly reachable self-hosted LiveKit server.
+- **LiveKit Egress for primary server recording**. LiveKit Cloud includes the capability; self-hosted LiveKit requires the separate Egress service.
 - **FFmpeg + FFprobe on the backend host.**
 - Persistent recording storage: local persistent disk on a normal server, or
   S3-compatible object storage for ephemeral/container/serverless hosts.
 - Optional Whisper transcription service.
 
-LiveKit carries realtime listener audio. The Echoo backend owns identity,
-broadcast lifecycle, recording chunks, replay finalization, Recordings metadata,
-trimming, chat/presence, and signed media playback.
+LiveKit carries realtime listener audio. The listener path never waits for FFmpeg,
+recording finalization, transcription, or the recording WebSocket. LiveKit Egress
+subscribes server-side to the already-published program track, so primary recording
+does not add a second raw-audio upload from the creator browser.
+
+The Echoo backend owns identity, broadcast lifecycle, recording fallback chunks,
+replay finalization, Recordings metadata, trimming, chat/presence, and signed media
+playback.
 
 ## 2. FFmpeg and FFprobe are mandatory
 
@@ -360,23 +366,30 @@ Before declaring the deployment complete:
 4. Confirm the listener receives the actual `echoo-studio-mix` audio.
 5. While the show is healthy, confirm the browser is **not** continuously uploading
    `/recording-chunks`; the normal path should be LiveKit Track Egress -> Echoo server.
-6. End Broadcast.
-7. Confirm the UI reaches Saved/Recordings without HTTP 413 and without a large
-   post-show WAV transfer.
-8. Confirm exactly one canonical MP3 replay exists and plays from beginning,
-   middle and end after a page refresh.
-9. In a separate failure test, disable/break the server recorder and confirm the
-   browser OPFS master is retained and bounded recovery chunks are used only then.
-9. Restart/redeploy the backend and confirm the replay still plays.
-10. Open Recordings, select a range, Trim, and confirm:
+6. Pause the creator for at least 20 seconds and confirm there is no false transport
+   recovery; Resume must restore the same live session.
+7. Briefly interrupt creator networking and confirm the same broadcast survives
+   within `LIVEKIT_CREATOR_DISCONNECT_GRACE_MS` (production default: 90000 ms).
+8. Briefly interrupt a listener connection and confirm playback recovers with one
+   canonical audio element; a stale "playing" element with frozen RTP must not stay
+   silent forever.
+9. End Broadcast.
+10. Confirm the UI reaches Saved/Recordings without HTTP 413 and without a large
+    post-show WAV transfer.
+11. Confirm exactly one canonical MP3 replay exists and plays from beginning,
+    middle and end after a page refresh.
+12. In a separate failure test, disable/break the server recorder and confirm the
+    browser OPFS master is retained and bounded recovery chunks are used only then.
+13. Restart/redeploy the backend and confirm the replay still plays.
+14. Open Recordings, select a range, Trim, and confirm:
     - a separate trimmed recording appears;
     - the trimmed copy plays;
     - the original still plays and was not overwritten.
-11. Verify the configured device-copy policy:
+15. Verify the configured device-copy policy:
     - MP3 device copy, or
     - WAV device copy while the local master is available, or
     - server-only.
-12. Test a phone listener on a separate network if mobile listening matters for
+16. Test a phone listener on a separate network if mobile listening matters for
     the deployment.
 
 Do not call the deployment finished based only on `npm run build`.

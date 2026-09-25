@@ -14,16 +14,18 @@ requirements that are easy to miss, especially the recording pipeline.
    - `ffprobe -version` must succeed.
    - Echoo uses these for automatic server MP3 replay finalization and saved-recording trimming.
    - Do not report a deployment as ready if either binary is unavailable.
-2. **Verify the recording health endpoint after the backend restarts.**
+2. **Verify LiveKit Egress plus the recording health endpoint after the backend restarts.**
+   - LiveKit Cloud provides Egress; self-hosted LiveKit must deploy its Egress service separately.
    - `GET /api/health/recording` must return HTTP 200.
-   - It must report `automaticServerMp3: true` and `trimming: true`.
+   - It must report `automaticServerMp3: true`, `trimming: true`, and server-recording readiness when `LIVEKIT_SERVER_RECORDING_ENABLED=true`.
 3. **Use persistent recording storage.**
    - A normal VPS/bare-metal deployment may use persistent `backend/uploads/audio/`.
    - Ephemeral/container/serverless filesystems must use persistent S3-compatible object storage.
-4. **Do not reintroduce a giant final WAV upload.**
-   - Live broadcasts send bounded PCM/WAV chunks during the show.
-   - The backend finalizes the canonical replay as MP3.
-   - The browser OPFS WAV is recovery/device-export data, not the normal final upload.
+4. **Do not reintroduce browser PCM/WAV upload into the healthy live path.**
+   - The creator publishes the program once to LiveKit.
+   - LiveKit Track Egress sends that already-published track to Echoo's server recorder.
+   - Backend FFmpeg writes the canonical MP3 while the show is live.
+   - The browser OPFS WAV is recovery/device-export data only; bounded WAV chunks are post-live emergency recovery when server recording failed.
 5. **Preserve original audio by default.**
    - Raw/original creator audio is the default.
    - Enhanced processing must remain opt-in.

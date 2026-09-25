@@ -2,7 +2,9 @@
 
 > **Hosting/deploying Echoo? Start with [../HOSTING.md](../HOSTING.md).**
 > FFmpeg + FFprobe are mandatory for automatic server MP3 recording and
-> server-side trimming. AI agents must also follow [../AGENTS.md](../AGENTS.md).
+> server-side trimming. Live transcription is optional and currently off by
+> default with `TRANSCRIPTION_ENABLED=false`. AI agents must also follow
+> [../AGENTS.md](../AGENTS.md).
 
 | Document | What it answers |
 |---|---|

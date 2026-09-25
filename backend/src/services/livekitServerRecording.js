@@ -16,6 +16,8 @@ const SIGNATURE_TTL_MS = 5 * 60 * 1000;
 const STOP_TIMEOUT_MS = 8_000;
 const sessions = new Map();
 const startPromises = new Map();
+const expectedTracks = new Map();
+const TRACK_HANDOFF_TIMEOUT_MS = 12_000;
 let websocketServer = null;
 let attachedHttpServer = null;
 let upgradeHandler = null;
@@ -160,6 +162,9 @@ const createSession = async (broadcastId) => {
     stopping: false,
     failed: false,
     error: '',
+    currentTrackSid: '',
+    handoff: false,
+    handoffTimer: null,
     closed,
     resolveClosed,
     outputPath: replay.path,
@@ -214,6 +219,9 @@ const getOrCreateSession = async (broadcastId) =>
 const finishSession = async (session) => {
   if (!session) return null;
   session.stopping = true;
+  expectedTracks.delete(session.broadcastId);
+  if (session.handoffTimer) clearTimeout(session.handoffTimer);
+  session.handoffTimer = null;
   await session.writeChain.catch(() => null);
 
   try {
@@ -273,6 +281,12 @@ const acceptRecordingSocket = async (socket, request) => {
     return;
   }
 
+  const expectedTrack = expectedTracks.get(identity.broadcastId);
+  if (expectedTrack && expectedTrack !== identity.trackSid) {
+    socket.close(1008, 'Stale recording track');
+    return;
+  }
+
   const broadcast = await Broadcast.findOne({
     _id: identity.broadcastId,
     status: { $in: ['starting', 'live', 'ending'] },
@@ -283,6 +297,10 @@ const acceptRecordingSocket = async (socket, request) => {
     socket.close(1008, 'Broadcast is not recordable');
     return;
   }
+  if (broadcast.serverRecording?.status === 'failed') {
+    socket.close(1011, 'Server recording is using browser recovery');
+    return;
+  }
 
   const session = await getOrCreateSession(identity.broadcastId);
   if (session.stopping || session.failed) {
@@ -291,6 +309,10 @@ const acceptRecordingSocket = async (socket, request) => {
   }
 
   session.sockets.add(socket);
+  session.currentTrackSid = identity.trackSid;
+  session.handoff = false;
+  if (session.handoffTimer) clearTimeout(session.handoffTimer);
+  session.handoffTimer = null;
   await persist(identity.broadcastId, {
     'serverRecording.status': 'active',
     'serverRecording.trackSid': identity.trackSid,
@@ -317,15 +339,20 @@ const acceptRecordingSocket = async (socket, request) => {
 
   socket.on('close', () => {
     session.sockets.delete(socket);
-    if (!session.stopping && !session.failed) {
-      session.failed = true;
-      session.error = 'LiveKit recording stream disconnected before End Broadcast.';
-      void persist(identity.broadcastId, {
-        'serverRecording.status': 'failed',
-        'serverRecording.error': session.error,
-      });
-      void finishSession(session);
-    }
+    if (session.stopping || session.failed) return;
+
+    // During creator transport recovery the old LiveKit Track Egress socket is
+    // intentionally replaced. Its close must not invalidate the continuous
+    // FFmpeg session that is waiting for the newly published program track.
+    if (identity.trackSid !== session.currentTrackSid || session.handoff) return;
+
+    session.failed = true;
+    session.error = 'LiveKit recording stream disconnected before End Broadcast.';
+    void persist(identity.broadcastId, {
+      'serverRecording.status': 'failed',
+      'serverRecording.error': session.error,
+    });
+    void finishSession(session);
   });
 
   socket.on('error', (error) => {
@@ -387,6 +414,7 @@ export const closeLiveKitRecordingWebSocket = () => {
   }
   sessions.clear();
   startPromises.clear();
+  expectedTracks.clear();
   try { websocketServer?.close(); } catch { /* closed */ }
   websocketServer = null;
   attachedHttpServer = null;
@@ -409,6 +437,7 @@ export const ensureLiveKitServerRecording = async ({
 
   const task = (async () => {
     await assertFfmpegAvailable();
+    expectedTracks.set(id, track);
 
     const current = await Broadcast.findById(id).select('serverRecording');
     const recording = current?.serverRecording || null;
@@ -417,6 +446,7 @@ export const ensureLiveKitServerRecording = async ({
     // silently create a replay containing only the later portion. The browser
     // OPFS master spans the whole show and becomes the authoritative recovery.
     if (recording?.status === 'failed' && recording?.startedAt) {
+      expectedTracks.delete(id);
       return {
         mode: 'browser-fallback',
         active: false,
@@ -438,6 +468,28 @@ export const ensureLiveKitServerRecording = async ({
     }
 
     if (recording?.egressId && recording?.trackSid !== track) {
+      const session = sessions.get(id);
+      if (session && !session.stopping && !session.failed) {
+        session.currentTrackSid = track;
+        session.handoff = true;
+        if (session.handoffTimer) clearTimeout(session.handoffTimer);
+        session.handoffTimer = setTimeout(() => {
+          if (
+            session.stopping ||
+            session.failed ||
+            !session.handoff ||
+            session.currentTrackSid !== track
+          ) return;
+          session.failed = true;
+          session.error = 'LiveKit recording track handoff did not reconnect in time.';
+          void persist(id, {
+            'serverRecording.status': 'failed',
+            'serverRecording.error': session.error,
+          });
+          void finishSession(session);
+        }, TRACK_HANDOFF_TIMEOUT_MS);
+        session.handoffTimer.unref?.();
+      }
       await LiveKitProvider.stopEgress(recording.egressId).catch(() => null);
     }
 
@@ -476,6 +528,13 @@ export const ensureLiveKitServerRecording = async ({
         trackSid: track,
       };
     } catch (error) {
+      expectedTracks.delete(id);
+      const session = sessions.get(id);
+      if (session?.handoff && session.currentTrackSid === track) {
+        session.failed = true;
+        session.error = String(error?.message || error);
+        await finishSession(session).catch(() => null);
+      }
       await persist(id, {
         'serverRecording.status': 'failed',
         'serverRecording.error': String(error?.message || error).slice(0, 1000),
@@ -496,6 +555,7 @@ export const stopLiveKitServerRecording = async (broadcastId) => {
   const id = safeId(broadcastId);
   if (!id) return null;
 
+  expectedTracks.delete(id);
   const broadcast = await Broadcast.findById(id).select('serverRecording');
   const egressId = String(broadcast?.serverRecording?.egressId || '');
   const session = sessions.get(id);

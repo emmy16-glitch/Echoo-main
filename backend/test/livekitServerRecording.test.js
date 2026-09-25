@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 
 import { getLiveKitServerRecordingDiagnostics } from '../src/services/livekitServerRecording.js';
 
@@ -61,4 +62,21 @@ test('serverless runtime refuses the long-lived recording websocket', () => {
   assert.equal(diagnostics.configured, true);
   assert.equal(diagnostics.serverlessRuntime, true);
   assert.equal(diagnostics.available, false);
+});
+
+
+test('track republish handoff keeps one recorder session and fails closed if replacement never arrives', async () => {
+  const source = await readFile(
+    new URL('../src/services/livekitServerRecording.js', import.meta.url),
+    'utf8'
+  );
+
+  assert.match(source, /TRACK_HANDOFF_TIMEOUT_MS/);
+  assert.match(source, /session\.currentTrackSid = track/);
+  assert.match(source, /session\.handoff = true/);
+  assert.match(source, /identity\.trackSid !== session\.currentTrackSid \|\| session\.handoff/);
+  assert.match(source, /Stale recording track/);
+  assert.match(source, /Server recording is using browser recovery/);
+  assert.match(source, /LiveKit recording track handoff did not reconnect in time/);
+  assert.match(source, /expectedTracks\.delete\(session\.broadcastId\)/);
 });

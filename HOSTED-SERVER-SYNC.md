@@ -14,7 +14,7 @@ Target architecture:
 
 - one hosted Echoo backend at `https://echoo.digi02.org/api`;
 - one shared production MongoDB;
-- LiveKit Cloud for realtime creator/listener audio;
+- LiveKit Cloud for realtime creator/listener audio and Track Egress recording;
 - FFmpeg + FFprobe on Digi02 for automatic replay MP3 and trimming;
 - persistent canonical recording storage;
 - web and desktop clients using the same hosted world.
@@ -105,6 +105,9 @@ backend using the host's existing process manager:
    JWT, CORS, LiveKit and recording. At minimum, the recording-specific values
    should resolve to:
    ```env
+   LIVEKIT_SERVER_RECORDING_ENABLED=true
+   LIVEKIT_CREATOR_DISCONNECT_GRACE_MS=90000
+   TRANSCRIPTION_ENABLED=false
    FFMPEG_PATH=ffmpeg
    FFPROBE_PATH=ffprobe
    AUDIO_REPLAY_MP3_BITRATE=320k
@@ -179,20 +182,25 @@ any are missing — do not paper over them):
    Invalid credentials are acceptable for this probe; CORS denial is not.
 
 5. LiveKit linkage: with the configured server credentials, create and delete a
-   test room using the LiveKit server SDK or `lk` CLI. Do not print secrets.
+   test room using the LiveKit server SDK or `lk` CLI. Confirm the LiveKit project
+   supports Egress/Track Egress before the recording acceptance test. Do not print secrets.
 
 6. Browser lifecycle: register/sign in, create/use a Channel, start a public
    broadcast, and confirm the creator reaches live state.
 
 7. Separate listener: open the shared link on another browser/device (preferably
-   a phone on another network) and confirm real `echoo-studio-mix` audio plays.
+   a phone on another network) **after the creator is already live** and confirm
+   the existing `echoo-studio-mix` is subscribed and audible. Then repeat one
+   short network interruption and confirm playback recovers without duplicate
+   audio elements.
 
-8. Recording save: allow several bounded recording chunks, then End Broadcast.
-   Confirm:
-   - no giant final WAV request;
-   - no HTTP 413;
-   - one canonical server MP3 appears in Recordings;
-   - the MP3 plays from beginning, middle and end after refresh.
+8. Live stability and recording:
+   - while healthy, confirm there is no continuous browser raw-recording upload;
+   - pause the creator for at least 20 seconds and confirm there is no false publisher recovery;
+   - briefly interrupt creator networking and confirm the same broadcast recovers within the 90-second server grace;
+   - confirm the reverse proxy accepts WebSocket upgrades for `/api/internal/livekit-recording`;
+   - End Broadcast and confirm no giant final WAV request or HTTP 413;
+   - confirm one canonical server MP3 appears in Recordings and plays beginning/middle/end after refresh.
 
 9. Durability: restart the backend and confirm that replay still plays. If local
    disk is being used, this proves the uploads path is persistent; if object

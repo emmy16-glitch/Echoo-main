@@ -49,13 +49,19 @@ Start with:
 cp .env.example .env
 ```
 
-Important recording values:
+Important live/recording values:
 
 ```env
+LIVEKIT_SERVER_RECORDING_ENABLED=true
+LIVEKIT_CREATOR_DISCONNECT_GRACE_MS=90000
+TRANSCRIPTION_ENABLED=false
+
 FFMPEG_PATH=ffmpeg
 FFPROBE_PATH=ffprobe
 AUDIO_REPLAY_MP3_BITRATE=320k
 ```
+
+The 90-second creator disconnect grace is intentional: it gives browser ICE/signalling recovery and a fresh program-track publication time to complete instead of auto-ending a recoverable broadcast.
 
 Use `AUDIO_S3_*` object-storage settings when the backend filesystem is
 ephemeral. On a persistent VPS/bare-metal server, finished MP3 recordings can
