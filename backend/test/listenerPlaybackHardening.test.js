@@ -74,6 +74,9 @@ test('listener recovery distinguishes autoplay policy from transient playback fa
   assert.match(player, /needsAudioStartRef\.current = autoplayBlocked/);
   assert.match(player, /playbackIntentRef\.current !== 'play'/);
   assert.match(player, /!room\.canPlaybackAudio/);
+  assert.match(player, /getReceiverStats\(\)/);
+  assert.match(player, /watchdog_inbound_rtp_stalled/);
+  assert.match(player, /receiverStallStreak/);
   assert.equal(
     (player.match(/if \(publication\.track\?\.kind === Track\.Kind\.Audio\)/g) || []).length,
     1,
