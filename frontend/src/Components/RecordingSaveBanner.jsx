@@ -295,7 +295,7 @@ const RecordingSaveBanner = () => {
           <button type="button" className="eb-press" onClick={saveRecovery} disabled={state.savingRecovery}>
             <FaDownload /> {state.savingRecovery ? 'Saving…' : 'Save recovery copy'}
           </button>
-          <button type="button" className="eb-press" onClick={uploadRecovered}>Retry server save</button>
+          <button type="button" className="eb-press" onClick={uploadRecovered}>Upload recovery to server</button>
           <button type="button" className="eb-press" onClick={discardRecovered}>Discard</button>
         </>
       )}
