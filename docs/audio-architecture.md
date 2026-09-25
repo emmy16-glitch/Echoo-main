@@ -43,11 +43,22 @@ connection can sustain; listener volume/mute are native element controls only.
 
 Both sides use explicit recovery state machines. A creator transport watchdog
 checks outbound byte/packet progress and, after a sustained stall, replaces the
-LiveKit room and republishes the same mixer track with a fresh token. This does
-not create a new broadcast or recorder. A listener validates the canonical
-publication, current track, DOM attachment, and actual media-element playback;
-stale attachments are detached and rebuilt. Recovery retries are bounded at
-0/1/2/4/8 seconds plus jitter and can be cancelled by broadcast end/unmount.
+LiveKit room and republishes the same mixer track with a fresh token. The
+watchdog is suspended while the creator intentionally pauses/mutes the live
+program, and a paused state is preserved across reconnect so recovery cannot
+briefly put paused audio back on air.
+
+A listener validates the canonical publication, current track, DOM attachment,
+media-element playback, and—when the browser exposes them—remote receiver
+byte/packet counters. If the element still looks "playing" but inbound RTP stops
+progressing for consecutive watchdog samples, Echoo performs a fresh room join
+instead of sitting indefinitely on silent/stale audio. Intentional listener Pause
+is respected and is never auto-undone by the watchdog.
+
+Recovery retries start at 0/1/2/4/8 seconds plus jitter. The backend keeps a live
+broadcast recoverable for 90 seconds by default
+(`LIVEKIT_CREATOR_DISCONNECT_GRACE_MS=90000`) before concluding that the
+creator has actually gone away.
 
 ## Local recording durability and replay save
 
@@ -201,10 +212,15 @@ codec tiers are future work, not part of this implementation.
    reports server recording/trimming unavailable instead of pretending the MP3
    will be saved.
 6. During a live session, disable networking for 5–15 seconds. Confirm creator
-   state moves through reconnecting/recovering, the same broadcast resumes, and
-   the recording start timestamp does not change. Confirm listeners return to
-   `playing` without duplicate `<audio>` elements.
-7. Leave a recording active for at least 20 seconds, then simulate a page crash.
+   state moves through reconnecting/recovering, the same broadcast resumes within
+   the configured server grace window, and the recording start timestamp does not
+   change. Confirm listeners return to `playing` without duplicate `<audio>`
+   elements. Also test a stalled inbound path where the element remains attached:
+   receiver byte/packet counters must eventually trigger recovery instead of
+   leaving the listener silently stuck.
+7. Pause the creator for longer than 15 seconds and confirm the creator transport
+   watchdog does not republish or reconnect until Resume. Then leave a recording
+   active for at least 20 seconds and simulate a page crash.
    Reload and confirm the OPFS recovery master reopens from the last committed
    checkpoint. Retry server replay completion after dropping one response and
    confirm only one replay exists for the broadcast.
