@@ -134,11 +134,12 @@ The API manages identity, lifecycle, chat, presence, tokens, and product data. I
 Echoo uses LiveKit Cloud as its real-time audio SFU:
 
 - **Creator** publishes exactly one `echoo-studio-mix` program publication (stereo Opus, 48 kHz; profiles up to 510 kbps) with a short-lived publisher token. This post-master `echoo-studio-mix` is the single feed listeners hear and recordings capture.
-- **Listeners** attach only that publication to a native audio element with subscriber-only tokens (`canPublish: false`), reissued automatically on reconnect/expiry.
+- **Creator recovery** republishes the same mixer output with fresh credentials after a real transport failure. Intentional Pause is excluded from the transport-stall watchdog and remains paused across reconnect, so recovery cannot accidentally put muted/paused audio back on air.
+- **Listeners** attach only that publication to a native audio element with subscriber-only tokens (`canPublish: false`), reissued automatically on reconnect/expiry. Late join, track replacement, ended media elements, browser online recovery, and non-autoplay playback failures all have bounded recovery paths; autoplay-policy failures remain an explicit Tap to hear action rather than a reconnect loop.
 - **Guests** get server-generated `guest:<uuid>` identities with the same subscriber-only grants — they can never publish or impersonate accounts.
 - Token issuance is IP rate-limited; rooms are created on go-live and swept when orphaned.
 
-Backend knobs: `LIVEKIT_URL`, `LIVEKIT_PUBLIC_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` (production requires public `wss://`). Local dev: `livekit-server --dev` (see [docs/getting-started.md](docs/getting-started.md)).
+Backend knobs: `LIVEKIT_URL`, `LIVEKIT_PUBLIC_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` (production requires public `wss://`). The primary production recording path additionally requires LiveKit Egress (included with LiveKit Cloud; separately deployed for self-hosted LiveKit) and `LIVEKIT_SERVER_RECORDING_ENABLED=true`. Local dev: `livekit-server --dev` (see [docs/getting-started.md](docs/getting-started.md)).
 
 ## Recordings & storage implementation
 
