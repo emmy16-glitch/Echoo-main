@@ -32,7 +32,10 @@ import {
   startBroadcastProcessingWorker,
   stopBroadcastProcessingWorker,
 } from './services/broadcastProcessingService.js';
-import { attachLiveKitRecordingWebSocket } from './services/livekitServerRecording.js';
+import {
+  attachLiveKitRecordingWebSocket,
+  closeLiveKitRecordingWebSocket,
+} from './services/livekitServerRecording.js';
 
 const app = express();
 
@@ -590,6 +593,7 @@ const shutdown = async (signal) => {
   socketBroadcastCache.clear();
   clearLiveKitWebhookTimers();
   stopBroadcastProcessingWorker();
+  closeLiveKitRecordingWebSocket();
 
   server.close(async () => {
     await disconnectDatabase();
