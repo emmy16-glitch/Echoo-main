@@ -250,9 +250,10 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
           await existing.element.play();
           markPlaybackState();
         } catch (playError) {
-          setNeedsAudioStart(true);
-          needsAudioStartRef.current = true;
-          setStatus(playError?.name === 'NotAllowedError' ? 'autoplay_blocked' : 'recovering_audio');
+          const autoplayBlocked = playError?.name === 'NotAllowedError';
+          setNeedsAudioStart(autoplayBlocked);
+          needsAudioStartRef.current = autoplayBlocked;
+          setStatus(autoplayBlocked ? 'autoplay_blocked' : 'recovering_audio');
         }
         return;
       }
@@ -343,10 +344,11 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       } catch (playError) {
         console.warn(`[Echoo LiveKit] Autoplay BLOCKED for track: ${id}`, playError);
         if (!disposed && roomRef.current === room) {
-          setNeedsAudioStart(true);
-          needsAudioStartRef.current = true;
-          setStatus(playError?.name === 'NotAllowedError' ? 'autoplay_blocked' : 'recovering_audio');
-          if (playError?.name !== 'NotAllowedError') {
+          const autoplayBlocked = playError?.name === 'NotAllowedError';
+          setNeedsAudioStart(autoplayBlocked);
+          needsAudioStartRef.current = autoplayBlocked;
+          setStatus(autoplayBlocked ? 'autoplay_blocked' : 'recovering_audio');
+          if (!autoplayBlocked) {
             setError(playError?.message || 'The live track arrived but playback did not start.');
           }
         }
@@ -537,7 +539,11 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
         !hasPlayingAudio &&
         !room.canPlaybackAudio
       );
-      needsAudioStartRef.current = attachedRef.current.size > 0 && !hasPlayingAudio;
+      needsAudioStartRef.current =
+        playbackIntentRef.current === 'play' &&
+        attachedRef.current.size > 0 &&
+        !hasPlayingAudio &&
+        !room.canPlaybackAudio;
     };
 
     connect().catch(async (connectError) => {
@@ -599,6 +605,10 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
         return;
       }
       watchdogMissStreakRef.current = 0;
+      if (playbackIntentRef.current !== 'play') {
+        setStatus('connected');
+        return;
+      }
       if (!entries.some((entry) => mediaElementIsPlaying(entry.element)) && !needsAudioStartRef.current) {
         setStatus('recovering_audio');
         entries.forEach((entry) => {
