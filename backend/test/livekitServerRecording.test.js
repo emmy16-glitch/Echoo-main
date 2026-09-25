@@ -98,4 +98,8 @@ test('concurrent recorder starts preserve the newest track and bound PCM backlog
   assert.match(source, /desiredTracks\.set\(id, track\)/);
   assert.match(source, /desiredTracks\.get\(id\) !== track/);
   assert.match(source, /reason: 'newer-track-requested'/);
+  assert.match(source, /finishPromise/);
+  assert.match(source, /if \(session\.finishPromise\) return session\.finishPromise/);
+  assert.match(source, /session\.child\?\.stdin\?\.destroy/);
+  assert.match(source, /Recording encoder stopped/);
 });
