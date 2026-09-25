@@ -5,7 +5,7 @@ import {
   recoverOrphanedLosslessRecording,
   retryBroadcastQualityCompletion,
 } from './broadcastRecordingService.js';
-import { saveAutomaticLocalCopy } from './recordingExportService.js';
+import { saveAutomaticLocalCopy, saveRecordingToPc } from './recordingExportService.js';
 import {
   chooseRecordingDeviceFormat,
   getRecordingDevicePreferences,
@@ -58,7 +58,7 @@ const friendlyRecoveryMessage = (error) => {
     case 'RECORDING_WAITING_FOR_NETWORK':
       return 'Recording is safe on this device. Echoo will continue saving when your connection returns.';
     case 'REPLAY_FINALIZE_RETRY':
-      return 'Couldn’t finish saving this recording. Your recovery copy is still safe on this device.';
+      return 'Couldn’t finish the server MP3. The browser recovery master is still safe on this device.';
     case 'REPLAY_NOT_READY':
       return 'The server has no recording for this broadcast yet. Your recovery copy is still safe on this device.';
     case 'BROADCAST_STILL_LIVE':
@@ -200,19 +200,60 @@ const startAutosaveLive = async ({ recording, broadcast, key }) => {
       error.replay = replay;
       throw error;
     } catch (error) {
+      // Keep the master for Retry and device recovery before doing anything
+      // else. Never delete the creator's only copy until canonical server
+      // persistence is confirmed.
+      let recoveryCopy = null;
+      if (recording?.blob?.size) {
+        rememberLocalMaster(`pending:${key}`, {
+          blob: recording.blob,
+          title,
+          mimeType: recording.mimeType || recording.blob.type,
+          broadcast,
+          recording,
+        });
+
+        const recoveryKey = `recovery:${key}`;
+        const preferences = getRecordingDevicePreferences();
+        const recoveryMime = String(recording.mimeType || recording.blob.type || '').toLowerCase();
+        if (
+          preferences.autoSave &&
+          recoveryMime.includes('wav') &&
+          !automaticLocalCopies.has(recoveryKey)
+        ) {
+          const channelName =
+            broadcast?.station?.name ||
+            broadcast?.channel?.name ||
+            broadcast?.stationName ||
+            broadcast?.channelName ||
+            '';
+          recoveryCopy = await saveAutomaticLocalCopy({
+            blob: recording.blob,
+            title,
+            format: 'wav',
+            channelName,
+            startedAt: recording.startedAt || broadcast?.startedAt || broadcast?.startTime || null,
+          }).catch((copyError) => ({
+            saved: false,
+            error: copyError?.message || String(copyError),
+            format: 'wav',
+          }));
+          if (recoveryCopy?.saved) automaticLocalCopies.add(recoveryKey);
+        }
+      }
+
       emit({
         status: 'error',
         key,
         title,
         code: error?.code || '',
-        message: friendlyRecoveryMessage(error),
+        message: recoveryCopy?.saved
+          ? 'The server MP3 could not be finished, but a recovery WAV was saved to this device. Echoo also kept the browser recovery master so you can Retry.'
+          : friendlyRecoveryMessage(error),
         retryable: true,
+        recoveryCopy,
+        hasRecovery: Boolean(recording?.blob?.size),
       });
-      // Keep the master for Retry (banner) and for trim-later. Never delete
-      // the creator's only copy until canonical persistence is confirmed.
-      if (recording?.blob?.size) {
-        rememberLocalMaster(`pending:${key}`, { blob: recording.blob, title, mimeType: recording.mimeType || recording.blob.type, broadcast, recording });
-      }
       throw error;
     } finally {
       activeUploads.delete(key);
@@ -263,6 +304,38 @@ export const completeDeviceCopyChoice = async (key, format = 'mp3') => {
     ? `“${pending.title}” saved to Echoo and this device.`
     : `“${pending.title}” saved to Echoo Recordings.`);
   return { audioId: pending.audioId, localCopy, preferences };
+};
+
+export const saveRecoveryCopy = async (key) => {
+  const lookupKey = key === 'recovered' ? 'recovered' : `pending:${key}`;
+  const pending = peekLocalMaster(lookupKey);
+  const blob = pending?.recording?.blob || pending?.blob || null;
+  if (!blob?.size) throw new Error('No browser recovery copy is available.');
+
+  const mimeType = String(
+    pending?.recording?.mimeType ||
+    pending?.mimeType ||
+    blob.type ||
+    ''
+  ).toLowerCase();
+  const format = mimeType.includes('wav') ? 'wav' : 'opus';
+  const broadcast = pending?.broadcast || {};
+  return saveRecordingToPc({
+    blob,
+    title: pending?.title || broadcast?.title || 'Echoo live recording',
+    format,
+    channelName:
+      broadcast?.station?.name ||
+      broadcast?.channel?.name ||
+      broadcast?.stationName ||
+      broadcast?.channelName ||
+      '',
+    startedAt:
+      pending?.recording?.startedAt ||
+      broadcast?.startedAt ||
+      broadcast?.startTime ||
+      null,
+  });
 };
 
 export const retryAutosave = async (key) => {
@@ -317,6 +390,7 @@ export default {
   installRecordingAutosave,
   startAutosave,
   retryAutosave,
+  saveRecoveryCopy,
   completeDeviceCopyChoice,
   uploadRecoveredTake,
   rememberLocalMaster,
