@@ -33,6 +33,7 @@ import feedbackRoutes from './feedbackRoutes.js';
 import { uploadLimiter } from '../middleware/rateLimiter.js';
 import { getTranscriptionGatewayDiagnostics } from '../services/transcriptionGateway.js';
 import { checkFfmpegCapability } from '../services/audioTrimService.js';
+import { getLiveKitServerRecordingDiagnostics } from '../services/livekitServerRecording.js';
 
 const router = express.Router();
 
@@ -86,6 +87,7 @@ router.get('/health/livekit', async (req, res) => {
 
 router.get('/health/recording', async (req, res) => {
   const capability = await checkFfmpegCapability();
+  const livekitRecorder = getLiveKitServerRecordingDiagnostics();
   return res.status(capability.ok ? 200 : 503).json({
     status: capability.ok ? 'ok' : 'error',
     service: 'recording-pipeline',
@@ -93,6 +95,10 @@ router.get('/health/recording', async (req, res) => {
     ffprobe: capability.ffprobe ? 'available' : 'missing',
     automaticServerMp3: capability.ok,
     trimming: capability.ok,
+    livekitServerRecording: livekitRecorder.available,
+    livekitServerRecordingConfigured: livekitRecorder.configured,
+    browserRecoveryMaster: true,
+    transcriptionRequired: false,
     message: capability.message || undefined,
     timestamp: new Date().toISOString(),
   });
