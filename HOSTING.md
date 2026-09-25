@@ -314,6 +314,11 @@ Serve `frontend/dist/` with SPA fallback and proxy at least:
 - `/socket.io/*` -> backend;
 - `/uploads/*` -> backend when local media is served through the backend.
 
+When `LIVEKIT_SERVER_RECORDING_ENABLED=true`, the reverse proxy must also pass
+**WebSocket upgrades** for `/api/internal/livekit-recording` to the same long-lived
+Node backend. This is the private LiveKit-to-Echoo recording transport; browsers
+do not connect to it directly.
+
 For Digi02-specific update steps, use [HOSTED-SERVER-SYNC.md](HOSTED-SERVER-SYNC.md).
 
 ## 10. Mandatory post-deploy health checks
@@ -353,11 +358,15 @@ Before declaring the deployment complete:
 2. Creator starts a public broadcast.
 3. A second browser/device opens the shared link.
 4. Confirm the listener receives the actual `echoo-studio-mix` audio.
-5. Keep the show running long enough to send several recording chunks.
+5. While the show is healthy, confirm the browser is **not** continuously uploading
+   `/recording-chunks`; the normal path should be LiveKit Track Egress -> Echoo server.
 6. End Broadcast.
-7. Confirm the UI reaches Saved/Recordings without HTTP 413.
+7. Confirm the UI reaches Saved/Recordings without HTTP 413 and without a large
+   post-show WAV transfer.
 8. Confirm exactly one canonical MP3 replay exists and plays from beginning,
    middle and end after a page refresh.
+9. In a separate failure test, disable/break the server recorder and confirm the
+   browser OPFS master is retained and bounded recovery chunks are used only then.
 9. Restart/redeploy the backend and confirm the replay still plays.
 10. Open Recordings, select a range, Trim, and confirm:
     - a separate trimmed recording appears;
