@@ -90,14 +90,15 @@ Echoo does **not** upload one huge final WAV when the creator ends a show.
 browser master
   +--> LiveKit -> listeners
   |
-  +--> bounded PCM/WAV chunks -> backend FFmpeg replay encoder
-                                  |
-End Broadcast --------------------+
-                                  |
-                                  v
-                           canonical MP3 replay
-                                  |
-                        persistent disk or S3
+  +--> LiveKit Track Egress -> Echoo recording WebSocket
+                                 |
+                                 +--> backend FFmpeg -> canonical MP3
+                                                        |
+End Broadcast ------------------------------------------+
+                                                        |
+                                             persistent disk or S3
+
+browser OPFS master -> recovery only
 ```
 
 The browser OPFS WAV is a local recovery/lossless-export master. It must not be
@@ -206,7 +207,8 @@ A typical same-origin host routes:
 - `/socket.io/*` -> Echoo backend with websocket upgrade;
 - `/uploads/*` -> backend/static media when local storage is used.
 
-Preserve websocket upgrade support for Socket.IO.
+Preserve websocket upgrade support for Socket.IO and
+`/api/internal/livekit-recording` when `LIVEKIT_SERVER_RECORDING_ENABLED=true`.
 
 ## CORS and desktop thin clients
 
