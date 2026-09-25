@@ -143,6 +143,54 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       !entry.element.ended
     );
 
+    const sampleInboundProgress = async (entry, room) => {
+      if (
+        disposed ||
+        roomRef.current !== room ||
+        !entry ||
+        !currentAttachmentIsHealthy(entry) ||
+        entry.track?.isMuted === true ||
+        entry.publication?.isMuted === true ||
+        typeof entry.track?.getReceiverStats !== 'function'
+      ) {
+        if (entry) entry.receiverStallStreak = 0;
+        return true;
+      }
+
+      try {
+        const stats = await entry.track.getReceiverStats();
+        if (!stats || disposed || roomRef.current !== room) return true;
+
+        const sample = {
+          bytes: Number(stats.bytesReceived) || 0,
+          packets: Number(stats.packetsReceived) || 0,
+        };
+        const previous = entry.receiverSample;
+        entry.receiverSample = sample;
+
+        const countersReset = Boolean(
+          previous &&
+          (sample.bytes < previous.bytes || sample.packets < previous.packets)
+        );
+        const progressing = Boolean(
+          !previous ||
+          countersReset ||
+          sample.bytes > previous.bytes ||
+          sample.packets > previous.packets
+        );
+
+        entry.receiverStallStreak = progressing
+          ? 0
+          : Number(entry.receiverStallStreak || 0) + 1;
+
+        return entry.receiverStallStreak < 3;
+      } catch {
+        // Stats are diagnostics only. Never tear down healthy playback because
+        // a browser does not expose receiver statistics.
+        return true;
+      }
+    };
+
     const markPlaybackState = () => {
       if (disposed) return false;
       const entries = Array.from(attachedRef.current.values());
@@ -284,7 +332,15 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       }
 
       audioHostRef.current?.appendChild(element);
-      attachedRef.current.set(id, { id, track, publication, element, room });
+      attachedRef.current.set(id, {
+        id,
+        track,
+        publication,
+        element,
+        room,
+        receiverSample: null,
+        receiverStallStreak: 0,
+      });
       setTrackCount(attachedRef.current.size);
       const onPlayable = () => markPlaybackState();
       const onEnded = () => {
@@ -609,7 +665,24 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
         setStatus('connected');
         return;
       }
-      if (!entries.some((entry) => mediaElementIsPlaying(entry.element)) && !needsAudioStartRef.current) {
+
+      const playingEntry = entries.find((entry) => mediaElementIsPlaying(entry.element));
+      if (playingEntry) {
+        void sampleInboundProgress(playingEntry, room).then((progressing) => {
+          if (
+            !progressing &&
+            !disposed &&
+            roomRef.current === room &&
+            playbackIntentRef.current === 'play'
+          ) {
+            setStatus('recovering_audio');
+            scheduleHardReconnect('watchdog_inbound_rtp_stalled');
+          }
+        });
+        return;
+      }
+
+      if (!needsAudioStartRef.current) {
         setStatus('recovering_audio');
         entries.forEach((entry) => {
           entry.element.play().then(markPlaybackState).catch((playError) => {
