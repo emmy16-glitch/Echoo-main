@@ -54,7 +54,7 @@
 2. **Go Live — Broadcast.** One click opens the LiveKit room; presence flips to live, followers can join.
 3. **Share — Grow.** Copy the listen link (`/listen/live/:id`) — anyone opening it hears the show instantly, account or not.
 4. **Engage — Chat.** Signed-in listeners chat and react live; guests watch the conversation stream read-only.
-5. **End — Save & keep.** While live, Echoo sends bounded master-audio chunks to the backend. Ending the broadcast finalizes the already-received audio into a high-fidelity MP3 (~144 MB/hour at the default 320k replay bitrate) as a private draft — there is no giant final WAV upload. Creators can still export a local WAV master explicitly while its recovery copy exists.
+5. **End — Save & keep.** While live, the browser publishes the studio mix once to LiveKit and keeps a temporary lossless OPFS recovery master locally. LiveKit Track Egress sends the published program to Echoo's server recorder, where FFmpeg writes the canonical MP3 (~144 MB/hour at the default 320k replay bitrate). The browser does **not** perform the normal raw-WAV upload during a healthy show; bounded WAV chunks are emergency recovery only.
 6. **Replay — Publish.** Review in Recordings, publish — listeners stream or download on demand.
 
 One connected loop:
@@ -104,19 +104,27 @@ Echoo is deliberately **not** another upload-and-wait audio host. It separates l
 
 ```
 Creator studio (mixer: mic, guests, media)
-        │  24-bit master → Opus over WebRTC
-        ▼
-LiveKit Cloud (real-time audio routing, no per-listener server load)
-        ▼
-Listeners (web / desktop / mobile — subscribe-only, account optional)
         │
-        ▼ JSON / HTTPS + Socket.IO
+        └── echoo-studio-mix (stereo Opus/WebRTC)
+                    │
+                    ▼
+              LiveKit Cloud
+               │         │
+               │         └── Track Egress → Echoo recording WebSocket
+               │                              │
+               ▼                              ▼
+Listeners (web/desktop/mobile)              FFmpeg
+                                              │
+                                              ▼
+                                      canonical MP3 replay
+
 Echoo API (Express)
-  │       │        │        │
-  │       │        │        └── MongoDB (accounts, shows, chat, media records)
-  │       │        └─────────── S3-compatible storage (MP3 replays, covers)
-  │       └──────────────────── Whisper gateway (optional transcription)
-  └──────────────────────────── Socket.IO rooms (chat, presence, status)
+  │       │        │
+  │       │        └── MongoDB (accounts, shows, chat, media records)
+  │       └─────────── persistent disk / S3-compatible recording storage
+  └─────────────────── Socket.IO rooms (chat, presence, status)
+
+Browser OPFS WAV = local recovery/device master only
 ```
 
 The API manages identity, lifecycle, chat, presence, tokens, and product data. It never relays live audio per listener. See [docs/architecture.md](docs/architecture.md) and [docs/audio-architecture.md](docs/audio-architecture.md).
@@ -134,11 +142,12 @@ Backend knobs: `LIVEKIT_URL`, `LIVEKIT_PUBLIC_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_
 
 ## Recordings & storage implementation
 
-During the show, the browser keeps a temporary 24-bit/48 kHz PCM recovery master in OPFS and uploads bounded chunks. Those chunks also feed the server replay encoder, so End Broadcast finalizes server-side instead of uploading one huge WAV.
+During a healthy show, the browser keeps a temporary 24-bit/48 kHz PCM recovery master in OPFS **without uploading it in parallel with WebRTC**. The published LiveKit program track is exported server-side to Echoo's signed recording WebSocket and FFmpeg writes the canonical MP3 as the show runs.
 
-1. The backend finalizes one idempotent replay for the broadcast from the streamed MP3 output, with deterministic chunk assembly as a recovery fallback.
+1. Listener delivery stays direct LiveKit/WebRTC and is independent of FFmpeg or replay finalization.
 2. The canonical live replay is a real MP3 (`AUDIO_REPLAY_MP3_BITRATE`, default `320k` stereo ≈ 144 MB/hour), stored locally or archived to S3-compatible object storage.
-3. The temporary OPFS master is kept on failure and cleared only after canonical persistence is confirmed. MP3 is the normal device copy; WAV remains an explicit lossless export while the local master exists.
+3. The temporary OPFS master is kept until canonical persistence is confirmed. If server recording fails or is interrupted, Echoo can upload that master afterward in bounded recovery chunks; that fallback never competes with a healthy live stream.
+4. MP3 is the recommended automatic device copy; WAV remains an explicit lossless option while the local master exists.
 
 Playback always resolves through signed, time-limited `/api/audio/:id/stream` URLs: local files stream with HTTP ranges; cloud files redirect (public buckets) or mint short-lived object URLs (private buckets). Only replays are transcoded; uploaded music keeps its original encoding.
 
