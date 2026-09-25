@@ -334,7 +334,7 @@ const LiveKitProvider = {
       throw new Error('A LiveKit audio track SID is required for server recording.');
     }
     if (!/^wss?:\/\//i.test(target)) {
-      throw new Error('Echoo server recording requires a ws:// or wss:// ingest URL.');
+      throw new Error('Echoo server recording requires a ws:// or wss:// WebSocket URL.');
     }
     if (process.env.NODE_ENV === 'production' && !/^wss:\/\//i.test(target)) {
       throw new Error('Echoo production server recording requires wss:// ingest.');
