@@ -198,7 +198,8 @@ For host/deploy requirements, [HOSTING.md](HOSTING.md) is authoritative.
 ## Media infrastructure
 
 Direct LiveKit remains the listener transport. LiveKit Track Egress is the
-preferred server-recording path on long-lived backends, but a recorder failure
+preferred server-recording path on long-lived backends (LiveKit Cloud provides
+Egress; self-hosted LiveKit requires its separate Egress service), but a recorder failure
 must never interrupt or block the live listener stream. OvenMediaEngine remains
 optional legacy/future relay infrastructure and is not required for normal
 broadcasting.
