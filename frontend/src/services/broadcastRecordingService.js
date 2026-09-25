@@ -222,6 +222,96 @@ const uploadQualityChunk = async ({ recording, samples, startMs, endMs, chunkInd
   throw lastError || new Error('Quality chunk upload failed');
 };
 
+const uploadStoredPcmChunk = async ({ recording, pcmBlob, startMs, endMs, chunkIndex }) => {
+  const header = createWavHeader({
+    dataBytes: pcmBlob.size,
+    sampleRate: recording.sampleRate,
+    channels: QUALITY_CHUNK_CHANNELS,
+    bitDepth: QUALITY_CHUNK_BIT_DEPTH,
+  });
+  const form = new FormData();
+  form.append('chunk', new Blob([header, pcmBlob], { type: WAV_MIME_TYPE }), `chunk-${chunkIndex}.wav`);
+  form.append('chunkId', `${recording.broadcastId}-${chunkIndex}`);
+  form.append('chunkIndex', String(chunkIndex));
+  form.append('startMs', String(Math.round(startMs)));
+  form.append('endMs', String(Math.round(endMs)));
+  form.append('sampleRate', String(recording.sampleRate));
+  form.append('channels', String(QUALITY_CHUNK_CHANNELS));
+  form.append('bitDepth', String(QUALITY_CHUNK_BIT_DEPTH));
+
+  let lastError = null;
+  for (let attempt = 0; attempt < QUALITY_CHUNK_UPLOAD_RETRIES; attempt += 1) {
+    if (recording.qualityChunkDisabled) throw new Error('Quality chunk upload was cancelled');
+    try {
+      const response = await apiFetch(`/broadcasts/${recording.broadcastId}/recording-chunks`, {
+        method: 'POST',
+        body: form,
+        isFormData: true,
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(data?.error?.message || `Chunk upload failed (${response.status})`);
+      console.info('[Echoo Recording] post-live quality chunk uploaded', {
+        broadcastId: recording.broadcastId,
+        chunkIndex,
+        startMs,
+        endMs,
+      });
+      return data?.data || data;
+    } catch (error) {
+      lastError = error;
+      if (recording.qualityChunkDisabled) throw error;
+      if (attempt < QUALITY_CHUNK_UPLOAD_RETRIES - 1) {
+        await sleep(Math.min(15_000, 500 * (2 ** attempt)));
+      }
+    }
+  }
+  throw lastError || new Error('Quality chunk upload failed');
+};
+
+// Realtime audio has first priority. The lossless master is already streaming
+// safely into OPFS while LiveKit is on air, so do not compete with WebRTC by
+// uploading ~2.3 Mbps of raw PCM at the same time. After LiveKit has stopped,
+// read the finished OPFS master in bounded pieces and upload those pieces
+// sequentially. This keeps memory bounded and preserves the no-giant-upload
+// architecture while protecting the live stream from recording traffic.
+const uploadLosslessMasterAfterLive = async (recording, file) => {
+  if (!recording?.qualityChunkStarted || recording.qualityChunkDisabled || !file?.size) return;
+
+  const bytesPerSecond =
+    recording.sampleRate * QUALITY_CHUNK_CHANNELS * (QUALITY_CHUNK_BIT_DEPTH / 8);
+  const targetBytes = Math.max(1, Math.round(bytesPerSecond * QUALITY_CHUNK_SECONDS));
+  const totalPcmBytes = Math.max(0, Number(file.size || 0) - 44);
+  let offset = 0;
+  let chunkIndex = 0;
+
+  while (offset < totalPcmBytes && !recording.qualityChunkDisabled) {
+    const take = Math.min(targetBytes, totalPcmBytes - offset);
+    const startMs = (offset * 1000) / bytesPerSecond;
+    const endMs = ((offset + take) * 1000) / bytesPerSecond;
+    const pcmBlob = file.slice(44 + offset, 44 + offset + take);
+
+    try {
+      await uploadStoredPcmChunk({ recording, pcmBlob, startMs, endMs, chunkIndex });
+    } catch (error) {
+      recording.qualityChunkErrors.push({
+        chunkIndex,
+        message: error?.message || String(error),
+      });
+      console.error('[Echoo Recording] post-live quality chunk upload failed', {
+        broadcastId: recording.broadcastId,
+        chunkIndex,
+        error: error?.message || error,
+      });
+    }
+
+    offset += take;
+    chunkIndex += 1;
+  }
+
+  recording.qualityChunkIndex = chunkIndex;
+  recording.qualityCursorMs = (offset * 1000) / bytesPerSecond;
+};
+
 const flushQualityChunk = async (recording, { force = false } = {}) => {
   if (!recording.qualityChunkStarted || recording.qualityChunkDisabled) return;
   const targetSamples = Math.max(1, Math.round(recording.sampleRate * QUALITY_CHUNK_SECONDS * QUALITY_CHUNK_CHANNELS));
@@ -435,26 +525,15 @@ const stopLosslessRecording = async (recording, { keep = true } = {}) => {
       recording.capture = null;
     }
 
-    if (keep) {
-      await flushQualityChunk(recording, { force: true });
-      await recording.qualityChain;
-      try {
-        await completeQualityChunks(recording);
-      } catch (error) {
-        // Chunk audio has already been uploaded at this point. Keep completion
-        // acknowledgement separate from chunk-loss errors so a later retry can
-        // safely close the same idempotent server session without falsely
-        // reporting missing audio.
-        recording.qualityCompletionPending = true;
-        recording.qualityCompletionError = error?.message || String(error);
-        console.error('[Echoo Recording] quality chunk completion acknowledgement failed', error?.message || error);
-      }
-    } else {
+    if (!keep) {
       recording.qualityChunkDisabled = true;
       recording.qualityBuffers = [];
       recording.qualitySampleCount = 0;
     }
 
+    // Drain browser-storage writes first. Network recording transfer happens
+    // only after the realtime publisher has already been stopped by the
+    // Creator end-broadcast flow.
     await recording.writeChain;
 
     if (recording.writeError) throw recording.writeError;
@@ -484,6 +563,20 @@ const stopLosslessRecording = async (recording, { keep = true } = {}) => {
     writeRecoveryManifest(recording, 'pending_upload');
 
     const file = await recording.fileHandle.getFile();
+
+    if (keep && recording.qualityChunkStarted && !recording.qualityChunkDisabled) {
+      await uploadLosslessMasterAfterLive(recording, file);
+      try {
+        await completeQualityChunks(recording);
+      } catch (error) {
+        // The OPFS master stays intact. Retry can safely re-run finalization
+        // without risking the creator's only copy.
+        recording.qualityCompletionPending = true;
+        recording.qualityCompletionError = error?.message || String(error);
+        console.error('[Echoo Recording] quality chunk completion acknowledgement failed', error?.message || error);
+      }
+    }
+
     const durationSeconds = recording.dataBytes /
       (sampleRate * WAV_CHANNELS * WAV_BYTES_PER_SAMPLE);
 
@@ -591,7 +684,8 @@ const startLosslessRecording = async ({ broadcastId, title }) => {
         }
 
         recording.dataBytes += pcm.byteLength;
-        appendQualityPcm(recording, buffer);
+        // Keep the lossless master local while on air. Server chunk transfer is
+        // deferred until LiveKit has stopped so recording cannot starve WebRTC.
         recording.writeChain = recording.writeChain
           .then(async () => {
             await recording.writable.write(pcm);
