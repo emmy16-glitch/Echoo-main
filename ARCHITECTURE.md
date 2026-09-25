@@ -103,7 +103,7 @@ Listener LiveKit grants are receive-only:
 
 The listener attaches only to Echoo's named program publication rather than arbitrary remote audio tracks.
 
-Listener recovery has two layers: LiveKit owns short ICE/signalling recovery first, while Echoo's watchdog repairs stale attachments and, when available, checks remote receiver byte/packet progress. A media element that still says "playing" but whose RTP counters stop advancing is treated as a stalled transport and is rejoined with fresh listener credentials. Intentional listener Pause is never overridden by the watchdog.
+Listener recovery has two layers: LiveKit owns short ICE/signalling recovery first, while Echoo's watchdog repairs stale attachments and, when available, checks remote receiver byte/packet progress. A listener joining after the creator is already live explicitly subscribes to the existing canonical publication, and unexpected media-element end/non-autoplay playback failure enters recovery instead of remaining silently stuck. A media element that still says "playing" but whose RTP counters stop advancing is treated as a stalled transport and is rejoined with fresh listener credentials. Intentional listener Pause is never overridden by the watchdog.
 
 ### Presence
 
@@ -201,7 +201,8 @@ For host/deploy requirements, [HOSTING.md](HOSTING.md) is authoritative.
 ## Media infrastructure
 
 Direct LiveKit remains the listener transport. LiveKit Track Egress is the
-preferred server-recording path on long-lived backends, but a recorder failure
+preferred server-recording path on long-lived backends (LiveKit Cloud provides
+Egress; self-hosted LiveKit requires its separate Egress service), but a recorder failure
 must never interrupt or block the live listener stream. OvenMediaEngine remains
 optional legacy/future relay infrastructure and is not required for normal
 broadcasting.
