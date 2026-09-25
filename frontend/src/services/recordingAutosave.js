@@ -197,9 +197,47 @@ const startAutosaveLive = async ({ recording, broadcast, key }) => {
           localCopy = { saved: false, skipped: 'device-copy-disabled' };
         }
 
-        // Server persistence is confirmed. Once the remembered device policy
-        // has been applied (or the creator chose server-only), the temporary
-        // OPFS WAV is no longer needed for this completed take.
+        if (preferences.autoSave && !localCopy?.saved) {
+          // The server MP3 is safe, but the creator explicitly asked for a
+          // device copy. Keep the OPFS master until that device save succeeds
+          // (or they later switch to server-only) instead of silently deleting
+          // the only local recovery source.
+          rememberLocalMaster(`pending:${key}`, {
+            blob: recording.blob,
+            title,
+            mimeType: recording.mimeType || recording.blob?.type,
+            broadcast,
+            recording,
+            audioId,
+            channelName,
+            startedAt,
+          });
+          window.dispatchEvent(new CustomEvent('echoo:creator-audio-changed'));
+          window.dispatchEvent(new CustomEvent('echoo:creator-state-changed'));
+          emit({
+            status: 'error',
+            key,
+            title,
+            audioId,
+            code: 'DEVICE_COPY_FAILED',
+            message: 'The server MP3 is saved, but the automatic device copy did not finish. Your local recovery master is still safe — retry the device copy.',
+            retryable: true,
+            hasRecovery: Boolean(recording.blob?.size),
+            localCopy,
+          });
+          notifySaved(`“${title}” is safe in Echoo Recordings. The device copy still needs attention.`);
+          return {
+            audioId,
+            title,
+            duplicate: Boolean(replay.duplicate),
+            deviceCopyPending: true,
+            localCopy,
+          };
+        }
+
+        // Server persistence is confirmed and the remembered device policy
+        // either succeeded or is server-only, so the temporary OPFS master can
+        // now be removed.
         try { await recording.dispose?.(); } catch { /* already disposed */ }
         clearPendingBroadcastRecording(recording.broadcastId);
         forgetLocalMaster(`pending:${key}`);
@@ -310,6 +348,18 @@ export const completeDeviceCopyChoice = async (key, format = 'mp3') => {
       format: preferences.format,
     }));
     if (localCopy?.saved) automaticLocalCopies.add(String(key));
+
+    if (!localCopy?.saved) {
+      // Keep the device-choice master and let the same button retry. The
+      // server copy is already durable, so this failure is local-only.
+      const error = new Error(
+        localCopy?.cancelled
+          ? 'The device copy was cancelled. Your local master is still safe; choose a format again when ready.'
+          : localCopy?.error || 'The device copy could not be saved. Your local master is still safe; try again.'
+      );
+      error.code = 'DEVICE_COPY_FAILED';
+      throw error;
+    }
   }
 
   try { await pending.recording.dispose?.(); } catch { /* already disposed */ }
