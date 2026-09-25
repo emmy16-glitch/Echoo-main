@@ -80,29 +80,35 @@ ffprobe -version
 
 Echoo no longer relies on one giant WAV upload at End Broadcast.
 
-Current flow:
+Primary production flow:
 
 ```text
 Creator Master Output
         |
         +--> LiveKit -> listeners (realtime Opus)
         |
-        +--> bounded 48 kHz stereo PCM/WAV chunks -> Echoo backend
-                                                     |
-                                                     +-> live/final MP3 encoder
-                                                     |
-End Broadcast ---------------------------------------+
-                                                     |
-                                                     v
-                                           canonical replay MP3
-                                                     |
-                                      local persistent disk or S3
-                                                     |
-                                                     v
-                                             Creator Recordings
+        +--> LiveKit Track Egress
+                  |
+                  +--> signed Echoo WebSocket
+                              |
+                              +--> FFmpeg -> canonical MP3
+                                             |
+End Broadcast -------------------------------+
+                                             |
+                                  persistent disk or S3
+                                             |
+                                             v
+                                     Creator Recordings
+
+Browser OPFS WAV = recovery master only
 ```
 
-The browser also keeps a temporary lossless OPFS recovery WAV. That local master:
+This prevents a long show from requiring hundreds of MB or gigabytes of raw
+PCM to be uploaded from the creator device after the broadcast. LiveKit sends
+the already-published program track to the backend; FFmpeg performs the heavy
+recording work there.
+
+The browser still keeps a temporary lossless OPFS recovery WAV. That local master:
 
 - protects the creator if server persistence fails;
 - may be used for an explicit WAV device copy;
@@ -196,7 +202,13 @@ LIVEKIT_URL=wss://<livekit-host>
 LIVEKIT_PUBLIC_URL=wss://<livekit-host>
 LIVEKIT_API_KEY=<server-only key>
 LIVEKIT_API_SECRET=<server-only secret>
+LIVEKIT_SERVER_RECORDING_ENABLED=true
+# Optional on same-origin VPS deployments; otherwise set the public backend WS:
+LIVEKIT_RECORDING_WS_URL=wss://your-domain.example/api/internal/livekit-recording
 ```
+
+The recording WebSocket must terminate at the long-lived Echoo Node backend.
+It is not a browser endpoint and it does not require Whisper/transcription.
 
 Production LiveKit browser-facing URLs must be public/reachable `wss://` URLs,
 not localhost/private addresses.
