@@ -347,6 +347,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
         if (!disposed && roomRef.current === room) {
           detachAttachment(id);
           setStatus('recovering_audio');
+          attachExisting(room).catch(() => scheduleHardReconnect('program_element_ended'));
         }
       };
       element.addEventListener('playing', onPlayable);
