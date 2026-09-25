@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FaCheckCircle, FaExclamationTriangle, FaSyncAlt, FaTimes } from 'react-icons/fa';
+import { FaCheckCircle, FaDownload, FaExclamationTriangle, FaSyncAlt, FaTimes } from 'react-icons/fa';
 import {
   RECORDING_UPLOAD_EVENT,
   installRecordingAutosave,
   peekLocalMaster,
   forgetLocalMaster,
   retryAutosave,
+  saveRecoveryCopy,
   completeDeviceCopyChoice,
   uploadRecoveredTake,
 } from '../services/recordingAutosave.js';
@@ -78,7 +79,15 @@ const RecordingSaveBanner = () => {
           break;
         case 'error':
           window.clearTimeout(hideTimerRef.current);
-          setState({ kind: 'error', key: detail.key, title: detail.title, message: detail.message, code: detail.code || '' });
+          setState({
+            kind: 'error',
+            key: detail.key,
+            title: detail.title,
+            message: detail.message,
+            code: detail.code || '',
+            hasRecovery: Boolean(detail.hasRecovery),
+            recoveryCopy: detail.recoveryCopy || null,
+          });
           break;
         case 'recovered':
           setState({ kind: 'recovered', key: 'recovered', title: detail.title });
@@ -137,6 +146,30 @@ const RecordingSaveBanner = () => {
       await retryAutosave(state.key);
     } catch {
       setState((current) => (current ? { ...current, retrying: false } : current));
+    }
+  };
+
+  const saveRecovery = async () => {
+    if (!state?.key || state.savingRecovery) return;
+    setState((current) => (current ? { ...current, savingRecovery: true, recoveryError: '' } : current));
+    try {
+      const result = await saveRecoveryCopy(state.key);
+      setState((current) => (current
+        ? {
+            ...current,
+            savingRecovery: false,
+            recoverySaved: !result?.cancelled,
+            recoveryFilename: result?.filename || '',
+          }
+        : current));
+    } catch (recoveryError) {
+      setState((current) => (current
+        ? {
+            ...current,
+            savingRecovery: false,
+            recoveryError: recoveryError?.message || 'Could not save the recovery copy.',
+          }
+        : current));
     }
   };
 
@@ -241,7 +274,14 @@ const RecordingSaveBanner = () => {
             <strong>Couldn’t save “{state.title}”</strong>
             <span>{state.message || 'Your local master is kept.'}</span>
           </div>
-          <button type="button" className="eb-press" onClick={retry} disabled={state.retrying}>{state.retrying ? 'Retrying…' : 'Retry'}</button>
+          {state.hasRecovery && (
+            <button type="button" className="eb-press" onClick={saveRecovery} disabled={state.savingRecovery}>
+              <FaDownload /> {state.savingRecovery ? 'Saving…' : state.recoverySaved || state.recoveryCopy?.saved ? 'Save another recovery copy' : 'Save recovery copy'}
+            </button>
+          )}
+          <button type="button" className="eb-press" onClick={retry} disabled={state.retrying}>{state.retrying ? 'Retrying…' : 'Retry server save'}</button>
+          {state.recoveryFilename && <span className="echoo-save-banner-choice-error">Saved: {state.recoveryFilename}</span>}
+          {state.recoveryError && <span className="echoo-save-banner-choice-error">{state.recoveryError}</span>}
           <button type="button" className="eb-press" aria-label="Dismiss" onClick={hide}><FaTimes /></button>
         </>
       )}
@@ -252,7 +292,10 @@ const RecordingSaveBanner = () => {
             <strong>Unsaved recording found</strong>
             <span>{state.title} — from a tab that closed before saving.</span>
           </div>
-          <button type="button" className="eb-press" onClick={uploadRecovered}>Upload</button>
+          <button type="button" className="eb-press" onClick={saveRecovery} disabled={state.savingRecovery}>
+            <FaDownload /> {state.savingRecovery ? 'Saving…' : 'Save recovery copy'}
+          </button>
+          <button type="button" className="eb-press" onClick={uploadRecovered}>Retry server save</button>
           <button type="button" className="eb-press" onClick={discardRecovered}>Discard</button>
         </>
       )}
