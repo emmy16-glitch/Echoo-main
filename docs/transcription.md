@@ -6,14 +6,18 @@
 > finalization and saved-recording trimming.
 
 LiveKit remains the live media authority. The transcription gateway is an
-optional, failure-isolated server-side branch.
+optional, failure-isolated server-side branch. **Current production policy keeps
+it off by default:** `TRANSCRIPTION_ENABLED=false`. Existing Whisper URLs or
+API keys alone must not start transcription. To test transcription deliberately,
+set `TRANSCRIPTION_ENABLED=true` as well as valid provider credentials.
 
 ## Migration order
 
 1. Back up MongoDB and check that each non-deleted Broadcast has at most one replay Audio record.
 2. Run `npm run migrate:transcription` from `backend/`. The migration is idempotent and preserves unrelated indexes.
 3. Deploy `echoo-whisper/` with a persistent model volume and GPU access. Configure
-   the same backend-only `WHISPER_FLOW_API_KEY` on Echoo and Whisper Flow.
+   the same backend-only `WHISPER_FLOW_API_KEY` on Echoo and Whisper Flow, and
+   set `TRANSCRIPTION_ENABLED=true` only in the environment intentionally testing it.
 4. Configure LiveKit to send signed webhooks to `POST /api/webhooks/livekit`.
 5. Deploy the backend, then deploy the frontend. Remove any obsolete `VITE_WHISPER_FLOW_URL` from hosted frontend settings.
 6. Run `npm run probe:transcription` in staging against a protocol-compatible provider, then verify a real creator-to-listener session.
