@@ -92,7 +92,10 @@ LIVEKIT_PUBLIC_URL=wss://<your-livekit-host>
 LIVEKIT_API_KEY=<secret>
 LIVEKIT_API_SECRET=<secret>
 LIVEKIT_TOKEN_TTL_MINUTES=120
-LIVEKIT_CREATOR_DISCONNECT_GRACE_MS=20000
+LIVEKIT_CREATOR_DISCONNECT_GRACE_MS=90000
+
+# Vercel staging does not host Echoo's long-lived recording WebSocket.
+LIVEKIT_SERVER_RECORDING_ENABLED=false
 ```
 
 The browser receives the public LiveKit URL from the backend.
@@ -131,24 +134,27 @@ The canonical replay must survive backend instance replacement/redeploy.
 
 ## Recording flow on Vercel
 
-Correct flow:
+Vercel is staging/test infrastructure and should **not** be treated as the
+long-lived LiveKit Track Egress recording host. Keep
+`LIVEKIT_SERVER_RECORDING_ENABLED=false` there unless the runtime explicitly
+supports Echoo's dedicated long-lived recording WebSocket.
+
+Staging fallback flow:
 
 ```text
-creator master
-   -> bounded recording chunks during show
-   -> backend FFmpeg MP3 pipeline
-   -> End Broadcast finalization
-   -> canonical MP3
-   -> object storage
-   -> Recordings playback
+creator master -> LiveKit -> listeners
+       |
+       +-> browser OPFS recovery master
+
+End Broadcast -> bounded recovery upload -> FFmpeg -> canonical MP3 -> object storage
 ```
 
-The browser OPFS WAV is local recovery/device-export data. It is not the normal
-large final upload.
+The fallback upload starts only after realtime publishing has stopped, so raw
+PCM never competes with the live WebRTC stream. Digi02 production uses the
+preferred LiveKit Track Egress -> Echoo recording WebSocket -> FFmpeg path.
 
-If you see a giant WAV request returning 413, do not raise Vercel/body limits
-as the primary fix. Find why the bounded-chunk/server-finalization path was
-bypassed.
+If you see one giant WAV request returning 413, do not raise body limits as the
+primary fix. Recovery must remain bounded.
 
 ## Saved recording trims
 
@@ -171,7 +177,7 @@ WHISPER_QUALITY_FLOW_URL=
 WHISPER_QUALITY_FLOW_API_KEY=
 ```
 
-Do not disable the recording chunk pipeline just because Whisper is disabled.
+Keep `TRANSCRIPTION_ENABLED=false` unless transcription is deliberately being tested. Whisper must never be a dependency of LiveKit playback, recovery upload, MP3 finalization, or End Broadcast.
 
 ## Email (optional)
 
@@ -220,8 +226,8 @@ Verify against the deployed Vercel staging URL:
 4. Creator and Listener deep routes hard-refresh.
 5. Socket.IO connects through the same origin.
 6. Creator starts LiveKit broadcast; separate browser/phone hears it.
-7. Several bounded recording chunks are accepted during the show.
-8. End Broadcast completes without a giant final WAV upload/HTTP 413.
+7. Confirm no raw recovery upload competes with LiveKit while the show is live.
+8. End Broadcast completes, then bounded fallback upload/finalization succeeds without a giant WAV/HTTP 413.
 9. Exactly one canonical MP3 appears in Recordings.
 10. Replay plays after page refresh.
 11. Replace/redeploy backend instance; replay still plays from object storage.
