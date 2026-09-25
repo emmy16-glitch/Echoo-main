@@ -18,6 +18,7 @@ const sessions = new Map();
 const startPromises = new Map();
 const expectedTracks = new Map();
 const TRACK_HANDOFF_TIMEOUT_MS = 12_000;
+const MAX_PENDING_PCM_BYTES = 8 * 1024 * 1024;
 let websocketServer = null;
 let attachedHttpServer = null;
 let upgradeHandler = null;
@@ -158,6 +159,7 @@ const createSession = async (broadcastId) => {
     child: null,
     sockets: new Set(),
     writeChain: Promise.resolve(),
+    queuedPcmBytes: 0,
     pcmBytes: 0,
     stopping: false,
     failed: false,
@@ -323,9 +325,29 @@ const acceptRecordingSocket = async (socket, request) => {
   socket.on('message', (data, isBinary) => {
     if (!isBinary || session.stopping || session.failed) return;
     const buffer = Buffer.isBuffer(data) ? data : Buffer.from(data);
+
+    session.queuedPcmBytes += buffer.length;
+    if (session.queuedPcmBytes > MAX_PENDING_PCM_BYTES) {
+      session.failed = true;
+      session.error = 'Server recording encoder fell too far behind the LiveKit PCM stream.';
+      void persist(identity.broadcastId, {
+        'serverRecording.status': 'failed',
+        'serverRecording.error': session.error,
+      });
+      try { socket.close(1011, 'Recording encoder backlog exceeded'); } catch { /* closed */ }
+      void finishSession(session);
+      return;
+    }
+
     session.pcmBytes += buffer.length;
     session.writeChain = session.writeChain
-      .then(() => writeWithBackpressure(session.child, buffer))
+      .then(async () => {
+        try {
+          await writeWithBackpressure(session.child, buffer);
+        } finally {
+          session.queuedPcmBytes = Math.max(0, session.queuedPcmBytes - buffer.length);
+        }
+      })
       .catch(async (error) => {
         session.failed = true;
         session.error = error?.message || String(error);
@@ -334,6 +356,7 @@ const acceptRecordingSocket = async (socket, request) => {
           'serverRecording.error': session.error.slice(0, 1000),
         });
         try { socket.close(1011, 'Recording encoder failed'); } catch { /* closed */ }
+        void finishSession(session);
       });
   });
 
@@ -430,8 +453,18 @@ export const ensureLiveKitServerRecording = async ({
     return { mode: 'browser-fallback', active: false };
   }
 
-  if (startPromises.has(id)) {
-    return startPromises.get(id);
+  const inFlight = startPromises.get(id);
+  if (inFlight) {
+    if (inFlight.trackSid === track) return inFlight.promise;
+
+    // A creator republish can produce a new track SID while the previous
+    // Egress start call is still in flight. Never drop that newer request.
+    // Let the first provider call settle, then reconcile against the newest
+    // track so the recorder follows the live program instead of staying bound
+    // to a stale SID.
+    return inFlight.promise
+      .catch(() => null)
+      .then(() => ensureLiveKitServerRecording({ broadcastId: id, trackSid: track }));
   }
 
   const task = (async () => {
@@ -542,11 +575,12 @@ export const ensureLiveKitServerRecording = async ({
     }
   })();
 
-  startPromises.set(id, task);
+  const entry = { trackSid: track, promise: task };
+  startPromises.set(id, entry);
   try {
     return await task;
   } finally {
-    if (startPromises.get(id) === task) startPromises.delete(id);
+    if (startPromises.get(id) === entry) startPromises.delete(id);
   }
 };
 
