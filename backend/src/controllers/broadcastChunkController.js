@@ -71,10 +71,12 @@ export async function startBroadcastAudioChunks(req, res, next) {
       _id: req.params.broadcastId,
       creator: req.userId,
       isDeleted: false,
-    }).select('_id status programTrackSid serverRecording qualityChunkingStartedAt qualityChunkingCompletedAt');
+    }).select('_id status replayStatus programTrackSid serverRecording qualityChunkingStartedAt qualityChunkingCompletedAt');
     if (!broadcast) return res.status(404).json({ error: { code: 'BROADCAST_NOT_FOUND', message: 'Broadcast not found.' } });
-    if (!['starting', 'live'].includes(broadcast.status)) {
-      return res.status(409).json({ error: { code: 'INVALID_BROADCAST_STATE', message: 'Quality chunking can only start for a running broadcast.' } });
+    const recoveryAfterCompleted =
+      broadcast.status === 'completed' && broadcast.replayStatus !== 'ready';
+    if (!['starting', 'live'].includes(broadcast.status) && !recoveryAfterCompleted) {
+      return res.status(409).json({ error: { code: 'INVALID_BROADCAST_STATE', message: 'Recording transport can only start for a running broadcast or an incomplete completed recording.' } });
     }
 
     // Echoo promises an automatic server MP3 for every completed live show.
@@ -86,14 +88,13 @@ export async function startBroadcastAudioChunks(req, res, next) {
     // Preferred path: LiveKit sends the already-published program track to the
     // Echoo backend over a signed WebSocket. The browser keeps OPFS only as a
     // safety master and does not upload raw PCM during or after a healthy show.
-    if (isLiveKitServerRecordingEnabled()) {
+    if (isLiveKitServerRecordingEnabled() && ['starting', 'live'].includes(broadcast.status)) {
       try {
         let trackSid = String(broadcast.programTrackSid || '');
         if (!trackSid) {
           const publisher = await waitForCreatorProgramAudio(
             broadcast._id,
-            req.userId,
-            { maxAttempts: 4, initialDelayMs: 150, delayStepMs: 150 }
+            req.userId
           );
           trackSid = String(publisher?.trackSid || '');
         }
