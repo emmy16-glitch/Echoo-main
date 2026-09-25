@@ -14,7 +14,7 @@ Target architecture:
 
 - one hosted Echoo backend at `https://echoo.digi02.org/api`;
 - one shared production MongoDB;
-- LiveKit Cloud for realtime creator/listener audio;
+- LiveKit Cloud for realtime creator/listener audio and Track Egress recording;
 - FFmpeg + FFprobe on Digi02 for automatic replay MP3 and trimming;
 - persistent canonical recording storage;
 - web and desktop clients using the same hosted world.
@@ -182,13 +182,17 @@ any are missing — do not paper over them):
    Invalid credentials are acceptable for this probe; CORS denial is not.
 
 5. LiveKit linkage: with the configured server credentials, create and delete a
-   test room using the LiveKit server SDK or `lk` CLI. Do not print secrets.
+   test room using the LiveKit server SDK or `lk` CLI. Confirm the LiveKit project
+   supports Egress/Track Egress before the recording acceptance test. Do not print secrets.
 
 6. Browser lifecycle: register/sign in, create/use a Channel, start a public
    broadcast, and confirm the creator reaches live state.
 
 7. Separate listener: open the shared link on another browser/device (preferably
-   a phone on another network) and confirm real `echoo-studio-mix` audio plays.
+   a phone on another network) **after the creator is already live** and confirm
+   the existing `echoo-studio-mix` is subscribed and audible. Then repeat one
+   short network interruption and confirm playback recovers without duplicate
+   audio elements.
 
 8. Live stability and recording:
    - while healthy, confirm there is no continuous browser raw-recording upload;
