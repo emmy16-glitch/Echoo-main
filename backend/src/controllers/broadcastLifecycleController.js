@@ -333,7 +333,7 @@ export async function startBroadcast(req, res, next) {
       broadcast.livekitEgressId = null;
       broadcast.livekitIngressId = null;
       broadcast.mediaState = 'audio_disconnected';
-      broadcast.transcriptState = 'failed';
+      broadcast.transcriptState = isTranscriptionConfigured() ? 'failed' : 'disabled';
       broadcast.programTrackSid = null;
       broadcast.programTrackName = null;
       await broadcast.save().catch((saveError) => {
@@ -787,7 +787,9 @@ export async function endBroadcast(req, res, next) {
       data: {
         broadcast,
         message: wasLive
-          ? 'Broadcast ended. Recording and transcript processing will continue in the background.'
+          ? (isTranscriptionConfigured()
+              ? 'Broadcast ended. Recording and transcript processing will continue in the background.'
+              : 'Broadcast ended. Recording finalization will continue in the background.')
           : 'Broadcast startup cancelled',
       },
       timestamp: new Date().toISOString(),
