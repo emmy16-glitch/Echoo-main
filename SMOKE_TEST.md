@@ -100,14 +100,18 @@ Listener in a second browser/device:
 1. Open the real public live broadcast.
 2. If autoplay is blocked, press `Tap to hear audio`.
 3. Change output device where the browser supports it.
-4. Interrupt/recover network connectivity and test Reconnect.
+4. Pause playback intentionally for at least 10 seconds and confirm the watchdog does not auto-resume it.
+5. Interrupt/recover network connectivity and test Reconnect.
+6. When practical, simulate a stale inbound path where the audio element remains attached but RTP stops progressing.
 
 Expected:
 
 - real post-master creator program is audible
 - listener cannot publish microphone/media/data
 - unrelated remote audio tracks are not attached as the Echoo program
-- reconnect does not require OME/Egress
+- intentional listener Pause remains paused
+- stale/failed inbound RTP eventually triggers recovery instead of leaving a false "playing" silent state
+- listener reconnect does not use the replay MP3, FFmpeg, or OME
 
 ## 7. Presence and Live Chat
 
@@ -143,7 +147,15 @@ Also verify:
 
 ## 9. Automatic server recording and trimming
 
-Run a real short broadcast for long enough to send several recording chunks.
+Run a real short broadcast with `LIVEKIT_SERVER_RECORDING_ENABLED=true`.
+
+While LIVE verify:
+
+1. the browser is **not** continuously uploading raw recording chunks;
+2. listener audio remains direct LiveKit/WebRTC;
+3. server recording/FFmpeg failure does not stop listener audio;
+4. creator Pause for more than 15 seconds does not trigger a false publisher recovery;
+5. a short creator network interruption can recover inside the configured 90-second server grace window.
 
 At End Broadcast verify:
 
@@ -157,12 +169,15 @@ At End Broadcast verify:
 8. confirm the original recording still exists and plays;
 9. confirm the configured device copy policy (MP3/WAV/server-only) behaves correctly.
 
+Then run a separate failure test with the server recorder intentionally unavailable and confirm the browser OPFS master is retained and only then uses bounded post-live recovery chunks.
+
 Expected:
 
 - canonical replay is MP3 (default `AUDIO_REPLAY_MP3_BITRATE=320k`);
 - persistent local disk or configured S3-compatible storage survives restart;
 - trim sends timestamps rather than a huge replacement WAV;
-- FFmpeg failure is surfaced clearly and does not silently claim the replay was saved.
+- FFmpeg/server-recorder failure is surfaced clearly and does not silently claim the replay was saved;
+- recording failure does not become a realtime-listener failure.
 
 ## 10. Schedule Later
 
@@ -260,17 +275,22 @@ Repository CI cannot prove physical audio/network capacity. Before claiming a li
 
 Record the exact deployment, browser/device matrix and test result instead of inferring capacity from `maxParticipants` or CI alone.
 
-## 18. Continuous transcript quality pipeline
+## 18. Transcription disabled contract
 
-1. Start a broadcast with a creator account and verify the browser records the post-master mix.
-2. Confirm the backend receives authenticated `POST /api/broadcasts/:broadcastId/recording-chunks/start` before the first live chunk.
-3. Speak continuously for at least 30 seconds and verify 10-second WAV chunks are uploaded while the broadcast remains live.
-4. Confirm each chunk creates one `BroadcastAudioChunk` and one `BroadcastProcessingJob` with `jobType=transcript_quality_chunk`.
-5. Confirm the quality worker starts before the broadcast ends and uses the Whisper quality pass.
-6. End the broadcast and verify the browser calls the chunk completion endpoint after its final chunk.
-7. Confirm only queued or incomplete chunks are processed after the end event; already completed quality jobs are not duplicated.
-8. Confirm the transcript remains private during live audio and becomes `ready_for_review` only after quality jobs, live Whisper flush, and final reconciliation complete.
-9. Confirm a creator notification is generated, creator edits preserve `originalText`, `editedText`, `qualityHistory`, and revision metadata, and publishing still uses the existing replay/transcript flow.
-10. Confirm listeners see no live transcript events and can search the final transcript only on the published replay.
+Current production policy keeps transcription outside the live and recording path.
 
-Expected failure behavior: provider downtime, backend restart, worker crash, or network interruption retries queued chunks without duplicating completed chunks. An unrecovered browser chunk upload prevents the transcript from being marked reviewable and is surfaced as processing failure rather than silently publishing an incomplete quality pass.
+1. Set `TRANSCRIPTION_ENABLED=false`.
+2. Leave any old Whisper URL/API-key values present in a disposable test environment.
+3. Start and end a broadcast.
+4. Confirm no live Whisper session opens.
+5. Confirm no transcript-quality jobs are created.
+6. Confirm End Broadcast and MP3 finalization do not wait on transcript state.
+7. Confirm listener audio and server recording work normally with Whisper completely unavailable.
+
+Expected:
+
+- the explicit feature flag wins over stale Whisper credentials;
+- transcript state remains disabled;
+- no transcript network/process work adds latency or failure coupling to LiveKit, FFmpeg, recording, or End Broadcast.
+
+If transcription is intentionally re-enabled in the future, it must remain a separate optional pipeline and must never become a prerequisite for live playback or canonical recording.
