@@ -145,19 +145,29 @@ Also verify:
 
 ## 9. Automatic server recording and trimming
 
-Run a real short broadcast for long enough to send several recording chunks.
+Run a real short broadcast with `LIVEKIT_SERVER_RECORDING_ENABLED=true`.
+
+While LIVE verify:
+
+1. the browser does **not** continuously upload raw recording chunks;
+2. pause the creator for >15 seconds and confirm no false publisher recovery;
+3. interrupt creator networking for 20–40 seconds and confirm automatic recovery continues instead of permanently failing after the first short retry sequence;
+4. force a creator republish/new track SID and confirm the server recorder hands off without creating a second MP3 or accepting a partial file;
+5. confirm a stale old `track_unpublished` webhook cannot clear the newer program SID.
 
 At End Broadcast verify:
 
 1. the browser does **not** upload one giant final WAV;
 2. there is no HTTP 413;
-3. the backend finalizes exactly one canonical MP3 replay;
-4. the replay appears in Creator Recordings;
-5. refresh and play beginning/middle/end;
-6. restart the backend and confirm the replay still plays;
-7. create a saved-recording trim and confirm a separate trimmed copy appears;
-8. confirm the original recording still exists and plays;
-9. confirm the configured device copy policy (MP3/WAV/server-only) behaves correctly.
+3. the browser recovery WAV stops at off-air rather than after backend cleanup latency;
+4. the backend finalizes exactly one canonical MP3 replay;
+5. the replay appears in Creator Recordings;
+6. refresh and play beginning/middle/end;
+7. restart the backend and confirm the replay still plays;
+8. create a saved-recording trim and confirm a separate trimmed copy appears;
+9. confirm the original recording still exists and plays;
+10. confirm the configured device copy policy (MP3/WAV/server-only) behaves correctly;
+11. deliberately fail/cancel an automatic device copy and confirm the OPFS master is retained and the UI says **Retry device copy** instead of deleting the local master.
 
 Expected:
 
