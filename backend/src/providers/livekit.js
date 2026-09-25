@@ -326,6 +326,23 @@ const LiveKitProvider = {
     );
   },
 
+  async startTrackRecordingEgress(broadcastId, trackSid, websocketUrl) {
+    const name = roomNameFor(broadcastId);
+    const trackId = String(trackSid || '').trim();
+    const target = String(websocketUrl || '').trim();
+
+    if (!trackId) throw new Error('A LiveKit audio track SID is required for server recording.');
+    if (!/^wss?:\/\//i.test(target)) {
+      throw new Error('Echoo server recording requires a ws:// or wss:// WebSocket URL.');
+    }
+
+    try {
+      return await egressClientOverride().startTrackEgress(name, target, trackId);
+    } catch (error) {
+      throw serviceError('track recording egress', error);
+    }
+  },
+
   async stopEgress(egressId) {
     if (!egressId) return null;
     return egressClientOverride().stopEgress(String(egressId));
