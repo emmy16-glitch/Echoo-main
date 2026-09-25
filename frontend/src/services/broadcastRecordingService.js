@@ -1091,6 +1091,48 @@ export const recoverPendingBroadcastRecording = async () => {
   }
 };
 
+export const uploadRecoveryMasterToServer = async (recording) => {
+  if (!recording?.broadcastId || !recording?.blob?.size) {
+    throw new Error('No local recovery master is available for server rescue.');
+  }
+
+  const recovery = {
+    broadcastId: String(recording.broadcastId),
+    sampleRate: Number(recording.sampleRate) || WAV_TARGET_SAMPLE_RATE,
+    qualityBuffers: [],
+    qualitySampleCount: 0,
+    qualityChunkIndex: 0,
+    qualityCursorMs: 0,
+    qualityChain: Promise.resolve(),
+    qualityChunkErrors: [],
+    qualityChunkDisabled: false,
+    qualityChunkStarted: false,
+    qualityCompletionPending: false,
+    qualityCompletionError: '',
+    serverRecordingPrimary: false,
+  };
+
+  await startQualityChunking(recovery);
+  if (recovery.serverRecordingPrimary) {
+    return { recovered: false, mode: 'server-egress' };
+  }
+
+  await uploadLosslessMasterAfterLive(recovery, recording.blob);
+  await completeQualityChunks(recovery);
+  recording.qualityChunkCount = recovery.qualityChunkIndex;
+  recording.qualityChunkErrors = recovery.qualityChunkErrors;
+  recording.qualityCompletionPending = recovery.qualityCompletionPending;
+  recording.qualityCompletionError = recovery.qualityCompletionError;
+  recording.serverFallbackAttempted = true;
+
+  return {
+    recovered: true,
+    mode: 'browser-fallback',
+    qualityChunkCount: recovery.qualityChunkIndex,
+    qualityChunkUploadErrors: recovery.qualityChunkErrors.length,
+  };
+};
+
 export const retryBroadcastQualityCompletion = async (recording) => {
   if (!recording?.qualityCompletionPending || !recording?.broadcastId) return true;
 
