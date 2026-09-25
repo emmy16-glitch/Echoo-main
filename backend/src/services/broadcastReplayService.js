@@ -294,7 +294,9 @@ async function finalizeInner({ broadcastId, creatorId, expectedChunkCount, uploa
       const handle = await fs.open(replayFile.path, 'r');
       await handle.read(header, 0, 4, 0);
       await handle.close();
-      if (isRealMp3Bytes(header)) mp3Source = 'stream';
+      if (isRealMp3Bytes(header) && probeMp3DurationSeconds(replayFile.path) > 0) {
+        mp3Source = 'stream';
+      }
     } catch {
       mp3Source = null;
     }
