@@ -419,13 +419,24 @@ export const stopLiveKitServerRecording = async (broadcastId) => {
 
   const broadcast = await Broadcast.findById(id).select('serverRecording');
   const egressId = String(broadcast?.serverRecording?.egressId || '');
+  const session = sessions.get(id);
+
+  // Browser-fallback broadcasts never opened a LiveKit recording transport.
+  // Leave their status alone; their bounded-chunk finalizer owns the replay.
+  if (
+    !session &&
+    !egressId &&
+    broadcast?.serverRecording?.transport !== 'livekit-track-egress'
+  ) {
+    return null;
+  }
+
   if (egressId) {
     await LiveKitProvider.stopEgress(egressId).catch((error) => {
       console.warn('[Echoo Server Recording] egress stop warning:', error?.message || error);
     });
   }
 
-  const session = sessions.get(id);
   if (session) return finishSession(session);
 
   const replay = getReplayOutputFile(id);
