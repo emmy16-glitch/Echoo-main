@@ -380,7 +380,9 @@ export const closeLiveKitRecordingWebSocket = () => {
   }
   for (const session of sessions.values()) {
     session.stopping = true;
-    try { session.socket?.close?.(1001, 'Echoo server shutting down'); } catch { /* closed */ }
+    for (const socket of session.sockets || []) {
+      try { socket.close(1001, 'Echoo server shutting down'); } catch { /* closed */ }
+    }
     try { session.child?.stdin?.end?.(); } catch { /* closing */ }
   }
   sessions.clear();
