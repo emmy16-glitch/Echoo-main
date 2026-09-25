@@ -126,7 +126,7 @@ The API manages identity, lifecycle, chat, presence, tokens, and product data. I
 Echoo uses LiveKit Cloud as its real-time audio SFU:
 
 - **Creator** publishes exactly one `echoo-studio-mix` program publication (stereo Opus, 48 kHz; profiles up to 510 kbps) with a short-lived publisher token. This post-master `echoo-studio-mix` is the single feed listeners hear and recordings capture.
-- **Creator recovery** republishes the same mixer output with fresh credentials after a real transport failure. Intentional Pause is excluded from the transport-stall watchdog and remains paused across reconnect, so recovery cannot accidentally put paused audio back on air.
+- **Creator recovery** republishes the same mixer output with fresh credentials after a real transport failure. Intentional Pause is excluded from the transport-stall watchdog and remains paused across reconnect. Automatic retries continue with bounded backoff through the backend's normal ~90-second creator-disconnect grace window instead of giving up after the first short retry burst.
 - **Listeners** attach only that publication to a native audio element with subscriber-only tokens (`canPublish: false`), reissued automatically on reconnect/expiry. Late join, track replacement, ended media elements, browser online recovery, and non-autoplay playback failures all have recovery paths; autoplay-policy failures remain an explicit Tap to hear action rather than a reconnect loop.
 - **Guests** get server-generated `guest:<uuid>` identities with the same subscriber-only grants — they can never publish or impersonate accounts.
 - Token issuance is IP rate-limited; rooms are created on go-live and swept when orphaned.
@@ -135,11 +135,12 @@ Backend knobs: `LIVEKIT_URL`, `LIVEKIT_PUBLIC_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_
 
 ## Recordings & storage implementation
 
-During the show, the browser keeps a temporary 24-bit/48 kHz PCM recovery master in OPFS and uploads bounded chunks. Those chunks also feed the server replay encoder, so End Broadcast finalizes server-side instead of uploading one huge WAV.
+During a healthy show, the browser keeps a temporary 24-bit/48 kHz PCM recovery master in OPFS **without uploading raw PCM in parallel with WebRTC**. LiveKit Track Egress sends the already-published program to Echoo's signed server recorder, where FFmpeg writes the canonical MP3 as the show runs.
 
-1. The backend finalizes one idempotent replay for the broadcast from the streamed MP3 output, with deterministic chunk assembly as a recovery fallback.
+1. Listener audio remains direct LiveKit/WebRTC and never waits for recording, FFmpeg, transcription, or device-copy work.
 2. The canonical live replay is a real MP3 (`AUDIO_REPLAY_MP3_BITRATE`, default `320k` stereo ≈ 144 MB/hour), stored locally or archived to S3-compatible object storage.
-3. The temporary OPFS master is kept on failure and cleared only after canonical persistence is confirmed. MP3 is the normal device copy; WAV remains an explicit lossless export while the local master exists.
+3. If Track Egress/FFmpeg fails, the complete OPFS WAV is uploaded **after** live audio has stopped in bounded recovery chunks; a partial server MP3 is never accepted as the full replay.
+4. The OPFS master stops at the same practical boundary as listener audio. It stays on the device until server persistence is confirmed **and** any requested automatic device copy succeeds (or the creator chose server-only).
 
 Playback always resolves through signed, time-limited `/api/audio/:id/stream` URLs: local files stream with HTTP ranges; cloud files redirect (public buckets) or mint short-lived object URLs (private buckets). Only replays are transcoded; uploaded music keeps its original encoding.
 
