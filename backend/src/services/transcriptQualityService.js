@@ -9,6 +9,9 @@ const READY_TIMEOUT_MS = 15_000;
 const FLUSH_TIMEOUT_MS = 120_000;
 const QUALITY_PROVIDER = 'whisper-flow-quality';
 
+const transcriptionFeatureEnabled = () =>
+  /^(1|true|yes)$/i.test(String(process.env.TRANSCRIPTION_ENABLED || '').trim());
+
 const providerUrl = () => String(
   process.env.WHISPER_QUALITY_FLOW_URL || process.env.WHISPER_FLOW_URL || ''
 ).trim();
@@ -389,7 +392,7 @@ export async function processTranscriptQualityChunk(chunkId) {
   // Transcription pause: never open Whisper sockets or run the quality model.
   // The chunk PCM already fed MP3/FLAC outputs at upload time, so just retire
   // the file without network/CPU work and without retry loops.
-  const transcriptionConfigured = Boolean(String(
+  const transcriptionConfigured = transcriptionFeatureEnabled() && Boolean(String(
     process.env.WHISPER_QUALITY_FLOW_URL || process.env.WHISPER_FLOW_URL || ''
   ).trim() && String(
     process.env.WHISPER_QUALITY_FLOW_API_KEY || process.env.WHISPER_FLOW_API_KEY || process.env.WHISPER_FLOW_AUTH_TOKEN || ''
