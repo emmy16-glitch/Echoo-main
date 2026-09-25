@@ -56,7 +56,14 @@ already-published program track. Stale/ended attachments are detached and rebuil
 non-autoplay playback failures trigger recovery, while a real browser autoplay
 policy block remains an explicit Tap to hear action rather than a reconnect loop.
 LiveKit owns short ICE/signalling recovery first; Echoo performs a fresh room join
-only when the transport/attachment remains unhealthy.
+only when the transport/attachment remains unhealthy. Creator recovery keeps retrying
+with capped backoff through the normal 90-second disconnect-grace window rather than
+permanently failing after the initial 0/1/2/4/8-second sequence.
+
+LiveKit webhooks are treated as reorderable control-plane events: an old
+`track_unpublished` may clear state only when its SID is still the canonical
+`programTrackSid`, and a stale `participant_left` cannot overwrite a creator
+who has already rejoined.
 
 ## Local recording durability and replay save
 
@@ -89,15 +96,19 @@ PCM/WAV chunks after the show only if the primary server recorder failed.
 
 At End Broadcast:
 
-1. Echoo stops LiveKit recording egress before deleting the live room so backend
+1. the creator publication stops and the browser recovery master begins finalization
+   immediately, so fallback audio cannot include post-off-air tail while backend
+   cleanup is still running;
+2. Echoo stops LiveKit recording egress before deleting the live room so backend
    FFmpeg can flush the canonical MP3;
-2. the backend verifies that server MP3 rather than trusting a partial file;
-3. exactly one replay Audio record is linked idempotently to the broadcast;
-4. the MP3 remains on persistent local storage or is archived to configured
+3. the backend verifies that server MP3 rather than trusting a partial file;
+4. exactly one replay Audio record is linked idempotently to the broadcast;
+5. the MP3 remains on persistent local storage or is archived to configured
    S3-compatible storage;
-5. only after canonical persistence is confirmed may the browser recovery master
-   be cleared;
-6. if the server recorder is incomplete or failed, Echoo then uploads the OPFS WAV
+6. only after canonical persistence is confirmed may the browser recovery master
+   be cleared; when an automatic device copy was requested, a failed device save
+   keeps that master available for retry;
+7. if the server recorder is incomplete or failed, Echoo then uploads the OPFS WAV
    in bounded recovery chunks and finalizes the MP3 from those chunks.
 
 The source broadcast ID/replay file key is the idempotency boundary. Retrying
