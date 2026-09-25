@@ -95,4 +95,7 @@ test('concurrent recorder starts preserve the newest track and bound PCM backlog
   assert.match(source, /inFlight\.trackSid === track/);
   assert.match(source, /\.then\(\(\) => ensureLiveKitServerRecording\(\{ broadcastId: id, trackSid: track \}\)\)/);
   assert.match(source, /const entry = \{ trackSid: track, promise: task \}/);
+  assert.match(source, /desiredTracks\.set\(id, track\)/);
+  assert.match(source, /desiredTracks\.get\(id\) !== track/);
+  assert.match(source, /reason: 'newer-track-requested'/);
 });
