@@ -126,9 +126,9 @@ const startAutosaveLive = async ({ recording, broadcast, key }) => {
       // upload is an emergency path only and never runs during the live show.
       if (
         replay.status !== 'ready' &&
-        recording.serverRecordingPrimary &&
         !recording.serverFallbackAttempted &&
-        recording.blob?.size
+        recording.blob?.size &&
+        String(recording.mimeType || recording.blob?.type || '').toLowerCase().includes('wav')
       ) {
         emit({ status: 'finalizing', key, title, recovery: true });
         await uploadRecoveryMasterToServer(recording);
