@@ -168,6 +168,7 @@ const createSession = async (broadcastId) => {
     currentTrackSid: '',
     handoff: false,
     handoffTimer: null,
+    finishPromise: null,
     closed,
     resolveClosed,
     outputPath: replay.path,
@@ -219,62 +220,77 @@ const createSession = async (broadcastId) => {
 const getOrCreateSession = async (broadcastId) =>
   sessions.get(broadcastId) || createSession(broadcastId);
 
-const finishSession = async (session) => {
+const finishSession = (session) => {
   if (!session) return null;
-  session.stopping = true;
-  expectedTracks.delete(session.broadcastId);
-  if (session.handoffTimer) clearTimeout(session.handoffTimer);
-  session.handoffTimer = null;
-  await session.writeChain.catch(() => null);
+  if (session.finishPromise) return session.finishPromise;
 
-  try {
-    if (session.child?.stdin && !session.child.stdin.destroyed) {
-      session.child.stdin.end();
+  session.finishPromise = (async () => {
+    session.stopping = true;
+    expectedTracks.delete(session.broadcastId);
+    if (session.handoffTimer) clearTimeout(session.handoffTimer);
+    session.handoffTimer = null;
+
+    if (session.failed) {
+      // Failed sessions are never accepted as canonical replays, so do not
+      // spend tens of seconds draining queued PCM that will be deleted.
+      try { session.child?.stdin?.destroy?.(); } catch { /* already closed */ }
+      if (session.child?.exitCode === null && !session.child?.killed) {
+        try { session.child.kill('SIGKILL'); } catch { /* already stopped */ }
+      }
+    } else {
+      await session.writeChain.catch(() => null);
+      try {
+        if (session.child?.stdin && !session.child.stdin.destroyed) {
+          session.child.stdin.end();
+        }
+      } catch {
+        // Encoder may already be closing.
+      }
     }
-  } catch {
-    // Encoder may already be closing.
-  }
 
-  await Promise.race([
-    session.closed,
-    new Promise((resolve) => setTimeout(resolve, STOP_TIMEOUT_MS)),
-  ]);
+    await Promise.race([
+      session.closed,
+      new Promise((resolve) => setTimeout(resolve, STOP_TIMEOUT_MS)),
+    ]);
 
-  if (session.child?.exitCode === null && !session.child?.killed) {
-    try { session.child.kill('SIGKILL'); } catch { /* already stopped */ }
-    session.failed = true;
-    session.error ||= 'FFmpeg did not finish the server recording in time.';
-  }
+    if (session.child?.exitCode === null && !session.child?.killed) {
+      try { session.child.kill('SIGKILL'); } catch { /* already stopped */ }
+      session.failed = true;
+      session.error ||= 'FFmpeg did not finish the server recording in time.';
+    }
 
-  let fileBytes = 0;
-  try {
-    fileBytes = (await fs.stat(session.outputPath)).size;
-  } catch {
-    fileBytes = 0;
-  }
+    let fileBytes = 0;
+    try {
+      fileBytes = (await fs.stat(session.outputPath)).size;
+    } catch {
+      fileBytes = 0;
+    }
 
-  const completed = !session.failed && fileBytes > 0;
-  if (!completed && session.outputPath) {
-    await fs.rm(session.outputPath, { force: true }).catch(() => null);
-    fileBytes = 0;
-  }
-  await persist(session.broadcastId, {
-    'serverRecording.status': completed ? 'completed' : 'failed',
-    'serverRecording.endedAt': new Date(),
-    'serverRecording.egressId': null,
-    'serverRecording.pcmBytes': session.pcmBytes,
-    'serverRecording.fileBytes': fileBytes,
-    'serverRecording.error': completed
-      ? null
-      : String(session.error || 'Server recording produced no MP3 data.').slice(0, 1000),
-  });
+    const completed = !session.failed && fileBytes > 0;
+    if (!completed && session.outputPath) {
+      await fs.rm(session.outputPath, { force: true }).catch(() => null);
+      fileBytes = 0;
+    }
+    await persist(session.broadcastId, {
+      'serverRecording.status': completed ? 'completed' : 'failed',
+      'serverRecording.endedAt': new Date(),
+      'serverRecording.egressId': null,
+      'serverRecording.pcmBytes': session.pcmBytes,
+      'serverRecording.fileBytes': fileBytes,
+      'serverRecording.error': completed
+        ? null
+        : String(session.error || 'Server recording produced no MP3 data.').slice(0, 1000),
+    });
 
-  sessions.delete(session.broadcastId);
-  return {
-    status: completed ? 'completed' : 'failed',
-    pcmBytes: session.pcmBytes,
-    fileBytes,
-  };
+    sessions.delete(session.broadcastId);
+    return {
+      status: completed ? 'completed' : 'failed',
+      pcmBytes: session.pcmBytes,
+      fileBytes,
+    };
+  })();
+
+  return session.finishPromise;
 };
 
 const acceptRecordingSocket = async (socket, request) => {
