@@ -195,9 +195,13 @@ Analytics and trend surfaces may show only recorded values. Echoo does not fabri
 
 For host/deploy requirements, [HOSTING.md](HOSTING.md) is authoritative.
 
-## Optional future media infrastructure
+## Media infrastructure
 
-LiveKit Egress and OvenMediaEngine code may remain for later recording/export/large passive-audience requirements. They are not required for the current direct LiveKit listener path and must not block current broadcasting.
+Direct LiveKit remains the listener transport. LiveKit Track Egress is the
+preferred server-recording path on long-lived backends, but a recorder failure
+must never interrupt or block the live listener stream. OvenMediaEngine remains
+optional legacy/future relay infrastructure and is not required for normal
+broadcasting.
 
 ## Mock-data policy
 
