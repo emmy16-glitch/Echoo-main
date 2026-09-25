@@ -80,3 +80,14 @@ test('listener consumes real LiveKit states without receiving live transcript da
   assert.match(room, /Live audio on Echoo/);
   assert.match(room, /onStateChange=\{handleLivePlayerState\}/);
 });
+
+
+test('creator webhook recovery ignores stale participant and track removal events', async () => {
+  const webhook = await source('../src/services/livekitWebhookService.js');
+
+  assert.match(webhook, /clearCreatorProgramTrackIfCurrent/);
+  assert.match(webhook, /programTrackSid:\s*sid/);
+  assert.match(webhook, /event\.track\?\.sid/);
+  assert.match(webhook, /const replacementPresent = current[\s\S]*creatorStillPresent\(current\)\.catch\(\(\) => true\)/);
+  assert.match(webhook, /scheduleCreatorDisconnect\(broadcastId/);
+});
