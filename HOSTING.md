@@ -368,14 +368,14 @@ Before declaring the deployment complete:
    canonical audio element; a stale "playing" element with frozen RTP must not stay
    silent forever.
 9. End Broadcast.
-7. Confirm the UI reaches Saved/Recordings without HTTP 413 and without a large
-   post-show WAV transfer.
-8. Confirm exactly one canonical MP3 replay exists and plays from beginning,
-   middle and end after a page refresh.
-9. In a separate failure test, disable/break the server recorder and confirm the
-   browser OPFS master is retained and bounded recovery chunks are used only then.
-9. Restart/redeploy the backend and confirm the replay still plays.
-10. Open Recordings, select a range, Trim, and confirm:
+10. Confirm the UI reaches Saved/Recordings without HTTP 413 and without a large
+    post-show WAV transfer.
+11. Confirm exactly one canonical MP3 replay exists and plays from beginning,
+    middle and end after a page refresh.
+12. In a separate failure test, disable/break the server recorder and confirm the
+    browser OPFS master is retained and bounded recovery chunks are used only then.
+13. Restart/redeploy the backend and confirm the replay still plays.
+14. Open Recordings, select a range, Trim, and confirm:
     - a separate trimmed recording appears;
     - the trimmed copy plays;
     - the original still plays and was not overwritten.
