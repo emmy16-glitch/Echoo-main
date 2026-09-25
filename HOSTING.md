@@ -119,7 +119,8 @@ The browser still keeps a temporary lossless OPFS recovery WAV. That local maste
 - protects the creator if server persistence fails;
 - may be used for an explicit WAV device copy;
 - is **not** the normal giant final upload;
-- is cleared only after the canonical server recording is confirmed safe.
+- stops when the live publisher stops, not after slow backend cleanup;
+- is cleared only after the canonical server recording is confirmed safe and any requested automatic device copy has succeeded (or the creator chose server-only).
 
 Do **not** "fix" recording failures by raising an 80 MB/500 MB/1 GB request limit.
 A large final WAV POST means the intended architecture has regressed.

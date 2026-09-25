@@ -94,6 +94,31 @@ const updateCreatorMediaState = async (broadcastId, update, io, { preserveLive =
   return broadcast;
 };
 
+const clearCreatorProgramTrackIfCurrent = async (broadcastId, trackSid, io) => {
+  const sid = String(trackSid || '').trim();
+  if (!sid) return null;
+  const broadcast = await Broadcast.findOneAndUpdate(
+    {
+      _id: broadcastId,
+      status: { $in: ['starting', 'live', 'ending'] },
+      isDeleted: false,
+      programTrackSid: sid,
+    },
+    {
+      $set: {
+        mediaState: 'audio_disconnected',
+        programTrackSid: null,
+        programTrackName: null,
+      },
+    },
+    { returnDocument: 'after' }
+  );
+  if (!broadcast) return null;
+  clearBroadcastPresenceCache(broadcastId);
+  emitStatus(io, broadcast);
+  return broadcast;
+};
+
 const endDisconnectedBroadcast = async (broadcastId, io) => {
   pendingDisconnects.delete(String(broadcastId));
   const current = await Broadcast.findOne({
@@ -180,8 +205,26 @@ export async function handleLiveKitWebhook(req, res) {
     const isCreator = metadata.role === 'creator';
 
     if (broadcastId && isCreator && event.event === 'participant_left') {
-      await updateCreatorMediaState(broadcastId, { mediaState: 'audio_disconnected' }, req.app.get('io'));
+      // A stale participant_left can arrive after the creator has already
+      // rejoined. Schedule the grace-period verification either way, but do
+      // not overwrite a healthy replacement participant with a false
+      // disconnected state.
       scheduleCreatorDisconnect(broadcastId, req.app.get('io'));
+      const current = await Broadcast.findOne({
+        _id: broadcastId,
+        status: { $in: ['starting', 'live', 'ending'] },
+        isDeleted: false,
+      });
+      const replacementPresent = current
+        ? await creatorStillPresent(current).catch(() => true)
+        : true;
+      if (!replacementPresent) {
+        await updateCreatorMediaState(
+          broadcastId,
+          { mediaState: 'audio_disconnected' },
+          req.app.get('io')
+        );
+      }
     }
     if (broadcastId && isCreator && event.event === 'participant_joined') {
       cancelCreatorDisconnect(broadcastId);
@@ -219,11 +262,14 @@ export async function handleLiveKitWebhook(req, res) {
       });
     }
     if (broadcastId && isCreator && event.event === 'track_unpublished' && trackName === 'echoo-studio-mix') {
-      await updateCreatorMediaState(broadcastId, {
-        mediaState: 'audio_disconnected',
-        programTrackSid: null,
-        programTrackName: null,
-      }, req.app.get('io'));
+      // Webhook delivery can be reordered around a fast creator recovery.
+      // Only clear the program if the unpublished SID is still the canonical
+      // one stored on the broadcast; an old SID must not erase a newer track.
+      await clearCreatorProgramTrackIfCurrent(
+        broadcastId,
+        event.track?.sid,
+        req.app.get('io')
+      );
     }
     return res.status(204).end();
   } catch (error) {

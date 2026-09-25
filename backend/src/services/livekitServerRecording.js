@@ -17,7 +17,9 @@ const STOP_TIMEOUT_MS = 8_000;
 const sessions = new Map();
 const startPromises = new Map();
 const expectedTracks = new Map();
+const desiredTracks = new Map();
 const TRACK_HANDOFF_TIMEOUT_MS = 12_000;
+const MAX_PENDING_PCM_BYTES = 8 * 1024 * 1024;
 let websocketServer = null;
 let attachedHttpServer = null;
 let upgradeHandler = null;
@@ -158,6 +160,7 @@ const createSession = async (broadcastId) => {
     child: null,
     sockets: new Set(),
     writeChain: Promise.resolve(),
+    queuedPcmBytes: 0,
     pcmBytes: 0,
     stopping: false,
     failed: false,
@@ -165,6 +168,7 @@ const createSession = async (broadcastId) => {
     currentTrackSid: '',
     handoff: false,
     handoffTimer: null,
+    finishPromise: null,
     closed,
     resolveClosed,
     outputPath: replay.path,
@@ -200,13 +204,25 @@ const createSession = async (broadcastId) => {
       'serverRecording.error': session.error.slice(0, 1000),
     });
     session.resolveClosed();
+    for (const socket of session.sockets) {
+      try { socket.close(1011, 'Recording encoder failed'); } catch { /* closed */ }
+    }
+    void finishSession(session);
   });
   child.once('close', async (code, signal) => {
     if (code !== 0 && code !== null) {
       session.failed = true;
       session.error = `FFmpeg stopped (code ${code}${signal ? `, signal ${signal}` : ''}): ${stderr.trim() || 'encoder error'}`;
+      await persist(broadcastId, {
+        'serverRecording.status': 'failed',
+        'serverRecording.error': session.error.slice(0, 1000),
+      });
+      for (const socket of session.sockets) {
+        try { socket.close(1011, 'Recording encoder stopped'); } catch { /* closed */ }
+      }
     }
     session.resolveClosed();
+    if (session.failed) void finishSession(session);
   });
 
   sessions.set(broadcastId, session);
@@ -216,62 +232,77 @@ const createSession = async (broadcastId) => {
 const getOrCreateSession = async (broadcastId) =>
   sessions.get(broadcastId) || createSession(broadcastId);
 
-const finishSession = async (session) => {
+const finishSession = (session) => {
   if (!session) return null;
-  session.stopping = true;
-  expectedTracks.delete(session.broadcastId);
-  if (session.handoffTimer) clearTimeout(session.handoffTimer);
-  session.handoffTimer = null;
-  await session.writeChain.catch(() => null);
+  if (session.finishPromise) return session.finishPromise;
 
-  try {
-    if (session.child?.stdin && !session.child.stdin.destroyed) {
-      session.child.stdin.end();
+  session.finishPromise = (async () => {
+    session.stopping = true;
+    expectedTracks.delete(session.broadcastId);
+    if (session.handoffTimer) clearTimeout(session.handoffTimer);
+    session.handoffTimer = null;
+
+    if (session.failed) {
+      // Failed sessions are never accepted as canonical replays, so do not
+      // spend tens of seconds draining queued PCM that will be deleted.
+      try { session.child?.stdin?.destroy?.(); } catch { /* already closed */ }
+      if (session.child?.exitCode === null && !session.child?.killed) {
+        try { session.child.kill('SIGKILL'); } catch { /* already stopped */ }
+      }
+    } else {
+      await session.writeChain.catch(() => null);
+      try {
+        if (session.child?.stdin && !session.child.stdin.destroyed) {
+          session.child.stdin.end();
+        }
+      } catch {
+        // Encoder may already be closing.
+      }
     }
-  } catch {
-    // Encoder may already be closing.
-  }
 
-  await Promise.race([
-    session.closed,
-    new Promise((resolve) => setTimeout(resolve, STOP_TIMEOUT_MS)),
-  ]);
+    await Promise.race([
+      session.closed,
+      new Promise((resolve) => setTimeout(resolve, STOP_TIMEOUT_MS)),
+    ]);
 
-  if (session.child?.exitCode === null && !session.child?.killed) {
-    try { session.child.kill('SIGKILL'); } catch { /* already stopped */ }
-    session.failed = true;
-    session.error ||= 'FFmpeg did not finish the server recording in time.';
-  }
+    if (session.child?.exitCode === null && !session.child?.killed) {
+      try { session.child.kill('SIGKILL'); } catch { /* already stopped */ }
+      session.failed = true;
+      session.error ||= 'FFmpeg did not finish the server recording in time.';
+    }
 
-  let fileBytes = 0;
-  try {
-    fileBytes = (await fs.stat(session.outputPath)).size;
-  } catch {
-    fileBytes = 0;
-  }
+    let fileBytes = 0;
+    try {
+      fileBytes = (await fs.stat(session.outputPath)).size;
+    } catch {
+      fileBytes = 0;
+    }
 
-  const completed = !session.failed && fileBytes > 0;
-  if (!completed && session.outputPath) {
-    await fs.rm(session.outputPath, { force: true }).catch(() => null);
-    fileBytes = 0;
-  }
-  await persist(session.broadcastId, {
-    'serverRecording.status': completed ? 'completed' : 'failed',
-    'serverRecording.endedAt': new Date(),
-    'serverRecording.egressId': null,
-    'serverRecording.pcmBytes': session.pcmBytes,
-    'serverRecording.fileBytes': fileBytes,
-    'serverRecording.error': completed
-      ? null
-      : String(session.error || 'Server recording produced no MP3 data.').slice(0, 1000),
-  });
+    const completed = !session.failed && fileBytes > 0;
+    if (!completed && session.outputPath) {
+      await fs.rm(session.outputPath, { force: true }).catch(() => null);
+      fileBytes = 0;
+    }
+    await persist(session.broadcastId, {
+      'serverRecording.status': completed ? 'completed' : 'failed',
+      'serverRecording.endedAt': new Date(),
+      'serverRecording.egressId': null,
+      'serverRecording.pcmBytes': session.pcmBytes,
+      'serverRecording.fileBytes': fileBytes,
+      'serverRecording.error': completed
+        ? null
+        : String(session.error || 'Server recording produced no MP3 data.').slice(0, 1000),
+    });
 
-  sessions.delete(session.broadcastId);
-  return {
-    status: completed ? 'completed' : 'failed',
-    pcmBytes: session.pcmBytes,
-    fileBytes,
-  };
+    sessions.delete(session.broadcastId);
+    return {
+      status: completed ? 'completed' : 'failed',
+      pcmBytes: session.pcmBytes,
+      fileBytes,
+    };
+  })();
+
+  return session.finishPromise;
 };
 
 const acceptRecordingSocket = async (socket, request) => {
@@ -323,9 +354,29 @@ const acceptRecordingSocket = async (socket, request) => {
   socket.on('message', (data, isBinary) => {
     if (!isBinary || session.stopping || session.failed) return;
     const buffer = Buffer.isBuffer(data) ? data : Buffer.from(data);
+
+    session.queuedPcmBytes += buffer.length;
+    if (session.queuedPcmBytes > MAX_PENDING_PCM_BYTES) {
+      session.failed = true;
+      session.error = 'Server recording encoder fell too far behind the LiveKit PCM stream.';
+      void persist(identity.broadcastId, {
+        'serverRecording.status': 'failed',
+        'serverRecording.error': session.error,
+      });
+      try { socket.close(1011, 'Recording encoder backlog exceeded'); } catch { /* closed */ }
+      void finishSession(session);
+      return;
+    }
+
     session.pcmBytes += buffer.length;
     session.writeChain = session.writeChain
-      .then(() => writeWithBackpressure(session.child, buffer))
+      .then(async () => {
+        try {
+          await writeWithBackpressure(session.child, buffer);
+        } finally {
+          session.queuedPcmBytes = Math.max(0, session.queuedPcmBytes - buffer.length);
+        }
+      })
       .catch(async (error) => {
         session.failed = true;
         session.error = error?.message || String(error);
@@ -334,6 +385,7 @@ const acceptRecordingSocket = async (socket, request) => {
           'serverRecording.error': session.error.slice(0, 1000),
         });
         try { socket.close(1011, 'Recording encoder failed'); } catch { /* closed */ }
+        void finishSession(session);
       });
   });
 
@@ -414,6 +466,7 @@ export const closeLiveKitRecordingWebSocket = () => {
   sessions.clear();
   startPromises.clear();
   expectedTracks.clear();
+  desiredTracks.clear();
   try { websocketServer?.close(); } catch { /* closed */ }
   websocketServer = null;
   attachedHttpServer = null;
@@ -430,12 +483,28 @@ export const ensureLiveKitServerRecording = async ({
     return { mode: 'browser-fallback', active: false };
   }
 
-  if (startPromises.has(id)) {
-    return startPromises.get(id);
+  desiredTracks.set(id, track);
+
+  const inFlight = startPromises.get(id);
+  if (inFlight) {
+    if (inFlight.trackSid === track) return inFlight.promise;
+
+    // A creator republish can produce a new track SID while the previous
+    // Egress start call is still in flight. Never drop that newer request.
+    // Let the first provider call settle, then reconcile against the newest
+    // track so the recorder follows the live program instead of staying bound
+    // to a stale SID.
+    return inFlight.promise
+      .catch(() => null)
+      .then(() => ensureLiveKitServerRecording({ broadcastId: id, trackSid: track }));
   }
 
   const task = (async () => {
     await assertFfmpegAvailable();
+
+    if (desiredTracks.get(id) !== track) {
+      return { mode: 'superseded', active: false, trackSid: track };
+    }
     expectedTracks.set(id, track);
 
     const current = await Broadcast.findById(id).select('serverRecording');
@@ -508,6 +577,10 @@ export const ensureLiveKitServerRecording = async ({
     });
 
     try {
+      if (desiredTracks.get(id) !== track) {
+        return { mode: 'superseded', active: false, trackSid: track };
+      }
+
       const egress = await LiveKitProvider.startTrackRecordingEgress(
         id,
         track,
@@ -528,6 +601,19 @@ export const ensureLiveKitServerRecording = async ({
       };
     } catch (error) {
       expectedTracks.delete(id);
+
+      // A newer creator track may have replaced this one while the provider
+      // call was in flight. That stale failure must not poison the new track's
+      // recorder startup; the queued ensure call will reconcile the latest SID.
+      if (desiredTracks.get(id) !== track) {
+        return {
+          mode: 'superseded',
+          active: false,
+          trackSid: track,
+          reason: 'newer-track-requested',
+        };
+      }
+
       const session = sessions.get(id);
       if (session?.handoff && session.currentTrackSid === track) {
         session.failed = true;
@@ -542,11 +628,12 @@ export const ensureLiveKitServerRecording = async ({
     }
   })();
 
-  startPromises.set(id, task);
+  const entry = { trackSid: track, promise: task };
+  startPromises.set(id, entry);
   try {
     return await task;
   } finally {
-    if (startPromises.get(id) === task) startPromises.delete(id);
+    if (startPromises.get(id) === entry) startPromises.delete(id);
   }
 };
 
@@ -555,6 +642,7 @@ export const stopLiveKitServerRecording = async (broadcastId) => {
   if (!id) return null;
 
   expectedTracks.delete(id);
+  desiredTracks.delete(id);
   const broadcast = await Broadcast.findById(id).select('serverRecording');
   const egressId = String(broadcast?.serverRecording?.egressId || '');
   const session = sessions.get(id);

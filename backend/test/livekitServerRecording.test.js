@@ -80,3 +80,26 @@ test('track republish handoff keeps one recorder session and fails closed if rep
   assert.match(source, /LiveKit recording track handoff did not reconnect in time/);
   assert.match(source, /expectedTracks\.delete\(session\.broadcastId\)/);
 });
+
+
+test('concurrent recorder starts preserve the newest track and bound PCM backlog', async () => {
+  const source = await readFile(
+    new URL('../src/services/livekitServerRecording.js', import.meta.url),
+    'utf8'
+  );
+
+  assert.match(source, /MAX_PENDING_PCM_BYTES/);
+  assert.match(source, /queuedPcmBytes/);
+  assert.match(source, /Recording encoder backlog exceeded/);
+  assert.match(source, /const inFlight = startPromises\.get\(id\)/);
+  assert.match(source, /inFlight\.trackSid === track/);
+  assert.match(source, /\.then\(\(\) => ensureLiveKitServerRecording\(\{ broadcastId: id, trackSid: track \}\)\)/);
+  assert.match(source, /const entry = \{ trackSid: track, promise: task \}/);
+  assert.match(source, /desiredTracks\.set\(id, track\)/);
+  assert.match(source, /desiredTracks\.get\(id\) !== track/);
+  assert.match(source, /reason: 'newer-track-requested'/);
+  assert.match(source, /finishPromise/);
+  assert.match(source, /if \(session\.finishPromise\) return session\.finishPromise/);
+  assert.match(source, /session\.child\?\.stdin\?\.destroy/);
+  assert.match(source, /Recording encoder stopped/);
+});

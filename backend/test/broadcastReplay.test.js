@@ -11,6 +11,7 @@ import BroadcastAudioChunk from '../src/models/BroadcastAudioChunk.js';
 import {
   finalizeBroadcastReplay,
   isRealMp3Bytes,
+  estimateReplayDurationSeconds,
 } from '../src/services/broadcastReplayService.js';
 
 // Server replay finalization contract:
@@ -109,6 +110,29 @@ test('isRealMp3Bytes accepts ID3 and frame-sync, rejects WAV', () => {
   assert.equal(isRealMp3Bytes(Buffer.from([0xff, 0xfb, 0x90, 0x00])), true);
   assert.equal(isRealMp3Bytes(Buffer.from('RIFF....WAVE')), false);
   assert.equal(isRealMp3Bytes(Buffer.alloc(0)), false);
+});
+
+
+
+test('duration fallback uses s16le server PCM rather than encoded MP3 byte size', () => {
+  assert.equal(
+    estimateReplayDurationSeconds({ serverPcmBytes: 48000 * 2 * 2 }),
+    1
+  );
+  assert.equal(
+    estimateReplayDurationSeconds({
+      chunks: [{ startMs: 0, endMs: 1500 }, { startMs: 1500, endMs: 3000 }],
+      serverPcmBytes: 1,
+    }),
+    3
+  );
+  assert.equal(
+    estimateReplayDurationSeconds({
+      startedAt: '2026-09-25T10:00:00.000Z',
+      endedAt: '2026-09-25T10:00:12.500Z',
+    }),
+    12.5
+  );
 });
 
 test('finalize assembles chunks into a real MP3 Audio replay', async () => {

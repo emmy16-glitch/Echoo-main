@@ -96,18 +96,26 @@ test('a database-live broadcast can rebuild its publisher after a page reload', 
   assert.match(workspace, /Reconnect live audio/);
 });
 
-test('End makes the listener path OFF AIR before recording finalization', async () => {
+test('End stops listener audio and local recovery master before waiting for server cleanup', async () => {
   const workspace = await read('./CreatorLiveConnectedWorkspace.jsx');
   const publisher = await read('../../services/livekitPublisher.js');
+  const batch3 = await read('../../services/batch3Service.js');
   const endAt = workspace.indexOf('const endBroadcast = async');
   const endBody = workspace.slice(endAt, workspace.indexOf('const copyLiveLink', endAt));
+  const backendStartAt = endBody.indexOf('const backendEnd = batch3Service.endBroadcastRealtime');
   const unpublishAt = endBody.indexOf('await stopLiveKitPublishing()');
   const offAirAt = endBody.indexOf("markOffAir('Broadcast audio stopped. Finalizing your local master…')");
-  const finalizeAt = endBody.indexOf('finalizeBroadcastRecording');
+  const localFinalizeAt = endBody.indexOf('const localRecording = batch3Service.finalizeBroadcastRecording');
+  const awaitBackendAt = endBody.indexOf('endedResponse = await backendEnd');
+  const announceAt = endBody.indexOf('batch3Service.announceFinalizedBroadcastRecording');
 
-  assert.ok(unpublishAt >= 0 && offAirAt > unpublishAt && finalizeAt > offAirAt);
-  assert.match(endBody, /const backendEnd = batch3Service\.endBroadcastRealtime/);
-  assert.match(endBody, /\[Echoo Perf\] end-broadcast realtime stopped/);
+  assert.ok(backendStartAt >= 0);
+  assert.ok(unpublishAt > backendStartAt);
+  assert.ok(offAirAt > unpublishAt);
+  assert.ok(localFinalizeAt > offAirAt && localFinalizeAt < awaitBackendAt);
+  assert.ok(announceAt > awaitBackendAt);
+  assert.match(endBody, /\{ announce: false \}/);
+  assert.match(batch3, /announceFinalizedBroadcastRecording/);
   assert.match(endBody, /The upload event takes over the visible progress from here/);
   assert.match(publisher, /ROOM_DISCONNECT_DEADLINE_MS/);
   assert.match(publisher, /Promise\.race\(\[disconnect, deadline\]\)/);
@@ -145,4 +153,18 @@ test('image cropping is layered above the high-priority Collection editor', asyn
   const collectionIndex = Number(collectionCss.match(/\.creator-collections-modal\s*\{[\s\S]*?z-index:\s*(\d+)/)?.[1]);
 
   assert.ok(cropIndex > collectionIndex);
+});
+
+
+test('creator recovery continues through the backend disconnect grace window', async () => {
+  const publisher = await read('../../services/livekitPublisher.js');
+
+  assert.match(publisher, /CREATOR_RECOVERY_WINDOW_MS = 90_000/);
+  assert.match(publisher, /candidate\.recoveryStartedAt \|\|= Date\.now\(\)/);
+  assert.match(publisher, /Date\.now\(\) - candidate\.recoveryStartedAt < CREATOR_RECOVERY_WINDOW_MS/);
+  assert.match(publisher, /Math\.min\(attempt, LIVE_RECOVERY_DELAYS_MS\.length - 1\)/);
+  assert.doesNotMatch(
+    publisher,
+    /candidate\.recoveryAttempt < LIVE_RECOVERY_DELAYS_MS\.length/
+  );
 });
