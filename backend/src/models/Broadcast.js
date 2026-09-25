@@ -217,25 +217,6 @@ const broadcastSchema = new mongoose.Schema(
       },
       transport: {
         type: String,
-        enum: ['livekit-track-egress', null],
-        default: null,
-      },
-      trackSid: { type: String, default: null },
-      egressId: { type: String, default: null },
-      startedAt: { type: Date, default: null },
-      endedAt: { type: Date, default: null },
-      pcmBytes: { type: Number, min: 0, default: 0 },
-      fileBytes: { type: Number, min: 0, default: 0 },
-      error: { type: String, default: null, maxlength: 1000 },
-    },
-    serverRecording: {
-      status: {
-        type: String,
-        enum: ['idle', 'starting', 'active', 'recovering', 'completed', 'failed'],
-        default: 'idle',
-      },
-      transport: {
-        type: String,
         enum: ['livekit-track-egress', 'browser-fallback', null],
         default: null,
       },
