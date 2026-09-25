@@ -9,6 +9,7 @@ import {
   markTranscriptQualityChunkFailed,
   processTranscriptQualityChunk,
 } from './transcriptQualityService.js';
+import { finalizeBroadcastReplay } from './broadcastReplayService.js';
 
 const JOB_TYPES = [
   'audio_finalization',
@@ -70,9 +71,26 @@ export async function enqueueBroadcastProcessing(broadcastId, { transcriptionEna
 }
 
 const completeAudio = async (broadcast) => {
-  if (!broadcast.replayAudio) {
-    throw waiting('Waiting for the final audience-mix recording upload or discard decision');
+  if (!broadcast.replayAudio && !broadcast.replayAudioId) {
+    const replay = await finalizeBroadcastReplay({
+      broadcastId: String(broadcast._id),
+      creatorId: String(broadcast.creator || ''),
+      expectedChunkCount: Number(broadcast.qualityChunkCount) || 0,
+      uploadErrors: Number(broadcast.qualityChunkUploadErrors) || 0,
+    });
+
+    if (replay?.status !== 'ready' || !replay?.audioId) {
+      throw waiting(
+        replay?.status === 'incomplete'
+          ? 'Waiting for browser recovery chunks because server recording was incomplete'
+          : 'Waiting for the server recording to finish'
+      );
+    }
+
+    broadcast.replayAudio = replay.audioId;
+    broadcast.replayAudioId = replay.audioId;
   }
+
   broadcast.assetStatus.audio = 'ready';
   await broadcast.save();
 };
