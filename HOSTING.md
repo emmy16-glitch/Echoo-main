@@ -360,7 +360,14 @@ Before declaring the deployment complete:
 4. Confirm the listener receives the actual `echoo-studio-mix` audio.
 5. While the show is healthy, confirm the browser is **not** continuously uploading
    `/recording-chunks`; the normal path should be LiveKit Track Egress -> Echoo server.
-6. End Broadcast.
+6. Pause the creator for at least 20 seconds and confirm there is no false transport
+   recovery; Resume must restore the same live session.
+7. Briefly interrupt creator networking and confirm the same broadcast survives
+   within `LIVEKIT_CREATOR_DISCONNECT_GRACE_MS` (production default: 90000 ms).
+8. Briefly interrupt a listener connection and confirm playback recovers with one
+   canonical audio element; a stale "playing" element with frozen RTP must not stay
+   silent forever.
+9. End Broadcast.
 7. Confirm the UI reaches Saved/Recordings without HTTP 413 and without a large
    post-show WAV transfer.
 8. Confirm exactly one canonical MP3 replay exists and plays from beginning,
@@ -372,11 +379,11 @@ Before declaring the deployment complete:
     - a separate trimmed recording appears;
     - the trimmed copy plays;
     - the original still plays and was not overwritten.
-11. Verify the configured device-copy policy:
+15. Verify the configured device-copy policy:
     - MP3 device copy, or
     - WAV device copy while the local master is available, or
     - server-only.
-12. Test a phone listener on a separate network if mobile listening matters for
+16. Test a phone listener on a separate network if mobile listening matters for
     the deployment.
 
 Do not call the deployment finished based only on `npm run build`.
