@@ -68,10 +68,14 @@ the creator explicitly discards it.
 
 ### Canonical server replay
 
-While the show is live, the same protected master bus also produces bounded
-48 kHz stereo PCM/WAV chunks. Those chunks are authenticated and sent to the
-backend during the show. They feed the required replay encoder independently of
-LiveKit listener delivery.
+The creator publishes the protected master bus to LiveKit once. On a
+recording-capable long-lived backend, LiveKit Track Egress sends that published
+program track as raw PCM to Echoo's signed recording WebSocket. Backend FFmpeg
+encodes the canonical MP3 while listeners continue receiving the normal LiveKit
+Opus stream.
+
+The browser keeps a lossless OPFS master only for recovery. It uploads bounded
+PCM/WAV chunks after the show only if the primary server recorder failed.
 
 At End Broadcast:
 
