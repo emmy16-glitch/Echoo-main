@@ -6,6 +6,11 @@ import { stopBroadcastOutputs } from './broadcastOutputService.js';
 import { clearBroadcastPresenceCache } from '../controllers/broadcastPresenceController.js';
 import { releaseCreatorBroadcastLease } from './creatorBroadcastLease.js';
 import { flushBroadcastTranscription } from './transcriptionGateway.js';
+import {
+  ensureLiveKitServerRecording,
+  isLiveKitServerRecordingEnabled,
+  stopLiveKitServerRecording,
+} from './livekitServerRecording.js';
 
 const CREATOR_DISCONNECT_GRACE_MS = Math.max(
   5000,
@@ -111,6 +116,9 @@ const endDisconnectedBroadcast = async (broadcastId, io) => {
   if (broadcast.livekitIngressId) {
     await LiveKitProvider.stopIngress(broadcast.livekitIngressId).catch(() => null);
   }
+  await stopLiveKitServerRecording(String(broadcast._id)).catch((error) => {
+    console.warn('[Echoo Server Recording] disconnect cleanup warning:', error?.message || error);
+  });
   if (broadcast.livekitEgressId) {
     await LiveKitProvider.stopEgress(broadcast.livekitEgressId).catch(() => null);
   }
@@ -186,6 +194,19 @@ export async function handleLiveKitWebhook(req, res) {
         programTrackSid: event.track?.sid || null,
         programTrackName: event.track?.name || 'echoo-studio-mix',
       }, req.app.get('io'));
+
+      if (isLiveKitServerRecordingEnabled() && event.track?.sid) {
+        void ensureLiveKitServerRecording({
+          broadcastId,
+          trackSid: event.track.sid,
+        }).catch((recordingError) => {
+          console.warn(
+            '[Echoo Server Recording] track republish recorder warning:',
+            recordingError?.message || recordingError
+          );
+        });
+      }
+
       console.info('[Echoo LiveKit Webhook] creator program track published', {
         broadcastId,
         trackSid: event.track?.sid || null,
