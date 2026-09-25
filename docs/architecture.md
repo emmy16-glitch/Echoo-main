@@ -24,7 +24,7 @@
 └────────────────────────┘   └──────────────────┘
 ```
 
-Realtime product events (chat, presence, status) travel over Socket.IO from the API process. Live listener audio travels creator → LiveKit → listeners. Separately, bounded post-master PCM/WAV recording chunks travel creator → Echoo backend for canonical replay finalization; the API does not relay live audio per listener.
+Realtime product events (chat, presence, status) travel over Socket.IO from the API process. Live listener audio travels creator → LiveKit → listeners. On long-lived recording-capable hosts, LiveKit Track Egress independently sends the same published program track to Echoo's signed recording WebSocket, where FFmpeg writes the canonical MP3. Browser PCM/WAV chunks are recovery-only after a server-recorder failure; the API never relays live audio per listener.
 
 ## Authority rules
 
@@ -38,7 +38,7 @@ Realtime product events (chat, presence, status) travel over Socket.IO from the 
 
 ## Broadcast lifecycle (happy path)
 
-`scheduled → starting → live → ending → completed` (plus `cancelled`/`failed` exits). Going live mints the LiveKit room and creator token. During the show, bounded master-audio chunks feed the backend replay pipeline. Ending flushes/finalizes those chunks into the canonical MP3 replay and links it idempotently to the broadcast. Trimming is a later non-destructive Recordings action that creates a separate private copy; it is not part of the End Broadcast save path.
+`scheduled → starting → live → ending → completed` (plus `cancelled`/`failed` exits). Going live mints the LiveKit room and creator token, then the browser publishes one canonical `echoo-studio-mix`. Listener delivery stays direct LiveKit/WebRTC. On long-lived hosts, server recording starts from that published track and FFmpeg writes the MP3 while the show runs; the browser keeps OPFS recovery locally. Ending stops realtime delivery first, flushes/finalizes server recording, and links one idempotent replay. If the server recorder failed, bounded browser recovery chunks are used only after the live path has stopped. Trimming is a later non-destructive Recordings action that creates a separate private copy.
 
 ## Clients
 
