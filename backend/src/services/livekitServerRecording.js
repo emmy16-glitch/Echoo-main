@@ -510,6 +510,11 @@ export const stopLiveKitServerRecording = async (broadcastId) => {
     return null;
   }
 
+  // Mark intentional shutdown before asking LiveKit to stop egress. That call
+  // closes the WebSocket; without this flag the close handler would mistake a
+  // normal End Broadcast for an unexpected recorder failure.
+  if (session) session.stopping = true;
+
   if (egressId) {
     await LiveKitProvider.stopEgress(egressId).catch((error) => {
       console.warn('[Echoo Server Recording] egress stop warning:', error?.message || error);
