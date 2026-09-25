@@ -15,6 +15,7 @@ const RECORDING_PATH = '/api/internal/livekit-recording';
 const SIGNATURE_TTL_MS = 5 * 60 * 1000;
 const STOP_TIMEOUT_MS = 20_000;
 const sessions = new Map();
+const startPromises = new Map();
 let websocketServer = null;
 
 const enabled = (name) =>
@@ -40,11 +41,9 @@ const recordingBaseUrl = () => {
 
   try {
     const url = new URL(source);
-    if (!explicit) {
-      url.pathname = RECORDING_PATH;
-      url.search = '';
-      url.hash = '';
-    }
+    url.pathname = RECORDING_PATH;
+    url.search = '';
+    url.hash = '';
     if (url.protocol === 'http:') url.protocol = 'ws:';
     if (url.protocol === 'https:') url.protocol = 'wss:';
     if (!['ws:', 'wss:'].includes(url.protocol)) return null;
@@ -242,6 +241,10 @@ const finishSession = async (session) => {
   }
 
   const completed = !session.failed && fileBytes > 0;
+  if (!completed && session.outputPath) {
+    await fs.rm(session.outputPath, { force: true }).catch(() => null);
+    fileBytes = 0;
+  }
   await persist(session.broadcastId, {
     'serverRecording.status': completed ? 'completed' : 'failed',
     'serverRecording.endedAt': new Date(),
@@ -312,8 +315,11 @@ const acceptRecordingSocket = async (socket, request) => {
   socket.on('close', () => {
     session.sockets.delete(socket);
     if (!session.stopping && !session.failed) {
+      session.failed = true;
+      session.error = 'LiveKit recording stream disconnected before End Broadcast.';
       void persist(identity.broadcastId, {
-        'serverRecording.status': 'recovering',
+        'serverRecording.status': 'failed',
+        'serverRecording.error': session.error,
       });
     }
   });
@@ -356,61 +362,82 @@ export const ensureLiveKitServerRecording = async ({
     return { mode: 'browser-fallback', active: false };
   }
 
-  await assertFfmpegAvailable();
+  if (startPromises.has(id)) {
+    return startPromises.get(id);
+  }
 
-  const current = await Broadcast.findById(id).select('serverRecording');
-  const recording = current?.serverRecording || null;
+  const task = (async () => {
+    await assertFfmpegAvailable();
 
-  if (
-    recording?.egressId &&
-    recording?.trackSid === track &&
-    ['starting', 'active', 'recovering'].includes(recording?.status)
-  ) {
-    return {
-      mode: 'server-egress',
-      active: true,
-      egressId: recording.egressId,
+    const current = await Broadcast.findById(id).select('serverRecording');
+    const recording = current?.serverRecording || null;
+
+    if (
+      recording?.egressId &&
+      recording?.trackSid === track &&
+      ['starting', 'active', 'recovering'].includes(recording?.status)
+    ) {
+      return {
+        mode: 'server-egress',
+        active: true,
+        egressId: recording.egressId,
+        trackSid: track,
+      };
+    }
+
+    if (recording?.egressId && recording?.trackSid !== track) {
+      await LiveKitProvider.stopEgress(recording.egressId).catch(() => null);
+    }
+
+    const websocketUrl = buildSignedRecordingUrl({
+      broadcastId: id,
       trackSid: track,
-    };
+    });
+
+    await persist(id, {
+      'serverRecording.status': 'starting',
+      'serverRecording.transport': 'livekit-track-egress',
+      'serverRecording.trackSid': track,
+      'serverRecording.egressId': null,
+      'serverRecording.startedAt': recording?.startedAt || new Date(),
+      'serverRecording.endedAt': null,
+      'serverRecording.error': null,
+    });
+
+    try {
+      const egress = await LiveKitProvider.startTrackRecordingEgress(
+        id,
+        track,
+        websocketUrl
+      );
+      const egressId = String(egress?.egressId || '');
+      if (!egressId) throw new Error('LiveKit did not return an egress ID.');
+
+      await persist(id, {
+        'serverRecording.egressId': egressId,
+      });
+
+      return {
+        mode: 'server-egress',
+        active: true,
+        egressId,
+        trackSid: track,
+      };
+    } catch (error) {
+      await persist(id, {
+        'serverRecording.status': 'failed',
+        'serverRecording.error': String(error?.message || error).slice(0, 1000),
+      });
+      throw error;
+    }
+  })();
+
+  startPromises.set(id, task);
+  try {
+    return await task;
+  } finally {
+    if (startPromises.get(id) === task) startPromises.delete(id);
   }
-
-  if (recording?.egressId && recording?.trackSid !== track) {
-    await LiveKitProvider.stopEgress(recording.egressId).catch(() => null);
-  }
-
-  const websocketUrl = buildSignedRecordingUrl({
-    broadcastId: id,
-    trackSid: track,
-  });
-
-  await persist(id, {
-    'serverRecording.status': 'starting',
-    'serverRecording.transport': 'livekit-track-egress',
-    'serverRecording.trackSid': track,
-    'serverRecording.egressId': null,
-    'serverRecording.startedAt': recording?.startedAt || new Date(),
-    'serverRecording.endedAt': null,
-    'serverRecording.error': null,
-  });
-
-  const egress = await LiveKitProvider.startTrackRecordingEgress(
-    id,
-    track,
-    websocketUrl
-  );
-  const egressId = String(egress?.egressId || '');
-  if (!egressId) throw new Error('LiveKit did not return an egress ID.');
-
-  await persist(id, {
-    'serverRecording.egressId': egressId,
-  });
-
-  return {
-    mode: 'server-egress',
-    active: true,
-    egressId,
-    trackSid: track,
-  };
 };
 
 export const stopLiveKitServerRecording = async (broadcastId) => {
@@ -447,16 +474,22 @@ export const stopLiveKitServerRecording = async (broadcastId) => {
     fileBytes = 0;
   }
 
-  const completed = fileBytes > 0;
+  const alreadyCompleted =
+    broadcast?.serverRecording?.status === 'completed' && fileBytes > 0;
+  if (!alreadyCompleted && replay?.path) {
+    await fs.rm(replay.path, { force: true }).catch(() => null);
+    fileBytes = 0;
+  }
+
   await persist(id, {
-    'serverRecording.status': completed ? 'completed' : 'failed',
+    'serverRecording.status': alreadyCompleted ? 'completed' : 'failed',
     'serverRecording.endedAt': new Date(),
     'serverRecording.fileBytes': fileBytes,
-    'serverRecording.error': completed
+    'serverRecording.error': alreadyCompleted
       ? null
-      : 'LiveKit server recording did not deliver audio to Echoo.',
+      : 'The server recorder was interrupted before a complete MP3 was confirmed. Browser recovery is required.',
   });
-  return { status: completed ? 'completed' : 'failed', fileBytes, pcmBytes: 0 };
+  return { status: alreadyCompleted ? 'completed' : 'failed', fileBytes, pcmBytes: 0 };
 };
 
 export default {
