@@ -806,6 +806,17 @@ const CreatorLiveConnectedWorkspace = ({
       setSessionOperation((current) => current
         ? { ...current, stage: 'finalizing-local-master' }
         : current);
+
+      // Stop the OPFS/local recorder now, not after server cleanup. Backend End
+      // Broadcast and local WAV finalization can run in parallel; autosave is
+      // announced only after the backend has settled so it cannot race the
+      // server recorder shutdown.
+      const localRecording = batch3Service.finalizeBroadcastRecording(
+        broadcastId,
+        broadcastSnapshot,
+        { announce: false }
+      );
+
       setEnding(false);
       console.info('[Echoo Perf] end-broadcast realtime stopped', {
         timeToUnpublishMs: Math.round(performance.now() - unpublishStartedAt),
@@ -824,7 +835,13 @@ const CreatorLiveConnectedWorkspace = ({
         setSessionOperation((current) => current
           ? { ...current, stage: 'preparing-server-save' }
           : current);
-        const recordingResult = await batch3Service.finalizeBroadcastRecording(broadcastId, endedResponse?.data || broadcastSnapshot);
+        const recordingResult = await localRecording;
+        if (recordingResult.recordingReady && recordingResult.decision) {
+          batch3Service.announceFinalizedBroadcastRecording(
+            recordingResult.decision,
+            endedResponse?.data || broadcastSnapshot
+          );
+        }
         if (!recordingResult.recordingReady) {
           setSessionOperation((current) => current
             ? { ...current, stage: 'local-safe' }
