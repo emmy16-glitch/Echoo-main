@@ -11,6 +11,11 @@ import {
 import { finalizeBroadcastReplay } from '../services/broadcastReplayService.js';
 import { assertFfmpegAvailable } from '../services/audioTrimService.js';
 import { isTranscriptionConfigured } from '../services/transcriptionGateway.js';
+import { waitForCreatorProgramAudio } from '../services/broadcastAudioReadiness.js';
+import {
+  ensureLiveKitServerRecording,
+  isLiveKitServerRecordingEnabled,
+} from '../services/livekitServerRecording.js';
 
 const CHUNK_DIR = path.join(process.cwd(), 'uploads', 'transcript-chunks');
 const MAX_CHUNK_DURATION_MS = 60_000;
@@ -66,7 +71,7 @@ export async function startBroadcastAudioChunks(req, res, next) {
       _id: req.params.broadcastId,
       creator: req.userId,
       isDeleted: false,
-    }).select('_id status qualityChunkingStartedAt qualityChunkingCompletedAt');
+    }).select('_id status programTrackSid serverRecording qualityChunkingStartedAt qualityChunkingCompletedAt');
     if (!broadcast) return res.status(404).json({ error: { code: 'BROADCAST_NOT_FOUND', message: 'Broadcast not found.' } });
     if (!['starting', 'live'].includes(broadcast.status)) {
       return res.status(409).json({ error: { code: 'INVALID_BROADCAST_STATE', message: 'Quality chunking can only start for a running broadcast.' } });
@@ -77,6 +82,56 @@ export async function startBroadcastAudioChunks(req, res, next) {
     // FFmpeg/FFprobe, instead of allowing a show to end with a mysterious
     // missing replay. LiveKit itself remains independent.
     await assertFfmpegAvailable();
+
+    // Preferred path: LiveKit sends the already-published program track to the
+    // Echoo backend over a signed WebSocket. The browser keeps OPFS only as a
+    // safety master and does not upload raw PCM during or after a healthy show.
+    if (isLiveKitServerRecordingEnabled()) {
+      try {
+        let trackSid = String(broadcast.programTrackSid || '');
+        if (!trackSid) {
+          const publisher = await waitForCreatorProgramAudio(
+            broadcast._id,
+            req.userId,
+            { maxAttempts: 4, initialDelayMs: 150, delayStepMs: 150 }
+          );
+          trackSid = String(publisher?.trackSid || '');
+        }
+        if (trackSid) {
+          const serverRecording = await ensureLiveKitServerRecording({
+            broadcastId: String(broadcast._id),
+            trackSid,
+          });
+          if (serverRecording?.mode === 'server-egress') {
+            return res.status(200).json({
+              data: {
+                broadcastId: String(broadcast._id),
+                started: true,
+                mode: 'server-egress',
+                serverRecording: true,
+                transcription: isTranscriptionConfigured() ? 'separate' : 'disabled',
+              },
+              timestamp: new Date().toISOString(),
+            });
+          }
+        }
+      } catch (error) {
+        console.warn(
+          '[Echoo Server Recording] falling back to browser recovery transport:',
+          error?.message || error
+        );
+        await Broadcast.updateOne(
+          { _id: broadcast._id },
+          {
+            $set: {
+              'serverRecording.status': 'failed',
+              'serverRecording.transport': 'browser-fallback',
+              'serverRecording.error': String(error?.message || error).slice(0, 1000),
+            },
+          }
+        ).catch(() => null);
+      }
+    }
 
     if (!broadcast.qualityChunkingStartedAt || broadcast.qualityChunkingCompletedAt) {
       const existingCount = await BroadcastAudioChunk.countDocuments({ broadcastId: broadcast._id });
@@ -99,7 +154,16 @@ export async function startBroadcastAudioChunks(req, res, next) {
       radioOutput: { status: 'failed', error: String(error?.message || error) },
       masterRecording: { status: 'failed', error: String(error?.message || error) },
     }));
-    return res.status(200).json({ data: { broadcastId: String(broadcast._id), started: true, outputs }, timestamp: new Date().toISOString() });
+    return res.status(200).json({
+      data: {
+        broadcastId: String(broadcast._id),
+        started: true,
+        mode: 'browser-fallback',
+        serverRecording: false,
+        outputs,
+      },
+      timestamp: new Date().toISOString(),
+    });
   } catch (error) {
     next(error);
   }
@@ -113,30 +177,35 @@ export async function completeBroadcastAudioChunks(req, res, next) {
       _id: req.params.broadcastId,
       creator: req.userId,
       isDeleted: false,
-    }).select('_id status qualityChunkingStartedAt qualityChunkingCompletedAt');
+    }).select('_id status serverRecording qualityChunkingStartedAt qualityChunkingCompletedAt');
     if (!broadcast) return res.status(404).json({ error: { code: 'BROADCAST_NOT_FOUND', message: 'Broadcast not found.' } });
 
     // A client may lose every response to the idempotent start request. If it
     // later closes the quality path with an explicit error count, persist that
     // terminal failure instead of rejecting the close and leaving the worker
     // unable to distinguish “quality never worked” from “still uploading”.
-    if (!broadcast.qualityChunkingStartedAt && qualityChunkUploadErrors <= 0) {
+    const serverPrimary =
+      broadcast.serverRecording?.transport === 'livekit-track-egress';
+
+    if (!broadcast.qualityChunkingStartedAt && !serverPrimary && qualityChunkUploadErrors <= 0) {
       return res.status(409).json({ error: { code: 'QUALITY_CHUNKING_NOT_STARTED', message: 'Quality chunking was not started for this broadcast.' } });
     }
 
     const chunkCount = await BroadcastAudioChunk.countDocuments({ broadcastId: broadcast._id });
-    const now = new Date();
-    await Broadcast.updateOne(
-      { _id: broadcast._id },
-      {
-        $set: {
-          qualityChunkingStartedAt: broadcast.qualityChunkingStartedAt || now,
-          qualityChunkingCompletedAt: broadcast.qualityChunkingCompletedAt || now,
-          qualityChunkCount: Math.max(chunkCount, qualityChunkCount),
-          qualityChunkUploadErrors,
-        },
-      }
-    );
+    if (broadcast.qualityChunkingStartedAt || !serverPrimary) {
+      const now = new Date();
+      await Broadcast.updateOne(
+        { _id: broadcast._id },
+        {
+          $set: {
+            qualityChunkingStartedAt: broadcast.qualityChunkingStartedAt || now,
+            qualityChunkingCompletedAt: broadcast.qualityChunkingCompletedAt || now,
+            qualityChunkCount: Math.max(chunkCount, qualityChunkCount),
+            qualityChunkUploadErrors,
+          },
+        }
+      );
+    }
     await stopBroadcastOutputs(String(broadcast._id), {
       incomplete: qualityChunkUploadErrors > 0,
     }).catch((error) => {
