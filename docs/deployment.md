@@ -73,6 +73,10 @@ LIVEKIT_URL=wss://<livekit host>
 LIVEKIT_PUBLIC_URL=wss://<livekit host>
 LIVEKIT_API_KEY=<server-only key>
 LIVEKIT_API_SECRET=<server-only secret>
+LIVEKIT_SERVER_RECORDING_ENABLED=true
+LIVEKIT_CREATOR_DISCONNECT_GRACE_MS=90000
+
+TRANSCRIPTION_ENABLED=false
 
 FFMPEG_PATH=ffmpeg
 FFPROBE_PATH=ffprobe
@@ -276,14 +280,16 @@ Before announcing a production deployment as complete:
 2. creator starts a broadcast;
 3. separate browser/phone listener opens the shared link;
 4. listener hears the real LiveKit program;
-5. allow multiple recording chunks to upload;
-6. end the show;
-7. confirm no HTTP 413 giant final WAV upload;
-8. confirm one server MP3 appears in Recordings;
-9. refresh and play beginning/middle/end;
-10. restart/redeploy backend and confirm the recording survives;
-11. create a trimmed copy and verify both trimmed copy and original play;
-12. verify MP3/WAV/server-only device-copy preference.
+5. keep the show running and verify there is **no continuous browser recording-chunk upload** while LiveKit is healthy;
+6. test creator Pause/Resume and confirm pause does not trigger a false transport recovery;
+7. test a short creator network interruption and confirm the broadcast remains live while the publisher recovers within the configured grace window;
+8. test a listener network interruption and confirm actual RTP/audio recovers without duplicate audio elements;
+9. end the show and confirm no HTTP 413 or giant final WAV upload;
+10. confirm one server MP3 appears in Recordings;
+11. refresh and play beginning/middle/end;
+12. restart/redeploy backend and confirm the recording survives;
+13. create a trimmed copy and verify both trimmed copy and original play;
+14. verify MP3/WAV/server-only device-copy preference.
 
 See [../HOSTING.md](../HOSTING.md) for the complete acceptance contract.
 
