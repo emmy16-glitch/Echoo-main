@@ -235,7 +235,15 @@ const attachRoomEvents = (room, candidate) => {
     if (canonicalPublicationExists(room) && mediaTrackIsLive({ kind: 'audio', mediaStreamTrack: candidate.mediaTrack })) {
       candidate.recoveryAttempt = 0;
       candidate.lastProgressAt = Date.now();
-      publishHealth({ phase: 'live', room: 'connected', publication: 'published', livekit: 'connected', audio: 'published', recoveryAttempt: 0, lastError: '' });
+      publishHealth({
+        phase: candidate.paused ? 'paused' : 'live',
+        room: 'connected',
+        publication: 'published',
+        livekit: 'connected',
+        audio: candidate.paused ? 'paused' : 'published',
+        recoveryAttempt: 0,
+        lastError: '',
+      });
       return;
     }
     publishHealth({ phase: 'recovering', room: 'connected', publication: 'missing', livekit: 'connected', audio: 'recovering' });
@@ -314,6 +322,9 @@ const connectAndPublish = async (candidate, { url, token, recovery = false }) =>
       throw new Error('Broadcast publishing was superseded.');
     }
 
+    // Preserve intentional Pause across a transport recovery.
+    if (candidate.paused) await publication.mute();
+
     activePublication = publication;
     activeQualityProfile = candidate.qualityProfile;
     previousSenderStats = null;
@@ -321,9 +332,16 @@ const connectAndPublish = async (candidate, { url, token, recovery = false }) =>
     candidate.lastProgressAt = Date.now();
     candidate.lastTransportSample = null;
     publishHealth({
-      phase: 'live', mixer: 'available', room: 'connected', publication: 'published',
-      livekit: 'connected', audio: 'published', trackSid: publication?.trackSid || null,
-      trackName: candidate.trackName, recoveryAttempt: 0, lastError: '',
+      phase: candidate.paused ? 'paused' : 'live',
+      mixer: 'available',
+      room: 'connected',
+      publication: 'published',
+      livekit: 'connected',
+      audio: candidate.paused ? 'paused' : 'published',
+      trackSid: publication?.trackSid || null,
+      trackName: candidate.trackName,
+      recoveryAttempt: 0,
+      lastError: '',
     });
     console.info('[Echoo LiveKit] track published', {
       broadcastId: candidate.broadcastId,
@@ -424,7 +442,13 @@ async function schedulePublisherRecovery(candidate, reason, immediate = false) {
 const startWatchdog = (candidate) => {
   window.clearInterval(candidate.watchdogTimer);
   candidate.watchdogTimer = window.setInterval(async () => {
-    if (!isCurrent(candidate) || candidate.recoveryPromise || !roomIsConnected(activeRoom) || !activePublication) return;
+    if (
+      !isCurrent(candidate) ||
+      candidate.recoveryPromise ||
+      candidate.paused ||
+      !roomIsConnected(activeRoom) ||
+      !activePublication
+    ) return;
     if (!mediaTrackIsLive({ kind: 'audio', mediaStreamTrack: candidate.mediaTrack })) {
       publishHealth({ phase: 'failed', mixer: 'ended', publication: 'failed', audio: 'failed', lastError: 'Mixer track ended.' });
       return;
@@ -501,8 +525,12 @@ export const setLiveKitPublishingPaused = async (paused) => {
   if (!activeRoom || !activePublication || !canonicalPublicationExists(activeRoom)) {
     throw new Error('The Echoo studio mix is not currently published.');
   }
+  if (session) session.paused = Boolean(paused);
   if (paused) await activePublication.mute();
-  else await activePublication.unmute();
+  else {
+    await activePublication.unmute();
+    if (session) session.lastProgressAt = Date.now();
+  }
   publishHealth({ phase: paused ? 'paused' : 'live', audio: paused ? 'paused' : 'published' });
   return getLiveKitPublishingState();
 };
@@ -554,6 +582,7 @@ export const startLiveKitPublishing = async ({
     watchdogTimer: null,
     lastProgressAt: Date.now(),
     lastTransportSample: null,
+    paused: false,
     stopping: false,
   };
   session = candidate;

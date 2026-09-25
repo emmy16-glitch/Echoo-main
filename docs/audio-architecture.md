@@ -43,11 +43,20 @@ connection can sustain; listener volume/mute are native element controls only.
 
 Both sides use explicit recovery state machines. A creator transport watchdog
 checks outbound byte/packet progress and, after a sustained stall, replaces the
-LiveKit room and republishes the same mixer track with a fresh token. This does
-not create a new broadcast or recorder. A listener validates the canonical
-publication, current track, DOM attachment, and actual media-element playback;
-stale attachments are detached and rebuilt. Recovery retries are bounded at
-0/1/2/4/8 seconds plus jitter and can be cancelled by broadcast end/unmount.
+LiveKit room and republishes the same mixer track with a fresh token. Intentional
+Pause is excluded from that watchdog and remains paused across reconnect. A
+republished LiveKit track may get a new track SID; the server recorder performs
+an intentional Egress handoff while keeping the same FFmpeg session open, and
+fails closed to the browser recovery master if that replacement stream does not
+arrive.
+
+A listener validates the canonical publication, current track, DOM attachment,
+and actual media-element playback. A late listener explicitly subscribes to an
+already-published program track. Stale/ended attachments are detached and rebuilt;
+non-autoplay playback failures trigger recovery, while a real browser autoplay
+policy block remains an explicit Tap to hear action rather than a reconnect loop.
+LiveKit owns short ICE/signalling recovery first; Echoo performs a fresh room join
+only when the transport/attachment remains unhealthy.
 
 ## Local recording durability and replay save
 
@@ -70,9 +79,10 @@ the creator explicitly discards it.
 
 The creator publishes the protected master bus to LiveKit once. On a
 recording-capable long-lived backend, LiveKit Track Egress sends that published
-program track as raw PCM to Echoo's signed recording WebSocket. Backend FFmpeg
-encodes the canonical MP3 while listeners continue receiving the normal LiveKit
-Opus stream.
+program track as raw PCM (`pcm_s16le`, normally 48 kHz for Echoo's program track)
+to Echoo's signed recording WebSocket. Backend FFmpeg encodes the canonical MP3
+while listeners continue receiving the normal LiveKit Opus stream. Text/event
+WebSocket frames are ignored by the PCM encoder path.
 
 The browser keeps a lossless OPFS master only for recovery. It uploads bounded
 PCM/WAV chunks after the show only if the primary server recorder failed.
