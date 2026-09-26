@@ -25,6 +25,7 @@ import {
   updateTransferEstimate,
 } from '../../services/progressTiming.js';
 import CreatorAudioDetailModal from './CreatorAudioDetailModal.jsx';
+import { requestEchooConfirmation } from '../Shared/ConfirmDialogHost.jsx';
 import './CreatorCollectionsWorkspace.css';
 
 const getId = (track) => track?.id || track?._id || null;
@@ -389,7 +390,13 @@ export default function CreatorCollectionsWorkspace({
   const remove = async (track) => {
     const id = getId(track);
     if (!id || busyId) return;
-    if (!window.confirm(`Delete “${track.title || 'this recording'}”?`)) return;
+    const confirmed = await requestEchooConfirmation({
+      title: 'Delete recording?',
+      description: `“${track.title || 'This recording'}” will be removed from your Echoo library. This action cannot be undone.`,
+      confirmLabel: 'Delete recording',
+      tone: 'danger',
+    });
+    if (!confirmed) return;
     try {
       setBusyId(String(id));
       setError('');
