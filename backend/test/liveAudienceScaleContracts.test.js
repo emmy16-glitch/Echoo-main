@@ -70,6 +70,18 @@ test('browser raw PCM fallback is forbidden while the show is live', async () =>
   assert.match(frontend, /recovery is deferred until off air/);
 });
 
+test('post-live recovery resumes only missing WAV chunks after a network failure', async () => {
+  const frontend = await read('../../frontend/src/services/broadcastRecordingService.js');
+  const backend = await read('../src/controllers/broadcastChunkController.js');
+
+  assert.match(backend, /existingChunkIndices/);
+  assert.match(backend, /select\('chunkIndex'\)/);
+  assert.match(frontend, /new Set\(/);
+  assert.match(frontend, /existingChunkIndices/);
+  assert.match(frontend, /alreadyUploaded/);
+  assert.match(frontend, /if \(!alreadyUploaded\)/);
+});
+
 test('PC browser defers its file picker until the server recording is ready', async () => {
   const workspace = await read('../../frontend/src/Components/CreatorStudio/CreatorLiveConnectedWorkspace.jsx');
   const autosave = await read('../../frontend/src/services/recordingAutosave.js');
@@ -104,4 +116,14 @@ test('server recorder fails closed across backend restarts instead of accepting 
     recorder,
     /expectedTracks\.set\(id, track\);\s*\n\s*const current = await Broadcast\.findById/
   );
+});
+
+test('replay finalizer refuses partial server MP3 files after recorder interruption', async () => {
+  const replay = await read('../src/services/broadcastReplayService.js');
+
+  assert.match(replay, /serverRecording\.status/);
+  assert.match(replay, /serverRecording\.fileBytes/);
+  assert.match(replay, /isTrustedCompletedServerReplay/);
+  assert.match(replay, /server-recording-not-complete/);
+  assert.match(replay, /duration \+ tolerance < expectedDuration/);
 });
