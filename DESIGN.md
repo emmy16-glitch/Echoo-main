@@ -96,6 +96,15 @@ Controls and cards use the existing restrained rounded system. Pills are appropr
 
 Primary actions use Echoo blue with white text. Secondary controls stay quiet until hover/focus. Live and recovery surfaces must expose meaningful textual status in addition to color.
 
+## Authentication
+
+Authentication is Echoo's atmospheric exception to the light application canvas. Login, signup and password recovery reuse the original Figma studio photograph in `frontend/src/Components/Assets/echoo-auth-cinematic-headphones.jpeg` with a deep navy readability wash and restrained glass surface.
+
+- The photograph supplies the warm orange/red studio light; interactive UI remains Echoo blue.
+- Authentication must never become a wall in front of public Listener discovery or public live playback.
+- Account prompts belong to account-dependent actions such as following, saving, history, notifications and creator tools.
+- Keep authentication copy quiet and functional: visible labels, minimal placeholders, inline recovery, and a clear route back to public listening.
+
 ## Do's and Don'ts
 
 ### Do:
