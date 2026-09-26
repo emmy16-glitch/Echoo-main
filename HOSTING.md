@@ -173,7 +173,7 @@ Creator device:
 - first completed recording asks once for MP3, WAV, or server-only, and the preference is remembered per device;
 - Echoo Desktop writes automatic copies into
   `Desktop/Echoo Recordings/<year>/<month>/`;
-- normal web/mobile browsers require one explicit **Save MP3 / Save WAV** tap because browsers cannot reliably prove an async background download succeeded; that tap uses the file picker/share sheet when available, with normal browser download fallback;
+- normal web/mobile browsers require an explicit **Save MP3 / Save WAV** tap because browsers cannot reliably prove an async background download succeeded; WAV can open the phone share/save sheet immediately, while a long MP3 may first encode locally and then show **MP3 ready · Tap to save** so the second tap owns the native share gesture; plain browser-download fallback is treated as unverified and never deletes the OPFS master;
 - if the server is offline or still finalizing, the UI must continue offering local **Save MP3** and **Save WAV** actions plus a separate **Retry Echoo server save** action;
 - files receive human-readable Echoo names so manual renaming is unnecessary.
 
