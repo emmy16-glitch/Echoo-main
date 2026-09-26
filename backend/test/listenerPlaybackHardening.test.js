@@ -59,6 +59,13 @@ test('listener late-join subscription and non-autoplay failures remain recoverab
   assert.match(player, /scheduleHardReconnect\('new_element_play_failed'\)/);
   assert.match(player, /scheduleHardReconnect\('program_element_ended'\)/);
   assert.match(player, /const blocked = playError\?\.name === 'NotAllowedError'/);
+  assert.match(
+    player,
+    /if \(needsAudioStart \|\| !elements\.length\) return startAudio\(\)/,
+    'a guest Play tap before track attachment must unlock LiveKit audio instead of becoming a no-op'
+  );
+  assert.match(player, /await room\.startAudio\(\)/);
+  assert.match(player, /setStatus\(elements\.length \? 'listening' : 'recovering_audio'\)/);
 });
 
 test('creator publisher does not treat an intentional pause as a transport stall', async () => {
