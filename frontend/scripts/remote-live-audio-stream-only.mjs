@@ -281,7 +281,6 @@ try {
   browser = await chromium.launch({
     headless: true,
     args: [
-      '--autoplay-policy=no-user-gesture-required',
       '--use-fake-ui-for-media-stream',
       '--disable-background-timer-throttling',
       '--disable-renderer-backgrounding',
@@ -313,6 +312,7 @@ try {
   broadcastId = liveBroadcast?.id || liveBroadcast?._id || '';
   assert.ok(broadcastId, 'The creator is live in the UI but no live API broadcast exists.');
   evidence.broadcastId = broadcastId;
+  evidence.broadcastTitle = liveBroadcast?.title || channelName;
   evidence.listenUrl = `${origin}/listen/live/${broadcastId}`;
 
   listenerContext = await browser.newContext({
@@ -323,7 +323,17 @@ try {
   const listenerPage = await listenerContext.newPage();
   observePage(listenerPage, 'listener');
   const listenStarted = Date.now();
-  await listenerPage.goto(evidence.listenUrl, { waitUntil: 'domcontentloaded' });
+  // Start from the PUBLIC guest Live catalog. This catches the station-id vs
+  // broadcast-id regression that direct deep-link QA would miss.
+  await listenerPage.goto(`${origin}/listen/live`, { waitUntil: 'domcontentloaded' });
+  const guestCard = listenerPage.getByText(evidence.broadcastTitle, { exact: true }).first();
+  await guestCard.waitFor({ timeout: 30_000 });
+  await guestCard.click();
+  await listenerPage.waitForURL(
+    (url) => url.pathname === `/listen/live/${broadcastId}`,
+    { timeout: 15_000 }
+  );
+  evidence.guestCatalogResolvedBroadcastId = listenerPage.url().endsWith(`/${broadcastId}`);
 
   const tapToHear = listenerPage.getByRole('button', { name: /Tap to hear/i }).first();
   if (await tapToHear.isVisible({ timeout: 2_500 }).catch(() => false)) await tapToHear.click();
