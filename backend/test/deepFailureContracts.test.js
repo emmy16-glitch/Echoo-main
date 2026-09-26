@@ -145,8 +145,8 @@ test('recording completion retries and automatic save preserves recovery state',
   assert.match(autosave, /rememberPendingMaster/);
   assert.match(autosave, /pending\.serverReady === true/);
   assert.match(autosave, /automaticLocalCopies\.add\(String\(key\)\)/);
-  assert.match(banner, /Save MP3 to device/);
-  assert.match(banner, /Save WAV to device/);
+  assert.match(banner, /formats\.map\(\(format\) =>/);
+  assert.match(banner, /Save \$\{format\.toUpperCase\(\)\} to device/);
   assert.match(banner, /Retry Echoo server save/);
   assert.match(recording, /OPFS_MANIFESTS_KEY/);
   assert.match(recording, /readRecoveryManifests/);
@@ -218,7 +218,7 @@ test('recording management keeps trim copies safe and prevents cramped or mislab
   assert.match(exportService, /encodeLocalWavToMp3/);
   assert.match(exportService, /browser-user-gesture-required/);
   assert.match(exportService, /server-mp3-fallback/);
-  assert.match(exportService, /sourceMime\.includes\('webm'\)/);
+  assert.match(exportService, /localMime\.includes\('webm'\)/);
   assert.match(exportService, /suggestedName:\s*filename/);
   assert.doesNotMatch(exportService, /suggestedName:\s*suggestedInLibrary/);
   assert.match(studioService, /const originalStem = original/);
