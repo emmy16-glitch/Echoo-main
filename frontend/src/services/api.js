@@ -176,9 +176,9 @@ const createError = (
   // server has no LiveKit audio backend configured).
   const friendlyServerMessages = {
     LIVEKIT_CONFIG_MISSING:
-      'Live audio is not set up on this Echoo server yet. The server admin needs to configure the LiveKit audio server before anyone can go live.',
+      'Live audio is not configured for this Echoo environment yet. Please contact the administrator before going live.',
     LIVEKIT_CONFIG_INVALID:
-      'Live audio is misconfigured on this Echoo server. The server admin needs to fix the LiveKit audio server settings.',
+      'Live audio is temporarily unavailable because its configuration needs attention. Please contact the administrator.',
     LIVEKIT_ROOM_UNAVAILABLE:
       'Echoo could not open the live audio room. Please try again in a moment.',
   };
@@ -281,7 +281,7 @@ const makeRequest = async (
   }
 
   const timeoutId = controller
-    ? window.setTimeout(() => controller.abort('request-timeout'), timeoutMs)
+    ? globalThis.setTimeout(() => controller.abort('request-timeout'), timeoutMs)
     : null;
 
   try {
@@ -308,7 +308,7 @@ const makeRequest = async (
     }
     throw error;
   } finally {
-    if (timeoutId) window.clearTimeout(timeoutId);
+    if (timeoutId) globalThis.clearTimeout(timeoutId);
     externalSignal?.removeEventListener?.('abort', onExternalAbort);
   }
 };
