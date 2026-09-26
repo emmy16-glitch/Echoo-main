@@ -127,6 +127,13 @@ export const prepareEndBroadcastDeviceSave = ({ broadcast } = {}) => {
   const preferences = getRecordingDevicePreferences();
   if (!preferences.decided || !preferences.autoSave) return null;
 
+  // Browser users should see one clear flow: Echoo finishes the server MP3
+  // first, then the post-save banner asks whether to download MP3 or WAV.
+  // Only the packaged desktop app keeps true background auto-save behavior.
+  if (typeof window !== 'undefined' && window.echooDesktop?.isDesktop !== true) {
+    return null;
+  }
+
   const { channelName, startedAt } = localContext({
     recording: null,
     broadcast,
@@ -224,6 +231,8 @@ const startAutosaveLive = async ({
   const title = broadcast?.title || 'Live broadcast recording';
   const { channelName, startedAt } = localContext({ recording, broadcast });
   const preferences = getRecordingDevicePreferences();
+  const deferBrowserDeviceChoice =
+    typeof window !== 'undefined' && window.echooDesktop?.isDesktop !== true;
 
   const task = (async () => {
     let localCopy = initialLocalCopy;
@@ -236,6 +245,7 @@ const startAutosaveLive = async ({
       // This happens only after the publisher/local recorder has stopped, so
       // local MP3 encoding can never compete with realtime WebRTC.
       if (
+        !deferBrowserDeviceChoice &&
         !skipDeviceSave &&
         preferences.decided &&
         preferences.autoSave &&
@@ -411,6 +421,49 @@ const startAutosaveLive = async ({
 
       if (replay.status === 'ready' && replay.audioId) {
         const audioId = String(replay.audioId);
+
+        if (deferBrowserDeviceChoice && recording.blob?.size) {
+          rememberLocalMaster(`device-choice:${key}`, {
+            blob: recording.blob,
+            title,
+            mimeType: recording.mimeType || recording.blob?.type,
+            broadcast,
+            recording,
+            audioId,
+            channelName,
+            startedAt,
+            serverReady: true,
+          });
+          rememberPendingMaster({
+            key,
+            recording,
+            broadcast,
+            title,
+            audioId,
+            serverReady: true,
+            localCopy,
+          });
+          window.dispatchEvent(new CustomEvent('echoo:creator-audio-changed'));
+          window.dispatchEvent(new CustomEvent('echoo:creator-state-changed'));
+          emit({
+            status: 'device-choice',
+            key,
+            title,
+            audioId,
+            channelName,
+            startedAt,
+            serverFormat: 'mp3',
+            recoveryFormats: availableLocalFormats(recording),
+            message: 'Echoo finished the server MP3. Choose MP3 or WAV if you also want a copy on this device.',
+          });
+          notifySaved(`“${title}” saved safely to Echoo as MP3.`);
+          return {
+            audioId,
+            title,
+            duplicate: Boolean(replay.duplicate),
+            needsDeviceChoice: true,
+          };
+        }
 
         // First-time device policy is still asked once, but the choice itself
         // uses the local master and therefore does not depend on this audioId.

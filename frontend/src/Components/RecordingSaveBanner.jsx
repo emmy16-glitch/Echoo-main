@@ -35,6 +35,31 @@ const normalizedFormats = (formats = []) =>
 
 export function RecordingAutosaveMount() {
   useEffect(() => installRecordingAutosave(), []);
+
+  useEffect(() => {
+    let savingInBackground = false;
+    const onUpload = (event) => {
+      const status = event?.detail?.status || '';
+      if (['started', 'device-saving', 'device-progress', 'progress', 'finalizing'].includes(status)) {
+        savingInBackground = true;
+      }
+      if (['done', 'error', 'device-choice', 'recovered'].includes(status)) {
+        savingInBackground = false;
+      }
+    };
+    const protect = (event) => {
+      if (!savingInBackground) return;
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener(RECORDING_UPLOAD_EVENT, onUpload);
+    window.addEventListener('beforeunload', protect);
+    return () => {
+      window.removeEventListener(RECORDING_UPLOAD_EVENT, onUpload);
+      window.removeEventListener('beforeunload', protect);
+    };
+  }, []);
+
   return null;
 }
 
@@ -49,83 +74,21 @@ const RecordingSaveBanner = () => {
     setState(null);
   }, []);
 
-  const flashDone = useCallback((detail) => {
-    setState({
-      kind: 'done',
-      key: detail.key,
-      title: detail.title,
-      audioId: detail.audioId,
-      localCopy: detail.localCopy || null,
-    });
-    window.clearTimeout(hideTimerRef.current);
-    hideTimerRef.current = window.setTimeout(hide, 12000);
-  }, [hide]);
-
   useEffect(() => {
     const onUpload = (event) => {
       const detail = event?.detail || {};
       switch (detail.status) {
         case 'started':
           window.clearTimeout(hideTimerRef.current);
-          setElapsed(0);
-          setState({
-            kind: 'uploading',
-            key: detail.key,
-            title: detail.title,
-            percent: 0,
-            loaded: 0,
-            total: detail.total || 0,
-            startedAt: Date.now(),
-          });
+          setState(null);
           break;
         case 'device-saving':
-          window.clearTimeout(hideTimerRef.current);
-          setElapsed(0);
-          setState({
-            kind: 'device-saving',
-            key: detail.key,
-            title: detail.title,
-            format: detail.format || 'mp3',
-            percent: 0,
-            startedAt: Date.now(),
-          });
-          break;
         case 'device-progress':
-          setState((current) => current?.key === detail.key
-            ? {
-                ...current,
-                kind: 'device-saving',
-                format: detail.format || current.format || 'mp3',
-                percent: Math.max(0, Math.min(100, Number(detail.percent) || 0)),
-              }
-            : current);
+          setState(null);
           break;
         case 'finalizing':
-          window.clearTimeout(hideTimerRef.current);
-          setElapsed(0);
-          setState({
-            kind: 'finalizing',
-            key: detail.key,
-            title: detail.title,
-            startedAt: Date.now(),
-            localCopy: detail.localCopy || null,
-            localSaved: Boolean(detail.localSaved || detail.localCopy?.saved),
-            hasRecovery: Boolean(detail.hasRecovery),
-            recoveryFormats: normalizedFormats(detail.recoveryFormats),
-            preferredFormat: detail.preferredFormat || 'mp3',
-            serverReady: Boolean(detail.serverReady),
-          });
-          break;
         case 'progress':
-          setState((current) => current?.key === detail.key
-            ? {
-                ...current,
-                kind: 'uploading',
-                percent: detail.percent || 0,
-                loaded: detail.loaded || 0,
-                total: detail.total || current.total,
-              }
-            : current);
+          setState(null);
           break;
         case 'device-choice':
           window.clearTimeout(hideTimerRef.current);
@@ -141,7 +104,8 @@ const RecordingSaveBanner = () => {
           });
           break;
         case 'done':
-          flashDone(detail);
+          window.clearTimeout(hideTimerRef.current);
+          setState(null);
           break;
         case 'error':
           window.clearTimeout(hideTimerRef.current);
@@ -180,7 +144,7 @@ const RecordingSaveBanner = () => {
       window.removeEventListener(RECORDING_UPLOAD_EVENT, onUpload);
       window.clearTimeout(hideTimerRef.current);
     };
-  }, [flashDone]);
+  }, []);
 
   useEffect(() => {
     if (
@@ -457,16 +421,9 @@ const RecordingSaveBanner = () => {
         <>
           <FaCheckCircle aria-hidden="true" />
           <div className="echoo-save-banner-body">
-            <strong>Saved safely to Echoo as MP3</strong>
+            <strong>Echoo server recording is ready</strong>
             <span>
-              {state.message || (
-                <>
-                  Choose once how this device should keep future broadcast
-                  copies. MP3 is encoded locally; WAV keeps the lossless master.
-                  Browsers may require one final Save tap. You can change this
-                  later in Settings → Recordings.
-                </>
-              )}
+              {state.message || 'Choose the file you want to save to this device. MP3 is recommended; WAV keeps the lossless local master.'}
             </span>
             {state.choiceError && (
               <span className="echoo-save-banner-choice-error">
@@ -487,21 +444,14 @@ const RecordingSaveBanner = () => {
                 ? 'Saving…'
                 : state.preparedFormat === 'mp3'
                   ? 'MP3 ready · Tap to save'
-                  : 'MP3 · Recommended'}
+                  : 'Save MP3 to device'}
             </button>
             <button
               type="button"
               onClick={() => chooseDeviceCopy('wav')}
               disabled={Boolean(state.choosing)}
             >
-              {state.choosing === 'wav' ? 'Saving…' : 'WAV · Lossless'}
-            </button>
-            <button
-              type="button"
-              onClick={() => chooseDeviceCopy('none')}
-              disabled={Boolean(state.choosing)}
-            >
-              Echoo only
+              {state.choosing === 'wav' ? 'Saving…' : 'Save WAV to device'}
             </button>
           </div>
         </>
