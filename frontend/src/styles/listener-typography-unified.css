@@ -3,8 +3,7 @@
    wins over legacy system-ui / Arial stacks. */
 #root .echoo-listener-shell,
 #root .echoo-listener-shell * {
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-    "Segoe UI", sans-serif;
+  font-family: var(--echoo-font-body, "Source Sans 3", "Segoe UI", ui-sans-serif, system-ui, sans-serif);
 }
 #root .echoo-listener-shell h1,
 #root .echoo-listener-shell h2,
@@ -12,8 +11,7 @@
 #root .echoo-listener-shell h4,
 #root .echoo-listener-shell h5,
 #root .echoo-listener-shell h6 {
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-    "Segoe UI", sans-serif;
+  font-family: var(--echoo-font-body, "Source Sans 3", "Segoe UI", ui-sans-serif, system-ui, sans-serif);
 }
 #root .echoo-listener-shell .lb-page h1 {
   letter-spacing: -0.02em;
