@@ -56,6 +56,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
   const audioHostRef = useRef(null);
   const outputRef = useRef('');
   const attachedRef = useRef(new Map());
+  const attachingRef = useRef(new Set());
   const programParticipantRef = useRef(null);
   const reconnectAttemptRef = useRef(0);
   const reconnectTimerRef = useRef(null);
@@ -268,6 +269,9 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       if (participant) programParticipantRef.current = participant;
 
       const id = String(track.sid || track.mediaStreamTrack?.id || 'audio');
+      if (attachingRef.current.has(id)) return;
+      attachingRef.current.add(id);
+      try {
       const existing = attachedRef.current.get(id);
       if (currentAttachmentIsHealthy(existing) && existing.track === track) {
         if (playbackIntentRef.current === 'pause') {
@@ -392,6 +396,9 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
             scheduleHardReconnect('new_element_play_failed');
           }
         }
+      }
+      } finally {
+        attachingRef.current.delete(id);
       }
     };
 
