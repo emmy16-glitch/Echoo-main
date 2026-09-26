@@ -19,6 +19,7 @@ import {
 
 import batch2Service from '../../services/batch2Service';
 import { useCreatorStudioState } from './CreatorStudioState';
+import { requestEchooConfirmation } from '../Shared/ConfirmDialogHost.jsx';
 import './CreatorScheduleEventsWorkspace.css';
 
 const PAGE_SIZE = 5;
@@ -301,7 +302,13 @@ export default function CreatorScheduleEventsWorkspace({ onNavigate }) {
 
   const cancelEvent = async (broadcast) => {
     setOpenMenu('');
-    if (!window.confirm(`Cancel “${broadcast.title || 'this broadcast'}”?`)) return;
+    const confirmed = await requestEchooConfirmation({
+      title: 'Cancel scheduled broadcast?',
+      description: `“${broadcast.title || 'This broadcast'}” will no longer be scheduled to go live.`,
+      confirmLabel: 'Cancel broadcast',
+      tone: 'danger',
+    });
+    if (!confirmed) return;
     try {
       setError('');
       const response = await batch2Service.cancelBroadcast(broadcast.id);
@@ -318,7 +325,13 @@ export default function CreatorScheduleEventsWorkspace({ onNavigate }) {
 
   const deleteEvent = async (broadcast) => {
     setOpenMenu('');
-    if (!window.confirm(`Delete “${broadcast.title || 'this broadcast'}”?`)) return;
+    const confirmed = await requestEchooConfirmation({
+      title: 'Delete broadcast?',
+      description: `“${broadcast.title || 'This broadcast'}” will be removed permanently. This action cannot be undone.`,
+      confirmLabel: 'Delete broadcast',
+      tone: 'danger',
+    });
+    if (!confirmed) return;
     try {
       setError('');
       await batch2Service.deleteBroadcast(broadcast.id);
