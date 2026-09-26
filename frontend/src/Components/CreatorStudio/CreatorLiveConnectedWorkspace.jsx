@@ -347,7 +347,7 @@ const CreatorLiveConnectedWorkspace = ({
           }),
         });
         if (!currentLiveBroadcast?.id) {
-          setMessage('Recording is safe. Uploading the server copy…');
+          setMessage('Recording is safe. Finishing your Echoo recording…');
         }
         return;
       }
@@ -396,7 +396,7 @@ const CreatorLiveConnectedWorkspace = ({
           total: 0,
         });
         if (!currentLiveBroadcast?.id) {
-          setMessage('A protected local recording was recovered. Echoo will keep it until the server copy is safe.');
+          setMessage('A protected recording was recovered. Echoo will keep it until the saved recording is finished.');
         }
         return;
       }
@@ -770,7 +770,7 @@ const CreatorLiveConnectedWorkspace = ({
         // Publication is already real at this point. Server presence may lag
         // behind LiveKit, so never tear down a listener-facing stream merely
         // because this non-critical reconciliation later fails.
-        setError('You are live, but Echoo is still reconciling the server session.');
+        setError('You are live. Echoo is still syncing the broadcast status.');
       });
     } catch (liveError) {
       if (backendStarted && broadcast?.id) {
@@ -1242,7 +1242,7 @@ const CreatorLiveConnectedWorkspace = ({
                 : recordingProgress.stage === 'recovered'
                   ? 'Recovered recording is protected locally'
                   : recordingProgress.stage === 'verifying'
-                    ? 'Upload complete — verifying server copy'
+                    ? 'Upload complete — finishing recording'
                     : 'Saving recording to Echoo'}
             </strong>
             <span>
@@ -1258,7 +1258,7 @@ const CreatorLiveConnectedWorkspace = ({
               </div>
               <small>
                 {recordingProgress.stage === 'verifying'
-                  ? `Server verification in progress · ${formatElapsedTime(recordingProgress.elapsedSeconds || 0)} elapsed`
+                  ? `Finishing recording · ${formatElapsedTime(recordingProgress.elapsedSeconds || 0)} elapsed`
                   : transferProgressText(recordingProgress)}
               </small>
             </>
@@ -1266,7 +1266,7 @@ const CreatorLiveConnectedWorkspace = ({
             <small>
               {recordingProgress.stage === 'waiting-network'
                 ? 'Your local master is safe. Echoo will continue when the connection is available.'
-                : 'Nothing is being deleted while Echoo waits for the server copy to become safe.'}
+                : 'Your protected recovery copy stays on this device until Echoo finishes safely.'}
             </small>
           )}
         </div>
