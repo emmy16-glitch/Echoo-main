@@ -64,6 +64,41 @@ test('device recording is available before server finalization and never needs a
   assert.match(autosave, /skipDeviceSave:\s*true/);
 });
 
+test('Creator Studio bootstrap has a visible timer, a hard timeout, and a Retry state', async () => {
+  const workspace = await read('./CreatorLiveConnectedWorkspace.jsx');
+  const api = await read('../../services/api.js');
+  const batch2 = await read('../../services/batch2Service.js');
+  const batch3 = await read('../../services/batch3Service.js');
+
+  assert.match(workspace, /loadingElapsed/);
+  assert.match(workspace, /Echoo will stop waiting at 10 seconds/);
+  assert.match(workspace, /Retry Studio/);
+  assert.match(workspace, /getMyStations\(\{ timeoutMs: 10_000 \}\)/);
+  assert.match(workspace, /getCreatorBroadcasts\(\{ timeoutMs: 10_000 \}\)/);
+  assert.match(batch2, /getMyStations: async \(\{ timeoutMs = 10_000 \} = \{\}\)/);
+  assert.match(batch3, /getCreatorBroadcasts: async \(\{ timeoutMs = 10_000 \} = \{\}\)/);
+  assert.match(api, /REQUEST_TIMEOUT/);
+  assert.match(api, /AbortController/);
+});
+
+test('End Broadcast defaults to an immediate MP3 device reservation on web', async () => {
+  const workspace = await read('./CreatorLiveConnectedWorkspace.jsx');
+  const preferences = await read('../../services/recordingDevicePreferences.js');
+  const autosave = await read('../../services/recordingAutosave.js');
+  const exportService = await read('../../services/recordingExportService.js');
+
+  assert.match(preferences, /decided: true/);
+  assert.match(preferences, /autoSave: true/);
+  assert.match(preferences, /format: 'mp3'/);
+  const endAt = workspace.indexOf('const endBroadcast = async');
+  const stopAt = workspace.indexOf('await stopLiveKitPublishing()', endAt);
+  const reservationAt = workspace.indexOf('prepareEndBroadcastDeviceSave', endAt);
+  assert.ok(reservationAt > endAt && reservationAt < stopAt);
+  assert.match(autosave, /saveAutomaticLocalCopy\(\{/);
+  assert.match(exportService, /mode: 'file-picker'/);
+  assert.match(exportService, /destination: 'preauthorized-file-picker'/);
+});
+
 test('LIVE is set by the published program track, with confirmation and recording out of band', async () => {
   const workspace = await read('./CreatorLiveConnectedWorkspace.jsx');
   const publisher = await read('../../services/livekitPublisher.js');
