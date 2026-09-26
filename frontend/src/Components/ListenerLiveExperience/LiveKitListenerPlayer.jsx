@@ -158,6 +158,13 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
         setStatus('playing');
         return true;
       }
+      if (playbackIntentRef.current === 'pause' && entries.some(currentAttachmentIsHealthy)) {
+        needsAudioStartRef.current = false;
+        setNeedsAudioStart(false);
+        setIsPlaying(false);
+        setStatus('connected');
+        return false;
+      }
       if (roomLinkRef.current === 'reconnecting') {
         // LiveKit is already repairing the transport. Hold the shared live
         // source instead of reporting the creator as gone.
@@ -252,6 +259,13 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       const id = String(track.sid || track.mediaStreamTrack?.id || 'audio');
       const existing = attachedRef.current.get(id);
       if (currentAttachmentIsHealthy(existing) && existing.track === track) {
+        if (playbackIntentRef.current === 'pause') {
+          setNeedsAudioStart(false);
+          needsAudioStartRef.current = false;
+          setIsPlaying(false);
+          setStatus('connected');
+          return;
+        }
         try {
           await existing.element.play();
           markPlaybackState();
@@ -505,8 +519,12 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
         if (!disposed && roomRef.current === room) {
           const hasAudio = attachedRef.current.size > 0;
           const canPlay = room.canPlaybackAudio;
-          setNeedsAudioStart(hasAudio && !canPlay && playbackIntentRef.current === 'play');
-          needsAudioStartRef.current = hasAudio && !canPlay;
+          const playbackBlocked =
+            hasAudio &&
+            !canPlay &&
+            playbackIntentRef.current === 'play';
+          setNeedsAudioStart(playbackBlocked);
+          needsAudioStartRef.current = playbackBlocked;
           const elements = Array.from(audioHostRef.current?.querySelectorAll('audio') || []);
           const playing = elements.some((element) => !element.paused && !element.ended);
           setIsPlaying(playing);
@@ -613,7 +631,11 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
         return;
       }
       watchdogMissStreakRef.current = 0;
-      if (!entries.some((entry) => mediaElementIsPlaying(entry.element)) && !needsAudioStartRef.current) {
+      if (
+        playbackIntentRef.current === 'play' &&
+        !entries.some((entry) => mediaElementIsPlaying(entry.element)) &&
+        !needsAudioStartRef.current
+      ) {
         setStatus('recovering_audio');
         entries.forEach((entry) => {
           entry.element.play().then(markPlaybackState).catch((playError) => {
