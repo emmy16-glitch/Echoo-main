@@ -879,23 +879,51 @@ export const installRecordingAutosave = () => {
 
   // Offer any orphaned take from a closed/crashed tab.
   recoverOrphanedLosslessRecording()
-    .then((recovered) => {
-      if (recovered?.recording?.blob?.size) {
-        rememberLocalMaster('recovered', {
-          blob: recovered.recording.blob,
-          title: recovered.broadcast?.title || 'Echoo live recording',
-          mimeType: recovered.recording.mimeType,
-          broadcast: recovered.broadcast,
-          recording: recovered.recording,
-        });
-        emit({
-          status: 'recovered',
-          key: 'recovered',
-          title: recovered.broadcast?.title || 'Echoo live recording',
-          recoveryFormats: availableLocalFormats(recovered.recording),
-          preferredFormat: getRecordingDevicePreferences().format,
-        });
+    .then(async (recovered) => {
+      if (!recovered?.recording?.blob?.size) return;
+
+      rememberLocalMaster('recovered', {
+        blob: recovered.recording.blob,
+        title: recovered.broadcast?.title || 'Echoo live recording',
+        mimeType: recovered.recording.mimeType,
+        broadcast: recovered.broadcast,
+        recording: recovered.recording,
+      });
+
+      // A previous tab may have closed after the server MP3 became durable but
+      // before the browser cleared its OPFS safety master. Reconcile quietly so
+      // users are not shown a false recovery warning on every Studio load.
+      const broadcastId = String(
+        recovered.recording.broadcastId || recovered.broadcast?.id || ''
+      );
+      if (broadcastId) {
+        try {
+          const processing = await batch3Service.getProcessing(broadcastId);
+          const serverBroadcast = processing?.data?.broadcast || null;
+          const replayReady = Boolean(
+            serverBroadcast?.replayAudio ||
+            serverBroadcast?.replayAudioId ||
+            serverBroadcast?.assetStatus?.audio === 'ready'
+          );
+          if (replayReady) {
+            try { await recovered.recording.dispose?.(); } catch { /* best effort */ }
+            clearPendingBroadcastRecording(broadcastId);
+            forgetLocalMaster('recovered');
+            return;
+          }
+        } catch {
+          // Keep the recovery master. The Recordings page can offer save/retry
+          // actions without blocking or cluttering the Broadcast workspace.
+        }
       }
+
+      emit({
+        status: 'recovered',
+        key: 'recovered',
+        title: recovered.broadcast?.title || 'Echoo live recording',
+        recoveryFormats: availableLocalFormats(recovered.recording),
+        preferredFormat: getRecordingDevicePreferences().format,
+      });
     })
     .catch(() => {});
 

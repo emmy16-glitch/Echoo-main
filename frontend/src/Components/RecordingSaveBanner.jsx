@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   FaCheckCircle,
   FaDownload,
@@ -65,6 +65,7 @@ export function RecordingAutosaveMount() {
 
 const RecordingSaveBanner = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [state, setState] = useState(null);
   const [elapsed, setElapsed] = useState(0);
   const hideTimerRef = useRef(null);
@@ -185,6 +186,16 @@ const RecordingSaveBanner = () => {
   }, [state?.kind, state?.code, state?.key]);
 
   if (!state) return null;
+
+  // Boot recovery is important, but it must not take over unrelated Creator
+  // pages. Keep it available and show the recovery actions when the creator
+  // actually opens Recordings.
+  if (
+    state.kind === 'recovered' &&
+    !String(location.pathname || '').startsWith('/creator-studio/recordings')
+  ) {
+    return null;
+  }
 
   const openRecording = () => {
     if (!state.audioId) {

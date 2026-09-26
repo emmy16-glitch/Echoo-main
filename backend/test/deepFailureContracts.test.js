@@ -141,8 +141,8 @@ test('recording completion retries and automatic save preserves recovery state',
   assert.match(banner, /beforeunload/);
   assert.match(banner, /Retry/);
   assert.match(banner, /kind: 'finalizing'|finishing your Echoo recording/);
-  assert.match(banner, /MP3 · Recommended/);
-  assert.match(banner, /WAV · Lossless/);
+  assert.match(banner, /Save MP3 to device/);
+  assert.match(banner, /Save WAV to device/);
   assert.match(banner, /keep this tab open/);
   assert.match(banner, /Upload/);
   assert.match(banner, /Discard/);
@@ -177,12 +177,16 @@ test('server replay finalization stays non-blocking and cloud archive streams lo
   assert.doesNotMatch(archive, /readFile\(localPath\)/);
 });
 
-test('recording recovery banner stays readable and treats recoverable state as safe', async () => {
+test('recording recovery stays safe without cluttering unrelated Studio pages', async () => {
   const banner = await frontendSource('src/Components/RecordingSaveBanner.jsx');
+  const autosave = await frontendSource('src/services/recordingAutosave.js');
   const css = await frontendSource('src/Components/RecordingSaveBanner.css');
 
   assert.match(banner, /is-safe-recovery/);
   assert.match(banner, /Recovered recording is safe/);
+  assert.match(banner, /startsWith\('\/creator-studio\/recordings'\)/);
+  assert.match(autosave, /batch3Service\.getProcessing\(broadcastId\)/);
+  assert.match(autosave, /serverBroadcast\?\.replayAudio/);
   assert.match(banner, /Retrying Echoo save · \$\{elapsed\}s/);
   assert.match(css, /grid-template-columns:\s*22px minmax\(0, 1fr\)/);
   assert.match(css, /echoo-save-banner-actions/);
