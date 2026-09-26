@@ -189,6 +189,7 @@ test('recording management keeps trim copies safe and prevents cramped or mislab
   const modalCss = await frontendSource('src/Components/CreatorStudio/CreatorAudioDetailModal.css');
   const recordingsCss = await frontendSource('src/Components/CreatorStudio/CreatorCollectionsWorkspace.css');
   const exportService = await frontendSource('src/services/recordingExportService.js');
+  const banner = await frontendSource('src/Components/RecordingSaveBanner.jsx');
   const studioService = await frontendSource('src/services/studioService.js');
   const trimController = await source('src/controllers/audioController.js');
   const trimService = await source('src/services/audioTrimService.js');
