@@ -331,6 +331,8 @@ export const saveRecordingToPc = async ({
   channelName = '',
   startedAt = null,
   onProgress = null,
+  preparedMp3Blob = null,
+  preparedMp3Dispose = null,
 }) => {
   if (!blob?.size && !audioId) throw new Error('Nothing to save yet.');
   const choice = format === 'wav' ? 'wav' : format === 'opus' ? 'opus' : 'mp3';
@@ -367,9 +369,42 @@ export const saveRecordingToPc = async ({
         : 'mp3',
   }).replace(/\.opus$/i, `.${extension}`);
 
+  // On phones, native file sharing must be invoked while the Save button still
+  // owns a transient user gesture. WAV/Opus bytes are already ready, and a
+  // previously prepared MP3 can also be shared immediately with no encode wait.
+  if (!isDesktopBridge() && !isLikelyPc()) {
+    const immediateBytes =
+      choice === 'mp3'
+        ? preparedMp3Blob
+        : blob;
+    if (immediateBytes?.size) {
+      const mobileResult = await tryMobileShare({
+        blob: immediateBytes,
+        filename,
+        mimeType: mime,
+      });
+      if (mobileResult) {
+        if (mobileResult.saved && typeof preparedMp3Dispose === 'function') {
+          window.setTimeout(() => {
+            try {
+              void Promise.resolve(preparedMp3Dispose()).catch(() => {});
+            } catch {
+              // Best-effort temporary MP3 cleanup.
+            }
+          }, 60_000);
+        }
+        return {
+          ...mobileResult,
+          format: choice,
+          source: choice === 'mp3' ? 'prepared-local-mp3' : 'local-master',
+        };
+      }
+    }
+  }
+
   // User-requested MP3 can be written incrementally on supporting desktop
   // browsers, so a long WAV never needs to become one giant in-memory MP3.
-  if (choice === 'mp3' && !isDesktopBridge()) {
+  if (choice === 'mp3' && !isDesktopBridge() && !preparedMp3Blob?.size) {
     const streamed = await saveLocalMp3WithPicker({
       blob,
       filename,
@@ -378,12 +413,16 @@ export const saveRecordingToPc = async ({
     if (streamed) return streamed;
   }
 
-  let bytes = blob;
+  let bytes = choice === 'mp3' && preparedMp3Blob?.size ? preparedMp3Blob : blob;
   let encodedLocal = null;
-  let source = 'local-master';
+  let source = choice === 'mp3' && preparedMp3Blob?.size
+    ? 'prepared-local-mp3'
+    : 'local-master';
 
   if (choice === 'mp3') {
-    if (isWavMaster(blob)) {
+    if (preparedMp3Blob?.size) {
+      // Ready from a previous phone tap. Do not encode the WAV again.
+    } else if (isWavMaster(blob)) {
       encodedLocal = await createLocalMp3(blob, { onProgress });
       bytes = encodedLocal.blob;
       source = 'local-wav-encode';
@@ -418,16 +457,34 @@ export const saveRecordingToPc = async ({
     return { ...desktopResult, source };
   }
 
-  const mobileResult = await tryMobileShare({
-    blob: bytes,
-    filename,
-    mimeType: mime,
-  });
-  if (mobileResult) {
-    // Keep the temporary OPFS MP3 alive briefly after the native share sheet
-    // resolves; some mobile targets finish reading the File asynchronously.
-    scheduleEncodedCleanup(encodedLocal);
-    return { ...mobileResult, format: choice, source };
+  if (!isLikelyPc() && choice === 'mp3' && encodedLocal) {
+    const mobileResult = await tryMobileShare({
+      blob: bytes,
+      filename,
+      mimeType: mime,
+    });
+    if (mobileResult) {
+      // Keep the temporary OPFS MP3 alive briefly after the native share sheet
+      // resolves; some mobile targets finish reading the File asynchronously.
+      if (mobileResult.saved) scheduleEncodedCleanup(encodedLocal);
+      return { ...mobileResult, format: choice, source };
+    }
+
+    // Encoding itself succeeded, but the original tap no longer owns a native
+    // share gesture. Preserve this prepared MP3 in OPFS/memory and ask for one
+    // more explicit tap. That second tap opens the share sheet immediately and
+    // does not re-encode the long WAV.
+    return {
+      saved: false,
+      prepared: true,
+      requiresSecondTap: true,
+      preparedBlob: bytes,
+      preparedDispose: encodedLocal.dispose || null,
+      filename,
+      format: 'mp3',
+      source,
+      destination: 'prepared-local-mp3',
+    };
   }
 
   // Chromium desktop for WAV/Opus/server-MP3. Local WAV→MP3 already used the
@@ -458,7 +515,9 @@ export const saveRecordingToPc = async ({
   await downloadViaAnchor(bytes, filename);
   scheduleEncodedCleanup(encodedLocal);
   return {
-    saved: true,
+    saved: false,
+    downloadStarted: true,
+    unverifiedDownload: true,
     filename,
     format: choice,
     source,
