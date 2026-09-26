@@ -184,7 +184,7 @@ test('reset-password completion uses the new design, both eye toggles and return
   await page.getByRole('button', { name: 'Update password' }).click();
   await expect(page.getByText(/Password reset successfully/i)).toBeVisible();
   expect(resetPayloads).toEqual([{ token: 'reset-token', password: 'NewPassword123!' }]);
-  await expect(page.getByRole('heading', { name: 'Echoo your sound' })).toBeVisible({ timeout: 4_000 });
+  await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible({ timeout: 4_000 });
   await expect(page).toHaveURL(/\/login$/);
 
   await page.goto('/reset-password');
