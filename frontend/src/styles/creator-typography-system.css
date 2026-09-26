@@ -1,13 +1,13 @@
 /*
  * Echoo Creator Studio typography system
  *
- * This file is intentionally imported last. It provides one font family and a
- * predictable type scale across Home, Stations, Broadcast Studio, Audio,
- * Audience, Analytics, Settings, Notifications and Creator modals.
+ * This file provides one predictable type scale and three deliberate roles:
+ * Space Grotesk for broadcast hierarchy, Manrope for operational controls,
+ * and Source Sans 3 for sustained reading across Creator Studio.
  */
 
 .studio-final-shell {
-  --echoo-font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --echoo-font-sans: var(--echoo-font-body);
 
   /* Display hierarchy */
   --echoo-type-display: clamp(44px, 3.55vw, 56px);
@@ -31,7 +31,7 @@
   --echoo-weight-semibold: 650;
   --echoo-weight-bold: 760;
 
-  font-family: var(--echoo-font-sans) !important;
+  font-family: var(--echoo-font-body) !important;
   font-size: var(--echoo-type-body);
   line-height: var(--echoo-line-body);
   text-rendering: optimizeLegibility;
@@ -39,27 +39,17 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* One font family everywhere inside Creator Studio. */
-.studio-final-shell :where(
-  button,
-  input,
-  select,
-  textarea,
-  label,
-  h1,
-  h2,
-  h3,
-  h4,
-  h5,
-  h6,
-  p,
-  span,
-  small,
-  strong,
-  em,
-  a
-) {
-  font-family: var(--echoo-font-sans) !important;
+/* Role-based typography inside Creator Studio. */
+.studio-final-shell :where(p, span, em, a, input, textarea, select, dd, li) {
+  font-family: var(--echoo-font-body) !important;
+}
+
+.studio-final-shell :where(h1, h2) {
+  font-family: var(--echoo-font-display) !important;
+}
+
+.studio-final-shell :where(h3, h4, h5, h6, button, label, small, strong) {
+  font-family: var(--echoo-font-accent) !important;
 }
 
 /* Generic hierarchy shared by every Creator Studio page. */
