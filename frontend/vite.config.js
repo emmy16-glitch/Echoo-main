@@ -12,10 +12,21 @@ const backendProxyTarget = (
   .trim()
   .replace(/\/$/, '') || 'http://127.0.0.1:5017';
 
+const backendProxyOrigin = String(process.env.VITE_BACKEND_PROXY_ORIGIN || '').trim();
+const configureProxyOrigin = (proxy) => {
+  if (!backendProxyOrigin) return;
+  const applyOrigin = (proxyReq) => {
+    proxyReq.setHeader('origin', backendProxyOrigin);
+  };
+  proxy.on('proxyReq', applyOrigin);
+  proxy.on('proxyReqWs', applyOrigin);
+};
+
 const localBackendProxy = {
   '/api': {
     target: backendProxyTarget,
     changeOrigin: true,
+    configure: configureProxyOrigin,
     // Forward the browser's address (X-Forwarded-For) so the backend's
     // per-IP rate limiters (e.g. LiveKit token issuance) see real clients
     // instead of lumping every tunnel/proxied user into one shared bucket.
@@ -25,11 +36,13 @@ const localBackendProxy = {
     target: backendProxyTarget,
     changeOrigin: true,
     ws: true,
+    configure: configureProxyOrigin,
     xfwd: true,
   },
   '/uploads': {
     target: backendProxyTarget,
     changeOrigin: true,
+    configure: configureProxyOrigin,
     xfwd: true,
   },
 }
