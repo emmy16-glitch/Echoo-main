@@ -404,6 +404,7 @@ const acceptRecordingSocket = async (socket, request) => {
     return;
   }
 
+  socket.echooTrackSid = identity.trackSid;
   session.sockets.add(socket);
   session.currentTrackSid = identity.trackSid;
   session.pendingTrackSid = '';
@@ -483,7 +484,9 @@ const acceptRecordingSocket = async (socket, request) => {
         session.failed ||
         session.handoff ||
         identity.trackSid !== session.currentTrackSid ||
-        session.sockets.size > 0
+        Array.from(session.sockets).some(
+          (candidate) => candidate.echooTrackSid === session.currentTrackSid
+        )
       ) return;
 
       session.failed = true;
@@ -688,7 +691,11 @@ export const ensureLiveKitServerRecording = async ({
       'serverRecording.status': 'starting',
       'serverRecording.transport': 'livekit-track-egress',
       'serverRecording.trackSid': track,
-      'serverRecording.egressId': null,
+      // During a track handoff keep the previous Egress id persisted until
+      // the replacement Egress has been created. If this process crashes in
+      // that window, the next process can still identify and stop the orphan
+      // instead of accepting an unsolicited partial recording socket.
+      'serverRecording.egressId': handoffFromEgressId || null,
       'serverRecording.startedAt': recording?.startedAt || new Date(),
       'serverRecording.endedAt': null,
       'serverRecording.error': null,
