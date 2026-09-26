@@ -19,6 +19,15 @@
 .ebsx button,.ebsx input,.ebsx select,.ebsx textarea { font:inherit; }
 
 .ebsx-loading,.ebsx-empty-page { min-height:360px; display:grid; place-items:center; align-content:center; gap:10px; padding:34px; border:1px solid var(--bs-line); border-radius:18px; background:#fff; color:var(--bs-muted); text-align:center; }
+.ebsx-loading--timed { width:min(620px,100%); margin:22px auto 0; min-height:260px; box-shadow:0 16px 42px rgba(20,42,76,.06); }
+.ebsx-loading--timed > svg { color:var(--bs-blue); font-size:24px; }
+.ebsx-loading--timed > svg.spin { animation:ebsx-spin 900ms linear infinite; }
+.ebsx-loading--timed > strong { color:var(--bs-ink); font-size:18px; letter-spacing:-.02em; }
+.ebsx-loading--timed > span { color:#59677c; font-size:12px; }
+.ebsx-loading--timed > small { max-width:390px; color:#8a95a5; font-size:10px; line-height:1.55; }
+.ebsx-loading--failed > svg { color:var(--bs-red); animation:none; }
+.ebsx-loading--failed > button { min-height:40px; padding:0 16px; border:1px solid var(--bs-blue); border-radius:9px; background:var(--bs-blue); color:#fff; font-size:10px; font-weight:760; cursor:pointer; }
+@keyframes ebsx-spin { to { transform:rotate(360deg); } }
 .ebsx-empty-page > svg { color:var(--bs-blue); font-size:28px; }
 .ebsx-empty-page h1 { margin:8px 0 0; color:var(--bs-ink); font-size:30px; letter-spacing:-.04em; }
 .ebsx-empty-page p { margin:0; font-size:10px; }
