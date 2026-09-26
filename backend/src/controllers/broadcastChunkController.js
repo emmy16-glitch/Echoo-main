@@ -5,6 +5,7 @@ import BroadcastAudioChunk from '../models/BroadcastAudioChunk.js';
 import BroadcastProcessingJob from '../models/BroadcastProcessingJob.js';
 import {
   appendBroadcastOutputPcm,
+  pcmFromWavChunk,
   startBroadcastOutputs,
   stopBroadcastOutputs,
 } from '../services/broadcastOutputService.js';
@@ -51,16 +52,26 @@ const durableWavChunkExists = async (chunk) => {
     const stat = await fs.stat(filePath);
     if (!stat.isFile() || stat.size < 44) return false;
     handle = await fs.open(filePath, 'r');
-    const header = Buffer.alloc(12);
-    await handle.read(header, 0, 12, 0);
+    const header = Buffer.alloc(44);
+    const { bytesRead } = await handle.read(header, 0, 44, 0);
+    if (bytesRead !== 44) return false;
+
+    const declaredDataBytes = header.readUInt32LE(40);
     return (
       header.toString('ascii', 0, 4) === 'RIFF' &&
-      header.toString('ascii', 8, 12) === 'WAVE'
+      header.toString('ascii', 8, 12) === 'WAVE' &&
+      header.toString('ascii', 12, 16) === 'fmt ' &&
+      header.readUInt16LE(20) === 1 &&
+      header.readUInt16LE(22) === 2 &&
+      header.readUInt32LE(24) === 48000 &&
+      header.readUInt16LE(34) === 24 &&
+      header.toString('ascii', 36, 40) === 'data' &&
+      stat.size === 44 + declaredDataBytes
     );
   } catch {
     return false;
   } finally {
-    await handle?.close?.().catch(() => null);
+    if (handle) await handle.close().catch(() => null);
   }
 };
 
@@ -321,6 +332,16 @@ export async function uploadBroadcastAudioChunk(req, res, next) {
     if (!validWavUpload(req.file)) {
       return res.status(400).json({ error: { code: 'INVALID_CHUNK_AUDIO', message: 'Quality chunks must be valid RIFF/WAVE audio.' } });
     }
+    try {
+      pcmFromWavChunk(req.file.buffer);
+    } catch {
+      return res.status(400).json({
+        error: {
+          code: 'INVALID_CHUNK_AUDIO',
+          message: 'Recovery chunks must be 48 kHz stereo 24-bit PCM WAV audio.',
+        },
+      });
+    }
 
     const chunkId = String(req.body.chunkId || '').trim();
     if (!chunkId || chunkId.length > 160) {
@@ -335,8 +356,13 @@ export async function uploadBroadcastAudioChunk(req, res, next) {
     const sampleRate = numberField(req.body.sampleRate, 'sampleRate', { min: 8000, max: 192000 });
     const channels = numberField(req.body.channels, 'channels', { min: 1, max: 2 });
     const bitDepth = numberField(req.body.bitDepth, 'bitDepth', { min: 16, max: 32 });
-    if (![16, 24, 32].includes(bitDepth)) {
-      return res.status(400).json({ error: { code: 'INVALID_BIT_DEPTH', message: 'bitDepth must be 16, 24, or 32.' } });
+    if (sampleRate !== 48000 || channels !== 2 || bitDepth !== 24) {
+      return res.status(400).json({
+        error: {
+          code: 'INVALID_CHUNK_FORMAT',
+          message: 'Recovery chunks must use the Echoo 48 kHz stereo 24-bit PCM master format.',
+        },
+      });
     }
 
     const existing = await BroadcastAudioChunk.findOne({ broadcastId, chunkId });
