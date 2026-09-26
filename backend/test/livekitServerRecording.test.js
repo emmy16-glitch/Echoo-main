@@ -106,6 +106,9 @@ test('concurrent recorder starts preserve the newest track and bound PCM backlog
   assert.match(source, /session\.child\?\.stdin\?\.destroy/);
   assert.match(source, /Recording encoder stopped/);
   assert.match(source, /RECORDING_SOCKET_CLOSE_GRACE_MS/);
+  assert.match(source, /MAX_ACCEPTED_PCM_GAP_MS/);
+  assert.match(source, /disconnectStartedAt/);
+  assert.match(source, /Recording gap requires browser recovery/);
   assert.match(source, /session\.disconnectTimer/);
   assert.match(source, /candidate\.echooTrackSid === session\.currentTrackSid/);
   assert.match(source, /stdin\.off\('drain', onDrain\)/);
