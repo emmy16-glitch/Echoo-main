@@ -33,7 +33,10 @@ import {
   stopLiveKitPublishing,
 } from '../../services/livekitPublisher';
 import realtimeService from '../../services/realtimeService';
-import { prepareEndBroadcastDeviceSave } from '../../services/recordingAutosave';
+import {
+  prepareEndBroadcastDeviceSave,
+  retryAutosave,
+} from '../../services/recordingAutosave';
 import {
   formatElapsedTime,
   transferProgressText,
@@ -459,15 +462,18 @@ const CreatorLiveConnectedWorkspace = ({
       }
 
       if (status === 'error') {
+        setMessage('');
+        setError('');
         setRecordingProgress((current) => ({
           ...(current || {}),
           key: detail.key || current?.key,
           title: detail.title || current?.title || 'Broadcast recording',
           stage: navigator.onLine === false ? 'waiting-network' : 'error',
           message: detail.message || RECORDING_FINALIZATION_WARNING,
+          localSaved: Boolean(detail.localSaved || detail.localCopy?.saved),
+          hasRecovery: Boolean(detail.hasRecovery),
           failedAt: Date.now(),
         }));
-        setError(detail.message || RECORDING_FINALIZATION_WARNING);
       }
     };
 
@@ -1266,13 +1272,17 @@ const CreatorLiveConnectedWorkspace = ({
         </div>
       )}
 
-      {recordingProgress && !['done', 'error'].includes(recordingProgress.stage) && (
+      {recordingProgress && recordingProgress.stage !== 'done' && (
         <div className="ec2-operation-progress" role="status" aria-live="polite">
           <div className="ec2-operation-progress__head">
             <strong>
               {recordingProgress.stage === 'waiting-network'
                 ? 'Waiting for connection'
-                : recordingProgress.stage === 'recovered'
+                : recordingProgress.stage === 'error'
+                  ? recordingProgress.localSaved
+                    ? 'Device copy saved · Echoo server save needs retry'
+                    : 'Recording protected locally · Echoo server save needs retry'
+                  : recordingProgress.stage === 'recovered'
                   ? 'Recovered recording is protected locally'
                   : recordingProgress.stage === 'device-saving'
                     ? `Saving ${String(recordingProgress.format || 'mp3').toUpperCase()} to this device`
@@ -1311,7 +1321,9 @@ const CreatorLiveConnectedWorkspace = ({
             <small>
               {recordingProgress.stage === 'waiting-network'
                 ? 'Your local master is safe. Echoo will continue when the connection is available.'
-                : recordingProgress.stage === 'finalizing'
+                : recordingProgress.stage === 'error'
+                  ? recordingProgress.message || 'Your recording is protected locally. Retry the Echoo server save when the connection is ready.'
+                  : recordingProgress.stage === 'finalizing'
                   ? recordingProgress.localSaved
                     ? 'The file on this device is already safe. Echoo is finishing its separate saved copy.'
                     : 'Your browser master is protected. Echoo is finishing its separate saved copy in the background.'
@@ -1319,6 +1331,21 @@ const CreatorLiveConnectedWorkspace = ({
                     ? 'Closing the local recording safely before any server recovery work starts.'
                     : 'Your protected recovery copy stays on this device until Echoo finishes safely.'}
             </small>
+          )}
+          {recordingProgress.stage === 'error' && recordingProgress.key && (
+            <button
+              type="button"
+              className="eb-press"
+              onClick={() => {
+                const retryKey = recordingProgress.key;
+                setRecordingProgress((current) => current
+                  ? { ...current, stage: 'preparing', startedAt: Date.now(), elapsedSeconds: 0 }
+                  : current);
+                void retryAutosave(retryKey).catch(() => {});
+              }}
+            >
+              Retry Echoo save
+            </button>
           )}
         </div>
       )}
