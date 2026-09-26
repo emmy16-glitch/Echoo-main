@@ -43,6 +43,27 @@ const validWavUpload = (file) => Boolean(
   file.buffer.toString('ascii', 8, 12) === 'WAVE'
 );
 
+const durableWavChunkExists = async (chunk) => {
+  const filePath = String(chunk?.filePath || '');
+  if (!filePath) return false;
+  let handle = null;
+  try {
+    const stat = await fs.stat(filePath);
+    if (!stat.isFile() || stat.size < 44) return false;
+    handle = await fs.open(filePath, 'r');
+    const header = Buffer.alloc(12);
+    await handle.read(header, 0, 12, 0);
+    return (
+      header.toString('ascii', 0, 4) === 'RIFF' &&
+      header.toString('ascii', 8, 12) === 'WAVE'
+    );
+  } catch {
+    return false;
+  } finally {
+    await handle?.close?.().catch(() => null);
+  }
+};
+
 const ensureQualityJob = async (broadcastId, chunk) => {
   // Recovery chunks are post-live only. They may also feed optional quality
   // processing when transcription is explicitly enabled; with transcription
@@ -152,12 +173,22 @@ export async function startBroadcastAudioChunks(req, res, next) {
     }
 
     const existingChunks = await BroadcastAudioChunk.find({ broadcastId: broadcast._id })
-      .select('chunkIndex')
+      .select('_id chunkIndex filePath')
       .sort({ chunkIndex: 1 })
       .lean();
-    const existingChunkIndices = existingChunks
-      .map((chunk) => Number(chunk.chunkIndex))
-      .filter((index) => Number.isInteger(index) && index >= 0);
+    const existingChunkIndices = [];
+    const staleChunkIds = [];
+    for (const chunk of existingChunks) {
+      const index = Number(chunk.chunkIndex);
+      if (!Number.isInteger(index) || index < 0 || !await durableWavChunkExists(chunk)) {
+        if (chunk?._id) staleChunkIds.push(chunk._id);
+        continue;
+      }
+      existingChunkIndices.push(index);
+    }
+    if (staleChunkIds.length) {
+      await BroadcastAudioChunk.deleteMany({ _id: { $in: staleChunkIds } }).catch(() => null);
+    }
     const existingCount = existingChunkIndices.length;
 
     if (!broadcast.qualityChunkingStartedAt || broadcast.qualityChunkingCompletedAt) {
