@@ -61,7 +61,7 @@ never replaced by a successful trim and remains untouched on every failure path.
 ## Server coordination
 
 LiveKit webhooks preserve a live broadcast through a configurable creator
-disconnect grace window (20 seconds by default). A republishing creator cancels
+disconnect grace window (90 seconds by default, matching the creator recovery window). A republishing creator cancels
 the pending terminal transition. Presence continues to distinguish logical
 broadcast status from current creator transport presence.
 
