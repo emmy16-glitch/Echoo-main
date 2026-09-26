@@ -203,6 +203,20 @@ export const saveAutomaticLocalCopy = async ({
   if (format === 'none') return { saved: false, skipped: 'device-copy-disabled' };
 
   const choice = format === 'wav' ? 'wav' : 'mp3';
+
+  // Only Echoo Desktop can prove a background save completed. Browsers may
+  // block async downloads/share sheets once the End Broadcast click gesture
+  // has expired, so keep the OPFS master and ask for one explicit tap instead
+  // of falsely reporting success.
+  if (!isDesktopBridge()) {
+    return {
+      saved: false,
+      skipped: 'browser-user-gesture-required',
+      requiresUserGesture: true,
+      format: choice,
+    };
+  }
+
   let bytes = null;
   let encodedLocal = null;
   let mimeType = choice === 'wav' ? 'audio/wav' : 'audio/mpeg';
@@ -248,17 +262,17 @@ export const saveAutomaticLocalCopy = async ({
     return { ...desktopResult, source };
   }
 
-  // Automatic web/mobile downloads cannot choose arbitrary folders. This is
-  // a best-effort download into the browser's normal download destination.
-  await downloadViaAnchor(bytes, filename);
-  scheduleEncodedCleanup(encodedLocal);
+  // Defensive fallback: desktop bridge disappeared after capability check.
+  // Do not claim the file was saved; keep the local master for an explicit
+  // user-triggered export.
+  scheduleEncodedCleanup(encodedLocal, 0);
   return {
-    saved: true,
+    saved: false,
+    skipped: 'browser-user-gesture-required',
+    requiresUserGesture: true,
     filename,
     format: choice,
     source,
-    destination: 'browser-downloads',
-    deviceKind: isLikelyPc() ? 'computer' : 'mobile',
   };
 };
 
