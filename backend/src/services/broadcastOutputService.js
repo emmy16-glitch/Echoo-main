@@ -73,11 +73,27 @@ const spawnEncoder = ({ args, label, onFailure }) => {
 };
 
 const writeEncoder = async (child, pcm) => {
-  if (!child?.stdin || child.stdin.destroyed || !pcm?.length) return;
+  if (!child || !pcm?.length) return;
+  if (!child.stdin || child.stdin.destroyed || child.exitCode !== null) {
+    throw new Error('Audio output encoder is no longer accepting PCM.');
+  }
   if (!child.stdin.write(pcm)) {
     await new Promise((resolve, reject) => {
-      child.stdin.once('drain', resolve);
-      child.stdin.once('error', reject);
+      const stdin = child.stdin;
+      const cleanup = () => {
+        stdin.off('drain', onDrain);
+        stdin.off('error', onError);
+      };
+      const onDrain = () => {
+        cleanup();
+        resolve();
+      };
+      const onError = (error) => {
+        cleanup();
+        reject(error);
+      };
+      stdin.once('drain', onDrain);
+      stdin.once('error', onError);
     });
   }
 };
@@ -86,11 +102,15 @@ const finishEncoder = async (child) => {
   if (!child || child.exitCode !== null || child.killed) return;
   await new Promise((resolve) => {
     const timeout = setTimeout(() => {
-      child.kill('SIGKILL');
+      try { child.kill('SIGKILL'); } catch { /* already closed */ }
       resolve();
     }, 15_000);
     child.once('close', () => { clearTimeout(timeout); resolve(); });
-    child.stdin.end();
+    try {
+      if (child.stdin && !child.stdin.destroyed) child.stdin.end();
+    } catch {
+      // The encoder may have closed between the state check and shutdown.
+    }
   });
 };
 
