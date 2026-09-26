@@ -331,7 +331,14 @@ const RecordingSaveBanner = () => {
     }).catch(() => {});
   };
 
-  const discardRecovered = () => {
+  const discardRecovered = async () => {
+    const master = peekLocalMaster('recovered');
+    try {
+      await master?.recording?.dispose?.();
+    } catch {
+      // The UI can still forget the in-memory card; a later recovery attempt
+      // will handle any storage cleanup that the browser refused here.
+    }
     forgetLocalMaster('recovered');
     hide();
   };
@@ -577,7 +584,7 @@ const RecordingSaveBanner = () => {
           <button
             type="button"
             className="eb-press"
-            onClick={discardRecovered}
+            onClick={() => { void discardRecovered(); }}
           >
             Discard
           </button>
