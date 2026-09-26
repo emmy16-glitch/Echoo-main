@@ -143,6 +143,8 @@ test('recording completion retries and automatic save preserves recovery state',
   assert.match(autosave, /skipDeviceSave:\s*true/);
   assert.match(autosave, /batch3Service\.recoverBroadcast/);
   assert.match(autosave, /rememberPendingMaster/);
+  assert.match(autosave, /pending\.serverReady === true/);
+  assert.match(autosave, /automaticLocalCopies\.add\(String\(key\)\)/);
   assert.match(banner, /Save MP3 to device/);
   assert.match(banner, /Save WAV to device/);
   assert.match(banner, /Retry Echoo server save/);
@@ -214,6 +216,7 @@ test('recording management keeps trim copies safe and prevents cramped or mislab
   assert.match(exportService, /destination:\s*'browser-downloads'/);
   assert.match(exportService, /isWavMaster/);
   assert.match(exportService, /encodeLocalWavToMp3/);
+  assert.match(exportService, /browser-user-gesture-required/);
   assert.match(exportService, /server-mp3-fallback/);
   assert.match(exportService, /sourceMime\.includes\('webm'\)/);
   assert.match(exportService, /suggestedName:\s*filename/);
