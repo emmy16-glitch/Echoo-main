@@ -61,6 +61,9 @@ test('browser raw PCM fallback is forbidden while the show is live', async () =>
 
   assert.match(backend, /mode:\s*'browser-recovery-deferred'/);
   assert.match(backend, /WebRTC-only/);
+  assert.match(backend, /const recoveryWindowOpen =[\s\S]*broadcast\.status === 'completed'/);
+  assert.match(backend, /RECORDING_RECOVERY_NOT_OPEN/);
+  assert.match(backend, /Browser WAV chunks are accepted only after OFF AIR/);
   assert.match(frontend, /data\?\.data\?\.mode === 'browser-fallback'/);
   assert.match(frontend, /serverFallbackDeferred = true/);
   assert.match(frontend, /!recording\.qualityChunkStarted\) return/);
