@@ -39,8 +39,20 @@ test('creator publishes only the named post-master mix and exposes real health m
   assert.match(publisher, /\[Echoo Studio\] mixer ready/);
   assert.match(publisher, /\[Echoo LiveKit\] connected/);
   assert.match(publisher, /\[Echoo LiveKit\] track published/);
-  assert.match(publisher, /void ensureBroadcastRecording\(\{[\s\S]*mediaTrack/);
+  assert.match(publisher, /localRecordingStart = ensureBroadcastRecording\(\{[\s\S]*mediaTrack/);
+  assert.match(publisher, /LOCAL_RECORDING_START_BUDGET_MS = 750/);
+  assert.match(publisher, /armBroadcastServerRecording\(id\)/);
   assert.doesNotMatch(publisher, /startWhisperFlowTranscription/);
+});
+
+test('End Broadcast gives the creator track a bounded drain window before stopping the server recorder', async () => {
+  const lifecycle = await source('../src/controllers/broadcastLifecycleController.js');
+  const readiness = await source('../src/services/broadcastAudioReadiness.js');
+
+  assert.match(lifecycle, /waitForCreatorProgramAudioToStop\(broadcastId, req\.userId/);
+  assert.match(lifecycle, /maxWaitMs:\s*2500/);
+  assert.match(readiness, /creatorProgramAudioIsPresent/);
+  assert.match(readiness, /while \(Date\.now\(\) < deadline\)/);
 });
 
 test('backend broadcasts media state and accepts only Echoo program-track webhooks', async () => {
