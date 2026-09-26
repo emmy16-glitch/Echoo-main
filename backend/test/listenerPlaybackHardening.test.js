@@ -91,3 +91,13 @@ test('listener replay shell exposes detail-page playback contract and metadata-d
   assert.match(detail, /typeof player\.playTrackAt === 'function'/);
   assert.match(detail, /player\.seekTo\?\./);
 });
+
+
+test('listener reconnect only marks autoplay blocked when LiveKit actually cannot play audio', async () => {
+  const player = await source('../../frontend/src/Components/ListenerLiveExperience/LiveKitListenerPlayer.jsx');
+
+  assert.match(player, /const playbackBlocked =[\s\S]*!room\.canPlaybackAudio/);
+  assert.match(player, /setNeedsAudioStart\(playbackBlocked\)/);
+  assert.match(player, /needsAudioStartRef\.current = playbackBlocked/);
+  assert.doesNotMatch(player, /needsAudioStartRef\.current = attachedRef\.current\.size > 0 && !hasPlayingAudio/);
+});
