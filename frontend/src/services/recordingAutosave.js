@@ -145,6 +145,7 @@ export const startAutosave = async ({
   broadcast,
   serverEndPromise = null,
   skipDeviceSave = false,
+  initialLocalCopy = null,
 } = {}) => {
   if (!recording?.blob?.size && !recording?.broadcastId) return null;
   const broadcastId = String(recording.broadcastId || broadcast?.id || '');
@@ -165,6 +166,7 @@ export const startAutosave = async ({
     key,
     serverEndPromise,
     skipDeviceSave,
+    initialLocalCopy,
   });
 };
 
@@ -178,14 +180,15 @@ const startAutosaveLive = async ({
   key,
   serverEndPromise = null,
   skipDeviceSave = false,
+  initialLocalCopy = null,
 }) => {
   const title = broadcast?.title || 'Live broadcast recording';
   const { channelName, startedAt } = localContext({ recording, broadcast });
   const preferences = getRecordingDevicePreferences();
 
   const task = (async () => {
-    let localCopy = null;
-    let localCopyAttempted = false;
+    let localCopy = initialLocalCopy;
+    let localCopyAttempted = Boolean(initialLocalCopy);
 
     try {
       emit({ status: 'started', key, title });
@@ -358,7 +361,6 @@ const startAutosaveLive = async ({
         }
 
         const deviceSatisfied =
-          skipDeviceSave ||
           !currentPreferences.autoSave ||
           localCopy?.saved ||
           automaticLocalCopies.has(key);
@@ -571,7 +573,7 @@ export const saveRecoveryCopy = async (key, requestedFormat = '') => {
   if (!format) throw new Error('This local recording format cannot be exported.');
 
   const broadcast = pending?.broadcast || {};
-  return saveRecordingToPc({
+  const result = await saveRecordingToPc({
     blob,
     audioId: pending?.audioId || null,
     title: pending?.title || broadcast?.title || 'Echoo live recording',
@@ -590,6 +592,12 @@ export const saveRecoveryCopy = async (key, requestedFormat = '') => {
       broadcast?.startTime ||
       null,
   });
+
+  if (result?.saved && key !== 'recovered') {
+    pending.localCopy = { ...result, format };
+    rememberLocalMaster(lookupKey, pending);
+  }
+  return result;
 };
 
 export const retryAutosave = async (key) => {
@@ -599,6 +607,7 @@ export const retryAutosave = async (key) => {
     recording: pending.recording,
     broadcast: pending.broadcast,
     skipDeviceSave: true,
+    initialLocalCopy: pending.localCopy || null,
   });
 };
 
