@@ -122,18 +122,22 @@ const rememberPendingMaster = ({
     serverReady,
     localCopy,
   });
+};
+
 const waitForServerEndOutcome = async (serverEndPromise) => {
   if (!serverEndPromise) return { ok: true, response: null };
+  let timer = null;
   const timeout = new Promise((resolve) => {
-    const timer = window.setTimeout(
+    timer = window.setTimeout(
       () => resolve({ ok: false, timeout: true }),
       30_000
     );
-    timer.unref?.();
   });
-  return Promise.race([serverEndPromise, timeout]);
-};
-
+  try {
+    return await Promise.race([serverEndPromise, timeout]);
+  } finally {
+    if (timer != null) window.clearTimeout(timer);
+  }
 };
 
 export const startAutosave = async ({
