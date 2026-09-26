@@ -141,6 +141,7 @@ test('recording completion retries and automatic save preserves recovery state',
   assert.match(autosave, /DEVICE_COPY_FAILED/);
   assert.match(autosave, /SERVER_END_PENDING/);
   assert.match(autosave, /skipDeviceSave:\s*true/);
+  assert.match(autosave, /batch3Service\.recoverBroadcast/);
   assert.match(autosave, /rememberPendingMaster/);
   assert.match(banner, /Save MP3 to device/);
   assert.match(banner, /Save WAV to device/);
