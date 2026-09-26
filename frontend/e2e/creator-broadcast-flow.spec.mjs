@@ -102,22 +102,86 @@ const installBaseRoutes = async (page, broadcasts) => {
 };
 
 const announceRecording = (page, broadcastId = BROADCAST_ID) => page.evaluate(({ broadcast, id }) => {
-  const blob = new Blob([new Uint8Array(128)], { type: 'audio/wav' });
+  const sampleRate = 48000;
+  const frames = 4800;
+  const channels = 2;
+  const bytesPerSample = 3;
+  const blockAlign = channels * bytesPerSample;
+  const dataBytes = frames * blockAlign;
+  const buffer = new ArrayBuffer(44 + dataBytes);
+  const bytes = new Uint8Array(buffer);
+  const view = new DataView(buffer);
+  const ascii = (offset, value) => {
+    for (let index = 0; index < value.length; index += 1) bytes[offset + index] = value.charCodeAt(index);
+  };
+  const pcm24 = (offset, value) => {
+    const encoded = value < 0 ? value + 0x1000000 : value;
+    bytes[offset] = encoded & 0xff;
+    bytes[offset + 1] = (encoded >>> 8) & 0xff;
+    bytes[offset + 2] = (encoded >>> 16) & 0xff;
+  };
+
+  ascii(0, 'RIFF');
+  view.setUint32(4, 36 + dataBytes, true);
+  ascii(8, 'WAVE');
+  ascii(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, channels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * blockAlign, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, 24, true);
+  ascii(36, 'data');
+  view.setUint32(40, dataBytes, true);
+
+  let offset = 44;
+  for (let frame = 0; frame < frames; frame += 1) {
+    const sample = Math.round(Math.sin((2 * Math.PI * 440 * frame) / sampleRate) * 0x4fffff);
+    pcm24(offset, sample);
+    pcm24(offset + 3, sample);
+    offset += blockAlign;
+  }
+
+  const blob = new Blob([buffer], { type: 'audio/wav' });
+  let encodedBytes = 0;
+  const writable = {
+    async write(chunk) {
+      encodedBytes += Number(chunk?.byteLength ?? chunk?.size ?? 0);
+    },
+    async close() {
+      window.__echooE2eSavedMp3Bytes = encodedBytes;
+    },
+    async abort() {},
+  };
+  const deviceSaveReservation = Promise.resolve({
+    mode: 'file-picker',
+    format: 'mp3',
+    filename: 'Echoo - e2e-recording.mp3',
+    mimeType: 'audio/mpeg',
+    handle: {
+      async createWritable() {
+        return writable;
+      },
+    },
+  });
+
   window.dispatchEvent(new CustomEvent('echoo:broadcast-recording-ready', {
     detail: {
       broadcast: { ...broadcast, id, _id: id, status: 'completed' },
       recording: {
         blob,
         broadcastId: id,
-        durationSeconds: 42,
-        startedAt: new Date(Date.now() - 42_000).toISOString(),
+        durationSeconds: 0.1,
+        startedAt: new Date(Date.now() - 100).toISOString(),
         mimeType: 'audio/wav',
         recordingFormat: 'pcm-wav',
         lossless: true,
-        sampleRate: 48000,
+        sampleRate,
         bitDepth: 24,
-        channels: 2,
+        channels,
       },
+      deviceSaveReservation,
     },
   }));
 }, { broadcast: liveBroadcast, id: broadcastId });
@@ -177,6 +241,7 @@ test('Creator broadcast moves through OFF AIR, LIVE, confirmation, ending, saved
   await expect(savedBanner).toBeVisible({ timeout: 12_000 });
   await expect(savedBanner.getByRole('button', { name: 'Dismiss' })).toBeVisible();
   await expect(savedBanner.getByRole('button', { name: 'Play recording', exact: true })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => Number(window.__echooE2eSavedMp3Bytes || 0))).toBeGreaterThan(1000);
   await page.screenshot({ path: 'design-qa-evidence/broadcast-approved/recording-saved-1536x1024.png' });
   await savedBanner.getByRole('button', { name: 'Dismiss' }).click();
   await expect(savedBanner).toHaveCount(0);
