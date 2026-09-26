@@ -413,7 +413,7 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
             <>
               <header className="ear-form-heading">
                 <h1 id="ear-auth-title">
-                  {isLogin ? "Welcome back" : "Create your Echoo account"}
+                  {isLogin ? "Welcome back" : "Sign up"}
                 </h1>
                 <p>
                   {isLogin
