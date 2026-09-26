@@ -166,12 +166,15 @@ Server:
 - automatically saves/finalizes the canonical MP3.
 
 Creator device:
-- first completed recording asks once for MP3, WAV, or server-only;
-- the preference is remembered per device;
+- device persistence is independent from server replay readiness;
+- immediately after OFF AIR, the local OPFS master can be saved as **WAV** without conversion or encoded locally as **320 kbps MP3** without contacting the Echoo API;
+- local MP3 encoding begins only after realtime LiveKit publishing has stopped, so it cannot compete with the live stream;
+- the encoder reads the WAV in bounded slices and uses temporary OPFS-backed MP3 output when available;
+- first completed recording asks once for MP3, WAV, or server-only, and the preference is remembered per device;
 - Echoo Desktop writes automatic copies into
   `Desktop/Echoo Recordings/<year>/<month>/`;
-- normal web/mobile browsers use their browser download storage because a web
-  page cannot silently create arbitrary folders on the user's filesystem;
+- normal web/mobile browsers use the browser download destination; user-triggered phone saves also use the native share sheet when the browser permits file sharing;
+- if the server is offline or still finalizing, the UI must continue offering local **Save MP3** and **Save WAV** actions plus a separate **Retry Echoo server save** action;
 - files receive human-readable Echoo names so manual renaming is unnecessary.
 
 Typical filename:
