@@ -19,6 +19,7 @@ const startPromises = new Map();
 const expectedTracks = new Map();
 const desiredTracks = new Map();
 const TRACK_HANDOFF_TIMEOUT_MS = 12_000;
+const RECORDING_SOCKET_CLOSE_GRACE_MS = 4_000;
 const MAX_PENDING_PCM_BYTES = 8 * 1024 * 1024;
 let websocketServer = null;
 let attachedHttpServer = null;
@@ -168,6 +169,7 @@ const createSession = async (broadcastId) => {
     currentTrackSid: '',
     handoff: false,
     handoffTimer: null,
+    disconnectTimer: null,
     finishPromise: null,
     closed,
     resolveClosed,
@@ -241,6 +243,8 @@ const finishSession = (session) => {
     expectedTracks.delete(session.broadcastId);
     if (session.handoffTimer) clearTimeout(session.handoffTimer);
     session.handoffTimer = null;
+    if (session.disconnectTimer) clearTimeout(session.disconnectTimer);
+    session.disconnectTimer = null;
 
     if (session.failed) {
       // Failed sessions are never accepted as canonical replays, so do not
@@ -344,6 +348,8 @@ const acceptRecordingSocket = async (socket, request) => {
   session.handoff = false;
   if (session.handoffTimer) clearTimeout(session.handoffTimer);
   session.handoffTimer = null;
+  if (session.disconnectTimer) clearTimeout(session.disconnectTimer);
+  session.disconnectTimer = null;
   await persist(identity.broadcastId, {
     'serverRecording.status': 'active',
     'serverRecording.trackSid': identity.trackSid,
@@ -397,13 +403,31 @@ const acceptRecordingSocket = async (socket, request) => {
     // socket. Keep the same FFmpeg session open for the replacement track.
     if (identity.trackSid !== session.currentTrackSid || session.handoff) return;
 
-    session.failed = true;
-    session.error = 'LiveKit recording stream disconnected before End Broadcast.';
-    void persist(identity.broadcastId, {
-      'serverRecording.status': 'failed',
-      'serverRecording.error': session.error,
-    });
-    void finishSession(session);
+    // Normal End Broadcast starts the backend stop and browser unpublish almost
+    // together. The Egress websocket can therefore close a moment before the
+    // backend stop handler marks this session as stopping. Give that control-
+    // plane request a short grace period; a genuine unexpected disconnect still
+    // fails closed if no normal stop or replacement socket arrives.
+    if (session.disconnectTimer) clearTimeout(session.disconnectTimer);
+    session.disconnectTimer = setTimeout(() => {
+      session.disconnectTimer = null;
+      if (
+        session.stopping ||
+        session.failed ||
+        session.handoff ||
+        identity.trackSid !== session.currentTrackSid ||
+        session.sockets.size > 0
+      ) return;
+
+      session.failed = true;
+      session.error = 'LiveKit recording stream disconnected before End Broadcast.';
+      void persist(identity.broadcastId, {
+        'serverRecording.status': 'failed',
+        'serverRecording.error': session.error,
+      });
+      void finishSession(session);
+    }, RECORDING_SOCKET_CLOSE_GRACE_MS);
+    session.disconnectTimer.unref?.();
   });
 
   socket.on('error', (error) => {
