@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.jsx";
 import AppErrorBoundary from "./Components/System/AppErrorBoundary.jsx";
+import ConfirmDialogHost from "./Components/Shared/ConfirmDialogHost.jsx";
 import settingsService from "./services/settingsService.js";
 import { installDesktopLifecycle } from "./services/desktopLifecycle.js";
 import { initializeEchooTheme } from "./theme/themePreference.js";
@@ -83,6 +84,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <AppErrorBoundary>
       <App />
+      <ConfirmDialogHost />
     </AppErrorBoundary>
   </React.StrictMode>
 );
