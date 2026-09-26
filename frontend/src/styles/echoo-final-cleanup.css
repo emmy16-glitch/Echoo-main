@@ -14,14 +14,16 @@
   font-size: 13px;
   font-weight: 750;
   text-decoration: none;
-  transform: translateY(-180%);
+  opacity: 0;
+  pointer-events: none;
   transition:
-    transform 160ms ease;
+    opacity 160ms ease;
 }
 
 .echoo-skip-to-content:focus,
 .echoo-skip-to-content:focus-visible {
-  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
   outline: 3px solid rgba(38, 93, 255, 0.22);
   outline-offset: 2px;
 }
@@ -29,7 +31,8 @@
 html body:has(.echoo-listener-v2-shell) .echoo-skip-to-content:focus,
 html body:has(.echoo-listener-v2-shell) .echoo-skip-to-content:focus-visible {
   top: 12px;
-  transform: translateY(0) !important;
+  opacity: 1 !important;
+  pointer-events: auto;
 }
 
 #echoo-main-content:focus {
