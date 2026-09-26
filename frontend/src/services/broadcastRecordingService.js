@@ -26,6 +26,7 @@ const QUALITY_CHUNK_START_RETRIES = 3;
 const QUALITY_CHUNK_COMPLETE_RETRIES = 5;
 const QUALITY_CHUNK_UPLOAD_TIMEOUT_MS = 120_000;
 const QUALITY_CHUNK_START_TIMEOUT_MS = 30_000;
+const QUALITY_CHUNK_COMPLETE_TIMEOUT_MS = 30_000;
 // Optional transport can never be allowed to accumulate arbitrary PCM on the
 // main thread. At 48 kHz stereo this permits 30 seconds of queued float audio;
 // exceeding it disables only the quality/archive branch and preserves LiveKit.
@@ -529,6 +530,7 @@ const completeQualityChunks = async (
           qualityChunkCount: Number(recording.qualityChunkIndex ?? recording.qualityChunkCount) || 0,
           qualityChunkUploadErrors: uploadErrors,
         }),
+        timeoutMs: QUALITY_CHUNK_COMPLETE_TIMEOUT_MS,
       });
       const data = await response.json().catch(() => null);
 
