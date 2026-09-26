@@ -26,15 +26,17 @@ export async function connectDatabase() {
     return;
   }
 
+  const serverlessRuntime =
+    process.env.VERCEL === '1' || Boolean(process.env.VERCEL_URL?.trim());
   const maxPoolSize = boundedInteger(
     process.env.MONGODB_MAX_POOL_SIZE,
-    25,
-    5,
+    serverlessRuntime ? 5 : 25,
+    1,
     100
   );
   const minPoolSize = boundedInteger(
     process.env.MONGODB_MIN_POOL_SIZE,
-    2,
+    serverlessRuntime ? 0 : 2,
     0,
     Math.min(10, maxPoolSize)
   );
@@ -48,8 +50,11 @@ export async function connectDatabase() {
         // those requests flowing without opening one DB connection per listener.
         maxPoolSize,
         minPoolSize,
-        maxConnecting: 4,
-        waitQueueTimeoutMS: 10000,
+        maxConnecting: serverlessRuntime ? 2 : 4,
+        // Serverless cold starts must fail fast instead of trapping the Studio
+        // behind a 10-second database checkout queue. Long-lived hosts retain
+        // the larger queue for normal audience bursts.
+        waitQueueTimeoutMS: serverlessRuntime ? 3000 : 10000,
         // Packaged desktop tries the machine-local server first but must not
         // hang the app boot when none exists — the in-memory fallback below
         // takes over within a few seconds.
