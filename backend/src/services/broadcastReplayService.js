@@ -245,6 +245,34 @@ export const estimateReplayDurationSeconds = ({
   return 0;
 };
 
+export const isTrustedCompletedServerReplay = ({
+  status = '',
+  persistedFileBytes = 0,
+  actualFileBytes = 0,
+  pcmBytes = 0,
+  probedDurationSeconds = 0,
+} = {}) => {
+  const actual = Math.max(0, Number(actualFileBytes) || 0);
+  const persisted = Math.max(0, Number(persistedFileBytes) || 0);
+  const pcm = Math.max(0, Number(pcmBytes) || 0);
+  const duration = Math.max(0, Number(probedDurationSeconds) || 0);
+
+  if (String(status || '').toLowerCase() !== 'completed' || actual <= 0) return false;
+  if (persisted > 0 && actual !== persisted) return false;
+  if (duration <= 0) return false;
+
+  // LiveKit Track Egress supplies raw 48 kHz stereo s16le PCM. If FFmpeg
+  // produced a much shorter MP3 than the PCM we actually received, never
+  // publish that truncated file as the canonical replay.
+  if (pcm > 0) {
+    const expectedDuration = pcm / (48000 * 2 * 2);
+    const tolerance = Math.max(3, expectedDuration * 0.02);
+    if (duration + tolerance < expectedDuration) return false;
+  }
+
+  return true;
+};
+
 export async function finalizeBroadcastReplay({ broadcastId, creatorId, expectedChunkCount = 0, uploadErrors = 0 } = {}) {
   await assertFfmpegAvailable();
   const bid = String(broadcastId || '');
@@ -281,7 +309,7 @@ async function finalizeInner({ broadcastId, creatorId, expectedChunkCount, uploa
   }
 
   const broadcast = await Broadcast.findOne({ _id: broadcastId, isDeleted: false })
-    .select('_id creator station title description status replayAudio replayAudioId replayStatus startedAt startTime endedAt serverRecording.pcmBytes');
+    .select('_id creator station title description status replayAudio replayAudioId replayStatus startedAt startTime endedAt serverRecording.status serverRecording.pcmBytes serverRecording.fileBytes');
   if (!broadcast) {
     const error = new Error('Broadcast not found.');
     error.status = 404;
@@ -321,9 +349,30 @@ async function finalizeInner({ broadcastId, creatorId, expectedChunkCount, uploa
       replayBytes = 0;
     }
   }
-  if (!chunks.length && !replayBytes) {
-    await Broadcast.updateOne({ _id: broadcastId }, { $set: { replayStatus: 'empty' } }).catch(() => null);
-    return { status: 'empty', audioId: null };
+  const serverRecordingStatus = String(broadcast.serverRecording?.status || '').toLowerCase();
+  const persistedReplayBytes = Math.max(0, Number(broadcast.serverRecording?.fileBytes) || 0);
+  const streamFileLooksOwned =
+    serverRecordingStatus === 'completed' &&
+    replayBytes > 0 &&
+    (!persistedReplayBytes || replayBytes === persistedReplayBytes);
+
+  if (!chunks.length && !streamFileLooksOwned) {
+    const interruptedServerFile = replayBytes > 0;
+    await Broadcast.updateOne(
+      { _id: broadcastId },
+      { $set: { replayStatus: interruptedServerFile ? 'incomplete' : 'empty' } }
+    ).catch(() => null);
+    return interruptedServerFile
+      ? {
+          status: 'incomplete',
+          audioId: null,
+          receivedChunks: 0,
+          expectedChunks: Math.max(0, Number(expectedChunkCount) || 0),
+          missingChunkIndices: [],
+          uploadErrors: Number(uploadErrors) || 0,
+          reason: 'server-recording-not-complete',
+        }
+      : { status: 'empty', audioId: null };
   }
 
   // Do not silently truncate: gaps, shortfalls, or transport errors keep the
@@ -336,7 +385,7 @@ async function finalizeInner({ broadcastId, creatorId, expectedChunkCount, uploa
       if (!seen.has(index)) missing.push(index);
     }
   }
-  if (!accounted && !replayBytes) {
+  if (!accounted && !streamFileLooksOwned) {
     await Broadcast.updateOne({ _id: broadcastId }, { $set: { replayStatus: 'incomplete' } }).catch(() => null);
     return {
       status: 'incomplete',
@@ -356,13 +405,23 @@ async function finalizeInner({ broadcastId, creatorId, expectedChunkCount, uploa
   // Prefer the always-on streamed replay MP3; fall back to deterministic
   // one-shot assembly from the durable chunk files.
   let mp3Source = null;
-  if (replayBytes > 0) {
+  if (streamFileLooksOwned) {
     try {
       const header = Buffer.alloc(4);
       const handle = await fs.open(replayFile.path, 'r');
       await handle.read(header, 0, 4, 0);
       await handle.close();
-      if (isRealMp3Bytes(header) && await probeMp3DurationSeconds(replayFile.path) > 0) {
+      const streamDuration = await probeMp3DurationSeconds(replayFile.path);
+      if (
+        isRealMp3Bytes(header) &&
+        isTrustedCompletedServerReplay({
+          status: serverRecordingStatus,
+          persistedFileBytes: persistedReplayBytes,
+          actualFileBytes: replayBytes,
+          pcmBytes: broadcast.serverRecording?.pcmBytes,
+          probedDurationSeconds: streamDuration,
+        })
+      ) {
         mp3Source = 'stream';
       }
     } catch {

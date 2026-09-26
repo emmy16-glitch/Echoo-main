@@ -257,6 +257,8 @@ test('recording management keeps trim copies safe and prevents cramped or mislab
   assert.doesNotMatch(trimController, /findOneAndUpdate\([\s\S]{0,1000}'lastTrim\.startSeconds'/);
   assert.match(trimService, /case '\.mp3': return \['-c:a', 'copy'\]/);
   assert.match(trimService, /FFMPEG_REQUIRED/);
+  assert.match(trimService, /TRIM_PROBE_TIMEOUT/);
+  assert.match(trimService, /child\.kill\('SIGKILL'\)/);
   assert.match(routes, /health\/recording/);
 
   assert.match(exportService, /Server MP3 is still being prepared/);

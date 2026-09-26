@@ -380,11 +380,15 @@ const uploadLosslessMasterAfterLive = async (
     const startMs = (offset * 1000) / bytesPerSecond;
     const endMs = ((offset + take) * 1000) / bytesPerSecond;
     const pcmBlob = file.slice(44 + offset, 44 + offset + take);
+    const alreadyUploaded = Boolean(recording.existingChunkIndices?.has?.(chunkIndex));
 
-    let uploaded = false;
+    let uploaded = alreadyUploaded;
     try {
-      await uploadStoredPcmChunk({ recording, pcmBlob, startMs, endMs, chunkIndex });
-      uploaded = true;
+      if (!alreadyUploaded) {
+        await uploadStoredPcmChunk({ recording, pcmBlob, startMs, endMs, chunkIndex });
+        recording.existingChunkIndices?.add?.(chunkIndex);
+        uploaded = true;
+      }
     } catch (error) {
       recording.qualityChunkErrors.push({
         chunkIndex,
@@ -470,6 +474,16 @@ const startQualityChunking = async (recording) => {
       if (data?.data?.mode === 'browser-fallback') {
         // This mode is valid only for post-live recovery, when the full OPFS
         // master is uploaded in bounded chunks after WebRTC has stopped.
+        // Preserve the server's durable chunk map so a retry after a network
+        // failure resumes from the missing chunks instead of retransmitting
+        // hundreds of MB that Echoo already has.
+        recording.existingChunkIndices = new Set(
+          (Array.isArray(data?.data?.existingChunkIndices)
+            ? data.data.existingChunkIndices
+            : [])
+            .map((index) => Number(index))
+            .filter((index) => Number.isInteger(index) && index >= 0)
+        );
         recording.qualityChunkStarted = true;
         return true;
       }
@@ -1238,6 +1252,7 @@ export const uploadRecoveryMasterToServer = async (
     qualityCompletionPending: false,
     qualityCompletionError: '',
     serverRecordingPrimary: false,
+    existingChunkIndices: new Set(),
   };
 
   await startQualityChunking(recovery);

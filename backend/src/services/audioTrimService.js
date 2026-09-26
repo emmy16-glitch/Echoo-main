@@ -14,11 +14,18 @@ const trimError = (status, code, message) => Object.assign(new Error(message), {
 const binaryAvailable = (command) => new Promise((resolve) => {
   const child = spawn(command, ['-version'], { stdio: 'ignore' });
   let settled = false;
+  let timer = null;
   const finish = (ok) => {
     if (settled) return;
     settled = true;
+    if (timer) clearTimeout(timer);
     resolve(Boolean(ok));
   };
+  timer = setTimeout(() => {
+    try { child.kill('SIGKILL'); } catch { /* already exited */ }
+    finish(false);
+  }, 5000);
+  timer.unref?.();
   child.on('error', () => finish(false));
   child.on('close', (code) => finish(code === 0));
 });
@@ -113,10 +120,24 @@ const probeDuration = async (filePath) => {
     ], { stdio: ['ignore', 'pipe', 'pipe'] });
     let stdout = '';
     let stderr = '';
+    let settled = false;
+    const finish = (callback, value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      callback(value);
+    };
+    const timer = setTimeout(() => {
+      try { child.kill('SIGKILL'); } catch { /* already exited */ }
+      finish(reject, trimError(504, 'TRIM_PROBE_TIMEOUT', 'Audio verification timed out.'));
+    }, 30_000);
+    timer.unref?.();
     child.stdout.on('data', (chunk) => { stdout += chunk.toString('utf8'); });
     child.stderr.on('data', (chunk) => { stderr += chunk.toString('utf8'); });
-    child.on('error', reject);
-    child.on('close', (code) => code === 0 ? resolve(stdout) : reject(new Error(stderr || 'ffprobe failed')));
+    child.on('error', (error) => finish(reject, error));
+    child.on('close', (code) => code === 0
+      ? finish(resolve, stdout)
+      : finish(reject, new Error(stderr || 'ffprobe failed')));
   });
   const duration = Number.parseFloat(output);
   if (!Number.isFinite(duration) || duration <= 0) {

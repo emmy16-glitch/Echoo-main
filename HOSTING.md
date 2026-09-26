@@ -123,7 +123,10 @@ The browser still keeps a temporary lossless OPFS recovery WAV. That local maste
 - is cleared only after the canonical server recording is confirmed safe and the requested device-copy policy is satisfied (or the creator chose server-only).
 
 Do **not** "fix" recording failures by raising an 80 MB/500 MB/1 GB request limit.
-A large final WAV POST means the intended architecture has regressed.
+A large final WAV POST means the intended architecture has regressed. Emergency
+post-live recovery is the exception: it uploads the OPFS master as bounded
+10-second chunks and resumes from chunk indexes the server already has, so a
+network retry does not restart a large recording from 0%.
 
 Default canonical live replay quality:
 
@@ -173,9 +176,9 @@ Creator device:
 - first completed recording asks once for MP3, WAV, or server-only, and the preference is remembered per device;
 - Echoo Desktop writes automatic copies into
   `Desktop/Echoo Recordings/<year>/<month>/`;
-- on supported PC browsers, the confirmed **End Broadcast** click immediately asks the user for a destination file while browser user-activation is still valid; once chosen, Echoo finishes the local master/MP3 encoding and writes to that already-authorized file automatically even if the server is still busy;
-- Echoo Desktop can still save automatically into its managed Echoo Recordings folder with no picker;
-- on phones and browsers without a writable file picker, an explicit **Save MP3 / Save WAV** action remains necessary; a long phone MP3 may first encode locally and then show **MP3 ready · Tap to save** so the final tap owns the native share gesture; plain browser-download fallback is treated as unverified and never deletes the OPFS master;
+- in web browsers, Echoo first confirms the canonical server MP3, then shows one explicit **Save MP3 / Save WAV** device-copy choice; after a successful device save the popup exits and is not shown again for that recording;
+- Echoo Desktop can save automatically into its managed Echoo Recordings folder with no picker;
+- on phones and browsers without a writable file picker, the same explicit **Save MP3 / Save WAV** action remains necessary; a long phone MP3 may first encode locally and then show **MP3 ready · Tap to save** so the final tap owns the native share gesture; plain browser-download fallback is treated as unverified and never deletes the OPFS master;
 - if the server is offline or still finalizing, the UI must continue offering local **Save MP3** and **Save WAV** actions plus a separate **Retry Echoo server save** action;
 - files receive human-readable Echoo names so manual renaming is unnecessary.
 

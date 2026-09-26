@@ -151,8 +151,16 @@ export async function startBroadcastAudioChunks(req, res, next) {
       });
     }
 
+    const existingChunks = await BroadcastAudioChunk.find({ broadcastId: broadcast._id })
+      .select('chunkIndex')
+      .sort({ chunkIndex: 1 })
+      .lean();
+    const existingChunkIndices = existingChunks
+      .map((chunk) => Number(chunk.chunkIndex))
+      .filter((index) => Number.isInteger(index) && index >= 0);
+    const existingCount = existingChunkIndices.length;
+
     if (!broadcast.qualityChunkingStartedAt || broadcast.qualityChunkingCompletedAt) {
-      const existingCount = await BroadcastAudioChunk.countDocuments({ broadcastId: broadcast._id });
       await Broadcast.updateOne(
         { _id: broadcast._id },
         {
@@ -178,6 +186,7 @@ export async function startBroadcastAudioChunks(req, res, next) {
         started: true,
         mode: 'browser-fallback',
         serverRecording: false,
+        existingChunkIndices,
         outputs,
       },
       timestamp: new Date().toISOString(),
