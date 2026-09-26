@@ -7,6 +7,7 @@ import collectionService from '../../services/collectionService.js';
 import studioService from '../../services/studioService.js';
 import { buildMediaUrl } from '../../services/api.js';
 import { buildGeneratedAudioCoverUrl } from '../../audioCover/audioCover.js';
+import { requestEchooConfirmation } from '../Shared/ConfirmDialogHost.jsx';
 import './CreatorCollectionWorkspace.css';
 
 const idOf = (value) => value?.id || value?._id || value || '';
@@ -171,7 +172,14 @@ export default function CreatorCollectionWorkspace({ collectionId = '', studioNa
   };
 
   const deleteCollection = async () => {
-    if (!selected || busy || !window.confirm(`Delete “${selected.title}”? Recordings will not be deleted.`)) return;
+    if (!selected || busy) return;
+    const confirmed = await requestEchooConfirmation({
+      title: 'Delete Collection?',
+      description: `“${selected.title}” will be deleted. The recordings inside it will stay in your Echoo library.`,
+      confirmLabel: 'Delete Collection',
+      tone: 'danger',
+    });
+    if (!confirmed) return;
     try {
       setBusy(true);
       await collectionService.delete(selected.id);
