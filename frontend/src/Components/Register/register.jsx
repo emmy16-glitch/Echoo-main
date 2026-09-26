@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import "./auth-reference.css";
 import api from "../../services/api";
 
@@ -15,6 +16,7 @@ import {
 } from "react-icons/fa";
 
 import EchooLogoImage from "../Assets/echoo-logo-mark.png";
+import EchooAuthBackground from "../Assets/echoo-auth-cinematic-headphones.jpeg";
 import LoadingButton from "../UI/LoadingButton";
 import Toast from "../UI/Toast";
 
@@ -40,6 +42,26 @@ const AuthField = ({
   </div>
 );
 
+const PasswordChecklist = ({ password = "" }) => {
+  const requirements = [
+    { label: "8+ characters", met: password.length >= 8 },
+    { label: "Upper & lowercase", met: /[a-z]/.test(password) && /[A-Z]/.test(password) },
+    { label: "Number", met: /\d/.test(password) },
+    { label: "Special character", met: /[^A-Za-z0-9]/.test(password) },
+  ];
+
+  return (
+    <ul className="ear-password-requirements" aria-label="Password requirements">
+      {requirements.map((requirement) => (
+        <li key={requirement.label} className={requirement.met ? "is-met" : ""}>
+          <span aria-hidden="true">{requirement.met ? "✓" : "•"}</span>
+          {requirement.label}
+        </li>
+      ))}
+    </ul>
+  );
+};
+
 const AuthStatus = ({ title, message, duration, onContinue }) => {
   useEffect(() => {
     const timeout = window.setTimeout(onContinue, duration);
@@ -54,7 +76,8 @@ const AuthStatus = ({ title, message, duration, onContinue }) => {
         <h1>{title}</h1>
         <p>{message}</p>
         <span className="ear-auth-status-loader" aria-hidden="true" />
-      </section>
+        </section>
+      </div>
     </main>
   );
 };
@@ -67,6 +90,7 @@ const initialAuthAction = () => {
 };
 
 const Register = ({ onAccountCreated, onLoginSuccess }) => {
+  const navigate = useNavigate();
   const [action, setAction] = useState(initialAuthAction);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -324,7 +348,10 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
   const isRecovery = action === "Forgot Password";
 
   return (
-    <main className={`echoo-auth-reference ${isLogin ? "is-login" : isRecovery ? "is-recovery" : "is-signup"}`}>
+    <main
+      className={`echoo-auth-reference ${isLogin ? "is-login" : isRecovery ? "is-recovery" : "is-signup"}`}
+      style={{ "--ear-auth-background-image": `url("${EchooAuthBackground}")` }}
+    >
       <Toast
         open={toast.open}
         type={toast.type}
@@ -333,8 +360,21 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
         onClose={() => setToast((current) => ({ ...current, open: false }))}
       />
 
-      <section className="ear-auth-card" aria-labelledby="ear-auth-title">
-        <img className="ear-logo-mark" src={EchooLogoImage} alt="Echoo" />
+      <div className="ear-auth-backdrop" aria-hidden="true" />
+      <div className="ear-auth-shell">
+        <aside className="ear-auth-story" aria-label="About Echoo">
+          <div className="ear-auth-story-copy">
+            <span className="ear-auth-story-kicker"><i aria-hidden="true" /> Live sound, made human</span>
+            <h2>Hear the moment.<br />Own the room.</h2>
+            <p>Creators broadcast. Listeners join instantly. Public live audio stays open without an account wall.</p>
+          </div>
+        </aside>
+
+        <section className="ear-auth-card" aria-labelledby="ear-auth-title">
+        <div className="ear-card-brand">
+          <img className="ear-logo-mark" src={EchooLogoImage} alt="" />
+          <span>Echoo</span>
+        </div>
           {isRecovery ? (
             <>
               <button type="button" className="ear-back" onClick={switchToLogin}>
@@ -350,7 +390,6 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
                     id="echoo-recovery-email"
                     type="email"
                     name="email"
-                    placeholder="you@example.com"
                     value={formData.email}
                     onChange={handleChange}
                     autoComplete="email"
@@ -375,12 +414,12 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
             <>
               <header className="ear-form-heading">
                 <h1 id="ear-auth-title">
-                  {isLogin ? "Echoo your sound" : "Sign up"}
+                  {isLogin ? "Welcome back" : "Create your Echoo account"}
                 </h1>
                 <p>
                   {isLogin
-                    ? "Sign in to continue your listening experience"
-                    : "Enjoy wonderful listening experience"}
+                    ? "Sign in to your Echoo account."
+                    : "Follow creators, save what you love and join the conversation."}
                 </p>
               </header>
 
@@ -418,13 +457,11 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
                     label="Username or email"
                     icon={FaAt}
                     error={Boolean(loginError)}
-                    hint="Example: @okunlola or name@example.com"
                   >
                     <input
                       id="echoo-login-identifier"
                       type="text"
                       name="identifier"
-                      placeholder="@username or email address"
                       value={formData.identifier}
                       onChange={handleChange}
                       autoComplete="username"
@@ -477,7 +514,6 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
                       id="echoo-signup-email"
                       type="email"
                       name="email"
-                      placeholder="you@example.com"
                       value={formData.email}
                       onChange={handleChange}
                       autoComplete="email"
@@ -563,9 +599,7 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
                   </AuthField>
                 )}
 
-                {!isLogin && !passwordTooShort && !passwordsMismatch && (
-                  <p className="ear-helper">Use 8+ characters with uppercase and lowercase letters, a number, and a special character.</p>
-                )}
+                {!isLogin && <PasswordChecklist password={formData.password} />}
                 {passwordTooShort && <p className="ear-error" role="alert">Password must be at least 8 characters.</p>}
                 {!passwordTooShort && passwordMissingCombination && (
                   <p className="ear-error" role="alert">Use uppercase and lowercase letters, a number, and a special character.</p>
@@ -591,8 +625,21 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
                   disabled={!formIsComplete()}
                   className="ear-submit"
                 >
-                  {isLogin ? "Login" : "Create account"}
+                  {isLogin ? "Sign in" : "Create account"}
                 </LoadingButton>
+
+                {isLogin && (
+                  <>
+                    <div className="ear-auth-divider" aria-hidden="true"><span>or</span></div>
+                    <button
+                      type="button"
+                      className="ear-guest-listen"
+                      onClick={() => navigate("/listen")}
+                    >
+                      Continue listening without an account
+                    </button>
+                  </>
+                )}
 
                 <p className="ear-auth-switch">
                   {isLogin ? "Don’t have an account? " : "Already have an account? "}
