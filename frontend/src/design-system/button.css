@@ -7,9 +7,9 @@
   min-height: var(--echoo-control-height, 42px);
   padding: 0 var(--echoo-space-4, 1rem);
   border: 1px solid transparent;
-  border-radius: var(--echoo-ds-radius-pill);
-  font-family: var(--echoo-ds-font);
-  font-weight: 600;
+  border-radius: var(--echoo-ds-radius-md);
+  font-family: var(--echoo-ds-font-accent);
+  font-weight: 650;
   font-size: var(--echoo-ds-small-size);
   line-height: 1;
   letter-spacing: -0.01em;
