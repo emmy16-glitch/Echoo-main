@@ -681,8 +681,11 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       setNeedsAudioStart(false);
       needsAudioStartRef.current = false;
       setIsPlaying(elements.length > 0);
-      if (elements.length) setStatus('listening');
-      return elements.length > 0;
+      setStatus(elements.length ? 'listening' : 'recovering_audio');
+      // room.startAudio() succeeded inside a real user gesture. Even when the
+      // program publication arrives a moment later, LiveKit is now unlocked
+      // and attachAudio() can start it without another authentication step.
+      return true;
     } catch (startError) {
       setIsPlaying(false);
       setNeedsAudioStart(true);
@@ -694,10 +697,13 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
 
   const playAudio = useCallback(async () => {
     playbackIntentRef.current = 'play';
-    if (needsAudioStart) return startAudio();
 
     const elements = Array.from(audioHostRef.current?.querySelectorAll('audio') || []);
-    if (!elements.length) return false;
+    // A guest can tap Play before the canonical program track finishes
+    // subscribing. Use that gesture to unlock LiveKit audio immediately so
+    // the later attachment can play without requiring account creation or a
+    // second tap.
+    if (needsAudioStart || !elements.length) return startAudio();
     try {
       setError('');
       await audioCtxRef.current?.resume?.();
