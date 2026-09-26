@@ -343,6 +343,32 @@ const acceptRecordingSocket = async (socket, request) => {
     return;
   }
 
+  const persistedEgressId = String(broadcast.serverRecording?.egressId || '');
+  const currentProcessExpectsTrack =
+    expectedTracks.get(identity.broadcastId) === identity.trackSid;
+  const currentProcessOwnsEgress =
+    persistedEgressId &&
+    ownedEgressIds.get(identity.broadcastId) === persistedEgressId;
+
+  if (
+    !sessions.has(identity.broadcastId) &&
+    persistedEgressId &&
+    !currentProcessExpectsTrack &&
+    !currentProcessOwnsEgress
+  ) {
+    // Unsolicited Egress after a backend restart. Starting a fresh FFmpeg here
+    // would overwrite the earlier MP3 and leave a tail-only file that looks
+    // complete. Fail closed and preserve the browser OPFS full-show recovery.
+    await LiveKitProvider.stopEgress(persistedEgressId).catch(() => null);
+    await persist(identity.broadcastId, {
+      'serverRecording.status': 'failed',
+      'serverRecording.egressId': null,
+      'serverRecording.error': 'Server recorder reconnected after a process restart. Browser recovery is required for a complete replay.',
+    });
+    socket.close(1011, 'Interrupted server recording requires browser recovery');
+    return;
+  }
+
   const session = await getOrCreateSession(identity.broadcastId);
   if (session.stopping || session.failed) {
     socket.close(1011, 'Recording session is closing');
@@ -536,8 +562,6 @@ export const ensureLiveKitServerRecording = async ({
     if (desiredTracks.get(id) !== track) {
       return { mode: 'superseded', active: false, trackSid: track };
     }
-    expectedTracks.set(id, track);
-
     const current = await Broadcast.findById(id).select('serverRecording');
     const recording = current?.serverRecording || null;
 
@@ -563,6 +587,7 @@ export const ensureLiveKitServerRecording = async ({
         sessions.has(id) || ownedEgressIds.get(id) === egressId;
 
       if (processOwnsRecording) {
+        expectedTracks.set(id, track);
         return {
           mode: 'server-egress',
           active: true,
@@ -635,6 +660,11 @@ export const ensureLiveKitServerRecording = async ({
       if (desiredTracks.get(id) !== track) {
         return { mode: 'superseded', active: false, trackSid: track };
       }
+
+      // Only this point authorizes an incoming recording WebSocket for a new
+      // Egress. After a process restart the map is empty, so an orphan socket
+      // cannot race startup and overwrite the earlier part of the recording.
+      expectedTracks.set(id, track);
 
       const egress = await LiveKitProvider.startTrackRecordingEgress(
         id,
