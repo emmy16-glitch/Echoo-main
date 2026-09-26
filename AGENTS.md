@@ -27,6 +27,8 @@ requirements that are easy to miss, especially the recording pipeline.
    - Backend FFmpeg writes the canonical server MP3 while the show is live.
    - The browser OPFS WAV is recovery/device-export data only; bounded WAV chunks are post-live emergency recovery when server recording failed.
    - A creator device copy must remain independent from server readiness: WAV saves directly from OPFS, and MP3 is encoded locally only after OFF AIR.
+   - Browser raw PCM/WAV fallback is forbidden while LIVE, including when LiveKit Egress is unavailable.
+   - Do not claim 500-listener capacity from code/config alone; require a staged production load test and verify the LiveKit project quota.
 5. **Preserve original audio by default.**
    - Raw/original creator audio is the default.
    - Enhanced processing must remain opt-in.
