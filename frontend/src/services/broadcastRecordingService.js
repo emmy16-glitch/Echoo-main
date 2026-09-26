@@ -14,9 +14,8 @@ const WAV_MIME_TYPE = 'audio/wav';
 const MAX_WAV_DATA_BYTES = 0xffffffff - 44;
 const OPFS_DIRECTORY = 'echoo-live-recordings';
 const OPFS_MANIFEST_KEY = 'echoo:recoverable-broadcast-recording:v1';
+const OPFS_MANIFESTS_KEY = 'echoo:recoverable-broadcast-recordings:v2';
 const OPFS_CHECKPOINT_MS = 15_000;
-// Orphaned masters older than this are never offered back for save.
-const STALE_OPFS_FILE_MS = 24 * 60 * 60 * 1000;
 
 const OPUS_FALLBACK_BITRATE = 256000;
 const QUALITY_CHUNK_SECONDS = 10;
@@ -33,58 +32,128 @@ const MAX_QUEUED_PCM_SECONDS = 30;
 let activeRecording = null;
 let pendingRecording = null;
 
-const readRecoveryManifest = () => {
-  if (typeof localStorage === 'undefined') return null;
+const validRecoveryManifest = (value) => Boolean(
+  value &&
+  value.storageName &&
+  value.broadcastId
+);
+
+const sortRecoveryManifests = (items) =>
+  [...items].sort(
+    (left, right) =>
+      Number(right?.updatedAt || right?.endedAt || right?.startedAt || 0) -
+      Number(left?.updatedAt || left?.endedAt || left?.startedAt || 0)
+  );
+
+const persistRecoveryManifests = (items) => {
+  if (typeof localStorage === 'undefined') return;
+  const valid = sortRecoveryManifests(
+    (Array.isArray(items) ? items : []).filter(validRecoveryManifest)
+  );
   try {
-    const value = JSON.parse(localStorage.getItem(OPFS_MANIFEST_KEY) || 'null');
-    if (!value?.storageName || !value?.broadcastId) return null;
-    if (Date.now() - Number(value.startedAt || value.updatedAt || 0) > STALE_OPFS_FILE_MS) return null;
-    return value;
-  } catch {
-    return null;
+    if (valid.length) {
+      localStorage.setItem(OPFS_MANIFESTS_KEY, JSON.stringify(valid));
+    } else {
+      localStorage.removeItem(OPFS_MANIFESTS_KEY);
+    }
+    // Once v2 has been written, the single-record v1 key must not overwrite it.
+    localStorage.removeItem(OPFS_MANIFEST_KEY);
+  } catch (error) {
+    console.warn(
+      '[Echoo Recording] could not persist recovery registry',
+      error?.message || error
+    );
   }
+};
+
+const readRecoveryManifests = () => {
+  if (typeof localStorage === 'undefined') return [];
+
+  let manifests = [];
+  try {
+    const parsed = JSON.parse(localStorage.getItem(OPFS_MANIFESTS_KEY) || '[]');
+    if (Array.isArray(parsed)) manifests = parsed.filter(validRecoveryManifest);
+  } catch {
+    manifests = [];
+  }
+
+  // One-time compatibility migration from the old single-manifest design.
+  try {
+    const legacy = JSON.parse(localStorage.getItem(OPFS_MANIFEST_KEY) || 'null');
+    if (
+      validRecoveryManifest(legacy) &&
+      !manifests.some((item) => item.storageName === legacy.storageName)
+    ) {
+      manifests.push(legacy);
+      persistRecoveryManifests(manifests);
+    }
+  } catch {
+    // Ignore malformed legacy metadata; the v2 registry remains authoritative.
+  }
+
+  return sortRecoveryManifests(manifests);
+};
+
+const readRecoveryManifest = ({ broadcastId = '', storageName = '' } = {}) => {
+  const manifests = readRecoveryManifests();
+  return manifests.find((manifest) => (
+    (!broadcastId || String(manifest.broadcastId) === String(broadcastId)) &&
+    (!storageName || manifest.storageName === storageName)
+  )) || null;
 };
 
 const writeRecoveryManifest = (recording, status = 'recording') => {
   if (typeof localStorage === 'undefined' || !recording?.storageName) return;
-  try {
-    localStorage.setItem(OPFS_MANIFEST_KEY, JSON.stringify({
-      version: 1,
-      status,
-      broadcastId: recording.broadcastId,
-      title: recording.title,
-      storageName: recording.storageName,
-      startedAt: recording.startedAt,
-      endedAt: recording.endedAt || null,
-      sampleRate: Number(recording.sampleRate) || WAV_TARGET_SAMPLE_RATE,
-      dataBytes: Number(recording.committedDataBytes ?? recording.dataBytes) || 0,
-      channels: WAV_CHANNELS,
-      bitDepth: WAV_BIT_DEPTH,
-      updatedAt: Date.now(),
-    }));
-  } catch (error) {
-    console.warn('[Echoo Recording] could not persist recovery metadata', error?.message || error);
-  }
+
+  const manifest = {
+    version: 2,
+    status,
+    broadcastId: recording.broadcastId,
+    title: recording.title,
+    storageName: recording.storageName,
+    startedAt: recording.startedAt,
+    endedAt: recording.endedAt || null,
+    sampleRate: Number(recording.sampleRate) || WAV_TARGET_SAMPLE_RATE,
+    dataBytes: Number(recording.committedDataBytes ?? recording.dataBytes) || 0,
+    channels: WAV_CHANNELS,
+    bitDepth: WAV_BIT_DEPTH,
+    updatedAt: Date.now(),
+  };
+  const manifests = readRecoveryManifests();
+  const next = manifests.filter(
+    (item) => item.storageName !== manifest.storageName
+  );
+  next.push(manifest);
+  persistRecoveryManifests(next);
 };
 
 const clearRecoveryManifest = (storageName = '') => {
   if (typeof localStorage === 'undefined') return;
-  const current = readRecoveryManifest();
-  if (!storageName || current?.storageName === storageName) {
-    localStorage.removeItem(OPFS_MANIFEST_KEY);
-  }
+  const manifests = readRecoveryManifests();
+  const next = storageName
+    ? manifests.filter((manifest) => manifest.storageName !== storageName)
+    : [];
+  persistRecoveryManifests(next);
 };
 
 // Compatibility aliases for call sites merged from the background-autosave
-// line, which names these helpers differently. Single implementation above.
+// line, which names these helpers differently. One v2 registry implementation
+// preserves multiple unfinished takes instead of overwriting the previous one.
 const readRecoveryMetadata = () => readRecoveryManifest();
-const persistRecoveryMetadata = (recording) => writeRecoveryManifest(recording, 'recording');
+const persistRecoveryMetadata = (recording) =>
+  writeRecoveryManifest(recording, 'recording');
 const clearRecoveryMetadata = (broadcastId = '') => {
   if (typeof localStorage === 'undefined') return;
-  const current = readRecoveryManifest();
-  if (!broadcastId || (current && String(current.broadcastId) === String(broadcastId))) {
-    clearRecoveryManifest(current?.storageName || '');
+  if (!broadcastId) {
+    clearRecoveryManifest();
+    return;
   }
+  const manifests = readRecoveryManifests();
+  persistRecoveryManifests(
+    manifests.filter(
+      (manifest) => String(manifest.broadcastId) !== String(broadcastId)
+    )
+  );
 };
 
 const supportsOpfs = () =>
@@ -1213,7 +1282,10 @@ export const flushRecordingForPageHide = async () => {
   if (activeRecording) activeRecording.writable = null;
 };
 
-// Recover an orphaned OPFS master left by a closed/crashed tab (<24h old).
+// Recover the newest orphaned OPFS master left by a closed/crashed tab.
+// Recovery metadata is not discarded merely because time passed; browser
+// storage eviction or an explicit creator discard is the real lifetime bound.
+// Additional unfinished takes remain registered and can be recovered later.
 // Returns { recording, broadcast } shaped like announceFinishedBroadcastRecording,
 // or null when there is nothing recoverable.
 export const recoverOrphanedLosslessRecording = async () => {
