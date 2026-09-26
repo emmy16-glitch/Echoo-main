@@ -120,7 +120,7 @@ The browser still keeps a temporary lossless OPFS recovery WAV. That local maste
 - may be used for an explicit WAV device copy;
 - is **not** the normal giant final upload;
 - stops when the live publisher stops, not after slow backend cleanup;
-- is cleared only after the canonical server recording is confirmed safe and any requested automatic device copy has succeeded (or the creator chose server-only).
+- is cleared only after the canonical server recording is confirmed safe and the requested device-copy policy is satisfied (or the creator chose server-only).
 
 Do **not** "fix" recording failures by raising an 80 MB/500 MB/1 GB request limit.
 A large final WAV POST means the intended architecture has regressed.
@@ -173,7 +173,7 @@ Creator device:
 - first completed recording asks once for MP3, WAV, or server-only, and the preference is remembered per device;
 - Echoo Desktop writes automatic copies into
   `Desktop/Echoo Recordings/<year>/<month>/`;
-- normal web/mobile browsers use the browser download destination; user-triggered phone saves also use the native share sheet when the browser permits file sharing;
+- normal web/mobile browsers require one explicit **Save MP3 / Save WAV** tap because browsers cannot reliably prove an async background download succeeded; that tap uses the file picker/share sheet when available, with normal browser download fallback;
 - if the server is offline or still finalizing, the UI must continue offering local **Save MP3** and **Save WAV** actions plus a separate **Retry Echoo server save** action;
 - files receive human-readable Echoo names so manual renaming is unnecessary.
 
