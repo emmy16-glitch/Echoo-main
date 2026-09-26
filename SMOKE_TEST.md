@@ -169,9 +169,10 @@ At End Broadcast verify:
 10. confirm the configured device copy policy (MP3/WAV/server-only) behaves correctly;
 11. block or stop the Echoo API immediately after OFF AIR and confirm **Save MP3 to device** and **Save WAV to device** remain usable without waiting for the server;
 12. verify the local MP3 is a real playable `audio/mpeg` file encoded from the local WAV, not renamed WAV bytes and not a server download;
-13. on a phone, verify the user-triggered local save reaches the native share/download path where supported;
-14. deliberately fail/cancel a device copy and confirm the OPFS master is retained;
-15. restore the API and choose **Retry Echoo server save**; confirm this retry does not create a second device download and only clears OPFS after both server durability and the chosen device policy are satisfied.
+13. on a phone, verify WAV opens the native share/save path immediately; for a long MP3, if encoding outlives the original tap, confirm the UI changes to **MP3 ready · Tap to save** and the second tap opens the native share/save path without re-encoding;
+14. on a browser without a verified picker/share result, confirm a started download is labelled as unverified and the OPFS master is retained;
+15. deliberately fail/cancel a device copy and confirm the OPFS master is retained;
+16. restore the API and choose **Retry Echoo server save**; confirm this retry does not create a second device download and only clears OPFS after both server durability and the chosen device policy are satisfied.
 
 Expected:
 
