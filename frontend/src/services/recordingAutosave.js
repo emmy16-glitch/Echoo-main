@@ -422,6 +422,21 @@ const startAutosaveLive = async ({
       if (replay.status === 'ready' && replay.audioId) {
         const audioId = String(replay.audioId);
 
+        // If the creator already saved a device copy while the server was
+        // unavailable, do not ask them to save MP3/WAV a second time when the
+        // server retry finally succeeds.
+        if (localCopy?.saved || automaticLocalCopies.has(key)) {
+          try { await recording.dispose?.(); } catch { /* already disposed */ }
+          clearPendingBroadcastRecording(recording.broadcastId);
+          forgetLocalMaster(`pending:${key}`);
+          forgetLocalMaster(`device-choice:${key}`);
+          window.dispatchEvent(new CustomEvent('echoo:creator-audio-changed'));
+          window.dispatchEvent(new CustomEvent('echoo:creator-state-changed'));
+          emit({ status: 'done', key, title, audioId, localCopy, format: 'mp3' });
+          notifySaved(`“${title}” is saved to this device and Echoo Recordings.`);
+          return { audioId, title, duplicate: Boolean(replay.duplicate), localCopy };
+        }
+
         if (deferBrowserDeviceChoice && recording.blob?.size) {
           rememberLocalMaster(`device-choice:${key}`, {
             blob: recording.blob,

@@ -154,15 +154,9 @@ const announceRecording = (page, broadcastId = BROADCAST_ID) => page.evaluate(({
     },
     async abort() {},
   };
-  const deviceSaveReservation = Promise.resolve({
-    mode: 'file-picker',
-    format: 'mp3',
-    filename: 'Echoo - e2e-recording.mp3',
-    mimeType: 'audio/mpeg',
-    handle: {
-      async createWritable() {
-        return writable;
-      },
+  window.showSaveFilePicker = async () => ({
+    async createWritable() {
+      return writable;
     },
   });
 
@@ -181,7 +175,6 @@ const announceRecording = (page, broadcastId = BROADCAST_ID) => page.evaluate(({
         bitDepth: 24,
         channels,
       },
-      deviceSaveReservation,
     },
   }));
 }, { broadcast: liveBroadcast, id: broadcastId });
@@ -237,22 +230,21 @@ test('Creator broadcast moves through OFF AIR, LIVE, confirmation, ending, saved
   await expect(page.getByText('READY TO BROADCAST', { exact: true })).toBeVisible();
 
   await announceRecording(page);
-  const savedBanner = page.locator('.echoo-save-banner.is-done').filter({ hasText: 'Recording saved' });
-  await expect(savedBanner).toBeVisible({ timeout: 12_000 });
-  await expect(savedBanner.getByRole('button', { name: 'Dismiss' })).toBeVisible();
-  await expect(savedBanner.getByRole('button', { name: 'Play recording', exact: true })).toBeVisible();
+  const deviceChoice = page.locator('.echoo-save-banner').filter({ hasText: 'Echoo server recording is ready' });
+  await expect(deviceChoice).toBeVisible({ timeout: 12_000 });
+  await expect(deviceChoice.getByRole('button', { name: 'Save MP3 to device' })).toBeVisible();
+  await expect(deviceChoice.getByRole('button', { name: 'Save WAV to device' })).toBeVisible();
+  await deviceChoice.getByRole('button', { name: 'Save MP3 to device' }).click();
   await expect.poll(() => page.evaluate(() => Number(window.__echooE2eSavedMp3Bytes || 0))).toBeGreaterThan(1000);
+  await expect(deviceChoice).toHaveCount(0);
   await page.screenshot({ path: 'design-qa-evidence/broadcast-approved/recording-saved-1536x1024.png' });
-  await savedBanner.getByRole('button', { name: 'Dismiss' }).click();
-  await expect(savedBanner).toHaveCount(0);
   await expect(page.getByText('READY TO BROADCAST', { exact: true })).toBeVisible();
 
   await announceRecording(page, '507f1f77bcf86cd799439105');
-  const secondSavedBanner = page.locator('.echoo-save-banner.is-done').filter({ hasText: 'Recording saved' });
-  await expect(secondSavedBanner).toBeVisible({ timeout: 12_000 });
-  await secondSavedBanner.getByRole('button', { name: 'Play recording', exact: true }).click();
-  await expect(page).toHaveURL(new RegExp(`/creator-studio/recordings/${RECORDING_ID}$`));
-  await expect(secondSavedBanner).toHaveCount(0);
+  const secondChoice = page.locator('.echoo-save-banner').filter({ hasText: 'Echoo server recording is ready' });
+  await expect(secondChoice).toBeVisible({ timeout: 12_000 });
+  await secondChoice.getByRole('button', { name: 'Save WAV to device' }).click();
+  await expect(secondChoice).toHaveCount(0);
 
   expect(pageErrors).toEqual([]);
 });
