@@ -4,14 +4,14 @@
 }
 
 .echoo-onboarding-redesign {
-  --eor-blue: #136bd5;
-  --eor-blue-strong: #0b5fc4;
-  --eor-navy: #101d35;
-  --eor-text: #53657c;
-  --eor-muted: #8796a9;
-  --eor-border: #dbe5f0;
-  --eor-bg: #f4f8fd;
-  --eor-danger: #c2352b;
+  --eor-blue: var(--echoo-color-brand);
+  --eor-blue-strong: var(--echoo-color-brand-hover);
+  --eor-navy: var(--echoo-color-ink);
+  --eor-text: var(--echoo-color-text);
+  --eor-muted: var(--echoo-color-muted);
+  --eor-border: var(--echoo-color-line);
+  --eor-bg: var(--echoo-color-canvas);
+  --eor-danger: var(--echoo-color-danger);
   min-height: 100dvh;
   display: grid;
   grid-template-columns: minmax(0, 1.02fr) minmax(500px, 0.98fr);
@@ -27,7 +27,7 @@
   padding: clamp(34px, 4.5vw, 70px);
   overflow: hidden;
   background:
-    radial-gradient(circle at 23% 17%, rgba(19, 107, 213, 0.08), transparent 23%),
+    radial-gradient(circle at 23% 17%, rgba(36, 92, 255, 0.08), transparent 23%),
     linear-gradient(145deg, #fbfdff 0%, #f1f7ff 58%, #eaf3ff 100%);
 }
 
@@ -37,7 +37,7 @@
   position: absolute;
   pointer-events: none;
   border-radius: 50%;
-  border: 1px solid rgba(19, 107, 213, 0.075);
+  border: 1px solid rgba(36, 92, 255, 0.075);
 }
 
 .eor-hero::before {
@@ -53,8 +53,8 @@
   right: -25%;
   top: 18%;
   box-shadow:
-    0 0 0 70px rgba(19, 107, 213, 0.022),
-    0 0 0 140px rgba(19, 107, 213, 0.014);
+    0 0 0 70px rgba(36, 92, 255, 0.022),
+    0 0 0 140px rgba(36, 92, 255, 0.014);
 }
 
 .eor-brand,
@@ -144,10 +144,10 @@
   top: 52%;
   transform: translate(-50%, -50%);
   border-radius: 50%;
-  border: 1px solid rgba(19, 107, 213, 0.08);
+  border: 1px solid rgba(36, 92, 255, 0.08);
   box-shadow:
-    0 0 0 46px rgba(19, 107, 213, 0.028),
-    0 0 0 92px rgba(19, 107, 213, 0.016);
+    0 0 0 46px rgba(36, 92, 255, 0.028),
+    0 0 0 92px rgba(36, 92, 255, 0.016);
 }
 
 .eor-audio-topline {
@@ -163,7 +163,7 @@
   align-items: center;
   gap: 7px;
   padding: 6px 9px;
-  border: 1px solid rgba(19, 107, 213, 0.13);
+  border: 1px solid rgba(36, 92, 255, 0.13);
   border-radius: 999px;
   background: rgba(255,255,255,0.78);
   color: #3970af;
@@ -177,7 +177,7 @@
   height: 7px;
   border-radius: 50%;
   background: var(--eor-blue);
-  box-shadow: 0 0 0 5px rgba(19, 107, 213, 0.08);
+  box-shadow: 0 0 0 5px rgba(36, 92, 255, 0.08);
 }
 
 .eor-meter {
@@ -213,7 +213,7 @@
   height: var(--bar);
   max-height: 74%;
   border-radius: 999px;
-  background: linear-gradient(180deg, rgba(103, 164, 244, .72), rgba(19, 107, 213, .34));
+  background: linear-gradient(180deg, rgba(103, 164, 244, .72), rgba(36, 92, 255, .34));
   transform-origin: center;
   animation: eorWave 1.7s ease-in-out infinite alternate;
   animation-delay: var(--delay);
@@ -228,12 +228,12 @@
   display: grid;
   place-items: center;
   transform: translate(-50%, -50%);
-  border: 1px solid rgba(19, 107, 213, 0.18);
+  border: 1px solid rgba(36, 92, 255, 0.18);
   border-radius: 50%;
   background: rgba(255,255,255,0.95);
   color: var(--eor-blue);
   font-size: 29px;
-  box-shadow: 0 15px 38px rgba(19, 107, 213, 0.17), 0 0 0 12px rgba(19, 107, 213, 0.035);
+  box-shadow: 0 15px 38px rgba(36, 92, 255, 0.17), 0 0 0 12px rgba(36, 92, 255, 0.035);
 }
 
 .eor-audio-controls {
