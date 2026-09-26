@@ -7,7 +7,9 @@ Echoo owns one long-lived browser mixer and one canonical post-master
 
 1. `livekitPublisher.js` publishes `echoo-studio-mix` for realtime listeners.
 2. `broadcastRecordingService.js` records the mixer bus to OPFS (with an Opus
-   fallback) and optionally uploads bounded quality chunks.
+   fallback). During LIVE, those browser bytes stay local; LiveKit Track Egress
+   independently feeds the server recorder. Bounded browser recovery chunks are
+   post-live only.
 
 The broadcast document and LiveKit room are coordination state. They must not
 own or destroy the mixer track or recorder during a recoverable network fault.
@@ -21,10 +23,12 @@ publication, subscribed track, DOM attachment, and media playback state must
 all be revalidated after reconnect.
 
 Ending is the only normal boundary that stops publication and finalizes the
-recorder. The backend end endpoint is idempotent. During the show, bounded PCM/WAV
-chunks feed the backend replay encoder. The browser OPFS master stays recoverable
-until canonical server MP3 persistence is confirmed; completion retries reconcile
-by broadcast ID rather than creating another replay.
+recorder. The backend end endpoint is idempotent. During the show, browser PCM/WAV
+does not feed the backend replay encoder; LiveKit Track Egress does. The browser
+OPFS master stays recoverable until canonical server MP3 persistence is confirmed.
+If server recording fails, that OPFS master is uploaded only after OFF AIR in
+bounded recovery chunks. Completion retries reconcile by broadcast ID rather than
+creating another replay.
 
 FFmpeg and FFprobe are required on the backend for automatic server MP3
 finalization and saved-recording trimming. `GET /api/health/recording` is the
@@ -41,13 +45,15 @@ never replaced by a successful trim and remains untouched on every failure path.
 - Reconnect never calls `ensureBroadcastRecording` for an existing take.
 - `stopLocalTrackOnUnpublish: false` remains mandatory.
 - Every async recovery is scoped to a monotonically increasing generation.
-- Automatic retries are bounded with 0/1/2/4/8-second backoff and cancellation.
+- Automatic creator retries use bounded/capped backoff through the recovery window; listener hard reconnects add per-client jitter to avoid audience-wide stampedes.
 - Creator health is derived from actual room, publication, and mixer-track
   state; backend presence is supplementary.
 - Listener "playing" requires a current canonical track and a usable,
   non-ended media element rather than a remembered track ID.
 - OPFS data is deleted only after confirmed canonical server persistence or explicit discard.
 - End Broadcast must never depend on one giant final WAV upload.
+- Browser raw PCM/WAV recovery transport must never run while LIVE.
+- A backend restart invalidates in-progress server-recorder ownership; orphan Egress is failed closed so a tail-only MP3 cannot be accepted as complete.
 - Exactly one canonical replay MP3 is linked per broadcast; trimming creates separate copies.
 
 ## Server coordination
