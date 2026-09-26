@@ -102,4 +102,7 @@ test('concurrent recorder starts preserve the newest track and bound PCM backlog
   assert.match(source, /if \(session\.finishPromise\) return session\.finishPromise/);
   assert.match(source, /session\.child\?\.stdin\?\.destroy/);
   assert.match(source, /Recording encoder stopped/);
+  assert.match(source, /RECORDING_SOCKET_CLOSE_GRACE_MS/);
+  assert.match(source, /session\.disconnectTimer/);
+  assert.match(source, /session\.sockets\.size > 0/);
 });
