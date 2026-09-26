@@ -105,6 +105,9 @@ test('concurrent recorder starts preserve the newest track and bound PCM backlog
   assert.match(source, /if \(session\.finishPromise\) return session\.finishPromise/);
   assert.match(source, /session\.child\?\.stdin\?\.destroy/);
   assert.match(source, /Recording encoder stopped/);
+  assert.match(source, /Server recording encoder stopped accepting PCM/);
+  assert.match(source, /unexpectedCleanExit/);
+  assert.match(source, /FFmpeg recording encoder exited before End Broadcast/);
   assert.match(source, /RECORDING_SOCKET_CLOSE_GRACE_MS/);
   assert.match(source, /MAX_ACCEPTED_PCM_GAP_MS/);
   assert.match(source, /disconnectStartedAt/);
