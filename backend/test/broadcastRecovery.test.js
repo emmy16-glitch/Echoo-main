@@ -35,6 +35,7 @@ test('recovery reconciles interrupted lifecycles without fabricating history', a
 
   // Finalization mirrors end-of-life cleanup without transcription.
   assert.match(service, /releaseCreatorBroadcastLease/);
+  assert.match(service, /stopLiveKitServerRecording/);
   assert.match(service, /stopBroadcastOutputs/);
   assert.match(service, /transcriptionEnabled:\s*false/);
   assert.match(service, /transcriptState.*disabled/);
