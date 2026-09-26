@@ -32,12 +32,7 @@
     var(--echoo-text) !important;
 
   font-family:
-    Inter,
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif !important;
+    var(--echoo-font-body, "Source Sans 3", "Segoe UI", ui-sans-serif, system-ui, sans-serif) !important;
 }
 
 #root .echoo-listener-shell
