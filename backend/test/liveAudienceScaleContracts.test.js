@@ -86,11 +86,20 @@ test('post-live recovery resumes only missing WAV chunks after a network failure
   assert.match(backend, /existingChunkIndices/);
   assert.match(backend, /select\('_id chunkIndex filePath'\)/);
   assert.match(backend, /durableWavChunkExists/);
-  assert.match(backend, /staleChunkIds/);
+  assert.match(backend, /repaired:\s*true/);
+  assert.match(backend, /repairPath/);
   assert.match(frontend, /new Set\(/);
   assert.match(frontend, /existingChunkIndices/);
   assert.match(frontend, /alreadyUploaded/);
   assert.match(frontend, /if \(!alreadyUploaded\)/);
+});
+
+test('output encoders clean up backpressure listeners instead of leaking them during long recovery', async () => {
+  const outputs = await read('../src/services/broadcastOutputService.js');
+
+  assert.match(outputs, /stdin\.off\('drain', onDrain\)/);
+  assert.match(outputs, /stdin\.off\('error', onError\)/);
+  assert.match(outputs, /Audio output encoder is no longer accepting PCM/);
 });
 
 test('PC browser defers its file picker until the server recording is ready', async () => {
