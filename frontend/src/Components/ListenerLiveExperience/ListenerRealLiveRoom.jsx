@@ -269,7 +269,7 @@ const ListenerRealLiveRoom = () => {
       const next = normalizeBroadcast(response.data);
       setShow(next);
       setLoadError('');
-      await Promise.all([loadChat(), refreshPresence()]);
+      await loadChat();
       if (!isGuest && next.stationId) {
         followService
           .getStationStatus(next.stationId)
@@ -346,6 +346,20 @@ const ListenerRealLiveRoom = () => {
                 : item
             )
           );
+        const onPresence = (payload) => {
+          if (!sameId(payload?.broadcastId, show.id)) return;
+          setShow((current) =>
+            current
+              ? {
+                  ...current,
+                  status: payload?.status || current.status,
+                  listenerCount: Number(payload?.listenerCount) || 0,
+                  mediaState: payload?.mediaState || current.mediaState,
+                }
+              : current
+          );
+        };
+
         const onStatus = (payload) => {
           if (!sameId(payload?.broadcastId, show.id)) return;
           const nextStatus = String(payload?.status || '').toLowerCase();
@@ -378,7 +392,7 @@ const ListenerRealLiveRoom = () => {
         connectedSocket.on('chat:messageDeleted', onDeleted);
         connectedSocket.on('chat:reaction', onReaction);
         connectedSocket.on('broadcast:status', onStatus);
-        connectedSocket.on('presence:changed', refreshPresence);
+        connectedSocket.on('presence:changed', onPresence);
         connectedSocket.on('disconnect', onDisconnect);
         connectedSocket.on('connect', onConnect);
         onStatus(
@@ -390,7 +404,7 @@ const ListenerRealLiveRoom = () => {
           connectedSocket.off('chat:messageDeleted', onDeleted);
           connectedSocket.off('chat:reaction', onReaction);
           connectedSocket.off('broadcast:status', onStatus);
-          connectedSocket.off('presence:changed', refreshPresence);
+          connectedSocket.off('presence:changed', onPresence);
           connectedSocket.off('disconnect', onDisconnect);
           connectedSocket.off('connect', onConnect);
         };
