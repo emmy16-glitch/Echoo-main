@@ -114,30 +114,40 @@ export const prepareAutomaticLocalCopyDestination = ({
   // IMPORTANT: showSaveFilePicker is invoked immediately from the End
   // Broadcast click stack. We intentionally do not await any network,
   // LiveKit, OPFS or encoder work before requesting the handle.
-  return window.showSaveFilePicker({
-    suggestedName: filename,
-    startIn: 'desktop',
-    types: [
-      {
-        description: choice === 'wav' ? 'WAV audio' : 'MP3 audio',
-        accept: { [mimeType]: [`.${choice}`] },
-      },
-    ],
-  }).then(
-    (handle) => ({
-      mode: 'file-picker',
-      format: choice,
-      filename,
-      mimeType,
-      handle,
-    }),
-    (error) => ({
+  try {
+    const picker = window.showSaveFilePicker({
+      suggestedName: filename,
+      startIn: 'desktop',
+      types: [
+        {
+          description: choice === 'wav' ? 'WAV audio' : 'MP3 audio',
+          accept: { [mimeType]: [`.${choice}`] },
+        },
+      ],
+    });
+    return Promise.resolve(picker).then(
+      (handle) => ({
+        mode: 'file-picker',
+        format: choice,
+        filename,
+        mimeType,
+        handle,
+      }),
+      (error) => ({
+        mode: error?.name === 'AbortError' ? 'cancelled' : 'explicit-save-required',
+        format: choice,
+        filename,
+        error: error?.message || String(error || ''),
+      })
+    );
+  } catch (error) {
+    return Promise.resolve({
       mode: error?.name === 'AbortError' ? 'cancelled' : 'explicit-save-required',
       format: choice,
       filename,
       error: error?.message || String(error || ''),
-    })
-  );
+    });
+  }
 };
 
 const tryMobileShare = async ({ blob, filename, mimeType }) => {
