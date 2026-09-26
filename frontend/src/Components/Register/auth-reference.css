@@ -16,7 +16,7 @@
   --ear-blue-dark: #1f4fdb;
   --ear-navy: #0b1d3a;
   --ear-night: #071427;
-  --ear-auth-card: rgba(7, 20, 39, .72);
+  --ear-auth-card: rgba(7, 20, 39, .91);
   --ear-auth-line: rgba(255, 255, 255, .16);
   font-family: Manrope, "Source Sans 3", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
@@ -37,13 +37,13 @@
   inset: 0;
   z-index: -2;
   background-image:
-    linear-gradient(90deg, rgba(4, 13, 27, .68) 0%, rgba(4, 13, 27, .18) 48%, rgba(4, 13, 27, .66) 100%),
-    linear-gradient(180deg, rgba(4, 13, 27, .10) 0%, rgba(4, 13, 27, .48) 100%),
+    linear-gradient(90deg, rgba(4, 13, 27, .52) 0%, rgba(4, 13, 27, .10) 48%, rgba(4, 13, 27, .56) 100%),
+    linear-gradient(180deg, rgba(4, 13, 27, .06) 0%, rgba(4, 13, 27, .34) 100%),
     var(--ear-auth-background-image, url('../Assets/echoo-auth-cinematic-headphones.jpeg'));
   background-size: cover;
   background-position: center 44%;
   background-repeat: no-repeat;
-  transform: scale(1.015);
+  transform: none;
 }
 
 .ear-auth-backdrop::after {
@@ -57,14 +57,14 @@
 }
 
 .ear-auth-shell {
-  width: min(1280px, 100%);
+  width: min(1240px, 100%);
   min-height: 100dvh;
   margin: 0 auto;
   display: grid;
-  grid-template-columns: minmax(0, 1.12fr) minmax(430px, .88fr);
+  grid-template-columns: minmax(0, 1fr) minmax(420px, 510px);
   align-items: center;
-  gap: clamp(36px, 6vw, 88px);
-  padding: clamp(36px, 5vw, 72px);
+  gap: clamp(32px, 5vw, 64px);
+  padding: clamp(32px, 4vw, 56px);
 }
 
 .ear-auth-story {
@@ -104,7 +104,7 @@
   margin: 0;
   color: #fff;
   font-family: "Space Grotesk", Manrope, sans-serif;
-  font-size: clamp(48px, 5.2vw, 78px);
+  font-size: clamp(46px, 4.7vw, 68px);
   line-height: .98;
   font-weight: 700;
   letter-spacing: -.055em;
@@ -120,7 +120,7 @@
 }
 
 .ear-auth-card {
-  width: min(550px, 100%);
+  width: min(510px, 100%);
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -128,19 +128,19 @@
 
 .echoo-auth-reference:not(.is-profile):not(.is-auth-status) .ear-auth-card {
   justify-self: end;
-  padding: clamp(26px, 3vw, 36px);
+  padding: clamp(24px, 2.4vw, 30px);
   border: 1px solid var(--ear-auth-line);
-  border-radius: 28px;
+  border-radius: 24px;
   background:
     linear-gradient(180deg, rgba(255,255,255,.055), rgba(255,255,255,.018)),
     var(--ear-auth-card);
   box-shadow: 0 28px 90px rgba(0, 0, 0, .34);
-  backdrop-filter: blur(26px) saturate(128%);
-  -webkit-backdrop-filter: blur(26px) saturate(128%);
+  backdrop-filter: blur(14px) saturate(118%);
+  -webkit-backdrop-filter: blur(14px) saturate(118%);
 }
 
 .echoo-auth-reference.is-signup .ear-auth-card {
-  width: min(580px, 100%);
+  width: min(510px, 100%);
 }
 
 .ear-card-brand {
@@ -148,7 +148,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
   color: #fff;
   font-family: "Space Grotesk", Manrope, sans-serif;
   font-size: 20px;
@@ -165,7 +165,7 @@
 }
 
 .ear-form-heading {
-  margin: 0 0 24px;
+  margin: 0 0 20px;
   text-align: left;
 }
 
@@ -191,7 +191,7 @@
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
 }
 
 .ear-field {
@@ -211,13 +211,13 @@
 
 .ear-input-shell {
   position: relative;
-  min-height: 52px;
+  min-height: 48px;
   display: flex;
   align-items: center;
   overflow: hidden;
-  border: 1px solid rgba(255,255,255,.15);
+  border: 1px solid rgba(255,255,255,.20);
   border-radius: 14px;
-  background: rgba(247, 249, 252, .095);
+  background: rgba(247, 249, 252, .13);
   transition: border-color .16s ease, box-shadow .16s ease, background .16s ease;
 }
 
@@ -248,7 +248,7 @@
 
 .ear-input-shell input {
   width: 100%;
-  height: 50px;
+  height: 46px;
   min-width: 0;
   padding: 0 48px 0 10px;
   border: 0;
