@@ -12,6 +12,7 @@ import {
   finalizeBroadcastReplay,
   isRealMp3Bytes,
   estimateReplayDurationSeconds,
+  isTrustedCompletedServerReplay,
 } from '../src/services/broadcastReplayService.js';
 
 // Server replay finalization contract:
@@ -113,6 +114,42 @@ test('isRealMp3Bytes accepts ID3 and frame-sync, rejects WAV', () => {
 });
 
 
+
+test('interrupted or truncated server MP3 is never trusted as a complete replay', () => {
+  const oneMinutePcm = 48000 * 2 * 2 * 60;
+
+  assert.equal(isTrustedCompletedServerReplay({
+    status: 'failed',
+    persistedFileBytes: 1000,
+    actualFileBytes: 1000,
+    pcmBytes: oneMinutePcm,
+    probedDurationSeconds: 60,
+  }), false);
+
+  assert.equal(isTrustedCompletedServerReplay({
+    status: 'completed',
+    persistedFileBytes: 2000,
+    actualFileBytes: 1000,
+    pcmBytes: oneMinutePcm,
+    probedDurationSeconds: 60,
+  }), false);
+
+  assert.equal(isTrustedCompletedServerReplay({
+    status: 'completed',
+    persistedFileBytes: 1000,
+    actualFileBytes: 1000,
+    pcmBytes: oneMinutePcm,
+    probedDurationSeconds: 20,
+  }), false);
+
+  assert.equal(isTrustedCompletedServerReplay({
+    status: 'completed',
+    persistedFileBytes: 1000,
+    actualFileBytes: 1000,
+    pcmBytes: oneMinutePcm,
+    probedDurationSeconds: 59,
+  }), true);
+});
 
 test('duration fallback uses s16le server PCM rather than encoded MP3 byte size', () => {
   assert.equal(
