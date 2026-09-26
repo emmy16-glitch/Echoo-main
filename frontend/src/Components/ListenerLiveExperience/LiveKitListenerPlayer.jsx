@@ -56,7 +56,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
   const audioHostRef = useRef(null);
   const outputRef = useRef('');
   const attachedRef = useRef(new Map());
-  const attachingRef = useRef(new Set());
+  const attachGenerationRef = useRef(0);
   const programParticipantRef = useRef(null);
   const reconnectAttemptRef = useRef(0);
   const reconnectTimerRef = useRef(null);
@@ -129,6 +129,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
     };
 
     const clearAudio = () => {
+      attachGenerationRef.current += 1;
       Array.from(attachedRef.current.keys()).forEach(detachAttachment);
       attachedRef.current.clear();
       programParticipantRef.current = null;
@@ -269,9 +270,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       if (participant) programParticipantRef.current = participant;
 
       const id = String(track.sid || track.mediaStreamTrack?.id || 'audio');
-      if (attachingRef.current.has(id)) return;
-      attachingRef.current.add(id);
-      try {
+      const attachGeneration = ++attachGenerationRef.current;
       const existing = attachedRef.current.get(id);
       if (currentAttachmentIsHealthy(existing) && existing.track === track) {
         if (playbackIntentRef.current === 'pause') {
@@ -312,7 +311,11 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
         try { await element.setSinkId(outputRef.current); } catch { /* use system default */ }
       }
 
-      if (disposed || roomRef.current !== room) {
+      if (
+        attachGeneration !== attachGenerationRef.current ||
+        disposed ||
+        roomRef.current !== room
+      ) {
         try { track.detach(element); } catch { /* ignore */ }
         element.remove();
         attachedRef.current.delete(id);
@@ -396,9 +399,6 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
             scheduleHardReconnect('new_element_play_failed');
           }
         }
-      }
-      } finally {
-        attachingRef.current.delete(id);
       }
     };
 
