@@ -151,7 +151,11 @@ const createLocalMp3 = async (blob, { onProgress = null, onChunk = null } = {}) 
 const scheduleEncodedCleanup = (encoded, delayMs = 60_000) => {
   if (typeof encoded?.dispose !== 'function') return;
   window.setTimeout(() => {
-    void encoded.dispose().catch?.(() => {});
+    try {
+      void Promise.resolve(encoded.dispose()).catch(() => {});
+    } catch {
+      // Best-effort cleanup; the source OPFS WAV remains the durable master.
+    }
   }, delayMs);
 };
 
