@@ -25,6 +25,7 @@ const desiredTracks = new Map();
 const ownedEgressIds = new Map();
 const TRACK_HANDOFF_TIMEOUT_MS = 12_000;
 const RECORDING_SOCKET_CLOSE_GRACE_MS = 4_000;
+const MAX_ACCEPTED_PCM_GAP_MS = 1500;
 const MAX_PENDING_PCM_BYTES = 8 * 1024 * 1024;
 let websocketServer = null;
 let attachedHttpServer = null;
@@ -146,12 +147,42 @@ const persist = async (broadcastId, patch) => {
 };
 
 const writeWithBackpressure = async (child, buffer) => {
-  if (!buffer?.length || !child?.stdin || child.stdin.destroyed) return;
+  if (!buffer?.length) return;
+  if (!child?.stdin || child.stdin.destroyed || child.exitCode !== null) {
+    throw new Error('Server recording encoder stopped accepting PCM.');
+  }
   if (child.stdin.write(buffer)) return;
   await new Promise((resolve, reject) => {
-    child.stdin.once('drain', resolve);
-    child.stdin.once('error', reject);
+    const stdin = child.stdin;
+    const cleanup = () => {
+      stdin.off('drain', onDrain);
+      stdin.off('error', onError);
+    };
+    const onDrain = () => {
+      cleanup();
+      resolve();
+    };
+    const onError = (error) => {
+      cleanup();
+      reject(error);
+    };
+    stdin.once('drain', onDrain);
+    stdin.once('error', onError);
   });
+};
+
+const waitForTrackHandoff = async (session, trackSid) => {
+  const startedAt = Date.now();
+  while (
+    session &&
+    !session.stopping &&
+    !session.failed &&
+    Date.now() - startedAt < TRACK_HANDOFF_TIMEOUT_MS
+  ) {
+    if (session.currentTrackSid === trackSid && !session.handoff) return true;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  return false;
 };
 
 const createSession = async (broadcastId) => {
@@ -172,9 +203,12 @@ const createSession = async (broadcastId) => {
     failed: false,
     error: '',
     currentTrackSid: '',
+    pendingTrackSid: '',
     handoff: false,
     handoffTimer: null,
     disconnectTimer: null,
+    disconnectStartedAt: null,
+    lastPcmAt: null,
     finishPromise: null,
     closed,
     resolveClosed,
@@ -217,9 +251,12 @@ const createSession = async (broadcastId) => {
     void finishSession(session);
   });
   child.once('close', async (code, signal) => {
-    if (code !== 0 && code !== null) {
+    const unexpectedCleanExit = !session.stopping && code === 0;
+    if ((code !== 0 && code !== null) || unexpectedCleanExit) {
       session.failed = true;
-      session.error = `FFmpeg stopped (code ${code}${signal ? `, signal ${signal}` : ''}): ${stderr.trim() || 'encoder error'}`;
+      session.error = unexpectedCleanExit
+        ? 'FFmpeg recording encoder exited before End Broadcast.'
+        : `FFmpeg stopped (code ${code}${signal ? `, signal ${signal}` : ''}): ${stderr.trim() || 'encoder error'}`;
       await persist(broadcastId, {
         'serverRecording.status': 'failed',
         'serverRecording.error': session.error.slice(0, 1000),
@@ -248,6 +285,7 @@ const finishSession = (session) => {
     expectedTracks.delete(session.broadcastId);
     if (session.handoffTimer) clearTimeout(session.handoffTimer);
     session.handoffTimer = null;
+    session.pendingTrackSid = '';
     if (session.disconnectTimer) clearTimeout(session.disconnectTimer);
     session.disconnectTimer = null;
 
@@ -375,8 +413,30 @@ const acceptRecordingSocket = async (socket, request) => {
     return;
   }
 
+  const disconnectedForMs = session.disconnectStartedAt
+    ? Date.now() - session.disconnectStartedAt
+    : 0;
+  if (
+    session.pcmBytes > 0 &&
+    disconnectedForMs > MAX_ACCEPTED_PCM_GAP_MS
+  ) {
+    session.failed = true;
+    session.error =
+      `Server recording PCM was interrupted for ${disconnectedForMs} ms; browser recovery is required for a complete replay.`;
+    await persist(identity.broadcastId, {
+      'serverRecording.status': 'failed',
+      'serverRecording.error': session.error.slice(0, 1000),
+    });
+    try { socket.close(1011, 'Recording gap requires browser recovery'); } catch { /* closed */ }
+    void finishSession(session);
+    return;
+  }
+
+  socket.echooTrackSid = identity.trackSid;
   session.sockets.add(socket);
   session.currentTrackSid = identity.trackSid;
+  session.disconnectStartedAt = null;
+  session.pendingTrackSid = '';
   session.handoff = false;
   if (session.handoffTimer) clearTimeout(session.handoffTimer);
   session.handoffTimer = null;
@@ -390,7 +450,12 @@ const acceptRecordingSocket = async (socket, request) => {
   });
 
   socket.on('message', (data, isBinary) => {
-    if (!isBinary || session.stopping || session.failed) return;
+    if (
+      !isBinary ||
+      session.stopping ||
+      session.failed ||
+      identity.trackSid !== session.currentTrackSid
+    ) return;
     const buffer = Buffer.isBuffer(data) ? data : Buffer.from(data);
 
     session.queuedPcmBytes += buffer.length;
@@ -407,6 +472,7 @@ const acceptRecordingSocket = async (socket, request) => {
     }
 
     session.pcmBytes += buffer.length;
+    session.lastPcmAt = Date.now();
     session.writeChain = session.writeChain
       .then(async () => {
         try {
@@ -431,6 +497,16 @@ const acceptRecordingSocket = async (socket, request) => {
     session.sockets.delete(socket);
     if (session.stopping || session.failed) return;
 
+    const currentTrackStillConnected = Array.from(session.sockets).some(
+      (candidate) => candidate.echooTrackSid === session.currentTrackSid
+    );
+    if (
+      identity.trackSid === session.currentTrackSid &&
+      !currentTrackStillConnected
+    ) {
+      session.disconnectStartedAt ||= Date.now();
+    }
+
     // Creator transport recovery intentionally replaces the old Track Egress
     // socket. Keep the same FFmpeg session open for the replacement track.
     if (identity.trackSid !== session.currentTrackSid || session.handoff) return;
@@ -448,7 +524,9 @@ const acceptRecordingSocket = async (socket, request) => {
         session.failed ||
         session.handoff ||
         identity.trackSid !== session.currentTrackSid ||
-        session.sockets.size > 0
+        Array.from(session.sockets).some(
+          (candidate) => candidate.echooTrackSid === session.currentTrackSid
+        )
       ) return;
 
       session.failed = true;
@@ -615,10 +693,12 @@ export const ensureLiveKitServerRecording = async ({
       };
     }
 
+    let handoffFromEgressId = '';
     if (recording?.egressId && recording?.trackSid !== track) {
       const session = sessions.get(id);
       if (session && !session.stopping && !session.failed) {
-        session.currentTrackSid = track;
+        handoffFromEgressId = String(recording.egressId);
+        session.pendingTrackSid = track;
         session.handoff = true;
         if (session.handoffTimer) clearTimeout(session.handoffTimer);
         session.handoffTimer = setTimeout(() => {
@@ -626,7 +706,7 @@ export const ensureLiveKitServerRecording = async ({
             session.stopping ||
             session.failed ||
             !session.handoff ||
-            session.currentTrackSid !== track
+            session.pendingTrackSid !== track
           ) return;
           session.failed = true;
           session.error = 'LiveKit recording track handoff did not reconnect in time.';
@@ -637,8 +717,9 @@ export const ensureLiveKitServerRecording = async ({
           void finishSession(session);
         }, TRACK_HANDOFF_TIMEOUT_MS);
         session.handoffTimer.unref?.();
+      } else {
+        await LiveKitProvider.stopEgress(recording.egressId).catch(() => null);
       }
-      await LiveKitProvider.stopEgress(recording.egressId).catch(() => null);
     }
 
     const websocketUrl = buildSignedRecordingUrl({
@@ -650,7 +731,11 @@ export const ensureLiveKitServerRecording = async ({
       'serverRecording.status': 'starting',
       'serverRecording.transport': 'livekit-track-egress',
       'serverRecording.trackSid': track,
-      'serverRecording.egressId': null,
+      // During a track handoff keep the previous Egress id persisted until
+      // the replacement Egress has been created. If this process crashes in
+      // that window, the next process can still identify and stop the orphan
+      // instead of accepting an unsolicited partial recording socket.
+      'serverRecording.egressId': handoffFromEgressId || null,
       'serverRecording.startedAt': recording?.startedAt || new Date(),
       'serverRecording.endedAt': null,
       'serverRecording.error': null,
@@ -679,6 +764,18 @@ export const ensureLiveKitServerRecording = async ({
         'serverRecording.egressId': egressId,
       });
 
+      if (handoffFromEgressId) {
+        const session = sessions.get(id);
+        const handedOff = await waitForTrackHandoff(session, track);
+        if (!handedOff) {
+          await LiveKitProvider.stopEgress(egressId).catch(() => null);
+          const error = new Error('LiveKit recording track handoff did not become active in time.');
+          error.code = 'RECORDING_HANDOFF_TIMEOUT';
+          throw error;
+        }
+        await LiveKitProvider.stopEgress(handoffFromEgressId).catch(() => null);
+      }
+
       return {
         mode: 'server-egress',
         active: true,
@@ -701,9 +798,12 @@ export const ensureLiveKitServerRecording = async ({
       }
 
       const session = sessions.get(id);
-      if (session?.handoff && session.currentTrackSid === track) {
+      if (session?.handoff && session.pendingTrackSid === track) {
         session.failed = true;
         session.error = String(error?.message || error);
+        if (handoffFromEgressId) {
+          await LiveKitProvider.stopEgress(handoffFromEgressId).catch(() => null);
+        }
         await finishSession(session).catch(() => null);
       }
       await persist(id, {

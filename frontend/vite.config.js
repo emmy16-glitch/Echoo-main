@@ -26,6 +26,11 @@ const localBackendProxy = {
   '/api': {
     target: backendProxyTarget,
     changeOrigin: true,
+    // LiveKit Track Egress records through /api/internal/livekit-recording.
+    // Preview/staging therefore needs WebSocket proxying on /api as well as
+    // Socket.IO; without this the UI works while primary server recording
+    // silently falls back to the large post-live browser recovery path.
+    ws: true,
     configure: configureProxyOrigin,
     // Forward the browser's address (X-Forwarded-For) so the backend's
     // per-IP rate limiters (e.g. LiveKit token issuance) see real clients

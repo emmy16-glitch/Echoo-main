@@ -5,6 +5,7 @@ import BroadcastAudioChunk from '../models/BroadcastAudioChunk.js';
 import BroadcastProcessingJob from '../models/BroadcastProcessingJob.js';
 import {
   appendBroadcastOutputPcm,
+  pcmFromWavChunk,
   startBroadcastOutputs,
   stopBroadcastOutputs,
 } from '../services/broadcastOutputService.js';
@@ -42,6 +43,37 @@ const validWavUpload = (file) => Boolean(
   file.buffer.toString('ascii', 0, 4) === 'RIFF' &&
   file.buffer.toString('ascii', 8, 12) === 'WAVE'
 );
+
+const durableWavChunkExists = async (chunk) => {
+  const filePath = String(chunk?.filePath || '');
+  if (!filePath) return false;
+  let handle = null;
+  try {
+    const stat = await fs.stat(filePath);
+    if (!stat.isFile() || stat.size < 44) return false;
+    handle = await fs.open(filePath, 'r');
+    const header = Buffer.alloc(44);
+    const { bytesRead } = await handle.read(header, 0, 44, 0);
+    if (bytesRead !== 44) return false;
+
+    const declaredDataBytes = header.readUInt32LE(40);
+    return (
+      header.toString('ascii', 0, 4) === 'RIFF' &&
+      header.toString('ascii', 8, 12) === 'WAVE' &&
+      header.toString('ascii', 12, 16) === 'fmt ' &&
+      header.readUInt16LE(20) === 1 &&
+      header.readUInt16LE(22) === 2 &&
+      header.readUInt32LE(24) === 48000 &&
+      header.readUInt16LE(34) === 24 &&
+      header.toString('ascii', 36, 40) === 'data' &&
+      stat.size === 44 + declaredDataBytes
+    );
+  } catch {
+    return false;
+  } finally {
+    if (handle) await handle.close().catch(() => null);
+  }
+};
 
 const ensureQualityJob = async (broadcastId, chunk) => {
   // Recovery chunks are post-live only. They may also feed optional quality
@@ -152,12 +184,15 @@ export async function startBroadcastAudioChunks(req, res, next) {
     }
 
     const existingChunks = await BroadcastAudioChunk.find({ broadcastId: broadcast._id })
-      .select('chunkIndex')
+      .select('_id chunkIndex filePath')
       .sort({ chunkIndex: 1 })
       .lean();
-    const existingChunkIndices = existingChunks
-      .map((chunk) => Number(chunk.chunkIndex))
-      .filter((index) => Number.isInteger(index) && index >= 0);
+    const existingChunkIndices = [];
+    for (const chunk of existingChunks) {
+      const index = Number(chunk.chunkIndex);
+      if (!Number.isInteger(index) || index < 0) continue;
+      if (await durableWavChunkExists(chunk)) existingChunkIndices.push(index);
+    }
     const existingCount = existingChunkIndices.length;
 
     if (!broadcast.qualityChunkingStartedAt || broadcast.qualityChunkingCompletedAt) {
@@ -297,6 +332,16 @@ export async function uploadBroadcastAudioChunk(req, res, next) {
     if (!validWavUpload(req.file)) {
       return res.status(400).json({ error: { code: 'INVALID_CHUNK_AUDIO', message: 'Quality chunks must be valid RIFF/WAVE audio.' } });
     }
+    try {
+      pcmFromWavChunk(req.file.buffer);
+    } catch {
+      return res.status(400).json({
+        error: {
+          code: 'INVALID_CHUNK_AUDIO',
+          message: 'Recovery chunks must be 48 kHz stereo 24-bit PCM WAV audio.',
+        },
+      });
+    }
 
     const chunkId = String(req.body.chunkId || '').trim();
     if (!chunkId || chunkId.length > 160) {
@@ -311,14 +356,60 @@ export async function uploadBroadcastAudioChunk(req, res, next) {
     const sampleRate = numberField(req.body.sampleRate, 'sampleRate', { min: 8000, max: 192000 });
     const channels = numberField(req.body.channels, 'channels', { min: 1, max: 2 });
     const bitDepth = numberField(req.body.bitDepth, 'bitDepth', { min: 16, max: 32 });
-    if (![16, 24, 32].includes(bitDepth)) {
-      return res.status(400).json({ error: { code: 'INVALID_BIT_DEPTH', message: 'bitDepth must be 16, 24, or 32.' } });
+    if (sampleRate !== 48000 || channels !== 2 || bitDepth !== 24) {
+      return res.status(400).json({
+        error: {
+          code: 'INVALID_CHUNK_FORMAT',
+          message: 'Recovery chunks must use the Echoo 48 kHz stereo 24-bit PCM master format.',
+        },
+      });
     }
 
     const existing = await BroadcastAudioChunk.findOne({ broadcastId, chunkId });
     if (existing) {
+      if (await durableWavChunkExists(existing)) {
+        await ensureQualityJob(broadcastId, existing);
+        return res.status(200).json({ data: existing, duplicate: true, timestamp: new Date().toISOString() });
+      }
+
+      // A database row can outlive its local file after a disk cleanup/crash.
+      // Repair that same chunk identity atomically so resumable recovery does
+      // not get stuck forever skipping a file that no longer exists.
+      const repairPath = existing.filePath || path.join(
+        CHUNK_DIR,
+        String(broadcastId),
+        `${chunkIndex}-${safeChunkName(chunkId)}.wav`
+      );
+      await fs.mkdir(path.dirname(repairPath), { recursive: true });
+      const tempPath = `${repairPath}.repair-${process.pid}-${Date.now()}`;
+      try {
+        await fs.writeFile(tempPath, req.file.buffer, { flag: 'wx' });
+        await fs.rename(tempPath, repairPath);
+      } finally {
+        await fs.rm(tempPath, { force: true }).catch(() => null);
+      }
+
+      existing.chunkIndex = chunkIndex;
+      existing.startMs = startMs;
+      existing.endMs = endMs;
+      existing.filePath = repairPath;
+      existing.mimeType = 'audio/wav';
+      existing.sizeBytes = req.file.size;
+      existing.sampleRate = sampleRate;
+      existing.channels = channels;
+      existing.bitDepth = bitDepth;
+      existing.status = 'pending';
+      await existing.save();
       await ensureQualityJob(broadcastId, existing);
-      return res.status(200).json({ data: existing, duplicate: true, timestamp: new Date().toISOString() });
+      await appendBroadcastOutputPcm(broadcastId, req.file.buffer).catch((error) => {
+        console.warn('[Echoo Outputs] repaired PCM append warning:', error?.message || error);
+      });
+      return res.status(200).json({
+        data: existing,
+        duplicate: true,
+        repaired: true,
+        timestamp: new Date().toISOString(),
+      });
     }
 
     await fs.mkdir(path.join(CHUNK_DIR, String(broadcastId)), { recursive: true });

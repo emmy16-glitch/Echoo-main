@@ -379,9 +379,10 @@ async function finalizeInner({ broadcastId, creatorId, expectedChunkCount, uploa
   // local recovery master alive and report incomplete for an explicit retry.
   const accounted = chunks.length > 0 && contiguous && chunks.length >= expected && Number(uploadErrors) <= 0;
   const missing = [];
-  if (chunks.length && !contiguous) {
+  if (chunks.length) {
     const seen = new Set(indices);
-    for (let index = 0; index <= maxIndex; index += 1) {
+    const upperBound = Math.max(maxIndex, expected - 1);
+    for (let index = 0; index <= upperBound && missing.length < 50; index += 1) {
       if (!seen.has(index)) missing.push(index);
     }
   }

@@ -21,6 +21,18 @@ test('large live audience uses selective single-track subscription and jittered 
   assert.match(provider, /hidden:\s*true/);
 });
 
+test('listener analyser follows a republished program track instead of staying on stale audio', async () => {
+  const listener = await read('../../frontend/src/Components/ListenerLiveExperience/LiveKitListenerPlayer.jsx');
+
+  assert.match(listener, /analyserSourceRef/);
+  assert.match(listener, /analyserTrackIdRef/);
+  assert.match(listener, /analyserSourceRef\.current\?\.disconnect/);
+  assert.match(listener, /analyserTrackIdRef\.current = id/);
+  assert.match(listener, /attachGenerationRef = useRef\(0\)/);
+  assert.match(listener, /const attachGeneration = \+\+attachGenerationRef\.current/);
+  assert.match(listener, /attachGeneration !== attachGenerationRef\.current/);
+});
+
 test('Socket.IO presence is coalesced and does not broadcast per-listener join/leave events', async () => {
   const app = await read('../src/app.js');
   const listenerRoom = await read('../../frontend/src/Components/ListenerLiveExperience/ListenerRealLiveRoom.jsx');
@@ -55,6 +67,13 @@ test('audience join bursts coalesce token/card database reads and keep shared-NA
   assert.match(limiter, /livekitTokenLimiter = limiter\(\{[\s\S]*?limit:\s*2000/);
 });
 
+test('staging API proxy forwards the LiveKit recording WebSocket', async () => {
+  const vite = await read('../../frontend/vite.config.js');
+
+  assert.match(vite, /'\/api':\s*\{[\s\S]*?ws:\s*true/);
+  assert.match(vite, /\/api\/internal\/livekit-recording/);
+});
+
 test('browser raw PCM fallback is forbidden while the show is live', async () => {
   const frontend = await read('../../frontend/src/services/broadcastRecordingService.js');
   const backend = await read('../src/controllers/broadcastChunkController.js');
@@ -75,11 +94,27 @@ test('post-live recovery resumes only missing WAV chunks after a network failure
   const backend = await read('../src/controllers/broadcastChunkController.js');
 
   assert.match(backend, /existingChunkIndices/);
-  assert.match(backend, /select\('chunkIndex'\)/);
+  assert.match(backend, /select\('_id chunkIndex filePath'\)/);
+  assert.match(backend, /durableWavChunkExists/);
+  assert.match(backend, /pcmFromWavChunk\(req\.file\.buffer\)/);
+  assert.match(backend, /stat\.size === 44 \+ declaredDataBytes/);
+  assert.match(backend, /INVALID_CHUNK_FORMAT/);
+  assert.match(backend, /repaired:\s*true/);
+  assert.match(backend, /repairPath/);
   assert.match(frontend, /new Set\(/);
   assert.match(frontend, /existingChunkIndices/);
   assert.match(frontend, /alreadyUploaded/);
   assert.match(frontend, /if \(!alreadyUploaded\)/);
+  assert.match(frontend, /QUALITY_CHUNK_UPLOAD_TIMEOUT_MS/);
+  assert.match(frontend, /timeoutMs:\s*QUALITY_CHUNK_UPLOAD_TIMEOUT_MS/);
+});
+
+test('output encoders clean up backpressure listeners instead of leaking them during long recovery', async () => {
+  const outputs = await read('../src/services/broadcastOutputService.js');
+
+  assert.match(outputs, /stdin\.off\('drain', onDrain\)/);
+  assert.match(outputs, /stdin\.off\('error', onError\)/);
+  assert.match(outputs, /Audio output encoder is no longer accepting PCM/);
 });
 
 test('PC browser defers its file picker until the server recording is ready', async () => {
