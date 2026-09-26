@@ -17,7 +17,7 @@
   overflow-x: clip;
   background: #fff;
   color: var(--listener-ink);
-  font-family: Inter, "SF Pro Text", "Segoe UI Variable", "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--echoo-font-body, "Source Sans 3", "Segoe UI", ui-sans-serif, system-ui, sans-serif);
 }
 
 /* The legacy root variables are still shared with Creator Studio. These three
