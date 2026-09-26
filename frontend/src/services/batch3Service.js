@@ -201,8 +201,8 @@ const batch3Service = {
     };
   },
 
-  getCreatorBroadcasts: async () => {
-    const response = await apiRequest('/broadcasts/mine/all');
+  getCreatorBroadcasts: async ({ timeoutMs = 10_000 } = {}) => {
+    const response = await apiRequest('/broadcasts/mine/all', { timeoutMs });
 
     return {
       ...response,

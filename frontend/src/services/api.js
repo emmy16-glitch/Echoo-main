@@ -176,9 +176,9 @@ const createError = (
   // server has no LiveKit audio backend configured).
   const friendlyServerMessages = {
     LIVEKIT_CONFIG_MISSING:
-      'Live audio is not set up on this Echoo server yet. The server admin needs to configure the LiveKit audio server before anyone can go live.',
+      'Live audio is not configured for this Echoo environment yet. Please contact the administrator before going live.',
     LIVEKIT_CONFIG_INVALID:
-      'Live audio is misconfigured on this Echoo server. The server admin needs to fix the LiveKit audio server settings.',
+      'Live audio is temporarily unavailable because its configuration needs attention. Please contact the administrator.',
     LIVEKIT_ROOM_UNAVAILABLE:
       'Echoo could not open the live audio room. Please try again in a moment.',
   };
@@ -271,16 +271,46 @@ const makeRequest = async (
     ...options.headers,
   };
 
-  return fetch(
-    `${requireApiBaseUrl()}${path}`,
-    {
-      method:
-        options.method || 'GET',
-      body: options.body,
-      headers,
-      ...(options.cache ? { cache: options.cache } : {}),
+  const timeoutMs = Math.max(0, Number(options.timeoutMs) || 0);
+  const controller = timeoutMs > 0 ? new AbortController() : null;
+  const externalSignal = options.signal || null;
+  const onExternalAbort = () => controller?.abort(externalSignal?.reason);
+  if (controller && externalSignal) {
+    if (externalSignal.aborted) onExternalAbort();
+    else externalSignal.addEventListener('abort', onExternalAbort, { once: true });
+  }
+
+  const timeoutId = controller
+    ? globalThis.setTimeout(() => controller.abort('request-timeout'), timeoutMs)
+    : null;
+
+  try {
+    return await fetch(
+      `${requireApiBaseUrl()}${path}`,
+      {
+        method:
+          options.method || 'GET',
+        body: options.body,
+        headers,
+        ...(options.cache ? { cache: options.cache } : {}),
+        ...(controller
+          ? { signal: controller.signal }
+          : externalSignal
+            ? { signal: externalSignal }
+            : {}),
+      }
+    );
+  } catch (error) {
+    if (controller?.signal.aborted && !externalSignal?.aborted) {
+      const timeoutError = new Error('Echoo is taking too long to respond. Please try again.');
+      timeoutError.code = 'REQUEST_TIMEOUT';
+      throw timeoutError;
     }
-  );
+    throw error;
+  } finally {
+    if (timeoutId) globalThis.clearTimeout(timeoutId);
+    externalSignal?.removeEventListener?.('abort', onExternalAbort);
+  }
 };
 
 const sessionExpiredError = () => {

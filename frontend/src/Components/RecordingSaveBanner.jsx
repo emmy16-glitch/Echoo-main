@@ -183,7 +183,10 @@ const RecordingSaveBanner = () => {
   }, [flashDone]);
 
   useEffect(() => {
-    if (!['uploading', 'finalizing', 'device-saving'].includes(state?.kind)) {
+    if (
+      !['uploading', 'finalizing', 'device-saving'].includes(state?.kind) &&
+      !(state?.kind === 'error' && state?.retryingServer)
+    ) {
       return undefined;
     }
     const protect = (event) => {
@@ -230,8 +233,9 @@ const RecordingSaveBanner = () => {
 
   const retryServer = async () => {
     if (!state?.key || state.retryingServer) return;
+    setElapsed(0);
     setState((current) => (
-      current ? { ...current, retryingServer: true } : current
+      current ? { ...current, retryingServer: true, startedAt: Date.now() } : current
     ));
     try {
       await retryAutosave(state.key);
@@ -380,7 +384,11 @@ const RecordingSaveBanner = () => {
 
   return (
     <div
-      className={`echoo-save-banner is-${state.kind}`}
+      className={`echoo-save-banner is-${state.kind} ${
+        (state.kind === 'recovered' || (state.kind === 'error' && (state.hasRecovery || state.localSaved)))
+          ? 'is-safe-recovery'
+          : ''
+      }`}
       role="status"
       aria-live="polite"
     >
@@ -393,8 +401,8 @@ const RecordingSaveBanner = () => {
             </strong>
             <span>
               {state.format === 'mp3'
-                ? `Encoding on this device · ${state.percent || 0}%`
-                : 'Saving the lossless device copy'}
+                ? `Encoding on this device · ${state.percent || 0}% · ${elapsed}s`
+                : `Saving the lossless device copy · ${elapsed}s`}
             </span>
             {state.format === 'mp3' && (
               <i className="echoo-save-banner-bar">
@@ -416,11 +424,15 @@ const RecordingSaveBanner = () => {
             </strong>
             <span>
               {state.localSaved
-                ? 'Your device copy is safe. Echoo is finishing the recording in the background.'
-                : 'You can save MP3 or WAV to this device now while Echoo finishes in the background.'}
+                ? `Your device copy is safe. Echoo is finishing in the background · ${elapsed}s`
+                : `You can save MP3 or WAV now while Echoo finishes in the background · ${elapsed}s`}
             </span>
           </div>
-          {!state.localSaved && renderLocalSaveButtons()}
+          {!state.localSaved && (
+            <div className="echoo-save-banner-actions">
+              {renderLocalSaveButtons()}
+            </div>
+          )}
         </>
       )}
 
@@ -504,34 +516,38 @@ const RecordingSaveBanner = () => {
                 : `Echoo recording · ${state.title}`}
             </span>
           </div>
-          {state.audioId && (
-            <button type="button" className="eb-press" onClick={openRecording}>
-              Play recording
-            </button>
-          )}
-          {state.localCopy?.path && (
+          <div className="echoo-save-banner-actions">
+            {state.audioId && (
+              <button type="button" className="eb-press" onClick={openRecording}>
+                Play recording
+              </button>
+            )}
+            {state.localCopy?.path && (
+              <button
+                type="button"
+                className="eb-press"
+                onClick={openLocalFolder}
+              >
+                Open folder
+              </button>
+            )}
             <button
               type="button"
               className="eb-press"
-              onClick={openLocalFolder}
+              aria-label="Dismiss"
+              onClick={hide}
             >
-              Open folder
+              <FaTimes />
             </button>
-          )}
-          <button
-            type="button"
-            className="eb-press"
-            aria-label="Dismiss"
-            onClick={hide}
-          >
-            <FaTimes />
-          </button>
+          </div>
         </>
       )}
 
       {state.kind === 'error' && (
         <>
-          <FaExclamationTriangle aria-hidden="true" />
+          {(state.hasRecovery || state.localSaved)
+            ? <FaCheckCircle aria-hidden="true" />
+            : <FaExclamationTriangle aria-hidden="true" />}
           <div className="echoo-save-banner-body">
             <strong>
               {state.localSaved
@@ -540,21 +556,35 @@ const RecordingSaveBanner = () => {
                   ? 'Echoo recording is safe — device copy needs attention'
                   : `Recording is safe on this device — Echoo still needs to finish saving`}
             </strong>
-            <span>{state.message || 'Your local master is kept.'}</span>
+            <span>
+              {state.retryingServer
+                ? `Retrying Echoo save · ${elapsed}s`
+                : state.message || 'Your recovery copy is kept safely on this device.'}
+            </span>
           </div>
 
-          {renderLocalSaveButtons()}
+          <div className="echoo-save-banner-actions">
+            {renderLocalSaveButtons()}
 
-          {!state.serverReady && (
+            {!state.serverReady && (
+              <button
+                type="button"
+                className="eb-press"
+                onClick={retryServer}
+                disabled={state.retryingServer}
+              >
+                {state.retryingServer ? 'Retrying…' : 'Retry Echoo save'}
+              </button>
+            )}
             <button
               type="button"
               className="eb-press"
-              onClick={retryServer}
-              disabled={state.retryingServer}
+              aria-label="Dismiss"
+              onClick={hide}
             >
-              {state.retryingServer ? 'Retrying…' : 'Retry Echoo save'}
+              <FaTimes />
             </button>
-          )}
+          </div>
 
           {state.recoverySaved && state.recoveryFilename && (
             <span className="echoo-save-banner-choice-error">
@@ -576,43 +606,36 @@ const RecordingSaveBanner = () => {
               {state.recoveryError}
             </span>
           )}
-          <button
-            type="button"
-            className="eb-press"
-            aria-label="Dismiss"
-            onClick={hide}
-          >
-            <FaTimes />
-          </button>
         </>
       )}
 
       {state.kind === 'recovered' && (
         <>
-          <FaExclamationTriangle aria-hidden="true" />
+          <FaCheckCircle aria-hidden="true" />
           <div className="echoo-save-banner-body">
-            <strong>Recovered recording found</strong>
+            <strong>Recovered recording is safe</strong>
             <span>
               {state.title} — recovered from this device. Save a device copy now, or try saving it back to Echoo.
             </span>
           </div>
 
-          {renderLocalSaveButtons()}
-
-          <button
-            type="button"
-            className="eb-press"
-            onClick={uploadRecovered}
-          >
-            Retry Echoo save
-          </button>
-          <button
-            type="button"
-            className="eb-press"
-            onClick={() => { void discardRecovered(); }}
-          >
-            Discard
-          </button>
+          <div className="echoo-save-banner-actions">
+            {renderLocalSaveButtons()}
+            <button
+              type="button"
+              className="eb-press"
+              onClick={uploadRecovered}
+            >
+              Retry Echoo save
+            </button>
+            <button
+              type="button"
+              className="eb-press"
+              onClick={() => { void discardRecovered(); }}
+            >
+              Discard
+            </button>
+          </div>
         </>
       )}
     </div>

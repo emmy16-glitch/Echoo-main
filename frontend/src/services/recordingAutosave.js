@@ -450,8 +450,8 @@ const startAutosaveLive = async ({
             audioId,
             code: deviceNeedsTap ? 'DEVICE_COPY_ACTION_REQUIRED' : 'DEVICE_COPY_FAILED',
             message: deviceNeedsTap
-              ? 'The Echoo server MP3 is safe. Your browser requires one tap to save a file to this phone/computer — choose MP3 or WAV below.'
-              : 'The server MP3 is safe, but the device copy did not finish. Your local master is still safe — retry the device copy as MP3 or WAV.',
+              ? 'Your Echoo recording is safe. This browser needs one tap to save a file to this device — choose MP3 or WAV below.'
+              : 'Your Echoo recording is safe, but the device copy did not finish. The recovery copy is still protected — retry MP3 or WAV.',
             retryable: true,
             hasRecovery: Boolean(recording.blob?.size),
             recoveryFormats: availableLocalFormats(recording),
@@ -509,7 +509,7 @@ const startAutosaveLive = async ({
 
       const localSaved = Boolean(localCopy?.saved);
       const message = localSaved
-        ? `A local ${String(localCopy.format || preferences.format || 'recording').toUpperCase()} copy was saved to this device. Echoo's server copy is still pending; you can retry it separately.`
+        ? `A ${String(localCopy.format || preferences.format || 'recording').toUpperCase()} copy was saved to this device. Echoo is still finishing the saved recording; you can retry it separately.`
         : friendlyRecoveryMessage(error);
 
       emit({

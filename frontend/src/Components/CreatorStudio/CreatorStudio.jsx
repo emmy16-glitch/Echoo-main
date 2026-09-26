@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   FaCloudUploadAlt,
@@ -347,7 +347,7 @@ const CreatorStudioBody = () => {
     return () => window.clearInterval(interval);
   }, [uploading, uploadProgress?.startedAt]);
 
-  const navigateStudio = (page) => {
+  const navigateStudio = useCallback((page) => {
     let target = page;
     if (page === 'Home' || page === 'Studio') target = 'Broadcast';
     if (page === 'Live') {
@@ -362,7 +362,7 @@ const CreatorStudioBody = () => {
     setNotice('');
     const destination = CREATOR_WORKSPACE_PATHS[target] || CREATOR_WORKSPACE_PATHS.Broadcast;
     if (location.pathname !== destination) routerNavigate(destination);
-  };
+  }, [location.pathname, routerNavigate]);
 
   const openUpload = () => {
     setError('');
@@ -535,10 +535,10 @@ const CreatorStudioBody = () => {
     }
   };
 
-  const clearPreparedBroadcast = () => {
+  const clearPreparedBroadcast = useCallback(() => {
     sessionStorage.removeItem('echooPreparedBroadcastId');
     setPreparedBroadcastId('');
-  };
+  }, []);
 
   const renderWorkspace = () => {
     let node;

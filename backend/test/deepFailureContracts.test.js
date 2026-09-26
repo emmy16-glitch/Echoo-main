@@ -162,6 +162,19 @@ test('recording completion retries and automatic save preserves recovery state',
   assert.match(banner, /master\?\.recording\?\.dispose/);
 });
 
+test('recording recovery banner stays readable and treats recoverable state as safe', async () => {
+  const banner = await frontendSource('src/Components/RecordingSaveBanner.jsx');
+  const css = await frontendSource('src/Components/RecordingSaveBanner.css');
+
+  assert.match(banner, /is-safe-recovery/);
+  assert.match(banner, /Recovered recording is safe/);
+  assert.match(banner, /Retrying Echoo save · \$\{elapsed\}s/);
+  assert.match(css, /grid-template-columns:\s*22px minmax\(0, 1fr\)/);
+  assert.match(css, /echoo-save-banner-actions/);
+  assert.match(css, /is-error\.is-safe-recovery/);
+  assert.doesNotMatch(css, /white-space:\s*nowrap;[\s\S]{0,120}echoo-save-banner-body/);
+});
+
 test('completed broadcast upload recovery marks replay lifecycle ready', async () => {
   const controller = await source('src/controllers/audioController.js');
   assert.match(controller, /sourceBroadcast\.replayAudioId = audio\._id/);

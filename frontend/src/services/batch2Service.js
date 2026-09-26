@@ -296,8 +296,8 @@ const batch2Service = {
     return { ...response, data: normalizeStationList(response) };
   },
 
-  getMyStations: async () => {
-    const response = await apiRequest('/stations/mine/all');
+  getMyStations: async ({ timeoutMs = 10_000 } = {}) => {
+    const response = await apiRequest('/stations/mine/all', { timeoutMs });
     return { ...response, data: normalizeStationList(response) };
   },
 

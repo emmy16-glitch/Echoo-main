@@ -16,7 +16,7 @@
   --ear-blue-dark: #1f4fdb;
   --ear-navy: #0b1d3a;
   --ear-night: #071427;
-  --ear-auth-card: rgba(7, 20, 39, .91);
+  --ear-auth-card: rgba(7, 20, 39, .975);
   --ear-auth-line: rgba(255, 255, 255, .16);
   font-family: Manrope, "Source Sans 3", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
@@ -135,8 +135,8 @@
     linear-gradient(180deg, rgba(255,255,255,.055), rgba(255,255,255,.018)),
     var(--ear-auth-card);
   box-shadow: 0 28px 90px rgba(0, 0, 0, .34);
-  backdrop-filter: blur(14px) saturate(118%);
-  -webkit-backdrop-filter: blur(14px) saturate(118%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .echoo-auth-reference.is-signup .ear-auth-card {
@@ -217,13 +217,13 @@
   overflow: hidden;
   border: 1px solid rgba(255,255,255,.20);
   border-radius: 14px;
-  background: rgba(247, 249, 252, .13);
+  background: rgba(25, 43, 72, .96);
   transition: border-color .16s ease, box-shadow .16s ease, background .16s ease;
 }
 
 .ear-input-shell:hover {
   border-color: rgba(255,255,255,.28);
-  background: rgba(247, 249, 252, .16);
+  background: rgba(31, 51, 84, .98);
 }
 
 .ear-input-shell:focus-within {
@@ -539,7 +539,7 @@
     width: 100%;
     background:
       linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.015)),
-      rgba(7,20,39,.92);
+      rgba(7,20,39,.975);
   }
 
   .ear-auth-backdrop {
