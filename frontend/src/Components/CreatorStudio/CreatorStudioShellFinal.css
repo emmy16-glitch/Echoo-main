@@ -23,7 +23,7 @@
   padding: 0;
   background: var(--studio-canvas);
   color: var(--studio-ink);
-  font-family: Inter, "SF Pro Text", "Segoe UI Variable", "Helvetica Neue", Arial, ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--echoo-font-body, "Source Sans 3", "Segoe UI", ui-sans-serif, system-ui, sans-serif);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   transition: grid-template-columns .2s ease;
