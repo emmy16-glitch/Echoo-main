@@ -11,8 +11,8 @@
 .echoo-onboard-page {
   min-height: 100dvh;
   padding: 28px;
-  background: #f4f7fd;
-  color: #0f1b34;
+  background: var(--echoo-color-canvas);
+  color: var(--echoo-color-ink);
   font-family: var(--echoo-font-body, "Source Sans 3", "Segoe UI", ui-sans-serif, system-ui, sans-serif);
 }
 
@@ -36,7 +36,7 @@
   font-weight: 800;
   font-size: 20px;
   letter-spacing: -0.02em;
-  color: #0f1b34;
+  color: var(--echoo-color-ink);
   text-decoration: none;
 }
 
@@ -48,9 +48,9 @@
 }
 
 .echoo-onboard-back {
-  border: 1px solid #dde4f0;
-  background: #ffffff;
-  color: #0f1b34;
+  border: 1px solid var(--echoo-color-line);
+  background: var(--echoo-color-surface);
+  color: var(--echoo-color-ink);
   padding: 10px 15px;
   border-radius: 12px;
   font-weight: 700;
@@ -61,13 +61,13 @@
 }
 
 .echoo-onboard-back:hover {
-  border-color: #94b6ff;
-  background: #f8faff;
+  border-color: var(--echoo-color-focus);
+  background: var(--echoo-color-surface-hover);
 }
 
 .echoo-onboard-card {
-  background: #ffffff;
-  border: 1px solid #e3e9f3;
+  background: var(--echoo-color-surface);
+  border: 1px solid var(--echoo-color-line);
   border-radius: 22px;
   box-shadow: 0 18px 50px rgba(35, 58, 100, 0.1);
   overflow: hidden;
@@ -87,7 +87,7 @@
 
 .echoo-onboard-card-head p {
   margin: 0;
-  color: #66738d;
+  color: var(--echoo-color-muted);
   font-size: 14px;
   line-height: 1.5;
 }
@@ -110,11 +110,11 @@
 .echoo-onboard-field select,
 .echoo-onboard-field textarea {
   width: 100%;
-  border: 1px solid #dde4f0;
+  border: 1px solid var(--echoo-color-line);
   background: #fff;
   border-radius: 12px;
   padding: 13px 14px;
-  color: #0f1b34;
+  color: var(--echoo-color-ink);
   font-size: 14px;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
@@ -152,7 +152,7 @@
 
 .echoo-onboard-hint {
   margin: 0;
-  color: #66738d;
+  color: var(--echoo-color-muted);
   font-size: 12px;
   line-height: 1.45;
 }
@@ -178,17 +178,17 @@
 
 .echoo-onboard-btn-secondary {
   background: #fff;
-  border: 1px solid #dde4f0;
+  border: 1px solid var(--echoo-color-line);
   color: #334058;
 }
 
 .echoo-onboard-btn-secondary:hover:not(:disabled) {
-  border-color: #94b6ff;
+  border-color: var(--echoo-color-focus);
 }
 
 .echoo-onboard-btn-primary {
-  border: 1px solid #2764eb;
-  background: #2764eb;
+  border: 1px solid var(--echoo-color-brand);
+  background: var(--echoo-color-brand);
   color: #fff;
   min-width: 154px;
 }
@@ -205,7 +205,7 @@
 .echoo-onboard-btn:focus-visible,
 .echoo-onboard-back:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 4px #94b6ff;
+  box-shadow: 0 0 0 4px var(--echoo-color-focus);
 }
 
 /* Identity selector: selected state never depends on colour alone
@@ -222,18 +222,18 @@
   gap: 12px;
   min-height: 72px;
   padding: 14px;
-  border: 1px solid #dde4f0;
+  border: 1px solid var(--echoo-color-line);
   background: #fff;
   border-radius: 14px;
   text-align: left;
   cursor: pointer;
-  color: #0f1b34;
+  color: var(--echoo-color-ink);
   font-size: 14px;
   transition: border-color 0.15s ease, background 0.15s ease;
 }
 
 .echoo-onboard-identity > button:hover:not(:disabled) {
-  border-color: #94b6ff;
+  border-color: var(--echoo-color-focus);
 }
 
 .echoo-onboard-identity > button.is-selected {
@@ -244,7 +244,7 @@
 
 .echoo-onboard-identity > button:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 4px #94b6ff;
+  box-shadow: 0 0 0 4px var(--echoo-color-focus);
 }
 
 .echoo-onboard-identity .identity-icon {
@@ -255,7 +255,7 @@
   display: grid;
   place-items: center;
   font-size: 15px;
-  color: #2764eb;
+  color: var(--echoo-color-brand);
   flex: none;
 }
 
@@ -267,7 +267,7 @@
 
 .echoo-onboard-identity small {
   display: block;
-  color: #66738d;
+  color: var(--echoo-color-muted);
   font-size: 12px;
   line-height: 1.3;
 }
