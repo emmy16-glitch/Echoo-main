@@ -424,7 +424,9 @@ export const saveRecordingToPc = async ({
     mimeType: mime,
   });
   if (mobileResult) {
-    scheduleEncodedCleanup(encodedLocal, 0);
+    // Keep the temporary OPFS MP3 alive briefly after the native share sheet
+    // resolves; some mobile targets finish reading the File asynchronously.
+    scheduleEncodedCleanup(encodedLocal);
     return { ...mobileResult, format: choice, source };
   }
 
