@@ -14,17 +14,18 @@ const trimError = (status, code, message) => Object.assign(new Error(message), {
 const binaryAvailable = (command) => new Promise((resolve) => {
   const child = spawn(command, ['-version'], { stdio: 'ignore' });
   let settled = false;
-  const timer = setTimeout(() => {
+  let timer = null;
+  const finish = (ok) => {
+    if (settled) return;
+    settled = true;
+    if (timer) clearTimeout(timer);
+    resolve(Boolean(ok));
+  };
+  timer = setTimeout(() => {
     try { child.kill('SIGKILL'); } catch { /* already exited */ }
     finish(false);
   }, 5000);
   timer.unref?.();
-  const finish = (ok) => {
-    if (settled) return;
-    settled = true;
-    clearTimeout(timer);
-    resolve(Boolean(ok));
-  };
   child.on('error', () => finish(false));
   child.on('close', (code) => finish(code === 0));
 });
