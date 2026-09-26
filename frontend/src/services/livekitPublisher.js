@@ -22,6 +22,7 @@ const WATCHDOG_INTERVAL_MS = 5000;
 const ROOM_DISCONNECT_DEADLINE_MS = 4000;
 const RECOVERY_DISCONNECT_DEADLINE_MS = 1000;
 const CREATOR_RECOVERY_WINDOW_MS = 90_000;
+const CREATOR_RECOVERY_SLOW_RETRY_MS = 30_000;
 
 let activeRoom = null;
 let activeBroadcastId = null;
@@ -388,20 +389,24 @@ async function runPublisherRecovery(candidate, reason) {
   candidate.recoveryPromise = (async () => {
     candidate.recoveryStartedAt ||= Date.now();
 
-    while (
-      isCurrent(candidate) &&
-      Date.now() - candidate.recoveryStartedAt < CREATOR_RECOVERY_WINDOW_MS
-    ) {
+    while (isCurrent(candidate)) {
       if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        // Offline time must not consume the creator recovery budget. A show
+        // can lose connectivity for several minutes and should still recover
+        // automatically when the browser comes back online.
+        candidate.recoveryStartedAt = null;
+        candidate.recoveryAttempt = 0;
         publishHealth({ phase: 'recovering', room: 'waiting_network', livekit: 'reconnecting', audio: 'recovering' });
         return false;
       }
+      candidate.recoveryStartedAt ||= Date.now();
       const attempt = candidate.recoveryAttempt;
       candidate.recoveryAttempt += 1;
       publishHealth({ phase: 'recovering', publication: 'missing', audio: 'recovering', recoveryAttempt: attempt + 1 });
-      const delay = recoveryDelayMs(
-        Math.min(attempt, LIVE_RECOVERY_DELAYS_MS.length - 1)
-      );
+      const elapsed = Date.now() - candidate.recoveryStartedAt;
+      const delay = elapsed < CREATOR_RECOVERY_WINDOW_MS
+        ? recoveryDelayMs(Math.min(attempt, LIVE_RECOVERY_DELAYS_MS.length - 1))
+        : CREATOR_RECOVERY_SLOW_RETRY_MS;
       if (delay) await wait(delay);
       if (!isCurrent(candidate)) return false;
 
@@ -425,6 +430,7 @@ async function runPublisherRecovery(candidate, reason) {
           recovery: true,
         });
         candidate.recoveryStartedAt = null;
+        candidate.recoveryAttempt = 0;
         console.info('[Echoo Live][Recovery] creator audio recovered', {
           broadcastId: candidate.broadcastId,
           attempt: attempt + 1,
@@ -442,9 +448,6 @@ async function runPublisherRecovery(candidate, reason) {
           message,
         });
       }
-    }
-    if (isCurrent(candidate)) {
-      publishHealth({ phase: 'failed', room: 'disconnected', publication: 'failed', livekit: 'error', audio: 'failed' });
     }
     return false;
   })();
@@ -504,6 +507,8 @@ const installNetworkHints = (candidate) => {
   };
   candidate.onOnline = () => {
     if (isCurrent(candidate) && !healthySnapshot().published) {
+      candidate.recoveryAttempt = 0;
+      candidate.recoveryStartedAt = null;
       void schedulePublisherRecovery(candidate, 'browser_online', true);
     }
   };
