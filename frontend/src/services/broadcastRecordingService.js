@@ -548,6 +548,14 @@ const openLosslessRecordingFile = async (broadcastId) => {
     throw new Error('Browser-backed recording storage is not available.');
   }
 
+  // Best effort: ask the browser to treat unresolved creator recordings as
+  // persistent storage. A denial is not fatal; OPFS capture still proceeds.
+  try {
+    await navigator.storage.persist?.();
+  } catch {
+    // Browser persistence permission is optional.
+  }
+
   const root = await navigator.storage.getDirectory();
   const directory = await root.getDirectoryHandle(OPFS_DIRECTORY, { create: true });
 
