@@ -35,7 +35,8 @@ class EchooPcmCaptureProcessor extends AudioWorkletProcessor {
     if (!input?.length || !input[0]?.length) return true;
 
     const left = input[0];
-    const right = input[1] || left;
+    const hasRightChannel = Boolean(input[1]);
+    const right = hasRightChannel ? input[1] : left;
     const output = outputs?.[0];
 
     if (output?.[0]) output[0].set(left);
@@ -43,8 +44,16 @@ class EchooPcmCaptureProcessor extends AudioWorkletProcessor {
 
     for (let frame = 0; frame < left.length; frame += 1) {
       const index = this.frameOffset * 2;
-      this.interleaved[index] = left[frame] || 0;
-      this.interleaved[index + 1] = right[frame] || left[frame] || 0;
+      const leftSample = Number.isFinite(left[frame]) ? left[frame] : 0;
+      // A real stereo right-channel sample of exactly 0 is intentional
+      // silence and must stay 0. Falling back with `right || left` mirrors
+      // the left channel into hard-panned/silent-right material and corrupts
+      // the OPFS recovery master even though the live LiveKit mix is correct.
+      const rightSample = hasRightChannel
+        ? (Number.isFinite(right[frame]) ? right[frame] : 0)
+        : leftSample;
+      this.interleaved[index] = leftSample;
+      this.interleaved[index + 1] = rightSample;
       this.frameOffset += 1;
 
       if (this.frameOffset >= CHUNK_FRAMES) this.flush();
