@@ -606,7 +606,11 @@ export const uploadRecoveredTake = async ({ recording, broadcast } = {}) => {
   if (!recording?.blob?.size) return null;
   forgetLocalMaster('recovered');
   const broadcastId = String(recording.broadcastId || broadcast?.id || '');
-  return startAutosave({ recording: { ...recording, broadcastId }, broadcast });
+  return startAutosave({
+    recording: { ...recording, broadcastId },
+    broadcast,
+    skipDeviceSave: true,
+  });
 };
 
 // Headless mount: listens for finished broadcasts + offers boot recovery.
