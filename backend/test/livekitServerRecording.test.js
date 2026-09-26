@@ -72,8 +72,11 @@ test('track republish handoff keeps one recorder session and fails closed if rep
   );
 
   assert.match(source, /TRACK_HANDOFF_TIMEOUT_MS/);
-  assert.match(source, /session\.currentTrackSid = track/);
+  assert.match(source, /session\.pendingTrackSid = track/);
   assert.match(source, /session\.handoff = true/);
+  assert.match(source, /waitForTrackHandoff/);
+  assert.match(source, /stopEgress\(handoffFromEgressId\)/);
+  assert.match(source, /identity\.trackSid !== session\.currentTrackSid/);
   assert.match(source, /identity\.trackSid !== session\.currentTrackSid \|\| session\.handoff/);
   assert.match(source, /Stale recording track/);
   assert.match(source, /Server recording is using browser recovery/);
@@ -105,4 +108,6 @@ test('concurrent recorder starts preserve the newest track and bound PCM backlog
   assert.match(source, /RECORDING_SOCKET_CLOSE_GRACE_MS/);
   assert.match(source, /session\.disconnectTimer/);
   assert.match(source, /session\.sockets\.size > 0/);
+  assert.match(source, /stdin\.off\('drain', onDrain\)/);
+  assert.match(source, /stdin\.off\('error', onError\)/);
 });
