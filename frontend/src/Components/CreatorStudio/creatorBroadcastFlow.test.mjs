@@ -254,13 +254,16 @@ test('creator recovery refreshes credentials before replacing the existing LiveK
   assert.match(recovery, /deadlineMs: RECOVERY_DISCONNECT_DEADLINE_MS/);
 });
 
-test('creator recovery continues through the backend disconnect grace window', async () => {
+test('creator recovery survives long offline periods and slows retries instead of giving up', async () => {
   const publisher = await read('../../services/livekitPublisher.js');
 
   assert.match(publisher, /CREATOR_RECOVERY_WINDOW_MS = 90_000/);
-  assert.match(publisher, /candidate\.recoveryStartedAt \|\|= Date\.now\(\)/);
-  assert.match(publisher, /Date\.now\(\) - candidate\.recoveryStartedAt < CREATOR_RECOVERY_WINDOW_MS/);
-  assert.match(publisher, /Math\.min\(attempt, LIVE_RECOVERY_DELAYS_MS\.length - 1\)/);
+  assert.match(publisher, /CREATOR_RECOVERY_SLOW_RETRY_MS = 30_000/);
+  assert.match(publisher, /while \(isCurrent\(candidate\)\)/);
+  assert.match(publisher, /elapsed < CREATOR_RECOVERY_WINDOW_MS/);
+  assert.match(publisher, /: CREATOR_RECOVERY_SLOW_RETRY_MS/);
+  assert.match(publisher, /candidate\.recoveryStartedAt = null/);
+  assert.match(publisher, /candidate\.recoveryAttempt = 0/);
   assert.doesNotMatch(
     publisher,
     /candidate\.recoveryAttempt < LIVE_RECOVERY_DELAYS_MS\.length/
