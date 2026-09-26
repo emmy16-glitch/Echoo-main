@@ -64,6 +64,14 @@ test('device recording is available before server finalization and never needs a
   assert.match(autosave, /skipDeviceSave:\s*true/);
 });
 
+test('Creator Studio keeps Broadcast navigation callbacks stable so bootstrap does not refetch on ordinary renders', async () => {
+  const studio = await read('./CreatorStudio.jsx');
+
+  assert.match(studio, /const navigateStudio = useCallback\(/);
+  assert.match(studio, /const clearPreparedBroadcast = useCallback\(/);
+  assert.match(studio, /\[location\.pathname, routerNavigate\]/);
+});
+
 test('Creator Studio bootstrap has a visible timer, a hard timeout, and a Retry state', async () => {
   const workspace = await read('./CreatorLiveConnectedWorkspace.jsx');
   const api = await read('../../services/api.js');
