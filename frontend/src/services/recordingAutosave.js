@@ -590,6 +590,12 @@ export const saveRecoveryCopy = async (key, requestedFormat = '') => {
 export const retryAutosave = async (key) => {
   const pending = peekLocalMaster(`pending:${key}`);
   if (!pending?.recording?.blob?.size) return null;
+
+  // A failed/lost End Broadcast response can leave the backend lifecycle in
+  // starting/live/ending. Reconcile that state before asking replay
+  // finalization to run; this endpoint is creator-gated and idempotent.
+  await batch3Service.recoverBroadcast(pending.recording.broadcastId);
+
   return startAutosave({
     recording: pending.recording,
     broadcast: pending.broadcast,
@@ -600,8 +606,14 @@ export const retryAutosave = async (key) => {
 
 export const uploadRecoveredTake = async ({ recording, broadcast } = {}) => {
   if (!recording?.blob?.size) return null;
-  forgetLocalMaster('recovered');
   const broadcastId = String(recording.broadcastId || broadcast?.id || '');
+  if (!broadcastId) return null;
+
+  // Keep the recovered card/master until server reconciliation has actually
+  // succeeded. A failed recovery must remain locally saveable.
+  await batch3Service.recoverBroadcast(broadcastId);
+  forgetLocalMaster('recovered');
+
   return startAutosave({
     recording: { ...recording, broadcastId },
     broadcast,
