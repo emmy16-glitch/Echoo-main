@@ -177,7 +177,7 @@ WHISPER_QUALITY_FLOW_URL=
 WHISPER_QUALITY_FLOW_API_KEY=
 ```
 
-Do not disable the recording chunk pipeline just because Whisper is disabled.
+Do not re-enable live browser recording chunks just because Whisper is disabled. Transcription is independent; when disabled, it must add zero work to the live recording path.
 
 ## Email (optional)
 
