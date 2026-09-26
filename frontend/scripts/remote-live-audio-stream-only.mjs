@@ -76,6 +76,22 @@ const installCreatorIdentityAndAudio = async (context) => {
     localStorage.setItem('echooActiveExperience', 'creator');
     localStorage.setItem('creatorSetup', 'true');
     window.__echooQaRecordingEvents = [];
+    window.__echooQaFilePickerCalls = [];
+    window.showSaveFilePicker = async (options = {}) => {
+      window.__echooQaFilePickerCalls.push({
+        suggestedName: options?.suggestedName || '',
+        types: options?.types || [],
+      });
+      return {
+        name: options?.suggestedName || 'echoo-recording.mp3',
+        async createWritable() {
+          return {
+            async write() {},
+            async close() {},
+          };
+        },
+      };
+    };
     window.addEventListener('echoo:recording-upload', (event) => {
       const detail = event?.detail || {};
       window.__echooQaRecordingEvents.push({
@@ -296,8 +312,14 @@ try {
     localDownloads.push(download.suggestedFilename());
   });
 
+  const studioStarted = Date.now();
   await creatorPage.goto(`${origin}/creator-studio`, { waitUntil: 'domcontentloaded' });
-  await creatorPage.getByRole('region', { name: 'Broadcast workstation' }).waitFor({ timeout: 30_000 });
+  await creatorPage.getByRole('region', { name: 'Broadcast workstation' }).waitFor({ timeout: 15_000 });
+  evidence.timing.creatorStudioReadyMs = Date.now() - studioStarted;
+  assert.ok(
+    evidence.timing.creatorStudioReadyMs <= 15_000,
+    `Creator Studio took too long to become usable: ${evidence.timing.creatorStudioReadyMs}ms`
+  );
   await creatorPage.locator('select[aria-label="HOST input"]').selectOption('__echoo_default_input__');
   await creatorPage.waitForFunction(() => Number(document.querySelector('[aria-label="HOST left level"]')?.getAttribute('aria-valuenow') || 0) > 0, null, { timeout: 15_000 });
 
@@ -373,8 +395,21 @@ try {
   assert.equal(Boolean(presence.data?.creatorConnected), true, 'Provider presence did not see the creator publisher.');
 
   await creatorPage.getByRole('button', { name: 'End broadcast', exact: true }).click();
+  const endConfirmedAt = Date.now();
   await creatorPage.locator('.ec2-confirm-end').click();
-  await creatorPage.locator('.ec2-status-pill[aria-label="Off air"]').waitFor({ timeout: 60_000 });
+  await creatorPage.waitForFunction(() => (window.__echooQaFilePickerCalls || []).length > 0, null, { timeout: 5_000 });
+  evidence.deviceSaveReservation = await creatorPage.evaluate(() => window.__echooQaFilePickerCalls || []);
+  assert.match(
+    String(evidence.deviceSaveReservation[0]?.suggestedName || ''),
+    /\.mp3$/i,
+    'End Broadcast should immediately reserve an MP3 device destination.'
+  );
+  await creatorPage.locator('.ec2-status-pill[aria-label="Off air"]').waitFor({ timeout: 20_000 });
+  evidence.timing.endBroadcastToOffAirMs = Date.now() - endConfirmedAt;
+  assert.ok(
+    evidence.timing.endBroadcastToOffAirMs <= 20_000,
+    `End Broadcast took too long to return OFF AIR: ${evidence.timing.endBroadcastToOffAirMs}ms`
+  );
   const ended = await waitForFinalBroadcastStatus(broadcastId);
   assert.ok(['ended', 'processing', 'completed'].includes(ended.data?.status), `Unexpected final status: ${ended.data?.status}`);
   evidence.finalStatus = ended.data.status;
