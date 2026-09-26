@@ -167,7 +167,11 @@ At End Broadcast verify:
 8. create a saved-recording trim and confirm a separate trimmed copy appears;
 9. confirm the original recording still exists and plays;
 10. confirm the configured device copy policy (MP3/WAV/server-only) behaves correctly;
-11. deliberately fail/cancel an automatic device copy and confirm the OPFS master is retained and the UI says **Retry device copy** instead of deleting the local master.
+11. block or stop the Echoo API immediately after OFF AIR and confirm **Save MP3 to device** and **Save WAV to device** remain usable without waiting for the server;
+12. verify the local MP3 is a real playable `audio/mpeg` file encoded from the local WAV, not renamed WAV bytes and not a server download;
+13. on a phone, verify the user-triggered local save reaches the native share/download path where supported;
+14. deliberately fail/cancel a device copy and confirm the OPFS master is retained;
+15. restore the API and choose **Retry Echoo server save**; confirm this retry does not create a second device download and only clears OPFS after both server durability and the chosen device policy are satisfied.
 
 Expected:
 
