@@ -571,11 +571,14 @@ async function startServer() {
 
     await connectDatabase();
 
-    // Fire-and-forget reaper for broadcasts stuck in transitory states with
-    // lingering LiveKit resources. It self-guards when LiveKit is not
-    // configured, so test and no-livekit environments skip it silently.
-    startOrphanSweep();
-    startBroadcastProcessingWorker(io);
+    // Background sweep/processing loops belong on the long-running Echoo
+    // server. Starting them inside short-lived serverless staging instances
+    // creates extra MongoDB work on every cold boot and can starve page-load
+    // requests. Request-driven recording finalization remains available there.
+    if (!isServerlessRuntime) {
+      startOrphanSweep();
+      startBroadcastProcessingWorker(io);
+    }
 
     server.listen(PORT, () => {
       console.log('Echoo API listening on port', PORT);
