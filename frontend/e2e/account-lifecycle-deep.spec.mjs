@@ -133,7 +133,7 @@ test('failed token refresh ejects the user from protected UI and clears the sess
 
   await page.goto('/listen');
   await expect(page).toHaveURL(/\/login\?reason=session-expired$/);
-  await expect(page.getByRole('heading', { name: 'Echoo your sound' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
 
   const state = await page.evaluate(() => ({
     accessToken: localStorage.getItem('accessToken'),

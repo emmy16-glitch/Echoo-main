@@ -299,7 +299,7 @@ test('one Listener account can create its Channel, enter Creator Studio, switch 
   await expect(page).toHaveURL(/\/login/, { timeout: 10_000 });
   await page.getByLabel('Username or email').fill(listenerAccount.email);
   await page.getByLabel('Password', { exact: true }).fill('StrongPass1!');
-  await page.getByRole('button', { name: 'Login' }).click();
+  await page.getByRole('button', { name: 'Sign in' }).click();
 
   await expect(page).toHaveURL(/\/listen$/, { timeout: 10_000 });
   await expect.poll(() => page.evaluate(() => ({
