@@ -271,16 +271,46 @@ const makeRequest = async (
     ...options.headers,
   };
 
-  return fetch(
-    `${requireApiBaseUrl()}${path}`,
-    {
-      method:
-        options.method || 'GET',
-      body: options.body,
-      headers,
-      ...(options.cache ? { cache: options.cache } : {}),
+  const timeoutMs = Math.max(0, Number(options.timeoutMs) || 0);
+  const controller = timeoutMs > 0 ? new AbortController() : null;
+  const externalSignal = options.signal || null;
+  const onExternalAbort = () => controller?.abort(externalSignal?.reason);
+  if (controller && externalSignal) {
+    if (externalSignal.aborted) onExternalAbort();
+    else externalSignal.addEventListener('abort', onExternalAbort, { once: true });
+  }
+
+  const timeoutId = controller
+    ? window.setTimeout(() => controller.abort('request-timeout'), timeoutMs)
+    : null;
+
+  try {
+    return await fetch(
+      `${requireApiBaseUrl()}${path}`,
+      {
+        method:
+          options.method || 'GET',
+        body: options.body,
+        headers,
+        ...(options.cache ? { cache: options.cache } : {}),
+        ...(controller
+          ? { signal: controller.signal }
+          : externalSignal
+            ? { signal: externalSignal }
+            : {}),
+      }
+    );
+  } catch (error) {
+    if (controller?.signal.aborted && !externalSignal?.aborted) {
+      const timeoutError = new Error('Echoo is taking too long to respond. Please try again.');
+      timeoutError.code = 'REQUEST_TIMEOUT';
+      throw timeoutError;
     }
-  );
+    throw error;
+  } finally {
+    if (timeoutId) window.clearTimeout(timeoutId);
+    externalSignal?.removeEventListener?.('abort', onExternalAbort);
+  }
 };
 
 const sessionExpiredError = () => {
