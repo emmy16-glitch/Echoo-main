@@ -651,6 +651,14 @@ const stopLosslessRecording = async (recording, { keep = true } = {}) => {
     writeRecoveryManifest(recording, 'pending_upload');
 
     const file = await recording.fileHandle.getFile();
+    // OPFS FileSystemFileHandle.getFile() commonly returns a File whose
+    // `type` is empty because OPFS stores bytes, not HTTP MIME metadata.
+    // Wrap it as a Blob so downstream local WAV/MP3 export can identify the
+    // master without contacting the server. Blob composition is lazy; this
+    // does not read the whole long recording into JavaScript memory.
+    const wavBlob = String(file.type || '').toLowerCase().includes('wav')
+      ? file
+      : new Blob([file], { type: WAV_MIME_TYPE });
 
     if (
       keep &&
@@ -658,7 +666,7 @@ const stopLosslessRecording = async (recording, { keep = true } = {}) => {
       recording.qualityChunkStarted &&
       !recording.qualityChunkDisabled
     ) {
-      await uploadLosslessMasterAfterLive(recording, file);
+      await uploadLosslessMasterAfterLive(recording, wavBlob);
       try {
         await completeQualityChunks(recording);
       } catch (error) {
@@ -679,7 +687,7 @@ const stopLosslessRecording = async (recording, { keep = true } = {}) => {
     // recoverable.
     return {
       broadcastId: recording.broadcastId,
-      blob: file,
+      blob: wavBlob,
       mimeType: WAV_MIME_TYPE,
       durationSeconds: Math.max(1, durationSeconds),
       sampleRate,
@@ -1329,10 +1337,13 @@ export const recoverOrphanedLosslessRecording = async () => {
       // Header patch is best-effort; the raw PCM size is still usable info.
     }
     const patched = await fileHandle.getFile();
+    const wavBlob = String(patched.type || '').toLowerCase().includes('wav')
+      ? patched
+      : new Blob([patched], { type: WAV_MIME_TYPE });
     const durationSeconds = Math.max(1, dataBytes / (sampleRate * WAV_CHANNELS * WAV_BYTES_PER_SAMPLE));
     const recording = {
       broadcastId: String(meta.broadcastId),
-      blob: patched,
+      blob: wavBlob,
       mimeType: WAV_MIME_TYPE,
       durationSeconds,
       sampleRate,
