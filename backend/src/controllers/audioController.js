@@ -164,6 +164,8 @@ const reconcileExistingReplay = async ({ sourceBroadcast, existingAudio, audioFi
     {
       $set: {
         replayAudio: existingAudio._id,
+        replayAudioId: existingAudio._id,
+        replayStatus: 'ready',
         recordingUrl: String(existingAudio._id),
         'assetStatus.audio': 'ready',
         'assetVisibility.audio': existingAudio.visibility || 'private',
@@ -374,6 +376,8 @@ export async function uploadAudio(req, res, next) {
           throw error;
         }
         sourceBroadcast.replayAudio = audio._id;
+        sourceBroadcast.replayAudioId = audio._id;
+        sourceBroadcast.replayStatus = 'ready';
         sourceBroadcast.recordingUrl = String(audio._id);
         sourceBroadcast.assetStatus.audio = 'ready';
         sourceBroadcast.assetVisibility.audio = 'private';
@@ -396,6 +400,8 @@ export async function uploadAudio(req, res, next) {
           {
             $set: {
               replayAudio: previousReplayAudio,
+              replayAudioId: previousReplayAudio,
+              replayStatus: previousReplayAudio ? 'ready' : 'pending',
               recordingUrl: previousRecordingUrl,
             },
           }

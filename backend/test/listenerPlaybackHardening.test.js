@@ -24,6 +24,17 @@ test('live listener keeps playback intent, device volume, and explicit recovery 
   assert.doesNotMatch(player, /setActionHandler\('pause',[\s\S]{0,80}togglePlayback/);
 });
 
+test('guest live catalog opens broadcasts directly instead of passing station ids to the live room', async () => {
+  const listener = await source('../../frontend/src/Components/ListenerV2/ListenerV2.jsx');
+
+  assert.match(listener, /batch2Service\.listBroadcasts\(\{[\s\S]*status:\s*'live'/);
+  assert.match(listener, /navigate\(\`\/listen\/live\/\$\{idOf\(item\)\}\`/);
+  assert.doesNotMatch(
+    listener,
+    /const response = await batch2Service\.listStations\(\{ page: 1, limit: 100 \}\);[\s\S]{0,220}setLiveNow\(stations\.filter/
+  );
+});
+
 test('live room primary control recovers disconnected audio and never relies on playerError to disable Play', async () => {
   const room = await source('../../frontend/src/Components/ListenerLiveExperience/ListenerRealLiveRoom.jsx');
 
@@ -59,6 +70,13 @@ test('listener late-join subscription and non-autoplay failures remain recoverab
   assert.match(player, /scheduleHardReconnect\('new_element_play_failed'\)/);
   assert.match(player, /scheduleHardReconnect\('program_element_ended'\)/);
   assert.match(player, /const blocked = playError\?\.name === 'NotAllowedError'/);
+  assert.match(
+    player,
+    /if \(needsAudioStart \|\| !elements\.length\) return startAudio\(\)/,
+    'a guest Play tap before track attachment must unlock LiveKit audio instead of becoming a no-op'
+  );
+  assert.match(player, /await room\.startAudio\(\)/);
+  assert.match(player, /setStatus\(elements\.length \? 'listening' : 'recovering_audio'\)/);
 });
 
 test('creator publisher does not treat an intentional pause as a transport stall', async () => {

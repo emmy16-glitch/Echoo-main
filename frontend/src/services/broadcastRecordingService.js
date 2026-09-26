@@ -1232,6 +1232,73 @@ export const uploadRecoveryMasterToServer = async (recording) => {
   };
 };
 
+export const uploadCompressedRecoveryMasterToServer = async (recording, broadcast = null) => {
+  if (!recording?.broadcastId || !recording?.blob?.size) {
+    throw new Error('No local compressed recovery master is available for server rescue.');
+  }
+
+  const mimeType = String(recording.mimeType || recording.blob.type || '').toLowerCase();
+  const compressedRecovery =
+    mimeType.includes('webm') ||
+    mimeType.includes('opus') ||
+    mimeType.includes('ogg');
+
+  if (!compressedRecovery) {
+    const error = new Error('This browser recovery master is not a supported compressed audio format.');
+    error.code = 'RECOVERY_FORMAT_UNSUPPORTED';
+    throw error;
+  }
+
+  const extension = mimeType.includes('ogg') ? 'ogg' : 'webm';
+  const form = new FormData();
+  form.append(
+    'audio',
+    recording.blob,
+    recording.filename || `echoo-recovery-${cleanFilenamePart(recording.broadcastId)}.${extension}`
+  );
+  form.append('title', String(broadcast?.title || recording.title || 'Echoo live recording'));
+  form.append('description', String(broadcast?.description || ''));
+  form.append(
+    'genre',
+    String(broadcast?.category || broadcast?.station?.category || 'Other')
+  );
+  form.append('tags', JSON.stringify(['live-recording', 'broadcast', 'browser-recovery']));
+  form.append('isPublic', 'false');
+  form.append('duration', String(Math.max(0, Number(recording.durationSeconds) || 0)));
+  form.append('broadcastId', String(recording.broadcastId));
+
+  const response = await apiFetch('/audio/upload', {
+    method: 'POST',
+    body: form,
+    isFormData: true,
+  });
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    const error = new Error(
+      data?.error?.message ||
+      `Could not upload compressed recording recovery (${response.status})`
+    );
+    error.code = data?.error?.code || 'COMPRESSED_RECOVERY_UPLOAD_FAILED';
+    error.status = response.status;
+    throw error;
+  }
+
+  const audioId = String(data?.data?.id || data?.data?._id || '');
+  if (!audioId) {
+    const error = new Error('Echoo accepted the recovery file but did not return a replay id.');
+    error.code = 'RECOVERY_REPLAY_ID_MISSING';
+    throw error;
+  }
+
+  recording.serverFallbackAttempted = true;
+  return {
+    recovered: true,
+    mode: 'compressed-upload',
+    audioId,
+  };
+};
+
 export const retryBroadcastQualityCompletion = async (recording) => {
   if (!recording?.qualityCompletionPending || !recording?.broadcastId) return true;
 

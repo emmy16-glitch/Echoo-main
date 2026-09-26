@@ -4,6 +4,7 @@ import {
   clearPendingBroadcastRecording,
   recoverOrphanedLosslessRecording,
   retryBroadcastQualityCompletion,
+  uploadCompressedRecoveryMasterToServer,
   uploadRecoveryMasterToServer,
 } from './broadcastRecordingService.js';
 import {
@@ -296,31 +297,76 @@ const startAutosaveLive = async ({
         await retryBroadcastQualityCompletion(recording).catch(() => null);
       }
 
-      let finalizeResponse = await batch3Service.finalizeServerReplay(recording.broadcastId, {
-        qualityChunkCount: Number(recording.qualityChunkIndex ?? recording.qualityChunkCount) || 0,
-        qualityChunkUploadErrors: Array.isArray(recording.qualityChunkErrors) ? recording.qualityChunkErrors.length : 0,
-      });
-      let replay = finalizeResponse?.data?.replay || {};
+      const recoveryMime = String(
+        recording.mimeType || recording.blob?.type || ''
+      ).toLowerCase();
+      const losslessRecoveryAvailable = recoveryMime.includes('wav');
+      const compressedRecoveryAvailable =
+        recoveryMime.includes('webm') ||
+        recoveryMime.includes('opus') ||
+        recoveryMime.includes('ogg');
 
-      // Server egress is primary, but the local OPFS master is deliberately
-      // retained until the server MP3 is verified. If egress failed, recover
-      // automatically from that master using bounded chunks. This expensive
-      // upload is an emergency path only and never runs during the live show.
+      let finalizeResponse = null;
+      let replay = {};
+
+      // When server Egress was unavailable from the start there is no chunk
+      // session to "complete" yet. Open and upload recovery FIRST; calling the
+      // complete endpoint first returns QUALITY_CHUNKING_NOT_STARTED (409) and
+      // used to prevent this recovery branch from ever running.
+      if (
+        !recording.serverRecordingPrimary &&
+        !recording.serverFallbackAttempted &&
+        recording.blob?.size
+      ) {
+        emit({ status: 'finalizing', key, title, recovery: true, localCopy });
+
+        if (losslessRecoveryAvailable) {
+          await uploadRecoveryMasterToServer(recording);
+        } else if (compressedRecoveryAvailable) {
+          const recovered = await uploadCompressedRecoveryMasterToServer(recording, broadcast);
+          replay = {
+            status: recovered?.audioId ? 'ready' : 'failed',
+            audioId: recovered?.audioId || null,
+          };
+          finalizeResponse = { data: { replay } };
+        }
+      }
+
+      if (!finalizeResponse) {
+        finalizeResponse = await batch3Service.finalizeServerReplay(recording.broadcastId, {
+          qualityChunkCount: Number(recording.qualityChunkIndex ?? recording.qualityChunkCount) || 0,
+          qualityChunkUploadErrors: Array.isArray(recording.qualityChunkErrors) ? recording.qualityChunkErrors.length : 0,
+        });
+        replay = finalizeResponse?.data?.replay || {};
+      }
+
+      // Server Egress may start successfully and still fail before End
+      // Broadcast. Keep the local master until the server MP3 is verified and
+      // perform one post-live rescue attempt when that happens.
       if (
         replay.status !== 'ready' &&
         !recording.serverFallbackAttempted &&
-        recording.blob?.size &&
-        String(recording.mimeType || recording.blob?.type || '').toLowerCase().includes('wav')
+        recording.blob?.size
       ) {
         emit({ status: 'finalizing', key, title, recovery: true, localCopy });
-        await uploadRecoveryMasterToServer(recording);
-        finalizeResponse = await batch3Service.finalizeServerReplay(recording.broadcastId, {
-          qualityChunkCount: Number(recording.qualityChunkCount) || 0,
-          qualityChunkUploadErrors: Array.isArray(recording.qualityChunkErrors)
-            ? recording.qualityChunkErrors.length
-            : 0,
-        });
-        replay = finalizeResponse?.data?.replay || {};
+
+        if (losslessRecoveryAvailable) {
+          await uploadRecoveryMasterToServer(recording);
+          finalizeResponse = await batch3Service.finalizeServerReplay(recording.broadcastId, {
+            qualityChunkCount: Number(recording.qualityChunkCount) || 0,
+            qualityChunkUploadErrors: Array.isArray(recording.qualityChunkErrors)
+              ? recording.qualityChunkErrors.length
+              : 0,
+          });
+          replay = finalizeResponse?.data?.replay || {};
+        } else if (compressedRecoveryAvailable) {
+          const recovered = await uploadCompressedRecoveryMasterToServer(recording, broadcast);
+          replay = {
+            status: recovered?.audioId ? 'ready' : 'failed',
+            audioId: recovered?.audioId || null,
+          };
+          finalizeResponse = { data: { replay } };
+        }
       }
 
       if (replay.status === 'ready' && replay.audioId) {

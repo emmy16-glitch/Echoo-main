@@ -238,9 +238,19 @@ const useLiveCatalog = () => {
         const response = await listenerService.getDashboard();
         setLiveNow(Array.isArray(response?.data?.liveNow) ? response.data.liveNow : []);
       } else {
-        const response = await batch2Service.listStations({ page: 1, limit: 100 });
-        const stations = Array.isArray(response?.data) ? response.data : [];
-        setLiveNow(stations.filter((station) => station?.isPublic !== false && station?.isLive));
+        // Guests must navigate with a BROADCAST id, not a Station id.
+        // The public broadcasts endpoint already exposes only public rows and
+        // returns the exact object shape the live-room route expects.
+        const response = await batch2Service.listBroadcasts({
+          status: 'live',
+          page: 1,
+          limit: 100,
+          cache: 'no-store',
+        });
+        setLiveNow(
+          (Array.isArray(response?.data) ? response.data : [])
+            .filter((broadcast) => broadcast?.isPublic !== false)
+        );
       }
       setError('');
     } catch (loadError) {
