@@ -384,8 +384,8 @@ const batch3Service = {
 
   // Called immediately after local LiveKit publication has stopped. The
   // local master must stop at the same practical boundary as listener audio;
-  // server cleanup may continue in parallel. Announcement/autosave can be
-  // deferred until backend End Broadcast has finished.
+  // server cleanup may continue in parallel. Device-save announcement can run
+  // immediately; server finalization remains a separate outcome.
   finalizeBroadcastRecording: async (
     broadcastId,
     broadcast = null,
