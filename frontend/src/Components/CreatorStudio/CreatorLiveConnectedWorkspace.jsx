@@ -202,7 +202,7 @@ const CreatorLiveConnectedWorkspace = ({
         setBroadcasts(realBroadcasts);
 
         const activeBroadcast = realBroadcasts.find(
-          (item) => item.status === 'live' || item.status === 'ending'
+          (item) => item.status === 'live'
         ) || null;
 
         if (activeBroadcast) {
@@ -215,6 +215,28 @@ const CreatorLiveConnectedWorkspace = ({
           setTitle(activeBroadcast.title || realStations[0]?.name || '');
           setDescription(activeBroadcast.description || realStations[0]?.description || '');
           clearPreparedBroadcast();
+          return;
+        }
+
+        // An ending row means listeners are already meant to be off air.
+        // Never trap the creator in a full-screen ending/loading state while
+        // cleanup or recording recovery continues behind the scenes.
+        const endingBroadcast = realBroadcasts.find(
+          (item) => item.status === 'ending'
+        ) || null;
+        if (endingBroadcast) {
+          setCurrentLiveBroadcast(null);
+          setSavedBroadcast(null);
+          setStationId(realStations[0]?.id || '');
+          setTitle(realStations[0]?.name || endingBroadcast.title || '');
+          setDescription(realStations[0]?.description || endingBroadcast.description || '');
+          clearPreparedBroadcast();
+          setMessage('Broadcast ended. Your recording is being prepared in the background.');
+          void batch3Service.recoverBroadcast(endingBroadcast.id).then(() => {
+            window.dispatchEvent(new CustomEvent('echoo:creator-state-changed'));
+          }).catch((recoveryError) => {
+            console.warn('[Echoo Live] background end recovery delayed:', recoveryError?.message || recoveryError);
+          });
           return;
         }
 
@@ -304,7 +326,7 @@ const CreatorLiveConnectedWorkspace = ({
           }),
         });
         if (!currentLiveBroadcast?.id) {
-          setMessage('Recording is safe locally. Uploading the server copy…');
+          setMessage('Recording is safe. Uploading the server copy…');
         }
         return;
       }
@@ -817,7 +839,7 @@ const CreatorLiveConnectedWorkspace = ({
       const unpublishStartedAt = performance.now();
       await stopLiveKitPublishing();
       setMasterMuted(false);
-      markOffAir('Broadcast audio stopped. Finalizing your local master…');
+      markOffAir('Broadcast ended. Your recording is safe and Echoo is finishing it in the background.');
       setSessionOperation((current) => current
         ? { ...current, stage: 'finalizing-local-master' }
         : current);
@@ -859,7 +881,7 @@ const CreatorLiveConnectedWorkspace = ({
         const endedResponse = backendOutcome?.ok ? backendOutcome.response : null;
         if (!backendOutcome?.ok) {
           const backendError = backendOutcome?.error;
-          setError('Broadcast audio stopped and your local recording is safe, but Echoo could not finalize the server session. You can save MP3/WAV locally and retry the server later.');
+          setError('Broadcast ended and your recording is safe. Echoo is still finishing the saved recording in the background; you can save MP3 or WAV to this device now.');
           console.warn('[Echoo Live] server end failed after local unpublish:', backendError?.message || backendError);
         }
 
@@ -990,7 +1012,7 @@ const CreatorLiveConnectedWorkspace = ({
   };
 
   if (loading) {
-    return <div className="ebsx-loading">Loading Broadcast Studio...</div>;
+    return <div className="ebsx-loading">Getting your studio ready…</div>;
   }
 
   if (!stations.length && !currentLiveBroadcast) {
@@ -1095,7 +1117,7 @@ const CreatorLiveConnectedWorkspace = ({
                 <strong>{liveStation?.category || 'Your Echoo Channel'}</strong>
               </div>
               <span className="ec2-live-fact"><FiClock aria-hidden="true" /> {formatTimer(elapsed)}</span>
-              <p>Disconnecting listeners and finalizing your recording.</p>
+              <p>Taking you off air and securing your recording.</p>
             </div>
           </>
         ) : (
@@ -1143,20 +1165,20 @@ const CreatorLiveConnectedWorkspace = ({
                     : sessionOperation.stage === 'stopping-live-audio'
                       ? 'Stopping live audio'
                       : sessionOperation.stage === 'finalizing-local-master'
-                        ? 'Finalizing local recording master'
+                        ? 'Securing your recording'
                         : sessionOperation.stage === 'preparing-server-save'
-                          ? 'Preparing recording for server save'
-                          : 'Recording is safe locally'}
+                          ? 'Finishing your recording'
+                          : 'Recording is safe'}
             </strong>
             <span>{formatElapsedTime(sessionOperation.elapsedSeconds || 0)} elapsed</span>
           </div>
           <small>
             {sessionOperation.stage === 'local-safe'
-              ? 'The local master is protected. Echoo is waiting for a successful server save before cleanup.'
+              ? 'Your recording is safe on this device. Echoo will keep trying to finish the saved recording in the background.'
               : sessionOperation.stage === 'publishing-audio'
                 ? 'Echoo is waiting for the live audio publication to become usable by listeners.'
                 : sessionOperation.stage === 'finalizing-local-master'
-                  ? 'The live room is already off air. Echoo is closing and validating the local recording.'
+                  ? 'The broadcast is already off air. Echoo is closing your recording safely.'
                   : 'This stage has no trustworthy percentage, so Echoo shows elapsed time instead.'}
           </small>
         </div>
