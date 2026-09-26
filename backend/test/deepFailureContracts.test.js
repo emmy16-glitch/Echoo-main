@@ -124,6 +124,8 @@ test('recording completion retries and automatic save preserves recovery state',
   const autosave = await frontendSource('src/services/recordingAutosave.js');
   const banner = await frontendSource('src/Components/RecordingSaveBanner.jsx');
   assert.match(recording, /QUALITY_CHUNK_COMPLETE_RETRIES/);
+  assert.match(recording, /QUALITY_CHUNK_COMPLETE_TIMEOUT_MS/);
+  assert.match(recording, /timeoutMs:\s*QUALITY_CHUNK_COMPLETE_TIMEOUT_MS/);
   assert.match(recording, /completeQualityChunks/);
   assert.match(recording, /qualityCompletionPending/);
   assert.match(recording, /retryBroadcastQualityCompletion/);
@@ -164,6 +166,9 @@ test('recording completion retries and automatic save preserves recovery state',
   assert.match(banner, /formats\.map\(\(format\) =>/);
   assert.match(banner, /Save \$\{format\.toUpperCase\(\)\} to device/);
   assert.match(banner, /Retry Echoo save/);
+  assert.match(recording, /OPUS_FALLBACK_MAX_BYTES/);
+  assert.match(recording, /fallbackOverflowed/);
+  assert.match(recording, /bounded Opus fallback stopped to protect live-stream memory/);
   assert.match(recording, /OPFS_MANIFESTS_KEY/);
   assert.match(recording, /readRecoveryManifests/);
   assert.match(recording, /persistRecoveryManifests/);
