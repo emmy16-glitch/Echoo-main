@@ -34,6 +34,38 @@ export const isEchooProgramAudioTrack = (
   return !mimeType || mimeType.startsWith('audio/');
 };
 
+export async function creatorProgramAudioIsPresent(broadcastId, userId) {
+  const participants = await LiveKitProvider.getParticipants(broadcastId);
+  const creator = participants.find((participant) =>
+    isCreatorParticipant(participant, userId)
+  );
+  if (!creator) return false;
+
+  const tracks = Array.isArray(creator.tracks) ? creator.tracks : [];
+  return tracks.some((track) => isEchooProgramAudioTrack(track));
+}
+
+export async function waitForCreatorProgramAudioToStop(
+  broadcastId,
+  userId,
+  { maxWaitMs = 2500, pollMs = 100 } = {}
+) {
+  const deadline = Date.now() + Math.max(250, Number(maxWaitMs) || 2500);
+  const interval = Math.max(50, Number(pollMs) || 100);
+
+  while (Date.now() < deadline) {
+    try {
+      if (!await creatorProgramAudioIsPresent(broadcastId, userId)) return true;
+    } catch {
+      // End Broadcast must remain fail-safe even if LiveKit presence lookup is
+      // temporarily unavailable. Resource cleanup below will still run.
+      return false;
+    }
+    await wait(interval);
+  }
+  return false;
+}
+
 export async function waitForCreatorProgramAudio(
   broadcastId,
   userId,

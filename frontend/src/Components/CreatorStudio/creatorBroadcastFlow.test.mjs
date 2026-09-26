@@ -133,20 +133,26 @@ test('End Broadcast defers browser file choice until the Echoo server MP3 is rea
   assert.match(exportService, /mode: 'file-picker'/);
 });
 
-test('LIVE is set by the published program track, with confirmation and recording out of band', async () => {
+test('local safety capture starts before publication while server recording arms after publication', async () => {
   const workspace = await read('./CreatorLiveConnectedWorkspace.jsx');
   const publisher = await read('../../services/livekitPublisher.js');
   const batch3 = await read('../../services/batch3Service.js');
   const publishAt = workspace.indexOf('await startLiveKitPublishing');
   const liveAt = workspace.indexOf('setCurrentLiveBroadcast(liveBroadcast)');
   const confirmAt = workspace.indexOf('void batch3Service.confirmBroadcastLive');
-  const recorderAt = publisher.indexOf('void ensureBroadcastRecording');
+  const localStartAt = publisher.indexOf('localRecordingStart = ensureBroadcastRecording');
+  const connectAt = publisher.indexOf('const result = await connectAndPublish');
+  const serverArmAt = publisher.indexOf('armBroadcastServerRecording(id)');
   const startAt = batch3.indexOf('startBroadcast: async');
   const confirmServiceAt = batch3.indexOf('confirmBroadcastLive: async');
 
   assert.ok(publishAt >= 0 && liveAt > publishAt);
   assert.ok(confirmAt > liveAt);
-  assert.ok(recorderAt >= 0);
+  assert.ok(localStartAt >= 0 && localStartAt < connectAt, 'local safety capture must begin before listener publication');
+  assert.ok(serverArmAt > connectAt, 'server recorder handshake must arm after the LiveKit track exists');
+  assert.match(publisher, /LOCAL_RECORDING_START_BUDGET_MS = 750/);
+  assert.match(publisher, /Promise\.race\(\[/);
+  assert.match(publisher, /discardBroadcastRecording\(id\)/);
   assert.doesNotMatch(publisher, /startWhisperFlowTranscription|stopWhisperFlowTranscription/);
   assert.doesNotMatch(batch3.slice(startAt, confirmServiceAt), /checkLiveKitReadiness\s*\(/);
 });
@@ -206,6 +212,7 @@ test('End stops listener audio and local recovery master before waiting for serv
   assert.match(endBody, /The upload event takes over the visible progress from here/);
   assert.match(publisher, /ROOM_DISCONNECT_DEADLINE_MS/);
   assert.match(publisher, /Promise\.race\(\[disconnect, deadline\]\)/);
+  assert.match(workspace, /const backendEnd = batch3Service\.endBroadcastRealtime/);
 });
 
 test('OFF AIR reset clears session state while the stereo workstation remains canonical', async () => {
