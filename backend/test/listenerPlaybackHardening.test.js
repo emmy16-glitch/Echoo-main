@@ -91,3 +91,23 @@ test('listener replay shell exposes detail-page playback contract and metadata-d
   assert.match(detail, /typeof player\.playTrackAt === 'function'/);
   assert.match(detail, /player\.seekTo\?\./);
 });
+
+
+test('listener reconnect only marks autoplay blocked when LiveKit actually cannot play audio', async () => {
+  const player = await source('../../frontend/src/Components/ListenerLiveExperience/LiveKitListenerPlayer.jsx');
+
+  assert.match(player, /const playbackBlocked =[\s\S]*!room\.canPlaybackAudio/);
+  assert.match(player, /setNeedsAudioStart\(playbackBlocked\)/);
+  assert.match(player, /needsAudioStartRef\.current = playbackBlocked/);
+  assert.doesNotMatch(player, /needsAudioStartRef\.current = attachedRef\.current\.size > 0 && !hasPlayingAudio/);
+});
+
+
+test('listener watchdog and reattachment never override an intentional pause', async () => {
+  const player = await source('../../frontend/src/Components/ListenerLiveExperience/LiveKitListenerPlayer.jsx');
+
+  assert.match(player, /playbackIntentRef\.current === 'pause' && entries\.some\(currentAttachmentIsHealthy\)/);
+  assert.match(player, /if \(playbackIntentRef\.current === 'pause'\) \{[\s\S]{0,220}setStatus\('connected'\)/);
+  assert.match(player, /playbackIntentRef\.current === 'play'[\s\S]{0,220}!entries\.some\(\(entry\) => mediaElementIsPlaying\(entry\.element\)\)/);
+  assert.match(player, /const playbackBlocked =[\s\S]{0,180}playbackIntentRef\.current === 'play'/);
+});

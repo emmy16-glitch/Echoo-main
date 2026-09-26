@@ -158,6 +158,13 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
         setStatus('playing');
         return true;
       }
+      if (playbackIntentRef.current === 'pause' && entries.some(currentAttachmentIsHealthy)) {
+        needsAudioStartRef.current = false;
+        setNeedsAudioStart(false);
+        setIsPlaying(false);
+        setStatus('connected');
+        return false;
+      }
       if (roomLinkRef.current === 'reconnecting') {
         // LiveKit is already repairing the transport. Hold the shared live
         // source instead of reporting the creator as gone.
@@ -252,6 +259,13 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       const id = String(track.sid || track.mediaStreamTrack?.id || 'audio');
       const existing = attachedRef.current.get(id);
       if (currentAttachmentIsHealthy(existing) && existing.track === track) {
+        if (playbackIntentRef.current === 'pause') {
+          setNeedsAudioStart(false);
+          needsAudioStartRef.current = false;
+          setIsPlaying(false);
+          setStatus('connected');
+          return;
+        }
         try {
           await existing.element.play();
           markPlaybackState();
@@ -373,10 +387,10 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
         return;
       }
 
-      // A Creator may already be live before this Listener joins. With
-      // autoSubscribe enabled LiveKit normally handles this, but explicitly
-      // requesting the subscription also covers publications announced during
-      // the initial participant snapshot and avoids a silent waiting state.
+      // A Creator may already be live before this Listener joins. Because
+      // autoSubscribe is intentionally disabled, explicitly request only the
+      // canonical program publication from the initial participant snapshot
+      // and later TrackPublished events.
       if (
         publication.kind === Track.Kind.Audio &&
         !publication.isSubscribed &&
@@ -505,8 +519,12 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
         if (!disposed && roomRef.current === room) {
           const hasAudio = attachedRef.current.size > 0;
           const canPlay = room.canPlaybackAudio;
-          setNeedsAudioStart(hasAudio && !canPlay && playbackIntentRef.current === 'play');
-          needsAudioStartRef.current = hasAudio && !canPlay;
+          const playbackBlocked =
+            hasAudio &&
+            !canPlay &&
+            playbackIntentRef.current === 'play';
+          setNeedsAudioStart(playbackBlocked);
+          needsAudioStartRef.current = playbackBlocked;
           const elements = Array.from(audioHostRef.current?.querySelectorAll('audio') || []);
           const playing = elements.some((element) => !element.paused && !element.ended);
           setIsPlaying(playing);
@@ -545,13 +563,13 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       reconnectAttemptRef.current = 0;
       setIsPlaying(hasPlayingAudio);
       setStatus(hasPlayingAudio ? 'listening' : attachedRef.current.size ? 'recovering_audio' : 'waiting_for_program');
-      setNeedsAudioStart(
+      const playbackBlocked =
         playbackIntentRef.current === 'play' &&
         attachedRef.current.size > 0 &&
         !hasPlayingAudio &&
-        !room.canPlaybackAudio
-      );
-      needsAudioStartRef.current = attachedRef.current.size > 0 && !hasPlayingAudio;
+        !room.canPlaybackAudio;
+      setNeedsAudioStart(playbackBlocked);
+      needsAudioStartRef.current = playbackBlocked;
     };
 
     connect().catch(async (connectError) => {
@@ -613,7 +631,11 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
         return;
       }
       watchdogMissStreakRef.current = 0;
-      if (!entries.some((entry) => mediaElementIsPlaying(entry.element)) && !needsAudioStartRef.current) {
+      if (
+        playbackIntentRef.current === 'play' &&
+        !entries.some((entry) => mediaElementIsPlaying(entry.element)) &&
+        !needsAudioStartRef.current
+      ) {
         setStatus('recovering_audio');
         entries.forEach((entry) => {
           entry.element.play().then(markPlaybackState).catch((playError) => {

@@ -32,11 +32,21 @@ body,
   text-rendering: optimizeLegibility;
 }
 
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--echoo-font-heading);
+}
+
 button,
 input,
 select,
-textarea {
-  font-family: inherit;
+textarea,
+label {
+  font-family: var(--echoo-font-control);
 }
 
 button,
@@ -150,7 +160,7 @@ textarea:focus-visible,
   border-radius: var(--echoo-radius-md);
   background: transparent;
   color: var(--echoo-color-muted);
-  font: 560 var(--echoo-type-caption-size)/1.25 var(--echoo-font-sans);
+  font: 600 var(--echoo-type-caption-size)/1.25 var(--echoo-font-control);
   letter-spacing: 0;
   text-decoration: none;
   transition: background 160ms cubic-bezier(.23, 1, .32, 1), color 160ms cubic-bezier(.23, 1, .32, 1), transform 160ms cubic-bezier(.23, 1, .32, 1);
