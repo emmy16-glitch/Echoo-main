@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-26T00:00:00+01:00",
+  "title": "Design System: Echoo",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "Echoo Signal Blue",
+        "canonical": "#245CFF"
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Broadcast Navy",
+        "canonical": "#0B1D3A"
+      },
+      "canvas": {
+        "role": "neutral",
+        "displayName": "Cool Console Canvas",
+        "canonical": "#F7F9FC"
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Space Grotesk",
+        "purpose": "Page and section hierarchy."
+      },
+      "body": {
+        "displayName": "Source Sans 3",
+        "purpose": "Readable product copy."
+      },
+      "label": {
+        "displayName": "Manrope",
+        "purpose": "Controls, navigation and compact labels."
+      }
+    },
+    "shadows": [
+      {
+        "name": "ambient-low",
+        "value": "0 4px 14px rgba(20, 42, 76, .05)",
+        "purpose": "Low separation for cards."
+      },
+      {
+        "name": "ambient-menu",
+        "value": "0 10px 28px rgba(20, 42, 76, .08)",
+        "purpose": "Menus and elevated working surfaces."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "mobile",
+        "value": "700px"
+      },
+      {
+        "name": "wide",
+        "value": "1120px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Main creator/listener action.",
+      "html": "<button class=\"ds-btn-primary\">Go Live</button>",
+      "css": ".ds-btn-primary{height:42px;padding:0 20px;border:0;border-radius:12px;background:#245CFF;color:#fff;font-family:Manrope,sans-serif;font-weight:600;cursor:pointer}.ds-btn-primary:hover{background:#1F4FDB}.ds-btn-primary:focus-visible{outline:2px solid #94B4FF;outline-offset:2px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "Signal Precision",
+    "overview": "Echoo is a calm, precise broadcast control surface. Visual emphasis is reserved for live state, primary actions and recovery problems.",
+    "keyCharacteristics": [
+      "One canonical Echoo blue.",
+      "Distinct heading, control and body typography roles.",
+      "Light cool canvas with restrained elevation.",
+      "Explicit live and recovery states."
+    ],
+    "rules": [
+      {
+        "name": "The One Blue Rule",
+        "body": "New UI consumes canonical Echoo brand tokens instead of introducing route-local blues.",
+        "section": "colors"
+      },
+      {
+        "name": "The Role Rule",
+        "body": "Headings, controls and body copy keep distinct font roles.",
+        "section": "typography"
+      }
+    ],
+    "dos": [
+      "Do use canonical design tokens for brand, text, borders and status colors.",
+      "Do keep live/reconnect/error states obvious on desktop and mobile."
+    ],
+    "donts": [
+      "Don't add a new blue, font stack or spacing vocabulary inside a route.",
+      "Don't hide recovery actions behind color alone."
+    ]
+  }
+}
