@@ -6,7 +6,11 @@ import {
   retryBroadcastQualityCompletion,
   uploadRecoveryMasterToServer,
 } from './broadcastRecordingService.js';
-import { saveAutomaticLocalCopy, saveRecordingToPc } from './recordingExportService.js';
+import {
+  prepareAutomaticLocalCopyDestination,
+  saveAutomaticLocalCopy,
+  saveRecordingToPc,
+} from './recordingExportService.js';
 import {
   chooseRecordingDeviceFormat,
   getRecordingDevicePreferences,
@@ -99,6 +103,27 @@ const availableLocalFormats = (recording) => {
   return [];
 };
 
+
+export const prepareEndBroadcastDeviceSave = ({ broadcast } = {}) => {
+  const preferences = getRecordingDevicePreferences();
+  if (!preferences.decided || !preferences.autoSave) return null;
+
+  const { channelName, startedAt } = localContext({
+    recording: null,
+    broadcast,
+  });
+
+  // This function must be called synchronously from the End Broadcast button
+  // handler so supported PC browsers can grant the file handle before async
+  // LiveKit/server work begins.
+  return prepareAutomaticLocalCopyDestination({
+    title: broadcast?.title || 'Live broadcast recording',
+    format: preferences.format,
+    channelName,
+    startedAt,
+  });
+};
+
 const rememberPendingMaster = ({
   key,
   recording,
@@ -138,6 +163,7 @@ export const startAutosave = async ({
   serverEndPromise = null,
   skipDeviceSave = false,
   initialLocalCopy = null,
+  deviceSaveReservation = null,
 } = {}) => {
   if (!recording?.blob?.size && !recording?.broadcastId) return null;
   const broadcastId = String(recording.broadcastId || broadcast?.id || '');
@@ -159,6 +185,7 @@ export const startAutosave = async ({
     serverEndPromise,
     skipDeviceSave,
     initialLocalCopy,
+    deviceSaveReservation,
   });
 };
 
@@ -173,6 +200,7 @@ const startAutosaveLive = async ({
   serverEndPromise = null,
   skipDeviceSave = false,
   initialLocalCopy = null,
+  deviceSaveReservation = null,
 }) => {
   const title = broadcast?.title || 'Live broadcast recording';
   const { channelName, startedAt } = localContext({ recording, broadcast });
@@ -216,6 +244,7 @@ const startAutosaveLive = async ({
               percent,
             });
           },
+          reservation: deviceSaveReservation,
         }).catch((error) => ({
           saved: false,
           error: error?.message || String(error),
@@ -745,4 +774,5 @@ export default {
   rememberLocalMaster,
   peekLocalMaster,
   forgetLocalMaster,
+  prepareEndBroadcastDeviceSave,
 };
