@@ -5,6 +5,7 @@ import LiveKitProvider from '../providers/livekit.js';
 import { stopBroadcastOutputs } from './broadcastOutputService.js';
 import { enqueueBroadcastProcessing } from './broadcastProcessingService.js';
 import { releaseCreatorBroadcastLease } from './creatorBroadcastLease.js';
+import { stopLiveKitServerRecording } from './livekitServerRecording.js';
 
 // ---------------------------------------------------------------------------
 // Recording-recovery reconciliation.
@@ -52,6 +53,15 @@ const liveRoomHasPublisher = async (broadcastId) => {
 
 const finalizeInterruptedBroadcast = async (broadcast) => {
   const now = new Date();
+
+  // Recovery owns the same shutdown order as normal End Broadcast: stop the
+  // LiveKit server recorder first so FFmpeg can flush a complete MP3 before
+  // the room is removed. If that recorder has already failed, browser OPFS
+  // recovery remains authoritative.
+  await stopLiveKitServerRecording(String(broadcast._id)).catch((error) => {
+    console.warn('[Echoo Recovery] server recorder cleanup warning:', error?.message || error);
+  });
+
   await stopBroadcastOutputs(String(broadcast._id), { incomplete: true }).catch((error) => {
     console.warn('[Echoo Recovery] output cleanup warning:', error?.message || error);
   });

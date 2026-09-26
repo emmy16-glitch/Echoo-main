@@ -130,7 +130,7 @@ test('long-form quality chunk traffic uses the centralized API limiter instead o
   assert.match(app, /app\.use\('\/api', defaultLimiter\)/);
   assert.doesNotMatch(app, /15 \* 60 \* 1000[\s\S]{0,200}max:\s*100/);
   assert.match(limiter, /export const defaultLimiter/);
-  assert.match(limiter, /limit: 600/);
+  assert.match(limiter, /limit: 3000/);
 });
 
 test('raw and enhanced modes still converge on one audience and recording program feed', async () => {

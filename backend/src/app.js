@@ -16,6 +16,7 @@ import { verifyAccessToken } from './config/jwt.js';
 import { defaultLimiter } from './middleware/rateLimiter.js';
 import User from './models/User.js';
 import Broadcast from './models/Broadcast.js';
+import { resolveBroadcastPresence } from './controllers/broadcastPresenceController.js';
 import {
   clearLiveKitWebhookTimers,
   handleLiveKitWebhook,
@@ -146,9 +147,9 @@ app.use(
 
 app.use(compression());
 // Use Echoo's centralized general API limiter. The previous hard-coded
-// 100-requests-per-15-minutes guard was lower than legitimate long-form live
-// traffic (including 10-second transcript quality chunks) and could corrupt a
-// healthy broadcast by returning 429s mid-session.
+// 100-requests-per-15-minutes guard was too low for legitimate live-room API
+// traffic and reconnect bursts. Raw browser recording chunks are not part of
+// the healthy live path.
 app.use('/api', defaultLimiter);
 
 // LiveKit signs the exact raw webhook body. Register this endpoint before the
@@ -283,8 +284,12 @@ app.set('io', io);
 configureTranscriptionGateway(io);
 
 const SOCKET_BROADCAST_CACHE_MS = 2000;
-const PRESENCE_EVENT_COALESCE_MS = 400;
+const PRESENCE_EVENT_COALESCE_MS = Math.max(
+  500,
+  Math.min(5000, Number(process.env.SOCKET_PRESENCE_COALESCE_MS) || 1500)
+);
 const socketBroadcastCache = new Map();
+const socketBroadcastInflight = new Map();
 const presenceEventTimers = new Map();
 
 const getSocketBroadcast = async (broadcastId) => {
@@ -293,24 +298,33 @@ const getSocketBroadcast = async (broadcastId) => {
   const key = String(broadcastId);
   const cached = socketBroadcastCache.get(key);
   if (cached && cached.expiresAt > Date.now()) return cached.broadcast;
+  if (socketBroadcastInflight.has(key)) return socketBroadcastInflight.get(key);
 
-  const broadcast = await Broadcast.findOne({
+  const request = Broadcast.findOne({
     _id: broadcastId,
     isDeleted: false,
   }).select(
     '_id status isPublic creator startedAt endedAt listenerCount peakListeners mediaState transcriptState programTrackSid programTrackName'
-  );
+  ).then((broadcast) => {
+    if (broadcast) {
+      socketBroadcastCache.set(key, {
+        broadcast,
+        expiresAt: Date.now() + SOCKET_BROADCAST_CACHE_MS,
+      });
+    } else {
+      socketBroadcastCache.delete(key);
+    }
+    return broadcast;
+  });
 
-  if (broadcast) {
-    socketBroadcastCache.set(key, {
-      broadcast,
-      expiresAt: Date.now() + SOCKET_BROADCAST_CACHE_MS,
-    });
-  } else {
-    socketBroadcastCache.delete(key);
+  socketBroadcastInflight.set(key, request);
+  try {
+    return await request;
+  } finally {
+    if (socketBroadcastInflight.get(key) === request) {
+      socketBroadcastInflight.delete(key);
+    }
   }
-
-  return broadcast;
 };
 
 const schedulePresenceChanged = (broadcastId) => {
@@ -319,10 +333,18 @@ const schedulePresenceChanged = (broadcastId) => {
 
   const timer = setTimeout(() => {
     presenceEventTimers.delete(key);
-    io.to(`broadcast:${key}`).emit('presence:changed', {
-      broadcastId: key,
-      action: 'sync',
-    });
+    void resolveBroadcastPresence(key)
+      .then((snapshot) => {
+        // One coalesced snapshot replaces N per-listener join/leave events and
+        // N HTTP presence refreshes. Media never passes through Socket.IO.
+        io.to(`broadcast:${key}`).emit('presence:changed', snapshot);
+      })
+      .catch((error) => {
+        console.warn(
+          '[Echoo Presence] realtime snapshot warning:',
+          error?.message || error
+        );
+      });
   }, PRESENCE_EVENT_COALESCE_MS);
 
   timer.unref?.();
@@ -423,14 +445,6 @@ io.on('connection', (socket) => {
       socket.data.broadcastRooms.add(String(broadcastId));
       schedulePresenceChanged(broadcastId);
 
-      if (!isOwner) {
-        io.to(room).emit('listener_joined', {
-          broadcastId: String(broadcastId),
-          userId: socket.data.userId,
-          joinedAt: new Date().toISOString(),
-        });
-      }
-
       if (typeof acknowledge === 'function') {
         acknowledge({
           ok: true,
@@ -463,11 +477,6 @@ io.on('connection', (socket) => {
       await socket.leave(room);
       socket.data.broadcastRooms?.delete(String(broadcastId));
       schedulePresenceChanged(broadcastId);
-      io.to(room).emit('listener_left', {
-        broadcastId: String(broadcastId),
-        userId: socket.data.userId,
-        leftAt: new Date().toISOString(),
-      });
     }
 
     if (typeof acknowledge === 'function') {
@@ -547,11 +556,6 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     for (const broadcastId of socket.data.broadcastRooms || []) {
       schedulePresenceChanged(broadcastId);
-      io.to(`broadcast:${broadcastId}`).emit('listener_left', {
-        broadcastId,
-        userId: socket.data.userId,
-        leftAt: new Date().toISOString(),
-      });
     }
     detachTranscriptionSocket(socket.id);
   });
@@ -591,6 +595,7 @@ const shutdown = async (signal) => {
   for (const timer of presenceEventTimers.values()) clearTimeout(timer);
   presenceEventTimers.clear();
   socketBroadcastCache.clear();
+  socketBroadcastInflight.clear();
   clearLiveKitWebhookTimers();
   stopBroadcastProcessingWorker();
   closeLiveKitRecordingWebSocket();

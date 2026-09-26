@@ -10,7 +10,7 @@ Echoo connects audio creators with live audiences. A creator opens the Creator S
 
 ## Core journeys
 
-1. **Go live (creator):** prepare workstation → test mix → Go Live → LiveKit room opens, presence flips to live → recording chunks stream to the backend during the show → End Broadcast finalizes the canonical server MP3 automatically as a private draft → optional MP3/WAV device copy follows the creator's remembered device preference.
+1. **Go live (creator):** prepare workstation → test mix → Go Live → LiveKit room opens, presence flips to live → the browser keeps its recovery WAV in OPFS while LiveKit Track Egress feeds the server recorder → End Broadcast finalizes the canonical server MP3 automatically as a private draft → optional MP3/WAV device copy follows the creator's remembered device preference. Browser WAV recovery uploads are post-live only.
 2. **Listen live (anyone):** open `/listen/live/:id` → room card + live audio → optionally sign in to chat/follow.
 3. **Replay (creator):** Recordings → review → publish → listeners stream or download. Replays are stored as MP3 files (server canonical copy, local disk or cloud object storage), streamed through signed time-limited URLs.
 4. **Catch up (listener):** library, history, downloads, saved moments, notifications for followed stations.
@@ -35,6 +35,6 @@ Echoo connects audio creators with live audiences. A creator opens the Creator S
   upload or rename the normal replay.
 - Trimming happens **after** the source replay exists and creates a separate
   private trimmed copy. It does not overwrite the original.
-- Device MP3/WAV copies are separate from the canonical server recording.
-- The browser recovery WAV is not the normal final server upload.
+- Device MP3/WAV copies are separate from the canonical server recording. On supported PC browsers, End Broadcast can pre-authorize a destination and write the completed local copy there automatically after OFF AIR.
+- The browser recovery WAV is not the normal final server upload and must never upload while the live WebRTC program is running.
 - A production host must have FFmpeg + FFprobe. See [../HOSTING.md](../HOSTING.md).

@@ -131,24 +131,30 @@ The canonical replay must survive backend instance replacement/redeploy.
 
 ## Recording flow on Vercel
 
-Correct flow:
+Vercel is staging/test infrastructure. Its serverless/container characteristics
+must not be mistaken for the long-lived Digi02 server-recorder environment.
+
+When a long-lived backend that can accept the recording WebSocket is available:
 
 ```text
 creator master
-   -> bounded recording chunks during show
-   -> backend FFmpeg MP3 pipeline
-   -> End Broadcast finalization
-   -> canonical MP3
-   -> object storage
-   -> Recordings playback
+   -> LiveKit program track
+   -> listeners
+   -> LiveKit Track Egress
+   -> long-lived Echoo recording WebSocket
+   -> backend FFmpeg MP3
+   -> persistent object storage
 ```
 
-The browser OPFS WAV is local recovery/device-export data. It is not the normal
-large final upload.
+If the staging runtime cannot reliably accept that long-lived WebSocket, set
+`LIVEKIT_SERVER_RECORDING_ENABLED=false`. The browser still records the OPFS
+recovery master locally, and any browser WAV recovery upload must begin only
+after OFF AIR. Never re-enable raw PCM/WAV uploads during the live show merely
+to make staging recording work.
 
 If you see a giant WAV request returning 413, do not raise Vercel/body limits
-as the primary fix. Find why the bounded-chunk/server-finalization path was
-bypassed.
+as the primary fix. Find why the intended server-recorder/post-live recovery
+path was bypassed.
 
 ## Saved recording trims
 
@@ -171,7 +177,7 @@ WHISPER_QUALITY_FLOW_URL=
 WHISPER_QUALITY_FLOW_API_KEY=
 ```
 
-Do not disable the recording chunk pipeline just because Whisper is disabled.
+Do not re-enable live browser recording chunks just because Whisper is disabled. Transcription is independent; when disabled, it must add zero work to the live recording path.
 
 ## Email (optional)
 

@@ -13,9 +13,11 @@
     "test:account-experience": "node --test src/services/accountExperience.test.mjs",
     "test:curated-help": "node --test src/Components/Support/curatedHelp.test.mjs",
     "test:listener-history": "node --test src/Components/ListenerHistory/historyProgress.test.mjs",
-    "test:player-feedback": "node --test src/config/playerFeedback.test.mjs"
+    "test:player-feedback": "node --test src/config/playerFeedback.test.mjs",
+    "test:local-recording": "node --test src/services/localRecordingTranscode.test.mjs"
   },
   "dependencies": {
+    "@audio/encode-mp3": "^1.2.2",
     "deepfilternet3-noise-filter": "^1.3.0",
     "livekit-client": "^2.21.0",
     "react": "^19.2.8",

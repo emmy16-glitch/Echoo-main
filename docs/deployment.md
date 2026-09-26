@@ -273,6 +273,20 @@ curl -fsS https://your-domain.example/ | grep 'name="echoo-app"'
 
 A deployment is not recording-ready merely because `/api/health` succeeds.
 
+## Large-audience readiness
+
+Before a planned 500+ listener event, verify the current LiveKit project quota supports
+the intended concurrency and run a staged 50 → 100 → 250 → 500 listener ramp on the
+actual production host. Observe creator outbound WebRTC health, listener reconnects,
+backend CPU/RAM, MongoDB latency, Socket.IO connection counts, LiveKit metrics, and
+server recording continuity. The room's configured `maxParticipants` is not a
+capacity guarantee for the account/plan or host.
+
+The production reverse proxy must support long-lived WebSockets and the host must have
+enough open-file/socket capacity for the planned Socket.IO audience. During the ramp,
+there must be no live `/recording-chunks` traffic: browser WAV recovery is post-live
+only.
+
 ## Mandatory real acceptance test
 
 Before announcing a production deployment as complete:

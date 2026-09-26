@@ -234,10 +234,15 @@
   }
 
   html body #root#root .studio-v2-shell .studio-mobile-brand {
-    min-width: 0 !important;
+    min-width: 44px !important;
+    min-height: 44px !important;
     display: inline-flex !important;
     flex: 0 1 auto !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
     gap: 6px !important;
+    padding: 9px 6px !important;
+    box-sizing: border-box !important;
   }
 
   html body #root#root .studio-v2-shell .studio-mobile-brand img {

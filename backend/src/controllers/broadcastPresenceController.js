@@ -111,7 +111,7 @@ const persistPresenceIfNeeded = ({ broadcast, listenerCount, peakListeners }) =>
   })();
 };
 
-const resolvePresence = async (broadcastId) => {
+export const resolveBroadcastPresence = async (broadcastId) => {
   const existing = cachedValue(broadcastId);
   if (existing) return existing;
 
@@ -204,7 +204,7 @@ export async function getBroadcastPresenceCached(req, res, next) {
       });
     }
 
-    const data = await resolvePresence(broadcastId);
+    const data = await resolveBroadcastPresence(broadcastId);
     return res.status(200).json({
       data,
       timestamp: new Date().toISOString(),

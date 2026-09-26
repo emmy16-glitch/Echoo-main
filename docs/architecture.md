@@ -24,21 +24,21 @@
 └────────────────────────┘   └──────────────────┘
 ```
 
-Realtime product events (chat, presence, status) travel over Socket.IO from the API process. Live listener audio travels creator → LiveKit → listeners. Separately, bounded post-master PCM/WAV recording chunks travel creator → Echoo backend for canonical replay finalization; the API does not relay live audio per listener.
+Realtime product events (chat, presence, status) travel over Socket.IO from the API process. Live listener audio travels creator → LiveKit → listeners. On a long-lived recording-capable backend, LiveKit Track Egress sends the already-published program to Echoo's recording WebSocket and FFmpeg writes the canonical MP3. The browser writes a local OPFS WAV safety master and sends bounded WAV recovery chunks only after OFF AIR if server recording failed. The API does not relay live audio per listener.
 
 ## Authority rules
 
 - **One shared backend per environment.** Every install in an environment talks to the same API + database; that is what makes a broadcast visible to everyone. (Desktop installers can bundle a local server for offline/single-machine use, but a shared world needs the hosted API — see `deployment.md`.)
-- **LiveKit is the live media authority.** Playback attaches only to the named `echoo-studio-mix` publication; tokens are short-lived, subscriber-only for listeners, and reissued on reconnect.
+- **LiveKit is the live media authority.** Playback attaches only to the named `echoo-studio-mix` publication; listener tokens are hidden and subscribe-only, listeners explicitly subscribe only to the program track, and reconnects are jittered to avoid audience stampedes.
 - **Private media by default.** Recording files, covers, and replays resolve through signed, time-limited stream URLs. Cloud object URLs are never exposed in API output.
 - **Recording runtime is a backend capability.** Automatic replay MP3 and saved-recording trim require FFmpeg + FFprobe. Production readiness is exposed by `GET /api/health/recording`.
 - **Public data is explicit.** Only broadcasts flagged public appear in discovery, shared links, and guest endpoints; private broadcasts 404 like missing ones.
-- **Single API process for realtime.** Socket.IO runs in-process; multi-instance API deployment needs a shared adapter before rooms can span processes.
+- **Single API process for realtime.** Socket.IO runs in-process; audience presence changes are coalesced instead of emitted per listener, and realtime-outage fallback is jittered presence-only polling. Multi-instance API deployment still needs a shared adapter before rooms can span processes.
 - **No mock data.** The product never serves fabricated shows, counts, or transcripts; empty states are honest.
 
 ## Broadcast lifecycle (happy path)
 
-`scheduled → starting → live → ending → completed` (plus `cancelled`/`failed` exits). Going live mints the LiveKit room and creator token. During the show, bounded master-audio chunks feed the backend replay pipeline. Ending flushes/finalizes those chunks into the canonical MP3 replay and links it idempotently to the broadcast. Trimming is a later non-destructive Recordings action that creates a separate private copy; it is not part of the End Broadcast save path.
+`scheduled → starting → live → ending → completed` (plus `cancelled`/`failed` exits). Going live mints the LiveKit room and creator token. During the show, the creator publishes one program track to LiveKit, LiveKit Track Egress feeds the server recorder when enabled, and the browser writes only its local OPFS recovery master. Ending stops listener delivery, closes the local master, flushes/finalizes the canonical MP3 replay, and links it idempotently to the broadcast. Browser WAV chunks are post-live recovery only. Trimming is a later non-destructive Recordings action that creates a separate private copy; it is not part of the End Broadcast save path.
 
 ## Clients
 

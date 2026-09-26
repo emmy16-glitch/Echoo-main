@@ -119,7 +119,7 @@ The API uses short-lived/coalesced presence reads so listener bursts do not caus
 
 MongoDB/REST is the persisted source of truth for chat. Socket.IO is the realtime delivery layer for messages, reactions, moderation, broadcast status and presence-change hints. REST refresh is the recovery fallback.
 
-Current Socket.IO state is process-local. A single backend process is supported today. Horizontal multi-instance deployment requires a shared Socket.IO adapter/state layer (for example Redis) before realtime rooms/events can be treated as cluster-wide.
+Current Socket.IO state is process-local. A single backend process is supported today. Audience joins/leaves are coalesced into one presence snapshot instead of broadcasting one event per listener, listener clients consume that snapshot directly, and realtime-outage fallback uses jittered presence-only polling instead of repeated chat-history polling. Horizontal multi-instance deployment requires a shared Socket.IO adapter/state layer (for example Redis) before realtime rooms/events can be treated as cluster-wide.
 
 ### Recordings, prerecorded audio and private media
 
@@ -131,7 +131,9 @@ does not normally upload after the show.
 
 If LiveKit server recording fails, the OPFS master can be uploaded afterward in
 bounded chunks as a recovery path. That fallback never runs while listener
-WebRTC is live.
+WebRTC is live. A backend process restart also invalidates ownership of any
+in-progress server recorder; an orphan Egress is failed closed rather than
+allowed to overwrite the previous MP3 with a tail-only recording.
 
 Saved-recording trims are server-side and non-destructive: the client sends
 timestamps, the backend creates a separate trimmed recording, and the original

@@ -175,6 +175,7 @@ test('listener token grants subscribe-only and hides the account ID from the ide
   assert.equal(video?.canPublish, false);
   assert.equal(video?.canSubscribe, true);
   assert.equal(video?.canPublishData, false);
+  assert.equal(video?.hidden, true);
 });
 
 test('listener tokens are unique per issuance and never collide', async () => {

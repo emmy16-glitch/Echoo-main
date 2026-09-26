@@ -167,7 +167,12 @@ At End Broadcast verify:
 8. create a saved-recording trim and confirm a separate trimmed copy appears;
 9. confirm the original recording still exists and plays;
 10. confirm the configured device copy policy (MP3/WAV/server-only) behaves correctly;
-11. deliberately fail/cancel an automatic device copy and confirm the OPFS master is retained and the UI says **Retry device copy** instead of deleting the local master.
+11. block or stop the Echoo API immediately after OFF AIR and confirm **Save MP3 to device** and **Save WAV to device** remain usable without waiting for the server;
+12. verify the local MP3 is a real playable `audio/mpeg` file encoded from the local WAV, not renamed WAV bytes and not a server download;
+13. on a phone, verify WAV opens the native share/save path immediately; for a long MP3, if encoding outlives the original tap, confirm the UI changes to **MP3 ready · Tap to save** and the second tap opens the native share/save path without re-encoding;
+14. on a browser without a verified picker/share result, confirm a started download is labelled as unverified and the OPFS master is retained;
+15. deliberately fail/cancel a device copy and confirm the OPFS master is retained;
+16. restore the API and choose **Retry Echoo server save**; confirm this retry does not create a second device download and only clears OPFS after both server durability and the chosen device policy are satisfied.
 
 Expected:
 
@@ -272,17 +277,29 @@ Repository CI cannot prove physical audio/network capacity. Before claiming a li
 
 Record the exact deployment, browser/device matrix and test result instead of inferring capacity from `maxParticipants` or CI alone.
 
-## 18. Continuous transcript quality pipeline
+## 18. Transcription-disabled recording isolation
 
-1. Start a broadcast with a creator account and verify the browser records the post-master mix.
-2. Confirm the backend receives authenticated `POST /api/broadcasts/:broadcastId/recording-chunks/start` before the first live chunk.
-3. Speak continuously for at least 30 seconds and verify 10-second WAV chunks are uploaded while the broadcast remains live.
-4. Confirm each chunk creates one `BroadcastAudioChunk` and one `BroadcastProcessingJob` with `jobType=transcript_quality_chunk`.
-5. Confirm the quality worker starts before the broadcast ends and uses the Whisper quality pass.
-6. End the broadcast and verify the browser calls the chunk completion endpoint after its final chunk.
-7. Confirm only queued or incomplete chunks are processed after the end event; already completed quality jobs are not duplicated.
-8. Confirm the transcript remains private during live audio and becomes `ready_for_review` only after quality jobs, live Whisper flush, and final reconciliation complete.
-9. Confirm a creator notification is generated, creator edits preserve `originalText`, `editedText`, `qualityHistory`, and revision metadata, and publishing still uses the existing replay/transcript flow.
-10. Confirm listeners see no live transcript events and can search the final transcript only on the published replay.
+Echoo production currently keeps transcription disabled by default.
 
-Expected failure behavior: provider downtime, backend restart, worker crash, or network interruption retries queued chunks without duplicating completed chunks. An unrecovered browser chunk upload prevents the transcript from being marked reviewable and is surfaced as processing failure rather than silently publishing an incomplete quality pass.
+1. Set `TRANSCRIPTION_ENABLED=false`.
+2. Start a broadcast and speak continuously for at least 30 seconds.
+3. Confirm the creator publishes only the LiveKit program track and writes the
+   recovery WAV to OPFS locally.
+4. Confirm there are **no live 10-second browser PCM/WAV uploads** competing
+   with WebRTC during a healthy show.
+5. Confirm there is no Whisper WebSocket session and no transcript-quality job
+   creation while the flag is off.
+6. End the broadcast.
+7. If LiveKit server recording succeeded, confirm no browser recovery chunks
+   are uploaded at all.
+8. Deliberately fail the server recorder in a separate recovery test. Only
+   after OFF AIR, confirm Echoo may read the completed OPFS WAV in bounded
+   chunks to repair the server copy.
+9. Confirm local Save MP3 / Save WAV remains available even if that server
+   recovery fails.
+10. Confirm `transcriptState` remains `disabled` and neither End Broadcast
+    nor MP3 finalization waits on transcription.
+
+Expected: transcription has zero latency impact on realtime audio and recording
+when disabled. Browser PCM upload is a post-live emergency recovery mechanism,
+never part of the healthy live transport.

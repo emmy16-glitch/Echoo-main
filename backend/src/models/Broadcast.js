@@ -293,9 +293,9 @@ const broadcastSchema = new mongoose.Schema(
       reason: { type: String, default: null },
       error: { type: String, default: null },
     },
-    // Canonical server replay MP3 produced at End Broadcast from the bounded
-    // recording chunks (never a giant client upload). Independent of the
-    // optional radio/FLAC/transcription branches.
+    // Canonical server replay MP3. Normally produced by LiveKit Track Egress
+    // + backend FFmpeg; bounded browser WAV chunks are post-live recovery only.
+    // Independent of the optional radio/FLAC/transcription branches.
     replayOutput: {
       status: { type: String, enum: ['idle', 'starting', 'active', 'stopping', 'completed', 'failed'], default: 'idle' },
       codec: { type: String, default: null },

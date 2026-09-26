@@ -304,6 +304,11 @@ const LiveKitProvider = {
       canPublish: false,
       canSubscribe: true,
       canPublishData: false,
+      // Echoo audience members never need to discover one another through
+      // LiveKit. Hiding passive listeners prevents large rooms from flooding
+      // every listener with participant-presence signaling; chat/presence stay
+      // in Echoo's own coalesced realtime layer.
+      hidden: true,
     });
 
     return token.toJwt();

@@ -384,8 +384,8 @@ const batch3Service = {
 
   // Called immediately after local LiveKit publication has stopped. The
   // local master must stop at the same practical boundary as listener audio;
-  // server cleanup may continue in parallel. Announcement/autosave can be
-  // deferred until backend End Broadcast has finished.
+  // server cleanup may continue in parallel. Device-save announcement can run
+  // immediately; server finalization remains a separate outcome.
   finalizeBroadcastRecording: async (
     broadcastId,
     broadcast = null,
@@ -404,11 +404,17 @@ const batch3Service = {
     }
   },
 
-  announceFinalizedBroadcastRecording: (decision, broadcast = null) => {
+  announceFinalizedBroadcastRecording: (
+    decision,
+    broadcast = null,
+    { serverEndPromise = null, deviceSaveReservation = null } = {}
+  ) => {
     if (!decision?.recording?.blob?.size) return false;
     const resolved = {
       ...decision,
       broadcast: broadcast || decision.broadcast || null,
+      serverEndPromise,
+      deviceSaveReservation,
     };
     rememberPendingRecordingDecision(resolved);
     announceFinishedBroadcastRecording(resolved);
@@ -427,9 +433,10 @@ const batch3Service = {
       method: 'POST',
     }),
 
-  // Server-side replay finalization: the bounded chunks already received
-  // become the canonical MP3. No giant client upload. Returns the backend
-  // payload including `replay: { status, audioId }`.
+  // Server-side replay finalization: prefer the MP3 already produced by
+  // LiveKit Track Egress + backend FFmpeg. If that recorder failed, bounded
+  // browser recovery chunks may be assembled only after OFF AIR. No giant
+  // client upload. Returns `replay: { status, audioId }`.
   finalizeServerReplay: async (broadcastId, { qualityChunkCount = 0, qualityChunkUploadErrors = 0 } = {}) =>
     apiRequest(`/broadcasts/${encodeURIComponent(broadcastId)}/recording-chunks/complete`, {
       method: 'POST',

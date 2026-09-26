@@ -241,9 +241,14 @@ const ListenerRealLiveRoom = () => {
       if (!silent) setChatLoading(true);
       try {
         const response = await batch4Service.getMessages(broadcastId, { limit: 100 });
-        setMessages(
-          Array.isArray(response?.data) ? response.data.map(chatView) : []
-        );
+        const history = Array.isArray(response?.data)
+          ? response.data.map(chatView)
+          : [];
+        setMessages((current) => {
+          let next = history;
+          for (const message of current) next = mergeById(next, message);
+          return next;
+        });
         setChatError('');
       } catch (error) {
         if (!silent) {
@@ -269,7 +274,6 @@ const ListenerRealLiveRoom = () => {
       const next = normalizeBroadcast(response.data);
       setShow(next);
       setLoadError('');
-      await Promise.all([loadChat(), refreshPresence()]);
       if (!isGuest && next.stationId) {
         followService
           .getStationStatus(next.stationId)
@@ -294,6 +298,11 @@ const ListenerRealLiveRoom = () => {
   }, [load]);
 
   useEffect(() => {
+    if (!chatOpen || previewMode || isGuest) return;
+    void loadChat();
+  }, [chatOpen, previewMode, isGuest, loadChat]);
+
+  useEffect(() => {
     if (
       previewMode ||
       !show?.id ||
@@ -308,10 +317,17 @@ const ListenerRealLiveRoom = () => {
 
     const fallback = () => {
       if (fallbackTimer) return;
-      fallbackTimer = window.setInterval(() => {
-        loadChat({ silent: true });
-        refreshPresence();
-      }, 15000);
+
+      const poll = () => {
+        void refreshPresence();
+        // Spread fallback HTTP traffic so a realtime outage does not make a
+        // large audience hit the API on the same 15-second boundary.
+        const delay = 25_000 + Math.round(Math.random() * 20_000);
+        fallbackTimer = window.setTimeout(poll, delay);
+      };
+
+      const initialDelay = 3_000 + Math.round(Math.random() * 7_000);
+      fallbackTimer = window.setTimeout(poll, initialDelay);
     };
 
     const joinRoom = isGuest
@@ -346,6 +362,20 @@ const ListenerRealLiveRoom = () => {
                 : item
             )
           );
+        const onPresence = (payload) => {
+          if (!sameId(payload?.broadcastId, show.id)) return;
+          setShow((current) =>
+            current
+              ? {
+                  ...current,
+                  status: payload?.status || current.status,
+                  listenerCount: Number(payload?.listenerCount) || 0,
+                  mediaState: payload?.mediaState || current.mediaState,
+                }
+              : current
+          );
+        };
+
         const onStatus = (payload) => {
           if (!sameId(payload?.broadcastId, show.id)) return;
           const nextStatus = String(payload?.status || '').toLowerCase();
@@ -369,7 +399,7 @@ const ListenerRealLiveRoom = () => {
         };
         const onConnect = () => {
           setRealtimeState('connected');
-          if (fallbackTimer) window.clearInterval(fallbackTimer);
+          if (fallbackTimer) window.clearTimeout(fallbackTimer);
           fallbackTimer = null;
           connectedSocket.emit('broadcast:join', { broadcastId: show.id });
         };
@@ -378,7 +408,7 @@ const ListenerRealLiveRoom = () => {
         connectedSocket.on('chat:messageDeleted', onDeleted);
         connectedSocket.on('chat:reaction', onReaction);
         connectedSocket.on('broadcast:status', onStatus);
-        connectedSocket.on('presence:changed', refreshPresence);
+        connectedSocket.on('presence:changed', onPresence);
         connectedSocket.on('disconnect', onDisconnect);
         connectedSocket.on('connect', onConnect);
         onStatus(
@@ -390,7 +420,7 @@ const ListenerRealLiveRoom = () => {
           connectedSocket.off('chat:messageDeleted', onDeleted);
           connectedSocket.off('chat:reaction', onReaction);
           connectedSocket.off('broadcast:status', onStatus);
-          connectedSocket.off('presence:changed', refreshPresence);
+          connectedSocket.off('presence:changed', onPresence);
           connectedSocket.off('disconnect', onDisconnect);
           connectedSocket.off('connect', onConnect);
         };
@@ -404,7 +434,7 @@ const ListenerRealLiveRoom = () => {
 
     return () => {
       active = false;
-      if (fallbackTimer) window.clearInterval(fallbackTimer);
+      if (fallbackTimer) window.clearTimeout(fallbackTimer);
       socket?.__echooRoomCleanup?.();
       realtimeService.leaveBroadcast(show.id).catch(() => {});
     };
