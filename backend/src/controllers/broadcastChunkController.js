@@ -177,17 +177,10 @@ export async function startBroadcastAudioChunks(req, res, next) {
       .sort({ chunkIndex: 1 })
       .lean();
     const existingChunkIndices = [];
-    const staleChunkIds = [];
     for (const chunk of existingChunks) {
       const index = Number(chunk.chunkIndex);
-      if (!Number.isInteger(index) || index < 0 || !await durableWavChunkExists(chunk)) {
-        if (chunk?._id) staleChunkIds.push(chunk._id);
-        continue;
-      }
-      existingChunkIndices.push(index);
-    }
-    if (staleChunkIds.length) {
-      await BroadcastAudioChunk.deleteMany({ _id: { $in: staleChunkIds } }).catch(() => null);
+      if (!Number.isInteger(index) || index < 0) continue;
+      if (await durableWavChunkExists(chunk)) existingChunkIndices.push(index);
     }
     const existingCount = existingChunkIndices.length;
 
@@ -348,8 +341,49 @@ export async function uploadBroadcastAudioChunk(req, res, next) {
 
     const existing = await BroadcastAudioChunk.findOne({ broadcastId, chunkId });
     if (existing) {
+      if (await durableWavChunkExists(existing)) {
+        await ensureQualityJob(broadcastId, existing);
+        return res.status(200).json({ data: existing, duplicate: true, timestamp: new Date().toISOString() });
+      }
+
+      // A database row can outlive its local file after a disk cleanup/crash.
+      // Repair that same chunk identity atomically so resumable recovery does
+      // not get stuck forever skipping a file that no longer exists.
+      const repairPath = existing.filePath || path.join(
+        CHUNK_DIR,
+        String(broadcastId),
+        `${chunkIndex}-${safeChunkName(chunkId)}.wav`
+      );
+      await fs.mkdir(path.dirname(repairPath), { recursive: true });
+      const tempPath = `${repairPath}.repair-${process.pid}-${Date.now()}`;
+      try {
+        await fs.writeFile(tempPath, req.file.buffer, { flag: 'wx' });
+        await fs.rename(tempPath, repairPath);
+      } finally {
+        await fs.rm(tempPath, { force: true }).catch(() => null);
+      }
+
+      existing.chunkIndex = chunkIndex;
+      existing.startMs = startMs;
+      existing.endMs = endMs;
+      existing.filePath = repairPath;
+      existing.mimeType = 'audio/wav';
+      existing.sizeBytes = req.file.size;
+      existing.sampleRate = sampleRate;
+      existing.channels = channels;
+      existing.bitDepth = bitDepth;
+      existing.status = 'pending';
+      await existing.save();
       await ensureQualityJob(broadcastId, existing);
-      return res.status(200).json({ data: existing, duplicate: true, timestamp: new Date().toISOString() });
+      await appendBroadcastOutputPcm(broadcastId, req.file.buffer).catch((error) => {
+        console.warn('[Echoo Outputs] repaired PCM append warning:', error?.message || error);
+      });
+      return res.status(200).json({
+        data: existing,
+        duplicate: true,
+        repaired: true,
+        timestamp: new Date().toISOString(),
+      });
     }
 
     await fs.mkdir(path.join(CHUNK_DIR, String(broadcastId)), { recursive: true });
