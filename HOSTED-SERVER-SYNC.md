@@ -207,7 +207,9 @@ any are missing — do not paper over them):
 
 11. Device copy: verify the remembered MP3/WAV/server-only preference behaves as
     configured. On Echoo Desktop, automatic device copies should be organized in
-    the Echoo Recordings folder; web/mobile follows browser download rules.
+    the Echoo Recordings folder. On web/mobile, End Broadcast must keep the OPFS
+    master and show an explicit Save MP3 / Save WAV action; the browser save tap
+    must work even if the server replay is still pending or unavailable.
 
 Do not call the server production-ready if any required check above is unverified.
 
