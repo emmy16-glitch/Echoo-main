@@ -63,6 +63,8 @@ const friendlyRecoveryMessage = (error) => {
       return 'Couldn’t finish the server MP3. The browser recovery master is still safe on this device.';
     case 'REPLAY_NOT_READY':
       return 'The server has no recording for this broadcast yet. Your recovery copy is still safe on this device.';
+    case 'SERVER_END_PENDING':
+      return 'Your local recording is ready on this device, but Echoo server cleanup is still pending. Save MP3 or WAV now and retry the server later.';
     case 'BROADCAST_STILL_LIVE':
       return 'This broadcast still looks live in another session, so Echoo left it untouched. End it there first — the local master stays safe here.';
     case 'RECOVERY_FORBIDDEN':
@@ -120,9 +122,26 @@ const rememberPendingMaster = ({
     serverReady,
     localCopy,
   });
+const waitForServerEndOutcome = async (serverEndPromise) => {
+  if (!serverEndPromise) return { ok: true, response: null };
+  const timeout = new Promise((resolve) => {
+    const timer = window.setTimeout(
+      () => resolve({ ok: false, timeout: true }),
+      30_000
+    );
+    timer.unref?.();
+  });
+  return Promise.race([serverEndPromise, timeout]);
 };
 
-export const startAutosave = async ({ recording, broadcast } = {}) => {
+};
+
+export const startAutosave = async ({
+  recording,
+  broadcast,
+  serverEndPromise = null,
+  skipDeviceSave = false,
+} = {}) => {
   if (!recording?.blob?.size && !recording?.broadcastId) return null;
   const broadcastId = String(recording.broadcastId || broadcast?.id || '');
   // Without a broadcast link there are no server chunks to finalize. Keep the
@@ -136,14 +155,26 @@ export const startAutosave = async ({ recording, broadcast } = {}) => {
   const key = String(recording.broadcastId || broadcast?.id || `${Date.now()}`);
   if (activeUploads.has(key)) return activeUploads.get(key);
 
-  return startAutosaveLive({ recording: { ...recording, broadcastId }, broadcast, key });
+  return startAutosaveLive({
+    recording: { ...recording, broadcastId },
+    broadcast,
+    key,
+    serverEndPromise,
+    skipDeviceSave,
+  });
 };
 
 // Normal live path: LiveKit server egress already delivered the published
 // program track to backend FFmpeg, so End Broadcast only finalizes the server
 // MP3. Browser PCM upload is reserved for emergency recovery if that primary
 // server recording failed.
-const startAutosaveLive = async ({ recording, broadcast, key }) => {
+const startAutosaveLive = async ({
+  recording,
+  broadcast,
+  key,
+  serverEndPromise = null,
+  skipDeviceSave = false,
+}) => {
   const title = broadcast?.title || 'Live broadcast recording';
   const { channelName, startedAt } = localContext({ recording, broadcast });
   const preferences = getRecordingDevicePreferences();
@@ -159,6 +190,7 @@ const startAutosaveLive = async ({ recording, broadcast, key }) => {
       // This happens only after the publisher/local recorder has stopped, so
       // local MP3 encoding can never compete with realtime WebRTC.
       if (
+        !skipDeviceSave &&
         preferences.decided &&
         preferences.autoSave &&
         !automaticLocalCopies.has(key)
@@ -195,7 +227,38 @@ const startAutosaveLive = async ({ recording, broadcast, key }) => {
         localCopy = { saved: false, skipped: 'device-copy-disabled' };
       }
 
-      emit({ status: 'finalizing', key, title, localCopy });
+      // Persist access to the local master before any server wait. Even if the
+      // End Broadcast request hangs, the banner can immediately save MP3/WAV.
+      rememberPendingMaster({
+        key,
+        recording,
+        broadcast,
+        title,
+        serverReady: false,
+        localCopy,
+      });
+      emit({
+        status: 'finalizing',
+        key,
+        title,
+        localCopy,
+        localSaved: Boolean(localCopy?.saved),
+        hasRecovery: Boolean(recording.blob?.size),
+        recoveryFormats: availableLocalFormats(recording),
+        preferredFormat: preferences.format,
+        serverReady: false,
+      });
+
+      const serverEndOutcome = await waitForServerEndOutcome(serverEndPromise);
+      if (!serverEndOutcome?.ok) {
+        const pendingEnd = new Error(
+          serverEndOutcome?.timeout
+            ? 'Echoo server cleanup did not finish in time.'
+            : serverEndOutcome?.error?.message || 'Echoo server cleanup failed.'
+        );
+        pendingEnd.code = 'SERVER_END_PENDING';
+        throw pendingEnd;
+      }
 
       if (typeof navigator !== 'undefined' && navigator.onLine === false) {
         const offline = new Error('Waiting for network');
@@ -270,6 +333,7 @@ const startAutosaveLive = async ({ recording, broadcast, key }) => {
         // attempt happened yet, honor the current preference now.
         const currentPreferences = getRecordingDevicePreferences();
         if (
+          !skipDeviceSave &&
           currentPreferences.autoSave &&
           !localCopyAttempted &&
           !automaticLocalCopies.has(key)
@@ -289,7 +353,13 @@ const startAutosaveLive = async ({ recording, broadcast, key }) => {
           if (localCopy?.saved) automaticLocalCopies.add(key);
         }
 
-        if (currentPreferences.autoSave && !localCopy?.saved) {
+        const deviceSatisfied =
+          skipDeviceSave ||
+          !currentPreferences.autoSave ||
+          localCopy?.saved ||
+          automaticLocalCopies.has(key);
+
+        if (!deviceSatisfied) {
           rememberPendingMaster({
             key,
             recording,
@@ -401,49 +471,76 @@ export const completeDeviceCopyChoice = async (key, format = 'mp3') => {
   let localCopy = { saved: false, skipped: 'device-copy-disabled' };
 
   if (preferences.autoSave) {
-    localCopy = await saveAutomaticLocalCopy({
-      blob: pending.blob,
-      title: pending.title,
-      audioId: pending.audioId,
-      format: preferences.format,
-      channelName: pending.channelName,
-      startedAt: pending.startedAt,
-    }).catch((error) => ({
-      saved: false,
-      error: error?.message || String(error),
-      format: preferences.format,
-    }));
-    if (localCopy?.saved) automaticLocalCopies.add(String(key));
+    try {
+      localCopy = await saveRecordingToPc({
+        blob: pending.blob,
+        title: pending.title,
+        audioId: pending.audioId || null,
+        format: preferences.format,
+        channelName: pending.channelName,
+        startedAt: pending.startedAt,
+      });
+    } catch (error) {
+      const choiceError = new Error(
+        error?.message || 'The device copy could not be saved. Your local master is still safe; try again.'
+      );
+      choiceError.code = 'DEVICE_COPY_FAILED';
+      throw choiceError;
+    }
 
     if (!localCopy?.saved) {
-      // Keep the device-choice master and let the same button retry. The
-      // server copy is already durable, so this failure is local-only.
       const error = new Error(
         localCopy?.cancelled
           ? 'The device copy was cancelled. Your local master is still safe; choose a format again when ready.'
-          : localCopy?.error || 'The device copy could not be saved. Your local master is still safe; try again.'
+          : 'The device copy could not be saved. Your local master is still safe; try again.'
       );
       error.code = 'DEVICE_COPY_FAILED';
       throw error;
     }
+    automaticLocalCopies.add(String(key));
   }
 
-  try { await pending.recording.dispose?.(); } catch { /* already disposed */ }
-  clearPendingBroadcastRecording(pending.recording.broadcastId);
+  // Device choice is normally shown after server persistence is confirmed.
+  // If this helper is ever used earlier, keep OPFS until the server is also
+  // durable; local save success must not destroy the server recovery source.
+  if (pending.serverReady !== false) {
+    try { await pending.recording.dispose?.(); } catch { /* already disposed */ }
+    clearPendingBroadcastRecording(pending.recording.broadcastId);
+    forgetLocalMaster(`pending:${key}`);
+  } else {
+    rememberPendingMaster({
+      key,
+      recording: pending.recording,
+      broadcast: pending.broadcast,
+      title: pending.title,
+      audioId: pending.audioId || null,
+      serverReady: false,
+      localCopy,
+    });
+  }
+
   forgetLocalMaster(`device-choice:${key}`);
-  forgetLocalMaster(`pending:${key}`);
   emit({
-    status: 'done',
+    status: pending.serverReady === false ? 'error' : 'done',
     key,
     title: pending.title,
-    audioId: pending.audioId,
+    audioId: pending.audioId || null,
     localCopy,
-    format: 'mp3',
+    localSaved: Boolean(localCopy?.saved),
+    serverReady: pending.serverReady !== false,
+    code: pending.serverReady === false ? 'REPLAY_NOT_READY' : '',
+    message: pending.serverReady === false
+      ? 'The device copy is saved. Echoo server storage is still pending; retry it separately.'
+      : '',
+    hasRecovery: pending.serverReady === false,
+    recoveryFormats: availableLocalFormats(pending.recording),
+    preferredFormat: preferences.format,
+    format: preferences.format,
   });
   notifySaved(localCopy?.saved
-    ? `“${pending.title}” saved to Echoo and this device.`
-    : `“${pending.title}” saved to Echoo Recordings.`);
-  return { audioId: pending.audioId, localCopy, preferences };
+    ? `“${pending.title}” saved to this device.`
+    : `“${pending.title}” will stay on Echoo only.`);
+  return { audioId: pending.audioId || null, localCopy, preferences };
 };
 
 export const saveRecoveryCopy = async (key, requestedFormat = '') => {
@@ -494,8 +591,11 @@ export const saveRecoveryCopy = async (key, requestedFormat = '') => {
 export const retryAutosave = async (key) => {
   const pending = peekLocalMaster(`pending:${key}`);
   if (!pending?.recording?.blob?.size) return null;
-  forgetLocalMaster(`pending:${key}`);
-  return startAutosave({ recording: pending.recording, broadcast: pending.broadcast });
+  return startAutosave({
+    recording: pending.recording,
+    broadcast: pending.broadcast,
+    skipDeviceSave: true,
+  });
 };
 
 export const uploadRecoveredTake = async ({ recording, broadcast } = {}) => {
@@ -530,6 +630,8 @@ export const installRecordingAutosave = () => {
           status: 'recovered',
           key: 'recovered',
           title: recovered.broadcast?.title || 'Echoo live recording',
+          recoveryFormats: availableLocalFormats(recovered.recording),
+          preferredFormat: getRecordingDevicePreferences().format,
         });
       }
     })
