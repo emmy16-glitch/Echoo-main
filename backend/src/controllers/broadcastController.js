@@ -84,6 +84,50 @@ const getLiveAccessBroadcast = async (broadcastId) => {
   }
 };
 
+
+const PUBLIC_BROADCAST_CACHE_MS = Math.max(
+  500,
+  Math.min(5000, Number(process.env.PUBLIC_BROADCAST_CACHE_MS) || 1500)
+);
+const publicBroadcastCache = new Map();
+const publicBroadcastInflight = new Map();
+
+const getPublicBroadcastCard = async (broadcastId) => {
+  const key = String(broadcastId || '');
+  const cached = publicBroadcastCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.broadcast;
+  if (publicBroadcastInflight.has(key)) return publicBroadcastInflight.get(key);
+
+  const request = broadcastPopulate(
+    Broadcast.findOne({
+      _id: broadcastId,
+      isDeleted: false,
+      isPublic: true,
+    })
+  )
+    .lean()
+    .then((broadcast) => {
+      if (broadcast) {
+        publicBroadcastCache.set(key, {
+          broadcast,
+          expiresAt: Date.now() + PUBLIC_BROADCAST_CACHE_MS,
+        });
+      } else {
+        publicBroadcastCache.delete(key);
+      }
+      return broadcast;
+    });
+
+  publicBroadcastInflight.set(key, request);
+  try {
+    return await request;
+  } finally {
+    if (publicBroadcastInflight.get(key) === request) {
+      publicBroadcastInflight.delete(key);
+    }
+  }
+};
+
 const AUDIO_SOURCE_TYPES = new Set([
   'microphone', 'guest_microphone', 'music', 'screen_share', 'system_audio',
 ]);
@@ -956,13 +1000,7 @@ export async function getPublicBroadcast(req, res, next) {
     const { broadcastId } = req.params;
     if (!isValidId(broadcastId)) return invalidId(res);
 
-    const broadcast = await broadcastPopulate(
-      Broadcast.findOne({
-        _id: broadcastId,
-        isDeleted: false,
-        isPublic: true,
-      })
-    );
+    const broadcast = await getPublicBroadcastCard(broadcastId);
 
     if (!broadcast) {
       return res.status(404).json({
