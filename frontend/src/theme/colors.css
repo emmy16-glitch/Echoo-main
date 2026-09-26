@@ -1,4 +1,5 @@
-/* Echoo Design System — colors */
+/* Echoo Design System — colors
+   One canonical palette for Creator, Listener and shared primitives. */
 :root {
   --echoo-color-canvas: #f7f9fc;
   --echoo-color-canvas-subtle: #f3f6fa;
@@ -6,23 +7,23 @@
   --echoo-color-surface-soft: #fbfcfe;
   --echoo-color-surface-hover: #f7f9fc;
 
-  --echoo-color-ink: #0b1730;
+  --echoo-color-ink: #0b1d3a;
   --echoo-color-text: #40516b;
-  --echoo-color-muted: #7b8798;
+  --echoo-color-muted: #77849a;
   --echoo-color-faint: #98a2b3;
 
-  --echoo-color-brand: #246bfe;
-  --echoo-color-brand-hover: #1f5fe0;
-  --echoo-color-brand-soft: #edf4ff;
-  --echoo-color-brand-border: #cfe0ff;
+  --echoo-color-brand: #245cff;
+  --echoo-color-brand-hover: #1f4fdb;
+  --echoo-color-brand-soft: #edf2ff;
+  --echoo-color-brand-border: #cad8ff;
 
-  --echoo-color-line: #e3e9f1;
-  --echoo-color-line-strong: #d7e0eb;
-  --echoo-color-focus: #94b8ff;
-  --echoo-color-success: #087443;
-  --echoo-color-success-soft: #f1fbf5;
-  --echoo-color-danger: #b42318;
-  --echoo-color-danger-soft: #fff6f5;
+  --echoo-color-line: #e7edf7;
+  --echoo-color-line-strong: #d8e2f0;
+  --echoo-color-focus: #94b4ff;
+  --echoo-color-success: #12b76a;
+  --echoo-color-success-soft: #ecfdf3;
+  --echoo-color-danger: #d92d20;
+  --echoo-color-danger-soft: #fff1f0;
   --echoo-color-live: #e5484d;
   --echoo-color-white: #ffffff;
   --echoo-color-black: #000000;
