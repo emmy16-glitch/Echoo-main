@@ -135,6 +135,9 @@ const RecordingSaveBanner = () => {
             title: detail.title,
             audioId: detail.audioId,
             channelName: detail.channelName || '',
+            preparedFormat: detail.preparedFormat || '',
+            downloadStarted: Boolean(detail.downloadStarted),
+            message: detail.message || '',
           });
           break;
         case 'done':
@@ -259,7 +262,9 @@ const RecordingSaveBanner = () => {
           ? {
               ...current,
               savingRecoveryFormat: '',
-              recoverySaved: !result?.cancelled,
+              recoverySaved: Boolean(result?.saved),
+              recoveryPrepared: Boolean(result?.prepared),
+              recoveryDownloadStarted: Boolean(result?.downloadStarted),
               recoveryFilename: result?.filename || '',
               localSaved: current.localSaved || Boolean(result?.saved),
               localCopy: result?.saved
@@ -363,7 +368,9 @@ const RecordingSaveBanner = () => {
             <FaDownload /> {
               state.savingRecoveryFormat === format
                 ? `Saving ${format.toUpperCase()}…`
-                : `Save ${format.toUpperCase()} to device`
+                : state.recoveryPrepared && format === 'mp3'
+                  ? 'MP3 ready · Tap to save'
+                  : `Save ${format.toUpperCase()} to device`
             }
           </button>
         ))}
@@ -438,9 +445,14 @@ const RecordingSaveBanner = () => {
           <div className="echoo-save-banner-body">
             <strong>Saved safely to Echoo as MP3</strong>
             <span>
-              Choose once how this device should automatically keep future
-              broadcast copies. MP3 is encoded locally; WAV keeps the lossless
-              master. You can change this later in Settings → Recordings.
+              {state.message || (
+                <>
+                  Choose once how this device should keep future broadcast
+                  copies. MP3 is encoded locally; WAV keeps the lossless master.
+                  Browsers may require one final Save tap. You can change this
+                  later in Settings → Recordings.
+                </>
+              )}
             </span>
             {state.choiceError && (
               <span className="echoo-save-banner-choice-error">
@@ -457,7 +469,11 @@ const RecordingSaveBanner = () => {
               onClick={() => chooseDeviceCopy('mp3')}
               disabled={Boolean(state.choosing)}
             >
-              {state.choosing === 'mp3' ? 'Saving…' : 'MP3 · Recommended'}
+              {state.choosing === 'mp3'
+                ? 'Saving…'
+                : state.preparedFormat === 'mp3'
+                  ? 'MP3 ready · Tap to save'
+                  : 'MP3 · Recommended'}
             </button>
             <button
               type="button"
@@ -540,9 +556,19 @@ const RecordingSaveBanner = () => {
             </button>
           )}
 
-          {state.recoveryFilename && (
+          {state.recoverySaved && state.recoveryFilename && (
             <span className="echoo-save-banner-choice-error">
               Saved: {state.recoveryFilename}
+            </span>
+          )}
+          {state.recoveryPrepared && (
+            <span className="echoo-save-banner-choice-error">
+              MP3 is encoded and ready. Tap Save MP3 again to open the phone save/share sheet.
+            </span>
+          )}
+          {state.recoveryDownloadStarted && state.recoveryFilename && (
+            <span className="echoo-save-banner-choice-error">
+              Browser download started: {state.recoveryFilename}. Echoo kept the local master because browsers cannot confirm the file was actually retained.
             </span>
           )}
           {state.recoveryError && (
