@@ -145,6 +145,11 @@ test('recording completion retries and automatic save preserves recovery state',
   assert.match(banner, /Save MP3 to device/);
   assert.match(banner, /Save WAV to device/);
   assert.match(banner, /Retry Echoo server save/);
+  assert.match(recording, /OPFS_MANIFESTS_KEY/);
+  assert.match(recording, /readRecoveryManifests/);
+  assert.match(recording, /persistRecoveryManifests/);
+  assert.doesNotMatch(recording, /STALE_OPFS_FILE_MS/);
+  assert.match(banner, /master\?\.recording\?\.dispose/);
 });
 
 test('protected downloads use one canonical authorization boundary from local or cloud bytes', async () => {
