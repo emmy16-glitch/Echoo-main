@@ -977,3 +977,15 @@
     transition-duration: .01ms !important;
   }
 }
+
+
+/* Echoo Signal Precision role mapping. */
+.echoo-onboarding-redesign :is(h1, h2) {
+  font-family: var(--echoo-font-display);
+}
+.echoo-onboarding-redesign :is(h3, h4, button, label, small, strong) {
+  font-family: var(--echoo-font-accent);
+}
+.echoo-onboarding-redesign :is(p, input, textarea, select, li) {
+  font-family: var(--echoo-font-body);
+}
