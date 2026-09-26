@@ -134,6 +134,23 @@ export async function startBroadcastAudioChunks(req, res, next) {
       }
     }
 
+    if (['starting', 'live'].includes(broadcast.status)) {
+      // Server Egress was unavailable, but live listener audio must stay
+      // WebRTC-only. Do NOT start browser PCM/WAV transport while on air.
+      // The complete OPFS master will reopen this endpoint after OFF AIR.
+      return res.status(200).json({
+        data: {
+          broadcastId: String(broadcast._id),
+          started: false,
+          mode: 'browser-recovery-deferred',
+          serverRecording: false,
+          recoveryAfterLive: true,
+          transcription: isTranscriptionConfigured() ? 'separate' : 'disabled',
+        },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
     if (!broadcast.qualityChunkingStartedAt || broadcast.qualityChunkingCompletedAt) {
       const existingCount = await BroadcastAudioChunk.countDocuments({ broadcastId: broadcast._id });
       await Broadcast.updateOne(
