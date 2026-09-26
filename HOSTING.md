@@ -173,7 +173,9 @@ Creator device:
 - first completed recording asks once for MP3, WAV, or server-only, and the preference is remembered per device;
 - Echoo Desktop writes automatic copies into
   `Desktop/Echoo Recordings/<year>/<month>/`;
-- normal web/mobile browsers require an explicit **Save MP3 / Save WAV** tap because browsers cannot reliably prove an async background download succeeded; WAV can open the phone share/save sheet immediately, while a long MP3 may first encode locally and then show **MP3 ready · Tap to save** so the second tap owns the native share gesture; plain browser-download fallback is treated as unverified and never deletes the OPFS master;
+- on supported PC browsers, the confirmed **End Broadcast** click immediately asks the user for a destination file while browser user-activation is still valid; once chosen, Echoo finishes the local master/MP3 encoding and writes to that already-authorized file automatically even if the server is still busy;
+- Echoo Desktop can still save automatically into its managed Echoo Recordings folder with no picker;
+- on phones and browsers without a writable file picker, an explicit **Save MP3 / Save WAV** action remains necessary; a long phone MP3 may first encode locally and then show **MP3 ready · Tap to save** so the final tap owns the native share gesture; plain browser-download fallback is treated as unverified and never deletes the OPFS master;
 - if the server is offline or still finalizing, the UI must continue offering local **Save MP3** and **Save WAV** actions plus a separate **Retry Echoo server save** action;
 - files receive human-readable Echoo names so manual renaming is unnecessary.
 
@@ -330,6 +332,31 @@ Node backend. This is the private LiveKit-to-Echoo recording transport; browsers
 do not connect to it directly.
 
 For Digi02-specific update steps, use [HOSTED-SERVER-SYNC.md](HOSTED-SERVER-SYNC.md).
+
+## 9.1 Audience capacity gate before a 500+ listener event
+
+The source architecture is optimized for large audio-only rooms, but **code review and CI do not prove that a specific LiveKit Cloud project or Digi02 host can carry 500 simultaneous real listeners**.
+
+Current safeguards:
+- LiveKit room max is configured above the target;
+- listeners are subscribe-only, hidden passive participants;
+- each listener explicitly subscribes only to the canonical `echoo-studio-mix`;
+- listener reconnects are jittered to avoid token/reconnect stampedes;
+- Socket.IO join/leave fanout is replaced by a coalesced presence snapshot;
+- presence and token/public-card DB reads are short-lived/coalesced;
+- chat history is lazy-loaded instead of fetched during the join burst;
+- Socket.IO outage fallback polls only presence, with randomized 25–45 second spacing;
+- browser raw PCM/WAV recovery upload is forbidden while LIVE, even when server Egress is unavailable.
+
+Before advertising a 500-listener event, the operator must also verify:
+- the LiveKit project quota/plan allows at least the intended concurrent participant count;
+- the reverse proxy passes long-lived WebSocket upgrades for both `/socket.io/` and the recording WebSocket;
+- the Node/proxy host has sufficient file-descriptor and connection limits for the planned Socket.IO audience;
+- MongoDB and the backend remain healthy during a staged 50 → 100 → 250 → 500 listener ramp;
+- the creator upstream remains stable throughout the ramp;
+- server Track Egress/FFmpeg recording remains active but independent from listener playback.
+
+Do not claim "500 listeners verified" until that staged real-load test has actually been run on the production infrastructure.
 
 ## 10. Mandatory post-deploy health checks
 
