@@ -32,7 +32,7 @@ test('End Broadcast opens an app dialog and only the confirmed action calls the 
   assert.match(source, /aria-modal="true"/);
 });
 
-test('device recording is available before server finalization and never needs a giant upload', async () => {
+test('browser device download is offered only after Echoo server finalization and never needs a giant upload', async () => {
   const service = await read('../../services/batch3Service.js');
   const autosave = await read('../../services/recordingAutosave.js');
   const exportService = await read('../../services/recordingExportService.js');
@@ -43,14 +43,12 @@ test('device recording is available before server finalization and never needs a
   const finalizeSection = service.slice(finalizeStart, service.indexOf('getProcessing:', finalizeStart));
   const apiCompletion = realtimeSection.indexOf("/end`");
   const readyAnnouncement = finalizeSection.indexOf('announceFinishedBroadcastRecording');
-  const localCopy = autosave.indexOf('localCopy = await saveAutomaticLocalCopy');
   const finalizeCall = autosave.indexOf('finalizeServerReplay');
-  const doneEmit = autosave.indexOf("status: 'done'", finalizeCall);
+  const browserChoice = autosave.indexOf("status: 'device-choice'", finalizeCall);
 
   assert.ok(apiCompletion >= 0);
   assert.ok(readyAnnouncement >= 0);
-  assert.ok(localCopy >= 0 && localCopy < finalizeCall, 'device copy must run before server replay finalization');
-  assert.ok(finalizeCall >= 0 && doneEmit > finalizeCall);
+  assert.ok(finalizeCall >= 0 && browserChoice > finalizeCall, 'browser MP3/WAV choice must appear after server replay finalization');
   assert.match(exportService, /encodeLocalWavToMp3/);
   assert.match(exportService, /source: 'local-wav-encode'/);
   assert.match(exportService, /navigator\.share/);
@@ -109,7 +107,7 @@ test('Creator Studio bootstrap has a visible timer, a hard timeout, and a Retry 
   assert.match(api, /AbortController/);
 });
 
-test('End Broadcast defaults to an immediate MP3 device reservation on web', async () => {
+test('End Broadcast defers browser file choice until the Echoo server MP3 is ready', async () => {
   const workspace = await read('./CreatorLiveConnectedWorkspace.jsx');
   const preferences = await read('../../services/recordingDevicePreferences.js');
   const autosave = await read('../../services/recordingAutosave.js');
@@ -122,9 +120,10 @@ test('End Broadcast defaults to an immediate MP3 device reservation on web', asy
   const stopAt = workspace.indexOf('await stopLiveKitPublishing()', endAt);
   const reservationAt = workspace.indexOf('prepareEndBroadcastDeviceSave', endAt);
   assert.ok(reservationAt > endAt && reservationAt < stopAt);
-  assert.match(autosave, /saveAutomaticLocalCopy\(\{/);
+  assert.match(autosave, /window\.echooDesktop\?\.isDesktop !== true/);
+  assert.match(autosave, /return null;/);
+  assert.match(autosave, /status: 'device-choice'/);
   assert.match(exportService, /mode: 'file-picker'/);
-  assert.match(exportService, /destination: 'preauthorized-file-picker'/);
 });
 
 test('LIVE is set by the published program track, with confirmation and recording out of band', async () => {
