@@ -151,6 +151,8 @@ test('recording completion retries and automatic save preserves recovery state',
   assert.match(recording, /OPFS_MANIFESTS_KEY/);
   assert.match(recording, /readRecoveryManifests/);
   assert.match(recording, /persistRecoveryManifests/);
+  assert.match(recording, /new Blob\(\[file\], \{ type: WAV_MIME_TYPE \}\)/);
+  assert.match(recording, /new Blob\(\[patched\], \{ type: WAV_MIME_TYPE \}\)/);
   assert.doesNotMatch(recording, /STALE_OPFS_FILE_MS/);
   assert.match(banner, /master\?\.recording\?\.dispose/);
 });
