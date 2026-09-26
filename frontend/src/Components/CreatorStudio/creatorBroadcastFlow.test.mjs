@@ -64,6 +64,26 @@ test('device recording is available before server finalization and never needs a
   assert.match(autosave, /skipDeviceSave:\s*true/);
 });
 
+test('recording progress distinguishes local device save from Echoo server recovery', async () => {
+  const workspace = await read('./CreatorLiveConnectedWorkspace.jsx');
+  const studio = await read('./CreatorStudio.jsx');
+  const autosave = await read('../../services/recordingAutosave.js');
+  const recording = await read('../../services/broadcastRecordingService.js');
+
+  for (const source of [workspace, studio]) {
+    assert.match(source, /status === 'device-saving'/);
+    assert.match(source, /status === 'device-progress'/);
+    assert.match(source, /status === 'finalizing'/);
+    assert.match(source, /stage: 'preparing'/);
+  }
+  assert.match(workspace, /Recording ready locally · finishing on Echoo/);
+  assert.match(autosave, /isLosslessWavRecovery/);
+  assert.match(autosave, /return \['mp3', 'wav'\]/);
+  assert.match(autosave, /status:\s*'progress'/);
+  assert.match(recording, /uploadedBytes/);
+  assert.match(recording, /onProgress/);
+});
+
 test('Creator Studio keeps Broadcast navigation callbacks stable so bootstrap does not refetch on ordinary renders', async () => {
   const studio = await read('./CreatorStudio.jsx');
 

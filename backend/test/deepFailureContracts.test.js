@@ -124,7 +124,10 @@ test('recording completion retries and automatic save preserves recovery state',
   assert.match(autosave, /retryBroadcastQualityCompletion/);
   assert.match(autosave, /finalizeServerReplay/);
   assert.match(autosave, /!recording\.serverRecordingPrimary/);
-  assert.match(autosave, /uploadRecoveryMasterToServer\(recording\)/);
+  assert.match(autosave, /uploadRecoveryMasterToServer\(recording,\s*\{/);
+  assert.match(autosave, /status:\s*'progress'/);
+  assert.match(recording, /onProgress/);
+  assert.match(recording, /uploadedBytes/);
   assert.match(autosave, /uploadCompressedRecoveryMasterToServer\(recording, broadcast\)/);
   assert.match(recording, /export const uploadCompressedRecoveryMasterToServer/);
   assert.match(recording, /apiFetch\('\/audio\/upload'/);
@@ -160,6 +163,18 @@ test('recording completion retries and automatic save preserves recovery state',
   assert.match(recording, /new Blob\(\[patched\], \{ type: WAV_MIME_TYPE \}\)/);
   assert.doesNotMatch(recording, /STALE_OPFS_FILE_MS/);
   assert.match(banner, /master\?\.recording\?\.dispose/);
+});
+
+test('server replay finalization stays non-blocking and cloud archive streams long files', async () => {
+  const replay = await source('src/services/broadcastReplayService.js');
+  const archive = await source('src/services/audioArchiveService.js');
+
+  assert.doesNotMatch(replay, /spawnSync/);
+  assert.match(replay, /const runCommand =/);
+  assert.match(replay, /await probeMp3DurationSeconds/);
+  assert.match(archive, /fs\.createReadStream\(localPath\)/);
+  assert.match(archive, /ContentLength:\s*stat\.size/);
+  assert.doesNotMatch(archive, /readFile\(localPath\)/);
 });
 
 test('recording recovery banner stays readable and treats recoverable state as safe', async () => {

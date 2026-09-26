@@ -343,7 +343,11 @@ const uploadStoredPcmChunk = async ({ recording, pcmBlob, startMs, endMs, chunkI
 // read the finished OPFS master in bounded pieces and upload those pieces
 // sequentially. This keeps memory bounded and preserves the no-giant-upload
 // architecture while protecting the live stream from recording traffic.
-const uploadLosslessMasterAfterLive = async (recording, file) => {
+const uploadLosslessMasterAfterLive = async (
+  recording,
+  file,
+  { onProgress = null } = {}
+) => {
   if (!recording?.qualityChunkStarted || recording.qualityChunkDisabled || !file?.size) return;
 
   const bytesPerSecond =
@@ -351,7 +355,25 @@ const uploadLosslessMasterAfterLive = async (recording, file) => {
   const targetBytes = Math.max(1, Math.round(bytesPerSecond * QUALITY_CHUNK_SECONDS));
   const totalPcmBytes = Math.max(0, Number(file.size || 0) - 44);
   let offset = 0;
+  let uploadedBytes = 0;
   let chunkIndex = 0;
+
+  const reportProgress = () => {
+    if (typeof onProgress !== 'function') return;
+    try {
+      onProgress({
+        loaded: uploadedBytes,
+        total: totalPcmBytes,
+        percent: totalPcmBytes > 0
+          ? Math.max(0, Math.min(100, Math.round((uploadedBytes / totalPcmBytes) * 100)))
+          : 100,
+      });
+    } catch {
+      // Progress UI must never be able to interrupt recovery persistence.
+    }
+  };
+
+  reportProgress();
 
   while (offset < totalPcmBytes && !recording.qualityChunkDisabled) {
     const take = Math.min(targetBytes, totalPcmBytes - offset);
@@ -359,8 +381,10 @@ const uploadLosslessMasterAfterLive = async (recording, file) => {
     const endMs = ((offset + take) * 1000) / bytesPerSecond;
     const pcmBlob = file.slice(44 + offset, 44 + offset + take);
 
+    let uploaded = false;
     try {
       await uploadStoredPcmChunk({ recording, pcmBlob, startMs, endMs, chunkIndex });
+      uploaded = true;
     } catch (error) {
       recording.qualityChunkErrors.push({
         chunkIndex,
@@ -374,7 +398,9 @@ const uploadLosslessMasterAfterLive = async (recording, file) => {
     }
 
     offset += take;
+    if (uploaded) uploadedBytes += take;
     chunkIndex += 1;
+    reportProgress();
   }
 
   recording.qualityChunkIndex = chunkIndex;
@@ -1190,7 +1216,10 @@ export const recoverPendingBroadcastRecording = async () => {
   }
 };
 
-export const uploadRecoveryMasterToServer = async (recording) => {
+export const uploadRecoveryMasterToServer = async (
+  recording,
+  { onProgress = null } = {}
+) => {
   if (!recording?.broadcastId || !recording?.blob?.size) {
     throw new Error('No local recovery master is available for server rescue.');
   }
@@ -1216,7 +1245,7 @@ export const uploadRecoveryMasterToServer = async (recording) => {
     return { recovered: false, mode: 'server-egress' };
   }
 
-  await uploadLosslessMasterAfterLive(recovery, recording.blob);
+  await uploadLosslessMasterAfterLive(recovery, recording.blob, { onProgress });
   await completeQualityChunks(recovery);
   recording.qualityChunkCount = recovery.qualityChunkIndex;
   recording.qualityChunkErrors = recovery.qualityChunkErrors;

@@ -167,13 +167,22 @@ export async function uploadToObjectStorage(localPath, key, mimeType) {
   const { PutObjectCommand } = await import('@aws-sdk/client-s3');
   const config = s3Config();
   const client = await getS3Client();
-  const body = await fs.promises.readFile(localPath);
+  const stat = await fs.promises.stat(localPath);
+  if (!stat.isFile() || stat.size <= 0) {
+    throw new Error('Audio archive source is missing or empty');
+  }
+
+  // Stream long replay MP3s from disk instead of reading the entire recording
+  // into Node memory. A one-hour 320 kbps replay is ~144 MB, so buffering the
+  // full file here creates avoidable memory spikes during archive uploads.
+  const body = fs.createReadStream(localPath);
   const objectKey = config.prefix ? `${config.prefix}/${key}` : key;
   await client.send(
     new PutObjectCommand({
       Bucket: config.bucket,
       Key: objectKey,
       Body: body,
+      ContentLength: stat.size,
       ContentType: mimeType,
     })
   );

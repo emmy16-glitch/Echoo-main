@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import { constants as fsConstants } from 'node:fs';
 import path from 'node:path';
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import Audio from '../models/Audio.js';
 import Broadcast from '../models/Broadcast.js';
 import User from '../models/User.js';
@@ -71,11 +71,60 @@ const buildHumanRecordingName = ({ title, channelName, startedAt } = {}) => {
   return `${parts.join(' - ')}.mp3`;
 };
 
+const runCommand = (command, args, { timeoutMs = 60_000 } = {}) =>
+  new Promise((resolve, reject) => {
+    let child;
+    try {
+      child = spawn(command, args, {
+        stdio: ['ignore', 'pipe', 'pipe'],
+        windowsHide: true,
+      });
+    } catch (error) {
+      reject(error);
+      return;
+    }
+
+    let stdout = '';
+    let stderr = '';
+    let settled = false;
+    const finish = (callback, value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      callback(value);
+    };
+    const timer = setTimeout(() => {
+      try { child.kill('SIGKILL'); } catch { /* already closed */ }
+      finish(reject, new Error(`${command} timed out`));
+    }, timeoutMs);
+    timer.unref?.();
+
+    child.stdout?.on('data', (chunk) => {
+      stdout = `${stdout}${chunk.toString('utf8')}`.slice(-16_000);
+    });
+    child.stderr?.on('data', (chunk) => {
+      stderr = `${stderr}${chunk.toString('utf8')}`.slice(-16_000);
+    });
+    child.on('error', (error) => finish(reject, error));
+    child.on('close', (code, signal) => {
+      if (code === 0) {
+        finish(resolve, { code, signal, stdout, stderr });
+        return;
+      }
+      finish(
+        reject,
+        new Error(
+          `${command} exited with code ${code ?? 'unknown'}${signal ? ` (${signal})` : ''}: ${stderr.trim().slice(0, 500)}`
+        )
+      );
+    });
+  });
+
 const applyEchooMp3Metadata = async ({ filePath, title, artist, startedAt } = {}) => {
   const taggedPath = `${filePath}.tagged.mp3`;
   try {
     const year = String(new Date(startedAt || Date.now()).getFullYear());
-    const result = spawnSync(
+    await runCommand(
       ffmpegPath(),
       [
         '-hide_banner', '-loglevel', 'error', '-y',
@@ -89,9 +138,8 @@ const applyEchooMp3Metadata = async ({ filePath, title, artist, startedAt } = {}
         '-metadata', 'comment=Recorded with Echoo',
         taggedPath,
       ],
-      { encoding: 'utf8', timeout: 60_000 }
+      { timeoutMs: 60_000 }
     );
-    if (result.status !== 0) return false;
     await fs.rename(taggedPath, filePath);
     return true;
   } catch {
@@ -120,12 +168,12 @@ export const isRealMp3Bytes = (buffer) => {
 const ffprobePath = () => String(process.env.FFPROBE_PATH || 'ffprobe').trim() || 'ffprobe';
 const ffmpegPath = () => String(process.env.FFMPEG_PATH || 'ffmpeg').trim() || 'ffmpeg';
 
-const probeMp3DurationSeconds = (filePath) => {
+const probeMp3DurationSeconds = async (filePath) => {
   try {
-    const probed = spawnSync(
+    const probed = await runCommand(
       ffprobePath(),
       ['-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', filePath],
-      { encoding: 'utf8', timeout: 30_000 }
+      { timeoutMs: 30_000 }
     );
     const seconds = Number(String(probed.stdout || '').trim());
     if (Number.isFinite(seconds) && seconds > 0) return seconds;
@@ -314,7 +362,7 @@ async function finalizeInner({ broadcastId, creatorId, expectedChunkCount, uploa
       const handle = await fs.open(replayFile.path, 'r');
       await handle.read(header, 0, 4, 0);
       await handle.close();
-      if (isRealMp3Bytes(header) && probeMp3DurationSeconds(replayFile.path) > 0) {
+      if (isRealMp3Bytes(header) && await probeMp3DurationSeconds(replayFile.path) > 0) {
         mp3Source = 'stream';
       }
     } catch {
@@ -393,7 +441,8 @@ async function finalizeInner({ broadcastId, creatorId, expectedChunkCount, uploa
   }).catch(() => false);
 
   const stat = await fs.stat(finalPath);
-  const duration = probeMp3DurationSeconds(finalPath) || estimateReplayDurationSeconds({
+  const probedDuration = await probeMp3DurationSeconds(finalPath);
+  const duration = probedDuration || estimateReplayDurationSeconds({
     chunks,
     serverPcmBytes: broadcast.serverRecording?.pcmBytes,
     startedAt: broadcast.startedAt || broadcast.startTime,

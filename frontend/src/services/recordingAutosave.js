@@ -97,9 +97,27 @@ const localContext = ({ recording, broadcast } = {}) => ({
     null,
 });
 
+const isLosslessWavRecovery = (recording) => {
+  const mime = String(recording?.mimeType || recording?.blob?.type || '').toLowerCase();
+  const format = String(recording?.recordingFormat || '').toLowerCase();
+  const storageMode = String(recording?.storageMode || '').toLowerCase();
+  const filename = String(recording?.filename || '').toLowerCase();
+
+  return Boolean(
+    recording?.blob?.size &&
+    (
+      mime.includes('wav') ||
+      recording?.lossless === true ||
+      format === 'pcm-wav' ||
+      storageMode.startsWith('opfs') ||
+      filename.endsWith('.wav')
+    )
+  );
+};
+
 const availableLocalFormats = (recording) => {
   const mime = String(recording?.mimeType || recording?.blob?.type || '').toLowerCase();
-  if (mime.includes('wav')) return ['mp3', 'wav'];
+  if (isLosslessWavRecovery(recording)) return ['mp3', 'wav'];
   if (mime.includes('opus') || mime.includes('ogg') || mime.includes('webm')) return ['opus'];
   return [];
 };
@@ -300,7 +318,7 @@ const startAutosaveLive = async ({
       const recoveryMime = String(
         recording.mimeType || recording.blob?.type || ''
       ).toLowerCase();
-      const losslessRecoveryAvailable = recoveryMime.includes('wav');
+      const losslessRecoveryAvailable = isLosslessWavRecovery(recording);
       const compressedRecoveryAvailable =
         recoveryMime.includes('webm') ||
         recoveryMime.includes('opus') ||
@@ -321,7 +339,18 @@ const startAutosaveLive = async ({
         emit({ status: 'finalizing', key, title, recovery: true, localCopy });
 
         if (losslessRecoveryAvailable) {
-          await uploadRecoveryMasterToServer(recording);
+          await uploadRecoveryMasterToServer(recording, {
+            onProgress: ({ loaded, total, percent }) => {
+              emit({
+                status: 'progress',
+                key,
+                title,
+                loaded,
+                total,
+                percent,
+              });
+            },
+          });
         } else if (compressedRecoveryAvailable) {
           const recovered = await uploadCompressedRecoveryMasterToServer(recording, broadcast);
           replay = {
@@ -351,7 +380,18 @@ const startAutosaveLive = async ({
         emit({ status: 'finalizing', key, title, recovery: true, localCopy });
 
         if (losslessRecoveryAvailable) {
-          await uploadRecoveryMasterToServer(recording);
+          await uploadRecoveryMasterToServer(recording, {
+            onProgress: ({ loaded, total, percent }) => {
+              emit({
+                status: 'progress',
+                key,
+                title,
+                loaded,
+                total,
+                percent,
+              });
+            },
+          });
           finalizeResponse = await batch3Service.finalizeServerReplay(recording.broadcastId, {
             qualityChunkCount: Number(recording.qualityChunkCount) || 0,
             qualityChunkUploadErrors: Array.isArray(recording.qualityChunkErrors)
