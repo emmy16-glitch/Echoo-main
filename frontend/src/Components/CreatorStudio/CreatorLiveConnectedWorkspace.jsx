@@ -157,6 +157,8 @@ const CreatorLiveConnectedWorkspace = ({
   const keepLiveButtonRef = useRef(null);
   const endingRequestRef = useRef(false);
   const offAirNoticeTimeoutRef = useRef(null);
+  const bootstrapRetryRef = useRef(0);
+  const bootstrapRetryTimerRef = useRef(null);
   // Baseline for desktop "new listener joined" alerts. Reset when the
   // broadcast ends so the next session starts clean.
   const lastListenerCountRef = useRef(null);
@@ -184,7 +186,10 @@ const CreatorLiveConnectedWorkspace = ({
     window.dispatchEvent(new CustomEvent('echoo:creator-state-changed'));
   }, [clearPreparedBroadcast]);
 
-  useEffect(() => () => window.clearTimeout(offAirNoticeTimeoutRef.current), []);
+  useEffect(() => () => {
+    window.clearTimeout(offAirNoticeTimeoutRef.current);
+    window.clearTimeout(bootstrapRetryTimerRef.current);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -296,13 +301,21 @@ const CreatorLiveConnectedWorkspace = ({
         setStationId(canonicalStation?.id || '');
         setTitle(canonicalStation?.name || '');
         setDescription(canonicalStation?.description || '');
+        bootstrapRetryRef.current = 0;
       } catch (loadError) {
         if (active) {
           setBootstrapError(
             loadError?.code === 'REQUEST_TIMEOUT'
-              ? 'Echoo did not respond within 10 seconds. Your studio is safe; retry the connection.'
-              : loadError?.message || 'Could not load Broadcast Studio.'
+              ? 'Studio data is taking longer than usual. Echoo is reconnecting in the background.'
+              : 'Studio data is temporarily unavailable. Echoo is reconnecting in the background.'
           );
+          if (bootstrapRetryRef.current < 3) {
+            bootstrapRetryRef.current += 1;
+            window.clearTimeout(bootstrapRetryTimerRef.current);
+            bootstrapRetryTimerRef.current = window.setTimeout(() => {
+              if (active) setLoadAttempt((value) => value + 1);
+            }, 800 * bootstrapRetryRef.current);
+          }
         }
       } finally {
         if (active) setLoading(false);
@@ -1076,39 +1089,10 @@ const CreatorLiveConnectedWorkspace = ({
     }
   };
 
-  if (loading) {
-    return (
-      <section className="ebsx-loading ebsx-loading--timed" role="status" aria-live="polite">
-        <FiLoader className="spin" aria-hidden="true" />
-        <strong>Getting your studio ready</strong>
-        <span>Connecting to your Channel and broadcasts · {loadingElapsed}s</span>
-        <small>
-          {loadingElapsed >= 6
-            ? 'This is taking longer than usual. Echoo will stop waiting at 10 seconds.'
-            : 'Your controls will appear as soon as the connection is ready.'}
-        </small>
-      </section>
-    );
-  }
-
-  if (bootstrapError && !stations.length && !currentLiveBroadcast) {
-    return (
-      <section className="ebsx-loading ebsx-loading--failed" role="alert">
-        <FiAlertTriangle aria-hidden="true" />
-        <strong>Studio connection needs another try</strong>
-        <span>{bootstrapError}</span>
-        <button
-          type="button"
-          className="eb-press"
-          onClick={() => setLoadAttempt((value) => value + 1)}
-        >
-          Retry Studio
-        </button>
-      </section>
-    );
-  }
-
-  if (!stations.length && !currentLiveBroadcast) {
+  // Never replace the Broadcast workspace with a connection screen. The
+  // mixer/workstation renders immediately while account data hydrates in the
+  // background. Only show the real no-channel state after a successful load.
+  if (!loading && !bootstrapError && !stations.length && !currentLiveBroadcast) {
     return (
       <section className="ec2-no-channel" aria-labelledby="ec2-no-channel-title">
         <div className="ec2-no-channel-copy">
@@ -1240,6 +1224,11 @@ const CreatorLiveConnectedWorkspace = ({
         <p>{isLive ? 'Your live mix stays exactly where you prepared it.' : 'Mix, monitor and go live.'}</p>
       </header>
 
+      {bootstrapError && (
+        <div className="ec2-notice ec2-notice--info" role="status">
+          {bootstrapError}{loading ? ` · retrying ${loadingElapsed}s` : ''}
+        </div>
+      )}
       {error && <div className="ec2-notice" role="alert">{error}</div>}
       {message && message !== 'You are live.' && (
         <div className="ec2-notice ec2-notice--info" role="status">{message}</div>
