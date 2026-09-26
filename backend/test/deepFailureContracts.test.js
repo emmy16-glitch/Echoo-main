@@ -260,6 +260,8 @@ test('recording management keeps trim copies safe and prevents cramped or mislab
   assert.match(trimService, /TRIM_PROBE_TIMEOUT/);
   assert.match(trimService, /child\.kill\('SIGKILL'\)/);
   assert.match(routes, /health\/recording/);
+  assert.match(routes, /automaticServerMp3:\s*capability\.ok && livekitRecorder\.available/);
+  assert.match(routes, /recoveryMp3Assembly:\s*capability\.ok/);
 
   assert.match(exportService, /Server MP3 is still being prepared/);
   assert.match(exportService, /saveAutomaticLocalCopy/);
