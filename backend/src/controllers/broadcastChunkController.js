@@ -44,9 +44,9 @@ const validWavUpload = (file) => Boolean(
 );
 
 const ensureQualityJob = async (broadcastId, chunk) => {
-  // Transcription pause: recording/master PCM chunks remain active (the chunk
-  // is still stored and forwarded to MP3/FLAC outputs at upload time), but no
-  // transcript quality jobs are created when Whisper is not configured.
+  // Recovery chunks are post-live only. They may also feed optional quality
+  // processing when transcription is explicitly enabled; with transcription
+  // disabled, no transcript job is created.
   if (!isTranscriptionConfigured()) return;
   await BroadcastProcessingJob.updateOne(
     { broadcastId, jobType: 'transcript_quality_chunk', chunkId: chunk._id },
@@ -229,9 +229,10 @@ export async function completeBroadcastAudioChunks(req, res, next) {
     }).catch((error) => {
       console.warn('[Echoo Outputs] stop warning:', error?.message || error);
     });
-    // Server-side replay finalization: the bounded chunks already received
-    // become the canonical MP3. No giant client upload is ever required.
-    // Failures here never fail the close itself — the local recovery master
+    // Server-side replay finalization: prefer the server-Egress MP3; when that
+    // failed, the bounded post-live recovery chunks become the canonical MP3.
+    // No giant client upload is ever required. Failures here never fail the
+    // close itself — the local recovery master
     // stays alive and an explicit retry resumes from the same chunks.
     let replay = { status: 'empty', audioId: null };
     try {
@@ -268,8 +269,18 @@ export async function uploadBroadcastAudioChunk(req, res, next) {
     if (!broadcast) {
       return res.status(404).json({ error: { code: 'BROADCAST_NOT_FOUND', message: 'Broadcast not found.' } });
     }
-    if (!['starting', 'live', 'ending'].includes(broadcast.status) && !(broadcast.status === 'completed' && broadcast.qualityChunkingStartedAt && !broadcast.qualityChunkingCompletedAt)) {
-      return res.status(409).json({ error: { code: 'INVALID_BROADCAST_STATE', message: 'This broadcast is not accepting live recording chunks.' } });
+    const recoveryWindowOpen =
+      broadcast.status === 'completed' &&
+      Boolean(broadcast.qualityChunkingStartedAt) &&
+      !broadcast.qualityChunkingCompletedAt;
+
+    if (!recoveryWindowOpen) {
+      return res.status(409).json({
+        error: {
+          code: 'RECORDING_RECOVERY_NOT_OPEN',
+          message: 'Browser WAV chunks are accepted only after OFF AIR during an explicit recording-recovery session.',
+        },
+      });
     }
     if (!req.file?.buffer?.length) {
       return res.status(400).json({ error: { code: 'NO_CHUNK', message: 'A recording chunk is required.' } });
@@ -330,10 +341,9 @@ export async function uploadBroadcastAudioChunk(req, res, next) {
 
     await ensureQualityJob(broadcastId, chunk);
 
-    // Send the same authenticated, pre-Opus master PCM that is kept for
-    // quality transcription to the optional MP3 and FLAC encoders. Encoder
-    // failures are isolated: the durable chunk remains accepted and LiveKit is
-    // not affected.
+    // Feed this authenticated post-live recovery WAV to replay/optional output
+    // encoders. This endpoint is unreachable while LIVE, so it cannot compete
+    // with creator WebRTC upstream.
     await appendBroadcastOutputPcm(broadcastId, req.file.buffer).catch((error) => {
       console.warn('[Echoo Outputs] PCM append warning; LiveKit continues:', error?.message || error);
     });
