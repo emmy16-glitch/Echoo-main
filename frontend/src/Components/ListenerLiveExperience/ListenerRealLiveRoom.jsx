@@ -241,9 +241,14 @@ const ListenerRealLiveRoom = () => {
       if (!silent) setChatLoading(true);
       try {
         const response = await batch4Service.getMessages(broadcastId, { limit: 100 });
-        setMessages(
-          Array.isArray(response?.data) ? response.data.map(chatView) : []
-        );
+        const history = Array.isArray(response?.data)
+          ? response.data.map(chatView)
+          : [];
+        setMessages((current) => {
+          let next = history;
+          for (const message of current) next = mergeById(next, message);
+          return next;
+        });
         setChatError('');
       } catch (error) {
         if (!silent) {
@@ -269,7 +274,6 @@ const ListenerRealLiveRoom = () => {
       const next = normalizeBroadcast(response.data);
       setShow(next);
       setLoadError('');
-      await loadChat();
       if (!isGuest && next.stationId) {
         followService
           .getStationStatus(next.stationId)
@@ -292,6 +296,11 @@ const ListenerRealLiveRoom = () => {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (!chatOpen || previewMode || isGuest) return;
+    void loadChat();
+  }, [chatOpen, previewMode, isGuest, loadChat]);
 
   useEffect(() => {
     if (
