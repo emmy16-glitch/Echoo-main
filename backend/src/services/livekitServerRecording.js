@@ -149,9 +149,36 @@ const writeWithBackpressure = async (child, buffer) => {
   if (!buffer?.length || !child?.stdin || child.stdin.destroyed) return;
   if (child.stdin.write(buffer)) return;
   await new Promise((resolve, reject) => {
-    child.stdin.once('drain', resolve);
-    child.stdin.once('error', reject);
+    const stdin = child.stdin;
+    const cleanup = () => {
+      stdin.off('drain', onDrain);
+      stdin.off('error', onError);
+    };
+    const onDrain = () => {
+      cleanup();
+      resolve();
+    };
+    const onError = (error) => {
+      cleanup();
+      reject(error);
+    };
+    stdin.once('drain', onDrain);
+    stdin.once('error', onError);
   });
+};
+
+const waitForTrackHandoff = async (session, trackSid) => {
+  const startedAt = Date.now();
+  while (
+    session &&
+    !session.stopping &&
+    !session.failed &&
+    Date.now() - startedAt < TRACK_HANDOFF_TIMEOUT_MS
+  ) {
+    if (session.currentTrackSid === trackSid && !session.handoff) return true;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  return false;
 };
 
 const createSession = async (broadcastId) => {
@@ -172,6 +199,7 @@ const createSession = async (broadcastId) => {
     failed: false,
     error: '',
     currentTrackSid: '',
+    pendingTrackSid: '',
     handoff: false,
     handoffTimer: null,
     disconnectTimer: null,
@@ -248,6 +276,7 @@ const finishSession = (session) => {
     expectedTracks.delete(session.broadcastId);
     if (session.handoffTimer) clearTimeout(session.handoffTimer);
     session.handoffTimer = null;
+    session.pendingTrackSid = '';
     if (session.disconnectTimer) clearTimeout(session.disconnectTimer);
     session.disconnectTimer = null;
 
@@ -377,6 +406,7 @@ const acceptRecordingSocket = async (socket, request) => {
 
   session.sockets.add(socket);
   session.currentTrackSid = identity.trackSid;
+  session.pendingTrackSid = '';
   session.handoff = false;
   if (session.handoffTimer) clearTimeout(session.handoffTimer);
   session.handoffTimer = null;
@@ -390,7 +420,12 @@ const acceptRecordingSocket = async (socket, request) => {
   });
 
   socket.on('message', (data, isBinary) => {
-    if (!isBinary || session.stopping || session.failed) return;
+    if (
+      !isBinary ||
+      session.stopping ||
+      session.failed ||
+      identity.trackSid !== session.currentTrackSid
+    ) return;
     const buffer = Buffer.isBuffer(data) ? data : Buffer.from(data);
 
     session.queuedPcmBytes += buffer.length;
@@ -615,10 +650,12 @@ export const ensureLiveKitServerRecording = async ({
       };
     }
 
+    let handoffFromEgressId = '';
     if (recording?.egressId && recording?.trackSid !== track) {
       const session = sessions.get(id);
       if (session && !session.stopping && !session.failed) {
-        session.currentTrackSid = track;
+        handoffFromEgressId = String(recording.egressId);
+        session.pendingTrackSid = track;
         session.handoff = true;
         if (session.handoffTimer) clearTimeout(session.handoffTimer);
         session.handoffTimer = setTimeout(() => {
@@ -626,7 +663,7 @@ export const ensureLiveKitServerRecording = async ({
             session.stopping ||
             session.failed ||
             !session.handoff ||
-            session.currentTrackSid !== track
+            session.pendingTrackSid !== track
           ) return;
           session.failed = true;
           session.error = 'LiveKit recording track handoff did not reconnect in time.';
@@ -637,8 +674,9 @@ export const ensureLiveKitServerRecording = async ({
           void finishSession(session);
         }, TRACK_HANDOFF_TIMEOUT_MS);
         session.handoffTimer.unref?.();
+      } else {
+        await LiveKitProvider.stopEgress(recording.egressId).catch(() => null);
       }
-      await LiveKitProvider.stopEgress(recording.egressId).catch(() => null);
     }
 
     const websocketUrl = buildSignedRecordingUrl({
@@ -679,6 +717,18 @@ export const ensureLiveKitServerRecording = async ({
         'serverRecording.egressId': egressId,
       });
 
+      if (handoffFromEgressId) {
+        const session = sessions.get(id);
+        const handedOff = await waitForTrackHandoff(session, track);
+        if (!handedOff) {
+          await LiveKitProvider.stopEgress(egressId).catch(() => null);
+          const error = new Error('LiveKit recording track handoff did not become active in time.');
+          error.code = 'RECORDING_HANDOFF_TIMEOUT';
+          throw error;
+        }
+        await LiveKitProvider.stopEgress(handoffFromEgressId).catch(() => null);
+      }
+
       return {
         mode: 'server-egress',
         active: true,
@@ -701,9 +751,12 @@ export const ensureLiveKitServerRecording = async ({
       }
 
       const session = sessions.get(id);
-      if (session?.handoff && session.currentTrackSid === track) {
+      if (session?.handoff && session.pendingTrackSid === track) {
         session.failed = true;
         session.error = String(error?.message || error);
+        if (handoffFromEgressId) {
+          await LiveKitProvider.stopEgress(handoffFromEgressId).catch(() => null);
+        }
         await finishSession(session).catch(() => null);
       }
       await persist(id, {
