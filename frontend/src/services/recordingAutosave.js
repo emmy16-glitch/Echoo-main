@@ -585,7 +585,29 @@ export const saveRecoveryCopy = async (key, requestedFormat = '') => {
 
   if (result?.saved && key !== 'recovered') {
     pending.localCopy = { ...result, format };
-    rememberLocalMaster(lookupKey, pending);
+    automaticLocalCopies.add(String(key));
+
+    if (pending.serverReady === true) {
+      // Both outcomes are now durable: the server replay was already ready and
+      // this explicit user gesture successfully saved the requested device
+      // file. Release the OPFS master and move the banner to Done.
+      try { await pending.recording?.dispose?.(); } catch { /* already disposed */ }
+      clearPendingBroadcastRecording(pending.recording?.broadcastId || '');
+      forgetLocalMaster(lookupKey);
+      emit({
+        status: 'done',
+        key,
+        title: pending.title || broadcast?.title || 'Echoo live recording',
+        audioId: pending.audioId || null,
+        localCopy: pending.localCopy,
+        format: 'mp3',
+      });
+      notifySaved(`“${pending.title || broadcast?.title || 'Recording'}” saved to Echoo and this device.`);
+    } else {
+      // Server is still pending. Keep OPFS for server recovery while recording
+      // that the creator's device-save requirement has already been satisfied.
+      rememberLocalMaster(lookupKey, pending);
+    }
   }
   return result;
 };
