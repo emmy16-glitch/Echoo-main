@@ -15,7 +15,7 @@
   background: #ffffff;
   color: #0b1730;
   box-shadow: 0 24px 64px rgba(15, 23, 42, 0.22);
-  font-family: Inter, "SF Pro Text", "Segoe UI Variable", "Helvetica Neue", Arial, ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--echoo-font-body, "Source Sans 3", "Segoe UI", ui-sans-serif, system-ui, sans-serif);
   animation: creator-account-popover-in 120ms ease-out;
 }
 
