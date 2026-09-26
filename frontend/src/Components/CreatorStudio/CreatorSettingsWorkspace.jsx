@@ -220,7 +220,9 @@ const CreatorSettingsWorkspace = () => {
     const saved = chooseRecordingDeviceFormat(recordingChoice);
     setRecordingChoice(saved.autoSave ? saved.format : 'none');
     setMessage(saved.autoSave
-      ? `Future broadcasts will automatically keep a ${saved.format.toUpperCase()} copy on this device.`
+      ? isDesktop
+        ? `Future broadcasts will automatically keep a ${saved.format.toUpperCase()} copy in Echoo Recordings on this computer.`
+        : `Future broadcasts will prepare a ${saved.format.toUpperCase()} device copy and keep the local master until you tap Save. Browsers require that final save tap.`
       : 'Future broadcasts will stay on Echoo only unless you export them manually.');
     setError('');
   };
