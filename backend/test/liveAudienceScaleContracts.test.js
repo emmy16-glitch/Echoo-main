@@ -87,3 +87,19 @@ test('PC browser save destination is requested from the End Broadcast gesture be
   assert.match(exportService, /destination:\s*'preauthorized-file-picker'/);
   assert.match(exportService, /onChunk:\s*\(chunk\) => writable\.write\(chunk\)/);
 });
+
+
+test('server recorder fails closed across backend restarts instead of accepting a partial replay tail', async () => {
+  const recorder = await read('../src/services/livekitServerRecording.js');
+
+  assert.match(recorder, /const ownedEgressIds = new Map\(\)/);
+  assert.match(recorder, /server-process-restarted/);
+  assert.match(recorder, /Interrupted server recording requires browser recovery/);
+  assert.match(recorder, /!currentProcessExpectsTrack/);
+  assert.match(recorder, /!currentProcessOwnsEgress/);
+  assert.match(recorder, /expectedTracks\.set\(id, track\)[\s\S]*?startTrackRecordingEgress/);
+  assert.doesNotMatch(
+    recorder,
+    /expectedTracks\.set\(id, track\);\s*\n\s*const current = await Broadcast\.findById/
+  );
+});
