@@ -317,10 +317,17 @@ const ListenerRealLiveRoom = () => {
 
     const fallback = () => {
       if (fallbackTimer) return;
-      fallbackTimer = window.setInterval(() => {
-        loadChat({ silent: true });
-        refreshPresence();
-      }, 15000);
+
+      const poll = () => {
+        void refreshPresence();
+        // Spread fallback HTTP traffic so a realtime outage does not make a
+        // large audience hit the API on the same 15-second boundary.
+        const delay = 25_000 + Math.round(Math.random() * 20_000);
+        fallbackTimer = window.setTimeout(poll, delay);
+      };
+
+      const initialDelay = 3_000 + Math.round(Math.random() * 7_000);
+      fallbackTimer = window.setTimeout(poll, initialDelay);
     };
 
     const joinRoom = isGuest
@@ -392,7 +399,7 @@ const ListenerRealLiveRoom = () => {
         };
         const onConnect = () => {
           setRealtimeState('connected');
-          if (fallbackTimer) window.clearInterval(fallbackTimer);
+          if (fallbackTimer) window.clearTimeout(fallbackTimer);
           fallbackTimer = null;
           connectedSocket.emit('broadcast:join', { broadcastId: show.id });
         };
@@ -427,7 +434,7 @@ const ListenerRealLiveRoom = () => {
 
     return () => {
       active = false;
-      if (fallbackTimer) window.clearInterval(fallbackTimer);
+      if (fallbackTimer) window.clearTimeout(fallbackTimer);
       socket?.__echooRoomCleanup?.();
       realtimeService.leaveBroadcast(show.id).catch(() => {});
     };
