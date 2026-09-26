@@ -123,6 +123,11 @@ test('recording completion retries and automatic save preserves recovery state',
   // upload): End Broadcast finalizes, banner shows finalizing/retry/recovery.
   assert.match(autosave, /retryBroadcastQualityCompletion/);
   assert.match(autosave, /finalizeServerReplay/);
+  assert.match(autosave, /!recording\.serverRecordingPrimary/);
+  assert.match(autosave, /uploadRecoveryMasterToServer\(recording\)/);
+  assert.match(autosave, /uploadCompressedRecoveryMasterToServer\(recording, broadcast\)/);
+  assert.match(recording, /export const uploadCompressedRecoveryMasterToServer/);
+  assert.match(recording, /apiFetch\('\/audio\/upload'/);
   assert.match(autosave, /getRecordingDevicePreferences/);
   assert.match(autosave, /saveAutomaticLocalCopy\(\{/);
   assert.match(autosave, /format:\s*preferences\.format/);
@@ -155,6 +160,14 @@ test('recording completion retries and automatic save preserves recovery state',
   assert.match(recording, /new Blob\(\[patched\], \{ type: WAV_MIME_TYPE \}\)/);
   assert.doesNotMatch(recording, /STALE_OPFS_FILE_MS/);
   assert.match(banner, /master\?\.recording\?\.dispose/);
+});
+
+test('completed broadcast upload recovery marks replay lifecycle ready', async () => {
+  const controller = await source('src/controllers/audioController.js');
+  assert.match(controller, /sourceBroadcast\.replayAudioId = audio\._id/);
+  assert.match(controller, /sourceBroadcast\.replayStatus = 'ready'/);
+  assert.match(controller, /replayAudioId: existingAudio\._id/);
+  assert.match(controller, /replayStatus: 'ready'/);
 });
 
 test('protected downloads use one canonical authorization boundary from local or cloud bytes', async () => {
