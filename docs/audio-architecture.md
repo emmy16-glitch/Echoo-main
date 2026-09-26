@@ -103,13 +103,16 @@ At End Broadcast:
    FFmpeg can flush the canonical MP3;
 3. the backend verifies that server MP3 rather than trusting a partial file;
 4. exactly one replay Audio record is linked idempotently to the broadcast;
-5. the MP3 remains on persistent local storage or is archived to configured
+5. independently of the server, the closed OPFS master is immediately eligible
+   for a WAV device save or post-live local MP3 encoding at 320 kbps; a slow,
+   unavailable, or still-finalizing server must not block these actions;
+6. the server MP3 remains on persistent local storage or is archived to configured
    S3-compatible storage;
-6. only after canonical persistence is confirmed may the browser recovery master
-   be cleared; when an automatic device copy was requested, a failed device save
-   keeps that master available for retry;
-7. if the server recorder is incomplete or failed, Echoo then uploads the OPFS WAV
-   in bounded recovery chunks and finalizes the MP3 from those chunks.
+7. only after canonical server persistence is confirmed may the browser recovery
+   master be cleared; when an automatic device copy was requested, a failed device
+   save keeps that master available for retry;
+8. if the server recorder is incomplete or failed, Echoo then uploads the OPFS WAV
+   in bounded recovery chunks and finalizes the server MP3 from those chunks.
 
 The source broadcast ID/replay file key is the idempotency boundary. Retrying
 completion must return/reconcile the existing replay rather than create a second
@@ -121,6 +124,23 @@ return HTTP 200 with `automaticServerMp3: true` and `trimming: true`.
 
 A huge final WAV POST at End Broadcast is an architecture regression. Do not
 solve it by increasing proxy/body limits.
+
+### Server-independent device copy
+
+Device saving and server replay finalization are separate state machines.
+
+- **WAV:** the completed OPFS recovery master is already a valid 48 kHz stereo
+  24-bit PCM WAV and can be saved without the server.
+- **MP3:** after OFF AIR, Echoo dynamically loads the local WASM MP3 encoder and
+  converts the OPFS WAV in bounded slices at 320 kbps. The encoder is never active
+  while LiveKit is carrying the show.
+- **Long recordings:** where OPFS is available, encoded MP3 output is staged in
+  temporary origin-private storage rather than accumulating the entire output in
+  JavaScript memory.
+- **Failure isolation:** a failed server End/finalize request leaves both local
+  save options available. A failed local save leaves the OPFS master intact. A
+  server retry never silently creates a second device download or clears a still-
+  required local master.
 
 ## Saved recording trims
 
