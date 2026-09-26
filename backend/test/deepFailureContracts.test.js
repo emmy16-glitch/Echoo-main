@@ -139,9 +139,12 @@ test('recording completion retries and automatic save preserves recovery state',
   assert.match(banner, /Upload/);
   assert.match(banner, /Discard/);
   assert.match(autosave, /DEVICE_COPY_FAILED/);
-  assert.match(autosave, /preferences\.autoSave && !localCopy\?\.saved/);
-  assert.match(autosave, /Your local recovery master is still safe/);
-  assert.match(banner, /Retry device copy/);
+  assert.match(autosave, /SERVER_END_PENDING/);
+  assert.match(autosave, /skipDeviceSave:\s*true/);
+  assert.match(autosave, /rememberPendingMaster/);
+  assert.match(banner, /Save MP3 to device/);
+  assert.match(banner, /Save WAV to device/);
+  assert.match(banner, /Retry Echoo server save/);
 });
 
 test('protected downloads use one canonical authorization boundary from local or cloud bytes', async () => {
