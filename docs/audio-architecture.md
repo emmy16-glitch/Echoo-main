@@ -137,10 +137,18 @@ Device saving and server replay finalization are separate state machines.
 - **Long recordings:** where OPFS is available, encoded MP3 output is staged in
   temporary origin-private storage rather than accumulating the entire output in
   JavaScript memory.
+- **PC browser save authorization:** on browsers with File System Access support,
+  the confirmed End Broadcast click requests the destination handle immediately,
+  before any async server/LiveKit work. Echoo then streams the finished MP3/WAV
+  into that already-authorized file when local finalization completes.
 - **Failure isolation:** a failed server End/finalize request leaves both local
   save options available. A failed local save leaves the OPFS master intact. A
   server retry never silently creates a second device download or clears a still-
   required local master.
+- **Backend restart safety:** an in-progress server recording is trusted only
+  while the current Node process owns its Egress/session. After a process restart,
+  an orphan recording socket is rejected and the complete OPFS master is used for
+  recovery instead of accepting a tail-only MP3.
 
 ## Saved recording trims
 
@@ -216,10 +224,14 @@ after CPU, thermal, memory, and battery benchmarking. A possible design is Maste
 to the backend. It needs crash recovery, capability detection, and must
 never destabilize realtime audio; WASM FLAC is not production architecture today.
 
-For large passive audiences, a future master branch may use AAC/HLS/CDN while
-WebRTC/Opus remains the low-latency interactive path. Standard HLS has materially
-higher latency; LL-HLS is a separate project. Listener Data Saver and per-listener
-codec tiers are future work, not part of this implementation.
+For large passive audiences, the current LiveKit path reduces control/media fanout:
+listeners are hidden subscribe-only participants, `autoSubscribe` is disabled,
+only `echoo-studio-mix` is subscribed, reconnects are jittered, presence events are
+coalesced, token/public-card reads are burst-coalesced, and chat history is lazy-loaded.
+These changes reduce application-side amplification but do **not** prove a specific
+LiveKit plan or host can sustain 500 concurrent users. A staged production load test
+is still required. A future master branch may use AAC/HLS/CDN for much larger passive
+audiences while WebRTC/Opus remains the low-latency interactive path.
 
 ## Manual verification
 
