@@ -105,6 +105,11 @@ test('Creator Studio renders immediately while bounded bootstrap retries in the 
   assert.match(workspace, /getCreatorBroadcasts\(\{ timeoutMs: 10_000 \}\)/);
   assert.match(batch2, /getMyStations: async \(\{ timeoutMs = 10_000 \} = \{\}\)/);
   assert.match(batch3, /getCreatorBroadcasts: async \(\{ timeoutMs = 10_000 \} = \{\}\)/);
+  assert.match(batch3, /LIVEKIT_CONTROL_TIMEOUT_MS = 12_000/);
+  assert.match(batch3, /BROADCAST_START_TIMEOUT_MS = 20_000/);
+  assert.match(batch3, /BROADCAST_END_TIMEOUT_MS = 20_000/);
+  assert.match(api, /SESSION_REFRESH_TIMEOUT_MS = 10_000/);
+  assert.match(api, /refresh-timeout/);
   assert.match(api, /REQUEST_TIMEOUT/);
   assert.match(api, /AbortController/);
 });
