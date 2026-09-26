@@ -86,6 +86,8 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
   const [isPlaying, setIsPlaying] = useState(false);
   const [analyser, setAnalyser] = useState(null);
   const audioCtxRef = useRef(null);
+  const analyserSourceRef = useRef(null);
+  const analyserTrackIdRef = useRef('');
   const [programAudioLevel, setProgramAudioLevel] = useState(0);
 
   useEffect(() => {
@@ -113,6 +115,12 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       const entry = attachedRef.current.get(id);
       if (!entry) return;
       attachedRef.current.delete(id);
+      if (analyserTrackIdRef.current === id) {
+        try { analyserSourceRef.current?.disconnect?.(); } catch { /* already disconnected */ }
+        analyserSourceRef.current = null;
+        analyserTrackIdRef.current = '';
+        setAnalyser(null);
+      }
       try { entry.track?.detach?.(entry.element); } catch { /* already detached */ }
       try { entry.element?.pause?.(); } catch { /* already paused */ }
       entry.element?.remove?.();
@@ -128,6 +136,9 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       setTrackCount(0);
       setIsPlaying(false);
       setAnalyser(null);
+      try { analyserSourceRef.current?.disconnect?.(); } catch { /* ignore */ }
+      analyserSourceRef.current = null;
+      analyserTrackIdRef.current = '';
       if (audioCtxRef.current) {
         try { audioCtxRef.current.close(); } catch { /* ignore */ }
         audioCtxRef.current = null;
@@ -331,14 +342,20 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       element.addEventListener('pause', syncElementPlayback);
       element.addEventListener('ended', syncElementPlayback);
 
-      if (track.mediaStreamTrack && !audioCtxRef.current) {
+      if (track.mediaStreamTrack) {
         try {
-          const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-          audioCtxRef.current = audioCtx;
+          let audioCtx = audioCtxRef.current;
+          if (!audioCtx || audioCtx.state === 'closed') {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            audioCtxRef.current = audioCtx;
+          }
+          try { analyserSourceRef.current?.disconnect?.(); } catch { /* stale source */ }
           const createdAnalyser = audioCtx.createAnalyser();
           createdAnalyser.fftSize = 256;
           const source = audioCtx.createMediaStreamSource(new MediaStream([track.mediaStreamTrack]));
           source.connect(createdAnalyser);
+          analyserSourceRef.current = source;
+          analyserTrackIdRef.current = id;
           if (!disposed && roomRef.current === room) setAnalyser(createdAnalyser);
         } catch (err) {
           console.warn('[Echoo LiveKit] Could not create track analyser:', err);
