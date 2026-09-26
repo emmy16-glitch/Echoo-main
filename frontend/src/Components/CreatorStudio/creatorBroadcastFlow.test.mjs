@@ -90,15 +90,17 @@ test('Creator Studio keeps Broadcast navigation callbacks stable so bootstrap do
   assert.match(studio, /\[location\.pathname, routerNavigate\]/);
 });
 
-test('Creator Studio bootstrap has a visible timer, a hard timeout, and a Retry state', async () => {
+test('Creator Studio renders immediately while bounded bootstrap retries in the background', async () => {
   const workspace = await read('./CreatorLiveConnectedWorkspace.jsx');
   const api = await read('../../services/api.js');
   const batch2 = await read('../../services/batch2Service.js');
   const batch3 = await read('../../services/batch3Service.js');
 
   assert.match(workspace, /loadingElapsed/);
-  assert.match(workspace, /Echoo will stop waiting at 10 seconds/);
-  assert.match(workspace, /Retry Studio/);
+  assert.match(workspace, /bootstrapRetryRef/);
+  assert.match(workspace, /Never replace the Broadcast workspace with a connection screen/);
+  assert.match(workspace, /reconnecting in the background/);
+  assert.doesNotMatch(workspace, /Studio connection needs another try/);
   assert.match(workspace, /getMyStations\(\{ timeoutMs: 10_000 \}\)/);
   assert.match(workspace, /getCreatorBroadcasts\(\{ timeoutMs: 10_000 \}\)/);
   assert.match(batch2, /getMyStations: async \(\{ timeoutMs = 10_000 \} = \{\}\)/);
@@ -161,7 +163,9 @@ test('a stale ending broadcast returns the creator to OFF AIR while recovery con
 test('a database-live broadcast can rebuild its publisher after a page reload', async () => {
   const workspace = await read('./CreatorLiveConnectedWorkspace.jsx');
   const retryAt = workspace.indexOf('const retryAudioConnection = async');
-  const retryBody = workspace.slice(retryAt, workspace.indexOf('if (loading)', retryAt));
+  const retryBody = workspace.slice(retryAt, workspace.indexOf('const copyLiveLink', retryAt) > retryAt
+    ? workspace.indexOf('const copyLiveLink', retryAt)
+    : workspace.length);
 
   assert.match(retryBody, /getLiveKitPublishingState\(\)/);
   assert.match(retryBody, /retryLiveKitPublishingRecovery\(\)/);
