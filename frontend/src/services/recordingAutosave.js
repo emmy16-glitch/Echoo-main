@@ -19,11 +19,13 @@ import {
 
 // ---------------------------------------------------------------------------
 // Background recording autosave has two independent outcomes after End Broadcast:
-// 1) save the creator's chosen MP3/WAV device copy from the local master, and
-// 2) reconcile/finalize the canonical server MP3.
-// Device saving runs first and never requires the Echoo API. The local master
-// uploads only as emergency server recovery if LiveKit Egress/FFmpeg failed.
-// Progress/success/failure is broadcast as `echoo:recording-upload` events.
+// 1) reconcile/finalize the canonical server MP3, and
+// 2) optionally save the creator's MP3/WAV device copy from the local master.
+// Web browsers use a server-first UI so one device-choice popup appears only
+// after Echoo confirms the server MP3. Echoo Desktop may save its managed local
+// copy immediately after OFF AIR. The local master uploads only as emergency
+// server recovery if LiveKit Egress/FFmpeg failed. Progress/success/failure is
+// broadcast as `echoo:recording-upload` events.
 // ---------------------------------------------------------------------------
 
 export const RECORDING_UPLOAD_EVENT = 'echoo:recording-upload';
@@ -241,9 +243,10 @@ const startAutosaveLive = async ({
     try {
       emit({ status: 'started', key, title });
 
-      // Device persistence is intentionally first and server-independent.
-      // This happens only after the publisher/local recorder has stopped, so
-      // local MP3 encoding can never compete with realtime WebRTC.
+      // Echoo Desktop may persist its managed device copy immediately after
+      // OFF AIR. Web browsers defer their explicit MP3/WAV choice until the
+      // canonical server MP3 is confirmed, avoiding duplicate save prompts.
+      // Either path starts only after realtime WebRTC has stopped.
       if (
         !deferBrowserDeviceChoice &&
         !skipDeviceSave &&
