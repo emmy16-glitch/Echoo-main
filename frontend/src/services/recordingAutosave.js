@@ -65,17 +65,17 @@ const friendlyRecoveryMessage = (error) => {
     case 'RECORDING_WAITING_FOR_NETWORK':
       return 'Recording is safe on this device. Echoo will continue saving when your connection returns.';
     case 'REPLAY_FINALIZE_RETRY':
-      return 'Couldn’t finish the server MP3. The browser recovery master is still safe on this device.';
+      return 'Echoo couldn’t finish this recording yet. Your recovery copy is still safe on this device.';
     case 'REPLAY_NOT_READY':
-      return 'The server has no recording for this broadcast yet. Your recovery copy is still safe on this device.';
+      return 'Echoo is still preparing this recording. Your recovery copy is safe on this device.';
     case 'SERVER_END_PENDING':
-      return 'Your local recording is ready on this device, but Echoo server cleanup is still pending. Save MP3 or WAV now and retry the server later.';
+      return 'Your recording is ready on this device while Echoo finishes in the background. Save MP3 or WAV now, or retry the Echoo save later.';
     case 'BROADCAST_STILL_LIVE':
       return 'This broadcast still looks live in another session, so Echoo left it untouched. End it there first — the local master stays safe here.';
     case 'RECOVERY_FORBIDDEN':
       return 'This recording belongs to a different creator account. Sign in as that creator to save it.';
     case 'BROADCAST_NOT_FOUND':
-      return 'Echoo could not find this broadcast on the server. The local master is kept.';
+      return 'Echoo could not find this broadcast. The local recording is kept safely on this device.';
     case 'BROADCAST_NOT_RECOVERABLE':
       return 'This broadcast never went live, so the recording cannot be linked to it. The local master is kept.';
     default:
@@ -281,7 +281,7 @@ const startAutosaveLive = async ({
       const serverEndOutcome = await waitForServerEndOutcome(serverEndPromise);
       if (!serverEndOutcome?.ok) {
         const pendingEnd = new Error(
-          serverEndOutcome?.error?.message || 'Echoo server cleanup failed.'
+          serverEndOutcome?.error?.message || 'Echoo could not finish saving the recording.'
         );
         pendingEnd.code = 'SERVER_END_PENDING';
         throw pendingEnd;
@@ -646,7 +646,7 @@ export const completeDeviceCopyChoice = async (key, format = 'mp3') => {
     serverReady: pending.serverReady !== false,
     code: pending.serverReady === false ? 'REPLAY_NOT_READY' : '',
     message: pending.serverReady === false
-      ? 'The device copy is saved. Echoo server storage is still pending; retry it separately.'
+      ? 'The device copy is saved. Echoo is still finishing the recording; you can retry that separately.'
       : '',
     hasRecovery: pending.serverReady === false,
     recoveryFormats: availableLocalFormats(pending.recording),

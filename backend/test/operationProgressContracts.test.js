@@ -79,7 +79,7 @@ test('Creator Broadcast shows elapsed stages and byte-based recording ETA', asyn
   assert.match(workspace, /Preparing broadcast/);
   assert.match(workspace, /Opening live audio room/);
   assert.match(workspace, /Connecting audio to listeners/);
-  assert.match(workspace, /Finalizing local recording master/);
+  assert.match(workspace, /Securing your recording/);
   assert.match(workspace, /This stage has no trustworthy percentage/);
 });
 
@@ -105,7 +105,7 @@ test('manual Creator upload uses measurable XHR progress instead of a spinner-on
   assert.match(studio, /uploadAudioWithProgress/);
   assert.match(studio, /transferProgressText\(uploadProgress\)/);
   assert.match(studio, /Uploading \$\{/);
-  assert.match(studio, /Upload complete — verifying/);
+  assert.match(studio, /Upload complete — finishing recording/);
   assert.match(studio, /backgroundRecordingProgress/);
   assert.match(studio, /Saving recording in background/);
 });

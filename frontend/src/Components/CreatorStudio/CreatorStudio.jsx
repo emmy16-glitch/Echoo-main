@@ -698,7 +698,7 @@ const CreatorStudioBody = () => {
                       : backgroundRecordingProgress.stage === 'recovered'
                         ? 'Recovered recording is protected locally'
                         : backgroundRecordingProgress.stage === 'verifying'
-                          ? 'Upload complete — verifying server copy'
+                          ? 'Upload complete — finishing recording'
                           : 'Saving recording in background'}
               </strong>
               <span>
@@ -716,11 +716,11 @@ const CreatorStudioBody = () => {
               {backgroundRecordingProgress.stage === 'waiting-network'
                 ? 'Your local master is safe. Echoo will continue when the connection is available.'
                 : backgroundRecordingProgress.stage === 'recovered'
-                  ? 'Echoo will keep the local safety master until the server copy is confirmed.'
+                  ? 'Echoo will keep the protected recovery copy until the recording is safely finished.'
                   : backgroundRecordingProgress.stage === 'error'
                     ? backgroundRecordingProgress.message || 'Open Recordings to retry.'
                     : backgroundRecordingProgress.stage === 'verifying'
-                      ? `Server verification in progress · ${formatElapsedTime(backgroundRecordingProgress.elapsedSeconds || 0)} elapsed`
+                      ? `Finishing recording · ${formatElapsedTime(backgroundRecordingProgress.elapsedSeconds || 0)} elapsed`
                       : backgroundRecordingProgress.stage === 'done'
                         ? backgroundRecordingProgress.title
                         : transferProgressText(backgroundRecordingProgress)}
@@ -852,7 +852,7 @@ const CreatorStudioBody = () => {
                       : uploadProgress.stage === 'error'
                         ? uploadProgress.message || 'Please retry.'
                         : uploadProgress.stage === 'verifying'
-                          ? `Server verification in progress · ${formatElapsedTime(uploadProgress.elapsedSeconds || 0)} elapsed`
+                          ? `Finishing recording · ${formatElapsedTime(uploadProgress.elapsedSeconds || 0)} elapsed`
                           : transferProgressText(uploadProgress)}
                   </small>
                 </div>

@@ -34,7 +34,7 @@ test('Creator content API exposes source broadcast audio lifecycle and Channel m
   assert.match(controller, /sourceBroadcast:\s*track\.sourceBroadcast/);
 });
 
-test('Recordings UI separates server save health from audience visibility', async () => {
+test('Recordings UI separates save health from audience visibility', async () => {
   const [workspace, css] = await Promise.all([
     source('../../frontend/src/Components/CreatorStudio/CreatorCollectionsWorkspace.jsx'),
     source('../../frontend/src/Components/CreatorStudio/CreatorCollectionsWorkspace.css'),
@@ -43,9 +43,9 @@ test('Recordings UI separates server save health from audience visibility', asyn
   assert.match(workspace, />Save status</);
   assert.match(workspace, />Visibility</);
   assert.match(workspace, /recordingSaveState/);
-  assert.match(workspace, /Server copy ready/);
+  assert.match(workspace, /Recording ready/);
   assert.match(workspace, /Needs attention/);
-  assert.match(workspace, /Echoo keeps the local safety master until the server copy is confirmed/);
+  assert.match(workspace, /Echoo keeps a protected recovery copy until the recording is safely finished/);
   assert.match(workspace, /recovered live broadcast recording/i);
   assert.match(css, /grid-template-columns:repeat\(3,1fr\)/);
   assert.match(css, /recordings-save-state\.is-processing/);

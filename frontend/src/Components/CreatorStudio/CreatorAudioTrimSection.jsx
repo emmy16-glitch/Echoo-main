@@ -84,11 +84,11 @@ const CreatorAudioTrimSection = ({ track, onChanged, onClose, onNotice }) => {
       let blob = peekLocalMaster(id)?.blob || null;
       let label = 'local master';
       if (!blob?.size) {
-        setSourceLabel('Downloading server copy…');
+        setSourceLabel('Getting the saved recording…');
         const response = await apiFetch(`/audio/${encodeURIComponent(id)}/download`);
         if (!response.ok) throw new Error('Could not fetch this recording for trimming.');
         blob = await response.blob();
-        label = 'server copy';
+        label = 'saved Echoo copy';
       }
       if (!canTrimRecording(blob)) {
         throw new Error('This recording is too long to trim in the browser.');
@@ -209,7 +209,7 @@ const CreatorAudioTrimSection = ({ track, onChanged, onClose, onNotice }) => {
             <strong id={`creator-audio-trim-title-${trackId}`}><FaCut /> Trim recording</strong>
             <span>
               {sourceState === 'ready' && duration
-                ? 'Choose the part you want to keep. Echoo trims the saved server copy without changing the original.'
+                ? 'Choose the part you want to keep. Echoo creates a trimmed copy without changing the original.'
                 : 'Create a separate trimmed copy. No large WAV upload is required.'}
             </span>
           </div>
@@ -288,7 +288,7 @@ const CreatorAudioTrimSection = ({ track, onChanged, onClose, onNotice }) => {
 
             {saving && (
               <div className="creator-audio-trim-loading" role="status">
-                <span>Creating trimmed copy on the Echoo server…</span>
+                <span>Creating your trimmed copy…</span>
                 <i><b style={{ width: '72%' }} /></i>
               </div>
             )}

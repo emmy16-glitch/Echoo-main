@@ -105,6 +105,16 @@ Authentication is Echoo's atmospheric exception to the light application canvas.
 - Account prompts belong to account-dependent actions such as following, saving, history, notifications and creator tools.
 - Keep authentication copy quiet and functional: visible labels, minimal placeholders, inline recovery, and a clear route back to public listening.
 
+## Creator language and recovery
+
+Creator-facing UI describes the creator's outcome, not Echoo's infrastructure.
+
+- Say **Recording safe**, **Saved to Echoo**, **Device copy**, **Finishing in the background**, and **Retry Echoo save**.
+- Do not expose routine terms such as server copy, server save, FFmpeg, OPFS, egress, chunk upload, or storage reconciliation in normal creator flows.
+- After **End Broadcast**, return the studio to OFF AIR as soon as listener audio has stopped. Recording finalization and recovery may continue in the background with a small truthful status.
+- A recovered local recording is a protected recovery state, not an error state. Keep save/retry/discard actions available without presenting it as data loss.
+- Technical diagnostics belong in logs, health tools, or an explicit troubleshooting/details surface.
+
 ## Do's and Don'ts
 
 ### Do:

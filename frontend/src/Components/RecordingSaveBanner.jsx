@@ -393,8 +393,8 @@ const RecordingSaveBanner = () => {
             </strong>
             <span>
               {state.format === 'mp3'
-                ? `Encoding on this device · ${state.percent || 0}% · server not required`
-                : 'Saving the lossless local master · server not required'}
+                ? `Encoding on this device · ${state.percent || 0}%`
+                : 'Saving the lossless device copy'}
             </span>
             {state.format === 'mp3' && (
               <i className="echoo-save-banner-bar">
@@ -411,13 +411,13 @@ const RecordingSaveBanner = () => {
           <div className="echoo-save-banner-body">
             <strong>
               {state.localSaved
-                ? 'Local recording saved · finishing Echoo server copy'
+                ? 'Device copy saved · finishing your Echoo recording'
                 : `Recording ready locally · finishing “${state.title}” on Echoo`}
             </strong>
             <span>
               {state.localSaved
-                ? 'You already have the device copy. Server finalization can finish separately.'
-                : 'You can save MP3 or WAV to this device now — you do not need to wait for the server.'}
+                ? 'Your device copy is safe. Echoo is finishing the recording in the background.'
+                : 'You can save MP3 or WAV to this device now while Echoo finishes in the background.'}
             </span>
           </div>
           {!state.localSaved && renderLocalSaveButtons()}
@@ -487,7 +487,7 @@ const RecordingSaveBanner = () => {
               onClick={() => chooseDeviceCopy('none')}
               disabled={Boolean(state.choosing)}
             >
-              Server only
+              Echoo only
             </button>
           </div>
         </>
@@ -500,8 +500,8 @@ const RecordingSaveBanner = () => {
             <strong>Recording saved</strong>
             <span>
               {state.localCopy?.saved
-                ? `Echoo server MP3 · ${String(state.localCopy.format || '').toUpperCase()} device copy · ${state.localCopy.filename || state.title}`
-                : `Echoo server MP3 · ${state.title}`}
+                ? `Echoo recording · ${String(state.localCopy.format || '').toUpperCase()} device copy · ${state.localCopy.filename || state.title}`
+                : `Echoo recording · ${state.title}`}
             </span>
           </div>
           {state.audioId && (
@@ -535,10 +535,10 @@ const RecordingSaveBanner = () => {
           <div className="echoo-save-banner-body">
             <strong>
               {state.localSaved
-                ? 'Local recording saved — Echoo server copy is pending'
+                ? 'Device copy saved — Echoo is still finishing the recording'
                 : state.serverReady
-                  ? 'Echoo server copy is safe — device copy needs attention'
-                  : `Recording is safe locally — server is not ready`}
+                  ? 'Echoo recording is safe — device copy needs attention'
+                  : `Recording is safe on this device — Echoo still needs to finish saving`}
             </strong>
             <span>{state.message || 'Your local master is kept.'}</span>
           </div>
@@ -552,7 +552,7 @@ const RecordingSaveBanner = () => {
               onClick={retryServer}
               disabled={state.retryingServer}
             >
-              {state.retryingServer ? 'Retrying server…' : 'Retry Echoo server save'}
+              {state.retryingServer ? 'Retrying…' : 'Retry Echoo save'}
             </button>
           )}
 
@@ -591,10 +591,9 @@ const RecordingSaveBanner = () => {
         <>
           <FaExclamationTriangle aria-hidden="true" />
           <div className="echoo-save-banner-body">
-            <strong>Unsaved local recording found</strong>
+            <strong>Recovered recording found</strong>
             <span>
-              {state.title} — recovered from this device. Save it as MP3 or WAV
-              before trying the server if you want a device copy first.
+              {state.title} — recovered from this device. Save a device copy now, or try saving it back to Echoo.
             </span>
           </div>
 
@@ -605,7 +604,7 @@ const RecordingSaveBanner = () => {
             className="eb-press"
             onClick={uploadRecovered}
           >
-            Retry Echoo server save
+            Retry Echoo save
           </button>
           <button
             type="button"
