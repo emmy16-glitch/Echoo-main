@@ -244,12 +244,56 @@ const CreatorStudioBody = () => {
         setBackgroundRecordingProgress({
           key: detail.key,
           title: detail.title || 'Broadcast recording',
-          stage: 'uploading',
-          ...updateTransferEstimate(null, {
-            loaded: 0,
-            total: detail.total || 0,
-          }),
+          stage: 'preparing',
+          startedAt: Date.now(),
+          elapsedSeconds: 0,
+          percent: 0,
+          loaded: 0,
+          total: 0,
         });
+        return;
+      }
+
+      if (status === 'device-saving') {
+        setBackgroundRecordingProgress({
+          key: detail.key,
+          title: detail.title || 'Broadcast recording',
+          stage: 'device-saving',
+          format: detail.format || 'mp3',
+          startedAt: Date.now(),
+          elapsedSeconds: 0,
+          percent: 0,
+          loaded: 0,
+          total: 0,
+        });
+        return;
+      }
+
+      if (status === 'device-progress') {
+        setBackgroundRecordingProgress((current) => {
+          if (current?.key && detail.key && current.key !== detail.key) return current;
+          return {
+            ...(current || {}),
+            key: detail.key || current?.key,
+            title: detail.title || current?.title || 'Broadcast recording',
+            stage: 'device-saving',
+            format: detail.format || current?.format || 'mp3',
+            percent: Math.max(0, Math.min(100, Number(detail.percent) || 0)),
+            startedAt: current?.startedAt || Date.now(),
+          };
+        });
+        return;
+      }
+
+      if (status === 'finalizing') {
+        setBackgroundRecordingProgress((current) => ({
+          ...(current || {}),
+          key: detail.key || current?.key,
+          title: detail.title || current?.title || 'Broadcast recording',
+          stage: 'finalizing',
+          localSaved: Boolean(detail.localSaved || detail.localCopy?.saved),
+          startedAt: current?.startedAt || Date.now(),
+        }));
         return;
       }
 
@@ -697,17 +741,29 @@ const CreatorStudioBody = () => {
                       ? 'Waiting for connection'
                       : backgroundRecordingProgress.stage === 'recovered'
                         ? 'Recovered recording is protected locally'
-                        : backgroundRecordingProgress.stage === 'verifying'
-                          ? 'Upload complete — finishing recording'
-                          : 'Saving recording in background'}
+                        : backgroundRecordingProgress.stage === 'device-saving'
+                          ? `Saving ${String(backgroundRecordingProgress.format || 'mp3').toUpperCase()} to this device`
+                          : backgroundRecordingProgress.stage === 'finalizing'
+                            ? backgroundRecordingProgress.localSaved
+                              ? 'Device copy saved · finishing Echoo recording'
+                              : 'Recording ready locally · finishing on Echoo'
+                            : backgroundRecordingProgress.stage === 'verifying'
+                              ? 'Transfer complete · verifying recording'
+                              : backgroundRecordingProgress.stage === 'preparing'
+                                ? 'Preparing recording save'
+                                : 'Saving recording to Echoo'}
               </strong>
               <span>
-                {backgroundRecordingProgress.stage === 'uploading'
+                {backgroundRecordingProgress.stage === 'uploading' ||
+                (backgroundRecordingProgress.stage === 'device-saving' && backgroundRecordingProgress.format === 'mp3')
                   ? `${Math.max(0, Math.min(100, Math.round(backgroundRecordingProgress.percent || 0)))}%`
                   : `${formatElapsedTime(backgroundRecordingProgress.elapsedSeconds || 0)} elapsed`}
               </span>
             </div>
-            {['uploading', 'verifying'].includes(backgroundRecordingProgress.stage) && (
+            {(
+              ['uploading', 'verifying'].includes(backgroundRecordingProgress.stage) ||
+              (backgroundRecordingProgress.stage === 'device-saving' && backgroundRecordingProgress.format === 'mp3')
+            ) && (
               <div className="studio-global-progress__bar" aria-hidden="true">
                 <i style={{ width: `${Math.max(2, Math.min(100, backgroundRecordingProgress.percent || 0))}%` }} />
               </div>
@@ -720,10 +776,18 @@ const CreatorStudioBody = () => {
                   : backgroundRecordingProgress.stage === 'error'
                     ? backgroundRecordingProgress.message || 'Open Recordings to retry.'
                     : backgroundRecordingProgress.stage === 'verifying'
-                      ? `Finishing recording · ${formatElapsedTime(backgroundRecordingProgress.elapsedSeconds || 0)} elapsed`
-                      : backgroundRecordingProgress.stage === 'done'
-                        ? backgroundRecordingProgress.title
-                        : transferProgressText(backgroundRecordingProgress)}
+                      ? `Verifying saved recording · ${formatElapsedTime(backgroundRecordingProgress.elapsedSeconds || 0)} elapsed`
+                      : backgroundRecordingProgress.stage === 'device-saving'
+                        ? 'Encoding the local MP3 after OFF AIR. The Echoo server copy is separate.'
+                        : backgroundRecordingProgress.stage === 'finalizing'
+                          ? backgroundRecordingProgress.localSaved
+                            ? 'The device file is safe. Echoo is finishing its separate saved copy.'
+                            : 'The local recovery master is safe while Echoo finishes its saved copy.'
+                          : backgroundRecordingProgress.stage === 'preparing'
+                            ? 'Closing the local recording safely.'
+                            : backgroundRecordingProgress.stage === 'done'
+                              ? backgroundRecordingProgress.title
+                              : transferProgressText(backgroundRecordingProgress)}
             </small>
           </div>
         )}
