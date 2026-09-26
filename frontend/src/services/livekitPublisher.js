@@ -20,6 +20,7 @@ const PROGRAM_TRACK_NAME = 'echoo-studio-mix';
 const DEV_TRACK_NAME = 'echoo-dev-test-audio';
 const WATCHDOG_INTERVAL_MS = 5000;
 const ROOM_DISCONNECT_DEADLINE_MS = 4000;
+const RECOVERY_DISCONNECT_DEADLINE_MS = 1000;
 const CREATOR_RECOVERY_WINDOW_MS = 90_000;
 
 let activeRoom = null;
@@ -199,7 +200,10 @@ const cancelRecoveryTimer = (candidate) => {
   if (candidate) candidate.recoveryTimer = null;
 };
 
-const detachRoom = async (room) => {
+const detachRoom = async (
+  room,
+  { deadlineMs = ROOM_DISCONNECT_DEADLINE_MS } = {}
+) => {
   if (!room) return;
   let deadlineTimer = null;
   let deadlineReached = false;
@@ -212,7 +216,7 @@ const detachRoom = async (room) => {
     deadlineTimer = window.setTimeout(() => {
       deadlineReached = true;
       resolve();
-    }, ROOM_DISCONNECT_DEADLINE_MS);
+    }, Math.max(250, Number(deadlineMs) || ROOM_DISCONNECT_DEADLINE_MS));
   });
 
   await Promise.race([disconnect, deadline]);
@@ -370,7 +374,11 @@ const connectAndPublish = async (candidate, { url, token, recovery = false }) =>
   } catch (error) {
     if (activeRoom === room) activeRoom = null;
     activePublication = null;
-    await detachRoom(room);
+    await detachRoom(room, {
+      deadlineMs: recovery
+        ? RECOVERY_DISCONNECT_DEADLINE_MS
+        : ROOM_DISCONNECT_DEADLINE_MS,
+    });
     throw error;
   }
 };
@@ -399,11 +407,18 @@ async function runPublisherRecovery(candidate, reason) {
 
       try {
         const staleRoom = activeRoom;
-        activeRoom = null;
-        activePublication = null;
-        await detachRoom(staleRoom);
+
+        // Refresh credentials BEFORE tearing down a still-usable room. On a
+        // slow backend this keeps the current LiveKit path alive until the
+        // replacement connection is ready to start, avoiding needless dead air.
         const credentials = await candidate.credentialProvider?.();
         if (!credentials?.token) throw new Error('Echoo could not refresh creator credentials.');
+
+        activeRoom = null;
+        activePublication = null;
+        await detachRoom(staleRoom, {
+          deadlineMs: RECOVERY_DISCONNECT_DEADLINE_MS,
+        });
         await connectAndPublish(candidate, {
           url: credentials.livekitUrl || candidate.url,
           token: credentials.token,
