@@ -96,6 +96,9 @@ test('post-live recovery resumes only missing WAV chunks after a network failure
   assert.match(backend, /existingChunkIndices/);
   assert.match(backend, /select\('_id chunkIndex filePath'\)/);
   assert.match(backend, /durableWavChunkExists/);
+  assert.match(backend, /pcmFromWavChunk\(req\.file\.buffer\)/);
+  assert.match(backend, /stat\.size === 44 \+ declaredDataBytes/);
+  assert.match(backend, /INVALID_CHUNK_FORMAT/);
   assert.match(backend, /repaired:\s*true/);
   assert.match(backend, /repairPath/);
   assert.match(frontend, /new Set\(/);
