@@ -11,6 +11,7 @@ import {
 
 import batch2Service from '../../services/batch2Service';
 import DurationPicker from '../UI/DurationPicker.jsx';
+import { requestEchooConfirmation } from '../Shared/ConfirmDialogHost.jsx';
 import './CreatorBroadcastSettingsWorkspace.css';
 
 const IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -163,7 +164,13 @@ export default function CreatorBroadcastSettingsWorkspace({ onNavigate }) {
 
   const cancelBroadcast = async () => {
     if (!broadcast?.id || busy) return;
-    if (!window.confirm(`Cancel “${broadcast.title || 'this broadcast'}”?`)) return;
+    const confirmed = await requestEchooConfirmation({
+      title: 'Cancel scheduled broadcast?',
+      description: `“${broadcast.title || 'This broadcast'}” will no longer be scheduled to go live. You can create a new schedule later.`,
+      confirmLabel: 'Cancel broadcast',
+      tone: 'danger',
+    });
+    if (!confirmed) return;
     try {
       setBusy('cancel');
       setError('');
@@ -179,7 +186,13 @@ export default function CreatorBroadcastSettingsWorkspace({ onNavigate }) {
 
   const deleteBroadcast = async () => {
     if (!broadcast?.id || busy) return;
-    if (!window.confirm(`Delete “${broadcast.title || 'this broadcast'}”? This cannot be undone.`)) return;
+    const confirmed = await requestEchooConfirmation({
+      title: 'Delete scheduled broadcast?',
+      description: `“${broadcast.title || 'This broadcast'}” will be removed permanently. This action cannot be undone.`,
+      confirmLabel: 'Delete broadcast',
+      tone: 'danger',
+    });
+    if (!confirmed) return;
     try {
       setBusy('delete');
       setError('');
