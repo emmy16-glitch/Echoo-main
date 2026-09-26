@@ -59,7 +59,7 @@ test('device recording is available before server finalization and never needs a
   assert.doesNotMatch(autosave, /new File\(\[recording\.blob/);
   assert.match(banner, /Save MP3 to device/);
   assert.match(banner, /Save WAV to device/);
-  assert.match(banner, /Retry Echoo server save/);
+  assert.match(banner, /Retry Echoo save/);
   assert.match(autosave, /SERVER_END_PENDING/);
   assert.match(autosave, /skipDeviceSave:\s*true/);
 });
@@ -80,6 +80,20 @@ test('LIVE is set by the published program track, with confirmation and recordin
   assert.ok(recorderAt >= 0);
   assert.doesNotMatch(publisher, /startWhisperFlowTranscription|stopWhisperFlowTranscription/);
   assert.doesNotMatch(batch3.slice(startAt, confirmServiceAt), /checkLiveKitReadiness\s*\(/);
+});
+
+test('a stale ending broadcast returns the creator to OFF AIR while recovery continues in the background', async () => {
+  const workspace = await read('./CreatorLiveConnectedWorkspace.jsx');
+
+  assert.match(workspace, /item\.status === 'live'\n\s*\) \|\| null/);
+  assert.match(workspace, /const endingBroadcast = realBroadcasts\.find/);
+  assert.match(workspace, /setCurrentLiveBroadcast\(null\)/);
+  assert.match(workspace, /batch3Service\.recoverBroadcast\(endingBroadcast\.id\)/);
+  assert.match(workspace, /Broadcast ended\. Your recording is being prepared in the background\./);
+  assert.doesNotMatch(
+    workspace,
+    /item\.status === 'live' \|\| item\.status === 'ending'/
+  );
 });
 
 test('a database-live broadcast can rebuild its publisher after a page reload', async () => {
@@ -105,7 +119,7 @@ test('End stops listener audio and local recovery master before waiting for serv
   const endBody = workspace.slice(endAt, workspace.indexOf('const copyLiveLink', endAt));
   const backendStartAt = endBody.indexOf('const backendEnd = batch3Service.endBroadcastRealtime');
   const unpublishAt = endBody.indexOf('await stopLiveKitPublishing()');
-  const offAirAt = endBody.indexOf("markOffAir('Broadcast audio stopped. Finalizing your local master…')");
+  const offAirAt = endBody.indexOf("markOffAir('Broadcast ended. Your recording is safe and Echoo is finishing it in the background.')");
   const localFinalizeAt = endBody.indexOf('const localRecording = batch3Service.finalizeBroadcastRecording');
   const awaitLocalAt = endBody.indexOf('const recordingResult = await localRecording');
   const announceAt = endBody.indexOf('batch3Service.announceFinalizedBroadcastRecording');
@@ -157,6 +171,22 @@ test('image cropping is layered above the high-priority Collection editor', asyn
   assert.ok(cropIndex > collectionIndex);
 });
 
+
+test('creator recovery refreshes credentials before replacing the existing LiveKit room', async () => {
+  const publisher = await read('../../services/livekitPublisher.js');
+  const start = publisher.indexOf('async function runPublisherRecovery');
+  const end = publisher.indexOf('async function schedulePublisherRecovery', start);
+  const recovery = publisher.slice(start, end);
+  const credentialsAt = recovery.indexOf('const credentials = await candidate.credentialProvider?.()');
+  const clearRoomAt = recovery.indexOf('activeRoom = null');
+  const detachAt = recovery.indexOf('await detachRoom(staleRoom');
+
+  assert.ok(credentialsAt >= 0);
+  assert.ok(clearRoomAt > credentialsAt);
+  assert.ok(detachAt > credentialsAt);
+  assert.match(publisher, /RECOVERY_DISCONNECT_DEADLINE_MS = 1000/);
+  assert.match(recovery, /deadlineMs: RECOVERY_DISCONNECT_DEADLINE_MS/);
+});
 
 test('creator recovery continues through the backend disconnect grace window', async () => {
   const publisher = await read('../../services/livekitPublisher.js');
