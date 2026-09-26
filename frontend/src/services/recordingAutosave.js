@@ -126,18 +126,7 @@ const rememberPendingMaster = ({
 
 const waitForServerEndOutcome = async (serverEndPromise) => {
   if (!serverEndPromise) return { ok: true, response: null };
-  let timer = null;
-  const timeout = new Promise((resolve) => {
-    timer = window.setTimeout(
-      () => resolve({ ok: false, timeout: true }),
-      30_000
-    );
-  });
-  try {
-    return await Promise.race([serverEndPromise, timeout]);
-  } finally {
-    if (timer != null) window.clearTimeout(timer);
-  }
+  return serverEndPromise;
 };
 
 export const startAutosave = async ({
@@ -259,9 +248,7 @@ const startAutosaveLive = async ({
       const serverEndOutcome = await waitForServerEndOutcome(serverEndPromise);
       if (!serverEndOutcome?.ok) {
         const pendingEnd = new Error(
-          serverEndOutcome?.timeout
-            ? 'Echoo server cleanup did not finish in time.'
-            : serverEndOutcome?.error?.message || 'Echoo server cleanup failed.'
+          serverEndOutcome?.error?.message || 'Echoo server cleanup failed.'
         );
         pendingEnd.code = 'SERVER_END_PENDING';
         throw pendingEnd;
