@@ -1,5 +1,6 @@
 const WAV_HEADER_SCAN_BYTES = 64 * 1024;
 const LOCAL_MP3_READ_SECONDS = 5;
+const LOCAL_MP3_TEMP_DIRECTORY = 'echoo-local-mp3-exports';
 export const DEFAULT_LOCAL_MP3_BITRATE_KBPS = 320;
 
 const ascii = (bytes, offset, length) =>
@@ -17,6 +18,55 @@ const assertNotAborted = (signal) => {
 
 const yieldToUi = () =>
   new Promise((resolve) => setTimeout(resolve, 0));
+
+
+const supportsOpfs = () =>
+  typeof navigator !== 'undefined' &&
+  typeof navigator.storage?.getDirectory === 'function';
+
+const openTemporaryMp3Sink = async () => {
+  if (!supportsOpfs()) return null;
+
+  const root = await navigator.storage.getDirectory();
+  const directory = await root.getDirectoryHandle(
+    LOCAL_MP3_TEMP_DIRECTORY,
+    { create: true }
+  );
+  const randomPart =
+    globalThis.crypto?.randomUUID?.() ||
+    `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const filename = `echoo-local-${randomPart}.mp3`;
+  const fileHandle = await directory.getFileHandle(filename, { create: true });
+  const writable = await fileHandle.createWritable();
+
+  return {
+    directory,
+    filename,
+    fileHandle,
+    writable,
+    closed: false,
+    async close() {
+      if (this.closed) return;
+      await this.writable.close();
+      this.closed = true;
+    },
+    async abort() {
+      if (!this.closed) {
+        try { await this.writable.abort?.(); } catch { /* best effort */ }
+        try { await this.writable.close?.(); } catch { /* best effort */ }
+        this.closed = true;
+      }
+      try { await this.directory.removeEntry(this.filename); } catch { /* best effort */ }
+    },
+    async file() {
+      await this.close();
+      return this.fileHandle.getFile();
+    },
+    async dispose() {
+      try { await this.directory.removeEntry(this.filename); } catch { /* best effort */ }
+    },
+  };
+};
 
 export const parsePcmWavHeader = async (blob) => {
   if (!blob?.size) throw new Error('The local WAV master is empty.');
@@ -177,12 +227,18 @@ export const encodeLocalWavToMp3 = async ({
   });
 
   const collected = [];
+  const temporarySink = onChunk
+    ? null
+    : await openTemporaryMp3Sink().catch(() => null);
   let encodedBytes = 0;
   const emitChunk = async (value) => {
     if (!value?.byteLength) return;
-    const chunk = value instanceof Uint8Array ? value : new Uint8Array(value);
+    // @audio/encode-mp3 returns a view backed by WASM memory. Copy it before
+    // awaiting any filesystem write so a later encoder call cannot mutate it.
+    const chunk = new Uint8Array(value);
     encodedBytes += chunk.byteLength;
     if (onChunk) await onChunk(chunk);
+    else if (temporarySink) await temporarySink.writable.write(chunk);
     else collected.push(chunk);
   };
 
@@ -218,16 +274,33 @@ export const encodeLocalWavToMp3 = async ({
 
     assertNotAborted(signal);
     await emitChunk(encoder.flush());
+  } catch (error) {
+    await temporarySink?.abort?.();
+    throw error;
   } finally {
     encoder.free?.();
   }
 
+  let outputBlob = null;
+  let dispose = null;
+  let storageMode = onChunk ? 'external-stream' : 'memory';
+
+  if (!onChunk && temporarySink) {
+    outputBlob = await temporarySink.file();
+    storageMode = 'opfs-temp';
+    dispose = () => temporarySink.dispose();
+  } else if (!onChunk) {
+    outputBlob = new Blob(collected, { type: 'audio/mpeg' });
+  }
+
   return {
-    blob: onChunk ? null : new Blob(collected, { type: 'audio/mpeg' }),
+    blob: outputBlob,
     mimeType: 'audio/mpeg',
     format: 'mp3',
     bitrateKbps: safeBitrate,
     encodedBytes,
+    storageMode,
+    dispose,
     sourceFormat: 'pcm-wav',
     sourceSampleRate: wav.sampleRate,
     sourceChannels: wav.channels,
