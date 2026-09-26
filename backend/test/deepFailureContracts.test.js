@@ -219,7 +219,12 @@ test('recording management keeps trim copies safe and prevents cramped or mislab
   assert.match(exportService, /isWavMaster/);
   assert.match(exportService, /encodeLocalWavToMp3/);
   assert.match(exportService, /browser-user-gesture-required/);
+  assert.match(exportService, /requiresSecondTap/);
+  assert.match(exportService, /prepared-local-mp3/);
+  assert.match(exportService, /unverifiedDownload/);
   assert.match(exportService, /server-mp3-fallback/);
+  assert.match(banner, /MP3 ready · Tap to save/);
+  assert.match(banner, /browsers cannot confirm the file was actually retained/);
   assert.match(exportService, /localMime\.includes\('webm'\)/);
   assert.match(exportService, /suggestedName:\s*filename/);
   assert.doesNotMatch(exportService, /suggestedName:\s*suggestedInLibrary/);
