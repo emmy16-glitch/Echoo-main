@@ -33,6 +33,7 @@ import {
   stopLiveKitPublishing,
 } from '../../services/livekitPublisher';
 import realtimeService from '../../services/realtimeService';
+import { prepareEndBroadcastDeviceSave } from '../../services/recordingAutosave';
 import {
   formatElapsedTime,
   transferProgressText,
@@ -783,6 +784,15 @@ const CreatorLiveConnectedWorkspace = ({
 
     const broadcastId = currentLiveBroadcast.id;
     const broadcastSnapshot = currentLiveBroadcast;
+
+    // Invoke the PC save picker before any await/network work while the
+    // confirmed End Broadcast button click still owns browser user activation.
+    // The resulting promise/handle is consumed only after the local master
+    // closes, so choosing a destination never puts encoding on the live path.
+    const deviceSaveReservation = prepareEndBroadcastDeviceSave({
+      broadcast: broadcastSnapshot,
+    });
+
     const endStartedAt = performance.now();
     try {
       endingRequestRef.current = true;
@@ -838,7 +848,10 @@ const CreatorLiveConnectedWorkspace = ({
           batch3Service.announceFinalizedBroadcastRecording(
             recordingResult.decision,
             broadcastSnapshot,
-            { serverEndPromise: backendEnd }
+            {
+              serverEndPromise: backendEnd,
+              deviceSaveReservation,
+            }
           );
         }
 
