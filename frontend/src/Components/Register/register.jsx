@@ -76,8 +76,7 @@ const AuthStatus = ({ title, message, duration, onContinue }) => {
         <h1>{title}</h1>
         <p>{message}</p>
         <span className="ear-auth-status-loader" aria-hidden="true" />
-        </section>
-      </div>
+      </section>
     </main>
   );
 };
@@ -435,7 +434,6 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
                       id="echoo-signup-fullname"
                       type="text"
                       name="fullname"
-                      placeholder="Your full name"
                       value={formData.fullname}
                       onChange={handleChange}
                       autoComplete="name"
@@ -650,7 +648,8 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
               </form>
             </>
           )}
-      </section>
+        </section>
+      </div>
     </main>
   );
 };
