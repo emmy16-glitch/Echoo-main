@@ -24,6 +24,8 @@ const QUALITY_CHUNK_CHANNELS = 2;
 const QUALITY_CHUNK_UPLOAD_RETRIES = 5;
 const QUALITY_CHUNK_START_RETRIES = 3;
 const QUALITY_CHUNK_COMPLETE_RETRIES = 5;
+const QUALITY_CHUNK_UPLOAD_TIMEOUT_MS = 120_000;
+const QUALITY_CHUNK_START_TIMEOUT_MS = 30_000;
 // Optional transport can never be allowed to accumulate arbitrary PCM on the
 // main thread. At 48 kHz stereo this permits 30 seconds of queued float audio;
 // exceeding it disables only the quality/archive branch and preserves LiveKit.
@@ -272,6 +274,7 @@ const uploadQualityChunk = async ({ recording, samples, startMs, endMs, chunkInd
         method: 'POST',
         body: form,
         isFormData: true,
+        timeoutMs: QUALITY_CHUNK_UPLOAD_TIMEOUT_MS,
       });
       const data = await response.json().catch(() => null);
       if (!response.ok) throw new Error(data?.error?.message || `Chunk upload failed (${response.status})`);
@@ -316,6 +319,7 @@ const uploadStoredPcmChunk = async ({ recording, pcmBlob, startMs, endMs, chunkI
         method: 'POST',
         body: form,
         isFormData: true,
+        timeoutMs: QUALITY_CHUNK_UPLOAD_TIMEOUT_MS,
       });
       const data = await response.json().catch(() => null);
       if (!response.ok) throw new Error(data?.error?.message || `Chunk upload failed (${response.status})`);
@@ -449,6 +453,7 @@ const startQualityChunking = async (recording) => {
     try {
       const response = await apiFetch(`/broadcasts/${recording.broadcastId}/recording-chunks/start`, {
         method: 'POST',
+        timeoutMs: QUALITY_CHUNK_START_TIMEOUT_MS,
       });
       const data = await response.json().catch(() => null);
       if (!response.ok) {
