@@ -18,6 +18,11 @@ const sessions = new Map();
 const startPromises = new Map();
 const expectedTracks = new Map();
 const desiredTracks = new Map();
+// Process-local proof that this Node process started/owns a LiveKit Egress.
+// Deliberately not persisted: after a process restart, an old Egress must be
+// treated as interrupted rather than allowed to overwrite the earlier MP3 and
+// masquerade as a complete recording.
+const ownedEgressIds = new Map();
 const TRACK_HANDOFF_TIMEOUT_MS = 12_000;
 const RECORDING_SOCKET_CLOSE_GRACE_MS = 4_000;
 const MAX_PENDING_PCM_BYTES = 8 * 1024 * 1024;
@@ -299,6 +304,7 @@ const finishSession = (session) => {
     });
 
     sessions.delete(session.broadcastId);
+    ownedEgressIds.delete(session.broadcastId);
     return {
       status: completed ? 'completed' : 'failed',
       pcmBytes: session.pcmBytes,
@@ -491,6 +497,7 @@ export const closeLiveKitRecordingWebSocket = () => {
   startPromises.clear();
   expectedTracks.clear();
   desiredTracks.clear();
+  ownedEgressIds.clear();
   try { websocketServer?.close(); } catch { /* closed */ }
   websocketServer = null;
   attachedHttpServer = null;
@@ -551,11 +558,35 @@ export const ensureLiveKitServerRecording = async ({
       recording?.trackSid === track &&
       ['starting', 'active', 'recovering'].includes(recording?.status)
     ) {
+      const egressId = String(recording.egressId);
+      const processOwnsRecording =
+        sessions.has(id) || ownedEgressIds.get(id) === egressId;
+
+      if (processOwnsRecording) {
+        return {
+          mode: 'server-egress',
+          active: true,
+          egressId,
+          trackSid: track,
+        };
+      }
+
+      // The database says an Egress existed, but this process has no matching
+      // FFmpeg/session ownership. That means the recorder crossed a process
+      // restart/crash boundary. Never start a new FFmpeg with -y and accept
+      // only the tail of the show as if it were complete.
+      await LiveKitProvider.stopEgress(egressId).catch(() => null);
+      expectedTracks.delete(id);
+      ownedEgressIds.delete(id);
+      await persist(id, {
+        'serverRecording.status': 'failed',
+        'serverRecording.egressId': null,
+        'serverRecording.error': 'Server recorder process restarted during the broadcast. Browser recovery is required for a complete replay.',
+      });
       return {
-        mode: 'server-egress',
-        active: true,
-        egressId: recording.egressId,
-        trackSid: track,
+        mode: 'browser-fallback',
+        active: false,
+        reason: 'server-process-restarted',
       };
     }
 
@@ -612,6 +643,7 @@ export const ensureLiveKitServerRecording = async ({
       );
       const egressId = String(egress?.egressId || '');
       if (!egressId) throw new Error('LiveKit did not return an egress ID.');
+      ownedEgressIds.set(id, egressId);
 
       await persist(id, {
         'serverRecording.egressId': egressId,
@@ -709,6 +741,7 @@ export const stopLiveKitServerRecording = async (broadcastId) => {
     fileBytes = 0;
   }
 
+  ownedEgressIds.delete(id);
   await persist(id, {
     'serverRecording.status': alreadyCompleted ? 'completed' : 'failed',
     'serverRecording.endedAt': new Date(),
