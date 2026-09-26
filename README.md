@@ -54,7 +54,7 @@
 2. **Go Live — Broadcast.** One click opens the LiveKit room; presence flips to live, followers can join.
 3. **Share — Grow.** Copy the listen link (`/listen/live/:id`) — anyone opening it hears the show instantly, account or not.
 4. **Engage — Chat.** Signed-in listeners chat and react live; guests watch the conversation stream read-only.
-5. **End — Save & keep.** While live, Echoo sends bounded master-audio chunks to the backend. Ending the broadcast finalizes the already-received audio into a high-fidelity MP3 (~144 MB/hour at the default 320k replay bitrate) as a private draft — there is no giant final WAV upload. Creators can still export a local WAV master explicitly while its recovery copy exists.
+5. **End — Save & keep.** While live, the creator publishes only the LiveKit program track; the browser writes its OPFS safety master locally and does **not** upload raw PCM/WAV. LiveKit Track Egress feeds backend FFmpeg for the canonical MP3 (~144 MB/hour at 320k). If server recording fails, the OPFS WAV uploads only **after OFF AIR** in bounded recovery chunks. On supported PC browsers, the End Broadcast click can pre-authorize the destination and Echoo writes the chosen local MP3/WAV automatically when finalization finishes.
 6. **Replay — Publish.** Review in Recordings, publish — listeners stream or download on demand.
 
 One connected loop:
@@ -127,7 +127,7 @@ Echoo uses LiveKit Cloud as its real-time audio SFU:
 
 - **Creator** publishes exactly one `echoo-studio-mix` program publication (stereo Opus, 48 kHz; profiles up to 510 kbps) with a short-lived publisher token. This post-master `echoo-studio-mix` is the single feed listeners hear and recordings capture.
 - **Creator recovery** republishes the same mixer output with fresh credentials after a real transport failure. Intentional Pause is excluded from the transport-stall watchdog and remains paused across reconnect. Automatic retries continue with bounded backoff through the backend's normal ~90-second creator-disconnect grace window instead of giving up after the first short retry burst.
-- **Listeners** attach only that publication to a native audio element with subscriber-only tokens (`canPublish: false`), reissued automatically on reconnect/expiry. Late join, track replacement, ended media elements, browser online recovery, and non-autoplay playback failures all have recovery paths; autoplay-policy failures remain an explicit Tap to hear action rather than a reconnect loop.
+- **Listeners** use hidden, subscribe-only LiveKit participants and explicitly subscribe only to the canonical `echoo-studio-mix` (`autoSubscribe: false`, `canPublish: false`). Late join, track replacement, ended media elements, browser online recovery, and non-autoplay playback failures all have recovery paths. Hard reconnects include per-client jitter so a large audience does not request tokens in lockstep.
 - **Guests** get server-generated `guest:<uuid>` identities with the same subscriber-only grants — they can never publish or impersonate accounts.
 - Token issuance is IP rate-limited; rooms are created on go-live and swept when orphaned.
 
@@ -143,6 +143,7 @@ During a healthy show, the browser keeps a temporary 24-bit/48 kHz PCM recovery 
 4. The OPFS master stops at the same practical boundary as listener audio. As soon as it closes, the creator can save **WAV directly** or encode a **320 kbps MP3 locally on the device**; neither action requires the Echoo server to be ready.
 5. Local MP3 conversion is post-live only, dynamically loads a WASM MP3 encoder, reads the WAV in bounded slices, and uses OPFS-backed output where available so long recordings do not require the whole lossless master in JavaScript memory.
 6. The OPFS master remains available until server persistence is confirmed **and** any requested device-copy policy is satisfied (or the creator chose server-only).
+7. A backend restart cannot bless a tail-only server MP3: process-local recorder ownership is required, otherwise the old Egress is failed closed and the full OPFS master becomes recovery authority.
 
 Playback always resolves through signed, time-limited `/api/audio/:id/stream` URLs: local files stream with HTTP ranges; cloud files redirect (public buckets) or mint short-lived object URLs (private buckets). Only replays are transcoded; uploaded music keeps its original encoding.
 
@@ -161,6 +162,8 @@ The default configuration is intentionally conservative:
 | Unconfigured audio/storage | Clear in-app message, never a silent failure |
 | Failed uploads | Local master kept; retry, never silent loss |
 | Secrets | `.env` files only, gitignored, never committed |
+
+For planned 500+ listener events, repository limits are **not** proof of production capacity. Verify the LiveKit project quota, reverse-proxy/WebSocket capacity, host connection/file-descriptor limits, and perform a staged 50 → 100 → 250 → 500 real-listener ramp before calling the infrastructure ready.
 
 See [docs/deployment.md](docs/deployment.md).
 
