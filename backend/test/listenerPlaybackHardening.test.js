@@ -24,6 +24,17 @@ test('live listener keeps playback intent, device volume, and explicit recovery 
   assert.doesNotMatch(player, /setActionHandler\('pause',[\s\S]{0,80}togglePlayback/);
 });
 
+test('guest live catalog opens broadcasts directly instead of passing station ids to the live room', async () => {
+  const listener = await source('../../frontend/src/Components/ListenerV2/ListenerV2.jsx');
+
+  assert.match(listener, /batch2Service\.listBroadcasts\(\{[\s\S]*status:\s*'live'/);
+  assert.match(listener, /navigate\(\`\/listen\/live\/\$\{idOf\(item\)\}\`/);
+  assert.doesNotMatch(
+    listener,
+    /const response = await batch2Service\.listStations\(\{ page: 1, limit: 100 \}\);[\s\S]{0,220}setLiveNow\(stations\.filter/
+  );
+});
+
 test('live room primary control recovers disconnected audio and never relies on playerError to disable Play', async () => {
   const room = await source('../../frontend/src/Components/ListenerLiveExperience/ListenerRealLiveRoom.jsx');
 
