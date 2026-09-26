@@ -1,103 +1,64 @@
 @import "./styles/echoo-final-cleanup.css";
 :root {
-  --text: #5F6F85;
-  --text-h: #101828;
-  --text-soft: #7D8B9E;
-  --text-muted: #98A2B3;
+  --text: var(--echoo-color-text, #41516a);
+  --text-h: var(--echoo-color-ink, #0b1d3a);
+  --text-soft: var(--echoo-color-muted, #66758a);
+  --text-muted: var(--echoo-color-faint, #8c98aa);
 
-  --bg: #F5F8FC;
-  --surface: #FFFFFF;
+  --bg: var(--echoo-color-canvas, #f6f8fc);
+  --surface: var(--echoo-color-surface, #ffffff);
 
-  --border: #E3EAF2;
-  --border-strong: #D3DEEA;
+  --border: var(--echoo-color-line, #dce4f0);
+  --border-strong: var(--echoo-color-line-strong, #cbd5e3);
 
-  --accent: #1769D3;
-  --accent-hover: #125FBE;
-  --accent-bg: rgba(23, 105, 211, 0.08);
-  --accent-border: rgba(23, 105, 211, 0.28);
+  --accent: var(--echoo-color-brand, #245cff);
+  --accent-hover: var(--echoo-color-brand-hover, #1d4fe0);
+  --accent-bg: rgba(36, 92, 255, .08);
+  --accent-border: rgba(36, 92, 255, .24);
 
-  --input-bg: #F3F6FA;
-  --input-hover: #EEF3F8;
+  --input-bg: #f3f6fb;
+  --input-hover: #eef3f9;
 
   --shadow:
-    rgba(23, 47, 78, 0.055) 0 12px 35px,
-    rgba(23, 47, 78, 0.025) 0 2px 8px;
+    rgba(11, 29, 58, .05) 0 12px 34px,
+    rgba(11, 29, 58, .02) 0 2px 8px;
 
-  --sans:
-    Inter,
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    Roboto,
-    Helvetica,
-    Arial,
-    sans-serif;
-
-  --heading:
-    Inter,
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    Roboto,
-    Helvetica,
-    Arial,
-    sans-serif;
-
-  --mono:
-    ui-monospace,
-    SFMono-Regular,
-    Menlo,
-    Monaco,
-    Consolas,
-    monospace;
+  --sans: var(--echoo-font-body, "Source Sans 3", "Segoe UI", ui-sans-serif, system-ui, sans-serif);
+  --heading: var(--echoo-font-display, "Space Grotesk", "Segoe UI", ui-sans-serif, system-ui, sans-serif);
+  --control: var(--echoo-font-accent, "Manrope", "Segoe UI", ui-sans-serif, system-ui, sans-serif);
+  --mono: var(--echoo-font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
 
   --echoo-text: var(--text);
   --echoo-text-h: var(--text-h);
   --echoo-text-soft: var(--text-soft);
   --echoo-text-muted: var(--text-muted);
-
   --echoo-bg: var(--bg);
-  --echoo-bg-soft: #f8fbff;
+  --echoo-bg-soft: #f8faff;
   --echoo-surface: var(--surface);
-
   --echoo-border: var(--border);
   --echoo-border-strong: var(--border-strong);
-
   --echoo-input: var(--input-bg);
   --echoo-input-focus: #ffffff;
-
   --echoo-blue: var(--accent);
   --echoo-blue-hover: var(--accent-hover);
-  --echoo-blue-soft: #edf5ff;
+  --echoo-blue-soft: #eef3ff;
   --echoo-blue-border: var(--accent-border);
-
   --echoo-shadow: var(--shadow);
-
   --echoo-sans: var(--sans);
   --echoo-mono: var(--mono);
 
   font-family: var(--sans);
-
   font-size: 16px;
-  line-height: 1.45;
-
-  letter-spacing: 0.12px;
-
+  line-height: 1.5;
+  letter-spacing: 0;
   color: var(--text);
   background: var(--bg);
-
   color-scheme: light;
-
   font-synthesis: none;
   text-rendering: optimizeLegibility;
-
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-}
+
 
 *,
 *::before,
@@ -144,9 +105,12 @@ body {
 }
 
 button,
-input,
-textarea,
 select {
+  font-family: var(--control);
+}
+
+input,
+textarea {
   font-family: var(--sans);
 }
 
