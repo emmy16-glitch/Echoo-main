@@ -373,10 +373,10 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
         return;
       }
 
-      // A Creator may already be live before this Listener joins. With
-      // autoSubscribe enabled LiveKit normally handles this, but explicitly
-      // requesting the subscription also covers publications announced during
-      // the initial participant snapshot and avoids a silent waiting state.
+      // A Creator may already be live before this Listener joins. Because
+      // autoSubscribe is intentionally disabled, explicitly request only the
+      // canonical program publication from the initial participant snapshot
+      // and later TrackPublished events.
       if (
         publication.kind === Track.Kind.Audio &&
         !publication.isSubscribed &&
@@ -545,13 +545,13 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       reconnectAttemptRef.current = 0;
       setIsPlaying(hasPlayingAudio);
       setStatus(hasPlayingAudio ? 'listening' : attachedRef.current.size ? 'recovering_audio' : 'waiting_for_program');
-      setNeedsAudioStart(
+      const playbackBlocked =
         playbackIntentRef.current === 'play' &&
         attachedRef.current.size > 0 &&
         !hasPlayingAudio &&
-        !room.canPlaybackAudio
-      );
-      needsAudioStartRef.current = attachedRef.current.size > 0 && !hasPlayingAudio;
+        !room.canPlaybackAudio;
+      setNeedsAudioStart(playbackBlocked);
+      needsAudioStartRef.current = playbackBlocked;
     };
 
     connect().catch(async (connectError) => {
