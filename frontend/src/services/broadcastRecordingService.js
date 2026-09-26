@@ -18,6 +18,7 @@ const OPFS_MANIFESTS_KEY = 'echoo:recoverable-broadcast-recordings:v2';
 const OPFS_CHECKPOINT_MS = 15_000;
 
 const OPUS_FALLBACK_BITRATE = 256000;
+const OPUS_FALLBACK_MAX_BYTES = 128 * 1024 * 1024;
 const QUALITY_CHUNK_SECONDS = 10;
 const QUALITY_CHUNK_BIT_DEPTH = 24;
 const QUALITY_CHUNK_CHANNELS = 2;
@@ -917,7 +918,7 @@ const stopFallbackRecording = (recording, { keep = true } = {}) =>
         // The cloned fallback track may already be ended.
       }
 
-      if (!keep) {
+      if (!keep || recording.overflowed) {
         resolve(null);
         return;
       }
@@ -989,9 +990,32 @@ const startFallbackRecording = ({ broadcastId, mediaTrack, title }) => {
 
   const recorder = new MediaRecorder(stream, options);
   const chunks = [];
+  let fallbackBytes = 0;
+  let fallbackOverflowed = false;
 
   recorder.addEventListener('dataavailable', (event) => {
-    if (event.data?.size) chunks.push(event.data);
+    if (!event.data?.size || fallbackOverflowed) return;
+    if (fallbackBytes + event.data.size > OPUS_FALLBACK_MAX_BYTES) {
+      fallbackOverflowed = true;
+      chunks.length = 0;
+      fallbackBytes = 0;
+      try { clonedTrack.stop(); } catch { /* clone may already be stopped */ }
+      try {
+        if (recorder.state !== 'inactive') recorder.stop();
+      } catch {
+        // Stopping the safety recorder must never affect the LiveKit track.
+      }
+      window.dispatchEvent(new CustomEvent('echoo:toast', {
+        detail: {
+          type: 'warning',
+          message: 'This browser cannot keep a very long local safety recording in memory. Your live stream continues normally; use a browser with disk-backed recording for long broadcasts.',
+        },
+      }));
+      console.warn('[Echoo Recording] bounded Opus fallback stopped to protect live-stream memory.');
+      return;
+    }
+    chunks.push(event.data);
+    fallbackBytes += event.data.size;
   });
 
   recorder.addEventListener('error', (event) => {
@@ -1008,6 +1032,7 @@ const startFallbackRecording = ({ broadcastId, mediaTrack, title }) => {
     broadcastId: String(broadcastId || ''),
     title,
     startedAt: Date.now(),
+    get overflowed() { return fallbackOverflowed; },
   };
 
   recorder.start(1000);
