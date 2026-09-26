@@ -340,15 +340,59 @@ const CreatorLiveConnectedWorkspace = ({
         setRecordingProgress({
           key: detail.key,
           title: detail.title || 'Broadcast recording',
-          stage: 'uploading',
-          ...updateTransferEstimate(null, {
-            loaded: 0,
-            total: detail.total || 0,
-          }),
+          stage: 'preparing',
+          startedAt: Date.now(),
+          elapsedSeconds: 0,
+          percent: 0,
+          loaded: 0,
+          total: 0,
         });
         if (!currentLiveBroadcast?.id) {
           setMessage('Recording is safe. Finishing your Echoo recording…');
         }
+        return;
+      }
+
+      if (status === 'device-saving') {
+        setRecordingProgress({
+          key: detail.key,
+          title: detail.title || 'Broadcast recording',
+          stage: 'device-saving',
+          format: detail.format || 'mp3',
+          startedAt: Date.now(),
+          elapsedSeconds: 0,
+          percent: 0,
+          loaded: 0,
+          total: 0,
+        });
+        return;
+      }
+
+      if (status === 'device-progress') {
+        setRecordingProgress((current) => {
+          if (current?.key && detail.key && current.key !== detail.key) return current;
+          return {
+            ...(current || {}),
+            key: detail.key || current?.key,
+            title: detail.title || current?.title || 'Broadcast recording',
+            stage: 'device-saving',
+            format: detail.format || current?.format || 'mp3',
+            percent: Math.max(0, Math.min(100, Number(detail.percent) || 0)),
+            startedAt: current?.startedAt || Date.now(),
+          };
+        });
+        return;
+      }
+
+      if (status === 'finalizing') {
+        setRecordingProgress((current) => ({
+          ...(current || {}),
+          key: detail.key || current?.key,
+          title: detail.title || current?.title || 'Broadcast recording',
+          stage: 'finalizing',
+          localSaved: Boolean(detail.localSaved || detail.localCopy?.saved),
+          startedAt: current?.startedAt || Date.now(),
+        }));
         return;
       }
 
@@ -1241,32 +1285,50 @@ const CreatorLiveConnectedWorkspace = ({
                 ? 'Waiting for connection'
                 : recordingProgress.stage === 'recovered'
                   ? 'Recovered recording is protected locally'
-                  : recordingProgress.stage === 'verifying'
-                    ? 'Upload complete — finishing recording'
-                    : 'Saving recording to Echoo'}
+                  : recordingProgress.stage === 'device-saving'
+                    ? `Saving ${String(recordingProgress.format || 'mp3').toUpperCase()} to this device`
+                    : recordingProgress.stage === 'finalizing'
+                      ? recordingProgress.localSaved
+                        ? 'Device copy saved · finishing Echoo recording'
+                        : 'Recording ready locally · finishing on Echoo'
+                      : recordingProgress.stage === 'verifying'
+                        ? 'Transfer complete · verifying recording'
+                        : recordingProgress.stage === 'preparing'
+                          ? 'Preparing recording save'
+                          : 'Saving recording to Echoo'}
             </strong>
             <span>
-              {recordingProgress.stage === 'uploading'
+              {recordingProgress.stage === 'uploading' ||
+              (recordingProgress.stage === 'device-saving' && recordingProgress.format === 'mp3')
                 ? `${Math.max(0, Math.min(100, Math.round(recordingProgress.percent || 0)))}%`
                 : `${formatElapsedTime(recordingProgress.elapsedSeconds || 0)} elapsed`}
             </span>
           </div>
-          {recordingProgress.stage === 'uploading' || recordingProgress.stage === 'verifying' ? (
+          {recordingProgress.stage === 'uploading' || recordingProgress.stage === 'verifying' ||
+          (recordingProgress.stage === 'device-saving' && recordingProgress.format === 'mp3') ? (
             <>
               <div className="ec2-operation-progress__bar" aria-hidden="true">
                 <i style={{ width: `${Math.max(2, Math.min(100, recordingProgress.percent || 0))}%` }} />
               </div>
               <small>
                 {recordingProgress.stage === 'verifying'
-                  ? `Finishing recording · ${formatElapsedTime(recordingProgress.elapsedSeconds || 0)} elapsed`
-                  : transferProgressText(recordingProgress)}
+                  ? `Verifying saved recording · ${formatElapsedTime(recordingProgress.elapsedSeconds || 0)} elapsed`
+                  : recordingProgress.stage === 'device-saving'
+                    ? 'Encoding the MP3 locally after OFF AIR. This does not use the Echoo server.'
+                    : transferProgressText(recordingProgress)}
               </small>
             </>
           ) : (
             <small>
               {recordingProgress.stage === 'waiting-network'
                 ? 'Your local master is safe. Echoo will continue when the connection is available.'
-                : 'Your protected recovery copy stays on this device until Echoo finishes safely.'}
+                : recordingProgress.stage === 'finalizing'
+                  ? recordingProgress.localSaved
+                    ? 'The file on this device is already safe. Echoo is finishing its separate saved copy.'
+                    : 'Your browser master is protected. Echoo is finishing its separate saved copy in the background.'
+                  : recordingProgress.stage === 'preparing'
+                    ? 'Closing the local recording safely before any server recovery work starts.'
+                    : 'Your protected recovery copy stays on this device until Echoo finishes safely.'}
             </small>
           )}
         </div>
