@@ -110,17 +110,20 @@ const rememberPendingMaster = ({
 } = {}) => {
   if (!recording?.blob?.size) return;
   const { channelName, startedAt } = localContext({ recording, broadcast });
-  rememberLocalMaster(`pending:${key}`, {
+  const storageKey = `pending:${key}`;
+  const existing = peekLocalMaster(storageKey) || {};
+  rememberLocalMaster(storageKey, {
+    ...existing,
     blob: recording.blob,
     title,
     mimeType: recording.mimeType || recording.blob.type,
     broadcast,
     recording,
-    audioId,
+    audioId: audioId || existing.audioId || null,
     channelName,
     startedAt,
     serverReady,
-    localCopy,
+    localCopy: localCopy || existing.localCopy || null,
   });
 };
 
@@ -475,6 +478,8 @@ export const completeDeviceCopyChoice = async (key, format = 'mp3') => {
         format: preferences.format,
         channelName: pending.channelName,
         startedAt: pending.startedAt,
+        preparedMp3Blob: pending.preparedMp3Blob || null,
+        preparedMp3Dispose: pending.preparedMp3Dispose || null,
       });
     } catch (error) {
       const choiceError = new Error(
@@ -482,6 +487,46 @@ export const completeDeviceCopyChoice = async (key, format = 'mp3') => {
       );
       choiceError.code = 'DEVICE_COPY_FAILED';
       throw choiceError;
+    }
+
+    if (localCopy?.prepared && localCopy?.preparedBlob?.size) {
+      pending.preparedMp3Blob = localCopy.preparedBlob;
+      pending.preparedMp3Dispose = localCopy.preparedDispose || null;
+      rememberLocalMaster(`device-choice:${key}`, pending);
+      emit({
+        status: 'device-choice',
+        key,
+        title: pending.title,
+        audioId: pending.audioId || null,
+        channelName: pending.channelName || '',
+        preparedFormat: 'mp3',
+        message: 'MP3 encoding is finished. Tap MP3 again to open your phone save/share sheet.',
+      });
+      return {
+        audioId: pending.audioId || null,
+        localCopy,
+        preferences,
+        prepared: true,
+      };
+    }
+
+    if (localCopy?.downloadStarted) {
+      rememberLocalMaster(`device-choice:${key}`, pending);
+      emit({
+        status: 'device-choice',
+        key,
+        title: pending.title,
+        audioId: pending.audioId || null,
+        channelName: pending.channelName || '',
+        downloadStarted: true,
+        message: 'The browser download was started. Echoo kept the local master because a web page cannot verify that the file reached your Downloads folder.',
+      });
+      return {
+        audioId: pending.audioId || null,
+        localCopy,
+        preferences,
+        downloadStarted: true,
+      };
     }
 
     if (!localCopy?.saved) {
@@ -581,7 +626,15 @@ export const saveRecoveryCopy = async (key, requestedFormat = '') => {
       broadcast?.startedAt ||
       broadcast?.startTime ||
       null,
+    preparedMp3Blob: pending?.preparedMp3Blob || null,
+    preparedMp3Dispose: pending?.preparedMp3Dispose || null,
   });
+
+  if (result?.prepared && result?.preparedBlob?.size) {
+    pending.preparedMp3Blob = result.preparedBlob;
+    pending.preparedMp3Dispose = result.preparedDispose || null;
+    rememberLocalMaster(lookupKey, pending);
+  }
 
   if (result?.saved && key !== 'recovered') {
     pending.localCopy = { ...result, format };
