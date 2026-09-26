@@ -154,15 +154,9 @@ const announceRecording = (page, broadcastId = BROADCAST_ID) => page.evaluate(({
     },
     async abort() {},
   };
-  const deviceSaveReservation = Promise.resolve({
-    mode: 'file-picker',
-    format: 'mp3',
-    filename: 'Echoo - e2e-recording.mp3',
-    mimeType: 'audio/mpeg',
-    handle: {
-      async createWritable() {
-        return writable;
-      },
+  window.showSaveFilePicker = async () => ({
+    async createWritable() {
+      return writable;
     },
   });
 
@@ -181,7 +175,6 @@ const announceRecording = (page, broadcastId = BROADCAST_ID) => page.evaluate(({
         bitDepth: 24,
         channels,
       },
-      deviceSaveReservation,
     },
   }));
 }, { broadcast: liveBroadcast, id: broadcastId });
