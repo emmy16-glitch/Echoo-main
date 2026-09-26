@@ -1243,6 +1243,7 @@ export const announceFinishedBroadcastRecording = ({
   recording,
   broadcast,
   serverEndPromise = null,
+  deviceSaveReservation = null,
 } = {}) => {
   if (!recording?.blob?.size || typeof window === 'undefined') return;
 
@@ -1253,6 +1254,7 @@ export const announceFinishedBroadcastRecording = ({
         recording,
         broadcast: broadcast || null,
         serverEndPromise,
+        deviceSaveReservation,
       },
     })
   );
