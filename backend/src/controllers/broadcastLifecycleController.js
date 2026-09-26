@@ -5,7 +5,10 @@ import User from '../models/User.js';
 import LiveKitProvider from '../providers/livekit.js';
 import OvenMediaProvider from '../providers/ovenmedia.js';
 import { clearBroadcastPresenceCache } from './broadcastPresenceController.js';
-import { waitForCreatorProgramAudio } from '../services/broadcastAudioReadiness.js';
+import {
+  waitForCreatorProgramAudio,
+  waitForCreatorProgramAudioToStop,
+} from '../services/broadcastAudioReadiness.js';
 import {
   flushBroadcastTranscription,
   isTranscriptionConfigured,
@@ -725,6 +728,15 @@ export async function endBroadcast(req, res, next) {
       clearBroadcastPresenceCache(broadcastId);
       emitStatus(req, broadcast);
     }
+
+    // The browser fires End Broadcast and immediately unpublishes the canonical
+    // LiveKit program track. Give that track a short bounded window to leave
+    // before stopping the server recorder so the MP3 ends at the same boundary
+    // listeners actually heard instead of losing the final syllable.
+    await waitForCreatorProgramAudioToStop(broadcastId, req.userId, {
+      maxWaitMs: 2500,
+      pollMs: 100,
+    }).catch(() => false);
 
     await stopLiveResourcesBestEffort({
       broadcastId,
