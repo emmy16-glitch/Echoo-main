@@ -81,6 +81,65 @@ export const isLikelyPc = () => {
   return window.innerWidth >= 768 || Boolean(window.matchMedia?.('(pointer: fine)')?.matches);
 };
 
+
+export const prepareAutomaticLocalCopyDestination = ({
+  title = 'Live broadcast',
+  format = 'mp3',
+  channelName = '',
+  startedAt = null,
+} = {}) => {
+  const choice = format === 'wav' ? 'wav' : 'mp3';
+  if (isDesktopBridge()) {
+    return Promise.resolve({ mode: 'desktop-auto', format: choice });
+  }
+  if (
+    !isLikelyPc() ||
+    typeof window === 'undefined' ||
+    typeof window.showSaveFilePicker !== 'function'
+  ) {
+    return Promise.resolve({
+      mode: 'explicit-save-required',
+      format: choice,
+    });
+  }
+
+  const filename = buildRecordingFilename({
+    title,
+    channelName,
+    startedAt,
+    format: choice,
+  });
+  const mimeType = choice === 'wav' ? 'audio/wav' : 'audio/mpeg';
+
+  // IMPORTANT: showSaveFilePicker is invoked immediately from the End
+  // Broadcast click stack. We intentionally do not await any network,
+  // LiveKit, OPFS or encoder work before requesting the handle.
+  return window.showSaveFilePicker({
+    suggestedName: filename,
+    startIn: 'desktop',
+    types: [
+      {
+        description: choice === 'wav' ? 'WAV audio' : 'MP3 audio',
+        accept: { [mimeType]: [`.${choice}`] },
+      },
+    ],
+  }).then(
+    (handle) => ({
+      mode: 'file-picker',
+      format: choice,
+      filename,
+      mimeType,
+      handle,
+    }),
+    (error) => ({
+      mode: error?.name === 'AbortError' ? 'cancelled' : 'explicit-save-required',
+      format: choice,
+      filename,
+      error: error?.message || String(error || ''),
+    })
+  );
+};
+
 const tryMobileShare = async ({ blob, filename, mimeType }) => {
   if (
     isLikelyPc() ||
@@ -199,10 +258,46 @@ export const saveAutomaticLocalCopy = async ({
   channelName = '',
   startedAt = null,
   onProgress = null,
+  reservation = null,
 } = {}) => {
   if (format === 'none') return { saved: false, skipped: 'device-copy-disabled' };
 
   const choice = format === 'wav' ? 'wav' : 'mp3';
+
+  const reserved = reservation
+    ? await Promise.resolve(reservation).catch(() => null)
+    : null;
+
+  if (!isDesktopBridge() && reserved?.mode === 'file-picker' && reserved.handle) {
+    const writable = await reserved.handle.createWritable();
+    try {
+      if (choice === 'wav') {
+        if (!isWavMaster(blob)) {
+          throw new Error('The WAV master is not available for this device copy.');
+        }
+        await writable.write(blob);
+      } else {
+        const encoded = await createLocalMp3(blob, {
+          onProgress,
+          onChunk: (chunk) => writable.write(chunk),
+        });
+        if (!encoded?.encodedBytes) {
+          throw new Error('Local MP3 encoding produced no audio.');
+        }
+      }
+      await writable.close();
+      return {
+        saved: true,
+        filename: reserved.filename,
+        format: choice,
+        source: choice === 'wav' ? 'local-master' : 'local-wav-encode',
+        destination: 'preauthorized-file-picker',
+      };
+    } catch (error) {
+      try { await writable.abort?.(); } catch { /* best effort */ }
+      throw error;
+    }
+  }
 
   // Only Echoo Desktop can prove a background save completed. Browsers may
   // block async downloads/share sheets once the End Broadcast click gesture
@@ -213,6 +308,7 @@ export const saveAutomaticLocalCopy = async ({
       saved: false,
       skipped: 'browser-user-gesture-required',
       requiresUserGesture: true,
+      cancelled: reserved?.mode === 'cancelled',
       format: choice,
     };
   }
@@ -538,4 +634,5 @@ export default {
   saveRecordingToPc,
   fetchServerRecordingBlob,
   waitForServerMp3,
+  prepareAutomaticLocalCopyDestination,
 };
