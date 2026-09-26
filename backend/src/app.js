@@ -147,9 +147,9 @@ app.use(
 
 app.use(compression());
 // Use Echoo's centralized general API limiter. The previous hard-coded
-// 100-requests-per-15-minutes guard was lower than legitimate long-form live
-// traffic (including 10-second transcript quality chunks) and could corrupt a
-// healthy broadcast by returning 429s mid-session.
+// 100-requests-per-15-minutes guard was too low for legitimate live-room API
+// traffic and reconnect bursts. Raw browser recording chunks are not part of
+// the healthy live path.
 app.use('/api', defaultLimiter);
 
 // LiveKit signs the exact raw webhook body. Register this endpoint before the
