@@ -27,6 +27,7 @@ const ROOM_DISCONNECT_DEADLINE_MS = 4000;
 const RECOVERY_DISCONNECT_DEADLINE_MS = 1000;
 const CREATOR_RECOVERY_WINDOW_MS = 90_000;
 const CREATOR_RECOVERY_SLOW_RETRY_MS = 30_000;
+const LOCAL_RECORDING_START_BUDGET_MS = 750;
 
 let activeRoom = null;
 let activeBroadcastId = null;
@@ -625,13 +626,14 @@ export const startLiveKitPublishing = async ({
   activeBroadcastId = id;
   installNetworkHints(candidate);
 
+  let localRecordingStart = null;
   try {
     if (candidate.mode === 'studio-mix') {
-      // Start the local safety master before the listener-facing publication
-      // becomes live. This closes the opening-gap where the first words could
-      // be heard by listeners before either the local or server recorder had
-      // started. Failure stays isolated from LiveKit publishing.
-      await ensureBroadcastRecording({
+      // Start the safety master before publication, but never let a slow
+      // browser storage API hold the live stream hostage. Most browsers finish
+      // immediately; after the short budget LiveKit proceeds and the recorder
+      // continues starting in parallel.
+      localRecordingStart = ensureBroadcastRecording({
         broadcastId: id,
         mediaTrack: nativeTrack,
         title: `echoo-live-${id}`,
@@ -640,12 +642,17 @@ export const startLiveKitPublishing = async ({
         console.warn('[Echoo Recording] local safety recording start failed', error?.message || error);
         return null;
       });
+      await Promise.race([
+        localRecordingStart,
+        wait(LOCAL_RECORDING_START_BUDGET_MS),
+      ]);
     }
 
     const result = await connectAndPublish(candidate, { url: resolvedUrl, token, recovery: false });
     startWatchdog(candidate);
     if (candidate.mode === 'studio-mix') {
-      void armBroadcastServerRecording(id)
+      void Promise.resolve(localRecordingStart)
+        .then(() => armBroadcastServerRecording(id))
         .catch((error) => console.warn('[Echoo Recording] server recording arm failed', error?.message || error));
     }
     return {
@@ -668,6 +675,11 @@ export const startLiveKitPublishing = async ({
     }
     if (candidate.mode === 'studio-mix') {
       await discardBroadcastRecording(id).catch(() => {});
+      // If browser storage setup was slower than the live-start budget, it may
+      // finish after the publish attempt has already failed. Clean that late
+      // recorder too so a failed Go Live can never leave a hidden capture.
+      void Promise.resolve(localRecordingStart)
+        .finally(() => discardBroadcastRecording(id).catch(() => {}));
     }
     await cleanupSyntheticAudio();
     throw liveKitConnectionError(error, resolvedUrl);
