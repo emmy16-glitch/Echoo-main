@@ -316,3 +316,15 @@
     animation-duration: 0.01ms !important;
   }
 }
+
+
+/* Echoo Signal Precision role mapping. */
+.echoo-onboard-page :is(h1, h2) {
+  font-family: var(--echoo-font-display);
+}
+.echoo-onboard-page :is(h3, h4, button, label, small, strong) {
+  font-family: var(--echoo-font-accent);
+}
+.echoo-onboard-page :is(p, input, textarea, select, li) {
+  font-family: var(--echoo-font-body);
+}
