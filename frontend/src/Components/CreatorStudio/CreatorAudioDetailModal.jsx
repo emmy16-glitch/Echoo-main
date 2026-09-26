@@ -627,7 +627,7 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged, onAddToCollection 
         </div>
 
         <p className="creator-audio-quality-note">
-          Export creates a separate copy for your device. “Download stored file” retrieves Echoo’s current server copy without another conversion.
+          Export creates a separate copy for your device. “Download stored file” retrieves Echoo’s saved recording without another conversion.
         </p>
       </section>
     </div>,
