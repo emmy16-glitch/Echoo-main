@@ -150,6 +150,19 @@ any are missing — do not paper over them):
 
 ---
 
+## Task 3.1 — 500-listener readiness gate
+
+For planned large events, do not rely on the repository room limit alone.
+
+Before a real 500-listener broadcast:
+- confirm the LiveKit Cloud project quota supports the planned concurrent participants;
+- confirm the production reverse proxy supports long-lived WebSockets for `/socket.io/` and `/api/internal/livekit-recording`;
+- confirm the host's open-file/socket limits are comfortably above the expected Socket.IO connection count;
+- run a staged 50 → 100 → 250 → 500 listener test while observing backend CPU/RAM, MongoDB latency, Socket.IO reconnects, LiveKit quality metrics and creator outbound packet/bitrate health;
+- fail the readiness gate if browser raw recording chunks appear while LIVE, if the creator audio begins stalling, or if the audience shows synchronized reconnect storms.
+
+The application code contains anti-stampede/coalescing/selective-subscription protections, but **production capacity is not considered proven until this staged test passes on the actual LiveKit plan and Digi02 host.**
+
 ## Task 4 — Verify everything (all checks are required)
 
 1. API identity:
