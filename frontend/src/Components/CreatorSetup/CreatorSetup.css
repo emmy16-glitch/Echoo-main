@@ -21,7 +21,7 @@
   font-size: 12px;
   letter-spacing: 0.12em;
   font-weight: 800;
-  color: #61708c;
+  color: var(--echoo-color-muted);
   margin: 0 0 16px;
 }
 
@@ -31,13 +31,13 @@
   letter-spacing: -0.045em;
   margin: 0 0 18px;
   max-width: 520px;
-  color: #0f1b34;
+  color: var(--echoo-color-ink);
 }
 
 .channel-setup-intro > p {
   font-size: 17px;
   line-height: 1.6;
-  color: #66738d;
+  color: var(--echoo-color-muted);
   max-width: 430px;
   margin: 0 0 28px;
 }
@@ -47,7 +47,7 @@
   gap: 12px;
   align-items: flex-start;
   padding: 16px 0;
-  border-top: 1px solid #dde4f0;
+  border-top: 1px solid var(--echoo-color-line);
   max-width: 420px;
 }
 
@@ -55,10 +55,10 @@
   width: 34px;
   height: 34px;
   border-radius: 10px;
-  background: #eaf1ff;
+  background: var(--echoo-color-brand-soft);
   display: grid;
   place-items: center;
-  color: #2764eb;
+  color: var(--echoo-color-brand);
   font-weight: 900;
   font-size: 14px;
   flex: none;
@@ -68,12 +68,12 @@
   display: block;
   font-size: 14px;
   margin-bottom: 3px;
-  color: #0f1b34;
+  color: var(--echoo-color-ink);
 }
 
 .channel-setup-promise span span {
   display: block;
-  color: #66738d;
+  color: var(--echoo-color-muted);
   font-size: 13px;
   line-height: 1.45;
 }
@@ -183,12 +183,12 @@
   display: block;
   font-size: 13px;
   margin-bottom: 4px;
-  color: #0f1b34;
+  color: var(--echoo-color-ink);
 }
 
 .channel-setup-upload small {
   display: block;
-  color: #66738d;
+  color: var(--echoo-color-muted);
   font-size: 12px;
 }
 
@@ -197,7 +197,7 @@
   margin-top: 8px;
   padding: 8px 12px;
   min-height: 36px;
-  border: 1px solid #dde4f0;
+  border: 1px solid var(--echoo-color-line);
   border-radius: 10px;
   background: #fff;
   color: #334058;
@@ -212,7 +212,7 @@
 
 .channel-setup-help {
   margin: 12px 0 0;
-  color: #66738d;
+  color: var(--echoo-color-muted);
   font-size: 12px;
   text-align: right;
 }
