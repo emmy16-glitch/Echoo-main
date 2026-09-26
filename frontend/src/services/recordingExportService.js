@@ -148,6 +148,14 @@ const createLocalMp3 = async (blob, { onProgress = null, onChunk = null } = {}) 
   });
 };
 
+const scheduleEncodedCleanup = (encoded, delayMs = 60_000) => {
+  if (typeof encoded?.dispose !== 'function') return;
+  window.setTimeout(() => {
+    void encoded.dispose().catch?.(() => {});
+  }, delayMs);
+};
+
+
 const saveDesktopBytes = async ({
   bytes,
   filename,
@@ -192,6 +200,7 @@ export const saveAutomaticLocalCopy = async ({
 
   const choice = format === 'wav' ? 'wav' : 'mp3';
   let bytes = null;
+  let encodedLocal = null;
   let mimeType = choice === 'wav' ? 'audio/wav' : 'audio/mpeg';
   let source = 'local-master';
 
@@ -201,8 +210,8 @@ export const saveAutomaticLocalCopy = async ({
     }
     bytes = blob;
   } else if (isWavMaster(blob)) {
-    const encoded = await createLocalMp3(blob, { onProgress });
-    bytes = encoded.blob;
+    encodedLocal = await createLocalMp3(blob, { onProgress });
+    bytes = encodedLocal.blob;
     source = 'local-wav-encode';
   } else if (audioId) {
     // Legacy/non-WAV fallback: use a durable server MP3 when no PCM master
@@ -230,11 +239,15 @@ export const saveAutomaticLocalCopy = async ({
     automatic: true,
     startedAt,
   });
-  if (desktopResult) return { ...desktopResult, source };
+  if (desktopResult) {
+    scheduleEncodedCleanup(encodedLocal, 0);
+    return { ...desktopResult, source };
+  }
 
   // Automatic web/mobile downloads cannot choose arbitrary folders. This is
   // a best-effort download into the browser's normal download destination.
   await downloadViaAnchor(bytes, filename);
+  scheduleEncodedCleanup(encodedLocal);
   return {
     saved: true,
     filename,
@@ -348,12 +361,13 @@ export const saveRecordingToPc = async ({
   }
 
   let bytes = blob;
+  let encodedLocal = null;
   let source = 'local-master';
 
   if (choice === 'mp3') {
     if (isWavMaster(blob)) {
-      const encoded = await createLocalMp3(blob, { onProgress });
-      bytes = encoded.blob;
+      encodedLocal = await createLocalMp3(blob, { onProgress });
+      bytes = encodedLocal.blob;
       source = 'local-wav-encode';
     } else if (audioId) {
       bytes = await fetchServerRecordingBlob(audioId);
@@ -381,14 +395,20 @@ export const saveRecordingToPc = async ({
     automatic: false,
     startedAt,
   });
-  if (desktopResult) return { ...desktopResult, source };
+  if (desktopResult) {
+    scheduleEncodedCleanup(encodedLocal, 0);
+    return { ...desktopResult, source };
+  }
 
   const mobileResult = await tryMobileShare({
     blob: bytes,
     filename,
     mimeType: mime,
   });
-  if (mobileResult) return { ...mobileResult, format: choice, source };
+  if (mobileResult) {
+    scheduleEncodedCleanup(encodedLocal, 0);
+    return { ...mobileResult, format: choice, source };
+  }
 
   // Chromium desktop for WAV/Opus/server-MP3. Local WAV→MP3 already used the
   // streaming picker above, so this branch does not buffer that conversion.
@@ -407,6 +427,7 @@ export const saveRecordingToPc = async ({
       const writable = await handle.createWritable();
       await writable.write(bytes);
       await writable.close();
+      scheduleEncodedCleanup(encodedLocal, 0);
       return { saved: true, filename, format: choice, source, destination: 'file-picker' };
     } catch (error) {
       if (error?.name === 'AbortError') return { saved: false, cancelled: true, filename };
@@ -415,6 +436,7 @@ export const saveRecordingToPc = async ({
   }
 
   await downloadViaAnchor(bytes, filename);
+  scheduleEncodedCleanup(encodedLocal);
   return {
     saved: true,
     filename,
