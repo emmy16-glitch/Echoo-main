@@ -59,6 +59,9 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
   const programParticipantRef = useRef(null);
   const reconnectAttemptRef = useRef(0);
   const reconnectTimerRef = useRef(null);
+  // Stable per-listener jitter prevents hundreds of clients from performing
+  // hard reconnect/token refresh in lockstep after the same network event.
+  const reconnectJitterRef = useRef(Math.random());
   // Consecutive watchdog misses while the room itself reports connected.
   // Transient mobile-network blips recover on their own — only a sustained
   // gap (several misses in a row) triggers a full room reconnect.
@@ -184,7 +187,10 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       const capped = attempt < LIVE_RECOVERY_DELAYS_MS.length
         ? recoveryDelayMs(attempt)
         : Math.min(30000, 8000 * 2 ** Math.min(4, attempt - LIVE_RECOVERY_DELAYS_MS.length));
-      const delay = Math.max(0, capped);
+      const jitterWindow = capped > 0
+        ? Math.min(3000, Math.max(500, Math.round(capped * 0.25)))
+        : 1000;
+      const delay = Math.max(0, capped) + Math.round(reconnectJitterRef.current * jitterWindow);
       console.warn('[Echoo Live][Listener] scheduling hard reconnect', {
         broadcastId,
         attempt: attempt + 1,
@@ -511,7 +517,10 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       room.on(RoomEvent.MediaDevicesChanged, loadOutputs);
 
       await room.connect(liveKitUrl, credentials.token, {
-        autoSubscribe: true,
+        // Only the canonical Echoo program track is needed. Explicit
+        // subscription below prevents guest/talkback/service tracks from
+        // multiplying inbound media across large listener rooms.
+        autoSubscribe: false,
         maxRetries: 5,
         websocketTimeout: 15000,
         peerConnectionTimeout: 20000,
