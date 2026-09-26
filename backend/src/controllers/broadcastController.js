@@ -42,6 +42,48 @@ function publicLiveKitUrl() {
   return LiveKitProvider.getPublicUrl();
 }
 
+
+const LIVE_ACCESS_CACHE_MS = Math.max(
+  500,
+  Math.min(5000, Number(process.env.LIVE_ACCESS_CACHE_MS) || 1500)
+);
+const liveAccessCache = new Map();
+const liveAccessInflight = new Map();
+
+const getLiveAccessBroadcast = async (broadcastId) => {
+  const key = String(broadcastId || '');
+  const cached = liveAccessCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.broadcast;
+  if (liveAccessInflight.has(key)) return liveAccessInflight.get(key);
+
+  const request = Broadcast.findOne({
+    _id: broadcastId,
+    isDeleted: false,
+  })
+    .select('_id status isPublic livekitRoomName')
+    .lean()
+    .then((broadcast) => {
+      if (broadcast) {
+        liveAccessCache.set(key, {
+          broadcast,
+          expiresAt: Date.now() + LIVE_ACCESS_CACHE_MS,
+        });
+      } else {
+        liveAccessCache.delete(key);
+      }
+      return broadcast;
+    });
+
+  liveAccessInflight.set(key, request);
+  try {
+    return await request;
+  } finally {
+    if (liveAccessInflight.get(key) === request) {
+      liveAccessInflight.delete(key);
+    }
+  }
+};
+
 const AUDIO_SOURCE_TYPES = new Set([
   'microphone', 'guest_microphone', 'music', 'screen_share', 'system_audio',
 ]);
@@ -850,10 +892,7 @@ export async function getListenerLiveKitToken(req, res, next) {  try {
     const { broadcastId } = req.params;
     if (!isValidId(broadcastId)) return invalidId(res);
 
-    const broadcast = await Broadcast.findOne({
-      _id: broadcastId,
-      isDeleted: false,
-    }).select('_id status isPublic livekitRoomName');
+    const broadcast = await getLiveAccessBroadcast(broadcastId);
 
     if (!broadcast) {
       return res.status(404).json({
@@ -950,10 +989,7 @@ export async function getGuestListenerToken(req, res, next) {
     const { broadcastId } = req.params;
     if (!isValidId(broadcastId)) return invalidId(res);
 
-    const broadcast = await Broadcast.findOne({
-      _id: broadcastId,
-      isDeleted: false,
-    }).select('_id status isPublic livekitRoomName');
+    const broadcast = await getLiveAccessBroadcast(broadcastId);
 
     if (!broadcast) {
       return res.status(404).json({
