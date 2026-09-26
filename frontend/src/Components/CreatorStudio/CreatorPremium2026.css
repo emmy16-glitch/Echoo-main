@@ -16,7 +16,7 @@
   --echoo-shadow: 0 14px 36px rgba(20, 42, 76, .07);
   --echoo-shadow-lg: 0 24px 70px rgba(10, 30, 62, .12);
   --echoo-radius: 18px;
-  --echoo-font: Inter, "SF Pro Text", "SF Pro Display", "Segoe UI Variable", "Helvetica Neue", Arial, ui-sans-serif, system-ui, sans-serif;
+  --echoo-font: var(--echoo-font-body, "Source Sans 3", "Segoe UI", ui-sans-serif, system-ui, sans-serif);
   --echoo-mono: "SFMono-Regular", "Cascadia Code", "Roboto Mono", ui-monospace, monospace;
 }
 
