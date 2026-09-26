@@ -91,3 +91,14 @@ test('creator webhook recovery ignores stale participant and track removal event
   assert.match(webhook, /const replacementPresent = current[\s\S]*creatorStillPresent\(current\)\.catch\(\(\) => true\)/);
   assert.match(webhook, /scheduleCreatorDisconnect\(broadcastId/);
 });
+
+
+test('creator recovery and backend disconnect cleanup share the same 90 second window', async () => {
+  const publisher = await source('../../frontend/src/services/livekitPublisher.js');
+  const webhook = await source('../src/services/livekitWebhookService.js');
+  const envExample = await source('../.env.example');
+
+  assert.match(publisher, /CREATOR_RECOVERY_WINDOW_MS = 90_000/);
+  assert.match(webhook, /LIVEKIT_CREATOR_DISCONNECT_GRACE_MS\) \|\| 90000/);
+  assert.match(envExample, /LIVEKIT_CREATOR_DISCONNECT_GRACE_MS=90000/);
+});
