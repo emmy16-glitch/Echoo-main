@@ -137,7 +137,7 @@ test('recording completion retries and automatic save preserves recovery state',
   assert.match(autosave, /rememberLocalMaster/);
   assert.match(banner, /beforeunload/);
   assert.match(banner, /Retry/);
-  assert.match(banner, /kind: 'finalizing'|finishing Echoo server copy/);
+  assert.match(banner, /kind: 'finalizing'|finishing your Echoo recording/);
   assert.match(banner, /MP3 · Recommended/);
   assert.match(banner, /WAV · Lossless/);
   assert.match(banner, /keep this tab open/);
@@ -152,7 +152,7 @@ test('recording completion retries and automatic save preserves recovery state',
   assert.match(autosave, /automaticLocalCopies\.add\(String\(key\)\)/);
   assert.match(banner, /formats\.map\(\(format\) =>/);
   assert.match(banner, /Save \$\{format\.toUpperCase\(\)\} to device/);
-  assert.match(banner, /Retry Echoo server save/);
+  assert.match(banner, /Retry Echoo save/);
   assert.match(recording, /OPFS_MANIFESTS_KEY/);
   assert.match(recording, /readRecoveryManifests/);
   assert.match(recording, /persistRecoveryManifests/);
