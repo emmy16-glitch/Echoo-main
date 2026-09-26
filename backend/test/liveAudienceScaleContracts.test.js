@@ -70,7 +70,7 @@ test('browser raw PCM fallback is forbidden while the show is live', async () =>
   assert.match(frontend, /recovery is deferred until off air/);
 });
 
-test('PC browser save destination is requested from the End Broadcast gesture before async shutdown', async () => {
+test('PC browser defers its file picker until the server recording is ready', async () => {
   const workspace = await read('../../frontend/src/Components/CreatorStudio/CreatorLiveConnectedWorkspace.jsx');
   const autosave = await read('../../frontend/src/services/recordingAutosave.js');
   const exportService = await read('../../frontend/src/services/recordingExportService.js');
@@ -83,12 +83,11 @@ test('PC browser save destination is requested from the End Broadcast gesture be
 
   assert.ok(reserveAt >= 0 && reserveAt < backendAt && reserveAt < stopAt);
   assert.match(endBody, /deviceSaveReservation/);
-  assert.match(autosave, /prepareAutomaticLocalCopyDestination/);
-  assert.match(autosave, /reservation:\s*deviceSaveReservation/);
+  assert.match(autosave, /window\.echooDesktop\?\.isDesktop !== true/);
+  assert.match(autosave, /status:\s*'device-choice'/);
+  assert.match(autosave, /serverReady:\s*true/);
   assert.match(exportService, /prepareAutomaticLocalCopyDestination/);
   assert.match(exportService, /mode:\s*'file-picker'/);
-  assert.match(exportService, /destination:\s*'preauthorized-file-picker'/);
-  assert.match(exportService, /onChunk:\s*\(chunk\) => writable\.write\(chunk\)/);
 });
 
 
