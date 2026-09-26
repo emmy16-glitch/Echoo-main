@@ -52,6 +52,8 @@ never replaced by a successful trim and remains untouched on every failure path.
   non-ended media element rather than a remembered track ID.
 - OPFS data is deleted only after confirmed canonical server persistence or explicit discard.
 - End Broadcast must never depend on one giant final WAV upload.
+- Browser PCM/WAV recovery transport must never run while listener WebRTC is live.
+- A backend process restart invalidates ownership of an in-progress server recorder; an orphan Egress must fail closed to the full OPFS recovery master.
 - Browser raw PCM/WAV recovery transport must never run while LIVE.
 - A backend restart invalidates in-progress server-recorder ownership; orphan Egress is failed closed so a tail-only MP3 cannot be accepted as complete.
 - Exactly one canonical replay MP3 is linked per broadcast; trimming creates separate copies.
