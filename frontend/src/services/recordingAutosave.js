@@ -364,13 +364,16 @@ const startAutosaveLive = async ({
           });
           window.dispatchEvent(new CustomEvent('echoo:creator-audio-changed'));
           window.dispatchEvent(new CustomEvent('echoo:creator-state-changed'));
+          const deviceNeedsTap = localCopy?.requiresUserGesture === true;
           emit({
             status: 'error',
             key,
             title,
             audioId,
-            code: 'DEVICE_COPY_FAILED',
-            message: 'The server MP3 is safe, but the device copy did not finish. Your local master is still safe — retry the device copy as MP3 or WAV.',
+            code: deviceNeedsTap ? 'DEVICE_COPY_ACTION_REQUIRED' : 'DEVICE_COPY_FAILED',
+            message: deviceNeedsTap
+              ? 'The Echoo server MP3 is safe. Your browser requires one tap to save a file to this phone/computer — choose MP3 or WAV below.'
+              : 'The server MP3 is safe, but the device copy did not finish. Your local master is still safe — retry the device copy as MP3 or WAV.',
             retryable: true,
             hasRecovery: Boolean(recording.blob?.size),
             recoveryFormats: availableLocalFormats(recording),
