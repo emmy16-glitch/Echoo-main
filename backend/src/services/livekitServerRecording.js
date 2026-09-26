@@ -25,6 +25,7 @@ const desiredTracks = new Map();
 const ownedEgressIds = new Map();
 const TRACK_HANDOFF_TIMEOUT_MS = 12_000;
 const RECORDING_SOCKET_CLOSE_GRACE_MS = 4_000;
+const MAX_ACCEPTED_PCM_GAP_MS = 1500;
 const MAX_PENDING_PCM_BYTES = 8 * 1024 * 1024;
 let websocketServer = null;
 let attachedHttpServer = null;
@@ -203,6 +204,8 @@ const createSession = async (broadcastId) => {
     handoff: false,
     handoffTimer: null,
     disconnectTimer: null,
+    disconnectStartedAt: null,
+    lastPcmAt: null,
     finishPromise: null,
     closed,
     resolveClosed,
@@ -404,9 +407,29 @@ const acceptRecordingSocket = async (socket, request) => {
     return;
   }
 
+  const disconnectedForMs = session.disconnectStartedAt
+    ? Date.now() - session.disconnectStartedAt
+    : 0;
+  if (
+    session.pcmBytes > 0 &&
+    disconnectedForMs > MAX_ACCEPTED_PCM_GAP_MS
+  ) {
+    session.failed = true;
+    session.error =
+      `Server recording PCM was interrupted for ${disconnectedForMs} ms; browser recovery is required for a complete replay.`;
+    await persist(identity.broadcastId, {
+      'serverRecording.status': 'failed',
+      'serverRecording.error': session.error.slice(0, 1000),
+    });
+    try { socket.close(1011, 'Recording gap requires browser recovery'); } catch { /* closed */ }
+    void finishSession(session);
+    return;
+  }
+
   socket.echooTrackSid = identity.trackSid;
   session.sockets.add(socket);
   session.currentTrackSid = identity.trackSid;
+  session.disconnectStartedAt = null;
   session.pendingTrackSid = '';
   session.handoff = false;
   if (session.handoffTimer) clearTimeout(session.handoffTimer);
@@ -443,6 +466,7 @@ const acceptRecordingSocket = async (socket, request) => {
     }
 
     session.pcmBytes += buffer.length;
+    session.lastPcmAt = Date.now();
     session.writeChain = session.writeChain
       .then(async () => {
         try {
@@ -466,6 +490,16 @@ const acceptRecordingSocket = async (socket, request) => {
   socket.on('close', () => {
     session.sockets.delete(socket);
     if (session.stopping || session.failed) return;
+
+    const currentTrackStillConnected = Array.from(session.sockets).some(
+      (candidate) => candidate.echooTrackSid === session.currentTrackSid
+    );
+    if (
+      identity.trackSid === session.currentTrackSid &&
+      !currentTrackStillConnected
+    ) {
+      session.disconnectStartedAt ||= Date.now();
+    }
 
     // Creator transport recovery intentionally replaces the old Track Egress
     // socket. Keep the same FFmpeg session open for the replacement track.
