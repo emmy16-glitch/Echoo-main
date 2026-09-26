@@ -797,8 +797,13 @@ const CreatorLiveConnectedWorkspace = ({
       });
       setMessage('Stopping live audio…');
 
-      // Realtime shutdown is first. Recording flush deliberately follows it.
-      const backendEnd = batch3Service.endBroadcastRealtime(broadcastId);
+      // Start backend cleanup immediately, but normalize it into a settled
+      // outcome so local device saving never depends on this request and a
+      // network rejection cannot become temporarily unhandled.
+      const backendEnd = batch3Service.endBroadcastRealtime(broadcastId).then(
+        (response) => ({ ok: true, response }),
+        (error) => ({ ok: false, error })
+      );
       const unpublishStartedAt = performance.now();
       await stopLiveKitPublishing();
       setMasterMuted(false);
@@ -807,10 +812,10 @@ const CreatorLiveConnectedWorkspace = ({
         ? { ...current, stage: 'finalizing-local-master' }
         : current);
 
-      // Stop the OPFS/local recorder now, not after server cleanup. Backend End
-      // Broadcast and local WAV finalization can run in parallel; autosave is
-      // announced only after the backend has settled so it cannot race the
-      // server recorder shutdown.
+      // Stop the OPFS/local recorder now, not after server cleanup. As soon
+      // as this local master is complete, announce it to the device-save flow.
+      // That flow may save MP3/WAV immediately, while its server-finalization
+      // branch waits independently for backend End Broadcast to settle.
       const localRecording = batch3Service.finalizeBroadcastRecording(
         broadcastId,
         broadcastSnapshot,
@@ -825,23 +830,29 @@ const CreatorLiveConnectedWorkspace = ({
 
       void (async () => {
         const finalizeStartedAt = performance.now();
-        let endedResponse = null;
-        try {
-          endedResponse = await backendEnd;
-        } catch (backendError) {
-          setError('Broadcast audio stopped, but Echoo could not finalize the server session. Retry cleanup from Broadcast settings.');
+        const recordingResult = await localRecording;
+
+        if (recordingResult.recordingReady && recordingResult.decision) {
+          // Do this before awaiting backendEnd. A slow/dead server must never
+          // prevent the creator from saving the already-complete local master.
+          batch3Service.announceFinalizedBroadcastRecording(
+            recordingResult.decision,
+            broadcastSnapshot,
+            { serverEndPromise: backendEnd }
+          );
+        }
+
+        const backendOutcome = await backendEnd;
+        const endedResponse = backendOutcome?.ok ? backendOutcome.response : null;
+        if (!backendOutcome?.ok) {
+          const backendError = backendOutcome?.error;
+          setError('Broadcast audio stopped and your local recording is safe, but Echoo could not finalize the server session. You can save MP3/WAV locally and retry the server later.');
           console.warn('[Echoo Live] server end failed after local unpublish:', backendError?.message || backendError);
         }
+
         setSessionOperation((current) => current
           ? { ...current, stage: 'preparing-server-save' }
           : current);
-        const recordingResult = await localRecording;
-        if (recordingResult.recordingReady && recordingResult.decision) {
-          batch3Service.announceFinalizedBroadcastRecording(
-            recordingResult.decision,
-            endedResponse?.data || broadcastSnapshot
-          );
-        }
         if (!recordingResult.recordingReady) {
           setSessionOperation((current) => current
             ? { ...current, stage: 'local-safe' }
