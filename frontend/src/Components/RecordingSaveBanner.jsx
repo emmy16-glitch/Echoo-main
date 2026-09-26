@@ -74,18 +74,6 @@ const RecordingSaveBanner = () => {
     setState(null);
   }, []);
 
-  const flashDone = useCallback((detail) => {
-    setState({
-      kind: 'done',
-      key: detail.key,
-      title: detail.title,
-      audioId: detail.audioId,
-      localCopy: detail.localCopy || null,
-    });
-    window.clearTimeout(hideTimerRef.current);
-    hideTimerRef.current = window.setTimeout(hide, 12000);
-  }, [hide]);
-
   useEffect(() => {
     const onUpload = (event) => {
       const detail = event?.detail || {};
@@ -156,7 +144,7 @@ const RecordingSaveBanner = () => {
       window.removeEventListener(RECORDING_UPLOAD_EVENT, onUpload);
       window.clearTimeout(hideTimerRef.current);
     };
-  }, [flashDone]);
+  }, []);
 
   useEffect(() => {
     if (
