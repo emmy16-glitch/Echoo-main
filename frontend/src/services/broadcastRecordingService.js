@@ -1154,7 +1154,11 @@ export const retryBroadcastQualityCompletion = async (recording) => {
   return true;
 };
 
-export const announceFinishedBroadcastRecording = ({ recording, broadcast }) => {
+export const announceFinishedBroadcastRecording = ({
+  recording,
+  broadcast,
+  serverEndPromise = null,
+} = {}) => {
   if (!recording?.blob?.size || typeof window === 'undefined') return;
 
   pendingRecording = recording;
@@ -1163,6 +1167,7 @@ export const announceFinishedBroadcastRecording = ({ recording, broadcast }) => 
       detail: {
         recording,
         broadcast: broadcast || null,
+        serverEndPromise,
       },
     })
   );
