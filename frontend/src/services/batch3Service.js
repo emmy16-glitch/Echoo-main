@@ -407,13 +407,14 @@ const batch3Service = {
   announceFinalizedBroadcastRecording: (
     decision,
     broadcast = null,
-    { serverEndPromise = null } = {}
+    { serverEndPromise = null, deviceSaveReservation = null } = {}
   ) => {
     if (!decision?.recording?.blob?.size) return false;
     const resolved = {
       ...decision,
       broadcast: broadcast || decision.broadcast || null,
       serverEndPromise,
+      deviceSaveReservation,
     };
     rememberPendingRecordingDecision(resolved);
     announceFinishedBroadcastRecording(resolved);
