@@ -94,8 +94,8 @@ const saveStatusLabel = {
 };
 
 const saveStatusHint = {
-  ready: 'Server copy ready',
-  processing: 'Echoo is finishing the server copy',
+  ready: 'Recording ready',
+  processing: 'Echoo is finishing the recording',
   attention: 'Open this recording to review the save',
   uploaded: 'Uploaded directly to Echoo',
 };
@@ -501,7 +501,7 @@ export default function CreatorCollectionsWorkspace({
         <div className="recordings-heading-copy">
           <h1>Recordings</h1>
           <p>Live broadcasts are captured automatically.</p>
-          <strong>Echoo keeps the local safety master until the server copy is confirmed. Public/Private controls who can listen.</strong>
+          <strong>Echoo keeps a protected recovery copy until the recording is safely finished. Public/Private controls who can listen.</strong>
         </div>
 
         <div className="recordings-heading-actions">
@@ -566,9 +566,9 @@ export default function CreatorCollectionsWorkspace({
             {transferOperation.stage === 'waiting-network'
               ? 'Your local/source file is safe. Retry when the connection is available.'
               : transferOperation.stage === 'recovered'
-                ? 'Echoo will keep the protected local master until the server copy is confirmed.'
+                ? 'Echoo will keep the protected recovery copy until the recording is safely finished.'
                 : transferOperation.stage === 'verifying'
-                  ? `Server verification in progress · ${formatElapsedTime(transferOperation.elapsedSeconds || 0)} elapsed`
+                  ? `Finishing recording · ${formatElapsedTime(transferOperation.elapsedSeconds || 0)} elapsed`
                   : transferOperation.stage === 'error'
                     ? transferOperation.message || 'Please retry.'
                     : transferOperation.stage === 'done'
