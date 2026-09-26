@@ -93,12 +93,15 @@ test('creator webhook recovery ignores stale participant and track removal event
 });
 
 
-test('creator recovery and backend disconnect cleanup share the same 90 second window', async () => {
+test('creator recovery covers the backend grace window and keeps retrying slowly afterwards', async () => {
   const publisher = await source('../../frontend/src/services/livekitPublisher.js');
   const webhook = await source('../src/services/livekitWebhookService.js');
   const envExample = await source('../.env.example');
 
   assert.match(publisher, /CREATOR_RECOVERY_WINDOW_MS = 90_000/);
+  assert.match(publisher, /CREATOR_RECOVERY_SLOW_RETRY_MS = 30_000/);
+  assert.match(publisher, /while \(isCurrent\(candidate\)\)/);
+  assert.match(publisher, /candidate\.recoveryStartedAt = null/);
   assert.match(webhook, /LIVEKIT_CREATOR_DISCONNECT_GRACE_MS\) \|\| 90000/);
   assert.match(envExample, /LIVEKIT_CREATOR_DISCONNECT_GRACE_MS=90000/);
 });
