@@ -140,7 +140,9 @@ During a healthy show, the browser keeps a temporary 24-bit/48 kHz PCM recovery 
 1. Listener audio remains direct LiveKit/WebRTC and never waits for recording, FFmpeg, transcription, or device-copy work.
 2. The canonical live replay is a real MP3 (`AUDIO_REPLAY_MP3_BITRATE`, default `320k` stereo ≈ 144 MB/hour), stored locally or archived to S3-compatible object storage.
 3. If Track Egress/FFmpeg fails, the complete OPFS WAV is uploaded **after** live audio has stopped in bounded recovery chunks; a partial server MP3 is never accepted as the full replay.
-4. The OPFS master stops at the same practical boundary as listener audio. It stays on the device until server persistence is confirmed **and** any requested automatic device copy succeeds (or the creator chose server-only).
+4. The OPFS master stops at the same practical boundary as listener audio. As soon as it closes, the creator can save **WAV directly** or encode a **320 kbps MP3 locally on the device**; neither action requires the Echoo server to be ready.
+5. Local MP3 conversion is post-live only, dynamically loads a WASM MP3 encoder, reads the WAV in bounded slices, and uses OPFS-backed output where available so long recordings do not require the whole lossless master in JavaScript memory.
+6. The OPFS master remains available until server persistence is confirmed **and** any requested device-copy policy is satisfied (or the creator chose server-only).
 
 Playback always resolves through signed, time-limited `/api/audio/:id/stream` URLs: local files stream with HTTP ranges; cloud files redirect (public buckets) or mint short-lived object URLs (private buckets). Only replays are transcoded; uploaded music keeps its original encoding.
 
