@@ -19,14 +19,14 @@
 }
 
 .echoo-save-banner.is-done { border-color: #abefc6; background: #ecfdf3; }
-.echoo-save-banner.is-error,
-.echoo-save-banner.is-recovered { border-color: #fecdca; background: #fef3f2; }
+.echoo-save-banner.is-error { border-color: #fecdca; background: #fef3f2; }
+.echoo-save-banner.is-recovered { border-color: #b9c8ff; background: #f7f9ff; }
 .echoo-save-banner.is-uploading { border-color: #b9c8ff; background: #f7f9ff; }
 
 .echoo-save-banner > svg { flex: none; font-size: 18px; }
 .echoo-save-banner.is-done > svg { color: #079455; }
-.echoo-save-banner.is-error > svg,
-.echoo-save-banner.is-recovered > svg { color: #d92d20; }
+.echoo-save-banner.is-error > svg { color: #d92d20; }
+.echoo-save-banner.is-recovered > svg { color: #245cff; }
 .echoo-save-banner.is-uploading > svg { color: #265dff; }
 .echoo-save-banner svg.spin { animation: echoo-save-banner-spin 900ms linear infinite; }
 
