@@ -67,6 +67,13 @@ test('audience join bursts coalesce token/card database reads and keep shared-NA
   assert.match(limiter, /livekitTokenLimiter = limiter\(\{[\s\S]*?limit:\s*2000/);
 });
 
+test('staging API proxy forwards the LiveKit recording WebSocket', async () => {
+  const vite = await read('../../frontend/vite.config.js');
+
+  assert.match(vite, /'\/api':\s*\{[\s\S]*?ws:\s*true/);
+  assert.match(vite, /\/api\/internal\/livekit-recording/);
+});
+
 test('browser raw PCM fallback is forbidden while the show is live', async () => {
   const frontend = await read('../../frontend/src/services/broadcastRecordingService.js');
   const backend = await read('../src/controllers/broadcastChunkController.js');
