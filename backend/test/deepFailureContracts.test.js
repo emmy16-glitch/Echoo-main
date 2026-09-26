@@ -111,6 +111,14 @@ test('prerequisite waiting does not burn processing retry attempts', async () =>
   assert.match(processing, /failed without a durable quality recording path/);
 });
 
+test('local PCM recovery preserves intentional stereo right-channel silence', async () => {
+  const worklet = await frontendSource('public/echoo-pcm-capture-worklet.js');
+
+  assert.match(worklet, /hasRightChannel/);
+  assert.match(worklet, /const rightSample = hasRightChannel/);
+  assert.doesNotMatch(worklet, /right\[frame\] \|\| left\[frame\]/);
+});
+
 test('recording completion retries and automatic save preserves recovery state', async () => {
   const recording = await frontendSource('src/services/broadcastRecordingService.js');
   const autosave = await frontendSource('src/services/recordingAutosave.js');
