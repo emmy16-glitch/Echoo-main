@@ -11,8 +11,8 @@
   --border: #E3EAF2;
   --border-strong: #D3DEEA;
 
-  --accent: #1769D3;
-  --accent-hover: #125FBE;
+  --accent: #245CFF;
+  --accent-hover: #1F4FDB;
   --accent-bg: rgba(23, 105, 211, 0.08);
   --accent-border: rgba(23, 105, 211, 0.28);
 
@@ -24,27 +24,30 @@
     rgba(23, 47, 78, 0.025) 0 2px 8px;
 
   --sans:
-    Inter,
+    "Source Sans 3",
     ui-sans-serif,
     system-ui,
     -apple-system,
     BlinkMacSystemFont,
     "Segoe UI",
-    Roboto,
-    Helvetica,
-    Arial,
     sans-serif;
 
   --heading:
-    Inter,
+    "Space Grotesk",
     ui-sans-serif,
     system-ui,
     -apple-system,
     BlinkMacSystemFont,
     "Segoe UI",
-    Roboto,
-    Helvetica,
-    Arial,
+    sans-serif;
+
+  --control:
+    Manrope,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
     sans-serif;
 
   --mono:
@@ -147,7 +150,7 @@ button,
 input,
 textarea,
 select {
-  font-family: var(--sans);
+  font-family: var(--control);
 }
 
 button {
