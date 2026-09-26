@@ -17,7 +17,7 @@ import {
 
 const CREATOR_DISCONNECT_GRACE_MS = Math.max(
   5000,
-  Math.min(120000, Number(process.env.LIVEKIT_CREATOR_DISCONNECT_GRACE_MS) || 20000)
+  Math.min(120000, Number(process.env.LIVEKIT_CREATOR_DISCONNECT_GRACE_MS) || 90000)
 );
 const pendingDisconnects = new Map();
 let receiver = null;
