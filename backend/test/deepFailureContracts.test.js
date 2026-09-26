@@ -132,7 +132,7 @@ test('recording completion retries and automatic save preserves recovery state',
   assert.match(autosave, /rememberLocalMaster/);
   assert.match(banner, /beforeunload/);
   assert.match(banner, /Retry/);
-  assert.match(banner, /Finalizing/);
+  assert.match(banner, /kind: 'finalizing'|finishing Echoo server copy/);
   assert.match(banner, /MP3 · Recommended/);
   assert.match(banner, /WAV · Lossless/);
   assert.match(banner, /keep this tab open/);
@@ -211,9 +211,9 @@ test('recording management keeps trim copies safe and prevents cramped or mislab
   assert.match(exportService, /Server MP3 is still being prepared/);
   assert.match(exportService, /saveAutomaticLocalCopy/);
   assert.match(exportService, /destination:\s*'browser-downloads'/);
-  assert.match(exportService, /sourceMime\.includes\('wav'\)/);
-  assert.match(exportService, /waitForServerMp3\(audioId/);
-  assert.match(exportService, /sourceMime\.includes\('wav'\)/);
+  assert.match(exportService, /isWavMaster/);
+  assert.match(exportService, /encodeLocalWavToMp3/);
+  assert.match(exportService, /server-mp3-fallback/);
   assert.match(exportService, /sourceMime\.includes\('webm'\)/);
   assert.match(exportService, /suggestedName:\s*filename/);
   assert.doesNotMatch(exportService, /suggestedName:\s*suggestedInLibrary/);
