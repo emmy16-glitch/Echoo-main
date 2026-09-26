@@ -191,7 +191,10 @@ const RecordingSaveBanner = () => {
   // pages. Keep it available and show the recovery actions when the creator
   // actually opens Recordings.
   if (
-    state.kind === 'recovered' &&
+    (
+      state.kind === 'recovered' ||
+      (state.kind === 'error' && !state.serverReady)
+    ) &&
     !String(location.pathname || '').startsWith('/creator-studio/recordings')
   ) {
     return null;
@@ -328,6 +331,7 @@ const RecordingSaveBanner = () => {
   };
 
   const renderLocalSaveButtons = () => {
+    if (state.localSaved) return null;
     if (!state.hasRecovery && state.kind !== 'recovered' && state.kind !== 'finalizing') {
       return null;
     }
