@@ -48,7 +48,7 @@ test('one authenticated account owns both Listener and Creator experiences witho
   await expect(page).toHaveURL(/\/login/, { timeout: 10_000 });
   await page.getByLabel('Username or email').fill('account-b');
   await page.getByLabel('Password', { exact: true }).fill('Password123!');
-  await page.getByRole('button', { name: 'Login', exact: true }).click();
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
 
   // A fresh login always opens the Listener experience. Creator remains a
   // capability of the same account and can be entered without re-authentication.
