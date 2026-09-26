@@ -825,6 +825,7 @@ const startLosslessRecording = async ({ broadcastId, title }) => {
     qualityCompletionPending: false,
     qualityCompletionError: '',
     serverRecordingPrimary: false,
+    serverHandshakePromise: null,
     stopping: false,
     checkpointTimer: null,
     onPageHide: null,
@@ -1032,6 +1033,18 @@ const startFallbackRecording = ({ broadcastId, mediaTrack, title }) => {
     broadcastId: String(broadcastId || ''),
     title,
     startedAt: Date.now(),
+    qualityBuffers: [],
+    qualitySampleCount: 0,
+    qualityChunkIndex: 0,
+    qualityCursorMs: 0,
+    qualityChain: Promise.resolve(),
+    qualityChunkErrors: [],
+    qualityChunkDisabled: false,
+    qualityChunkStarted: false,
+    qualityCompletionPending: false,
+    qualityCompletionError: '',
+    serverRecordingPrimary: false,
+    serverHandshakePromise: null,
     get overflowed() { return fallbackOverflowed; },
   };
 
@@ -1099,10 +1112,66 @@ export const getBroadcastRecordingState = () => ({
   serverRecordingPrimary: Boolean(activeRecording?.serverRecordingPrimary),
 });
 
+const handleServerRecordingHandshakeFailure = async (recording, error) => {
+  if (!recording) return;
+  const startMessage = error?.message || String(error);
+  recording.qualityChunkErrors ||= [];
+  recording.qualityChunkErrors.push({ chunkIndex: -2, message: startMessage });
+
+  if (error?.code === 'FFMPEG_REQUIRED' && typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('echoo:toast', {
+      detail: {
+        type: 'error',
+        message: 'Server recording is unavailable because FFmpeg/FFprobe is not installed. Your local safety master is still recording, but this broadcast cannot auto-save a server MP3 until the server is fixed.',
+      },
+    }));
+  }
+
+  try {
+    await completeQualityChunks(recording, {
+      force: true,
+      uploadErrorsOverride: Math.max(1, recording.qualityChunkErrors.length),
+    });
+  } catch (completionError) {
+    recording.qualityCompletionPending = true;
+    recording.qualityCompletionError = completionError?.message || String(completionError);
+  }
+
+  recording.qualityChunkDisabled = true;
+  recording.qualityBuffers = [];
+  recording.qualitySampleCount = 0;
+  console.warn('[Echoo Recording] live server recording handshake is disabled for this take:', startMessage);
+};
+
+export const armBroadcastServerRecording = async (broadcastId) => {
+  const id = String(broadcastId || '');
+  const recording = activeRecording;
+  if (!recording || recording.broadcastId !== id) {
+    return { supported: false, recording: false };
+  }
+  if (recording.serverHandshakePromise) return recording.serverHandshakePromise;
+
+  recording.serverHandshakePromise = (async () => {
+    try {
+      await startQualityChunking(recording);
+    } catch (error) {
+      await handleServerRecordingHandshakeFailure(recording, error);
+    }
+    return activeRecordingSnapshot(recording);
+  })();
+
+  try {
+    return await recording.serverHandshakePromise;
+  } finally {
+    recording.serverHandshakePromise = null;
+  }
+};
+
 export const ensureBroadcastRecording = async ({
   broadcastId,
   mediaTrack,
   title = 'Echoo live recording',
+  armServer = true,
 }) => {
   const id = String(broadcastId || '');
 
@@ -1124,40 +1193,6 @@ export const ensureBroadcastRecording = async ({
       broadcastId: id,
       title,
     });
-    try {
-      await startQualityChunking(activeRecording);
-    } catch (error) {
-      const startMessage = error?.message || String(error);
-      activeRecording.qualityChunkErrors.push({ chunkIndex: -2, message: startMessage });
-
-      if (error?.code === 'FFMPEG_REQUIRED' && typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('echoo:toast', {
-          detail: {
-            type: 'error',
-            message: 'Server recording is unavailable because FFmpeg/FFprobe is not installed. Your local safety master is still recording, but this broadcast cannot auto-save a server MP3 until the server is fixed.',
-          },
-        }));
-      }
-
-      // The server may have accepted the idempotent start while all responses
-      // were lost. Best-effort force-close records that ambiguous session as a
-      // failed quality path instead of leaving qualityChunkingStartedAt open
-      // forever. A 409 NOT_STARTED is treated as a harmless no-op.
-      try {
-        await completeQualityChunks(activeRecording, {
-          force: true,
-          uploadErrorsOverride: Math.max(1, activeRecording.qualityChunkErrors.length),
-        });
-      } catch (completionError) {
-        activeRecording.qualityCompletionPending = true;
-        activeRecording.qualityCompletionError = completionError?.message || String(completionError);
-      }
-
-      activeRecording.qualityChunkDisabled = true;
-      activeRecording.qualityBuffers = [];
-      activeRecording.qualitySampleCount = 0;
-      console.warn('[Echoo Recording] live quality chunking is disabled for this take:', startMessage);
-    }
   } catch (losslessError) {
     console.warn(
       '[Echoo Recording] disk-backed lossless master capture could not start:',
@@ -1177,6 +1212,10 @@ export const ensureBroadcastRecording = async ({
       );
       return { supported: false, recording: false };
     }
+  }
+
+  if (armServer && activeRecording) {
+    await armBroadcastServerRecording(id);
   }
 
   return activeRecordingSnapshot(activeRecording);
