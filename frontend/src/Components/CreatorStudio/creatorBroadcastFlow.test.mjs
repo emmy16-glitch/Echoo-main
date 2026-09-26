@@ -32,9 +32,10 @@ test('End Broadcast opens an app dialog and only the confirmed action calls the 
   assert.match(source, /aria-modal="true"/);
 });
 
-test('Recording Saved is gated by real server finalization, never a giant upload', async () => {
+test('device recording is available before server finalization and never needs a giant upload', async () => {
   const service = await read('../../services/batch3Service.js');
   const autosave = await read('../../services/recordingAutosave.js');
+  const exportService = await read('../../services/recordingExportService.js');
   const banner = await read('../RecordingSaveBanner.jsx');
   const realtimeStart = service.indexOf('endBroadcastRealtime: async');
   const finalizeStart = service.indexOf('finalizeBroadcastRecording: async');
@@ -42,25 +43,25 @@ test('Recording Saved is gated by real server finalization, never a giant upload
   const finalizeSection = service.slice(finalizeStart, service.indexOf('getProcessing:', finalizeStart));
   const apiCompletion = realtimeSection.indexOf("/end`");
   const readyAnnouncement = finalizeSection.indexOf('announceFinishedBroadcastRecording');
-  // Server finalization replaced the giant client WAV upload.
+  const localCopy = autosave.indexOf('localCopy = await saveAutomaticLocalCopy');
   const finalizeCall = autosave.indexOf('finalizeServerReplay');
   const doneEmit = autosave.indexOf("status: 'done'", finalizeCall);
-  const serverCopy = autosave.indexOf('saveAutomaticLocalCopy({ title, audioId })', finalizeCall);
 
   assert.ok(apiCompletion >= 0);
   assert.ok(readyAnnouncement >= 0);
+  assert.ok(localCopy >= 0 && localCopy < finalizeCall, 'device copy must run before server replay finalization');
   assert.ok(finalizeCall >= 0 && doneEmit > finalizeCall);
-  assert.ok(serverCopy > finalizeCall, 'automatic PC copy uses the server MP3');
+  assert.match(exportService, /encodeLocalWavToMp3/);
+  assert.match(exportService, /source: 'local-wav-encode'/);
+  assert.match(exportService, /navigator\.share/);
+  assert.match(exportService, /showSaveFilePicker/);
   assert.doesNotMatch(autosave, /uploadAudioWithProgress/);
   assert.doesNotMatch(autosave, /new File\(\[recording\.blob/);
-  assert.match(banner, /Finalizing/);
-  assert.match(banner, /View in Recordings|View/);
-  assert.match(banner, /Retry/);
-  assert.match(autosave, /replay\.duplicate/);
-  // Interrupted End Broadcast keeps recovery event-driven with creator-safe language.
-  assert.match(autosave, /RECORDING_WAITING_FOR_NETWORK/);
-  assert.match(autosave, /friendlyRecoveryMessage/);
-  assert.match(banner, /RECORDING_WAITING_FOR_NETWORK/);
+  assert.match(banner, /Save MP3 to device/);
+  assert.match(banner, /Save WAV to device/);
+  assert.match(banner, /Retry Echoo server save/);
+  assert.match(autosave, /SERVER_END_PENDING/);
+  assert.match(autosave, /skipDeviceSave:\s*true/);
 });
 
 test('LIVE is set by the published program track, with confirmation and recording out of band', async () => {
@@ -106,14 +107,15 @@ test('End stops listener audio and local recovery master before waiting for serv
   const unpublishAt = endBody.indexOf('await stopLiveKitPublishing()');
   const offAirAt = endBody.indexOf("markOffAir('Broadcast audio stopped. Finalizing your local master…')");
   const localFinalizeAt = endBody.indexOf('const localRecording = batch3Service.finalizeBroadcastRecording');
-  const awaitBackendAt = endBody.indexOf('endedResponse = await backendEnd');
+  const awaitLocalAt = endBody.indexOf('const recordingResult = await localRecording');
   const announceAt = endBody.indexOf('batch3Service.announceFinalizedBroadcastRecording');
+  const awaitBackendAt = endBody.indexOf('const backendOutcome = await backendEnd');
 
   assert.ok(backendStartAt >= 0);
   assert.ok(unpublishAt > backendStartAt);
   assert.ok(offAirAt > unpublishAt);
-  assert.ok(localFinalizeAt > offAirAt && localFinalizeAt < awaitBackendAt);
-  assert.ok(announceAt > awaitBackendAt);
+  assert.ok(localFinalizeAt > offAirAt && localFinalizeAt < awaitLocalAt);
+  assert.ok(announceAt > awaitLocalAt && announceAt < awaitBackendAt);
   assert.match(endBody, /\{ announce: false \}/);
   assert.match(batch3, /announceFinalizedBroadcastRecording/);
   assert.match(endBody, /The upload event takes over the visible progress from here/);
