@@ -1,29 +1,42 @@
-/* Echoo Design System — colors */
+/* Echoo Design System — colors
+ *
+ * Brand direction: Signal Precision.
+ * Echoo blue remains the primary signal; deep broadcast navy carries strong
+ * hierarchy, while cool neutral surfaces keep Creator and Listener UI calm.
+ */
 :root {
-  --echoo-color-canvas: #f7f9fc;
-  --echoo-color-canvas-subtle: #f3f6fa;
+  --echoo-color-canvas: #f6f8fc;
+  --echoo-color-canvas-subtle: #f1f4f9;
   --echoo-color-surface: #ffffff;
   --echoo-color-surface-soft: #fbfcfe;
-  --echoo-color-surface-hover: #f7f9fc;
+  --echoo-color-surface-hover: #f3f6fb;
 
-  --echoo-color-ink: #0b1730;
-  --echoo-color-text: #40516b;
-  --echoo-color-muted: #7b8798;
-  --echoo-color-faint: #98a2b3;
+  --echoo-color-ink: #0b1d3a;
+  --echoo-color-text: #41516a;
+  --echoo-color-muted: #66758a;
+  --echoo-color-faint: #8c98aa;
 
-  --echoo-color-brand: #246bfe;
-  --echoo-color-brand-hover: #1f5fe0;
-  --echoo-color-brand-soft: #edf4ff;
-  --echoo-color-brand-border: #cfe0ff;
+  --echoo-color-brand: #245cff;
+  --echoo-color-brand-hover: #1d4fe0;
+  --echoo-color-brand-deep: #173b9c;
+  --echoo-color-brand-soft: #eef3ff;
+  --echoo-color-brand-border: #cbd9ff;
 
-  --echoo-color-line: #e3e9f1;
-  --echoo-color-line-strong: #d7e0eb;
-  --echoo-color-focus: #94b8ff;
-  --echoo-color-success: #087443;
-  --echoo-color-success-soft: #f1fbf5;
-  --echoo-color-danger: #b42318;
-  --echoo-color-danger-soft: #fff6f5;
+  --echoo-color-line: #dce4f0;
+  --echoo-color-line-strong: #cbd5e3;
+  --echoo-color-focus: #89aaff;
+
+  --echoo-color-success: #14885a;
+  --echoo-color-success-strong: #0f7049;
+  --echoo-color-success-soft: #eaf8f1;
+
+  --echoo-color-warning: #b7791f;
+  --echoo-color-warning-soft: #fff8e8;
+
+  --echoo-color-danger: #c73d43;
+  --echoo-color-danger-soft: #fff1f2;
   --echoo-color-live: #e5484d;
+
   --echoo-color-white: #ffffff;
   --echoo-color-black: #000000;
 
