@@ -139,6 +139,9 @@ const CreatorLiveConnectedWorkspace = ({
   const [mixerState, setMixerState] = useState(() => getEchooMixerState());
   const [publisherHealth, setPublisherHealth] = useState(() => getLiveKitPublishingState());
   const [loading, setLoading] = useState(true);
+  const [loadingElapsed, setLoadingElapsed] = useState(0);
+  const [bootstrapError, setBootstrapError] = useState('');
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [goingLive, setGoingLive] = useState(false);
   const [ending, setEnding] = useState(false);
   const [confirmEndOpen, setConfirmEndOpen] = useState(false);
@@ -189,10 +192,11 @@ const CreatorLiveConnectedWorkspace = ({
     const load = async () => {
       try {
         setLoading(true);
-        setError('');
+        setLoadingElapsed(0);
+        setBootstrapError('');
         const [stationResult, broadcastResult] = await Promise.all([
-          batch2Service.getMyStations(),
-          batch3Service.getCreatorBroadcasts(),
+          batch2Service.getMyStations({ timeoutMs: 10_000 }),
+          batch3Service.getCreatorBroadcasts({ timeoutMs: 10_000 }),
         ]);
         if (!active) return;
 
@@ -293,7 +297,13 @@ const CreatorLiveConnectedWorkspace = ({
         setTitle(canonicalStation?.name || '');
         setDescription(canonicalStation?.description || '');
       } catch (loadError) {
-        if (active) setError(loadError?.message || 'Could not load Broadcast Studio.');
+        if (active) {
+          setBootstrapError(
+            loadError?.code === 'REQUEST_TIMEOUT'
+              ? 'Echoo did not respond within 10 seconds. Your studio is safe; retry the connection.'
+              : loadError?.message || 'Could not load Broadcast Studio.'
+          );
+        }
       } finally {
         if (active) setLoading(false);
       }
@@ -301,7 +311,18 @@ const CreatorLiveConnectedWorkspace = ({
 
     load();
     return () => { active = false; };
-  }, [preparedBroadcastId, clearPreparedBroadcast, onNavigate]);
+  }, [preparedBroadcastId, clearPreparedBroadcast, onNavigate, loadAttempt]);
+
+  useEffect(() => {
+    if (!loading) return undefined;
+    const startedAt = Date.now();
+    const tick = () => setLoadingElapsed(
+      Math.max(0, Math.floor((Date.now() - startedAt) / 1000))
+    );
+    tick();
+    const timer = window.setInterval(tick, 1000);
+    return () => window.clearInterval(timer);
+  }, [loading, loadAttempt]);
 
   useEffect(() => {
     const onPublisherHealth = (event) => setPublisherHealth(event.detail);
@@ -1012,7 +1033,35 @@ const CreatorLiveConnectedWorkspace = ({
   };
 
   if (loading) {
-    return <div className="ebsx-loading">Getting your studio ready…</div>;
+    return (
+      <section className="ebsx-loading ebsx-loading--timed" role="status" aria-live="polite">
+        <FiLoader className="spin" aria-hidden="true" />
+        <strong>Getting your studio ready</strong>
+        <span>Connecting to your Channel and broadcasts · {loadingElapsed}s</span>
+        <small>
+          {loadingElapsed >= 6
+            ? 'This is taking longer than usual. Echoo will stop waiting at 10 seconds.'
+            : 'Your controls will appear as soon as the connection is ready.'}
+        </small>
+      </section>
+    );
+  }
+
+  if (bootstrapError && !stations.length && !currentLiveBroadcast) {
+    return (
+      <section className="ebsx-loading ebsx-loading--failed" role="alert">
+        <FiAlertTriangle aria-hidden="true" />
+        <strong>Studio connection needs another try</strong>
+        <span>{bootstrapError}</span>
+        <button
+          type="button"
+          className="eb-press"
+          onClick={() => setLoadAttempt((value) => value + 1)}
+        >
+          Retry Studio
+        </button>
+      </section>
+    );
   }
 
   if (!stations.length && !currentLiveBroadcast) {
