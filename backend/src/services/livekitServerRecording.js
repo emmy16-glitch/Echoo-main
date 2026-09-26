@@ -147,7 +147,10 @@ const persist = async (broadcastId, patch) => {
 };
 
 const writeWithBackpressure = async (child, buffer) => {
-  if (!buffer?.length || !child?.stdin || child.stdin.destroyed) return;
+  if (!buffer?.length) return;
+  if (!child?.stdin || child.stdin.destroyed || child.exitCode !== null) {
+    throw new Error('Server recording encoder stopped accepting PCM.');
+  }
   if (child.stdin.write(buffer)) return;
   await new Promise((resolve, reject) => {
     const stdin = child.stdin;
@@ -248,9 +251,12 @@ const createSession = async (broadcastId) => {
     void finishSession(session);
   });
   child.once('close', async (code, signal) => {
-    if (code !== 0 && code !== null) {
+    const unexpectedCleanExit = !session.stopping && code === 0;
+    if ((code !== 0 && code !== null) || unexpectedCleanExit) {
       session.failed = true;
-      session.error = `FFmpeg stopped (code ${code}${signal ? `, signal ${signal}` : ''}): ${stderr.trim() || 'encoder error'}`;
+      session.error = unexpectedCleanExit
+        ? 'FFmpeg recording encoder exited before End Broadcast.'
+        : `FFmpeg stopped (code ${code}${signal ? `, signal ${signal}` : ''}): ${stderr.trim() || 'encoder error'}`;
       await persist(broadcastId, {
         'serverRecording.status': 'failed',
         'serverRecording.error': session.error.slice(0, 1000),
