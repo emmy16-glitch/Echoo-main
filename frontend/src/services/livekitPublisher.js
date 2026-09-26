@@ -1,7 +1,11 @@
 import { Room, RoomEvent, Track } from 'livekit-client';
 
 import { applyProgramTrackQuality } from './audioQualityProfile.js';
-import { ensureBroadcastRecording } from './broadcastRecordingService.js';
+import {
+  armBroadcastServerRecording,
+  discardBroadcastRecording,
+  ensureBroadcastRecording,
+} from './broadcastRecordingService.js';
 import {
   CREATOR_TRANSPORT_STALL_MS,
   LIVE_RECOVERY_DELAYS_MS,
@@ -622,11 +626,27 @@ export const startLiveKitPublishing = async ({
   installNetworkHints(candidate);
 
   try {
+    if (candidate.mode === 'studio-mix') {
+      // Start the local safety master before the listener-facing publication
+      // becomes live. This closes the opening-gap where the first words could
+      // be heard by listeners before either the local or server recorder had
+      // started. Failure stays isolated from LiveKit publishing.
+      await ensureBroadcastRecording({
+        broadcastId: id,
+        mediaTrack: nativeTrack,
+        title: `echoo-live-${id}`,
+        armServer: false,
+      }).catch((error) => {
+        console.warn('[Echoo Recording] local safety recording start failed', error?.message || error);
+        return null;
+      });
+    }
+
     const result = await connectAndPublish(candidate, { url: resolvedUrl, token, recovery: false });
     startWatchdog(candidate);
     if (candidate.mode === 'studio-mix') {
-      void ensureBroadcastRecording({ broadcastId: id, mediaTrack: nativeTrack, title: `echoo-live-${id}` })
-        .catch((error) => console.warn('[Echoo Recording] local recording start failed', error?.message || error));
+      void armBroadcastServerRecording(id)
+        .catch((error) => console.warn('[Echoo Recording] server recording arm failed', error?.message || error));
     }
     return {
       ...result,
@@ -645,6 +665,9 @@ export const startLiveKitPublishing = async ({
       removeNetworkHints(candidate);
       if (candidate.watchdogTimer) window.clearInterval(candidate.watchdogTimer);
       publishHealth({ phase: 'failed', room: 'disconnected', publication: 'failed', livekit: 'error', audio: 'failed', lastError: error?.message || String(error) });
+    }
+    if (candidate.mode === 'studio-mix') {
+      await discardBroadcastRecording(id).catch(() => {});
     }
     await cleanupSyntheticAudio();
     throw liveKitConnectionError(error, resolvedUrl);
