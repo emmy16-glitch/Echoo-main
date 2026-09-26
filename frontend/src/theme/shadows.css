@@ -1,10 +1,14 @@
-/* Echoo Design System — shadows and elevation */
+/* Echoo Design System — shadows and elevation
+ *
+ * Flat by default. Elevation is reserved for floating menus, active media and
+ * intentional hover/focus feedback rather than every card.
+ */
 :root {
   --echoo-shadow-none: none;
-  --echoo-shadow-xs: 0 1px 2px rgba(20, 42, 76, .04);
-  --echoo-shadow-sm: 0 4px 14px rgba(20, 42, 76, .05);
-  --echoo-shadow-md: 0 10px 28px rgba(20, 42, 76, .08);
-  --echoo-shadow-lg: 0 18px 45px rgba(20, 42, 76, .12);
-  --echoo-shadow-player: 0 -8px 28px rgba(20, 42, 76, .07);
-  --echoo-shadow-focus: 0 0 0 4px rgba(36, 107, 254, .1);
+  --echoo-shadow-xs: 0 1px 2px rgba(11, 29, 58, .035);
+  --echoo-shadow-sm: 0 5px 16px rgba(11, 29, 58, .055);
+  --echoo-shadow-md: 0 12px 30px rgba(11, 29, 58, .085);
+  --echoo-shadow-lg: 0 22px 54px rgba(11, 29, 58, .14);
+  --echoo-shadow-player: 0 -10px 30px rgba(11, 29, 58, .075);
+  --echoo-shadow-focus: 0 0 0 4px rgba(36, 92, 255, .12);
 }
