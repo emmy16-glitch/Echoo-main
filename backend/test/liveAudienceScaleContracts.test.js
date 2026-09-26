@@ -21,6 +21,15 @@ test('large live audience uses selective single-track subscription and jittered 
   assert.match(provider, /hidden:\s*true/);
 });
 
+test('listener analyser follows a republished program track instead of staying on stale audio', async () => {
+  const listener = await read('../../frontend/src/Components/ListenerLiveExperience/LiveKitListenerPlayer.jsx');
+
+  assert.match(listener, /analyserSourceRef/);
+  assert.match(listener, /analyserTrackIdRef/);
+  assert.match(listener, /analyserSourceRef\.current\?\.disconnect/);
+  assert.match(listener, /analyserTrackIdRef\.current = id/);
+});
+
 test('Socket.IO presence is coalesced and does not broadcast per-listener join/leave events', async () => {
   const app = await read('../src/app.js');
   const listenerRoom = await read('../../frontend/src/Components/ListenerLiveExperience/ListenerRealLiveRoom.jsx');
@@ -75,7 +84,9 @@ test('post-live recovery resumes only missing WAV chunks after a network failure
   const backend = await read('../src/controllers/broadcastChunkController.js');
 
   assert.match(backend, /existingChunkIndices/);
-  assert.match(backend, /select\('chunkIndex'\)/);
+  assert.match(backend, /select\('_id chunkIndex filePath'\)/);
+  assert.match(backend, /durableWavChunkExists/);
+  assert.match(backend, /staleChunkIds/);
   assert.match(frontend, /new Set\(/);
   assert.match(frontend, /existingChunkIndices/);
   assert.match(frontend, /alreadyUploaded/);
