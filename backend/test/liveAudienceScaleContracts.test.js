@@ -28,6 +28,9 @@ test('listener analyser follows a republished program track instead of staying o
   assert.match(listener, /analyserTrackIdRef/);
   assert.match(listener, /analyserSourceRef\.current\?\.disconnect/);
   assert.match(listener, /analyserTrackIdRef\.current = id/);
+  assert.match(listener, /attachingRef = useRef\(new Set\(\)\)/);
+  assert.match(listener, /attachingRef\.current\.has\(id\)/);
+  assert.match(listener, /attachingRef\.current\.delete\(id\)/);
 });
 
 test('Socket.IO presence is coalesced and does not broadcast per-listener join/leave events', async () => {
