@@ -105,9 +105,9 @@ test('manual Creator upload uses measurable XHR progress instead of a spinner-on
   assert.match(studio, /uploadAudioWithProgress/);
   assert.match(studio, /transferProgressText\(uploadProgress\)/);
   assert.match(studio, /Uploading \$\{/);
-  assert.match(studio, /Upload complete — finishing recording/);
+  assert.match(studio, /Transfer complete · verifying recording/);
   assert.match(studio, /backgroundRecordingProgress/);
-  assert.match(studio, /Saving recording in background/);
+  assert.match(studio, /Saving recording to Echoo/);
 });
 
 test('recording downloads stream progress when response bodies are readable', async () => {
