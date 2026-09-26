@@ -446,11 +446,11 @@ const CreatorSettingsWorkspace = () => {
           <section className="creator-settings-real-card creator-settings-recordings-card">
             <div className="creator-settings-section-heading">
               <h3>Recording copies</h3>
-              <p>Echoo always saves the canonical server replay automatically as a high-quality MP3. Choose the preferred format for this device after each broadcast.</p>
+              <p>Echoo automatically keeps a high-quality MP3 recording. Choose the preferred format for a copy on this device after each broadcast.</p>
             </div>
 
             <div className="creator-settings-server-copy">
-              <strong>Echoo server copy</strong>
+              <strong>Echoo recording</strong>
               <span>Automatic · MP3 · stored with the broadcast in Recordings</span>
             </div>
 
@@ -491,8 +491,8 @@ const CreatorSettingsWorkspace = () => {
                   onChange={() => setRecordingChoice('none')}
                 />
                 <span>
-                  <strong>Server only</strong>
-                  <small>Keep the automatic Echoo server MP3 and download a device copy only when you ask.</small>
+                  <strong>Echoo only</strong>
+                  <small>Keep the automatic Echoo recording and save a device copy only when you ask.</small>
                 </span>
               </label>
             </fieldset>
