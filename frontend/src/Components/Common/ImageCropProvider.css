@@ -27,7 +27,7 @@
   background: #fff;
   color: #0b1730;
   box-shadow: 0 32px 90px rgba(10, 24, 48, .28);
-  font-family: Inter, "SF Pro Text", "Segoe UI Variable", "Helvetica Neue", Arial, ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--echoo-font-body, "Source Sans 3", "Segoe UI", ui-sans-serif, system-ui, sans-serif);
 }
 
 .echoo-crop-header {
