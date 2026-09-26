@@ -15,12 +15,20 @@
 
 /* ---------- Shared shell readability ---------- */
 #root :is(.echoo-app-shell--listener, .studio-final-shell) {
-  font-family: var(--echoo-font-sans, Inter, ui-sans-serif, system-ui, sans-serif) !important;
+  font-family: var(--echoo-font-body, "Source Sans 3", ui-sans-serif, system-ui, sans-serif) !important;
   min-width: 0;
 }
 
-#root :is(.echoo-app-shell--listener, .studio-final-shell) :is(button, input, select, textarea) {
-  font-family: inherit !important;
+#root :is(.echoo-app-shell--listener, .studio-final-shell) :is(h1, h2) {
+  font-family: var(--echoo-font-display, "Space Grotesk", ui-sans-serif, system-ui, sans-serif) !important;
+}
+
+#root :is(.echoo-app-shell--listener, .studio-final-shell) :is(h3, h4, h5, h6, button, label, small, strong) {
+  font-family: var(--echoo-font-accent, "Manrope", ui-sans-serif, system-ui, sans-serif) !important;
+}
+
+#root :is(.echoo-app-shell--listener, .studio-final-shell) :is(input, select, textarea, p, li, dd) {
+  font-family: var(--echoo-font-body, "Source Sans 3", ui-sans-serif, system-ui, sans-serif) !important;
 }
 
 #root :is(.echoo-app-shell--listener, .studio-final-shell) .studio-nav-item {
