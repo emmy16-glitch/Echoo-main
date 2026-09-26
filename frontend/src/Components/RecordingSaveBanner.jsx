@@ -424,8 +424,10 @@ const RecordingSaveBanner = () => {
             </strong>
             <span>
               {state.localSaved
-                ? `Your device copy is safe. Echoo is finishing in the background · ${elapsed}s`
-                : `You can save MP3 or WAV now while Echoo finishes in the background · ${elapsed}s`}
+                ? `${state.localCopy?.filename ? `Saved to this device: ${state.localCopy.filename}. ` : 'Your device copy is safe. '}Echoo is finishing its separate saved copy · ${elapsed}s`
+                : state.recoveryFormats?.length
+                  ? `You can save ${state.recoveryFormats.map((format) => format.toUpperCase()).join(' or ')} now while Echoo finishes in the background · ${elapsed}s`
+                  : `Your protected local master is safe while Echoo finishes its saved copy · ${elapsed}s`}
             </span>
           </div>
           {!state.localSaved && (
