@@ -440,8 +440,22 @@ const startQualityChunking = async (recording) => {
       }
 
       recording.serverRecordingPrimary = false;
-      recording.qualityChunkStarted = true;
-      void flushQualityChunk(recording);
+
+      if (data?.data?.mode === 'browser-fallback') {
+        // This mode is valid only for post-live recovery, when the full OPFS
+        // master is uploaded in bounded chunks after WebRTC has stopped.
+        recording.qualityChunkStarted = true;
+        return true;
+      }
+
+      // Healthy live audio must never compete with raw PCM/WAV uploads. If
+      // server Egress is unavailable, keep OPFS as the only recording path
+      // until OFF AIR and recover the server replay afterwards.
+      recording.qualityChunkStarted = false;
+      recording.serverFallbackDeferred = true;
+      console.warn('[Echoo Recording] server recorder unavailable; browser recovery is deferred until off air', {
+        broadcastId: recording.broadcastId,
+      });
       return true;
     } catch (error) {
       lastError = error;
@@ -506,7 +520,7 @@ const completeQualityChunks = async (
 };
 
 const appendQualityPcm = (recording, buffer) => {
-  if (!buffer || recording.qualityChunkDisabled) return;
+  if (!buffer || recording.qualityChunkDisabled || !recording.qualityChunkStarted) return;
   const samples = new Float32Array(buffer);
   if (!samples.length) return;
   const maximumSamples = Math.max(
