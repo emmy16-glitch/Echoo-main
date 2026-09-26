@@ -10,6 +10,10 @@ import {
 } from './broadcastRecordingService.js';
 
 const PENDING_RECORDING_DECISION_KEY = '__echooPendingBroadcastRecording';
+const LIVEKIT_HEALTH_TIMEOUT_MS = 8_000;
+const LIVEKIT_CONTROL_TIMEOUT_MS = 12_000;
+const BROADCAST_START_TIMEOUT_MS = 20_000;
+const BROADCAST_END_TIMEOUT_MS = 20_000;
 
 const rememberPendingRecordingDecision = (detail) => {
   if (typeof window === 'undefined' || !detail?.recording?.blob?.size) return;
@@ -94,6 +98,7 @@ const checkLiveKitReadiness = async () => {
     const health = await apiRequest('/health/livekit', {
       skipAuth: true,
       skipRefresh: true,
+      timeoutMs: LIVEKIT_HEALTH_TIMEOUT_MS,
     });
 
     if (health?.reachable !== true) {
@@ -215,7 +220,7 @@ const batch3Service = {
   startBroadcast: async (broadcastId) => {
     const response = await apiRequest(
       `/broadcasts/${encodeURIComponent(broadcastId)}/start`,
-      { method: 'POST' }
+      { method: 'POST', timeoutMs: BROADCAST_START_TIMEOUT_MS }
     );
 
     const payload = response?.data || {};
@@ -243,7 +248,10 @@ const batch3Service = {
 
     for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
       try {
-        const response = await apiRequest(path, { method: 'POST' });
+        const response = await apiRequest(path, {
+          method: 'POST',
+          timeoutMs: LIVEKIT_CONTROL_TIMEOUT_MS,
+        });
 
         return {
           ...response,
@@ -288,7 +296,7 @@ const batch3Service = {
   getLiveKitToken: async (broadcastId) => {
     const response = await apiRequest(
       `/broadcasts/${encodeURIComponent(broadcastId)}/livekit-token`,
-      { method: 'POST' }
+      { method: 'POST', timeoutMs: LIVEKIT_CONTROL_TIMEOUT_MS }
     );
 
     return response?.data || {};
@@ -297,7 +305,7 @@ const batch3Service = {
   getListenerLiveKitToken: async (broadcastId) => {
     const response = await apiRequest(
       `/broadcasts/${encodeURIComponent(broadcastId)}/listener-token`,
-      { method: 'POST' }
+      { method: 'POST', timeoutMs: LIVEKIT_CONTROL_TIMEOUT_MS }
     );
 
     return response?.data || {};
@@ -324,6 +332,7 @@ const batch3Service = {
         body: JSON.stringify({ name: String(name || '').slice(0, 40) }),
         skipAuth: true,
         skipRefresh: true,
+        timeoutMs: LIVEKIT_CONTROL_TIMEOUT_MS,
       }
     );
 
@@ -371,7 +380,7 @@ const batch3Service = {
   endBroadcastRealtime: async (broadcastId) => {
     const response = await apiRequest(
       `/broadcasts/${encodeURIComponent(broadcastId)}/end`,
-      { method: 'POST' }
+      { method: 'POST', timeoutMs: BROADCAST_END_TIMEOUT_MS }
     );
 
     const raw = response?.data?.broadcast || response?.data;
