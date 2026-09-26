@@ -102,6 +102,8 @@ test('post-live recovery resumes only missing WAV chunks after a network failure
   assert.match(frontend, /existingChunkIndices/);
   assert.match(frontend, /alreadyUploaded/);
   assert.match(frontend, /if \(!alreadyUploaded\)/);
+  assert.match(frontend, /QUALITY_CHUNK_UPLOAD_TIMEOUT_MS/);
+  assert.match(frontend, /timeoutMs:\s*QUALITY_CHUNK_UPLOAD_TIMEOUT_MS/);
 });
 
 test('output encoders clean up backpressure listeners instead of leaking them during long recovery', async () => {
