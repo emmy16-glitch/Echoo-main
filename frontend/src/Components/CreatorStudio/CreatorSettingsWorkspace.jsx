@@ -446,7 +446,7 @@ const CreatorSettingsWorkspace = () => {
           <section className="creator-settings-real-card creator-settings-recordings-card">
             <div className="creator-settings-section-heading">
               <h3>Recording copies</h3>
-              <p>Echoo always saves the canonical server replay automatically as a high-quality MP3. Choose once how this device should keep its own copy after each broadcast.</p>
+              <p>Echoo always saves the canonical server replay automatically as a high-quality MP3. Choose the preferred format for this device after each broadcast.</p>
             </div>
 
             <div className="creator-settings-server-copy">
@@ -455,7 +455,7 @@ const CreatorSettingsWorkspace = () => {
             </div>
 
             <fieldset className="creator-settings-recording-options">
-              <legend>Automatic copy on this device</legend>
+              <legend>{isDesktop ? 'Automatic copy on this device' : 'Preferred device copy'}</legend>
               <label className={recordingChoice === 'mp3' ? 'selected' : ''}>
                 <input
                   type="radio"
@@ -502,7 +502,7 @@ const CreatorSettingsWorkspace = () => {
               <span>
                 {isDesktop
                   ? 'Echoo Desktop files recordings into Desktop/Echoo Recordings/<year>/<month>.'
-                  : 'Web browsers save into their normal Downloads storage because websites cannot silently create arbitrary folders on a computer or phone.'}
+                  : 'Web/phone browsers keep the local master ready and require one Save tap after the broadcast. Echoo then uses the file picker/share sheet when available, with normal browser download fallback.'}
               </span>
             </div>
 
