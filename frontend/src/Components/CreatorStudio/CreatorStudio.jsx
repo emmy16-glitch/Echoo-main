@@ -27,6 +27,7 @@ import {
 } from '../../services/progressTiming';
 import ListenerLiveConnected from '../ListenerLive/ListenerLiveConnected';
 import { CreatorStudioStateProvider } from './CreatorStudioState';
+import { requestEchooConfirmation } from '../Shared/ConfirmDialogHost.jsx';
 // Lazy workspaces: each tab loads only its own code, so Channels/Recordings
 // open instantly instead of downloading every workspace up-front.
 const CreatorDiscoverWorkspace = lazy(() => import('./CreatorDiscoverWorkspace'));
@@ -515,7 +516,13 @@ const CreatorStudioBody = () => {
 
   const handleDelete = async (audioId, title) => {
     if (!audioId || deletingId) return;
-    if (!window.confirm(`Delete “${title || 'this audio'}”?`)) return;
+    const confirmed = await requestEchooConfirmation({
+      title: 'Delete audio?',
+      description: `“${title || 'This audio'}” will be removed from your Echoo library. This action cannot be undone.`,
+      confirmLabel: 'Delete audio',
+      tone: 'danger',
+    });
+    if (!confirmed) return;
     try {
       setDeletingId(String(audioId));
       setError('');
