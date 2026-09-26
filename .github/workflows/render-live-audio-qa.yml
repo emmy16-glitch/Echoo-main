@@ -28,4 +28,4 @@ jobs:
       - name: Run Render live-audio QA
         env:
           ECHOO_REMOTE_ORIGIN: https://echoo-render-staging.onrender.com
-        run: node scripts/remote-live-audio-e2e.mjs
+        run: node scripts/remote-live-audio-stream-only.mjs
