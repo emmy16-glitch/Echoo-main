@@ -1,14 +1,14 @@
 /* Authoritative Echoo Listener shell. Route styles must not redefine the
    navigation, header, player, or responsive shell geometry. */
 .echoo-listener-v2-shell {
-  --listener-blue: #0b63f6;
-  --listener-blue-hover: #0755d9;
-  --listener-blue-soft: #edf4ff;
-  --listener-ink: #0d1b33;
-  --listener-body: #34445f;
-  --listener-muted: #77849a;
-  --listener-subtle: #f7f9fc;
-  --listener-border: #e2e7ef;
+  --listener-blue: var(--echoo-color-brand, #245cff);
+  --listener-blue-hover: var(--echoo-color-brand-hover, #1f4fdb);
+  --listener-blue-soft: var(--echoo-color-brand-soft, #edf2ff);
+  --listener-ink: var(--echoo-color-ink, #0b1d3a);
+  --listener-body: var(--echoo-color-text, #40516b);
+  --listener-muted: var(--echoo-color-muted, #77849a);
+  --listener-subtle: var(--echoo-color-canvas, #f7f9fc);
+  --listener-border: var(--echoo-color-line, #e7edf7);
   --listener-live: #ef233c;
   --listener-sidebar: 232px;
   --listener-player: 86px;
@@ -17,7 +17,7 @@
   overflow-x: clip;
   background: #fff;
   color: var(--listener-ink);
-  font-family: Inter, "SF Pro Text", "Segoe UI Variable", "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--echoo-font-body, "Source Sans 3", ui-sans-serif, system-ui, sans-serif);
 }
 
 /* The legacy root variables are still shared with Creator Studio. These three
