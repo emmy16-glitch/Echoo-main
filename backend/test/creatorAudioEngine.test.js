@@ -78,7 +78,8 @@ test('the studio graph keeps raw bypass, real processing and one post-master des
   assert.match(mixer, /\['media', 'screen'\]\.includes\(channelId\)/);
   assert.match(limiter, /registerProcessor\('echoo-master-limiter'/);
   assert.match(publisher, /name: 'echoo-studio-mix'/);
-  assert.match(publisher, /void ensureBroadcastRecording\(\{[\s\S]*mediaTrack/);
+  assert.match(publisher, /localRecordingStart = ensureBroadcastRecording\(\{[\s\S]*mediaTrack/);
+  assert.match(publisher, /armBroadcastServerRecording\(id\)/);
   assert.doesNotMatch(publisher, /startWhisperFlowTranscription/);
   assert.match(publisher, /activePublication\.mute\(\)/);
   assert.match(publisher, /activePublication\.unmute\(\)/);
