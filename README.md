@@ -125,7 +125,7 @@ The API manages identity, lifecycle, chat, presence, tokens, and product data. I
 
 Echoo uses LiveKit Cloud as its real-time audio SFU:
 
-- **Creator** publishes exactly one `echoo-studio-mix` program publication (stereo Opus, 48 kHz; profiles up to 510 kbps) with a short-lived publisher token. This post-master `echoo-studio-mix` is the single feed listeners hear and recordings capture.
+- **Creator** publishes exactly one `echoo-studio-mix` program publication (stereo Opus, 48 kHz; resilient profiles up to 384 kbps with RED enabled) with a short-lived publisher token. This post-master `echoo-studio-mix` is the single feed listeners hear and recordings capture.
 - **Creator recovery** republishes the same mixer output with fresh credentials after a real transport failure. Intentional Pause is excluded from the transport-stall watchdog and remains paused across reconnect. Automatic retries continue with bounded backoff through the backend's normal ~90-second creator-disconnect grace window instead of giving up after the first short retry burst.
 - **Listeners** use hidden, subscribe-only LiveKit participants and explicitly subscribe only to the canonical `echoo-studio-mix` (`autoSubscribe: false`, `canPublish: false`). Late join, track replacement, ended media elements, browser online recovery, and non-autoplay playback failures all have recovery paths. Hard reconnects include per-client jitter so a large audience does not request tokens in lockstep.
 - **Guests** get server-generated `guest:<uuid>` identities with the same subscriber-only grants — they can never publish or impersonate accounts.
