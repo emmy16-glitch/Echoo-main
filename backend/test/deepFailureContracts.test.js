@@ -257,7 +257,9 @@ test('recording management keeps trim copies safe and prevents cramped or mislab
   assert.doesNotMatch(trim, /uploadAudioWithProgress/);
   assert.doesNotMatch(trim, /new File\(/);
   assert.match(trim, /trimSavedAudio\(id/);
-  assert.match(trim, /Trimmed copy saved to Recordings\. The original is unchanged\./);
+  assert.match(trim, /Trimmed copy saved\. You can download it now; the original is unchanged\./);
+  assert.match(trim, /Download trimmed version/);
+  assert.match(trim, /studioService\.downloadAudio\(trimmedId/);
   assert.match(trim, /availableFormats/);
   assert.match(trim, /Export to this device/);
   assert.match(modal, /Download stored file/);
@@ -268,7 +270,7 @@ test('recording management keeps trim copies safe and prevents cramped or mislab
   assert.match(trimController, /sourcePreserved:\s*true/);
   assert.match(trimController, /sourceBroadcast:\s*null/);
   assert.doesNotMatch(trimController, /findOneAndUpdate\([\s\S]{0,1000}'lastTrim\.startSeconds'/);
-  assert.match(trimService, /case '\.mp3': return \['-c:a', 'copy'\]/);
+  assert.match(trimService, /case '\.mp3': return \['-c:a', 'libmp3lame', '-b:a', '320k'/);
   assert.match(trimService, /FFMPEG_REQUIRED/);
   assert.match(trimService, /TRIM_PROBE_TIMEOUT/);
   assert.match(trimService, /child\.kill\('SIGKILL'\)/);
