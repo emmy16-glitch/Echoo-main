@@ -887,6 +887,9 @@ export const uploadRecoveredTake = async ({ recording, broadcast } = {}) => {
 
 // Headless mount: listens for finished broadcasts + offers boot recovery.
 export const installRecordingAutosave = () => {
+  let disposed = false;
+  let onlineRecoveryHandler = null;
+
   const onReady = (event) => {
     const detail = event?.detail || null;
     if (detail?.recording?.blob?.size) {
@@ -942,10 +945,41 @@ export const installRecordingAutosave = () => {
         recoveryFormats: availableLocalFormats(recovered.recording),
         preferredFormat: getRecordingDevicePreferences().format,
       });
+
+      // A refresh kills the browser's in-flight request, but not the OPFS
+      // master. Resume the same idempotent chunked save automatically. The
+      // start endpoint returns the server's existing chunk indices, so a show
+      // interrupted at (for example) 9% continues with the missing chunks
+      // instead of retransmitting everything already stored.
+      const resumeRecoveredUpload = () => {
+        if (disposed) return;
+        if (onlineRecoveryHandler) {
+          window.removeEventListener('online', onlineRecoveryHandler);
+          onlineRecoveryHandler = null;
+        }
+        uploadRecoveredTake(recovered).catch(() => {
+          // startAutosave emits a creator-visible retryable error while keeping
+          // the OPFS master. Never delete the only recovery copy on failure.
+        });
+      };
+
+      if (broadcastId && typeof navigator !== 'undefined' && navigator.onLine === false) {
+        onlineRecoveryHandler = resumeRecoveredUpload;
+        window.addEventListener('online', onlineRecoveryHandler, { once: true });
+      } else if (broadcastId) {
+        resumeRecoveredUpload();
+      }
     })
     .catch(() => {});
 
-  return () => window.removeEventListener(BROADCAST_RECORDING_READY_EVENT, onReady);
+  return () => {
+    disposed = true;
+    window.removeEventListener(BROADCAST_RECORDING_READY_EVENT, onReady);
+    if (onlineRecoveryHandler) {
+      window.removeEventListener('online', onlineRecoveryHandler);
+      onlineRecoveryHandler = null;
+    }
+  };
 };
 
 export default {
