@@ -324,8 +324,24 @@ try {
   await creatorPage.waitForFunction(() => Number(document.querySelector('[aria-label="HOST left level"]')?.getAttribute('aria-valuenow') || 0) > 0, null, { timeout: 15_000 });
 
   const goLiveStarted = Date.now();
-  await creatorPage.getByRole('button', { name: 'Go Live', exact: true }).click();
-  await creatorPage.locator('.ec2-status-pill[aria-label="Live"]').waitFor({ timeout: 45_000 });
+  const goLiveButton = creatorPage.getByRole('button', { name: 'Go Live', exact: true });
+  await goLiveButton.click();
+  try {
+    await creatorPage.locator('.ec2-status-pill[aria-label="Live"]').waitFor({ timeout: 45_000 });
+  } catch (goLiveError) {
+    evidence.goLiveDiagnostics = await creatorPage.evaluate(() => ({
+      notices: Array.from(document.querySelectorAll('.ec2-notice')).map((node) => node.textContent?.trim()).filter(Boolean),
+      buttons: Array.from(document.querySelectorAll('button')).filter((node) => /live/i.test(node.textContent || '')).map((node) => ({
+        text: node.textContent?.trim() || '',
+        disabled: Boolean(node.disabled),
+      })),
+      hostMeter: document.querySelector('[aria-label="HOST left level"]')?.getAttribute('aria-valuenow') || '',
+      hostSelect: document.querySelector('select[aria-label="HOST input"]')?.value || '',
+      offAirVisible: Boolean(document.querySelector('.ec2-status-pill[aria-label="Off air"]')),
+      bodyText: document.body.innerText.slice(0, 4500),
+    }));
+    throw goLiveError;
+  }
   await creatorPage.getByText('Connected', { exact: true }).waitFor({ timeout: 25_000 });
   evidence.timing.creatorTimeToLiveMs = Date.now() - goLiveStarted;
 
