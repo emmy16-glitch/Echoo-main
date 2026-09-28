@@ -313,6 +313,19 @@ test('realtime audio keeps RED enabled and uses resilient creator bitrates', asy
   assert.match(quality, /audioPreset:\s*\{ maxBitrate: profile\.maxBitrate, priority: 'high' \}/);
 });
 
+test('live recording reuses PCM worklet buffers and throttles visual metering', async () => {
+  const mixer = await read('../../services/echooMixerService.js');
+  const worklet = await read('../../../public/echoo-pcm-capture-worklet.js');
+
+  assert.match(mixer, /METER_REFRESH_INTERVAL_MS = 1000 \/ 30/);
+  assert.match(mixer, /frameTime - lastMeterFrameAt < METER_REFRESH_INTERVAL_MS/);
+  assert.match(mixer, /type: 'recycle', buffer: transferredBuffer/);
+  assert.match(worklet, /const CHUNK_FRAMES = 16384/);
+  assert.match(worklet, /this\.freeBuffers = \[\]/);
+  assert.match(worklet, /this\.freeBuffers\.pop\(\) \|\| new Float32Array\(CHUNK_SAMPLES\)/);
+  assert.match(worklet, /sampleCount/);
+});
+
 test('creator watchdog confirms repeated sender stalls before rebuilding the LiveKit room', async () => {
   const publisher = await read('../../services/livekitPublisher.js');
   const policy = await read('../../services/liveRecoveryPolicy.js');
