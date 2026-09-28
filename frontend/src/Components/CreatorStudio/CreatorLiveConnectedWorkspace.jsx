@@ -66,6 +66,8 @@ const isMissingBroadcastError = (error) =>
     /broadcast not found/i.test(error?.message || '')
   );
 
+const entityId = (value) => value?.id || value?._id || '';
+
 const percentToRatio = (value, fallback = 0) => {
   const number = Number(value);
   return Number.isFinite(number) ? Math.max(0, Math.min(1, number / 100)) : fallback;
@@ -223,7 +225,7 @@ const CreatorLiveConnectedWorkspace = ({
           setRealtimeQualityProfile(normalizeRealtimeAudioProfile(
             activeBroadcast.realtimeAudio?.qualityProfile || getSavedRealtimeAudioProfile()
           ));
-          setStationId(realStations[0]?.id || '');
+          setStationId(entityId(realStations[0]));
           setTitle(activeBroadcast.title || realStations[0]?.name || '');
           setDescription(activeBroadcast.description || realStations[0]?.description || '');
           clearPreparedBroadcast();
@@ -239,7 +241,7 @@ const CreatorLiveConnectedWorkspace = ({
         if (endingBroadcast) {
           setCurrentLiveBroadcast(null);
           setSavedBroadcast(null);
-          setStationId(realStations[0]?.id || '');
+          setStationId(entityId(realStations[0]));
           setTitle(realStations[0]?.name || endingBroadcast.title || '');
           setDescription(realStations[0]?.description || endingBroadcast.description || '');
           clearPreparedBroadcast();
@@ -258,7 +260,7 @@ const CreatorLiveConnectedWorkspace = ({
           setRealtimeQualityProfile(normalizeRealtimeAudioProfile(
             interruptedStart.realtimeAudio?.qualityProfile || getSavedRealtimeAudioProfile()
           ));
-          setStationId(realStations[0]?.id || '');
+          setStationId(entityId(realStations[0]));
           setTitle(interruptedStart.title || realStations[0]?.name || '');
           setDescription(interruptedStart.description || realStations[0]?.description || '');
           sessionStorage.setItem('echooPreparedBroadcastId', String(interruptedStart.id));
@@ -291,7 +293,7 @@ const CreatorLiveConnectedWorkspace = ({
             setRealtimeQualityProfile(normalizeRealtimeAudioProfile(
               prepared.realtimeAudio?.qualityProfile || getSavedRealtimeAudioProfile()
             ));
-            setStationId(realStations[0]?.id || '');
+            setStationId(entityId(realStations[0]));
             setTitle(prepared.title || realStations[0]?.name || '');
             setDescription(prepared.description || realStations[0]?.description || '');
             return;
@@ -301,7 +303,7 @@ const CreatorLiveConnectedWorkspace = ({
         }
 
         const canonicalStation = realStations[0] || null;
-        setStationId(canonicalStation?.id || '');
+        setStationId(entityId(canonicalStation));
         setTitle(canonicalStation?.name || '');
         setDescription(canonicalStation?.description || '');
         bootstrapRetryRef.current = 0;
@@ -698,14 +700,14 @@ const CreatorLiveConnectedWorkspace = ({
     }
 
     const station = selectedStation || stations[0] || null;
-    if (!station?.id) throw new Error('Complete your Channel setup before going live.');
+    if (!entityId(station)) throw new Error('Complete your Channel setup before going live.');
 
     const start = new Date(Date.now() + 10 * 60 * 1000);
     const end = new Date(start.getTime() + 4 * 60 * 60 * 1000);
     const response = await batch2Service.createBroadcast({
       title: title.trim() || station.name || 'Live broadcast',
       description: description.trim(),
-      stationId: station.id,
+      stationId: entityId(station),
       startTime: start.toISOString(),
       endTime: end.toISOString(),
       type: 'live',
@@ -726,7 +728,7 @@ const CreatorLiveConnectedWorkspace = ({
   const goLive = async () => {
     if (goingLive || currentLiveBroadcast?.id) return;
     const station = selectedStation || stations[0] || null;
-    if (!station?.id) {
+    if (!entityId(station)) {
       setError('Complete your Channel setup before going live.');
       return;
     }
