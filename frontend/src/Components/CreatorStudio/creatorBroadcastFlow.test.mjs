@@ -307,9 +307,9 @@ test('creator Monitor Mix uses a direct default headphone route and a sink-route
 test('realtime audio keeps RED enabled and uses resilient creator bitrates', async () => {
   const quality = await read('../../services/realtimeAudioQuality.js');
 
-  assert.match(quality, /broadcast_high:[\s\S]*?maxBitrate:\s*192000[\s\S]*?red:\s*true/);
-  assert.match(quality, /studio:[\s\S]*?maxBitrate:\s*256000[\s\S]*?red:\s*true/);
-  assert.match(quality, /studio_max:[\s\S]*?maxBitrate:\s*384000[\s\S]*?red:\s*true/);
+  assert.match(quality, /broadcast_high:[\s\S]*?maxBitrate:\s*128000[\s\S]*?red:\s*true/);
+  assert.match(quality, /studio:[\s\S]*?maxBitrate:\s*192000[\s\S]*?red:\s*true/);
+  assert.match(quality, /studio_max:[\s\S]*?maxBitrate:\s*256000[\s\S]*?red:\s*true/);
   assert.match(quality, /audioPreset:\s*\{ maxBitrate: profile\.maxBitrate, priority: 'high' \}/);
 });
 
