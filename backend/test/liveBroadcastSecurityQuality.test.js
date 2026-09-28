@@ -16,9 +16,11 @@ test('creator LiveKit token grants publishing only through the creator token pat
 
 test('listener LiveKit connections retry signaling and peer connection failures', async () => {
   const player = await read('frontend/src/Components/ListenerLiveExperience/LiveKitListenerPlayer.jsx');
-  assert.match(player, /maxRetries:\s*5/);
-  assert.match(player, /websocketTimeout:\s*15000/);
-  assert.match(player, /peerConnectionTimeout:\s*20000/);
+  assert.match(player, /maxRetries:\s*7/);
+  assert.match(player, /websocketTimeout:\s*18000/);
+  assert.match(player, /peerConnectionTimeout:\s*22000/);
+  assert.match(player, /LISTENER_CONNECTION_LOST_GRACE_MS/);
+  assert.match(player, /LISTENER_RTP_STALL_MS/);
 });
 
 test('backend keeps creator and listener grants separated', async () => {

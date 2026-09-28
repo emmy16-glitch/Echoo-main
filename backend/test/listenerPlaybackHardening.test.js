@@ -14,7 +14,11 @@ test('live listener keeps playback intent, device volume, and explicit recovery 
   assert.match(player, /element\.volume\s*=\s*volumeRef\.current/);
   assert.match(player, /element\.muted\s*=\s*mutedRef\.current/);
   assert.match(player, /onReconnect:\s*\(\)\s*=>\s*setRetryVersion/);
-  assert.match(player, /const onOnline[\s\S]*scheduleHardReconnect\('browser_online'\)/);
+  assert.match(player, /const onOnline[\s\S]*roomLinkRef\.current === 'reconnecting'[\s\S]*browser_online_missing_transport/);
+  assert.match(player, /getReceiverStats/);
+  assert.match(player, /scheduleHardReconnect\('inbound_rtp_stall'\)/);
+  assert.match(player, /RoomEvent\.TrackStreamStateChanged/);
+  assert.match(player, /RoomEvent\.ConnectionQualityChanged/);
   assert.match(player, /isPlaying,/);
   assert.match(player, /playbackState:/);
 

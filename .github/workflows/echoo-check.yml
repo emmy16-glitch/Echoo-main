@@ -33,6 +33,8 @@ jobs:
       - run: npm run lint
       - name: Verify on-device WAV to MP3 encoder
         run: npm run test:local-recording
+      - name: Verify live audio recovery policy
+        run: npm run test:live-recovery
       - run: npm run build
 
   frontend-e2e-critical:
