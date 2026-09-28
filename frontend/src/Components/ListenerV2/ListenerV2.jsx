@@ -298,7 +298,11 @@ const useLiveCatalog = () => {
       if (isAuthenticated()) {
         const response = await listenerService.getDashboard();
         setLiveNow(Array.isArray(response?.data?.liveNow) ? response.data.liveNow : []);
-        setUpcoming(Array.isArray(response?.data?.upcoming) ? response.data.upcoming : []);
+        setUpcoming(
+          (Array.isArray(response?.data?.upcoming) ? response.data.upcoming : [])
+            .slice()
+            .sort((a, b) => new Date(a?.startTime || 0) - new Date(b?.startTime || 0))
+        );
       } else {
         const [liveResult, upcomingResult] = await Promise.allSettled([
           batch2Service.listBroadcasts({
