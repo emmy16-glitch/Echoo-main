@@ -121,6 +121,7 @@ export default function CreatorCollectionsWorkspace({
   onNavigate,
   recordingId = '',
   onCloseRecording,
+  onOpenRecording,
 }) {
   const [tab, setTab] = useState('all');
   const [query, setQuery] = useState('');
@@ -130,6 +131,8 @@ export default function CreatorCollectionsWorkspace({
   const [busyId, setBusyId] = useState('');
   const [menuId, setMenuId] = useState('');
   const [selectedTrack, setSelectedTrack] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState('');
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(10);
   const [notice, setNotice] = useState('');
@@ -274,9 +277,41 @@ export default function CreatorCollectionsWorkspace({
   useEffect(() => { setPage(1); }, [query, tab, sortMode, perPage]);
 
   useEffect(() => {
-    if (!recordingId) return;
+    let active = true;
+
+    if (!recordingId) {
+      setSelectedTrack(null);
+      setDetailLoading(false);
+      setDetailError('');
+      return () => { active = false; };
+    }
+
     const recording = tracks.find((track) => String(getId(track)) === String(recordingId));
-    if (recording) setSelectedTrack(recording);
+    if (recording) {
+      setSelectedTrack(recording);
+      setDetailLoading(false);
+      setDetailError('');
+      return () => { active = false; };
+    }
+
+    setSelectedTrack(null);
+    setDetailLoading(true);
+    setDetailError('');
+
+    studioService.getAudio(recordingId)
+      .then((response) => {
+        if (!active) return;
+        if (!response?.data) throw new Error('Recording not found.');
+        setSelectedTrack(response.data);
+      })
+      .catch((loadError) => {
+        if (active) setDetailError(loadError?.message || 'Could not open this recording.');
+      })
+      .finally(() => {
+        if (active) setDetailLoading(false);
+      });
+
+    return () => { active = false; };
   }, [recordingId, tracks]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
@@ -284,6 +319,20 @@ export default function CreatorCollectionsWorkspace({
   const pageRows = filtered.slice((safePage - 1) * perPage, safePage * perPage);
   const rangeStart = filtered.length ? ((safePage - 1) * perPage) + 1 : 0;
   const rangeEnd = Math.min(filtered.length, safePage * perPage);
+
+  const openRecording = (track) => {
+    const id = String(getId(track) || '');
+    if (!id) return;
+    setSelectedTrack(track);
+    setDetailError('');
+    onOpenRecording?.(id);
+  };
+
+  const closeRecording = () => {
+    setSelectedTrack(null);
+    setDetailError('');
+    onCloseRecording?.();
+  };
 
   const announce = (message) => {
     setNotice(message);
@@ -495,6 +544,67 @@ export default function CreatorCollectionsWorkspace({
     ['unpublished', `Private (${counts.private})`],
   ];
 
+  if (recordingId && detailLoading && !selectedTrack) {
+    return (
+      <section className="recordings-detail-loading" role="status" aria-live="polite">
+        <span className="creator-audio-stream-spinner" aria-hidden="true" />
+        <strong>Opening recording…</strong>
+      </section>
+    );
+  }
+
+  if (recordingId && detailError && !selectedTrack) {
+    return (
+      <section className="recordings-detail-error" role="alert">
+        <strong>Could not open this recording</strong>
+        <p>{detailError}</p>
+        <button type="button" onClick={closeRecording}>Back to Recordings</button>
+      </section>
+    );
+  }
+
+  if (selectedTrack) {
+    return (
+      <>
+        <CreatorAudioDetailModal
+          variant="page"
+          track={selectedTrack}
+          onClose={closeRecording}
+          onChanged={refresh}
+          onAddToCollection={() => openCollectionPicker(selectedTrack)}
+          onOpenRecording={(id) => {
+            setSelectedTrack(null);
+            onOpenRecording?.(id);
+          }}
+        />
+        {collectionPickerTrack && (
+          <div
+            className="recordings-collection-picker"
+            role="presentation"
+            onMouseDown={(event) => event.target === event.currentTarget && setCollectionPickerTrack(null)}
+          >
+            <section role="dialog" aria-modal="true" aria-label="Add to Collection">
+              <header>
+                <strong>Add to Collection</strong>
+                <button type="button" onClick={() => setCollectionPickerTrack(null)}>×</button>
+              </header>
+              {collectionChoices.length
+                ? collectionChoices.map((collection) => (
+                    <button type="button" key={collection.id} onClick={() => addToCollection(collection.id)}>
+                      {collection.title}<small>{collection.broadcastCount} recordings</small>
+                    </button>
+                  ))
+                : <p>No Collections yet.</p>}
+              <button type="button" className="new" onClick={createCollectionForRecording}>
+                {collectionChoices.length ? '+ New Collection' : 'Create Collection'}
+              </button>
+            </section>
+          </div>
+        )}
+      </>
+    );
+  }
+
   return (
     <section className="recordings-page">
       <header className="recordings-heading">
@@ -636,7 +746,7 @@ export default function CreatorCollectionsWorkspace({
                     <small>{formatDuration(track.duration)}</small>
                   </button>
                   <div className="recordings-copy">
-                    <button type="button" className="recordings-title" onClick={() => setSelectedTrack(track)}>{displayTitle}</button>
+                    <button type="button" className="recordings-title" onClick={() => openRecording(track)}>{displayTitle}</button>
                     <p>{channelName}</p>
                     {metadata && <span>{metadata}</span>}
                   </div>
@@ -653,14 +763,14 @@ export default function CreatorCollectionsWorkspace({
                 <div className="recordings-status-cell" role="cell"><span className={`recordings-status is-${status}`}><i />{statusLabel[status]}</span></div>
 
                 <div className="recordings-actions" role="cell">
-                  <button type="button" className="recordings-primary-action" onClick={() => setSelectedTrack(track)}><FiSettings /> Manage</button>
+                  <button type="button" className="recordings-primary-action" onClick={() => openRecording(track)}><FiSettings /> Manage</button>
                   <button type="button" className="recordings-icon-action" aria-label={isPlaying ? 'Pause recording' : 'Play recording'} onClick={() => togglePlay(track)}>{isPlaying ? <FiPause /> : <FiPlay />}</button>
                   <button type="button" className="recordings-icon-action" aria-label="Download recording" disabled={busyId === id} onClick={() => download(track)}><FiDownload /></button>
                   <div className="recordings-more-wrap">
                     <button type="button" className="recordings-more" aria-label="More recording actions" aria-expanded={menuId === id} onClick={() => setMenuId((current) => current === id ? '' : id)}><FiMoreVertical /></button>
                     {menuId === id && (
                       <div className="recordings-more-menu">
-                        <button type="button" onClick={() => setSelectedTrack(track)}>Manage recording</button>
+                        <button type="button" onClick={() => openRecording(track)}>Manage recording</button>
                         <button type="button" onClick={() => { setMenuId(''); openCollectionPicker(track); }}>Add to Collection</button>
                         <button type="button" onClick={() => setVisibility(track, status !== 'published')}>{status === 'published' ? 'Make private' : 'Make public'}</button>
                         <button type="button" className="danger" onClick={() => remove(track)}><FiTrash2 /> Delete</button>
@@ -692,7 +802,6 @@ export default function CreatorCollectionsWorkspace({
         </footer>
       </section>
 
-      {selectedTrack && <CreatorAudioDetailModal track={selectedTrack} onClose={() => { setSelectedTrack(null); if (recordingId) onCloseRecording?.(); }} onChanged={refresh} onAddToCollection={() => openCollectionPicker(selectedTrack)} />}
       {collectionPickerTrack && <div className="recordings-collection-picker" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setCollectionPickerTrack(null)}><section role="dialog" aria-modal="true" aria-label="Add to Collection"><header><strong>Add to Collection</strong><button type="button" onClick={() => setCollectionPickerTrack(null)}>×</button></header>{collectionChoices.length ? collectionChoices.map((collection) => <button type="button" key={collection.id} onClick={() => addToCollection(collection.id)}>{collection.title}<small>{collection.broadcastCount} recordings</small></button>) : <p>No Collections yet.</p>}<button type="button" className="new" onClick={createCollectionForRecording}>{collectionChoices.length ? '+ New Collection' : 'Create Collection'}</button></section></div>}
     </section>
   );
