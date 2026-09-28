@@ -30,7 +30,6 @@ import audioService from '../../services/audioService';
 import notificationService from '../../services/notificationService';
 import playlistService from '../../services/playlistService';
 import { buildMediaUrl } from '../../services/api';
-import { buildGeneratedAudioCoverUrl } from '../../audioCover/audioCover';
 import { getGuestSession, isAuthenticated, recordGuestPlayback, saveGuestPreferences } from '../../services/guestSession';
 import { useGuestAuth } from '../Auth/GuestAuthGate';
 import { getCreatorProfilePath } from '../../services/profileIdentifier';
@@ -42,16 +41,6 @@ import './ListenerV2.css';
 
 const LIVE_SYNC_MS = 15000;
 const CATEGORY_FALLBACK = ['Faith', 'Talk', 'Music', 'Education', 'News', 'Sports', 'Business', 'Technology'];
-const DEMO_PLAYLISTS = [
-  { id: 'echoo-picks-sunday-worship', name: 'Sunday Worship Collection', ownerName: 'Echoo picks', trackCount: 12, description: 'Warm voices for a slower Sunday.' },
-  { id: 'echoo-picks-african-stories', name: 'African Stories', ownerName: 'Echoo picks', trackCount: 9, description: 'Stories, memory and place.' },
-  { id: 'echoo-picks-tech-conversations', name: 'Tech Conversations', ownerName: 'Echoo picks', trackCount: 16, description: 'Ideas from builders and thinkers.' },
-  { id: 'echoo-picks-creator-sessions', name: 'Creator Sessions', ownerName: 'Echoo picks', trackCount: 7, description: 'Behind the voice and the work.' },
-].map((playlist) => ({
-  ...playlist,
-  coverArt: buildGeneratedAudioCoverUrl({ title: playlist.name, artistName: playlist.ownerName, genre: 'Playlist' }),
-}));
-
 const readUser = () => {
   try {
     return JSON.parse(localStorage.getItem('user') || '{}');
@@ -927,15 +916,25 @@ const DiscoverCatalog = () => {
     return () => { active = false; };
   }, []);
 
-  const visiblePlaylists = playlists.length ? playlists : DEMO_PLAYLISTS;
+  const visiblePlaylists = playlists.filter((playlist) =>
+    Array.isArray(playlist?.tracks) && playlist.tracks.some((track) => normalizePlayable(track)?.fileUrl)
+  );
+
+  const playPlaylist = (playlist) => {
+    const playlistQueue = (Array.isArray(playlist?.tracks) ? playlist.tracks : [])
+      .map(normalizePlayable)
+      .filter((track) => track?.fileUrl);
+    if (!playlistQueue.length) return false;
+    return playTrack(playlistQueue[0], playlistQueue);
+  };
 
   return (
     <div className="listener-v2-page listener-v2-discover-page">
       <ListenerHeroArtwork />
-      <header className="listener-v2-page-title"><h1>Discover</h1><p>Live shows, upcoming broadcasts and the newest releases — clearly separated. Sign in only when you want to save, follow, or join the conversation.</p></header>
+      <header className="listener-v2-page-title"><h1>Discover</h1><p>Live broadcasts and recordings, all in one place.</p></header>
 
       <section className="listener-v2-panel">
-        <SectionTitle title="Live now" copy="Channels broadcasting in this moment" action={() => navigate('/listen/live')} />
+        <SectionTitle title="Live now" copy="On air right now" action={() => navigate('/listen/live')} />
         {liveNow.length ? (
           <div className="listener-v2-live-grid">{liveNow.slice(0, 5).map((item) => <LiveCard key={idOf(item)} broadcast={item} onOpen={(broadcast) => navigate(`/listen/live/${idOf(broadcast)}`, { state: { show: broadcast } })} />)}</div>
         ) : (
@@ -944,7 +943,7 @@ const DiscoverCatalog = () => {
       </section>
 
       <section className="listener-v2-panel">
-        <SectionTitle title="Upcoming broadcasts" copy="Scheduled shows in start-time order" action={() => navigate('/listen/live')} actionLabel="Live & upcoming" />
+        <SectionTitle title="Upcoming broadcasts" copy="Starting soon" action={() => navigate('/listen/live')} actionLabel="See schedule" />
         {upcoming.length ? (
           <div className="listener-v2-upcoming-grid">
             {upcoming.slice(0, 6).map((broadcast) => (
@@ -961,7 +960,7 @@ const DiscoverCatalog = () => {
       </section>
 
       <section className="listener-v2-panel">
-        <SectionTitle title="Latest releases" copy="Newest public recordings first" action={() => navigate('/listen/search')} actionLabel="Search audio" />
+        <SectionTitle title="Latest releases" copy="New recordings" action={() => navigate('/listen/search')} actionLabel="Search audio" />
         {recordings.length ? (
           <div className="listener-v2-audio-list listener-v2-release-list">
             {recordings.slice(0, 8).map((track) => (
@@ -985,12 +984,33 @@ const DiscoverCatalog = () => {
         )}
       </section>
 
-      <section className="listener-v2-panel">
-        <SectionTitle title="Popular playlists" copy="Collections for longer listening" action={() => navigate('/listen/playlist')} />
-        <div className="listener-v2-playlist-grid">{visiblePlaylists.slice(0, 6).map((playlist) => <button type="button" key={idOf(playlist)} onClick={() => navigate('/listen/playlist')}>
-          <span className="listener-v2-playlist-art"><img src={playlist.coverArt} alt="" /></span>
-          <div><strong>{playlist.name || 'Playlist'}</strong><small>{playlist.ownerName || playlist.owner?.displayName || playlist.owner?.username || 'Echoo creator'} · {Number(playlist.trackCount ?? playlist.tracks?.length) || 0} recordings</small></div>
-        </button>)}</div>
+      <section className="listener-v2-panel listener-v2-playlist-panel">
+        <SectionTitle title="Popular playlists" copy="Tap a playlist to start listening" action={() => navigate('/listen/playlist')} actionLabel="Browse all" />
+        {visiblePlaylists.length ? (
+          <div className="listener-v2-playlist-grid">
+            {visiblePlaylists.slice(0, 6).map((playlist) => {
+              const playableCount = playlist.tracks.filter((track) => normalizePlayable(track)?.fileUrl).length;
+              return (
+                <button
+                  type="button"
+                  key={idOf(playlist)}
+                  className="listener-v2-playlist-card"
+                  onClick={() => playPlaylist(playlist)}
+                  aria-label={`Play ${playlist.name || 'playlist'}`}
+                >
+                  <span className="listener-v2-playlist-art"><Artwork src={playlist.coverArt} /></span>
+                  <div>
+                    <strong>{playlist.name || 'Playlist'}</strong>
+                    <small>{playlist.ownerName || playlist.owner?.displayName || playlist.owner?.username || 'Echoo creator'} · {playableCount} {playableCount === 1 ? 'recording' : 'recordings'}</small>
+                  </div>
+                  <span className="listener-v2-playlist-play" aria-hidden="true"><FiPlay /></span>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <EmptyState icon={<FiMusic />} title="No public playlists yet" copy="When a playlist has playable recordings, it will appear here." action={() => navigate('/listen/playlist')} actionLabel="Open playlists" />
+        )}
       </section>
     </div>
   );
