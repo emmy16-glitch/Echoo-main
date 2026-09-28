@@ -1297,7 +1297,35 @@ export const startEchooMasterPcmCapture = async ({ onPcm } = {}) => {
   worklet.port.onmessage = (event) => {
     const message = event?.data || {};
     if (message.type === 'pcm' && message.buffer) {
-      onPcm?.(message.buffer);
+      const transferredBuffer = message.buffer;
+      const maximumSamples = Math.floor(
+        transferredBuffer.byteLength / Float32Array.BYTES_PER_ELEMENT
+      );
+      const sampleCount = Math.max(
+        0,
+        Math.min(maximumSamples, Number(message.sampleCount) || maximumSamples)
+      );
+      const validBytes = sampleCount * Float32Array.BYTES_PER_ELEMENT;
+      const pcmBuffer = validBytes === transferredBuffer.byteLength
+        ? transferredBuffer
+        : transferredBuffer.slice(0, validBytes);
+
+      // The recorder callback consumes the Float32 data synchronously and
+      // converts it to durable PCM before this function returns. Once consumed,
+      // give the full worklet buffer back so the realtime audio thread can
+      // reuse it instead of allocating/garbage-collecting capture blocks.
+      onPcm?.(pcmBuffer);
+      if (!stopped && transferredBuffer.byteLength) {
+        try {
+          worklet.port.postMessage(
+            { type: 'recycle', buffer: transferredBuffer },
+            [transferredBuffer]
+          );
+        } catch {
+          // Recycling is an optimization only; capture remains correct if a
+          // browser refuses a late transfer during teardown.
+        }
+      }
       return;
     }
     if (message.type === 'stopped') {
