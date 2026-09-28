@@ -358,3 +358,14 @@ test('recording management uses a routed in-app page and saved trims stay downlo
   assert.match(trim, /Local safety master is large — loading the saved Echoo copy/);
   assert.doesNotMatch(trim, /onClose\?\.\(\);/);
 });
+
+test('interrupted recording recovery resumes missing server chunks after reload', async () => {
+  const autosave = await read('../../services/recordingAutosave.js');
+  const recording = await read('../../services/broadcastRecordingService.js');
+
+  assert.match(autosave, /resumeRecoveredUpload/);
+  assert.match(autosave, /uploadRecoveredTake\(recovered\)/);
+  assert.match(autosave, /window\.addEventListener\('online', onlineRecoveryHandler/);
+  assert.match(recording, /existingChunkIndices = new Set/);
+  assert.match(recording, /const alreadyUploaded = Boolean\(recording\.existingChunkIndices/);
+});
