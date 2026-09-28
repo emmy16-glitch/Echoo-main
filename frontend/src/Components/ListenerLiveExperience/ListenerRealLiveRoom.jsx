@@ -9,7 +9,7 @@ import {
   FaVolumeMute,
   FaVolumeUp,
 } from 'react-icons/fa';
-import { FiArrowLeft, FiCheck, FiMessageCircle, FiRadio, FiShare2, FiUsers } from 'react-icons/fi';
+import { FiArrowLeft, FiCheck, FiMessageCircle, FiRadio, FiShare2, FiUsers, FiX } from 'react-icons/fi';
 
 import batch3Service from '../../services/batch3Service';
 import batch4Service, { normalizeChatMessage } from '../../services/batch4Service';
@@ -152,6 +152,23 @@ const ListenerRealLiveRoom = () => {
   const statusRef = useRef(show?.status || '');
   const [liveState, setLiveState] = useState(null);
   const [chatOpen, setChatOpen] = useState(false);
+
+  useEffect(() => {
+    if (!chatOpen) return undefined;
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') setChatOpen(false);
+    };
+    document.documentElement.classList.add('listener-v2-chat-open');
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.documentElement.classList.remove('listener-v2-chat-open');
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [chatOpen]);
+
+  useEffect(() => {
+    setChatOpen(false);
+  }, [broadcastId]);
 
   const ended = show
     ? !['live', 'scheduled'].includes(String(show.status || '').toLowerCase())
@@ -829,7 +846,23 @@ const ListenerRealLiveRoom = () => {
         >
           <FiMessageCircle /> {chatOpen ? 'Hide chat' : 'Chat'}
         </button>
+        {chatOpen && (
+          <button
+            type="button"
+            className="listener-v2-room-chat-backdrop"
+            aria-label="Close live chat"
+            onClick={() => setChatOpen(false)}
+          />
+        )}
         <aside id="listener-live-chat" className={`listener-v2-room-chat${chatOpen ? ' is-open' : ''}`}>
+          <button
+            type="button"
+            className="listener-v2-room-chat-close"
+            aria-label="Close live chat"
+            onClick={() => setChatOpen(false)}
+          >
+            <FiX />
+          </button>
           {isGuest && (
             <div className="listener-v2-room-notice" role="status">
               Listening as a guest.{' '}

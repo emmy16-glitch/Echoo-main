@@ -719,6 +719,36 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
     }
   }, []);
 
+  // Browsers may reject audible autoplay after a hard reload even when the
+  // listener was already playing before refresh. We still attempt autoplay
+  // immediately; if policy blocks it, the next ordinary tap anywhere in the
+  // live room unlocks audio. Explicit playback buttons keep their own handlers.
+  useEffect(() => {
+    if (!isLive || !needsAudioStart) return undefined;
+
+    let removed = false;
+    const cleanup = () => {
+      if (removed) return;
+      removed = true;
+      window.removeEventListener('pointerdown', resumeFromGesture, true);
+      window.removeEventListener('keydown', resumeFromKeyboard, true);
+    };
+    const resumeFromGesture = (event) => {
+      if (event.target?.closest?.('.echoo-livekit-start-audio, .listener-v2-room-play')) return;
+      cleanup();
+      void startAudio();
+    };
+    const resumeFromKeyboard = (event) => {
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      cleanup();
+      void startAudio();
+    };
+
+    window.addEventListener('pointerdown', resumeFromGesture, true);
+    window.addEventListener('keydown', resumeFromKeyboard, true);
+    return cleanup;
+  }, [isLive, needsAudioStart, startAudio]);
+
   const playAudio = useCallback(async () => {
     playbackIntentRef.current = 'play';
 

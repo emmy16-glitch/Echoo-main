@@ -211,3 +211,36 @@ test('capture strict Listener 2.0 core surfaces', async ({ page }, testInfo) => 
   console.log(`ROOM_GEOMETRY=${JSON.stringify(await geometry(page))}`);
   await page.screenshot({ path: `${testInfo.outputDir}/room-listener-v2.jpg`, type: 'jpeg', quality: 78, fullPage: false });
 });
+
+
+test('mobile live chat opens as a dismissible bottom sheet', async ({ page }) => {
+  test.slow();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockApi(page);
+  await authenticate(page);
+
+  await page.goto('/listen/live/live-1', { waitUntil: 'domcontentloaded', timeout: 30000 });
+  await page.waitForTimeout(1200);
+
+  const toggle = page.locator('.listener-v2-room-chat-toggle');
+  const sheet = page.locator('.listener-v2-room-chat');
+  await expect(toggle).toBeVisible();
+  await expect(sheet).not.toHaveClass(/is-open/);
+
+  await toggle.click();
+  await expect(sheet).toHaveClass(/is-open/);
+  await expect(page.locator('.listener-v2-room-chat-backdrop')).toBeVisible();
+  await expect(page.locator('.listener-v2-room-chat-close')).toBeVisible();
+
+  const sheetBox = await sheet.boundingBox();
+  expect(sheetBox?.height || 0).toBeGreaterThan(330);
+  expect((sheetBox?.y || 0) + (sheetBox?.height || 0)).toBeGreaterThanOrEqual(840);
+
+  await page.locator('.listener-v2-room-chat-backdrop').click({ position: { x: 10, y: 10 } });
+  await expect(sheet).not.toHaveClass(/is-open/);
+
+  await toggle.click();
+  await expect(sheet).toHaveClass(/is-open/);
+  await page.locator('.listener-v2-room-chat-close').click();
+  await expect(sheet).not.toHaveClass(/is-open/);
+});
