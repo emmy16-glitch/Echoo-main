@@ -146,6 +146,10 @@ jobs:
           cache: npm
           cache-dependency-path: backend/package-lock.json
       - run: npm ci
+      - name: Print backend npm audit report
+        run: |
+          npm audit --json > audit.json || true
+          cat audit.json
       - name: Install FFmpeg required by audio trim tests
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - name: Syntax check API and broadcast audio entrypoints
