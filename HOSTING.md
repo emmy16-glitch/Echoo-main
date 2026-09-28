@@ -145,8 +145,10 @@ The browser sends only `startSeconds` and `endSeconds` to the backend.
 The backend trims the already-saved recording with FFmpeg and creates a **new
 private trimmed Audio record**.
 
-For canonical MP3 input, Echoo uses stream copy where possible so the trim does
-not perform another lossy MP3 re-encode. The source recording remains unchanged.
+For canonical MP3 input, Echoo creates the trimmed draft as a high-quality
+320 kbps MP3. This intentionally re-encodes the **new copy** so the creator's
+selected start/end points are not limited to compressed MP3 frame boundaries.
+The source recording remains unchanged.
 
 Therefore a correct trim flow is:
 
