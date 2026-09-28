@@ -13,6 +13,7 @@ import {
   waitForServerMp3,
 } from '../../services/recordingExportService.js';
 import { peekLocalMaster } from '../../services/recordingAutosave.js';
+import studioService from '../../services/studioService.js';
 import './CreatorAudioDetailModal.css';
 
 const getId = (track) => String(track?.id || track?._id || '');
@@ -27,7 +28,7 @@ const formatClock = (seconds) => {
     : `${minutes}:${String(secs).padStart(2, '0')}`;
 };
 
-const CreatorAudioTrimSection = ({ track, onChanged, onClose, onNotice }) => {
+const CreatorAudioTrimSection = ({ track, onChanged, onNotice, onOpenTrimmed }) => {
   const trackId = getId(track);
   const [sourceState, setSourceState] = useState('idle'); // idle|loading|ready|error
   const [sourceLabel, setSourceLabel] = useState('');
@@ -38,6 +39,9 @@ const CreatorAudioTrimSection = ({ track, onChanged, onClose, onNotice }) => {
   const [end, setEnd] = useState(0);
   const [previewing, setPreviewing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [savedTrimmed, setSavedTrimmed] = useState(null);
+  const [trimmedDownloading, setTrimmedDownloading] = useState(false);
+  const [trimmedDownloadMessage, setTrimmedDownloadMessage] = useState('');
   const [error, setError] = useState('');
   const [pcFormat, setPcFormat] = useState('mp3');
   const [pcSaving, setPcSaving] = useState(false);
@@ -81,17 +85,27 @@ const CreatorAudioTrimSection = ({ track, onChanged, onClose, onNotice }) => {
       setError('');
       setSourceState('loading');
       setProgress(2);
-      let blob = peekLocalMaster(id)?.blob || null;
-      let label = 'local master';
+      const localBlob = peekLocalMaster(id)?.blob || null;
+      let blob = canTrimRecording(localBlob) ? localBlob : null;
+      let label = blob ? 'local master' : 'saved Echoo copy';
+
+      // Long live shows can leave a lossless local WAV that is intentionally
+      // hundreds of MB. That safety master is not suitable for browser waveform
+      // decoding, so use Echoo's much smaller stored copy for the trim UI
+      // instead of incorrectly blocking trimming.
       if (!blob?.size) {
-        setSourceLabel('Getting the saved recording…');
+        setSourceLabel(
+          localBlob?.size
+            ? 'Local safety master is large — loading the saved Echoo copy…'
+            : 'Getting the saved recording…'
+        );
         const response = await apiFetch(`/audio/${encodeURIComponent(id)}/download`);
         if (!response.ok) throw new Error('Could not fetch this recording for trimming.');
         blob = await response.blob();
         label = 'saved Echoo copy';
       }
       if (!canTrimRecording(blob)) {
-        throw new Error('This recording is too long to trim in the browser.');
+        throw new Error('This saved recording is too large to prepare in the browser.');
       }
       sourceBlobRef.current = blob;
       setSourceLabel(label);
@@ -140,6 +154,8 @@ const CreatorAudioTrimSection = ({ track, onChanged, onClose, onNotice }) => {
     try {
       setSaving(true);
       setError('');
+      setTrimmedDownloadMessage('');
+      setSavedTrimmed(null);
 
       // The browser sends only timestamps. FFmpeg trims the already-saved
       // server recording and creates a separate private copy, so long shows
@@ -149,15 +165,40 @@ const CreatorAudioTrimSection = ({ track, onChanged, onClose, onNotice }) => {
         endSeconds: selectionEnd,
         duration,
       });
+      const trimmed = response?.data || null;
+      if (!getId(trimmed)) {
+        throw new Error('Echoo created the trim but did not return its saved recording.');
+      }
 
+      setSavedTrimmed(trimmed);
       window.dispatchEvent(new CustomEvent('echoo:creator-audio-changed'));
       window.dispatchEvent(new CustomEvent('echoo:creator-state-changed'));
-      onNotice?.('Trimmed copy saved to Recordings. The original is unchanged.');
-      onChanged?.(response?.data);
-      onClose?.();
+      onNotice?.('Trimmed copy saved. You can download it now; the original is unchanged.');
+      onChanged?.(trimmed);
     } catch (saveError) {
       setError(saveError?.message || 'Could not save the trimmed version.');
+    } finally {
       setSaving(false);
+    }
+  };
+
+  const downloadTrimmed = async () => {
+    const trimmedId = getId(savedTrimmed);
+    if (!trimmedId || trimmedDownloading) return;
+    try {
+      setTrimmedDownloading(true);
+      setTrimmedDownloadMessage('');
+      setError('');
+      await studioService.downloadAudio(trimmedId, {
+        title: savedTrimmed?.title || `${track?.title || 'Echoo recording'} (trimmed)`,
+        originalName: savedTrimmed?.originalName,
+        mimeType: savedTrimmed?.mimeType,
+      });
+      setTrimmedDownloadMessage('Trimmed recording downloaded.');
+    } catch (downloadError) {
+      setError(downloadError?.message || 'Could not download the trimmed recording.');
+    } finally {
+      setTrimmedDownloading(false);
     }
   };
 
@@ -256,6 +297,8 @@ const CreatorAudioTrimSection = ({ track, onChanged, onClose, onNotice }) => {
                   disabled={saving}
                   onChange={(event) => {
                     stopPreview();
+                    setSavedTrimmed(null);
+                    setTrimmedDownloadMessage('');
                     setStart(Math.min(Number(event.target.value), selectionEnd));
                   }}
                 />
@@ -271,6 +314,8 @@ const CreatorAudioTrimSection = ({ track, onChanged, onClose, onNotice }) => {
                   disabled={saving}
                   onChange={(event) => {
                     stopPreview();
+                    setSavedTrimmed(null);
+                    setTrimmedDownloadMessage('');
                     setEnd(Math.max(Number(event.target.value), start));
                   }}
                 />
@@ -306,6 +351,40 @@ const CreatorAudioTrimSection = ({ track, onChanged, onClose, onNotice }) => {
                   ? 'Adjust the trim range to save a copy'
                   : `Save trimmed copy (${formatClock(selectedSeconds)})`}
             </button>
+
+            {savedTrimmed && (
+              <div className="creator-audio-trim-result" role="status" aria-live="polite">
+                <div>
+                  <strong>Trimmed copy saved</strong>
+                  <span>
+                    {savedTrimmed.title || `${track?.title || 'Recording'} (trimmed)`}
+                    {' · '}
+                    {formatClock(savedTrimmed.duration || selectedSeconds)}
+                  </span>
+                </div>
+                <div className="creator-audio-trim-result-actions">
+                  <button
+                    type="button"
+                    className="creator-audio-trim-download eb-press"
+                    onClick={downloadTrimmed}
+                    disabled={trimmedDownloading}
+                  >
+                    <FaDownload />
+                    {trimmedDownloading ? 'Downloading…' : 'Download trimmed version'}
+                  </button>
+                  {onOpenTrimmed && (
+                    <button
+                      type="button"
+                      className="creator-audio-trim-open eb-press"
+                      onClick={() => onOpenTrimmed(getId(savedTrimmed))}
+                    >
+                      Open trimmed recording
+                    </button>
+                  )}
+                </div>
+                {trimmedDownloadMessage && <small>{trimmedDownloadMessage}</small>}
+              </div>
+            )}
           </>
         )}
 
