@@ -169,7 +169,7 @@ const sanitizeRealtimeAudio = (value = {}) => {
     codec: 'opus',
     requestedSampleRate: 48000,
     requestedChannels: 2,
-    requestedMaxBitrate: profile === 'studio_max' ? 384000 : profile === 'studio' ? 256000 : 192000,
+    requestedMaxBitrate: profile === 'studio_max' ? 256000 : profile === 'studio' ? 192000 : 128000,
     qualityProfile: profile,
   };
 };
