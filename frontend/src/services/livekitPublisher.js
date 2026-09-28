@@ -7,10 +7,12 @@ import {
   ensureBroadcastRecording,
 } from './broadcastRecordingService.js';
 import {
+  CREATOR_CONNECTION_LOST_GRACE_MS,
   CREATOR_TRANSPORT_STALL_CONFIRMATIONS,
   CREATOR_TRANSPORT_STALL_MS,
   LIVE_RECOVERY_DELAYS_MS,
   mediaTrackIsLive,
+  normalizeConnectionQuality,
   recoveryDelayMs,
   roomIsConnected,
 } from './liveRecoveryPolicy.js';
@@ -133,23 +135,36 @@ const liveKitConnectionError = (error, url) => {
   return new Error(message ? `LiveKit could not publish the Echoo studio mix: ${message}` : 'LiveKit could not publish the Echoo studio mix.');
 };
 
-const canonicalPublicationExists = (room, publication = activePublication) => {
-  if (!room || !publication || !mediaTrackIsLive(publication.track)) return false;
-  const publications = room.localParticipant?.trackPublications;
-  if (!publications?.forEach) return Boolean(publication.trackSid);
-  let found = false;
+const publicationTrackName = (publication) =>
+  publication?.trackName || publication?.name || publication?.track?.name || '';
+
+const findCanonicalPublication = (room) => {
+  const publications = room?.localParticipant?.trackPublications;
+  if (!publications?.forEach) return null;
+  let match = null;
   publications.forEach((candidate) => {
-    const name = candidate?.trackName || candidate?.name || candidate?.track?.name;
+    const name = publicationTrackName(candidate);
     if (
-      candidate === publication ||
-      candidate?.trackSid === publication?.trackSid ||
-      name === PROGRAM_TRACK_NAME ||
-      name === DEV_TRACK_NAME
+      (name === PROGRAM_TRACK_NAME || name === DEV_TRACK_NAME) &&
+      mediaTrackIsLive(candidate?.track)
     ) {
-      if (mediaTrackIsLive(candidate?.track || publication.track)) found = true;
+      match = candidate;
     }
   });
-  return found;
+  return match;
+};
+
+const canonicalPublicationExists = (room, publication = activePublication) => {
+  if (!room) return false;
+  const current = findCanonicalPublication(room);
+  if (current) return true;
+  return Boolean(publication && mediaTrackIsLive(publication.track));
+};
+
+const clearConnectionQualityTimer = (candidate) => {
+  if (!candidate?.connectionQualityTimer) return;
+  window.clearTimeout(candidate.connectionQualityTimer);
+  candidate.connectionQualityTimer = null;
 };
 
 const healthySnapshot = () => {
@@ -237,17 +252,56 @@ const detachRoom = async (
 };
 
 const attachRoomEvents = (room, candidate) => {
+  room.on(RoomEvent.ConnectionQualityChanged, (quality, participant) => {
+    if (!isCurrent(candidate) || activeRoom !== room || participant !== room.localParticipant) return;
+    const normalized = normalizeConnectionQuality(quality);
+    candidate.connectionQuality = normalized;
+    publishHealth({ networkQuality: normalized });
+
+    if (normalized !== 'lost') {
+      clearConnectionQualityTimer(candidate);
+      return;
+    }
+
+    // LiveKit surfaces Lost before a full reconnect. Give its native ICE
+    // restart/signalling recovery a short grace window before Echoo rebuilds
+    // the room, otherwise a weak-but-recoverable mobile link gets torn down
+    // unnecessarily.
+    clearConnectionQualityTimer(candidate);
+    candidate.connectionQualityTimer = window.setTimeout(() => {
+      candidate.connectionQualityTimer = null;
+      if (
+        !isCurrent(candidate) ||
+        activeRoom !== room ||
+        candidate.connectionQuality !== 'lost' ||
+        !roomIsConnected(room)
+      ) return;
+      publishHealth({
+        phase: 'recovering',
+        audio: 'recovering',
+        lastError: 'Live audio connection remained lost after the recovery grace window.',
+      });
+      void schedulePublisherRecovery(candidate, 'connection_quality_lost', true);
+    }, CREATOR_CONNECTION_LOST_GRACE_MS);
+  });
+
   room.on(RoomEvent.Reconnecting, () => {
     if (!isCurrent(candidate) || activeRoom !== room) return;
+    clearConnectionQualityTimer(candidate);
     publishHealth({ phase: 'reconnecting', room: 'reconnecting', livekit: 'reconnecting', audio: 'reconnecting' });
   });
 
   room.on(RoomEvent.Reconnected, () => {
     if (!isCurrent(candidate) || activeRoom !== room) return;
+    clearConnectionQualityTimer(candidate);
+    const currentPublication = findCanonicalPublication(room);
+    if (currentPublication) activePublication = currentPublication;
     if (canonicalPublicationExists(room) && mediaTrackIsLive({ kind: 'audio', mediaStreamTrack: candidate.mediaTrack })) {
       candidate.recoveryAttempt = 0;
       candidate.recoveryStartedAt = null;
       candidate.lastProgressAt = Date.now();
+      candidate.lastTransportSample = null;
+      candidate.transportStallSamples = 0;
       publishHealth({
         phase: candidate.paused ? 'paused' : 'live',
         room: 'connected',
@@ -265,6 +319,7 @@ const attachRoomEvents = (room, candidate) => {
 
   room.on(RoomEvent.Disconnected, (reason) => {
     if (!isCurrent(candidate) || activeRoom !== room) return;
+    clearConnectionQualityTimer(candidate);
     activeRoom = null;
     activePublication = null;
     publishHealth({ phase: 'recovering', room: 'disconnected', publication: 'missing', livekit: 'disconnected', audio: 'recovering', disconnectReason: String(reason ?? '') });
@@ -302,9 +357,9 @@ const connectAndPublish = async (candidate, { url, token, recovery = false }) =>
   try {
     await room.connect(resolvedUrl, token, {
       autoSubscribe: false,
-      maxRetries: 3,
+      maxRetries: 5,
       websocketTimeout: 15000,
-      peerConnectionTimeout: 20000,
+      peerConnectionTimeout: 22000,
     });
     if (!isCurrent(candidate) || activeRoom !== room) {
       await detachRoom(room);
@@ -628,6 +683,8 @@ export const startLiveKitPublishing = async ({
     recoveryTimer: null,
     recoveryPromise: null,
     watchdogTimer: null,
+    connectionQuality: 'unknown',
+    connectionQualityTimer: null,
     lastProgressAt: Date.now(),
     lastTransportSample: null,
     transportStallSamples: 0,
@@ -684,6 +741,7 @@ export const startLiveKitPublishing = async ({
       generation += 1;
       removeNetworkHints(candidate);
       if (candidate.watchdogTimer) window.clearInterval(candidate.watchdogTimer);
+      clearConnectionQualityTimer(candidate);
       publishHealth({ phase: 'failed', room: 'disconnected', publication: 'failed', livekit: 'error', audio: 'failed', lastError: error?.message || String(error) });
     }
     if (candidate.mode === 'studio-mix') {
