@@ -90,6 +90,15 @@ test('Creator Studio keeps Broadcast navigation callbacks stable so bootstrap do
   assert.match(studio, /\[location\.pathname, routerNavigate\]/);
 });
 
+test('Broadcast accepts Channel ids returned as either id or _id', async () => {
+  const workspace = await read('./CreatorLiveConnectedWorkspace.jsx');
+
+  assert.match(workspace, /const entityId = \(value\) => value\?\.id \|\| value\?\._id \|\| ''/);
+  assert.match(workspace, /if \(!entityId\(station\)\)/);
+  assert.match(workspace, /stationId: entityId\(station\)/);
+  assert.doesNotMatch(workspace, /if \(!station\?\.id\)/);
+});
+
 test('Creator Studio renders immediately while bounded bootstrap retries in the background', async () => {
   const workspace = await read('./CreatorLiveConnectedWorkspace.jsx');
   const api = await read('../../services/api.js');
