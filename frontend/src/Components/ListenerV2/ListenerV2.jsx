@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Outlet, useLocation, useNavigate, useOutletContext } from 'react-router-dom';
 import {
   FiArrowRight,
+  FiCalendar,
   FiCheck,
   FiChevronDown,
   FiChevronRight,
@@ -9,11 +10,16 @@ import {
   FiHeart,
   FiMusic,
   FiPause,
+  FiRotateCcw,
+  FiRotateCw,
   FiPlay,
   FiRadio,
   FiSearch,
+  FiSkipBack,
+  FiSkipForward,
   FiUser,
   FiUsers,
+  FiX,
 } from 'react-icons/fi';
 
 import listenerService from '../../services/listenerService';
@@ -60,6 +66,46 @@ const formatCount = (value) => {
   if (count >= 1000000) return `${Number((count / 1000000).toFixed(1))}M`;
   if (count >= 1000) return `${Number((count / 1000).toFixed(1))}K`;
   return String(Math.floor(count));
+};
+
+const formatPlaybackTime = (seconds) => {
+  const value = Math.max(0, Math.floor(Number(seconds) || 0));
+  const hours = Math.floor(value / 3600);
+  const minutes = Math.floor((value % 3600) / 60);
+  const secs = value % 60;
+  return hours
+    ? `${hours}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+    : `${minutes}:${String(secs).padStart(2, '0')}`;
+};
+
+const releaseDateOf = (track) => track?.publishedAt || track?.createdAt || track?.updatedAt || null;
+const formatReleaseLabel = (track) => {
+  const raw = releaseDateOf(track);
+  const date = raw ? new Date(raw) : null;
+  if (!date || Number.isNaN(date.getTime())) return 'Recently released';
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const releaseDay = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const days = Math.round((today - releaseDay) / 86400000);
+  if (days === 0) return 'Released today';
+  if (days === 1) return 'Released yesterday';
+  return `Released ${date.toLocaleDateString([], { month: 'short', day: 'numeric' })}`;
+};
+const isRecentRelease = (track) => {
+  const raw = releaseDateOf(track);
+  const stamp = raw ? new Date(raw).getTime() : NaN;
+  return Number.isFinite(stamp) && Date.now() - stamp <= 7 * 86400000 && Date.now() >= stamp;
+};
+const formatUpcomingDate = (broadcast) => {
+  const date = broadcast?.startTime ? new Date(broadcast.startTime) : null;
+  if (!date || Number.isNaN(date.getTime())) return 'Scheduled';
+  return date.toLocaleString([], {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 };
 
 const playbackErrorMessage = (error) => {
@@ -168,6 +214,20 @@ const LiveCard = ({ broadcast, onOpen }) => {
   );
 };
 
+const UpcomingCard = ({ broadcast, onOpen }) => (
+  <article className="listener-v2-upcoming-card">
+    <button type="button" className="listener-v2-upcoming-art" onClick={() => onOpen(broadcast)}>
+      <Artwork src={broadcastArtwork(broadcast)} />
+      <span><FiCalendar /> Upcoming</span>
+    </button>
+    <button type="button" className="listener-v2-upcoming-copy" onClick={() => onOpen(broadcast)}>
+      <strong>{titleOf(broadcast)}</strong>
+      <span>{stationNameOf(broadcast)}</span>
+      <small>{formatUpcomingDate(broadcast)}</small>
+    </button>
+  </article>
+);
+
 const StationCard = ({ station, following, busy, onOpen, onFollow }) => {
   const live = Boolean(station?.isLive);
   return (
@@ -228,6 +288,7 @@ const CreatorCard = ({ creator, following = true, busy, onOpen, onFollow }) => {
 
 const useLiveCatalog = () => {
   const [liveNow, setLiveNow] = useState([]);
+  const [upcoming, setUpcoming] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -237,19 +298,33 @@ const useLiveCatalog = () => {
       if (isAuthenticated()) {
         const response = await listenerService.getDashboard();
         setLiveNow(Array.isArray(response?.data?.liveNow) ? response.data.liveNow : []);
+        setUpcoming(Array.isArray(response?.data?.upcoming) ? response.data.upcoming : []);
       } else {
-        // Guests must navigate with a BROADCAST id, not a Station id.
-        // The public broadcasts endpoint already exposes only public rows and
-        // returns the exact object shape the live-room route expects.
-        const response = await batch2Service.listBroadcasts({
-          status: 'live',
-          page: 1,
-          limit: 100,
-          cache: 'no-store',
-        });
+        const [liveResult, upcomingResult] = await Promise.allSettled([
+          batch2Service.listBroadcasts({
+            status: 'live',
+            page: 1,
+            limit: 100,
+            cache: 'no-store',
+          }),
+          batch2Service.listBroadcasts({
+            status: 'scheduled',
+            page: 1,
+            limit: 24,
+            cache: 'no-store',
+          }),
+        ]);
+        if (liveResult.status === 'rejected') throw liveResult.reason;
         setLiveNow(
-          (Array.isArray(response?.data) ? response.data : [])
+          (Array.isArray(liveResult.value?.data) ? liveResult.value.data : [])
             .filter((broadcast) => broadcast?.isPublic !== false)
+        );
+        setUpcoming(
+          upcomingResult.status === 'fulfilled'
+            ? (Array.isArray(upcomingResult.value?.data) ? upcomingResult.value.data : [])
+                .filter((broadcast) => broadcast?.isPublic !== false)
+                .sort((a, b) => new Date(a?.startTime || 0) - new Date(b?.startTime || 0))
+            : []
         );
       }
       setError('');
@@ -271,7 +346,7 @@ const useLiveCatalog = () => {
     };
   }, [load]);
 
-  return { liveNow, loading, error, reload: load };
+  return { liveNow, upcoming, loading, error, reload: load };
 };
 
 const ListenerV2Layout = () => {
@@ -288,6 +363,7 @@ const ListenerV2Layout = () => {
   const [duration, setDuration] = useState(0);
   const [playerError, setPlayerError] = useState('');
   const [playbackState, setPlaybackState] = useState('idle');
+  const [playerExpanded, setPlayerExpanded] = useState(false);
   const [, setLivePlayerState] = useState(null);
   const [headerSearch, setHeaderSearch] = useState('');
   const [unreadNotifications, setUnreadNotifications] = useState(0);
@@ -447,11 +523,81 @@ const ListenerV2Layout = () => {
     return played;
   }, [currentTrack, playAudioElement, playTrack, seekTo]);
 
-  const playNext = () => {
+  const seekBy = useCallback((deltaSeconds) => {
+    return seekTo(currentTime + Number(deltaSeconds || 0));
+  }, [currentTime, seekTo]);
+
+  const playNext = useCallback(() => {
     if (!queue.length || !currentTrack) return;
     const index = queue.findIndex((item) => idOf(item) === idOf(currentTrack));
     playTrack(queue[(index + 1 + queue.length) % queue.length], queue);
-  };
+  }, [currentTrack, playTrack, queue]);
+
+  const playPrevious = useCallback(() => {
+    if (!queue.length || !currentTrack) return;
+    const index = queue.findIndex((item) => idOf(item) === idOf(currentTrack));
+    playTrack(queue[(index - 1 + queue.length) % queue.length], queue);
+  }, [currentTrack, playTrack, queue]);
+
+  useEffect(() => {
+    if (!playerExpanded) return undefined;
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') setPlayerExpanded(false);
+    };
+    document.documentElement.classList.add('listener-v2-full-player-open');
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.documentElement.classList.remove('listener-v2-full-player-open');
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [playerExpanded]);
+
+  useEffect(() => {
+    if (!isLiveRoom) return;
+    setPlayerExpanded(false);
+    if (audioRef.current && !audioRef.current.paused) audioRef.current.pause();
+  }, [isLiveRoom]);
+
+  useEffect(() => {
+    if (!currentTrack || typeof navigator === 'undefined' || !('mediaSession' in navigator)) return undefined;
+    try {
+      if (typeof window.MediaMetadata === 'function') {
+        navigator.mediaSession.metadata = new window.MediaMetadata({
+          title: currentTrack.title || 'Echoo audio',
+          artist: currentTrack.subtitle || 'Echoo Creator',
+          album: 'Echoo',
+          artwork: currentTrack.coverArt ? [{ src: currentTrack.coverArt, sizes: '512x512' }] : [],
+        });
+      }
+      navigator.mediaSession.setActionHandler('play', () => { void playAudioElement(audioRef.current); });
+      navigator.mediaSession.setActionHandler('pause', () => audioRef.current?.pause());
+      navigator.mediaSession.setActionHandler('seekbackward', (details) => seekBy(-(Number(details?.seekOffset) || 15)));
+      navigator.mediaSession.setActionHandler('seekforward', (details) => seekBy(Number(details?.seekOffset) || 15));
+      navigator.mediaSession.setActionHandler('previoustrack', playPrevious);
+      navigator.mediaSession.setActionHandler('nexttrack', playNext);
+    } catch {
+      // Media Session is an enhancement; the HTML audio player remains authoritative.
+    }
+    return () => {
+      try {
+        for (const action of ['play', 'pause', 'seekbackward', 'seekforward', 'previoustrack', 'nexttrack']) {
+          navigator.mediaSession.setActionHandler(action, null);
+        }
+      } catch {
+        // Already unsupported or cleared.
+      }
+    };
+  }, [currentTrack, playAudioElement, playNext, playPrevious, seekBy]);
+
+  useEffect(() => {
+    try {
+      if (typeof navigator !== 'undefined' && 'mediaSession' in navigator && currentTrack) {
+        navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+      }
+    } catch {
+      // Best-effort lock-screen state.
+    }
+  }, [currentTrack, isPlaying]);
 
   return (
     <div className={`listener-v2-root${isLiveRoom ? ' listener-v2-root--room' : ''}`}>
@@ -501,6 +647,8 @@ const ListenerV2Layout = () => {
             playTrack,
             playTrackAt,
             seekTo,
+            seekBy,
+            playPrevious,
             playNext,
             currentTrack,
             currentTime,
@@ -577,24 +725,84 @@ const ListenerV2Layout = () => {
       />
 
       {currentTrack && !isLiveRoom && (
-        <section className={`listener-v2-player${playerError ? ' has-error' : ''}`} aria-label="Audio player">
-          <span className="listener-v2-player-art"><Artwork src={currentTrack.coverArt} /></span>
-          <div className="listener-v2-player-copy">
-            <strong>{currentTrack.title}</strong>
-            <span role={playerError ? 'alert' : undefined}>
-              {playerError || (playbackState === 'buffering' ? 'Buffering…' : currentTrack.subtitle)}
-            </span>
-          </div>
-          <button
-            type="button"
-            className="listener-v2-player-play"
-            onClick={togglePlay}
-            aria-label={playerError ? 'Retry playback' : isPlaying ? 'Pause' : 'Play'}
-          >
-            {isPlaying ? <FiPause /> : <FiPlay />}
-          </button>
-          <div className="listener-v2-player-progress"><span style={{ width: `${duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0}%` }} /></div>
-        </section>
+        <>
+          <section className={`listener-v2-player${playerError ? ' has-error' : ''}`} aria-label="Audio player">
+            <button type="button" className="listener-v2-player-track" onClick={() => setPlayerExpanded(true)} aria-label="Open full player">
+              <span className="listener-v2-player-art"><Artwork src={currentTrack.coverArt} /></span>
+              <span className="listener-v2-player-copy">
+                <strong>{currentTrack.title}</strong>
+                <span role={playerError ? 'alert' : undefined}>
+                  {playerError || (playbackState === 'buffering' ? 'Buffering…' : currentTrack.subtitle)}
+                </span>
+              </span>
+            </button>
+            <div className="listener-v2-player-transport">
+              <button type="button" onClick={() => seekBy(-15)} aria-label="Back 15 seconds"><FiRotateCcw /></button>
+              <button
+                type="button"
+                className="listener-v2-player-play"
+                onClick={togglePlay}
+                aria-label={playerError ? 'Retry playback' : isPlaying ? 'Pause' : 'Play'}
+              >
+                {isPlaying ? <FiPause /> : <FiPlay />}
+              </button>
+              <button type="button" onClick={() => seekBy(15)} aria-label="Forward 15 seconds"><FiRotateCw /></button>
+            </div>
+            <label className="listener-v2-player-seek">
+              <span>{formatPlaybackTime(currentTime)}</span>
+              <input
+                type="range"
+                min="0"
+                max={Math.max(1, duration)}
+                step="1"
+                value={Math.min(currentTime, Math.max(1, duration))}
+                onChange={(event) => seekTo(Number(event.target.value))}
+                aria-label="Playback position"
+              />
+              <span>{formatPlaybackTime(duration)}</span>
+            </label>
+          </section>
+
+          {playerExpanded && (
+            <div className="listener-v2-full-player">
+              <button type="button" className="listener-v2-full-player-backdrop" aria-label="Minimize player" onClick={() => setPlayerExpanded(false)} />
+              <section className="listener-v2-full-player-sheet" role="dialog" aria-modal="true" aria-label="Now playing">
+                <header>
+                  <div><span>NOW PLAYING</span><strong>{currentTrack.title}</strong></div>
+                  <button type="button" onClick={() => setPlayerExpanded(false)} aria-label="Minimize player"><FiX /></button>
+                </header>
+                <div className="listener-v2-full-player-body">
+                  <div className="listener-v2-full-player-art"><Artwork src={currentTrack.coverArt} /></div>
+                  <div className="listener-v2-full-player-copy">
+                    <h2>{currentTrack.title}</h2>
+                    <p>{currentTrack.subtitle}</p>
+                    {playerError && <small role="alert">{playerError}</small>}
+                  </div>
+                  <label className="listener-v2-full-player-seek">
+                    <input
+                      type="range"
+                      min="0"
+                      max={Math.max(1, duration)}
+                      step="1"
+                      value={Math.min(currentTime, Math.max(1, duration))}
+                      onChange={(event) => seekTo(Number(event.target.value))}
+                      aria-label="Playback position"
+                    />
+                    <span><b>{formatPlaybackTime(currentTime)}</b><b>{formatPlaybackTime(duration)}</b></span>
+                  </label>
+                  <div className="listener-v2-full-player-controls">
+                    <button type="button" onClick={playPrevious} disabled={queue.length < 2} aria-label="Previous track"><FiSkipBack /></button>
+                    <button type="button" onClick={() => seekBy(-15)} aria-label="Back 15 seconds"><FiRotateCcw /><span>15</span></button>
+                    <button type="button" className="primary" onClick={togglePlay} aria-label={isPlaying ? 'Pause' : 'Play'}>{isPlaying ? <FiPause /> : <FiPlay />}</button>
+                    <button type="button" onClick={() => seekBy(15)} aria-label="Forward 15 seconds"><FiRotateCw /><span>15</span></button>
+                    <button type="button" onClick={playNext} disabled={queue.length < 2} aria-label="Next track"><FiSkipForward /></button>
+                  </div>
+                  <p className="listener-v2-full-player-hint">Minimize this player and Echoo keeps the audio playing while you browse Listener.</p>
+                </div>
+              </section>
+            </div>
+          )}
+        </>
       )}
       {!isLiveRoom && <nav className="listener-v2-mobile-nav" aria-label="Listener navigation">
         {[
@@ -675,7 +883,7 @@ const LiveCatalog = () => {
 const DiscoverCatalog = () => {
   const navigate = useNavigate();
   const { playTrack } = useOutletContext();
-  const { liveNow } = useLiveCatalog();
+  const { liveNow, upcoming } = useLiveCatalog();
   const [recordings, setRecordings] = useState([]);
   const [playlists, setPlaylists] = useState([]);
 
@@ -686,7 +894,14 @@ const DiscoverCatalog = () => {
       playlistService.getAll({ page: 1, limit: 6 }),
     ]).then(([audioResult, playlistResult]) => {
       if (!active) return;
-      if (audioResult.status === 'fulfilled') setRecordings((audioResult.value?.data || []).map(normalizePlayable).filter(Boolean));
+      if (audioResult.status === 'fulfilled') {
+        setRecordings(
+          (audioResult.value?.data || [])
+            .map(normalizePlayable)
+            .filter(Boolean)
+            .sort((a, b) => new Date(releaseDateOf(b) || 0) - new Date(releaseDateOf(a) || 0))
+        );
+      }
       if (playlistResult.status === 'fulfilled') setPlaylists(playlistResult.value?.data || []);
     });
     return () => { active = false; };
@@ -697,17 +912,61 @@ const DiscoverCatalog = () => {
   return (
     <div className="listener-v2-page listener-v2-discover-page">
       <ListenerHeroArtwork />
-      <header className="listener-v2-page-title"><h1>Discover</h1><p>Listen freely. Sign in only when you want to save, follow, or join the conversation.</p></header>
-      <section className="listener-v2-panel">
-        <SectionTitle title="Trending recordings" copy="Public audio from Echoo creators" action={() => navigate('/listen/search')} actionLabel="Search audio" />
-        {recordings.length ? <div className="listener-v2-audio-list">{recordings.slice(0, 6).map((track) => <article key={idOf(track)}><span className="listener-v2-audio-art"><Artwork src={track.coverArt} /></span><div><strong>{track.title}</strong><span>{track.subtitle}</span></div><button type="button" aria-label={`Play ${track.title}`} onClick={() => playTrack(track, recordings)}><FiPlay /></button></article>)}</div> : <EmptyState icon={<FiMusic />} title="No recordings yet" copy="Public recordings will appear here as creators publish." />}
-      </section>
+      <header className="listener-v2-page-title"><h1>Discover</h1><p>Live shows, upcoming broadcasts and the newest releases — clearly separated.</p></header>
+
       <section className="listener-v2-panel">
         <SectionTitle title="Live now" copy="Channels broadcasting in this moment" action={() => navigate('/listen/live')} />
-        {liveNow.length ? <div className="listener-v2-live-grid">{liveNow.slice(0, 5).map((item) => <LiveCard key={idOf(item)} broadcast={item} onOpen={(broadcast) => navigate(`/listen/live/${idOf(broadcast)}`, { state: { show: broadcast } })} />)}</div> : <EmptyState icon={<FiRadio />} title="Nothing is live right now" copy="Browse recordings or return when a Channel starts broadcasting." />}
+        {liveNow.length ? (
+          <div className="listener-v2-live-grid">{liveNow.slice(0, 5).map((item) => <LiveCard key={idOf(item)} broadcast={item} onOpen={(broadcast) => navigate(`/listen/live/${idOf(broadcast)}`, { state: { show: broadcast } })} />)}</div>
+        ) : (
+          <EmptyState icon={<FiRadio />} title="Nothing is live right now" copy="Latest releases and scheduled broadcasts are still available below." />
+        )}
       </section>
+
       <section className="listener-v2-panel">
-        <SectionTitle title="Popular playlists" copy="Play openly; save them when you are ready" action={() => navigate('/listen/playlist')} />
+        <SectionTitle title="Upcoming broadcasts" copy="Scheduled shows in start-time order" action={() => navigate('/listen/live')} actionLabel="Live & upcoming" />
+        {upcoming.length ? (
+          <div className="listener-v2-upcoming-grid">
+            {upcoming.slice(0, 6).map((broadcast) => (
+              <UpcomingCard
+                key={idOf(broadcast)}
+                broadcast={broadcast}
+                onOpen={(item) => navigate(`/listen/live/${idOf(item)}`, { state: { show: item } })}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="listener-v2-upcoming-empty"><FiCalendar /><span>No public broadcasts are scheduled yet.</span></div>
+        )}
+      </section>
+
+      <section className="listener-v2-panel">
+        <SectionTitle title="Latest releases" copy="Newest public recordings first" action={() => navigate('/listen/search')} actionLabel="Search audio" />
+        {recordings.length ? (
+          <div className="listener-v2-audio-list listener-v2-release-list">
+            {recordings.slice(0, 8).map((track) => (
+              <article key={idOf(track)}>
+                <span className="listener-v2-audio-art"><Artwork src={track.coverArt} /></span>
+                <div className="listener-v2-release-copy">
+                  <strong>{track.title}</strong>
+                  <span>{track.subtitle}</span>
+                  <small>
+                    {isRecentRelease(track) && <b>NEW</b>}
+                    {formatReleaseLabel(track)}
+                    {track.duration > 0 ? ` · ${formatPlaybackTime(track.duration)}` : ''}
+                  </small>
+                </div>
+                <button type="button" aria-label={`Play ${track.title}`} onClick={() => playTrack(track, recordings)}><FiPlay /></button>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <EmptyState icon={<FiMusic />} title="No releases yet" copy="Public recordings appear here immediately after creators publish them." />
+        )}
+      </section>
+
+      <section className="listener-v2-panel">
+        <SectionTitle title="Popular playlists" copy="Collections for longer listening" action={() => navigate('/listen/playlist')} />
         <div className="listener-v2-playlist-grid">{visiblePlaylists.slice(0, 6).map((playlist) => <button type="button" key={idOf(playlist)} onClick={() => navigate('/listen/playlist')}>
           <span className="listener-v2-playlist-art"><img src={playlist.coverArt} alt="" /></span>
           <div><strong>{playlist.name || 'Playlist'}</strong><small>{playlist.ownerName || playlist.owner?.displayName || playlist.owner?.username || 'Echoo creator'} · {Number(playlist.trackCount ?? playlist.tracks?.length) || 0} recordings</small></div>
