@@ -36,9 +36,10 @@ requirements that are easy to miss, especially the recording pipeline.
    - LiveKit API secret, JWT secrets, MongoDB credentials and storage keys belong only in server environment files/secrets.
    - Never commit or print them.
 7. **Production and staging are separate.**
-   - Vercel is used as Echoo staging/test infrastructure.
+   - Render is the active Echoo staging/test target: `https://echoo-render-staging.onrender.com/`.
    - The current real hosted site is `https://echoo.digi02.org/`.
-   - A production build must not accidentally generate Vercel staging share links.
+   - Vercel is retired for Echoo and must not be reintroduced by deployment agents.
+   - A production build must not accidentally generate a staging share link.
 
 ### Required deployment reading order
 
