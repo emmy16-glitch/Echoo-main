@@ -524,8 +524,9 @@ const ListenerV2Layout = () => {
   }, [currentTrack, playAudioElement, playTrack, seekTo]);
 
   const seekBy = useCallback((deltaSeconds) => {
-    return seekTo(currentTime + Number(deltaSeconds || 0));
-  }, [currentTime, seekTo]);
+    const base = Number(audioRef.current?.currentTime) || 0;
+    return seekTo(base + Number(deltaSeconds || 0));
+  }, [seekTo]);
 
   const playNext = useCallback(() => {
     if (!queue.length || !currentTrack) return;
@@ -829,7 +830,7 @@ const ListenerV2Layout = () => {
 
 const LiveCatalog = () => {
   const navigate = useNavigate();
-  const { liveNow, loading, error, reload } = useLiveCatalog();
+  const { liveNow, upcoming, loading, error, reload } = useLiveCatalog();
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('All categories');
 
@@ -874,6 +875,21 @@ const LiveCatalog = () => {
             title={query ? 'No live events match your search.' : category !== 'All categories' ? `Nothing is live in ${category} right now.` : 'Nothing is live right now.'}
             copy={query ? 'Try another Channel or topic.' : 'Live broadcasts will appear here as soon as creators go live.'}
           />
+        )}
+      </section>
+
+      <section className="listener-v2-live-upcoming">
+        <div className="listener-v2-page-header listener-v2-page-header--compact">
+          <div><h2>Upcoming</h2><p>Scheduled public broadcasts, earliest first.</p></div>
+        </div>
+        {upcoming.length ? (
+          <div className="listener-v2-upcoming-grid">
+            {upcoming.slice(0, 8).map((broadcast) => (
+              <UpcomingCard key={idOf(broadcast)} broadcast={broadcast} onOpen={openBroadcast} />
+            ))}
+          </div>
+        ) : (
+          <div className="listener-v2-upcoming-empty"><FiCalendar /><span>No scheduled broadcasts yet.</span></div>
         )}
       </section>
     </div>
