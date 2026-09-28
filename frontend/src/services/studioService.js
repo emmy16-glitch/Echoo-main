@@ -140,6 +140,11 @@ const studioService = {
     return apiRequest(`/studio/content?${params.toString()}`);
   },
 
+  getAudio: async (audioId) => {
+    if (!audioId) throw new Error("Audio ID is missing.");
+    return apiRequest(`/audio/${encodeURIComponent(audioId)}`);
+  },
+
   getAudience: async () => apiRequest("/studio/audience"),
 
   getAnalytics: async (period = "30d") => {
