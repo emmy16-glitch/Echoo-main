@@ -279,26 +279,28 @@ VITE_PUBLIC_APP_ORIGIN=https://echoo.digi02.org
 VITE_BUILD_BASE=/
 ```
 
-Do not bake the Vercel staging origin into a real production build.
+Do not bake a staging origin into a real production build.
 
-## 8. Vercel staging is not Digi02 production
+## 8. Render staging is not Digi02 production
 
-The repository currently uses a Vercel project as a staging/test environment.
-The real hosted Echoo production site is:
+The active browser staging target is:
+
+```text
+https://echoo-render-staging.onrender.com/
+```
+
+It is a test/staging surface only. The real hosted Echoo production site is:
 
 ```text
 https://echoo.digi02.org/
 ```
 
-A Vercel deployment marked "production" inside that Vercel project is still
-**Echoo staging by project convention**.
+The Render staging frontend does not by itself prove that the production backend,
+LiveKit Egress, FFmpeg/FFprobe, recording WebSocket, or durable storage are ready.
+Use the health and end-to-end acceptance gates in this document before calling
+the production deployment ready.
 
-For Vercel/container deployments:
-- FFmpeg must be installed in the backend image;
-- canonical audio must use persistent object storage;
-- never trust ephemeral container disk for finished recordings.
-
-See [docs/vercel-deployment.md](docs/vercel-deployment.md).
+Vercel is retired for Echoo and must not be used as a staging or production target.
 
 ## 9. Install, build and restart
 
@@ -472,7 +474,6 @@ requirement** instead of pretending recording is ready.
 - [docs/audio-architecture.md](docs/audio-architecture.md) — audio/recording internals.
 - [backend/.env.example](backend/.env.example) — environment variable reference.
 - [HOSTED-SERVER-SYNC.md](HOSTED-SERVER-SYNC.md) — Digi02 operator runbook.
-- [docs/vercel-deployment.md](docs/vercel-deployment.md) — Vercel staging/container notes.
 
 **Do not use `docs/archive/` as deployment authority.** Those files are frozen
 historical reports and can describe superseded flows.
