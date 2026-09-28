@@ -120,6 +120,8 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
     let connectionQualityTimer = null;
     let receiverCheckRunning = false;
     let localConnectionQuality = 'unknown';
+    let creatorConnectionLost = false;
+    let programStreamPaused = false;
     let smoothedAudioLevel = 0;
 
     const detachAttachment = (id) => {
@@ -511,6 +513,8 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
 
       room.on(RoomEvent.TrackPublished, (publication, participant) => {
         if (roomRef.current !== room || !isEchooProgramPublication(publication)) return;
+        creatorConnectionLost = false;
+        programStreamPaused = false;
         programParticipantRef.current = participant || programParticipantRef.current;
         subscribeToProgramPublication(publication, room, participant).catch((subscriptionError) => {
           if (!disposed && roomRef.current === room) {
@@ -521,6 +525,10 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
 
       room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
         if (roomRef.current !== room) return;
+        if (isEchooProgramPublication(publication)) {
+          creatorConnectionLost = false;
+          programStreamPaused = false;
+        }
         attachAudio(track, publication, room, participant).catch((trackError) => {
           if (!disposed && roomRef.current === room) {
             setError(trackError?.message || 'Could not attach live audio.');
@@ -545,10 +553,12 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
         if (disposed || roomRef.current !== room || !isEchooProgramPublication(publication)) return;
         const nextState = String(streamState || '').toLowerCase();
         if (nextState === 'paused') {
+          programStreamPaused = true;
           setStatus('holding');
           return;
         }
         if (nextState === 'active') {
+          programStreamPaused = false;
           attachExisting(room)
             .then(() => markPlaybackState())
             .catch(() => scheduleHardReconnect('program_stream_resume_failed'));
@@ -585,11 +595,14 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
           return;
         }
 
-        if (participant === programParticipantRef.current && normalized === 'lost') {
-          // Creator-side loss affects every listener. Rejoining locally cannot
-          // fix it, so keep the listener attached and wait for the creator's
-          // recovery/republish path.
-          setStatus('holding');
+        if (participant === programParticipantRef.current) {
+          creatorConnectionLost = normalized === 'lost';
+          if (creatorConnectionLost) {
+            // Creator-side loss affects every listener. Rejoining locally cannot
+            // fix it, so keep the listener attached and wait for the creator's
+            // recovery/republish path.
+            setStatus('holding');
+          }
         }
       });
 
@@ -779,6 +792,8 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
             !currentAttachmentIsHealthy(entry) ||
             entry.publication?.isMuted ||
             entry.track?.isMuted ||
+            programStreamPaused ||
+            String(entry.track?.streamState || '').toLowerCase() === 'paused' ||
             typeof entry.track?.getReceiverStats !== 'function'
           ) continue;
 
@@ -804,7 +819,9 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
           ) {
             entry.receiverStallSamples = 0;
             setStatus('holding');
-            scheduleHardReconnect('inbound_rtp_stall');
+            if (!creatorConnectionLost) {
+              scheduleHardReconnect('inbound_rtp_stall');
+            }
             break;
           }
         }
