@@ -13,7 +13,7 @@ import CreatorAudioMixer from './CreatorAudioMixer';
 import batch2Service from '../../services/batch2Service';
 import batch3Service from '../../services/batch3Service';
 import {
-  getEchooMixerOutputTrack,
+  ensureEchooMixerOutputTrack,
   getEchooMixerState,
   getMixerChannelTrack,
   setMasterMuted,
@@ -740,9 +740,9 @@ const CreatorLiveConnectedWorkspace = ({
       return;
     }
 
-    const mediaTrack = getEchooMixerOutputTrack();
+    const mediaTrack = await ensureEchooMixerOutputTrack();
     if (!mediaTrack) {
-      setError('The studio mix is not ready yet.');
+      setError('The studio mix is still starting. Reconnect the audio source if this message remains, then try Go Live again.');
       return;
     }
 
@@ -1059,7 +1059,7 @@ const CreatorLiveConnectedWorkspace = ({
           );
         }
 
-        const mediaTrack = getEchooMixerOutputTrack();
+        const mediaTrack = await ensureEchooMixerOutputTrack();
         if (!mediaTrack || mediaTrack.readyState === 'ended') {
           throw new Error(
             'The studio mix is not ready. Reconnect an audio source, then choose Reconnect live audio.'
