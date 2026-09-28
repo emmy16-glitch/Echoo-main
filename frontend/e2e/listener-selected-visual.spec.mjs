@@ -84,6 +84,7 @@ const mockApi = async (page) => {
     if (path.includes('/api/follows/users/') && path.endsWith('/status')) return json(route, { data: { isFollowing: true, isFollowedBy: false } });
     if (path.includes('/api/follows/')) return json(route, { data: { ok: true } });
 
+    if (path.endsWith('/api/playlists')) return json(route, { data: [{ id: 'playlist-1', _id: 'playlist-1', name: 'Weekend Listening', description: 'Three recordings for the weekend.', isPublic: true, owner: creators[0], tracks }] });
     if (path.endsWith('/api/history')) return json(route, { data: { history: tracks.map((track, index) => ({ id: `history-${index + 1}`, track, playedAt: new Date(Date.now() - (index + 1) * 600000).toISOString(), progress: 20 + index * 10 })) } });
     if (path.endsWith('/api/search')) return json(route, { data: { results: { tracks, creators, stations, playlists: [{ id: 'playlist-1', name: 'Weekend Listening', description: 'Saved for later' }] } } });
 
@@ -177,11 +178,16 @@ test('capture strict Listener 2.0 core surfaces', async ({ page }, testInfo) => 
   await authenticate(page);
 
   await capture(page, testInfo, '/listen', 'HOME', 'Discover');
-  await expect(page.locator('.listener-hero-artwork')).toHaveCount(1);
+  await expect(page.locator('.listener-hero-artwork')).toHaveCount(0);
   await expect(page.locator('.listener-v2-live-card')).toHaveCount(5);
+  const playlistCard = page.getByRole('button', { name: 'Play Weekend Listening' });
+  await expect(playlistCard).toBeVisible();
+  await playlistCard.click();
+  await expect(page).toHaveURL(/\/listen$/);
+  await expect(page.locator('.listener-v2-player-copy strong')).toHaveText('Faith and Work');
 
   await capture(page, testInfo, '/listen/library/following', 'FOLLOWING', 'Following');
-  await expect(page.locator('.listener-hero-artwork')).toHaveCount(1);
+  await expect(page.locator('.listener-hero-artwork')).toHaveCount(0);
   await expect(page.locator('.listener-v2-following-live-card')).toHaveCount(4);
   await expect(page.locator('.listener-v2-following-row')).toHaveCount(4);
 
@@ -197,7 +203,7 @@ test('capture strict Listener 2.0 core surfaces', async ({ page }, testInfo) => 
   await page.goto('/listen/playlist', { waitUntil: 'domcontentloaded', timeout: 30000 });
   await page.waitForTimeout(1200);
   await expect(page.locator('.pl-page')).toBeVisible();
-  await expect(page.locator('.listener-hero-artwork')).toHaveCount(1);
+  await expect(page.locator('.listener-hero-artwork')).toHaveCount(0);
 
   await page.goto('/listen/live/live-1', { waitUntil: 'domcontentloaded', timeout: 30000 });
   await page.waitForTimeout(1400);

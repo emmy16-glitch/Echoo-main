@@ -9,7 +9,7 @@ test('guests open Echoo into Discover and are prompted only for a follow action'
   await page.goto('/');
   await expect(page).toHaveURL(/\/listen$/);
   await expect(page.getByRole('heading', { name: 'Discover' })).toBeVisible();
-  await expect(page.getByText('Sign in only when you want to save, follow, or join the conversation.')).toBeVisible();
+  await expect(page.getByText('Live broadcasts and recordings, all in one place.')).toBeVisible();
 
   await page.goto('/listen/stations');
   await expect(page.getByRole('heading', { name: 'Channels', exact: true })).toBeVisible();

@@ -59,7 +59,6 @@ export default function ListenerPlaylist() {
   const [playlists, setPlaylists] = useState([]);
   const [continueListening, setContinueListening] = useState([]);
   const [publicPlaylists, setPublicPlaylists] = useState([]);
-  const [recentlyPlayed, setRecentlyPlayed] = useState([]);
   const [downloads, setDownloads] = useState([]);
   const [showAllPublic, setShowAllPublic] = useState(false);
   const [toast, setToast] = useState({ open: false, type: 'info', title: '', message: '' });
@@ -72,11 +71,10 @@ export default function ListenerPlaylist() {
     setToast({ open: true, type, title, message }), []);
 
   const load = useCallback(async () => {
-    const [mineResult, contResult, pubResult, histResult, dlResult] = await Promise.allSettled([
+    const [mineResult, contResult, pubResult, dlResult] = await Promise.allSettled([
       playlistService.getMine(),
       listenerService.getContinueListening(),
       playlistService.getAll({ page: 1, limit: 40, search: '' }),
-      listenerService.getHistory(1, 20),
       batch6Service.getDownloads({ limit: 100 }),
     ]);
 
@@ -91,15 +89,6 @@ export default function ListenerPlaylist() {
     if (pubResult.status === 'fulfilled') {
       const list = Array.isArray(pubResult.value?.data) ? pubResult.value.data : [];
       setPublicPlaylists(list.filter((p) => Array.isArray(p.tracks) && p.tracks.length > 0));
-    }
-    if (histResult.status === 'fulfilled') {
-      const raw = histResult.value?.data || {};
-      const history = Array.isArray(raw.history) ? raw.history : [];
-      const recent = history
-        .map((entry) => (entry?.track && typeof entry.track === 'object' ? entry.track : null))
-        .filter(Boolean)
-        .slice(0, 3);
-      setRecentlyPlayed(recent);
     }
     if (dlResult.status === 'fulfilled') {
       const raw = dlResult.value?.data || {};
@@ -129,6 +118,28 @@ export default function ListenerPlaylist() {
         coverArt: track.coverArt || track.artwork,
         duration: track.duration,
       });
+    },
+    [playTrack, currentTrack, togglePlay],
+  );
+
+  const handlePlaylistPlay = useCallback(
+    (playlist) => {
+      const queue = (Array.isArray(playlist?.tracks) ? playlist.tracks : [])
+        .filter((track) => track?.id && track?.fileUrl);
+      if (!queue.length) return;
+      const firstTrack = queue[0];
+      if (String(currentTrack?.id || '') === String(firstTrack.id)) {
+        togglePlay();
+        return;
+      }
+      playTrack({
+        id: firstTrack.id,
+        title: firstTrack.title,
+        artistName: firstTrack.artistName,
+        fileUrl: firstTrack.fileUrl,
+        coverArt: firstTrack.coverArt || firstTrack.artwork,
+        duration: firstTrack.duration,
+      }, queue);
     },
     [playTrack, currentTrack, togglePlay],
   );
@@ -235,56 +246,45 @@ export default function ListenerPlaylist() {
   const topPublic = sortedPublic.slice(0, 5);
   const visiblePublic = showAllPublic ? sortedPublic : topPublic;
 
-  const scrollToPopular = () => {
-    document.getElementById('pl-popular-playlists')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
-
   return (
     <div className="pl-page">
       <ListenerHeroArtwork className="listener-hero-artwork--playlist" />
       <div className="pl-heading">
         <div className="pl-heading-text">
-          <h1>Playlist</h1>
-          <p>Create, manage and enjoy your favorite audio collections.</p>
+          <h1>Playlists</h1>
+          <p>Play a collection, continue listening, or organize your own.</p>
         </div>
+        <button type="button" className="pl-hero-cta" onClick={() => setCreateOpen((open) => !open)}>
+          <FaPlus /> {createOpen ? 'Close' : 'Create playlist'}
+        </button>
       </div>
 
-      <div className="pl-hero">
-        <div className="pl-hero-content">
-          <span className="pl-hero-kicker">My playlists</span>
-          <h2>Your favorite audio, in one place.</h2>
-          <p>Organize, listen and revisit the content you love.</p>
-          <button type="button" className="pl-hero-cta" onClick={() => setCreateOpen((o) => !o)}>
-            <FaPlus /> {createOpen ? 'Close' : 'Create playlist'}
+      {createOpen && (
+        <div className="pl-create-form pl-create-form--panel">
+          <input
+            type="text"
+            placeholder="Playlist name"
+            aria-label="Playlist name"
+            value={createName}
+            onChange={(e) => setCreateName(e.target.value)}
+          />
+          <input
+            type="text"
+            placeholder="Description (optional)"
+            aria-label="Playlist description"
+            value={createDesc}
+            onChange={(e) => setCreateDesc(e.target.value)}
+          />
+          <button
+            type="button"
+            className="pl-create-btn"
+            disabled={busyId === 'create'}
+            onClick={handleCreatePlaylist}
+          >
+            {busyId === 'create' ? 'Creating…' : 'Create'}
           </button>
-          {createOpen && (
-            <div className="pl-create-form">
-              <input
-                type="text"
-                placeholder="Playlist name"
-                aria-label="Playlist name"
-                value={createName}
-                onChange={(e) => setCreateName(e.target.value)}
-              />
-              <input
-                type="text"
-                placeholder="Description (optional)"
-                aria-label="Playlist description"
-                value={createDesc}
-                onChange={(e) => setCreateDesc(e.target.value)}
-              />
-              <button
-                type="button"
-                className="pl-create-btn"
-                disabled={busyId === 'create'}
-                onClick={handleCreatePlaylist}
-              >
-                {busyId === 'create' ? 'Creating…' : 'Create'}
-              </button>
-            </div>
-          )}
         </div>
-      </div>
+      )}
 
       <div className="pl-controls">
         <div className="pl-tabs" role="tablist">
@@ -393,7 +393,7 @@ export default function ListenerPlaylist() {
                               className="pl-playlist-art-play"
                               aria-label={`${playing ? 'Pause' : 'Play'} ${playlist.name || 'playlist'}`}
                               disabled={!firstTrack}
-                              onClick={() => firstTrack && handlePlay(firstTrack)}
+                              onClick={() => firstTrack && handlePlaylistPlay(playlist)}
                             >
                               {playing ? <FaPause /> : <FaPlay />}
                             </button>
@@ -514,7 +514,7 @@ export default function ListenerPlaylist() {
                               type="button"
                               className="pl-popular-card"
                               disabled={!first}
-                              onClick={() => first && handlePlay(first)}
+                              onClick={() => first && handlePlaylistPlay(playlist)}
                               aria-label={`${playing ? 'Pause' : 'Play'} ${playlist.name || 'playlist'}`}
                             >
                               <span className="pl-popular-art">
@@ -538,90 +538,7 @@ export default function ListenerPlaylist() {
           )}
         </div>
 
-        <aside className="pl-sidebar">
-          <div className="pl-card">
-            <div className="pl-card-header">
-              <strong>Recently played</strong>
-              <button type="button" className="pl-view-all" onClick={() => navigate('/listen/history')}>
-                View history <FaAngleRight />
-              </button>
-            </div>
-            {recentlyPlayed.length === 0 ? (
-              <p className="pl-empty-note">No recent plays yet.</p>
-            ) : (
-              <div className="pl-recent-list">
-                {recentlyPlayed.map((track, index) => (
-                  <button
-                    key={`${idOf(track)}-${track.playedAt || index}`}
-                    type="button"
-                    className="pl-recent-row"
-                    onClick={() => handlePlay(track)}
-                  >
-                    <span className="pl-recent-art">
-                      <img src={track.coverArt || track.artwork} alt={track.title || 'Audio'} />
-                    </span>
-                    <span className="pl-recent-info">
-                      <strong>{track.title || 'Untitled audio'}</strong>
-                      <span>{track.artistName || track.genre || 'Audio'}</span>
-                      <span className="pl-recent-when">{relativeTime(track.playedAt)}</span>
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
 
-          <div className="pl-card">
-            <div className="pl-card-header">
-              <strong>Top playlists</strong>
-              <button type="button" className="pl-view-all" onClick={scrollToPopular}>
-                Browse <FaAngleRight />
-              </button>
-            </div>
-            {topPublic.length === 0 ? (
-              <p className="pl-empty-note">No playlists yet.</p>
-            ) : (
-              <div className="pl-top-list">
-                {topPublic.map((playlist, index) => {
-                  const trackCount = Array.isArray(playlist.tracks) ? playlist.tracks.length : 0;
-                  const listens = Number(playlist.listenerCount || playlist.listens || 0);
-                  const first = Array.isArray(playlist.tracks) ? playlist.tracks[0] : null;
-                  return (
-                    <button
-                      type="button"
-                      key={idOf(playlist)}
-                      className="pl-top-row"
-                      disabled={!first}
-                      onClick={() => first && handlePlay(first)}
-                      aria-label={`Play ${playlist.name || 'playlist'}`}
-                    >
-                      <span className="pl-top-rank">{index + 1}</span>
-                      <span className="pl-top-art">
-                        <img src={playlist.coverArt} alt={playlist.name || 'Playlist'} />
-                      </span>
-                      <span className="pl-top-info">
-                        <strong>{playlist.name || 'Untitled Playlist'}</strong>
-                        <span>
-                          {trackCount} {trackCount === 1 ? 'track' : 'tracks'}
-                          {listens > 0 ? ` • ${compactNumber(listens)} listens` : ''}
-                        </span>
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          <div className="pl-card pl-cta-card">
-            <FaHeadphones />
-            <strong>Love Echoo?</strong>
-            <p>Create your own playlists and share them with others.</p>
-            <button type="button" className="pl-cta-btn" onClick={() => setCreateOpen(true)}>
-              Create playlist
-            </button>
-          </div>
-        </aside>
       </div>
 
       <ListenerToast
