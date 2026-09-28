@@ -262,7 +262,7 @@ body:has(.listener-v2-root) .echoo-mobile-nav, body:has(.listener-v2-root) .echo
   border-radius:7px;
   background:rgba(3,22,48,.86);
   color:#fff;
-  font-size:9px;
+  font-size:10px;
   font-weight:780;
 }
 .listener-v2-upcoming-copy {
@@ -381,7 +381,7 @@ body:has(.listener-v2-root) .echoo-mobile-nav, body:has(.listener-v2-root) .echo
   align-items:center;
   gap:8px;
   color:#6b7b91;
-  font-size:9px;
+  font-size:10px;
   font-variant-numeric:tabular-nums;
 }
 .listener-v2-player-seek input,
@@ -432,9 +432,9 @@ html.listener-v2-full-player-open body { overflow:hidden; }
 .listener-v2-full-player-sheet > header span {
   display:block;
   color:#748297;
-  font-size:9px;
+  font-size:10px;
   font-weight:800;
-  letter-spacing:.11em;
+  letter-spacing:.1em;
 }
 .listener-v2-full-player-sheet > header strong {
   display:block;
@@ -538,7 +538,7 @@ html.listener-v2-full-player-open body { overflow:hidden; }
   position:absolute;
   right:4px;
   bottom:3px;
-  font-size:7px;
+  font-size:10px;
   font-weight:800;
 }
 .listener-v2-full-player-hint {
