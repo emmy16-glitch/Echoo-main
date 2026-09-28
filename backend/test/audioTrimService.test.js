@@ -56,7 +56,7 @@ test('recording pipeline reports FFmpeg and FFprobe availability', async () => {
   assert.equal(capability.ok, true);
 });
 
-test('MP3 trim preserves the source and keeps MP3 without a quality re-encode', async (t) => {
+test('MP3 trim creates a high-quality trimmed MP3 and preserves the source', async (t) => {
   const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'echoo-trim-mp3-'));
   t.after(() => fs.promises.rm(directory, { recursive: true, force: true }));
   const sourcePath = path.join(directory, 'source.mp3');
