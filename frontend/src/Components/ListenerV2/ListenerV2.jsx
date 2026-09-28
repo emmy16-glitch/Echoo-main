@@ -928,7 +928,7 @@ const DiscoverCatalog = () => {
   return (
     <div className="listener-v2-page listener-v2-discover-page">
       <ListenerHeroArtwork />
-      <header className="listener-v2-page-title"><h1>Discover</h1><p>Live shows, upcoming broadcasts and the newest releases — clearly separated.</p></header>
+      <header className="listener-v2-page-title"><h1>Discover</h1><p>Live shows, upcoming broadcasts and the newest releases — clearly separated. Sign in only when you want to save, follow, or join the conversation.</p></header>
 
       <section className="listener-v2-panel">
         <SectionTitle title="Live now" copy="Channels broadcasting in this moment" action={() => navigate('/listen/live')} />
