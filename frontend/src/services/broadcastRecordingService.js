@@ -2,7 +2,7 @@ import {
   startEchooMasterPcmCapture,
   supportsEchooMasterPcmCapture,
 } from './echooMixerService.js';
-import { apiFetch } from './api.js';
+import { apiFetch, getCurrentAccessToken } from './api.js';
 
 const RECORDING_EVENT = 'echoo:broadcast-recording-ready';
 
@@ -35,6 +35,22 @@ const MAX_QUEUED_PCM_SECONDS = 30;
 
 let activeRecording = null;
 let pendingRecording = null;
+
+const currentSessionUserId = () => {
+  try {
+    const token = String(getCurrentAccessToken?.() || '');
+    const encoded = token.split('.')[1] || '';
+    if (!encoded || typeof atob !== 'function') return '';
+    const normalized = encoded
+      .replace(/-/g, '+')
+      .replace(/_/g, '/')
+      .padEnd(Math.ceil(encoded.length / 4) * 4, '=');
+    const payload = JSON.parse(atob(normalized));
+    return String(payload?.sub || payload?.userId || '');
+  } catch {
+    return '';
+  }
+};
 
 const validRecoveryManifest = (value) => Boolean(
   value &&
@@ -113,6 +129,7 @@ const writeRecoveryManifest = (recording, status = 'recording') => {
     version: 2,
     status,
     broadcastId: recording.broadcastId,
+    ownerUserId: String(recording.ownerUserId || currentSessionUserId() || ''),
     title: recording.title,
     storageName: recording.storageName,
     startedAt: recording.startedAt,
@@ -143,7 +160,26 @@ const clearRecoveryManifest = (storageName = '') => {
 // Compatibility aliases for call sites merged from the background-autosave
 // line, which names these helpers differently. One v2 registry implementation
 // preserves multiple unfinished takes instead of overwriting the previous one.
-const readRecoveryMetadata = () => readRecoveryManifest();
+const readRecoveryMetadata = () => {
+  const manifests = readRecoveryManifests();
+  const currentUserId = currentSessionUserId();
+
+  // New manifests are creator-scoped. Never hydrate another signed-in
+  // creator's local safety master into the current Studio session.
+  if (currentUserId) {
+    const owned = manifests.find(
+      (manifest) => String(manifest.ownerUserId || '') === currentUserId
+    );
+    if (owned) return owned;
+
+    // Old v1/v2 manifests predate owner tagging. They are allowed through only
+    // for one backend ownership check in recordingAutosave before any banner
+    // or resume action is exposed.
+    return manifests.find((manifest) => !manifest.ownerUserId) || null;
+  }
+
+  return manifests.find((manifest) => !manifest.ownerUserId) || null;
+};
 const persistRecoveryMetadata = (recording) =>
   writeRecoveryManifest(recording, 'recording');
 const clearRecoveryMetadata = (broadcastId = '') => {
@@ -1473,6 +1509,20 @@ export const discardBroadcastRecording = async (broadcastId = '') => {
   }
 };
 
+// Detach a recovered take from the current in-memory session without deleting
+// its OPFS file or manifest. Used when a different account signs in on the
+// same browser: the previous creator's safety master stays preserved, but it
+// must not block or appear inside the new creator's Studio.
+export const releaseRecoveredBroadcastRecording = (broadcastId = '') => {
+  const id = String(broadcastId || '');
+  if (
+    pendingRecording?.recovered === true &&
+    (!id || String(pendingRecording.broadcastId || '') === id)
+  ) {
+    pendingRecording = null;
+  }
+};
+
 export const clearPendingBroadcastRecording = (broadcastId = '') => {
   const id = String(broadcastId || '');
   if (!id || pendingRecording?.broadcastId === id) {
@@ -1541,6 +1591,8 @@ export const recoverOrphanedLosslessRecording = async () => {
     const durationSeconds = Math.max(1, dataBytes / (sampleRate * WAV_CHANNELS * WAV_BYTES_PER_SAMPLE));
     const recording = {
       broadcastId: String(meta.broadcastId),
+      ownerUserId: String(meta.ownerUserId || ''),
+      recoveryStorageName: String(meta.storageName || ''),
       blob: wavBlob,
       mimeType: WAV_MIME_TYPE,
       durationSeconds,
@@ -1594,6 +1646,7 @@ export default {
   announceFinishedBroadcastRecording,
   discardBroadcastRecording,
   clearPendingBroadcastRecording,
+  releaseRecoveredBroadcastRecording,
   flushRecordingForPageHide,
   recoverOrphanedLosslessRecording,
   getBroadcastRecordingState,
