@@ -174,6 +174,19 @@ const ListenerRealLiveRoom = () => {
     ? !['live', 'scheduled'].includes(String(show.status || '').toLowerCase())
     : false;
   const isLive = show?.status === 'live';
+  const isScheduled = show?.status === 'scheduled';
+  const scheduledStartLabel = (() => {
+    if (!isScheduled || !show?.startTime) return 'Waiting for scheduled start';
+    const date = new Date(show.startTime);
+    if (Number.isNaN(date.getTime())) return 'Waiting for scheduled start';
+    return `Starts ${date.toLocaleString([], {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    })}`;
+  })();
 
   useEffect(() => {
     statusRef.current = show?.status || '';
@@ -572,9 +585,11 @@ const ListenerRealLiveRoom = () => {
   const connectionStatus = liveState?.connectionStatus || audioState;
   const hasProgramTrack = Number(liveState?.trackCount) > 0;
   const needsReconnect = Boolean(liveState?.canReconnect);
-  const audioStatusLabel = !isLive
-    ? 'Audio disconnected'
-    : show.mediaState === 'audio_paused'
+  const audioStatusLabel = isScheduled
+    ? scheduledStartLabel
+    : !isLive
+      ? 'Broadcast ended'
+      : show.mediaState === 'audio_paused'
       ? 'Broadcast paused'
       : connectionStatus === 'holding'
         ? 'Weak connection — staying live'
@@ -731,7 +746,7 @@ const ListenerRealLiveRoom = () => {
             )}
             <span
               className={`listener-v2-room-live-badge${
-                isLive ? '' : ' is-ended'
+                isLive ? '' : isScheduled ? ' is-scheduled' : ' is-ended'
               }`}
             >
               <FiRadio /> {isLive ? 'LIVE' : ended ? 'ENDED' : 'SCHEDULED'}
@@ -812,7 +827,7 @@ const ListenerRealLiveRoom = () => {
             </div>
 
             <span className="listener-v2-room-realtime-state">
-              {isLive ? `Room ${realtimeState}` : 'Broadcast ended'}
+              {isLive ? `Room ${realtimeState}` : isScheduled ? scheduledStartLabel : 'Broadcast ended'}
             </span>
 
             <button

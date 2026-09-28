@@ -213,6 +213,20 @@ test('sign out plus browser Back cannot resurrect Listener or Creator protected 
   await page.route('**/api/auth/logout', (route) => json(route, 200, data({ message: 'Logged out successfully' })));
   await page.route('**/api/auth/me', (route) => json(route, 200, data({ user: READY_CREATOR })));
 
+  // This test exercises auth/history isolation, not catalogue availability.
+  // After sign-out Echoo intentionally becomes public guest Discover, so keep
+  // its public live/scheduled/release requests deterministic instead of letting
+  // WebKit report an absent test backend as CORS console errors.
+  await page.route('**/api/listener/dashboard**', (route) => json(route, 200, data({
+    liveNow: [],
+    upcoming: [],
+    discoverStations: [],
+    continueListening: [],
+  })));
+  await page.route('**/api/broadcasts**', (route) => json(route, 200, data([])));
+  await page.route('**/api/audio**', (route) => json(route, 200, data([])));
+  await page.route('**/api/playlists**', (route) => json(route, 200, data([])));
+
   await page.goto('/listen');
   await page.getByRole('button', { name: 'Open listener account menu' }).click();
   await page.getByRole('menuitem', { name: /Sign out/i }).click();
@@ -222,6 +236,11 @@ test('sign out plus browser Back cannot resurrect Listener or Creator protected 
   await expect(page.getByRole('heading', { name: 'Discover' })).toBeVisible();
   await expect.poll(() => page.evaluate(() => localStorage.getItem('accessToken'))).toBe(null);
   await page.evaluate(() => localStorage.setItem('echooE2EDisableSeed', '1'));
+  // Guest Discover immediately loads public live, scheduled, audio and playlist
+  // catalog data. Let those deterministic requests settle before intentionally
+  // navigating history; WebKit otherwise reports the cancelled cross-origin
+  // requests as access-control failures even though sign-out state is correct.
+  await page.waitForLoadState('networkidle');
 
   await page.goBack();
   // History before sign-in is empty (fresh browser): Back leaves Listener

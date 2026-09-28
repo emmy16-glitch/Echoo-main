@@ -281,3 +281,43 @@ test('Creator transcript monitor reports live processing, progress, and actionab
   assert.match(processingCss, /ecbs-transcript-monitor__steps/);
   assert.match(liveWorkspace, /\['processing', 'ready_for_review', 'editing', 'failed'\]/);
 });
+
+
+test('active ListenerV2 separates live, scheduled and released audio and owns a persistent seekable player', async () => {
+  const [listener, css] = await Promise.all([
+    source('../../frontend/src/Components/ListenerV2/ListenerV2.jsx'),
+    source('../../frontend/src/Components/ListenerV2/ListenerV2.css'),
+  ]);
+
+  assert.match(listener, /title="Live now"/);
+  assert.match(listener, /title="Upcoming broadcasts"/);
+  assert.match(listener, /title="Latest releases"/);
+  assert.match(listener, /status: 'scheduled'/);
+  assert.match(listener, /new Date\(releaseDateOf\(b\) \|\| 0\) - new Date\(releaseDateOf\(a\) \|\| 0\)/);
+  assert.match(listener, /listener-v2-full-player/);
+  assert.match(listener, /aria-label="Back 15 seconds"/);
+  assert.match(listener, /aria-label="Forward 15 seconds"/);
+  assert.match(listener, /aria-label="Playback position"/);
+  assert.match(listener, /navigator\.mediaSession\.setActionHandler\('seekbackward'/);
+  assert.match(listener, /navigator\.mediaSession\.setActionHandler\('seekforward'/);
+  assert.match(listener, /Minimize this player and Echoo keeps the audio playing while you browse Listener/);
+  assert.match(css, /\.listener-v2-upcoming-grid/);
+  assert.match(css, /\.listener-v2-release-list/);
+  assert.match(css, /\.listener-v2-full-player-sheet/);
+  assert.match(css, /\.listener-v2-player-seek/);
+  assert.match(listener, /setUpcoming\([\s\S]*sort\(\(a, b\) => new Date\(a\?\.startTime \|\| 0\) - new Date\(b\?\.startTime \|\| 0\)\)/);
+});
+
+
+test('scheduled rooms describe a future start instead of an ended broadcast', async () => {
+  const [room, css] = await Promise.all([
+    source('../../frontend/src/Components/ListenerLiveExperience/ListenerRealLiveRoom.jsx'),
+    source('../../frontend/src/Components/ListenerLiveExperience/ListenerV2LiveRoom.css'),
+  ]);
+
+  assert.match(room, /const isScheduled = show\?\.status === 'scheduled'/);
+  assert.match(room, /const scheduledStartLabel/);
+  assert.match(room, /isScheduled \? scheduledStartLabel : 'Broadcast ended'/);
+  assert.match(room, /isScheduled \? ' is-scheduled' : ' is-ended'/);
+  assert.match(css, /\.listener-v2-room-live-badge\.is-scheduled/);
+});
