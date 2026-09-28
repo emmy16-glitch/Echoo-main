@@ -698,3 +698,224 @@
   .pl-continue-when { grid-area: when; align-self: start; }
   .pl-continue-play { grid-area: play; }
 }
+
+
+/* Listener 2.0 playlist cleanup: one listening surface, no nested dashboard. */
+.pl-page {
+  width: min(100%, 1440px);
+  padding: 0 0 110px;
+  color: #071226;
+}
+.pl-heading {
+  align-items: center;
+  margin-bottom: 18px;
+}
+.pl-heading-text h1 {
+  margin-bottom: 6px;
+  color: #071226;
+  font-size: clamp(30px, 3vw, 38px);
+  letter-spacing: -.045em;
+}
+.pl-heading-text p {
+  color: #50617a;
+  font-size: 13px;
+}
+.pl-hero-cta {
+  min-height: 38px;
+  flex: 0 0 auto;
+  padding: 0 15px;
+  border-radius: 10px;
+}
+.pl-create-form--panel {
+  margin: 0 0 18px;
+  padding: 14px;
+  border: 1px solid #e2e8f1;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 8px 20px rgba(18,35,61,.03);
+}
+.pl-create-form--panel input {
+  flex: 1 1 220px;
+}
+.pl-controls {
+  margin-bottom: 20px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #e7edf5;
+}
+.pl-tabs {
+  gap: 8px;
+}
+.pl-tab {
+  border: 1px solid transparent;
+  background: #f1f5fa;
+  color: #43536a;
+}
+.pl-tab:hover {
+  background: #e9eff7;
+}
+.pl-tab-active,
+.pl-tab-active:hover {
+  border-color: #0758f7;
+  background: #0758f7;
+  color: #fff;
+}
+.pl-layout {
+  grid-template-columns: minmax(0,1fr);
+  gap: 0;
+}
+.pl-section {
+  margin-bottom: 24px;
+}
+.pl-section-header {
+  margin-bottom: 12px;
+}
+.pl-section-header h2 {
+  color: #071226;
+  font-size: 18px;
+}
+.pl-empty {
+  min-height: 112px;
+  justify-content: center;
+  padding: 20px;
+  border-color: #e2e8f1;
+  background: #fff;
+}
+.pl-playlist-grid {
+  grid-template-columns: repeat(auto-fill,minmax(220px,1fr));
+  gap: 12px;
+}
+.pl-playlist-card,
+.pl-download-card,
+.pl-continue-row {
+  border-color: #e2e8f1;
+  background: #fff;
+  box-shadow: 0 6px 18px rgba(18,35,61,.025);
+}
+.pl-playlist-art {
+  aspect-ratio: 3 / 2;
+}
+.pl-popular-grid {
+  grid-template-columns: repeat(auto-fill,minmax(190px,1fr));
+  gap: 14px;
+}
+.pl-popular-card {
+  padding: 10px;
+  border: 1px solid #e2e8f1;
+  background: #fff;
+}
+.pl-popular-card:hover {
+  border-color: #b9d0fa;
+  background: #f8fbff;
+}
+.pl-popular-art {
+  margin-bottom: 7px;
+}
+.pl-popular-art-play {
+  width: 34px;
+  height: 34px;
+  background: #0758f7;
+}
+.pl-continue-row {
+  grid-template-columns: 54px minmax(0,1fr) minmax(160px,.7fr) 72px 40px;
+}
+.pl-sort {
+  border-color: #dce5f0;
+}
+
+@media (max-width: 767px) {
+  .pl-page {
+    padding: 0 0 92px;
+  }
+  .pl-heading {
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .pl-heading-text h1 {
+    font-size: 23px;
+  }
+  .pl-heading-text p {
+    max-width: 230px;
+    font-size: 11px;
+    line-height: 1.4;
+  }
+  .pl-hero-cta {
+    min-height: 34px;
+    padding-inline: 11px;
+    font-size: 10px;
+  }
+  .pl-create-form--panel {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 12px;
+  }
+  .pl-create-form--panel input,
+  .pl-create-form--panel .pl-create-btn {
+    width: 100%;
+  }
+  .pl-controls {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .pl-tabs {
+    width: 100%;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+  .pl-tab {
+    flex: 0 0 auto;
+    height: 32px;
+    padding-inline: 12px;
+    font-size: 10px;
+  }
+  .pl-sort {
+    width: 100%;
+  }
+  .pl-section {
+    margin-bottom: 20px;
+  }
+  .pl-section-header h2 {
+    font-size: 16px;
+  }
+  .pl-playlist-grid,
+  .pl-popular-grid {
+    grid-template-columns: 1fr;
+    gap: 9px;
+  }
+  .pl-playlist-card {
+    display: grid;
+    grid-template-columns: 96px minmax(0,1fr);
+    min-height: 94px;
+  }
+  .pl-playlist-art {
+    height: 100%;
+    min-height: 94px;
+    aspect-ratio: auto;
+  }
+  .pl-playlist-info {
+    align-self: center;
+  }
+  .pl-popular-card {
+    display: grid;
+    grid-template-columns: 74px minmax(0,1fr);
+    grid-template-rows: auto auto;
+    column-gap: 11px;
+    align-items: center;
+  }
+  .pl-popular-art {
+    grid-row: 1 / 3;
+    width: 74px;
+    height: 74px;
+    margin: 0;
+    aspect-ratio: 1;
+  }
+  .pl-popular-card strong,
+  .pl-popular-meta {
+    min-width: 0;
+  }
+  .pl-continue-row {
+    grid-template-columns: 48px minmax(0,1fr) 36px;
+  }
+}
