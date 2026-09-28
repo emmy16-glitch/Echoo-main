@@ -344,17 +344,17 @@ test('recording management uses a routed in-app page and saved trims stay downlo
   const service = await read('../../services/studioService.js');
 
   assert.match(studio, /onOpenRecording=/);
-  assert.match(studio, /creator-studio\\/recordings/);
-  assert.match(recordings, /studioService\\.getAudio\\(recordingId\\)/);
+  assert.match(studio, /creator-studio\/recordings/);
+  assert.match(recordings, /studioService\.getAudio\(recordingId\)/);
   assert.match(recordings, /variant="page"/);
-  assert.match(recordings, /openRecording\\(track\\)/);
-  assert.match(detail, /pageMode \\? detailView : createPortal/);
+  assert.match(recordings, /openRecording\(track\)/);
+  assert.match(detail, /pageMode \? detailView : createPortal/);
   assert.match(detail, /Preparing playback…/);
-  assert.match(service, /getAudio: async \\(audioId\\)/);
+  assert.match(service, /getAudio: async \(audioId\)/);
 
-  assert.match(trim, /setSavedTrimmed\\(trimmed\\)/);
+  assert.match(trim, /setSavedTrimmed\(trimmed\)/);
   assert.match(trim, /Download trimmed version/);
-  assert.match(trim, /studioService\\.downloadAudio\\(trimmedId/);
+  assert.match(trim, /studioService\.downloadAudio\(trimmedId/);
   assert.match(trim, /Local safety master is large — loading the saved Echoo copy/);
-  assert.doesNotMatch(trim, /onClose\\?\\.\\(\\);/);
+  assert.doesNotMatch(trim, /onClose\?\.\(\);/);
 });
