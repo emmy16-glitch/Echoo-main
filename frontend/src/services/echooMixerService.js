@@ -1240,6 +1240,30 @@ export const listAudioOutputs = async () => {
 export const getEchooMixerOutputTrack = () =>
   destinationNode?.stream?.getAudioTracks?.()[0] || null;
 
+// Go Live can be clicked immediately after a device/context transition. In
+// that narrow window a previous MediaStreamDestination track may exist but
+// already be ended. Rebuild only the post-master program destination; source
+// inputs, monitor routing and metering stay untouched.
+export const ensureEchooMixerOutputTrack = async () => {
+  const context = await ensureContext();
+  let track = getEchooMixerOutputTrack();
+  if (track?.readyState === 'live') return track;
+  if (!masterAnalyser || !context || context.state === 'closed') return null;
+
+  const previousDestination = destinationNode;
+  const replacementDestination = context.createMediaStreamDestination();
+  try {
+    if (previousDestination) masterAnalyser.disconnect(previousDestination);
+  } catch {
+    // A stale destination may already be disconnected.
+  }
+  masterAnalyser.connect(replacementDestination);
+  destinationNode = replacementDestination;
+  track = getEchooMixerOutputTrack();
+  notify();
+  return track?.readyState === 'live' ? track : null;
+};
+
 export const supportsEchooMasterPcmCapture = () =>
   Boolean(
     typeof window !== 'undefined' &&
@@ -1525,6 +1549,7 @@ export default {
   listAudioInputs,
   listAudioOutputs,
   getEchooMixerOutputTrack,
+  ensureEchooMixerOutputTrack,
   supportsEchooMasterPcmCapture,
   startEchooMasterPcmCapture,
   getEchooMixerDiagnostics,
