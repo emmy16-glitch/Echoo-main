@@ -17,6 +17,10 @@ const MASTER_LIMITER_WORKLET_URL = './echoo-master-limiter-worklet.js';
 const PCM_CAPTURE_CHANNELS = 2;
 const PREFERRED_SAMPLE_RATE = 48000;
 const DISPLAY_CAPTURE_TIMEOUT_MS = 45000;
+// Metering is visual telemetry, not part of the audio transport. Keep it well
+// below display refresh rate so React/analyser work cannot steal time from the
+// browser's realtime audio and WebRTC threads during a live show.
+const METER_REFRESH_INTERVAL_MS = 1000 / 30;
 
 const dbToGain = (db) => {
   const value = Number(db);
@@ -144,6 +148,7 @@ let monitorElementOutputGainNode = null;
 let monitorDestinationNode = null;
 let monitorAudioElement = null;
 let animationFrame = null;
+let lastMeterFrameAt = 0;
 let pcmCaptureModuleContext = null;
 let activeMasterCapture = null;
 let voiceInputNode = null;
@@ -630,7 +635,13 @@ const readMeter = (analyser, data) => {
 function startMeterLoop() {
   if (animationFrame) return;
 
-  const tick = () => {
+  const tick = (frameTime = 0) => {
+    if (frameTime - lastMeterFrameAt < METER_REFRESH_INTERVAL_MS) {
+      animationFrame = window.requestAnimationFrame(tick);
+      return;
+    }
+    lastMeterFrameAt = frameTime;
+
     let changed = false;
 
     Object.entries(channels).forEach(([channelId, channel]) => {
@@ -1286,7 +1297,35 @@ export const startEchooMasterPcmCapture = async ({ onPcm } = {}) => {
   worklet.port.onmessage = (event) => {
     const message = event?.data || {};
     if (message.type === 'pcm' && message.buffer) {
-      onPcm?.(message.buffer);
+      const transferredBuffer = message.buffer;
+      const maximumSamples = Math.floor(
+        transferredBuffer.byteLength / Float32Array.BYTES_PER_ELEMENT
+      );
+      const sampleCount = Math.max(
+        0,
+        Math.min(maximumSamples, Number(message.sampleCount) || maximumSamples)
+      );
+      const validBytes = sampleCount * Float32Array.BYTES_PER_ELEMENT;
+      const pcmBuffer = validBytes === transferredBuffer.byteLength
+        ? transferredBuffer
+        : transferredBuffer.slice(0, validBytes);
+
+      // The recorder callback consumes the Float32 data synchronously and
+      // converts it to durable PCM before this function returns. Once consumed,
+      // give the full worklet buffer back so the realtime audio thread can
+      // reuse it instead of allocating/garbage-collecting capture blocks.
+      onPcm?.(pcmBuffer);
+      if (!stopped && transferredBuffer.byteLength) {
+        try {
+          worklet.port.postMessage(
+            { type: 'recycle', buffer: transferredBuffer },
+            [transferredBuffer]
+          );
+        } catch {
+          // Recycling is an optimization only; capture remains correct if a
+          // browser refuses a late transfer during teardown.
+        }
+      }
       return;
     }
     if (message.type === 'stopped') {
@@ -1346,6 +1385,12 @@ export const getEchooMixerDiagnostics = () => {
     ready: Boolean(outputTrack && outputTrack.readyState === 'live'),
     outputTrackState: outputTrack?.readyState || 'missing',
     engineSampleRate: audioContext?.sampleRate || null,
+    audioBaseLatencyMs: Number.isFinite(audioContext?.baseLatency)
+      ? Math.round(audioContext.baseLatency * 1000)
+      : null,
+    audioOutputLatencyMs: Number.isFinite(audioContext?.outputLatency)
+      ? Math.round(audioContext.outputLatency * 1000)
+      : null,
     hostConnected: Boolean(channels.host?.connected),
     hostPeakDb: channels.host?.peakDb ?? MIN_DB,
     masterPeakDb: master.peakDb ?? MIN_DB,
@@ -1378,6 +1423,7 @@ export const stopEchooMixer = async () => {
   if (animationFrame) {
     window.cancelAnimationFrame(animationFrame);
     animationFrame = null;
+    lastMeterFrameAt = 0;
   }
 
   if (monitorAudioElement) {
