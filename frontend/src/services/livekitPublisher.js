@@ -156,8 +156,8 @@ const findCanonicalPublication = (room) => {
 
 const canonicalPublicationExists = (room, publication = activePublication) => {
   if (!room) return false;
-  const current = findCanonicalPublication(room);
-  if (current) return true;
+  const publications = room.localParticipant?.trackPublications;
+  if (publications?.forEach) return Boolean(findCanonicalPublication(room));
   return Boolean(publication && mediaTrackIsLive(publication.track));
 };
 
@@ -601,6 +601,7 @@ export const stopLiveKitPublishing = async () => {
   session = null;
   cancelRecoveryTimer(current);
   if (current?.watchdogTimer) window.clearInterval(current.watchdogTimer);
+  clearConnectionQualityTimer(current);
   removeNetworkHints(current);
   const room = activeRoom;
   activeRoom = null;
