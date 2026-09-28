@@ -1,6 +1,12 @@
 import { test, expect } from 'playwright/test';
 
 test('guests open Echoo into Discover and are prompted only for a follow action', async ({ page }) => {
+  const pageErrors = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message));
+  page.on('console', (message) => {
+    if (message.type() === 'error') pageErrors.push(message.text());
+  });
+
   await page.addInitScript(() => {
     localStorage.clear();
     sessionStorage.clear();
@@ -19,6 +25,7 @@ test('guests open Echoo into Discover and are prompted only for a follow action'
   const gate = page.getByRole('dialog');
   await expect(gate.getByRole('button', { name: 'Sign up' })).toBeVisible();
   await expect(gate.getByRole('button', { name: 'Sign in' })).toBeVisible();
+  expect(pageErrors).toEqual([]);
 });
 
 test('guest session keeps listening-only state locally', async ({ page }) => {

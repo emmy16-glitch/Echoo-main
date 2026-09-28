@@ -63,12 +63,11 @@ const localHost = process.env.VITE_HOST || '0.0.0.0';
 
 export default defineConfig({
   plugins: [react()],
-  // Relative asset base so the production bundle loads from ANY origin:
-  // domain root on the web, AND file:// inside the Echoo Desktop shell
-  // (Electron loadFile). Absolute '/assets/...' refs resolve to file:///assets
-  // under file:// and 404 — that was the packaged-app blank window. Dev server
-  // serving is unaffected (base only rewrites build output).
-  base: process.env.VITE_BUILD_BASE || './',
+  // Hosted web/deep links need absolute asset URLs. A relative "./" base makes
+  // /listen/live/:id request /listen/live/assets/*.js and the SPA fallback
+  // returns HTML, which browsers reject as a module script.
+  // Pass VITE_BUILD_BASE=./ only for rare file:// bundle builds.
+  base: process.env.VITE_BUILD_BASE || '/',
   server: {
     host: localHost,
     port: localPort,

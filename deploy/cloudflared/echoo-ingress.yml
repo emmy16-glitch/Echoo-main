@@ -1,0 +1,8 @@
+# Add this entry to /etc/cloudflared/config.yml BEFORE the final
+# `service: http_status:404` fallback of the existing digi02 tunnel.
+#
+# DNS route command (run once):
+# cloudflared tunnel route dns a6314630-89ca-4efb-9b99-e5ed3823fafa echoo.digi02.org
+
+- hostname: echoo.digi02.org
+  service: http://127.0.0.1:8165

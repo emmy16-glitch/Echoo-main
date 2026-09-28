@@ -1,0 +1,25 @@
+[Unit]
+Description=Echoo Node API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=digihosting
+Group=digihosting
+WorkingDirectory=/home/digihosting/Documents/Apzs/Echoo-main/backend
+EnvironmentFile=/home/digihosting/Documents/Apzs/Echoo-main/backend/.env
+Environment=NODE_ENV=production
+Environment=PORT=5064
+# The deploy script creates this symlink only after verifying that the storage
+# VM's Echoo directory is writable.
+ExecStartPre=/usr/bin/test -w /mnt/storage/media/echoo
+# The host's /usr/bin/node is v12 and cannot run this application. This is the
+# existing Node 20 runtime used by the colocated e-Metro service.
+ExecStart=/home/digihosting/Documents/Apzs/e-metro/.tools/node/bin/node src/app.js
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

@@ -49,8 +49,16 @@ echo "================================"
 
 cd ../backend
 
-nohup npm run dev \
-> backend.log 2>&1 &
+BACKEND_PORT=$(grep -E '^PORT=' .env 2>/dev/null | tail -n 1 | cut -d= -f2-)
+BACKEND_PORT=${BACKEND_PORT:-5001}
+NODE_BIN=${NODE_BIN:-/home/digihosting/Documents/Apzs/e-metro/.tools/node/bin/node}
+
+if [ ! -x "$NODE_BIN" ]; then
+  NODE_BIN=$(command -v node)
+fi
+
+setsid -f env NODE_ENV=production "$NODE_BIN" src/app.js \
+> backend.log 2>&1
 
 sleep 5
 
@@ -78,7 +86,7 @@ curl -s http://localhost:8181/health/ready || true
 echo ""
 echo ""
 echo "Backend:"
-curl -s http://localhost:5001/api/health || true
+curl -s "http://localhost:${BACKEND_PORT}/api/health" || true
 
 echo ""
 echo ""

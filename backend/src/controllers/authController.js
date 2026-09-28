@@ -302,7 +302,7 @@ export async function resendVerification(req, res, next) {
 
     if (
       user.emailVerificationSentAt &&
-      Date.now() - new Date(user.emailVerificationSentAt).getTime() < VERIFICATION_RESEND_COOLDOWN_MS
+      Date.now() - new Date(user.emailVerificationSentAt).getTime() < EMAIL_VERIFICATION_RESEND_COOLDOWN_MS
     ) {
       return res.status(429).json({
         error: {

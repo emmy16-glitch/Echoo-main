@@ -1,0 +1,58 @@
+tunnel: a6314630-89ca-4efb-9b99-e5ed3823fafa
+credentials-file: /home/digihosting/.cloudflared/a6314630-89ca-4efb-9b99-e5ed3823fafa.json
+protocol: http2
+
+ingress:
+  - hostname: transport.digi02.org
+    service: http://localhost:8150
+  - hostname: hr.digi02.org
+    service: http://localhost:8151
+  - hostname: nethawksolutions.org
+    service: http://localhost:8152
+  - hostname: www.nethawksolutions.org
+    service: http://localhost:8152
+  - hostname: console.layersoftruth.org
+    service: http://localhost:8153
+  - hostname: console.layersoftruth.digi02.org
+    service: http://localhost:8153
+  - hostname: layersoftruth.digi02.org
+    service: http://localhost:8153
+  - hostname: lotadmin.digi02.org
+    service: http://localhost:8153
+  - hostname: console-layersoftruth.digi02.org
+    service: http://localhost:8153
+  - hostname: voditech.digi02.org
+    service: http://localhost:8154
+  - hostname: nati.nethawksolutions.org
+    service: http://localhost:8155
+  - hostname: akerele.nethawksolutions.org
+    service: http://localhost:8156
+  - hostname: da.nethawksolutions.org
+    service: http://localhost:8156
+  - hostname: doyinakerele.com
+    service: http://localhost:8156
+  - hostname: www.doyinakerele.com
+    service: http://localhost:8156
+  - hostname: bridge.digi02.org
+    service: http://localhost:8157
+  - hostname: diginorth.net
+    service: http://localhost:8163
+  - hostname: www.diginorth.net
+    service: http://localhost:8163
+  - hostname: api.digivolt.ng
+    service: http://localhost:8160
+  - hostname: console.digivolt.ng
+    service: http://localhost:8161
+  - hostname: skygridinc.live
+    service: http://localhost:8159
+  - hostname: www.skygridinc.live
+    service: http://localhost:8159
+  - hostname: cc.skygridinc.live
+    service: http://localhost:8158
+  - hostname: itsacademy.space
+    service: http://localhost:8166
+  - hostname: www.itsacademy.space
+    service: http://localhost:8166
+  - hostname: echoo.digi02.org
+    service: http://127.0.0.1:8165
+  - service: http_status:404
