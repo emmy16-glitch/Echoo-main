@@ -369,3 +369,20 @@ test('interrupted recording recovery resumes missing server chunks after reload'
   assert.match(recording, /existingChunkIndices = new Set/);
   assert.match(recording, /const alreadyUploaded = Boolean\(recording\.existingChunkIndices/);
 });
+
+
+test('browser recovery is isolated by creator account and legacy takes are ownership-gated', async () => {
+  const recording = await read('../../services/broadcastRecordingService.js');
+  const autosave = await read('../../services/recordingAutosave.js');
+
+  assert.match(recording, /ownerUserId: String\(recording\.ownerUserId \|\| currentSessionUserId\(\) \|\| ''\)/);
+  assert.match(recording, /String\(manifest\.ownerUserId \|\| ''\) === currentUserId/);
+  assert.match(recording, /manifests\.find\(\(manifest\) => !manifest\.ownerUserId\)/);
+  assert.match(recording, /releaseRecoveredBroadcastRecording/);
+
+  assert.match(autosave, /inaccessibleRecovery/);
+  assert.match(autosave, /error\?\.status === 403/);
+  assert.match(autosave, /error\?\.status === 404/);
+  assert.match(autosave, /releaseRecoveredBroadcastRecording\(broadcastId\)/);
+  assert.match(autosave, /forgetLocalMaster\('recovered'\)/);
+});
