@@ -11,7 +11,7 @@ export const ECHOO_REALTIME_AUDIO_PROFILES = Object.freeze({
     description: 'Recommended for most broadcasts.',
     sampleRate: 48000,
     channels: 2,
-    maxBitrate: 256000,
+    maxBitrate: 192000,
     dtx: false,
     red: true,
   }),
@@ -21,7 +21,7 @@ export const ECHOO_REALTIME_AUDIO_PROFILES = Object.freeze({
     description: 'Professional quality for strong connections.',
     sampleRate: 48000,
     channels: 2,
-    maxBitrate: 384000,
+    maxBitrate: 256000,
     dtx: false,
     red: true,
   }),
@@ -31,9 +31,9 @@ export const ECHOO_REALTIME_AUDIO_PROFILES = Object.freeze({
     description: 'Maximum realtime quality. Best with an excellent connection.',
     sampleRate: 48000,
     channels: 2,
-    maxBitrate: 510000,
+    maxBitrate: 384000,
     dtx: false,
-    red: false,
+    red: true,
   }),
 });
 
@@ -66,7 +66,7 @@ export const saveRealtimeAudioProfile = (value) => {
 export const liveKitPublishOptionsFor = (value) => {
   const profile = getRealtimeAudioProfile(value);
   return {
-    audioPreset: { maxBitrate: profile.maxBitrate },
+    audioPreset: { maxBitrate: profile.maxBitrate, priority: 'high' },
     forceStereo: true,
     dtx: false,
     red: profile.red,
