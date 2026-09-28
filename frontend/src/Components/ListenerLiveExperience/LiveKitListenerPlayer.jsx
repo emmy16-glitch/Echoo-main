@@ -4,12 +4,18 @@ import { FaHeadphones, FaRedoAlt, FaVolumeUp } from 'react-icons/fa';
 
 import batch3Service from '../../services/batch3Service';
 import {
+  LISTENER_CONNECTION_LOST_GRACE_MS,
   LISTENER_PLAYBACK_WATCHDOG_MS,
+  LISTENER_RTP_STALL_CONFIRMATIONS,
+  LISTENER_RTP_STALL_MS,
   LIVE_RECOVERY_DELAYS_MS,
   mediaElementIsPlaying,
   mediaTrackIsLive,
+  normalizeConnectionQuality,
+  playoutDelayForConnectionQuality,
   recoveryDelayMs,
   roomIsConnected,
+  transportSampleAdvanced,
 } from '../../services/liveRecoveryPolicy';
 import { resolveLiveKitUrl } from '../../services/livekitUrl';
 import './LiveKitListenerPlayer.css';
@@ -90,6 +96,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
   const analyserSourceRef = useRef(null);
   const analyserTrackIdRef = useRef('');
   const [programAudioLevel, setProgramAudioLevel] = useState(0);
+  const [networkQuality, setNetworkQuality] = useState('unknown');
 
   useEffect(() => {
     outputRef.current = outputDeviceId;
@@ -110,6 +117,9 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
     let disposed = false;
     let audioLevelTimer = null;
     let playbackWatchdogTimer = null;
+    let connectionQualityTimer = null;
+    let receiverCheckRunning = false;
+    let localConnectionQuality = 'unknown';
     let smoothedAudioLevel = 0;
 
     const detachAttachment = (id) => {
@@ -158,6 +168,21 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       entry.element.isConnected &&
       !entry.element.ended
     );
+
+    const clearConnectionQualityTimer = () => {
+      if (!connectionQualityTimer) return;
+      window.clearTimeout(connectionQualityTimer);
+      connectionQualityTimer = null;
+    };
+
+    const applyPlayoutProtection = (track, quality = localConnectionQuality) => {
+      if (!track || typeof track.setPlayoutDelay !== 'function') return;
+      try {
+        track.setPlayoutDelay(playoutDelayForConnectionQuality(quality));
+      } catch {
+        // Browser/WebRTC implementations may ignore playout-delay hints.
+      }
+    };
 
     const markPlaybackState = () => {
       if (disposed) return false;
@@ -323,7 +348,17 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       }
 
       audioHostRef.current?.appendChild(element);
-      attachedRef.current.set(id, { id, track, publication, element, room });
+      applyPlayoutProtection(track);
+      attachedRef.current.set(id, {
+        id,
+        track,
+        publication,
+        element,
+        room,
+        receiverSample: null,
+        receiverLastProgressAt: Date.now(),
+        receiverStallSamples: 0,
+      });
       setTrackCount(attachedRef.current.size);
       const onPlayable = () => markPlaybackState();
       const onEnded = () => {
@@ -493,6 +528,71 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
         });
       });
 
+      room.on(RoomEvent.TrackSubscriptionFailed, (trackSid, participant) => {
+        if (disposed || roomRef.current !== room) return;
+        let failedProgram = false;
+        participant?.trackPublications?.forEach?.((publication) => {
+          if (publication?.trackSid === trackSid && isEchooProgramPublication(publication)) {
+            failedProgram = true;
+          }
+        });
+        if (!failedProgram) return;
+        setStatus('recovering_audio');
+        scheduleHardReconnect('program_subscription_failed');
+      });
+
+      room.on(RoomEvent.TrackStreamStateChanged, (publication, streamState) => {
+        if (disposed || roomRef.current !== room || !isEchooProgramPublication(publication)) return;
+        const nextState = String(streamState || '').toLowerCase();
+        if (nextState === 'paused') {
+          setStatus('holding');
+          return;
+        }
+        if (nextState === 'active') {
+          attachExisting(room)
+            .then(() => markPlaybackState())
+            .catch(() => scheduleHardReconnect('program_stream_resume_failed'));
+        }
+      });
+
+      room.on(RoomEvent.ConnectionQualityChanged, (quality, participant) => {
+        if (disposed || roomRef.current !== room) return;
+        const normalized = normalizeConnectionQuality(quality);
+
+        if (participant === room.localParticipant) {
+          localConnectionQuality = normalized;
+          setNetworkQuality(normalized);
+          attachedRef.current.forEach((entry) => applyPlayoutProtection(entry.track, normalized));
+
+          if (normalized !== 'lost') {
+            clearConnectionQualityTimer();
+            return;
+          }
+
+          setStatus(attachedRef.current.size > 0 ? 'holding' : 'reconnecting');
+          clearConnectionQualityTimer();
+          connectionQualityTimer = window.setTimeout(() => {
+            connectionQualityTimer = null;
+            if (
+              disposed ||
+              roomRef.current !== room ||
+              localConnectionQuality !== 'lost' ||
+              !roomIsConnected(room) ||
+              roomLinkRef.current === 'reconnecting'
+            ) return;
+            scheduleHardReconnect('listener_connection_quality_lost');
+          }, LISTENER_CONNECTION_LOST_GRACE_MS);
+          return;
+        }
+
+        if (participant === programParticipantRef.current && normalized === 'lost') {
+          // Creator-side loss affects every listener. Rejoining locally cannot
+          // fix it, so keep the listener attached and wait for the creator's
+          // recovery/republish path.
+          setStatus('holding');
+        }
+      });
+
       room.on(RoomEvent.TrackUnsubscribed, (track, publication) => {
         if (roomRef.current !== room) return;
         const id = String(track.sid || track.mediaStreamTrack?.id || 'audio');
@@ -511,12 +611,14 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
 
       room.on(RoomEvent.Reconnecting, () => {
         if (!disposed && roomRef.current === room) {
+          clearConnectionQualityTimer();
           roomLinkRef.current = 'reconnecting';
           setStatus(attachedRef.current.size > 0 ? 'holding' : 'reconnecting');
         }
       });
       room.on(RoomEvent.Reconnected, () => {
         if (!disposed && roomRef.current === room) {
+          clearConnectionQualityTimer();
           roomLinkRef.current = 'connected';
           watchdogMissStreakRef.current = 0;
           const elements = Array.from(audioHostRef.current?.querySelectorAll('audio') || []);
@@ -531,6 +633,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       });
       room.on(RoomEvent.Disconnected, (reason) => {
         if (!disposed && roomRef.current === room) {
+          clearConnectionQualityTimer();
           roomLinkRef.current = 'reconnecting';
           smoothedAudioLevel = 0;
           setProgramAudioLevel(0);
@@ -563,9 +666,9 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
         // subscription below prevents guest/talkback/service tracks from
         // multiplying inbound media across large listener rooms.
         autoSubscribe: false,
-        maxRetries: 5,
-        websocketTimeout: 15000,
-        peerConnectionTimeout: 20000,
+        maxRetries: 7,
+        websocketTimeout: 18000,
+        peerConnectionTimeout: 22000,
       });
       if (disposed || roomRef.current !== room) {
         await room.disconnect();
@@ -622,18 +725,27 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       if (!disposed) setStatus('reconnecting');
     };
     const onOnline = () => {
-      // A browser can report the LiveKit room as "connected" after the
-      // network returns even though its inbound RTP path is permanently
-      // stalled. Rejoin once with fresh credentials after every real offline
-      // transition instead of trusting that stale state and showing
-      // "Audio live" over silence.
-      if (!disposed) scheduleHardReconnect('browser_online');
+      if (disposed) return;
+      const room = roomRef.current;
+      const hasHealthyAttachment = Array.from(attachedRef.current.values())
+        .some(currentAttachmentIsHealthy);
+
+      // Let LiveKit finish its native ICE/signalling recovery first. If the
+      // room comes back but RTP stays frozen, the receiver-stats watchdog below
+      // detects that silent transport stall and performs the hard rejoin.
+      if (roomLinkRef.current === 'reconnecting') {
+        setStatus(hasHealthyAttachment ? 'holding' : 'reconnecting');
+        return;
+      }
+      if (!roomIsConnected(room) || !hasHealthyAttachment) {
+        scheduleHardReconnect('browser_online_missing_transport');
+      }
     };
     window.addEventListener('offline', onOffline);
     window.addEventListener('online', onOnline);
 
-    playbackWatchdogTimer = window.setInterval(() => {
-      if (disposed) return;
+    playbackWatchdogTimer = window.setInterval(async () => {
+      if (disposed || receiverCheckRunning) return;
       const room = roomRef.current;
       if (!roomIsConnected(room)) return;
       // LiveKit's own transport recovery owns the outage — hold the shared
@@ -655,6 +767,53 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
         return;
       }
       watchdogMissStreakRef.current = 0;
+
+      // DOM/media-element state alone is not enough: on some mobile/network
+      // failures an <audio> element remains "playing" while inbound RTP has
+      // stopped. Sample the canonical RemoteAudioTrack receiver counters and
+      // rebuild only after a sustained confirmed RTP stall.
+      receiverCheckRunning = true;
+      try {
+        for (const entry of entries) {
+          if (
+            !currentAttachmentIsHealthy(entry) ||
+            entry.publication?.isMuted ||
+            entry.track?.isMuted ||
+            typeof entry.track?.getReceiverStats !== 'function'
+          ) continue;
+
+          const stats = await entry.track.getReceiverStats();
+          if (!stats || disposed || roomRef.current !== room) continue;
+          const sample = {
+            bytes: Number(stats.bytesReceived) || 0,
+            packets: Number(stats.packetsReceived) || 0,
+          };
+
+          if (transportSampleAdvanced(entry.receiverSample, sample)) {
+            entry.receiverSample = sample;
+            entry.receiverLastProgressAt = Date.now();
+            entry.receiverStallSamples = 0;
+            continue;
+          }
+
+          entry.receiverSample = sample;
+          entry.receiverStallSamples = Number(entry.receiverStallSamples || 0) + 1;
+          if (
+            Date.now() - Number(entry.receiverLastProgressAt || 0) >= LISTENER_RTP_STALL_MS &&
+            entry.receiverStallSamples >= LISTENER_RTP_STALL_CONFIRMATIONS
+          ) {
+            entry.receiverStallSamples = 0;
+            setStatus('holding');
+            scheduleHardReconnect('inbound_rtp_stall');
+            break;
+          }
+        }
+      } catch (statsError) {
+        console.warn('[Echoo Live][Listener] receiver diagnostics unavailable', statsError?.message || statsError);
+      } finally {
+        receiverCheckRunning = false;
+      }
+
       if (
         playbackIntentRef.current === 'play' &&
         !entries.some((entry) => mediaElementIsPlaying(entry.element)) &&
@@ -677,6 +836,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       disposed = true;
       if (audioLevelTimer) window.clearInterval(audioLevelTimer);
       if (playbackWatchdogTimer) window.clearInterval(playbackWatchdogTimer);
+      clearConnectionQualityTimer();
       window.clearTimeout(reconnectTimerRef.current);
       reconnectTimerRef.current = null;
       window.removeEventListener('offline', onOffline);
@@ -960,6 +1120,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
     trackCount,
     analyser,
     programAudioLevel,
+    networkQuality,
     togglePlayback,
     playAudio,
     pauseAudio,
