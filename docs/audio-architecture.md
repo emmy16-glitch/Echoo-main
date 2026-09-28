@@ -15,13 +15,15 @@ single master as stereo Opus with these explicit profiles:
 
 | Profile | Requested max bitrate | Stereo | DTX | RED |
 | --- | ---: | --- | --- | --- |
-| Broadcast High | 256,000 bps | yes | off | on |
-| Studio | 384,000 bps | yes | off | on |
-| Studio Max | 510,000 bps | yes | off | off |
+| Broadcast High | 192,000 bps | yes | off | on |
+| Studio | 256,000 bps | yes | off | on |
+| Studio Max | 384,000 bps | yes | off | on |
 
 All three profiles request a 48 kHz stereo master. Broadcast High is the default.
-510 kbps is supported by the
-installed SDK publishing API; it remains a target, not a claimed negotiated rate.
+Echoo deliberately keeps RED enabled at every realtime quality level and leaves
+headroom below the SDK's theoretical maximum so brief packet loss or uplink
+variation is less likely to turn into audible breakup. The requested bitrate is
+a ceiling, not a claimed negotiated rate.
 Changing this creator preference applies to the next publication/broadcast; Echoo
 does not fake a hot quality switch for an already-published track.
 `refreshLiveKitPublishingDiagnostics()` obtains current outbound sender stats
@@ -237,8 +239,8 @@ audiences while WebRTC/Opus remains the low-latency interactive path.
 
 1. Select Raw Audio for an interface/console or Enhanced Audio for a laptop mic;
    confirm the input device labels and real analyser meters still change.
-2. Test Broadcast High (256 kbps, RED on), Studio (384 kbps, RED on), and Studio
-   Max (510 kbps, RED off). For each, inspect `outbound-rtp` stats:
+2. Test Broadcast High (192 kbps, RED on), Studio (256 kbps, RED on), and Studio
+   Max (384 kbps, RED on). For each, inspect `outbound-rtp` stats:
    codec must be Opus, channels stereo when supported, and bitrate is an observed
    value rather than an assumed profile value.
 3. Before any recording test, call `GET /api/health/recording` and confirm
