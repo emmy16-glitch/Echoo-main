@@ -335,3 +335,26 @@ test('creator watchdog confirms repeated sender stalls before rebuilding the Liv
   assert.match(publisher, /candidate\.transportStallSamples >= CREATOR_TRANSPORT_STALL_CONFIRMATIONS/);
   assert.match(publisher, /candidate\.transportStallSamples = 0/);
 });
+
+test('recording management uses a routed in-app page and saved trims stay downloadable', async () => {
+  const studio = await read('./CreatorStudio.jsx');
+  const recordings = await read('./CreatorCollectionsWorkspace.jsx');
+  const detail = await read('./CreatorAudioDetailModal.jsx');
+  const trim = await read('./CreatorAudioTrimSection.jsx');
+  const service = await read('../../services/studioService.js');
+
+  assert.match(studio, /onOpenRecording=/);
+  assert.match(studio, /creator-studio\\/recordings/);
+  assert.match(recordings, /studioService\\.getAudio\\(recordingId\\)/);
+  assert.match(recordings, /variant="page"/);
+  assert.match(recordings, /openRecording\\(track\\)/);
+  assert.match(detail, /pageMode \\? detailView : createPortal/);
+  assert.match(detail, /Preparing playback…/);
+  assert.match(service, /getAudio: async \\(audioId\\)/);
+
+  assert.match(trim, /setSavedTrimmed\\(trimmed\\)/);
+  assert.match(trim, /Download trimmed version/);
+  assert.match(trim, /studioService\\.downloadAudio\\(trimmedId/);
+  assert.match(trim, /Local safety master is large — loading the saved Echoo copy/);
+  assert.doesNotMatch(trim, /onClose\\?\\.\\(\\);/);
+});
