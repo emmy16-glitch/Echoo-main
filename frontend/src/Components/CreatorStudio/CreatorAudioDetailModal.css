@@ -940,3 +940,262 @@
     min-height: 66px;
   }
 }
+
+
+/* Recording detail is a real Creator Studio route, not a full-screen modal.
+   The modal styles above remain available for the few legacy call sites that
+   still need a transient player. */
+.creator-audio-detail-page,
+.creator-audio-detail-page * {
+  box-sizing: border-box;
+}
+
+.creator-audio-detail-page {
+  width: min(1120px, 100%);
+  margin: 0 auto;
+  padding: 22px clamp(18px, 3vw, 34px) 48px;
+  color: #101828;
+}
+
+.creator-audio-detail-back {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 18px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #475467;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.creator-audio-detail-back:hover {
+  color: #265dff;
+}
+
+.creator-audio-detail-surface.creator-audio-modal {
+  width: 100%;
+  max-height: none;
+  overflow: visible;
+  gap: 22px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  scrollbar-gutter: auto;
+}
+
+.creator-audio-detail-surface .creator-audio-modal-top {
+  grid-template-columns: 132px minmax(0, 1fr);
+  gap: 20px;
+  padding: 0;
+}
+
+.creator-audio-detail-surface .creator-audio-modal-artwork {
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(38, 93, 255, .14);
+}
+
+.creator-audio-detail-surface .creator-audio-modal-artwork > span {
+  font-size: 46px;
+}
+
+.creator-audio-detail-surface .creator-audio-artwork-edit {
+  min-height: 38px;
+}
+
+.creator-audio-detail-surface .creator-audio-modal-heading > span {
+  letter-spacing: .12em;
+}
+
+.creator-audio-detail-surface .creator-audio-modal-heading h2 {
+  font-size: clamp(27px, 3vw, 38px);
+}
+
+.creator-audio-detail-surface .creator-audio-transport {
+  padding: 20px clamp(16px, 2.5vw, 26px);
+  border-radius: 16px;
+  background: #f8faff;
+}
+
+.creator-audio-stream-status {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 0 12px;
+  border: 1px solid #dbe5ff;
+  border-radius: 10px;
+  background: #f7f9ff;
+  color: #475467;
+  font-size: 11.5px;
+  font-weight: 650;
+}
+
+.creator-audio-stream-spinner {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
+  border: 2px solid #cbd7ff;
+  border-top-color: #265dff;
+  border-radius: 50%;
+  animation: creator-audio-spin .8s linear infinite;
+}
+
+@keyframes creator-audio-spin {
+  to { transform: rotate(360deg); }
+}
+
+.creator-audio-trim-result {
+  display: grid;
+  gap: 10px;
+  padding: 13px;
+  border: 1px solid #abefc6;
+  border-radius: 12px;
+  background: #f6fef9;
+}
+
+.creator-audio-trim-result > div:first-child {
+  min-width: 0;
+}
+
+.creator-audio-trim-result strong,
+.creator-audio-trim-result span,
+.creator-audio-trim-result small {
+  display: block;
+}
+
+.creator-audio-trim-result strong {
+  color: #05603a;
+  font-size: 12.5px;
+  font-weight: 800;
+}
+
+.creator-audio-trim-result span {
+  margin-top: 3px;
+  color: #475467;
+  font-size: 11px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.creator-audio-trim-result small {
+  color: #067647;
+  font-size: 10.5px;
+  font-weight: 650;
+}
+
+.creator-audio-trim-result-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.creator-audio-trim-result-actions button {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 12px;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.creator-audio-trim-download {
+  border: 1px solid #101828;
+  background: #101828;
+  color: #fff;
+}
+
+.creator-audio-trim-open {
+  border: 1px solid #b9c8ff;
+  background: #fff;
+  color: #265dff;
+}
+
+.creator-audio-trim-result-actions button:disabled {
+  opacity: .6;
+  cursor: wait;
+}
+
+@media (max-width: 820px) {
+  .creator-audio-detail-page {
+    padding: 18px 18px 38px;
+  }
+
+  .creator-audio-detail-surface .creator-audio-modal-top {
+    grid-template-columns: 112px minmax(0, 1fr);
+    gap: 16px;
+  }
+}
+
+@media (max-width: 620px) {
+  .creator-audio-detail-page {
+    padding: 14px 14px calc(32px + env(safe-area-inset-bottom));
+  }
+
+  .creator-audio-detail-back {
+    margin-bottom: 14px;
+  }
+
+  .creator-audio-detail-surface.creator-audio-modal {
+    padding: 0;
+  }
+
+  .creator-audio-detail-surface .creator-audio-modal-top {
+    grid-template-columns: 84px minmax(0, 1fr);
+    gap: 13px;
+    text-align: left;
+  }
+
+  .creator-audio-detail-surface .creator-audio-artwork-column {
+    width: 84px;
+    justify-self: start;
+  }
+
+  .creator-audio-detail-surface .creator-audio-artwork-edit {
+    min-height: 34px;
+    padding: 0 7px;
+    font-size: 10px;
+  }
+
+  .creator-audio-detail-surface .creator-audio-modal-heading {
+    text-align: left;
+  }
+
+  .creator-audio-detail-surface .creator-audio-title-display {
+    align-items: flex-start;
+    justify-content: flex-start;
+  }
+
+  .creator-audio-detail-surface .creator-audio-modal-tags {
+    justify-content: flex-start;
+  }
+
+  .creator-audio-detail-surface .creator-audio-transport-controls {
+    padding-bottom: 56px;
+  }
+
+  .creator-audio-trim-result-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .creator-audio-stream-spinner {
+    animation-duration: 1.6s;
+  }
+}
