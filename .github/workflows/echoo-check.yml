@@ -146,7 +146,12 @@ jobs:
           cache: npm
           cache-dependency-path: backend/package-lock.json
       - run: npm ci
-      - name: Print backend npm audit report
+      - name: Generate safe dependency update
+        run: npm install --package-lock-only --save express@4.22.3 multer@2.4.0
+      - name: Print dependency delta
+        working-directory: .
+        run: git diff -- backend/package.json backend/package-lock.json
+      - name: Verify audit after update
         run: |
-          npm audit --json > audit.json || true
-          cat audit.json
+          npm audit --json > audit-after.json || true
+          cat audit-after.json
