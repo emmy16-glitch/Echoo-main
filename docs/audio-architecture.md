@@ -239,8 +239,8 @@ audiences while WebRTC/Opus remains the low-latency interactive path.
 
 1. Select Raw Audio for an interface/console or Enhanced Audio for a laptop mic;
    confirm the input device labels and real analyser meters still change.
-2. Test Broadcast High (192 kbps, RED on), Studio (256 kbps, RED on), and Studio
-   Max (384 kbps, RED on). For each, inspect `outbound-rtp` stats:
+2. Test Broadcast High (128 kbps, RED on), Studio (192 kbps, RED on), and Studio
+   Max (256 kbps, RED on). For each, inspect `outbound-rtp` stats:
    codec must be Opus, channels stereo when supported, and bitrate is an observed
    value rather than an assumed profile value.
 3. Before any recording test, call `GET /api/health/recording` and confirm
