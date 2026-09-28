@@ -7,6 +7,7 @@ import {
   ensureBroadcastRecording,
 } from './broadcastRecordingService.js';
 import {
+  CREATOR_TRANSPORT_STALL_CONFIRMATIONS,
   CREATOR_TRANSPORT_STALL_MS,
   LIVE_RECOVERY_DELAYS_MS,
   mediaTrackIsLive,
@@ -343,6 +344,7 @@ const connectAndPublish = async (candidate, { url, token, recovery = false }) =>
     candidate.recoveryAttempt = 0;
     candidate.lastProgressAt = Date.now();
     candidate.lastTransportSample = null;
+    candidate.transportStallSamples = 0;
     publishHealth({
       phase: candidate.paused ? 'paused' : 'live',
       mixer: 'available',
@@ -494,10 +496,20 @@ const startWatchdog = (candidate) => {
       candidate.lastTransportSample = sample;
       if (!prior || sample.bytes > prior.bytes || sample.packets > prior.packets) {
         candidate.lastProgressAt = Date.now();
+        candidate.transportStallSamples = 0;
         return;
       }
-      if (Date.now() - candidate.lastProgressAt >= CREATOR_TRANSPORT_STALL_MS) {
+
+      candidate.transportStallSamples = Number(candidate.transportStallSamples || 0) + 1;
+      if (
+        Date.now() - candidate.lastProgressAt >= CREATOR_TRANSPORT_STALL_MS &&
+        candidate.transportStallSamples >= CREATOR_TRANSPORT_STALL_CONFIRMATIONS
+      ) {
+        // Do not tear down a healthy WebRTC room because one or two sender-stat
+        // snapshots repeat. LiveKit owns short ICE/network recovery; Echoo only
+        // performs the heavier room rebuild after a sustained confirmed stall.
         publishHealth({ phase: 'recovering', publication: 'stalled', audio: 'recovering', lastError: 'Outgoing audio transport stopped progressing.' });
+        candidate.transportStallSamples = 0;
         void schedulePublisherRecovery(candidate, 'transport_stall', true);
       }
     } catch (error) {
@@ -618,6 +630,7 @@ export const startLiveKitPublishing = async ({
     watchdogTimer: null,
     lastProgressAt: Date.now(),
     lastTransportSample: null,
+    transportStallSamples: 0,
     recoveryStartedAt: null,
     paused: false,
     stopping: false,
