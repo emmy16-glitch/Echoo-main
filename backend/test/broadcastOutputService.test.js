@@ -41,13 +41,13 @@ test('secondary encoders accept only the canonical 48 kHz stereo 24-bit PCM chun
 test('the three publication profiles have explicit LiveKit transport options', () => {
   assert.equal(normalizeRealtimeAudioProfile(), 'broadcast_high');
   assert.deepEqual(liveKitPublishOptionsFor('broadcast_high'), {
-    audioPreset: { maxBitrate: 192000, priority: 'high' }, forceStereo: true, dtx: false, red: true,
+    audioPreset: { maxBitrate: 128000, priority: 'high' }, forceStereo: true, dtx: false, red: true,
   });
   assert.deepEqual(liveKitPublishOptionsFor('studio'), {
-    audioPreset: { maxBitrate: 256000, priority: 'high' }, forceStereo: true, dtx: false, red: true,
+    audioPreset: { maxBitrate: 192000, priority: 'high' }, forceStereo: true, dtx: false, red: true,
   });
   assert.deepEqual(liveKitPublishOptionsFor('studio_max'), {
-    audioPreset: { maxBitrate: 384000, priority: 'high' }, forceStereo: true, dtx: false, red: true,
+    audioPreset: { maxBitrate: 256000, priority: 'high' }, forceStereo: true, dtx: false, red: true,
   });
   assert.equal(getRealtimeAudioProfile('missing').id, 'broadcast_high');
 });
