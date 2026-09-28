@@ -23,6 +23,9 @@ jobs:
       - name: Update vulnerable backend dependencies
         working-directory: backend
         run: npm install --save express@4.22.3 multer@2.4.0
+      - name: Patch remaining transitive audit findings
+        working-directory: backend
+        run: npm audit fix
       - name: Verify audit
         working-directory: backend
         run: npm audit
