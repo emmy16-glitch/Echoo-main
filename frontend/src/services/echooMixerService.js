@@ -138,6 +138,9 @@ let masterLeftMeterData = null;
 let masterRightMeterData = null;
 let masterMeterSinkNode = null;
 let monitorGainNode = null;
+let monitorBusNode = null;
+let monitorDirectOutputGainNode = null;
+let monitorElementOutputGainNode = null;
 let monitorDestinationNode = null;
 let monitorAudioElement = null;
 let animationFrame = null;
@@ -242,6 +245,22 @@ const ensureMonitorElement = () => {
   return monitorAudioElement;
 };
 
+const usesDedicatedMonitorOutput = () =>
+  Boolean(monitoring.outputDeviceId && monitoring.outputDeviceId !== 'default');
+
+const applyMonitorOutputRoute = () => {
+  if (!audioContext || !monitorDirectOutputGainNode || !monitorElementOutputGainNode) return;
+  const dedicatedOutput = usesDedicatedMonitorOutput();
+  const now = audioContext.currentTime;
+
+  // Default monitoring stays entirely inside Web Audio and goes straight to
+  // the system output. A hidden media element is used only when the creator
+  // explicitly chooses another output device, because setSinkId() lives on
+  // HTMLMediaElement in the broadly-supported output-selection path.
+  monitorDirectOutputGainNode.gain.setTargetAtTime(dedicatedOutput ? 0 : 1, now, 0.008);
+  monitorElementOutputGainNode.gain.setTargetAtTime(dedicatedOutput ? 1 : 0, now, 0.008);
+};
+
 // Monitoring has its own routing. With no Listen-only channel selected the
 // creator hears the exact Audience Output. When one or more channels
 // are selected for Listen only, only the headphones change; the audience program
@@ -305,6 +324,9 @@ const ensureContext = async () => {
     masterRightAnalyser = audioContext.createAnalyser();
     masterMeterSinkNode = audioContext.createGain();
     monitorGainNode = audioContext.createGain();
+    monitorBusNode = audioContext.createGain();
+    monitorDirectOutputGainNode = audioContext.createGain();
+    monitorElementOutputGainNode = audioContext.createGain();
     voiceInputNode = audioContext.createGain();
     voiceOutputNode = audioContext.createGain();
 
@@ -351,9 +373,19 @@ const ensureContext = async () => {
     // headphone monitor branches from exactly the same point.
     masterAnalyser.connect(destinationNode);
     masterAnalyser.connect(monitorGainNode);
-    monitorGainNode.connect(monitorDestinationNode);
+    monitorGainNode.connect(monitorBusNode);
+
+    // The normal/default headphone path is direct Web Audio. This avoids a
+    // fragile hidden-media-element hop for the common Monitor Mix action.
+    // The media-element route remains available for an explicitly selected
+    // non-default sink.
+    monitorBusNode.connect(monitorDirectOutputGainNode);
+    monitorDirectOutputGainNode.connect(audioContext.destination);
+    monitorBusNode.connect(monitorElementOutputGainNode);
+    monitorElementOutputGainNode.connect(monitorDestinationNode);
 
     applyMonitorState();
+    applyMonitorOutputRoute();
     ensureMonitorElement();
   }
 
@@ -516,7 +548,7 @@ const connectStream = async (channelId, stream, sourceLabel, deviceId = '') => {
 
   // Separate headphone audition path. It never reaches the master/LiveKit bus.
   source.connect(soloMonitorGainNode);
-  soloMonitorGainNode.connect(monitorDestinationNode);
+  soloMonitorGainNode.connect(monitorBusNode);
 
   sources.set(channelId, {
     stream,
@@ -1030,17 +1062,34 @@ export const setMonitorGain = (value) => {
 };
 
 export const setMonitorEnabled = async (enabled) => {
-  await ensureContext();
+  const context = await ensureContext();
   const element = ensureMonitorElement();
   if (!element) throw new Error('Echoo could not create the monitoring output.');
 
   monitoring = { ...monitoring, enabled: Boolean(enabled) };
   applyMonitorState();
+  applyMonitorOutputRoute();
 
   if (monitoring.enabled) {
     try {
-      await element.play();
-      monitoring = { ...monitoring, playing: true };
+      if (context.state === 'suspended') await context.resume();
+
+      if (usesDedicatedMonitorOutput()) {
+        await element.play();
+      } else {
+        // The system-default monitor is a direct Web Audio path, so the media
+        // element must stay paused or the creator would hear a duplicate feed.
+        element.pause();
+      }
+
+      monitoring = {
+        ...monitoring,
+        playing: context.state === 'running' &&
+          (!usesDedicatedMonitorOutput() || !element.paused),
+      };
+      if (!monitoring.playing) {
+        throw new Error('The monitoring output did not start.');
+      }
     } catch (error) {
       monitoring = { ...monitoring, enabled: false, playing: false };
       applyMonitorState();
@@ -1064,34 +1113,56 @@ export const setMonitorEnabled = async (enabled) => {
 };
 
 export const setMonitorOutputDevice = async (deviceId = '', label = '') => {
-  await ensureContext();
+  const context = await ensureContext();
   const element = ensureMonitorElement();
   if (!element) throw new Error('Echoo could not create the monitoring output.');
 
-  const requested = deviceId || 'default';
+  const nextDeviceId = deviceId === 'default' ? '' : deviceId;
+  const previous = { ...monitoring };
 
-  if (typeof element.setSinkId === 'function') {
-    await element.setSinkId(requested);
-  } else if (deviceId && deviceId !== 'default') {
-    throw new Error('This browser does not support choosing a separate audio output device.');
+  try {
+    if (nextDeviceId) {
+      if (typeof element.setSinkId !== 'function') {
+        throw new Error('This browser does not support choosing a separate audio output device.');
+      }
+      await element.setSinkId(nextDeviceId);
+    }
+
+    monitoring = {
+      ...monitoring,
+      outputDeviceId: nextDeviceId,
+      outputDeviceLabel: label || (nextDeviceId ? 'Selected output' : 'System default'),
+    };
+    applyMonitorOutputRoute();
+
+    if (monitoring.enabled) {
+      if (context.state === 'suspended') await context.resume();
+      if (usesDedicatedMonitorOutput()) await element.play();
+      else element.pause();
+      monitoring = {
+        ...monitoring,
+        playing: context.state === 'running' &&
+          (!usesDedicatedMonitorOutput() || !element.paused),
+      };
+    }
+  } catch (error) {
+    monitoring = previous;
+    applyMonitorOutputRoute();
+    throw error;
   }
 
-  monitoring = {
-    ...monitoring,
-    outputDeviceId: deviceId,
-    outputDeviceLabel: label || (deviceId ? 'Selected output' : 'System default'),
-  };
   notify();
 };
 
 export const playMonitorTestTone = async () => {
   const context = await ensureContext();
   const element = ensureMonitorElement();
-  if (!element || !monitorDestinationNode) {
+  if (!element || !monitorBusNode) {
     throw new Error('Echoo could not open the monitoring output.');
   }
 
-  await element.play();
+  applyMonitorOutputRoute();
+  if (usesDedicatedMonitorOutput()) await element.play();
 
   const oscillator = context.createOscillator();
   const toneGain = context.createGain();
@@ -1099,7 +1170,7 @@ export const playMonitorTestTone = async () => {
   oscillator.frequency.value = 440;
   toneGain.gain.value = 0.035;
   oscillator.connect(toneGain);
-  toneGain.connect(monitorDestinationNode);
+  toneGain.connect(monitorBusNode);
   oscillator.start();
   oscillator.stop(context.currentTime + 0.35);
 };

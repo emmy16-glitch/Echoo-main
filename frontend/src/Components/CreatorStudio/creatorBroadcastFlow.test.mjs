@@ -290,3 +290,35 @@ test('creator recovery survives long offline periods and slows retries instead o
     /candidate\.recoveryAttempt < LIVE_RECOVERY_DELAYS_MS\.length/
   );
 });
+
+
+test('creator Monitor Mix uses a direct default headphone route and a sink-routed custom output', async () => {
+  const mixer = await read('../../services/echooMixerService.js');
+
+  assert.match(mixer, /monitorGainNode\.connect\(monitorBusNode\)/);
+  assert.match(mixer, /monitorDirectOutputGainNode\.connect\(audioContext\.destination\)/);
+  assert.match(mixer, /monitorElementOutputGainNode\.connect\(monitorDestinationNode\)/);
+  assert.match(mixer, /soloMonitorGainNode\.connect\(monitorBusNode\)/);
+  assert.match(mixer, /usesDedicatedMonitorOutput/);
+  assert.match(mixer, /if \(usesDedicatedMonitorOutput\(\)\) \{?\s*await element\.play\(\)/);
+  assert.match(mixer, /toneGain\.connect\(monitorBusNode\)/);
+});
+
+test('realtime audio keeps RED enabled and uses resilient creator bitrates', async () => {
+  const quality = await read('../../services/realtimeAudioQuality.js');
+
+  assert.match(quality, /broadcast_high:[\s\S]*?maxBitrate:\s*192000[\s\S]*?red:\s*true/);
+  assert.match(quality, /studio:[\s\S]*?maxBitrate:\s*256000[\s\S]*?red:\s*true/);
+  assert.match(quality, /studio_max:[\s\S]*?maxBitrate:\s*384000[\s\S]*?red:\s*true/);
+  assert.match(quality, /audioPreset:\s*\{ maxBitrate: profile\.maxBitrate, priority: 'high' \}/);
+});
+
+test('creator watchdog confirms repeated sender stalls before rebuilding the LiveKit room', async () => {
+  const publisher = await read('../../services/livekitPublisher.js');
+  const policy = await read('../../services/liveRecoveryPolicy.js');
+
+  assert.match(policy, /CREATOR_TRANSPORT_STALL_CONFIRMATIONS = 3/);
+  assert.match(publisher, /candidate\.transportStallSamples = Number\(candidate\.transportStallSamples \|\| 0\) \+ 1/);
+  assert.match(publisher, /candidate\.transportStallSamples >= CREATOR_TRANSPORT_STALL_CONFIRMATIONS/);
+  assert.match(publisher, /candidate\.transportStallSamples = 0/);
+});

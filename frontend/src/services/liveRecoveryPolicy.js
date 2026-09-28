@@ -1,5 +1,6 @@
 export const LIVE_RECOVERY_DELAYS_MS = Object.freeze([0, 1000, 2000, 4000, 8000]);
 export const CREATOR_TRANSPORT_STALL_MS = 15000;
+export const CREATOR_TRANSPORT_STALL_CONFIRMATIONS = 3;
 export const LISTENER_PLAYBACK_WATCHDOG_MS = 5000;
 
 export const recoveryDelayMs = (attempt, random = Math.random) => {

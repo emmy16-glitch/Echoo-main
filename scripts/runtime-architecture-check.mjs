@@ -119,8 +119,15 @@ for (const invariant of [
     failures.push(`Realtime audio quality contract missing: ${invariant}`);
   }
 }
-if (!realtimeQuality.includes("studio_max: Object.freeze({") || !realtimeQuality.includes('red: false')) {
-  failures.push('Maximum realtime audio profile no longer has its explicit RED policy.');
+for (const profileId of ['broadcast_high', 'studio', 'studio_max']) {
+  const profileStart = realtimeQuality.indexOf(`${profileId}: Object.freeze({`);
+  const profileEnd = realtimeQuality.indexOf('}),', profileStart);
+  const profileBlock = profileStart >= 0 && profileEnd > profileStart
+    ? realtimeQuality.slice(profileStart, profileEnd)
+    : '';
+  if (!profileBlock.includes('red: true')) {
+    failures.push(`Realtime audio profile ${profileId} must keep RED enabled for packet-loss resilience.`);
+  }
 }
 
 const architecture = read('ARCHITECTURE.md');
@@ -160,6 +167,6 @@ console.log('Echoo runtime architecture check passed.');
 console.log('Auth throttling + reactivation: guarded');
 console.log('Creator private playback: owner-scoped signed stream');
 console.log('Live program: post-master echoo-studio-mix -> LiveKit');
-console.log('Realtime audio: stereo, DTX disabled, RED policy selected by quality profile');
+console.log('Realtime audio: stereo, DTX disabled, RED enabled across broadcast profiles');
 console.log('Prerecorded audio: protected Range stream; direct storage blocked');
 console.log('Realtime scaling claims: process-local unless a shared adapter is explicitly added');

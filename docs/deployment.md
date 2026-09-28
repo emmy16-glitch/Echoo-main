@@ -9,13 +9,13 @@
 | Environment | Frontend | API | Database | Purpose |
 |---|---|---|---|---|
 | Local dev | `localhost:5273` | `localhost:5017` | local/shared MongoDB | Development |
-| Vercel `echoo-staging` | Vercel project URL | same origin | staging database | Test/staging only |
+| Render staging | `https://echoo-render-staging.onrender.com/` | configured staging API/proxy | staging services | Test/staging only |
 | Digi02 production | `https://echoo.digi02.org/` | same origin `/api` | production database | Real hosted deployment |
 | Desktop installs | hosted app by default | hosted API | hosted DB | Thin client |
 
-Do not treat the Vercel staging project's "production" target as Echoo's real
-production environment. The real public deployment is currently
-`https://echoo.digi02.org/`.
+Do not treat Render staging as Echoo's real production environment. The real
+public deployment is currently `https://echoo.digi02.org/`. Vercel is retired
+for Echoo and should not be reintroduced into the deployment path.
 
 ## Production dependency gate
 
@@ -199,7 +199,7 @@ VITE_BUILD_BASE=/
 VITE_PUBLIC_APP_ORIGIN=https://echoo.digi02.org
 ```
 
-Do not bake a Vercel staging URL into the Digi02 production build.
+Do not bake a Render staging URL into the Digi02 production build.
 
 ## Reverse proxy / routing
 
@@ -321,13 +321,13 @@ That runbook includes:
 - recording health probe;
 - end-to-end verification.
 
-## Vercel staging
+## Render staging
 
-Vercel is a staging/test deployment for Echoo. See
-[vercel-deployment.md](vercel-deployment.md).
-
-Containerized staging must install FFmpeg in the backend image and use persistent
-object storage for canonical recordings.
+The active browser staging target is
+`https://echoo-render-staging.onrender.com/`. It is for testing only and must
+not replace the Digi02 production acceptance flow. The current Render service is
+a frontend staging surface, so its successful build alone does not prove backend
+recording, FFmpeg/FFprobe, LiveKit Egress, or durable media storage are ready.
 
 ## Desktop releases
 
