@@ -213,6 +213,20 @@ test('sign out plus browser Back cannot resurrect Listener or Creator protected 
   await page.route('**/api/auth/logout', (route) => json(route, 200, data({ message: 'Logged out successfully' })));
   await page.route('**/api/auth/me', (route) => json(route, 200, data({ user: READY_CREATOR })));
 
+  // This test exercises auth/history isolation, not catalogue availability.
+  // After sign-out Echoo intentionally becomes public guest Discover, so keep
+  // its public live/scheduled/release requests deterministic instead of letting
+  // WebKit report an absent test backend as CORS console errors.
+  await page.route('**/api/listener/dashboard**', (route) => json(route, 200, data({
+    liveNow: [],
+    upcoming: [],
+    discoverStations: [],
+    continueListening: [],
+  })));
+  await page.route('**/api/broadcasts**', (route) => json(route, 200, data([])));
+  await page.route('**/api/audio**', (route) => json(route, 200, data([])));
+  await page.route('**/api/playlists**', (route) => json(route, 200, data([])));
+
   await page.goto('/listen');
   await page.getByRole('button', { name: 'Open listener account menu' }).click();
   await page.getByRole('menuitem', { name: /Sign out/i }).click();
