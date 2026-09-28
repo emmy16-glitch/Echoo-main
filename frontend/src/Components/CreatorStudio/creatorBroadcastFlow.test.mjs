@@ -386,3 +386,23 @@ test('browser recovery is isolated by creator account and legacy takes are owner
   assert.match(autosave, /releaseRecoveredBroadcastRecording\(broadcastId\)/);
   assert.match(autosave, /forgetLocalMaster\('recovered'\)/);
 });
+
+
+test('long-session live UX repairs stale mixer output and recovers listener audio interaction', async () => {
+  const mixer = await read('../../services/echooMixerService.js');
+  const workspace = await read('./CreatorLiveConnectedWorkspace.jsx');
+  const listenerPlayer = await read('../ListenerLiveExperience/LiveKitListenerPlayer.jsx');
+  const listenerRoom = await read('../ListenerLiveExperience/ListenerRealLiveRoom.jsx');
+
+  assert.match(mixer, /ensureEchooMixerOutputTrack = async/);
+  assert.match(mixer, /createMediaStreamDestination\(\)/);
+  assert.match(mixer, /masterAnalyser\.connect\(replacementDestination\)/);
+  assert.match(workspace, /await ensureEchooMixerOutputTrack\(\)/);
+  assert.doesNotMatch(workspace, /getEchooMixerOutputTrack\(\)/);
+
+  assert.match(listenerPlayer, /window\.addEventListener\('pointerdown', resumeFromGesture, true\)/);
+  assert.match(listenerPlayer, /void startAudio\(\)/);
+  assert.match(listenerRoom, /listener-v2-room-chat-backdrop/);
+  assert.match(listenerRoom, /aria-label="Close live chat"/);
+  assert.match(listenerRoom, /document\.documentElement\.classList\.add\('listener-v2-chat-open'\)/);
+});
