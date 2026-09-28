@@ -104,7 +104,11 @@ const run = (command, args, timeoutMs) => new Promise((resolve, reject) => {
 const encodingArgs = (extension) => {
   switch (extension) {
     case '.wav': return ['-c:a', 'pcm_s24le', '-ar', '48000', '-ac', '2'];
-    case '.mp3': return ['-c:a', 'copy'];
+    // Re-encode trimmed MP3 copies at a high bitrate instead of stream-copying.
+    // MP3 stream copy can only cut on compressed frame boundaries, which makes
+    // creator-selected start/end points feel imprecise. The original remains
+    // untouched; only the new trimmed draft is encoded.
+    case '.mp3': return ['-c:a', 'libmp3lame', '-b:a', '320k', '-ar', '48000', '-ac', '2'];
     case '.m4a':
     case '.aac': return ['-c:a', 'aac', '-b:a', '128k'];
     case '.flac': return ['-c:a', 'flac'];

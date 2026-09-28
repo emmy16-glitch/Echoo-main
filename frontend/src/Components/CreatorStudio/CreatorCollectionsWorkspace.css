@@ -369,3 +369,51 @@
     width:100%;
   }
 }
+
+
+.recordings-detail-loading,
+.recordings-detail-error {
+  width: min(720px, calc(100% - 36px));
+  min-height: 180px;
+  margin: 36px auto;
+  padding: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  border: 1px solid #e4e7ec;
+  border-radius: 16px;
+  background: #fff;
+  color: #344054;
+}
+
+.recordings-detail-loading strong,
+.recordings-detail-error strong {
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.recordings-detail-error {
+  flex-direction: column;
+  text-align: center;
+}
+
+.recordings-detail-error p {
+  margin: 0;
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.recordings-detail-error button {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid #d0d5dd;
+  border-radius: 10px;
+  background: #fff;
+  color: #344054;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 750;
+  cursor: pointer;
+}

@@ -161,9 +161,9 @@ the already-saved source recording (local disk or configured object storage),
 runs FFmpeg, validates the output, and creates a **separate private trimmed Audio
 record**. The original remains unchanged.
 
-For MP3 source recordings, Echoo uses FFmpeg stream copy where possible instead
-of another lossy MP3 re-encode. This keeps trimming fast and avoids unnecessary
-quality loss.
+For MP3 source recordings, Echoo re-encodes only the **new trimmed copy** at
+320 kbps so creator-selected start/end points are not limited to compressed MP3
+frame boundaries. The source recording is never re-encoded or overwritten.
 
 Invalid ranges, missing FFmpeg/FFprobe, object-storage read failures, or trim
 errors leave the original untouched. The browser never creates and uploads a

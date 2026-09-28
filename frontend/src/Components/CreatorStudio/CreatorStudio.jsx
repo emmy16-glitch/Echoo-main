@@ -618,6 +618,7 @@ const CreatorStudioBody = () => {
             onChanged={() => setRefreshKey((value) => value + 1)}
             onNavigate={navigateStudio}
             recordingId={selectedRecordingId}
+            onOpenRecording={(id) => routerNavigate(`/creator-studio/recordings/${encodeURIComponent(id)}`)}
             onCloseRecording={() => routerNavigate('/creator-studio/recordings')}
           />
         );

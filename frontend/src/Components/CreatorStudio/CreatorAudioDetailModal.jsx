@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
+  FaArrowLeft,
   FaCamera,
   FaDownload,
   FaEdit,
@@ -56,7 +57,15 @@ const formatType = (mimeType = '') => {
   return mimeType || 'Original format';
 };
 
-const CreatorAudioDetailModal = ({ track, onClose, onChanged, onAddToCollection }) => {
+const CreatorAudioDetailModal = ({
+  track,
+  onClose,
+  onChanged,
+  onAddToCollection,
+  onOpenRecording,
+  variant = 'modal',
+}) => {
+  const pageMode = variant === 'page';
   const audioRef = useRef(null);
   const artworkInputRef = useRef(null);
   const initializedTrackRef = useRef(null);
@@ -191,21 +200,23 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged, onAddToCollection 
   }, [fileUrl]);
 
   useEffect(() => {
+    if (pageMode) return undefined;
     const onKeyDown = (event) => {
       if (event.key === 'Escape') onClose?.();
     };
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [onClose]);
+  }, [onClose, pageMode]);
 
   useEffect(() => {
+    if (pageMode) return undefined;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
       document.body.style.overflow = previousOverflow;
     };
-  }, []);
+  }, [pageMode]);
 
   if (!track) return null;
 
@@ -403,11 +414,13 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged, onAddToCollection 
 
   if (typeof document === 'undefined') return null;
 
-  return createPortal(
+  const detailView = (
     <div
-      className="creator-audio-modal-overlay eb-backdrop-in eb-sheet"
+      className={pageMode
+        ? 'creator-audio-detail-page'
+        : 'creator-audio-modal-overlay eb-backdrop-in eb-sheet'}
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose?.();
+        if (!pageMode && event.target === event.currentTarget) onClose?.();
       }}
     >
       <Toast
@@ -438,20 +451,32 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged, onAddToCollection 
         duration={4000}
         onClose={() => setNotice('')}
       />
-      <section
-        className="creator-audio-modal eb-modal-in"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="creator-audio-modal-title"
-      >
+      {pageMode && (
         <button
           type="button"
-          className="creator-audio-modal-close"
+          className="creator-audio-detail-back"
           onClick={onClose}
-          aria-label="Close audio player"
+          aria-label="Back to recordings"
         >
-          <FaTimes />
+          <FaArrowLeft /> <span>Recordings</span>
         </button>
+      )}
+      <section
+        className={`creator-audio-modal ${pageMode ? 'creator-audio-detail-surface' : 'eb-modal-in'}`}
+        role={pageMode ? 'region' : 'dialog'}
+        aria-modal={pageMode ? undefined : true}
+        aria-labelledby="creator-audio-modal-title"
+      >
+        {!pageMode && (
+          <button
+            type="button"
+            className="creator-audio-modal-close"
+            onClick={onClose}
+            aria-label="Close audio player"
+          >
+            <FaTimes />
+          </button>
+        )}
 
         <div className="creator-audio-modal-top">
           <div className="creator-audio-artwork-column">
@@ -589,15 +614,18 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged, onAddToCollection 
           </div>
 
         {streamLoading && !error && (
-          <div className="creator-audio-modal-error" role="status">Preparing protected playback...</div>
+          <div className="creator-audio-stream-status" role="status">
+            <span className="creator-audio-stream-spinner" aria-hidden="true" />
+            Preparing playback…
+          </div>
         )}
         {error && <div className="creator-audio-modal-error" role="alert">{error}</div>}
 
         <CreatorAudioTrimSection
           track={track}
           onChanged={onChanged}
-          onClose={onClose}
           onNotice={setNotice}
+          onOpenTrimmed={onOpenRecording}
         />
 
         <div className="creator-audio-modal-actions">
@@ -630,9 +658,10 @@ const CreatorAudioDetailModal = ({ track, onClose, onChanged, onAddToCollection 
           Export creates a separate copy for your device. “Download stored file” retrieves Echoo’s saved recording without another conversion.
         </p>
       </section>
-    </div>,
-    document.body
+    </div>
   );
+
+  return pageMode ? detailView : createPortal(detailView, document.body);
 };
 
 export default CreatorAudioDetailModal;
