@@ -3,6 +3,7 @@ import {
   BROADCAST_RECORDING_READY_EVENT,
   clearPendingBroadcastRecording,
   recoverOrphanedLosslessRecording,
+  releaseRecoveredBroadcastRecording,
   retryBroadcastQualityCompletion,
   uploadCompressedRecoveryMasterToServer,
   uploadRecoveryMasterToServer,
@@ -932,9 +933,26 @@ export const installRecordingAutosave = () => {
             forgetLocalMaster('recovered');
             return;
           }
-        } catch {
-          // Keep the recovery master. The Recordings page can offer save/retry
-          // actions without blocking or cluttering the Broadcast workspace.
+        } catch (error) {
+          const inaccessibleRecovery = Boolean(
+            error?.status === 403 ||
+            error?.status === 404 ||
+            error?.code === 'RECOVERY_FORBIDDEN' ||
+            error?.code === 'BROADCAST_NOT_FOUND' ||
+            error?.code === 'NOT_FOUND'
+          );
+
+          if (inaccessibleRecovery) {
+            // Account switch / rebuilt staging database: keep the previous
+            // creator's OPFS safety master intact, but never surface it or try
+            // to upload it from the current account.
+            forgetLocalMaster('recovered');
+            releaseRecoveredBroadcastRecording(broadcastId);
+            return;
+          }
+
+          // Network/server outage: ownership could not be checked. Preserve
+          // the master and expose recovery only for this still-active session.
         }
       }
 
