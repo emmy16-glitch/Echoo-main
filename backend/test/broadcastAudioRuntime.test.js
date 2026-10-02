@@ -7,6 +7,8 @@ import {
   validateBroadcastListQuery,
 } from '../src/middleware/broadcastQueryValidation.js';
 import {
+  findCreatorProgramAudio,
+  findCreatorProgramAudioByTrackSid,
   isCreatorParticipant,
   isEchooProgramAudioTrack,
   parseParticipantMetadata,
@@ -167,6 +169,95 @@ test('confirm-live accepts only the named Echoo post-master program track', () =
     }, { allowSynthetic: true }),
     true
   );
+});
+
+test('audio readiness scans every creator participant and can verify an exact track SID', async () => {
+  const userId = new mongoose.Types.ObjectId().toString();
+  const original = LiveKitProvider.getParticipants;
+
+  LiveKitProvider.getParticipants = async () => ([
+    {
+      sid: 'PA_old',
+      identity: userId,
+      metadata: JSON.stringify({ role: 'creator', userId }),
+      tracks: [],
+    },
+    {
+      sid: 'PA_new',
+      identity: userId,
+      metadata: JSON.stringify({ role: 'creator', userId }),
+      tracks: [{
+        sid: 'TR_new',
+        name: 'echoo-studio-mix',
+        mimeType: 'audio/opus',
+        muted: false,
+      }],
+    },
+  ]);
+
+  try {
+    const anyProgram = await findCreatorProgramAudio('broadcast-id', userId);
+    assert.equal(anyProgram?.participant?.sid, 'PA_new');
+    assert.equal(anyProgram?.track?.sid, 'TR_new');
+
+    const exactProgram = await findCreatorProgramAudioByTrackSid(
+      'broadcast-id',
+      userId,
+      'TR_new'
+    );
+    assert.equal(exactProgram?.participant?.sid, 'PA_new');
+    assert.equal(exactProgram?.track?.sid, 'TR_new');
+
+    const staleProgram = await findCreatorProgramAudioByTrackSid(
+      'broadcast-id',
+      userId,
+      'TR_old'
+    );
+    assert.equal(staleProgram, null);
+
+    LiveKitProvider.getParticipants = async () => ([
+      {
+        sid: 'PA_old',
+        identity: userId,
+        metadata: JSON.stringify({ role: 'creator', userId }),
+        tracks: [{
+          sid: 'TR_old',
+          name: 'echoo-studio-mix',
+          mimeType: 'audio/opus',
+          muted: false,
+        }],
+      },
+      {
+        sid: 'PA_new',
+        identity: userId,
+        metadata: JSON.stringify({ role: 'creator', userId }),
+        tracks: [{
+          sid: 'TR_new',
+          name: 'echoo-studio-mix',
+          mimeType: 'audio/opus',
+          muted: false,
+        }],
+      },
+    ]);
+
+    const replacementProgram = await findCreatorProgramAudio(
+      'broadcast-id',
+      userId,
+      { excludeParticipantSid: 'PA_old', preferredTrackSid: 'TR_new' }
+    );
+    assert.equal(replacementProgram?.participant?.sid, 'PA_new');
+    assert.equal(replacementProgram?.track?.sid, 'TR_new');
+
+    const replacementAfterUnpublish = await findCreatorProgramAudio(
+      'broadcast-id',
+      userId,
+      { excludeTrackSid: 'TR_old', preferredTrackSid: 'TR_new' }
+    );
+    assert.equal(replacementAfterUnpublish?.participant?.sid, 'PA_new');
+    assert.equal(replacementAfterUnpublish?.track?.sid, 'TR_new');
+  } finally {
+    LiveKitProvider.getParticipants = original;
+  }
 });
 
 test('audio readiness retries propagation and returns the creator program track', async () => {

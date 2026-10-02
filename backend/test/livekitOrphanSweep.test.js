@@ -231,6 +231,80 @@ test('stale live broadcasts are reaped only while still waiting for the creator 
   }
 });
 
+test('stale audio-live state heals to the actual LiveKit creator program track', { concurrency: 1 }, async () => {
+  const creator = new mongoose.Types.ObjectId();
+  const live = makeDoc({
+    status: 'live',
+    mediaState: 'audio_live',
+    creator,
+    creatorDisconnectedAt: null,
+    creatorParticipantSid: 'PA_stale',
+    programTrackSid: 'TR_stale',
+    programTrackName: 'echoo-studio-mix',
+  });
+  const provider = makeLivekitProviderMock();
+  provider.listParticipants = async () => [{
+    sid: 'PA_actual',
+    identity: String(creator),
+    metadata: JSON.stringify({ role: 'creator', userId: String(creator) }),
+    tracks: [{
+      sid: 'TR_actual',
+      name: 'echoo-studio-mix',
+      mimeType: 'audio/opus',
+      muted: false,
+    }],
+  }];
+
+  const { sweepModule, teardown } = await loadSweepWithMocks([live], provider);
+  try {
+    const result = await sweepModule.sweep();
+    assert.equal(result.swept, 0);
+    assert.equal(live.status, 'live');
+    assert.equal(live.mediaState, 'audio_live');
+    assert.equal(live.creatorDisconnectedAt, null);
+    assert.equal(live.creatorParticipantSid, 'PA_actual');
+    assert.equal(live.programTrackSid, 'TR_actual');
+    assert.equal(live.saveCalled, 1);
+  } finally {
+    teardown();
+  }
+});
+
+test('audio-live row with both loss webhooks missed enters durable recovery instead of becoming immortal', { concurrency: 1 }, async () => {
+  const creator = new mongoose.Types.ObjectId();
+  const live = makeDoc({
+    status: 'live',
+    mediaState: 'audio_live',
+    creator,
+    creatorDisconnectedAt: null,
+    creatorParticipantSid: 'PA_gone',
+    programTrackSid: 'TR_gone',
+    programTrackName: 'echoo-studio-mix',
+  });
+  const provider = makeLivekitProviderMock();
+  let participantReads = 0;
+  provider.listParticipants = async () => {
+    participantReads += 1;
+    return [];
+  };
+
+  const { sweepModule, teardown } = await loadSweepWithMocks([live], provider);
+  try {
+    const result = await sweepModule.sweep();
+    assert.equal(result.swept, 0);
+    assert.equal(participantReads, 2);
+    assert.equal(live.status, 'live');
+    assert.equal(live.mediaState, 'audio_disconnected');
+    assert.ok(live.creatorDisconnectedAt instanceof Date);
+    assert.equal(live.creatorParticipantSid, null);
+    assert.equal(live.programTrackSid, null);
+    assert.equal(live.programTrackName, null);
+    assert.equal(live.saveCalled, 1);
+  } finally {
+    teardown();
+  }
+});
+
 test('missed participant-left webhook establishes a durable recovery timestamp instead of ending live', { concurrency: 1 }, async () => {
   process.env.LIVEKIT_CREATOR_RECOVERY_TTL_HOURS = '24';
   const disconnected = makeDoc({
