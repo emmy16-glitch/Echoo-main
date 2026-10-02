@@ -209,7 +209,20 @@ const endExpiredDisconnectedBroadcast = async (broadcastId, io) => {
       },
       io
     );
-    if (recovered) cancelCreatorDisconnect(broadcastId);
+    if (recovered) {
+      cancelCreatorDisconnect(broadcastId);
+      if (isLiveKitServerRecordingEnabled() && publisher.trackSid) {
+        void ensureLiveKitServerRecording({
+          broadcastId,
+          trackSid: publisher.trackSid,
+        }).catch((recordingError) => {
+          console.warn(
+            '[Echoo Server Recording] recovery reconciliation warning:',
+            recordingError?.message || recordingError
+          );
+        });
+      }
+    }
     return;
   }
 
