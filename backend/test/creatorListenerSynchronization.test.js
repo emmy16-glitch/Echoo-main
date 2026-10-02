@@ -102,8 +102,27 @@ test('creator webhook recovery ignores stale participant and track removal event
   assert.match(webhook, /clearCreatorProgramTrackIfCurrent/);
   assert.match(webhook, /programTrackSid:\s*sid/);
   assert.match(webhook, /event\.track\?\.sid/);
-  assert.match(webhook, /const replacementPresent = await creatorStillPresent\([\s\S]{0,140}current,[\s\S]{0,140}leavingParticipantSid[\s\S]{0,80}\.catch\(\(\) => true\)/);
+  assert.match(webhook, /findCreatorProgramAudio\([\s\S]{0,120}current\._id,[\s\S]{0,120}current\.creator/);
+  assert.match(webhook, /healRecoveredProgramAudio/);
   assert.match(webhook, /scheduleCreatorDisconnect\([\s\S]{0,180}updated\.creatorDisconnectedAt/);
+});
+
+test('program-track loss uses the durable recovery lease even while creator transport remains connected', async () => {
+  const webhook = await source('../src/services/livekitWebhookService.js');
+  const readiness = await source('../src/services/broadcastAudioReadiness.js');
+  const sweep = await source('../src/services/livekitOrphanSweep.js');
+
+  assert.match(webhook, /creatorDisconnectedAt:\s*new Date\(\)/);
+  assert.match(webhook, /track_unpublished[\s\S]{0,900}scheduleCreatorDisconnect/);
+  assert.match(webhook, /track_published[\s\S]{0,220}cancelCreatorDisconnect\(broadcastId\)/);
+  assert.match(webhook, /findCreatorProgramAudio\(current\._id, current\.creator\)/);
+  assert.match(readiness, /export async function findCreatorProgramAudio/);
+  assert.match(sweep, /findCreatorProgramAudio\(fresh\._id, fresh\.creator\)/);
+  assert.match(sweep, /healProgramAudioState/);
+  assert.match(sweep, /ensureLiveKitServerRecording\(/);
+  assert.match(sweep, /trackSid: doc\.programTrackSid/);
+  assert.match(sweep, /doc\.mediaState = 'audio_live'/);
+  assert.match(sweep, /fresh\.creatorDisconnectedAt = new Date\(\)/);
 });
 
 
@@ -137,9 +156,11 @@ test('creator webhook ignores obsolete participant sessions and long sessions pr
   assert.match(webhook, /leavingParticipantSid/);
   assert.match(webhook, /currentParticipantSid/);
   assert.match(webhook, /leavingParticipantSid !== currentParticipantSid/);
-  assert.match(webhook, /creatorStillPresent\([\s\S]{0,100}leavingParticipantSid/);
-  assert.match(webhook, /participantSid !== excludedSid/);
+  assert.match(webhook, /findCreatorProgramAudio\([\s\S]{0,160}current\._id,[\s\S]{0,160}current\.creator/);
+  assert.match(webhook, /replacementProgram/);
   assert.match(webhook, /creatorParticipantSid: joinedParticipantSid/);
+  assert.match(webhook, /Joining restores transport only/);
+  assert.match(webhook, /track_published[\s\S]{0,220}cancelCreatorDisconnect\(broadcastId\)/);
   assert.match(webhook, /scheduleCreatorDisconnect\([\s\S]{0,180}updated\.creatorDisconnectedAt/);
   assert.match(keepAwake, /navigator\.wakeLock\?\.request === 'function'/);
   assert.match(keepAwake, /navigator\.wakeLock\.request\('screen'\)/);
@@ -176,5 +197,5 @@ test('transport disconnect cannot terminate a normal seven-hour broadcast', asyn
   assert.match(sweep, /getCreatorRecoveryHours/);
   assert.match(sweep, /mediaState === 'audio_disconnected'/);
   assert.match(sweep, /creatorDisconnectedAt/);
-  assert.match(sweep, /LiveKitProvider\.getParticipants/);
+  assert.match(sweep, /findCreatorProgramAudio\(fresh\._id, fresh\.creator\)/);
 });

@@ -356,6 +356,11 @@ test('long broadcast recording uses RF64 and never materializes multi-GB desktop
     'WebM/Opus must keep its WebM container instead of being mislabeled as Ogg'
   );
   assert.match(recording, /activeRecording = await startFallbackRecording/);
+  assert.match(recording, /await recording\.writable\?\.close\(\)/);
+  assert.match(recording, /recording\.endedAt = Date\.now\(\)/);
+  assert.match(recording, /recoverPendingBroadcastRecording\(id\)/);
+  assert.match(recording, /recoveredDuringFinalize = true/);
+  assert.match(recording, /readRecoveryManifest\(id \? \{ broadcastId: id \} : undefined\)/);
   assert.doesNotMatch(
     recording,
     /flushRecordingForPageHide[\s\S]{0,450}activeRecording\?\.writable\?\.close\(\)/
@@ -377,8 +382,10 @@ test('creator transport loss remains live under a durable long-session recovery 
   assert.match(webhook, /const disconnectedAt = current\.creatorDisconnectedAt \|\| new Date\(\)/);
   assert.match(webhook, /creatorDisconnectedAt: disconnectedAt/);
   assert.match(webhook, /creatorDisconnectedAt: null/);
-  assert.match(sweep, /ORPHAN_SWEEP_INTERVAL_MS/);
+  assert.match(sweep, /getOrphanSweepIntervalMs/);
+  assert.match(sweep, /Number\.isFinite\(raw\)/);
+  assert.match(sweep, /10 \* 60 \* 1000/);
   assert.match(sweep, /startOrphanSweep/);
   assert.match(sweep, /setInterval/);
-  assert.match(sweep, /creator disconnect discovery failed/);
+  assert.match(sweep, /creator program-audio discovery failed/);
 });

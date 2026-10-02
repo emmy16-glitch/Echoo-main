@@ -19,17 +19,24 @@ import LiveKitProvider from '../providers/livekit.js';
 import { clearBroadcastPresenceCache } from '../controllers/broadcastPresenceController.js';
 import { releaseCreatorBroadcastLease } from './creatorBroadcastLease.js';
 import { flushBroadcastTranscription } from './transcriptionGateway.js';
-import { stopLiveKitServerRecording } from './livekitServerRecording.js';
+import {
+  ensureLiveKitServerRecording,
+  isLiveKitServerRecordingEnabled,
+  stopLiveKitServerRecording,
+} from './livekitServerRecording.js';
+import { findCreatorProgramAudio } from './broadcastAudioReadiness.js';
 
 const STUCK_STATES = ['starting', 'ending', 'live'];
 const REASON_PREFIX = 'Orphan sweep: ';
-const ORPHAN_SWEEP_INTERVAL_MS = Math.max(
-  60_000,
-  Math.min(
-    60 * 60 * 1000,
-    Number(process.env.ORPHAN_SWEEP_INTERVAL_MS || 10 * 60 * 1000)
-  )
-);
+
+function getOrphanSweepIntervalMs() {
+  const raw = Number(process.env.ORPHAN_SWEEP_INTERVAL_MS || 10 * 60 * 1000);
+  const safe = Number.isFinite(raw) && raw > 0
+    ? raw
+    : 10 * 60 * 1000;
+  return Math.max(60_000, Math.min(60 * 60 * 1000, safe));
+}
+
 let sweepTimer = null;
 let sweepRunning = false;
 
@@ -82,6 +89,31 @@ function isRecoverableState(doc) {
       doc.mediaState === 'creator_connecting' ||
       doc.mediaState === 'audio_disconnected'
     );
+}
+
+async function healProgramAudioState(doc, program) {
+  doc.mediaState = 'audio_live';
+  doc.creatorDisconnectedAt = null;
+  doc.creatorParticipantSid =
+    program.participant?.sid || doc.creatorParticipantSid || null;
+  doc.programTrackSid =
+    program.track?.sid || doc.programTrackSid || null;
+  doc.programTrackName =
+    program.track?.name || doc.programTrackName || 'echoo-studio-mix';
+  await doc.save();
+  clearBroadcastPresenceCache(doc._id);
+
+  if (isLiveKitServerRecordingEnabled() && doc.programTrackSid) {
+    await ensureLiveKitServerRecording({
+      broadcastId: doc._id,
+      trackSid: doc.programTrackSid,
+    }).catch((error) => {
+      console.warn(
+        `[orphan-sweep] server recording reattach failed for ${doc._id}:`,
+        error?.message || error
+      );
+    });
+  }
 }
 
 async function reapLiveKitResources(doc) {
@@ -210,29 +242,26 @@ async function sweep() {
       !fresh.creatorDisconnectedAt
     ) {
       try {
-        const participants = await LiveKitProvider.getParticipants(fresh._id);
-        const creatorPresent = participants.some((participant) => {
-          try {
-            const metadata = participant?.metadata
-              ? JSON.parse(participant.metadata)
-              : {};
-            return metadata.role === 'creator' &&
-              String(metadata.userId) === String(fresh.creator);
-          } catch {
-            return false;
-          }
-        });
-        if (creatorPresent) continue;
+        const program = await findCreatorProgramAudio(fresh._id, fresh.creator);
 
-        // A webhook can be delayed/lost. Establish the durable recovery lease
-        // from observed absence rather than leaving the broadcast immortal.
+        if (program) {
+          // The track exists but a webhook/state write was missed. Repair the
+          // durable state instead of leaving listeners stuck on
+          // "Audio disconnected".
+          await healProgramAudioState(fresh, program);
+          continue;
+        }
+
+        // Participant presence alone is not recovery. If the creator remains
+        // connected but the program track is gone, start the same durable
+        // long-session lease used for transport loss.
         fresh.creatorDisconnectedAt = new Date();
         await fresh.save();
         clearBroadcastPresenceCache(fresh._id);
         continue;
       } catch (error) {
         console.warn(
-          `[orphan-sweep] creator disconnect discovery failed for ${fresh._id}:`,
+          `[orphan-sweep] creator program-audio discovery failed for ${fresh._id}:`,
           error?.message || error
         );
         continue;
@@ -249,24 +278,16 @@ async function sweep() {
       fresh.creatorDisconnectedAt
     ) {
       try {
-        const participants = await LiveKitProvider.getParticipants(fresh._id);
-        const creatorPresent = participants.some((participant) => {
-          try {
-            const metadata = participant?.metadata
-              ? JSON.parse(participant.metadata)
-              : {};
-            return metadata.role === 'creator' &&
-              String(metadata.userId) === String(fresh.creator);
-          } catch {
-            return false;
-          }
-        });
-        if (creatorPresent) continue;
+        const program = await findCreatorProgramAudio(fresh._id, fresh.creator);
+        if (program) {
+          await healProgramAudioState(fresh, program);
+          continue;
+        }
       } catch (error) {
-        // A control-plane failure is not proof that the creator is absent.
+        // A control-plane failure is not proof that program audio is absent.
         // Preserve the broadcast and retry on a later sweep/boot.
         console.warn(
-          `[orphan-sweep] creator presence check failed for ${fresh._id}:`,
+          `[orphan-sweep] creator program-audio check failed for ${fresh._id}:`,
           error?.message || error
         );
         continue;
@@ -328,7 +349,7 @@ function startOrphanSweep() {
   if (sweepTimer) return;
   sweepTimer = setInterval(() => {
     void runSweepSafely();
-  }, ORPHAN_SWEEP_INTERVAL_MS);
+  }, getOrphanSweepIntervalMs());
   sweepTimer.unref?.();
 }
 
@@ -342,6 +363,7 @@ export {
   STUCK_STATES,
   getStuckMinutes,
   getCreatorRecoveryHours,
+  getOrphanSweepIntervalMs,
   isStuck,
   isRecoverableState,
   sweep,
@@ -353,6 +375,7 @@ export default {
   STUCK_STATES,
   getStuckMinutes,
   getCreatorRecoveryHours,
+  getOrphanSweepIntervalMs,
   isStuck,
   isRecoverableState,
   sweep,
