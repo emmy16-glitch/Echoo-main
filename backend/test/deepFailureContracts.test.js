@@ -325,6 +325,25 @@ test('long broadcast recording uses RF64 and never materializes multi-GB desktop
   assert.match(preload, /echoo:recording-save-chunk/);
   assert.match(desktopMain, /MAX_RECORDING_IPC_CHUNK_BYTES/);
   assert.match(desktopMain, /echoo:recording-save-finish/);
+
+  // A 7-8 hour PCM RF64 master is many gigabytes. Long sessions must inspect
+  // browser quota and fall back to disk-backed Opus, never an unbounded RAM
+  // buffer, while preserving the same crash-recovery registry.
+  assert.match(recording, /LONG_SESSION_TARGET_SECONDS = 8 \* 60 \* 60/);
+  assert.match(recording, /navigator\.storage\?\.estimate/);
+  assert.match(recording, /LOSSLESS_LONG_SESSION_TARGET_BYTES/);
+  assert.match(recording, /LOSSLESS_STORAGE_HEADROOM_LOW/);
+  assert.match(recording, /openCompressedRecordingFile/);
+  assert.match(recording, /mode: storage \? 'opus-opfs' : 'opus-fallback'/);
+  assert.match(recording, /await recording\.writable\.write\(event\.data\)/);
+  assert.match(recording, /queueCompressedCheckpoint/);
+  assert.match(recording, /isCompressedRecoveryManifest/);
+  assert.match(recording, /opfs-opus-recovered/);
+  assert.match(recording, /activeRecording = await startFallbackRecording/);
+  assert.doesNotMatch(
+    recording,
+    /flushRecordingForPageHide[\s\S]{0,450}activeRecording\?\.writable\?\.close\(\)/
+  );
 });
 
 test('creator transport loss remains live under a durable long-session recovery lease', async () => {
