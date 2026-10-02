@@ -96,8 +96,11 @@ await (async () => {
 
 function installBroadcastMock(docs) {
   const findByIdCalls = [];
+  const findOneAndUpdateCalls = [];
   const originalFindMethod = realBroadcast.find.bind(realBroadcast);
   const originalFindByIdMethod = realBroadcast.findById.bind(realBroadcast);
+  const originalFindOneAndUpdateMethod =
+    realBroadcast.findOneAndUpdate.bind(realBroadcast);
   realBroadcast.find = async (filter) => {
     assert.deepEqual(filter, { status: { $in: ['starting', 'ending', 'live'] } });
     return [...docs];
@@ -106,11 +109,30 @@ function installBroadcastMock(docs) {
     findByIdCalls.push(String(id));
     return docs.find((doc) => String(doc._id) === String(id));
   };
+  realBroadcast.findOneAndUpdate = async (filter, update) => {
+    findOneAndUpdateCalls.push({ filter, update });
+    const candidate = docs.find((doc) => String(doc._id) === String(filter?._id));
+    if (!candidate) return null;
+    if (filter.status && candidate.status !== filter.status) return null;
+    if (filter.mediaState && candidate.mediaState !== filter.mediaState) return null;
+    if (filter.creatorDisconnectedAt) {
+      const expected = new Date(filter.creatorDisconnectedAt).getTime();
+      const actual = candidate.creatorDisconnectedAt
+        ? new Date(candidate.creatorDisconnectedAt).getTime()
+        : NaN;
+      if (expected !== actual) return null;
+    }
+    Object.assign(candidate, update?.$set || {});
+    candidate.updatedAt = new Date();
+    return candidate;
+  };
   return {
     findByIdCalls,
+    findOneAndUpdateCalls,
     restore() {
       realBroadcast.find = originalFindMethod;
       realBroadcast.findById = originalFindByIdMethod;
+      realBroadcast.findOneAndUpdate = originalFindOneAndUpdateMethod;
     },
   };
 }
@@ -357,6 +379,33 @@ test('expired recovery reconciles a replacement creator only when program audio 
     assert.equal(disconnected.creatorParticipantSid, 'PA_replacement');
     assert.equal(disconnected.programTrackSid, 'TR_program');
     assert.equal(disconnected.saveCalled, 1);
+  } finally {
+    teardown();
+  }
+});
+
+test('expired recovery cleanup aborts when a newer reconnect lease wins the compare-and-set race', { concurrency: 1 }, async () => {
+  process.env.LIVEKIT_CREATOR_RECOVERY_TTL_HOURS = '1';
+  const creator = new mongoose.Types.ObjectId();
+  const disconnected = makeDoc({
+    status: 'live',
+    mediaState: 'audio_disconnected',
+    creator,
+    creatorDisconnectedAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+    livekitEgressId: 'EG_should-survive',
+  });
+  const provider = makeLivekitProviderMock();
+  const { sweepModule, teardown } = await loadSweepWithMocks([disconnected], provider);
+
+  // Simulate a webhook/process replacing the recovery lease after the sweep's
+  // LiveKit audio check but before cleanup claims ownership.
+  realBroadcast.findOneAndUpdate = async () => null;
+
+  try {
+    const result = await sweepModule.sweep();
+    assert.equal(result.swept, 0);
+    assert.equal(disconnected.status, 'live');
+    assert.equal(provider.calls.length, 0);
   } finally {
     teardown();
   }
