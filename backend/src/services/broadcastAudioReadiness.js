@@ -39,7 +39,8 @@ export async function findCreatorProgramAudio(
   userId,
   { participantSid = '' } = {}
 ) {
-  const participants = await LiveKitProvider.getParticipants(broadcastId);
+  const participantList = await LiveKitProvider.getParticipants(broadcastId);
+  const participants = Array.isArray(participantList) ? participantList : [];
   const preferredSid = String(participantSid || '').trim();
 
   const creators = participants.filter((participant) =>
