@@ -6,6 +6,7 @@ import { stopBroadcastOutputs } from './broadcastOutputService.js';
 import { enqueueBroadcastProcessing } from './broadcastProcessingService.js';
 import { releaseCreatorBroadcastLease } from './creatorBroadcastLease.js';
 import { stopLiveKitServerRecording } from './livekitServerRecording.js';
+import { getCreatorProgramAudio } from './broadcastAudioReadiness.js';
 
 // ---------------------------------------------------------------------------
 // Recording-recovery reconciliation.
@@ -28,24 +29,13 @@ const recoveryError = (status, code, message) => {
   return error;
 };
 
-const hasPublishedTracks = (participant) => {
-  const tracks = participant?.tracks;
-  if (Array.isArray(tracks)) return tracks.length > 0;
-  if (participant?.permission?.canPublish === false) return false;
-  return false;
-};
-
-// Ground truth for "actually still live": someone publishing in the LiveKit
-// room. An empty or missing room means no session survived; a provider outage
-// is treated conservatively (only states that already requested an end, or
-// demonstrably stale sessions, may finalize).
-const liveRoomHasPublisher = async (broadcastId) => {
+// Ground truth for "actually still live": the creator's canonical post-master
+// program track. Guest/co-host tracks must not wedge OPFS recovery after the
+// creator program has ended. Provider outages remain conservative.
+const liveRoomHasCreatorProgramAudio = async (broadcastId, creatorId) => {
   try {
-    const participants = await LiveKitProvider.getParticipants(broadcastId);
-    if (!Array.isArray(participants) || !participants.length) {
-      return { active: false, unknown: false };
-    }
-    return { active: participants.some(hasPublishedTracks), unknown: false };
+    const programAudio = await getCreatorProgramAudio(broadcastId, creatorId);
+    return { active: Boolean(programAudio), unknown: false };
   } catch {
     return { active: false, unknown: true };
   }
@@ -84,6 +74,8 @@ const finalizeInterruptedBroadcast = async (broadcast) => {
   broadcast.livekitEgressId = null;
   broadcast.livekitIngressId = null;
   broadcast.mediaState = 'audio_disconnected';
+  broadcast.creatorDisconnectedAt = null;
+  broadcast.creatorParticipantSid = null;
   broadcast.transcriptState = 'disabled';
   broadcast.processingStartedAt = now;
   broadcast.assetStatus.audio = 'processing';
@@ -159,7 +151,10 @@ export async function recoverBroadcastForReplay({ broadcastId, userId }) {
   }
 
   if (broadcast.status === 'live' || broadcast.status === 'starting') {
-    const room = await liveRoomHasPublisher(broadcast._id);
+    const room = await liveRoomHasCreatorProgramAudio(
+      broadcast._id,
+      broadcast.creator
+    );
     if (room.active) {
       throw recoveryError(
         409,
