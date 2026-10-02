@@ -10,6 +10,7 @@ const {
   shell,
   dialog,
   nativeImage,
+  powerSaveBlocker,
 } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
@@ -123,13 +124,32 @@ function isAppUrl(url) {
 
 let mainWindow = null;
 let tray = null;
-let roomState = { active: false, muted: false, canToggleMute: false };
+let roomState = { active: false, muted: false, canToggleMute: false, keepAwake: false };
+let powerSaveBlockerId = null;
 let isQuitting = false;
 let quitTimer = null;
 let backendChild = null;
 let trayHideNoticed = false;
 const recordingSaveSessions = new Map();
 const MAX_RECORDING_IPC_CHUNK_BYTES = 8 * 1024 * 1024;
+
+function syncPowerSaveBlocker() {
+  const shouldBlock = roomState.active === true && roomState.keepAwake === true;
+
+  if (shouldBlock && powerSaveBlockerId === null) {
+    powerSaveBlockerId = powerSaveBlocker.start('prevent-app-suspension');
+    log.info('[echoo-desktop] app suspension blocked for active creator broadcast');
+    return;
+  }
+
+  if (!shouldBlock && powerSaveBlockerId !== null) {
+    if (powerSaveBlocker.isStarted(powerSaveBlockerId)) {
+      powerSaveBlocker.stop(powerSaveBlockerId);
+    }
+    powerSaveBlockerId = null;
+    log.info('[echoo-desktop] app suspension blocker released');
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Bundled backend: the installed app ships its own Echoo API (extraResources)
@@ -1020,7 +1040,9 @@ function registerIpc() {
         active: state.active === true,
         muted: state.muted === true,
         canToggleMute: state.canToggleMute === true,
+        keepAwake: state.keepAwake === true,
       };
+      syncPowerSaveBlocker();
       refreshTrayMenu();
       return { ...roomState };
     } catch (error) {
@@ -1417,6 +1439,9 @@ app.on('before-quit', (event) => {
 });
 
 app.on('will-quit', () => {
+  roomState = { active: false, muted: false, canToggleMute: false, keepAwake: false };
+  syncPowerSaveBlocker();
+
   for (const [sessionId, session] of recordingSaveSessions) {
     recordingSaveSessions.delete(sessionId);
     void Promise.resolve(session.writeChain)
