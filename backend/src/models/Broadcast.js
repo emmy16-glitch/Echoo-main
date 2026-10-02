@@ -244,7 +244,6 @@ const broadcastSchema = new mongoose.Schema(
     creatorParticipantSid: {
       type: String,
       default: null,
-      index: true,
     },
     audioConfiguration: {
       // Preserve original source audio unless Enhanced Audio is explicitly on.
