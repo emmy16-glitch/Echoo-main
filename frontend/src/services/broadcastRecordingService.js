@@ -1319,7 +1319,18 @@ const stopFallbackRecording = (recording, { keep = true } = {}) =>
             : undefined,
         });
       } catch (error) {
+        // OPFS commits a createWritable() transaction on close. If a write or
+        // checkpoint failed, close whatever writer is still open before
+        // advertising the file as recoverable so the last successfully
+        // buffered bytes are not stranded in an uncommitted transaction.
+        try {
+          await recording.writable?.close();
+        } catch {
+          // The checkpoint may already have closed/replaced this writer.
+        }
+        recording.writable = null;
         if (recording.storageName) {
+          recording.endedAt = Date.now();
           writeRecoveryManifest(recording, 'recovery_required');
         }
         reject(error);
@@ -1673,11 +1684,24 @@ export const finishBroadcastRecording = async (broadcastId) => {
   const recording = activeRecording;
   activeRecording = null;
 
-  const finished = await stopRecording(recording, { keep: true });
-  if (!finished?.blob?.size) return null;
+  try {
+    const finished = await stopRecording(recording, { keep: true });
+    if (!finished?.blob?.size) return null;
 
-  pendingRecording = finished;
-  return finished;
+    pendingRecording = finished;
+    return finished;
+  } catch (error) {
+    // A disk/checkpoint failure may still leave a valid partial protected
+    // master. Reopen this broadcast's durable manifest immediately so Creator
+    // Studio can offer recovery without requiring a reload.
+    const recovered = await recoverPendingBroadcastRecording(id).catch(() => null);
+    if (recovered?.blob?.size) {
+      recovered.recoveredDuringFinalize = true;
+      recovered.finalizationError = error?.message || String(error);
+      return recovered;
+    }
+    throw error;
+  }
 };
 
 /**
@@ -1685,10 +1709,16 @@ export const finishBroadcastRecording = async (broadcastId) => {
  * Blob composition is lazy: the large audio payload is not decoded or copied
  * onto the main thread.
  */
-export const recoverPendingBroadcastRecording = async () => {
-  if (pendingRecording?.blob?.size) return pendingRecording;
+export const recoverPendingBroadcastRecording = async (broadcastId = '') => {
+  const id = String(broadcastId || '');
+  if (
+    pendingRecording?.blob?.size &&
+    (!id || String(pendingRecording.broadcastId || '') === id)
+  ) {
+    return pendingRecording;
+  }
   if (!supportsOpfs()) return null;
-  const manifest = readRecoveryManifest();
+  const manifest = readRecoveryManifest(id ? { broadcastId: id } : undefined);
   if (!manifest?.storageName) return null;
 
   try {
