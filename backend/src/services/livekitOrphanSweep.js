@@ -23,10 +23,26 @@ import { stopLiveKitServerRecording } from './livekitServerRecording.js';
 
 const STUCK_STATES = ['starting', 'ending', 'live'];
 const REASON_PREFIX = 'Orphan sweep: ';
+const ORPHAN_SWEEP_INTERVAL_MS = Math.max(
+  60_000,
+  Math.min(
+    60 * 60 * 1000,
+    Number(process.env.ORPHAN_SWEEP_INTERVAL_MS || 10 * 60 * 1000)
+  )
+);
+let sweepTimer = null;
+let sweepRunning = false;
 
 function getStuckMinutes() {
   const raw = Number(process.env.ORPHAN_SWEEP_STUCK_MINUTES || 30);
   return Number.isFinite(raw) && raw > 0 ? raw : 30;
+}
+
+function getCreatorRecoveryHours() {
+  const raw = Number(process.env.LIVEKIT_CREATOR_RECOVERY_TTL_HOURS || 24);
+  return Number.isFinite(raw) && raw > 0
+    ? Math.max(1, Math.min(48, raw))
+    : 24;
 }
 
 function isLiveKitConfigured() {
@@ -34,6 +50,19 @@ function isLiveKitConfigured() {
 }
 
 function isStuck(doc) {
+  // Full LIVE transport loss has its own long recovery lease. Do not reuse the
+  // short transition timeout: a creator can be offline/reconnecting for hours
+  // without the logical broadcast being ended underneath the client.
+  if (
+    doc.status === 'live' &&
+    ['audio_disconnected', 'creator_connecting'].includes(doc.mediaState) &&
+    doc.creatorDisconnectedAt
+  ) {
+    const ageHours =
+      (Date.now() - new Date(doc.creatorDisconnectedAt).getTime()) / 3600000;
+    return ageHours > getCreatorRecoveryHours();
+  }
+
   // Transitional rows use updatedAt because it is the freshest timestamp the
   // database maintains while start/end controllers are still working.
   // A live row that never published audio is the exception: unrelated
@@ -48,7 +77,11 @@ function isStuck(doc) {
 
 function isRecoverableState(doc) {
   return STUCK_STATES.includes(doc.status)
-    && (doc.status !== 'live' || doc.mediaState === 'creator_connecting');
+    && (
+      doc.status !== 'live' ||
+      doc.mediaState === 'creator_connecting' ||
+      doc.mediaState === 'audio_disconnected'
+    );
 }
 
 async function reapLiveKitResources(doc) {
@@ -108,13 +141,22 @@ async function resolveStuckBroadcast(doc) {
     livekitEgressId: doc.livekitEgressId,
   };
   const wasStarting = doc.status === 'starting';
-  const wasUnpublishedLive = doc.status === 'live' && doc.mediaState === 'creator_connecting';
-  if (!wasStarting && !wasUnpublishedLive && doc.status !== 'ending') return doc;
+  const wasUnpublishedLive =
+    doc.status === 'live' &&
+    doc.mediaState === 'creator_connecting' &&
+    !doc.creatorDisconnectedAt;
+  const wasExpiredRecoveryLive =
+    doc.status === 'live' &&
+    ['audio_disconnected', 'creator_connecting'].includes(doc.mediaState) &&
+    Boolean(doc.creatorDisconnectedAt);
+  if (!wasStarting && !wasUnpublishedLive && !wasExpiredRecoveryLive && doc.status !== 'ending') return doc;
 
   doc.status = wasStarting || wasUnpublishedLive ? 'failed' : 'completed';
   doc.failureReason = wasStarting || wasUnpublishedLive
     ? `${REASON_PREFIX}broadcast never published the creator program track within ${getStuckMinutes()} minutes.`
-    : doc.failureReason;
+    : wasExpiredRecoveryLive
+      ? `${REASON_PREFIX}creator did not restore program audio within ${getCreatorRecoveryHours()} hours.`
+      : doc.failureReason;
   doc.endedAt = doc.endedAt || new Date();
   doc.listenerCount = 0;
   doc.livekitRoomName = null;
@@ -161,8 +203,73 @@ async function sweep() {
       continue;
     }
 
+    if (
+      fresh.status === 'live' &&
+      fresh.mediaState === 'audio_disconnected' &&
+      !fresh.creatorDisconnectedAt
+    ) {
+      try {
+        const participants = await LiveKitProvider.getParticipants(fresh._id);
+        const creatorPresent = participants.some((participant) => {
+          try {
+            const metadata = participant?.metadata
+              ? JSON.parse(participant.metadata)
+              : {};
+            return metadata.role === 'creator' &&
+              String(metadata.userId) === String(fresh.creator);
+          } catch {
+            return false;
+          }
+        });
+        if (creatorPresent) continue;
+
+        // A webhook can be delayed/lost. Establish the durable recovery lease
+        // from observed absence rather than leaving the broadcast immortal.
+        fresh.creatorDisconnectedAt = new Date();
+        await fresh.save();
+        clearBroadcastPresenceCache(fresh._id);
+        continue;
+      } catch (error) {
+        console.warn(
+          `[orphan-sweep] creator disconnect discovery failed for ${fresh._id}:`,
+          error?.message || error
+        );
+        continue;
+      }
+    }
+
     if (!isStuck(fresh)) {
       continue;
+    }
+
+    if (
+      fresh.status === 'live' &&
+      ['audio_disconnected', 'creator_connecting'].includes(fresh.mediaState) &&
+      fresh.creatorDisconnectedAt
+    ) {
+      try {
+        const participants = await LiveKitProvider.getParticipants(fresh._id);
+        const creatorPresent = participants.some((participant) => {
+          try {
+            const metadata = participant?.metadata
+              ? JSON.parse(participant.metadata)
+              : {};
+            return metadata.role === 'creator' &&
+              String(metadata.userId) === String(fresh.creator);
+          } catch {
+            return false;
+          }
+        });
+        if (creatorPresent) continue;
+      } catch (error) {
+        // A control-plane failure is not proof that the creator is absent.
+        // Preserve the broadcast and retry on a later sweep/boot.
+        console.warn(
+          `[orphan-sweep] creator presence check failed for ${fresh._id}:`,
+          error?.message || error
+        );
+        continue;
+      }
     }
     
     try {
@@ -193,42 +300,61 @@ async function sweep() {
   return results;
 }
 
-// Non-blocking startup hook. The sweep runs once after boot; it must never
-// reject in a way that affects process startup or the express app.
-function startOrphanSweep() {
-  // Startup smoke tests and degraded boot paths may expose a connection-like
-  // object without a real database handle. Do not queue a buffered query in
-  // that state; the next healthy process boot will perform the sweep.
+const runSweepSafely = async () => {
+  if (sweepRunning) return;
   if (mongoose.connection.readyState !== 1 || !mongoose.connection.db) return;
+  sweepRunning = true;
+  try {
+    const results = await sweep();
+    if (results.swept > 0) {
+      console.log(
+        `[orphan-sweep] finished: ${results.swept} resolved, ${results.failed} failed`
+      );
+    }
+  } catch (error) {
+    // Guard against anything not caught inside sweep().
+    console.error('[orphan-sweep] unexpected error:', error?.message || error);
+  } finally {
+    sweepRunning = false;
+  }
+};
 
-  sweep()
-    .then((results) => {
-      if (results.swept > 0) {
-        console.log(
-          `[orphan-sweep] finished: ${results.swept} resolved, ${results.failed} failed`
-        );
-      }
-    })
-    .catch((error) => {
-      // Guard against anything not caught inside sweep().
-      console.error('[orphan-sweep] unexpected error:', error?.message || error);
-    });
+// Long-running Echoo servers sweep immediately and then periodically. This is
+// essential for durable reconnect leases: a process restart must not erase the
+// future cleanup of an abandoned disconnected broadcast.
+function startOrphanSweep() {
+  void runSweepSafely();
+  if (sweepTimer) return;
+  sweepTimer = setInterval(() => {
+    void runSweepSafely();
+  }, ORPHAN_SWEEP_INTERVAL_MS);
+  sweepTimer.unref?.();
+}
+
+function stopOrphanSweep() {
+  if (sweepTimer) clearInterval(sweepTimer);
+  sweepTimer = null;
+  sweepRunning = false;
 }
 
 export {
   STUCK_STATES,
   getStuckMinutes,
+  getCreatorRecoveryHours,
   isStuck,
   isRecoverableState,
   sweep,
   startOrphanSweep,
+  stopOrphanSweep,
 };
 
 export default {
   STUCK_STATES,
   getStuckMinutes,
+  getCreatorRecoveryHours,
   isStuck,
   isRecoverableState,
   sweep,
   startOrphanSweep,
+  stopOrphanSweep,
 };

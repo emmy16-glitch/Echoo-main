@@ -230,6 +230,13 @@ const broadcastSchema = new mongoose.Schema(
       default: 'waiting_for_creator',
       index: true,
     },
+    // Durable timestamp for transport/session separation. A LiveKit room can
+    // disappear and be replaced while the logical broadcast remains LIVE.
+    creatorDisconnectedAt: {
+      type: Date,
+      default: null,
+      index: true,
+    },
     audioConfiguration: {
       // Preserve original source audio unless Enhanced Audio is explicitly on.
       audioMode: { type: String, enum: ['raw', 'enhanced'], default: 'raw' },

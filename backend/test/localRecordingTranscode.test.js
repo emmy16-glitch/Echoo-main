@@ -86,6 +86,56 @@ test('24-bit PCM conversion preserves sign and stereo channel ordering', async (
 test('WAV parser rejects renamed or unsupported audio', async () => {
   await assert.rejects(
     parsePcmWavHeader(new Blob([new TextEncoder().encode('not a wav')], { type: 'audio/wav' })),
-    /valid RIFF\/WAV/
+    /valid RIFF.*RF64 WAV/
   );
+});
+
+
+const pcm24StereoRf64 = async () => {
+  const riff = pcm24StereoWav();
+  const pcm = new Uint8Array(await riff.slice(44).arrayBuffer());
+  const sampleRate = 48000;
+  const channels = 2;
+  const bitDepth = 24;
+  const blockAlign = 6;
+  const buffer = new ArrayBuffer(80 + pcm.byteLength);
+  const bytes = new Uint8Array(buffer);
+  const view = new DataView(buffer);
+  const write = (offset, value) => bytes.set(new TextEncoder().encode(value), offset);
+  const write64 = (offset, value) => {
+    view.setUint32(offset, value % 0x100000000, true);
+    view.setUint32(offset + 4, Math.floor(value / 0x100000000), true);
+  };
+
+  write(0, 'RF64');
+  view.setUint32(4, 0xffffffff, true);
+  write(8, 'WAVE');
+  write(12, 'ds64');
+  view.setUint32(16, 28, true);
+  write64(20, 72 + pcm.byteLength);
+  write64(28, pcm.byteLength);
+  write64(36, pcm.byteLength / blockAlign);
+  view.setUint32(44, 0, true);
+  write(48, 'fmt ');
+  view.setUint32(52, 16, true);
+  view.setUint16(56, 1, true);
+  view.setUint16(58, channels, true);
+  view.setUint32(60, sampleRate, true);
+  view.setUint32(64, sampleRate * blockAlign, true);
+  view.setUint16(68, blockAlign, true);
+  view.setUint16(70, bitDepth, true);
+  write(72, 'data');
+  view.setUint32(76, 0xffffffff, true);
+  bytes.set(pcm, 80);
+  return new Blob([buffer], { type: 'audio/wav' });
+};
+
+test('local MP3 source parser accepts RF64 masters beyond classic WAV sizing', async () => {
+  const blob = await pcm24StereoRf64();
+  const wav = await parsePcmWavHeader(blob);
+
+  assert.equal(wav.container, 'rf64');
+  assert.equal(wav.dataOffset, 80);
+  assert.equal(wav.dataBytes, 12);
+  assert.equal(wav.frameCount, 2);
 });

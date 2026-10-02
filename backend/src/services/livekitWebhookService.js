@@ -15,10 +15,18 @@ import {
   stopLiveKitServerRecording,
 } from './livekitServerRecording.js';
 
-const CREATOR_DISCONNECT_GRACE_MS = Math.max(
-  5000,
-  Math.min(120000, Number(process.env.LIVEKIT_CREATOR_DISCONNECT_GRACE_MS) || 90000)
+// LiveKit participant presence is transport state, not broadcast authority.
+// Keep a disconnected live broadcast recoverable for a full long-show window
+// before terminal cleanup. Rejoining cancels this timer immediately.
+const rawCreatorRecoveryHours = Number(
+  process.env.LIVEKIT_CREATOR_RECOVERY_TTL_HOURS || 24
 );
+const creatorRecoveryHours =
+  Number.isFinite(rawCreatorRecoveryHours) && rawCreatorRecoveryHours > 0
+    ? Math.max(1, Math.min(48, rawCreatorRecoveryHours))
+    : 24;
+const CREATOR_RECOVERY_TTL_MS =
+  creatorRecoveryHours * 60 * 60 * 1000;
 const pendingDisconnects = new Map();
 let receiver = null;
 
@@ -119,7 +127,7 @@ const clearCreatorProgramTrackIfCurrent = async (broadcastId, trackSid, io) => {
   return broadcast;
 };
 
-const endDisconnectedBroadcast = async (broadcastId, io) => {
+const endExpiredDisconnectedBroadcast = async (broadcastId, io) => {
   pendingDisconnects.delete(String(broadcastId));
   const current = await Broadcast.findOne({
     _id: broadcastId,
@@ -132,8 +140,18 @@ const endDisconnectedBroadcast = async (broadcastId, io) => {
   if (!current || await creatorStillPresent(current).catch(() => true)) return;
 
   const broadcast = await Broadcast.findOneAndUpdate(
-    { _id: current._id, status: 'live', isDeleted: false },
-    { $set: { status: 'ending', failureReason: 'Creator disconnected from LiveKit' } },
+    {
+      _id: current._id,
+      status: 'live',
+      isDeleted: false,
+      creatorDisconnectedAt: { $ne: null },
+    },
+    {
+      $set: {
+        status: 'ending',
+        failureReason: 'Creator did not reconnect before the long-session recovery lease expired',
+      },
+    },
     { returnDocument: 'after' }
   );
   if (!broadcast) return;
@@ -164,6 +182,7 @@ const endDisconnectedBroadcast = async (broadcastId, io) => {
   broadcast.livekitIngressId = null;
   broadcast.livekitEgressId = null;
   broadcast.mediaState = 'audio_disconnected';
+  broadcast.creatorDisconnectedAt = null;
   broadcast.transcriptState = isTranscriptionConfigured() ? 'completed' : 'disabled';
   broadcast.programTrackSid = null;
   broadcast.programTrackName = null;
@@ -181,10 +200,10 @@ const scheduleCreatorDisconnect = (broadcastId, io) => {
   const key = String(broadcastId || '');
   if (!key || pendingDisconnects.has(key)) return;
   const timer = setTimeout(() => {
-    void endDisconnectedBroadcast(key, io).catch((error) => {
-      console.warn('LiveKit creator disconnect cleanup warning:', error?.message || error);
+    void endExpiredDisconnectedBroadcast(key, io).catch((error) => {
+      console.warn('LiveKit creator recovery-expiry cleanup warning:', error?.message || error);
     });
-  }, CREATOR_DISCONNECT_GRACE_MS);
+  }, CREATOR_RECOVERY_TTL_MS);
   timer.unref?.();
   pendingDisconnects.set(key, timer);
 };
@@ -221,7 +240,7 @@ export async function handleLiveKitWebhook(req, res) {
       if (!replacementPresent) {
         await updateCreatorMediaState(
           broadcastId,
-          { mediaState: 'audio_disconnected' },
+          { mediaState: 'audio_disconnected', creatorDisconnectedAt: new Date() },
           req.app.get('io')
         );
       }
@@ -239,6 +258,7 @@ export async function handleLiveKitWebhook(req, res) {
     if (broadcastId && isCreator && event.event === 'track_published' && trackName === 'echoo-studio-mix') {
       await updateCreatorMediaState(broadcastId, {
         mediaState: 'audio_live',
+        creatorDisconnectedAt: null,
         programTrackSid: event.track?.sid || null,
         programTrackName: event.track?.name || 'echoo-studio-mix',
       }, req.app.get('io'));

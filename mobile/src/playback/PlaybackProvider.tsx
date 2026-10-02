@@ -92,6 +92,10 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   const playerRef = useRef<AudioPlayer | null>(null);
   const statusSubscriptionRef = useRef<{ remove: () => void } | null>(null);
   const currentRef = useRef<PlaybackItem | null>(null);
+  const isPlayingRef = useRef(false);
+  const liveCredentialsRef = useRef<LiveCredentials | null>(null);
+  const liveRecoveryGenerationRef = useRef(0);
+  const liveRecoveryRunningRef = useRef(false);
 
   const [current, setCurrentState] = useState<PlaybackItem | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -123,6 +127,9 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const clearLiveConnection = useCallback(() => {
+    liveRecoveryGenerationRef.current += 1;
+    liveRecoveryRunningRef.current = false;
+    liveCredentialsRef.current = null;
     setLiveCredentials(null);
     setLiveKit(null);
     setLiveNativeUnavailable(false);
@@ -210,6 +217,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
       liveKit &&
       liveCredentials
     ) {
+      isPlayingRef.current = true;
       setIsPlaying(true);
       return;
     }
@@ -229,14 +237,17 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
         getListenerLiveKitCredentials(item.id),
       ]);
       setLiveKit(liveKitModule);
+      liveCredentialsRef.current = credentials;
       setLiveCredentials(credentials);
       setLiveNativeUnavailable(false);
+      isPlayingRef.current = true;
       setIsPlaying(true);
     } catch (liveError: any) {
       const moduleUnavailable = /native|module|webrtc|development build/i.test(
         String(liveError?.message || '')
       );
       setLiveNativeUnavailable(moduleUnavailable);
+      isPlayingRef.current = false;
       setIsPlaying(false);
       setError(
         moduleUnavailable
@@ -252,6 +263,9 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     if (currentRef.current?.kind === 'audio') {
       playerRef.current?.pause();
     }
+    isPlayingRef.current = false;
+    liveRecoveryGenerationRef.current += 1;
+    liveRecoveryRunningRef.current = false;
     setIsPlaying(false);
   }, []);
 
@@ -266,6 +280,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     }
 
     if (liveKit && liveCredentials) {
+      isPlayingRef.current = true;
       setIsPlaying(true);
       return;
     }
@@ -294,6 +309,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const stop = useCallback(() => {
+    isPlayingRef.current = false;
     releaseAudio();
     clearLiveConnection();
     setCurrent(null);
@@ -306,28 +322,76 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
 
   const clearError = useCallback(() => setError(''), []);
 
-  const handleLiveError = useCallback(async (message: string) => {
+  const recoverLiveConnection = useCallback(async (
+    sourceToken: string,
+    reason = 'Live audio disconnected.'
+  ) => {
     const active = currentRef.current;
-    if (active?.kind !== 'live') return;
+    if (
+      active?.kind !== 'live' ||
+      !isPlayingRef.current ||
+      liveCredentialsRef.current?.token !== sourceToken ||
+      liveRecoveryRunningRef.current
+    ) return;
 
-    if (/token|expired|unauthorized|authentication/i.test(message)) {
-      try {
-        setIsLoading(true);
-        const credentials = await getListenerLiveKitCredentials(active.id);
-        setLiveCredentials(credentials);
-        setIsPlaying(true);
-        setError('');
-        return;
-      } catch (refreshError: any) {
-        message = refreshError?.message || message;
-      } finally {
-        setIsLoading(false);
+    liveRecoveryRunningRef.current = true;
+    const generation = ++liveRecoveryGenerationRef.current;
+    const broadcastId = active.id;
+    let attempt = 0;
+
+    try {
+      while (
+        generation === liveRecoveryGenerationRef.current &&
+        isPlayingRef.current &&
+        currentRef.current?.kind === 'live' &&
+        currentRef.current.id === broadcastId
+      ) {
+        try {
+          setIsLoading(true);
+          setError(attempt > 0 ? 'Reconnecting live audio…' : '');
+          const credentials = await getListenerLiveKitCredentials(broadcastId);
+          if (
+            generation !== liveRecoveryGenerationRef.current ||
+            !isPlayingRef.current ||
+            currentRef.current?.kind !== 'live' ||
+            currentRef.current.id !== broadcastId
+          ) return;
+
+          liveCredentialsRef.current = credentials;
+          setLiveCredentials(credentials);
+          setLiveNativeUnavailable(false);
+          setError('');
+          setIsLoading(false);
+          return;
+        } catch {
+          if (
+            generation !== liveRecoveryGenerationRef.current ||
+            !isPlayingRef.current
+          ) return;
+          const delays = [500, 1000, 2000, 4000, 8000, 15000, 30000];
+          const base = delays[Math.min(attempt, delays.length - 1)];
+          attempt += 1;
+          setIsLoading(false);
+          setError('Reconnecting live audio…');
+          await new Promise((resolve) => setTimeout(
+            resolve,
+            base + Math.round(Math.random() * Math.min(3000, base * 0.25))
+          ));
+        }
+      }
+    } finally {
+      if (generation === liveRecoveryGenerationRef.current) {
+        liveRecoveryRunningRef.current = false;
       }
     }
 
-    setError(message || 'LiveKit connection failed.');
-    setIsPlaying(false);
+    void reason;
   }, []);
+
+  const handleLiveError = useCallback((message: string, sourceToken: string) => {
+    setError('Reconnecting live audio…');
+    void recoverLiveConnection(sourceToken, message);
+  }, [recoverLiveConnection]);
 
   useEffect(() => () => releaseAudio(), [releaseAudio]);
 
@@ -402,6 +466,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
           liveKit={liveKit}
           credentials={liveCredentials}
           onError={handleLiveError}
+          onRecover={handleLiveError}
         />
       ) : null}
     </PlaybackContext.Provider>
@@ -414,10 +479,12 @@ function PersistentLiveConnection({
   liveKit,
   credentials,
   onError,
+  onRecover,
 }: {
   liveKit: LiveKitNativeModule;
   credentials: LiveCredentials;
-  onError: (message: string) => void;
+  onError: (message: string, sourceToken: string) => void;
+  onRecover: (message: string, sourceToken: string) => void;
 }) {
   const { AudioSession, LiveKitRoom } = liveKit;
   const reconnectPolicy = useMemo(
@@ -427,7 +494,10 @@ function PersistentLiveConnection({
 
   useEffect(() => {
     AudioSession.startAudioSession().catch((sessionError) => {
-      onError(sessionError?.message || 'Could not start the live audio session.');
+      onError(
+        sessionError?.message || 'Could not start the live audio session.',
+        credentials.token
+      );
     });
     return () => {
       AudioSession.stopAudioSession();
@@ -442,7 +512,11 @@ function PersistentLiveConnection({
       audio={false}
       video={false}
       options={{ adaptiveStream: true, reconnectPolicy }}
-      onError={(roomError) => onError(roomError?.message || 'LiveKit connection failed.')}
+      onDisconnected={() => onRecover('LiveKit disconnected.', credentials.token)}
+      onError={(roomError) => onError(
+        roomError?.message || 'LiveKit connection failed.',
+        credentials.token
+      )}
     >
       <View style={{ width: 0, height: 0 }} />
     </LiveKitRoom>

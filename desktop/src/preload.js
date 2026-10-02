@@ -52,6 +52,26 @@ contextBridge.exposeInMainWorld('echooDesktop', {
   // Creator recording library. Automatic copies go straight into the
   // organized ~/Desktop/Echoo Recordings/<year>/<month>/ library. Explicit
   // exports keep the native Save dialog.
+  // Long recordings must never cross the Electron bridge as one giant
+  // ArrayBuffer. Open one destination, append bounded chunks, then commit.
+  beginRecordingSave: (options) => ipcRenderer.invoke('echoo:recording-save-begin', {
+    filename: String(options?.filename || ''),
+    format: options?.format === 'wav' ? 'wav' : 'mp3',
+    automatic: options?.automatic === true,
+    startedAt: options?.startedAt || null,
+  }),
+  appendRecordingChunk: (sessionId, data) =>
+    ipcRenderer.invoke('echoo:recording-save-chunk', {
+      sessionId: String(sessionId || ''),
+      data,
+    }),
+  finishRecordingSave: (sessionId) =>
+    ipcRenderer.invoke('echoo:recording-save-finish', String(sessionId || '')),
+  abortRecordingSave: (sessionId) =>
+    ipcRenderer.invoke('echoo:recording-save-abort', String(sessionId || '')),
+
+  // Legacy bounded-save entry point kept for compatibility with older
+  // renderer bundles. Current builds use the chunked protocol above.
   saveRecording: (options) => ipcRenderer.invoke('echoo:save-recording', {
     filename: String(options?.filename || ''),
     format: options?.format === 'wav' ? 'wav' : 'mp3',

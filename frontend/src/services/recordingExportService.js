@@ -237,8 +237,74 @@ const saveDesktopBytes = async ({
   automatic = false,
   startedAt = null,
 }) => {
-  if (!isDesktopBridge() || typeof window.echooDesktop.saveRecording !== 'function') return null;
-  const result = await window.echooDesktop.saveRecording({
+  if (!isDesktopBridge()) return null;
+  const bridge = window.echooDesktop;
+
+  const chunked =
+    typeof bridge.beginRecordingSave === 'function' &&
+    typeof bridge.appendRecordingChunk === 'function' &&
+    typeof bridge.finishRecordingSave === 'function' &&
+    typeof bridge.abortRecordingSave === 'function';
+
+  if (chunked) {
+    const started = await bridge.beginRecordingSave({
+      filename,
+      format,
+      mimeType,
+      automatic,
+      startedAt: startedAt || null,
+    });
+    if (started?.cancelled) return { saved: false, cancelled: true, format };
+    if (!started?.started || !started?.sessionId) {
+      throw new Error(started?.error || 'Desktop recording save could not start.');
+    }
+
+    const sessionId = started.sessionId;
+    try {
+      const reader = bytes.stream().getReader();
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (!value?.byteLength) continue;
+          const result = await bridge.appendRecordingChunk(
+            sessionId,
+            value instanceof Uint8Array ? value : new Uint8Array(value)
+          );
+          if (!result?.written) {
+            throw new Error(result?.error || 'Desktop recording chunk could not be written.');
+          }
+        }
+      } finally {
+        reader.releaseLock?.();
+      }
+
+      const result = await bridge.finishRecordingSave(sessionId);
+      if (!result?.saved) {
+        throw new Error(result?.error || 'Desktop recording save failed.');
+      }
+      return {
+        saved: true,
+        filename,
+        format,
+        path: result.path || started.path || '',
+        destination: ECHOO_RECORDINGS_LIBRARY,
+      };
+    } catch (error) {
+      await bridge.abortRecordingSave(sessionId).catch(() => null);
+      throw error;
+    }
+  }
+
+  // Older installed desktop shells can still save bounded files through the
+  // legacy bridge. Refuse to materialize a multi-GB Blob into one ArrayBuffer.
+  if (typeof bridge.saveRecording !== 'function') return null;
+  if (bytes.size > 128 * 1024 * 1024) {
+    throw new Error(
+      'This Echoo Desktop build is too old for long recording exports. Update Echoo Desktop and try again; the protected local master is still safe.'
+    );
+  }
+  const result = await bridge.saveRecording({
     filename,
     format,
     mimeType,

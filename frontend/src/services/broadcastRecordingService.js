@@ -11,7 +11,9 @@ const WAV_CHANNELS = 2;
 const WAV_BIT_DEPTH = 24;
 const WAV_BYTES_PER_SAMPLE = WAV_BIT_DEPTH / 8;
 const WAV_MIME_TYPE = 'audio/wav';
-const MAX_WAV_DATA_BYTES = 0xffffffff - 44;
+const RIFF_HEADER_BYTES = 44;
+const RF64_HEADER_BYTES = 80;
+const MASTER_HEADER_BYTES = RF64_HEADER_BYTES;
 const OPFS_DIRECTORY = 'echoo-live-recordings';
 const OPFS_MANIFEST_KEY = 'echoo:recoverable-broadcast-recording:v1';
 const OPFS_MANIFESTS_KEY = 'echoo:recoverable-broadcast-recordings:v2';
@@ -126,7 +128,7 @@ const writeRecoveryManifest = (recording, status = 'recording') => {
   if (typeof localStorage === 'undefined' || !recording?.storageName) return;
 
   const manifest = {
-    version: 2,
+    version: 3,
     status,
     broadcastId: recording.broadcastId,
     ownerUserId: String(recording.ownerUserId || currentSessionUserId() || ''),
@@ -138,6 +140,10 @@ const writeRecoveryManifest = (recording, status = 'recording') => {
     dataBytes: Number(recording.committedDataBytes ?? recording.dataBytes) || 0,
     channels: WAV_CHANNELS,
     bitDepth: WAV_BIT_DEPTH,
+    headerBytes: Number(recording.headerBytes) || RIFF_HEADER_BYTES,
+    container: recording.container || (
+      Number(recording.headerBytes) === RF64_HEADER_BYTES ? 'rf64' : 'riff'
+    ),
     updatedAt: Date.now(),
   };
   const manifests = readRecoveryManifests();
@@ -284,6 +290,93 @@ export const createWavHeader = ({
   return new Uint8Array(buffer);
 };
 
+const setUint64Le = (view, offset, value) => {
+  const safe = Math.max(0, Math.floor(Number(value) || 0));
+  const low = safe % 0x100000000;
+  const high = Math.floor(safe / 0x100000000);
+  view.setUint32(offset, low, true);
+  view.setUint32(offset + 4, high, true);
+};
+
+export const createRf64Header = ({
+  dataBytes,
+  sampleRate,
+  channels = WAV_CHANNELS,
+  bitDepth = WAV_BIT_DEPTH,
+}) => {
+  const bytesPerSample = bitDepth / 8;
+  const blockAlign = channels * bytesPerSample;
+  const byteRate = sampleRate * blockAlign;
+  const safeDataBytes = Math.max(0, Math.floor(Number(dataBytes) || 0));
+  const sampleCount = Math.floor(safeDataBytes / blockAlign);
+  const buffer = new ArrayBuffer(RF64_HEADER_BYTES);
+  const view = new DataView(buffer);
+
+  const writeText = (offset, text) => {
+    for (let index = 0; index < text.length; index += 1) {
+      view.setUint8(offset + index, text.charCodeAt(index));
+    }
+  };
+
+  writeText(0, 'RF64');
+  view.setUint32(4, 0xffffffff, true);
+  writeText(8, 'WAVE');
+  writeText(12, 'ds64');
+  view.setUint32(16, 28, true);
+  setUint64Le(view, 20, (RF64_HEADER_BYTES - 8) + safeDataBytes);
+  setUint64Le(view, 28, safeDataBytes);
+  setUint64Le(view, 36, sampleCount);
+  view.setUint32(44, 0, true);
+  writeText(48, 'fmt ');
+  view.setUint32(52, 16, true);
+  view.setUint16(56, 1, true);
+  view.setUint16(58, channels, true);
+  view.setUint32(60, sampleRate, true);
+  view.setUint32(64, byteRate, true);
+  view.setUint16(68, blockAlign, true);
+  view.setUint16(70, bitDepth, true);
+  writeText(72, 'data');
+  view.setUint32(76, 0xffffffff, true);
+
+  return new Uint8Array(buffer);
+};
+
+const masterHeader = ({
+  dataBytes,
+  sampleRate,
+  headerBytes = MASTER_HEADER_BYTES,
+}) => (
+  Number(headerBytes) === RF64_HEADER_BYTES
+    ? createRf64Header({
+        dataBytes,
+        sampleRate,
+        channels: WAV_CHANNELS,
+        bitDepth: WAV_BIT_DEPTH,
+      })
+    : createWavHeader({
+        dataBytes,
+        sampleRate,
+        channels: WAV_CHANNELS,
+        bitDepth: WAV_BIT_DEPTH,
+      })
+);
+
+const detectMasterHeaderBytes = async (file, manifest = null) => {
+  const manifestBytes = Number(manifest?.headerBytes);
+  if ([RIFF_HEADER_BYTES, RF64_HEADER_BYTES].includes(manifestBytes)) {
+    return manifestBytes;
+  }
+  try {
+    const signature = new Uint8Array(await file.slice(0, 4).arrayBuffer());
+    const text = String.fromCharCode(...signature);
+    if (text === 'RF64') return RF64_HEADER_BYTES;
+    if (text === 'RIFF') return RIFF_HEADER_BYTES;
+  } catch {
+    // Legacy manifests may have been checkpointed before the header write.
+  }
+  return RIFF_HEADER_BYTES;
+};
+
 const sleep = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
 const uploadQualityChunk = async ({ recording, samples, startMs, endMs, chunkIndex }) => {
@@ -395,7 +488,15 @@ const uploadLosslessMasterAfterLive = async (
   const bytesPerSecond =
     recording.sampleRate * QUALITY_CHUNK_CHANNELS * (QUALITY_CHUNK_BIT_DEPTH / 8);
   const targetBytes = Math.max(1, Math.round(bytesPerSecond * QUALITY_CHUNK_SECONDS));
-  const totalPcmBytes = Math.max(0, Number(file.size || 0) - 44);
+  const dataOffset = Math.max(
+    RIFF_HEADER_BYTES,
+    Number(recording.dataOffset || recording.headerBytes) || RIFF_HEADER_BYTES
+  );
+  const availablePcmBytes = Math.max(0, Number(file.size || 0) - dataOffset);
+  const declaredPcmBytes = Math.max(0, Number(recording.dataBytes) || 0);
+  const totalPcmBytes = declaredPcmBytes > 0
+    ? Math.min(availablePcmBytes, declaredPcmBytes)
+    : availablePcmBytes;
   let offset = 0;
   let uploadedBytes = 0;
   let chunkIndex = 0;
@@ -421,7 +522,7 @@ const uploadLosslessMasterAfterLive = async (
     const take = Math.min(targetBytes, totalPcmBytes - offset);
     const startMs = (offset * 1000) / bytesPerSecond;
     const endMs = ((offset + take) * 1000) / bytesPerSecond;
-    const pcmBlob = file.slice(44 + offset, 44 + offset + take);
+    const pcmBlob = file.slice(dataOffset + offset, dataOffset + offset + take);
     const alreadyUploaded = Boolean(recording.existingChunkIndices?.has?.(chunkIndex));
 
     let uploaded = alreadyUploaded;
@@ -665,25 +766,38 @@ const openLosslessRecordingFile = async (broadcastId) => {
   const fileHandle = await directory.getFileHandle(storageName, { create: true });
   const writable = await fileHandle.createWritable();
 
-  await writable.write(new Uint8Array(44));
+  await writable.write(createRf64Header({
+    dataBytes: 0,
+    sampleRate: WAV_TARGET_SAMPLE_RATE,
+    channels: WAV_CHANNELS,
+    bitDepth: WAV_BIT_DEPTH,
+  }));
 
-  return { directory, fileHandle, writable, storageName };
+  return {
+    directory,
+    fileHandle,
+    writable,
+    storageName,
+    headerBytes: MASTER_HEADER_BYTES,
+    container: 'rf64',
+  };
 };
 
 const checkpointLosslessRecording = async (recording, status = 'recording') => {
   if (!recording?.writable || recording.writeError) return;
   const committedBytes = Number(recording.committedDataBytes) || 0;
-  const header = createWavHeader({
+  const header = masterHeader({
     dataBytes: committedBytes,
     sampleRate: Number(recording.sampleRate) || WAV_TARGET_SAMPLE_RATE,
-    channels: WAV_CHANNELS,
-    bitDepth: WAV_BIT_DEPTH,
+    headerBytes: recording.headerBytes,
   });
   await recording.writable.seek(0);
   await recording.writable.write(header);
   await recording.writable.close();
   recording.writable = await recording.fileHandle.createWritable({ keepExistingData: true });
-  await recording.writable.seek(44 + committedBytes);
+  await recording.writable.seek(
+    (Number(recording.headerBytes) || RIFF_HEADER_BYTES) + committedBytes
+  );
   writeRecoveryManifest(recording, status);
 };
 
@@ -733,11 +847,10 @@ const stopLosslessRecording = async (recording, { keep = true } = {}) => {
     }
 
     const sampleRate = Number(recording.sampleRate) || WAV_TARGET_SAMPLE_RATE;
-    const header = createWavHeader({
+    const header = masterHeader({
       dataBytes: recording.dataBytes,
       sampleRate,
-      channels: WAV_CHANNELS,
-      bitDepth: WAV_BIT_DEPTH,
+      headerBytes: recording.headerBytes,
     });
 
     await recording.writable.seek(0);
@@ -793,6 +906,10 @@ const stopLosslessRecording = async (recording, { keep = true } = {}) => {
       bitDepth: WAV_BIT_DEPTH,
       lossless: true,
       recordingFormat: 'pcm-wav',
+      container: recording.container || 'rf64',
+      headerBytes: Number(recording.headerBytes) || MASTER_HEADER_BYTES,
+      dataOffset: Number(recording.headerBytes) || MASTER_HEADER_BYTES,
+      dataBytes: recording.dataBytes,
       captureSource: 'echoo-post-master-bus',
       storageMode: 'opfs-stream',
       audioBitsPerSecond: sampleRate * WAV_CHANNELS * WAV_BIT_DEPTH,
@@ -872,18 +989,10 @@ const startLosslessRecording = async ({ broadcastId, title }) => {
   try {
     const capture = await startEchooMasterPcmCapture({
       onPcm: (buffer) => {
-        if (!buffer || recording.limitReached || recording.writeError) return;
+        if (!buffer || recording.writeError) return;
 
         const floats = new Float32Array(buffer);
         const pcm = floatToPcm24(floats);
-
-        if (recording.dataBytes + pcm.byteLength > MAX_WAV_DATA_BYTES) {
-          recording.limitReached = true;
-          console.error(
-            '[Echoo Recording] WAV master reached the classic RIFF/WAV 4 GB data limit.'
-          );
-          return;
-        }
 
         recording.dataBytes += pcm.byteLength;
         // Keep the lossless master local while on air. Server chunk transfer is
@@ -931,7 +1040,7 @@ const startLosslessRecording = async ({ broadcastId, title }) => {
     bitDepth: WAV_BIT_DEPTH,
     source: recording.capture.source,
     storage: 'OPFS stream',
-    format: 'PCM WAV',
+    format: 'PCM RF64/WAV',
   });
 
   return recording;
@@ -1290,16 +1399,15 @@ export const recoverPendingBroadcastRecording = async () => {
     const directory = await root.getDirectoryHandle(OPFS_DIRECTORY);
     const fileHandle = await directory.getFileHandle(manifest.storageName);
     const sourceFile = await fileHandle.getFile();
-    const dataBytes = Math.max(0, sourceFile.size - 44);
+    const headerBytes = await detectMasterHeaderBytes(sourceFile, manifest);
+    const dataBytes = Math.max(0, sourceFile.size - headerBytes);
     if (!dataBytes) return null;
     const sampleRate = Number(manifest.sampleRate) || WAV_TARGET_SAMPLE_RATE;
-    const header = createWavHeader({
-      dataBytes,
-      sampleRate,
-      channels: WAV_CHANNELS,
-      bitDepth: WAV_BIT_DEPTH,
-    });
-    const blob = new Blob([header, sourceFile.slice(44)], { type: WAV_MIME_TYPE });
+    const header = masterHeader({ dataBytes, sampleRate, headerBytes });
+    const blob = new Blob(
+      [header, sourceFile.slice(headerBytes)],
+      { type: WAV_MIME_TYPE }
+    );
     const startedAt = Number(manifest.startedAt) || Number(sourceFile.lastModified) || Date.now();
     const endedAt = Number(manifest.endedAt) || Number(sourceFile.lastModified) || Date.now();
     const recording = {
@@ -1312,6 +1420,10 @@ export const recoverPendingBroadcastRecording = async () => {
       bitDepth: WAV_BIT_DEPTH,
       lossless: true,
       recordingFormat: 'pcm-wav',
+      container: headerBytes === RF64_HEADER_BYTES ? 'rf64' : 'riff',
+      headerBytes,
+      dataOffset: headerBytes,
+      dataBytes,
       captureSource: 'echoo-post-master-bus',
       storageMode: 'opfs-recovered',
       audioBitsPerSecond: sampleRate * WAV_CHANNELS * WAV_BIT_DEPTH,
@@ -1360,6 +1472,11 @@ export const uploadRecoveryMasterToServer = async (
     qualityCompletionError: '',
     serverRecordingPrimary: false,
     existingChunkIndices: new Set(),
+    dataOffset: Math.max(
+      RIFF_HEADER_BYTES,
+      Number(recording.dataOffset || recording.headerBytes) || RIFF_HEADER_BYTES
+    ),
+    dataBytes: Math.max(0, Number(recording.dataBytes) || 0),
   };
 
   await startQualityChunking(recovery);
@@ -1534,8 +1651,8 @@ export const clearPendingBroadcastRecording = (broadcastId = '') => {
 };
 
 // Best-effort flush when the tab is hidden/closed mid-take: close the OPFS
-// writer so the file is complete on disk. The WAV header is patched on
-// recovery (dataBytes = file size - 44), so a close without header is fine.
+// writer so the file is complete on disk. The RF64/WAV header is patched on
+// recovery from the durable manifest and file size, so a close mid-take is safe.
 export const flushRecordingForPageHide = async () => {
   persistRecoveryMetadata(activeRecording);
   try {
@@ -1562,7 +1679,8 @@ export const recoverOrphanedLosslessRecording = async () => {
     const directory = await root.getDirectoryHandle(OPFS_DIRECTORY, { create: false });
     const fileHandle = await directory.getFileHandle(meta.storageName, { create: false });
     const file = await fileHandle.getFile();
-    const dataBytes = Math.max(0, Number(file.size || 0) - 44);
+    const headerBytes = await detectMasterHeaderBytes(file, meta);
+    const dataBytes = Math.max(0, Number(file.size || 0) - headerBytes);
     if (!dataBytes) {
       await safeRemoveOpfsEntry(directory, meta.storageName);
       clearRecoveryMetadata(meta.broadcastId);
@@ -1570,15 +1688,14 @@ export const recoverOrphanedLosslessRecording = async () => {
     }
     const sampleRate = Number(meta.sampleRate) || WAV_TARGET_SAMPLE_RATE;
     try {
-      // createWritable() truncates by default. Recovery is only patching the
-      // 44-byte WAV header, so preserve the PCM body already stored in OPFS.
+      // createWritable() truncates by default. Recovery only patches the
+      // container header, so preserve the PCM body already stored in OPFS.
       const writable = await fileHandle.createWritable({ keepExistingData: true });
       await writable.seek(0);
-      await writable.write(createWavHeader({
+      await writable.write(masterHeader({
         dataBytes,
         sampleRate,
-        channels: WAV_CHANNELS,
-        bitDepth: WAV_BIT_DEPTH,
+        headerBytes,
       }));
       await writable.close();
     } catch {
@@ -1601,6 +1718,10 @@ export const recoverOrphanedLosslessRecording = async () => {
       bitDepth: WAV_BIT_DEPTH,
       lossless: true,
       recordingFormat: 'pcm-wav',
+      container: headerBytes === RF64_HEADER_BYTES ? 'rf64' : 'riff',
+      headerBytes,
+      dataOffset: headerBytes,
+      dataBytes,
       captureSource: 'echoo-post-master-bus',
       storageMode: 'opfs-stream',
       audioBitsPerSecond: sampleRate * WAV_CHANNELS * WAV_BIT_DEPTH,
@@ -1630,6 +1751,8 @@ export const BROADCAST_RECORDING_READY_EVENT = RECORDING_EVENT;
 
 export const ECHOO_BROADCAST_MASTER_FORMAT = {
   mimeType: WAV_MIME_TYPE,
+  container: 'rf64',
+  headerBytes: RF64_HEADER_BYTES,
   sampleRate: WAV_TARGET_SAMPLE_RATE,
   channels: WAV_CHANNELS,
   bitDepth: WAV_BIT_DEPTH,
