@@ -20,6 +20,7 @@ import { clearBroadcastPresenceCache } from '../controllers/broadcastPresenceCon
 import { releaseCreatorBroadcastLease } from './creatorBroadcastLease.js';
 import { flushBroadcastTranscription } from './transcriptionGateway.js';
 import { stopLiveKitServerRecording } from './livekitServerRecording.js';
+import { findCreatorProgramAudio } from './broadcastAudioReadiness.js';
 
 const STUCK_STATES = ['starting', 'ending', 'live'];
 const REASON_PREFIX = 'Orphan sweep: ';
@@ -210,29 +211,35 @@ async function sweep() {
       !fresh.creatorDisconnectedAt
     ) {
       try {
-        const participants = await LiveKitProvider.getParticipants(fresh._id);
-        const creatorPresent = participants.some((participant) => {
-          try {
-            const metadata = participant?.metadata
-              ? JSON.parse(participant.metadata)
-              : {};
-            return metadata.role === 'creator' &&
-              String(metadata.userId) === String(fresh.creator);
-          } catch {
-            return false;
-          }
-        });
-        if (creatorPresent) continue;
+        const program = await findCreatorProgramAudio(fresh._id, fresh.creator);
 
-        // A webhook can be delayed/lost. Establish the durable recovery lease
-        // from observed absence rather than leaving the broadcast immortal.
+        if (program) {
+          // The track exists but a webhook/state write was missed. Repair the
+          // durable state instead of leaving listeners stuck on
+          // "Audio disconnected".
+          fresh.mediaState = 'audio_live';
+          fresh.creatorParticipantSid =
+            program.participant?.sid || fresh.creatorParticipantSid || null;
+          fresh.programTrackSid =
+            program.track?.sid || fresh.programTrackSid || null;
+          fresh.programTrackName =
+            program.track?.name || fresh.programTrackName || 'echoo-studio-mix';
+          fresh.creatorDisconnectedAt = null;
+          await fresh.save();
+          clearBroadcastPresenceCache(fresh._id);
+          continue;
+        }
+
+        // Participant presence alone is not recovery. If the creator remains
+        // connected but the program track is gone, start the same durable
+        // long-session lease used for transport loss.
         fresh.creatorDisconnectedAt = new Date();
         await fresh.save();
         clearBroadcastPresenceCache(fresh._id);
         continue;
       } catch (error) {
         console.warn(
-          `[orphan-sweep] creator disconnect discovery failed for ${fresh._id}:`,
+          `[orphan-sweep] creator program-audio discovery failed for ${fresh._id}:`,
           error?.message || error
         );
         continue;
@@ -249,24 +256,25 @@ async function sweep() {
       fresh.creatorDisconnectedAt
     ) {
       try {
-        const participants = await LiveKitProvider.getParticipants(fresh._id);
-        const creatorPresent = participants.some((participant) => {
-          try {
-            const metadata = participant?.metadata
-              ? JSON.parse(participant.metadata)
-              : {};
-            return metadata.role === 'creator' &&
-              String(metadata.userId) === String(fresh.creator);
-          } catch {
-            return false;
-          }
-        });
-        if (creatorPresent) continue;
+        const program = await findCreatorProgramAudio(fresh._id, fresh.creator);
+        if (program) {
+          fresh.mediaState = 'audio_live';
+          fresh.creatorDisconnectedAt = null;
+          fresh.creatorParticipantSid =
+            program.participant?.sid || fresh.creatorParticipantSid || null;
+          fresh.programTrackSid =
+            program.track?.sid || fresh.programTrackSid || null;
+          fresh.programTrackName =
+            program.track?.name || fresh.programTrackName || 'echoo-studio-mix';
+          await fresh.save();
+          clearBroadcastPresenceCache(fresh._id);
+          continue;
+        }
       } catch (error) {
-        // A control-plane failure is not proof that the creator is absent.
+        // A control-plane failure is not proof that program audio is absent.
         // Preserve the broadcast and retry on a later sweep/boot.
         console.warn(
-          `[orphan-sweep] creator presence check failed for ${fresh._id}:`,
+          `[orphan-sweep] creator program-audio check failed for ${fresh._id}:`,
           error?.message || error
         );
         continue;
