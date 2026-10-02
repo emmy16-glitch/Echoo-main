@@ -20,7 +20,10 @@ import { clearBroadcastPresenceCache } from '../controllers/broadcastPresenceCon
 import { releaseCreatorBroadcastLease } from './creatorBroadcastLease.js';
 import { flushBroadcastTranscription } from './transcriptionGateway.js';
 import { stopLiveKitServerRecording } from './livekitServerRecording.js';
-import { getCreatorProgramAudio } from './broadcastAudioReadiness.js';
+import {
+  creatorParticipantIsPresent,
+  getCreatorProgramAudio,
+} from './broadcastAudioReadiness.js';
 
 const STUCK_STATES = ['starting', 'ending', 'live'];
 const REASON_PREFIX = 'Orphan sweep: ';
@@ -236,6 +239,35 @@ async function sweep() {
           await fresh.save();
           clearBroadcastPresenceCache(fresh._id);
         }
+        continue;
+      }
+
+      if (fresh.mediaState === 'audio_paused') {
+        let creatorPresent;
+        try {
+          creatorPresent = await creatorParticipantIsPresent(fresh._id, fresh.creator);
+        } catch (error) {
+          // A second control-plane lookup failing is still not evidence that a
+          // paused creator vanished. Keep the pause and retry on a later sweep.
+          console.warn(
+            `[orphan-sweep] paused creator presence check failed for ${fresh._id}:`,
+            error?.message || error
+          );
+          continue;
+        }
+
+        if (creatorPresent) continue;
+
+        // A lost participant_left webhook while paused must not create an
+        // immortal ghost broadcast. Convert transport loss into the same
+        // durable recovery lease used by active program-audio loss.
+        fresh.mediaState = 'audio_disconnected';
+        fresh.creatorDisconnectedAt = fresh.creatorDisconnectedAt || new Date();
+        fresh.creatorParticipantSid = null;
+        fresh.programTrackSid = null;
+        fresh.programTrackName = null;
+        await fresh.save();
+        clearBroadcastPresenceCache(fresh._id);
         continue;
       }
 
