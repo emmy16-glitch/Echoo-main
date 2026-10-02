@@ -300,7 +300,7 @@ test('expired disconnected live broadcast is reaped only after creator absence i
   }
 });
 
-test('expired disconnect is preserved when a replacement creator is present', { concurrency: 1 }, async () => {
+test('creator presence without program audio does not extend an expired recovery lease', { concurrency: 1 }, async () => {
   process.env.LIVEKIT_CREATOR_RECOVERY_TTL_HOURS = '1';
   const creator = new mongoose.Types.ObjectId();
   const disconnected = makeDoc({
@@ -311,14 +311,52 @@ test('expired disconnect is preserved when a replacement creator is present', { 
   });
   const provider = makeLivekitProviderMock();
   provider.listParticipants = async () => [{
+    sid: 'PA_connected_without_audio',
     metadata: JSON.stringify({ role: 'creator', userId: String(creator) }),
+    tracks: [],
+  }];
+  const { sweepModule, teardown } = await loadSweepWithMocks([disconnected], provider);
+  try {
+    const result = await sweepModule.sweep();
+    assert.equal(result.swept, 1);
+    assert.equal(disconnected.status, 'completed');
+    assert.match(disconnected.failureReason, /did not restore program audio/);
+  } finally {
+    teardown();
+  }
+});
+
+test('expired recovery reconciles a replacement creator only when program audio is actually present', { concurrency: 1 }, async () => {
+  process.env.LIVEKIT_CREATOR_RECOVERY_TTL_HOURS = '1';
+  const creator = new mongoose.Types.ObjectId();
+  const disconnected = makeDoc({
+    status: 'live',
+    mediaState: 'audio_disconnected',
+    creator,
+    creatorDisconnectedAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+    programTrackSid: null,
+  });
+  const provider = makeLivekitProviderMock();
+  provider.listParticipants = async () => [{
+    sid: 'PA_replacement',
+    metadata: JSON.stringify({ role: 'creator', userId: String(creator) }),
+    tracks: [{
+      sid: 'TR_program',
+      name: 'echoo-studio-mix',
+      mimeType: 'audio/opus',
+      muted: false,
+    }],
   }];
   const { sweepModule, teardown } = await loadSweepWithMocks([disconnected], provider);
   try {
     const result = await sweepModule.sweep();
     assert.equal(result.swept, 0);
     assert.equal(disconnected.status, 'live');
-    assert.equal(disconnected.saveCalled, 0);
+    assert.equal(disconnected.mediaState, 'audio_live');
+    assert.equal(disconnected.creatorDisconnectedAt, null);
+    assert.equal(disconnected.creatorParticipantSid, 'PA_replacement');
+    assert.equal(disconnected.programTrackSid, 'TR_program');
+    assert.equal(disconnected.saveCalled, 1);
   } finally {
     teardown();
   }
