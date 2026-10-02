@@ -16,8 +16,8 @@ import {
 } from './livekitServerRecording.js';
 
 // LiveKit participant presence is transport state, not broadcast authority.
- // Keep a disconnected live broadcast recoverable for a full long-show window
- // before terminal cleanup. Rejoining cancels this timer immediately.
+// Keep a disconnected live broadcast recoverable for a full long-show window
+// before terminal cleanup. Rejoining cancels this timer immediately.
 const CREATOR_RECOVERY_TTL_MS = Math.max(
   60 * 60 * 1000,
   Math.min(
@@ -180,6 +180,7 @@ const endExpiredDisconnectedBroadcast = async (broadcastId, io) => {
   broadcast.livekitIngressId = null;
   broadcast.livekitEgressId = null;
   broadcast.mediaState = 'audio_disconnected';
+  broadcast.creatorDisconnectedAt = null;
   broadcast.transcriptState = isTranscriptionConfigured() ? 'completed' : 'disabled';
   broadcast.programTrackSid = null;
   broadcast.programTrackName = null;
