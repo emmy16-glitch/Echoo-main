@@ -333,7 +333,8 @@ test('creator transport loss remains live under a durable long-session recovery 
 
   assert.match(webhook, /creatorRecoveryHours/);
   assert.match(webhook, /LIVEKIT_CREATOR_RECOVERY_TTL_HOURS/);
-  assert.match(webhook, /creatorDisconnectedAt: new Date\(\)/);
+  assert.match(webhook, /const disconnectedAt = current\.creatorDisconnectedAt \|\| new Date\(\)/);
+  assert.match(webhook, /creatorDisconnectedAt: disconnectedAt/);
   assert.match(webhook, /creatorDisconnectedAt: null/);
   assert.match(sweep, /ORPHAN_SWEEP_INTERVAL_MS/);
   assert.match(sweep, /startOrphanSweep/);
