@@ -254,6 +254,7 @@ export async function startBroadcast(req, res, next) {
       error: null,
     };
     broadcast.mediaState = 'creator_connecting';
+    broadcast.creatorDisconnectedAt = null;
     broadcast.transcriptState = 'disabled';
     broadcast.programTrackSid = null;
     broadcast.programTrackName = null;
@@ -434,6 +435,7 @@ export async function confirmBroadcastLive(req, res, next) {
     broadcast.startedAt = broadcast.startedAt || new Date();
     broadcast.failureReason = null;
     broadcast.mediaState = 'audio_live';
+    broadcast.creatorDisconnectedAt = null;
     broadcast.programTrackSid = publisher.trackSid || null;
     broadcast.programTrackName = publisher.trackName || 'echoo-studio-mix';
     await broadcast.save();
@@ -659,6 +661,7 @@ export async function cancelBroadcast(req, res, next) {
     broadcast.livekitEgressId = null;
     broadcast.livekitIngressId = null;
     broadcast.mediaState = 'audio_disconnected';
+    broadcast.creatorDisconnectedAt = null;
     broadcast.transcriptState = isTranscriptionConfigured() ? 'completed' : 'disabled';
     broadcast.programTrackSid = null;
     broadcast.programTrackName = null;
