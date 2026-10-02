@@ -305,3 +305,37 @@ test('recording management keeps trim copies safe and prevents cramped or mislab
   assert.match(modalCss, /\.creator-audio-device-formats\s*\{[\s\S]*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/);
   assert.match(recordingsCss, /\.recordings-row\s*\{[\s\S]*grid-template-columns:\s*repeat\(2,minmax\(0,1fr\)\)/);
 });
+
+
+test('long broadcast recording uses RF64 and never materializes multi-GB desktop files in one IPC message', async () => {
+  const recording = await source('../../frontend/src/services/broadcastRecordingService.js');
+  const transcode = await source('../../frontend/src/services/localRecordingTranscode.js');
+  const exportService = await source('../../frontend/src/services/recordingExportService.js');
+  const preload = await source('../../desktop/src/preload.js');
+  const desktopMain = await source('../../desktop/src/main.js');
+
+  assert.match(recording, /createRf64Header/);
+  assert.match(recording, /MASTER_HEADER_BYTES = RF64_HEADER_BYTES/);
+  assert.doesNotMatch(recording, /MAX_WAV_DATA_BYTES/);
+  assert.match(transcode, /\['RIFF', 'RF64'\]/);
+  assert.match(exportService, /bytes\.stream\(\)\.getReader\(\)/);
+  assert.match(exportService, /appendRecordingChunk/);
+  assert.match(preload, /echoo:recording-save-begin/);
+  assert.match(preload, /echoo:recording-save-chunk/);
+  assert.match(desktopMain, /MAX_RECORDING_IPC_CHUNK_BYTES/);
+  assert.match(desktopMain, /echoo:recording-save-finish/);
+});
+
+test('creator transport loss remains live under a durable long-session recovery lease', async () => {
+  const webhook = await source('../src/services/livekitWebhookService.js');
+  const sweep = await source('../src/services/livekitOrphanSweep.js');
+
+  assert.match(webhook, /creatorRecoveryHours/);
+  assert.match(webhook, /LIVEKIT_CREATOR_RECOVERY_TTL_HOURS/);
+  assert.match(webhook, /creatorDisconnectedAt: new Date\(\)/);
+  assert.match(webhook, /creatorDisconnectedAt: null/);
+  assert.match(sweep, /ORPHAN_SWEEP_INTERVAL_MS/);
+  assert.match(sweep, /startOrphanSweep/);
+  assert.match(sweep, /setInterval/);
+  assert.match(sweep, /creator disconnect discovery failed/);
+});
