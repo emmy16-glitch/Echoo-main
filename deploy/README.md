@@ -19,9 +19,12 @@ private Node API on `127.0.0.1:5064`.
    LiveKit values and unique JWT secrets, and restrict it with `chmod 600`.
 3. Confirm MongoDB accepts connections from this server. The configured
    private MongoDB endpoint is `192.168.20.10:27017`.
-4. Node.js 20 is required. This server already has a Node 20 runtime at
-   `/home/digihosting/Documents/Apzs/e-metro/.tools/node/bin`; the systemd
-   service and deployment script use it because `/usr/bin/node` is v12.
+4. The backend keeps using the existing Node 20 runtime at
+   `/home/digihosting/Documents/Apzs/e-metro/.tools/node/bin`. The frontend
+   dependency install/build now requires **Node 22.22+** because
+   `livekit-client@2.22.3` depends on `machina@7`. Install a Node 22.22+
+   runtime on the host and set `ECHOO_FRONTEND_NODE_BIN` to its `bin`
+   directory when it is not the system default.
 
 ## Cloudflare Tunnel
 
