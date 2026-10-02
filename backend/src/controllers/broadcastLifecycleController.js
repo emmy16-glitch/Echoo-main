@@ -337,6 +337,7 @@ export async function startBroadcast(req, res, next) {
       broadcast.livekitEgressId = null;
       broadcast.livekitIngressId = null;
       broadcast.mediaState = 'audio_disconnected';
+      broadcast.creatorDisconnectedAt = null;
       broadcast.transcriptState = isTranscriptionConfigured() ? 'failed' : 'disabled';
       broadcast.programTrackSid = null;
       broadcast.programTrackName = null;
@@ -761,6 +762,7 @@ export async function endBroadcast(req, res, next) {
     broadcast.livekitEgressId = null;
     broadcast.livekitIngressId = null;
     broadcast.mediaState = 'audio_disconnected';
+    broadcast.creatorDisconnectedAt = null;
     // Live ends immediately. The durable processing worker owns transcript,
     // replay, highlight, and chapter completion from this point forward.
     broadcast.transcriptState = isTranscriptionConfigured() ? 'reconnecting' : 'disabled';
