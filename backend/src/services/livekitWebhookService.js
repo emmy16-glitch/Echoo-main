@@ -2,7 +2,7 @@ import { WebhookReceiver } from 'livekit-server-sdk';
 import Broadcast from '../models/Broadcast.js';
 import Station from '../models/Station.js';
 import LiveKitProvider from '../providers/livekit.js';
-import { creatorProgramAudioIsPresent } from './broadcastAudioReadiness.js';
+import { waitForCreatorProgramAudio } from './broadcastAudioReadiness.js';
 import { stopBroadcastOutputs } from './broadcastOutputService.js';
 import { clearBroadcastPresenceCache } from '../controllers/broadcastPresenceController.js';
 import { releaseCreatorBroadcastLease } from './creatorBroadcastLease.js';
@@ -123,21 +123,108 @@ const clearCreatorProgramTrackIfCurrent = async (broadcastId, trackSid, io) => {
   return broadcast;
 };
 
+const reconcileCreatorProgram = async (broadcast, io) => {
+  try {
+    const publisher = await waitForCreatorProgramAudio(
+      broadcast._id,
+      broadcast.creator,
+      { maxAttempts: 1, initialDelayMs: 0, delayStepMs: 0 }
+    );
+
+    const recovered = await updateCreatorMediaState(
+      broadcast._id,
+      {
+        mediaState: 'audio_live',
+        mediaDisconnectedAt: null,
+        programTrackSid: publisher.trackSid || null,
+        programTrackName: publisher.trackName || 'echoo-studio-mix',
+      },
+      io
+    );
+
+    if (
+      recovered &&
+      isLiveKitServerRecordingEnabled() &&
+      publisher.trackSid
+    ) {
+      void ensureLiveKitServerRecording({
+        broadcastId: String(broadcast._id),
+        trackSid: publisher.trackSid,
+      }).catch((recordingError) => {
+        console.warn(
+          '[Echoo Server Recording] recovery reconciliation warning:',
+          recordingError?.message || recordingError
+        );
+      });
+    }
+    return true;
+  } catch (error) {
+    if (error?.code === 'CREATOR_AUDIO_NOT_PUBLISHED') return false;
+    // A LiveKit control-plane failure is not proof that the creator is gone.
+    // Preserve the logical broadcast and retry the reconciliation later.
+    return null;
+  }
+};
+
 const endDisconnectedBroadcast = async (broadcastId, io) => {
-  pendingDisconnects.delete(String(broadcastId));
+  const key = String(broadcastId || '');
+  pendingDisconnects.delete(key);
+
   const current = await Broadcast.findOne({
     _id: broadcastId,
     status: 'live',
     isDeleted: false,
   });
-  // A LiveKit control-plane lookup failure is not evidence that the creator
-  // disappeared. Keep the broadcast live and let a later webhook/operator
-  // action retry rather than ending a healthy show on an infrastructure blip.
-  if (!current || await creatorStillPresent(current).catch(() => true)) return;
+  if (!current) return;
+
+  const programRecovered = await reconcileCreatorProgram(current, io);
+  if (programRecovered === true) return;
+
+  let disconnectedAt = current.mediaDisconnectedAt || null;
+  if (!disconnectedAt) {
+    disconnectedAt = new Date();
+    const marked = await updateCreatorMediaState(
+      current._id,
+      {
+        mediaState: 'audio_disconnected',
+        mediaDisconnectedAt: disconnectedAt,
+      },
+      io
+    );
+    if (!marked) return;
+  }
+
+  const maxRecoveryMs = getCreatorRecoveryMaxMs();
+  if (
+    programRecovered === null ||
+    !creatorRecoveryExpired({ disconnectedAt, maxMs: maxRecoveryMs })
+  ) {
+    const elapsed = Math.max(0, Date.now() - new Date(disconnectedAt).getTime());
+    const remaining = Math.max(5_000, maxRecoveryMs - elapsed);
+    // Reconcile at least once a minute. This recovers even when a LiveKit
+    // track_published webhook is delayed/lost, without coupling the logical
+    // show lifetime to one participant or one WebSocket.
+    scheduleCreatorDisconnect(
+      key,
+      io,
+      Math.min(60_000, remaining)
+    );
+    return;
+  }
 
   const broadcast = await Broadcast.findOneAndUpdate(
-    { _id: current._id, status: 'live', isDeleted: false },
-    { $set: { status: 'ending', failureReason: 'Creator disconnected from LiveKit' } },
+    {
+      _id: current._id,
+      status: 'live',
+      isDeleted: false,
+      mediaDisconnectedAt: disconnectedAt,
+    },
+    {
+      $set: {
+        status: 'ending',
+        failureReason: 'Creator media recovery window expired',
+      },
+    },
     { returnDocument: 'after' }
   );
   if (!broadcast) return;
@@ -151,13 +238,13 @@ const endDisconnectedBroadcast = async (broadcastId, io) => {
     await LiveKitProvider.stopIngress(broadcast.livekitIngressId).catch(() => null);
   }
   await stopLiveKitServerRecording(String(broadcast._id)).catch((error) => {
-    console.warn('[Echoo Server Recording] disconnect cleanup warning:', error?.message || error);
+    console.warn('[Echoo Server Recording] expired-recovery cleanup warning:', error?.message || error);
   });
   if (broadcast.livekitEgressId) {
     await LiveKitProvider.stopEgress(broadcast.livekitEgressId).catch(() => null);
   }
   await stopBroadcastOutputs(String(broadcast._id), { incomplete: true }).catch((error) => {
-    console.warn('[Echoo Outputs] LiveKit-disconnect cleanup warning:', error?.message || error);
+    console.warn('[Echoo Outputs] expired-recovery cleanup warning:', error?.message || error);
   });
   await LiveKitProvider.endRoom(broadcast._id).catch(() => null);
 
@@ -181,14 +268,22 @@ const endDisconnectedBroadcast = async (broadcastId, io) => {
   emitStatus(io, broadcast);
 };
 
-const scheduleCreatorDisconnect = (broadcastId, io) => {
+const scheduleCreatorDisconnect = (
+  broadcastId,
+  io,
+  delayMs = getCreatorDisconnectGraceMs()
+) => {
   const key = String(broadcastId || '');
   if (!key || pendingDisconnects.has(key)) return;
+  const delay = Math.max(
+    5_000,
+    Math.min(getCreatorRecoveryMaxMs(), Number(delayMs) || getCreatorDisconnectGraceMs())
+  );
   const timer = setTimeout(() => {
     void endDisconnectedBroadcast(key, io).catch((error) => {
-      console.warn('LiveKit creator disconnect cleanup warning:', error?.message || error);
+      console.warn('LiveKit creator recovery reconciliation warning:', error?.message || error);
     });
-  }, CREATOR_DISCONNECT_GRACE_MS);
+  }, delay);
   timer.unref?.();
   pendingDisconnects.set(key, timer);
 };
