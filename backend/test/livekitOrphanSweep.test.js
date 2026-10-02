@@ -256,6 +256,29 @@ test('seven-hour disconnected live broadcast stays recoverable', { concurrency: 
   }
 });
 
+test('seven-hour established broadcast is not mistaken for a never-published show while republishing', { concurrency: 1 }, async () => {
+  process.env.LIVEKIT_CREATOR_RECOVERY_TTL_HOURS = '24';
+  const recovering = makeDoc({
+    status: 'live',
+    mediaState: 'creator_connecting',
+    creatorDisconnectedAt: new Date(Date.now() - 7 * 60 * 60 * 1000),
+    startedAt: new Date(Date.now() - 7 * 60 * 60 * 1000),
+    updatedAt: new Date(),
+  });
+  const provider = makeLivekitProviderMock();
+  const { sweepModule, teardown } = await loadSweepWithMocks([recovering], provider);
+  try {
+    assert.equal(sweepModule.isStuck(recovering), false);
+    const result = await sweepModule.sweep();
+    assert.equal(result.swept, 0);
+    assert.equal(recovering.status, 'live');
+    assert.equal(recovering.failureReason, null);
+    assert.equal(recovering.saveCalled, 0);
+  } finally {
+    teardown();
+  }
+});
+
 test('expired disconnected live broadcast is reaped only after creator absence is verified', { concurrency: 1 }, async () => {
   process.env.LIVEKIT_CREATOR_RECOVERY_TTL_HOURS = '1';
   const disconnected = makeDoc({
@@ -271,7 +294,7 @@ test('expired disconnected live broadcast is reaped only after creator absence i
     const result = await sweepModule.sweep();
     assert.equal(result.swept, 1);
     assert.equal(disconnected.status, 'completed');
-    assert.match(disconnected.failureReason, /did not reconnect within 1 hours/);
+    assert.match(disconnected.failureReason, /did not restore program audio within 1 hours/);
   } finally {
     teardown();
   }
