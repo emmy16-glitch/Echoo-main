@@ -103,7 +103,11 @@ test('creator webhook recovery rejects stale publish/unpublish ordering and leas
   assert.match(webhook, /clearCreatorProgramTrackIfCurrent/);
   assert.match(webhook, /programTrackSid:\s*sid/);
   assert.match(webhook, /event\.track\?\.sid/);
-  assert.match(webhook, /const replacementPresent = await creatorStillPresent\([\s\S]{0,140}current,[\s\S]{0,140}leavingParticipantSid[\s\S]{0,80}\.catch\(\(\) => true\)/);
+  assert.match(webhook, /replacementProgram = await findCreatorProgramAudio/);
+  assert.match(webhook, /excludeParticipantSid:\s*leavingParticipantSid/);
+  assert.match(webhook, /replacementProgram\.trackSid/);
+  assert.match(webhook, /replacement publisher handoff warning/);
+  assert.doesNotMatch(webhook, /creatorStillPresent/);
   assert.match(webhook, /shouldAcceptProgramPublish/);
   assert.match(webhook, /const \[currentProgram, eventProgram\] = await Promise\.all/);
   assert.match(webhook, /if \(currentProgram\) return false/);
