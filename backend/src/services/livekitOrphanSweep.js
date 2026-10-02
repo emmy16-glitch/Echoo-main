@@ -24,10 +24,7 @@ import {
   isLiveKitServerRecordingEnabled,
   stopLiveKitServerRecording,
 } from './livekitServerRecording.js';
-import {
-  findCreatorProgramAudio,
-  findCreatorProgramAudioByTrackSid,
-} from './broadcastAudioReadiness.js';
+import { findCreatorProgramAudio } from './broadcastAudioReadiness.js';
 
 const STUCK_STATES = ['starting', 'ending', 'live'];
 const REASON_PREFIX = 'Orphan sweep: ';
@@ -95,20 +92,9 @@ function isRecoverableState(doc) {
 }
 
 async function findProgramAudioWithConfirmedMiss(doc) {
-  const inspect = async () => {
-    const durableTrackSid = String(doc.programTrackSid || '').trim();
-    if (durableTrackSid) {
-      const exact = await findCreatorProgramAudioByTrackSid(
-        doc._id,
-        doc.creator,
-        durableTrackSid
-      );
-      if (exact) return exact;
-    }
-    return findCreatorProgramAudio(doc._id, doc.creator, {
-      preferredTrackSid: durableTrackSid,
-    });
-  };
+  const inspect = () => findCreatorProgramAudio(doc._id, doc.creator, {
+    preferredTrackSid: String(doc.programTrackSid || '').trim(),
+  });
 
   const first = await inspect();
   if (first) return first;
