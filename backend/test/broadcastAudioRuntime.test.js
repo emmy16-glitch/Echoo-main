@@ -214,6 +214,39 @@ test('audio readiness scans every creator participant and can verify an exact tr
       'TR_old'
     );
     assert.equal(staleProgram, null);
+
+    LiveKitProvider.getParticipants = async () => ([
+      {
+        sid: 'PA_old',
+        identity: userId,
+        metadata: JSON.stringify({ role: 'creator', userId }),
+        tracks: [{
+          sid: 'TR_old',
+          name: 'echoo-studio-mix',
+          mimeType: 'audio/opus',
+          muted: false,
+        }],
+      },
+      {
+        sid: 'PA_new',
+        identity: userId,
+        metadata: JSON.stringify({ role: 'creator', userId }),
+        tracks: [{
+          sid: 'TR_new',
+          name: 'echoo-studio-mix',
+          mimeType: 'audio/opus',
+          muted: false,
+        }],
+      },
+    ]);
+
+    const replacementProgram = await findCreatorProgramAudio(
+      'broadcast-id',
+      userId,
+      { excludeParticipantSid: 'PA_old', preferredTrackSid: 'TR_new' }
+    );
+    assert.equal(replacementProgram?.participant?.sid, 'PA_new');
+    assert.equal(replacementProgram?.track?.sid, 'TR_new');
   } finally {
     LiveKitProvider.getParticipants = original;
   }
