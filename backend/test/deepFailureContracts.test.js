@@ -380,5 +380,5 @@ test('creator transport loss remains live under a durable long-session recovery 
   assert.match(sweep, /ORPHAN_SWEEP_INTERVAL_MS/);
   assert.match(sweep, /startOrphanSweep/);
   assert.match(sweep, /setInterval/);
-  assert.match(sweep, /creator disconnect discovery failed/);
+  assert.match(sweep, /creator program-audio check failed/);
 });
