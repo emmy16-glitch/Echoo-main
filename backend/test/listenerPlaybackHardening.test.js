@@ -133,3 +133,17 @@ test('listener watchdog and reattachment never override an intentional pause', a
   assert.match(player, /playbackIntentRef\.current === 'play'[\s\S]{0,220}!entries\.some\(\(entry\) => mediaElementIsPlaying\(entry\.element\)\)/);
   assert.match(player, /const playbackBlocked =[\s\S]{0,180}playbackIntentRef\.current === 'play'/);
 });
+
+test('listener reconnect supervisor never waits forever in LiveKit reconnecting', async () => {
+  const player = await source('../../frontend/src/Components/ListenerLiveExperience/LiveKitListenerPlayer.jsx');
+
+  assert.match(player, /DefaultReconnectPolicy/);
+  assert.match(player, /LIVEKIT_RECONNECT_DELAYS_MS/);
+  assert.match(player, /RoomEvent\.SignalReconnecting/);
+  assert.match(player, /RoomEvent\.Reconnecting[\s\S]{0,500}armReconnectDeadline\(room\)/);
+  assert.match(player, /LISTENER_HARD_RECONNECT_DEADLINE_MS/);
+  assert.match(player, /LISTENER_HARD_RECONNECT_JITTER_MS/);
+  assert.match(player, /scheduleHardReconnect\('reconnect_deadline_exceeded'\)/);
+  assert.match(player, /clearReconnectDeadline\(\)/);
+  assert.match(player, /roomCanCarryMedia\(room\)/);
+});
