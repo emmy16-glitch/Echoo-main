@@ -321,7 +321,8 @@ export async function handleLiveKitWebhook(req, res) {
           try {
             replacementProgram = await findCreatorProgramAudio(
               current._id,
-              current.creator
+              current.creator,
+              { excludeParticipantSid: leavingParticipantSid }
             );
           } catch {
             // A control-plane lookup failure cannot end the logical show.
