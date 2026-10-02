@@ -14,6 +14,7 @@ import {
   isLiveKitServerRecordingEnabled,
   stopLiveKitServerRecording,
 } from './livekitServerRecording.js';
+import { findCreatorProgramAudio } from './broadcastAudioReadiness.js';
 
 // LiveKit participant presence is transport state, not broadcast authority.
 // Keep a disconnected live broadcast recoverable for a full long-show window
@@ -121,6 +122,7 @@ const clearCreatorProgramTrackIfCurrent = async (broadcastId, trackSid, io) => {
     {
       $set: {
         mediaState: 'audio_disconnected',
+        creatorDisconnectedAt: new Date(),
         programTrackSid: null,
         programTrackName: null,
       },
@@ -140,10 +142,62 @@ const endExpiredDisconnectedBroadcast = async (broadcastId, io) => {
     status: 'live',
     isDeleted: false,
   });
-  // A LiveKit control-plane lookup failure is not evidence that the creator
-  // disappeared. Keep the broadcast live and let a later webhook/operator
-  // action retry rather than ending a healthy show on an infrastructure blip.
-  if (!current || await creatorStillPresent(current).catch(() => true)) return;
+  if (!current) return;
+
+  // Recovery authority is the creator's program audio, not merely the
+  // participant transport. A creator can remain connected while the
+  // echoo-studio-mix track is gone forever; that must not leave the broadcast
+  // silently live with no audio. Conversely, if a track_published webhook was
+  // missed but LiveKit really has the program track, heal the durable state.
+  let recoveredProgram = null;
+  try {
+    recoveredProgram = await findCreatorProgramAudio(current._id, current.creator);
+  } catch {
+    // A LiveKit control-plane lookup failure is not evidence that program
+    // audio is absent. Preserve the broadcast and retry on the next sweep.
+    return;
+  }
+
+  if (recoveredProgram) {
+    const healed = await Broadcast.findOneAndUpdate(
+      {
+        _id: current._id,
+        status: 'live',
+        isDeleted: false,
+        creatorDisconnectedAt: { $ne: null },
+      },
+      {
+        $set: {
+          mediaState: 'audio_live',
+          creatorDisconnectedAt: null,
+          creatorParticipantSid:
+            recoveredProgram.participant?.sid || current.creatorParticipantSid || null,
+          programTrackSid:
+            recoveredProgram.track?.sid || current.programTrackSid || null,
+          programTrackName:
+            recoveredProgram.track?.name || current.programTrackName || 'echoo-studio-mix',
+        },
+      },
+      { returnDocument: 'after' }
+    );
+
+    if (healed) {
+      clearBroadcastPresenceCache(healed._id);
+      emitStatus(io, healed);
+      if (isLiveKitServerRecordingEnabled() && healed.programTrackSid) {
+        void ensureLiveKitServerRecording({
+          broadcastId: healed._id,
+          trackSid: healed.programTrackSid,
+        }).catch((recordingError) => {
+          console.warn(
+            '[Echoo Server Recording] recovered program recorder warning:',
+            recordingError?.message || recordingError
+          );
+        });
+      }
+    }
+    return;
+  }
 
   const broadcast = await Broadcast.findOneAndUpdate(
     {
@@ -322,6 +376,7 @@ export async function handleLiveKitWebhook(req, res) {
     }
     const trackName = String(event?.track?.name || '').trim().toLowerCase();
     if (broadcastId && isCreator && event.event === 'track_published' && trackName === 'echoo-studio-mix') {
+      cancelCreatorDisconnect(broadcastId);
       await updateCreatorMediaState(broadcastId, {
         mediaState: 'audio_live',
         creatorDisconnectedAt: null,
@@ -354,11 +409,18 @@ export async function handleLiveKitWebhook(req, res) {
       // Webhook delivery can be reordered around a fast creator recovery.
       // Only clear the program if the unpublished SID is still the canonical
       // one stored on the broadcast; an old SID must not erase a newer track.
-      await clearCreatorProgramTrackIfCurrent(
+      const disconnected = await clearCreatorProgramTrackIfCurrent(
         broadcastId,
         event.track?.sid,
         req.app.get('io')
       );
+      if (disconnected?.creatorDisconnectedAt) {
+        scheduleCreatorDisconnect(
+          broadcastId,
+          req.app.get('io'),
+          disconnected.creatorDisconnectedAt
+        );
+      }
     }
     return res.status(204).end();
   } catch (error) {
