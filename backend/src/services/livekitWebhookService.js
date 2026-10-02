@@ -249,7 +249,7 @@ export async function handleLiveKitWebhook(req, res) {
       cancelCreatorDisconnect(broadcastId);
       await updateCreatorMediaState(
         broadcastId,
-        { mediaState: 'creator_connecting', creatorDisconnectedAt: null },
+        { mediaState: 'creator_connecting' },
         req.app.get('io'),
         { preserveLive: true }
       );
