@@ -15,6 +15,7 @@ import {
   useState,
 } from 'react';
 import { View } from 'react-native';
+import { DefaultReconnectPolicy } from 'livekit-client';
 
 import { getListenerLiveKitCredentials } from '@/src/services/echooApi';
 import {
@@ -407,6 +408,8 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   );
 }
 
+const MOBILE_LIVEKIT_RECONNECT_DELAYS_MS = [0, 500, 1000, 2000, 4000, 8000, 12000];
+
 function PersistentLiveConnection({
   liveKit,
   credentials,
@@ -417,6 +420,10 @@ function PersistentLiveConnection({
   onError: (message: string) => void;
 }) {
   const { AudioSession, LiveKitRoom } = liveKit;
+  const reconnectPolicy = useMemo(
+    () => new DefaultReconnectPolicy([...MOBILE_LIVEKIT_RECONNECT_DELAYS_MS]),
+    []
+  );
 
   useEffect(() => {
     AudioSession.startAudioSession().catch((sessionError) => {
@@ -434,7 +441,7 @@ function PersistentLiveConnection({
       connect
       audio={false}
       video={false}
-      options={{ adaptiveStream: true }}
+      options={{ adaptiveStream: true, reconnectPolicy }}
       onError={(roomError) => onError(roomError?.message || 'LiveKit connection failed.')}
     >
       <View style={{ width: 0, height: 0 }} />

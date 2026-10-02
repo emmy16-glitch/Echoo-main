@@ -117,3 +117,16 @@ test('creator recovery covers the backend grace window and keeps retrying slowly
   assert.match(webhook, /LIVEKIT_CREATOR_DISCONNECT_GRACE_MS\) \|\| 90000/);
   assert.match(envExample, /LIVEKIT_CREATOR_DISCONNECT_GRACE_MS=90000/);
 });
+
+test('creator reconnect supervisor bounds LiveKit native recovery and replaces stale rooms', async () => {
+  const publisher = await source('../../frontend/src/services/livekitPublisher.js');
+
+  assert.match(publisher, /DefaultReconnectPolicy/);
+  assert.match(publisher, /LIVEKIT_RECONNECT_DELAYS_MS/);
+  assert.match(publisher, /RoomEvent\.SignalReconnecting/);
+  assert.match(publisher, /RoomEvent\.Reconnecting[\s\S]{0,500}armReconnectDeadline\(room, candidate\)/);
+  assert.match(publisher, /CREATOR_HARD_RECONNECT_DEADLINE_MS/);
+  assert.match(publisher, /schedulePublisherRecovery\(candidate, 'reconnect_deadline_exceeded', true\)/);
+  assert.match(publisher, /clearReconnectDeadline\(candidate\)/);
+  assert.match(publisher, /roomCanCarryMedia\(activeRoom\)/);
+});

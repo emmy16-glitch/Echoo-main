@@ -1,21 +1,24 @@
 {
   "name": "Echoo Dev Environment",
-  "image": "mcr.microsoft.com/devcontainers/javascript-node:20",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:22",
   "features": {
     "ghcr.io/devcontainers/features/github-cli:1": {},
     "ghcr.io/devcontainers/features/sshd:1": {
       "version": "latest"
     }
   },
-  "forwardPorts": [5001, 5174],
+  "forwardPorts": [
+    5001,
+    5174
+  ],
   "portsAttributes": {
+    "5001": {
+      "label": "Echoo API",
+      "visibility": "public"
+    },
     "5174": {
       "label": "Echoo Web App",
       "onAutoForward": "openBrowser",
-      "visibility": "public"
-    },
-    "5001": {
-      "label": "Echoo API",
       "visibility": "public"
     }
   },

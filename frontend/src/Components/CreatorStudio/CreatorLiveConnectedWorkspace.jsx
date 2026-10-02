@@ -1126,13 +1126,15 @@ const CreatorLiveConnectedWorkspace = ({
     publisherHealth?.connected === true &&
     String(publisherHealth?.broadcastId || '') === String(currentLiveBroadcast?.id || '')
   );
-  const connectionLabel = connectionHealthy
-    ? 'Connected'
-    : publisherHealth?.phase === 'failed'
-      ? 'Audio connection lost'
-      : publisherHealth?.phase === 'recovering'
-        ? 'Recovering audio…'
-        : 'Reconnecting…';
+  const connectionLabel = publisherHealth?.phase === 'signal_reconnecting'
+    ? 'Signal recovering · audio live'
+    : connectionHealthy
+      ? 'Connected'
+      : publisherHealth?.phase === 'failed'
+        ? 'Audio connection lost'
+        : publisherHealth?.phase === 'recovering'
+          ? 'Recovering audio…'
+          : 'Reconnecting…';
   const heroState = ending ? 'ending' : isLive ? 'live' : 'off-air';
 
   return (

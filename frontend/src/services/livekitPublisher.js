@@ -1,4 +1,4 @@
-import { Room, RoomEvent, Track } from 'livekit-client';
+import { DefaultReconnectPolicy, Room, RoomEvent, Track } from 'livekit-client';
 
 import { applyProgramTrackQuality } from './audioQualityProfile.js';
 import {
@@ -8,12 +8,15 @@ import {
 } from './broadcastRecordingService.js';
 import {
   CREATOR_CONNECTION_LOST_GRACE_MS,
+  CREATOR_HARD_RECONNECT_DEADLINE_MS,
   CREATOR_TRANSPORT_STALL_CONFIRMATIONS,
   CREATOR_TRANSPORT_STALL_MS,
   LIVE_RECOVERY_DELAYS_MS,
+  LIVEKIT_RECONNECT_DELAYS_MS,
   mediaTrackIsLive,
   normalizeConnectionQuality,
   recoveryDelayMs,
+  roomCanCarryMedia,
   roomIsConnected,
 } from './liveRecoveryPolicy.js';
 import { resolveLiveKitUrl } from './livekitUrl.js';
@@ -59,6 +62,8 @@ let syntheticOscillator = null;
 let syntheticNativeTrack = null;
 
 const wait = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
+const createLiveKitReconnectPolicy = () =>
+  new DefaultReconnectPolicy([...LIVEKIT_RECONNECT_DELAYS_MS]);
 const isCurrent = (candidate) => Boolean(
   candidate && session === candidate && candidate.generation === generation && !candidate.stopping
 );
@@ -68,7 +73,7 @@ const publishHealth = (update) => {
     ...publisherHealth,
     ...update,
     connected: Boolean(
-      roomIsConnected(activeRoom) &&
+      roomCanCarryMedia(activeRoom) &&
       activePublication &&
       mediaTrackIsLive(activePublication.track) &&
       session?.mediaTrack?.readyState !== 'ended'
@@ -167,11 +172,35 @@ const clearConnectionQualityTimer = (candidate) => {
   candidate.connectionQualityTimer = null;
 };
 
+const clearReconnectDeadline = (candidate) => {
+  if (!candidate?.reconnectDeadlineTimer) return;
+  window.clearTimeout(candidate.reconnectDeadlineTimer);
+  candidate.reconnectDeadlineTimer = null;
+  candidate.reconnectStartedAt = null;
+};
+
+const armReconnectDeadline = (room, candidate) => {
+  if (!isCurrent(candidate) || activeRoom !== room || candidate.reconnectDeadlineTimer) return;
+  candidate.reconnectStartedAt = Date.now();
+  candidate.reconnectDeadlineTimer = window.setTimeout(() => {
+    candidate.reconnectDeadlineTimer = null;
+    if (!isCurrent(candidate) || activeRoom !== room || roomIsConnected(room)) return;
+    publishHealth({
+      phase: 'recovering',
+      room: 'stale_reconnect',
+      livekit: 'recovering',
+      audio: 'recovering',
+      lastError: 'LiveKit reconnect exceeded Echoo\'s recovery deadline; rebuilding the transport.',
+    });
+    void schedulePublisherRecovery(candidate, 'reconnect_deadline_exceeded', true);
+  }, CREATOR_HARD_RECONNECT_DEADLINE_MS);
+};
+
 const healthySnapshot = () => {
   const mixerLive = mediaTrackIsLive(
     session?.mediaTrack ? { kind: 'audio', mediaStreamTrack: session.mediaTrack } : null
   );
-  const roomConnected = roomIsConnected(activeRoom);
+  const roomConnected = roomCanCarryMedia(activeRoom);
   const published = roomConnected && canonicalPublicationExists(activeRoom);
   return { mixerLive, roomConnected, published };
 };
@@ -285,15 +314,30 @@ const attachRoomEvents = (room, candidate) => {
     }, CREATOR_CONNECTION_LOST_GRACE_MS);
   });
 
+  room.on(RoomEvent.SignalReconnecting, () => {
+    if (!isCurrent(candidate) || activeRoom !== room) return;
+    clearConnectionQualityTimer(candidate);
+    publishHealth({
+      phase: 'signal_reconnecting',
+      room: 'signal_reconnecting',
+      livekit: 'signal_reconnecting',
+      // LiveKit documents this as a signalling-only interruption; keep the
+      // existing RTP publication authoritative until media also fails.
+      audio: canonicalPublicationExists(room) ? (candidate.paused ? 'paused' : 'published') : 'recovering',
+    });
+  });
+
   room.on(RoomEvent.Reconnecting, () => {
     if (!isCurrent(candidate) || activeRoom !== room) return;
     clearConnectionQualityTimer(candidate);
+    armReconnectDeadline(room, candidate);
     publishHealth({ phase: 'reconnecting', room: 'reconnecting', livekit: 'reconnecting', audio: 'reconnecting' });
   });
 
   room.on(RoomEvent.Reconnected, () => {
     if (!isCurrent(candidate) || activeRoom !== room) return;
     clearConnectionQualityTimer(candidate);
+    clearReconnectDeadline(candidate);
     const currentPublication = findCanonicalPublication(room);
     if (currentPublication) activePublication = currentPublication;
     if (canonicalPublicationExists(room) && mediaTrackIsLive({ kind: 'audio', mediaStreamTrack: candidate.mediaTrack })) {
@@ -320,6 +364,7 @@ const attachRoomEvents = (room, candidate) => {
   room.on(RoomEvent.Disconnected, (reason) => {
     if (!isCurrent(candidate) || activeRoom !== room) return;
     clearConnectionQualityTimer(candidate);
+    clearReconnectDeadline(candidate);
     activeRoom = null;
     activePublication = null;
     publishHealth({ phase: 'recovering', room: 'disconnected', publication: 'missing', livekit: 'disconnected', audio: 'recovering', disconnectReason: String(reason ?? '') });
@@ -336,7 +381,10 @@ const connectAndPublish = async (candidate, { url, token, recovery = false }) =>
     throw new Error('The Echoo mixer output ended and cannot be republished.');
   }
 
-  const room = new Room({ stopLocalTrackOnUnpublish: false });
+  const room = new Room({
+    stopLocalTrackOnUnpublish: false,
+    reconnectPolicy: createLiveKitReconnectPolicy(),
+  });
   attachRoomEvents(room, candidate);
   activeRoom = room;
   activePublication = null;
@@ -536,7 +584,7 @@ const startWatchdog = (candidate) => {
       !isCurrent(candidate) ||
       candidate.recoveryPromise ||
       candidate.paused ||
-      !roomIsConnected(activeRoom) ||
+      !roomCanCarryMedia(activeRoom) ||
       !activePublication
     ) return;
     if (!mediaTrackIsLive({ kind: 'audio', mediaStreamTrack: candidate.mediaTrack })) {
@@ -602,6 +650,7 @@ export const stopLiveKitPublishing = async () => {
   cancelRecoveryTimer(current);
   if (current?.watchdogTimer) window.clearInterval(current.watchdogTimer);
   clearConnectionQualityTimer(current);
+  clearReconnectDeadline(current);
   removeNetworkHints(current);
   const room = activeRoom;
   activeRoom = null;

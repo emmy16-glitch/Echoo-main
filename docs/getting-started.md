@@ -2,7 +2,8 @@
 
 ## Prerequisites
 
-- Node.js 20+
+- Node.js **22.22+** for frontend/mobile installs and builds
+- Node.js **20+** remains supported for the backend runtime
 - MongoDB (local or a URI)
 - **FFmpeg and FFprobe on PATH** — required for automatic server MP3 replay finalization and server-side trimming
 - for going live locally, a LiveKit server (`livekit-server --dev` works)

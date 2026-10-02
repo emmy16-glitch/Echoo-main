@@ -2,7 +2,7 @@
 
 > **Go live in minutes. Anyone with the link can listen — no account needed.**
 
-[![CI](https://github.com/emmy16-glitch/Echoo-main/actions/workflows/echoo-check.yml/badge.svg)](https://github.com/emmy16-glitch/Echoo-main/actions/workflows/echoo-check.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) [![Node >= 20](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](package.json) [![Python 3.10](https://img.shields.io/badge/python-3.10-blue.svg)](echoo-whisper/requirements.txt) [![Electron 41](https://img.shields.io/badge/electron-41-9FEAF0.svg)](desktop/package.json) [![MongoDB](https://img.shields.io/badge/MongoDB-7+-47A248.svg)](backend/package.json)
+[![CI](https://github.com/emmy16-glitch/Echoo-main/actions/workflows/echoo-check.yml/badge.svg)](https://github.com/emmy16-glitch/Echoo-main/actions/workflows/echoo-check.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) [![Node web/mobile >= 22.22](https://img.shields.io/badge/web%2Fmobile_node-%3E%3D22.22-brightgreen.svg)](frontend/package.json) [![Python 3.10](https://img.shields.io/badge/python-3.10-blue.svg)](echoo-whisper/requirements.txt) [![Electron 41](https://img.shields.io/badge/electron-41-9FEAF0.svg)](desktop/package.json) [![MongoDB](https://img.shields.io/badge/MongoDB-7+-47A248.svg)](backend/package.json)
 
 **Echoo** is an audio-first live broadcasting platform. Creators mix microphone, guests, and media in a studio workstation and go live over real-time audio; listeners join from a shared link on the web, desktop, or mobile apps. Finished shows are saved automatically as small cloud recordings ready to publish for replay.
 
@@ -126,8 +126,8 @@ The API manages identity, lifecycle, chat, presence, tokens, and product data. I
 Echoo uses LiveKit Cloud as its real-time audio SFU:
 
 - **Creator** publishes exactly one `echoo-studio-mix` program publication (stereo Opus, 48 kHz; resilient profiles up to 256 kbps with RED enabled) with a short-lived publisher token. This post-master `echoo-studio-mix` is the single feed listeners hear and recordings capture.
-- **Creator recovery** republishes the same mixer output with fresh credentials after a real transport failure. Intentional Pause is excluded from the transport-stall watchdog and remains paused across reconnect. Automatic retries continue with bounded backoff through the backend's normal ~90-second creator-disconnect grace window instead of giving up after the first short retry burst.
-- **Listeners** use hidden, subscribe-only LiveKit participants and explicitly subscribe only to the canonical `echoo-studio-mix` (`autoSubscribe: false`, `canPublish: false`). Late join, track replacement, ended media elements, browser online recovery, and non-autoplay playback failures all have recovery paths. Hard reconnects include per-client jitter so a large audience does not request tokens in lockstep.
+- **Creator recovery** uses `livekit-client@2.22.3`, lets LiveKit repair short ICE/signalling interruptions first, keeps RTP authoritative during signal-only recovery, then hard-replaces a room that remains in full reconnect for 30 seconds. The same mixer output is republished with fresh credentials, while intentional Pause, broadcast identity, and the recording session are preserved. Automatic retries continue through the backend's normal ~90-second creator-disconnect grace window and then continue slowly.
+- **Listeners** use hidden, subscribe-only LiveKit participants and explicitly subscribe only to the canonical `echoo-studio-mix` (`autoSubscribe: false`, `canPublish: false`). Signal-only reconnect keeps healthy RTP playing; a full reconnect gets a bounded LiveKit retry window, then a fresh room/token is created after the hard deadline. Listener hard reconnects include per-client jitter so a large audience does not request tokens in lockstep.
 - **Guests** get server-generated `guest:<uuid>` identities with the same subscriber-only grants — they can never publish or impersonate accounts.
 - Token issuance is IP rate-limited; rooms are created on go-live and swept when orphaned.
 
@@ -171,7 +171,7 @@ See [docs/deployment.md](docs/deployment.md).
 
 ### Prerequisites
 
-- Node.js `>= 20` (repo runs on 20.x)
+- Node.js `>= 22.22` for frontend/mobile installs and builds; backend runtime remains compatible with Node 20+
 - Python `3.10` for the Whisper transcription service (optional)
 - MongoDB (local or a URI)
 - **FFmpeg + FFprobe on the backend PATH** — mandatory for automatic server MP3 replay finalization and saved-recording trimming
@@ -284,6 +284,7 @@ If evidence is unavailable, the product says so. If an integration fails, the UI
 | [docs/getting-started.md](docs/getting-started.md) | Dev stack, ports, env, tests |
 | [docs/architecture.md](docs/architecture.md) | System map, authority rules, lifecycle |
 | [docs/audio-architecture.md](docs/audio-architecture.md) | Capture → mixer → LiveKit → ear deep dive |
+| [docs/live-recovery-architecture.md](docs/live-recovery-architecture.md) | Bounded reconnect supervisor, transport replacement, liveness rules |
 | [docs/deployment.md](docs/deployment.md) | Hosted site, production checklist, releases |
 | [docs/transcription.md](docs/transcription.md) | Whisper gateway deployment |
 | [desktop/README.md](desktop/README.md) | Shell internals, IPC, CSP, updater, release matrix |

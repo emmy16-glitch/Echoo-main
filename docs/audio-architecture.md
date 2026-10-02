@@ -9,7 +9,7 @@ and monitor-only solo routing remain shared by all outputs.
 
 ## Realtime
 
-The `livekit-client` dependency is 2.21.x. Its `TrackPublishOptions` supports
+The web/mobile `livekit-client` dependency is pinned to 2.22.3. The recovery supervisor design is documented in [live-recovery-architecture.md](live-recovery-architecture.md). Its `TrackPublishOptions` supports
 `audioPreset.maxBitrate`, `forceStereo`, `dtx`, and `red`, so Echoo publishes the
 single master as stereo Opus with these explicit profiles:
 

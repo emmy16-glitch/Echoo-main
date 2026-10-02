@@ -1,24 +1,31 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Room, RoomEvent, Track } from 'livekit-client';
+import { DefaultReconnectPolicy, Room, RoomEvent, Track } from 'livekit-client';
 import { FaHeadphones, FaRedoAlt, FaVolumeUp } from 'react-icons/fa';
 
 import batch3Service from '../../services/batch3Service';
 import {
   LISTENER_CONNECTION_LOST_GRACE_MS,
+  LISTENER_HARD_RECONNECT_DEADLINE_MS,
+  LISTENER_HARD_RECONNECT_JITTER_MS,
   LISTENER_PLAYBACK_WATCHDOG_MS,
   LISTENER_RTP_STALL_CONFIRMATIONS,
   LISTENER_RTP_STALL_MS,
   LIVE_RECOVERY_DELAYS_MS,
+  LIVEKIT_RECONNECT_DELAYS_MS,
   mediaElementIsPlaying,
   mediaTrackIsLive,
   normalizeConnectionQuality,
   playoutDelayForConnectionQuality,
   recoveryDelayMs,
+  roomCanCarryMedia,
   roomIsConnected,
   transportSampleAdvanced,
 } from '../../services/liveRecoveryPolicy';
 import { resolveLiveKitUrl } from '../../services/livekitUrl';
 import './LiveKitListenerPlayer.css';
+
+const createLiveKitReconnectPolicy = () =>
+  new DefaultReconnectPolicy([...LIVEKIT_RECONNECT_DELAYS_MS]);
 
 const STATUS_COPY = {
   idle: 'Live audio',
@@ -118,6 +125,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
     let audioLevelTimer = null;
     let playbackWatchdogTimer = null;
     let connectionQualityTimer = null;
+    let reconnectDeadlineTimer = null;
     let receiverCheckRunning = false;
     let localConnectionQuality = 'unknown';
     let creatorConnectionLost = false;
@@ -175,6 +183,12 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       if (!connectionQualityTimer) return;
       window.clearTimeout(connectionQualityTimer);
       connectionQualityTimer = null;
+    };
+
+    const clearReconnectDeadline = () => {
+      if (!reconnectDeadlineTimer) return;
+      window.clearTimeout(reconnectDeadlineTimer);
+      reconnectDeadlineTimer = null;
     };
 
     const applyPlayoutProtection = (track, quality = localConnectionQuality) => {
@@ -247,6 +261,18 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
         reconnectTimerRef.current = null;
         if (!disposed) setRetryVersion((current) => current + 1);
       }, delay);
+    };
+
+    const armReconnectDeadline = (room) => {
+      if (disposed || reconnectDeadlineTimer || roomRef.current !== room) return;
+      const jitter = Math.round(
+        reconnectJitterRef.current * LISTENER_HARD_RECONNECT_JITTER_MS
+      );
+      reconnectDeadlineTimer = window.setTimeout(() => {
+        reconnectDeadlineTimer = null;
+        if (disposed || roomRef.current !== room || roomIsConnected(room)) return;
+        scheduleHardReconnect('reconnect_deadline_exceeded');
+      }, LISTENER_HARD_RECONNECT_DEADLINE_MS + jitter);
     };
 
     const startProgramLevelTelemetry = () => {
@@ -476,6 +502,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
     };
 
     const connect = async () => {
+      roomLinkRef.current = 'connecting';
       setStatus(retryVersion > 0 ? 'recovering_audio' : 'connecting');
       setError('');
       setNeedsAudioStart(false);
@@ -508,7 +535,11 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
         throw new Error('Echoo did not return listener audio credentials.');
       }
 
-      const room = new Room({ adaptiveStream: false, dynacast: false });
+      const room = new Room({
+        adaptiveStream: false,
+        dynacast: false,
+        reconnectPolicy: createLiveKitReconnectPolicy(),
+      });
       roomRef.current = room;
 
       room.on(RoomEvent.TrackPublished, (publication, participant) => {
@@ -622,16 +653,27 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
         }
       });
 
+      room.on(RoomEvent.SignalReconnecting, () => {
+        if (!disposed && roomRef.current === room) {
+          clearConnectionQualityTimer();
+          roomLinkRef.current = 'signal_reconnecting';
+          // Signalling can be interrupted while RTP continues. Keep playback
+          // and receiver-health checks alive rather than forcing a new room.
+          markPlaybackState();
+        }
+      });
       room.on(RoomEvent.Reconnecting, () => {
         if (!disposed && roomRef.current === room) {
           clearConnectionQualityTimer();
           roomLinkRef.current = 'reconnecting';
+          armReconnectDeadline(room);
           setStatus(attachedRef.current.size > 0 ? 'holding' : 'reconnecting');
         }
       });
       room.on(RoomEvent.Reconnected, () => {
         if (!disposed && roomRef.current === room) {
           clearConnectionQualityTimer();
+          clearReconnectDeadline();
           roomLinkRef.current = 'connected';
           watchdogMissStreakRef.current = 0;
           const elements = Array.from(audioHostRef.current?.querySelectorAll('audio') || []);
@@ -647,6 +689,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       room.on(RoomEvent.Disconnected, (reason) => {
         if (!disposed && roomRef.current === room) {
           clearConnectionQualityTimer();
+          clearReconnectDeadline();
           roomLinkRef.current = 'reconnecting';
           smoothedAudioLevel = 0;
           setProgramAudioLevel(0);
@@ -750,7 +793,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
         setStatus(hasHealthyAttachment ? 'holding' : 'reconnecting');
         return;
       }
-      if (!roomIsConnected(room) || !hasHealthyAttachment) {
+      if (!roomCanCarryMedia(room) || !hasHealthyAttachment) {
         scheduleHardReconnect('browser_online_missing_transport');
       }
     };
@@ -760,7 +803,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
     playbackWatchdogTimer = window.setInterval(async () => {
       if (disposed || receiverCheckRunning) return;
       const room = roomRef.current;
-      if (!roomIsConnected(room)) return;
+      if (!roomCanCarryMedia(room)) return;
       // LiveKit's own transport recovery owns the outage — hold the shared
       // live source and stay quiet instead of tearing the room down.
       if (roomLinkRef.current === 'reconnecting') {
@@ -854,6 +897,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       if (audioLevelTimer) window.clearInterval(audioLevelTimer);
       if (playbackWatchdogTimer) window.clearInterval(playbackWatchdogTimer);
       clearConnectionQualityTimer();
+      clearReconnectDeadline();
       window.clearTimeout(reconnectTimerRef.current);
       reconnectTimerRef.current = null;
       window.removeEventListener('offline', onOffline);

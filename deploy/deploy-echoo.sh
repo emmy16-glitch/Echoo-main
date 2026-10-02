@@ -6,14 +6,40 @@ STORAGE_DIR="/mnt/storage/media/echoo"
 UPLOAD_LINK="$APP_DIR/backend/uploads"
 NODE20_BIN="/home/digihosting/Documents/Apzs/e-metro/.tools/node/bin"
 NPM20="$NODE20_BIN/npm"
+FRONTEND_NODE_BIN="${ECHOO_FRONTEND_NODE_BIN:-}"
 
 if [[ ! -x "$NODE20_BIN/node" || ! -x "$NPM20" ]]; then
-  echo "Node 20 runtime is missing at $NODE20_BIN. Install Node 20 before deploying Echoo." >&2
+  echo "Backend Node 20 runtime is missing at $NODE20_BIN. Install Node 20 before deploying Echoo." >&2
   exit 1
 fi
 
-# npm's launcher resolves `node` from PATH. The system Node is v12, while
-# Echoo requires the colocated Node 20 runtime.
+node_at_least() {
+  local node_bin="$1"
+  local minimum="$2"
+  local current
+  current="$("$node_bin" -p 'process.versions.node')" || return 1
+  [[ "$(printf '%s\n%s\n' "$minimum" "$current" | sort -V | head -n 1)" == "$minimum" ]]
+}
+
+if [[ -z "$FRONTEND_NODE_BIN" ]]; then
+  system_node="$(command -v node 2>/dev/null || true)"
+  if [[ -n "$system_node" ]] && node_at_least "$system_node" "22.22.0"; then
+    FRONTEND_NODE_BIN="$(dirname "$system_node")"
+  fi
+fi
+
+if [[ -z "$FRONTEND_NODE_BIN" || ! -x "$FRONTEND_NODE_BIN/node" || ! -x "$FRONTEND_NODE_BIN/npm" ]]; then
+  echo "Echoo frontend now requires Node >=22.22. Set ECHOO_FRONTEND_NODE_BIN to a Node 22.22+ bin directory." >&2
+  exit 1
+fi
+if ! node_at_least "$FRONTEND_NODE_BIN/node" "22.22.0"; then
+  echo "ECHOO_FRONTEND_NODE_BIN must provide Node >=22.22." >&2
+  exit 1
+fi
+NPM_FRONTEND="$FRONTEND_NODE_BIN/npm"
+
+# Backend stays on the proven Node 20 runtime. Frontend dependency installation
+# and bundling use Node 22.22+ because LiveKit 2.22.3 depends on machina 7.
 export PATH="$NODE20_BIN:$PATH"
 
 if [[ ! -f "$APP_DIR/backend/.env" ]]; then
@@ -67,7 +93,11 @@ if [[ ! -L "$UPLOAD_LINK" ]]; then
 fi
 
 (cd "$APP_DIR/backend" && "$NPM20" ci --omit=dev)
-(cd "$APP_DIR/frontend" && "$NPM20" ci && VITE_API_URL=/api VITE_BUILD_BASE=/ VITE_PUBLIC_APP_ORIGIN=https://echoo.digi02.org "$NPM20" run build)
+(
+  cd "$APP_DIR/frontend"
+  PATH="$FRONTEND_NODE_BIN:$PATH" "$NPM_FRONTEND" ci
+  PATH="$FRONTEND_NODE_BIN:$PATH" VITE_API_URL=/api VITE_BUILD_BASE=/ VITE_PUBLIC_APP_ORIGIN=https://echoo.digi02.org "$NPM_FRONTEND" run build
+)
 
 sudo install -m 0644 "$APP_DIR/deploy/systemd/echoo-api.service" /etc/systemd/system/echoo-api.service
 sudo install -m 0644 "$APP_DIR/deploy/nginx/echoo.conf" /etc/nginx/conf.d/echoo.conf
