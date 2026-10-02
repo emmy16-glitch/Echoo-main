@@ -197,7 +197,7 @@ async function sweep() {
   for (const doc of stuck) {
     // Re-read in case another process already resolved it between the query
     // and now; a concurrent sweep must never double-fail a live broadcast.
-    const fresh = await Broadcast.findById(doc._id);
+    let fresh = await Broadcast.findById(doc._id);
     if (!fresh || !stuckIds.has(String(fresh._id))) {
       continue;
     }
@@ -281,6 +281,36 @@ async function sweep() {
       }
     }
     
+    if (
+      fresh.status === 'live' &&
+      ['audio_disconnected', 'creator_connecting'].includes(fresh.mediaState) &&
+      fresh.creatorDisconnectedAt
+    ) {
+      const recoveryLeaseStartedAt = new Date(fresh.creatorDisconnectedAt);
+      const claimed = await Broadcast.findOneAndUpdate(
+        {
+          _id: fresh._id,
+          status: 'live',
+          mediaState: fresh.mediaState,
+          creatorDisconnectedAt: recoveryLeaseStartedAt,
+        },
+        {
+          $set: {
+            status: 'ending',
+            failureReason:
+              `${REASON_PREFIX}creator did not restore program audio within ${getCreatorRecoveryHours()} hours.`,
+          },
+        },
+        { returnDocument: 'after' }
+      );
+
+      // Another webhook/process changed the media state or recovery timestamp
+      // after the LiveKit audio check. That newer state wins; never tear down
+      // its room/recorder from this stale sweep iteration.
+      if (!claimed) continue;
+      fresh = claimed;
+    }
+
     try {
       if (mongoose.connection.readyState === 1) {
         await flushBroadcastTranscription(fresh._id).catch((error) => {
