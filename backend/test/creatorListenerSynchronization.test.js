@@ -104,6 +104,14 @@ test('creator webhook recovery ignores stale participant and track removal event
   assert.match(webhook, /event\.track\?\.sid/);
   assert.match(webhook, /const replacementPresent = await creatorStillPresent\([\s\S]{0,140}current,[\s\S]{0,140}leavingParticipantSid[\s\S]{0,80}\.catch\(\(\) => true\)/);
   assert.match(webhook, /scheduleCreatorDisconnect\([\s\S]{0,180}updated\.creatorDisconnectedAt/);
+  assert.match(webhook, /track_unpublished[\s\S]{0,900}scheduleCreatorDisconnect/);
+  assert.match(webhook, /track_published[\s\S]{0,180}cancelCreatorDisconnect/);
+  assert.match(webhook, /getCreatorProgramAudio/);
+  assert.match(webhook, /currentDisconnectAgeMs < CREATOR_RECOVERY_TTL_MS/);
+  assert.match(webhook, /scheduleCreatorDisconnect\([\s\S]{0,180}current\.creatorDisconnectedAt/);
+  assert.match(webhook, /creatorDisconnectedAt: current\.creatorDisconnectedAt/);
+  assert.match(webhook, /updated\?\.status === 'live'/);
+  assert.match(webhook, /cancelLiveKitCreatorRecoveryTimer/);
 });
 
 
@@ -176,5 +184,35 @@ test('transport disconnect cannot terminate a normal seven-hour broadcast', asyn
   assert.match(sweep, /getCreatorRecoveryHours/);
   assert.match(sweep, /mediaState === 'audio_disconnected'/);
   assert.match(sweep, /creatorDisconnectedAt/);
-  assert.match(sweep, /LiveKitProvider\.getParticipants/);
+  assert.match(sweep, /getCreatorProgramAudio\(fresh\._id, fresh\.creator\)/);
+  assert.match(sweep, /creatorParticipantIsPresent\(fresh\._id, fresh\.creator\)/);
+  assert.match(sweep, /fresh\.mediaState === 'audio_paused'/);
+  assert.match(sweep, /paused creator presence check failed/);
+});
+
+test('explicit lifecycle transitions clear process-local recovery timers', async () => {
+  const lifecycle = await source('../src/controllers/broadcastLifecycleController.js');
+
+  assert.match(lifecycle, /cancelLiveKitCreatorRecoveryTimer/);
+  assert.ok(
+    (lifecycle.match(/cancelLiveKitCreatorRecoveryTimer\(broadcastId\)/g) || []).length >= 3,
+    'start, cancel and end lifecycle paths should clear stale recovery timers'
+  );
+});
+
+test('long-session cleanup and replay recovery use creator program audio as authority', async () => {
+  const readiness = await source('../src/services/broadcastAudioReadiness.js');
+  const sweep = await source('../src/services/livekitOrphanSweep.js');
+  const recovery = await source('../src/services/broadcastRecoveryService.js');
+
+  assert.match(readiness, /getCreatorProgramAudio/);
+  assert.match(sweep, /getCreatorProgramAudio\(fresh\._id, fresh\.creator\)/);
+  assert.match(sweep, /fresh\.mediaState === 'audio_live'[\s\S]{0,300}audio_disconnected/);
+  assert.match(sweep, /creatorDisconnectedAt = fresh\.creatorDisconnectedAt \|\| new Date\(\)/);
+  assert.match(recovery, /liveRoomHasCreatorAuthority/);
+  assert.match(recovery, /getCreatorProgramAudio\(broadcast\._id, broadcast\.creator\)/);
+  assert.match(recovery, /creatorParticipantIsPresent\(broadcast\._id, broadcast\.creator\)/);
+  assert.doesNotMatch(recovery, /participants\.some\(hasPublishedTracks\)/);
+  assert.match(recovery, /broadcast\.creatorDisconnectedAt = null/);
+  assert.match(recovery, /broadcast\.creatorParticipantSid = null/);
 });

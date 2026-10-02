@@ -24,19 +24,31 @@ test('recovery reconciles interrupted lifecycles without fabricating history', a
   // No blanket status rewrite: each lifecycle state is handled explicitly.
   assert.match(service, /status === 'completed'/);
   assert.match(service, /status === 'ending'/);
-  assert.match(service, /status === 'live' \|\| broadcast\.status === 'starting'/);
+  assert.match(service, /broadcast\.status === 'live'/);
+  assert.match(service, /broadcast\.status === 'starting'/);
   assert.match(service, /BROADCAST_NOT_RECOVERABLE/);
   assert.doesNotMatch(service, /\$set:\s*\{\s*status:\s*['"]completed['"]/);
 
-  // A truly active session is never auto-finalized: LiveKit room occupancy
-  // is ground truth, provider outages stay conservative.
-  assert.match(service, /getParticipants/);
+  // A truly active session is never auto-finalized: creator program audio is
+  // ground truth, intentional pause uses creator presence, provider outages
+  // stay conservative, and live reconnect leases cannot be bypassed by OPFS.
+  assert.match(service, /getCreatorProgramAudio/);
+  assert.match(service, /creatorParticipantIsPresent/);
+  assert.match(service, /creatorRecoveryTtlMs/);
+  assert.match(service, /beginLiveRecoveryLease/);
+  assert.match(service, /claimExpiredLiveRecovery/);
+  assert.match(service, /creatorDisconnectedAt: broadcast\.creatorDisconnectedAt/);
   assert.match(service, /BROADCAST_STILL_LIVE/);
 
   // Finalization mirrors end-of-life cleanup without transcription.
   assert.match(service, /releaseCreatorBroadcastLease/);
   assert.match(service, /stopLiveKitServerRecording/);
   assert.match(service, /stopBroadcastOutputs/);
+  assert.match(service, /stopIngress/);
+  assert.match(service, /stopEgress/);
+  assert.match(service, /Station\.updateOne/);
+  assert.match(service, /isLive:\s*false/);
+  assert.match(service, /clearBroadcastPresenceCache/);
   assert.match(service, /transcriptionEnabled:\s*false/);
   assert.match(service, /transcriptState.*disabled/);
   assert.doesNotMatch(service, /WHISPER|whisper|transcript_completion/);

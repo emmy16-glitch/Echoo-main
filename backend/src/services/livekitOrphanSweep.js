@@ -20,6 +20,10 @@ import { clearBroadcastPresenceCache } from '../controllers/broadcastPresenceCon
 import { releaseCreatorBroadcastLease } from './creatorBroadcastLease.js';
 import { flushBroadcastTranscription } from './transcriptionGateway.js';
 import { stopLiveKitServerRecording } from './livekitServerRecording.js';
+import {
+  creatorParticipantIsPresent,
+  getCreatorProgramAudio,
+} from './broadcastAudioReadiness.js';
 
 const STUCK_STATES = ['starting', 'ending', 'live'];
 const REASON_PREFIX = 'Orphan sweep: ';
@@ -200,77 +204,100 @@ async function sweep() {
     if (!fresh || !stuckIds.has(String(fresh._id))) {
       continue;
     }
-    if (!isRecoverableState(fresh)) {
-      continue;
-    }
-
-    if (
-      fresh.status === 'live' &&
-      fresh.mediaState === 'audio_disconnected' &&
-      !fresh.creatorDisconnectedAt
-    ) {
+    // Reconcile every logical live broadcast against the canonical creator
+    // program track. This repairs missed track_published/track_unpublished
+    // webhooks and prevents a connected-but-silent creator from keeping a
+    // broadcast immortal.
+    if (fresh.status === 'live') {
+      let programAudio;
       try {
-        const participants = await LiveKitProvider.getParticipants(fresh._id);
-        const creatorPresent = participants.some((participant) => {
-          try {
-            const metadata = participant?.metadata
-              ? JSON.parse(participant.metadata)
-              : {};
-            return metadata.role === 'creator' &&
-              String(metadata.userId) === String(fresh.creator);
-          } catch {
-            return false;
-          }
-        });
+        programAudio = await getCreatorProgramAudio(fresh._id, fresh.creator);
+      } catch (error) {
+        console.warn(
+          `[orphan-sweep] creator program-audio check failed for ${fresh._id}:`,
+          error?.message || error
+        );
+        continue;
+      }
+
+      if (programAudio) {
+        const intentionalPause = fresh.mediaState === 'audio_paused';
+        const healedMediaState = intentionalPause ? 'audio_paused' : 'audio_live';
+        const needsHealing =
+          !['audio_live', 'audio_paused'].includes(fresh.mediaState) ||
+          Boolean(fresh.creatorDisconnectedAt) ||
+          String(fresh.programTrackSid || '') !== String(programAudio.trackSid || '') ||
+          String(fresh.creatorParticipantSid || '') !== String(programAudio.participantSid || '');
+        if (needsHealing) {
+          // Preserve an explicit creator pause. Reconciliation repairs transport
+          // metadata and recovery leases; it must never override product intent.
+          fresh.mediaState = healedMediaState;
+          fresh.creatorDisconnectedAt = null;
+          fresh.creatorParticipantSid = programAudio.participantSid || fresh.creatorParticipantSid || null;
+          fresh.programTrackSid = programAudio.trackSid || fresh.programTrackSid || null;
+          fresh.programTrackName = programAudio.trackName || 'echoo-studio-mix';
+          await fresh.save();
+          clearBroadcastPresenceCache(fresh._id);
+        }
+        continue;
+      }
+
+      if (fresh.mediaState === 'audio_paused') {
+        let creatorPresent;
+        try {
+          creatorPresent = await creatorParticipantIsPresent(fresh._id, fresh.creator);
+        } catch (error) {
+          // A second control-plane lookup failing is still not evidence that a
+          // paused creator vanished. Keep the pause and retry on a later sweep.
+          console.warn(
+            `[orphan-sweep] paused creator presence check failed for ${fresh._id}:`,
+            error?.message || error
+          );
+          continue;
+        }
+
         if (creatorPresent) continue;
 
-        // A webhook can be delayed/lost. Establish the durable recovery lease
-        // from observed absence rather than leaving the broadcast immortal.
+        // A lost participant_left webhook while paused must not create an
+        // immortal ghost broadcast. Convert transport loss into the same
+        // durable recovery lease used by active program-audio loss.
+        fresh.mediaState = 'audio_disconnected';
+        fresh.creatorDisconnectedAt = fresh.creatorDisconnectedAt || new Date();
+        fresh.creatorParticipantSid = null;
+        fresh.programTrackSid = null;
+        fresh.programTrackName = null;
+        await fresh.save();
+        clearBroadcastPresenceCache(fresh._id);
+        continue;
+      }
+
+      if (fresh.mediaState === 'audio_live') {
+        fresh.mediaState = 'audio_disconnected';
+        fresh.creatorDisconnectedAt = fresh.creatorDisconnectedAt || new Date();
+        fresh.programTrackSid = null;
+        fresh.programTrackName = null;
+        await fresh.save();
+        clearBroadcastPresenceCache(fresh._id);
+        continue;
+      }
+
+      if (
+        fresh.mediaState === 'audio_disconnected' &&
+        !fresh.creatorDisconnectedAt
+      ) {
         fresh.creatorDisconnectedAt = new Date();
         await fresh.save();
         clearBroadcastPresenceCache(fresh._id);
         continue;
-      } catch (error) {
-        console.warn(
-          `[orphan-sweep] creator disconnect discovery failed for ${fresh._id}:`,
-          error?.message || error
-        );
-        continue;
       }
+    }
+
+    if (!isRecoverableState(fresh)) {
+      continue;
     }
 
     if (!isStuck(fresh)) {
       continue;
-    }
-
-    if (
-      fresh.status === 'live' &&
-      ['audio_disconnected', 'creator_connecting'].includes(fresh.mediaState) &&
-      fresh.creatorDisconnectedAt
-    ) {
-      try {
-        const participants = await LiveKitProvider.getParticipants(fresh._id);
-        const creatorPresent = participants.some((participant) => {
-          try {
-            const metadata = participant?.metadata
-              ? JSON.parse(participant.metadata)
-              : {};
-            return metadata.role === 'creator' &&
-              String(metadata.userId) === String(fresh.creator);
-          } catch {
-            return false;
-          }
-        });
-        if (creatorPresent) continue;
-      } catch (error) {
-        // A control-plane failure is not proof that the creator is absent.
-        // Preserve the broadcast and retry on a later sweep/boot.
-        console.warn(
-          `[orphan-sweep] creator presence check failed for ${fresh._id}:`,
-          error?.message || error
-        );
-        continue;
-      }
     }
     
     try {

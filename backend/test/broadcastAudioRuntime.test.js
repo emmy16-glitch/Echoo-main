@@ -7,6 +7,7 @@ import {
   validateBroadcastListQuery,
 } from '../src/middleware/broadcastQueryValidation.js';
 import {
+  getCreatorProgramAudio,
   isCreatorParticipant,
   isEchooProgramAudioTrack,
   parseParticipantMetadata,
@@ -167,6 +168,70 @@ test('confirm-live accepts only the named Echoo post-master program track', () =
     }, { allowSynthetic: true }),
     true
   );
+});
+
+test('program-audio authority ignores guest tracks and requires the creator studio mix', async () => {
+  const userId = new mongoose.Types.ObjectId().toString();
+  const original = LiveKitProvider.getParticipants;
+
+  try {
+    LiveKitProvider.getParticipants = async () => [{
+      sid: 'PA_guest',
+      identity: 'guest-1',
+      metadata: JSON.stringify({ role: 'guest', userId: 'guest-1' }),
+      tracks: [{
+        sid: 'TR_guest',
+        name: 'guest-microphone',
+        mimeType: 'audio/opus',
+        muted: false,
+      }],
+    }, {
+      sid: 'PA_creator',
+      identity: userId,
+      metadata: JSON.stringify({ role: 'creator', userId }),
+      tracks: [],
+    }];
+
+    assert.equal(
+      await getCreatorProgramAudio('broadcast-id', userId),
+      null
+    );
+
+    LiveKitProvider.getParticipants = async () => [{
+      sid: 'PA_guest',
+      identity: 'guest-1',
+      metadata: JSON.stringify({ role: 'guest', userId: 'guest-1' }),
+      tracks: [{
+        sid: 'TR_guest',
+        name: 'guest-microphone',
+        mimeType: 'audio/opus',
+        muted: false,
+      }],
+    }, {
+      sid: 'PA_creator',
+      identity: userId,
+      metadata: JSON.stringify({ role: 'creator', userId }),
+      tracks: [{
+        sid: 'TR_program',
+        name: 'echoo-studio-mix',
+        mimeType: 'audio/opus',
+        muted: false,
+      }],
+    }];
+
+    assert.deepEqual(
+      await getCreatorProgramAudio('broadcast-id', userId),
+      {
+        participantSid: 'PA_creator',
+        participantIdentity: userId,
+        trackSid: 'TR_program',
+        trackName: 'echoo-studio-mix',
+        mimeType: 'audio/opus',
+      }
+    );
+  } finally {
+    LiveKitProvider.getParticipants = original;
+  }
 });
 
 test('audio readiness retries propagation and returns the creator program track', async () => {

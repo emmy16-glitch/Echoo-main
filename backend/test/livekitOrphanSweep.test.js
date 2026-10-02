@@ -300,7 +300,7 @@ test('expired disconnected live broadcast is reaped only after creator absence i
   }
 });
 
-test('expired disconnect is preserved when a replacement creator is present', { concurrency: 1 }, async () => {
+test('connected creator without program audio cannot keep an expired silent broadcast alive', { concurrency: 1 }, async () => {
   process.env.LIVEKIT_CREATOR_RECOVERY_TTL_HOURS = '1';
   const creator = new mongoose.Types.ObjectId();
   const disconnected = makeDoc({
@@ -311,14 +311,195 @@ test('expired disconnect is preserved when a replacement creator is present', { 
   });
   const provider = makeLivekitProviderMock();
   provider.listParticipants = async () => [{
+    sid: 'PA_creator',
     metadata: JSON.stringify({ role: 'creator', userId: String(creator) }),
+    tracks: [],
+  }];
+  const { sweepModule, teardown } = await loadSweepWithMocks([disconnected], provider);
+  try {
+    const result = await sweepModule.sweep();
+    assert.equal(result.swept, 1);
+    assert.equal(disconnected.status, 'completed');
+    assert.match(disconnected.failureReason, /did not restore program audio/);
+  } finally {
+    teardown();
+  }
+});
+
+test('creator program audio heals a missed republish webhook and clears the recovery lease', { concurrency: 1 }, async () => {
+  process.env.LIVEKIT_CREATOR_RECOVERY_TTL_HOURS = '1';
+  const creator = new mongoose.Types.ObjectId();
+  const disconnected = makeDoc({
+    status: 'live',
+    mediaState: 'audio_disconnected',
+    creator,
+    creatorDisconnectedAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+    creatorParticipantSid: null,
+    programTrackSid: null,
+    programTrackName: null,
+  });
+  const provider = makeLivekitProviderMock();
+  provider.listParticipants = async () => [{
+    sid: 'PA_replacement',
+    identity: String(creator),
+    metadata: JSON.stringify({ role: 'creator', userId: String(creator) }),
+    tracks: [{
+      sid: 'TR_replacement',
+      name: 'echoo-studio-mix',
+      mimeType: 'audio/opus',
+      muted: false,
+    }],
   }];
   const { sweepModule, teardown } = await loadSweepWithMocks([disconnected], provider);
   try {
     const result = await sweepModule.sweep();
     assert.equal(result.swept, 0);
     assert.equal(disconnected.status, 'live');
-    assert.equal(disconnected.saveCalled, 0);
+    assert.equal(disconnected.mediaState, 'audio_live');
+    assert.equal(disconnected.creatorDisconnectedAt, null);
+    assert.equal(disconnected.creatorParticipantSid, 'PA_replacement');
+    assert.equal(disconnected.programTrackSid, 'TR_replacement');
+    assert.equal(disconnected.programTrackName, 'echoo-studio-mix');
+    assert.equal(disconnected.saveCalled, 1);
+  } finally {
+    teardown();
+  }
+});
+
+test('program-audio reconciliation preserves an intentional broadcast pause', { concurrency: 1 }, async () => {
+  const creator = new mongoose.Types.ObjectId();
+  const paused = makeDoc({
+    status: 'live',
+    mediaState: 'audio_paused',
+    creator,
+    creatorDisconnectedAt: null,
+    creatorParticipantSid: 'PA_old',
+    programTrackSid: 'TR_old',
+    programTrackName: 'echoo-studio-mix',
+  });
+  const provider = makeLivekitProviderMock();
+  provider.listParticipants = async () => [{
+    sid: 'PA_creator',
+    identity: String(creator),
+    metadata: JSON.stringify({ role: 'creator', userId: String(creator) }),
+    tracks: [{
+      sid: 'TR_program',
+      name: 'echoo-studio-mix',
+      mimeType: 'audio/opus',
+      muted: false,
+    }],
+  }];
+  const { sweepModule, teardown } = await loadSweepWithMocks([paused], provider);
+  try {
+    const result = await sweepModule.sweep();
+    assert.equal(result.swept, 0);
+    assert.equal(paused.mediaState, 'audio_paused');
+    assert.equal(paused.creatorParticipantSid, 'PA_creator');
+    assert.equal(paused.programTrackSid, 'TR_program');
+    assert.equal(paused.saveCalled, 1);
+  } finally {
+    teardown();
+  }
+});
+
+test('paused broadcast stays paused while its creator participant remains connected', { concurrency: 1 }, async () => {
+  const creator = new mongoose.Types.ObjectId();
+  const paused = makeDoc({
+    status: 'live',
+    mediaState: 'audio_paused',
+    creator,
+    creatorDisconnectedAt: null,
+    creatorParticipantSid: 'PA_creator',
+    programTrackSid: 'TR_program',
+    programTrackName: 'echoo-studio-mix',
+  });
+  const provider = makeLivekitProviderMock();
+  provider.listParticipants = async () => [{
+    sid: 'PA_creator',
+    identity: String(creator),
+    metadata: JSON.stringify({ role: 'creator', userId: String(creator) }),
+    tracks: [{
+      sid: 'TR_program',
+      name: 'echoo-studio-mix',
+      mimeType: 'audio/opus',
+      muted: true,
+    }],
+  }];
+  const { sweepModule, teardown } = await loadSweepWithMocks([paused], provider);
+  try {
+    const result = await sweepModule.sweep();
+    assert.equal(result.swept, 0);
+    assert.equal(paused.status, 'live');
+    assert.equal(paused.mediaState, 'audio_paused');
+    assert.equal(paused.creatorDisconnectedAt, null);
+    assert.equal(paused.saveCalled, 0);
+  } finally {
+    teardown();
+  }
+});
+
+test('missed participant-left while paused starts the durable recovery lease', { concurrency: 1 }, async () => {
+  const creator = new mongoose.Types.ObjectId();
+  const paused = makeDoc({
+    status: 'live',
+    mediaState: 'audio_paused',
+    creator,
+    creatorDisconnectedAt: null,
+    creatorParticipantSid: 'PA_creator',
+    programTrackSid: 'TR_program',
+    programTrackName: 'echoo-studio-mix',
+  });
+  const provider = makeLivekitProviderMock();
+  provider.listParticipants = async () => [];
+  const { sweepModule, teardown } = await loadSweepWithMocks([paused], provider);
+  try {
+    const result = await sweepModule.sweep();
+    assert.equal(result.swept, 0);
+    assert.equal(paused.status, 'live');
+    assert.equal(paused.mediaState, 'audio_disconnected');
+    assert.ok(paused.creatorDisconnectedAt instanceof Date);
+    assert.equal(paused.creatorParticipantSid, null);
+    assert.equal(paused.programTrackSid, null);
+    assert.equal(paused.programTrackName, null);
+    assert.equal(paused.saveCalled, 1);
+  } finally {
+    teardown();
+  }
+});
+
+test('missed program-track removal starts a durable lease even while creator remains connected', { concurrency: 1 }, async () => {
+  const creator = new mongoose.Types.ObjectId();
+  const staleLive = makeDoc({
+    status: 'live',
+    mediaState: 'audio_live',
+    creator,
+    creatorDisconnectedAt: null,
+    creatorParticipantSid: 'PA_creator',
+    programTrackSid: 'TR_old',
+    programTrackName: 'echoo-studio-mix',
+  });
+  const provider = makeLivekitProviderMock();
+  provider.listParticipants = async () => [{
+    sid: 'PA_creator',
+    identity: String(creator),
+    metadata: JSON.stringify({ role: 'creator', userId: String(creator) }),
+    tracks: [{
+      sid: 'TR_mic',
+      name: 'microphone',
+      mimeType: 'audio/opus',
+      muted: false,
+    }],
+  }];
+  const { sweepModule, teardown } = await loadSweepWithMocks([staleLive], provider);
+  try {
+    const result = await sweepModule.sweep();
+    assert.equal(result.swept, 0);
+    assert.equal(staleLive.status, 'live');
+    assert.equal(staleLive.mediaState, 'audio_disconnected');
+    assert.ok(staleLive.creatorDisconnectedAt instanceof Date);
+    assert.equal(staleLive.programTrackSid, null);
+    assert.equal(staleLive.programTrackName, null);
+    assert.equal(staleLive.saveCalled, 1);
   } finally {
     teardown();
   }
