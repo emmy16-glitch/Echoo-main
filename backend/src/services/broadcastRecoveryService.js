@@ -6,7 +6,10 @@ import { stopBroadcastOutputs } from './broadcastOutputService.js';
 import { enqueueBroadcastProcessing } from './broadcastProcessingService.js';
 import { releaseCreatorBroadcastLease } from './creatorBroadcastLease.js';
 import { stopLiveKitServerRecording } from './livekitServerRecording.js';
-import { getCreatorProgramAudio } from './broadcastAudioReadiness.js';
+import {
+  creatorParticipantIsPresent,
+  getCreatorProgramAudio,
+} from './broadcastAudioReadiness.js';
 
 // ---------------------------------------------------------------------------
 // Recording-recovery reconciliation.
@@ -22,6 +25,14 @@ import { getCreatorProgramAudio } from './broadcastAudioReadiness.js';
 const STALE_ORPHAN_MS = 30 * 60 * 1000;
 const RECENT_ACTIVITY_MS = 5 * 60 * 1000;
 
+const creatorRecoveryTtlMs = () => {
+  const raw = Number(process.env.LIVEKIT_CREATOR_RECOVERY_TTL_HOURS || 24);
+  const hours = Number.isFinite(raw) && raw > 0
+    ? Math.max(1, Math.min(48, raw))
+    : 24;
+  return hours * 60 * 60 * 1000;
+};
+
 const recoveryError = (status, code, message) => {
   const error = new Error(message);
   error.status = status;
@@ -31,15 +42,62 @@ const recoveryError = (status, code, message) => {
 
 // Ground truth for "actually still live": the creator's canonical post-master
 // program track. Guest/co-host tracks must not wedge OPFS recovery after the
-// creator program has ended. Provider outages remain conservative.
-const liveRoomHasCreatorProgramAudio = async (broadcastId, creatorId) => {
+// creator program has ended. An intentional pause is the exception: while
+// paused, creator participant presence keeps the logical show alive even if the
+// program track is muted. Provider outages remain conservative.
+const liveRoomHasCreatorAuthority = async (broadcast) => {
   try {
-    const programAudio = await getCreatorProgramAudio(broadcastId, creatorId);
-    return { active: Boolean(programAudio), unknown: false };
+    const active = broadcast.mediaState === 'audio_paused'
+      ? await creatorParticipantIsPresent(broadcast._id, broadcast.creator)
+      : Boolean(await getCreatorProgramAudio(broadcast._id, broadcast.creator));
+    return { active, unknown: false };
   } catch {
     return { active: false, unknown: true };
   }
 };
+
+const recoveryLeaseAgeMs = (broadcast) => {
+  const timestamp = new Date(broadcast?.creatorDisconnectedAt || 0).getTime();
+  return Number.isFinite(timestamp) && timestamp > 0
+    ? Math.max(0, Date.now() - timestamp)
+    : null;
+};
+
+const beginLiveRecoveryLease = async (broadcast) => {
+  const expectedTrackSid = broadcast.programTrackSid ?? null;
+  const expectedMediaState = broadcast.mediaState;
+  return Broadcast.findOneAndUpdate(
+    {
+      _id: broadcast._id,
+      status: 'live',
+      isDeleted: false,
+      creatorDisconnectedAt: null,
+      mediaState: expectedMediaState,
+      programTrackSid: expectedTrackSid,
+    },
+    {
+      $set: {
+        mediaState: 'audio_disconnected',
+        creatorDisconnectedAt: new Date(),
+        programTrackSid: null,
+        programTrackName: null,
+      },
+    },
+    { returnDocument: 'after' }
+  );
+};
+
+const claimExpiredLiveRecovery = async (broadcast) =>
+  Broadcast.findOneAndUpdate(
+    {
+      _id: broadcast._id,
+      status: 'live',
+      isDeleted: false,
+      creatorDisconnectedAt: broadcast.creatorDisconnectedAt,
+    },
+    { $set: { status: 'ending' } },
+    { returnDocument: 'after' }
+  );
 
 const finalizeInterruptedBroadcast = async (broadcast) => {
   const now = new Date();
@@ -150,16 +208,76 @@ export async function recoverBroadcastForReplay({ broadcastId, userId }) {
     return { outcome: 'finalized', broadcast: finalized, audioId: null, readyForUpload: true };
   }
 
-  if (broadcast.status === 'live' || broadcast.status === 'starting') {
-    const room = await liveRoomHasCreatorProgramAudio(
-      broadcast._id,
-      broadcast.creator
-    );
+  if (broadcast.status === 'live') {
+    const room = await liveRoomHasCreatorAuthority(broadcast);
     if (room.active) {
       throw recoveryError(
         409,
         'BROADCAST_STILL_LIVE',
         'This broadcast is still live in another session. End it there first; your local recording stays safe on this device.'
+      );
+    }
+    if (room.unknown) {
+      // A provider/control-plane outage is never evidence that a live show has
+      // ended. Preserve both the logical broadcast and the recovered master.
+      throw recoveryError(
+        409,
+        'BROADCAST_STILL_LIVE',
+        'Echoo could not confirm this broadcast ended. Your local recording stays safe; retry shortly.'
+      );
+    }
+
+    let leaseAgeMs = recoveryLeaseAgeMs(broadcast);
+    if (leaseAgeMs === null) {
+      // Missing unpublish/participant-left webhooks must not let recovery end a
+      // fresh logical show. Establish the same durable lease used by the live
+      // reconnect path, with an atomic track/state guard so a concurrent
+      // republish wins instead.
+      const leased = await beginLiveRecoveryLease(broadcast);
+      if (!leased) {
+        throw recoveryError(
+          409,
+          'BROADCAST_STILL_LIVE',
+          'This broadcast changed while Echoo was checking recovery. Your local recording stays safe; retry shortly.'
+        );
+      }
+      throw recoveryError(
+        409,
+        'BROADCAST_STILL_LIVE',
+        'This broadcast is recovering its live audio. Your local recording stays safe while Echoo reconnects.'
+      );
+    }
+
+    if (leaseAgeMs < creatorRecoveryTtlMs()) {
+      throw recoveryError(
+        409,
+        'BROADCAST_STILL_LIVE',
+        'This broadcast is still inside its live recovery window. Your local recording stays safe while Echoo reconnects.'
+      );
+    }
+
+    // Claim only this exact expired disconnect generation. A concurrent
+    // track_published webhook clears/changes creatorDisconnectedAt and causes
+    // this atomic claim to fail instead of tearing down a recovered show.
+    const claimed = await claimExpiredLiveRecovery(broadcast);
+    if (!claimed) {
+      throw recoveryError(
+        409,
+        'BROADCAST_STILL_LIVE',
+        'This broadcast recovered while Echoo was checking the saved recording. Your local recording remains safe.'
+      );
+    }
+    const finalized = await finalizeInterruptedBroadcast(claimed);
+    return { outcome: 'finalized', broadcast: finalized, audioId: null, readyForUpload: true };
+  }
+
+  if (broadcast.status === 'starting') {
+    const room = await liveRoomHasCreatorAuthority(broadcast);
+    if (room.active) {
+      throw recoveryError(
+        409,
+        'BROADCAST_STILL_LIVE',
+        'This broadcast is still starting in another session. Your local recording stays safe on this device.'
       );
     }
     const updatedAt = new Date(broadcast.updatedAt || 0).getTime();
@@ -179,7 +297,7 @@ export async function recoverBroadcastForReplay({ broadcastId, userId }) {
     throw recoveryError(
       409,
       'BROADCAST_STILL_LIVE',
-      'This broadcast is still live in another session. End it there first; your local recording stays safe on this device.'
+      'This broadcast is still starting in another session. Your local recording stays safe on this device.'
     );
   }
 
