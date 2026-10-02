@@ -14,6 +14,7 @@ import {
   isLiveKitServerRecordingEnabled,
   stopLiveKitServerRecording,
 } from './livekitServerRecording.js';
+import { getCreatorProgramAudio } from './broadcastAudioReadiness.js';
 
 // LiveKit participant presence is transport state, not broadcast authority.
 // Keep a disconnected live broadcast recoverable for a full long-show window
@@ -121,6 +122,7 @@ const clearCreatorProgramTrackIfCurrent = async (broadcastId, trackSid, io) => {
     {
       $set: {
         mediaState: 'audio_disconnected',
+        creatorDisconnectedAt: new Date(),
         programTrackSid: null,
         programTrackName: null,
       },
@@ -140,10 +142,35 @@ const endExpiredDisconnectedBroadcast = async (broadcastId, io) => {
     status: 'live',
     isDeleted: false,
   });
-  // A LiveKit control-plane lookup failure is not evidence that the creator
-  // disappeared. Keep the broadcast live and let a later webhook/operator
-  // action retry rather than ending a healthy show on an infrastructure blip.
-  if (!current || await creatorStillPresent(current).catch(() => true)) return;
+  if (!current) return;
+
+  // Program audio, not mere participant presence, is broadcast authority.
+  // A connected creator can still be permanently silent after losing the
+  // canonical studio-mix track. Conversely, if a track_published webhook was
+  // missed, heal the database from LiveKit ground truth instead of ending.
+  let programAudio;
+  try {
+    programAudio = await getCreatorProgramAudio(current._id, current.creator);
+  } catch {
+    // A LiveKit control-plane failure is not proof that program audio is gone.
+    return;
+  }
+  if (programAudio) {
+    await updateCreatorMediaState(current._id, {
+      mediaState: 'audio_live',
+      creatorDisconnectedAt: null,
+      creatorParticipantSid: programAudio.participantSid || current.creatorParticipantSid || null,
+      programTrackSid: programAudio.trackSid || current.programTrackSid || null,
+      programTrackName: programAudio.trackName || 'echoo-studio-mix',
+    }, io);
+    if (isLiveKitServerRecordingEnabled() && programAudio.trackSid) {
+      void ensureLiveKitServerRecording({
+        broadcastId: String(current._id),
+        trackSid: programAudio.trackSid,
+      }).catch(() => null);
+    }
+    return;
+  }
 
   const broadcast = await Broadcast.findOneAndUpdate(
     {
@@ -322,6 +349,7 @@ export async function handleLiveKitWebhook(req, res) {
     }
     const trackName = String(event?.track?.name || '').trim().toLowerCase();
     if (broadcastId && isCreator && event.event === 'track_published' && trackName === 'echoo-studio-mix') {
+      cancelCreatorDisconnect(broadcastId);
       await updateCreatorMediaState(broadcastId, {
         mediaState: 'audio_live',
         creatorDisconnectedAt: null,
@@ -354,11 +382,18 @@ export async function handleLiveKitWebhook(req, res) {
       // Webhook delivery can be reordered around a fast creator recovery.
       // Only clear the program if the unpublished SID is still the canonical
       // one stored on the broadcast; an old SID must not erase a newer track.
-      await clearCreatorProgramTrackIfCurrent(
+      const updated = await clearCreatorProgramTrackIfCurrent(
         broadcastId,
         event.track?.sid,
         req.app.get('io')
       );
+      if (updated?.creatorDisconnectedAt) {
+        scheduleCreatorDisconnect(
+          broadcastId,
+          req.app.get('io'),
+          updated.creatorDisconnectedAt
+        );
+      }
     }
     return res.status(204).end();
   } catch (error) {
