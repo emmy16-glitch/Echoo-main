@@ -77,11 +77,17 @@ const emitStatus = (io, broadcast) => {
   if (broadcast.isPublic) io.emit('catalog:changed', { entity: 'broadcast', action: 'status', ...payload });
 };
 
-const creatorStillPresent = async (broadcast) => {
+const creatorStillPresent = async (broadcast, excludeParticipantSid = '') => {
+  const excludedSid = String(excludeParticipantSid || '').trim();
   const participants = await LiveKitProvider.getParticipants(broadcast._id);
   return participants.some((participant) => {
     const metadata = metadataOf(participant.metadata);
-    return metadata.role === 'creator' && String(metadata.userId) === String(broadcast.creator);
+    const participantSid = String(participant?.sid || '').trim();
+    return (
+      metadata.role === 'creator' &&
+      String(metadata.userId) === String(broadcast.creator) &&
+      (!excludedSid || participantSid !== excludedSid)
+    );
   });
 };
 
@@ -258,7 +264,13 @@ export async function handleLiveKitWebhook(req, res) {
         // A SID mismatch proves this leave belongs to an obsolete transport;
         // do not start/cancel timers or mutate the healthy replacement.
         if (!isKnownStaleLeave) {
-          const replacementPresent = await creatorStillPresent(current).catch(() => true);
+          // participant_left itself is authoritative for this concrete SID.
+          // LiveKit control-plane listing can briefly retain that same SID,
+          // so only a different creator participant counts as a replacement.
+          const replacementPresent = await creatorStillPresent(
+            current,
+            leavingParticipantSid
+          ).catch(() => true);
           if (replacementPresent) {
             cancelCreatorDisconnect(broadcastId);
           } else {
