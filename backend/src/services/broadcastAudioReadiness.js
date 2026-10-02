@@ -37,14 +37,16 @@ export const isEchooProgramAudioTrack = (
 export async function findCreatorProgramAudio(
   broadcastId,
   userId,
-  { participantSid = '' } = {}
+  { participantSid = '', excludeParticipantSid = '' } = {}
 ) {
   const participantList = await LiveKitProvider.getParticipants(broadcastId);
   const participants = Array.isArray(participantList) ? participantList : [];
   const preferredSid = String(participantSid || '').trim();
+  const excludedSid = String(excludeParticipantSid || '').trim();
 
   const creators = participants.filter((participant) =>
-    isCreatorParticipant(participant, userId)
+    isCreatorParticipant(participant, userId) &&
+    (!excludedSid || String(participant?.sid || '').trim() !== excludedSid)
   );
 
   const orderedCreators = preferredSid
