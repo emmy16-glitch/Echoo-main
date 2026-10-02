@@ -2,6 +2,7 @@ import { WebhookReceiver } from 'livekit-server-sdk';
 import Broadcast from '../models/Broadcast.js';
 import Station from '../models/Station.js';
 import LiveKitProvider from '../providers/livekit.js';
+import { creatorProgramAudioIsPresent } from './broadcastAudioReadiness.js';
 import { stopBroadcastOutputs } from './broadcastOutputService.js';
 import { clearBroadcastPresenceCache } from '../controllers/broadcastPresenceController.js';
 import { releaseCreatorBroadcastLease } from './creatorBroadcastLease.js';
@@ -14,11 +15,12 @@ import {
   isLiveKitServerRecordingEnabled,
   stopLiveKitServerRecording,
 } from './livekitServerRecording.js';
+import {
+  creatorRecoveryExpired,
+  getCreatorDisconnectGraceMs,
+  getCreatorRecoveryMaxMs,
+} from './liveBroadcastRecoveryPolicy.js';
 
-const CREATOR_DISCONNECT_GRACE_MS = Math.max(
-  5000,
-  Math.min(120000, Number(process.env.LIVEKIT_CREATOR_DISCONNECT_GRACE_MS) || 90000)
-);
 const pendingDisconnects = new Map();
 let receiver = null;
 
@@ -57,6 +59,7 @@ const emitStatus = (io, broadcast) => {
     listenerCount: Number(broadcast.listenerCount) || 0,
     peakListeners: Number(broadcast.peakListeners) || 0,
     mediaState: broadcast.mediaState || 'waiting_for_creator',
+    mediaDisconnectedAt: broadcast.mediaDisconnectedAt || null,
     transcriptState: broadcast.transcriptState || 'disabled',
     programTrackSid: broadcast.programTrackSid || null,
     programTrackName: broadcast.programTrackName || null,
@@ -107,6 +110,7 @@ const clearCreatorProgramTrackIfCurrent = async (broadcastId, trackSid, io) => {
     {
       $set: {
         mediaState: 'audio_disconnected',
+        mediaDisconnectedAt: new Date(),
         programTrackSid: null,
         programTrackName: null,
       },
