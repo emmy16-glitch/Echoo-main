@@ -43,6 +43,10 @@ import {
   updateTransferEstimate,
 } from '../../services/progressTiming';
 import { notifyDesktop, onDesktopRoomCommand, setDesktopRoomState } from '../../services/desktopBridge';
+import {
+  startCreatorSessionKeepAwake,
+  stopCreatorSessionKeepAwake,
+} from '../../services/liveSessionKeepAwake';
 import './CreatorBroadcastApproved.css';
 
 const pad = (value) => String(value).padStart(2, '0');
@@ -858,6 +862,19 @@ const CreatorLiveConnectedWorkspace = ({
     setConfirmEndOpen(true);
   };
 
+  // A long creator session must not depend on the OS deciding to keep this
+  // page/process awake. Web uses Screen Wake Lock while visible; Echoo Desktop
+  // additionally blocks app suspension even when the window is minimized.
+  useEffect(() => {
+    if (!currentLiveBroadcast?.id) {
+      stopCreatorSessionKeepAwake();
+      return undefined;
+    }
+
+    startCreatorSessionKeepAwake();
+    return () => stopCreatorSessionKeepAwake();
+  }, [currentLiveBroadcast?.id]);
+
   // Native tray integration (Echoo Desktop): report live-room state so the
   // tray can offer Mute/Unmute + Leave actions, and honor commands sent back
   // from the tray. Mirrors the listener-side wiring in ListenerRealLiveRoom.
@@ -866,10 +883,16 @@ const CreatorLiveConnectedWorkspace = ({
       active: Boolean(currentLiveBroadcast?.id),
       muted: Boolean(mixerState?.master?.muted),
       canToggleMute: Boolean(currentLiveBroadcast?.id),
+      keepAwake: Boolean(currentLiveBroadcast?.id),
     });
 
     return () => {
-      setDesktopRoomState({ active: false, muted: false, canToggleMute: false });
+      setDesktopRoomState({
+        active: false,
+        muted: false,
+        canToggleMute: false,
+        keepAwake: false,
+      });
     };
   }, [currentLiveBroadcast?.id, mixerState?.master?.muted]);
 
