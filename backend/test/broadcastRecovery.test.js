@@ -43,6 +43,11 @@ test('recovery reconciles interrupted lifecycles without fabricating history', a
   assert.match(service, /releaseCreatorBroadcastLease/);
   assert.match(service, /stopLiveKitServerRecording/);
   assert.match(service, /stopBroadcastOutputs/);
+  assert.match(service, /stopIngress/);
+  assert.match(service, /stopEgress/);
+  assert.match(service, /Station\.updateOne/);
+  assert.match(service, /isLive:\s*false/);
+  assert.match(service, /clearBroadcastPresenceCache/);
   assert.match(service, /transcriptionEnabled:\s*false/);
   assert.match(service, /transcriptState.*disabled/);
   assert.doesNotMatch(service, /WHISPER|whisper|transcript_completion/);
