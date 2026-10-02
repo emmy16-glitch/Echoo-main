@@ -334,16 +334,24 @@ test('long broadcast recording uses RF64 and never materializes multi-GB desktop
   assert.match(recording, /LOSSLESS_LONG_SESSION_TARGET_BYTES/);
   assert.match(recording, /LOSSLESS_STORAGE_HEADROOM_LOW/);
   assert.match(recording, /openCompressedRecordingFile/);
-  assert.match(recording, /mode: storage \? 'opus-opfs' : 'opus-fallback'/);
+  assert.match(recording, /mode: storage \? 'compressed-opfs' : 'compressed-fallback'/);
   assert.match(recording, /await recording\.writable\.write\(event\.data\)/);
   assert.match(recording, /queueCompressedCheckpoint/);
   assert.match(recording, /isCompressedRecoveryManifest/);
   assert.match(recording, /opfs-opus-recovered/);
+  assert.match(recording, /audio\/mp4;codecs=mp4a\.40\.2/);
+  assert.match(recording, /compressedExtensionForMime/);
   assert.match(recording, /activeRecording = await startFallbackRecording/);
   assert.doesNotMatch(
     recording,
     /flushRecordingForPageHide[\s\S]{0,450}activeRecording\?\.writable\?\.close\(\)/
   );
+
+  const autosave = await frontendSource('src/services/recordingAutosave.js');
+  assert.doesNotMatch(autosave, /storageMode\.startsWith\('opfs'\)/);
+  assert.match(autosave, /storageMode === 'opfs-stream'/);
+  assert.match(autosave, /recoveryMime\.includes\('mp4'\)/);
+  assert.match(autosave, /recoveryMime\.includes\('aac'\)/);
 });
 
 test('creator transport loss remains live under a durable long-session recovery lease', async () => {
