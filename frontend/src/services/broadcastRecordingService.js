@@ -1751,6 +1751,8 @@ export const BROADCAST_RECORDING_READY_EVENT = RECORDING_EVENT;
 
 export const ECHOO_BROADCAST_MASTER_FORMAT = {
   mimeType: WAV_MIME_TYPE,
+  container: 'rf64',
+  headerBytes: RF64_HEADER_BYTES,
   sampleRate: WAV_TARGET_SAMPLE_RATE,
   channels: WAV_CHANNELS,
   bitDepth: WAV_BIT_DEPTH,
