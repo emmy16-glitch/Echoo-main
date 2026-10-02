@@ -37,36 +37,67 @@ export const isEchooProgramAudioTrack = (
 const findProgramAudioInParticipants = (
   participants,
   userId,
-  expectedTrackSid = ''
+  {
+    expectedTrackSid = '',
+    excludeParticipantSid = '',
+    preferredTrackSid = '',
+  } = {}
 ) => {
   const expectedSid = String(expectedTrackSid || '').trim();
+  const excludedParticipantSid = String(excludeParticipantSid || '').trim();
+  const preferredSid = String(preferredTrackSid || '').trim();
+  const matches = [];
+
   for (const participant of Array.isArray(participants) ? participants : []) {
     if (!isCreatorParticipant(participant, userId)) continue;
+    if (
+      excludedParticipantSid &&
+      String(participant?.sid || '').trim() === excludedParticipantSid
+    ) {
+      continue;
+    }
+
     const tracks = Array.isArray(participant.tracks) ? participant.tracks : [];
-    const track = tracks.find((candidate) => {
-      if (!isEchooProgramAudioTrack(candidate)) return false;
-      if (!expectedSid) return true;
-      return String(candidate?.sid || '').trim() === expectedSid;
-    });
-    if (track) return { participant, track };
+    for (const track of tracks) {
+      if (!isEchooProgramAudioTrack(track)) continue;
+      const trackSid = String(track?.sid || '').trim();
+      if (expectedSid && trackSid !== expectedSid) continue;
+      matches.push({ participant, track });
+    }
   }
-  return null;
+
+  if (!matches.length) return null;
+  if (preferredSid) {
+    const preferred = matches.find(
+      (match) => String(match.track?.sid || '').trim() === preferredSid
+    );
+    if (preferred) return preferred;
+  }
+  return matches[0];
 };
 
-export async function findCreatorProgramAudio(broadcastId, userId) {
+export async function findCreatorProgramAudio(
+  broadcastId,
+  userId,
+  options = {}
+) {
   const participants = await LiveKitProvider.getParticipants(broadcastId);
-  return findProgramAudioInParticipants(participants, userId);
+  return findProgramAudioInParticipants(participants, userId, options);
 }
 
 export async function findCreatorProgramAudioByTrackSid(
   broadcastId,
   userId,
-  trackSid
+  trackSid,
+  options = {}
 ) {
   const sid = String(trackSid || '').trim();
   if (!sid) return null;
   const participants = await LiveKitProvider.getParticipants(broadcastId);
-  return findProgramAudioInParticipants(participants, userId, sid);
+  return findProgramAudioInParticipants(participants, userId, {
+    ...options,
+    expectedTrackSid: sid,
+  });
 }
 
 export async function creatorProgramAudioIsPresent(broadcastId, userId) {
