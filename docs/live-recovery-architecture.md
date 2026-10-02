@@ -162,3 +162,42 @@ If Echoo later operates multiple LiveKit ingress/region URLs, the credential API
 can return an ordered candidate list and the hard-recovery stage can rotate
 between them. That would apply the SRS multiple-origin failover idea without
 changing the public broadcast identity.
+
+
+## Long-session lifecycle hardening
+
+The logical broadcast is now explicitly longer-lived than any one LiveKit
+participant or room instance.
+
+- Creator participant loss stores a durable `creatorDisconnectedAt` timestamp
+  and keeps the broadcast `live`.
+- An established show gets a default 24-hour recovery lease
+  (`LIVEKIT_CREATOR_RECOVERY_TTL_HOURS`, bounded to 1–48 hours).
+- Rejoining clears the durable disconnect timestamp.
+- Backend restart does not lose cleanup state: the orphan sweep runs
+  immediately and periodically, discovers missed participant-left webhooks,
+  verifies actual LiveKit creator presence, and only expires a disconnected
+  show after its recovery lease.
+- Explicit **End Broadcast** remains the normal authority for ending a show.
+
+This separation follows the transport/session split used by mediasoup, Janus,
+Galène and resilient origin/edge systems: a replaceable transport is not the
+same thing as the user's logical live session.
+
+## Multi-hour protected recording
+
+Echoo's disk-backed browser master uses **RF64/WAV** rather than classic RIFF
+for new recordings. RF64 keeps the same 48 kHz stereo 24-bit PCM program audio
+but carries 64-bit sizes, avoiding RIFF's ~4 GiB ceiling during multi-hour
+shows.
+
+Legacy RIFF masters remain readable. Post-live server recovery still slices the
+master into small ordinary RIFF/WAV chunks, so backend recovery validation does
+not need giant-file handling.
+
+Desktop exports use bounded IPC chunks instead of converting a multi-gigabyte
+Blob into one ArrayBuffer. Local MP3 conversion also reads the RF64 master in
+bounded slices.
+
+Storage capacity remains a physical device constraint: RF64 removes the file
+format ceiling, not the need for enough free local storage.
