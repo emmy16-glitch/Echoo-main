@@ -160,7 +160,12 @@ test('creator webhook ignores obsolete participant sessions and long sessions pr
   assert.match(webhook, /replacementProgram/);
   assert.match(webhook, /creatorParticipantSid: joinedParticipantSid/);
   assert.match(webhook, /Joining restores transport only/);
-  assert.match(webhook, /track_published[\s\S]{0,220}cancelCreatorDisconnect\(broadcastId\)/);
+  assert.match(webhook, /mediaState: \{ \$ne: 'audio_live' \}/);
+  assert.match(webhook, /findCreatorProgramAudioByTrackSid/);
+  assert.match(webhook, /publishedTrackIsAuthoritative/);
+  assert.match(webhook, /ignored stale creator track_published/);
+  assert.match(webhook, /track_unpublished[\s\S]{0,1500}replacementProgram[\s\S]{0,800}healRecoveredProgramAudio/);
+  assert.match(webhook, /track_published[\s\S]{0,1200}cancelCreatorDisconnect\(broadcastId\)/);
   assert.match(webhook, /scheduleCreatorDisconnect\([\s\S]{0,180}updated\.creatorDisconnectedAt/);
   assert.match(keepAwake, /navigator\.wakeLock\?\.request === 'function'/);
   assert.match(keepAwake, /navigator\.wakeLock\.request\('screen'\)/);
