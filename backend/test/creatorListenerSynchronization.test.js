@@ -118,7 +118,10 @@ test('program-track loss uses the durable recovery lease even while creator tran
   assert.match(webhook, /findCreatorProgramAudio\(current\._id, current\.creator\)/);
   assert.match(readiness, /export async function findCreatorProgramAudio/);
   assert.match(sweep, /findCreatorProgramAudio\(fresh\._id, fresh\.creator\)/);
-  assert.match(sweep, /fresh\.mediaState = 'audio_live'/);
+  assert.match(sweep, /healProgramAudioState/);
+  assert.match(sweep, /ensureLiveKitServerRecording\(/);
+  assert.match(sweep, /trackSid: doc\.programTrackSid/);
+  assert.match(sweep, /doc\.mediaState = 'audio_live'/);
   assert.match(sweep, /fresh\.creatorDisconnectedAt = new Date\(\)/);
 });
 
