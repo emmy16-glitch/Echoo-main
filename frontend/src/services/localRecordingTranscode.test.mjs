@@ -87,3 +87,58 @@ test('real WASM encoder converts Echoo 48 kHz stereo 24-bit WAV to MP3 bytes', a
 
   await result.dispose?.();
 });
+
+
+const riffToRf64 = async (riff) => {
+  const pcm = new Uint8Array(await riff.slice(44).arrayBuffer());
+  const header = new ArrayBuffer(80);
+  const bytes = new Uint8Array(header);
+  const view = new DataView(header);
+  const write = (offset, value) => {
+    for (let index = 0; index < value.length; index += 1) {
+      bytes[offset + index] = value.charCodeAt(index);
+    }
+  };
+  const write64 = (offset, value) => {
+    view.setUint32(offset, value % 0x100000000, true);
+    view.setUint32(offset + 4, Math.floor(value / 0x100000000), true);
+  };
+  const sampleRate = 48000;
+  const channels = 2;
+  const bitDepth = 24;
+  const blockAlign = 6;
+
+  write(0, 'RF64');
+  view.setUint32(4, 0xffffffff, true);
+  write(8, 'WAVE');
+  write(12, 'ds64');
+  view.setUint32(16, 28, true);
+  write64(20, 72 + pcm.byteLength);
+  write64(28, pcm.byteLength);
+  write64(36, pcm.byteLength / blockAlign);
+  view.setUint32(44, 0, true);
+  write(48, 'fmt ');
+  view.setUint32(52, 16, true);
+  view.setUint16(56, 1, true);
+  view.setUint16(58, channels, true);
+  view.setUint32(60, sampleRate, true);
+  view.setUint32(64, sampleRate * blockAlign, true);
+  view.setUint16(68, blockAlign, true);
+  view.setUint16(70, bitDepth, true);
+  write(72, 'data');
+  view.setUint32(76, 0xffffffff, true);
+
+  return new Blob([header, pcm], { type: 'audio/wav' });
+};
+
+test('real WASM encoder streams an RF64 master into MP3', async () => {
+  const rf64 = await riffToRf64(makeStereoPcm24Wav());
+  const header = await parsePcmWavHeader(rf64);
+  assert.equal(header.container, 'rf64');
+  assert.equal(header.dataOffset, 80);
+
+  const result = await encodeLocalWavToMp3({ blob: rf64, bitrateKbps: 320 });
+  assert.ok(result.encodedBytes > 1000);
+  assert.ok(result.blob?.size > 1000);
+  await result.dispose?.();
+});
