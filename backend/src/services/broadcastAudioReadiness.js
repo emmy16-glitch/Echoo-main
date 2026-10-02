@@ -40,11 +40,13 @@ const findProgramAudioInParticipants = (
   {
     expectedTrackSid = '',
     excludeParticipantSid = '',
+    excludeTrackSid = '',
     preferredTrackSid = '',
   } = {}
 ) => {
   const expectedSid = String(expectedTrackSid || '').trim();
   const excludedParticipantSid = String(excludeParticipantSid || '').trim();
+  const excludedTrackSid = String(excludeTrackSid || '').trim();
   const preferredSid = String(preferredTrackSid || '').trim();
   const matches = [];
 
@@ -61,6 +63,7 @@ const findProgramAudioInParticipants = (
     for (const track of tracks) {
       if (!isEchooProgramAudioTrack(track)) continue;
       const trackSid = String(track?.sid || '').trim();
+      if (excludedTrackSid && trackSid === excludedTrackSid) continue;
       if (expectedSid && trackSid !== expectedSid) continue;
       matches.push({ participant, track });
     }
