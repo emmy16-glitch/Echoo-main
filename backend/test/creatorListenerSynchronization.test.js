@@ -158,6 +158,7 @@ test('creator webhook ignores obsolete participant sessions and long sessions pr
   assert.match(webhook, /leavingParticipantSid !== currentParticipantSid/);
   assert.match(webhook, /findCreatorProgramAudio\([\s\S]{0,160}current\._id,[\s\S]{0,160}current\.creator/);
   assert.match(webhook, /replacementProgram/);
+  assert.match(webhook, /excludeParticipantSid: leavingParticipantSid/);
   assert.match(webhook, /creatorParticipantSid: joinedParticipantSid/);
   assert.match(webhook, /Joining restores transport only/);
   assert.match(webhook, /mediaState: \{ \$ne: 'audio_live' \}/);
