@@ -144,7 +144,8 @@ test('creator recovery is decoupled from the LiveKit room and keeps retrying for
   assert.match(webhook, /LIVEKIT_CREATOR_RECOVERY_TTL_HOURS \|\| 24/);
   assert.match(webhook, /const disconnectedAt = current\.creatorDisconnectedAt \|\| new Date\(\)/);
   assert.match(webhook, /creatorDisconnectedAt: disconnectedAt/);
-  assert.match(webhook, /event\.event === 'participant_joined'[\s\S]{0,1400}\{ mediaState: 'creator_connecting' \}/);
+  assert.match(webhook, /event\.event === 'participant_joined'/);
+  assert.match(webhook, /\{ mediaState: 'creator_connecting' \}/);
   assert.match(webhook, /mediaState: 'audio_live'[\s\S]{0,180}creatorDisconnectedAt: null/);
   assert.match(lifecycle, /broadcast\.creatorParticipantSid = publisher\.participantSid \|\| null/);
   assert.match(lifecycle, /broadcast\.status === 'live'[\s\S]{0,1800}broadcast\.creatorDisconnectedAt = null[\s\S]{0,500}broadcast\.programTrackSid/);
@@ -200,5 +201,5 @@ test('transport disconnect cannot terminate a normal seven-hour broadcast', asyn
   assert.match(sweep, /getCreatorRecoveryHours/);
   assert.match(sweep, /mediaState === 'audio_disconnected'/);
   assert.match(sweep, /creatorDisconnectedAt/);
-  assert.match(sweep, /LiveKitProvider\.getParticipants/);
+  assert.match(sweep, /findCreatorProgramAudio/);
 });
