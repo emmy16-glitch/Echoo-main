@@ -11,7 +11,10 @@ import mongoose from 'mongoose';
 import routes from './routes/index.js';
 import { env } from './config/env.js';
 import { connectDatabase, disconnectDatabase } from './config/database.js';
-import { startOrphanSweep } from './services/livekitOrphanSweep.js';
+import {
+  startOrphanSweep,
+  stopOrphanSweep,
+} from './services/livekitOrphanSweep.js';
 import { verifyAccessToken } from './config/jwt.js';
 import { defaultLimiter } from './middleware/rateLimiter.js';
 import User from './models/User.js';
@@ -600,6 +603,7 @@ const shutdown = async (signal) => {
   socketBroadcastCache.clear();
   socketBroadcastInflight.clear();
   clearLiveKitWebhookTimers();
+  stopOrphanSweep();
   stopBroadcastProcessingWorker();
   closeLiveKitRecordingWebSocket();
 
