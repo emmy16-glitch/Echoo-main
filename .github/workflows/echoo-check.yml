@@ -212,5 +212,7 @@ jobs:
           node --check src/middleware/broadcastQueryValidation.js
           node --check src/utils/accountCapabilities.js
           node --check src/utils/queryText.js
+          node --check ../desktop/src/main.js
+          node --check ../desktop/src/preload.js
       - name: Run backend invariant and failure tests
         run: npm test
