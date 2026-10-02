@@ -350,15 +350,58 @@ export async function handleLiveKitWebhook(req, res) {
         // do not start/cancel timers or mutate the healthy replacement.
         if (!isKnownStaleLeave) {
           // participant_left itself is authoritative for this concrete SID.
-          // LiveKit control-plane listing can briefly retain that same SID,
-          // so only a different creator participant counts as a replacement.
-          const replacementPresent = await creatorStillPresent(
-            current,
-            leavingParticipantSid
-          ).catch(() => true);
-          if (replacementPresent) {
+          // A replacement may already have published while the old publisher
+          // was still healthy; that earlier publish was intentionally ignored
+          // to avoid two transports fighting for authority. Promote it now.
+          let replacementProgram = null;
+          try {
+            replacementProgram = await findCreatorProgramAudio(
+              current._id,
+              current.creator,
+              { excludeParticipantSid: leavingParticipantSid }
+            );
+          } catch (error) {
+            console.warn(
+              '[Echoo LiveKit Webhook] replacement program lookup failed:',
+              error?.message || error
+            );
+          }
+
+          if (replacementProgram) {
             cancelCreatorDisconnect(broadcastId);
+            const recovered = await updateCreatorMediaState(
+              broadcastId,
+              {
+                mediaState: 'audio_live',
+                creatorDisconnectedAt: null,
+                creatorParticipantSid:
+                  replacementProgram.participantSid || null,
+                programTrackSid:
+                  replacementProgram.trackSid || current.programTrackSid || null,
+                programTrackName:
+                  replacementProgram.trackName || 'echoo-studio-mix',
+              },
+              req.app.get('io')
+            );
+
+            if (
+              recovered &&
+              isLiveKitServerRecordingEnabled() &&
+              replacementProgram.trackSid
+            ) {
+              void ensureLiveKitServerRecording({
+                broadcastId,
+                trackSid: replacementProgram.trackSid,
+              }).catch((recordingError) => {
+                console.warn(
+                  '[Echoo Server Recording] replacement publisher handoff warning:',
+                  recordingError?.message || recordingError
+                );
+              });
+            }
           } else {
+            // A joined participant with no canonical program audio is not a
+            // recovered broadcast. Start/continue the durable recovery lease.
             const disconnectedAt = current.creatorDisconnectedAt || new Date();
             const updated = await updateCreatorMediaState(
               broadcastId,
@@ -366,6 +409,8 @@ export async function handleLiveKitWebhook(req, res) {
                 mediaState: 'audio_disconnected',
                 creatorDisconnectedAt: disconnectedAt,
                 creatorParticipantSid: null,
+                programTrackSid: null,
+                programTrackName: null,
               },
               req.app.get('io')
             );
