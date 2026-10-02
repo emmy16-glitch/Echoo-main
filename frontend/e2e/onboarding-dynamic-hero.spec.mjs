@@ -28,6 +28,25 @@ const bodyOf = (route) => {
   }
 };
 
+const readLocalStorageJsonAcrossNavigation = async (page, key) => {
+  try {
+    return await page.evaluate(
+      (storageKey) => JSON.parse(localStorage.getItem(storageKey) || '{}'),
+      key
+    );
+  } catch (error) {
+    // A full location.assign/reload destroys the old JS execution context.
+    // expect.poll should retry that transient navigation boundary instead of
+    // turning it into a false product failure.
+    if (/execution context was destroyed|most likely because of a navigation/i.test(
+      String(error?.message || error)
+    )) {
+      return {};
+    }
+    throw error;
+  }
+};
+
 test('listener can create a Channel and enter Creator Studio with the same account', async ({ page }) => {
   test.slow();
   let currentUser = makeUser();
@@ -184,7 +203,9 @@ test('listener can create a Channel and enter Creator Studio with the same accou
   // navigation before reading localStorage; evaluating during location.assign
   // races the page execution context in Chromium.
   await expect(page).toHaveURL(/\/creator-studio$/);
-  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('user') || '{}'))).toMatchObject({
+  await expect.poll(
+    () => readLocalStorageJsonAcrossNavigation(page, 'user')
+  ).toMatchObject({
     userType: 'creator',
     onboardingCompleted: true,
     creatorProfile: { creatorType: 'individual' },
