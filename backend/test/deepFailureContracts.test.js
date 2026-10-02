@@ -333,6 +333,13 @@ test('long broadcast recording uses RF64 and never materializes multi-GB desktop
   assert.match(recording, /navigator\.storage\?\.estimate/);
   assert.match(recording, /LOSSLESS_LONG_SESSION_TARGET_BYTES/);
   assert.match(recording, /LOSSLESS_STORAGE_HEADROOM_LOW/);
+  assert.match(recording, /OPUS_MIN_LONG_SESSION_BITRATE = 64000/);
+  assert.match(recording, /COMPRESSED_STORAGE_RESERVE_BYTES/);
+  assert.match(recording, /resolveLongSessionCompressedBitrate/);
+  assert.match(recording, /maxSustainableBitrate/);
+  assert.match(recording, /fullTargetExpected/);
+  assert.match(recording, /audioBitsPerSecond: storagePolicy\.bitrate/);
+  assert.match(recording, /Local storage is very low for an 8-hour recovery recording/);
   assert.match(recording, /openCompressedRecordingFile/);
   assert.match(recording, /mode: storage \? 'compressed-opfs' : 'compressed-fallback'/);
   assert.match(recording, /await recording\.writable\.write\(event\.data\)/);
