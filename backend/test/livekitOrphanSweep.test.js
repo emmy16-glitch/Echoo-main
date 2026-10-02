@@ -366,6 +366,42 @@ test('creator program audio heals a missed republish webhook and clears the reco
   }
 });
 
+test('program-audio reconciliation preserves an intentional broadcast pause', { concurrency: 1 }, async () => {
+  const creator = new mongoose.Types.ObjectId();
+  const paused = makeDoc({
+    status: 'live',
+    mediaState: 'audio_paused',
+    creator,
+    creatorDisconnectedAt: null,
+    creatorParticipantSid: 'PA_old',
+    programTrackSid: 'TR_old',
+    programTrackName: 'echoo-studio-mix',
+  });
+  const provider = makeLivekitProviderMock();
+  provider.listParticipants = async () => [{
+    sid: 'PA_creator',
+    identity: String(creator),
+    metadata: JSON.stringify({ role: 'creator', userId: String(creator) }),
+    tracks: [{
+      sid: 'TR_program',
+      name: 'echoo-studio-mix',
+      mimeType: 'audio/opus',
+      muted: false,
+    }],
+  }];
+  const { sweepModule, teardown } = await loadSweepWithMocks([paused], provider);
+  try {
+    const result = await sweepModule.sweep();
+    assert.equal(result.swept, 0);
+    assert.equal(paused.mediaState, 'audio_paused');
+    assert.equal(paused.creatorParticipantSid, 'PA_creator');
+    assert.equal(paused.programTrackSid, 'TR_program');
+    assert.equal(paused.saveCalled, 1);
+  } finally {
+    teardown();
+  }
+});
+
 test('missed program-track removal starts a durable lease even while creator remains connected', { concurrency: 1 }, async () => {
   const creator = new mongoose.Types.ObjectId();
   const staleLive = makeDoc({
