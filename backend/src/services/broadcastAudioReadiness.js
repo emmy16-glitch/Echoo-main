@@ -34,15 +34,25 @@ export const isEchooProgramAudioTrack = (
   return !mimeType || mimeType.startsWith('audio/');
 };
 
-export async function creatorProgramAudioIsPresent(broadcastId, userId) {
+export async function findCreatorProgramAudio(broadcastId, userId) {
   const participants = await LiveKitProvider.getParticipants(broadcastId);
   const creator = participants.find((participant) =>
     isCreatorParticipant(participant, userId)
   );
-  if (!creator) return false;
+  if (!creator) return null;
 
   const tracks = Array.isArray(creator.tracks) ? creator.tracks : [];
-  return tracks.some((track) => isEchooProgramAudioTrack(track));
+  const track = tracks.find((candidate) => isEchooProgramAudioTrack(candidate));
+  if (!track) return null;
+
+  return {
+    participant: creator,
+    track,
+  };
+}
+
+export async function creatorProgramAudioIsPresent(broadcastId, userId) {
+  return Boolean(await findCreatorProgramAudio(broadcastId, userId));
 }
 
 export async function waitForCreatorProgramAudioToStop(
@@ -78,26 +88,16 @@ export async function waitForCreatorProgramAudio(
   const attempts = Math.max(1, Math.min(12, Number(maxAttempts) || 7));
 
   for (let attempt = 0; attempt < attempts; attempt += 1) {
-    const participants = await LiveKitProvider.getParticipants(broadcastId);
-    const creator = participants.find((participant) =>
-      isCreatorParticipant(participant, userId)
-    );
+    const match = await findCreatorProgramAudio(broadcastId, userId);
 
-    if (creator) {
-      const tracks = Array.isArray(creator.tracks) ? creator.tracks : [];
-      const programAudio = tracks.find((track) =>
-        isEchooProgramAudioTrack(track)
-      );
-
-      if (programAudio) {
-        return {
-          participantSid: creator.sid || null,
-          participantIdentity: creator.identity || null,
-          trackSid: programAudio.sid || null,
-          trackName: programAudio.name || null,
-          mimeType: programAudio.mimeType || null,
-        };
-      }
+    if (match) {
+      return {
+        participantSid: match.participant?.sid || null,
+        participantIdentity: match.participant?.identity || null,
+        trackSid: match.track?.sid || null,
+        trackName: match.track?.name || null,
+        mimeType: match.track?.mimeType || null,
+      };
     }
 
     if (attempt < attempts - 1) {
