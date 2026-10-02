@@ -104,6 +104,9 @@ test('creator webhook recovery ignores stale participant and track removal event
   assert.match(webhook, /event\.track\?\.sid/);
   assert.match(webhook, /const replacementPresent = await creatorStillPresent\([\s\S]{0,140}current,[\s\S]{0,140}leavingParticipantSid[\s\S]{0,80}\.catch\(\(\) => true\)/);
   assert.match(webhook, /scheduleCreatorDisconnect\([\s\S]{0,180}updated\.creatorDisconnectedAt/);
+  assert.match(webhook, /track_unpublished[\s\S]{0,900}scheduleCreatorDisconnect/);
+  assert.match(webhook, /track_published[\s\S]{0,180}cancelCreatorDisconnect/);
+  assert.match(webhook, /getCreatorProgramAudio/);
 });
 
 
@@ -177,4 +180,20 @@ test('transport disconnect cannot terminate a normal seven-hour broadcast', asyn
   assert.match(sweep, /mediaState === 'audio_disconnected'/);
   assert.match(sweep, /creatorDisconnectedAt/);
   assert.match(sweep, /LiveKitProvider\.getParticipants/);
+});
+
+test('long-session cleanup and replay recovery use creator program audio as authority', async () => {
+  const readiness = await source('../src/services/broadcastAudioReadiness.js');
+  const sweep = await source('../src/services/livekitOrphanSweep.js');
+  const recovery = await source('../src/services/broadcastRecoveryService.js');
+
+  assert.match(readiness, /getCreatorProgramAudio/);
+  assert.match(sweep, /getCreatorProgramAudio\(fresh\._id, fresh\.creator\)/);
+  assert.match(sweep, /fresh\.mediaState === 'audio_live'[\s\S]{0,300}audio_disconnected/);
+  assert.match(sweep, /creatorDisconnectedAt = fresh\.creatorDisconnectedAt \|\| new Date\(\)/);
+  assert.match(recovery, /liveRoomHasCreatorProgramAudio/);
+  assert.match(recovery, /getCreatorProgramAudio\(broadcastId, creatorId\)/);
+  assert.doesNotMatch(recovery, /participants\.some\(hasPublishedTracks\)/);
+  assert.match(recovery, /broadcast\.creatorDisconnectedAt = null/);
+  assert.match(recovery, /broadcast\.creatorParticipantSid = null/);
 });
