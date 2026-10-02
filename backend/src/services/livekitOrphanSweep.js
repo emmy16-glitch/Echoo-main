@@ -218,13 +218,17 @@ async function sweep() {
       }
 
       if (programAudio) {
+        const intentionalPause = fresh.mediaState === 'audio_paused';
+        const healedMediaState = intentionalPause ? 'audio_paused' : 'audio_live';
         const needsHealing =
-          fresh.mediaState !== 'audio_live' ||
+          !['audio_live', 'audio_paused'].includes(fresh.mediaState) ||
           Boolean(fresh.creatorDisconnectedAt) ||
           String(fresh.programTrackSid || '') !== String(programAudio.trackSid || '') ||
           String(fresh.creatorParticipantSid || '') !== String(programAudio.participantSid || '');
         if (needsHealing) {
-          fresh.mediaState = 'audio_live';
+          // Preserve an explicit creator pause. Reconciliation repairs transport
+          // metadata and recovery leases; it must never override product intent.
+          fresh.mediaState = healedMediaState;
           fresh.creatorDisconnectedAt = null;
           fresh.creatorParticipantSid = programAudio.participantSid || fresh.creatorParticipantSid || null;
           fresh.programTrackSid = programAudio.trackSid || fresh.programTrackSid || null;
