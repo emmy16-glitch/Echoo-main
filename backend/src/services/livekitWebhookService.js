@@ -183,6 +183,7 @@ const endExpiredDisconnectedBroadcast = async (broadcastId, io) => {
   broadcast.livekitEgressId = null;
   broadcast.mediaState = 'audio_disconnected';
   broadcast.creatorDisconnectedAt = null;
+  broadcast.creatorParticipantSid = null;
   broadcast.transcriptState = isTranscriptionConfigured() ? 'completed' : 'disabled';
   broadcast.programTrackSid = null;
   broadcast.programTrackName = null;
@@ -196,14 +197,27 @@ const endExpiredDisconnectedBroadcast = async (broadcastId, io) => {
   emitStatus(io, broadcast);
 };
 
-const scheduleCreatorDisconnect = (broadcastId, io) => {
+const scheduleCreatorDisconnect = (broadcastId, io, disconnectedAt = new Date()) => {
   const key = String(broadcastId || '');
-  if (!key || pendingDisconnects.has(key)) return;
+  if (!key) return;
+
+  // A delayed/duplicate webhook must never shorten a newer recovery lease.
+  // Anchor the process-local timer to the durable database timestamp and
+  // replace any stale timer left by an earlier transport session.
+  const existing = pendingDisconnects.get(key);
+  if (existing) clearTimeout(existing);
+
+  const disconnectedAtMs = new Date(disconnectedAt).getTime();
+  const elapsedMs = Number.isFinite(disconnectedAtMs)
+    ? Math.max(0, Date.now() - disconnectedAtMs)
+    : 0;
+  const remainingMs = Math.max(0, CREATOR_RECOVERY_TTL_MS - elapsedMs);
+
   const timer = setTimeout(() => {
     void endExpiredDisconnectedBroadcast(key, io).catch((error) => {
       console.warn('LiveKit creator recovery-expiry cleanup warning:', error?.message || error);
     });
-  }, CREATOR_RECOVERY_TTL_MS);
+  }, remainingMs);
   timer.unref?.();
   pendingDisconnects.set(key, timer);
 };
@@ -224,29 +238,69 @@ export async function handleLiveKitWebhook(req, res) {
     const isCreator = metadata.role === 'creator';
 
     if (broadcastId && isCreator && event.event === 'participant_left') {
-      // A stale participant_left can arrive after the creator has already
-      // rejoined. Schedule the grace-period verification either way, but do
-      // not overwrite a healthy replacement participant with a false
-      // disconnected state.
-      scheduleCreatorDisconnect(broadcastId, req.app.get('io'));
       const current = await Broadcast.findOne({
         _id: broadcastId,
         status: { $in: ['starting', 'live', 'ending'] },
         isDeleted: false,
       });
-      const replacementPresent = current
-        ? await creatorStillPresent(current).catch(() => true)
-        : true;
-      if (!replacementPresent) {
-        await updateCreatorMediaState(
-          broadcastId,
-          { mediaState: 'audio_disconnected', creatorDisconnectedAt: new Date() },
-          req.app.get('io')
+
+      if (current) {
+        const leavingParticipantSid = String(event?.participant?.sid || '').trim();
+        const currentParticipantSid = String(current.creatorParticipantSid || '').trim();
+        const isKnownStaleLeave = Boolean(
+          leavingParticipantSid &&
+          currentParticipantSid &&
+          leavingParticipantSid !== currentParticipantSid
         );
+
+        // LiveKit can deliver participant_joined/track_published for a
+        // replacement creator before participant_left for the old session.
+        // A SID mismatch proves this leave belongs to an obsolete transport;
+        // do not start/cancel timers or mutate the healthy replacement.
+        if (!isKnownStaleLeave) {
+          const replacementPresent = await creatorStillPresent(current).catch(() => true);
+          if (replacementPresent) {
+            cancelCreatorDisconnect(broadcastId);
+          } else {
+            const disconnectedAt = current.creatorDisconnectedAt || new Date();
+            const updated = await updateCreatorMediaState(
+              broadcastId,
+              {
+                mediaState: 'audio_disconnected',
+                creatorDisconnectedAt: disconnectedAt,
+                creatorParticipantSid: null,
+              },
+              req.app.get('io')
+            );
+            if (updated) {
+              scheduleCreatorDisconnect(
+                broadcastId,
+                req.app.get('io'),
+                updated.creatorDisconnectedAt || disconnectedAt
+              );
+            }
+          }
+        }
       }
     }
     if (broadcastId && isCreator && event.event === 'participant_joined') {
       cancelCreatorDisconnect(broadcastId);
+
+      // Persist the concrete replacement transport even when preserveLive
+      // intentionally refuses to downgrade an already audio_live broadcast
+      // to creator_connecting.
+      const joinedParticipantSid = String(event?.participant?.sid || '').trim();
+      if (joinedParticipantSid) {
+        await Broadcast.updateOne(
+          {
+            _id: broadcastId,
+            status: { $in: ['starting', 'live', 'ending'] },
+            isDeleted: false,
+          },
+          { $set: { creatorParticipantSid: joinedParticipantSid } }
+        );
+      }
+
       await updateCreatorMediaState(
         broadcastId,
         { mediaState: 'creator_connecting' },
@@ -259,6 +313,9 @@ export async function handleLiveKitWebhook(req, res) {
       await updateCreatorMediaState(broadcastId, {
         mediaState: 'audio_live',
         creatorDisconnectedAt: null,
+        ...(event?.participant?.sid
+          ? { creatorParticipantSid: String(event.participant.sid) }
+          : {}),
         programTrackSid: event.track?.sid || null,
         programTrackName: event.track?.name || 'echoo-studio-mix',
       }, req.app.get('io'));
