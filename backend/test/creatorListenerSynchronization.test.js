@@ -133,9 +133,11 @@ test('creator webhook ignores obsolete participant sessions and long sessions pr
   assert.match(webhook, /leavingParticipantSid/);
   assert.match(webhook, /currentParticipantSid/);
   assert.match(webhook, /leavingParticipantSid !== currentParticipantSid/);
+  assert.match(webhook, /creatorStillPresent\([\s\S]{0,100}leavingParticipantSid/);
+  assert.match(webhook, /participantSid !== excludedSid/);
   assert.match(webhook, /creatorParticipantSid: joinedParticipantSid/);
   assert.match(webhook, /scheduleCreatorDisconnect\([\s\S]{0,180}updated\.creatorDisconnectedAt/);
-  assert.match(keepAwake, /navigator\.wakeLock\.request\('screen'\)/);
+  assert.match(keepAwake, /navigator\.wakeLock\?\.request\('screen'\)/);
   assert.match(keepAwake, /visibilitychange/);
   assert.match(workspace, /startCreatorSessionKeepAwake/);
   assert.match(workspace, /keepAwake: Boolean\(currentLiveBroadcast\?\.id\)/);
