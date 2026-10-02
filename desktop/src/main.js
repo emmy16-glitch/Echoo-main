@@ -128,6 +128,8 @@ let isQuitting = false;
 let quitTimer = null;
 let backendChild = null;
 let trayHideNoticed = false;
+const recordingSaveSessions = new Map();
+const MAX_RECORDING_IPC_CHUNK_BYTES = 8 * 1024 * 1024;
 
 // ---------------------------------------------------------------------------
 // Bundled backend: the installed app ships its own Echoo API (extraResources)
@@ -1074,9 +1076,159 @@ function registerIpc() {
   });
 
   // Graceful-shutdown handshake: renderer answers will-quit with quitReady().
-  // Creator recording library: ~/Desktop/Echoo Recordings. The renderer asks
-  // MP3 vs WAV first, then the native dialog opens in that library folder so
-  // every PC copy lands in one place. The server copy is always MP3.
+  // Creator recording library: ~/Desktop/Echoo Recordings. Long recordings
+  // use a chunked IPC protocol so multi-GB RF64/WAV files never cross the
+  // context bridge as one giant ArrayBuffer.
+  ipcMain.handle('echoo:recording-save-begin', async (_event, options = {}) => {
+    try {
+      const format = String(options?.format || 'mp3').toLowerCase() === 'wav' ? 'wav' : 'mp3';
+      const rawName = String(options?.filename || `Echoo - recording.${format}`)
+        .replace(/[\\/:*?"<>|]/g, '-')
+        .slice(0, 180) || `Echoo - recording.${format}`;
+      const filename = rawName.toLowerCase().endsWith(`.${format}`)
+        ? rawName
+        : `${rawName}.${format}`;
+      const baseLibraryDir = path.join(app.getPath('desktop'), 'Echoo Recordings');
+
+      const recordedAt = new Date(options?.startedAt || Date.now());
+      const safeDate = Number.isNaN(recordedAt.getTime()) ? new Date() : recordedAt;
+      const yearDir = String(safeDate.getFullYear());
+      const month = String(safeDate.getMonth() + 1).padStart(2, '0');
+      const monthName = safeDate.toLocaleString('en', { month: 'long' });
+      const automatic = options?.automatic === true;
+      const libraryDir = automatic
+        ? path.join(baseLibraryDir, yearDir, `${month} - ${monthName}`)
+        : baseLibraryDir;
+      await fs.promises.mkdir(libraryDir, { recursive: true });
+
+      let destination = '';
+      let handle = null;
+
+      if (automatic) {
+        const parsed = path.parse(filename);
+        let copyNumber = 1;
+        while (!handle) {
+          const candidate = copyNumber === 1
+            ? path.join(libraryDir, filename)
+            : path.join(libraryDir, `${parsed.name} (${copyNumber})${parsed.ext}`);
+          try {
+            handle = await fs.promises.open(candidate, 'wx');
+            destination = candidate;
+          } catch (error) {
+            if (error?.code !== 'EEXIST') throw error;
+            copyNumber += 1;
+          }
+        }
+      } else {
+        const result = await dialog.showSaveDialog(mainWindow, {
+          title: `Save recording as ${format.toUpperCase()} — Echoo Recordings`,
+          defaultPath: path.join(libraryDir, filename),
+          filters: format === 'wav'
+            ? [{ name: 'WAV audio', extensions: ['wav'] }, { name: 'All files', extensions: ['*'] }]
+            : [{ name: 'MP3 audio', extensions: ['mp3'] }, { name: 'All files', extensions: ['*'] }],
+        });
+        if (result.canceled || !result.filePath) {
+          return { started: false, cancelled: true };
+        }
+        destination = result.filePath;
+        handle = await fs.promises.open(destination, 'w');
+      }
+
+      const sessionId = crypto.randomUUID();
+      recordingSaveSessions.set(sessionId, {
+        handle,
+        destination,
+        folder: path.dirname(destination),
+        automatic,
+        format,
+        bytesWritten: 0,
+        writeChain: Promise.resolve(),
+      });
+      return {
+        started: true,
+        sessionId,
+        path: destination,
+        folder: path.dirname(destination),
+        automatic,
+      };
+    } catch (error) {
+      log.warn('[echoo-desktop] recording-save-begin failed:', error.message);
+      return { started: false, error: error?.message || String(error) };
+    }
+  });
+
+  ipcMain.handle('echoo:recording-save-chunk', async (_event, payload = {}) => {
+    const sessionId = String(payload?.sessionId || '');
+    const session = recordingSaveSessions.get(sessionId);
+    if (!session) return { written: false, error: 'Recording save session is not active.' };
+
+    try {
+      const buffer = Buffer.isBuffer(payload?.data)
+        ? payload.data
+        : Buffer.from(payload?.data || []);
+      if (!buffer.length) return { written: true, bytesWritten: session.bytesWritten };
+      if (buffer.length > MAX_RECORDING_IPC_CHUNK_BYTES) {
+        return {
+          written: false,
+          error: `Recording chunk exceeds ${MAX_RECORDING_IPC_CHUNK_BYTES} bytes.`,
+        };
+      }
+
+      session.writeChain = session.writeChain.then(async () => {
+        await session.handle.write(buffer, 0, buffer.length, null);
+        session.bytesWritten += buffer.length;
+      });
+      await session.writeChain;
+      return { written: true, bytesWritten: session.bytesWritten };
+    } catch (error) {
+      log.warn('[echoo-desktop] recording-save-chunk failed:', error.message);
+      return { written: false, error: error?.message || String(error) };
+    }
+  });
+
+  ipcMain.handle('echoo:recording-save-finish', async (_event, sessionIdValue) => {
+    const sessionId = String(sessionIdValue || '');
+    const session = recordingSaveSessions.get(sessionId);
+    if (!session) return { saved: false, error: 'Recording save session is not active.' };
+
+    recordingSaveSessions.delete(sessionId);
+    try {
+      await session.writeChain;
+      if (!session.bytesWritten) {
+        await session.handle.close().catch(() => null);
+        await fs.promises.rm(session.destination, { force: true }).catch(() => null);
+        return { saved: false, error: 'Recording bytes are empty.' };
+      }
+      await session.handle.sync();
+      await session.handle.close();
+      return {
+        saved: true,
+        path: session.destination,
+        folder: session.folder,
+        automatic: session.automatic,
+        bytesWritten: session.bytesWritten,
+      };
+    } catch (error) {
+      await session.handle.close().catch(() => null);
+      log.warn('[echoo-desktop] recording-save-finish failed:', error.message);
+      return { saved: false, error: error?.message || String(error) };
+    }
+  });
+
+  ipcMain.handle('echoo:recording-save-abort', async (_event, sessionIdValue) => {
+    const sessionId = String(sessionIdValue || '');
+    const session = recordingSaveSessions.get(sessionId);
+    if (!session) return { aborted: true };
+
+    recordingSaveSessions.delete(sessionId);
+    try { await session.writeChain; } catch { /* close what is durable */ }
+    await session.handle.close().catch(() => null);
+    await fs.promises.rm(session.destination, { force: true }).catch(() => null);
+    return { aborted: true };
+  });
+
+  // Legacy bounded save remains for older renderer bundles. Current builds use
+  // the chunked protocol above for long recordings.
   ipcMain.handle('echoo:save-recording', async (_event, options = {}) => {
     try {
       const format = String(options?.format || 'mp3').toLowerCase() === 'wav' ? 'wav' : 'mp3';
@@ -1265,6 +1417,12 @@ app.on('before-quit', (event) => {
 });
 
 app.on('will-quit', () => {
+  for (const [sessionId, session] of recordingSaveSessions) {
+    recordingSaveSessions.delete(sessionId);
+    void Promise.resolve(session.writeChain)
+      .catch(() => null)
+      .then(() => session.handle.close().catch(() => null));
+  }
   if (quitTimer) {
     clearTimeout(quitTimer);
     quitTimer = null;
