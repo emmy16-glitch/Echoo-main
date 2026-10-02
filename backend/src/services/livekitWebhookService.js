@@ -281,6 +281,10 @@ const cancelCreatorDisconnect = (broadcastId) => {
   pendingDisconnects.delete(key);
 };
 
+export const cancelLiveKitCreatorRecoveryTimer = (broadcastId) => {
+  cancelCreatorDisconnect(broadcastId);
+};
+
 export async function handleLiveKitWebhook(req, res) {
   try {
     const rawBody = Buffer.isBuffer(req.body) ? req.body.toString('utf8') : String(req.body || '');
@@ -330,7 +334,7 @@ export async function handleLiveKitWebhook(req, res) {
               },
               req.app.get('io')
             );
-            if (updated) {
+            if (updated?.status === 'live') {
               scheduleCreatorDisconnect(
                 broadcastId,
                 req.app.get('io'),
@@ -406,7 +410,7 @@ export async function handleLiveKitWebhook(req, res) {
         event.track?.sid,
         req.app.get('io')
       );
-      if (updated?.creatorDisconnectedAt) {
+      if (updated?.status === 'live' && updated?.creatorDisconnectedAt) {
         scheduleCreatorDisconnect(
           broadcastId,
           req.app.get('io'),
