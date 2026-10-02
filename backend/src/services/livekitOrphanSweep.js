@@ -162,6 +162,7 @@ async function resolveStuckBroadcast(doc) {
   doc.livekitRoomName = null;
   doc.livekitIngressId = null;
   doc.livekitEgressId = null;
+  doc.creatorParticipantSid = null;
 
   try {
     await doc.save();
