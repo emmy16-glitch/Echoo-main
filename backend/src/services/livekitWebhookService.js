@@ -411,17 +411,32 @@ export async function handleLiveKitWebhook(req, res) {
         String(current.programTrackSid) !== eventTrackSid
       ) {
         try {
-          // A replacement track may legitimately publish before the old track
-          // unpublishes. Accept it only if LiveKit still exposes this exact
-          // track SID. A delayed webhook for a track that is already gone must
-          // never overwrite a newer canonical program track.
-          publishedTrackIsAuthoritative = Boolean(
+          const currentProgramStillLive = Boolean(
             await findCreatorProgramAudioByTrackSid(
               current._id,
               current.creator,
-              eventTrackSid
+              current.programTrackSid
             )
           );
+
+          if (currentProgramStillLive) {
+            // Do not switch authority while the already-canonical program
+            // track is still real. This makes out-of-order old/new publish
+            // events harmless. When the old track unpublishes, that handler
+            // immediately discovers and promotes the valid replacement.
+            publishedTrackIsAuthoritative = false;
+          } else {
+            // The canonical track is actually gone. Only promote the incoming
+            // track if LiveKit still exposes this exact SID; delayed publish
+            // webhooks for already-dead tracks are ignored.
+            publishedTrackIsAuthoritative = Boolean(
+              await findCreatorProgramAudioByTrackSid(
+                current._id,
+                current.creator,
+                eventTrackSid
+              )
+            );
+          }
         } catch {
           // Control-plane uncertainty is not enough reason to replace a known
           // healthy program track. Preserve the current authority and let a
@@ -481,7 +496,8 @@ export async function handleLiveKitWebhook(req, res) {
         try {
           replacementProgram = await findCreatorProgramAudio(
             disconnected._id,
-            disconnected.creator
+            disconnected.creator,
+            { excludeTrackSid: String(event?.track?.sid || '').trim() }
           );
         } catch {
           // Preserve the durable recovery lease on control-plane failure.
