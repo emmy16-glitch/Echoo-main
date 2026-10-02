@@ -28,6 +28,7 @@ test('broadcast state stores authoritative media and transcript lifecycle values
   ]);
   assert.ok(Broadcast.schema.path('programTrackSid'));
   assert.ok(Broadcast.schema.path('programTrackName'));
+  assert.ok(Broadcast.schema.path('creatorDisconnectedAt'));
 });
 
 test('creator publishes only the named post-master mix and exposes real health milestones', async () => {
@@ -105,7 +106,7 @@ test('creator webhook recovery ignores stale participant and track removal event
 });
 
 
-test('creator recovery covers the backend grace window and keeps retrying slowly afterwards', async () => {
+test('creator recovery is decoupled from the LiveKit room and keeps retrying for long shows', async () => {
   const publisher = await source('../../frontend/src/services/livekitPublisher.js');
   const webhook = await source('../src/services/livekitWebhookService.js');
   const envExample = await source('../.env.example');
@@ -114,8 +115,10 @@ test('creator recovery covers the backend grace window and keeps retrying slowly
   assert.match(publisher, /CREATOR_RECOVERY_SLOW_RETRY_MS = 30_000/);
   assert.match(publisher, /while \(isCurrent\(candidate\)\)/);
   assert.match(publisher, /candidate\.recoveryStartedAt = null/);
-  assert.match(webhook, /LIVEKIT_CREATOR_DISCONNECT_GRACE_MS\) \|\| 90000/);
-  assert.match(envExample, /LIVEKIT_CREATOR_DISCONNECT_GRACE_MS=90000/);
+  assert.match(webhook, /LIVEKIT_CREATOR_RECOVERY_TTL_HOURS \|\| 24/);
+  assert.match(webhook, /creatorDisconnectedAt: new Date\(\)/);
+  assert.match(webhook, /creatorDisconnectedAt: null/);
+  assert.match(envExample, /LIVEKIT_CREATOR_RECOVERY_TTL_HOURS=24/);
 });
 
 test('creator reconnect supervisor bounds LiveKit native recovery and replaces stale rooms', async () => {
@@ -129,4 +132,19 @@ test('creator reconnect supervisor bounds LiveKit native recovery and replaces s
   assert.match(publisher, /schedulePublisherRecovery\(candidate, 'reconnect_deadline_exceeded', true\)/);
   assert.match(publisher, /clearReconnectDeadline\(candidate\)/);
   assert.match(publisher, /roomCanCarryMedia\(activeRoom\)/);
+});
+
+
+test('transport disconnect cannot terminate a normal seven-hour broadcast', async () => {
+  const webhook = await source('../src/services/livekitWebhookService.js');
+  const sweep = await source('../src/services/livekitOrphanSweep.js');
+
+  assert.match(webhook, /CREATOR_RECOVERY_TTL_MS/);
+  assert.match(webhook, /24\) \* 60 \* 60 \* 1000/);
+  assert.match(webhook, /endExpiredDisconnectedBroadcast/);
+  assert.doesNotMatch(webhook, /CREATOR_DISCONNECT_GRACE_MS/);
+  assert.match(sweep, /getCreatorRecoveryHours/);
+  assert.match(sweep, /mediaState === 'audio_disconnected'/);
+  assert.match(sweep, /creatorDisconnectedAt/);
+  assert.match(sweep, /LiveKitProvider\.getParticipants/);
 });
