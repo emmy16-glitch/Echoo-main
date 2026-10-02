@@ -18,13 +18,15 @@ import {
 // LiveKit participant presence is transport state, not broadcast authority.
 // Keep a disconnected live broadcast recoverable for a full long-show window
 // before terminal cleanup. Rejoining cancels this timer immediately.
-const CREATOR_RECOVERY_TTL_MS = Math.max(
-  60 * 60 * 1000,
-  Math.min(
-    48 * 60 * 60 * 1000,
-    Number(process.env.LIVEKIT_CREATOR_RECOVERY_TTL_HOURS || 24) * 60 * 60 * 1000
-  )
+const rawCreatorRecoveryHours = Number(
+  process.env.LIVEKIT_CREATOR_RECOVERY_TTL_HOURS || 24
 );
+const creatorRecoveryHours =
+  Number.isFinite(rawCreatorRecoveryHours) && rawCreatorRecoveryHours > 0
+    ? Math.max(1, Math.min(48, rawCreatorRecoveryHours))
+    : 24;
+const CREATOR_RECOVERY_TTL_MS =
+  creatorRecoveryHours * 60 * 60 * 1000;
 const pendingDisconnects = new Map();
 let receiver = null;
 
