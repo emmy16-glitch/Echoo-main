@@ -86,7 +86,7 @@ test('24-bit PCM conversion preserves sign and stereo channel ordering', async (
 test('WAV parser rejects renamed or unsupported audio', async () => {
   await assert.rejects(
     parsePcmWavHeader(new Blob([new TextEncoder().encode('not a wav')], { type: 'audio/wav' })),
-    /valid RIFF\\/RF64 WAV/
+    /valid RIFF.*RF64 WAV/
   );
 });
 
