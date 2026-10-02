@@ -102,7 +102,8 @@ test('creator webhook recovery ignores stale participant and track removal event
   assert.match(webhook, /clearCreatorProgramTrackIfCurrent/);
   assert.match(webhook, /programTrackSid:\s*sid/);
   assert.match(webhook, /event\.track\?\.sid/);
-  assert.match(webhook, /const replacementPresent = await creatorStillPresent\([\s\S]{0,140}current,[\s\S]{0,140}leavingParticipantSid[\s\S]{0,80}\.catch\(\(\) => true\)/);
+  assert.match(webhook, /findCreatorProgramAudio\([\s\S]{0,120}current\._id,[\s\S]{0,120}current\.creator/);
+  assert.match(webhook, /healRecoveredProgramAudio/);
   assert.match(webhook, /scheduleCreatorDisconnect\([\s\S]{0,180}updated\.creatorDisconnectedAt/);
 });
 
@@ -152,9 +153,11 @@ test('creator webhook ignores obsolete participant sessions and long sessions pr
   assert.match(webhook, /leavingParticipantSid/);
   assert.match(webhook, /currentParticipantSid/);
   assert.match(webhook, /leavingParticipantSid !== currentParticipantSid/);
-  assert.match(webhook, /creatorStillPresent\([\s\S]{0,100}leavingParticipantSid/);
-  assert.match(webhook, /participantSid !== excludedSid/);
+  assert.match(webhook, /findCreatorProgramAudio\([\s\S]{0,160}current\._id,[\s\S]{0,160}current\.creator/);
+  assert.match(webhook, /replacementProgram/);
   assert.match(webhook, /creatorParticipantSid: joinedParticipantSid/);
+  assert.match(webhook, /Joining restores transport only/);
+  assert.match(webhook, /track_published[\s\S]{0,220}cancelCreatorDisconnect\(broadcastId\)/);
   assert.match(webhook, /scheduleCreatorDisconnect\([\s\S]{0,180}updated\.creatorDisconnectedAt/);
   assert.match(keepAwake, /navigator\.wakeLock\?\.request === 'function'/);
   assert.match(keepAwake, /navigator\.wakeLock\.request\('screen'\)/);
