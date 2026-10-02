@@ -96,14 +96,34 @@ test('listener consumes real LiveKit states without receiving live transcript da
 });
 
 
-test('creator webhook recovery ignores stale participant and track removal events', async () => {
+test('creator webhook recovery rejects stale publish/unpublish ordering and leases real audio loss', async () => {
   const webhook = await source('../src/services/livekitWebhookService.js');
+  const readiness = await source('../src/services/broadcastAudioReadiness.js');
 
   assert.match(webhook, /clearCreatorProgramTrackIfCurrent/);
   assert.match(webhook, /programTrackSid:\s*sid/);
   assert.match(webhook, /event\.track\?\.sid/);
   assert.match(webhook, /const replacementPresent = await creatorStillPresent\([\s\S]{0,140}current,[\s\S]{0,140}leavingParticipantSid[\s\S]{0,80}\.catch\(\(\) => true\)/);
-  assert.match(webhook, /scheduleCreatorDisconnect\([\s\S]{0,180}updated\.creatorDisconnectedAt/);
+  assert.match(webhook, /shouldAcceptProgramPublish/);
+  assert.match(webhook, /const \[currentProgram, eventProgram\] = await Promise\.all/);
+  assert.match(webhook, /if \(currentProgram\) return false/);
+  assert.match(webhook, /if \(!eventProgram\) return false/);
+  assert.match(webhook, /ignored stale creator track_published/);
+  assert.match(webhook, /creatorDisconnectedAt:\s*disconnectedAt/);
+  assert.match(webhook, /track_unpublished[\s\S]{0,900}scheduleCreatorDisconnect/);
+
+  const joinedStart = webhook.indexOf("event.event === 'participant_joined'");
+  const publishedStart = webhook.indexOf("event.event === 'track_published'");
+  assert.ok(joinedStart >= 0 && publishedStart > joinedStart);
+  const joinedBlock = webhook.slice(joinedStart, publishedStart);
+  assert.doesNotMatch(joinedBlock, /cancelCreatorDisconnect\(broadcastId\)/);
+
+  const publishedBlock = webhook.slice(publishedStart, webhook.indexOf("event.event === 'track_unpublished'"));
+  assert.match(publishedBlock, /cancelCreatorDisconnect\(broadcastId\)/);
+
+  assert.match(readiness, /const creators = participants\.filter/);
+  assert.match(readiness, /for \(const creator of orderedCreators\)/);
+  assert.doesNotMatch(readiness, /const creator = participants\.find/);
 });
 
 
