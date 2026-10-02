@@ -258,8 +258,12 @@ const hasLongSessionLosslessHeadroom = async () => {
 
 const compressedExtensionForMime = (mimeType = '') => {
   const mime = String(mimeType).toLowerCase();
-  if (mime.includes('ogg') || mime.includes('opus')) return 'ogg';
+  // Codec and container are not interchangeable. In particular,
+  // audio/webm;codecs=opus is WebM bytes and must never be labeled .ogg.
+  if (mime.includes('webm')) return 'webm';
+  if (mime.includes('ogg')) return 'ogg';
   if (mime.includes('mp4') || mime.includes('aac') || mime.includes('m4a')) return 'm4a';
+  if (mime.includes('opus')) return 'ogg';
   return 'webm';
 };
 
