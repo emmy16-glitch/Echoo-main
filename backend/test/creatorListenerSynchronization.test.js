@@ -109,6 +109,10 @@ test('creator webhook recovery rejects stale publish/unpublish ordering and leas
   assert.match(webhook, /if \(currentProgram\) return false/);
   assert.match(webhook, /if \(!eventProgram\) return false/);
   assert.match(webhook, /ignored stale creator track_published/);
+  assert.match(webhook, /const canClaimTransport = Boolean/);
+  assert.match(webhook, /current\.mediaState !== 'audio_live'/);
+  assert.match(webhook, /!current\.programTrackSid/);
+  assert.match(webhook, /if \(canClaimTransport\)/);
   assert.match(webhook, /creatorDisconnectedAt:\s*disconnectedAt/);
   assert.match(webhook, /track_unpublished[\s\S]{0,900}scheduleCreatorDisconnect/);
 
