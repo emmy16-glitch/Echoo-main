@@ -30,3 +30,16 @@ test('backend keeps creator and listener grants separated', async () => {
   assert.match(provider, /canPublish:\s*true/);
   assert.match(provider, /canPublish:\s*false/);
 });
+
+test('web and mobile pin the reconnect-fixed LiveKit client release', async () => {
+  const webPackage = JSON.parse(await read('frontend/package.json'));
+  const webLock = JSON.parse(await read('frontend/package-lock.json'));
+  const mobilePackage = JSON.parse(await read('mobile/package.json'));
+  const mobileLock = JSON.parse(await read('mobile/package-lock.json'));
+
+  assert.equal(webPackage.dependencies['livekit-client'], '2.22.3');
+  assert.equal(webLock.packages['node_modules/livekit-client'].version, '2.22.3');
+  assert.equal(mobilePackage.dependencies['livekit-client'], '2.22.3');
+  assert.equal(mobileLock.packages['node_modules/livekit-client'].version, '2.22.3');
+  assert.equal(webLock.packages['node_modules/machina'].engines.node, '>=22.22');
+});
