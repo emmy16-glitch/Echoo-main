@@ -230,6 +230,14 @@ const broadcastSchema = new mongoose.Schema(
       default: 'waiting_for_creator',
       index: true,
     },
+    // A WebRTC transport is replaceable. Keep the disconnect boundary durable
+    // so a backend restart cannot accidentally turn a recoverable long show
+    // into a terminal broadcast or keep a truly abandoned one forever.
+    mediaDisconnectedAt: {
+      type: Date,
+      default: null,
+      index: true,
+    },
     audioConfiguration: {
       // Preserve original source audio unless Enhanced Audio is explicitly on.
       audioMode: { type: String, enum: ['raw', 'enhanced'], default: 'raw' },
