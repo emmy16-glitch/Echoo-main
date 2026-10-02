@@ -7,6 +7,7 @@ import {
   validateBroadcastListQuery,
 } from '../src/middleware/broadcastQueryValidation.js';
 import {
+  findCreatorProgramAudio,
   isCreatorParticipant,
   isEchooProgramAudioTrack,
   parseParticipantMetadata,
@@ -206,6 +207,54 @@ test('audio readiness retries propagation and returns the creator program track'
     assert.equal(result.participantSid, 'PA_creator');
     assert.equal(result.trackSid, 'TR_program');
     assert.equal(result.trackName, 'echoo-studio-mix');
+  } finally {
+    LiveKitProvider.getParticipants = original;
+  }
+});
+
+test('audio readiness scans overlapping creator transports instead of trusting the first participant', async () => {
+  const userId = new mongoose.Types.ObjectId().toString();
+  const original = LiveKitProvider.getParticipants;
+
+  LiveKitProvider.getParticipants = async () => ([
+    {
+      sid: 'PA_old',
+      identity: userId,
+      metadata: JSON.stringify({ role: 'creator', userId }),
+      tracks: [{ sid: 'TR_old_mic', name: 'microphone', mimeType: 'audio/opus', muted: false }],
+    },
+    {
+      sid: 'PA_replacement',
+      identity: userId,
+      metadata: JSON.stringify({ role: 'creator', userId }),
+      tracks: [{
+        sid: 'TR_replacement_program',
+        name: 'echoo-studio-mix',
+        mimeType: 'audio/opus',
+        muted: false,
+      }],
+    },
+  ]);
+
+  try {
+    const found = await findCreatorProgramAudio('broadcast-id', userId);
+    assert.equal(found.participantSid, 'PA_replacement');
+    assert.equal(found.trackSid, 'TR_replacement_program');
+
+    const preferredOld = await findCreatorProgramAudio(
+      'broadcast-id',
+      userId,
+      { participantSid: 'PA_old' }
+    );
+    assert.equal(preferredOld, null);
+
+    const confirmed = await waitForCreatorProgramAudio('broadcast-id', userId, {
+      maxAttempts: 1,
+      initialDelayMs: 0,
+      delayStepMs: 0,
+    });
+    assert.equal(confirmed.participantSid, 'PA_replacement');
+    assert.equal(confirmed.trackSid, 'TR_replacement_program');
   } finally {
     LiveKitProvider.getParticipants = original;
   }
