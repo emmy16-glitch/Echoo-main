@@ -197,6 +197,19 @@ test('a database-live broadcast can rebuild its publisher after a page reload', 
   assert.match(workspace, /Reconnect live audio/);
 });
 
+test('automatic hard recovery reconciles the backend even when its LiveKit webhook is lost', async () => {
+  const workspace = await read('./CreatorLiveConnectedWorkspace.jsx');
+  const publisher = await read('../../services/livekitPublisher.js');
+
+  assert.match(publisher, /echoo:publisher-recovered/);
+  assert.match(publisher, /broadcastId:\s*candidate\.broadcastId/);
+  assert.match(publisher, /trackSid:\s*activePublication\?\.trackSid/);
+  assert.match(workspace, /addEventListener\('echoo:publisher-recovered'/);
+  assert.match(workspace, /batch3Service\.confirmBroadcastLive\(broadcastId\)/);
+  assert.match(workspace, /automatic recovery confirmation delayed/);
+  assert.match(workspace, /endingRequestRef\.current/);
+});
+
 test('End stops listener audio and local recovery master before waiting for server cleanup', async () => {
   const workspace = await read('./CreatorLiveConnectedWorkspace.jsx');
   const publisher = await read('../../services/livekitPublisher.js');
