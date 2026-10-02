@@ -255,6 +255,7 @@ export async function startBroadcast(req, res, next) {
     };
     broadcast.mediaState = 'creator_connecting';
     broadcast.creatorDisconnectedAt = null;
+    broadcast.creatorParticipantSid = null;
     broadcast.transcriptState = 'disabled';
     broadcast.programTrackSid = null;
     broadcast.programTrackName = null;
