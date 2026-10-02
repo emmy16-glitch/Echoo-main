@@ -28,9 +28,15 @@ test('recovery reconciles interrupted lifecycles without fabricating history', a
   assert.match(service, /BROADCAST_NOT_RECOVERABLE/);
   assert.doesNotMatch(service, /\$set:\s*\{\s*status:\s*['"]completed['"]/);
 
-  // A truly active session is never auto-finalized: LiveKit room occupancy
-  // is ground truth, provider outages stay conservative.
-  assert.match(service, /getParticipants/);
+  // A truly active session is never auto-finalized: creator program audio is
+  // ground truth, intentional pause uses creator presence, provider outages
+  // stay conservative, and live reconnect leases cannot be bypassed by OPFS.
+  assert.match(service, /getCreatorProgramAudio/);
+  assert.match(service, /creatorParticipantIsPresent/);
+  assert.match(service, /creatorRecoveryTtlMs/);
+  assert.match(service, /beginLiveRecoveryLease/);
+  assert.match(service, /claimExpiredLiveRecovery/);
+  assert.match(service, /creatorDisconnectedAt: broadcast\.creatorDisconnectedAt/);
   assert.match(service, /BROADCAST_STILL_LIVE/);
 
   // Finalization mirrors end-of-life cleanup without transcription.
