@@ -247,6 +247,14 @@ test('audio readiness scans every creator participant and can verify an exact tr
     );
     assert.equal(replacementProgram?.participant?.sid, 'PA_new');
     assert.equal(replacementProgram?.track?.sid, 'TR_new');
+
+    const replacementAfterUnpublish = await findCreatorProgramAudio(
+      'broadcast-id',
+      userId,
+      { excludeTrackSid: 'TR_old', preferredTrackSid: 'TR_new' }
+    );
+    assert.equal(replacementAfterUnpublish?.participant?.sid, 'PA_new');
+    assert.equal(replacementAfterUnpublish?.track?.sid, 'TR_new');
   } finally {
     LiveKitProvider.getParticipants = original;
   }
