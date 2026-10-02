@@ -24,13 +24,15 @@ import { findCreatorProgramAudio } from './broadcastAudioReadiness.js';
 
 const STUCK_STATES = ['starting', 'ending', 'live'];
 const REASON_PREFIX = 'Orphan sweep: ';
-const ORPHAN_SWEEP_INTERVAL_MS = Math.max(
-  60_000,
-  Math.min(
-    60 * 60 * 1000,
-    Number(process.env.ORPHAN_SWEEP_INTERVAL_MS || 10 * 60 * 1000)
-  )
-);
+
+function getOrphanSweepIntervalMs() {
+  const raw = Number(process.env.ORPHAN_SWEEP_INTERVAL_MS || 10 * 60 * 1000);
+  const safe = Number.isFinite(raw) && raw > 0
+    ? raw
+    : 10 * 60 * 1000;
+  return Math.max(60_000, Math.min(60 * 60 * 1000, safe));
+}
+
 let sweepTimer = null;
 let sweepRunning = false;
 
@@ -336,7 +338,7 @@ function startOrphanSweep() {
   if (sweepTimer) return;
   sweepTimer = setInterval(() => {
     void runSweepSafely();
-  }, ORPHAN_SWEEP_INTERVAL_MS);
+  }, getOrphanSweepIntervalMs());
   sweepTimer.unref?.();
 }
 
@@ -350,6 +352,7 @@ export {
   STUCK_STATES,
   getStuckMinutes,
   getCreatorRecoveryHours,
+  getOrphanSweepIntervalMs,
   isStuck,
   isRecoverableState,
   sweep,
@@ -361,6 +364,7 @@ export default {
   STUCK_STATES,
   getStuckMinutes,
   getCreatorRecoveryHours,
+  getOrphanSweepIntervalMs,
   isStuck,
   isRecoverableState,
   sweep,
