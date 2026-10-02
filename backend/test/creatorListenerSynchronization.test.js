@@ -140,7 +140,7 @@ test('transport disconnect cannot terminate a normal seven-hour broadcast', asyn
   const sweep = await source('../src/services/livekitOrphanSweep.js');
 
   assert.match(webhook, /CREATOR_RECOVERY_TTL_MS/);
-  assert.match(webhook, /24\) \* 60 \* 60 \* 1000/);
+  assert.match(webhook, /creatorRecoveryHours\s*\*\s*60\s*\*\s*60\s*\*\s*1000/);
   assert.match(webhook, /endExpiredDisconnectedBroadcast/);
   assert.doesNotMatch(webhook, /CREATOR_DISCONNECT_GRACE_MS/);
   assert.match(sweep, /getCreatorRecoveryHours/);
