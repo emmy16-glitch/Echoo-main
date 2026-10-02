@@ -217,6 +217,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
       liveKit &&
       liveCredentials
     ) {
+      isPlayingRef.current = true;
       setIsPlaying(true);
       return;
     }
