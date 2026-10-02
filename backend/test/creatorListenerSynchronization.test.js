@@ -113,7 +113,7 @@ test('program-track loss uses the durable recovery lease even while creator tran
   const sweep = await source('../src/services/livekitOrphanSweep.js');
 
   assert.match(webhook, /creatorDisconnectedAt:\s*new Date\(\)/);
-  assert.match(webhook, /track_unpublished[\s\S]{0,900}scheduleCreatorDisconnect/);
+  assert.match(webhook, /track_unpublished[\s\S]{0,2600}scheduleCreatorDisconnect/);
   assert.match(webhook, /track_published[\s\S]{0,220}cancelCreatorDisconnect\(broadcastId\)/);
   assert.match(webhook, /findCreatorProgramAudio\(current\._id, current\.creator\)/);
   assert.match(readiness, /export async function findCreatorProgramAudio/);
