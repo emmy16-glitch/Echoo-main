@@ -194,5 +194,5 @@ test('transport disconnect cannot terminate a normal seven-hour broadcast', asyn
   assert.match(sweep, /getCreatorRecoveryHours/);
   assert.match(sweep, /mediaState === 'audio_disconnected'/);
   assert.match(sweep, /creatorDisconnectedAt/);
-  assert.match(sweep, /LiveKitProvider\.getParticipants/);
+  assert.match(sweep, /findCreatorProgramAudio\(fresh\._id, fresh\.creator\)/);
 });
