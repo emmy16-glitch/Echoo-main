@@ -1,11 +1,13 @@
 import mongoose from 'mongoose';
 import Audio from '../models/Audio.js';
 import Broadcast from '../models/Broadcast.js';
+import Station from '../models/Station.js';
 import LiveKitProvider from '../providers/livekit.js';
 import { stopBroadcastOutputs } from './broadcastOutputService.js';
 import { enqueueBroadcastProcessing } from './broadcastProcessingService.js';
 import { releaseCreatorBroadcastLease } from './creatorBroadcastLease.js';
 import { stopLiveKitServerRecording } from './livekitServerRecording.js';
+import { clearBroadcastPresenceCache } from '../controllers/broadcastPresenceController.js';
 import {
   creatorParticipantIsPresent,
   getCreatorProgramAudio,
@@ -64,7 +66,7 @@ const recoveryLeaseAgeMs = (broadcast) => {
 const beginLiveRecoveryLease = async (broadcast) => {
   const expectedTrackSid = broadcast.programTrackSid ?? null;
   const expectedMediaState = broadcast.mediaState;
-  return Broadcast.findOneAndUpdate(
+  const leased = await Broadcast.findOneAndUpdate(
     {
       _id: broadcast._id,
       status: 'live',
@@ -83,6 +85,8 @@ const beginLiveRecoveryLease = async (broadcast) => {
     },
     { returnDocument: 'after' }
   );
+  if (leased) clearBroadcastPresenceCache(leased._id);
+  return leased;
 };
 
 const claimExpiredLiveRecovery = async (broadcast) =>
@@ -111,6 +115,16 @@ const finalizeInterruptedBroadcast = async (broadcast) => {
   await stopBroadcastOutputs(String(broadcast._id), { incomplete: true }).catch((error) => {
     console.warn('[Echoo Recovery] output cleanup warning:', error?.message || error);
   });
+  if (broadcast.livekitIngressId) {
+    await LiveKitProvider.stopIngress(broadcast.livekitIngressId).catch((error) => {
+      console.warn('[Echoo Recovery] ingress cleanup warning:', error?.message || error);
+    });
+  }
+  if (broadcast.livekitEgressId) {
+    await LiveKitProvider.stopEgress(broadcast.livekitEgressId).catch((error) => {
+      console.warn('[Echoo Recovery] egress cleanup warning:', error?.message || error);
+    });
+  }
   try {
     await LiveKitProvider.endRoom(String(broadcast._id));
   } catch (error) {
@@ -141,6 +155,16 @@ const finalizeInterruptedBroadcast = async (broadcast) => {
   broadcast.programTrackSid = null;
   broadcast.programTrackName = null;
   await broadcast.save();
+
+  clearBroadcastPresenceCache(broadcast._id);
+  if (broadcast.station) {
+    await Station.updateOne(
+      { _id: broadcast.station },
+      { $set: { isLive: false, listenerCount: 0 } }
+    ).catch((error) => {
+      console.warn('[Echoo Recovery] station snapshot cleanup warning:', error?.message || error);
+    });
+  }
 
   await enqueueBroadcastProcessing(broadcast._id, { transcriptionEnabled: false }).catch((error) => {
     console.error('[Echoo Recovery] processing enqueue failed:', {
