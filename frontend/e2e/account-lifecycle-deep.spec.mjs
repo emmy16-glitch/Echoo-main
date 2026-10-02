@@ -246,9 +246,18 @@ test('sign out plus browser Back cannot resurrect Listener or Creator protected 
   // History before sign-in is empty (fresh browser): Back leaves Listener
   // discovery or a blank entry — never an authenticated shell.
   await expect.poll(() => page.evaluate(() => window.location.pathname)).not.toBe('/creator-studio');
-  await page.goForward().catch(() => {});
+  await page.waitForLoadState('networkidle').catch(() => {});
+
+  // Do not immediately navigate away again while WebKit is still dispatching
+  // public Discover fetches from the Forward entry. Aborting those requests
+  // during a second navigation is reported by WebKit as an access-control
+  // error even though the mock API's CORS headers are valid.
+  await page.goForward().catch(() => null);
+  await page.waitForLoadState('networkidle').catch(() => {});
+
   await page.goto('/listen');
   await expect(page.getByRole('heading', { name: 'Discover' })).toBeVisible();
+  await page.waitForLoadState('networkidle');
   await expect(page.locator('.studio-final-shell')).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => localStorage.getItem('accessToken'))).toBe(null);
   expect(errors).toEqual([]);
