@@ -353,6 +353,41 @@ const CreatorLiveConnectedWorkspace = ({
   }, []);
 
   useEffect(() => {
+    const onPublisherRecovered = (event) => {
+      const broadcastId = String(event?.detail?.broadcastId || '');
+      if (!broadcastId || endingRequestRef.current) return;
+
+      // Automatic LiveKit hard recovery happens below the React/API layer.
+      // Re-confirm the already-live broadcast so a delayed/lost LiveKit
+      // webhook cannot leave durable participant/track/recording state stale.
+      void batch3Service.confirmBroadcastLive(broadcastId)
+        .then((confirmed) => {
+          const reconciled = confirmed?.data;
+          if (!reconciled?.id) return;
+          setCurrentLiveBroadcast((current) =>
+            String(current?.id || '') === broadcastId
+              ? { ...current, ...reconciled }
+              : current
+          );
+          setSavedBroadcast((current) =>
+            String(current?.id || '') === broadcastId
+              ? { ...current, ...reconciled }
+              : current
+          );
+        })
+        .catch((confirmError) => {
+          console.warn(
+            '[Echoo Live] automatic recovery confirmation delayed:',
+            confirmError?.message || confirmError
+          );
+        });
+    };
+
+    window.addEventListener('echoo:publisher-recovered', onPublisherRecovered);
+    return () => window.removeEventListener('echoo:publisher-recovered', onPublisherRecovered);
+  }, []);
+
+  useEffect(() => {
     const onRecordingUpload = (event) => {
       const detail = event?.detail || {};
       const status = String(detail.status || '');

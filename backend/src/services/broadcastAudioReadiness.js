@@ -34,15 +34,56 @@ export const isEchooProgramAudioTrack = (
   return !mimeType || mimeType.startsWith('audio/');
 };
 
-export async function creatorProgramAudioIsPresent(broadcastId, userId) {
-  const participants = await LiveKitProvider.getParticipants(broadcastId);
-  const creator = participants.find((participant) =>
-    isCreatorParticipant(participant, userId)
-  );
-  if (!creator) return false;
+export async function findCreatorProgramAudio(
+  broadcastId,
+  userId,
+  { participantSid = '', excludeParticipantSid = '' } = {}
+) {
+  const participantList = await LiveKitProvider.getParticipants(broadcastId);
+  const participants = Array.isArray(participantList) ? participantList : [];
+  const preferredSid = String(participantSid || '').trim();
+  const excludedSid = String(excludeParticipantSid || '').trim();
 
-  const tracks = Array.isArray(creator.tracks) ? creator.tracks : [];
-  return tracks.some((track) => isEchooProgramAudioTrack(track));
+  const creators = participants.filter((participant) =>
+    isCreatorParticipant(participant, userId) &&
+    (!excludedSid || String(participant?.sid || '').trim() !== excludedSid)
+  );
+
+  const orderedCreators = preferredSid
+    ? [
+        ...creators.filter((participant) => String(participant?.sid || '').trim() === preferredSid),
+        ...creators.filter((participant) => String(participant?.sid || '').trim() !== preferredSid),
+      ]
+    : creators;
+
+  for (const creator of orderedCreators) {
+    if (
+      preferredSid &&
+      String(creator?.sid || '').trim() !== preferredSid
+    ) {
+      continue;
+    }
+
+    const tracks = Array.isArray(creator.tracks) ? creator.tracks : [];
+    const programAudio = tracks.find((track) =>
+      isEchooProgramAudioTrack(track)
+    );
+    if (!programAudio) continue;
+
+    return {
+      participantSid: creator.sid || null,
+      participantIdentity: creator.identity || null,
+      trackSid: programAudio.sid || null,
+      trackName: programAudio.name || null,
+      mimeType: programAudio.mimeType || null,
+    };
+  }
+
+  return null;
+}
+
+export async function creatorProgramAudioIsPresent(broadcastId, userId) {
+  return Boolean(await findCreatorProgramAudio(broadcastId, userId));
 }
 
 export async function waitForCreatorProgramAudioToStop(
@@ -78,27 +119,8 @@ export async function waitForCreatorProgramAudio(
   const attempts = Math.max(1, Math.min(12, Number(maxAttempts) || 7));
 
   for (let attempt = 0; attempt < attempts; attempt += 1) {
-    const participants = await LiveKitProvider.getParticipants(broadcastId);
-    const creator = participants.find((participant) =>
-      isCreatorParticipant(participant, userId)
-    );
-
-    if (creator) {
-      const tracks = Array.isArray(creator.tracks) ? creator.tracks : [];
-      const programAudio = tracks.find((track) =>
-        isEchooProgramAudioTrack(track)
-      );
-
-      if (programAudio) {
-        return {
-          participantSid: creator.sid || null,
-          participantIdentity: creator.identity || null,
-          trackSid: programAudio.sid || null,
-          trackName: programAudio.name || null,
-          mimeType: programAudio.mimeType || null,
-        };
-      }
-    }
+    const publisher = await findCreatorProgramAudio(broadcastId, userId);
+    if (publisher) return publisher;
 
     if (attempt < attempts - 1) {
       await wait(initialDelayMs + attempt * delayStepMs);

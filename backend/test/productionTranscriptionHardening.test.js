@@ -84,13 +84,16 @@ test('broadcast end cleans LiveKit immediately and hands transcript work to the 
   assert.match(provider, /IngressClient/);
 });
 
-test('LiveKit webhooks use the signed raw body and a creator disconnect grace period', async () => {
+test('LiveKit webhooks use the signed raw body and program-audio-aware creator recovery', async () => {
   const app = await read('backend/src/app.js');
   const webhook = await read('backend/src/services/livekitWebhookService.js');
   assert.ok(app.indexOf("'/api/webhooks/livekit'") < app.indexOf("express.json({ limit: '10mb' })"));
   assert.match(webhook, /WebhookReceiver/);
   assert.match(webhook, /participant_left/);
-  assert.match(webhook, /creatorStillPresent/);
+  assert.match(webhook, /findCreatorProgramAudio/);
+  assert.match(webhook, /excludeParticipantSid/);
+  assert.match(webhook, /scheduleCreatorDisconnect/);
+  assert.doesNotMatch(webhook, /creatorStillPresent/);
 });
 
 test('one replay per broadcast is indexed and failed linking is compensated', async () => {

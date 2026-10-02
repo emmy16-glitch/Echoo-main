@@ -14,6 +14,9 @@ import {
   isLiveKitServerRecordingEnabled,
   stopLiveKitServerRecording,
 } from './livekitServerRecording.js';
+import {
+  findCreatorProgramAudio,
+} from './broadcastAudioReadiness.js';
 
 // LiveKit participant presence is transport state, not broadcast authority.
 // Keep a disconnected live broadcast recoverable for a full long-show window
@@ -77,25 +80,11 @@ const emitStatus = (io, broadcast) => {
   if (broadcast.isPublic) io.emit('catalog:changed', { entity: 'broadcast', action: 'status', ...payload });
 };
 
-const creatorStillPresent = async (broadcast, excludeParticipantSid = '') => {
-  const excludedSid = String(excludeParticipantSid || '').trim();
-  const participants = await LiveKitProvider.getParticipants(broadcast._id);
-  return participants.some((participant) => {
-    const metadata = metadataOf(participant.metadata);
-    const participantSid = String(participant?.sid || '').trim();
-    return (
-      metadata.role === 'creator' &&
-      String(metadata.userId) === String(broadcast.creator) &&
-      (!excludedSid || participantSid !== excludedSid)
-    );
-  });
-};
-
 const updateCreatorMediaState = async (broadcastId, update, io, { preserveLive = false } = {}) => {
   const broadcast = await Broadcast.findOneAndUpdate(
     {
       _id: broadcastId,
-      status: { $in: ['starting', 'live', 'ending'] },
+      status: { $in: ['starting', 'live'] },
       isDeleted: false,
       ...(preserveLive ? { mediaState: { $ne: 'audio_live' } } : {}),
     },
@@ -111,16 +100,29 @@ const updateCreatorMediaState = async (broadcastId, update, io, { preserveLive =
 const clearCreatorProgramTrackIfCurrent = async (broadcastId, trackSid, io) => {
   const sid = String(trackSid || '').trim();
   if (!sid) return null;
+
+  // Read first so a replacement track published between this read and write
+  // makes the programTrackSid predicate fail instead of being erased.
+  const current = await Broadcast.findOne({
+    _id: broadcastId,
+    status: { $in: ['starting', 'live'] },
+    isDeleted: false,
+    programTrackSid: sid,
+  });
+  if (!current) return null;
+
+  const disconnectedAt = current.creatorDisconnectedAt || new Date();
   const broadcast = await Broadcast.findOneAndUpdate(
     {
       _id: broadcastId,
-      status: { $in: ['starting', 'live', 'ending'] },
+      status: { $in: ['starting', 'live'] },
       isDeleted: false,
       programTrackSid: sid,
     },
     {
       $set: {
         mediaState: 'audio_disconnected',
+        creatorDisconnectedAt: disconnectedAt,
         programTrackSid: null,
         programTrackName: null,
       },
@@ -133,6 +135,46 @@ const clearCreatorProgramTrackIfCurrent = async (broadcastId, trackSid, io) => {
   return broadcast;
 };
 
+const creatorProgramSnapshot = async (broadcast, participantSid = '') =>
+  findCreatorProgramAudio(
+    broadcast._id,
+    broadcast.creator,
+    participantSid ? { participantSid } : {}
+  );
+
+const shouldAcceptProgramPublish = async (broadcast, event) => {
+  const eventParticipantSid = String(event?.participant?.sid || '').trim();
+  const currentParticipantSid = String(broadcast?.creatorParticipantSid || '').trim();
+
+  if (!currentParticipantSid || !eventParticipantSid || currentParticipantSid === eventParticipantSid) {
+    return true;
+  }
+
+  // A reconnect can overlap old and new creator transports. On a SID mismatch,
+  // trust the currently stored transport while it still has the canonical
+  // program track. Only promote the webhook's transport if the stored one no
+  // longer carries program audio and the webhook's exact SID does.
+  try {
+    const [currentProgram, eventProgram] = await Promise.all([
+      creatorProgramSnapshot(broadcast, currentParticipantSid),
+      creatorProgramSnapshot(broadcast, eventParticipantSid),
+    ]);
+    if (currentProgram) return false;
+    if (!eventProgram) return false;
+
+    const eventTrackSid = String(event?.track?.sid || '').trim();
+    return !eventTrackSid || String(eventProgram.trackSid || '').trim() === eventTrackSid;
+  } catch (error) {
+    // Ambiguous control-plane state must never let an old delayed webhook
+    // overwrite a known healthy replacement transport.
+    console.warn(
+      '[Echoo LiveKit Webhook] could not verify mismatched creator track publish:',
+      error?.message || error
+    );
+    return false;
+  }
+};
+
 const endExpiredDisconnectedBroadcast = async (broadcastId, io) => {
   pendingDisconnects.delete(String(broadcastId));
   const current = await Broadcast.findOne({
@@ -140,17 +182,59 @@ const endExpiredDisconnectedBroadcast = async (broadcastId, io) => {
     status: 'live',
     isDeleted: false,
   });
-  // A LiveKit control-plane lookup failure is not evidence that the creator
-  // disappeared. Keep the broadcast live and let a later webhook/operator
-  // action retry rather than ending a healthy show on an infrastructure blip.
-  if (!current || await creatorStillPresent(current).catch(() => true)) return;
+  if (!current || !current.creatorDisconnectedAt) return;
+  const recoveryLeaseStartedAt = new Date(current.creatorDisconnectedAt);
+
+  // The recovery lease protects the logical show while program audio is gone.
+  // Participant presence alone is insufficient: a creator can remain joined
+  // forever with no echoo-studio-mix. Reconcile from LiveKit if the track is
+  // actually back; otherwise the expired lease is terminal.
+  let publisher = null;
+  try {
+    publisher = await creatorProgramSnapshot(current);
+  } catch {
+    // A LiveKit control-plane lookup failure is not evidence that audio is
+    // absent. Preserve the show and let the periodic sweep retry later.
+    return;
+  }
+  if (publisher) {
+    const recovered = await updateCreatorMediaState(
+      broadcastId,
+      {
+        mediaState: 'audio_live',
+        creatorDisconnectedAt: null,
+        creatorParticipantSid: publisher.participantSid || current.creatorParticipantSid || null,
+        programTrackSid: publisher.trackSid || current.programTrackSid || null,
+        programTrackName: publisher.trackName || current.programTrackName || 'echoo-studio-mix',
+      },
+      io
+    );
+    if (recovered) {
+      cancelCreatorDisconnect(broadcastId);
+      if (isLiveKitServerRecordingEnabled() && publisher.trackSid) {
+        void ensureLiveKitServerRecording({
+          broadcastId,
+          trackSid: publisher.trackSid,
+        }).catch((recordingError) => {
+          console.warn(
+            '[Echoo Server Recording] recovery reconciliation warning:',
+            recordingError?.message || recordingError
+          );
+        });
+      }
+    }
+    return;
+  }
 
   const broadcast = await Broadcast.findOneAndUpdate(
     {
       _id: current._id,
       status: 'live',
       isDeleted: false,
-      creatorDisconnectedAt: { $ne: null },
+      // Compare-and-set the exact lease that this timer inspected. If the
+      // creator recovered and disconnected again while this async check was
+      // running, the new lease has a different timestamp and must survive.
+      creatorDisconnectedAt: recoveryLeaseStartedAt,
     },
     {
       $set: {
@@ -246,7 +330,7 @@ export async function handleLiveKitWebhook(req, res) {
     if (broadcastId && isCreator && event.event === 'participant_left') {
       const current = await Broadcast.findOne({
         _id: broadcastId,
-        status: { $in: ['starting', 'live', 'ending'] },
+        status: { $in: ['starting', 'live'] },
         isDeleted: false,
       });
 
@@ -265,15 +349,58 @@ export async function handleLiveKitWebhook(req, res) {
         // do not start/cancel timers or mutate the healthy replacement.
         if (!isKnownStaleLeave) {
           // participant_left itself is authoritative for this concrete SID.
-          // LiveKit control-plane listing can briefly retain that same SID,
-          // so only a different creator participant counts as a replacement.
-          const replacementPresent = await creatorStillPresent(
-            current,
-            leavingParticipantSid
-          ).catch(() => true);
-          if (replacementPresent) {
+          // A replacement may already have published while the old publisher
+          // was still healthy; that earlier publish was intentionally ignored
+          // to avoid two transports fighting for authority. Promote it now.
+          let replacementProgram = null;
+          try {
+            replacementProgram = await findCreatorProgramAudio(
+              current._id,
+              current.creator,
+              { excludeParticipantSid: leavingParticipantSid }
+            );
+          } catch (error) {
+            console.warn(
+              '[Echoo LiveKit Webhook] replacement program lookup failed:',
+              error?.message || error
+            );
+          }
+
+          if (replacementProgram) {
             cancelCreatorDisconnect(broadcastId);
+            const recovered = await updateCreatorMediaState(
+              broadcastId,
+              {
+                mediaState: 'audio_live',
+                creatorDisconnectedAt: null,
+                creatorParticipantSid:
+                  replacementProgram.participantSid || null,
+                programTrackSid:
+                  replacementProgram.trackSid || current.programTrackSid || null,
+                programTrackName:
+                  replacementProgram.trackName || 'echoo-studio-mix',
+              },
+              req.app.get('io')
+            );
+
+            if (
+              recovered &&
+              isLiveKitServerRecordingEnabled() &&
+              replacementProgram.trackSid
+            ) {
+              void ensureLiveKitServerRecording({
+                broadcastId,
+                trackSid: replacementProgram.trackSid,
+              }).catch((recordingError) => {
+                console.warn(
+                  '[Echoo Server Recording] replacement publisher handoff warning:',
+                  recordingError?.message || recordingError
+                );
+              });
+            }
           } else {
+            // A joined participant with no canonical program audio is not a
+            // recovered broadcast. Start/continue the durable recovery lease.
             const disconnectedAt = current.creatorDisconnectedAt || new Date();
             const updated = await updateCreatorMediaState(
               broadcastId,
@@ -281,6 +408,8 @@ export async function handleLiveKitWebhook(req, res) {
                 mediaState: 'audio_disconnected',
                 creatorDisconnectedAt: disconnectedAt,
                 creatorParticipantSid: null,
+                programTrackSid: null,
+                programTrackName: null,
               },
               req.app.get('io')
             );
@@ -296,21 +425,42 @@ export async function handleLiveKitWebhook(req, res) {
       }
     }
     if (broadcastId && isCreator && event.event === 'participant_joined') {
-      cancelCreatorDisconnect(broadcastId);
-
-      // Persist the concrete replacement transport even when preserveLive
-      // intentionally refuses to downgrade an already audio_live broadcast
-      // to creator_connecting.
+      // Joining is only transport progress. Do NOT cancel an existing recovery
+      // lease until the replacement publishes echoo-studio-mix; a participant
+      // can reconnect successfully but fail to restore program audio.
       const joinedParticipantSid = String(event?.participant?.sid || '').trim();
       if (joinedParticipantSid) {
-        await Broadcast.updateOne(
-          {
-            _id: broadcastId,
-            status: { $in: ['starting', 'live', 'ending'] },
-            isDeleted: false,
-          },
-          { $set: { creatorParticipantSid: joinedParticipantSid } }
+        const current = await Broadcast.findOne({
+          _id: broadcastId,
+          status: { $in: ['starting', 'live'] },
+          isDeleted: false,
+        }).select('mediaState creatorDisconnectedAt creatorParticipantSid programTrackSid');
+
+        const canClaimTransport = Boolean(
+          current &&
+          (
+            !current.creatorParticipantSid ||
+            current.mediaState !== 'audio_live' ||
+            current.creatorDisconnectedAt ||
+            !current.programTrackSid
+          )
         );
+
+        // A second tab/device joining while the canonical program is healthy
+        // must not steal authority from the participant that is actually
+        // publishing. The joining SID becomes authoritative only during a
+        // genuine recovery/startup state; track_published can promote it later
+        // after control-plane verification.
+        if (canClaimTransport) {
+          await Broadcast.updateOne(
+            {
+              _id: broadcastId,
+              status: { $in: ['starting', 'live'] },
+              isDeleted: false,
+            },
+            { $set: { creatorParticipantSid: joinedParticipantSid } }
+          );
+        }
       }
 
       await updateCreatorMediaState(
@@ -322,43 +472,66 @@ export async function handleLiveKitWebhook(req, res) {
     }
     const trackName = String(event?.track?.name || '').trim().toLowerCase();
     if (broadcastId && isCreator && event.event === 'track_published' && trackName === 'echoo-studio-mix') {
-      await updateCreatorMediaState(broadcastId, {
-        mediaState: 'audio_live',
-        creatorDisconnectedAt: null,
-        ...(event?.participant?.sid
-          ? { creatorParticipantSid: String(event.participant.sid) }
-          : {}),
-        programTrackSid: event.track?.sid || null,
-        programTrackName: event.track?.name || 'echoo-studio-mix',
-      }, req.app.get('io'));
+      const current = await Broadcast.findOne({
+        _id: broadcastId,
+        status: { $in: ['starting', 'live'] },
+        isDeleted: false,
+      });
 
-      if (isLiveKitServerRecordingEnabled() && event.track?.sid) {
-        void ensureLiveKitServerRecording({
+      if (current && await shouldAcceptProgramPublish(current, event)) {
+        cancelCreatorDisconnect(broadcastId);
+        await updateCreatorMediaState(broadcastId, {
+          mediaState: 'audio_live',
+          creatorDisconnectedAt: null,
+          ...(event?.participant?.sid
+            ? { creatorParticipantSid: String(event.participant.sid) }
+            : {}),
+          programTrackSid: event.track?.sid || null,
+          programTrackName: event.track?.name || 'echoo-studio-mix',
+        }, req.app.get('io'));
+
+        if (isLiveKitServerRecordingEnabled() && event.track?.sid) {
+          void ensureLiveKitServerRecording({
+            broadcastId,
+            trackSid: event.track.sid,
+          }).catch((recordingError) => {
+            console.warn(
+              '[Echoo Server Recording] track republish recorder warning:',
+              recordingError?.message || recordingError
+            );
+          });
+        }
+
+        console.info('[Echoo LiveKit Webhook] creator program track published', {
           broadcastId,
-          trackSid: event.track.sid,
-        }).catch((recordingError) => {
-          console.warn(
-            '[Echoo Server Recording] track republish recorder warning:',
-            recordingError?.message || recordingError
-          );
+          trackSid: event.track?.sid || null,
+          trackName: event.track?.name || null,
+        });
+      } else if (current) {
+        console.info('[Echoo LiveKit Webhook] ignored stale creator track_published', {
+          broadcastId,
+          eventParticipantSid: event?.participant?.sid || null,
+          currentParticipantSid: current.creatorParticipantSid || null,
+          trackSid: event.track?.sid || null,
         });
       }
-
-      console.info('[Echoo LiveKit Webhook] creator program track published', {
-        broadcastId,
-        trackSid: event.track?.sid || null,
-        trackName: event.track?.name || null,
-      });
     }
     if (broadcastId && isCreator && event.event === 'track_unpublished' && trackName === 'echoo-studio-mix') {
       // Webhook delivery can be reordered around a fast creator recovery.
       // Only clear the program if the unpublished SID is still the canonical
       // one stored on the broadcast; an old SID must not erase a newer track.
-      await clearCreatorProgramTrackIfCurrent(
+      const disconnected = await clearCreatorProgramTrackIfCurrent(
         broadcastId,
         event.track?.sid,
         req.app.get('io')
       );
+      if (disconnected?.creatorDisconnectedAt) {
+        scheduleCreatorDisconnect(
+          broadcastId,
+          req.app.get('io'),
+          disconnected.creatorDisconnectedAt
+        );
+      }
     }
     return res.status(204).end();
   } catch (error) {
