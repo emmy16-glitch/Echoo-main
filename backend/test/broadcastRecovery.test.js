@@ -24,7 +24,8 @@ test('recovery reconciles interrupted lifecycles without fabricating history', a
   // No blanket status rewrite: each lifecycle state is handled explicitly.
   assert.match(service, /status === 'completed'/);
   assert.match(service, /status === 'ending'/);
-  assert.match(service, /status === 'live' \|\| broadcast\.status === 'starting'/);
+  assert.match(service, /broadcast\.status === 'live'/);
+  assert.match(service, /broadcast\.status === 'starting'/);
   assert.match(service, /BROADCAST_NOT_RECOVERABLE/);
   assert.doesNotMatch(service, /\$set:\s*\{\s*status:\s*['"]completed['"]/);
 
