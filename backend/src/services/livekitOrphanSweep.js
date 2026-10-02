@@ -91,6 +91,17 @@ function isRecoverableState(doc) {
     );
 }
 
+async function findProgramAudioWithConfirmedMiss(doc) {
+  const first = await findCreatorProgramAudio(doc._id, doc.creator);
+  if (first) return first;
+
+  // A single empty LiveKit participant/track listing can happen during
+  // control-plane convergence. Confirm the miss once before demoting a
+  // broadcast that MongoDB still considers audio_live.
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  return findCreatorProgramAudio(doc._id, doc.creator);
+}
+
 async function healProgramAudioState(doc, program) {
   doc.mediaState = 'audio_live';
   doc.creatorDisconnectedAt = null;
@@ -232,6 +243,50 @@ async function sweep() {
     if (!fresh || !stuckIds.has(String(fresh._id))) {
       continue;
     }
+    if (fresh.status === 'live' && fresh.mediaState === 'audio_live') {
+      try {
+        const program = await findProgramAudioWithConfirmedMiss(fresh);
+
+        if (program) {
+          const liveTrackSid = String(program.track?.sid || '').trim();
+          const liveParticipantSid = String(program.participant?.sid || '').trim();
+          const durableTrackSid = String(fresh.programTrackSid || '').trim();
+          const durableParticipantSid = String(fresh.creatorParticipantSid || '').trim();
+
+          if (
+            liveTrackSid !== durableTrackSid ||
+            liveParticipantSid !== durableParticipantSid
+          ) {
+            // Webhook delivery was missed or reordered, but LiveKit itself is
+            // healthy. Repair MongoDB to the transport that is actually
+            // carrying Echoo program audio.
+            await healProgramAudioState(fresh, program);
+          }
+          continue;
+        }
+
+        // Both the participant-left and track-unpublished webhooks can be lost
+        // across a deploy/network interruption. Never let a stale audio_live
+        // row become immortal: enter the normal long-session recovery lease,
+        // rather than ending the logical broadcast immediately.
+        fresh.mediaState = 'audio_disconnected';
+        fresh.creatorDisconnectedAt = fresh.creatorDisconnectedAt || new Date();
+        fresh.creatorParticipantSid = null;
+        fresh.programTrackSid = null;
+        fresh.programTrackName = null;
+        await fresh.save();
+        clearBroadcastPresenceCache(fresh._id);
+        continue;
+      } catch (error) {
+        // A provider/control-plane error is not proof that audio disappeared.
+        console.warn(
+          `[orphan-sweep] live program-audio audit failed for ${fresh._id}:`,
+          error?.message || error
+        );
+        continue;
+      }
+    }
+
     if (!isRecoverableState(fresh)) {
       continue;
     }
