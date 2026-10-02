@@ -19,7 +19,11 @@ import LiveKitProvider from '../providers/livekit.js';
 import { clearBroadcastPresenceCache } from '../controllers/broadcastPresenceController.js';
 import { releaseCreatorBroadcastLease } from './creatorBroadcastLease.js';
 import { flushBroadcastTranscription } from './transcriptionGateway.js';
-import { stopLiveKitServerRecording } from './livekitServerRecording.js';
+import {
+  ensureLiveKitServerRecording,
+  isLiveKitServerRecordingEnabled,
+  stopLiveKitServerRecording,
+} from './livekitServerRecording.js';
 import { findCreatorProgramAudio } from './broadcastAudioReadiness.js';
 
 const STUCK_STATES = ['starting', 'ending', 'live'];
@@ -224,6 +228,17 @@ async function sweep() {
             publisher.trackName || fresh.programTrackName || 'echoo-studio-mix';
           await fresh.save();
           clearBroadcastPresenceCache(fresh._id);
+          if (isLiveKitServerRecordingEnabled() && publisher.trackSid) {
+            void ensureLiveKitServerRecording({
+              broadcastId: String(fresh._id),
+              trackSid: publisher.trackSid,
+            }).catch((recordingError) => {
+              console.warn(
+                `[orphan-sweep] server recording reconciliation failed for ${fresh._id}:`,
+                recordingError?.message || recordingError
+              );
+            });
+          }
           continue;
         }
 
@@ -266,6 +281,17 @@ async function sweep() {
             publisher.trackName || fresh.programTrackName || 'echoo-studio-mix';
           await fresh.save();
           clearBroadcastPresenceCache(fresh._id);
+          if (isLiveKitServerRecordingEnabled() && publisher.trackSid) {
+            void ensureLiveKitServerRecording({
+              broadcastId: String(fresh._id),
+              trackSid: publisher.trackSid,
+            }).catch((recordingError) => {
+              console.warn(
+                `[orphan-sweep] server recording reconciliation failed for ${fresh._id}:`,
+                recordingError?.message || recordingError
+              );
+            });
+          }
           continue;
         }
         // No canonical program audio exists. A merely connected creator
