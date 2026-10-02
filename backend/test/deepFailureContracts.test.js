@@ -341,6 +341,13 @@ test('long broadcast recording uses RF64 and never materializes multi-GB desktop
   assert.match(recording, /opfs-opus-recovered/);
   assert.match(recording, /audio\/mp4;codecs=mp4a\.40\.2/);
   assert.match(recording, /compressedExtensionForMime/);
+  assert.match(recording, /if \(mime\.includes\('webm'\)\) return 'webm'/);
+  assert.match(recording, /if \(mime\.includes\('ogg'\)\) return 'ogg'/);
+  assert.ok(
+    recording.indexOf("if (mime.includes('webm')) return 'webm'") <
+      recording.indexOf("if (mime.includes('opus')) return 'ogg'"),
+    'WebM/Opus must keep its WebM container instead of being mislabeled as Ogg'
+  );
   assert.match(recording, /activeRecording = await startFallbackRecording/);
   assert.doesNotMatch(
     recording,
