@@ -138,7 +138,7 @@ const writeRecoveryManifest = (recording, status = 'recording') => {
   const mimeType = String(
     recording.mimeType || (lossless ? WAV_MIME_TYPE : '')
   );
-  const compressedContainer = mimeType.toLowerCase().includes('ogg') ? 'ogg' : 'webm';
+  const compressedContainer = compressedExtensionForMime(mimeType);
 
   const manifest = {
     version: 4,
@@ -256,17 +256,27 @@ const hasLongSessionLosslessHeadroom = async () => {
     LOSSLESS_LONG_SESSION_TARGET_BYTES + LOSSLESS_STORAGE_RESERVE_BYTES;
 };
 
+const compressedExtensionForMime = (mimeType = '') => {
+  const mime = String(mimeType).toLowerCase();
+  if (mime.includes('ogg') || mime.includes('opus')) return 'ogg';
+  if (mime.includes('mp4') || mime.includes('aac') || mime.includes('m4a')) return 'm4a';
+  return 'webm';
+};
+
 const isCompressedRecoveryManifest = (manifest) => {
   const format = String(manifest?.recordingFormat || '').toLowerCase();
   const container = String(manifest?.container || '').toLowerCase();
   const mime = String(manifest?.mimeType || '').toLowerCase();
   return (
+    format === 'compressed-opfs' ||
     format === 'opus-opfs' ||
-    container === 'webm' ||
-    container === 'ogg' ||
+    ['webm', 'ogg', 'm4a', 'mp4'].includes(container) ||
     mime.includes('webm') ||
     mime.includes('ogg') ||
-    mime.includes('opus')
+    mime.includes('opus') ||
+    mime.includes('mp4') ||
+    mime.includes('aac') ||
+    mime.includes('m4a')
   );
 };
 
@@ -276,8 +286,10 @@ const supportedFallbackMimeType = () => {
   const candidates = [
     'audio/webm;codecs=opus',
     'audio/ogg;codecs=opus',
+    'audio/mp4;codecs=mp4a.40.2',
     'audio/webm',
     'audio/ogg',
+    'audio/mp4',
   ];
 
   return candidates.find((type) => MediaRecorder.isTypeSupported(type)) || '';
@@ -818,7 +830,7 @@ const openCompressedRecordingFile = async (broadcastId, mimeType) => {
   const randomPart =
     globalThis.crypto?.randomUUID?.() ||
     `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  const extension = String(mimeType || '').toLowerCase().includes('ogg') ? 'ogg' : 'webm';
+  const extension = compressedExtensionForMime(mimeType);
   const storageName = `echoo-tmp-${safeId}-${randomPart}.${extension}`;
   const fileHandle = await directory.getFileHandle(storageName, { create: true });
   const writable = await fileHandle.createWritable();
@@ -1211,7 +1223,7 @@ const stopFallbackRecording = (recording, { keep = true } = {}) =>
           1,
           (Date.now() - recording.startedAt) / 1000
         );
-        const extension = String(mimeType).includes('ogg') ? 'ogg' : 'webm';
+        const extension = compressedExtensionForMime(mimeType);
 
         let blob;
         let storageMode = 'memory-opus-fallback';
@@ -1238,7 +1250,7 @@ const stopFallbackRecording = (recording, { keep = true } = {}) =>
           channels: 2,
           bitDepth: null,
           lossless: false,
-          recordingFormat: recording.fileHandle ? 'opus-opfs' : 'opus-fallback',
+          recordingFormat: recording.fileHandle ? 'compressed-opfs' : 'compressed-fallback',
           container: extension,
           headerBytes: 0,
           dataOffset: 0,
@@ -1319,7 +1331,7 @@ const startFallbackRecording = async ({ broadcastId, mediaTrack, title }) => {
   }
 
   const recording = {
-    mode: storage ? 'opus-opfs' : 'opus-fallback',
+    mode: storage ? 'compressed-opfs' : 'compressed-fallback',
     recorder,
     stream,
     track: clonedTrack,
@@ -1443,7 +1455,7 @@ const activeRecordingSnapshot = (recording) => ({
   storageMode:
     recording?.mode === 'lossless-wav'
       ? 'opfs-stream'
-      : recording?.mode === 'opus-opfs'
+      : recording?.mode === 'compressed-opfs'
         ? 'opfs-opus-stream'
         : 'memory-opus-fallback',
   lossless: recording?.mode === 'lossless-wav',
@@ -1471,7 +1483,7 @@ export const getBroadcastRecordingState = () => ({
   storageMode:
     activeRecording?.mode === 'lossless-wav'
       ? 'opfs-stream'
-      : activeRecording?.mode === 'opus-opfs'
+      : activeRecording?.mode === 'compressed-opfs'
         ? 'opfs-opus-stream'
         : activeRecording
           ? 'memory-opus-fallback'
@@ -1633,11 +1645,13 @@ export const recoverPendingBroadcastRecording = async () => {
         manifest.mimeType ||
         (String(manifest.container).toLowerCase() === 'ogg'
           ? 'audio/ogg;codecs=opus'
-          : 'audio/webm;codecs=opus')
+          : ['m4a', 'mp4'].includes(String(manifest.container).toLowerCase())
+            ? 'audio/mp4'
+            : 'audio/webm;codecs=opus')
       );
       const startedAt = Number(manifest.startedAt) || Number(sourceFile.lastModified) || Date.now();
       const endedAt = Number(manifest.endedAt) || Number(sourceFile.lastModified) || Date.now();
-      const extension = mimeType.toLowerCase().includes('ogg') ? 'ogg' : 'webm';
+      const extension = compressedExtensionForMime(mimeType);
       const recording = {
         broadcastId: String(manifest.broadcastId),
         ownerUserId: String(manifest.ownerUserId || ''),
@@ -1649,7 +1663,7 @@ export const recoverPendingBroadcastRecording = async () => {
         channels: 2,
         bitDepth: null,
         lossless: false,
-        recordingFormat: 'opus-opfs',
+        recordingFormat: 'compressed-opfs',
         container: extension,
         headerBytes: 0,
         dataOffset: 0,
@@ -1784,7 +1798,10 @@ export const uploadCompressedRecoveryMasterToServer = async (recording, broadcas
   const compressedRecovery =
     mimeType.includes('webm') ||
     mimeType.includes('opus') ||
-    mimeType.includes('ogg');
+    mimeType.includes('ogg') ||
+    mimeType.includes('mp4') ||
+    mimeType.includes('aac') ||
+    mimeType.includes('m4a');
 
   if (!compressedRecovery) {
     const error = new Error('This browser recovery master is not a supported compressed audio format.');
@@ -1792,7 +1809,7 @@ export const uploadCompressedRecoveryMasterToServer = async (recording, broadcas
     throw error;
   }
 
-  const extension = mimeType.includes('ogg') ? 'ogg' : 'webm';
+  const extension = compressedExtensionForMime(mimeType);
   const form = new FormData();
   form.append(
     'audio',
@@ -1937,7 +1954,7 @@ export const flushRecordingForPageHide = async () => {
     await queueLosslessCheckpoint(recording, 'recovery_required');
     return;
   }
-  if (recording.mode === 'opus-opfs') {
+  if (recording.mode === 'compressed-opfs') {
     try { recording.recorder?.requestData?.(); } catch { /* best effort */ }
     await queueCompressedCheckpoint(recording, 'recovery_required');
   }
@@ -1970,9 +1987,11 @@ export const recoverOrphanedLosslessRecording = async () => {
         meta.mimeType ||
         (String(meta.container).toLowerCase() === 'ogg'
           ? 'audio/ogg;codecs=opus'
-          : 'audio/webm;codecs=opus')
+          : ['m4a', 'mp4'].includes(String(meta.container).toLowerCase())
+            ? 'audio/mp4'
+            : 'audio/webm;codecs=opus')
       );
-      const extension = mimeType.toLowerCase().includes('ogg') ? 'ogg' : 'webm';
+      const extension = compressedExtensionForMime(mimeType);
       const startedAt = Number(meta.startedAt) || Date.now();
       const endedAt = Number(meta.endedAt) || Number(file.lastModified) || Date.now();
       const recording = {
@@ -1986,7 +2005,7 @@ export const recoverOrphanedLosslessRecording = async () => {
         channels: 2,
         bitDepth: null,
         lossless: false,
-        recordingFormat: 'opus-opfs',
+        recordingFormat: 'compressed-opfs',
         container: extension,
         headerBytes: 0,
         dataOffset: 0,
