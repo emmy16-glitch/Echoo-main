@@ -502,6 +502,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
     };
 
     const connect = async () => {
+      roomLinkRef.current = 'connecting';
       setStatus(retryVersion > 0 ? 'recovering_audio' : 'connecting');
       setError('');
       setNeedsAudioStart(false);
