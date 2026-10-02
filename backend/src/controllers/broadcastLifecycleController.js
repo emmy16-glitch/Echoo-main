@@ -58,6 +58,7 @@ const emitStatus = (req, broadcast) => {
     listenerCount: Number(broadcast.listenerCount || 0),
     peakListeners: Number(broadcast.peakListeners || 0),
     mediaState: broadcast.mediaState || 'waiting_for_creator',
+    mediaDisconnectedAt: broadcast.mediaDisconnectedAt || null,
     transcriptState: broadcast.transcriptState || 'disabled',
     programTrackSid: broadcast.programTrackSid || null,
     programTrackName: broadcast.programTrackName || null,
@@ -254,6 +255,7 @@ export async function startBroadcast(req, res, next) {
       error: null,
     };
     broadcast.mediaState = 'creator_connecting';
+    broadcast.mediaDisconnectedAt = null;
     broadcast.transcriptState = 'disabled';
     broadcast.programTrackSid = null;
     broadcast.programTrackName = null;
@@ -372,23 +374,36 @@ export async function confirmBroadcastLive(req, res, next) {
     if (broadcast.status === 'live') {
       await refreshCreatorBroadcastLease(req.userId, broadcastId).catch(() => null);
 
-      // A reconnect can publish a fresh LiveKit track SID. Reconcile recording
-      // against that new program track without ever blocking listener audio.
-      if (isLiveKitServerRecordingEnabled()) {
-        try {
-          const publisher = await waitForCreatorProgramAudio(broadcastId, req.userId);
+      // A reconnect may publish a fresh program SID even if the webhook is
+      // delayed. Reconcile media authority from LiveKit whenever the creator
+      // confirms the already-live broadcast.
+      try {
+        const publisher = await waitForCreatorProgramAudio(
+          broadcastId,
+          req.userId,
+          { maxAttempts: 2, initialDelayMs: 150, delayStepMs: 150 }
+        );
+        broadcast.mediaState = 'audio_live';
+        broadcast.mediaDisconnectedAt = null;
+        broadcast.programTrackSid = publisher.trackSid || null;
+        broadcast.programTrackName = publisher.trackName || 'echoo-studio-mix';
+        await broadcast.save();
+        clearBroadcastPresenceCache(broadcastId);
+        emitStatus(req, broadcast);
+
+        if (isLiveKitServerRecordingEnabled() && publisher.trackSid) {
           await ensureLiveKitServerRecording({
             broadcastId,
             trackSid: publisher.trackSid,
           });
           const refreshed = await findOwnedBroadcast(broadcastId, req.userId);
           if (refreshed) broadcast = refreshed;
-        } catch (recordingError) {
-          console.warn(
-            '[Echoo Server Recording] reconnect recorder warning:',
-            recordingError?.message || recordingError
-          );
         }
+      } catch (reconcileError) {
+        console.warn(
+          '[Echoo LiveKit] reconnect reconciliation warning:',
+          reconcileError?.message || reconcileError
+        );
       }
 
       return res.status(200).json({
@@ -434,6 +449,7 @@ export async function confirmBroadcastLive(req, res, next) {
     broadcast.startedAt = broadcast.startedAt || new Date();
     broadcast.failureReason = null;
     broadcast.mediaState = 'audio_live';
+    broadcast.mediaDisconnectedAt = null;
     broadcast.programTrackSid = publisher.trackSid || null;
     broadcast.programTrackName = publisher.trackName || 'echoo-studio-mix';
     await broadcast.save();
