@@ -19,7 +19,11 @@ import LiveKitProvider from '../providers/livekit.js';
 import { clearBroadcastPresenceCache } from '../controllers/broadcastPresenceController.js';
 import { releaseCreatorBroadcastLease } from './creatorBroadcastLease.js';
 import { flushBroadcastTranscription } from './transcriptionGateway.js';
-import { stopLiveKitServerRecording } from './livekitServerRecording.js';
+import {
+  ensureLiveKitServerRecording,
+  isLiveKitServerRecordingEnabled,
+  stopLiveKitServerRecording,
+} from './livekitServerRecording.js';
 import { findCreatorProgramAudio } from './broadcastAudioReadiness.js';
 
 const STUCK_STATES = ['starting', 'ending', 'live'];
@@ -85,6 +89,31 @@ function isRecoverableState(doc) {
       doc.mediaState === 'creator_connecting' ||
       doc.mediaState === 'audio_disconnected'
     );
+}
+
+async function healProgramAudioState(doc, program) {
+  doc.mediaState = 'audio_live';
+  doc.creatorDisconnectedAt = null;
+  doc.creatorParticipantSid =
+    program.participant?.sid || doc.creatorParticipantSid || null;
+  doc.programTrackSid =
+    program.track?.sid || doc.programTrackSid || null;
+  doc.programTrackName =
+    program.track?.name || doc.programTrackName || 'echoo-studio-mix';
+  await doc.save();
+  clearBroadcastPresenceCache(doc._id);
+
+  if (isLiveKitServerRecordingEnabled() && doc.programTrackSid) {
+    await ensureLiveKitServerRecording({
+      broadcastId: doc._id,
+      trackSid: doc.programTrackSid,
+    }).catch((error) => {
+      console.warn(
+        `[orphan-sweep] server recording reattach failed for ${doc._id}:`,
+        error?.message || error
+      );
+    });
+  }
 }
 
 async function reapLiveKitResources(doc) {
@@ -219,16 +248,7 @@ async function sweep() {
           // The track exists but a webhook/state write was missed. Repair the
           // durable state instead of leaving listeners stuck on
           // "Audio disconnected".
-          fresh.mediaState = 'audio_live';
-          fresh.creatorParticipantSid =
-            program.participant?.sid || fresh.creatorParticipantSid || null;
-          fresh.programTrackSid =
-            program.track?.sid || fresh.programTrackSid || null;
-          fresh.programTrackName =
-            program.track?.name || fresh.programTrackName || 'echoo-studio-mix';
-          fresh.creatorDisconnectedAt = null;
-          await fresh.save();
-          clearBroadcastPresenceCache(fresh._id);
+          await healProgramAudioState(fresh, program);
           continue;
         }
 
@@ -260,16 +280,7 @@ async function sweep() {
       try {
         const program = await findCreatorProgramAudio(fresh._id, fresh.creator);
         if (program) {
-          fresh.mediaState = 'audio_live';
-          fresh.creatorDisconnectedAt = null;
-          fresh.creatorParticipantSid =
-            program.participant?.sid || fresh.creatorParticipantSid || null;
-          fresh.programTrackSid =
-            program.track?.sid || fresh.programTrackSid || null;
-          fresh.programTrackName =
-            program.track?.name || fresh.programTrackName || 'echoo-studio-mix';
-          await fresh.save();
-          clearBroadcastPresenceCache(fresh._id);
+          await healProgramAudioState(fresh, program);
           continue;
         }
       } catch (error) {
