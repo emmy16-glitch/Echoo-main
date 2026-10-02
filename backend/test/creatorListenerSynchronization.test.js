@@ -184,7 +184,7 @@ test('transport disconnect cannot terminate a normal seven-hour broadcast', asyn
   assert.match(sweep, /getCreatorRecoveryHours/);
   assert.match(sweep, /mediaState === 'audio_disconnected'/);
   assert.match(sweep, /creatorDisconnectedAt/);
-  assert.match(sweep, /LiveKitProvider\.getParticipants/);
+  assert.match(sweep, /getCreatorProgramAudio\(fresh\._id, fresh\.creator\)/);
 });
 
 test('explicit lifecycle transitions clear process-local recovery timers', async () => {
@@ -206,8 +206,9 @@ test('long-session cleanup and replay recovery use creator program audio as auth
   assert.match(sweep, /getCreatorProgramAudio\(fresh\._id, fresh\.creator\)/);
   assert.match(sweep, /fresh\.mediaState === 'audio_live'[\s\S]{0,300}audio_disconnected/);
   assert.match(sweep, /creatorDisconnectedAt = fresh\.creatorDisconnectedAt \|\| new Date\(\)/);
-  assert.match(recovery, /liveRoomHasCreatorProgramAudio/);
-  assert.match(recovery, /getCreatorProgramAudio\(broadcastId, creatorId\)/);
+  assert.match(recovery, /liveRoomHasCreatorAuthority/);
+  assert.match(recovery, /getCreatorProgramAudio\(broadcast\._id, broadcast\.creator\)/);
+  assert.match(recovery, /creatorParticipantIsPresent\(broadcast\._id, broadcast\.creator\)/);
   assert.doesNotMatch(recovery, /participants\.some\(hasPublishedTracks\)/);
   assert.match(recovery, /broadcast\.creatorDisconnectedAt = null/);
   assert.match(recovery, /broadcast\.creatorParticipantSid = null/);
