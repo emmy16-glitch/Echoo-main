@@ -402,6 +402,71 @@ test('program-audio reconciliation preserves an intentional broadcast pause', { 
   }
 });
 
+test('paused broadcast stays paused while its creator participant remains connected', { concurrency: 1 }, async () => {
+  const creator = new mongoose.Types.ObjectId();
+  const paused = makeDoc({
+    status: 'live',
+    mediaState: 'audio_paused',
+    creator,
+    creatorDisconnectedAt: null,
+    creatorParticipantSid: 'PA_creator',
+    programTrackSid: 'TR_program',
+    programTrackName: 'echoo-studio-mix',
+  });
+  const provider = makeLivekitProviderMock();
+  provider.listParticipants = async () => [{
+    sid: 'PA_creator',
+    identity: String(creator),
+    metadata: JSON.stringify({ role: 'creator', userId: String(creator) }),
+    tracks: [{
+      sid: 'TR_program',
+      name: 'echoo-studio-mix',
+      mimeType: 'audio/opus',
+      muted: true,
+    }],
+  }];
+  const { sweepModule, teardown } = await loadSweepWithMocks([paused], provider);
+  try {
+    const result = await sweepModule.sweep();
+    assert.equal(result.swept, 0);
+    assert.equal(paused.status, 'live');
+    assert.equal(paused.mediaState, 'audio_paused');
+    assert.equal(paused.creatorDisconnectedAt, null);
+    assert.equal(paused.saveCalled, 0);
+  } finally {
+    teardown();
+  }
+});
+
+test('missed participant-left while paused starts the durable recovery lease', { concurrency: 1 }, async () => {
+  const creator = new mongoose.Types.ObjectId();
+  const paused = makeDoc({
+    status: 'live',
+    mediaState: 'audio_paused',
+    creator,
+    creatorDisconnectedAt: null,
+    creatorParticipantSid: 'PA_creator',
+    programTrackSid: 'TR_program',
+    programTrackName: 'echoo-studio-mix',
+  });
+  const provider = makeLivekitProviderMock();
+  provider.listParticipants = async () => [];
+  const { sweepModule, teardown } = await loadSweepWithMocks([paused], provider);
+  try {
+    const result = await sweepModule.sweep();
+    assert.equal(result.swept, 0);
+    assert.equal(paused.status, 'live');
+    assert.equal(paused.mediaState, 'audio_disconnected');
+    assert.ok(paused.creatorDisconnectedAt instanceof Date);
+    assert.equal(paused.creatorParticipantSid, null);
+    assert.equal(paused.programTrackSid, null);
+    assert.equal(paused.programTrackName, null);
+    assert.equal(paused.saveCalled, 1);
+  } finally {
+    teardown();
+  }
+});
+
 test('missed program-track removal starts a durable lease even while creator remains connected', { concurrency: 1 }, async () => {
   const creator = new mongoose.Types.ObjectId();
   const staleLive = makeDoc({
