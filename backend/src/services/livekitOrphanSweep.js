@@ -53,10 +53,13 @@ function isStuck(doc) {
   // Full LIVE transport loss has its own long recovery lease. Do not reuse the
   // short transition timeout: a creator can be offline/reconnecting for hours
   // without the logical broadcast being ended underneath the client.
-  if (doc.status === 'live' && doc.mediaState === 'audio_disconnected') {
-    const disconnectedAt = doc.creatorDisconnectedAt;
-    if (!disconnectedAt) return false;
-    const ageHours = (Date.now() - new Date(disconnectedAt).getTime()) / 3600000;
+  if (
+    doc.status === 'live' &&
+    ['audio_disconnected', 'creator_connecting'].includes(doc.mediaState) &&
+    doc.creatorDisconnectedAt
+  ) {
+    const ageHours =
+      (Date.now() - new Date(doc.creatorDisconnectedAt).getTime()) / 3600000;
     return ageHours > getCreatorRecoveryHours();
   }
 
@@ -138,18 +141,21 @@ async function resolveStuckBroadcast(doc) {
     livekitEgressId: doc.livekitEgressId,
   };
   const wasStarting = doc.status === 'starting';
-  const wasUnpublishedLive = doc.status === 'live' && doc.mediaState === 'creator_connecting';
-  const wasExpiredDisconnectedLive =
+  const wasUnpublishedLive =
     doc.status === 'live' &&
-    doc.mediaState === 'audio_disconnected' &&
+    doc.mediaState === 'creator_connecting' &&
+    !doc.creatorDisconnectedAt;
+  const wasExpiredRecoveryLive =
+    doc.status === 'live' &&
+    ['audio_disconnected', 'creator_connecting'].includes(doc.mediaState) &&
     Boolean(doc.creatorDisconnectedAt);
-  if (!wasStarting && !wasUnpublishedLive && !wasExpiredDisconnectedLive && doc.status !== 'ending') return doc;
+  if (!wasStarting && !wasUnpublishedLive && !wasExpiredRecoveryLive && doc.status !== 'ending') return doc;
 
   doc.status = wasStarting || wasUnpublishedLive ? 'failed' : 'completed';
   doc.failureReason = wasStarting || wasUnpublishedLive
     ? `${REASON_PREFIX}broadcast never published the creator program track within ${getStuckMinutes()} minutes.`
-    : wasExpiredDisconnectedLive
-      ? `${REASON_PREFIX}creator did not reconnect within ${getCreatorRecoveryHours()} hours.`
+    : wasExpiredRecoveryLive
+      ? `${REASON_PREFIX}creator did not restore program audio within ${getCreatorRecoveryHours()} hours.`
       : doc.failureReason;
   doc.endedAt = doc.endedAt || new Date();
   doc.listenerCount = 0;
@@ -236,7 +242,11 @@ async function sweep() {
       continue;
     }
 
-    if (fresh.status === 'live' && fresh.mediaState === 'audio_disconnected') {
+    if (
+      fresh.status === 'live' &&
+      ['audio_disconnected', 'creator_connecting'].includes(fresh.mediaState) &&
+      fresh.creatorDisconnectedAt
+    ) {
       try {
         const participants = await LiveKitProvider.getParticipants(fresh._id);
         const creatorPresent = participants.some((participant) => {
