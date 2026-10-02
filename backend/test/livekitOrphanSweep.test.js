@@ -213,6 +213,28 @@ test('stale live broadcasts are reaped only while still waiting for the creator 
   }
 });
 
+test('missed participant-left webhook establishes a durable recovery timestamp instead of ending live', { concurrency: 1 }, async () => {
+  process.env.LIVEKIT_CREATOR_RECOVERY_TTL_HOURS = '24';
+  const disconnected = makeDoc({
+    status: 'live',
+    mediaState: 'audio_disconnected',
+    creator: new mongoose.Types.ObjectId(),
+    creatorDisconnectedAt: null,
+    updatedAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+  });
+  const provider = makeLivekitProviderMock();
+  const { sweepModule, teardown } = await loadSweepWithMocks([disconnected], provider);
+  try {
+    const result = await sweepModule.sweep();
+    assert.equal(result.swept, 0);
+    assert.equal(disconnected.status, 'live');
+    assert.equal(disconnected.saveCalled, 1);
+    assert.ok(disconnected.creatorDisconnectedAt instanceof Date);
+  } finally {
+    teardown();
+  }
+});
+
 test('seven-hour disconnected live broadcast stays recoverable', { concurrency: 1 }, async () => {
   process.env.LIVEKIT_CREATOR_RECOVERY_TTL_HOURS = '24';
   const disconnected = makeDoc({
