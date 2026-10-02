@@ -27,6 +27,8 @@ const LOSSLESS_LONG_SESSION_TARGET_BYTES =
   LONG_SESSION_TARGET_SECONDS;
 
 const OPUS_FALLBACK_BITRATE = 256000;
+const OPUS_MIN_LONG_SESSION_BITRATE = 64000;
+const COMPRESSED_STORAGE_RESERVE_BYTES = 256 * 1024 * 1024;
 const OPUS_FALLBACK_MAX_BYTES = 128 * 1024 * 1024;
 const QUALITY_CHUNK_SECONDS = 10;
 const QUALITY_CHUNK_BIT_DEPTH = 24;
@@ -166,6 +168,9 @@ const writeRecoveryManifest = (recording, status = 'recording') => {
     mimeType,
     recordingFormat: recording.mode || (lossless ? 'lossless-wav' : 'opus-opfs'),
     storageMode: recording.storageMode || (lossless ? 'opfs-stream' : 'opfs-opus-stream'),
+    audioBitsPerSecond: lossless
+      ? (Number(recording.sampleRate) || WAV_TARGET_SAMPLE_RATE) * WAV_CHANNELS * WAV_BIT_DEPTH
+      : (Number(recording.audioBitsPerSecond) || Number(recording.targetAudioBitsPerSecond) || OPUS_FALLBACK_BITRATE),
     updatedAt: Date.now(),
   };
   const manifests = readRecoveryManifests();
@@ -254,6 +259,37 @@ const hasLongSessionLosslessHeadroom = async () => {
   if (!estimate) return false;
   return estimate.available >=
     LOSSLESS_LONG_SESSION_TARGET_BYTES + LOSSLESS_STORAGE_RESERVE_BYTES;
+};
+
+const resolveLongSessionCompressedBitrate = async () => {
+  const estimate = await storageHeadroom();
+  if (!estimate) {
+    return {
+      bitrate: OPUS_FALLBACK_BITRATE,
+      estimatedAvailableBytes: null,
+      fullTargetExpected: null,
+    };
+  }
+
+  const availableForRecording = Math.max(
+    0,
+    estimate.available - COMPRESSED_STORAGE_RESERVE_BYTES
+  );
+  // Leave ~8% container/implementation overhead instead of assuming every
+  // quota byte becomes encoded audio payload.
+  const maxSustainableBitrate = Math.floor(
+    ((availableForRecording * 8) / LONG_SESSION_TARGET_SECONDS) / 1.08
+  );
+  const candidates = [256000, 224000, 192000, 160000, 128000, 96000, 64000];
+  const selected =
+    candidates.find((candidate) => candidate <= maxSustainableBitrate) ||
+    OPUS_MIN_LONG_SESSION_BITRATE;
+
+  return {
+    bitrate: selected,
+    estimatedAvailableBytes: estimate.available,
+    fullTargetExpected: maxSustainableBitrate >= OPUS_MIN_LONG_SESSION_BITRATE,
+  };
 };
 
 const compressedExtensionForMime = (mimeType = '') => {
@@ -1261,9 +1297,13 @@ const stopFallbackRecording = (recording, { keep = true } = {}) =>
           dataBytes: Number(recording.committedDataBytes || recording.dataBytes || blob.size) || 0,
           captureSource: 'published-media-track-fallback',
           storageMode,
-          targetAudioBitsPerSecond: OPUS_FALLBACK_BITRATE,
+          targetAudioBitsPerSecond:
+            Number(recording.targetAudioBitsPerSecond) || OPUS_FALLBACK_BITRATE,
           audioBitsPerSecond:
-            Number(recording.recorder.audioBitsPerSecond) || OPUS_FALLBACK_BITRATE,
+            Number(recording.recorder.audioBitsPerSecond) ||
+            Number(recording.audioBitsPerSecond) ||
+            Number(recording.targetAudioBitsPerSecond) ||
+            OPUS_FALLBACK_BITRATE,
           startedAt: new Date(recording.startedAt).toISOString(),
           endedAt: new Date().toISOString(),
           filename: `${cleanFilenamePart(recording.title)}-${recordingDatePart(recording.startedAt)}.${extension}`,
@@ -1312,9 +1352,10 @@ const startFallbackRecording = async ({ broadcastId, mediaTrack, title }) => {
   }
 
   const mimeType = supportedFallbackMimeType();
+  const storagePolicy = await resolveLongSessionCompressedBitrate();
   const clonedTrack = mediaTrack.clone();
   const stream = new MediaStream([clonedTrack]);
-  const options = { audioBitsPerSecond: OPUS_FALLBACK_BITRATE };
+  const options = { audioBitsPerSecond: storagePolicy.bitrate };
   if (mimeType) options.mimeType = mimeType;
 
   const recorder = new MediaRecorder(stream, options);
@@ -1341,6 +1382,9 @@ const startFallbackRecording = async ({ broadcastId, mediaTrack, title }) => {
     track: clonedTrack,
     chunks,
     mimeType: recorder.mimeType || mimeType || 'audio/webm',
+    targetAudioBitsPerSecond: storagePolicy.bitrate,
+    audioBitsPerSecond: Number(recorder.audioBitsPerSecond) || storagePolicy.bitrate,
+    longSessionStorageExpected: storagePolicy.fullTargetExpected,
     broadcastId: String(broadcastId || ''),
     title,
     startedAt: Date.now(),
@@ -1431,9 +1475,19 @@ const startFallbackRecording = async ({ broadcastId, mediaTrack, title }) => {
   }
 
   recorder.start(1000);
+
+  if (storage && storagePolicy.fullTargetExpected === false) {
+    window.dispatchEvent(new CustomEvent('echoo:toast', {
+      detail: {
+        type: 'warning',
+        message: 'Local storage is very low for an 8-hour recovery recording. Echoo reduced the safety-recording bitrate and will keep the live stream running; free device storage before a very long broadcast for stronger local recovery.',
+      },
+    }));
+  }
+
   console.warn(
     storage
-      ? '[Echoo Recording] using disk-backed high-quality Opus safety recording for long-session storage efficiency.'
+      ? `[Echoo Recording] using disk-backed compressed safety recording at ${storagePolicy.bitrate} bps for long-session storage efficiency.`
       : '[Echoo Recording] using bounded in-memory Opus fallback because disk-backed recording was unavailable.'
   );
   return recording;
@@ -1674,7 +1728,8 @@ export const recoverPendingBroadcastRecording = async () => {
         dataBytes: sourceFile.size,
         captureSource: 'published-media-track-fallback',
         storageMode: 'opfs-opus-recovered',
-        audioBitsPerSecond: OPUS_FALLBACK_BITRATE,
+        audioBitsPerSecond:
+          Number(manifest.audioBitsPerSecond) || OPUS_FALLBACK_BITRATE,
         startedAt: new Date(startedAt).toISOString(),
         endedAt: new Date(endedAt).toISOString(),
         filename: `${cleanFilenamePart(manifest.title)}-${recordingDatePart(startedAt)}.${extension}`,
@@ -2016,7 +2071,8 @@ export const recoverOrphanedLosslessRecording = async () => {
         dataBytes: file.size,
         captureSource: 'published-media-track-fallback',
         storageMode: 'opfs-opus-recovered',
-        audioBitsPerSecond: OPUS_FALLBACK_BITRATE,
+        audioBitsPerSecond:
+          Number(meta.audioBitsPerSecond) || OPUS_FALLBACK_BITRATE,
         startedAt: new Date(startedAt).toISOString(),
         endedAt: new Date(endedAt).toISOString(),
         filename: `${cleanFilenamePart(meta.title)}-${recordingDatePart(startedAt)}.${extension}`,
