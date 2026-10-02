@@ -110,6 +110,7 @@ test('creator webhook recovery ignores stale participant and track removal event
 test('creator recovery is decoupled from the LiveKit room and keeps retrying for long shows', async () => {
   const publisher = await source('../../frontend/src/services/livekitPublisher.js');
   const webhook = await source('../src/services/livekitWebhookService.js');
+  const lifecycle = await source('../src/controllers/broadcastLifecycleController.js');
   const envExample = await source('../.env.example');
 
   assert.match(publisher, /CREATOR_RECOVERY_WINDOW_MS = 90_000/);
@@ -119,8 +120,10 @@ test('creator recovery is decoupled from the LiveKit room and keeps retrying for
   assert.match(webhook, /LIVEKIT_CREATOR_RECOVERY_TTL_HOURS \|\| 24/);
   assert.match(webhook, /const disconnectedAt = current\.creatorDisconnectedAt \|\| new Date\(\)/);
   assert.match(webhook, /creatorDisconnectedAt: disconnectedAt/);
-  assert.match(webhook, /event\.event === 'participant_joined'[\s\S]{0,500}\{ mediaState: 'creator_connecting' \}/);
-  assert.match(webhook, /mediaState: 'audio_live'[\s\S]{0,120}creatorDisconnectedAt: null/);
+  assert.match(webhook, /event\.event === 'participant_joined'[\s\S]{0,1400}\{ mediaState: 'creator_connecting' \}/);
+  assert.match(webhook, /mediaState: 'audio_live'[\s\S]{0,180}creatorDisconnectedAt: null/);
+  assert.match(lifecycle, /broadcast\.creatorParticipantSid = publisher\.participantSid \|\| null/);
+  assert.match(lifecycle, /broadcast\.status === 'live'[\s\S]{0,1800}broadcast\.creatorDisconnectedAt = null[\s\S]{0,500}broadcast\.programTrackSid/);
   assert.match(envExample, /LIVEKIT_CREATOR_RECOVERY_TTL_HOURS=24/);
 });
 
