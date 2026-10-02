@@ -185,6 +185,9 @@ test('transport disconnect cannot terminate a normal seven-hour broadcast', asyn
   assert.match(sweep, /mediaState === 'audio_disconnected'/);
   assert.match(sweep, /creatorDisconnectedAt/);
   assert.match(sweep, /getCreatorProgramAudio\(fresh\._id, fresh\.creator\)/);
+  assert.match(sweep, /creatorParticipantIsPresent\(fresh\._id, fresh\.creator\)/);
+  assert.match(sweep, /fresh\.mediaState === 'audio_paused'/);
+  assert.match(sweep, /paused creator presence check failed/);
 });
 
 test('explicit lifecycle transitions clear process-local recovery timers', async () => {
