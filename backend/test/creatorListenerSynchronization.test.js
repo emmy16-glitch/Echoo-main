@@ -110,6 +110,8 @@ test('creator webhook recovery ignores stale participant and track removal event
   assert.match(webhook, /currentDisconnectAgeMs < CREATOR_RECOVERY_TTL_MS/);
   assert.match(webhook, /scheduleCreatorDisconnect\([\s\S]{0,180}current\.creatorDisconnectedAt/);
   assert.match(webhook, /creatorDisconnectedAt: current\.creatorDisconnectedAt/);
+  assert.match(webhook, /updated\?\.status === 'live'/);
+  assert.match(webhook, /cancelLiveKitCreatorRecoveryTimer/);
 });
 
 
@@ -183,6 +185,16 @@ test('transport disconnect cannot terminate a normal seven-hour broadcast', asyn
   assert.match(sweep, /mediaState === 'audio_disconnected'/);
   assert.match(sweep, /creatorDisconnectedAt/);
   assert.match(sweep, /LiveKitProvider\.getParticipants/);
+});
+
+test('explicit lifecycle transitions clear process-local recovery timers', async () => {
+  const lifecycle = await source('../src/controllers/broadcastLifecycleController.js');
+
+  assert.match(lifecycle, /cancelLiveKitCreatorRecoveryTimer/);
+  assert.ok(
+    (lifecycle.match(/cancelLiveKitCreatorRecoveryTimer\(broadcastId\)/g) || []).length >= 3,
+    'start, cancel and end lifecycle paths should clear stale recovery timers'
+  );
 });
 
 test('long-session cleanup and replay recovery use creator program audio as authority', async () => {
