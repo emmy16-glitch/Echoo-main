@@ -74,12 +74,13 @@ export const parsePcmWavHeader = async (blob) => {
   const headerBytes = new Uint8Array(
     await blob.slice(0, Math.min(blob.size, WAV_HEADER_SCAN_BYTES)).arrayBuffer()
   );
+  const container = ascii(headerBytes, 0, 4);
   if (
     headerBytes.length < 44 ||
-    ascii(headerBytes, 0, 4) !== 'RIFF' ||
+    !['RIFF', 'RF64'].includes(container) ||
     ascii(headerBytes, 8, 4) !== 'WAVE'
   ) {
-    throw new Error('The local recording is not a valid RIFF/WAV file.');
+    throw new Error('The local recording is not a valid RIFF/RF64 WAV file.');
   }
 
   const view = new DataView(
@@ -87,17 +88,25 @@ export const parsePcmWavHeader = async (blob) => {
     headerBytes.byteOffset,
     headerBytes.byteLength
   );
+  const readUint64Le = (offset) => {
+    const low = view.getUint32(offset, true);
+    const high = view.getUint32(offset + 4, true);
+    return high * 0x100000000 + low;
+  };
 
   let cursor = 12;
   let format = null;
   let data = null;
+  let rf64DataBytes = null;
 
   while (cursor + 8 <= headerBytes.length) {
     const id = ascii(headerBytes, cursor, 4);
     const size = view.getUint32(cursor + 4, true);
     const payloadOffset = cursor + 8;
 
-    if (id === 'fmt ' && payloadOffset + Math.min(size, 16) <= headerBytes.length) {
+    if (id === 'ds64' && size >= 28 && payloadOffset + 28 <= headerBytes.length) {
+      rf64DataBytes = readUint64Le(payloadOffset + 8);
+    } else if (id === 'fmt ' && payloadOffset + Math.min(size, 16) <= headerBytes.length) {
       if (size < 16) throw new Error('The WAV format block is incomplete.');
       format = {
         audioFormat: view.getUint16(payloadOffset, true),
@@ -108,9 +117,15 @@ export const parsePcmWavHeader = async (blob) => {
         bitDepth: view.getUint16(payloadOffset + 14, true),
       };
     } else if (id === 'data') {
+      const rf64Declared =
+        container === 'RF64' &&
+        size === 0xffffffff &&
+        Number.isFinite(rf64DataBytes)
+          ? rf64DataBytes
+          : null;
       data = {
         offset: payloadOffset,
-        declaredBytes: size,
+        declaredBytes: rf64Declared ?? size,
       };
       break;
     }
@@ -145,15 +160,16 @@ export const parsePcmWavHeader = async (blob) => {
   }
 
   const availableBytes = Math.max(0, blob.size - data.offset);
-  const dataBytes = Math.min(
-    availableBytes,
-    data.declaredBytes || availableBytes
-  );
+  const declaredBytes = Number.isFinite(data.declaredBytes) && data.declaredBytes > 0
+    ? data.declaredBytes
+    : availableBytes;
+  const dataBytes = Math.min(availableBytes, declaredBytes);
   const alignedDataBytes = dataBytes - (dataBytes % format.blockAlign);
   if (!alignedDataBytes) throw new Error('The WAV master contains no PCM audio.');
 
   return {
     ...format,
+    container,
     dataOffset: data.offset,
     dataBytes: alignedDataBytes,
     bytesPerSample,
