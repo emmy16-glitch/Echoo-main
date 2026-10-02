@@ -34,15 +34,28 @@ export const isEchooProgramAudioTrack = (
   return !mimeType || mimeType.startsWith('audio/');
 };
 
-export async function creatorProgramAudioIsPresent(broadcastId, userId) {
+export async function getCreatorProgramAudio(broadcastId, userId) {
   const participants = await LiveKitProvider.getParticipants(broadcastId);
   const creator = participants.find((participant) =>
     isCreatorParticipant(participant, userId)
   );
-  if (!creator) return false;
+  if (!creator) return null;
 
   const tracks = Array.isArray(creator.tracks) ? creator.tracks : [];
-  return tracks.some((track) => isEchooProgramAudioTrack(track));
+  const programAudio = tracks.find((track) => isEchooProgramAudioTrack(track));
+  if (!programAudio) return null;
+
+  return {
+    participantSid: creator.sid || null,
+    participantIdentity: creator.identity || null,
+    trackSid: programAudio.sid || null,
+    trackName: programAudio.name || null,
+    mimeType: programAudio.mimeType || null,
+  };
+}
+
+export async function creatorProgramAudioIsPresent(broadcastId, userId) {
+  return Boolean(await getCreatorProgramAudio(broadcastId, userId));
 }
 
 export async function waitForCreatorProgramAudioToStop(
@@ -78,27 +91,8 @@ export async function waitForCreatorProgramAudio(
   const attempts = Math.max(1, Math.min(12, Number(maxAttempts) || 7));
 
   for (let attempt = 0; attempt < attempts; attempt += 1) {
-    const participants = await LiveKitProvider.getParticipants(broadcastId);
-    const creator = participants.find((participant) =>
-      isCreatorParticipant(participant, userId)
-    );
-
-    if (creator) {
-      const tracks = Array.isArray(creator.tracks) ? creator.tracks : [];
-      const programAudio = tracks.find((track) =>
-        isEchooProgramAudioTrack(track)
-      );
-
-      if (programAudio) {
-        return {
-          participantSid: creator.sid || null,
-          participantIdentity: creator.identity || null,
-          trackSid: programAudio.sid || null,
-          trackName: programAudio.name || null,
-          mimeType: programAudio.mimeType || null,
-        };
-      }
-    }
+    const programAudio = await getCreatorProgramAudio(broadcastId, userId);
+    if (programAudio) return programAudio;
 
     if (attempt < attempts - 1) {
       await wait(initialDelayMs + attempt * delayStepMs);
