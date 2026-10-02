@@ -77,7 +77,7 @@ function isRecoverableState(doc) {
     && (
       doc.status !== 'live' ||
       doc.mediaState === 'creator_connecting' ||
-      (doc.mediaState === 'audio_disconnected' && Boolean(doc.creatorDisconnectedAt))
+      doc.mediaState === 'audio_disconnected'
     );
 }
 
@@ -195,6 +195,41 @@ async function sweep() {
     }
     if (!isRecoverableState(fresh)) {
       continue;
+    }
+
+    if (
+      fresh.status === 'live' &&
+      fresh.mediaState === 'audio_disconnected' &&
+      !fresh.creatorDisconnectedAt
+    ) {
+      try {
+        const participants = await LiveKitProvider.getParticipants(fresh._id);
+        const creatorPresent = participants.some((participant) => {
+          try {
+            const metadata = participant?.metadata
+              ? JSON.parse(participant.metadata)
+              : {};
+            return metadata.role === 'creator' &&
+              String(metadata.userId) === String(fresh.creator);
+          } catch {
+            return false;
+          }
+        });
+        if (creatorPresent) continue;
+
+        // A webhook can be delayed/lost. Establish the durable recovery lease
+        // from observed absence rather than leaving the broadcast immortal.
+        fresh.creatorDisconnectedAt = new Date();
+        await fresh.save();
+        clearBroadcastPresenceCache(fresh._id);
+        continue;
+      } catch (error) {
+        console.warn(
+          `[orphan-sweep] creator disconnect discovery failed for ${fresh._id}:`,
+          error?.message || error
+        );
+        continue;
+      }
     }
 
     if (!isStuck(fresh)) {
