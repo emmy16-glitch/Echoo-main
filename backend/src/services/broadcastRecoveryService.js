@@ -23,8 +23,6 @@ import {
 // ---------------------------------------------------------------------------
 
 const STALE_ORPHAN_MS = 30 * 60 * 1000;
-const RECENT_ACTIVITY_MS = 5 * 60 * 1000;
-
 const creatorRecoveryTtlMs = () => {
   const raw = Number(process.env.LIVEKIT_CREATOR_RECOVERY_TTL_HOURS || 24);
   const hours = Number.isFinite(raw) && raw > 0
@@ -280,25 +278,28 @@ export async function recoverBroadcastForReplay({ broadcastId, userId }) {
         'This broadcast is still starting in another session. Your local recording stays safe on this device.'
       );
     }
-    const updatedAt = new Date(broadcast.updatedAt || 0).getTime();
-    const stale = Date.now() - updatedAt > STALE_ORPHAN_MS;
-    const recent = Date.now() - updatedAt < RECENT_ACTIVITY_MS;
-    if (room.unknown && recent && !stale) {
+    if (room.unknown) {
+      // Match the live/orphan policy: a provider outage cannot prove startup
+      // died, so never use it as authority to finalize a recovered master.
       throw recoveryError(
         409,
         'BROADCAST_STILL_LIVE',
-        'Echoo could not confirm this broadcast ended. Your local recording stays safe; retry shortly.'
+        'Echoo could not confirm this broadcast startup ended. Your local recording stays safe; retry shortly.'
       );
     }
-    if (!room.unknown || stale) {
-      const finalized = await finalizeInterruptedBroadcast(broadcast);
-      return { outcome: 'finalized', broadcast: finalized, audioId: null, readyForUpload: true };
+
+    const updatedAt = new Date(broadcast.updatedAt || 0).getTime();
+    const stale = Date.now() - updatedAt > STALE_ORPHAN_MS;
+    if (!stale) {
+      throw recoveryError(
+        409,
+        'BROADCAST_STILL_LIVE',
+        'This broadcast is still inside its startup recovery window. Your local recording stays safe while Echoo prepares the live session.'
+      );
     }
-    throw recoveryError(
-      409,
-      'BROADCAST_STILL_LIVE',
-      'This broadcast is still starting in another session. Your local recording stays safe on this device.'
-    );
+
+    const finalized = await finalizeInterruptedBroadcast(broadcast);
+    return { outcome: 'finalized', broadcast: finalized, audioId: null, readyForUpload: true };
   }
 
   // failed / cancelled / scheduled / draft: only reconcile sessions that
