@@ -7,6 +7,7 @@ import { isAudioAccessibleToUser } from '../src/services/audioAccess.js';
 
 const source = (relativePath) => fs.readFile(new URL(`../${relativePath}`, import.meta.url), 'utf8');
 const frontendSource = (relativePath) => fs.readFile(new URL(`../../frontend/${relativePath}`, import.meta.url), 'utf8');
+const desktopSource = (relativePath) => fs.readFile(new URL(`../../desktop/${relativePath}`, import.meta.url), 'utf8');
 
 const runMiddleware = (middleware, req) => new Promise((resolve) => {
   const response = {
@@ -308,11 +309,11 @@ test('recording management keeps trim copies safe and prevents cramped or mislab
 
 
 test('long broadcast recording uses RF64 and never materializes multi-GB desktop files in one IPC message', async () => {
-  const recording = await source('../../frontend/src/services/broadcastRecordingService.js');
-  const transcode = await source('../../frontend/src/services/localRecordingTranscode.js');
-  const exportService = await source('../../frontend/src/services/recordingExportService.js');
-  const preload = await source('../../desktop/src/preload.js');
-  const desktopMain = await source('../../desktop/src/main.js');
+  const recording = await frontendSource('src/services/broadcastRecordingService.js');
+  const transcode = await frontendSource('src/services/localRecordingTranscode.js');
+  const exportService = await frontendSource('src/services/recordingExportService.js');
+  const preload = await desktopSource('src/preload.js');
+  const desktopMain = await desktopSource('src/main.js');
 
   assert.match(recording, /createRf64Header/);
   assert.match(recording, /MASTER_HEADER_BYTES = RF64_HEADER_BYTES/);
@@ -327,8 +328,8 @@ test('long broadcast recording uses RF64 and never materializes multi-GB desktop
 });
 
 test('creator transport loss remains live under a durable long-session recovery lease', async () => {
-  const webhook = await source('../src/services/livekitWebhookService.js');
-  const sweep = await source('../src/services/livekitOrphanSweep.js');
+  const webhook = await source('src/services/livekitWebhookService.js');
+  const sweep = await source('src/services/livekitOrphanSweep.js');
 
   assert.match(webhook, /creatorRecoveryHours/);
   assert.match(webhook, /LIVEKIT_CREATOR_RECOVERY_TTL_HOURS/);
