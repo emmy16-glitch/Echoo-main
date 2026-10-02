@@ -106,6 +106,21 @@ test('creator webhook recovery ignores stale participant and track removal event
   assert.match(webhook, /scheduleCreatorDisconnect\([\s\S]{0,180}updated\.creatorDisconnectedAt/);
 });
 
+test('program-track loss uses the durable recovery lease even while creator transport remains connected', async () => {
+  const webhook = await source('../src/services/livekitWebhookService.js');
+  const readiness = await source('../src/services/broadcastAudioReadiness.js');
+  const sweep = await source('../src/services/livekitOrphanSweep.js');
+
+  assert.match(webhook, /creatorDisconnectedAt:\s*new Date\(\)/);
+  assert.match(webhook, /track_unpublished[\s\S]{0,900}scheduleCreatorDisconnect/);
+  assert.match(webhook, /track_published[\s\S]{0,220}cancelCreatorDisconnect\(broadcastId\)/);
+  assert.match(webhook, /findCreatorProgramAudio\(current\._id, current\.creator\)/);
+  assert.match(readiness, /export async function findCreatorProgramAudio/);
+  assert.match(sweep, /findCreatorProgramAudio\(fresh\._id, fresh\.creator\)/);
+  assert.match(sweep, /fresh\.mediaState = 'audio_live'/);
+  assert.match(sweep, /fresh\.creatorDisconnectedAt = new Date\(\)/);
+});
+
 
 test('creator recovery is decoupled from the LiveKit room and keeps retrying for long shows', async () => {
   const publisher = await source('../../frontend/src/services/livekitPublisher.js');
