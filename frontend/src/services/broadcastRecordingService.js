@@ -18,6 +18,13 @@ const OPFS_DIRECTORY = 'echoo-live-recordings';
 const OPFS_MANIFEST_KEY = 'echoo:recoverable-broadcast-recording:v1';
 const OPFS_MANIFESTS_KEY = 'echoo:recoverable-broadcast-recordings:v2';
 const OPFS_CHECKPOINT_MS = 15_000;
+const LONG_SESSION_TARGET_SECONDS = 8 * 60 * 60;
+const LOSSLESS_STORAGE_RESERVE_BYTES = 512 * 1024 * 1024;
+const LOSSLESS_LONG_SESSION_TARGET_BYTES =
+  WAV_TARGET_SAMPLE_RATE *
+  WAV_CHANNELS *
+  WAV_BYTES_PER_SAMPLE *
+  LONG_SESSION_TARGET_SECONDS;
 
 const OPUS_FALLBACK_BITRATE = 256000;
 const OPUS_FALLBACK_MAX_BYTES = 128 * 1024 * 1024;
@@ -127,8 +134,14 @@ const readRecoveryManifest = ({ broadcastId = '', storageName = '' } = {}) => {
 const writeRecoveryManifest = (recording, status = 'recording') => {
   if (typeof localStorage === 'undefined' || !recording?.storageName) return;
 
+  const lossless = recording.mode === 'lossless-wav';
+  const mimeType = String(
+    recording.mimeType || (lossless ? WAV_MIME_TYPE : '')
+  );
+  const compressedContainer = compressedExtensionForMime(mimeType);
+
   const manifest = {
-    version: 3,
+    version: 4,
     status,
     broadcastId: recording.broadcastId,
     ownerUserId: String(recording.ownerUserId || currentSessionUserId() || ''),
@@ -136,14 +149,23 @@ const writeRecoveryManifest = (recording, status = 'recording') => {
     storageName: recording.storageName,
     startedAt: recording.startedAt,
     endedAt: recording.endedAt || null,
-    sampleRate: Number(recording.sampleRate) || WAV_TARGET_SAMPLE_RATE,
+    sampleRate: lossless
+      ? (Number(recording.sampleRate) || WAV_TARGET_SAMPLE_RATE)
+      : null,
     dataBytes: Number(recording.committedDataBytes ?? recording.dataBytes) || 0,
-    channels: WAV_CHANNELS,
-    bitDepth: WAV_BIT_DEPTH,
-    headerBytes: Number(recording.headerBytes) || RIFF_HEADER_BYTES,
+    channels: lossless ? WAV_CHANNELS : 2,
+    bitDepth: lossless ? WAV_BIT_DEPTH : null,
+    headerBytes: lossless
+      ? (Number(recording.headerBytes) || RIFF_HEADER_BYTES)
+      : 0,
     container: recording.container || (
-      Number(recording.headerBytes) === RF64_HEADER_BYTES ? 'rf64' : 'riff'
+      lossless
+        ? (Number(recording.headerBytes) === RF64_HEADER_BYTES ? 'rf64' : 'riff')
+        : compressedContainer
     ),
+    mimeType,
+    recordingFormat: recording.mode || (lossless ? 'lossless-wav' : 'opus-opfs'),
+    storageMode: recording.storageMode || (lossless ? 'opfs-stream' : 'opfs-opus-stream'),
     updatedAt: Date.now(),
   };
   const manifests = readRecoveryManifests();
@@ -209,14 +231,69 @@ const supportsOpfs = () =>
 const supportsLosslessWavCapture = () =>
   supportsEchooMasterPcmCapture() && supportsOpfs();
 
+const storageHeadroom = async () => {
+  if (typeof navigator === 'undefined' || typeof navigator.storage?.estimate !== 'function') {
+    return null;
+  }
+  try {
+    const estimate = await navigator.storage.estimate();
+    const quota = Math.max(0, Number(estimate?.quota) || 0);
+    const usage = Math.max(0, Number(estimate?.usage) || 0);
+    return {
+      quota,
+      usage,
+      available: Math.max(0, quota - usage),
+    };
+  } catch {
+    return null;
+  }
+};
+
+const hasLongSessionLosslessHeadroom = async () => {
+  const estimate = await storageHeadroom();
+  if (!estimate) return false;
+  return estimate.available >=
+    LOSSLESS_LONG_SESSION_TARGET_BYTES + LOSSLESS_STORAGE_RESERVE_BYTES;
+};
+
+const compressedExtensionForMime = (mimeType = '') => {
+  const mime = String(mimeType).toLowerCase();
+  // Codec and container are not interchangeable. In particular,
+  // audio/webm;codecs=opus is WebM bytes and must never be labeled .ogg.
+  if (mime.includes('webm')) return 'webm';
+  if (mime.includes('ogg')) return 'ogg';
+  if (mime.includes('mp4') || mime.includes('aac') || mime.includes('m4a')) return 'm4a';
+  if (mime.includes('opus')) return 'ogg';
+  return 'webm';
+};
+
+const isCompressedRecoveryManifest = (manifest) => {
+  const format = String(manifest?.recordingFormat || '').toLowerCase();
+  const container = String(manifest?.container || '').toLowerCase();
+  const mime = String(manifest?.mimeType || '').toLowerCase();
+  return (
+    format === 'compressed-opfs' ||
+    format === 'opus-opfs' ||
+    ['webm', 'ogg', 'm4a', 'mp4'].includes(container) ||
+    mime.includes('webm') ||
+    mime.includes('ogg') ||
+    mime.includes('opus') ||
+    mime.includes('mp4') ||
+    mime.includes('aac') ||
+    mime.includes('m4a')
+  );
+};
+
 const supportedFallbackMimeType = () => {
   if (typeof MediaRecorder === 'undefined') return '';
 
   const candidates = [
     'audio/webm;codecs=opus',
     'audio/ogg;codecs=opus',
+    'audio/mp4;codecs=mp4a.40.2',
     'audio/webm',
     'audio/ogg',
+    'audio/mp4',
   ];
 
   return candidates.find((type) => MediaRecorder.isTypeSupported(type)) || '';
@@ -742,6 +819,59 @@ const safeRemoveOpfsEntry = async (directory, name) => {
   }
 };
 
+const openCompressedRecordingFile = async (broadcastId, mimeType) => {
+  if (!supportsOpfs()) return null;
+
+  try {
+    await navigator.storage.persist?.();
+  } catch {
+    // Persistence permission is best effort.
+  }
+
+  const root = await navigator.storage.getDirectory();
+  const directory = await root.getDirectoryHandle(OPFS_DIRECTORY, { create: true });
+  const safeId = cleanFilenamePart(broadcastId).slice(0, 50);
+  const randomPart =
+    globalThis.crypto?.randomUUID?.() ||
+    `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const extension = compressedExtensionForMime(mimeType);
+  const storageName = `echoo-tmp-${safeId}-${randomPart}.${extension}`;
+  const fileHandle = await directory.getFileHandle(storageName, { create: true });
+  const writable = await fileHandle.createWritable();
+
+  return {
+    directory,
+    fileHandle,
+    writable,
+    storageName,
+    headerBytes: 0,
+    container: extension,
+    storageMode: 'opfs-opus-stream',
+  };
+};
+
+const checkpointCompressedRecording = async (recording, status = 'recording') => {
+  if (!recording?.writable || recording.writeError) return;
+  await recording.writable.close();
+  recording.writable = await recording.fileHandle.createWritable({ keepExistingData: true });
+  await recording.writable.seek(Number(recording.committedDataBytes) || 0);
+  writeRecoveryManifest(recording, status);
+};
+
+const queueCompressedCheckpoint = (recording, status = 'recording') => {
+  if (!recording || recording.stopping || recording.writeError || !recording.writable) {
+    return recording?.writeChain;
+  }
+  recording.writeChain = recording.writeChain
+    .then(() => checkpointCompressedRecording(recording, status))
+    .catch((error) => {
+      recording.writeError = error;
+      writeRecoveryManifest(recording, 'recovery_required');
+      console.error('[Echoo Recording] compressed durable checkpoint failed:', error?.message || error);
+    });
+  return recording.writeChain;
+};
+
 const openLosslessRecordingFile = async (broadcastId) => {
   if (!supportsOpfs()) {
     throw new Error('Browser-backed recording storage is not available.');
@@ -954,6 +1084,14 @@ const startLosslessRecording = async ({ broadcastId, title }) => {
     );
   }
 
+  if (!(await hasLongSessionLosslessHeadroom())) {
+    const error = new Error(
+      'Local storage headroom is too small for an eight-hour lossless safety master; using disk-backed Opus recovery instead.'
+    );
+    error.code = 'LOSSLESS_STORAGE_HEADROOM_LOW';
+    throw error;
+  }
+
   const storage = await openLosslessRecordingFile(broadcastId);
   const recording = {
     mode: 'lossless-wav',
@@ -1047,16 +1185,19 @@ const startLosslessRecording = async ({ broadcastId, title }) => {
 };
 
 const stopFallbackRecording = (recording, { keep = true } = {}) =>
-  new Promise((resolve) => {
+  new Promise((resolve, reject) => {
     if (!recording?.recorder) {
       resolve(null);
       return;
     }
 
     let finished = false;
-    const finish = () => {
+    const finish = async () => {
       if (finished) return;
       finished = true;
+      recording.stopping = true;
+      window.clearInterval(recording.checkpointTimer);
+      window.removeEventListener('pagehide', recording.onPageHide);
 
       try {
         recording.track?.stop();
@@ -1064,51 +1205,93 @@ const stopFallbackRecording = (recording, { keep = true } = {}) =>
         // The cloned fallback track may already be ended.
       }
 
-      if (!keep || recording.overflowed) {
-        resolve(null);
-        return;
+      try {
+        await recording.writeChain;
+
+        if (recording.writeError) throw recording.writeError;
+
+        if (!keep || recording.overflowed) {
+          await recording.writable?.close();
+          recording.writable = null;
+          if (recording.directory && recording.storageName) {
+            await safeRemoveOpfsEntry(recording.directory, recording.storageName);
+            clearRecoveryManifest(recording.storageName);
+          }
+          resolve(null);
+          return;
+        }
+
+        const mimeType =
+          recording.recorder.mimeType || recording.mimeType || 'audio/webm';
+        const durationSeconds = Math.max(
+          1,
+          (Date.now() - recording.startedAt) / 1000
+        );
+        const extension = compressedExtensionForMime(mimeType);
+
+        let blob;
+        let storageMode = 'memory-opus-fallback';
+        if (recording.fileHandle) {
+          await recording.writable?.close();
+          recording.writable = null;
+          recording.endedAt = Date.now();
+          writeRecoveryManifest(recording, 'pending_upload');
+          const file = await recording.fileHandle.getFile();
+          blob = new Blob([file], { type: mimeType });
+          storageMode = 'opfs-opus-stream';
+        } else {
+          blob = new Blob(recording.chunks, { type: mimeType });
+        }
+
+        resolve({
+          broadcastId: recording.broadcastId,
+          ownerUserId: String(recording.ownerUserId || ''),
+          recoveryStorageName: recording.storageName || '',
+          blob,
+          mimeType,
+          durationSeconds,
+          sampleRate: null,
+          channels: 2,
+          bitDepth: null,
+          lossless: false,
+          recordingFormat: recording.fileHandle ? 'compressed-opfs' : 'compressed-fallback',
+          container: extension,
+          headerBytes: 0,
+          dataOffset: 0,
+          dataBytes: Number(recording.committedDataBytes || recording.dataBytes || blob.size) || 0,
+          captureSource: 'published-media-track-fallback',
+          storageMode,
+          targetAudioBitsPerSecond: OPUS_FALLBACK_BITRATE,
+          audioBitsPerSecond:
+            Number(recording.recorder.audioBitsPerSecond) || OPUS_FALLBACK_BITRATE,
+          startedAt: new Date(recording.startedAt).toISOString(),
+          endedAt: new Date().toISOString(),
+          filename: `${cleanFilenamePart(recording.title)}-${recordingDatePart(recording.startedAt)}.${extension}`,
+          qualityChunkCount: 0,
+          qualityChunkErrors: [],
+          qualityCompletionPending: false,
+          qualityCompletionError: '',
+          dispose: recording.fileHandle
+            ? async () => {
+                await safeRemoveOpfsEntry(recording.directory, recording.storageName);
+                clearRecoveryManifest(recording.storageName);
+              }
+            : undefined,
+        });
+      } catch (error) {
+        if (recording.storageName) {
+          writeRecoveryManifest(recording, 'recovery_required');
+        }
+        reject(error);
       }
-
-      const mimeType =
-        recording.recorder.mimeType || recording.mimeType || 'audio/webm';
-      const blob = new Blob(recording.chunks, { type: mimeType });
-      const durationSeconds = Math.max(
-        1,
-        (Date.now() - recording.startedAt) / 1000
-      );
-      const extension = String(mimeType).includes('ogg') ? 'ogg' : 'webm';
-
-      resolve({
-        broadcastId: recording.broadcastId,
-        blob,
-        mimeType,
-        durationSeconds,
-        sampleRate: null,
-        channels: 2,
-        bitDepth: null,
-        lossless: false,
-        recordingFormat: 'opus-fallback',
-        captureSource: 'published-media-track-fallback',
-        storageMode: 'memory-opus-fallback',
-        targetAudioBitsPerSecond: OPUS_FALLBACK_BITRATE,
-        audioBitsPerSecond:
-          Number(recording.recorder.audioBitsPerSecond) || OPUS_FALLBACK_BITRATE,
-        startedAt: new Date(recording.startedAt).toISOString(),
-        endedAt: new Date().toISOString(),
-        filename: `${cleanFilenamePart(recording.title)}-${recordingDatePart(recording.startedAt)}.${extension}`,
-        qualityChunkCount: 0,
-        qualityChunkErrors: [],
-        qualityCompletionPending: false,
-        qualityCompletionError: '',
-      });
     };
 
     if (recording.recorder.state === 'inactive') {
-      finish();
+      void finish();
       return;
     }
 
-    recording.recorder.addEventListener('stop', finish, { once: true });
+    recording.recorder.addEventListener('stop', () => { void finish(); }, { once: true });
 
     try {
       recording.recorder.requestData();
@@ -1119,11 +1302,11 @@ const stopFallbackRecording = (recording, { keep = true } = {}) =>
     try {
       recording.recorder.stop();
     } catch {
-      finish();
+      void finish();
     }
   });
 
-const startFallbackRecording = ({ broadcastId, mediaTrack, title }) => {
+const startFallbackRecording = async ({ broadcastId, mediaTrack, title }) => {
   if (typeof MediaRecorder === 'undefined') {
     throw new Error('MediaRecorder is not supported by this browser.');
   }
@@ -1138,9 +1321,76 @@ const startFallbackRecording = ({ broadcastId, mediaTrack, title }) => {
   const chunks = [];
   let fallbackBytes = 0;
   let fallbackOverflowed = false;
+  let storage = null;
+
+  if (supportsOpfs()) {
+    try {
+      storage = await openCompressedRecordingFile(broadcastId, recorder.mimeType || mimeType);
+    } catch (error) {
+      console.warn(
+        '[Echoo Recording] compressed OPFS safety file could not start; falling back to bounded memory:',
+        error?.message || error
+      );
+    }
+  }
+
+  const recording = {
+    mode: storage ? 'compressed-opfs' : 'compressed-fallback',
+    recorder,
+    stream,
+    track: clonedTrack,
+    chunks,
+    mimeType: recorder.mimeType || mimeType || 'audio/webm',
+    broadcastId: String(broadcastId || ''),
+    title,
+    startedAt: Date.now(),
+    dataBytes: 0,
+    committedDataBytes: 0,
+    writeError: null,
+    writeChain: Promise.resolve(),
+    stopping: false,
+    checkpointTimer: null,
+    onPageHide: null,
+    storageMode: storage ? 'opfs-opus-stream' : 'memory-opus-fallback',
+    qualityBuffers: [],
+    qualitySampleCount: 0,
+    qualityChunkIndex: 0,
+    qualityCursorMs: 0,
+    qualityChain: Promise.resolve(),
+    qualityChunkErrors: [],
+    qualityChunkDisabled: false,
+    qualityChunkStarted: false,
+    qualityCompletionPending: false,
+    qualityCompletionError: '',
+    serverRecordingPrimary: false,
+    serverHandshakePromise: null,
+    ...storage,
+    get overflowed() { return fallbackOverflowed; },
+  };
+
+  if (storage) writeRecoveryManifest(recording, 'recording');
 
   recorder.addEventListener('dataavailable', (event) => {
-    if (!event.data?.size || fallbackOverflowed) return;
+    if (!event.data?.size || fallbackOverflowed || recording.writeError) return;
+
+    if (recording.fileHandle) {
+      recording.dataBytes += event.data.size;
+      recording.writeChain = recording.writeChain
+        .then(async () => {
+          await recording.writable.write(event.data);
+          recording.committedDataBytes += event.data.size;
+        })
+        .catch((error) => {
+          recording.writeError = error;
+          writeRecoveryManifest(recording, 'recovery_required');
+          console.error(
+            '[Echoo Recording] compressed browser storage write failed:',
+            error?.message || error
+          );
+        });
+      return;
+    }
+
     if (fallbackBytes + event.data.size > OPUS_FALLBACK_MAX_BYTES) {
       fallbackOverflowed = true;
       chunks.length = 0;
@@ -1168,34 +1418,23 @@ const startFallbackRecording = ({ broadcastId, mediaTrack, title }) => {
     console.error('[Echoo Recording] fallback recorder error', event?.error || event);
   });
 
-  const recording = {
-    mode: 'opus-fallback',
-    recorder,
-    stream,
-    track: clonedTrack,
-    chunks,
-    mimeType,
-    broadcastId: String(broadcastId || ''),
-    title,
-    startedAt: Date.now(),
-    qualityBuffers: [],
-    qualitySampleCount: 0,
-    qualityChunkIndex: 0,
-    qualityCursorMs: 0,
-    qualityChain: Promise.resolve(),
-    qualityChunkErrors: [],
-    qualityChunkDisabled: false,
-    qualityChunkStarted: false,
-    qualityCompletionPending: false,
-    qualityCompletionError: '',
-    serverRecordingPrimary: false,
-    serverHandshakePromise: null,
-    get overflowed() { return fallbackOverflowed; },
-  };
+  if (storage) {
+    recording.checkpointTimer = window.setInterval(
+      () => { void queueCompressedCheckpoint(recording); },
+      OPFS_CHECKPOINT_MS
+    );
+    recording.onPageHide = () => {
+      try { recorder.requestData(); } catch { /* best effort */ }
+      void queueCompressedCheckpoint(recording, 'recovery_required');
+    };
+    window.addEventListener('pagehide', recording.onPageHide);
+  }
 
   recorder.start(1000);
   console.warn(
-    '[Echoo Recording] using high-quality Opus fallback because disk-backed lossless capture was unavailable.'
+    storage
+      ? '[Echoo Recording] using disk-backed high-quality Opus safety recording for long-session storage efficiency.'
+      : '[Echoo Recording] using bounded in-memory Opus fallback because disk-backed recording was unavailable.'
   );
   return recording;
 };
@@ -1220,7 +1459,9 @@ const activeRecordingSnapshot = (recording) => ({
   storageMode:
     recording?.mode === 'lossless-wav'
       ? 'opfs-stream'
-      : 'memory-opus-fallback',
+      : recording?.mode === 'compressed-opfs'
+        ? 'opfs-opus-stream'
+        : 'memory-opus-fallback',
   lossless: recording?.mode === 'lossless-wav',
   sampleRate: recording?.sampleRate || null,
   channels: recording?.mode === 'lossless-wav' ? WAV_CHANNELS : 2,
@@ -1246,9 +1487,11 @@ export const getBroadcastRecordingState = () => ({
   storageMode:
     activeRecording?.mode === 'lossless-wav'
       ? 'opfs-stream'
-      : activeRecording
-        ? 'memory-opus-fallback'
-        : null,
+      : activeRecording?.mode === 'compressed-opfs'
+        ? 'opfs-opus-stream'
+        : activeRecording
+          ? 'memory-opus-fallback'
+          : null,
   lossless: activeRecording?.mode === 'lossless-wav',
   sampleRate: activeRecording?.sampleRate || null,
   channels: activeRecording?.mode === 'lossless-wav' ? WAV_CHANNELS : null,
@@ -1345,7 +1588,7 @@ export const ensureBroadcastRecording = async ({
     );
 
     try {
-      activeRecording = startFallbackRecording({
+      activeRecording = await startFallbackRecording({
         broadcastId: id,
         mediaTrack,
         title,
@@ -1399,6 +1642,56 @@ export const recoverPendingBroadcastRecording = async () => {
     const directory = await root.getDirectoryHandle(OPFS_DIRECTORY);
     const fileHandle = await directory.getFileHandle(manifest.storageName);
     const sourceFile = await fileHandle.getFile();
+
+    if (isCompressedRecoveryManifest(manifest)) {
+      if (!sourceFile.size) return null;
+      const mimeType = String(
+        manifest.mimeType ||
+        (String(manifest.container).toLowerCase() === 'ogg'
+          ? 'audio/ogg;codecs=opus'
+          : ['m4a', 'mp4'].includes(String(manifest.container).toLowerCase())
+            ? 'audio/mp4'
+            : 'audio/webm;codecs=opus')
+      );
+      const startedAt = Number(manifest.startedAt) || Number(sourceFile.lastModified) || Date.now();
+      const endedAt = Number(manifest.endedAt) || Number(sourceFile.lastModified) || Date.now();
+      const extension = compressedExtensionForMime(mimeType);
+      const recording = {
+        broadcastId: String(manifest.broadcastId),
+        ownerUserId: String(manifest.ownerUserId || ''),
+        recoveryStorageName: String(manifest.storageName || ''),
+        blob: new Blob([sourceFile], { type: mimeType }),
+        mimeType,
+        durationSeconds: Math.max(1, (endedAt - startedAt) / 1000),
+        sampleRate: null,
+        channels: 2,
+        bitDepth: null,
+        lossless: false,
+        recordingFormat: 'compressed-opfs',
+        container: extension,
+        headerBytes: 0,
+        dataOffset: 0,
+        dataBytes: sourceFile.size,
+        captureSource: 'published-media-track-fallback',
+        storageMode: 'opfs-opus-recovered',
+        audioBitsPerSecond: OPUS_FALLBACK_BITRATE,
+        startedAt: new Date(startedAt).toISOString(),
+        endedAt: new Date(endedAt).toISOString(),
+        filename: `${cleanFilenamePart(manifest.title)}-${recordingDatePart(startedAt)}.${extension}`,
+        recoveredAfterRestart: true,
+        qualityChunkCount: 0,
+        qualityChunkErrors: [],
+        qualityCompletionPending: false,
+        qualityCompletionError: '',
+        dispose: async () => {
+          await safeRemoveOpfsEntry(directory, manifest.storageName);
+          clearRecoveryManifest(manifest.storageName);
+        },
+      };
+      pendingRecording = recording;
+      return recording;
+    }
+
     const headerBytes = await detectMasterHeaderBytes(sourceFile, manifest);
     const dataBytes = Math.max(0, sourceFile.size - headerBytes);
     if (!dataBytes) return null;
@@ -1509,7 +1802,10 @@ export const uploadCompressedRecoveryMasterToServer = async (recording, broadcas
   const compressedRecovery =
     mimeType.includes('webm') ||
     mimeType.includes('opus') ||
-    mimeType.includes('ogg');
+    mimeType.includes('ogg') ||
+    mimeType.includes('mp4') ||
+    mimeType.includes('aac') ||
+    mimeType.includes('m4a');
 
   if (!compressedRecovery) {
     const error = new Error('This browser recovery master is not a supported compressed audio format.');
@@ -1517,7 +1813,7 @@ export const uploadCompressedRecoveryMasterToServer = async (recording, broadcas
     throw error;
   }
 
-  const extension = mimeType.includes('ogg') ? 'ogg' : 'webm';
+  const extension = compressedExtensionForMime(mimeType);
   const form = new FormData();
   form.append(
     'audio',
@@ -1654,16 +1950,21 @@ export const clearPendingBroadcastRecording = (broadcastId = '') => {
 // writer so the file is complete on disk. The RF64/WAV header is patched on
 // recovery from the durable manifest and file size, so a close mid-take is safe.
 export const flushRecordingForPageHide = async () => {
-  persistRecoveryMetadata(activeRecording);
-  try {
-    await activeRecording?.writable?.close();
-  } catch {
-    // The writer may already be closed or closing.
+  const recording = activeRecording;
+  if (!recording) return;
+
+  persistRecoveryMetadata(recording);
+  if (recording.mode === 'lossless-wav') {
+    await queueLosslessCheckpoint(recording, 'recovery_required');
+    return;
   }
-  if (activeRecording) activeRecording.writable = null;
+  if (recording.mode === 'compressed-opfs') {
+    try { recording.recorder?.requestData?.(); } catch { /* best effort */ }
+    await queueCompressedCheckpoint(recording, 'recovery_required');
+  }
 };
 
-// Recover the newest orphaned OPFS master left by a closed/crashed tab.
+// Recover the newest orphaned OPFS master (RF64 or disk-backed Opus) left by a closed/crashed tab.
 // Recovery metadata is not discarded merely because time passed; browser
 // storage eviction or an explicit creator discard is the real lifetime bound.
 // Additional unfinished takes remain registered and can be recovered later.
@@ -1679,6 +1980,62 @@ export const recoverOrphanedLosslessRecording = async () => {
     const directory = await root.getDirectoryHandle(OPFS_DIRECTORY, { create: false });
     const fileHandle = await directory.getFileHandle(meta.storageName, { create: false });
     const file = await fileHandle.getFile();
+
+    if (isCompressedRecoveryManifest(meta)) {
+      if (!file.size) {
+        await safeRemoveOpfsEntry(directory, meta.storageName);
+        clearRecoveryMetadata(meta.broadcastId);
+        return null;
+      }
+      const mimeType = String(
+        meta.mimeType ||
+        (String(meta.container).toLowerCase() === 'ogg'
+          ? 'audio/ogg;codecs=opus'
+          : ['m4a', 'mp4'].includes(String(meta.container).toLowerCase())
+            ? 'audio/mp4'
+            : 'audio/webm;codecs=opus')
+      );
+      const extension = compressedExtensionForMime(mimeType);
+      const startedAt = Number(meta.startedAt) || Date.now();
+      const endedAt = Number(meta.endedAt) || Number(file.lastModified) || Date.now();
+      const recording = {
+        broadcastId: String(meta.broadcastId),
+        ownerUserId: String(meta.ownerUserId || ''),
+        recoveryStorageName: String(meta.storageName || ''),
+        blob: new Blob([file], { type: mimeType }),
+        mimeType,
+        durationSeconds: Math.max(1, (endedAt - startedAt) / 1000),
+        sampleRate: null,
+        channels: 2,
+        bitDepth: null,
+        lossless: false,
+        recordingFormat: 'compressed-opfs',
+        container: extension,
+        headerBytes: 0,
+        dataOffset: 0,
+        dataBytes: file.size,
+        captureSource: 'published-media-track-fallback',
+        storageMode: 'opfs-opus-recovered',
+        audioBitsPerSecond: OPUS_FALLBACK_BITRATE,
+        startedAt: new Date(startedAt).toISOString(),
+        endedAt: new Date(endedAt).toISOString(),
+        filename: `${cleanFilenamePart(meta.title)}-${recordingDatePart(startedAt)}.${extension}`,
+        limitReached: false,
+        qualityChunkCount: 0,
+        qualityChunkErrors: [],
+        qualityCompletionPending: false,
+        qualityCompletionError: '',
+        recovered: true,
+        recoveredAfterRestart: true,
+        dispose: async () => {
+          await safeRemoveOpfsEntry(directory, meta.storageName);
+          clearRecoveryManifest(meta.storageName);
+        },
+      };
+      pendingRecording = recording;
+      return { recording, broadcast: { title: String(meta.title || 'Echoo live recording') } };
+    }
+
     const headerBytes = await detectMasterHeaderBytes(file, meta);
     const dataBytes = Math.max(0, Number(file.size || 0) - headerBytes);
     if (!dataBytes) {

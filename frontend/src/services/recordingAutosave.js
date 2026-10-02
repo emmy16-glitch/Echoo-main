@@ -112,7 +112,8 @@ const isLosslessWavRecovery = (recording) => {
       mime.includes('wav') ||
       recording?.lossless === true ||
       format === 'pcm-wav' ||
-      storageMode.startsWith('opfs') ||
+      storageMode === 'opfs-stream' ||
+      storageMode === 'opfs-recovered' ||
       filename.endsWith('.wav')
     )
   );
@@ -336,7 +337,10 @@ const startAutosaveLive = async ({
       const compressedRecoveryAvailable =
         recoveryMime.includes('webm') ||
         recoveryMime.includes('opus') ||
-        recoveryMime.includes('ogg');
+        recoveryMime.includes('ogg') ||
+        recoveryMime.includes('mp4') ||
+        recoveryMime.includes('aac') ||
+        recoveryMime.includes('m4a');
 
       let finalizeResponse = null;
       let replay = {};

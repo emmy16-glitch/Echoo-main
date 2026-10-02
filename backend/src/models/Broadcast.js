@@ -237,6 +237,14 @@ const broadcastSchema = new mongoose.Schema(
       default: null,
       index: true,
     },
+    // LiveKit participant identity is stable across reconnect attempts, but
+    // the participant SID is unique to one concrete transport session. Keep
+    // the current SID so a delayed participant_left webhook from an older
+    // connection cannot tear down a healthy replacement creator.
+    creatorParticipantSid: {
+      type: String,
+      default: null,
+    },
     audioConfiguration: {
       // Preserve original source audio unless Enhanced Audio is explicitly on.
       audioMode: { type: String, enum: ['raw', 'enhanced'], default: 'raw' },

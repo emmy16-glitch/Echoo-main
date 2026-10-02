@@ -21,6 +21,7 @@ contextBridge.exposeInMainWorld('echooDesktop', {
     active: state?.active === true,
     muted: state?.muted === true,
     canToggleMute: state?.canToggleMute === true,
+    keepAwake: state?.keepAwake === true,
   }),
   getRoomState: () => ipcRenderer.invoke('echoo:get-room-state'),
   onRoomCommand: (listener) => {

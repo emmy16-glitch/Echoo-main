@@ -29,6 +29,7 @@ test('broadcast state stores authoritative media and transcript lifecycle values
   assert.ok(Broadcast.schema.path('programTrackSid'));
   assert.ok(Broadcast.schema.path('programTrackName'));
   assert.ok(Broadcast.schema.path('creatorDisconnectedAt'));
+  assert.ok(Broadcast.schema.path('creatorParticipantSid'));
 });
 
 test('creator publishes only the named post-master mix and exposes real health milestones', async () => {
@@ -101,14 +102,15 @@ test('creator webhook recovery ignores stale participant and track removal event
   assert.match(webhook, /clearCreatorProgramTrackIfCurrent/);
   assert.match(webhook, /programTrackSid:\s*sid/);
   assert.match(webhook, /event\.track\?\.sid/);
-  assert.match(webhook, /const replacementPresent = current[\s\S]*creatorStillPresent\(current\)\.catch\(\(\) => true\)/);
-  assert.match(webhook, /scheduleCreatorDisconnect\(broadcastId/);
+  assert.match(webhook, /const replacementPresent = await creatorStillPresent\([\s\S]{0,140}current,[\s\S]{0,140}leavingParticipantSid[\s\S]{0,80}\.catch\(\(\) => true\)/);
+  assert.match(webhook, /scheduleCreatorDisconnect\([\s\S]{0,180}updated\.creatorDisconnectedAt/);
 });
 
 
 test('creator recovery is decoupled from the LiveKit room and keeps retrying for long shows', async () => {
   const publisher = await source('../../frontend/src/services/livekitPublisher.js');
   const webhook = await source('../src/services/livekitWebhookService.js');
+  const lifecycle = await source('../src/controllers/broadcastLifecycleController.js');
   const envExample = await source('../.env.example');
 
   assert.match(publisher, /CREATOR_RECOVERY_WINDOW_MS = 90_000/);
@@ -116,10 +118,37 @@ test('creator recovery is decoupled from the LiveKit room and keeps retrying for
   assert.match(publisher, /while \(isCurrent\(candidate\)\)/);
   assert.match(publisher, /candidate\.recoveryStartedAt = null/);
   assert.match(webhook, /LIVEKIT_CREATOR_RECOVERY_TTL_HOURS \|\| 24/);
-  assert.match(webhook, /creatorDisconnectedAt: new Date\(\)/);
-  assert.match(webhook, /event\.event === 'participant_joined'[\s\S]{0,500}\{ mediaState: 'creator_connecting' \}/);
-  assert.match(webhook, /mediaState: 'audio_live'[\s\S]{0,120}creatorDisconnectedAt: null/);
+  assert.match(webhook, /const disconnectedAt = current\.creatorDisconnectedAt \|\| new Date\(\)/);
+  assert.match(webhook, /creatorDisconnectedAt: disconnectedAt/);
+  assert.match(webhook, /event\.event === 'participant_joined'[\s\S]{0,1400}\{ mediaState: 'creator_connecting' \}/);
+  assert.match(webhook, /mediaState: 'audio_live'[\s\S]{0,180}creatorDisconnectedAt: null/);
+  assert.match(lifecycle, /broadcast\.creatorParticipantSid = publisher\.participantSid \|\| null/);
+  assert.match(lifecycle, /broadcast\.status === 'live'[\s\S]{0,1800}broadcast\.creatorDisconnectedAt = null[\s\S]{0,500}broadcast\.programTrackSid/);
   assert.match(envExample, /LIVEKIT_CREATOR_RECOVERY_TTL_HOURS=24/);
+});
+
+test('creator webhook ignores obsolete participant sessions and long sessions prevent suspension', async () => {
+  const webhook = await source('../src/services/livekitWebhookService.js');
+  const workspace = await source('../../frontend/src/Components/CreatorStudio/CreatorLiveConnectedWorkspace.jsx');
+  const keepAwake = await source('../../frontend/src/services/liveSessionKeepAwake.js');
+  const desktopMain = await source('../../desktop/src/main.js');
+  const desktopPreload = await source('../../desktop/src/preload.js');
+
+  assert.match(webhook, /leavingParticipantSid/);
+  assert.match(webhook, /currentParticipantSid/);
+  assert.match(webhook, /leavingParticipantSid !== currentParticipantSid/);
+  assert.match(webhook, /creatorStillPresent\([\s\S]{0,100}leavingParticipantSid/);
+  assert.match(webhook, /participantSid !== excludedSid/);
+  assert.match(webhook, /creatorParticipantSid: joinedParticipantSid/);
+  assert.match(webhook, /scheduleCreatorDisconnect\([\s\S]{0,180}updated\.creatorDisconnectedAt/);
+  assert.match(keepAwake, /navigator\.wakeLock\?\.request === 'function'/);
+  assert.match(keepAwake, /navigator\.wakeLock\.request\('screen'\)/);
+  assert.match(keepAwake, /visibilitychange/);
+  assert.match(workspace, /startCreatorSessionKeepAwake/);
+  assert.match(workspace, /keepAwake: Boolean\(currentLiveBroadcast\?\.id\)/);
+  assert.match(desktopMain, /powerSaveBlocker\.start\('prevent-app-suspension'\)/);
+  assert.match(desktopMain, /syncPowerSaveBlocker\(\)/);
+  assert.match(desktopPreload, /keepAwake: state\?\.keepAwake === true/);
 });
 
 test('creator reconnect supervisor bounds LiveKit native recovery and replaces stale rooms', async () => {
