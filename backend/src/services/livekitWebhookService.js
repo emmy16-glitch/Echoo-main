@@ -382,14 +382,37 @@ export async function handleLiveKitWebhook(req, res) {
       // can reconnect successfully but fail to restore program audio.
       const joinedParticipantSid = String(event?.participant?.sid || '').trim();
       if (joinedParticipantSid) {
-        await Broadcast.updateOne(
-          {
-            _id: broadcastId,
-            status: { $in: ['starting', 'live', 'ending'] },
-            isDeleted: false,
-          },
-          { $set: { creatorParticipantSid: joinedParticipantSid } }
+        const current = await Broadcast.findOne({
+          _id: broadcastId,
+          status: { $in: ['starting', 'live', 'ending'] },
+          isDeleted: false,
+        }).select('mediaState creatorDisconnectedAt creatorParticipantSid programTrackSid');
+
+        const canClaimTransport = Boolean(
+          current &&
+          (
+            !current.creatorParticipantSid ||
+            current.mediaState !== 'audio_live' ||
+            current.creatorDisconnectedAt ||
+            !current.programTrackSid
+          )
         );
+
+        // A second tab/device joining while the canonical program is healthy
+        // must not steal authority from the participant that is actually
+        // publishing. The joining SID becomes authoritative only during a
+        // genuine recovery/startup state; track_published can promote it later
+        // after control-plane verification.
+        if (canClaimTransport) {
+          await Broadcast.updateOne(
+            {
+              _id: broadcastId,
+              status: { $in: ['starting', 'live', 'ending'] },
+              isDeleted: false,
+            },
+            { $set: { creatorParticipantSid: joinedParticipantSid } }
+          );
+        }
       }
 
       await updateCreatorMediaState(
