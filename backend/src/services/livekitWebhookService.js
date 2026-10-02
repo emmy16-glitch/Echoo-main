@@ -78,20 +78,6 @@ const emitStatus = (io, broadcast) => {
   if (broadcast.isPublic) io.emit('catalog:changed', { entity: 'broadcast', action: 'status', ...payload });
 };
 
-const creatorStillPresent = async (broadcast, excludeParticipantSid = '') => {
-  const excludedSid = String(excludeParticipantSid || '').trim();
-  const participants = await LiveKitProvider.getParticipants(broadcast._id);
-  return participants.some((participant) => {
-    const metadata = metadataOf(participant.metadata);
-    const participantSid = String(participant?.sid || '').trim();
-    return (
-      metadata.role === 'creator' &&
-      String(metadata.userId) === String(broadcast.creator) &&
-      (!excludedSid || participantSid !== excludedSid)
-    );
-  });
-};
-
 const updateCreatorMediaState = async (broadcastId, update, io, { preserveLive = false } = {}) => {
   const broadcast = await Broadcast.findOneAndUpdate(
     {
@@ -107,6 +93,49 @@ const updateCreatorMediaState = async (broadcastId, update, io, { preserveLive =
   clearBroadcastPresenceCache(broadcastId);
   emitStatus(io, broadcast);
   return broadcast;
+};
+
+const healRecoveredProgramAudio = async (broadcast, program, io) => {
+  if (!broadcast || !program?.track) return null;
+
+  const healed = await Broadcast.findOneAndUpdate(
+    {
+      _id: broadcast._id,
+      status: { $in: ['starting', 'live', 'ending'] },
+      isDeleted: false,
+    },
+    {
+      $set: {
+        mediaState: 'audio_live',
+        creatorDisconnectedAt: null,
+        creatorParticipantSid:
+          program.participant?.sid || broadcast.creatorParticipantSid || null,
+        programTrackSid:
+          program.track?.sid || broadcast.programTrackSid || null,
+        programTrackName:
+          program.track?.name || broadcast.programTrackName || 'echoo-studio-mix',
+      },
+    },
+    { returnDocument: 'after' }
+  );
+
+  if (!healed) return null;
+  clearBroadcastPresenceCache(healed._id);
+  emitStatus(io, healed);
+
+  if (isLiveKitServerRecordingEnabled() && healed.programTrackSid) {
+    void ensureLiveKitServerRecording({
+      broadcastId: healed._id,
+      trackSid: healed.programTrackSid,
+    }).catch((recordingError) => {
+      console.warn(
+        '[Echoo Server Recording] recovered program recorder warning:',
+        recordingError?.message || recordingError
+      );
+    });
+  }
+
+  return healed;
 };
 
 const clearCreatorProgramTrackIfCurrent = async (broadcastId, trackSid, io) => {
@@ -159,43 +188,7 @@ const endExpiredDisconnectedBroadcast = async (broadcastId, io) => {
   }
 
   if (recoveredProgram) {
-    const healed = await Broadcast.findOneAndUpdate(
-      {
-        _id: current._id,
-        status: 'live',
-        isDeleted: false,
-        creatorDisconnectedAt: { $ne: null },
-      },
-      {
-        $set: {
-          mediaState: 'audio_live',
-          creatorDisconnectedAt: null,
-          creatorParticipantSid:
-            recoveredProgram.participant?.sid || current.creatorParticipantSid || null,
-          programTrackSid:
-            recoveredProgram.track?.sid || current.programTrackSid || null,
-          programTrackName:
-            recoveredProgram.track?.name || current.programTrackName || 'echoo-studio-mix',
-        },
-      },
-      { returnDocument: 'after' }
-    );
-
-    if (healed) {
-      clearBroadcastPresenceCache(healed._id);
-      emitStatus(io, healed);
-      if (isLiveKitServerRecordingEnabled() && healed.programTrackSid) {
-        void ensureLiveKitServerRecording({
-          broadcastId: healed._id,
-          trackSid: healed.programTrackSid,
-        }).catch((recordingError) => {
-          console.warn(
-            '[Echoo Server Recording] recovered program recorder warning:',
-            recordingError?.message || recordingError
-          );
-        });
-      }
-    }
+    await healRecoveredProgramAudio(current, recoveredProgram, io);
     return;
   }
 
@@ -318,15 +311,28 @@ export async function handleLiveKitWebhook(req, res) {
         // A SID mismatch proves this leave belongs to an obsolete transport;
         // do not start/cancel timers or mutate the healthy replacement.
         if (!isKnownStaleLeave) {
-          // participant_left itself is authoritative for this concrete SID.
-          // LiveKit control-plane listing can briefly retain that same SID,
-          // so only a different creator participant counts as a replacement.
-          const replacementPresent = await creatorStillPresent(
-            current,
-            leavingParticipantSid
-          ).catch(() => true);
-          if (replacementPresent) {
+          // Participant presence is not recovery authority. A replacement may
+          // already be connected while still publishing no program audio.
+          // Heal only when LiveKit actually exposes echoo-studio-mix.
+          let replacementProgram = null;
+          try {
+            replacementProgram = await findCreatorProgramAudio(
+              current._id,
+              current.creator
+            );
+          } catch {
+            // A control-plane lookup failure cannot end the logical show.
+            // Enter the durable recovery lease; a later track_published event
+            // or orphan sweep will heal it.
+          }
+
+          if (replacementProgram) {
             cancelCreatorDisconnect(broadcastId);
+            await healRecoveredProgramAudio(
+              current,
+              replacementProgram,
+              req.app.get('io')
+            );
           } else {
             const disconnectedAt = current.creatorDisconnectedAt || new Date();
             const updated = await updateCreatorMediaState(
@@ -350,8 +356,8 @@ export async function handleLiveKitWebhook(req, res) {
       }
     }
     if (broadcastId && isCreator && event.event === 'participant_joined') {
-      cancelCreatorDisconnect(broadcastId);
-
+      // Joining restores transport only. Keep any existing recovery deadline
+      // alive until the canonical program track is actually published.
       // Persist the concrete replacement transport even when preserveLive
       // intentionally refuses to downgrade an already audio_live broadcast
       // to creator_connecting.
