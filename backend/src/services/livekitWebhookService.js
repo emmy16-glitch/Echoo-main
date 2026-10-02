@@ -80,20 +80,6 @@ const emitStatus = (io, broadcast) => {
   if (broadcast.isPublic) io.emit('catalog:changed', { entity: 'broadcast', action: 'status', ...payload });
 };
 
-const creatorStillPresent = async (broadcast, excludeParticipantSid = '') => {
-  const excludedSid = String(excludeParticipantSid || '').trim();
-  const participants = await LiveKitProvider.getParticipants(broadcast._id);
-  return participants.some((participant) => {
-    const metadata = metadataOf(participant.metadata);
-    const participantSid = String(participant?.sid || '').trim();
-    return (
-      metadata.role === 'creator' &&
-      String(metadata.userId) === String(broadcast.creator) &&
-      (!excludedSid || participantSid !== excludedSid)
-    );
-  });
-};
-
 const updateCreatorMediaState = async (broadcastId, update, io, { preserveLive = false } = {}) => {
   const broadcast = await Broadcast.findOneAndUpdate(
     {
