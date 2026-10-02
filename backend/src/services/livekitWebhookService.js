@@ -98,7 +98,7 @@ const updateCreatorMediaState = async (broadcastId, update, io, { preserveLive =
   const broadcast = await Broadcast.findOneAndUpdate(
     {
       _id: broadcastId,
-      status: { $in: ['starting', 'live', 'ending'] },
+      status: { $in: ['starting', 'live'] },
       isDeleted: false,
       ...(preserveLive ? { mediaState: { $ne: 'audio_live' } } : {}),
     },
@@ -119,7 +119,7 @@ const clearCreatorProgramTrackIfCurrent = async (broadcastId, trackSid, io) => {
   // makes the programTrackSid predicate fail instead of being erased.
   const current = await Broadcast.findOne({
     _id: broadcastId,
-    status: { $in: ['starting', 'live', 'ending'] },
+    status: { $in: ['starting', 'live'] },
     isDeleted: false,
     programTrackSid: sid,
   });
@@ -129,7 +129,7 @@ const clearCreatorProgramTrackIfCurrent = async (broadcastId, trackSid, io) => {
   const broadcast = await Broadcast.findOneAndUpdate(
     {
       _id: broadcastId,
-      status: { $in: ['starting', 'live', 'ending'] },
+      status: { $in: ['starting', 'live'] },
       isDeleted: false,
       programTrackSid: sid,
     },
@@ -197,6 +197,7 @@ const endExpiredDisconnectedBroadcast = async (broadcastId, io) => {
     isDeleted: false,
   });
   if (!current || !current.creatorDisconnectedAt) return;
+  const recoveryLeaseStartedAt = new Date(current.creatorDisconnectedAt);
 
   // The recovery lease protects the logical show while program audio is gone.
   // Participant presence alone is insufficient: a creator can remain joined
@@ -231,7 +232,10 @@ const endExpiredDisconnectedBroadcast = async (broadcastId, io) => {
       _id: current._id,
       status: 'live',
       isDeleted: false,
-      creatorDisconnectedAt: { $ne: null },
+      // Compare-and-set the exact lease that this timer inspected. If the
+      // creator recovered and disconnected again while this async check was
+      // running, the new lease has a different timestamp and must survive.
+      creatorDisconnectedAt: recoveryLeaseStartedAt,
     },
     {
       $set: {
@@ -327,7 +331,7 @@ export async function handleLiveKitWebhook(req, res) {
     if (broadcastId && isCreator && event.event === 'participant_left') {
       const current = await Broadcast.findOne({
         _id: broadcastId,
-        status: { $in: ['starting', 'live', 'ending'] },
+        status: { $in: ['starting', 'live'] },
         isDeleted: false,
       });
 
@@ -384,7 +388,7 @@ export async function handleLiveKitWebhook(req, res) {
       if (joinedParticipantSid) {
         const current = await Broadcast.findOne({
           _id: broadcastId,
-          status: { $in: ['starting', 'live', 'ending'] },
+          status: { $in: ['starting', 'live'] },
           isDeleted: false,
         }).select('mediaState creatorDisconnectedAt creatorParticipantSid programTrackSid');
 
@@ -407,7 +411,7 @@ export async function handleLiveKitWebhook(req, res) {
           await Broadcast.updateOne(
             {
               _id: broadcastId,
-              status: { $in: ['starting', 'live', 'ending'] },
+              status: { $in: ['starting', 'live'] },
               isDeleted: false,
             },
             { $set: { creatorParticipantSid: joinedParticipantSid } }
@@ -426,7 +430,7 @@ export async function handleLiveKitWebhook(req, res) {
     if (broadcastId && isCreator && event.event === 'track_published' && trackName === 'echoo-studio-mix') {
       const current = await Broadcast.findOne({
         _id: broadcastId,
-        status: { $in: ['starting', 'live', 'ending'] },
+        status: { $in: ['starting', 'live'] },
         isDeleted: false,
       });
 
