@@ -34,11 +34,19 @@ export const isEchooProgramAudioTrack = (
   return !mimeType || mimeType.startsWith('audio/');
 };
 
-export async function getCreatorProgramAudio(broadcastId, userId) {
+export async function getCreatorParticipant(broadcastId, userId) {
   const participants = await LiveKitProvider.getParticipants(broadcastId);
-  const creator = participants.find((participant) =>
+  return participants.find((participant) =>
     isCreatorParticipant(participant, userId)
-  );
+  ) || null;
+}
+
+export async function creatorParticipantIsPresent(broadcastId, userId) {
+  return Boolean(await getCreatorParticipant(broadcastId, userId));
+}
+
+export async function getCreatorProgramAudio(broadcastId, userId) {
+  const creator = await getCreatorParticipant(broadcastId, userId);
   if (!creator) return null;
 
   const tracks = Array.isArray(creator.tracks) ? creator.tracks : [];
