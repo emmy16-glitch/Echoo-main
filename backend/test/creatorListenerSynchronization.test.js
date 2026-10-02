@@ -117,7 +117,8 @@ test('creator recovery is decoupled from the LiveKit room and keeps retrying for
   assert.match(publisher, /candidate\.recoveryStartedAt = null/);
   assert.match(webhook, /LIVEKIT_CREATOR_RECOVERY_TTL_HOURS \|\| 24/);
   assert.match(webhook, /creatorDisconnectedAt: new Date\(\)/);
-  assert.match(webhook, /creatorDisconnectedAt: null/);
+  assert.match(webhook, /event\.event === 'participant_joined'[\s\S]{0,500}\{ mediaState: 'creator_connecting' \}/);
+  assert.match(webhook, /mediaState: 'audio_live'[\s\S]{0,120}creatorDisconnectedAt: null/);
   assert.match(envExample, /LIVEKIT_CREATOR_RECOVERY_TTL_HOURS=24/);
 });
 
