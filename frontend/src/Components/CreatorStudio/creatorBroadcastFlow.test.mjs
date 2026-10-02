@@ -99,6 +99,17 @@ test('Broadcast accepts Channel ids returned as either id or _id', async () => {
   assert.doesNotMatch(workspace, /if \(!station\?\.id\)/);
 });
 
+test('Go Live reloads the Channel if background bootstrap has not populated it yet', async () => {
+  const workspace = await read('./CreatorLiveConnectedWorkspace.jsx');
+
+  assert.match(workspace, /setMessage\('Syncing your Channel…'\)/);
+  assert.match(workspace, /batch2Service\.getMyStations\(\{ timeoutMs: 10_000 \}\)/);
+  assert.match(workspace, /station = refreshedStations\[0\] \|\| null/);
+  assert.match(workspace, /prepareImmediateBroadcast\(liveMixerSnapshot, station\)/);
+  assert.match(workspace, /Echoo is still reconnecting to your Channel/);
+  assert.doesNotMatch(workspace, /setError\('Complete your Channel setup before going live\.'\)/);
+});
+
 test('Creator Studio renders immediately while bounded bootstrap retries in the background', async () => {
   const workspace = await read('./CreatorLiveConnectedWorkspace.jsx');
   const api = await read('../../services/api.js');
