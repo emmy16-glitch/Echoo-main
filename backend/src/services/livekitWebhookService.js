@@ -142,7 +142,23 @@ const endExpiredDisconnectedBroadcast = async (broadcastId, io) => {
     status: 'live',
     isDeleted: false,
   });
-  if (!current) return;
+  if (!current?.creatorDisconnectedAt) return;
+
+  // A stale process-local timer must never consume a newer durable recovery
+  // lease. Re-read the database timestamp and re-arm if the current loss has
+  // not actually aged through the full configured window.
+  const currentDisconnectedAtMs = new Date(current.creatorDisconnectedAt).getTime();
+  const currentDisconnectAgeMs = Number.isFinite(currentDisconnectedAtMs)
+    ? Math.max(0, Date.now() - currentDisconnectedAtMs)
+    : 0;
+  if (currentDisconnectAgeMs < CREATOR_RECOVERY_TTL_MS) {
+    scheduleCreatorDisconnect(
+      broadcastId,
+      io,
+      current.creatorDisconnectedAt
+    );
+    return;
+  }
 
   // Program audio, not mere participant presence, is broadcast authority.
   // A connected creator can still be permanently silent after losing the
@@ -177,7 +193,10 @@ const endExpiredDisconnectedBroadcast = async (broadcastId, io) => {
       _id: current._id,
       status: 'live',
       isDeleted: false,
-      creatorDisconnectedAt: { $ne: null },
+      // Exact-generation guard: if a republish/new disconnect changed the
+      // durable timestamp while LiveKit was being queried, this stale expiry
+      // attempt loses the race and does nothing.
+      creatorDisconnectedAt: current.creatorDisconnectedAt,
     },
     {
       $set: {
