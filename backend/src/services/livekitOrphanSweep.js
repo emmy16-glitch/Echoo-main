@@ -23,6 +23,15 @@ import { stopLiveKitServerRecording } from './livekitServerRecording.js';
 
 const STUCK_STATES = ['starting', 'ending', 'live'];
 const REASON_PREFIX = 'Orphan sweep: ';
+const ORPHAN_SWEEP_INTERVAL_MS = Math.max(
+  60_000,
+  Math.min(
+    60 * 60 * 1000,
+    Number(process.env.ORPHAN_SWEEP_INTERVAL_MS || 10 * 60 * 1000)
+  )
+);
+let sweepTimer = null;
+let sweepRunning = false;
 
 function getStuckMinutes() {
   const raw = Number(process.env.ORPHAN_SWEEP_STUCK_MINUTES || 30);
@@ -246,26 +255,41 @@ async function sweep() {
   return results;
 }
 
-// Non-blocking startup hook. The sweep runs once after boot; it must never
-// reject in a way that affects process startup or the express app.
-function startOrphanSweep() {
-  // Startup smoke tests and degraded boot paths may expose a connection-like
-  // object without a real database handle. Do not queue a buffered query in
-  // that state; the next healthy process boot will perform the sweep.
+const runSweepSafely = async () => {
+  if (sweepRunning) return;
   if (mongoose.connection.readyState !== 1 || !mongoose.connection.db) return;
+  sweepRunning = true;
+  try {
+    const results = await sweep();
+    if (results.swept > 0) {
+      console.log(
+        `[orphan-sweep] finished: ${results.swept} resolved, ${results.failed} failed`
+      );
+    }
+  } catch (error) {
+    // Guard against anything not caught inside sweep().
+    console.error('[orphan-sweep] unexpected error:', error?.message || error);
+  } finally {
+    sweepRunning = false;
+  }
+};
 
-  sweep()
-    .then((results) => {
-      if (results.swept > 0) {
-        console.log(
-          `[orphan-sweep] finished: ${results.swept} resolved, ${results.failed} failed`
-        );
-      }
-    })
-    .catch((error) => {
-      // Guard against anything not caught inside sweep().
-      console.error('[orphan-sweep] unexpected error:', error?.message || error);
-    });
+// Long-running Echoo servers sweep immediately and then periodically. This is
+// essential for durable reconnect leases: a process restart must not erase the
+// future cleanup of an abandoned disconnected broadcast.
+function startOrphanSweep() {
+  void runSweepSafely();
+  if (sweepTimer) return;
+  sweepTimer = setInterval(() => {
+    void runSweepSafely();
+  }, ORPHAN_SWEEP_INTERVAL_MS);
+  sweepTimer.unref?.();
+}
+
+function stopOrphanSweep() {
+  if (sweepTimer) clearInterval(sweepTimer);
+  sweepTimer = null;
+  sweepRunning = false;
 }
 
 export {
@@ -276,6 +300,7 @@ export {
   isRecoverableState,
   sweep,
   startOrphanSweep,
+  stopOrphanSweep,
 };
 
 export default {
@@ -286,4 +311,5 @@ export default {
   isRecoverableState,
   sweep,
   startOrphanSweep,
+  stopOrphanSweep,
 };
