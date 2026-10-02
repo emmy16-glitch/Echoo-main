@@ -363,7 +363,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
           setError('');
           setIsLoading(false);
           return;
-        } catch (refreshError: any) {
+        } catch {
           if (
             generation !== liveRecoveryGenerationRef.current ||
             !isPlayingRef.current
@@ -494,7 +494,10 @@ function PersistentLiveConnection({
 
   useEffect(() => {
     AudioSession.startAudioSession().catch((sessionError) => {
-      onError(sessionError?.message || 'Could not start the live audio session.');
+      onError(
+        sessionError?.message || 'Could not start the live audio session.',
+        credentials.token
+      );
     });
     return () => {
       AudioSession.stopAudioSession();
