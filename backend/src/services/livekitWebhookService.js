@@ -304,10 +304,8 @@ export async function handleLiveKitWebhook(req, res) {
     const isCreator = metadata.role === 'creator';
 
     if (broadcastId && isCreator && event.event === 'participant_left') {
-      // A stale participant_left can arrive after the creator has already
-      // rejoined. Schedule the grace-period verification either way, but do
-      // not overwrite a healthy replacement participant with a false
-      // disconnected state.
+      // Participant identity is transport state, not broadcast authority.
+      // Mark a real absence but keep the logical show recoverable.
       scheduleCreatorDisconnect(broadcastId, req.app.get('io'));
       const current = await Broadcast.findOne({
         _id: broadcastId,
@@ -320,7 +318,10 @@ export async function handleLiveKitWebhook(req, res) {
       if (!replacementPresent) {
         await updateCreatorMediaState(
           broadcastId,
-          { mediaState: 'audio_disconnected' },
+          {
+            mediaState: 'audio_disconnected',
+            mediaDisconnectedAt: current?.mediaDisconnectedAt || new Date(),
+          },
           req.app.get('io')
         );
       }
@@ -336,8 +337,10 @@ export async function handleLiveKitWebhook(req, res) {
     }
     const trackName = String(event?.track?.name || '').trim().toLowerCase();
     if (broadcastId && isCreator && event.event === 'track_published' && trackName === 'echoo-studio-mix') {
+      cancelCreatorDisconnect(broadcastId);
       await updateCreatorMediaState(broadcastId, {
         mediaState: 'audio_live',
+        mediaDisconnectedAt: null,
         programTrackSid: event.track?.sid || null,
         programTrackName: event.track?.name || 'echoo-studio-mix',
       }, req.app.get('io'));
@@ -362,13 +365,15 @@ export async function handleLiveKitWebhook(req, res) {
     }
     if (broadcastId && isCreator && event.event === 'track_unpublished' && trackName === 'echoo-studio-mix') {
       // Webhook delivery can be reordered around a fast creator recovery.
-      // Only clear the program if the unpublished SID is still the canonical
-      // one stored on the broadcast; an old SID must not erase a newer track.
-      await clearCreatorProgramTrackIfCurrent(
+      // Only clear the program if the unpublished SID is still canonical.
+      const cleared = await clearCreatorProgramTrackIfCurrent(
         broadcastId,
         event.track?.sid,
         req.app.get('io')
       );
+      if (cleared) {
+        scheduleCreatorDisconnect(broadcastId, req.app.get('io'));
+      }
     }
     return res.status(204).end();
   } catch (error) {
