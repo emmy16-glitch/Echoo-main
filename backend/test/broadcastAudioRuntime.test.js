@@ -248,6 +248,14 @@ test('audio readiness scans overlapping creator transports instead of trusting t
     );
     assert.equal(preferredOld, null);
 
+    const excludingOld = await findCreatorProgramAudio(
+      'broadcast-id',
+      userId,
+      { excludeParticipantSid: 'PA_old' }
+    );
+    assert.equal(excludingOld.participantSid, 'PA_replacement');
+    assert.equal(excludingOld.trackSid, 'TR_replacement_program');
+
     const confirmed = await waitForCreatorProgramAudio('broadcast-id', userId, {
       maxAttempts: 1,
       initialDelayMs: 0,
