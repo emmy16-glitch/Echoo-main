@@ -102,8 +102,8 @@ test('creator webhook recovery ignores stale participant and track removal event
   assert.match(webhook, /clearCreatorProgramTrackIfCurrent/);
   assert.match(webhook, /programTrackSid:\s*sid/);
   assert.match(webhook, /event\.track\?\.sid/);
-  assert.match(webhook, /const replacementPresent = current[\s\S]*creatorStillPresent\(current\)\.catch\(\(\) => true\)/);
-  assert.match(webhook, /scheduleCreatorDisconnect\(broadcastId/);
+  assert.match(webhook, /const replacementPresent = await creatorStillPresent\([\s\S]{0,140}current,[\s\S]{0,140}leavingParticipantSid[\s\S]{0,80}\.catch\(\(\) => true\)/);
+  assert.match(webhook, /scheduleCreatorDisconnect\([\s\S]{0,180}updated\.creatorDisconnectedAt/);
 });
 
 
@@ -117,7 +117,8 @@ test('creator recovery is decoupled from the LiveKit room and keeps retrying for
   assert.match(publisher, /while \(isCurrent\(candidate\)\)/);
   assert.match(publisher, /candidate\.recoveryStartedAt = null/);
   assert.match(webhook, /LIVEKIT_CREATOR_RECOVERY_TTL_HOURS \|\| 24/);
-  assert.match(webhook, /creatorDisconnectedAt: new Date\(\)/);
+  assert.match(webhook, /const disconnectedAt = current\.creatorDisconnectedAt \|\| new Date\(\)/);
+  assert.match(webhook, /creatorDisconnectedAt: disconnectedAt/);
   assert.match(webhook, /event\.event === 'participant_joined'[\s\S]{0,500}\{ mediaState: 'creator_connecting' \}/);
   assert.match(webhook, /mediaState: 'audio_live'[\s\S]{0,120}creatorDisconnectedAt: null/);
   assert.match(envExample, /LIVEKIT_CREATOR_RECOVERY_TTL_HOURS=24/);
@@ -137,7 +138,8 @@ test('creator webhook ignores obsolete participant sessions and long sessions pr
   assert.match(webhook, /participantSid !== excludedSid/);
   assert.match(webhook, /creatorParticipantSid: joinedParticipantSid/);
   assert.match(webhook, /scheduleCreatorDisconnect\([\s\S]{0,180}updated\.creatorDisconnectedAt/);
-  assert.match(keepAwake, /navigator\.wakeLock\?\.request\('screen'\)/);
+  assert.match(keepAwake, /navigator\.wakeLock\?\.request === 'function'/);
+  assert.match(keepAwake, /navigator\.wakeLock\.request\('screen'\)/);
   assert.match(keepAwake, /visibilitychange/);
   assert.match(workspace, /startCreatorSessionKeepAwake/);
   assert.match(workspace, /keepAwake: Boolean\(currentLiveBroadcast\?\.id\)/);
