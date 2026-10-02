@@ -546,6 +546,15 @@ async function runPublisherRecovery(candidate, reason) {
           attempt: attempt + 1,
           reason,
         });
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('echoo:publisher-recovered', {
+            detail: {
+              broadcastId: candidate.broadcastId,
+              trackSid: activePublication?.trackSid || null,
+              reason,
+            },
+          }));
+        }
         return true;
       } catch (error) {
         if (!isCurrent(candidate)) return false;
