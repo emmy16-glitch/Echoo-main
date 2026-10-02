@@ -201,3 +201,8 @@ bounded slices.
 
 Storage capacity remains a physical device constraint: RF64 removes the file
 format ceiling, not the need for enough free local storage.
+
+
+The release gate also syntax-checks the Electron main/preload recording bridge so
+the chunked multi-hour export path is validated alongside web, backend, and
+mobile code.
