@@ -817,6 +817,7 @@ const completeQualityChunks = async (
   throw lastError || new Error(recording.qualityCompletionError);
 };
 
+// eslint-disable-next-line no-unused-vars
 const appendQualityPcm = (recording, buffer) => {
   if (!buffer || recording.qualityChunkDisabled || !recording.qualityChunkStarted) return;
   const samples = new Float32Array(buffer);

@@ -321,7 +321,7 @@ const ListenerRealLiveRoom = () => {
     } finally {
       setLoading(false);
     }
-  }, [broadcastId, loadChat, previewMode, refreshPresence, isGuest]);
+  }, [broadcastId, previewMode, isGuest]);
 
   useEffect(() => {
     load();

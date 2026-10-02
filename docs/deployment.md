@@ -171,8 +171,9 @@ The client sends only start/end timestamps. The backend:
 4. creates a separate private Audio record;
 5. leaves the original recording unchanged.
 
-For MP3 input, trimming uses stream-copy where possible, avoiding another lossy
-MP3 re-encode.
+For MP3 input, Echoo re-encodes only the new trimmed copy at 320 kbps so the
+selected cut points are not limited to compressed MP3 frame boundaries. The
+source recording is never re-encoded or overwritten.
 
 A correct trim must not upload a new giant browser WAV.
 

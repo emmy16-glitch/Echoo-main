@@ -987,7 +987,6 @@ const CreatorLiveConnectedWorkspace = ({
         }
 
         const backendOutcome = await backendEnd;
-        const endedResponse = backendOutcome?.ok ? backendOutcome.response : null;
         if (!backendOutcome?.ok) {
           const backendError = backendOutcome?.error;
           setError('Broadcast ended and your recording is safe. Echoo is still finishing the saved recording in the background; you can save MP3 or WAV to this device now.');

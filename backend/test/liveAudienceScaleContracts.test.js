@@ -12,7 +12,9 @@ test('large live audience uses selective single-track subscription and jittered 
   assert.match(listener, /autoSubscribe:\s*false/);
   assert.match(listener, /publication\.setSubscribed\(true\)/);
   assert.match(listener, /isEchooProgramPublication/);
-  assert.match(listener, /reconnectJitterRef = useRef\(Math\.random\(\)\)/);
+  assert.match(listener, /reconnectJitterRef = useRef\(0\.5\)/);
+  assert.match(listener, /reconnectJitterRef\.current = Math\.random\(\)/);
+  assert.doesNotMatch(listener, /useRef\(Math\.random\(\)\)/);
   assert.match(listener, /jitterWindow/);
 
   assert.match(provider, /maxParticipants:\s*5000/);

@@ -76,6 +76,7 @@ const RecordingSaveBanner = () => {
   }, []);
 
   useEffect(() => {
+    const hideTimer = hideTimerRef;
     const onUpload = (event) => {
       const detail = event?.detail || {};
       switch (detail.status) {
@@ -143,7 +144,7 @@ const RecordingSaveBanner = () => {
     window.addEventListener(RECORDING_UPLOAD_EVENT, onUpload);
     return () => {
       window.removeEventListener(RECORDING_UPLOAD_EVENT, onUpload);
-      window.clearTimeout(hideTimerRef.current);
+      window.clearTimeout(hideTimer.current);
     };
   }, []);
 
@@ -169,7 +170,7 @@ const RecordingSaveBanner = () => {
       window.removeEventListener('beforeunload', protect);
       window.clearInterval(ticker);
     };
-  }, [state?.kind, state?.startedAt]);
+  }, [state?.kind, state?.startedAt, state?.retryingServer]);
 
   useEffect(() => {
     if (

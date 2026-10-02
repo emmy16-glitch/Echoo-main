@@ -389,7 +389,7 @@ export const saveAutomaticLocalCopy = async ({
     };
   }
 
-  let bytes = null;
+  let bytes;
   let encodedLocal = null;
   let mimeType = choice === 'wav' ? 'audio/wav' : 'audio/mpeg';
   let source = 'local-master';

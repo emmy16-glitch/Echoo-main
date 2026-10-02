@@ -75,7 +75,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
   const reconnectTimerRef = useRef(null);
   // Stable per-listener jitter prevents hundreds of clients from performing
   // hard reconnect/token refresh in lockstep after the same network event.
-  const reconnectJitterRef = useRef(Math.random());
+  const reconnectJitterRef = useRef(0.5);
   // Consecutive watchdog misses while the room itself reports connected.
   // Transient mobile-network blips recover on their own — only a sustained
   // gap (several misses in a row) triggers a full room reconnect.
@@ -104,6 +104,10 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
   const analyserTrackIdRef = useRef('');
   const [programAudioLevel, setProgramAudioLevel] = useState(0);
   const [networkQuality, setNetworkQuality] = useState('unknown');
+
+  useEffect(() => {
+    reconnectJitterRef.current = Math.random();
+  }, []);
 
   useEffect(() => {
     outputRef.current = outputDeviceId;

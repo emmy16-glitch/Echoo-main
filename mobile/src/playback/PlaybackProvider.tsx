@@ -502,7 +502,7 @@ function PersistentLiveConnection({
     return () => {
       AudioSession.stopAudioSession();
     };
-  }, [AudioSession, onError]);
+  }, [AudioSession, credentials.token, onError]);
 
   return (
     <LiveKitRoom
