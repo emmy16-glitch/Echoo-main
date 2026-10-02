@@ -375,23 +375,38 @@ export async function confirmBroadcastLive(req, res, next) {
     if (broadcast.status === 'live') {
       await refreshCreatorBroadcastLease(req.userId, broadcastId).catch(() => null);
 
-      // A reconnect can publish a fresh LiveKit track SID. Reconcile recording
-      // against that new program track without ever blocking listener audio.
-      if (isLiveKitServerRecordingEnabled()) {
-        try {
-          const publisher = await waitForCreatorProgramAudio(broadcastId, req.userId);
+      // Recovery confirmation is a second durable authority after LiveKit
+      // webhooks. A webhook can be delayed or lost while the creator has
+      // already republished successfully, so reconcile the concrete transport
+      // identity and canonical program track from LiveKit presence itself.
+      try {
+        const publisher = await waitForCreatorProgramAudio(broadcastId, req.userId);
+        broadcast.mediaState = 'audio_live';
+        broadcast.creatorDisconnectedAt = null;
+        broadcast.creatorParticipantSid =
+          publisher.participantSid || broadcast.creatorParticipantSid || null;
+        broadcast.programTrackSid = publisher.trackSid || broadcast.programTrackSid || null;
+        broadcast.programTrackName =
+          publisher.trackName || broadcast.programTrackName || 'echoo-studio-mix';
+        await broadcast.save();
+        clearBroadcastPresenceCache(broadcastId);
+        emitStatus(req, broadcast);
+
+        // Reconcile recording against the replacement program track without
+        // ever blocking listener audio.
+        if (isLiveKitServerRecordingEnabled() && publisher.trackSid) {
           await ensureLiveKitServerRecording({
             broadcastId,
             trackSid: publisher.trackSid,
           });
           const refreshed = await findOwnedBroadcast(broadcastId, req.userId);
           if (refreshed) broadcast = refreshed;
-        } catch (recordingError) {
-          console.warn(
-            '[Echoo Server Recording] reconnect recorder warning:',
-            recordingError?.message || recordingError
-          );
         }
+      } catch (recordingError) {
+        console.warn(
+          '[Echoo Server Recording] reconnect reconciliation warning:',
+          recordingError?.message || recordingError
+        );
       }
 
       return res.status(200).json({
@@ -438,6 +453,7 @@ export async function confirmBroadcastLive(req, res, next) {
     broadcast.failureReason = null;
     broadcast.mediaState = 'audio_live';
     broadcast.creatorDisconnectedAt = null;
+    broadcast.creatorParticipantSid = publisher.participantSid || null;
     broadcast.programTrackSid = publisher.trackSid || null;
     broadcast.programTrackName = publisher.trackName || 'echoo-studio-mix';
     await broadcast.save();
