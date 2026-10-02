@@ -25,6 +25,7 @@ import {
   isLiveKitServerRecordingEnabled,
   stopLiveKitServerRecording,
 } from '../services/livekitServerRecording.js';
+import { cancelLiveKitCreatorRecoveryTimer } from '../services/livekitWebhookService.js';
 
 const ACTIVE_STATUSES = new Set(['starting', 'live', 'ending']);
 
@@ -222,6 +223,10 @@ export async function startBroadcast(req, res, next) {
         },
       });
     }
+
+    // A previous failed/recovered incarnation must not leave a process-local
+    // recovery timer capable of acting on this new start.
+    cancelLiveKitCreatorRecoveryTimer(broadcastId);
 
     try {
       await acquireCreatorBroadcastLease(req.userId, broadcastId);
@@ -634,6 +639,8 @@ export async function cancelBroadcast(req, res, next) {
       });
     }
 
+    cancelLiveKitCreatorRecoveryTimer(broadcastId);
+
     if (broadcast.status === 'cancelled') {
       await releaseLeaseBestEffort(req.userId, broadcastId);
       return res.status(200).json({
@@ -715,6 +722,8 @@ export async function endBroadcast(req, res, next) {
         error: { code: 'NOT_FOUND', message: 'Broadcast not found' },
       });
     }
+
+    cancelLiveKitCreatorRecoveryTimer(broadcastId);
 
     if (['completed', 'cancelled'].includes(broadcast.status)) {
       await releaseLeaseBestEffort(req.userId, broadcastId);
