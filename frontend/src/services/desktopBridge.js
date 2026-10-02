@@ -15,6 +15,7 @@ export const setDesktopRoomState = (state) => {
     active: Boolean(state?.active),
     muted: Boolean(state?.muted),
     canToggleMute: Boolean(state?.canToggleMute),
+    keepAwake: Boolean(state?.keepAwake),
   });
 };
 
