@@ -107,6 +107,9 @@ test('creator webhook recovery ignores stale participant and track removal event
   assert.match(webhook, /track_unpublished[\s\S]{0,900}scheduleCreatorDisconnect/);
   assert.match(webhook, /track_published[\s\S]{0,180}cancelCreatorDisconnect/);
   assert.match(webhook, /getCreatorProgramAudio/);
+  assert.match(webhook, /currentDisconnectAgeMs < CREATOR_RECOVERY_TTL_MS/);
+  assert.match(webhook, /scheduleCreatorDisconnect\([\s\S]{0,180}current\.creatorDisconnectedAt/);
+  assert.match(webhook, /creatorDisconnectedAt: current\.creatorDisconnectedAt/);
 });
 
 
