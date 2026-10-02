@@ -20,8 +20,14 @@ import { clearBroadcastPresenceCache } from '../controllers/broadcastPresenceCon
 import { releaseCreatorBroadcastLease } from './creatorBroadcastLease.js';
 import { flushBroadcastTranscription } from './transcriptionGateway.js';
 import { stopLiveKitServerRecording } from './livekitServerRecording.js';
+import {
+  creatorRecoveryExpired,
+  getCreatorRecoveryMaxMs,
+} from './liveBroadcastRecoveryPolicy.js';
 
 const STUCK_STATES = ['starting', 'ending', 'live'];
+const ORPHAN_SWEEP_INTERVAL_MS = 5 * 60 * 1000;
+let sweepTimer = null;
 const REASON_PREFIX = 'Orphan sweep: ';
 
 function getStuckMinutes() {
@@ -39,6 +45,13 @@ function isStuck(doc) {
   // A live row that never published audio is the exception: unrelated
   // migrations or metadata edits can refresh updatedAt, while startedAt is the
   // authoritative beginning of that abandoned connection attempt.
+  if (doc.status === 'live' && doc.mediaState === 'audio_disconnected') {
+    return creatorRecoveryExpired({
+      disconnectedAt: doc.mediaDisconnectedAt,
+      maxMs: getCreatorRecoveryMaxMs(),
+    });
+  }
+
   const referenceTime = doc.status === 'live' && doc.mediaState === 'creator_connecting'
     ? doc.startedAt || doc.startTime || doc.updatedAt
     : doc.updatedAt;
@@ -48,7 +61,11 @@ function isStuck(doc) {
 
 function isRecoverableState(doc) {
   return STUCK_STATES.includes(doc.status)
-    && (doc.status !== 'live' || doc.mediaState === 'creator_connecting');
+    && (
+      doc.status !== 'live' ||
+      doc.mediaState === 'creator_connecting' ||
+      doc.mediaState === 'audio_disconnected'
+    );
 }
 
 async function reapLiveKitResources(doc) {
@@ -109,12 +126,23 @@ async function resolveStuckBroadcast(doc) {
   };
   const wasStarting = doc.status === 'starting';
   const wasUnpublishedLive = doc.status === 'live' && doc.mediaState === 'creator_connecting';
-  if (!wasStarting && !wasUnpublishedLive && doc.status !== 'ending') return doc;
+  const wasExpiredDisconnectedLive =
+    doc.status === 'live' &&
+    doc.mediaState === 'audio_disconnected' &&
+    creatorRecoveryExpired({
+      disconnectedAt: doc.mediaDisconnectedAt,
+      maxMs: getCreatorRecoveryMaxMs(),
+    });
+  if (!wasStarting && !wasUnpublishedLive && !wasExpiredDisconnectedLive && doc.status !== 'ending') {
+    return doc;
+  }
 
   doc.status = wasStarting || wasUnpublishedLive ? 'failed' : 'completed';
   doc.failureReason = wasStarting || wasUnpublishedLive
     ? `${REASON_PREFIX}broadcast never published the creator program track within ${getStuckMinutes()} minutes.`
-    : doc.failureReason;
+    : wasExpiredDisconnectedLive
+      ? `${REASON_PREFIX}creator media did not recover within the long-session recovery window.`
+      : doc.failureReason;
   doc.endedAt = doc.endedAt || new Date();
   doc.listenerCount = 0;
   doc.livekitRoomName = null;
@@ -193,14 +221,8 @@ async function sweep() {
   return results;
 }
 
-// Non-blocking startup hook. The sweep runs once after boot; it must never
-// reject in a way that affects process startup or the express app.
-function startOrphanSweep() {
-  // Startup smoke tests and degraded boot paths may expose a connection-like
-  // object without a real database handle. Do not queue a buffered query in
-  // that state; the next healthy process boot will perform the sweep.
+const runSweep = () => {
   if (mongoose.connection.readyState !== 1 || !mongoose.connection.db) return;
-
   sweep()
     .then((results) => {
       if (results.swept > 0) {
@@ -210,9 +232,23 @@ function startOrphanSweep() {
       }
     })
     .catch((error) => {
-      // Guard against anything not caught inside sweep().
       console.error('[orphan-sweep] unexpected error:', error?.message || error);
     });
+};
+
+// Long broadcasts need a durable reconciliation loop, not a boot-only timer:
+// Render can restart while a creator is temporarily offline. The persisted
+// mediaDisconnectedAt timestamp keeps the decision deterministic across boots.
+function startOrphanSweep() {
+  if (sweepTimer) return;
+  runSweep();
+  sweepTimer = setInterval(runSweep, ORPHAN_SWEEP_INTERVAL_MS);
+  sweepTimer.unref?.();
+}
+
+function stopOrphanSweep() {
+  if (sweepTimer) clearInterval(sweepTimer);
+  sweepTimer = null;
 }
 
 export {
@@ -222,6 +258,7 @@ export {
   isRecoverableState,
   sweep,
   startOrphanSweep,
+  stopOrphanSweep,
 };
 
 export default {
@@ -231,4 +268,5 @@ export default {
   isRecoverableState,
   sweep,
   startOrphanSweep,
+  stopOrphanSweep,
 };
