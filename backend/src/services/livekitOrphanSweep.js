@@ -29,11 +29,28 @@ function getStuckMinutes() {
   return Number.isFinite(raw) && raw > 0 ? raw : 30;
 }
 
+function getCreatorRecoveryHours() {
+  const raw = Number(process.env.LIVEKIT_CREATOR_RECOVERY_TTL_HOURS || 24);
+  return Number.isFinite(raw) && raw > 0
+    ? Math.max(1, Math.min(48, raw))
+    : 24;
+}
+
 function isLiveKitConfigured() {
   return Boolean(process.env.LIVEKIT_URL && process.env.LIVEKIT_API_SECRET);
 }
 
 function isStuck(doc) {
+  // Full LIVE transport loss has its own long recovery lease. Do not reuse the
+  // short transition timeout: a creator can be offline/reconnecting for hours
+  // without the logical broadcast being ended underneath the client.
+  if (doc.status === 'live' && doc.mediaState === 'audio_disconnected') {
+    const disconnectedAt = doc.creatorDisconnectedAt;
+    if (!disconnectedAt) return false;
+    const ageHours = (Date.now() - new Date(disconnectedAt).getTime()) / 3600000;
+    return ageHours > getCreatorRecoveryHours();
+  }
+
   // Transitional rows use updatedAt because it is the freshest timestamp the
   // database maintains while start/end controllers are still working.
   // A live row that never published audio is the exception: unrelated
@@ -48,7 +65,11 @@ function isStuck(doc) {
 
 function isRecoverableState(doc) {
   return STUCK_STATES.includes(doc.status)
-    && (doc.status !== 'live' || doc.mediaState === 'creator_connecting');
+    && (
+      doc.status !== 'live' ||
+      doc.mediaState === 'creator_connecting' ||
+      (doc.mediaState === 'audio_disconnected' && Boolean(doc.creatorDisconnectedAt))
+    );
 }
 
 async function reapLiveKitResources(doc) {
@@ -109,12 +130,18 @@ async function resolveStuckBroadcast(doc) {
   };
   const wasStarting = doc.status === 'starting';
   const wasUnpublishedLive = doc.status === 'live' && doc.mediaState === 'creator_connecting';
-  if (!wasStarting && !wasUnpublishedLive && doc.status !== 'ending') return doc;
+  const wasExpiredDisconnectedLive =
+    doc.status === 'live' &&
+    doc.mediaState === 'audio_disconnected' &&
+    Boolean(doc.creatorDisconnectedAt);
+  if (!wasStarting && !wasUnpublishedLive && !wasExpiredDisconnectedLive && doc.status !== 'ending') return doc;
 
   doc.status = wasStarting || wasUnpublishedLive ? 'failed' : 'completed';
   doc.failureReason = wasStarting || wasUnpublishedLive
     ? `${REASON_PREFIX}broadcast never published the creator program track within ${getStuckMinutes()} minutes.`
-    : doc.failureReason;
+    : wasExpiredDisconnectedLive
+      ? `${REASON_PREFIX}creator did not reconnect within ${getCreatorRecoveryHours()} hours.`
+      : doc.failureReason;
   doc.endedAt = doc.endedAt || new Date();
   doc.listenerCount = 0;
   doc.livekitRoomName = null;
@@ -163,6 +190,32 @@ async function sweep() {
 
     if (!isStuck(fresh)) {
       continue;
+    }
+
+    if (fresh.status === 'live' && fresh.mediaState === 'audio_disconnected') {
+      try {
+        const participants = await LiveKitProvider.getParticipants(fresh._id);
+        const creatorPresent = participants.some((participant) => {
+          try {
+            const metadata = participant?.metadata
+              ? JSON.parse(participant.metadata)
+              : {};
+            return metadata.role === 'creator' &&
+              String(metadata.userId) === String(fresh.creator);
+          } catch {
+            return false;
+          }
+        });
+        if (creatorPresent) continue;
+      } catch (error) {
+        // A control-plane failure is not proof that the creator is absent.
+        // Preserve the broadcast and retry on a later sweep/boot.
+        console.warn(
+          `[orphan-sweep] creator presence check failed for ${fresh._id}:`,
+          error?.message || error
+        );
+        continue;
+      }
     }
     
     try {
@@ -218,6 +271,7 @@ function startOrphanSweep() {
 export {
   STUCK_STATES,
   getStuckMinutes,
+  getCreatorRecoveryHours,
   isStuck,
   isRecoverableState,
   sweep,
@@ -227,6 +281,7 @@ export {
 export default {
   STUCK_STATES,
   getStuckMinutes,
+  getCreatorRecoveryHours,
   isStuck,
   isRecoverableState,
   sweep,
