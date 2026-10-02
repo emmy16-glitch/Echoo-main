@@ -14,7 +14,10 @@ import {
   isLiveKitServerRecordingEnabled,
   stopLiveKitServerRecording,
 } from './livekitServerRecording.js';
-import { findCreatorProgramAudio } from './broadcastAudioReadiness.js';
+import {
+  findCreatorProgramAudio,
+  findCreatorProgramAudioByTrackSid,
+} from './broadcastAudioReadiness.js';
 
 // LiveKit participant presence is transport state, not broadcast authority.
 // Keep a disconnected live broadcast recoverable for a full long-show window
@@ -368,6 +371,16 @@ export async function handleLiveKitWebhook(req, res) {
             _id: broadcastId,
             status: { $in: ['starting', 'live', 'ending'] },
             isDeleted: false,
+            // participant_joined is transport-only evidence. Once a concrete
+            // program track is live, only a verified track_published event may
+            // replace its authoritative participant SID. This prevents a
+            // delayed old participant_joined webhook from poisoning the SID
+            // used to classify a later real disconnect.
+            $or: [
+              { mediaState: { $ne: 'audio_live' } },
+              { programTrackSid: null },
+              { creatorParticipantSid: null },
+            ],
           },
           { $set: { creatorParticipantSid: joinedParticipantSid } }
         );
@@ -382,34 +395,76 @@ export async function handleLiveKitWebhook(req, res) {
     }
     const trackName = String(event?.track?.name || '').trim().toLowerCase();
     if (broadcastId && isCreator && event.event === 'track_published' && trackName === 'echoo-studio-mix') {
-      cancelCreatorDisconnect(broadcastId);
-      await updateCreatorMediaState(broadcastId, {
-        mediaState: 'audio_live',
-        creatorDisconnectedAt: null,
-        ...(event?.participant?.sid
-          ? { creatorParticipantSid: String(event.participant.sid) }
-          : {}),
-        programTrackSid: event.track?.sid || null,
-        programTrackName: event.track?.name || 'echoo-studio-mix',
-      }, req.app.get('io'));
+      const eventTrackSid = String(event?.track?.sid || '').trim();
+      const current = await Broadcast.findOne({
+        _id: broadcastId,
+        status: { $in: ['starting', 'live', 'ending'] },
+        isDeleted: false,
+      });
 
-      if (isLiveKitServerRecordingEnabled() && event.track?.sid) {
-        void ensureLiveKitServerRecording({
-          broadcastId,
-          trackSid: event.track.sid,
-        }).catch((recordingError) => {
-          console.warn(
-            '[Echoo Server Recording] track republish recorder warning:',
-            recordingError?.message || recordingError
+      let publishedTrackIsAuthoritative = true;
+      if (
+        current?.mediaState === 'audio_live' &&
+        current.programTrackSid &&
+        eventTrackSid &&
+        String(current.programTrackSid) !== eventTrackSid
+      ) {
+        try {
+          // A replacement track may legitimately publish before the old track
+          // unpublishes. Accept it only if LiveKit still exposes this exact
+          // track SID. A delayed webhook for a track that is already gone must
+          // never overwrite a newer canonical program track.
+          publishedTrackIsAuthoritative = Boolean(
+            await findCreatorProgramAudioByTrackSid(
+              current._id,
+              current.creator,
+              eventTrackSid
+            )
           );
-        });
+        } catch {
+          // Control-plane uncertainty is not enough reason to replace a known
+          // healthy program track. Preserve the current authority and let a
+          // subsequent webhook/orphan sweep reconcile from LiveKit state.
+          publishedTrackIsAuthoritative = false;
+        }
       }
 
-      console.info('[Echoo LiveKit Webhook] creator program track published', {
-        broadcastId,
-        trackSid: event.track?.sid || null,
-        trackName: event.track?.name || null,
-      });
+      if (publishedTrackIsAuthoritative) {
+        cancelCreatorDisconnect(broadcastId);
+        await updateCreatorMediaState(broadcastId, {
+          mediaState: 'audio_live',
+          creatorDisconnectedAt: null,
+          ...(event?.participant?.sid
+            ? { creatorParticipantSid: String(event.participant.sid) }
+            : {}),
+          programTrackSid: event.track?.sid || null,
+          programTrackName: event.track?.name || 'echoo-studio-mix',
+        }, req.app.get('io'));
+
+        if (isLiveKitServerRecordingEnabled() && event.track?.sid) {
+          void ensureLiveKitServerRecording({
+            broadcastId,
+            trackSid: event.track.sid,
+          }).catch((recordingError) => {
+            console.warn(
+              '[Echoo Server Recording] track republish recorder warning:',
+              recordingError?.message || recordingError
+            );
+          });
+        }
+
+        console.info('[Echoo LiveKit Webhook] creator program track published', {
+          broadcastId,
+          trackSid: event.track?.sid || null,
+          trackName: event.track?.name || null,
+        });
+      } else {
+        console.info('[Echoo LiveKit Webhook] ignored stale creator track_published', {
+          broadcastId,
+          trackSid: eventTrackSid || null,
+          currentTrackSid: current?.programTrackSid || null,
+        });
+      }
     }
     if (broadcastId && isCreator && event.event === 'track_unpublished' && trackName === 'echoo-studio-mix') {
       // Webhook delivery can be reordered around a fast creator recovery.
@@ -421,11 +476,30 @@ export async function handleLiveKitWebhook(req, res) {
         req.app.get('io')
       );
       if (disconnected?.creatorDisconnectedAt) {
-        scheduleCreatorDisconnect(
-          broadcastId,
-          req.app.get('io'),
-          disconnected.creatorDisconnectedAt
-        );
+        let replacementProgram = null;
+        try {
+          replacementProgram = await findCreatorProgramAudio(
+            disconnected._id,
+            disconnected.creator
+          );
+        } catch {
+          // Preserve the durable recovery lease on control-plane failure.
+        }
+
+        if (replacementProgram) {
+          cancelCreatorDisconnect(broadcastId);
+          await healRecoveredProgramAudio(
+            disconnected,
+            replacementProgram,
+            req.app.get('io')
+          );
+        } else {
+          scheduleCreatorDisconnect(
+            broadcastId,
+            req.app.get('io'),
+            disconnected.creatorDisconnectedAt
+          );
+        }
       }
     }
     return res.status(204).end();
