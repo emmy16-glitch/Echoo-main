@@ -34,6 +34,7 @@ const ROOM_DISCONNECT_DEADLINE_MS = 4000;
 const RECOVERY_DISCONNECT_DEADLINE_MS = 1000;
 const CREATOR_RECOVERY_WINDOW_MS = 90_000;
 const CREATOR_RECOVERY_SLOW_RETRY_MS = 30_000;
+const CREATOR_CREDENTIAL_REFRESH_TIMEOUT_MS = 12_000;
 const LOCAL_RECORDING_START_BUDGET_MS = 750;
 
 let activeRoom = null;
@@ -63,6 +64,19 @@ let syntheticOscillator = null;
 let syntheticNativeTrack = null;
 
 const wait = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
+const withDeadline = async (promise, timeoutMs, message) => {
+  let timer = null;
+  try {
+    return await Promise.race([
+      Promise.resolve(promise),
+      new Promise((_, reject) => {
+        timer = window.setTimeout(() => reject(new Error(message)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) window.clearTimeout(timer);
+  }
+};
 const createLiveKitReconnectPolicy = () =>
   new DefaultReconnectPolicy([...LIVEKIT_RECONNECT_DELAYS_MS]);
 const isCurrent = (candidate) => Boolean(
@@ -527,7 +541,11 @@ async function runPublisherRecovery(candidate, reason) {
         // Refresh credentials BEFORE tearing down a still-usable room. On a
         // slow backend this keeps the current LiveKit path alive until the
         // replacement connection is ready to start, avoiding needless dead air.
-        const credentials = await candidate.credentialProvider?.();
+        const credentials = await withDeadline(
+          candidate.credentialProvider?.(),
+          CREATOR_CREDENTIAL_REFRESH_TIMEOUT_MS,
+          'Echoo credential refresh timed out; retrying the live connection.'
+        );
         if (!credentials?.token) throw new Error('Echoo could not refresh creator credentials.');
 
         activeRoom = null;
