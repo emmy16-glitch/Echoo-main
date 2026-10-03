@@ -390,6 +390,7 @@ test('browser recovery is isolated by creator account and legacy takes are owner
 
 test('long-session live UX repairs stale mixer output and recovers listener audio interaction', async () => {
   const mixer = await read('../../services/echooMixerService.js');
+  const publisher = await read('../../services/livekitPublisher.js');
   const workspace = await read('./CreatorLiveConnectedWorkspace.jsx');
   const listenerPlayer = await read('../ListenerLiveExperience/LiveKitListenerPlayer.jsx');
   const listenerRoom = await read('../ListenerLiveExperience/ListenerRealLiveRoom.jsx');
