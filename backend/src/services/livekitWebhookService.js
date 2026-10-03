@@ -85,7 +85,7 @@ const updateCreatorMediaState = async (broadcastId, update, io, { preserveLive =
   const broadcast = await Broadcast.findOneAndUpdate(
     {
       _id: broadcastId,
-      status: { $in: ['starting', 'live', 'ending'] },
+      status: { $in: ['starting', 'live'] },
       isDeleted: false,
       ...(preserveLive ? { mediaState: { $ne: 'audio_live' } } : {}),
     },
@@ -104,7 +104,7 @@ const healRecoveredProgramAudio = async (broadcast, program, io) => {
   const healed = await Broadcast.findOneAndUpdate(
     {
       _id: broadcast._id,
-      status: { $in: ['starting', 'live', 'ending'] },
+      status: { $in: ['starting', 'live'] },
       isDeleted: false,
     },
     {
@@ -147,7 +147,7 @@ const clearCreatorProgramTrackIfCurrent = async (broadcastId, trackSid, io) => {
   const broadcast = await Broadcast.findOneAndUpdate(
     {
       _id: broadcastId,
-      status: { $in: ['starting', 'live', 'ending'] },
+      status: { $in: ['starting', 'live'] },
       isDeleted: false,
       programTrackSid: sid,
     },
@@ -296,7 +296,7 @@ export async function handleLiveKitWebhook(req, res) {
     if (broadcastId && isCreator && event.event === 'participant_left') {
       const current = await Broadcast.findOne({
         _id: broadcastId,
-        status: { $in: ['starting', 'live', 'ending'] },
+        status: { $in: ['starting', 'live'] },
         isDeleted: false,
       });
 
@@ -370,7 +370,7 @@ export async function handleLiveKitWebhook(req, res) {
         await Broadcast.updateOne(
           {
             _id: broadcastId,
-            status: { $in: ['starting', 'live', 'ending'] },
+            status: { $in: ['starting', 'live'] },
             isDeleted: false,
             // participant_joined is transport-only evidence. Once a concrete
             // program track is live, only a verified track_published event may
@@ -399,7 +399,7 @@ export async function handleLiveKitWebhook(req, res) {
       const eventTrackSid = String(event?.track?.sid || '').trim();
       const current = await Broadcast.findOne({
         _id: broadcastId,
-        status: { $in: ['starting', 'live', 'ending'] },
+        status: { $in: ['starting', 'live'] },
         isDeleted: false,
       });
 
