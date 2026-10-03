@@ -52,7 +52,7 @@ import './CreatorBroadcastApproved.css';
 const pad = (value) => String(value).padStart(2, '0');
 const RECORDING_UPLOAD_EVENT = 'echoo:recording-upload';
 const RECORDING_FINALIZATION_WARNING =
-  'Broadcast ended, but recording finalization needs attention. Your local master is protected.';
+  'Broadcast ended, but recording finalization needs attention. Echoo will preserve any available recovery copy while the server recording is checked.';
 
 const formatTimer = (seconds) => {
   const value = Math.max(0, Number(seconds) || 0);
@@ -948,7 +948,7 @@ const CreatorLiveConnectedWorkspace = ({
       const unpublishStartedAt = performance.now();
       await stopLiveKitPublishing();
       setMasterMuted(false);
-      markOffAir('Broadcast ended. Your recording is safe and Echoo is finishing it in the background.');
+      markOffAir('Broadcast ended. Echoo is securing your recording in the background.');
       setSessionOperation((current) => current
         ? { ...current, stage: 'finalizing-local-master' }
         : current);
@@ -971,48 +971,62 @@ const CreatorLiveConnectedWorkspace = ({
 
       void (async () => {
         const finalizeStartedAt = performance.now();
-        const recordingResult = await localRecording;
+        try {
+          const recordingResult = await localRecording;
 
-        if (recordingResult.recordingReady && recordingResult.decision) {
-          // Do this before awaiting backendEnd. A slow/dead server must never
-          // prevent the creator from saving the already-complete local master.
-          batch3Service.announceFinalizedBroadcastRecording(
-            recordingResult.decision,
-            broadcastSnapshot,
-            {
-              serverEndPromise: backendEnd,
-              deviceSaveReservation,
-            }
-          );
-        }
+          if (recordingResult.recordingReady && recordingResult.decision) {
+            // Do this before awaiting backendEnd. A slow/dead server must never
+            // prevent the creator from saving the already-complete local master.
+            batch3Service.announceFinalizedBroadcastRecording(
+              recordingResult.decision,
+              broadcastSnapshot,
+              {
+                serverEndPromise: backendEnd,
+                deviceSaveReservation,
+              }
+            );
+          }
 
-        const backendOutcome = await backendEnd;
-        const endedResponse = backendOutcome?.ok ? backendOutcome.response : null;
-        if (!backendOutcome?.ok) {
-          const backendError = backendOutcome?.error;
-          setError('Broadcast ended and your recording is safe. Echoo is still finishing the saved recording in the background; you can save MP3 or WAV to this device now.');
-          console.warn('[Echoo Live] server end failed after local unpublish:', backendError?.message || backendError);
-        }
+          const backendOutcome = await backendEnd;
+          if (!backendOutcome?.ok) {
+            const backendError = backendOutcome?.error;
+            setError(
+              recordingResult.recordingReady
+                ? 'Broadcast ended and your recording is protected locally. Echoo is still finishing the server copy in the background; you can save MP3 or WAV to this device now.'
+                : RECORDING_FINALIZATION_WARNING
+            );
+            console.warn('[Echoo Live] server end failed after local unpublish:', backendError?.message || backendError);
+          }
 
-        setSessionOperation((current) => current
-          ? { ...current, stage: 'preparing-server-save' }
-          : current);
-        if (!recordingResult.recordingReady) {
           setSessionOperation((current) => current
-            ? { ...current, stage: 'local-safe' }
+            ? { ...current, stage: 'preparing-server-save' }
             : current);
-          setError((current) => current || RECORDING_FINALIZATION_WARNING);
-        } else {
-          // The upload event takes over the visible progress from here.
-          window.setTimeout(() => {
-            setSessionOperation((current) => current?.kind === 'end-broadcast' ? null : current);
-          }, 1200);
+          if (!recordingResult.recordingReady) {
+            setSessionOperation((current) => current
+              ? { ...current, stage: 'recording-attention' }
+              : current);
+            setError((current) => current || RECORDING_FINALIZATION_WARNING);
+          } else {
+            // The recording upload/save event takes over visible progress.
+            window.setTimeout(() => {
+              setSessionOperation((current) => current?.kind === 'end-broadcast' ? null : current);
+            }, 1200);
+          }
+          console.info('[Echoo Perf] end-broadcast', {
+            timeToOffAirMs: Math.round(performance.now() - endStartedAt),
+            backendEndMs: Math.round(performance.now() - endStartedAt),
+            recordingFinalizeMs: Math.round(performance.now() - finalizeStartedAt),
+          });
+        } catch (finalizeError) {
+          console.warn(
+            '[Echoo Recording] detached End Broadcast finalization failed:',
+            finalizeError?.message || finalizeError
+          );
+          setSessionOperation((current) => current
+            ? { ...current, stage: 'recording-attention' }
+            : current);
+          setError(RECORDING_FINALIZATION_WARNING);
         }
-        console.info('[Echoo Perf] end-broadcast', {
-          timeToOffAirMs: Math.round(performance.now() - endStartedAt),
-          backendEndMs: Math.round(performance.now() - endStartedAt),
-          recordingFinalizeMs: Math.round(performance.now() - finalizeStartedAt),
-        });
       })();
     } catch (endError) {
       setSessionOperation(null);
@@ -1283,17 +1297,19 @@ const CreatorLiveConnectedWorkspace = ({
                         ? 'Securing your recording'
                         : sessionOperation.stage === 'preparing-server-save'
                           ? 'Finishing your recording'
-                          : 'Recording is safe'}
+                          : sessionOperation.stage === 'recording-attention'
+                            ? 'Recording needs attention'
+                            : 'Recording is protected'}
             </strong>
             <span>{formatElapsedTime(sessionOperation.elapsedSeconds || 0)} elapsed</span>
           </div>
           <small>
-            {sessionOperation.stage === 'local-safe'
-              ? 'Your recording is safe on this device. Echoo will keep trying to finish the saved recording in the background.'
+            {sessionOperation.stage === 'recording-attention'
+              ? 'The broadcast is off air. Echoo could not confirm a complete local master yet; keep this page open while server and recovery state are checked.'
               : sessionOperation.stage === 'publishing-audio'
                 ? 'Echoo is waiting for the live audio publication to become usable by listeners.'
                 : sessionOperation.stage === 'finalizing-local-master'
-                  ? 'The broadcast is already off air. Echoo is closing your recording safely.'
+                  ? 'The broadcast is already off air. Echoo is closing and validating your protected recording.'
                   : 'This stage has no trustworthy percentage, so Echoo shows elapsed time instead.'}
           </small>
         </div>
