@@ -399,7 +399,7 @@ test('server recording and end-broadcast cleanup reject stale or unbounded provi
   assert.match(recording, /WRITE_CHAIN_DRAIN_TIMEOUT_MS = 3_000/);
   assert.match(recording, /stopEgressBounded/);
   assert.match(recording, /desiredTracks\.get\(id\) !== track[\s\S]{0,500}stale recorder start/);
-  assert.match(recording, /reason: desiredTracks\.has\(id\) \? 'newer-track-requested' : 'broadcast-ended'/);
+  assert.match(recording, /reason: !lifecycleStillLive[\s\S]{0,100}'broadcast-ended'/);
   assert.match(recording, /Server recording PCM drain timed out during finalization/);
 
   assert.match(lifecycle, /const cleanupWithin = async/);
