@@ -578,6 +578,7 @@ const connectStream = async (channelId, stream, sourceLabel, deviceId = '') => {
     // that declares two channels retains independent L/R measurements.
     isMono: Number(audioTrack.getSettings?.().channelCount || 0) === 1,
     audioTrack,
+    deviceId: deviceId || audioTrack.getSettings?.().deviceId || '',
   });
 
   audioTrack.addEventListener('ended', () => {
