@@ -440,3 +440,20 @@ test('end-broadcast recovery is bounded and cannot be revived by a stale reconne
   assert.match(banner, /kind: 'device-saving'/);
   assert.match(banner, /kind: 'finalizing'/);
 });
+
+
+test('ending quickly cannot leak a late-starting local recorder or claim safety too early', async () => {
+  const recording = await read('../../services/broadcastRecordingService.js');
+  const workspace = await read('./CreatorLiveConnectedWorkspace.jsx');
+
+  assert.match(recording, /RECORDING_START_FINALIZE_TIMEOUT_MS = 8_000/);
+  assert.match(recording, /const recordingStarts = new Map\(\)/);
+  assert.match(recording, /starting\.finishRequested = true/);
+  assert.match(recording, /startState\.finishRequested && activeRecording\?\.broadcastId === id/);
+  assert.match(recording, /startState\.lateAnnouncementRequired/);
+  assert.match(recording, /announceFinishedBroadcastRecording\(\{/);
+  assert.match(workspace, /Broadcast ended\. Echoo is securing your recording in the background\./);
+  assert.match(workspace, /stage: 'recording-attention'/);
+  assert.match(workspace, /Recording needs attention/);
+  assert.doesNotMatch(workspace, /Broadcast ended\. Your recording is safe and Echoo is finishing it in the background\./);
+});
