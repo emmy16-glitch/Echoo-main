@@ -399,6 +399,10 @@ test('long-session live UX repairs stale mixer output and recovers listener audi
   assert.match(mixer, /masterAnalyser\.connect\(replacementDestination\)/);
   assert.match(workspace, /await ensureEchooMixerOutputTrack\(\)/);
   assert.doesNotMatch(workspace, /getEchooMixerOutputTrack\(\)/);
+  assert.match(mixer, /audioContext\.state !== 'running'/);
+  assert.match(mixer, /scheduleUnexpectedVoiceInputRecovery\(channelId, recoveryDeviceId\)/);
+  assert.match(mixer, /unexpectedVoiceRecovery = new Map\(\)/);
+  assert.match(mixer, /deviceId: deviceId \|\| audioTrack\.getSettings\?\.\(\)\.deviceId \|\| ''/);
 
   assert.match(listenerPlayer, /window\.addEventListener\('pointerdown', resumeFromGesture, true\)/);
   assert.match(listenerPlayer, /void startAudio\(\)/);
