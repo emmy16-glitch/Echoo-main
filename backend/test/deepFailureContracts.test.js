@@ -389,3 +389,21 @@ test('creator transport loss remains live under a durable long-session recovery 
   assert.match(sweep, /setInterval/);
   assert.match(sweep, /creator program-audio discovery failed/);
 });
+
+
+test('server recording and end-broadcast cleanup reject stale or unbounded provider work', async () => {
+  const recording = await source('src/services/livekitServerRecording.js');
+  const lifecycle = await source('src/controllers/broadcastLifecycleController.js');
+
+  assert.match(recording, /PROVIDER_CONTROL_TIMEOUT_MS = 5_000/);
+  assert.match(recording, /WRITE_CHAIN_DRAIN_TIMEOUT_MS = 3_000/);
+  assert.match(recording, /stopEgressBounded/);
+  assert.match(recording, /desiredTracks\.get\(id\) !== track[\s\S]{0,500}stale recorder start/);
+  assert.match(recording, /reason: desiredTracks\.has\(id\) \? 'newer-track-requested' : 'broadcast-ended'/);
+  assert.match(recording, /Server recording PCM drain timed out during finalization/);
+
+  assert.match(lifecycle, /const cleanupWithin = async/);
+  assert.match(lifecycle, /Server recording cleanup[\s\S]{0,120}12_000/);
+  assert.match(lifecycle, /Broadcast output cleanup[\s\S]{0,120}3_000/);
+  assert.match(lifecycle, /LiveKit room cleanup[\s\S]{0,120}4_000/);
+});
