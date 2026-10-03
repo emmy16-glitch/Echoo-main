@@ -19,6 +19,7 @@ import {
   roomCanCarryMedia,
   roomIsConnected,
 } from './liveRecoveryPolicy.js';
+import { ensureEchooMixerOutputTrack } from './echooMixerService.js';
 import { resolveLiveKitUrl } from './livekitUrl.js';
 import {
   getRealtimeAudioProfile,
@@ -577,6 +578,45 @@ async function schedulePublisherRecovery(candidate, reason, immediate = false) {
   }, delay);
 }
 
+const refreshStudioMixerTrack = async (candidate) => {
+  if (!isCurrent(candidate) || candidate.mode !== 'studio-mix') return true;
+
+  // A long-running browser AudioContext can become suspended/interrupted while
+  // its MediaStreamDestination track still reports readyState="live". In that
+  // state LiveKit sender stats may continue advancing even though listeners get
+  // silence. Re-enter the mixer here so it can resume the context.
+  const mixerTrack = await ensureEchooMixerOutputTrack();
+  if (!isCurrent(candidate)) return false;
+
+  if (!mixerTrack || mixerTrack.kind !== 'audio' || mixerTrack.readyState === 'ended') {
+    publishHealth({
+      phase: 'recovering',
+      mixer: 'unavailable',
+      audio: 'recovering',
+      lastError: 'Echoo mixer output is not currently producing a live audio track.',
+    });
+    return false;
+  }
+
+  if (mixerTrack !== candidate.mediaTrack) {
+    candidate.mediaTrack = mixerTrack;
+    applyProgramTrackQuality(mixerTrack);
+    candidate.lastTransportSample = null;
+    candidate.lastProgressAt = Date.now();
+    candidate.transportStallSamples = 0;
+    publishHealth({
+      phase: 'recovering',
+      mixer: 'available',
+      publication: 'replacing',
+      audio: 'recovering',
+      lastError: 'Echoo mixer output changed; republishing program audio.',
+    });
+    void schedulePublisherRecovery(candidate, 'mixer_output_replaced', true);
+  }
+
+  return true;
+};
+
 const startWatchdog = (candidate) => {
   window.clearInterval(candidate.watchdogTimer);
   candidate.watchdogTimer = window.setInterval(async () => {
@@ -587,6 +627,23 @@ const startWatchdog = (candidate) => {
       !roomCanCarryMedia(activeRoom) ||
       !activePublication
     ) return;
+
+    if (candidate.mode === 'studio-mix') {
+      try {
+        const mixerReady = await refreshStudioMixerTrack(candidate);
+        if (!mixerReady || candidate.recoveryPromise || candidate.recoveryTimer) return;
+      } catch (error) {
+        publishHealth({
+          phase: 'recovering',
+          mixer: 'suspended',
+          audio: 'recovering',
+          lastError: error?.message || 'Echoo mixer needs to resume.',
+        });
+        console.warn('[Echoo Live][Creator] mixer resume check failed', error?.message || error);
+        return;
+      }
+    }
+
     if (!mediaTrackIsLive({ kind: 'audio', mediaStreamTrack: candidate.mediaTrack })) {
       publishHealth({ phase: 'failed', mixer: 'ended', publication: 'failed', audio: 'failed', lastError: 'Mixer track ended.' });
       return;
