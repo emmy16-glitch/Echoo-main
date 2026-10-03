@@ -14,6 +14,8 @@ const PCM_FORMAT = 's16le';
 const RECORDING_PATH = '/api/internal/livekit-recording';
 const SIGNATURE_TTL_MS = 5 * 60 * 1000;
 const STOP_TIMEOUT_MS = 8_000;
+const PROVIDER_CONTROL_TIMEOUT_MS = 5_000;
+const WRITE_CHAIN_DRAIN_TIMEOUT_MS = 3_000;
 const sessions = new Map();
 const startPromises = new Map();
 const expectedTracks = new Map();
@@ -35,6 +37,31 @@ const enabled = (name) =>
   /^(1|true|yes)$/i.test(String(process.env[name] || '').trim());
 
 const safeId = (value) => String(value || '').replace(/[^a-zA-Z0-9_-]/g, '');
+
+const withDeadline = async (promise, timeoutMs, message) => {
+  let timer = null;
+  try {
+    return await Promise.race([
+      Promise.resolve(promise),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(message)), timeoutMs);
+        timer.unref?.();
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+};
+
+const stopEgressBounded = async (egressId, context = 'server recording') => {
+  const id = String(egressId || '');
+  if (!id) return null;
+  return withDeadline(
+    LiveKitProvider.stopEgress(id),
+    PROVIDER_CONTROL_TIMEOUT_MS,
+    `LiveKit egress stop timed out during ${context}.`
+  );
+};
 
 const bitrate = () => {
   const raw = String(process.env.AUDIO_REPLAY_MP3_BITRATE || '320k').trim() || '320k';
@@ -297,13 +324,28 @@ const finishSession = (session) => {
         try { session.child.kill('SIGKILL'); } catch { /* already stopped */ }
       }
     } else {
-      await session.writeChain.catch(() => null);
       try {
-        if (session.child?.stdin && !session.child.stdin.destroyed) {
-          session.child.stdin.end();
+        await withDeadline(
+          session.writeChain,
+          WRITE_CHAIN_DRAIN_TIMEOUT_MS,
+          'Server recording PCM drain timed out during finalization.'
+        );
+      } catch (error) {
+        session.failed = true;
+        session.error ||= error?.message || String(error);
+        try { session.child?.stdin?.destroy?.(); } catch { /* already closed */ }
+        if (session.child?.exitCode === null && !session.child?.killed) {
+          try { session.child.kill('SIGKILL'); } catch { /* already stopped */ }
         }
-      } catch {
-        // Encoder may already be closing.
+      }
+      if (!session.failed) {
+        try {
+          if (session.child?.stdin && !session.child.stdin.destroyed) {
+            session.child.stdin.end();
+          }
+        } catch {
+          // Encoder may already be closing.
+        }
       }
     }
 
@@ -397,7 +439,7 @@ const acceptRecordingSocket = async (socket, request) => {
     // Unsolicited Egress after a backend restart. Starting a fresh FFmpeg here
     // would overwrite the earlier MP3 and leave a tail-only file that looks
     // complete. Fail closed and preserve the browser OPFS full-show recovery.
-    await LiveKitProvider.stopEgress(persistedEgressId).catch(() => null);
+    await stopEgressBounded(persistedEgressId, 'orphan recorder cleanup').catch(() => null);
     await persist(identity.broadcastId, {
       'serverRecording.status': 'failed',
       'serverRecording.egressId': null,
@@ -678,7 +720,7 @@ export const ensureLiveKitServerRecording = async ({
       // FFmpeg/session ownership. That means the recorder crossed a process
       // restart/crash boundary. Never start a new FFmpeg with -y and accept
       // only the tail of the show as if it were complete.
-      await LiveKitProvider.stopEgress(egressId).catch(() => null);
+      await stopEgressBounded(egressId, 'recorder cleanup').catch(() => null);
       expectedTracks.delete(id);
       ownedEgressIds.delete(id);
       await persist(id, {
@@ -718,7 +760,7 @@ export const ensureLiveKitServerRecording = async ({
         }, TRACK_HANDOFF_TIMEOUT_MS);
         session.handoffTimer.unref?.();
       } else {
-        await LiveKitProvider.stopEgress(recording.egressId).catch(() => null);
+        await stopEgressBounded(recording.egressId, 'stale persisted recorder cleanup').catch(() => null);
       }
     }
 
@@ -758,6 +800,23 @@ export const ensureLiveKitServerRecording = async ({
       );
       const egressId = String(egress?.egressId || '');
       if (!egressId) throw new Error('LiveKit did not return an egress ID.');
+
+      // The provider call can finish after a creator republish or after End
+      // Broadcast cleared desiredTracks. Never adopt that stale Egress: it
+      // would record an obsolete SID or become an orphan after the show ended.
+      if (desiredTracks.get(id) !== track) {
+        if (expectedTracks.get(id) === track) expectedTracks.delete(id);
+        await stopEgressBounded(egressId, 'stale recorder start').catch((error) => {
+          console.warn('[Echoo Server Recording] stale egress cleanup warning:', error?.message || error);
+        });
+        return {
+          mode: 'superseded',
+          active: false,
+          trackSid: track,
+          reason: desiredTracks.has(id) ? 'newer-track-requested' : 'broadcast-ended',
+        };
+      }
+
       ownedEgressIds.set(id, egressId);
 
       await persist(id, {
@@ -768,12 +827,12 @@ export const ensureLiveKitServerRecording = async ({
         const session = sessions.get(id);
         const handedOff = await waitForTrackHandoff(session, track);
         if (!handedOff) {
-          await LiveKitProvider.stopEgress(egressId).catch(() => null);
+          await stopEgressBounded(egressId, 'recorder cleanup').catch(() => null);
           const error = new Error('LiveKit recording track handoff did not become active in time.');
           error.code = 'RECORDING_HANDOFF_TIMEOUT';
           throw error;
         }
-        await LiveKitProvider.stopEgress(handoffFromEgressId).catch(() => null);
+        await stopEgressBounded(handoffFromEgressId, 'recording handoff cleanup').catch(() => null);
       }
 
       return {
@@ -802,7 +861,7 @@ export const ensureLiveKitServerRecording = async ({
         session.failed = true;
         session.error = String(error?.message || error);
         if (handoffFromEgressId) {
-          await LiveKitProvider.stopEgress(handoffFromEgressId).catch(() => null);
+          await stopEgressBounded(handoffFromEgressId, 'recording handoff cleanup').catch(() => null);
         }
         await finishSession(session).catch(() => null);
       }
@@ -849,7 +908,7 @@ export const stopLiveKitServerRecording = async (broadcastId) => {
   if (session) session.stopping = true;
 
   if (egressId) {
-    await LiveKitProvider.stopEgress(egressId).catch((error) => {
+    await stopEgressBounded(egressId, 'End Broadcast').catch((error) => {
       console.warn('[Echoo Server Recording] egress stop warning:', error?.message || error);
     });
   }
