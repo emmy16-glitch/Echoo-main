@@ -39,6 +39,8 @@ const QUALITY_CHUNK_COMPLETE_RETRIES = 5;
 const QUALITY_CHUNK_UPLOAD_TIMEOUT_MS = 120_000;
 const QUALITY_CHUNK_START_TIMEOUT_MS = 30_000;
 const QUALITY_CHUNK_COMPLETE_TIMEOUT_MS = 30_000;
+const MEDIA_RECORDER_STOP_TIMEOUT_MS = 8_000;
+const COMPRESSED_RECOVERY_UPLOAD_TIMEOUT_MS = 5 * 60_000;
 // Optional transport can never be allowed to accumulate arbitrary PCM on the
 // main thread. At 48 kHz stereo this permits 30 seconds of queued float audio;
 // exceeding it disables only the quality/archive branch and preserves LiveKit.
@@ -1228,10 +1230,17 @@ const stopFallbackRecording = (recording, { keep = true } = {}) =>
     }
 
     let finished = false;
+    let stopDeadlineTimer = null;
+    const onRecorderStop = () => { void finish(); };
+    const onRecorderError = () => { void finish(); };
     const finish = async () => {
       if (finished) return;
       finished = true;
       recording.stopping = true;
+      if (stopDeadlineTimer) window.clearTimeout(stopDeadlineTimer);
+      stopDeadlineTimer = null;
+      recording.recorder.removeEventListener?.('stop', onRecorderStop);
+      recording.recorder.removeEventListener?.('error', onRecorderError);
       window.clearInterval(recording.checkpointTimer);
       window.removeEventListener('pagehide', recording.onPageHide);
 
@@ -1342,7 +1351,8 @@ const stopFallbackRecording = (recording, { keep = true } = {}) =>
       return;
     }
 
-    recording.recorder.addEventListener('stop', () => { void finish(); }, { once: true });
+    recording.recorder.addEventListener('stop', onRecorderStop, { once: true });
+    recording.recorder.addEventListener('error', onRecorderError, { once: true });
 
     try {
       recording.recorder.requestData();
@@ -1354,7 +1364,17 @@ const stopFallbackRecording = (recording, { keep = true } = {}) =>
       recording.recorder.stop();
     } catch {
       void finish();
+      return;
     }
+
+    // Safari/WebView/device failures can accept stop() but never dispatch the
+    // final stop event. Never let End Broadcast wait forever for that browser
+    // event. The durable OPFS/checkpoint data already written is finalized and
+    // remains recoverable even if the last in-memory recorder slice is missing.
+    stopDeadlineTimer = window.setTimeout(() => {
+      console.warn('[Echoo Recording] MediaRecorder stop event timed out; finalizing the protected recording from committed data.');
+      void finish();
+    }, MEDIA_RECORDER_STOP_TIMEOUT_MS);
   });
 
 const startFallbackRecording = async ({ broadcastId, mediaTrack, title }) => {
@@ -1920,6 +1940,7 @@ export const uploadCompressedRecoveryMasterToServer = async (recording, broadcas
     method: 'POST',
     body: form,
     isFormData: true,
+    timeoutMs: COMPRESSED_RECOVERY_UPLOAD_TIMEOUT_MS,
   });
   const data = await response.json().catch(() => null);
 
