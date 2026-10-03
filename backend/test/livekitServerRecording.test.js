@@ -75,7 +75,7 @@ test('track republish handoff keeps one recorder session and fails closed if rep
   assert.match(source, /session\.pendingTrackSid = track/);
   assert.match(source, /session\.handoff = true/);
   assert.match(source, /waitForTrackHandoff/);
-  assert.match(source, /stopEgress\(handoffFromEgressId\)/);
+  assert.match(source, /stopEgressBounded\(handoffFromEgressId, 'recording handoff cleanup'\)/);
   assert.match(source, /identity\.trackSid !== session\.currentTrackSid/);
   assert.match(source, /identity\.trackSid !== session\.currentTrackSid \|\| session\.handoff/);
   assert.match(source, /Stale recording track/);
