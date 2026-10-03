@@ -389,6 +389,9 @@ const attachRoomEvents = (room, candidate) => {
 };
 
 const connectAndPublish = async (candidate, { url, token, recovery = false }) => {
+  if (!isCurrent(candidate) || candidate.stopping) {
+    throw new Error('Broadcast publishing was cancelled.');
+  }
   const resolvedUrl = resolveLiveKitUrl(url);
   const mediaTrack = candidate.mediaTrack;
   if (!resolvedUrl || !token) throw new Error('Echoo did not receive valid LiveKit publishing credentials.');
@@ -401,6 +404,10 @@ const connectAndPublish = async (candidate, { url, token, recovery = false }) =>
     stopLocalTrackOnUnpublish: false,
     reconnectPolicy: createLiveKitReconnectPolicy(),
   });
+  if (!isCurrent(candidate) || candidate.stopping) {
+    await detachRoom(room, { deadlineMs: RECOVERY_DISCONNECT_DEADLINE_MS });
+    throw new Error('Broadcast publishing was cancelled.');
+  }
   attachRoomEvents(room, candidate);
   activeRoom = room;
   activePublication = null;
@@ -548,12 +555,14 @@ async function runPublisherRecovery(candidate, reason) {
           'Echoo credential refresh timed out; retrying the live connection.'
         );
         if (!credentials?.token) throw new Error('Echoo could not refresh creator credentials.');
+        if (!isCurrent(candidate) || candidate.stopping) return false;
 
         activeRoom = null;
         activePublication = null;
         await detachRoom(staleRoom, {
           deadlineMs: RECOVERY_DISCONNECT_DEADLINE_MS,
         });
+        if (!isCurrent(candidate) || candidate.stopping) return false;
         await connectAndPublish(candidate, {
           url: credentials.livekitUrl || candidate.url,
           token: credentials.token,
