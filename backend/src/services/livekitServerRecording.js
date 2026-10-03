@@ -15,6 +15,7 @@ const RECORDING_PATH = '/api/internal/livekit-recording';
 const SIGNATURE_TTL_MS = 5 * 60 * 1000;
 const STOP_TIMEOUT_MS = 8_000;
 const PROVIDER_CONTROL_TIMEOUT_MS = 5_000;
+const PROVIDER_START_TIMEOUT_MS = 15_000;
 const WRITE_CHAIN_DRAIN_TIMEOUT_MS = 3_000;
 const sessions = new Map();
 const startPromises = new Map();
@@ -682,7 +683,18 @@ export const ensureLiveKitServerRecording = async ({
     if (desiredTracks.get(id) !== track) {
       return { mode: 'superseded', active: false, trackSid: track };
     }
-    const current = await Broadcast.findById(id).select('serverRecording');
+    const current = await Broadcast.findById(id).select('status serverRecording');
+    const lifecycleStatus = String(current?.status || '').toLowerCase();
+    if (!['starting', 'live'].includes(lifecycleStatus)) {
+      expectedTracks.delete(id);
+      desiredTracks.delete(id);
+      return {
+        mode: 'superseded',
+        active: false,
+        trackSid: track,
+        reason: 'broadcast-ended',
+      };
+    }
     const recording = current?.serverRecording || null;
 
     // Once a server recording has broken mid-show, do not restart it and
@@ -793,19 +805,42 @@ export const ensureLiveKitServerRecording = async ({
       // cannot race startup and overwrite the earlier part of the recording.
       expectedTracks.set(id, track);
 
-      const egress = await LiveKitProvider.startTrackRecordingEgress(
-        id,
-        track,
-        websocketUrl
+      const providerStart = Promise.resolve().then(() =>
+        LiveKitProvider.startTrackRecordingEgress(id, track, websocketUrl)
       );
+      let egress = null;
+      try {
+        egress = await withDeadline(
+          providerStart,
+          PROVIDER_START_TIMEOUT_MS,
+          'LiveKit server recorder start timed out.'
+        );
+      } catch (error) {
+        // A provider timeout does not cancel the remote request. If LiveKit
+        // eventually returns an Egress ID, stop that late Egress immediately so
+        // it cannot become an orphan or overwrite a later recovery recording.
+        if (/recorder start timed out/i.test(error?.message || '')) {
+          void providerStart
+            .then((late) => stopEgressBounded(late?.egressId, 'late recorder start'))
+            .catch(() => null);
+        }
+        throw error;
+      }
+
       const egressId = String(egress?.egressId || '');
       if (!egressId) throw new Error('LiveKit did not return an egress ID.');
 
+      const lifecycleAfterStart = await Broadcast.findById(id).select('status');
+      const lifecycleStillLive = ['starting', 'live'].includes(
+        String(lifecycleAfterStart?.status || '').toLowerCase()
+      );
+
       // The provider call can finish after a creator republish or after End
-      // Broadcast cleared desiredTracks. Never adopt that stale Egress: it
-      // would record an obsolete SID or become an orphan after the show ended.
-      if (desiredTracks.get(id) !== track) {
+      // Broadcast began. Never adopt that stale Egress: it would record an
+      // obsolete SID or become an orphan after the show ended.
+      if (desiredTracks.get(id) !== track || !lifecycleStillLive) {
         if (expectedTracks.get(id) === track) expectedTracks.delete(id);
+        if (!lifecycleStillLive) desiredTracks.delete(id);
         await stopEgressBounded(egressId, 'stale recorder start').catch((error) => {
           console.warn('[Echoo Server Recording] stale egress cleanup warning:', error?.message || error);
         });
@@ -813,7 +848,9 @@ export const ensureLiveKitServerRecording = async ({
           mode: 'superseded',
           active: false,
           trackSid: track,
-          reason: desiredTracks.has(id) ? 'newer-track-requested' : 'broadcast-ended',
+          reason: !lifecycleStillLive
+            ? 'broadcast-ended'
+            : 'newer-track-requested',
         };
       }
 
