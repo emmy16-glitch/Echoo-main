@@ -40,6 +40,7 @@ const QUALITY_CHUNK_UPLOAD_TIMEOUT_MS = 120_000;
 const QUALITY_CHUNK_START_TIMEOUT_MS = 30_000;
 const QUALITY_CHUNK_COMPLETE_TIMEOUT_MS = 30_000;
 const MEDIA_RECORDER_STOP_TIMEOUT_MS = 8_000;
+const RECORDING_START_FINALIZE_TIMEOUT_MS = 8_000;
 const COMPRESSED_RECOVERY_UPLOAD_TIMEOUT_MS = 5 * 60_000;
 // Optional transport can never be allowed to accumulate arbitrary PCM on the
 // main thread. At 48 kHz stereo this permits 30 seconds of queued float audio;
@@ -48,6 +49,7 @@ const MAX_QUEUED_PCM_SECONDS = 30;
 
 let activeRecording = null;
 let pendingRecording = null;
+const recordingStarts = new Map();
 
 const currentSessionUserId = () => {
   try {
@@ -1656,46 +1658,132 @@ export const ensureBroadcastRecording = async ({
     return activeRecordingSnapshot(activeRecording);
   }
 
-  if (activeRecording) {
-    await stopRecording(activeRecording, { keep: false });
-    activeRecording = null;
-  }
+  const existingStart = recordingStarts.get(id);
+  if (existingStart?.promise) return existingStart.promise;
 
-  try {
-    activeRecording = await startLosslessRecording({
-      broadcastId: id,
-      title,
-    });
-  } catch (losslessError) {
-    console.warn(
-      '[Echoo Recording] disk-backed lossless master capture could not start:',
-      losslessError?.message || losslessError
-    );
+  const startState = {
+    broadcastId: id,
+    title,
+    finishRequested: false,
+    lateAnnouncementRequired: false,
+    promise: null,
+  };
+
+  const task = (async () => {
+    if (activeRecording) {
+      await stopRecording(activeRecording, { keep: false });
+      activeRecording = null;
+    }
 
     try {
-      activeRecording = await startFallbackRecording({
+      activeRecording = await startLosslessRecording({
         broadcastId: id,
-        mediaTrack,
         title,
       });
-    } catch (fallbackError) {
-      console.error(
-        '[Echoo Recording] no local recording path is available:',
-        fallbackError?.message || fallbackError
+    } catch (losslessError) {
+      console.warn(
+        '[Echoo Recording] disk-backed lossless master capture could not start:',
+        losslessError?.message || losslessError
       );
+
+      try {
+        activeRecording = await startFallbackRecording({
+          broadcastId: id,
+          mediaTrack,
+          title,
+        });
+      } catch (fallbackError) {
+        console.error(
+          '[Echoo Recording] no local recording path is available:',
+          fallbackError?.message || fallbackError
+        );
+        return { supported: false, recording: false };
+      }
+    }
+
+    // End Broadcast may arrive while OPFS/device initialization is still in
+    // progress. Never let a recorder become active after the show is already
+    // off-air. Finalize it immediately and preserve/announce the result.
+    if (startState.finishRequested && activeRecording?.broadcastId === id) {
+      const recording = activeRecording;
+      activeRecording = null;
+      const finished = await stopRecording(recording, { keep: true }).catch(async (error) => {
+        const recovered = await recoverPendingBroadcastRecording(id).catch(() => null);
+        if (recovered?.blob?.size) {
+          recovered.recoveredDuringFinalize = true;
+          recovered.finalizationError = error?.message || String(error);
+          return recovered;
+        }
+        throw error;
+      });
+
+      if (finished?.blob?.size) {
+        pendingRecording = finished;
+        if (startState.lateAnnouncementRequired) {
+          announceFinishedBroadcastRecording({
+            recording: finished,
+            broadcast: { id, title },
+          });
+        }
+        return {
+          supported: true,
+          recording: false,
+          finalizedAfterLateStart: true,
+        };
+      }
       return { supported: false, recording: false };
     }
-  }
 
-  if (armServer && activeRecording) {
-    await armBroadcastServerRecording(id);
-  }
+    if (armServer && activeRecording) {
+      await armBroadcastServerRecording(id);
+    }
 
-  return activeRecordingSnapshot(activeRecording);
+    return activeRecordingSnapshot(activeRecording);
+  })();
+
+  startState.promise = task;
+  recordingStarts.set(id, startState);
+
+  try {
+    return await task;
+  } finally {
+    if (recordingStarts.get(id) === startState) recordingStarts.delete(id);
+  }
 };
 
 export const finishBroadcastRecording = async (broadcastId) => {
   const id = String(broadcastId || '');
+  const starting = recordingStarts.get(id);
+
+  if ((!activeRecording || activeRecording.broadcastId !== id) && starting?.promise) {
+    starting.finishRequested = true;
+    let timedOut = false;
+    let timer = null;
+    try {
+      await Promise.race([
+        starting.promise,
+        new Promise((resolve) => {
+          timer = window.setTimeout(() => {
+            timedOut = true;
+            resolve();
+          }, RECORDING_START_FINALIZE_TIMEOUT_MS);
+        }),
+      ]);
+    } finally {
+      if (timer) window.clearTimeout(timer);
+    }
+
+    if (timedOut) {
+      // The start task owns eventual cleanup. Ask it to announce the protected
+      // recording if it finally becomes available after this End flow returned.
+      starting.lateAnnouncementRequired = true;
+      return null;
+    }
+  }
+
+  if (pendingRecording?.broadcastId === id && pendingRecording?.blob?.size) {
+    return pendingRecording;
+  }
 
   if (!activeRecording || activeRecording.broadcastId !== id) {
     return null;
