@@ -832,17 +832,33 @@ export async function endBroadcast(req, res, next) {
     });
 
     clearBroadcastPresenceCache(broadcastId);
-    await updateStationBestEffort(
-      stationIdOf(broadcast),
-      { isLive: false, listenerCount: 0 },
-      'end'
-    );
-    await releaseLeaseBestEffort(req.userId, broadcastId);
+    await cleanupWithin(
+      'Station end-state update',
+      updateStationBestEffort(
+        stationIdOf(broadcast),
+        { isLive: false, listenerCount: 0 },
+        'end'
+      ),
+      3_000
+    ).catch((error) => {
+      console.warn('[Echoo Broadcast] station end-state update warning:', error?.message || error);
+    });
+    await cleanupWithin(
+      'Creator lease release',
+      releaseLeaseBestEffort(req.userId, broadcastId),
+      3_000
+    ).catch((error) => {
+      console.warn('[Echoo Broadcast] lease release warning:', error?.message || error);
+    });
     emitStatus(req, broadcast);
 
-    await enqueueBroadcastProcessing(broadcast._id, {
-      transcriptionEnabled: isTranscriptionConfigured(),
-    }).catch((error) => {
+    await cleanupWithin(
+      'Broadcast processing enqueue',
+      enqueueBroadcastProcessing(broadcast._id, {
+        transcriptionEnabled: isTranscriptionConfigured(),
+      }),
+      3_000
+    ).catch((error) => {
       console.error('[Echoo Processing] enqueue failed:', {
         broadcastId: String(broadcast._id),
         message: error?.message || error,
