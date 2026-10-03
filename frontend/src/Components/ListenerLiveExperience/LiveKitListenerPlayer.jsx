@@ -64,6 +64,8 @@ const isEchooProgramPublication = (publication) => {
   return isStudioMix;
 };
 
+const LISTENER_CREDENTIAL_TIMEOUT_MS = 12_000;
+
 const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChange, guest = false }) => {
   const roomRef = useRef(null);
   const audioHostRef = useRef(null);
@@ -132,6 +134,20 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
     let creatorConnectionLost = false;
     let programStreamPaused = false;
     let smoothedAudioLevel = 0;
+
+    const withDeadline = async (promise, timeoutMs, message) => {
+      let timer = null;
+      try {
+        return await Promise.race([
+          Promise.resolve(promise),
+          new Promise((_, reject) => {
+            timer = window.setTimeout(() => reject(new Error(message)), timeoutMs);
+          }),
+        ]);
+      } finally {
+        if (timer) window.clearTimeout(timer);
+      }
+    };
 
     const detachAttachment = (id) => {
       const entry = attachedRef.current.get(id);
@@ -525,7 +541,11 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       // Guest/account is an authorization concern only. From this call
       // forward every listener uses the exact same room, subscription,
       // attachment, autoplay and recovery path.
-      const credentials = await batch3Service.getListenerCredentials(broadcastId, { guest });
+      const credentials = await withDeadline(
+        batch3Service.getListenerCredentials(broadcastId, { guest }),
+        LISTENER_CREDENTIAL_TIMEOUT_MS,
+        'Echoo listener credentials timed out; retrying the live audio connection.'
+      );
       const liveKitUrl = resolveLiveKitUrl(credentials?.livekitUrl);
       try {
         const host = liveKitUrl ? new URL(liveKitUrl).hostname : '';
