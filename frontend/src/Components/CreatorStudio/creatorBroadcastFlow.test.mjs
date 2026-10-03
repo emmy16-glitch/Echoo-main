@@ -457,3 +457,18 @@ test('ending quickly cannot leak a late-starting local recorder or claim safety 
   assert.match(workspace, /Recording needs attention/);
   assert.doesNotMatch(workspace, /Broadcast ended\. Your recording is safe and Echoo is finishing it in the background\./);
 });
+
+
+test('Broadcast workspace owns passive recording progress without duplicate global banners', async () => {
+  const banner = await read('../RecordingSaveBanner.jsx');
+
+  assert.match(banner, /normalizedPath === '\/creator-studio'/);
+  assert.match(
+    banner,
+    /\['finalizing', 'uploading', 'device-saving', 'done'\]\.includes\(state\.kind\)/
+  );
+  assert.doesNotMatch(
+    banner,
+    /\['finalizing', 'uploading', 'device-saving', 'done', 'device-choice'\]/
+  );
+});
