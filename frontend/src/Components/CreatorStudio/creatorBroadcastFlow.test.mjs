@@ -417,3 +417,26 @@ test('long-session live UX repairs stale mixer output and recovers listener audi
   assert.match(listenerRoom, /aria-label="Close live chat"/);
   assert.match(listenerRoom, /document\.documentElement\.classList\.add\('listener-v2-chat-open'\)/);
 });
+
+
+test('end-broadcast recovery is bounded and cannot be revived by a stale reconnect', async () => {
+  const publisher = await read('../../services/livekitPublisher.js');
+  const recording = await read('../../services/broadcastRecordingService.js');
+  const batch3 = await read('../../services/batch3Service.js');
+  const exportService = await read('../../services/recordingExportService.js');
+  const banner = await read('../../Components/RecordingSaveBanner.jsx');
+
+  assert.match(publisher, /if \(!isCurrent\(candidate\) \|\| candidate\.stopping\)/);
+  assert.match(publisher, /if \(!isCurrent\(candidate\) \|\| candidate\.stopping\) return false;[\s\S]{0,180}activeRoom = null/);
+  assert.match(recording, /MEDIA_RECORDER_STOP_TIMEOUT_MS = 8_000/);
+  assert.match(recording, /MediaRecorder stop event timed out/);
+  assert.match(recording, /COMPRESSED_RECOVERY_UPLOAD_TIMEOUT_MS/);
+  assert.match(batch3, /BROADCAST_END_TIMEOUT_MS = 35_000/);
+  assert.match(batch3, /RECORDING_RECOVERY_TIMEOUT_MS = 35_000/);
+  assert.match(batch3, /RECORDING_FINALIZE_TIMEOUT_MS = 120_000/);
+  assert.match(batch3, /RECORDING_STATUS_TIMEOUT_MS = 15_000/);
+  assert.match(exportService, /timeoutMs: 30_000/);
+  assert.match(banner, /kind: 'uploading'/);
+  assert.match(banner, /kind: 'device-saving'/);
+  assert.match(banner, /kind: 'finalizing'/);
+});
