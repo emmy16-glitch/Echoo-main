@@ -394,7 +394,11 @@ const ensureContext = async () => {
     ensureMonitorElement();
   }
 
-  if (audioContext.state === 'suspended') {
+  // Browsers can suspend or temporarily interrupt Web Audio during a long
+  // session (tab visibility changes, device interruptions, power-management).
+  // A MediaStreamDestination track may remain "live" while carrying silence,
+  // so treat every non-running, non-closed context as recoverable here.
+  if (audioContext.state !== 'running' && audioContext.state !== 'closed') {
     await audioContext.resume();
   }
 
@@ -1408,6 +1412,7 @@ export const getEchooMixerDiagnostics = () => {
   return {
     ready: Boolean(outputTrack && outputTrack.readyState === 'live'),
     outputTrackState: outputTrack?.readyState || 'missing',
+    audioContextState: audioContext?.state || 'missing',
     engineSampleRate: audioContext?.sampleRate || null,
     audioBaseLatencyMs: Number.isFinite(audioContext?.baseLatency)
       ? Math.round(audioContext.baseLatency * 1000)
