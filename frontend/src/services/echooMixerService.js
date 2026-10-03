@@ -154,6 +154,7 @@ let activeMasterCapture = null;
 let voiceInputNode = null;
 let voiceOutputNode = null;
 let voiceProcessingEngine = null;
+const unexpectedVoiceRecovery = new Map();
 
 const sources = new Map();
 const listeners = new Set();
@@ -583,9 +584,21 @@ const connectStream = async (channelId, stream, sourceLabel, deviceId = '') => {
     const current = sources.get(channelId);
     if (!current || current.audioTrack !== audioTrack) return;
 
+    const recoveryDeviceId = String(
+      current.deviceId || channels[channelId]?.deviceId || audioTrack.getSettings?.().deviceId || ''
+    );
     disconnectSource(channelId, false);
     applyMixState();
     notify();
+
+    // An input device/driver can disappear mid-broadcast while the post-master
+    // MediaStreamDestination remains "live" and therefore keeps sending silence.
+    // Voice inputs are safe to reacquire because this handler runs only for an
+    // unexpected track end; explicit disconnectMixerChannel() removes the source
+    // before a stopped track can be treated as the current one.
+    if (['host', 'channel2', 'guest'].includes(channelId)) {
+      scheduleUnexpectedVoiceInputRecovery(channelId, recoveryDeviceId);
+    }
   }, { once: true });
 
   channels = {
@@ -729,6 +742,62 @@ const normalizedMicConstraints = (audioConstraints) => ({
   ...getCreatorCaptureConstraints(creatorAudioSettings),
   ...(audioConstraints && typeof audioConstraints === 'object' ? audioConstraints : {}),
 });
+
+function scheduleUnexpectedVoiceInputRecovery(channelId, deviceId = '') {
+  if (typeof window === 'undefined' || !['host', 'channel2', 'guest'].includes(channelId)) return;
+  if (unexpectedVoiceRecovery.has(channelId)) return;
+
+  const token = {
+    cancelled: false,
+    attempt: 0,
+    timer: null,
+  };
+  unexpectedVoiceRecovery.set(channelId, token);
+
+  const reconnect = async () => {
+    if (token.cancelled) return;
+    const existing = sources.get(channelId)?.audioTrack;
+    if (existing?.readyState === 'live') {
+      unexpectedVoiceRecovery.delete(channelId);
+      return;
+    }
+
+    token.attempt += 1;
+    try {
+      if (channelId === 'host') {
+        await ensureHostInput(deviceId);
+      } else if (channelId === 'channel2') {
+        if (!deviceId) throw new Error('Previous Channel 2 input is unavailable.');
+        await connectSecondInput(deviceId);
+      } else {
+        if (!deviceId) throw new Error('Previous guest input is unavailable.');
+        await connectGuestInput(deviceId);
+      }
+      unexpectedVoiceRecovery.delete(channelId);
+      window.dispatchEvent(new CustomEvent('echoo:mixer-source-recovered', {
+        detail: { channelId, attempt: token.attempt },
+      }));
+      return;
+    } catch (error) {
+      window.dispatchEvent(new CustomEvent('echoo:mixer-source-recovery', {
+        detail: {
+          channelId,
+          attempt: token.attempt,
+          error: error?.message || String(error),
+        },
+      }));
+    }
+
+    if (token.attempt >= 8 || token.cancelled) {
+      unexpectedVoiceRecovery.delete(channelId);
+      return;
+    }
+    const delay = Math.min(15000, 1000 * 2 ** Math.min(4, token.attempt - 1));
+    token.timer = window.setTimeout(reconnect, delay);
+  };
+
+  token.timer = window.setTimeout(reconnect, 500);
+}
 
 export const subscribeEchooMixer = (listener) => {
   listeners.add(listener);
@@ -969,6 +1038,12 @@ export const connectSystemAudio = async () => {
 };
 
 export const disconnectMixerChannel = (channelId) => {
+  const pending = unexpectedVoiceRecovery.get(channelId);
+  if (pending) {
+    pending.cancelled = true;
+    if (pending.timer) window.clearTimeout(pending.timer);
+    unexpectedVoiceRecovery.delete(channelId);
+  }
   disconnectSource(channelId);
   applyMixState();
   notify();
@@ -1444,6 +1519,11 @@ export const stopEchooMixer = async () => {
     }
   }
 
+  unexpectedVoiceRecovery.forEach((pending) => {
+    pending.cancelled = true;
+    if (pending.timer) window.clearTimeout(pending.timer);
+  });
+  unexpectedVoiceRecovery.clear();
   sources.forEach((_, channelId) => disconnectSource(channelId));
   sources.clear();
   voiceProcessingEngine?.destroy();
