@@ -390,6 +390,7 @@ test('browser recovery is isolated by creator account and legacy takes are owner
 
 test('long-session live UX repairs stale mixer output and recovers listener audio interaction', async () => {
   const mixer = await read('../../services/echooMixerService.js');
+  const publisher = await read('../../services/livekitPublisher.js');
   const workspace = await read('./CreatorLiveConnectedWorkspace.jsx');
   const listenerPlayer = await read('../ListenerLiveExperience/LiveKitListenerPlayer.jsx');
   const listenerRoom = await read('../ListenerLiveExperience/ListenerRealLiveRoom.jsx');
@@ -399,10 +400,75 @@ test('long-session live UX repairs stale mixer output and recovers listener audi
   assert.match(mixer, /masterAnalyser\.connect\(replacementDestination\)/);
   assert.match(workspace, /await ensureEchooMixerOutputTrack\(\)/);
   assert.doesNotMatch(workspace, /getEchooMixerOutputTrack\(\)/);
+  assert.match(mixer, /audioContext\.state !== 'running'/);
+  assert.match(mixer, /scheduleUnexpectedVoiceInputRecovery\(channelId, recoveryDeviceId\)/);
+  assert.match(mixer, /unexpectedVoiceRecovery = new Map\(\)/);
+  assert.match(mixer, /deviceId: deviceId \|\| audioTrack\.getSettings\?\.\(\)\.deviceId \|\| ''/);
+  assert.match(publisher, /CREATOR_CREDENTIAL_REFRESH_TIMEOUT_MS = 12_000/);
+  assert.match(publisher, /CREATOR_MANUAL_RECOVERY_WAIT_MS = 15_000/);
+  assert.match(publisher, /withDeadline\([\s\S]{0,280}credentialProvider/);
+  assert.match(publisher, /Automatic live-audio recovery is still running in the background/);
 
   assert.match(listenerPlayer, /window\.addEventListener\('pointerdown', resumeFromGesture, true\)/);
+  assert.match(listenerPlayer, /LISTENER_CREDENTIAL_TIMEOUT_MS = 12_000/);
+  assert.match(listenerPlayer, /program_stream_paused_timeout/);
   assert.match(listenerPlayer, /void startAudio\(\)/);
   assert.match(listenerRoom, /listener-v2-room-chat-backdrop/);
   assert.match(listenerRoom, /aria-label="Close live chat"/);
   assert.match(listenerRoom, /document\.documentElement\.classList\.add\('listener-v2-chat-open'\)/);
+});
+
+
+test('end-broadcast recovery is bounded and cannot be revived by a stale reconnect', async () => {
+  const publisher = await read('../../services/livekitPublisher.js');
+  const recording = await read('../../services/broadcastRecordingService.js');
+  const batch3 = await read('../../services/batch3Service.js');
+  const exportService = await read('../../services/recordingExportService.js');
+  const banner = await read('../../Components/RecordingSaveBanner.jsx');
+
+  assert.match(publisher, /if \(!isCurrent\(candidate\) \|\| candidate\.stopping\)/);
+  assert.match(publisher, /if \(!isCurrent\(candidate\) \|\| candidate\.stopping\) return false;[\s\S]{0,180}activeRoom = null/);
+  assert.match(recording, /MEDIA_RECORDER_STOP_TIMEOUT_MS = 8_000/);
+  assert.match(recording, /MediaRecorder stop event timed out/);
+  assert.match(recording, /COMPRESSED_RECOVERY_UPLOAD_TIMEOUT_MS/);
+  assert.match(batch3, /BROADCAST_END_TIMEOUT_MS = 35_000/);
+  assert.match(batch3, /RECORDING_RECOVERY_TIMEOUT_MS = 35_000/);
+  assert.match(batch3, /RECORDING_FINALIZE_TIMEOUT_MS = 120_000/);
+  assert.match(batch3, /RECORDING_STATUS_TIMEOUT_MS = 15_000/);
+  assert.match(exportService, /timeoutMs: 30_000/);
+  assert.match(banner, /kind: 'uploading'/);
+  assert.match(banner, /kind: 'device-saving'/);
+  assert.match(banner, /kind: 'finalizing'/);
+});
+
+
+test('ending quickly cannot leak a late-starting local recorder or claim safety too early', async () => {
+  const recording = await read('../../services/broadcastRecordingService.js');
+  const workspace = await read('./CreatorLiveConnectedWorkspace.jsx');
+
+  assert.match(recording, /RECORDING_START_FINALIZE_TIMEOUT_MS = 8_000/);
+  assert.match(recording, /const recordingStarts = new Map\(\)/);
+  assert.match(recording, /starting\.finishRequested = true/);
+  assert.match(recording, /startState\.finishRequested && activeRecording\?\.broadcastId === id/);
+  assert.match(recording, /startState\.lateAnnouncementRequired/);
+  assert.match(recording, /announceFinishedBroadcastRecording\(\{/);
+  assert.match(workspace, /Broadcast ended\. Echoo is securing your recording in the background\./);
+  assert.match(workspace, /stage: 'recording-attention'/);
+  assert.match(workspace, /Recording needs attention/);
+  assert.doesNotMatch(workspace, /Broadcast ended\. Your recording is safe and Echoo is finishing it in the background\./);
+});
+
+
+test('Broadcast workspace owns passive recording progress without duplicate global banners', async () => {
+  const banner = await read('../RecordingSaveBanner.jsx');
+
+  assert.match(banner, /normalizedPath === '\/creator-studio'/);
+  assert.match(
+    banner,
+    /\['finalizing', 'uploading', 'device-saving', 'done'\]\.includes\(state\.kind\)/
+  );
+  assert.doesNotMatch(
+    banner,
+    /\['finalizing', 'uploading', 'device-saving', 'done', 'device-choice'\]/
+  );
 });

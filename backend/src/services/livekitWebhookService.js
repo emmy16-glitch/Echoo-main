@@ -34,6 +34,24 @@ const CREATOR_RECOVERY_TTL_MS =
 const pendingDisconnects = new Map();
 let receiver = null;
 
+const cleanupWithin = async (label, promise, timeoutMs) => {
+  let timer = null;
+  try {
+    return await Promise.race([
+      Promise.resolve(promise),
+      new Promise((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error(`${label} exceeded the cleanup deadline.`)),
+          timeoutMs
+        );
+        timer.unref?.();
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+};
+
 const getReceiver = () => {
   if (!receiver) {
     receiver = new WebhookReceiver(
@@ -85,7 +103,7 @@ const updateCreatorMediaState = async (broadcastId, update, io, { preserveLive =
   const broadcast = await Broadcast.findOneAndUpdate(
     {
       _id: broadcastId,
-      status: { $in: ['starting', 'live', 'ending'] },
+      status: { $in: ['starting', 'live'] },
       isDeleted: false,
       ...(preserveLive ? { mediaState: { $ne: 'audio_live' } } : {}),
     },
@@ -104,7 +122,7 @@ const healRecoveredProgramAudio = async (broadcast, program, io) => {
   const healed = await Broadcast.findOneAndUpdate(
     {
       _id: broadcast._id,
-      status: { $in: ['starting', 'live', 'ending'] },
+      status: { $in: ['starting', 'live'] },
       isDeleted: false,
     },
     {
@@ -147,7 +165,7 @@ const clearCreatorProgramTrackIfCurrent = async (broadcastId, trackSid, io) => {
   const broadcast = await Broadcast.findOneAndUpdate(
     {
       _id: broadcastId,
-      status: { $in: ['starting', 'live', 'ending'] },
+      status: { $in: ['starting', 'live'] },
       isDeleted: false,
       programTrackSid: sid,
     },
@@ -215,21 +233,45 @@ const endExpiredDisconnectedBroadcast = async (broadcastId, io) => {
   clearBroadcastPresenceCache(broadcast._id);
   emitStatus(io, broadcast);
   if (isTranscriptionConfigured()) {
-    await flushBroadcastTranscription(broadcast._id).catch(() => null);
+    await cleanupWithin(
+      'Transcription flush',
+      flushBroadcastTranscription(broadcast._id),
+      5_000
+    ).catch(() => null);
   }
   if (broadcast.livekitIngressId) {
-    await LiveKitProvider.stopIngress(broadcast.livekitIngressId).catch(() => null);
+    await cleanupWithin(
+      'LiveKit ingress cleanup',
+      LiveKitProvider.stopIngress(broadcast.livekitIngressId),
+      3_000
+    ).catch(() => null);
   }
-  await stopLiveKitServerRecording(String(broadcast._id)).catch((error) => {
+  await cleanupWithin(
+    'Server recording cleanup',
+    stopLiveKitServerRecording(String(broadcast._id)),
+    12_000
+  ).catch((error) => {
     console.warn('[Echoo Server Recording] disconnect cleanup warning:', error?.message || error);
   });
   if (broadcast.livekitEgressId) {
-    await LiveKitProvider.stopEgress(broadcast.livekitEgressId).catch(() => null);
+    await cleanupWithin(
+      'LiveKit egress cleanup',
+      LiveKitProvider.stopEgress(broadcast.livekitEgressId),
+      3_000
+    ).catch(() => null);
   }
-  await stopBroadcastOutputs(String(broadcast._id), { incomplete: true }).catch((error) => {
+  await cleanupWithin(
+    'Broadcast output cleanup',
+    stopBroadcastOutputs(String(broadcast._id), { incomplete: true }),
+    3_000
+  ).catch((error) => {
     console.warn('[Echoo Outputs] LiveKit-disconnect cleanup warning:', error?.message || error);
   });
-  await LiveKitProvider.endRoom(broadcast._id).catch(() => null);
+  await cleanupWithin(
+    'LiveKit room cleanup',
+    LiveKitProvider.endRoom(broadcast._id),
+    4_000
+  ).catch(() => null);
 
   broadcast.status = 'completed';
   broadcast.endedAt = new Date();
@@ -296,7 +338,7 @@ export async function handleLiveKitWebhook(req, res) {
     if (broadcastId && isCreator && event.event === 'participant_left') {
       const current = await Broadcast.findOne({
         _id: broadcastId,
-        status: { $in: ['starting', 'live', 'ending'] },
+        status: { $in: ['starting', 'live'] },
         isDeleted: false,
       });
 
@@ -370,7 +412,7 @@ export async function handleLiveKitWebhook(req, res) {
         await Broadcast.updateOne(
           {
             _id: broadcastId,
-            status: { $in: ['starting', 'live', 'ending'] },
+            status: { $in: ['starting', 'live'] },
             isDeleted: false,
             // participant_joined is transport-only evidence. Once a concrete
             // program track is live, only a verified track_published event may
@@ -399,7 +441,7 @@ export async function handleLiveKitWebhook(req, res) {
       const eventTrackSid = String(event?.track?.sid || '').trim();
       const current = await Broadcast.findOne({
         _id: broadcastId,
-        status: { $in: ['starting', 'live', 'ending'] },
+        status: { $in: ['starting', 'live'] },
         isDeleted: false,
       });
 

@@ -19,6 +19,7 @@ import {
   roomCanCarryMedia,
   roomIsConnected,
 } from './liveRecoveryPolicy.js';
+import { ensureEchooMixerOutputTrack } from './echooMixerService.js';
 import { resolveLiveKitUrl } from './livekitUrl.js';
 import {
   getRealtimeAudioProfile,
@@ -33,6 +34,8 @@ const ROOM_DISCONNECT_DEADLINE_MS = 4000;
 const RECOVERY_DISCONNECT_DEADLINE_MS = 1000;
 const CREATOR_RECOVERY_WINDOW_MS = 90_000;
 const CREATOR_RECOVERY_SLOW_RETRY_MS = 30_000;
+const CREATOR_CREDENTIAL_REFRESH_TIMEOUT_MS = 12_000;
+const CREATOR_MANUAL_RECOVERY_WAIT_MS = 15_000;
 const LOCAL_RECORDING_START_BUDGET_MS = 750;
 
 let activeRoom = null;
@@ -62,6 +65,19 @@ let syntheticOscillator = null;
 let syntheticNativeTrack = null;
 
 const wait = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
+const withDeadline = async (promise, timeoutMs, message) => {
+  let timer = null;
+  try {
+    return await Promise.race([
+      Promise.resolve(promise),
+      new Promise((_, reject) => {
+        timer = window.setTimeout(() => reject(new Error(message)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) window.clearTimeout(timer);
+  }
+};
 const createLiveKitReconnectPolicy = () =>
   new DefaultReconnectPolicy([...LIVEKIT_RECONNECT_DELAYS_MS]);
 const isCurrent = (candidate) => Boolean(
@@ -373,6 +389,9 @@ const attachRoomEvents = (room, candidate) => {
 };
 
 const connectAndPublish = async (candidate, { url, token, recovery = false }) => {
+  if (!isCurrent(candidate) || candidate.stopping) {
+    throw new Error('Broadcast publishing was cancelled.');
+  }
   const resolvedUrl = resolveLiveKitUrl(url);
   const mediaTrack = candidate.mediaTrack;
   if (!resolvedUrl || !token) throw new Error('Echoo did not receive valid LiveKit publishing credentials.');
@@ -385,6 +404,10 @@ const connectAndPublish = async (candidate, { url, token, recovery = false }) =>
     stopLocalTrackOnUnpublish: false,
     reconnectPolicy: createLiveKitReconnectPolicy(),
   });
+  if (!isCurrent(candidate) || candidate.stopping) {
+    await detachRoom(room, { deadlineMs: RECOVERY_DISCONNECT_DEADLINE_MS });
+    throw new Error('Broadcast publishing was cancelled.');
+  }
   attachRoomEvents(room, candidate);
   activeRoom = room;
   activePublication = null;
@@ -526,14 +549,20 @@ async function runPublisherRecovery(candidate, reason) {
         // Refresh credentials BEFORE tearing down a still-usable room. On a
         // slow backend this keeps the current LiveKit path alive until the
         // replacement connection is ready to start, avoiding needless dead air.
-        const credentials = await candidate.credentialProvider?.();
+        const credentials = await withDeadline(
+          candidate.credentialProvider?.(),
+          CREATOR_CREDENTIAL_REFRESH_TIMEOUT_MS,
+          'Echoo credential refresh timed out; retrying the live connection.'
+        );
         if (!credentials?.token) throw new Error('Echoo could not refresh creator credentials.');
+        if (!isCurrent(candidate) || candidate.stopping) return false;
 
         activeRoom = null;
         activePublication = null;
         await detachRoom(staleRoom, {
           deadlineMs: RECOVERY_DISCONNECT_DEADLINE_MS,
         });
+        if (!isCurrent(candidate) || candidate.stopping) return false;
         await connectAndPublish(candidate, {
           url: credentials.livekitUrl || candidate.url,
           token: credentials.token,
@@ -577,6 +606,45 @@ async function schedulePublisherRecovery(candidate, reason, immediate = false) {
   }, delay);
 }
 
+const refreshStudioMixerTrack = async (candidate) => {
+  if (!isCurrent(candidate) || candidate.mode !== 'studio-mix') return true;
+
+  // A long-running browser AudioContext can become suspended/interrupted while
+  // its MediaStreamDestination track still reports readyState="live". In that
+  // state LiveKit sender stats may continue advancing even though listeners get
+  // silence. Re-enter the mixer here so it can resume the context.
+  const mixerTrack = await ensureEchooMixerOutputTrack();
+  if (!isCurrent(candidate)) return false;
+
+  if (!mixerTrack || mixerTrack.kind !== 'audio' || mixerTrack.readyState === 'ended') {
+    publishHealth({
+      phase: 'recovering',
+      mixer: 'unavailable',
+      audio: 'recovering',
+      lastError: 'Echoo mixer output is not currently producing a live audio track.',
+    });
+    return false;
+  }
+
+  if (mixerTrack !== candidate.mediaTrack) {
+    candidate.mediaTrack = mixerTrack;
+    applyProgramTrackQuality(mixerTrack);
+    candidate.lastTransportSample = null;
+    candidate.lastProgressAt = Date.now();
+    candidate.transportStallSamples = 0;
+    publishHealth({
+      phase: 'recovering',
+      mixer: 'available',
+      publication: 'replacing',
+      audio: 'recovering',
+      lastError: 'Echoo mixer output changed; republishing program audio.',
+    });
+    void schedulePublisherRecovery(candidate, 'mixer_output_replaced', true);
+  }
+
+  return true;
+};
+
 const startWatchdog = (candidate) => {
   window.clearInterval(candidate.watchdogTimer);
   candidate.watchdogTimer = window.setInterval(async () => {
@@ -587,6 +655,23 @@ const startWatchdog = (candidate) => {
       !roomCanCarryMedia(activeRoom) ||
       !activePublication
     ) return;
+
+    if (candidate.mode === 'studio-mix') {
+      try {
+        const mixerReady = await refreshStudioMixerTrack(candidate);
+        if (!mixerReady || candidate.recoveryPromise || candidate.recoveryTimer) return;
+      } catch (error) {
+        publishHealth({
+          phase: 'recovering',
+          mixer: 'suspended',
+          audio: 'recovering',
+          lastError: error?.message || 'Echoo mixer needs to resume.',
+        });
+        console.warn('[Echoo Live][Creator] mixer resume check failed', error?.message || error);
+        return;
+      }
+    }
+
     if (!mediaTrackIsLive({ kind: 'audio', mediaStreamTrack: candidate.mediaTrack })) {
       publishHealth({ phase: 'failed', mixer: 'ended', publication: 'failed', audio: 'failed', lastError: 'Mixer track ended.' });
       return;
@@ -671,7 +756,33 @@ export const retryLiveKitPublishingRecovery = async () => {
   if (!session || session.stopping) throw new Error('There is no active broadcast to recover.');
   session.recoveryAttempt = 0;
   session.recoveryStartedAt = null;
-  return runPublisherRecovery(session, 'manual_retry');
+
+  const candidate = session;
+  const recovery = runPublisherRecovery(candidate, 'manual_retry');
+
+  // Manual UI actions must never inherit the lifetime of the background
+  // supervisor. Automatic recovery keeps running, but the button is released
+  // after a bounded wait so the Studio cannot remain stuck on "Reconnecting…".
+  try {
+    return await withDeadline(
+      recovery,
+      CREATOR_MANUAL_RECOVERY_WAIT_MS,
+      'Automatic live-audio recovery is still running in the background.'
+    );
+  } catch (error) {
+    if (
+      isCurrent(candidate) &&
+      /still running in the background/i.test(error?.message || '')
+    ) {
+      publishHealth({
+        phase: 'recovering',
+        audio: 'recovering',
+        lastError: error.message,
+      });
+      return false;
+    }
+    throw error;
+  }
 };
 
 export const setLiveKitPublishingPaused = async (paused) => {

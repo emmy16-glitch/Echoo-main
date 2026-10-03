@@ -13,7 +13,10 @@ const PENDING_RECORDING_DECISION_KEY = '__echooPendingBroadcastRecording';
 const LIVEKIT_HEALTH_TIMEOUT_MS = 8_000;
 const LIVEKIT_CONTROL_TIMEOUT_MS = 12_000;
 const BROADCAST_START_TIMEOUT_MS = 20_000;
-const BROADCAST_END_TIMEOUT_MS = 20_000;
+const BROADCAST_END_TIMEOUT_MS = 35_000;
+const RECORDING_RECOVERY_TIMEOUT_MS = 35_000;
+const RECORDING_FINALIZE_TIMEOUT_MS = 120_000;
+const RECORDING_STATUS_TIMEOUT_MS = 15_000;
 
 const rememberPendingRecordingDecision = (detail) => {
   if (typeof window === 'undefined' || !detail?.recording?.blob?.size) return;
@@ -431,7 +434,9 @@ const batch3Service = {
   },
 
   getProcessing: async (broadcastId) =>
-    apiRequest(`/broadcasts/${encodeURIComponent(broadcastId)}/processing`),
+    apiRequest(`/broadcasts/${encodeURIComponent(broadcastId)}/processing`, {
+      timeoutMs: RECORDING_STATUS_TIMEOUT_MS,
+    }),
 
   // Recording-recovery reconciliation: asks the backend to safely finalize an
   // interrupted broadcast lifecycle (or return the already-linked replay) so
@@ -440,6 +445,7 @@ const batch3Service = {
   recoverBroadcast: async (broadcastId) =>
     apiRequest(`/broadcasts/${encodeURIComponent(broadcastId)}/recover`, {
       method: 'POST',
+      timeoutMs: RECORDING_RECOVERY_TIMEOUT_MS,
     }),
 
   // Server-side replay finalization: prefer the MP3 already produced by
@@ -450,6 +456,7 @@ const batch3Service = {
     apiRequest(`/broadcasts/${encodeURIComponent(broadcastId)}/recording-chunks/complete`, {
       method: 'POST',
       body: JSON.stringify({ qualityChunkCount, qualityChunkUploadErrors }),
+      timeoutMs: RECORDING_FINALIZE_TIMEOUT_MS,
     }),
 
   updateAssetVisibility: async (broadcastId, values) =>

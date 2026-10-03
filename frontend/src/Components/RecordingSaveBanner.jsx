@@ -82,15 +82,61 @@ const RecordingSaveBanner = () => {
       switch (detail.status) {
         case 'started':
           window.clearTimeout(hideTimerRef.current);
-          setState(null);
+          setState({
+            kind: 'finalizing',
+            key: detail.key,
+            title: detail.title,
+            startedAt: Date.now(),
+            localSaved: false,
+            hasRecovery: false,
+            recoveryFormats: [],
+          });
           break;
         case 'device-saving':
+          window.clearTimeout(hideTimerRef.current);
+          setState((current) => ({
+            kind: 'device-saving',
+            key: detail.key,
+            title: detail.title,
+            format: detail.format || 'mp3',
+            percent: 0,
+            startedAt: current?.startedAt || Date.now(),
+          }));
+          break;
         case 'device-progress':
-          setState(null);
+          setState((current) => ({
+            kind: 'device-saving',
+            key: detail.key,
+            title: detail.title,
+            format: detail.format || current?.format || 'mp3',
+            percent: Math.max(0, Math.min(100, Number(detail.percent) || 0)),
+            startedAt: current?.startedAt || Date.now(),
+          }));
           break;
         case 'finalizing':
+          window.clearTimeout(hideTimerRef.current);
+          setState((current) => ({
+            kind: 'finalizing',
+            key: detail.key,
+            title: detail.title,
+            startedAt: current?.startedAt || Date.now(),
+            localCopy: detail.localCopy || current?.localCopy || null,
+            localSaved: Boolean(detail.localSaved || detail.localCopy?.saved || current?.localSaved),
+            hasRecovery: Boolean(detail.hasRecovery || current?.hasRecovery),
+            recoveryFormats: normalizedFormats(detail.recoveryFormats || current?.recoveryFormats),
+            preferredFormat: detail.preferredFormat || current?.preferredFormat || 'mp3',
+          }));
+          break;
         case 'progress':
-          setState(null);
+          setState((current) => ({
+            kind: 'uploading',
+            key: detail.key,
+            title: detail.title,
+            loaded: Math.max(0, Number(detail.loaded) || 0),
+            total: Math.max(0, Number(detail.total) || 0),
+            percent: Math.max(0, Math.min(100, Number(detail.percent) || 0)),
+            startedAt: current?.startedAt || Date.now(),
+          }));
           break;
         case 'device-choice':
           window.clearTimeout(hideTimerRef.current);
@@ -187,6 +233,19 @@ const RecordingSaveBanner = () => {
   }, [state?.kind, state?.code, state?.key]);
 
   if (!state) return null;
+
+  // The Broadcast workspace already owns passive End/save progress inline.
+  // Do not render the same background state a second time in the global banner.
+  // Actionable states (device choice / retryable errors / recovered takes) stay
+  // global so the creator never loses an action merely by changing pages.
+  const normalizedPath = String(location.pathname || '').replace(/\/+$/, '') || '/';
+  const onBroadcastWorkspace = normalizedPath === '/creator-studio';
+  if (
+    onBroadcastWorkspace &&
+    ['finalizing', 'uploading', 'device-saving', 'done'].includes(state.kind)
+  ) {
+    return null;
+  }
 
   // Boot recovery is important, but it must not take over unrelated Creator
   // pages. Keep it available and show the recovery actions when the creator

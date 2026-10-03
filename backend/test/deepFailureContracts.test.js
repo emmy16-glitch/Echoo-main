@@ -389,3 +389,40 @@ test('creator transport loss remains live under a durable long-session recovery 
   assert.match(sweep, /setInterval/);
   assert.match(sweep, /creator program-audio discovery failed/);
 });
+
+
+test('server recording and end-broadcast cleanup reject stale or unbounded provider work', async () => {
+  const recording = await source('src/services/livekitServerRecording.js');
+  const lifecycle = await source('src/controllers/broadcastLifecycleController.js');
+
+  assert.match(recording, /PROVIDER_CONTROL_TIMEOUT_MS = 5_000/);
+  assert.match(recording, /WRITE_CHAIN_DRAIN_TIMEOUT_MS = 3_000/);
+  assert.match(recording, /stopEgressBounded/);
+  assert.match(recording, /desiredTracks\.get\(id\) !== track[\s\S]{0,500}stale recorder start/);
+  assert.match(recording, /reason: !lifecycleStillLive[\s\S]{0,100}'broadcast-ended'/);
+  assert.match(recording, /Server recording PCM drain timed out during finalization/);
+
+  assert.match(lifecycle, /const cleanupWithin = async/);
+  assert.match(lifecycle, /Server recording cleanup[\s\S]{0,120}12_000/);
+  assert.match(lifecycle, /Broadcast output cleanup[\s\S]{0,120}3_000/);
+  assert.match(lifecycle, /LiveKit room cleanup[\s\S]{0,120}4_000/);
+});
+
+
+test('ending lifecycle is authoritative over reconnect webhooks and late recorder starts', async () => {
+  const webhook = await source('src/services/livekitWebhookService.js');
+  const recording = await source('src/services/livekitServerRecording.js');
+
+  assert.doesNotMatch(webhook, /status: \{ \$in: \['starting', 'live', 'ending'\] \}/);
+  assert.match(webhook, /status: \{ \$in: \['starting', 'live'\] \}/);
+  assert.match(webhook, /const cleanupWithin = async/);
+  assert.match(webhook, /Server recording cleanup[\s\S]{0,160}12_000/);
+  assert.match(webhook, /LiveKit room cleanup[\s\S]{0,160}4_000/);
+
+  assert.match(recording, /PROVIDER_START_TIMEOUT_MS = 15_000/);
+  assert.match(recording, /select\('status serverRecording'\)/);
+  assert.match(recording, /\['starting', 'live'\]\.includes\(lifecycleStatus\)/);
+  assert.match(recording, /lifecycleAfterStart = await Broadcast\.findById\(id\)\.select\('status'\)/);
+  assert.match(recording, /late recorder start/);
+  assert.match(recording, /reason: !lifecycleStillLive[\s\S]{0,100}'broadcast-ended'/);
+});

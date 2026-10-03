@@ -64,6 +64,8 @@ const isEchooProgramPublication = (publication) => {
   return isStudioMix;
 };
 
+const LISTENER_CREDENTIAL_TIMEOUT_MS = 12_000;
+
 const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChange, guest = false }) => {
   const roomRef = useRef(null);
   const audioHostRef = useRef(null);
@@ -130,11 +132,26 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
     let playbackWatchdogTimer = null;
     let connectionQualityTimer = null;
     let reconnectDeadlineTimer = null;
+    let programStreamPausedTimer = null;
     let receiverCheckRunning = false;
     let localConnectionQuality = 'unknown';
     let creatorConnectionLost = false;
     let programStreamPaused = false;
     let smoothedAudioLevel = 0;
+
+    const withDeadline = async (promise, timeoutMs, message) => {
+      let timer = null;
+      try {
+        return await Promise.race([
+          Promise.resolve(promise),
+          new Promise((_, reject) => {
+            timer = window.setTimeout(() => reject(new Error(message)), timeoutMs);
+          }),
+        ]);
+      } finally {
+        if (timer) window.clearTimeout(timer);
+      }
+    };
 
     const detachAttachment = (id) => {
       const entry = attachedRef.current.get(id);
@@ -193,6 +210,12 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       if (!reconnectDeadlineTimer) return;
       window.clearTimeout(reconnectDeadlineTimer);
       reconnectDeadlineTimer = null;
+    };
+
+    const clearProgramStreamPausedTimer = () => {
+      if (!programStreamPausedTimer) return;
+      window.clearTimeout(programStreamPausedTimer);
+      programStreamPausedTimer = null;
     };
 
     const applyPlayoutProtection = (track, quality = localConnectionQuality) => {
@@ -522,7 +545,11 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       // Guest/account is an authorization concern only. From this call
       // forward every listener uses the exact same room, subscription,
       // attachment, autoplay and recovery path.
-      const credentials = await batch3Service.getListenerCredentials(broadcastId, { guest });
+      const credentials = await withDeadline(
+        batch3Service.getListenerCredentials(broadcastId, { guest }),
+        LISTENER_CREDENTIAL_TIMEOUT_MS,
+        'Echoo listener credentials timed out; retrying the live audio connection.'
+      );
       const liveKitUrl = resolveLiveKitUrl(credentials?.livekitUrl);
       try {
         const host = liveKitUrl ? new URL(liveKitUrl).hostname : '';
@@ -550,6 +577,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
         if (roomRef.current !== room || !isEchooProgramPublication(publication)) return;
         creatorConnectionLost = false;
         programStreamPaused = false;
+        clearProgramStreamPausedTimer();
         programParticipantRef.current = participant || programParticipantRef.current;
         subscribeToProgramPublication(publication, room, participant).catch((subscriptionError) => {
           if (!disposed && roomRef.current === room) {
@@ -563,6 +591,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
         if (isEchooProgramPublication(publication)) {
           creatorConnectionLost = false;
           programStreamPaused = false;
+          clearProgramStreamPausedTimer();
         }
         attachAudio(track, publication, room, participant).catch((trackError) => {
           if (!disposed && roomRef.current === room) {
@@ -590,10 +619,25 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
         if (nextState === 'paused') {
           programStreamPaused = true;
           setStatus('holding');
+          clearProgramStreamPausedTimer();
+          programStreamPausedTimer = window.setTimeout(() => {
+            programStreamPausedTimer = null;
+            if (
+              disposed ||
+              roomRef.current !== room ||
+              !programStreamPaused ||
+              !isLive
+            ) return;
+            // A missing "active" event must never leave a listener holding
+            // forever. Rejoin with fresh credentials while preserving the same
+            // logical broadcast and playback intent.
+            scheduleHardReconnect('program_stream_paused_timeout');
+          }, LISTENER_RTP_STALL_MS);
           return;
         }
         if (nextState === 'active') {
           programStreamPaused = false;
+          clearProgramStreamPausedTimer();
           attachExisting(room)
             .then(() => markPlaybackState())
             .catch(() => scheduleHardReconnect('program_stream_resume_failed'));
@@ -900,6 +944,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       disposed = true;
       if (audioLevelTimer) window.clearInterval(audioLevelTimer);
       if (playbackWatchdogTimer) window.clearInterval(playbackWatchdogTimer);
+      clearProgramStreamPausedTimer();
       clearConnectionQualityTimer();
       clearReconnectDeadline();
       window.clearTimeout(reconnectTimerRef.current);

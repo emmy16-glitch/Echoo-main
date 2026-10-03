@@ -182,7 +182,9 @@ const tryMobileShare = async ({ blob, filename, mimeType }) => {
 // been cleared, but a just-finished live recording no longer depends on this
 // endpoint for its MP3 device copy.
 export const fetchServerRecordingBlob = async (audioId) => {
-  const response = await apiFetch(`/audio/${encodeURIComponent(audioId)}/download`);
+  const response = await apiFetch(`/audio/${encodeURIComponent(audioId)}/download`, {
+    timeoutMs: 30_000,
+  });
   if (!response.ok) throw new Error('Server MP3 is not ready yet. Try again in a few seconds.');
   const blob = await response.blob();
   const mimeType = String(blob.type || response.headers.get('content-type') || '').toLowerCase();
