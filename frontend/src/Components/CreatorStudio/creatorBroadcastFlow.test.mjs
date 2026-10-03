@@ -116,7 +116,7 @@ test('Creator Studio renders immediately while bounded bootstrap retries in the 
   assert.match(batch3, /getCreatorBroadcasts: async \(\{ timeoutMs = 10_000 \} = \{\}\)/);
   assert.match(batch3, /LIVEKIT_CONTROL_TIMEOUT_MS = 12_000/);
   assert.match(batch3, /BROADCAST_START_TIMEOUT_MS = 20_000/);
-  assert.match(batch3, /BROADCAST_END_TIMEOUT_MS = 20_000/);
+  assert.match(batch3, /BROADCAST_END_TIMEOUT_MS = 35_000/);
   assert.match(api, /SESSION_REFRESH_TIMEOUT_MS = 10_000/);
   assert.match(api, /refresh-timeout/);
   assert.match(api, /REQUEST_TIMEOUT/);
@@ -205,7 +205,7 @@ test('End stops listener audio and local recovery master before waiting for serv
   const endBody = workspace.slice(endAt, workspace.indexOf('const copyLiveLink', endAt));
   const backendStartAt = endBody.indexOf('const backendEnd = batch3Service.endBroadcastRealtime');
   const unpublishAt = endBody.indexOf('await stopLiveKitPublishing()');
-  const offAirAt = endBody.indexOf("markOffAir('Broadcast ended. Your recording is safe and Echoo is finishing it in the background.')");
+  const offAirAt = endBody.indexOf("markOffAir('Broadcast ended. Echoo is securing your recording in the background.')");
   const localFinalizeAt = endBody.indexOf('const localRecording = batch3Service.finalizeBroadcastRecording');
   const awaitLocalAt = endBody.indexOf('const recordingResult = await localRecording');
   const announceAt = endBody.indexOf('batch3Service.announceFinalizedBroadcastRecording');
@@ -218,7 +218,7 @@ test('End stops listener audio and local recovery master before waiting for serv
   assert.ok(announceAt > awaitLocalAt && announceAt < awaitBackendAt);
   assert.match(endBody, /\{ announce: false \}/);
   assert.match(batch3, /announceFinalizedBroadcastRecording/);
-  assert.match(endBody, /The upload event takes over the visible progress from here/);
+  assert.match(endBody, /The recording upload\/save event takes over visible progress/);
   assert.match(publisher, /ROOM_DISCONNECT_DEADLINE_MS/);
   assert.match(publisher, /Promise\.race\(\[disconnect, deadline\]\)/);
   assert.match(workspace, /const backendEnd = batch3Service\.endBroadcastRealtime/);
@@ -264,11 +264,12 @@ test('creator recovery refreshes credentials before replacing the existing LiveK
   const start = publisher.indexOf('async function runPublisherRecovery');
   const end = publisher.indexOf('async function schedulePublisherRecovery', start);
   const recovery = publisher.slice(start, end);
-  const credentialsAt = recovery.indexOf('const credentials = await candidate.credentialProvider?.()');
+  const credentialsAt = recovery.indexOf('const credentials = await withDeadline(');
   const clearRoomAt = recovery.indexOf('activeRoom = null');
   const detachAt = recovery.indexOf('await detachRoom(staleRoom');
 
   assert.ok(credentialsAt >= 0);
+  assert.match(recovery, /candidate\.credentialProvider\?\.\(\)/);
   assert.ok(clearRoomAt > credentialsAt);
   assert.ok(detachAt > credentialsAt);
   assert.match(publisher, /RECOVERY_DISCONNECT_DEADLINE_MS = 1000/);
