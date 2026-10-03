@@ -107,6 +107,24 @@ const updateStationBestEffort = async (stationId, update, context) => {
   }
 };
 
+const cleanupWithin = async (label, promise, timeoutMs) => {
+  let timer = null;
+  try {
+    return await Promise.race([
+      Promise.resolve(promise),
+      new Promise((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error(`${label} exceeded the cleanup deadline.`)),
+          timeoutMs
+        );
+        timer.unref?.();
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+};
+
 const releaseLeaseBestEffort = async (creatorId, broadcastId) => {
   try {
     await releaseCreatorBroadcastLease(creatorId, broadcastId);
@@ -119,49 +137,62 @@ const releaseLeaseBestEffort = async (creatorId, broadcastId) => {
 };
 
 const stopLiveResourcesBestEffort = async ({ broadcastId, egressId, ingressId }) => {
-  // Server-side LiveKit recording is independent of listener delivery. Stop it
-  // first so FFmpeg can flush the canonical MP3 before the room is removed.
-  await stopLiveKitServerRecording(broadcastId).catch((error) => {
+  // Cleanup can fail independently from the broadcast lifecycle. Every external
+  // provider operation is bounded so a stuck LiveKit/output call can never
+  // strand the Broadcast document in "ending" forever. Browser OPFS recovery
+  // remains authoritative if the server recorder cannot flush in time.
+  await cleanupWithin(
+    'Server recording cleanup',
+    stopLiveKitServerRecording(broadcastId),
+    12_000
+  ).catch((error) => {
     console.warn(`Server recording cleanup warning for ${broadcastId}:`, error?.message || error);
   });
 
-  // Browser-chunk output sessions are the compatibility/recovery path. In the
-  // normal server-egress architecture this is a no-op.
-  await stopBroadcastOutputs(broadcastId).catch((error) => {
+  await cleanupWithin(
+    'Broadcast output cleanup',
+    stopBroadcastOutputs(broadcastId),
+    3_000
+  ).catch((error) => {
     console.warn(`Broadcast output cleanup warning for ${broadcastId}:`, error?.message || error);
   });
+
   if (ingressId) {
-    try {
-      await LiveKitProvider.stopIngress(ingressId);
-    } catch (error) {
+    await cleanupWithin(
+      'LiveKit ingress cleanup',
+      LiveKitProvider.stopIngress(ingressId),
+      3_000
+    ).catch((error) => {
       console.warn(
         `LiveKit ingress cleanup warning for ${broadcastId}:`,
         error?.message || error
       );
-    }
+    });
   }
 
   if (egressId) {
-    try {
-      await LiveKitProvider.stopEgress(egressId);
-    } catch (error) {
+    await cleanupWithin(
+      'LiveKit egress cleanup',
+      LiveKitProvider.stopEgress(egressId),
+      3_000
+    ).catch((error) => {
       console.warn(
         `LiveKit egress cleanup warning for ${broadcastId}:`,
         error?.message || error
       );
-    }
+    });
   }
 
-  try {
-    await LiveKitProvider.endRoom(broadcastId);
-  } catch (error) {
-    // endRoom currently handles its own cleanup failures, but keep this guard
-    // so a provider implementation change cannot break lifecycle finalization.
+  await cleanupWithin(
+    'LiveKit room cleanup',
+    LiveKitProvider.endRoom(broadcastId),
+    4_000
+  ).catch((error) => {
     console.warn(
       `LiveKit room cleanup warning for ${broadcastId}:`,
       error?.message || error
     );
-  }
+  });
 };
 
 const conflictResponse = (res, error) =>
