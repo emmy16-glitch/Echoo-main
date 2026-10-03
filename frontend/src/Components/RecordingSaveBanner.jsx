@@ -233,6 +233,19 @@ const RecordingSaveBanner = () => {
 
   if (!state) return null;
 
+  // The Broadcast workspace already owns passive End/save progress inline.
+  // Do not render the same background state a second time in the global banner.
+  // Actionable states (device choice / retryable errors / recovered takes) stay
+  // global so the creator never loses an action merely by changing pages.
+  const normalizedPath = String(location.pathname || '').replace(/\/+$/, '') || '/';
+  const onBroadcastWorkspace = normalizedPath === '/creator-studio';
+  if (
+    onBroadcastWorkspace &&
+    ['finalizing', 'uploading', 'device-saving', 'done'].includes(state.kind)
+  ) {
+    return null;
+  }
+
   // Boot recovery is important, but it must not take over unrelated Creator
   // pages. Keep it available and show the recovery actions when the creator
   // actually opens Recordings.
