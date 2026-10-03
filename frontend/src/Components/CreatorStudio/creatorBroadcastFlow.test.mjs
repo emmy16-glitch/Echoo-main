@@ -403,8 +403,14 @@ test('long-session live UX repairs stale mixer output and recovers listener audi
   assert.match(mixer, /scheduleUnexpectedVoiceInputRecovery\(channelId, recoveryDeviceId\)/);
   assert.match(mixer, /unexpectedVoiceRecovery = new Map\(\)/);
   assert.match(mixer, /deviceId: deviceId \|\| audioTrack\.getSettings\?\.\(\)\.deviceId \|\| ''/);
+  assert.match(publisher, /CREATOR_CREDENTIAL_REFRESH_TIMEOUT_MS = 12_000/);
+  assert.match(publisher, /CREATOR_MANUAL_RECOVERY_WAIT_MS = 15_000/);
+  assert.match(publisher, /withDeadline\([\s\S]{0,280}credentialProvider/);
+  assert.match(publisher, /Automatic live-audio recovery is still running in the background/);
 
   assert.match(listenerPlayer, /window\.addEventListener\('pointerdown', resumeFromGesture, true\)/);
+  assert.match(listenerPlayer, /LISTENER_CREDENTIAL_TIMEOUT_MS = 12_000/);
+  assert.match(listenerPlayer, /program_stream_paused_timeout/);
   assert.match(listenerPlayer, /void startAudio\(\)/);
   assert.match(listenerRoom, /listener-v2-room-chat-backdrop/);
   assert.match(listenerRoom, /aria-label="Close live chat"/);
