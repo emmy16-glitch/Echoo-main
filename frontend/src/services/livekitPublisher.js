@@ -35,6 +35,7 @@ const RECOVERY_DISCONNECT_DEADLINE_MS = 1000;
 const CREATOR_RECOVERY_WINDOW_MS = 90_000;
 const CREATOR_RECOVERY_SLOW_RETRY_MS = 30_000;
 const CREATOR_CREDENTIAL_REFRESH_TIMEOUT_MS = 12_000;
+const CREATOR_MANUAL_RECOVERY_WAIT_MS = 15_000;
 const LOCAL_RECORDING_START_BUDGET_MS = 750;
 
 let activeRoom = null;
@@ -746,7 +747,33 @@ export const retryLiveKitPublishingRecovery = async () => {
   if (!session || session.stopping) throw new Error('There is no active broadcast to recover.');
   session.recoveryAttempt = 0;
   session.recoveryStartedAt = null;
-  return runPublisherRecovery(session, 'manual_retry');
+
+  const candidate = session;
+  const recovery = runPublisherRecovery(candidate, 'manual_retry');
+
+  // Manual UI actions must never inherit the lifetime of the background
+  // supervisor. Automatic recovery keeps running, but the button is released
+  // after a bounded wait so the Studio cannot remain stuck on "Reconnecting…".
+  try {
+    return await withDeadline(
+      recovery,
+      CREATOR_MANUAL_RECOVERY_WAIT_MS,
+      'Automatic live-audio recovery is still running in the background.'
+    );
+  } catch (error) {
+    if (
+      isCurrent(candidate) &&
+      /still running in the background/i.test(error?.message || '')
+    ) {
+      publishHealth({
+        phase: 'recovering',
+        audio: 'recovering',
+        lastError: error.message,
+      });
+      return false;
+    }
+    throw error;
+  }
 };
 
 export const setLiveKitPublishingPaused = async (paused) => {
