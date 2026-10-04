@@ -13,7 +13,6 @@ import Toast from '../ListenerUI/ListenerToast';
 import audioService from '../../services/audioService';
 import batch6Service from '../../services/batch6Service';
 import { progressFractionToPercent, progressPercentToFraction } from './historyProgress';
-import '../../styles/listener-reference-pages.css';
 import './ListenerHistory.css';
 import './ListenerHistoryInteractionFix.css';
 
