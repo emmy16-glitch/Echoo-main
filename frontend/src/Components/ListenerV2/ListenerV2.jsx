@@ -39,7 +39,6 @@ import AccountExperienceMenu from '../Shared/AccountExperienceMenu';
 import FollowingRecordings from './FollowingRecordings';
 import ContinueListening from './ContinueListening';
 import LiveKitListenerPlayer from '../ListenerLiveExperience/LiveKitListenerPlayer';
-import ListenerHeroArtwork from '../ListenerHeroArtwork/ListenerHeroArtwork';
 import echooMark from '../Assets/echoo-logo-official.svg';
 import './ListenerV2.css';
 
@@ -898,7 +897,6 @@ const LiveCatalog = () => {
 
   return (
     <div className="listener-v2-page listener-v2-live-page">
-      <ListenerHeroArtwork />
       <section className="listener-v2-live-panel">
         <div className="listener-v2-page-header">
           <div><h1>Live now</h1><p>Listen to what’s happening right now.</p></div>
@@ -974,7 +972,6 @@ const DiscoverCatalog = () => {
 
   return (
     <div className="listener-v2-page listener-v2-discover-page">
-      <ListenerHeroArtwork />
       <header className="listener-v2-page-title"><h1>Discover</h1><p>Live broadcasts and recordings, all in one place.</p></header>
 
       <section className="listener-v2-panel">
@@ -1109,7 +1106,6 @@ const ListenerV2Following = () => {
 
   return (
     <div className="listener-v2-page listener-v2-following-page">
-      <ListenerHeroArtwork />
       <header className="listener-v2-page-title"><h1>Following</h1><p>Creators you follow, with live broadcasts first.</p></header>
 
       {loading ? (
@@ -1250,7 +1246,6 @@ const ListenerV2Categories = () => {
 
   return (
     <div className="listener-v2-page">
-      <ListenerHeroArtwork />
       <div className="listener-v2-page-header listener-v2-page-header--categories">
         <div><h1>Channels</h1><p>Find Channels by topic and community.</p></div>
         <SearchField value={query} onChange={setQuery} placeholder="Search Channels..." />
@@ -1344,7 +1339,6 @@ const ListenerV2Search = () => {
 
   return (
     <div className="listener-v2-page listener-v2-search-page">
-      <ListenerHeroArtwork />
       <header className="listener-v2-page-title"><h1>Search</h1><p>Find live events, Channels, creators and recorded audio.</p></header>
       <SearchField
         value={query}
