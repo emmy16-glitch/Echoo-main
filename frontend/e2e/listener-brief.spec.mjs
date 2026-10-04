@@ -153,8 +153,8 @@ test('listener secondary pages avoid duplicate navigation and discovery surfaces
 
   await page.goto('/listen/profile');
   const links = page.locator('.listener-profile-links');
-  await expect(links.getByRole('button', { name: 'Following', exact: true })).toBeVisible();
-  await expect(links.getByRole('button', { name: 'Library', exact: true })).toBeVisible();
+  await expect(links.getByRole('button', { name: 'Following', exact: true })).toHaveCount(0);
+  await expect(links.getByRole('button', { name: 'Library', exact: true })).toHaveCount(0);
   await expect(links.getByRole('button', { name: 'Settings', exact: true })).toBeVisible();
   await expect(links.getByRole('button', { name: 'Help and support', exact: true })).toBeVisible();
   await links.getByRole('button', { name: 'Help and support', exact: true }).click();
