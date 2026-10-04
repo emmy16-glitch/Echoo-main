@@ -154,16 +154,15 @@ test('active Listener pages remain routed, preloaded and backed by mounted API r
   }
 });
 
-test('dead replay overflow affordance is hidden and meaningful replay copy remains visible on phones', async () => {
+test('replay UI has no dead overflow affordance and meaningful copy remains visible on phones', async () => {
   const [detail, detailCss, integrity] = await Promise.all([
     source('../../frontend/src/Components/ListenerAudioDetail/ListenerAudioDetail.jsx'),
     source('../../frontend/src/Components/ListenerAudioDetail/ListenerAudioDetail.css'),
     source('../../frontend/src/styles/echoo-ui-integrity-audit-2026.css'),
   ]);
 
-  assert.match(detail, /aria-label="More replay options"/);
-  assert.doesNotMatch(detail, /aria-label="More replay options"[^>]*onClick=/);
-  assert.match(integrity, /\[aria-label="More replay options"\][\s\S]*display:\s*none !important/);
+  assert.doesNotMatch(detail, /More replay options/);
+  assert.doesNotMatch(integrity, /More replay options/);
   assert.match(detailCss, /\.replay-copy > p \{ display: none; \}/);
   assert.match(integrity, /\.replay-copy > p[\s\S]*display:\s*block !important/);
 });
