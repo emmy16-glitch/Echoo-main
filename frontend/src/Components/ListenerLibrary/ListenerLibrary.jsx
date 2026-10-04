@@ -56,7 +56,7 @@ const ListenerLibrary = () => {
       <button type="button" className="is-active" aria-current="page">Saved</button>
       <button type="button" onClick={() => navigate('/listen/history')}>History</button>
       <button type="button" onClick={() => navigate('/listen/playlist')}>Playlists</button>
-      <button type="button" onClick={() => navigate('/listen/saved-moments')}>Saved broadcasts</button>
+      <button type="button" onClick={() => navigate('/listen/saved-moments')}>Saved moments</button>
       <button type="button" onClick={() => navigate('/listen/downloads')}>Downloads</button>
     </div>
     {error && <p className="listener-v2-error" role="alert">{error} <button type="button" onClick={load}>Retry</button></p>}
