@@ -160,6 +160,8 @@ const ListenerRealLiveRoom = () => {
   const [realtimeState, setRealtimeState] = useState('connecting');
   const [audioState, setAudioState] = useState('connecting');
   const statusRef = useRef(show?.status || '');
+  const roomLoadGenerationRef = useRef(0);
+  const chatLoadGenerationRef = useRef(0);
   const [chatOpen, setChatOpen] = useState(false);
 
   useEffect(() => {
@@ -189,7 +191,29 @@ const ListenerRealLiveRoom = () => {
 
   useEffect(() => {
     setChatOpen(false);
-  }, [broadcastId]);
+    if (previewMode) return;
+
+    // Route changes must start from a clean room. In-flight requests from the
+    // previous broadcast are invalidated below so they cannot repaint stale
+    // chat, presence, follow, like, or saved state into the new room.
+    roomLoadGenerationRef.current += 1;
+    chatLoadGenerationRef.current += 1;
+    setShow(null);
+    setLoading(true);
+    setChatLoading(true);
+    setMessages([]);
+    setLoadError('');
+    setChatError('');
+    setFollowing(false);
+    setFollowPending(false);
+    setLiked(false);
+    setSavedMomentId('');
+    setActionPending('');
+    setShareMessage('');
+    setRealtimeState('connecting');
+    setAudioState('connecting');
+    statusRef.current = '';
+  }, [broadcastId, previewMode]);
 
   const ended = show
     ? !['live', 'scheduled'].includes(String(show.status || '').toLowerCase())
@@ -268,7 +292,7 @@ const ListenerRealLiveRoom = () => {
     try {
       const presence = await batch3Service.getPresence(broadcastId);
       setShow((current) =>
-        current
+        sameId(current?.id, broadcastId)
           ? {
               ...current,
               status: presence.status || current.status,
@@ -290,15 +314,17 @@ const ListenerRealLiveRoom = () => {
   const loadChat = useCallback(
     async ({ silent = false } = {}) => {
       if (previewMode || !broadcastId) return;
+      const generation = ++chatLoadGenerationRef.current;
       // Chat history needs an account; guests still see live messages stream
       // in over the realtime socket below.
       if (isGuest) {
-        if (!silent) setChatLoading(false);
+        if (!silent && generation === chatLoadGenerationRef.current) setChatLoading(false);
         return;
       }
       if (!silent) setChatLoading(true);
       try {
         const response = await batch4Service.getMessages(broadcastId, { limit: 100 });
+        if (generation !== chatLoadGenerationRef.current) return;
         const history = Array.isArray(response?.data)
           ? response.data.map(chatView)
           : [];
@@ -309,11 +335,11 @@ const ListenerRealLiveRoom = () => {
         });
         setChatError('');
       } catch (error) {
-        if (!silent) {
+        if (!silent && generation === chatLoadGenerationRef.current) {
           setChatError(error?.message || 'Live chat is unavailable.');
         }
       } finally {
-        if (!silent) setChatLoading(false);
+        if (!silent && generation === chatLoadGenerationRef.current) setChatLoading(false);
       }
     },
     [broadcastId, previewMode, isGuest]
@@ -321,24 +347,32 @@ const ListenerRealLiveRoom = () => {
 
   const load = useCallback(async () => {
     if (!broadcastId || previewMode) return;
+    const generation = ++roomLoadGenerationRef.current;
     try {
       setLoading(true);
       const response = isGuest
         ? await batch3Service.getPublicBroadcast(broadcastId)
         : await batch3Service.getBroadcast(broadcastId);
+      if (generation !== roomLoadGenerationRef.current) return;
       if (!response?.data) {
         throw new Error('This live show could not be found.');
       }
       const next = normalizeBroadcast(response.data);
       setShow(next);
+      setFollowing(false);
       setLoadError('');
       if (!isGuest && next.stationId) {
         followService
           .getStationStatus(next.stationId)
-          .then((status) => setFollowing(Boolean(status?.isFollowing)))
+          .then((status) => {
+            if (generation === roomLoadGenerationRef.current) {
+              setFollowing(Boolean(status?.isFollowing));
+            }
+          })
           .catch(() => {});
       }
     } catch (error) {
+      if (generation !== roomLoadGenerationRef.current) return;
       // Logged-out visitors hit the auth wall here — that is "not signed
       // in", not an expired session, so say so instead of alarming them.
       if (!localStorage.getItem('accessToken') && !isGuest) {
@@ -347,7 +381,7 @@ const ListenerRealLiveRoom = () => {
         setLoadError(error?.message || 'This live show is unavailable.');
       }
     } finally {
-      setLoading(false);
+      if (generation === roomLoadGenerationRef.current) setLoading(false);
     }
   }, [broadcastId, previewMode, isGuest]);
 
@@ -423,11 +457,16 @@ const ListenerRealLiveRoom = () => {
         const onPresence = (payload) => {
           if (!sameId(payload?.broadcastId, show.id)) return;
           setShow((current) =>
-            current
+            sameId(current?.id, show.id)
               ? {
                   ...current,
                   status: payload?.status || current.status,
-                  listenerCount: Number(payload?.listenerCount) || 0,
+                  listenerCount:
+                    payload?.listenerCount == null || payload?.listenerCount === ''
+                      ? current.listenerCount
+                      : Number.isFinite(Number(payload.listenerCount))
+                        ? Math.max(0, Number(payload.listenerCount))
+                        : current.listenerCount,
                   mediaState: payload?.mediaState || current.mediaState,
                 }
               : current
@@ -448,7 +487,9 @@ const ListenerRealLiveRoom = () => {
             notifyDesktop('room-ended');
           }
           setShow((current) =>
-            current ? normalizeBroadcast({ ...current, ...payload }) : current
+            sameId(current?.id, show.id)
+              ? normalizeBroadcast({ ...current, ...payload })
+              : current
           );
         };
         const onDisconnect = () => {
@@ -496,9 +537,11 @@ const ListenerRealLiveRoom = () => {
       socket?.__echooRoomCleanup?.();
       realtimeService.leaveBroadcast(show.id).catch(() => {});
     };
-  }, [loadChat, previewMode, refreshPresence, show?.id, isGuest, guestId]);
+  }, [broadcastId, loadChat, previewMode, refreshPresence, show?.id, isGuest, guestId]);
 
   useEffect(() => {
+    setLiked(false);
+    setSavedMomentId('');
     if (isGuest || previewMode || !broadcastId) return;
     let active = true;
     apiRequest(`/broadcasts/${encodeURIComponent(broadcastId)}/like`).then(response => { if (active) setLiked(Boolean(response?.data?.liked)); }).catch(() => {});

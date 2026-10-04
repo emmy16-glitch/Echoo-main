@@ -57,6 +57,19 @@ test('guest live catalog opens broadcasts directly instead of passing station id
   );
 });
 
+test('live room route changes cannot leak stale room state into the next broadcast', async () => {
+  const room = await source('../../frontend/src/Components/ListenerLiveExperience/ListenerRealLiveRoom.jsx');
+
+  assert.match(room, /roomLoadGenerationRef\s*=\s*useRef\(0\)/);
+  assert.match(room, /chatLoadGenerationRef\s*=\s*useRef\(0\)/);
+  assert.match(room, /setMessages\(\[\]\)/);
+  assert.match(room, /setFollowing\(false\)/);
+  assert.match(room, /setLiked\(false\)/);
+  assert.match(room, /sameId\(current\?\.id, broadcastId\)/);
+  assert.match(room, /sameId\(current\?\.id, show\.id\)/);
+  assert.doesNotMatch(room, /listenerCount:\s*Number\(payload\?\.listenerCount\)\s*\|\|\s*0/);
+});
+
 test('live room never fabricates listener counts or follow success when identity data is missing', async () => {
   const room = await source('../../frontend/src/Components/ListenerLiveExperience/ListenerRealLiveRoom.jsx');
 
