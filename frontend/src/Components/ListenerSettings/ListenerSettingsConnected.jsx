@@ -25,6 +25,7 @@ const NAV_GROUPS = [
   { id: 'profile', label: 'Profile', icon: <FaUser /> },
   { id: 'playback', label: 'Playback', icon: <FaSlidersH /> },
   { id: 'notifications', label: 'Notifications', icon: <FaBell /> },
+  { id: 'help', label: 'Help & support', icon: <FaInfoCircle /> },
 ];
 
 const LANGUAGES = [
@@ -39,7 +40,10 @@ const usernameFor = (username) =>
   username ? `@${username}` : '@not set';
 
 const ListenerSettingsConnected = () => {
-  const [nav, setNav] = useState(() => new URLSearchParams(window.location.search).get('section') === 'playback' ? 'playback' : 'profile');
+  const [nav, setNav] = useState(() => {
+    const requested = new URLSearchParams(window.location.search).get('section');
+    return ['profile', 'playback', 'notifications', 'help'].includes(requested) ? requested : 'profile';
+  });
   const [volume, setVolume] = useState(readListenerVolume);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -433,6 +437,20 @@ const ListenerSettingsConnected = () => {
                     Open Echoo Desktop to manage native desktop alerts.
                   </div>
                 )}
+              </div>
+            </div>
+          ) : nav === 'help' ? (
+            <div className="set-card">
+              <div className="set-card-inner">
+                <strong className="set-card-title">Help &amp; support</strong>
+                <p className="set-toggle-desc" style={{ marginTop: 0, maxWidth: '42rem' }}>
+                  Keep support simple. Use Playback for sound and volume, Notifications for alerts, or Profile for account details.
+                </p>
+                <div className="set-help-actions">
+                  <button type="button" className="set-back-btn" onClick={() => setNav('playback')}>Playback help</button>
+                  <button type="button" className="set-back-btn" onClick={() => setNav('notifications')}>Notification help</button>
+                  <button type="button" className="set-back-btn" onClick={() => setNav('profile')}>Account help</button>
+                </div>
               </div>
             </div>
           ) : nav === 'playback' ? null : (

@@ -129,6 +129,9 @@ test('listener secondary pages avoid duplicate navigation and discovery surfaces
   await expect(links.getByRole('button', { name: 'Library', exact: true })).toBeVisible();
   await expect(links.getByRole('button', { name: 'Settings', exact: true })).toBeVisible();
   await expect(links.getByRole('button', { name: 'Help and support', exact: true })).toBeVisible();
+  await links.getByRole('button', { name: 'Help and support', exact: true }).click();
+  await expect(page).toHaveURL(/\/listen\/settings\?section=help$/);
+  await expect(page.getByRole('heading', { name: 'Help & support' })).toBeVisible();
   await expect(links.getByRole('button', { name: 'Downloads', exact: true })).toHaveCount(0);
   await expect(links.getByRole('button', { name: 'Listening history', exact: true })).toHaveCount(0);
   await expect(links.getByRole('button', { name: 'Notifications', exact: true })).toHaveCount(0);

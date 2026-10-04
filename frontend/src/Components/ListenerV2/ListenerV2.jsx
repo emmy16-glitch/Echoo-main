@@ -671,6 +671,7 @@ const ListenerV2Layout = () => {
             unreadNotifications={unreadNotifications}
             onNotifications={() => navigate('/listen/notifications')}
             onSettings={() => navigate('/listen/settings')}
+            onHelp={() => navigate('/listen/settings?section=help')}
           />
         )}
       </header>}
