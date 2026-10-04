@@ -51,7 +51,12 @@ const normalizeBroadcast = (item) => ({
       item?.creatorVerified ??
       item?.station?.owner?.creatorProfile?.isVerified
   ),
-  listenerCount: (item?.listenerCount ?? item?.station?.listenerCount) == null ? null : Number(item.listenerCount ?? item.station.listenerCount),
+  listenerCount: (() => {
+    const rawCount = item?.listenerCount ?? item?.station?.listenerCount;
+    if (rawCount == null || rawCount === '') return null;
+    const count = Number(rawCount);
+    return Number.isFinite(count) ? Math.max(0, count) : null;
+  })(),
   artwork:
     buildMediaUrl(
       item?.artwork ||
@@ -267,7 +272,12 @@ const ListenerRealLiveRoom = () => {
           ? {
               ...current,
               status: presence.status || current.status,
-              listenerCount: Number(presence.listenerCount) || 0,
+              listenerCount:
+                presence.listenerCount == null || presence.listenerCount === ''
+                  ? current.listenerCount
+                  : Number.isFinite(Number(presence.listenerCount))
+                    ? Math.max(0, Number(presence.listenerCount))
+                    : current.listenerCount,
               mediaState: presence.mediaState || current.mediaState,
             }
           : current
@@ -544,8 +554,16 @@ const ListenerRealLiveRoom = () => {
 
   const toggleFollow = async () => {
     if (followPending) return;
-    if (previewMode || !show?.stationId) {
+    if (previewMode) {
       setFollowing((value) => !value);
+      return;
+    }
+
+    // A real follow must have a durable station identity. Never make the UI
+    // look successful when there is nothing the backend can persist.
+    if (!show?.stationId) {
+      setShareMessage('Follow is unavailable for this broadcast');
+      window.setTimeout(() => setShareMessage(''), 1800);
       return;
     }
 
@@ -736,17 +754,21 @@ const ListenerRealLiveRoom = () => {
         </div>
 
         <div className="listener-v2-room-toolbar-actions">
-          <span className="listener-v2-room-listeners">
-            <FiUsers /> {show.listenerCount.toLocaleString()} listening
-          </span>
-          <button
-            type="button"
-            className={following ? 'is-following' : ''}
-            onClick={toggleFollow}
-            disabled={followPending}
-          >
-            {followPending ? 'Updating…' : following ? 'Following' : 'Follow'}
-          </button>
+          {show.listenerCount != null && (
+            <span className="listener-v2-room-listeners">
+              <FiUsers /> {show.listenerCount.toLocaleString()} listening
+            </span>
+          )}
+          {show.stationId && (
+            <button
+              type="button"
+              className={following ? 'is-following' : ''}
+              onClick={toggleFollow}
+              disabled={followPending}
+            >
+              {followPending ? 'Updating…' : following ? 'Following' : 'Follow'}
+            </button>
+          )}
           <button type="button" onClick={() => share()}>
             <FiShare2 /> Share
           </button>

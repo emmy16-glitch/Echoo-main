@@ -48,6 +48,17 @@ test('guest live catalog opens broadcasts directly instead of passing station id
   );
 });
 
+test('live room never fabricates listener counts or follow success when identity data is missing', async () => {
+  const room = await source('../../frontend/src/Components/ListenerLiveExperience/ListenerRealLiveRoom.jsx');
+
+  assert.match(room, /rawCount == null \|\| rawCount === ''/);
+  assert.match(room, /Number\.isFinite\(count\) \? Math\.max\(0, count\) : null/);
+  assert.match(room, /presence\.listenerCount == null \|\| presence\.listenerCount === ''[\s\S]{0,180}current\.listenerCount/);
+  assert.match(room, /\{show\.listenerCount != null && \(/);
+  assert.match(room, /\{show\.stationId && \(/);
+  assert.match(room, /Follow is unavailable for this broadcast/);
+});
+
 test('live room primary control recovers disconnected audio and never relies on playerError to disable Play', async () => {
   const room = await source('../../frontend/src/Components/ListenerLiveExperience/ListenerRealLiveRoom.jsx');
 
