@@ -88,7 +88,7 @@ const ListenerRealStationProfile = () => {
       if (!silent) {
         setStation(null);
       }
-      setError(loadError?.message || 'This station could not be loaded from Echoo.');
+      setError(loadError?.message || 'This Channel could not be loaded from Echoo.');
     } finally {
       if (!silent) setLoading(false);
     }
@@ -133,7 +133,7 @@ const ListenerRealStationProfile = () => {
         );
       }
     } catch (followError) {
-      setError(followError?.message || 'Could not update station follow status.');
+      setError(followError?.message || 'Could not update Channel follow status.');
     } finally {
       setFollowBusy(false);
     }
@@ -142,7 +142,7 @@ const ListenerRealStationProfile = () => {
   if (loading) {
     return (
       <div className="b3-listener-page">
-        <div className="b3-big-empty">Loading station...</div>
+        <div className="b3-big-empty">Loading Channel...</div>
       </div>
     );
   }
@@ -153,14 +153,14 @@ const ListenerRealStationProfile = () => {
         <button
           type="button"
           className="b3-back"
-          title="Back to stations"
-          onClick={() => navigate('/listen/stations')}
+          title="Back to Channels"
+          onClick={() => navigate('/listen/channels')}
         >
-          <FaArrowLeft /> Stations
+          <FaArrowLeft /> Channels
         </button>
         <div className="echoo-cleanup-state">
-          <strong>Station unavailable.</strong>
-          <span>{error || 'This station is not available publicly.'}</span>
+          <strong>Channel unavailable.</strong>
+          <span>{error || 'This Channel is not available publicly.'}</span>
         </div>
       </div>
     );
@@ -176,10 +176,10 @@ const ListenerRealStationProfile = () => {
       <button
         type="button"
         className="b3-back"
-        title="Back to stations"
-        onClick={() => navigate('/listen/stations')}
+        title="Back to Channels"
+        onClick={() => navigate('/listen/channels')}
       >
-        <FaArrowLeft /> Stations
+        <FaArrowLeft /> Channels
       </button>
 
       {error && <div className="cbf-message error">{error}</div>}
@@ -208,7 +208,7 @@ const ListenerRealStationProfile = () => {
               disabled={followBusy}
               title={following ? `Unfollow ${station.name}` : `Follow ${station.name}`}
             >
-              {followBusy ? 'Updating...' : following ? 'Unfollow' : 'Follow station'}
+              {followBusy ? 'Updating...' : following ? 'Unfollow' : 'Follow Channel'}
             </button>
 
             {creatorId && (
