@@ -1292,7 +1292,7 @@ const ListenerV2Search = () => {
   const location = useLocation();
   const { playTrack, currentTrack, isPlaying, togglePlay } = useOutletContext();
   const [query, setQuery] = useState(() => new URLSearchParams(location.search).get('q') || '');
-  const [data, setData] = useState({ tracks: [], creators: [], stations: [], playlists: [] });
+  const [data, setData] = useState({ tracks: [], creators: [], stations: [] });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -1312,7 +1312,7 @@ const ListenerV2Search = () => {
   useEffect(() => {
     const clean = query.trim();
     if (clean.length < 2) {
-      setData({ tracks: [], creators: [], stations: [], playlists: [] });
+      setData({ tracks: [], creators: [], stations: [] });
       setLoading(false);
       setError('');
       return undefined;
@@ -1328,12 +1328,11 @@ const ListenerV2Search = () => {
           tracks: Array.isArray(results.tracks) ? results.tracks.map(normalizePlayable).filter(Boolean) : [],
           creators: Array.isArray(results.creators) ? results.creators : [],
           stations: Array.isArray(results.stations) ? results.stations : [],
-          playlists: Array.isArray(results.playlists) ? results.playlists : [],
         });
         setError('');
       } catch (searchError) {
         if (active) {
-          setData({ tracks: [], creators: [], stations: [], playlists: [] });
+          setData({ tracks: [], creators: [], stations: [] });
           setError(searchError?.message || 'Search failed.');
         }
       } finally { if (active) setLoading(false); }
@@ -1341,7 +1340,7 @@ const ListenerV2Search = () => {
     return () => { active = false; window.clearTimeout(timer); };
   }, [query]);
 
-  const total = data.tracks.length + data.creators.length + data.stations.length + data.playlists.length;
+  const total = data.tracks.length + data.creators.length + data.stations.length;
 
   return (
     <div className="listener-v2-page listener-v2-search-page">
