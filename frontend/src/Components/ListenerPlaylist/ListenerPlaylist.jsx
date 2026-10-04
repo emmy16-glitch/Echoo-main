@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate, useOutletContext } from 'react-router-dom';
+import { useOutletContext } from 'react-router-dom';
 import {
-  FaAngleRight,
-  FaHeadphones,
   FaListUl,
   FaLock,
   FaPause,
@@ -10,7 +8,6 @@ import {
   FaPlus,
   FaTrash,
 } from 'react-icons/fa';
-import listenerService from '../../services/listenerService';
 import playlistService from '../../services/playlistService';
 import ListenerToast from '../ListenerUI/ListenerToast';
 import ListenerHeroArtwork from '../ListenerHeroArtwork/ListenerHeroArtwork';
@@ -18,38 +15,14 @@ import { useGuestAuth } from '../Auth/GuestAuthGate';
 import '../../styles/listener-reference-pages.css';
 import './ListenerPlaylist.css';
 
-const TABS = ['All', 'My playlists'];
 const idOf = (item) => String(item?.id || item?._id || '');
-
-const formatDuration = (seconds) => {
-  const s = Math.max(0, Number(seconds) || 0);
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const sec = Math.floor(s % 60);
-  const pad = (v) => String(v).padStart(2, '0');
-  return h > 0 ? `${h}:${pad(m)}:${pad(sec)}` : `${m}:${pad(sec)}`;
-};
-
-const relativeTime = (value) => {
-  const date = value ? new Date(value) : null;
-  if (!date || Number.isNaN(date.getTime())) return '';
-  const seconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
-  if (seconds < 60) return 'just now';
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-  if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
-  return date.toLocaleDateString('en', { month: 'short', day: 'numeric' });
-};
 
 
 export default function ListenerPlaylist() {
-  const navigate = useNavigate();
   const { requestAuth, isGuest } = useGuestAuth();
   const { playTrack, currentTrack, isPlaying, togglePlay } = useOutletContext();
-  const [tab, setTab] = useState('All');
   const [sort, setSort] = useState('recent');
   const [playlists, setPlaylists] = useState([]);
-  const [continueListening, setContinueListening] = useState([]);
   const [toast, setToast] = useState({ open: false, type: 'info', title: '', message: '' });
   const [busyId, setBusyId] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
@@ -60,18 +33,13 @@ export default function ListenerPlaylist() {
     setToast({ open: true, type, title, message }), []);
 
   const load = useCallback(async () => {
-    const [mineResult, contResult] = await Promise.allSettled([
+    const [mineResult] = await Promise.allSettled([
       playlistService.getMine(),
-      listenerService.getContinueListening(),
     ]);
 
     if (mineResult.status === 'fulfilled') {
       const list = Array.isArray(mineResult.value?.data) ? mineResult.value.data : [];
       setPlaylists(list);
-    }
-    if (contResult.status === 'fulfilled') {
-      const cont = Array.isArray(contResult.value?.data) ? contResult.value.data : [];
-      setContinueListening(cont.filter((t) => t?.id));
     }
   }, []);
 
@@ -122,13 +90,6 @@ export default function ListenerPlaylist() {
     [playTrack, currentTrack, togglePlay],
   );
 
-  const handleContinuePlay = useCallback(
-    (track) => {
-      handlePlay(track);
-    },
-    [handlePlay],
-  );
-
   const handleCreatePlaylist = useCallback(async () => {
     const name = createName.trim();
     if (!name) {
@@ -160,7 +121,6 @@ export default function ListenerPlaylist() {
         setCreateName('');
         setCreateDesc('');
         setCreateOpen(false);
-        setTab('My playlists');
         await load();
       } else {
         showToast('error', 'Could not create', 'Something went wrong creating the playlist.');
@@ -239,20 +199,7 @@ export default function ListenerPlaylist() {
       )}
 
       <div className="pl-controls">
-        <div className="pl-tabs" role="tablist">
-          {TABS.map((name) => (
-            <button
-              key={name}
-              type="button"
-              role="tab"
-              aria-selected={tab === name}
-              className={`pl-tab ${tab === name ? 'pl-tab-active' : ''}`}
-              onClick={() => setTab(name)}
-            >
-              {name}
-            </button>
-          ))}
-        </div>
+        <span className="pl-count">{myPlaylists.length} {myPlaylists.length === 1 ? 'playlist' : 'playlists'}</span>
         <select
           className="pl-sort"
           value={sort}
@@ -270,11 +217,6 @@ export default function ListenerPlaylist() {
               <section className="pl-section">
                 <div className="pl-section-header">
                   <h2>My playlists</h2>
-                  {tab === 'All' && (
-                    <button type="button" className="pl-view-all" onClick={() => setTab('My playlists')}>
-                      View all <FaAngleRight />
-                    </button>
-                  )}
                 </div>
                 {myPlaylists.length === 0 ? (
                   <div className="pl-empty">
@@ -334,12 +276,7 @@ export default function ListenerPlaylist() {
                 )}
               </section>
 
-              {tab === 'All' && (
-                <>
-                  <section className="pl-section">
-                    <div className="pl-section-header">
-                      <h2>Continue listening</h2>
-                      <button type="button" className="pl-view-all" onClick={() => navigate('/listen/history')}>
+>
                         View history <FaAngleRight />
                       </button>
                     </div>

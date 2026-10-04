@@ -646,7 +646,7 @@ const ListenerV2Layout = () => {
             </button>
           ))}
         </nav>
-        <SearchField value={headerSearch} onChange={setHeaderSearch} onKeyDown={submitHeaderSearch} placeholder="Search live Channels..." className="listener-v2-header-search" />
+        {activeKey !== 'search' && <SearchField value={headerSearch} onChange={setHeaderSearch} onKeyDown={submitHeaderSearch} placeholder="Search live Channels..." className="listener-v2-header-search" />}
         {isGuest ? (
           <div className="listener-v2-guest-actions">
             <button type="button" className="listener-v2-create-channel" onClick={() => requestAuth({

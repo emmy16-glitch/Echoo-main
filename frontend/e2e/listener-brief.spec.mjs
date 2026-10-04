@@ -120,8 +120,12 @@ test('listener secondary pages avoid duplicate navigation and discovery surfaces
 
   await page.goto('/listen/playlist');
   await expect(page.getByRole('heading', { name: 'Playlists' })).toBeVisible();
-  await expect(page.getByRole('tab', { name: 'Downloaded', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('tab')).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Continue listening', exact: true })).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Popular playlists', exact: true })).toHaveCount(0);
+
+  await page.goto('/listen/search');
+  await expect(page.locator('.listener-v2-header-search')).toHaveCount(0);
 
   await page.goto('/listen/profile');
   const links = page.locator('.listener-profile-links');
