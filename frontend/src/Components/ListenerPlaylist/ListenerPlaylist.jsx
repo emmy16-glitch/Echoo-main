@@ -223,10 +223,7 @@ export default function ListenerPlaylist() {
         </select>
       </div>
 
-      <section className="pl-section" aria-labelledby="my-playlists-heading">
-        <div className="pl-section-header">
-          <h2 id="my-playlists-heading">My playlists</h2>
-        </div>
+      <section className="pl-section" aria-label="Your playlists">
 
         {isGuest ? (
           <div className="pl-empty">
