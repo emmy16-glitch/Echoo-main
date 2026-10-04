@@ -148,6 +148,33 @@ test('all listener destinations fit the required viewport widths', async ({ page
   }
 });
 
+test('live room stays inside the viewport from 320px mobile through desktop', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-1440', 'Run the live-room width sweep once.');
+  test.setTimeout(90_000);
+  await authenticate(page);
+
+  for (const width of [320, 360, 390, 414, 768, 1024, 1280, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto('/listen/live/507f1f77bcf86cd799439031');
+    await expect(page.locator('.listener-v2-live-room'), `live room at ${width}`).toBeVisible();
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+      `live room overflows horizontally at ${width}`
+    ).toBe(true);
+
+    const play = await page.locator('.listener-v2-room-play').boundingBox();
+    expect(play, `play control exists at ${width}`).not.toBeNull();
+    expect(play.x, `play control starts inside viewport at ${width}`).toBeGreaterThanOrEqual(0);
+    expect(play.x + play.width, `play control ends inside viewport at ${width}`).toBeLessThanOrEqual(width);
+
+    if (width < 768) {
+      const chat = await page.locator('.listener-v2-room-chat-toggle').boundingBox();
+      expect(chat, `chat toggle exists at ${width}`).not.toBeNull();
+      expect(chat.x + chat.width, `chat toggle stays inside viewport at ${width}`).toBeLessThanOrEqual(width);
+    }
+  }
+});
+
 test('the audience gain path defaults to unity and deliberate listener volume survives engine remounts', async ({ page }) => {
   await authenticate(page);
   await page.goto('/listen');
