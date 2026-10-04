@@ -387,9 +387,16 @@ const ListenerV2Layout = () => {
     // not separate primary navigation items. Keep one truthful primary tab active so
     // users never lose orientation after opening Live or browsing Channels.
     if (location.pathname === '/listen/live' || location.pathname.startsWith('/listen/live/')) return 'discover';
-    if (['/listen/settings', '/listen/profile'].includes(location.pathname)) return 'profile';
-    if (['/listen/library', '/listen/history', '/listen/downloads', '/listen/playlist', '/listen/saved-moments'].includes(location.pathname)) return 'library';
-    if (location.pathname === '/listen/search') return 'search';
+    if (['/listen/settings', '/listen/profile', '/listen/notifications'].includes(location.pathname)) return 'profile';
+    if (
+      ['/listen/library', '/listen/history', '/listen/downloads', '/listen/playlist', '/listen/saved-moments'].includes(location.pathname) ||
+      location.pathname.startsWith('/listen/audio/') ||
+      location.pathname.startsWith('/listen/collections/')
+    ) return 'library';
+    if (
+      location.pathname === '/listen/search' ||
+      location.pathname.startsWith('/listen/creator/')
+    ) return 'search';
     if (
       location.pathname === '/listen/channels' ||
       location.pathname.startsWith('/listen/channels/') ||

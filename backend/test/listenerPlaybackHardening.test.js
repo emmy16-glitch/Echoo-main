@@ -28,6 +28,15 @@ test('live listener keeps playback intent, device volume, and explicit recovery 
   assert.doesNotMatch(player, /setActionHandler\('pause',[\s\S]{0,80}togglePlayback/);
 });
 
+test('listener secondary routes inherit a truthful primary navigation parent', async () => {
+  const listener = await source('../../frontend/src/Components/ListenerV2/ListenerV2.jsx');
+
+  assert.match(listener, /'\/listen\/notifications'[^\n]*return 'profile'/);
+  assert.match(listener, /startsWith\('\/listen\/audio\/'\)/);
+  assert.match(listener, /startsWith\('\/listen\/collections\/'\)/);
+  assert.match(listener, /startsWith\('\/listen\/creator\/'\)/);
+});
+
 test('player state defaults to unity unless the listener explicitly lowers volume', async () => {
   const controller = await source('../src/controllers/playerController.js');
   const userModel = await source('../src/models/User.js');
