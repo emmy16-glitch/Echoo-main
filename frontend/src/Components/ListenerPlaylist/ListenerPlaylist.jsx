@@ -13,7 +13,6 @@ import playlistService from '../../services/playlistService';
 import { useGuestAuth } from '../Auth/GuestAuthGate';
 import ListenerHeroArtwork from '../ListenerHeroArtwork/ListenerHeroArtwork';
 import ListenerToast from '../ListenerUI/ListenerToast';
-import '../../styles/listener-reference-pages.css';
 import './ListenerPlaylist.css';
 
 const idOf = (item) => String(item?.id || item?._id || '');
