@@ -191,8 +191,12 @@ test('capture strict Listener 2.0 core surfaces', async ({ page }, testInfo) => 
   await expect(page.locator('.listener-v2-following-live-card')).toHaveCount(4);
   await expect(page.locator('.listener-v2-following-row')).toHaveCount(4);
 
-  await capture(page, testInfo, '/listen/stations', 'CATEGORIES', 'Channels');
+  await capture(page, testInfo, '/listen/stations', 'CATEGORIES', 'Search');
   await expect(page.locator('.listener-v2-station-card')).toHaveCount(8);
+
+  await page.goto('/listen/live', { waitUntil: 'domcontentloaded', timeout: 30000 });
+  await page.waitForTimeout(700);
+  await validateStrictShell(page, 'Discover');
 
   await capture(page, testInfo, '/listen/search', 'SEARCH', 'Search', async () => {
     await page.getByPlaceholder('Search Echoo...').fill('Layers');

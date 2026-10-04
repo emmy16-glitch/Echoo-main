@@ -383,7 +383,10 @@ const ListenerV2Layout = () => {
   const activeKey = useMemo(() => {
     if (location.pathname.includes('/library/following')) return 'following';
     if (location.pathname === '/listen/following') return 'following';
-    if (location.pathname === '/listen/live' || location.pathname.startsWith('/listen/live/')) return 'live';
+    // Live and Channel/category pages are subviews of existing Listener destinations,
+    // not separate primary navigation items. Keep one truthful primary tab active so
+    // users never lose orientation after opening Live or browsing Channels.
+    if (location.pathname === '/listen/live' || location.pathname.startsWith('/listen/live/')) return 'discover';
     if (['/listen/settings', '/listen/profile'].includes(location.pathname)) return 'profile';
     if (['/listen/library', '/listen/history', '/listen/downloads', '/listen/playlist', '/listen/saved-moments'].includes(location.pathname)) return 'library';
     if (location.pathname === '/listen/search') return 'search';
@@ -391,8 +394,9 @@ const ListenerV2Layout = () => {
       location.pathname === '/listen/channels' ||
       location.pathname.startsWith('/listen/channels/') ||
       location.pathname === '/listen/stations' ||
-      location.pathname.startsWith('/listen/stations/')
-    ) return 'channels';
+      location.pathname.startsWith('/listen/stations/') ||
+      location.pathname === '/listen/categories'
+    ) return 'search';
     return 'discover';
   }, [location.pathname]);
 
@@ -855,7 +859,7 @@ const ListenerV2Layout = () => {
         ].map((item) => <button key={item.key} type="button" className={activeKey === item.key ? 'is-active' : ''} aria-current={activeKey === item.key ? 'page' : undefined} onClick={() => {
           if (isGuest && item.key === 'profile') {
             requestAuth({
-              action: 'Open settings',
+              action: 'Open Profile',
               title: 'Save your listening setup',
               message: 'Sign in to manage your profile, preferences and notifications.',
               destination: item.path,
