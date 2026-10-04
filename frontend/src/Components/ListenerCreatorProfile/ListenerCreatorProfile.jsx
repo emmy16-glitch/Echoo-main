@@ -219,8 +219,8 @@ const ListenerCreatorProfile = () => {
         <section className="lcp-section">
           <div className="lcp-heading">
             <div>
-              <h2>Stations</h2>
-              <p>Audio stations owned by {name}.</p>
+              <h2>Channels</h2>
+              <p>Channels by {name}.</p>
             </div>
           </div>
 
@@ -230,7 +230,7 @@ const ListenerCreatorProfile = () => {
                 type="button"
                 key={station.id}
                 className="lcp-station"
-                onClick={() => navigate(`/listen/stations/${station.id}`)}
+                onClick={() => navigate(`/listen/channels/${station.id}`)}
               >
                 <div>
                   {station.brandCover || station.coverArt ? (
@@ -240,7 +240,7 @@ const ListenerCreatorProfile = () => {
                   )}
                 </div>
                 <strong>{station.name}</strong>
-                <span>{station.category || 'Station'}</span>
+                <span>{station.category || 'Channel'}</span>
                 {station.isLive && <small>LIVE</small>}
               </button>
             ))}
