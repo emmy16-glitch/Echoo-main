@@ -154,6 +154,13 @@ test('listener watchdog and reattachment never override an intentional pause', a
   assert.match(player, /const playbackBlocked =[\s\S]{0,180}playbackIntentRef\.current === 'play'/);
 });
 
+test('persistent live play action restarts a disconnected room instead of only calling startAudio', async () => {
+  const player = await source('../../frontend/src/Components/ListenerLiveExperience/LiveKitListenerPlayer.jsx');
+
+  assert.match(player, /status === 'error' \|\| status === 'disconnected'[\s\S]{0,180}setRetryVersion/);
+  assert.match(player, /playbackIntentRef\.current = 'play'[\s\S]{0,260}setRetryVersion/);
+});
+
 test('listener reconnect supervisor never waits forever in LiveKit reconnecting', async () => {
   const player = await source('../../frontend/src/Components/ListenerLiveExperience/LiveKitListenerPlayer.jsx');
 

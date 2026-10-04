@@ -1040,6 +1040,15 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
   const playAudio = useCallback(async () => {
     playbackIntentRef.current = 'play';
 
+    // A listener may press Play from the persistent mini player after a hard
+    // transport failure. In that state room.startAudio() cannot repair the
+    // disconnected room; restart the connection supervisor instead. The
+    // retained playback intent makes the fresh room resume audio automatically.
+    if (status === 'error' || status === 'disconnected') {
+      setRetryVersion((current) => current + 1);
+      return false;
+    }
+
     const elements = Array.from(audioHostRef.current?.querySelectorAll('audio') || []);
     // A guest can tap Play before the canonical program track finishes
     // subscribing. Use that gesture to unlock LiveKit audio immediately so
@@ -1066,7 +1075,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       setError(playError?.message || 'Tap again to start the live audio.');
       return false;
     }
-  }, [needsAudioStart, startAudio]);
+  }, [needsAudioStart, startAudio, status]);
 
   const pauseAudio = useCallback(() => {
     playbackIntentRef.current = 'pause';
