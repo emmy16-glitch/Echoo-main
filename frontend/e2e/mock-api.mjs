@@ -162,7 +162,7 @@ const settingsFor = (user) => data({
   preferences: {
     language: 'en',
     notifications: { email: true, push: true, newFollowers: true, newReleases: true },
-    player: { volume: 0.8, isMuted: false, hapticsEnabled: true, playbackRate: 1, audioQuality: 'auto', isShuffled: false, repeatMode: 'none' },
+    player: { volume: 1, isMuted: false, hapticsEnabled: true, playbackRate: 1, audioQuality: 'auto', isShuffled: false, repeatMode: 'none' },
   },
 });
 

@@ -28,6 +28,15 @@ test('live listener keeps playback intent, device volume, and explicit recovery 
   assert.doesNotMatch(player, /setActionHandler\('pause',[\s\S]{0,80}togglePlayback/);
 });
 
+test('player state defaults to unity unless the listener explicitly lowers volume', async () => {
+  const controller = await source('../src/controllers/playerController.js');
+  const userModel = await source('../src/models/User.js');
+
+  assert.match(userModel, /volume:\s*\{\s*type:\s*Number,\s*min:\s*0,\s*max:\s*1,\s*default:\s*1\s*\}/);
+  assert.match(controller, /volume:\s*user\.preferences\?\.player\?\.volume\s*\?\?\s*1/);
+  assert.doesNotMatch(controller, /volume:\s*user\.preferences\?\.player\?\.volume\s*\?\?\s*0\.8/);
+});
+
 test('guest live catalog opens broadcasts directly instead of passing station ids to the live room', async () => {
   const listener = await source('../../frontend/src/Components/ListenerV2/ListenerV2.jsx');
 

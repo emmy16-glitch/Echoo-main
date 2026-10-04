@@ -59,7 +59,7 @@ export async function getPlaybackState(req, res, next) {
           genre: currentTrack.trackId?.genre,
         } : null,
         isPlaying: false,
-        volume: user.preferences?.player?.volume ?? 0.8,
+        volume: user.preferences?.player?.volume ?? 1,
         isMuted: Boolean(user.preferences?.player?.isMuted),
         hapticsEnabled: user.preferences?.player?.hapticsEnabled !== false,
         playbackRate: user.preferences?.player?.playbackRate ?? 1.0,
