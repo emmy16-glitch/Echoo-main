@@ -646,19 +646,13 @@ const ListenerV2Layout = () => {
             </button>
           ))}
         </nav>
-        {activeKey !== 'search' && <SearchField value={headerSearch} onChange={setHeaderSearch} onKeyDown={submitHeaderSearch} placeholder="Search live Channels..." className="listener-v2-header-search" />}
+        {activeKey !== 'search' && <SearchField value={headerSearch} onChange={setHeaderSearch} onKeyDown={submitHeaderSearch} placeholder="Search Echoo..." className="listener-v2-header-search" />}
         {isGuest ? (
           <div className="listener-v2-guest-actions">
-            <button type="button" className="listener-v2-create-channel" onClick={() => requestAuth({
-              action: 'Create Channel',
-              title: 'Create your Echoo account first',
-              message: 'Your listener profile will become your creator identity.',
-              destination: '/creator-studio',
-            })}>Create Channel</button>
             <button type="button" className="listener-v2-sign-in" onClick={() => requestAuth({
               action: 'Sign in',
               title: 'Make Echoo yours',
-              message: 'Create an account to follow Channels, save playlists and keep listening across devices.',
+              message: 'Create an account to follow creators, save audio and keep listening across devices.',
             })}>Sign in</button>
           </div>
         ) : (
@@ -1108,11 +1102,15 @@ const ListenerV2Following = () => {
     () => stations.filter((station) => Boolean(station?.isLive)),
     [stations]
   );
+  const offlineStations = useMemo(
+    () => stations.filter((station) => !station?.isLive),
+    [stations]
+  );
 
   return (
     <div className="listener-v2-page listener-v2-following-page">
       <ListenerHeroArtwork />
-      <header className="listener-v2-page-title"><h1>Following</h1><p>Channels you follow and never miss.</p></header>
+      <header className="listener-v2-page-title"><h1>Following</h1><p>Creators you follow, with live broadcasts first.</p></header>
 
       {loading ? (
         <div className="listener-v2-following-skeleton" aria-label="Loading followed Channels"><span /><span /><span /></div>
@@ -1124,7 +1122,7 @@ const ListenerV2Following = () => {
         <>
           {liveStations.length > 0 && (
             <section className="listener-v2-following-live">
-              <h2>Live from your following</h2>
+              <h2>Live from creators you follow</h2>
               {liveStations.map((station) => (
                 <article className="listener-v2-following-live-card" key={idOf(station)}>
                   <button type="button" className="listener-v2-following-live-art" onClick={() => openStation(station)} aria-label={`Listen to ${station?.name || 'Channel'}`}>
@@ -1142,34 +1140,35 @@ const ListenerV2Following = () => {
             </section>
           )}
 
-          <section className="listener-v2-following-all">
-            <h2>All following</h2>
-            <div className="listener-v2-following-list">
-              {stations.map((station) => (
-                <article className="listener-v2-following-row" key={idOf(station)}>
-                  <button type="button" className="listener-v2-following-art" onClick={() => openStation(station)} aria-label={`Open ${station?.name || 'Channel'}`}>
-                    <Artwork src={stationArtwork(station)} />
-                    {station?.isLive && <span className="listener-v2-live-badge">LIVE</span>}
-                  </button>
-                  <button type="button" className="listener-v2-following-copy" onClick={() => openStation(station)}>
-                    <strong>{station?.name || 'Unnamed Channel'}</strong>
-                    <span>
-                      {station?.category || 'Channel'}{station?.isLive ? ` · LIVE${station?.listenerCount != null ? ` · ${formatCount(station.listenerCount)} listening` : ''}` : station?.followerCount != null ? ` · ${formatCount(station.followerCount)} followers` : ''}
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    className="listener-v2-follow-button is-following"
-                    disabled={busyId === idOf(station)}
-                    onClick={() => unfollowStation(station)}
-                    aria-label={`Unfollow ${station?.name || 'Channel'}`}
-                  >
-                    {busyId === idOf(station) ? '...' : 'Following'}
-                  </button>
-                </article>
-              ))}
-            </div>
-          </section>
+          {offlineStations.length > 0 && (
+            <section className="listener-v2-following-all">
+              <h2>Creators you follow</h2>
+              <div className="listener-v2-following-list">
+                {offlineStations.map((station) => (
+                  <article className="listener-v2-following-row" key={idOf(station)}>
+                    <button type="button" className="listener-v2-following-art" onClick={() => openStation(station)} aria-label={`Open ${station?.name || 'Channel'}`}>
+                      <Artwork src={stationArtwork(station)} />
+                    </button>
+                    <button type="button" className="listener-v2-following-copy" onClick={() => openStation(station)}>
+                      <strong>{station?.name || 'Unnamed Channel'}</strong>
+                      <span>
+                        {station?.category || 'Channel'}{station?.followerCount != null ? ` · ${formatCount(station.followerCount)} followers` : ''}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      className="listener-v2-follow-button is-following"
+                      disabled={busyId === idOf(station)}
+                      onClick={() => unfollowStation(station)}
+                      aria-label={`Unfollow ${station?.name || 'Channel'}`}
+                    >
+                      {busyId === idOf(station) ? '...' : 'Following'}
+                    </button>
+                  </article>
+                ))}
+              </div>
+            </section>
+          )}
           <FollowingRecordings />
         </>
       ) : (
