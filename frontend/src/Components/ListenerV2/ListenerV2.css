@@ -639,8 +639,33 @@ html.listener-v2-full-player-open body { overflow:hidden; }
 .listener-profile-links { display: grid; margin: 20px 0; border-block: 1px solid var(--listener-v2-line); }
 .listener-profile-links button { display: flex; align-items: center; justify-content: space-between; min-height: 56px; padding: 14px; border: 0; border-bottom: 1px solid var(--listener-v2-line); background: transparent; color: inherit; text-align: left; cursor: pointer; }
 .listener-library-overflow { position: relative; }
-.listener-library-overflow summary { cursor: pointer; padding: 12px; }
-.listener-library-overflow[open] button { position: absolute; right: 0; z-index: 3; width: 150px; height: auto; padding: 12px; border: 1px solid var(--listener-v2-line); background: white; }
+.listener-library-overflow summary {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+.listener-library-overflow summary::-webkit-details-marker { display: none; }
+.listener-library-overflow summary::marker { content: ''; }
+.listener-library-overflow[open] button {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 3;
+  width: 168px;
+  min-height: 44px;
+  height: auto;
+  padding: 10px 12px;
+  border: 1px solid var(--listener-v2-line);
+  border-radius: 10px;
+  background: white;
+  box-shadow: 0 10px 28px rgba(15, 31, 54, .12);
+}
 .listener-v2-audio-list article:has(.listener-library-overflow) { grid-template-columns: 48px minmax(0,1fr) 44px 44px; }
 
 .listener-v2-live-mini { grid-template-columns: 44px minmax(0,1fr) 44px 44px; }
