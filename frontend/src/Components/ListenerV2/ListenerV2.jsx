@@ -1391,11 +1391,6 @@ const ListenerV2Search = () => {
         </section>
       )}
 
-      {data.playlists.length > 0 && (
-        <section className="listener-v2-panel"><SectionTitle title="Playlists" copy={`${data.playlists.length} result${data.playlists.length === 1 ? '' : 's'}`} />
-          <div className="listener-v2-playlist-grid">{data.playlists.map((playlist) => <article key={idOf(playlist)}><span><FiMusic /></span><div><strong>{playlist?.name || playlist?.title || 'Playlist'}</strong><small>{playlist?.description || 'Public playlist'}</small></div></article>)}</div>
-        </section>
-      )}
     </div>
   );
 };
