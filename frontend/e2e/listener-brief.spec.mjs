@@ -131,9 +131,18 @@ test('Library has one saved-audio owner and links to dedicated secondary pages',
   await authenticate(page);
   await page.goto('/listen/library');
   const sections = page.locator('.listener-v2-category-tabs');
-  await expect(sections.getByRole('button')).toHaveText(['Saved', 'History', 'Playlists', 'Saved broadcasts', 'Downloads']);
+  await expect(sections.getByRole('button')).toHaveText(['Saved', 'History', 'Playlists', 'Saved moments', 'Downloads']);
   await expect(sections.getByRole('button', { name: 'Saved', exact: true })).toHaveAttribute('aria-current', 'page');
   await expect(page.getByText(/% listened/)).toHaveCount(0);
+});
+
+test('Listener search renders only actionable result types', async ({ page }) => {
+  await authenticate(page);
+  await page.goto('/listen/search?q=Echoo');
+  await expect(page.getByRole('heading', { name: 'Creators', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Channels', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Audio', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Playlists', exact: true })).toHaveCount(0);
 });
 
 test('listener secondary pages avoid duplicate navigation and discovery surfaces', async ({ page }) => {
