@@ -18,7 +18,6 @@ import {
   setDesktopAutoLaunch,
   setDesktopNotificationPreferences,
 } from '../../services/desktopBridge';
-import '../../styles/listener-reference-pages.css';
 import './ListenerSettings.css';
 
 const NAV_GROUPS = [
