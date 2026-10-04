@@ -81,6 +81,16 @@ test('live room never fabricates listener counts or follow success when identity
   assert.match(room, /Follow is unavailable for this broadcast/);
 });
 
+test('Channel profile never invents zero listeners when count is unavailable', async () => {
+  const profile = await source('../../frontend/src/Components/ListenerLiveExperience/ListenerRealStationProfile.jsx');
+
+  assert.match(profile, /const honestCount =/);
+  assert.match(profile, /stationListenerCount != null/);
+  assert.match(profile, /liveListenerCount != null/);
+  assert.doesNotMatch(profile, /Number\(station\.listenerCount\)\s*\|\|\s*0/);
+  assert.doesNotMatch(profile, /Number\(live\.listenerCount\)\s*\|\|\s*0/);
+});
+
 test('live room primary control recovers disconnected audio and never relies on playerError to disable Play', async () => {
   const room = await source('../../frontend/src/Components/ListenerLiveExperience/ListenerRealLiveRoom.jsx');
 
