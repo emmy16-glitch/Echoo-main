@@ -15,6 +15,12 @@ import '../../styles/echoo-batch3.css';
 
 const STATION_SYNC_INTERVAL_MS = 15000;
 
+const honestCount = (value) => {
+  if (value == null || value === '') return null;
+  const count = Number(value);
+  return Number.isFinite(count) ? Math.max(0, count) : null;
+};
+
 const ListenerRealStationProfile = () => {
   const { stationId } = useParams();
   const navigate = useNavigate();
@@ -170,6 +176,8 @@ const ListenerRealStationProfile = () => {
   const creatorId = station.ownerId || station.creatorId || station.owner?.id || null;
   const creatorName = station.ownerName || station.creatorName || station.owner?.displayName || '';
   const isActuallyLive = Boolean(live?.id);
+  const stationListenerCount = honestCount(station.listenerCount);
+  const liveListenerCount = honestCount(live?.listenerCount);
 
   return (
     <div className="b3-listener-page">
@@ -198,7 +206,7 @@ const ListenerRealStationProfile = () => {
 
           <div className="b3-profile-metrics">
             <span><strong>{followerCount}</strong> followers</span>
-            <span><strong>{Number(station.listenerCount) || 0}</strong> listening</span>
+            {stationListenerCount != null && <span><strong>{stationListenerCount.toLocaleString()}</strong> listening</span>}
           </div>
 
           <div className="b3-profile-actions">
@@ -245,7 +253,7 @@ const ListenerRealStationProfile = () => {
             <FaBroadcastTower />
             <div>
               <strong>{live.title}</strong>
-              <span>{Number(live.listenerCount) || 0} listening</span>
+              {liveListenerCount != null && <span>{liveListenerCount.toLocaleString()} listening</span>}
             </div>
             <button
               type="button"
