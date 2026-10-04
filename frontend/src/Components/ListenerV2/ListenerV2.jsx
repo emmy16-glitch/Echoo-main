@@ -3,6 +3,7 @@ import { Outlet, useLocation, useNavigate, useOutletContext } from 'react-router
 import {
   FiArrowRight,
   FiCalendar,
+  FiBookOpen,
   FiCheck,
   FiChevronDown,
   FiChevronRight,
@@ -193,11 +194,12 @@ const LiveCard = ({ broadcast, onOpen }) => {
       <button type="button" className="listener-v2-live-art" onClick={() => onOpen(broadcast)}>
         <Artwork src={art} />
         <span className="listener-v2-live-badge">LIVE</span>
-        <span className="listener-v2-live-listeners"><FiHeadphones /> {formatCount(broadcast?.listenerCount ?? broadcast?.station?.listenerCount)}</span>
+        {(broadcast?.listenerCount ?? broadcast?.station?.listenerCount) != null && <span className="listener-v2-live-listeners"><FiHeadphones /> {formatCount(broadcast.listenerCount ?? broadcast.station.listenerCount)} listening</span>}
       </button>
       <button type="button" className="listener-v2-live-meta" onClick={() => onOpen(broadcast)}>
         <strong>{titleOf(broadcast)}</strong>
-        <span>{categoryOf(broadcast)}</span>
+        <span>{stationNameOf(broadcast)}</span>
+        <small>Listen Live</small>
       </button>
     </article>
   );
@@ -370,6 +372,7 @@ const ListenerV2Layout = () => {
     if (location.pathname === '/listen/following') return 'following';
     if (location.pathname === '/listen/live' || location.pathname.startsWith('/listen/live/')) return 'live';
     if (location.pathname === '/listen/settings') return 'profile';
+    if (['/listen/library', '/listen/history', '/listen/downloads', '/listen/playlist', '/listen/saved-moments'].includes(location.pathname)) return 'library';
     if (location.pathname === '/listen/search') return 'search';
     if (
       location.pathname === '/listen/channels' ||
@@ -382,10 +385,10 @@ const ListenerV2Layout = () => {
 
   const navItems = [
     { key: 'discover', label: 'Discover', path: '/listen', icon: <FiMusic /> },
-    { key: 'live', label: 'Live now', path: '/listen/live', icon: <FiRadio /> },
     { key: 'following', label: 'Following', path: '/listen/following', icon: <FiHeart /> },
-    { key: 'channels', label: 'Channels', path: '/listen/channels', icon: <FiUsers /> },
+    { key: 'library', label: 'Library', path: '/listen/library', icon: <FiBookOpen /> },
     { key: 'search', label: 'Search', path: '/listen/search', icon: <FiSearch /> },
+    { key: 'profile', label: 'Profile', path: '/listen/settings', icon: <FiUser /> },
   ];
 
   useEffect(() => {
@@ -802,9 +805,10 @@ const ListenerV2Layout = () => {
         {[
           { key: 'discover', label: 'Discover', path: '/listen', icon: <FiMusic /> },
           { key: 'following', label: 'Following', path: '/listen/following', icon: <FiHeart /> },
+          { key: 'library', label: 'Library', path: '/listen/library', icon: <FiBookOpen /> },
           { key: 'search', label: 'Search', path: '/listen/search', icon: <FiSearch /> },
           { key: 'profile', label: 'Profile', path: '/listen/settings', icon: <FiUser /> },
-        ].map((item) => <button key={item.key} type="button" className={activeKey === item.key ? 'is-active' : ''} onClick={() => {
+        ].map((item) => <button key={item.key} type="button" className={activeKey === item.key ? 'is-active' : ''} aria-current={activeKey === item.key ? 'page' : undefined} onClick={() => {
           if (isGuest && item.key === 'profile') {
             requestAuth({
               action: 'Open settings',
@@ -892,7 +896,7 @@ const LiveCatalog = () => {
 const DiscoverCatalog = () => {
   const navigate = useNavigate();
   const { playTrack } = useOutletContext();
-  const { liveNow, upcoming } = useLiveCatalog();
+  const { liveNow, upcoming, loading: liveLoading, error: liveError, reload } = useLiveCatalog();
   const [recordings, setRecordings] = useState([]);
   const [playlists, setPlaylists] = useState([]);
 
@@ -935,14 +939,14 @@ const DiscoverCatalog = () => {
 
       <section className="listener-v2-panel">
         <SectionTitle title="Live now" copy="On air right now" action={() => navigate('/listen/live')} />
-        {liveNow.length ? (
+        {liveLoading ? <div className="listener-v2-row-skeleton" role="status" aria-label="Loading live broadcasts"><span /><span /><span /></div> : liveError ? <EmptyState icon={<FiRadio />} title="Live broadcasts are unavailable" copy={liveError} action={reload} actionLabel="Try again" /> : liveNow.length ? (
           <div className="listener-v2-live-grid">{liveNow.slice(0, 5).map((item) => <LiveCard key={idOf(item)} broadcast={item} onOpen={(broadcast) => navigate(`/listen/live/${idOf(broadcast)}`, { state: { show: broadcast } })} />)}</div>
         ) : (
-          <EmptyState icon={<FiRadio />} title="Nothing is live right now" copy="Latest releases and scheduled broadcasts are still available below." />
+          <EmptyState icon={<FiRadio />} title="Nothing is live right now" copy="Explore the latest recordings below." />
         )}
       </section>
 
-      <section className="listener-v2-panel">
+      {upcoming.length > 0 && <section className="listener-v2-panel">
         <SectionTitle title="Upcoming broadcasts" copy="Starting soon" action={() => navigate('/listen/live')} actionLabel="See schedule" />
         {upcoming.length ? (
           <div className="listener-v2-upcoming-grid">
@@ -957,10 +961,10 @@ const DiscoverCatalog = () => {
         ) : (
           <div className="listener-v2-upcoming-empty"><FiCalendar /><span>No public broadcasts are scheduled yet.</span></div>
         )}
-      </section>
+      </section>}
 
       <section className="listener-v2-panel">
-        <SectionTitle title="Latest releases" copy="New recordings" action={() => navigate('/listen/search')} actionLabel="Search audio" />
+        <SectionTitle title="Latest recordings" copy="New recordings" action={() => navigate('/listen/search')} actionLabel="Search audio" />
         {recordings.length ? (
           <div className="listener-v2-audio-list listener-v2-release-list">
             {recordings.slice(0, 8).map((track) => (
@@ -984,8 +988,8 @@ const DiscoverCatalog = () => {
         )}
       </section>
 
-      <section className="listener-v2-panel listener-v2-playlist-panel">
-        <SectionTitle title="Popular playlists" copy="Tap a playlist to start listening" action={() => navigate('/listen/playlist')} actionLabel="Browse all" />
+      {visiblePlaylists.length > 0 && <section className="listener-v2-panel listener-v2-playlist-panel">
+        <SectionTitle title="Creator playlists" copy="Tap a playlist to start listening" action={() => navigate('/listen/playlist')} actionLabel="Browse all" />
         {visiblePlaylists.length ? (
           <div className="listener-v2-playlist-grid">
             {visiblePlaylists.slice(0, 6).map((playlist) => {
@@ -1011,7 +1015,7 @@ const DiscoverCatalog = () => {
         ) : (
           <EmptyState icon={<FiMusic />} title="No public playlists yet" copy="When a playlist has playable recordings, it will appear here." action={() => navigate('/listen/playlist')} actionLabel="Open playlists" />
         )}
-      </section>
+      </section>}
     </div>
   );
 };
