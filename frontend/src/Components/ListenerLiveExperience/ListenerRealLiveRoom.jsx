@@ -157,7 +157,7 @@ const ListenerRealLiveRoom = () => {
       return '';
     }
   }, [isGuest]);
-  const [realtimeState, setRealtimeState] = useState('connecting');
+  const [, setRealtimeState] = useState('connecting');
   const [audioState, setAudioState] = useState('connecting');
   const statusRef = useRef(show?.status || '');
   const roomLoadGenerationRef = useRef(0);
