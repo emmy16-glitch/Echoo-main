@@ -528,6 +528,7 @@ const RecordingSaveBanner = () => {
             >
               {state.choosing === 'wav' ? 'Saving…' : 'Save WAV to device'}
             </button>
+            <button type="button" onClick={() => chooseDeviceCopy('none')} disabled={Boolean(state.choosing)}>Keep in Echoo only</button>
           </div>
         </>
       )}

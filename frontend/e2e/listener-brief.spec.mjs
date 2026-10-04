@@ -35,3 +35,134 @@ test('live card does not invent listener counts', async ({ page }) => {
   await expect(page.locator('.listener-v2-live-meta')).toContainText('Real creator');
   await expect(page.locator('.listener-v2-live-meta')).toContainText('Listen Live');
 });
+
+test('recording player survives navigation without creating another audio element', async ({ page }) => {
+  await authenticate(page);
+  await page.addInitScript(() => {
+    HTMLMediaElement.prototype.play = function () { this.dispatchEvent(new Event('play')); return Promise.resolve(); };
+  });
+  await page.route('**/api/audio?*', route => route.fulfill({ json: { data: [{ id: '507f1f77bcf86cd799439041', title: 'Test recording', artistName: 'Test creator', fileUrl: 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=', duration: 60 }] } }));
+  await page.goto('/listen');
+  const play = page.getByRole('button', { name: /^Play / }).first();
+  await expect(play).toBeVisible();
+  await play.click();
+  await expect(page.locator('.listener-v2-player')).toBeVisible();
+  await page.evaluate(() => { window.originalAudio = document.querySelector('.listener-v2-root > audio'); });
+  for (const path of ['/listen/following', '/listen/library', '/listen/search', '/listen/profile']) {
+    await page.evaluate(path => { const button = [...document.querySelectorAll('.listener-v2-mobile-nav button, .listener-v2-nav button')].find(button => button.textContent === ({ '/listen/following': 'Following', '/listen/library': 'Library', '/listen/search': 'Search', '/listen/profile': 'Profile' })[path]); button.click(); }, path);
+    await expect(page).toHaveURL(new RegExp(`${path}$`));
+    expect(await page.evaluate(() => window.originalAudio === document.querySelector('.listener-v2-root > audio'))).toBe(true);
+    await expect(page.locator('.listener-v2-root > audio')).toHaveCount(1);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  }
+});
+
+test('live player stays mounted after leaving the room and returns without a second connection', async ({ page }) => {
+  await authenticate(page);
+  await page.goto('/listen');
+  await page.locator('.listener-v2-live-meta').first().click();
+  await expect(page.locator('.echoo-livekit-listener')).toHaveCount(1);
+  await page.evaluate(() => { window.originalLivePlayer = document.querySelector('.echoo-livekit-listener'); });
+  await page.locator('.listener-v2-room-toolbar button').first().click();
+  await expect(page.locator('.listener-v2-live-mini')).toBeVisible();
+  expect(await page.evaluate(() => window.originalLivePlayer === document.querySelector('.echoo-livekit-listener'))).toBe(true);
+  await page.getByRole('button', { name: 'Open live room' }).click();
+  await expect(page.locator('.listener-v2-live-room')).toBeVisible();
+  expect(await page.evaluate(() => window.originalLivePlayer === document.querySelector('.echoo-livekit-listener'))).toBe(true);
+});
+
+test('server finalization is independent of device export and duplicate End requests', async ({ page }) => {
+  await authenticate(page);
+  let finalizations = 0;
+  await page.route('**/api/broadcasts/*/recording-chunks/complete', async route => {
+    finalizations++;
+    await route.fulfill({ json: { data: { replay: { status: 'ready', audioId: '507f1f77bcf86cd799439041' } } } });
+  });
+  await page.goto('/listen');
+  const result = await page.evaluate(async () => {
+    const { startAutosave } = await import('/src/services/recordingAutosave.js');
+    const { setRecordingDevicePreferences } = await import('/src/services/recordingDevicePreferences.js');
+    let disposed = 0;
+    setRecordingDevicePreferences({ decided: true, autoSave: false });
+    const options = { recording: { blob: new Blob([new Uint8Array(44)], { type: 'audio/wav' }), broadcastId: '507f1f77bcf86cd799439031', serverRecordingPrimary: true, dispose: async () => { disposed++; } }, broadcast: { id: '507f1f77bcf86cd799439031', title: 'Recorded broadcast' } };
+    const completed = await Promise.all([startAutosave(options), startAutosave(options)]);
+    setRecordingDevicePreferences({ decided: true, autoSave: true, format: 'wav' });
+    const optional = await startAutosave({ recording: { ...options.recording, broadcastId: '507f1f77bcf86cd799439032' }, broadcast: { ...options.broadcast, id: '507f1f77bcf86cd799439032' } });
+    return { disposed, audioIds: completed.map(value => value.audioId), optionalReady: Boolean(optional.audioId), deviceChoice: optional.needsDeviceChoice };
+  });
+  expect(finalizations).toBe(2);
+  expect(result.disposed).toBe(1);
+  expect(result.audioIds).toEqual(['507f1f77bcf86cd799439041', '507f1f77bcf86cd799439041']);
+  expect(result.optionalReady).toBe(true);
+  expect(result.deviceChoice).toBe(true);
+});
+
+test('live actions persist, roll back failures, copy links, and open and close chat', async ({ page }) => {
+  await authenticate(page);
+  await page.addInitScript(() => Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async text => { window.copiedLink = text; } } }));
+  let attempts = 0;
+  await page.route('**/api/broadcasts/*/like', route => {
+    if (route.request().method() === 'GET') return route.fulfill({ json: { data: { liked: false } } });
+    attempts++;
+    return attempts === 1 ? route.fulfill({ status: 500, json: { error: { message: 'Try again' } } }) : route.fulfill({ json: { data: { liked: true } } });
+  });
+  await page.route('**/api/saved-moments*', route => route.fulfill({ json: { data: route.request().method() === 'POST' ? { id: 'saved', broadcastId: '507f1f77bcf86cd799439031', timestampMs: 0 } : [] } }));
+  await page.goto('/listen/live/507f1f77bcf86cd799439031');
+  await page.locator('.listener-room-actions summary').click();
+  const like = page.getByRole('button', { name: 'Like', exact: true });
+  await like.click();
+  await expect(like).toHaveAttribute('aria-pressed', 'false');
+  await like.click();
+  await expect(page.getByRole('button', { name: 'Liked', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Saved', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: 'Copy link', exact: true }).click();
+  await expect(page.getByText('Live link copied', { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => window.copiedLink)).toContain('/listen/live/507f1f77bcf86cd799439031');
+  if (await page.locator('.listener-v2-room-chat-toggle').isVisible()) {
+    await page.locator('.listener-v2-room-chat-toggle').click();
+    await expect(page.getByRole('textbox', { name: 'Message live chat' })).toBeInViewport();
+    await page.locator('.listener-v2-room-chat-close').click();
+    await expect(page.locator('.listener-v2-room-chat')).not.toHaveClass(/is-open/);
+  }
+});
+
+test('all listener destinations fit the required viewport widths', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-1440', 'Run the full width sweep once.');
+  test.setTimeout(120_000);
+  await authenticate(page);
+  await page.goto('/listen');
+  for (const width of [320, 360, 390, 414, 768, 1024, 1280, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const route of ['/listen', '/listen/following', '/listen/library', '/listen/search', '/listen/profile']) {
+      const labels = { '/listen': 'Discover', '/listen/following': 'Following', '/listen/library': 'Library', '/listen/search': 'Search', '/listen/profile': 'Profile' };
+      const nav = page.locator(width < 768 ? '.listener-v2-mobile-nav' : '.listener-v2-nav');
+      await nav.getByRole('button', { name: labels[route], exact: true }).click();
+      await expect(page).toHaveURL(new RegExp(`${route}$`));
+      await expect(page.locator('.listener-v2-page'), `${route} at ${width}`).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${route} overflows at ${width}`).toBe(true);
+      const header = await page.locator('.listener-v2-header').boundingBox();
+      const account = await page.locator('.account-experience-trigger').boundingBox();
+      expect(account.y + account.height, `Account control overlaps content at ${width}`).toBeLessThanOrEqual(header.y + header.height);
+    }
+  }
+});
+
+test('the audience gain path defaults to unity and deliberate listener volume survives engine remounts', async ({ page }) => {
+  await authenticate(page);
+  await page.goto('/listen');
+  const values = await page.evaluate(async () => {
+    const { getEchooMixerState } = await import('/src/services/echooMixerService.js');
+    const { readListenerVolume, saveListenerVolume } = await import('/src/services/listenerVolume.js');
+    const state = getEchooMixerState();
+    const initial = readListenerVolume();
+    saveListenerVolume(0.42);
+    return { initial, gains: Object.fromEntries(Object.entries(state.channels).map(([id, channel]) => [id, channel.gain])), master: state.master.gain, retained: readListenerVolume() };
+  });
+  expect(values.initial).toBe(1);
+  expect(values.gains).toEqual({ host: 1, channel2: 1, guest: 1, media: 1, screen: 1 });
+  expect(values.master).toBe(1);
+  expect(values.retained).toBe(0.42);
+  await page.reload();
+  await expect(page.locator('.listener-v2-root > audio')).toHaveJSProperty('volume', 0.42);
+});

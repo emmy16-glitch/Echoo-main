@@ -35,13 +35,14 @@ test('Listener Home keeps the Listener 2.0 shell and responsive navigation geome
   await page.goto('/listen');
   await settle(page);
   const viewport = page.viewportSize();
-  const isMobile = viewport.width <= 760;
+  const isMobile = viewport.width < 768;
 
   await expect(page.getByRole('heading', { level: 1, name: 'Discover' })).toBeVisible();
-  await expect(page.getByRole('heading', { level: 2, name: 'Latest releases' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 2, name: 'Latest recordings' })).toBeVisible();
   await expect(page.getByRole('heading', { level: 2, name: 'Live now' })).toBeVisible();
-  await expect(page.getByRole('heading', { level: 2, name: 'Upcoming broadcasts' })).toBeVisible();
-  await expect(page.getByRole('heading', { level: 2, name: 'Popular playlists' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 2, name: 'Upcoming broadcasts' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { level: 2, name: 'Popular playlists' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { level: 2, name: 'From creators you follow' })).toBeVisible();
 
   const shell = page.locator('.listener-v2-root');
   await expect(shell).toBeVisible();
@@ -51,12 +52,12 @@ test('Listener Home keeps the Listener 2.0 shell and responsive navigation geome
   if (isMobile) {
     const mobileNav = page.locator('.listener-v2-mobile-nav');
     await expect(mobileNav).toBeVisible();
-    expect(await mobileNav.locator('button').count()).toBe(4);
+    expect(await mobileNav.locator('button').count()).toBe(5);
     await expect(page.locator('.listener-v2-nav')).toBeHidden();
   } else {
     const topNav = page.locator('.listener-v2-nav');
     await expect(topNav).toBeVisible();
-    await expect(topNav.getByRole('button', { name: 'Live now' })).toBeVisible();
+    await expect(topNav.getByRole('button', { name: 'Library' })).toBeVisible();
     await expect(topNav.getByRole('button', { name: 'Following' })).toBeVisible();
     await expect(page.locator('.listener-v2-mobile-nav')).toBeHidden();
   }
@@ -75,7 +76,7 @@ test('Following lists live and all-following channel sections without a dashboar
   await page.screenshot({ path: `test-results/reference-following-${testInfo.project.name}.png`, fullPage: true });
 });
 
-test('Channels keeps ranked artwork, real filters, and usable channel actions', async ({ page }, testInfo) => {
+test('Channels keeps artwork, real filters, and usable channel actions', async ({ page }, testInfo) => {
   await page.goto('/listen/channels');
   await settle(page);
   await expect(page.getByRole('heading', { level: 1, name: 'Channels' })).toBeVisible();

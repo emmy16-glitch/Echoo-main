@@ -15,6 +15,7 @@
     "test:listener-history": "node --test src/Components/ListenerHistory/historyProgress.test.mjs",
     "test:player-feedback": "node --test src/config/playerFeedback.test.mjs",
     "test:local-recording": "node --test src/services/localRecordingTranscode.test.mjs",
+    "test:listener-preferences": "node --test src/services/listenerVolume.test.mjs",
     "test:live-recovery": "node --test src/services/liveRecoveryPolicy.test.mjs"
   },
   "dependencies": {

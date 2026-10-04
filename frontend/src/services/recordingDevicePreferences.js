@@ -1,10 +1,10 @@
 const STORAGE_KEY = 'echooRecordingDevicePreferencesV1';
 
 export const DEFAULT_RECORDING_DEVICE_PREFERENCES = Object.freeze({
-  // Web defaults to MP3 so the End Broadcast click can reserve a destination
-  // immediately. Creators who prefer WAV can change this once in Settings.
-  decided: true,
-  autoSave: true,
+  // Device exports require an explicit choice. Server save and OPFS recovery
+  // remain mandatory and independent of this preference.
+  decided: false,
+  autoSave: false,
   format: 'mp3',
 });
 
@@ -18,7 +18,7 @@ const storage = () => {
 
 export const normalizeRecordingDevicePreferences = (value = {}) => ({
   decided: value.decided === true,
-  autoSave: value.autoSave !== false,
+  autoSave: value.autoSave === true,
   format: value.format === 'wav' ? 'wav' : 'mp3',
 });
 

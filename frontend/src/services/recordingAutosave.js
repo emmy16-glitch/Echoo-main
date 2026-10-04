@@ -445,7 +445,7 @@ const startAutosaveLive = async ({
           return { audioId, title, duplicate: Boolean(replay.duplicate), localCopy };
         }
 
-        if (deferBrowserDeviceChoice && recording.blob?.size) {
+        if (deferBrowserDeviceChoice && recording.blob?.size && !skipDeviceSave && (!preferences.decided || preferences.autoSave)) {
           rememberLocalMaster(`device-choice:${key}`, {
             blob: recording.blob,
             title,
