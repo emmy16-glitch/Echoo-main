@@ -11,7 +11,6 @@ import {
 
 import playlistService from '../../services/playlistService';
 import { useGuestAuth } from '../Auth/GuestAuthGate';
-import ListenerHeroArtwork from '../ListenerHeroArtwork/ListenerHeroArtwork';
 import ListenerToast from '../ListenerUI/ListenerToast';
 import './ListenerPlaylist.css';
 
@@ -164,8 +163,6 @@ export default function ListenerPlaylist() {
 
   return (
     <div className="pl-page">
-      <ListenerHeroArtwork className="listener-hero-artwork--playlist" />
-
       <div className="pl-heading">
         <div className="pl-heading-text">
           <h1>Playlists</h1>
