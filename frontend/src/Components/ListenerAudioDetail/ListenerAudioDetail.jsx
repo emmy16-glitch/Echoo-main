@@ -271,7 +271,7 @@ const ListenerAudioDetail = () => {
       {transcriptPublished && activeTab === 'chapters' && (chapters.length ? <ChapterList chapters={chapters} onJump={jump} /> : <div className="replay-state">Chapters will appear when transcript moments are available.</div>)}
       {activeTab === 'about' && <article className="replay-about replay-about--wide"><h2>About this replay</h2><p>{normalizedTrack.description || 'No description is available for this replay.'}</p><p>Recorded on {formatDate(normalizedTrack.sourceBroadcast?.endedAt || normalizedTrack.createdAt)}.</p></article>}
 
-      {transcriptPublished && (chapters.length > 0 || moments.length > 0) && <div className="replay-discovery-grid">{chapters.length > 0 && <ChapterList chapters={chapters} onJump={jump} />}<section className="replay-moments"><div><h2>Key Moments</h2><button type="button" onClick={saveAllMoments}>Save all</button></div>{moments.map((moment) => <KeyMomentCard key={moment.id} moment={moment} onJump={jump} onSave={saveMoment} saved={savedMomentIds.has(`${Math.round(moment.seconds)}`)} />)}{!moments.length && <div className="lex-panel-empty">Key moments will appear with the transcript.</div>}</section></div>}
+      {activeTab === 'overview' && transcriptPublished && moments.length > 0 && <section className="replay-moments replay-moments--overview"><div><h2>Key Moments</h2><button type="button" onClick={saveAllMoments}>Save all</button></div>{moments.map((moment) => <KeyMomentCard key={moment.id} moment={moment} onJump={jump} onSave={saveMoment} saved={savedMomentIds.has(`${Math.round(moment.seconds)}`)} />)}</section>}
     </div>
   );
 };
