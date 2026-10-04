@@ -781,5 +781,6 @@ html.listener-v2-full-player-open body { overflow:hidden; }
   .listener-v2-brand { grid-column: 1; grid-row: 1; }
   .listener-v2-header > .echoo-account-toolbar, .listener-v2-guest-actions { grid-column: 2; grid-row: 1; }
   .listener-v2-header-search { display: none; }
-  .listener-v2-nav { grid-column: 1 / -1; grid-row: 2; position: static; justify-content: center; }
+  .listener-v2-nav { grid-column: 1 / -1; grid-row: 2; position: static; justify-content: center; align-items: center; min-height: 44px; }
+  .listener-v2-nav button { height: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; padding-inline: 8px; }
 }
