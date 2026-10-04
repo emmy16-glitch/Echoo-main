@@ -8,76 +8,68 @@ import {
   FaPlus,
   FaTrash,
 } from 'react-icons/fa';
+
 import playlistService from '../../services/playlistService';
-import ListenerToast from '../ListenerUI/ListenerToast';
-import ListenerHeroArtwork from '../ListenerHeroArtwork/ListenerHeroArtwork';
 import { useGuestAuth } from '../Auth/GuestAuthGate';
+import ListenerHeroArtwork from '../ListenerHeroArtwork/ListenerHeroArtwork';
+import ListenerToast from '../ListenerUI/ListenerToast';
 import '../../styles/listener-reference-pages.css';
 import './ListenerPlaylist.css';
 
 const idOf = (item) => String(item?.id || item?._id || '');
-
 
 export default function ListenerPlaylist() {
   const { requestAuth, isGuest } = useGuestAuth();
   const { playTrack, currentTrack, isPlaying, togglePlay } = useOutletContext();
   const [sort, setSort] = useState('recent');
   const [playlists, setPlaylists] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState({ open: false, type: 'info', title: '', message: '' });
   const [busyId, setBusyId] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const [createName, setCreateName] = useState('');
   const [createDesc, setCreateDesc] = useState('');
 
-  const showToast = useCallback((type, title, message) =>
-    setToast({ open: true, type, title, message }), []);
+  const showToast = useCallback(
+    (type, title, message) => setToast({ open: true, type, title, message }),
+    [],
+  );
 
   const load = useCallback(async () => {
-    const [mineResult] = await Promise.allSettled([
-      playlistService.getMine(),
-    ]);
-
-    if (mineResult.status === 'fulfilled') {
-      const list = Array.isArray(mineResult.value?.data) ? mineResult.value.data : [];
-      setPlaylists(list);
+    if (isGuest) {
+      setPlaylists([]);
+      setLoading(false);
+      return;
     }
-  }, []);
+
+    try {
+      setLoading(true);
+      const result = await playlistService.getMine();
+      setPlaylists(Array.isArray(result?.data) ? result.data : []);
+    } catch {
+      showToast('error', 'Could not load playlists', 'Try again in a moment.');
+    } finally {
+      setLoading(false);
+    }
+  }, [isGuest, showToast]);
 
   useEffect(() => {
     load();
-    const interval = window.setInterval(load, 30000);
-    return () => window.clearInterval(interval);
   }, [load]);
-
-  const handlePlay = useCallback(
-    (track) => {
-      if (!track?.id) return;
-      if (String(currentTrack?.id || '') === String(track.id)) {
-        togglePlay();
-        return;
-      }
-      playTrack({
-        id: track.id,
-        title: track.title,
-        artistName: track.artistName,
-        fileUrl: track.fileUrl,
-        coverArt: track.coverArt || track.artwork,
-        duration: track.duration,
-      });
-    },
-    [playTrack, currentTrack, togglePlay],
-  );
 
   const handlePlaylistPlay = useCallback(
     (playlist) => {
       const queue = (Array.isArray(playlist?.tracks) ? playlist.tracks : [])
         .filter((track) => track?.id && track?.fileUrl);
+
       if (!queue.length) return;
+
       const firstTrack = queue[0];
       if (String(currentTrack?.id || '') === String(firstTrack.id)) {
         togglePlay();
         return;
       }
+
       playTrack({
         id: firstTrack.id,
         title: firstTrack.title,
@@ -87,7 +79,7 @@ export default function ListenerPlaylist() {
         duration: firstTrack.duration,
       }, queue);
     },
-    [playTrack, currentTrack, togglePlay],
+    [currentTrack, playTrack, togglePlay],
   );
 
   const handleCreatePlaylist = useCallback(async () => {
@@ -96,18 +88,24 @@ export default function ListenerPlaylist() {
       showToast('error', 'Name required', 'Give your playlist a name first.');
       return;
     }
+
     if (isGuest) {
       requestAuth({
         action: 'Save playlist',
         title: 'Save this playlist?',
         message: 'Create an Echoo account to keep your library across devices.',
+        destination: '/listen/playlist',
         resume: async () => {
-          await playlistService.create({ name, description: createDesc.trim(), isPublic: false });
-          await load();
+          await playlistService.create({
+            name,
+            description: createDesc.trim(),
+            isPublic: false,
+          });
         },
       });
       return;
     }
+
     try {
       setBusyId('create');
       const result = await playlistService.create({
@@ -116,57 +114,69 @@ export default function ListenerPlaylist() {
         isPublic: false,
       });
       const created = result?.data || {};
-      if (created?.id) {
-        showToast('success', 'Playlist created', `"${name}" is ready.`);
-        setCreateName('');
-        setCreateDesc('');
-        setCreateOpen(false);
-        await load();
-      } else {
-        showToast('error', 'Could not create', 'Something went wrong creating the playlist.');
+
+      if (!idOf(created)) {
+        throw new Error('Playlist creation returned no playlist.');
       }
+
+      setCreateName('');
+      setCreateDesc('');
+      setCreateOpen(false);
+      showToast('success', 'Playlist created', `"${name}" is ready.`);
+      await load();
     } catch {
       showToast('error', 'Could not create', 'Something went wrong creating the playlist.');
     } finally {
       setBusyId('');
     }
-  }, [createName, createDesc, showToast, load, isGuest, requestAuth]);
+  }, [createDesc, createName, isGuest, load, requestAuth, showToast]);
 
   const handleDeletePlaylist = useCallback(
     async (playlist) => {
-      const pid = idOf(playlist);
-      if (!pid) return;
+      const playlistId = idOf(playlist);
+      if (!playlistId || busyId) return;
+
       try {
-        setBusyId(pid);
-        await playlistService.delete(pid);
+        setBusyId(playlistId);
+        await playlistService.delete(playlistId);
+        setPlaylists((items) => items.filter((item) => idOf(item) !== playlistId));
         showToast('success', 'Playlist deleted', `"${playlist.name || 'Playlist'}" was removed.`);
-        await load();
       } catch {
         showToast('error', 'Could not delete', 'Something went wrong deleting the playlist.');
       } finally {
         setBusyId('');
       }
     },
-    [showToast, load],
+    [busyId, showToast],
   );
 
-  const sortLists = (list) => {
-    if (sort === 'name') return [...list].sort((a, b) => String(a.name || '').localeCompare(b.name || ''));
-    if (sort === 'tracks') return [...list].sort((a, b) => (b.tracks?.length || 0) - (a.tracks?.length || 0));
-    return list;
-  };
+  const sortedPlaylists = [...playlists].sort((a, b) => {
+    if (sort === 'name') {
+      return String(a?.name || '').localeCompare(String(b?.name || ''));
+    }
+    if (sort === 'tracks') {
+      return (b?.tracks?.length || 0) - (a?.tracks?.length || 0);
+    }
 
-  const myPlaylists = sortLists(playlists);
+    const aDate = new Date(a?.updatedAt || a?.createdAt || 0).getTime();
+    const bDate = new Date(b?.updatedAt || b?.createdAt || 0).getTime();
+    return bDate - aDate;
+  });
 
   return (
     <div className="pl-page">
       <ListenerHeroArtwork className="listener-hero-artwork--playlist" />
+
       <div className="pl-heading">
         <div className="pl-heading-text">
           <h1>Playlists</h1>
-          <p>Play a collection, continue listening, or organize your own.</p>
+          <p>Create and organize the audio you want to keep together.</p>
         </div>
-        <button type="button" className="pl-hero-cta" onClick={() => setCreateOpen((open) => !open)}>
+        <button
+          type="button"
+          className="pl-hero-cta"
+          onClick={() => setCreateOpen((open) => !open)}
+        >
           <FaPlus /> {createOpen ? 'Close' : 'Create playlist'}
         </button>
       </div>
@@ -178,14 +188,14 @@ export default function ListenerPlaylist() {
             placeholder="Playlist name"
             aria-label="Playlist name"
             value={createName}
-            onChange={(e) => setCreateName(e.target.value)}
+            onChange={(event) => setCreateName(event.target.value)}
           />
           <input
             type="text"
             placeholder="Description (optional)"
             aria-label="Playlist description"
             value={createDesc}
-            onChange={(e) => setCreateDesc(e.target.value)}
+            onChange={(event) => setCreateDesc(event.target.value)}
           />
           <button
             type="button"
@@ -199,11 +209,13 @@ export default function ListenerPlaylist() {
       )}
 
       <div className="pl-controls">
-        <span className="pl-count">{myPlaylists.length} {myPlaylists.length === 1 ? 'playlist' : 'playlists'}</span>
+        <span className="pl-count">
+          {sortedPlaylists.length} {sortedPlaylists.length === 1 ? 'playlist' : 'playlists'}
+        </span>
         <select
           className="pl-sort"
           value={sort}
-          onChange={(e) => setSort(e.target.value)}
+          onChange={(event) => setSort(event.target.value)}
           aria-label="Sort playlists"
         >
           <option value="recent">Recently updated</option>
@@ -212,142 +224,100 @@ export default function ListenerPlaylist() {
         </select>
       </div>
 
-      <div className="pl-layout">
-        <div className="pl-main">
-              <section className="pl-section">
-                <div className="pl-section-header">
-                  <h2>My playlists</h2>
-                </div>
-                {myPlaylists.length === 0 ? (
-                  <div className="pl-empty">
-                    <FaListUl />
-                    <strong>No playlists yet.</strong>
-                    <p>Create a playlist to organize the audio you love.</p>
-                  </div>
-                ) : (
-                  <div className="pl-playlist-grid">
-                    {myPlaylists.map((playlist) => {
-                      const trackCount = Array.isArray(playlist.tracks) ? playlist.tracks.length : 0;
-                      const firstTrack = Array.isArray(playlist.tracks) ? playlist.tracks[0] : null;
-                      const playing = firstTrack && String(currentTrack?.id || '') === String(firstTrack.id) && isPlaying;
-                      return (
-                        <div key={idOf(playlist)} className="pl-playlist-card">
-                          <div className="pl-playlist-art">
-                            <img
-                              src={playlist.coverArt}
-                              alt={playlist.name || 'Playlist'}
-                              onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                            />
-                            <span className="pl-playlist-art-badge">
-                              <FaPlay /> {trackCount} {trackCount === 1 ? 'track' : 'tracks'}
-                            </span>
-                            <button
-                              type="button"
-                              className="pl-playlist-art-play"
-                              aria-label={`${playing ? 'Pause' : 'Play'} ${playlist.name || 'playlist'}`}
-                              disabled={!firstTrack}
-                              onClick={() => firstTrack && handlePlaylistPlay(playlist)}
-                            >
-                              {playing ? <FaPause /> : <FaPlay />}
-                            </button>
-                          </div>
-                          <div className="pl-playlist-info">
-                            <strong>{playlist.name || 'Untitled Playlist'}</strong>
-                            <span>{playlist.description || 'No description'}</span>
-                            <div className="pl-playlist-meta">
-                              <span className="pl-privacy">
-                                <FaLock /> {playlist.isPublic ? 'Public' : 'Private'}
-                              </span>
-                              <button
-                                type="button"
-                                className="pl-more-btn"
-                                aria-label={`Delete ${playlist.name || 'playlist'}`}
-                                disabled={busyId === idOf(playlist)}
-                                onClick={() => handleDeletePlaylist(playlist)}
-                              >
-                                <FaTrash />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </section>
-
->
-                        View history <FaAngleRight />
-                      </button>
-                    </div>
-                    {continueListening.length === 0 ? (
-                      <div className="pl-empty">
-                        <FaHeadphones />
-                        <strong>Nothing in progress.</strong>
-                        <p>Play some audio and your listening progress will appear here.</p>
-                      </div>
-                    ) : (
-                      <div className="pl-continue-list">
-                        {continueListening.map((track) => {
-                          const playing = String(currentTrack?.id || '') === String(track.id);
-                          const elapsed = Number(track.progress) || 0;
-                          const total = Number(track.duration) || 0;
-                          const percent = total > 0 ? Math.min(100, (elapsed / total) * 100) : 0;
-                          return (
-                            <div key={idOf(track)} className="pl-continue-row">
-                              <div className="pl-continue-art">
-                                <img src={track.coverArt || track.artwork} alt={track.title || 'Audio'} />
-                                <button
-                                  type="button"
-                                  className="pl-continue-art-play"
-                                  aria-label={playing && isPlaying ? 'Pause' : 'Play'}
-                                  onClick={() => handleContinuePlay(track)}
-                                >
-                                  {playing && isPlaying ? <FaPause /> : <FaPlay />}
-                                </button>
-                              </div>
-                              <div className="pl-continue-info">
-                                <strong>{track.title || 'Untitled audio'}</strong>
-                                <span>{track.artistName || track.genre || 'Audio'}</span>
-                              </div>
-                              <div className="pl-continue-progress">
-                                <div className="pl-progress-track">
-                                  <span className="pl-progress-fill" style={{ width: `${percent}%` }} />
-                                </div>
-                                <span className="pl-progress-times">
-                                  {formatDuration(elapsed)} / {formatDuration(total)}
-                                </span>
-                              </div>
-                              <span className="pl-continue-when">{relativeTime(track.playedAt)}</span>
-                              <button
-                                type="button"
-                                className="pl-continue-play"
-                                aria-label={playing && isPlaying ? 'Pause' : 'Play'}
-                                onClick={() => handleContinuePlay(track)}
-                              >
-                                {playing && isPlaying ? <FaPause /> : <FaPlay />}
-                              </button>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </section>
-
-
-                </>
-              )}
+      <section className="pl-section" aria-labelledby="my-playlists-heading">
+        <div className="pl-section-header">
+          <h2 id="my-playlists-heading">My playlists</h2>
         </div>
 
+        {isGuest ? (
+          <div className="pl-empty">
+            <FaListUl />
+            <strong>Sign in to keep playlists</strong>
+            <p>Your playlists stay with your Echoo account across devices.</p>
+            <button
+              type="button"
+              className="pl-create-btn"
+              onClick={() => requestAuth({
+                action: 'Open playlists',
+                destination: '/listen/playlist',
+              })}
+            >
+              Sign in
+            </button>
+          </div>
+        ) : loading ? (
+          <div className="listener-v2-row-skeleton" role="status" aria-label="Loading playlists">
+            <span /><span /><span />
+          </div>
+        ) : sortedPlaylists.length === 0 ? (
+          <div className="pl-empty">
+            <FaListUl />
+            <strong>No playlists yet.</strong>
+            <p>Create a playlist to organize the audio you want to hear again.</p>
+          </div>
+        ) : (
+          <div className="pl-playlist-grid">
+            {sortedPlaylists.map((playlist) => {
+              const trackCount = Array.isArray(playlist?.tracks) ? playlist.tracks.length : 0;
+              const firstTrack = trackCount ? playlist.tracks[0] : null;
+              const playing =
+                firstTrack &&
+                String(currentTrack?.id || '') === String(firstTrack.id) &&
+                isPlaying;
 
-      </div>
+              return (
+                <article key={idOf(playlist)} className="pl-playlist-card">
+                  <div className="pl-playlist-art">
+                    {playlist.coverArt ? (
+                      <img src={playlist.coverArt} alt="" />
+                    ) : (
+                      <span aria-hidden="true"><FaListUl /></span>
+                    )}
+                    <span className="pl-playlist-art-badge">
+                      {trackCount} {trackCount === 1 ? 'track' : 'tracks'}
+                    </span>
+                    <button
+                      type="button"
+                      className="pl-playlist-art-play"
+                      aria-label={`${playing ? 'Pause' : 'Play'} ${playlist.name || 'playlist'}`}
+                      disabled={!firstTrack}
+                      onClick={() => handlePlaylistPlay(playlist)}
+                    >
+                      {playing ? <FaPause /> : <FaPlay />}
+                    </button>
+                  </div>
+
+                  <div className="pl-playlist-info">
+                    <strong>{playlist.name || 'Untitled playlist'}</strong>
+                    {playlist.description && <span>{playlist.description}</span>}
+                    <div className="pl-playlist-meta">
+                      <span className="pl-privacy">
+                        <FaLock /> {playlist.isPublic ? 'Public' : 'Private'}
+                      </span>
+                      <button
+                        type="button"
+                        className="pl-more-btn"
+                        aria-label={`Delete ${playlist.name || 'playlist'}`}
+                        disabled={Boolean(busyId)}
+                        onClick={() => handleDeletePlaylist(playlist)}
+                      >
+                        <FaTrash />
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </section>
 
       <ListenerToast
         open={toast.open}
         type={toast.type}
         title={toast.title}
         message={toast.message}
-        onClose={() => setToast((t) => ({ ...t, open: false }))}
+        onClose={() => setToast((currentToast) => ({ ...currentToast, open: false }))}
       />
     </div>
   );
