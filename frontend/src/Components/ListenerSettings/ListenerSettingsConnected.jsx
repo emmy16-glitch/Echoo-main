@@ -4,10 +4,7 @@ import {
   FaBell,
   FaCheck,
   FaChevronDown,
-  FaDownload,
   FaInfoCircle,
-  FaLock,
-  FaShieldAlt,
   FaSlidersH,
   FaUser,
 } from 'react-icons/fa';
@@ -26,12 +23,8 @@ import './ListenerSettings.css';
 
 const NAV_GROUPS = [
   { id: 'profile', label: 'Profile', icon: <FaUser /> },
-  { id: 'account', label: 'Account', icon: <FaLock /> },
   { id: 'playback', label: 'Playback', icon: <FaSlidersH /> },
-  { id: 'downloads', label: 'Downloads', icon: <FaDownload /> },
   { id: 'notifications', label: 'Notifications', icon: <FaBell /> },
-  { id: 'privacy', label: 'Privacy', icon: <FaShieldAlt /> },
-  { id: 'about', label: 'About Echoo', icon: <FaInfoCircle /> },
 ];
 
 const LANGUAGES = [
@@ -442,15 +435,7 @@ const ListenerSettingsConnected = () => {
                 )}
               </div>
             </div>
-          ) : nav !== 'profile' ? (
-            <div className="set-panel set-panel-coming">
-              <h2>{NAV_GROUPS.find((g) => g.id === nav)?.label || 'Settings'}</h2>
-              <p>This section is managed through your account profile for now.</p>
-              <button type="button" className="set-back-btn" onClick={() => setNav('profile')}>
-                Back to profile settings
-              </button>
-            </div>
-          ) : (
+          ) : nav === 'playback' ? null : (
             <>
               <div className="set-card">
                 <div className="set-card-inner">

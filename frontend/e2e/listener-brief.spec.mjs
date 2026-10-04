@@ -112,6 +112,20 @@ test('server finalization is independent of device export and duplicate End requ
   expect(result.preferenceAfterSkip).toEqual(result.preferenceBeforeSkip);
 });
 
+test('listener settings exposes only working sections and Playback has no stale placeholder', async ({ page }) => {
+  await authenticate(page);
+  await page.goto('/listen/settings?section=playback');
+  await expect(page.getByRole('heading', { name: 'Listener volume' })).toBeVisible();
+  await expect(page.getByText('This section is managed through your account profile for now.')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Profile', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Playback', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Notifications', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Account', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Downloads', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Privacy', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'About Echoo', exact: true })).toHaveCount(0);
+});
+
 test('live actions persist, roll back failures, copy links, and open and close chat', async ({ page }) => {
   await authenticate(page);
   await page.addInitScript(() => Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async text => { window.copiedLink = text; } } }));
