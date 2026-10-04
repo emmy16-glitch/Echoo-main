@@ -1029,7 +1029,7 @@ const DiscoverCatalog = () => {
         )}
       </section>
 
-      <FollowingRecordings />
+      <FollowingRecordings excludeIds={recordings.map(idOf)} />
 
     </div>
   );
