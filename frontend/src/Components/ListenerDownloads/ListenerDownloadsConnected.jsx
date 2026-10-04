@@ -12,7 +12,6 @@ import Toast from '../ListenerUI/ListenerToast';
 import audioService from '../../services/audioService';
 import batch6Service from '../../services/batch6Service';
 import downloadService from '../../services/downloadService';
-import '../../styles/listener-reference-pages.css';
 import './ListenerDownloads.css';
 
 const TABS = [
