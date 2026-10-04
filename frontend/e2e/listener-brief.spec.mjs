@@ -131,8 +131,8 @@ test('Library has one saved-audio owner and links to dedicated secondary pages',
   await authenticate(page);
   await page.goto('/listen/library');
   const sections = page.locator('.listener-v2-category-tabs');
-  await expect(sections.getByRole('button')).toHaveText(['Saved', 'History', 'Playlists', 'Saved moments', 'Downloads']);
-  await expect(sections.getByRole('button', { name: 'Saved', exact: true })).toHaveAttribute('aria-current', 'page');
+  await expect(sections.getByRole('button')).toHaveText(['Saved audio', 'History', 'Playlists', 'Saved moments', 'Downloads']);
+  await expect(sections.getByRole('button', { name: 'Saved audio', exact: true })).toHaveAttribute('aria-current', 'page');
   await expect(page.getByText(/% listened/)).toHaveCount(0);
 });
 
