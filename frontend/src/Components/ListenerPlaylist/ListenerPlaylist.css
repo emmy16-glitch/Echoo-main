@@ -344,9 +344,6 @@
   .pl-section {
     margin-bottom: 20px;
   }
-  .pl-section-header h2 {
-    font-size: 16px;
-  }
   .pl-playlist-grid {
     grid-template-columns: 1fr;
     gap: 9px;
