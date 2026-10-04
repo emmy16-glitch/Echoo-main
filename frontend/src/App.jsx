@@ -62,7 +62,6 @@ import RecordingSaveBanner, { RecordingAutosaveMount } from './Components/Record
 import CommandPalette from './Components/Shared/CommandPalette.jsx';
 
 import EchooExperienceOrchestrator from './Components/EchooSystem/EchooExperienceOrchestrator';
-import EchooMobileNavigation from './Components/EchooSystem/EchooMobileNavigation';
 import ImageCropProvider from './Components/Common/ImageCropProvider';
 import { canAccessExperience } from './services/accountExperience';
 import { migrateGuestSessionToAccount } from './services/guestSession';
@@ -316,8 +315,6 @@ function App() {
         </a>
 
         <EchooExperienceOrchestrator />
-        <EchooMobileNavigation />
-
         <div id="echoo-route-content" tabIndex={-1}>
           <Routes>
             <Route
