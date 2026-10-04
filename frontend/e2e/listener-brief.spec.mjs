@@ -112,6 +112,30 @@ test('server finalization is independent of device export and duplicate End requ
   expect(result.preferenceAfterSkip).toEqual(result.preferenceBeforeSkip);
 });
 
+test('listener guest header stays listener-focused and search describes its real scope', async ({ page }) => {
+  await page.goto('/listen');
+  await expect(page.getByRole('button', { name: 'Create Channel', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible();
+  await expect(page.getByPlaceholder('Search Echoo...')).toBeVisible();
+});
+
+test('Following does not render the same live creator twice', async ({ page }) => {
+  await authenticate(page);
+  await page.goto('/listen/following');
+  await expect(page.locator('.listener-v2-following-live-card')).toHaveCount(1);
+  await expect(page.locator('.listener-v2-following-row')).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'All following', exact: true })).toHaveCount(0);
+});
+
+test('Library has one saved-audio owner and links to dedicated secondary pages', async ({ page }) => {
+  await authenticate(page);
+  await page.goto('/listen/library');
+  const sections = page.locator('.listener-v2-category-tabs');
+  await expect(sections.getByRole('button')).toHaveText(['Saved', 'History', 'Playlists', 'Saved broadcasts', 'Downloads']);
+  await expect(sections.getByRole('button', { name: 'Saved', exact: true })).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByText(/% listened/)).toHaveCount(0);
+});
+
 test('listener secondary pages avoid duplicate navigation and discovery surfaces', async ({ page }) => {
   await authenticate(page);
 
