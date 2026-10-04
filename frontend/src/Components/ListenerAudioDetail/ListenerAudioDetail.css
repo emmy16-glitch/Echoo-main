@@ -20,6 +20,7 @@
 .replay-timeline > div:last-child { display: flex; justify-content: space-between; color: var(--echoo-ds-muted); font-size: 10px; font-variant-numeric: tabular-nums; }
 .replay-tabs { min-height: 48px; padding: var(--echoo-space-1); border-bottom: 1px solid var(--echoo-ds-line); }
 .replay-overview { display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, .9fr); gap: var(--echoo-space-4); }
+.replay-overview--facts { grid-template-columns: 1fr; }
 .replay-about,
 .replay-facts,
 .replay-moments { border: 1px solid var(--echoo-ds-line); border-radius: var(--echoo-ds-radius-md); background: var(--echoo-ds-surface); box-shadow: var(--echoo-ds-shadow-xs); }
