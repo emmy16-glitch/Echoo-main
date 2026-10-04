@@ -177,11 +177,14 @@ if (!backendCapabilitySource.includes('creatorProfile?.creatorType')) {
   failures.push('Backend Creator readiness must use creatorProfile.creatorType.');
 }
 
-const mobileNavigation = read('frontend/src/Components/EchooSystem/EchooMobileNavigation.jsx');
-for (const mobileToken of ["label: 'Channels'", "path: '/listen/channels'", 'hasCreatorCapability']) {
-  if (!mobileNavigation.includes(mobileToken)) {
-    failures.push(`Mobile Listener navigation is missing current account/Channel behavior: ${mobileToken}`);
+const listenerV2Source = read('frontend/src/Components/ListenerV2/ListenerV2.jsx');
+for (const mobileToken of ["label: 'Discover'", "label: 'Following'", "label: 'Library'", "label: 'Search'", "label: 'Profile'", 'listener-v2-mobile-nav']) {
+  if (!listenerV2Source.includes(mobileToken)) {
+    failures.push(`Listener V2 mobile navigation is missing: ${mobileToken}`);
   }
+}
+if (appSource.includes('EchooMobileNavigation')) {
+  failures.push('App.jsx must not mount a second global Listener mobile navigation.');
 }
 
 const mainSource = read('frontend/src/main.jsx');
