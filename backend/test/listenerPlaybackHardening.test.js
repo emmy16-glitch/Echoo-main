@@ -76,7 +76,7 @@ test('live room never fabricates listener counts or follow success when identity
   assert.match(room, /rawCount == null \|\| rawCount === ''/);
   assert.match(room, /Number\.isFinite\(count\) \? Math\.max\(0, count\) : null/);
   assert.match(room, /presence\.listenerCount == null \|\| presence\.listenerCount === ''[\s\S]{0,180}current\.listenerCount/);
-  assert.match(room, /\{show\.listenerCount != null && \(/);
+  assert.match(room, /\{show\.listenerCount != null && <span>/);
   assert.match(room, /\{show\.stationId && \(/);
   assert.match(room, /Follow is unavailable for this broadcast/);
 });
