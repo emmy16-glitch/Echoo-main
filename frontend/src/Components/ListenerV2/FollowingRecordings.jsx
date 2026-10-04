@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { FiPlay } from 'react-icons/fi';
 import followService from '../../services/followService';
@@ -10,7 +10,8 @@ export default function FollowingRecordings({ excludeIds = [] }) {
   const { playTrack } = useOutletContext();
   const [tracks, setTracks] = useState([]);
   const [hasFollowing, setHasFollowing] = useState(false);
-  const excluded = new Set(excludeIds.map((value) => String(value || '')).filter(Boolean));
+  const excludeKey = excludeIds.map((value) => String(value || '')).filter(Boolean).sort().join('|');
+  const excluded = useMemo(() => new Set(excludeKey ? excludeKey.split('|') : []), [excludeKey]);
   useEffect(() => {
     let active = true;
     if (!isAuthenticated()) return;
@@ -28,7 +29,7 @@ export default function FollowingRecordings({ excludeIds = [] }) {
       );
     }).catch(() => {});
     return () => { active = false; };
-  }, [excludeIds]);
+  }, [excludeKey, excluded]);
   return <section className="listener-v2-panel"><header className="listener-v2-section-title"><h2>From creators you follow</h2><button type="button" onClick={() => navigate('/listen/following')}>Following</button></header>
     {tracks.length ? <div className="listener-v2-audio-list">{tracks.map(track => <article key={track.id}><span className="listener-v2-audio-art">{track.coverArt && <img src={track.coverArt} alt="" />}</span><div><strong>{track.title}</strong><span>{track.artistName}</span></div><button type="button" aria-label={`Play ${track.title}`} onClick={() => playTrack(track, tracks)}><FiPlay /></button></article>)}</div>
       : <p>{hasFollowing ? 'No public recordings from your followed creators yet.' : 'Follow creators to find their latest audio here.'} <button type="button" onClick={() => navigate('/listen/search')}>Find creators</button></p>}
