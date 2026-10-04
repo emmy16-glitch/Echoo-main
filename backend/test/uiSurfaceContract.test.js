@@ -76,19 +76,18 @@ test('shared sidebar follows nested router state instead of exact-string-only hi
   assert.match(sidebar, /isActive \|\| explicitActive/);
 });
 
-test('Listener mobile navigation has exactly four primary destinations plus More and no duplicate channel tab', async () => {
-  const navigation = await source('../../frontend/src/Components/EchooSystem/EchooMobileNavigation.jsx');
-  const primary = navigation.match(/const primaryItems = \[([\s\S]*?)\n\];/)?.[1] || '';
-  const itemCount = (primary.match(/\{ label:/g) || []).length;
+test('Listener V2 owns one five-destination mobile navigation', async () => {
+  const listener = await source('../../frontend/src/Components/ListenerV2/ListenerV2.jsx');
+  const app = await source('../../frontend/src/App.jsx');
 
-  assert.equal(itemCount, 4, 'four primary items + More must fit the five-column mobile bar');
-  assert.match(primary, /label: 'Home'/);
-  assert.match(primary, /label: 'Live now'/);
-  assert.match(primary, /label: 'Channels'/);
-  assert.match(primary, /label: 'Library'/);
-  assert.doesNotMatch(primary, /label: 'Discover'/);
-  assert.equal((primary.match(/path: '\/listen\/channels'/g) || []).length, 1);
-  assert.match(navigation, />More<\/span>/);
+  assert.doesNotMatch(app, /EchooMobileNavigation/);
+  assert.match(listener, /className="listener-v2-mobile-nav"/);
+  assert.match(listener, /label: 'Discover'/);
+  assert.match(listener, /label: 'Following'/);
+  assert.match(listener, /label: 'Library'/);
+  assert.match(listener, /label: 'Search'/);
+  assert.match(listener, /label: 'Profile'/);
+  assert.equal((listener.match(/className="listener-v2-mobile-nav"/g) || []).length, 1);
 });
 
 test('all final UI integrity layers load in deterministic order after the shared design system', async () => {
