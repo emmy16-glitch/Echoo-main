@@ -317,7 +317,7 @@ test('scheduled rooms describe a future start instead of an ended broadcast', as
 
   assert.match(room, /const isScheduled = show\?\.status === 'scheduled'/);
   assert.match(room, /const scheduledStartLabel/);
-  assert.match(room, /isScheduled \? scheduledStartLabel : 'Broadcast ended'/);
+  assert.match(room, /const audioStatusLabel = isScheduled[\s\S]{0,80}\? scheduledStartLabel[\s\S]{0,80}: !isLive[\s\S]{0,80}\? 'Broadcast ended'/);
   assert.match(room, /isScheduled \? ' is-scheduled' : ' is-ended'/);
   assert.match(css, /\.listener-v2-room-live-badge\.is-scheduled/);
 });
