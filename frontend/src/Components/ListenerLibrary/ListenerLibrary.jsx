@@ -53,7 +53,7 @@ const ListenerLibrary = () => {
     <header className="listener-v2-page-title"><h1>Library</h1><p>Your saved audio and listening tools.</p></header>
     <ContinueListening />
     <div className="listener-v2-category-tabs" aria-label="Library sections">
-      <button type="button" className="is-active" aria-current="page">Saved</button>
+      <button type="button" className="is-active" aria-current="page">Saved audio</button>
       <button type="button" onClick={() => navigate('/listen/history')}>History</button>
       <button type="button" onClick={() => navigate('/listen/playlist')}>Playlists</button>
       <button type="button" onClick={() => navigate('/listen/saved-moments')}>Saved moments</button>
