@@ -127,18 +127,6 @@
 .pl-create-btn:hover:not(:disabled) { background: var(--echoo-blue-hover); }
 .pl-create-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 
-.pl-hero-visual {
-  position: absolute;
-  right: 46px;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 1;
-  display: grid;
-  place-items: center;
-  color: var(--echoo-blue);
-  font-size: 52px;
-}
-.pl-hero-visual svg { position: relative; z-index: 2; }
 .pl-hero-ring {
   position: absolute;
   border-radius: 50%;
@@ -448,143 +436,6 @@
 }
 .pl-continue-play:hover { background: var(--echoo-blue-hover); }
 
-/* ---------- Sidebar ---------- */
-.pl-sidebar {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-  min-width: 0;
-}
-.pl-card {
-  border: 1px solid var(--echoo-border);
-  border-radius: 14px;
-  background: var(--echoo-surface);
-  box-shadow: var(--echoo-shadow);
-  padding: 17px 18px;
-}
-.pl-card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin: 0 0 12px;
-}
-.pl-card-header strong {
-  color: var(--echoo-text-h);
-  font-size: 14px;
-  font-weight: 800;
-}
-.pl-empty-note {
-  margin: 0;
-  color: var(--echoo-text-muted);
-  font-size: 11.5px;
-}
-
-/* Recent rows */
-.pl-recent-list { display: flex; flex-direction: column; gap: 11px; }
-.pl-recent-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  text-align: left;
-  cursor: pointer;
-  font-family: inherit;
-}
-.pl-recent-art {
-  width: 42px;
-  height: 42px;
-  overflow: hidden;
-  border-radius: 9px;
-  background: var(--echoo-blue-soft);
-  flex: 0 0 42px;
-}
-.pl-recent-art img { width: 100%; height: 100%; object-fit: cover; }
-.pl-recent-info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-.pl-recent-info strong {
-  color: var(--echoo-text-h);
-  font-size: 12px;
-  font-weight: 700;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.pl-recent-info span { color: var(--echoo-text-soft); font-size: 10.5px; }
-.pl-recent-when { color: var(--echoo-text-muted); font-size: 10px; }
-
-/* Top playlists */
-.pl-top-list { display: flex; flex-direction: column; gap: 12px; }
-.pl-top-row {
-  display: grid;
-  grid-template-columns: 20px 40px minmax(0, 1fr);
-  align-items: center;
-  gap: 9px;
-}
-.pl-top-rank {
-  color: var(--echoo-text-muted);
-  font-size: 11px;
-  font-weight: 700;
-  text-align: center;
-}
-.pl-top-art {
-  width: 40px;
-  height: 40px;
-  overflow: hidden;
-  border-radius: 8px;
-  background: var(--echoo-blue-soft);
-}
-.pl-top-art img { width: 100%; height: 100%; object-fit: cover; }
-.pl-top-info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-.pl-top-info strong {
-  color: var(--echoo-text-h);
-  font-size: 11.5px;
-  font-weight: 700;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.pl-top-info span { color: var(--echoo-text-muted); font-size: 10.5px; }
-
-/* CTA card */
-.pl-cta-card {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 7px;
-  background: var(--echoo-blue-soft);
-  color: var(--echoo-text);
-}
-.pl-cta-card > svg { color: var(--echoo-blue); font-size: 26px; }
-.pl-cta-card strong { color: var(--echoo-text-h); font-size: 14px; }
-.pl-cta-card p { margin: 0; font-size: 11.5px; line-height: 1.55; }
-.pl-cta-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 14px;
-  border: 1px solid var(--echoo-blue-border);
-  border-radius: 999px;
-  background: #fff;
-  color: var(--echoo-blue);
-  font-size: 11.5px;
-  font-weight: 700;
-  cursor: pointer;
-  font-family: inherit;
-}
-.pl-cta-btn:hover { background: var(--echoo-blue); color: #fff; }
-
 /* ---------- Responsive ---------- */
 @media (max-width: 1180px) {
   .pl-layout { grid-template-columns: minmax(0, 1fr) 250px; }
@@ -592,7 +443,6 @@
 @media (max-width: 980px) {
   .pl-page { padding: 22px 22px 126px; }
   .pl-layout { grid-template-columns: 1fr; }
-  .pl-hero-visual { display: none; }
   .pl-continue-row {
     grid-template-columns: 50px minmax(0, 1fr) 36px;
     grid-template-rows: auto auto auto;

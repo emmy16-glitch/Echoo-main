@@ -77,12 +77,6 @@ body:has(.listener-v2-root) .echoo-mobile-nav, body:has(.listener-v2-root) .echo
 .listener-v2-page { position: relative; isolation: isolate; }
 .listener-v2-page > .listener-hero-artwork { position: absolute; z-index: 0; }
 .listener-v2-page > *:not(.listener-hero-artwork) { position: relative; z-index: 1; }
-.listener-v2-playlist-grid > button { display: flex; align-items: center; gap: 10px; min-width: 0; min-height: 76px; padding: 12px; border: 1px solid #e7edf5; border-radius: 12px; background: #fff; color: var(--listener-v2-ink); cursor: pointer; text-align: left; transition: border-color 160ms ease, background 160ms ease, transform 160ms ease; }
-.listener-v2-playlist-grid > button:hover { border-color: #b9d0fa; background: #f8fbff; transform: translateY(-1px); }
-.listener-v2-playlist-grid > button > div { min-width: 0; }
-.listener-v2-playlist-art { width: 48px; height: 48px; flex: 0 0 48px; overflow: hidden; border-radius: 9px; background: var(--listener-v2-blue-soft); }
-.listener-v2-playlist-art img { width: 100%; height: 100%; display: block; object-fit: cover; }
-.listener-v2-playlist-grid > button strong,.listener-v2-playlist-grid > button small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .listener-v2-playlist-grid > button strong { font-size: 12px; }
 .listener-v2-playlist-grid > button small { margin-top: 4px; color: var(--listener-v2-copy); font-size: 10px; }
 
@@ -184,37 +178,6 @@ body:has(.listener-v2-root) .echoo-mobile-nav, body:has(.listener-v2-root) .echo
   }
   .listener-v2-discover-page .listener-v2-panel { background: rgba(255,255,255,.97); }
 }
-
-/* Mobile consistency guard: canonical Listener is light on all breakpoints.
-   An older dark mobile block earlier in this file still sets white text;
-   force ink-on-light here so no label is ever white-on-white or invisible. */
-@media (max-width: 767px) {
-  .listener-v2-root .listener-v2-live-meta,
-  .listener-v2-root .listener-v2-live-meta strong,
-  .listener-v2-root .listener-v2-station-meta strong,
-  .listener-v2-root .listener-v2-creator-copy strong,
-  .listener-v2-root .listener-v2-audio-list strong,
-  .listener-v2-root .listener-v2-playlist-grid strong,
-  .listener-v2-root .listener-v2-section-title h2,
-  .listener-v2-root .listener-v2-page-title h1,
-  .listener-v2-root .listener-v2-page-header h1 { color: #071226 !important; }
-  .listener-v2-root .listener-v2-live-meta span,
-  .listener-v2-root .listener-v2-station-meta span,
-  .listener-v2-root .listener-v2-station-meta small,
-  .listener-v2-root .listener-v2-creator-copy span,
-  .listener-v2-root .listener-v2-creator-copy small,
-  .listener-v2-root .listener-v2-audio-list span,
-  .listener-v2-root .listener-v2-playlist-grid small,
-  .listener-v2-root .listener-v2-page-title p,
-  .listener-v2-root .listener-v2-page-header p,
-  .listener-v2-root .listener-v2-section-title p { color: #50617a !important; }
-  .listener-v2-root .listener-v2-panel,
-  .listener-v2-root .listener-v2-station-card,
-  .listener-v2-root .listener-v2-creator-card,
-  .listener-v2-root .listener-v2-playlist-grid article,
-  .listener-v2-root .listener-v2-empty { background: #fff !important; border-color: #e2e8f1 !important; }
-}
-
 
 /* Listener release hierarchy + persistent playback controls. Loaded last on
    purpose so the active ListenerV2 shell, not historical listener layers,
@@ -654,29 +617,6 @@ html.listener-v2-full-player-open body { overflow:hidden; }
   width: 42px;
   height: 42px;
 }
-.listener-v2-playlist-card {
-  position: relative;
-  display: grid !important;
-  grid-template-columns: 48px minmax(0,1fr) 34px;
-  align-items: center;
-  gap: 11px;
-}
-.listener-v2-playlist-play {
-  width: 32px;
-  height: 32px;
-  display: grid !important;
-  place-items: center;
-  border-radius: 50% !important;
-  background: var(--listener-v2-blue) !important;
-  color: #fff !important;
-  font-size: 13px;
-}
-.listener-v2-playlist-card:hover .listener-v2-playlist-play {
-  transform: scale(1.04);
-}
-.listener-v2-playlist-panel .listener-v2-empty {
-  min-height: 126px;
-}
 .listener-v2-discover-page .listener-v2-release-list {
   overflow: hidden;
   border: 1px solid #edf1f6;
@@ -723,24 +663,6 @@ html.listener-v2-full-player-open body { overflow:hidden; }
     width: 38px;
     height: 38px;
     font-size: 17px;
-  }
-  .listener-v2-playlist-grid {
-    grid-template-columns: 1fr;
-    gap: 8px;
-  }
-  .listener-v2-playlist-card {
-    min-height: 66px !important;
-    padding: 9px 10px !important;
-    grid-template-columns: 44px minmax(0,1fr) 32px;
-  }
-  .listener-v2-playlist-art {
-    width: 44px;
-    height: 44px;
-    flex-basis: 44px;
-  }
-  .listener-v2-playlist-play {
-    width: 30px;
-    height: 30px;
   }
   .listener-v2-discover-page .listener-v2-upcoming-grid {
     grid-template-columns: 1fr;
