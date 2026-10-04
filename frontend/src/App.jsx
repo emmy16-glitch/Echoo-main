@@ -40,6 +40,7 @@ import {
 
 const CreatorStudio = lazy(() => import('./Components/CreatorStudio/CreatorStudio'));
 const ListenerLayout = lazy(loadListenerLayout);
+const ListenerProfile = lazy(() => import('./Components/ListenerProfile/ListenerProfile'));
 const ListenerHome = lazy(loadListenerHome);
 const ListenerSearch = lazy(loadListenerSearch);
 const ListenerLive = lazy(loadListenerLive);
@@ -369,6 +370,7 @@ function App() {
               <Route path="downloads" element={<ListenerDownloads />} />
               <Route path="creator/:creatorId" element={<ListenerCreatorProfile />} />
               <Route path="notifications" element={<ListenerNotifications />} />
+              <Route path="profile" element={<LazyPage element={<ListenerProfile />} />} />
               <Route path="settings" element={<ListenerSettings />} />
             </Route>
 

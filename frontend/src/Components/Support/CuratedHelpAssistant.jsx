@@ -108,11 +108,11 @@ const listenerGuidanceFor = (page) => {
   }
 };
 
-const CuratedHelpAssistant = ({ mode = 'listener', page = 'Home', onNavigate }) => {
+const CuratedHelpAssistant = ({ mode = 'listener', page = 'Home', onNavigate, initiallyOpen = false }) => {
   const creatorState = useOptionalCreatorStudioState();
   const navigate = useNavigate();
   const location = useLocation();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(initiallyOpen);
   const [question, setQuestion] = useState('');
   const [answers, setAnswers] = useState(() => [getCuratedHelpWelcome(mode)]);
   const [isSelectingGuidance, setIsSelectingGuidance] = useState(false);

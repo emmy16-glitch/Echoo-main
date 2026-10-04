@@ -1,3 +1,4 @@
+import { readListenerVolume, saveListenerVolume } from '../../services/listenerVolume';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { DefaultReconnectPolicy, Room, RoomEvent, Track } from 'livekit-client';
 import { FaHeadphones, FaRedoAlt, FaVolumeUp } from 'react-icons/fa';
@@ -87,8 +88,8 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
   // hold (not tear the room down and start a reconnect storm).
   const roomLinkRef = useRef('connected');
   const needsAudioStartRef = useRef(false);
-  const volumeRef = useRef(1);
-  const mutedRef = useRef(false);
+  const volumeRef = useRef(readListenerVolume());
+  const mutedRef = useRef(readListenerVolume() === 0);
   const playbackIntentRef = useRef('play');
   const [retryVersion, setRetryVersion] = useState(0);
   const [status, setStatus] = useState(isLive ? 'connecting' : 'idle');
@@ -97,8 +98,8 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
   const [outputs, setOutputs] = useState([]);
   const [outputDeviceId, setOutputDeviceId] = useState('');
   const [trackCount, setTrackCount] = useState(0);
-  const [liveVolume, setLiveVolume] = useState(1);
-  const [liveMuted, setLiveMuted] = useState(false);
+  const [liveVolume, setLiveVolume] = useState(readListenerVolume);
+  const [liveMuted, setLiveMuted] = useState(() => readListenerVolume() === 0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [analyser, setAnalyser] = useState(null);
   const audioCtxRef = useRef(null);
@@ -106,6 +107,23 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
   const analyserTrackIdRef = useRef('');
   const [programAudioLevel, setProgramAudioLevel] = useState(0);
   const [networkQuality, setNetworkQuality] = useState('unknown');
+
+  useEffect(() => {
+    const applyPreference = () => {
+      const volume = readListenerVolume();
+      volumeRef.current = volume;
+      mutedRef.current = volume === 0;
+      setLiveVolume(volume);
+      setLiveMuted(volume === 0);
+      for (const element of audioHostRef.current?.querySelectorAll('audio') || []) {
+        element.volume = volume;
+        element.muted = volume === 0;
+      }
+    };
+    applyPreference();
+    window.addEventListener('echoo:listener-volume', applyPreference);
+    return () => window.removeEventListener('echoo:listener-volume', applyPreference);
+  }, [isLive]);
 
   useEffect(() => {
     reconnectJitterRef.current = Math.random();
@@ -1132,6 +1150,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
   const changeVolume = useCallback((value) => {
     const nextVolume = Math.max(0, Math.min(1, Number(value) || 0));
     const nextMuted = nextVolume === 0;
+    saveListenerVolume(nextVolume);
     volumeRef.current = nextVolume;
     mutedRef.current = nextMuted;
     const elements = Array.from(audioHostRef.current?.querySelectorAll('audio') || []);

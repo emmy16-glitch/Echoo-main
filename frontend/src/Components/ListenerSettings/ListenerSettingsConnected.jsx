@@ -1,3 +1,4 @@
+import { readListenerVolume, saveListenerVolume } from '../../services/listenerVolume';
 import { useCallback, useEffect, useState } from 'react';
 import {
   FaBell,
@@ -45,7 +46,8 @@ const usernameFor = (username) =>
   username ? `@${username}` : '@not set';
 
 const ListenerSettingsConnected = () => {
-  const [nav, setNav] = useState('profile');
+  const [nav, setNav] = useState(() => new URLSearchParams(window.location.search).get('section') === 'playback' ? 'playback' : 'profile');
+  const [volume, setVolume] = useState(readListenerVolume);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [displayName, setDisplayName] = useState('');
@@ -352,6 +354,8 @@ const ListenerSettingsConnected = () => {
         </nav>
 
         <div className="set-main">
+          {nav === 'playback' && <section className="set-card"><h2>Listener volume</h2><p>Playback starts at full volume unless you choose a lower level.</p><label className="listener-volume-control">Volume · {Math.round(volume * 100)}%<input type="range" min="0" max="1" step="0.01" value={volume} aria-label="Listener playback volume" onChange={event => setVolume(saveListenerVolume(event.target.value))} /></label></section>}
+
           {nav === 'notifications' ? (
             <div className="set-card">
               <div className="set-card-inner">

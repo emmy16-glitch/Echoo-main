@@ -306,6 +306,7 @@ const userSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Audio',
     }],
+    likedBroadcasts: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Broadcast' }],
     likedAudio: [{
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Audio',

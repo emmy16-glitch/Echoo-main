@@ -755,3 +755,31 @@ html.listener-v2-full-player-open body { overflow:hidden; }
   .listener-v2-main.has-player { padding-bottom: calc(160px + env(safe-area-inset-bottom)); }
 }
 .listener-v2-live-meta small { display: block; margin-top: 8px; color: var(--listener-v2-blue); font-weight: 650; }
+
+.listener-profile-links { display: grid; margin: 20px 0; border-block: 1px solid var(--listener-v2-line); }
+.listener-profile-links button { display: flex; align-items: center; justify-content: space-between; min-height: 56px; padding: 14px; border: 0; border-bottom: 1px solid var(--listener-v2-line); background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.listener-library-overflow { position: relative; }
+.listener-library-overflow summary { cursor: pointer; padding: 12px; }
+.listener-library-overflow[open] button { position: absolute; right: 0; z-index: 3; width: 150px; height: auto; padding: 12px; border: 1px solid var(--listener-v2-line); background: white; }
+.listener-v2-audio-list article:has(.listener-library-overflow) { grid-template-columns: 48px minmax(0,1fr) 44px 44px; }
+
+.listener-v2-live-mini { grid-template-columns: 44px minmax(0,1fr) 44px 44px; }
+.listener-v2-live-mini .listener-v2-player-copy { border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.listener-v2-live-mini > button:last-child { min-height: 44px; border: 0; background: transparent; color: inherit; cursor: pointer; }
+.listener-volume-control { display: flex; gap: 16px; align-items: center; margin-top: 20px; }
+.listener-volume-control input { flex: 1; min-width: 0; }
+
+.listener-v2-audio-list article { grid-template-columns: 42px minmax(0,1fr) 44px; }
+.listener-v2-audio-list article > button { width: 44px; height: 44px; }
+.listener-v2-root :focus-visible { outline: 2px solid var(--listener-v2-blue); outline-offset: 3px; }
+@media (max-width: 767px) {
+  .listener-v2-header { position: relative; }
+  .listener-v2-header .account-experience-menu { position: static; display: flex; justify-content: center; min-height: 36px; }
+}
+@media (min-width: 768px) and (max-width: 1150px) {
+  .listener-v2-header { height: auto; min-height: 124px; grid-template-columns: minmax(0,1fr) auto; gap: 16px; padding: 18px 28px; }
+  .listener-v2-brand { grid-column: 1; grid-row: 1; }
+  .listener-v2-header > .echoo-account-toolbar, .listener-v2-guest-actions { grid-column: 2; grid-row: 1; }
+  .listener-v2-header-search { display: none; }
+  .listener-v2-nav { grid-column: 1 / -1; grid-row: 2; position: static; justify-content: center; }
+}

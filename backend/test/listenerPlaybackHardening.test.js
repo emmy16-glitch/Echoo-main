@@ -9,8 +9,8 @@ test('live listener keeps playback intent, device volume, and explicit recovery 
   const player = await source('../../frontend/src/Components/ListenerLiveExperience/LiveKitListenerPlayer.jsx');
 
   assert.match(player, /playbackIntentRef\s*=\s*useRef\('play'\)/);
-  assert.match(player, /volumeRef\s*=\s*useRef\(1\)/);
-  assert.match(player, /mutedRef\s*=\s*useRef\(false\)/);
+  assert.match(player, /volumeRef\s*=\s*useRef\(readListenerVolume\(\)\)/);
+  assert.match(player, /mutedRef\s*=\s*useRef\(readListenerVolume\(\) === 0\)/);
   assert.match(player, /element\.volume\s*=\s*volumeRef\.current/);
   assert.match(player, /element\.muted\s*=\s*mutedRef\.current/);
   assert.match(player, /onReconnect:\s*\(\)\s*=>\s*setRetryVersion/);

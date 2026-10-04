@@ -1,3 +1,4 @@
+import { broadcastLike } from '../controllers/broadcastLikeController.js';
 import express from 'express';
 import multer from 'multer';
 import {
@@ -109,6 +110,9 @@ router.get('/mine/all', authenticate, requireCreator, getCreatorBroadcasts);
 
 // Authenticated single-broadcast access is intentionally available to listeners
 // when the broadcast itself is public. All writes below require creator status.
+router.get('/:broadcastId/like', authenticate, broadcastLike);
+router.put('/:broadcastId/like', authenticate, broadcastLike);
+router.delete('/:broadcastId/like', authenticate, broadcastLike);
 router.get('/:broadcastId', authenticate, getBroadcastById);
 router.post('/', authenticate, requireCreator, createBroadcast);
 router.post('/:broadcastId/recording-chunks/start', authenticate, requireCreator, startBroadcastAudioChunks);

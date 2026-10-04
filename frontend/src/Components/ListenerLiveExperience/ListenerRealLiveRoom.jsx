@@ -9,19 +9,20 @@ import {
   FaVolumeMute,
   FaVolumeUp,
 } from 'react-icons/fa';
-import { FiArrowLeft, FiCheck, FiMessageCircle, FiRadio, FiShare2, FiUsers, FiX } from 'react-icons/fi';
+import { FiArrowLeft, FiHeart, FiBookmark, FiCheck, FiMessageCircle, FiRadio, FiShare2, FiUsers, FiX } from 'react-icons/fi';
 
 import batch3Service from '../../services/batch3Service';
 import batch4Service, { normalizeChatMessage } from '../../services/batch4Service';
 import followService from '../../services/followService';
 import realtimeService from '../../services/realtimeService';
 import { getGuestSession } from '../../services/guestSession';
-import { buildMediaUrl } from '../../services/api';
+import { copyTextToClipboard } from '../../services/stationPublicUrl';
+import savedMomentService from '../../services/savedMomentService';
+import { apiRequest, buildMediaUrl } from '../../services/api';
 import { notifyDesktop, onDesktopRoomCommand, setDesktopRoomState } from '../../services/desktopBridge';
 import { buildGeneratedStationBrandCoverUrl } from '../../stationBranding/stationBranding';
 import { ChatPanel } from '../../design-system';
 import { referenceChat, referenceLiveShows } from '../ListenerExperience/listenerExperienceData';
-import LiveKitListenerPlayer from './LiveKitListenerPlayer';
 import BroadcastWaveform from '../CreatorStudio/BroadcastWaveform';
 import echooMark from '../Assets/echoo-logo-official.svg';
 import './ListenerLiveRoom.css';
@@ -50,7 +51,7 @@ const normalizeBroadcast = (item) => ({
       item?.creatorVerified ??
       item?.station?.owner?.creatorProfile?.isVerified
   ),
-  listenerCount: Number(item?.listenerCount ?? item?.station?.listenerCount) || 0,
+  listenerCount: (item?.listenerCount ?? item?.station?.listenerCount) == null ? null : Number(item.listenerCount ?? item.station.listenerCount),
   artwork:
     buildMediaUrl(
       item?.artwork ||
@@ -108,7 +109,7 @@ const ListenerRealLiveRoom = () => {
   const { broadcastId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const { setLivePlayerState = () => {} } = useOutletContext() || {};
+  const { setLiveSession, livePlayerState: liveState } = useOutletContext() || {};
   const stageRef = useRef(null);
 
   const previewMode =
@@ -131,6 +132,10 @@ const ListenerRealLiveRoom = () => {
   const [chatError, setChatError] = useState('');
   const [joined, setJoined] = useState(true);
   const [following, setFollowing] = useState(false);
+  const [followPending, setFollowPending] = useState(false);
+  const [liked, setLiked] = useState(false);
+  const [savedMomentId, setSavedMomentId] = useState('');
+  const [actionPending, setActionPending] = useState('');
   const [shareMessage, setShareMessage] = useState('');
   // Shared listen links: no access token → guest mode. Guests get the public
   // broadcast card, a guest realtime seat, and subscriber-only LiveKit audio.
@@ -150,7 +155,6 @@ const ListenerRealLiveRoom = () => {
   const [realtimeState, setRealtimeState] = useState('connecting');
   const [audioState, setAudioState] = useState('connecting');
   const statusRef = useRef(show?.status || '');
-  const [liveState, setLiveState] = useState(null);
   const [chatOpen, setChatOpen] = useState(false);
 
   useEffect(() => {
@@ -158,9 +162,21 @@ const ListenerRealLiveRoom = () => {
     const onKeyDown = (event) => {
       if (event.key === 'Escape') setChatOpen(false);
     };
+    const viewport = window.visualViewport;
+    const updateViewport = () => {
+      document.documentElement.style.setProperty('--listener-chat-height', `${viewport?.height || window.innerHeight}px`);
+      document.documentElement.style.setProperty('--listener-chat-keyboard', `${Math.max(0, window.innerHeight - (viewport?.height || window.innerHeight) - (viewport?.offsetTop || 0))}px`);
+    };
+    updateViewport();
+    viewport?.addEventListener('resize', updateViewport);
+    viewport?.addEventListener('scroll', updateViewport);
     document.documentElement.classList.add('listener-v2-chat-open');
     window.addEventListener('keydown', onKeyDown);
     return () => {
+      viewport?.removeEventListener('resize', updateViewport);
+      viewport?.removeEventListener('scroll', updateViewport);
+      document.documentElement.style.removeProperty('--listener-chat-height');
+      document.documentElement.style.removeProperty('--listener-chat-keyboard');
       document.documentElement.classList.remove('listener-v2-chat-open');
       window.removeEventListener('keydown', onKeyDown);
     };
@@ -192,14 +208,9 @@ const ListenerRealLiveRoom = () => {
     statusRef.current = show?.status || '';
   }, [show?.status]);
 
-  const handleLivePlayerState = useCallback(
-    (state) => {
-      setLiveState(state);
-      if (state?.status) setAudioState(state.status);
-      setLivePlayerState(state);
-    },
-    [setLivePlayerState]
-  );
+  useEffect(() => {
+    if (liveState?.status) setAudioState(liveState.status);
+  }, [liveState?.status]);
 
   useEffect(() => {
     const active = Boolean(isLive && joined);
@@ -220,10 +231,11 @@ const ListenerRealLiveRoom = () => {
         if (command === 'toggle-mute') liveState?.onToggleMute?.();
         if (command === 'leave-room') {
           setJoined(false);
+          setLiveSession(null);
           navigate('/listen/live');
         }
       }),
-    [liveState, navigate]
+    [liveState, navigate, setLiveSession]
   );
 
   const playerTrack = useMemo(
@@ -239,6 +251,12 @@ const ListenerRealLiveRoom = () => {
         : null,
     [show]
   );
+
+  useEffect(() => {
+    if (previewMode || !show || !setLiveSession) return;
+    setLiveSession({ broadcastId: show.id, isLive: isLive && joined, track: playerTrack, guest: isGuest });
+    // The shell owns playback. Navigating away intentionally keeps it mounted.
+  }, [previewMode, show, isLive, joined, playerTrack, isGuest, setLiveSession]);
 
   const refreshPresence = useCallback(async () => {
     if (previewMode || !broadcastId) return;
@@ -470,7 +488,30 @@ const ListenerRealLiveRoom = () => {
     };
   }, [loadChat, previewMode, refreshPresence, show?.id, isGuest, guestId]);
 
-  const share = async () => {
+  useEffect(() => {
+    if (isGuest || previewMode || !broadcastId) return;
+    let active = true;
+    apiRequest(`/broadcasts/${encodeURIComponent(broadcastId)}/like`).then(response => { if (active) setLiked(Boolean(response?.data?.liked)); }).catch(() => {});
+    savedMomentService.list({ limit: 100 }).then(response => { if (active) setSavedMomentId(response.data.find(moment => String(moment.broadcastId) === String(broadcastId) && moment.timestampMs === 0)?.id || ''); }).catch(() => {});
+    return () => { active = false; };
+  }, [broadcastId, isGuest, previewMode]);
+
+  const listenerAction = async (kind) => {
+    if (actionPending) return;
+    if (isGuest) { navigate('/?mode=login'); return; }
+    const wasLiked = liked;
+    setActionPending(kind);
+    if (kind === 'like') setLiked(!wasLiked);
+    try {
+      if (kind === 'like') await apiRequest(`/broadcasts/${encodeURIComponent(broadcastId)}/like`, { method: wasLiked ? 'DELETE' : 'PUT' });
+      else if (savedMomentId) { await savedMomentService.remove(savedMomentId); setSavedMomentId(''); }
+      else { const response = await savedMomentService.create({ broadcastId, timestampMs: 0 }); setSavedMomentId(response.data.id); }
+      setShareMessage(kind === 'like' ? (wasLiked ? 'Like removed' : 'Liked') : (savedMomentId ? 'Removed from Saved' : 'Saved to Library'));
+    } catch (error) { if (kind === 'like') setLiked(wasLiked); setShareMessage(error.message || 'Could not update. Try again.'); }
+    finally { setActionPending(''); }
+  };
+
+  const share = async (copyOnly = false) => {
     // Shared links must be absolute web URLs: prefer the configured public
     // app origin, else the current page (dev browsers). file:// (packaged
     // desktop without a configured origin) cannot produce a shareable link.
@@ -487,11 +528,11 @@ const ListenerRealLiveRoom = () => {
       return;
     }
     try {
-      if (navigator.share) {
+      if (!copyOnly && navigator.share) {
         await navigator.share({ title: show?.title || 'Live on Echoo', url });
         setShareMessage('Shared');
       } else {
-        await navigator.clipboard?.writeText(url);
+        await copyTextToClipboard(url);
         setShareMessage('Live link copied');
       }
     } catch (error) {
@@ -502,6 +543,7 @@ const ListenerRealLiveRoom = () => {
   };
 
   const toggleFollow = async () => {
+    if (followPending) return;
     if (previewMode || !show?.stationId) {
       setFollowing((value) => !value);
       return;
@@ -513,6 +555,8 @@ const ListenerRealLiveRoom = () => {
     }
 
     const wasFollowing = following;
+    setFollowPending(true);
+    setLoadError('');
     setFollowing(!wasFollowing);
     try {
       if (wasFollowing) await followService.unfollowStation(show.stationId);
@@ -520,7 +564,7 @@ const ListenerRealLiveRoom = () => {
     } catch (error) {
       setFollowing(wasFollowing);
       setLoadError(error?.message || 'Could not update your follow status.');
-    }
+    } finally { setFollowPending(false); }
   };
 
   const sendMessage = async (content) => {
@@ -699,12 +743,18 @@ const ListenerRealLiveRoom = () => {
             type="button"
             className={following ? 'is-following' : ''}
             onClick={toggleFollow}
+            disabled={followPending}
           >
-            {following ? 'Following' : 'Follow'}
+            {followPending ? 'Updating…' : following ? 'Following' : 'Follow'}
           </button>
-          <button type="button" onClick={share}>
+          <button type="button" onClick={() => share()}>
             <FiShare2 /> Share
           </button>
+          <details className="listener-room-actions"><summary>More</summary><div>
+          <button type="button" onClick={() => share(true)}>Copy link</button>
+          <button type="button" disabled={Boolean(actionPending)} aria-pressed={liked} onClick={() => listenerAction('like')}><FiHeart /> {liked ? 'Liked' : 'Like'}</button>
+          <button type="button" disabled={Boolean(actionPending)} aria-pressed={Boolean(savedMomentId)} onClick={() => listenerAction('save')}><FiBookmark /> {savedMomentId ? 'Saved' : 'Save'}</button>
+          </div></details>
         </div>
       </header>
 
@@ -762,21 +812,10 @@ const ListenerRealLiveRoom = () => {
               <span className="listener-v2-room-live-text">
                 <i /> {isLive ? 'LIVE' : show.status.toUpperCase()}
               </span>
-              <span><FiUsers /> {show.listenerCount.toLocaleString()} listening</span>
+              {show.listenerCount != null && <span><FiUsers /> {show.listenerCount.toLocaleString()} listening</span>}
             </div>
           </div>
 
-          <div className="listener-v2-livekit-host">
-            {!previewMode && (
-              <LiveKitListenerPlayer
-                broadcastId={show.id}
-                isLive={isLive && joined}
-                track={playerTrack}
-                onStateChange={handleLivePlayerState}
-                guest={isGuest}
-              />
-            )}
-          </div>
 
           {isLive && joined && Boolean(liveState?.needsAudioStart) && (
             <button

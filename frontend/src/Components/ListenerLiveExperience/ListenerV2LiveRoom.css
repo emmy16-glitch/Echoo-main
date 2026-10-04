@@ -41,3 +41,12 @@ routes through the same playback path as the center play button. */
   .listener-v2-room-toolbar { grid-template-columns: 38px minmax(0,1fr) auto; }
   .listener-v2-room-artwork { margin-top: 40px; }
 }
+
+.listener-room-actions { position: relative; }
+.listener-room-actions summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; padding: 8px 12px; }
+.listener-room-actions > div { position: absolute; right: 0; top: 100%; z-index: 20; display: grid; min-width: 160px; padding: 8px; border: 1px solid #dfe6f0; border-radius: 12px; background: white; box-shadow: 0 8px 24px #14233d18; }
+.listener-room-actions button { min-height: 44px; }
+
+@media (max-width: 767px) {
+  .listener-v2-room-chat.is-open { bottom: var(--listener-chat-keyboard, 0px); height: min(85dvh, calc(var(--listener-chat-height, 100dvh) - 16px)); }
+}

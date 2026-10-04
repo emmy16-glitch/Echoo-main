@@ -1,3 +1,4 @@
+import { readListenerVolume, saveListenerVolume } from '../../services/listenerVolume';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Outlet, useLocation, useNavigate, useOutletContext } from 'react-router-dom';
 import {
@@ -30,12 +31,15 @@ import batch2Service from '../../services/batch2Service';
 import audioService from '../../services/audioService';
 import notificationService from '../../services/notificationService';
 import playlistService from '../../services/playlistService';
-import { buildMediaUrl } from '../../services/api';
+import { apiRequest, buildMediaUrl } from '../../services/api';
 import { getGuestSession, isAuthenticated, recordGuestPlayback, saveGuestPreferences } from '../../services/guestSession';
 import { useGuestAuth } from '../Auth/GuestAuthGate';
 import { getCreatorProfilePath } from '../../services/profileIdentifier';
 import { buildGeneratedStationBrandCoverUrl } from '../../stationBranding/stationBranding';
 import AccountExperienceMenu from '../Shared/AccountExperienceMenu';
+import FollowingRecordings from './FollowingRecordings';
+import ContinueListening from './ContinueListening';
+import LiveKitListenerPlayer from '../ListenerLiveExperience/LiveKitListenerPlayer';
 import ListenerHeroArtwork from '../ListenerHeroArtwork/ListenerHeroArtwork';
 import echooMark from '../Assets/echoo-logo-official.svg';
 import './ListenerV2.css';
@@ -72,7 +76,7 @@ const releaseDateOf = (track) => track?.publishedAt || track?.createdAt || track
 const formatReleaseLabel = (track) => {
   const raw = releaseDateOf(track);
   const date = raw ? new Date(raw) : null;
-  if (!date || Number.isNaN(date.getTime())) return 'Recently released';
+  if (!date || Number.isNaN(date.getTime())) return '';
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   const releaseDay = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
@@ -232,7 +236,7 @@ const StationCard = ({ station, following, busy, onOpen, onFollow }) => {
           <strong>{station?.name || 'Unnamed Channel'}</strong>
           <span>{station?.category || 'Channel'}</span>
         </button>
-        <small>{live ? <><FiUsers /> {formatCount(station?.listenerCount)} listening</> : `${formatCount(station?.followerCount)} followers`}</small>
+        {(live ? station?.listenerCount : station?.followerCount) != null && <small>{live ? <><FiUsers /> {formatCount(station.listenerCount)} listening</> : `${formatCount(station.followerCount)} followers`}</small>}
       </div>
       {onFollow && (
         <button
@@ -351,6 +355,7 @@ const ListenerV2Layout = () => {
   const audioRef = useRef(null);
   const autoplayRef = useRef(false);
   const pendingSeekRef = useRef(null);
+  const lastProgressRef = useRef({ id: null, time: 0 });
   const [currentTrack, setCurrentTrack] = useState(null);
   const [queue, setQueue] = useState([]);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -359,7 +364,15 @@ const ListenerV2Layout = () => {
   const [playerError, setPlayerError] = useState('');
   const [playbackState, setPlaybackState] = useState('idle');
   const [playerExpanded, setPlayerExpanded] = useState(false);
-  const [, setLivePlayerState] = useState(null);
+  const [livePlayerState, setLivePlayerState] = useState(null);
+  const [liveSession, setLiveSession] = useState(null);
+  const [listenerVolume, setListenerVolume] = useState(readListenerVolume);
+  useEffect(() => { if (audioRef.current) audioRef.current.volume = listenerVolume; }, [listenerVolume]);
+  useEffect(() => {
+    const syncVolume = () => setListenerVolume(readListenerVolume());
+    window.addEventListener('echoo:listener-volume', syncVolume);
+    return () => window.removeEventListener('echoo:listener-volume', syncVolume);
+  }, []);
   const [headerSearch, setHeaderSearch] = useState('');
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const { requestAuth, isGuest } = useGuestAuth();
@@ -371,7 +384,7 @@ const ListenerV2Layout = () => {
     if (location.pathname.includes('/library/following')) return 'following';
     if (location.pathname === '/listen/following') return 'following';
     if (location.pathname === '/listen/live' || location.pathname.startsWith('/listen/live/')) return 'live';
-    if (location.pathname === '/listen/settings') return 'profile';
+    if (['/listen/settings', '/listen/profile'].includes(location.pathname)) return 'profile';
     if (['/listen/library', '/listen/history', '/listen/downloads', '/listen/playlist', '/listen/saved-moments'].includes(location.pathname)) return 'library';
     if (location.pathname === '/listen/search') return 'search';
     if (
@@ -383,12 +396,25 @@ const ListenerV2Layout = () => {
     return 'discover';
   }, [location.pathname]);
 
+  useEffect(() => {
+    const id = liveSession?.broadcastId;
+    if (!id || !liveSession?.isLive) return;
+    let active = true;
+    const check = () => apiRequest(`/broadcasts/${encodeURIComponent(id)}/public`, { cache: 'no-store', skipAuth: true }).then(response => {
+      const status = response?.data?.status;
+      if (active && status && status !== 'live') setLiveSession(current => current?.broadcastId === id ? { ...current, isLive: false } : current);
+    }).catch(() => { /* A failed presence request must not interrupt healthy audio. */ });
+    const interval = window.setInterval(check, LIVE_SYNC_MS);
+    window.addEventListener('focus', check);
+    return () => { active = false; window.clearInterval(interval); window.removeEventListener('focus', check); };
+  }, [liveSession?.broadcastId, liveSession?.isLive]);
+
   const navItems = [
     { key: 'discover', label: 'Discover', path: '/listen', icon: <FiMusic /> },
     { key: 'following', label: 'Following', path: '/listen/following', icon: <FiHeart /> },
     { key: 'library', label: 'Library', path: '/listen/library', icon: <FiBookOpen /> },
     { key: 'search', label: 'Search', path: '/listen/search', icon: <FiSearch /> },
-    { key: 'profile', label: 'Profile', path: '/listen/settings', icon: <FiUser /> },
+    { key: 'profile', label: 'Profile', path: '/listen/profile', icon: <FiUser /> },
   ];
 
   useEffect(() => {
@@ -435,6 +461,7 @@ const ListenerV2Layout = () => {
       setPlaybackState('error');
       return false;
     }
+    setLiveSession(null);
     if (idOf(normalized) === idOf(currentTrack)) {
       const audio = audioRef.current;
       if (!audio) return false;
@@ -556,7 +583,7 @@ const ListenerV2Layout = () => {
   }, [isLiveRoom]);
 
   useEffect(() => {
-    if (!currentTrack || typeof navigator === 'undefined' || !('mediaSession' in navigator)) return undefined;
+    if (liveSession?.isLive || !currentTrack || typeof navigator === 'undefined' || !('mediaSession' in navigator)) return undefined;
     try {
       if (typeof window.MediaMetadata === 'function') {
         navigator.mediaSession.metadata = new window.MediaMetadata({
@@ -584,7 +611,7 @@ const ListenerV2Layout = () => {
         // Already unsupported or cleared.
       }
     };
-  }, [currentTrack, playAudioElement, playNext, playPrevious, seekBy]);
+  }, [currentTrack, liveSession?.isLive, playAudioElement, playNext, playPrevious, seekBy]);
 
   useEffect(() => {
     try {
@@ -638,7 +665,7 @@ const ListenerV2Layout = () => {
         )}
       </header>}
 
-      <main className={`listener-v2-main${currentTrack && !isLiveRoom ? ' has-player' : ''}`}>
+      <main className={`listener-v2-main${(currentTrack || liveSession) && !isLiveRoom ? ' has-player' : ''}`}>
         <Outlet
           context={{
             playTrack,
@@ -655,11 +682,21 @@ const ListenerV2Layout = () => {
             togglePlay,
             playerError,
             playbackState,
-            setLivePlayerState,
+            livePlayerState,
+            setLiveSession,
           }}
         />
       </main>
 
+      <div hidden aria-hidden="true">
+        <LiveKitListenerPlayer broadcastId={liveSession?.broadcastId} isLive={Boolean(liveSession?.isLive)} track={liveSession?.track} guest={Boolean(liveSession?.guest)} onStateChange={setLivePlayerState} />
+      </div>
+      {liveSession && !isLiveRoom && <section className="listener-v2-player listener-v2-live-mini" aria-label="Live mini player">
+        <button type="button" className="listener-v2-player-art" aria-label="Open live room" onClick={() => navigate(`/listen/live/${liveSession.broadcastId}`)}><Artwork src={liveSession.track?.coverArt} /></button>
+        <button type="button" className="listener-v2-player-copy" onClick={() => navigate(`/listen/live/${liveSession.broadcastId}`)}><strong>{liveSession.isLive ? 'LIVE' : 'ENDED'} · {liveSession.track?.title}</strong><span>{!liveSession.isLive ? 'Broadcast ended' : livePlayerState?.needsAudioStart ? 'Tap to resume audio' : livePlayerState?.isPlaying ? 'Listening' : livePlayerState?.status === 'reconnecting' ? 'Reconnecting' : livePlayerState?.status === 'idle' ? 'Broadcast ended' : livePlayerState?.playerError || livePlayerState?.status || 'Connecting'} · {liveSession.track?.subtitle}</span></button>
+        <button type="button" className="listener-v2-player-play" onClick={livePlayerState?.onTogglePlay} disabled={!liveSession.isLive} aria-label={livePlayerState?.isPlaying ? 'Pause live audio' : 'Resume live audio'}>{livePlayerState?.isPlaying ? <FiPause /> : <FiPlay />}</button>
+        <button type="button" aria-label="Stop live audio" onClick={() => setLiveSession(null)}><FiX /></button>
+      </section>}
       <audio
         ref={audioRef}
         src={currentTrack?.fileUrl || undefined}
@@ -685,6 +722,11 @@ const ListenerV2Layout = () => {
           const position = audioRef.current?.currentTime || 0;
           setCurrentTime(position);
           if (isGuest && currentTrack) recordGuestPlayback(currentTrack, position, queue);
+          const id = idOf(currentTrack);
+          if (!isGuest && /^[a-f\d]{24}$/i.test(id) && duration > 0 && (lastProgressRef.current.id !== id || Math.abs(position - lastProgressRef.current.time) >= 10)) {
+            lastProgressRef.current = { id, time: position };
+            listenerService.updateProgress({ trackId: id, progress: position, duration }).catch(() => {});
+          }
         }}
         onLoadedMetadata={() => {
           const audio = audioRef.current;
@@ -717,11 +759,12 @@ const ListenerV2Layout = () => {
         onEnded={() => {
           setIsPlaying(false);
           setPlaybackState('ended');
+          if (!isGuest && currentTrack) listenerService.updateProgress({ trackId: idOf(currentTrack), progress: duration, duration, completed: true }).catch(() => {});
           playNext();
         }}
       />
 
-      {currentTrack && !isLiveRoom && (
+      {currentTrack && !liveSession && !isLiveRoom && (
         <>
           <section className={`listener-v2-player${playerError ? ' has-error' : ''}`} aria-label="Audio player">
             <button type="button" className="listener-v2-player-track" onClick={() => setPlayerExpanded(true)} aria-label="Open full player">
@@ -794,6 +837,7 @@ const ListenerV2Layout = () => {
                     <button type="button" onClick={() => seekBy(15)} aria-label="Forward 15 seconds"><FiRotateCw /><span>15</span></button>
                     <button type="button" onClick={playNext} disabled={queue.length < 2} aria-label="Next track"><FiSkipForward /></button>
                   </div>
+                  <label className="listener-volume-control">Volume <input type="range" min="0" max="1" step="0.01" value={listenerVolume} aria-label="Playback volume" onChange={(event) => setListenerVolume(saveListenerVolume(event.target.value))} /></label>
                   <p className="listener-v2-full-player-hint">Minimize this player and Echoo keeps the audio playing while you browse Listener.</p>
                 </div>
               </section>
@@ -807,7 +851,7 @@ const ListenerV2Layout = () => {
           { key: 'following', label: 'Following', path: '/listen/following', icon: <FiHeart /> },
           { key: 'library', label: 'Library', path: '/listen/library', icon: <FiBookOpen /> },
           { key: 'search', label: 'Search', path: '/listen/search', icon: <FiSearch /> },
-          { key: 'profile', label: 'Profile', path: '/listen/settings', icon: <FiUser /> },
+          { key: 'profile', label: 'Profile', path: '/listen/profile', icon: <FiUser /> },
         ].map((item) => <button key={item.key} type="button" className={activeKey === item.key ? 'is-active' : ''} aria-current={activeKey === item.key ? 'page' : undefined} onClick={() => {
           if (isGuest && item.key === 'profile') {
             requestAuth({
@@ -899,6 +943,8 @@ const DiscoverCatalog = () => {
   const { liveNow, upcoming, loading: liveLoading, error: liveError, reload } = useLiveCatalog();
   const [recordings, setRecordings] = useState([]);
   const [playlists, setPlaylists] = useState([]);
+  const [recordingsLoading, setRecordingsLoading] = useState(true);
+  const [recordingsError, setRecordingsError] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -915,6 +961,8 @@ const DiscoverCatalog = () => {
             .sort((a, b) => new Date(releaseDateOf(b) || 0) - new Date(releaseDateOf(a) || 0))
         );
       }
+      if (audioResult.status === 'rejected') setRecordingsError('Recordings could not load. Refresh to try again.');
+      setRecordingsLoading(false);
       if (playlistResult.status === 'fulfilled') setPlaylists(playlistResult.value?.data || []);
     });
     return () => { active = false; };
@@ -963,9 +1011,10 @@ const DiscoverCatalog = () => {
         )}
       </section>}
 
+      <ContinueListening />
       <section className="listener-v2-panel">
         <SectionTitle title="Latest recordings" copy="New recordings" action={() => navigate('/listen/search')} actionLabel="Search audio" />
-        {recordings.length ? (
+        {recordingsLoading ? <div className="listener-v2-row-skeleton" role="status" aria-label="Loading recordings"><span /><span /><span /></div> : recordingsError ? <p role="alert">{recordingsError}</p> : recordings.length ? (
           <div className="listener-v2-audio-list listener-v2-release-list">
             {recordings.slice(0, 8).map((track) => (
               <article key={idOf(track)}>
@@ -988,6 +1037,7 @@ const DiscoverCatalog = () => {
         )}
       </section>
 
+      <FollowingRecordings />
       {visiblePlaylists.length > 0 && <section className="listener-v2-panel listener-v2-playlist-panel">
         <SectionTitle title="Creator playlists" copy="Tap a playlist to start listening" action={() => navigate('/listen/playlist')} actionLabel="Browse all" />
         {visiblePlaylists.length ? (
@@ -1113,7 +1163,7 @@ const ListenerV2Following = () => {
                   <div>
                     <strong>{station?.name || 'Unnamed Channel'}</strong>
                     <span>{station?.category || 'Channel'}</span>
-                    <small><FiUsers /> {formatCount(station?.listenerCount)} listening</small>
+                    {station?.listenerCount != null && <small><FiUsers /> {formatCount(station.listenerCount)} listening</small>}
                     <button type="button" onClick={() => openStation(station)}><FiPlay /> Listen now</button>
                   </div>
                 </article>
@@ -1133,7 +1183,7 @@ const ListenerV2Following = () => {
                   <button type="button" className="listener-v2-following-copy" onClick={() => openStation(station)}>
                     <strong>{station?.name || 'Unnamed Channel'}</strong>
                     <span>
-                      {station?.category || 'Channel'} · {station?.isLive ? `LIVE · ${formatCount(station?.listenerCount)} listening` : `${formatCount(station?.followerCount)} followers`}
+                      {station?.category || 'Channel'}{station?.isLive ? ` · LIVE${station?.listenerCount != null ? ` · ${formatCount(station.listenerCount)} listening` : ''}` : station?.followerCount != null ? ` · ${formatCount(station.followerCount)} followers` : ''}
                     </span>
                   </button>
                   <button
@@ -1149,9 +1199,10 @@ const ListenerV2Following = () => {
               ))}
             </div>
           </section>
+          <FollowingRecordings />
         </>
       ) : (
-        <EmptyState icon={<FiHeadphones />} title="No channels followed yet" copy="Discover creators and follow channels to keep up with new broadcasts." action={() => navigate('/listen/channels')} actionLabel="Discover Channels" />
+        <EmptyState icon={<FiHeadphones />} title="No channels followed yet" copy="Discover creators and follow channels to keep up with new broadcasts." action={() => navigate('/listen/search')} actionLabel="Find creators" />
       )}
     </div>
   );

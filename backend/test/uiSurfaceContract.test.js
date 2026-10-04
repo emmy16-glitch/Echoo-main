@@ -291,7 +291,7 @@ test('active ListenerV2 separates live, scheduled and released audio and owns a 
 
   assert.match(listener, /title="Live now"/);
   assert.match(listener, /title="Upcoming broadcasts"/);
-  assert.match(listener, /title="Latest releases"/);
+  assert.match(listener, /title="Latest recordings"/);
   assert.match(listener, /status: 'scheduled'/);
   assert.match(listener, /new Date\(releaseDateOf\(b\) \|\| 0\) - new Date\(releaseDateOf\(a\) \|\| 0\)/);
   assert.match(listener, /listener-v2-full-player/);
