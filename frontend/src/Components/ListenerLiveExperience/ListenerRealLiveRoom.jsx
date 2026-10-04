@@ -716,18 +716,6 @@ const ListenerRealLiveRoom = () => {
                       ? 'Waiting for creator'
                       : 'Audio disconnected';
 
-  const roomStatusLabel = isScheduled
-    ? scheduledStartLabel
-    : !isLive
-      ? 'Broadcast ended'
-      : realtimeState === 'fallback' || connectionStatus === 'reconnecting'
-        ? 'Reconnecting…'
-        : connectionStatus === 'holding'
-          ? 'Weak connection'
-          : realtimeState === 'connecting' || connectionStatus === 'connecting'
-            ? 'Connecting…'
-            : 'Connected';
-
   const primaryPlaybackDisabled =
     !isLive ||
     (!needsReconnect &&
@@ -933,10 +921,6 @@ const ListenerRealLiveRoom = () => {
             >
               <span style={{ width: `${audioLevelPercent}%` }} />
             </div>
-
-            <span className="listener-v2-room-realtime-state">
-              {roomStatusLabel}
-            </span>
 
             <button
               type="button"
