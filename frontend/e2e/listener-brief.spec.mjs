@@ -115,6 +115,9 @@ test('server finalization is independent of device export and duplicate End requ
 test('listener secondary pages avoid duplicate navigation and discovery surfaces', async ({ page }) => {
   await authenticate(page);
 
+  await page.goto('/listen');
+  await expect(page.getByRole('heading', { name: 'Creator playlists', exact: true })).toHaveCount(0);
+
   await page.goto('/listen/playlist');
   await expect(page.getByRole('heading', { name: 'Playlists' })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Downloaded', exact: true })).toHaveCount(0);

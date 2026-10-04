@@ -30,7 +30,6 @@ import batch1Service from '../../services/batch1Service';
 import batch2Service from '../../services/batch2Service';
 import audioService from '../../services/audioService';
 import notificationService from '../../services/notificationService';
-import playlistService from '../../services/playlistService';
 import { apiRequest, buildMediaUrl } from '../../services/api';
 import { getGuestSession, isAuthenticated, recordGuestPlayback, saveGuestPreferences } from '../../services/guestSession';
 import { useGuestAuth } from '../Auth/GuestAuthGate';
@@ -953,43 +952,30 @@ const DiscoverCatalog = () => {
   const { playTrack } = useOutletContext();
   const { liveNow, upcoming, loading: liveLoading, error: liveError, reload } = useLiveCatalog();
   const [recordings, setRecordings] = useState([]);
-  const [playlists, setPlaylists] = useState([]);
   const [recordingsLoading, setRecordingsLoading] = useState(true);
   const [recordingsError, setRecordingsError] = useState('');
 
   useEffect(() => {
     let active = true;
-    Promise.allSettled([
-      audioService.getAll({ public: true, page: 1, limit: 8 }),
-      playlistService.getAll({ page: 1, limit: 6 }),
-    ]).then(([audioResult, playlistResult]) => {
-      if (!active) return;
-      if (audioResult.status === 'fulfilled') {
+    audioService.getAll({ public: true, page: 1, limit: 8 })
+      .then((result) => {
+        if (!active) return;
         setRecordings(
-          (audioResult.value?.data || [])
+          (result?.data || [])
             .map(normalizePlayable)
             .filter(Boolean)
             .sort((a, b) => new Date(releaseDateOf(b) || 0) - new Date(releaseDateOf(a) || 0))
         );
-      }
-      if (audioResult.status === 'rejected') setRecordingsError('Recordings could not load. Refresh to try again.');
-      setRecordingsLoading(false);
-      if (playlistResult.status === 'fulfilled') setPlaylists(playlistResult.value?.data || []);
-    });
+        setRecordingsError('');
+      })
+      .catch(() => {
+        if (active) setRecordingsError('Recordings could not load. Refresh to try again.');
+      })
+      .finally(() => {
+        if (active) setRecordingsLoading(false);
+      });
     return () => { active = false; };
   }, []);
-
-  const visiblePlaylists = playlists.filter((playlist) =>
-    Array.isArray(playlist?.tracks) && playlist.tracks.some((track) => normalizePlayable(track)?.fileUrl)
-  );
-
-  const playPlaylist = (playlist) => {
-    const playlistQueue = (Array.isArray(playlist?.tracks) ? playlist.tracks : [])
-      .map(normalizePlayable)
-      .filter((track) => track?.fileUrl);
-    if (!playlistQueue.length) return false;
-    return playTrack(playlistQueue[0], playlistQueue);
-  };
 
   return (
     <div className="listener-v2-page listener-v2-discover-page">
@@ -1049,34 +1035,7 @@ const DiscoverCatalog = () => {
       </section>
 
       <FollowingRecordings />
-      {visiblePlaylists.length > 0 && <section className="listener-v2-panel listener-v2-playlist-panel">
-        <SectionTitle title="Creator playlists" copy="Tap a playlist to start listening" action={() => navigate('/listen/playlist')} actionLabel="Browse all" />
-        {visiblePlaylists.length ? (
-          <div className="listener-v2-playlist-grid">
-            {visiblePlaylists.slice(0, 6).map((playlist) => {
-              const playableCount = playlist.tracks.filter((track) => normalizePlayable(track)?.fileUrl).length;
-              return (
-                <button
-                  type="button"
-                  key={idOf(playlist)}
-                  className="listener-v2-playlist-card"
-                  onClick={() => playPlaylist(playlist)}
-                  aria-label={`Play ${playlist.name || 'playlist'}`}
-                >
-                  <span className="listener-v2-playlist-art"><Artwork src={playlist.coverArt} /></span>
-                  <div>
-                    <strong>{playlist.name || 'Playlist'}</strong>
-                    <small>{playlist.ownerName || playlist.owner?.displayName || playlist.owner?.username || 'Echoo creator'} · {playableCount} {playableCount === 1 ? 'recording' : 'recordings'}</small>
-                  </div>
-                  <span className="listener-v2-playlist-play" aria-hidden="true"><FiPlay /></span>
-                </button>
-              );
-            })}
-          </div>
-        ) : (
-          <EmptyState icon={<FiMusic />} title="No public playlists yet" copy="When a playlist has playable recordings, it will appear here." action={() => navigate('/listen/playlist')} actionLabel="Open playlists" />
-        )}
-      </section>}
+
     </div>
   );
 };

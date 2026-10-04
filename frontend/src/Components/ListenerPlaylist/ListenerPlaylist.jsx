@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import {
   FaAngleRight,
@@ -267,7 +267,6 @@ export default function ListenerPlaylist() {
 
       <div className="pl-layout">
         <div className="pl-main">
-          <>
               <section className="pl-section">
                 <div className="pl-section-header">
                   <h2>My playlists</h2>
@@ -401,7 +400,6 @@ export default function ListenerPlaylist() {
 
                 </>
               )}
-            </>
         </div>
 
 
