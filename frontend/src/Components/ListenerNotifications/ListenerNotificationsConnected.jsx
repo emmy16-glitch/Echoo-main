@@ -13,7 +13,6 @@ import {
 } from 'react-icons/fa';
 import Toast from '../ListenerUI/ListenerToast';
 import notificationService from '../../services/notificationService';
-import '../../styles/listener-reference-pages.css';
 import './ListenerNotifications.css';
 
 const TABS = [
