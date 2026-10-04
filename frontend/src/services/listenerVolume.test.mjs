@@ -22,13 +22,24 @@ test('new listeners receive unity gain; deliberate choices persist across remoun
   assert.equal(readListenerVolume(), 1);
 });
 
-test('device copies default to opt-in and preserve explicit MP3, WAV, or server-only preferences', () => {
+test('device copies default to opt-in and stay isolated between Echoo accounts', () => {
   values.clear();
+  localStorage.setItem('user', JSON.stringify({ id: 'creator-a' }));
   assert.deepEqual(getRecordingDevicePreferences(), { decided: false, autoSave: false, format: 'mp3' });
+
   setRecordingDevicePreferences({ autoSave: true, format: 'wav' });
   assert.deepEqual(getRecordingDevicePreferences(), { decided: true, autoSave: true, format: 'wav' });
+
+  localStorage.setItem('user', JSON.stringify({ id: 'creator-b' }));
+  assert.deepEqual(getRecordingDevicePreferences(), { decided: false, autoSave: false, format: 'mp3' });
   setRecordingDevicePreferences({ autoSave: false });
-  assert.equal(getRecordingDevicePreferences().autoSave, false);
-  localStorage.setItem('echooRecordingDevicePreferencesV1', '{invalid');
-  assert.equal(getRecordingDevicePreferences().autoSave, false);
+  assert.deepEqual(getRecordingDevicePreferences(), { decided: true, autoSave: false, format: 'mp3' });
+
+  localStorage.setItem('user', JSON.stringify({ id: 'creator-a' }));
+  assert.deepEqual(getRecordingDevicePreferences(), { decided: true, autoSave: true, format: 'wav' });
+
+  // Legacy browser-global state must never leak into the signed-in creator.
+  localStorage.setItem('echooRecordingDevicePreferencesV1', JSON.stringify({ decided: true, autoSave: true, format: 'mp3' }));
+  localStorage.setItem('user', JSON.stringify({ id: 'creator-c' }));
+  assert.deepEqual(getRecordingDevicePreferences(), { decided: false, autoSave: false, format: 'mp3' });
 });

@@ -1,3 +1,4 @@
+import { accountStorageKey } from './accountStorage.js';
 const STORAGE_KEY = 'echooRecordingDevicePreferencesV1';
 
 export const DEFAULT_RECORDING_DEVICE_PREFERENCES = Object.freeze({
@@ -16,6 +17,8 @@ const storage = () => {
   }
 };
 
+const preferenceStorageKey = () => accountStorageKey(STORAGE_KEY);
+
 export const normalizeRecordingDevicePreferences = (value = {}) => ({
   decided: value.decided === true,
   autoSave: value.autoSave === true,
@@ -24,7 +27,9 @@ export const normalizeRecordingDevicePreferences = (value = {}) => ({
 
 export const getRecordingDevicePreferences = () => {
   try {
-    const raw = JSON.parse(storage()?.getItem(STORAGE_KEY) || 'null');
+    const key = preferenceStorageKey();
+    if (!key) return { ...DEFAULT_RECORDING_DEVICE_PREFERENCES };
+    const raw = JSON.parse(storage()?.getItem(key) || 'null');
     return normalizeRecordingDevicePreferences(raw || DEFAULT_RECORDING_DEVICE_PREFERENCES);
   } catch {
     return { ...DEFAULT_RECORDING_DEVICE_PREFERENCES };
@@ -38,7 +43,8 @@ export const setRecordingDevicePreferences = (value = {}) => {
     decided: value.decided ?? true,
   });
   try {
-    storage()?.setItem(STORAGE_KEY, JSON.stringify(normalized));
+    const key = preferenceStorageKey();
+    if (key) storage()?.setItem(key, JSON.stringify(normalized));
   } catch {
     // Device preferences are convenience state. Recording must still succeed
     // when local storage is unavailable.
