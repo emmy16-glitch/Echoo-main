@@ -112,6 +112,26 @@ test('server finalization is independent of device export and duplicate End requ
   expect(result.preferenceAfterSkip).toEqual(result.preferenceBeforeSkip);
 });
 
+test('listener secondary pages avoid duplicate navigation and discovery surfaces', async ({ page }) => {
+  await authenticate(page);
+
+  await page.goto('/listen/playlist');
+  await expect(page.getByRole('heading', { name: 'Playlists' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Downloaded', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Popular playlists', exact: true })).toHaveCount(0);
+
+  await page.goto('/listen/profile');
+  const links = page.locator('.listener-profile-links');
+  await expect(links.getByRole('button', { name: 'Following', exact: true })).toBeVisible();
+  await expect(links.getByRole('button', { name: 'Library', exact: true })).toBeVisible();
+  await expect(links.getByRole('button', { name: 'Settings', exact: true })).toBeVisible();
+  await expect(links.getByRole('button', { name: 'Help and support', exact: true })).toBeVisible();
+  await expect(links.getByRole('button', { name: 'Downloads', exact: true })).toHaveCount(0);
+  await expect(links.getByRole('button', { name: 'Listening history', exact: true })).toHaveCount(0);
+  await expect(links.getByRole('button', { name: 'Notifications', exact: true })).toHaveCount(0);
+  await expect(links.getByRole('button', { name: 'Audio preferences', exact: true })).toHaveCount(0);
+});
+
 test('listener settings exposes only working sections and Playback has no stale placeholder', async ({ page }) => {
   await authenticate(page);
   await page.goto('/listen/settings?section=playback');

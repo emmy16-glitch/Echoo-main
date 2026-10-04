@@ -3,7 +3,6 @@ import { useNavigate, useOutletContext } from 'react-router-dom';
 import {
   FaAngleRight,
   FaHeadphones,
-  FaHeart,
   FaListUl,
   FaLock,
   FaPause,
@@ -11,17 +10,15 @@ import {
   FaPlus,
   FaTrash,
 } from 'react-icons/fa';
-import batch6Service from '../../services/batch6Service';
 import listenerService from '../../services/listenerService';
 import playlistService from '../../services/playlistService';
-import downloadService from '../../services/downloadService';
 import ListenerToast from '../ListenerUI/ListenerToast';
 import ListenerHeroArtwork from '../ListenerHeroArtwork/ListenerHeroArtwork';
 import { useGuestAuth } from '../Auth/GuestAuthGate';
 import '../../styles/listener-reference-pages.css';
 import './ListenerPlaylist.css';
 
-const TABS = ['All', 'My playlists', 'Downloaded'];
+const TABS = ['All', 'My playlists'];
 const idOf = (item) => String(item?.id || item?._id || '');
 
 const formatDuration = (seconds) => {
@@ -44,11 +41,6 @@ const relativeTime = (value) => {
   return date.toLocaleDateString('en', { month: 'short', day: 'numeric' });
 };
 
-const compactNumber = (value) =>
-  new Intl.NumberFormat('en', {
-    notation: 'compact',
-    maximumFractionDigits: 1,
-  }).format(Number(value) || 0);
 
 export default function ListenerPlaylist() {
   const navigate = useNavigate();
@@ -58,9 +50,6 @@ export default function ListenerPlaylist() {
   const [sort, setSort] = useState('recent');
   const [playlists, setPlaylists] = useState([]);
   const [continueListening, setContinueListening] = useState([]);
-  const [publicPlaylists, setPublicPlaylists] = useState([]);
-  const [downloads, setDownloads] = useState([]);
-  const [showAllPublic, setShowAllPublic] = useState(false);
   const [toast, setToast] = useState({ open: false, type: 'info', title: '', message: '' });
   const [busyId, setBusyId] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
@@ -71,11 +60,9 @@ export default function ListenerPlaylist() {
     setToast({ open: true, type, title, message }), []);
 
   const load = useCallback(async () => {
-    const [mineResult, contResult, pubResult, dlResult] = await Promise.allSettled([
+    const [mineResult, contResult] = await Promise.allSettled([
       playlistService.getMine(),
       listenerService.getContinueListening(),
-      playlistService.getAll({ page: 1, limit: 40, search: '' }),
-      batch6Service.getDownloads({ limit: 100 }),
     ]);
 
     if (mineResult.status === 'fulfilled') {
@@ -85,15 +72,6 @@ export default function ListenerPlaylist() {
     if (contResult.status === 'fulfilled') {
       const cont = Array.isArray(contResult.value?.data) ? contResult.value.data : [];
       setContinueListening(cont.filter((t) => t?.id));
-    }
-    if (pubResult.status === 'fulfilled') {
-      const list = Array.isArray(pubResult.value?.data) ? pubResult.value.data : [];
-      setPublicPlaylists(list.filter((p) => Array.isArray(p.tracks) && p.tracks.length > 0));
-    }
-    if (dlResult.status === 'fulfilled') {
-      const raw = dlResult.value?.data || {};
-      const list = Array.isArray(raw.downloads) ? raw.downloads : [];
-      setDownloads(list.filter((d) => d?.track));
     }
   }, []);
 
@@ -149,22 +127,6 @@ export default function ListenerPlaylist() {
       handlePlay(track);
     },
     [handlePlay],
-  );
-
-  const handleDownloadedPlay = useCallback(
-    async (track) => {
-      if (String(currentTrack?.id || '') === String(track?.id || '')) {
-        togglePlay();
-        return;
-      }
-      try {
-        const playableUrl = await downloadService.getPlayableUrl(track.id);
-        handlePlay({ ...track, fileUrl: playableUrl, storageMode: 'offline' });
-      } catch {
-        showToast('error', 'Could not play download', 'This downloaded audio is no longer available offline.');
-      }
-    },
-    [currentTrack, handlePlay, showToast, togglePlay],
   );
 
   const handleCreatePlaylist = useCallback(async () => {
@@ -234,17 +196,7 @@ export default function ListenerPlaylist() {
     return list;
   };
 
-  const downloadedTracks = useMemo(() => {
-    const seen = new Set();
-    return downloads
-      .map((d) => d.track)
-      .filter((t) => t && !seen.has(idOf(t)) && (seen.add(idOf(t)), true));
-  }, [downloads]);
-
   const myPlaylists = sortLists(playlists);
-  const sortedPublic = sortLists(publicPlaylists);
-  const topPublic = sortedPublic.slice(0, 5);
-  const visiblePublic = showAllPublic ? sortedPublic : topPublic;
 
   return (
     <div className="pl-page">
@@ -315,47 +267,7 @@ export default function ListenerPlaylist() {
 
       <div className="pl-layout">
         <div className="pl-main">
-          {tab === 'Downloaded' ? (
-            <section className="pl-section">
-              <div className="pl-section-header">
-                <h2>Downloaded</h2>
-                <span className="pl-count">{downloadedTracks.length} items</span>
-              </div>
-              {downloadedTracks.length === 0 ? (
-                <div className="pl-empty">
-                  <FaListUl />
-                  <strong>Nothing downloaded yet.</strong>
-                  <p>Go to the Downloads page to save audio for offline listening.</p>
-                </div>
-              ) : (
-                <div className="pl-download-grid">
-                  {downloadedTracks.map((track) => {
-                    const playing = String(currentTrack?.id || '') === String(track.id) && isPlaying;
-                    return (
-                      <div key={idOf(track)} className="pl-download-card">
-                        <div className="pl-download-art">
-                          <img src={track.coverArt || track.artwork} alt={track.title || 'Audio'} />
-                        </div>
-                        <div className="pl-download-info">
-                          <strong>{track.title || 'Untitled audio'}</strong>
-                          <span>{track.artistName || track.genre || 'Audio'}</span>
-                        </div>
-                        <button
-                          type="button"
-                          className="pl-download-play"
-                          aria-label={playing ? `Pause ${track.title || 'audio'}` : `Play ${track.title || 'audio'}`}
-                          onClick={() => handleDownloadedPlay(track)}
-                        >
-                          {playing ? <FaPause /> : <FaPlay />}
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </section>
-          ) : (
-            <>
+          <>
               <section className="pl-section">
                 <div className="pl-section-header">
                   <h2>My playlists</h2>
@@ -486,56 +398,10 @@ export default function ListenerPlaylist() {
                     )}
                   </section>
 
-                  <section className="pl-section" id="pl-popular-playlists">
-                    <div className="pl-section-header">
-                      <h2>Popular playlists</h2>
-                      {sortedPublic.length > 5 && (
-                        <button type="button" className="pl-view-all" onClick={() => setShowAllPublic((value) => !value)}>
-                          {showAllPublic ? 'Show less' : 'View all'} <FaAngleRight />
-                        </button>
-                      )}
-                    </div>
-                    {visiblePublic.length === 0 ? (
-                      <div className="pl-empty">
-                        <FaHeart />
-                        <strong>No public playlists yet.</strong>
-                        <p>When creators publish playlists, they will show up here.</p>
-                      </div>
-                    ) : (
-                      <div className="pl-popular-grid">
-                        {visiblePublic.map((playlist) => {
-                          const trackCount = Array.isArray(playlist.tracks) ? playlist.tracks.length : 0;
-                          const listens = Number(playlist.listenerCount || playlist.listens || 0);
-                          const first = Array.isArray(playlist.tracks) ? playlist.tracks[0] : null;
-                          const playing = first && String(currentTrack?.id || '') === String(first.id) && isPlaying;
-                          return (
-                            <button
-                              key={idOf(playlist)}
-                              type="button"
-                              className="pl-popular-card"
-                              disabled={!first}
-                              onClick={() => first && handlePlaylistPlay(playlist)}
-                              aria-label={`${playing ? 'Pause' : 'Play'} ${playlist.name || 'playlist'}`}
-                            >
-                              <span className="pl-popular-art">
-                                <img src={playlist.coverArt} alt={playlist.name || 'Playlist'} />
-                                <span className="pl-popular-art-play" aria-hidden="true">{playing ? <FaPause /> : <FaPlay />}</span>
-                              </span>
-                              <strong>{playlist.name || 'Untitled Playlist'}</strong>
-                              <span className="pl-popular-meta">
-                                {trackCount} {trackCount === 1 ? 'track' : 'tracks'}
-                                {listens > 0 ? ` • ${compactNumber(listens)} listens` : ''}
-                              </span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </section>
+
                 </>
               )}
             </>
-          )}
         </div>
 
 
