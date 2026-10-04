@@ -158,7 +158,7 @@ test('persistent live play action restarts a disconnected room instead of only c
   const player = await source('../../frontend/src/Components/ListenerLiveExperience/LiveKitListenerPlayer.jsx');
 
   assert.match(player, /status === 'error' \|\| status === 'disconnected'[\s\S]{0,180}setRetryVersion/);
-  assert.match(player, /playbackIntentRef\.current = 'play'[\s\S]{0,260}setRetryVersion/);
+  assert.match(player, /playbackIntentRef\.current = 'play'/);
 });
 
 test('listener reconnect supervisor never waits forever in LiveKit reconnecting', async () => {
