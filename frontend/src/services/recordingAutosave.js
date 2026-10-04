@@ -657,10 +657,19 @@ export const completeDeviceCopyChoice = async (key, format = 'mp3') => {
   const pending = peekLocalMaster(`device-choice:${key}`);
   if (!pending?.recording?.blob?.size) return null;
 
-  const preferences = chooseRecordingDeviceFormat(format);
-  let localCopy = { saved: false, skipped: 'device-copy-disabled' };
+  // "Keep in Echoo only" is a decision for this recording, not a hidden
+  // change to every future broadcast. Persistent defaults are changed only by
+  // Creator Settings or by explicitly choosing MP3/WAV here.
+  const skipThisDeviceCopy = format === 'none';
+  const preferences = skipThisDeviceCopy
+    ? getRecordingDevicePreferences()
+    : chooseRecordingDeviceFormat(format);
+  let localCopy = {
+    saved: false,
+    skipped: skipThisDeviceCopy ? 'device-copy-skipped-for-recording' : 'device-copy-disabled',
+  };
 
-  if (preferences.autoSave) {
+  if (!skipThisDeviceCopy && preferences.autoSave) {
     try {
       localCopy = await saveRecordingToPc({
         blob: pending.blob,
@@ -762,7 +771,9 @@ export const completeDeviceCopyChoice = async (key, format = 'mp3') => {
     serverReady: pending.serverReady !== false,
     code: pending.serverReady === false ? 'REPLAY_NOT_READY' : '',
     message: pending.serverReady === false
-      ? 'The device copy is saved. Echoo is still finishing the recording; you can retry that separately.'
+      ? skipThisDeviceCopy
+        ? 'This device copy was skipped. Echoo is still finishing the recording; you can retry that separately.'
+        : 'The device copy is saved. Echoo is still finishing the recording; you can retry that separately.'
       : '',
     hasRecovery: pending.serverReady === false,
     recoveryFormats: availableLocalFormats(pending.recording),

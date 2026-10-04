@@ -80,21 +80,36 @@ test('server finalization is independent of device export and duplicate End requ
   });
   await page.goto('/listen');
   const result = await page.evaluate(async () => {
-    const { startAutosave } = await import('/src/services/recordingAutosave.js');
-    const { setRecordingDevicePreferences } = await import('/src/services/recordingDevicePreferences.js');
+    const { startAutosave, completeDeviceCopyChoice } = await import('/src/services/recordingAutosave.js');
+    const { getRecordingDevicePreferences, setRecordingDevicePreferences } = await import('/src/services/recordingDevicePreferences.js');
     let disposed = 0;
     setRecordingDevicePreferences({ decided: true, autoSave: false });
     const options = { recording: { blob: new Blob([new Uint8Array(44)], { type: 'audio/wav' }), broadcastId: '507f1f77bcf86cd799439031', serverRecordingPrimary: true, dispose: async () => { disposed++; } }, broadcast: { id: '507f1f77bcf86cd799439031', title: 'Recorded broadcast' } };
     const completed = await Promise.all([startAutosave(options), startAutosave(options)]);
     setRecordingDevicePreferences({ decided: true, autoSave: true, format: 'wav' });
-    const optional = await startAutosave({ recording: { ...options.recording, broadcastId: '507f1f77bcf86cd799439032' }, broadcast: { ...options.broadcast, id: '507f1f77bcf86cd799439032' } });
-    return { disposed, audioIds: completed.map(value => value.audioId), optionalReady: Boolean(optional.audioId), deviceChoice: optional.needsDeviceChoice };
+    const optionalBroadcastId = '507f1f77bcf86cd799439032';
+    const optional = await startAutosave({ recording: { ...options.recording, broadcastId: optionalBroadcastId }, broadcast: { ...options.broadcast, id: optionalBroadcastId } });
+    const preferenceBeforeSkip = getRecordingDevicePreferences();
+    const skipped = await completeDeviceCopyChoice(optionalBroadcastId, 'none');
+    const preferenceAfterSkip = getRecordingDevicePreferences();
+    return {
+      disposed,
+      audioIds: completed.map(value => value.audioId),
+      optionalReady: Boolean(optional.audioId),
+      deviceChoice: optional.needsDeviceChoice,
+      skippedLocalCopy: skipped?.localCopy?.skipped,
+      preferenceBeforeSkip,
+      preferenceAfterSkip,
+    };
   });
   expect(finalizations).toBe(2);
-  expect(result.disposed).toBe(1);
+  expect(result.disposed).toBe(2);
   expect(result.audioIds).toEqual(['507f1f77bcf86cd799439041', '507f1f77bcf86cd799439041']);
   expect(result.optionalReady).toBe(true);
   expect(result.deviceChoice).toBe(true);
+  expect(result.skippedLocalCopy).toBe('device-copy-skipped-for-recording');
+  expect(result.preferenceBeforeSkip).toEqual({ decided: true, autoSave: true, format: 'wav' });
+  expect(result.preferenceAfterSkip).toEqual(result.preferenceBeforeSkip);
 });
 
 test('live actions persist, roll back failures, copy links, and open and close chat', async ({ page }) => {
