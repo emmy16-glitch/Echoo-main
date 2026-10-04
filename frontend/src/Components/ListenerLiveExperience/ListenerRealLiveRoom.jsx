@@ -716,6 +716,18 @@ const ListenerRealLiveRoom = () => {
                       ? 'Waiting for creator'
                       : 'Audio disconnected';
 
+  const roomStatusLabel = isScheduled
+    ? scheduledStartLabel
+    : !isLive
+      ? 'Broadcast ended'
+      : realtimeState === 'fallback' || connectionStatus === 'reconnecting'
+        ? 'Reconnecting…'
+        : connectionStatus === 'holding'
+          ? 'Weak connection'
+          : realtimeState === 'connecting' || connectionStatus === 'connecting'
+            ? 'Connecting…'
+            : 'Connected';
+
   const primaryPlaybackDisabled =
     !isLive ||
     (!needsReconnect &&
@@ -797,11 +809,6 @@ const ListenerRealLiveRoom = () => {
         </div>
 
         <div className="listener-v2-room-toolbar-actions">
-          {show.listenerCount != null && (
-            <span className="listener-v2-room-listeners">
-              <FiUsers /> {show.listenerCount.toLocaleString()} listening
-            </span>
-          )}
           {show.stationId && (
             <button
               type="button"
@@ -874,9 +881,6 @@ const ListenerRealLiveRoom = () => {
               <p>{show.description || 'Live audio on Echoo.'}</p>
             </div>
             <div className="listener-v2-room-event-meta">
-              <span className="listener-v2-room-live-text">
-                <i /> {isLive ? 'LIVE' : show.status.toUpperCase()}
-              </span>
               {show.listenerCount != null && <span><FiUsers /> {show.listenerCount.toLocaleString()} listening</span>}
             </div>
           </div>
@@ -931,7 +935,7 @@ const ListenerRealLiveRoom = () => {
             </div>
 
             <span className="listener-v2-room-realtime-state">
-              {isLive ? `Room ${realtimeState}` : isScheduled ? scheduledStartLabel : 'Broadcast ended'}
+              {roomStatusLabel}
             </span>
 
             <button

@@ -150,6 +150,16 @@ test('listener settings exposes only working sections and Playback has no stale 
   await expect(settingsNav.getByRole('button', { name: 'About Echoo', exact: true })).toHaveCount(0);
 });
 
+test('live room avoids duplicate live and listener metadata and hides internal connection wording', async ({ page }) => {
+  await authenticate(page);
+  await page.goto('/listen/live/507f1f77bcf86cd799439031');
+  await expect(page.locator('.listener-v2-room-live-badge')).toHaveCount(1);
+  await expect(page.locator('.listener-v2-room-live-text')).toHaveCount(0);
+  await expect(page.locator('.listener-v2-room-listeners')).toHaveCount(0);
+  await expect(page.locator('.listener-v2-room-event-meta').getByText(/listening$/)).toHaveCount(1);
+  await expect(page.getByText(/Room (connected|fallback|connecting)/i)).toHaveCount(0);
+});
+
 test('live actions persist, roll back failures, copy links, and open and close chat', async ({ page }) => {
   await authenticate(page);
   await page.addInitScript(() => Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async text => { window.copiedLink = text; } } }));
