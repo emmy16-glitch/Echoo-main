@@ -157,11 +157,6 @@
   font-size: 11px !important;
 }
 
-/* The current More replay control has no action/menu behind it. Do not present a dead three-dot affordance. */
-#root .echoo-app-shell--listener [aria-label="More replay options"] {
-  display: none !important;
-}
-
 /* ---------- Listener settings ---------- */
 #root .echoo-app-shell--listener :is(.set-nav-item, .set-label, .set-section-title) {
   font-size: 12.5px !important;
