@@ -29,21 +29,23 @@ test('signed audio stream serves exact HTTP ranges while raw storage stays block
   await fs.promises.mkdir(audioDirectory, { recursive: true });
   await fs.promises.writeFile(absolutePath, bytes);
 
+  let mockAudio = {
+    _id: new mongoose.Types.ObjectId(audioId),
+    artist: ownerId,
+    isPublic: true,
+    visibility: 'public',
+    publicationStatus: 'published',
+    isDeleted: false,
+    filename,
+    fileKey: filename,
+    mimeType: 'audio/mpeg',
+    originalName: 'range-test.mp3',
+    duration: 60,
+    fileSize: bytes.length,
+  };
+
   Audio.findOne = () => ({
-    select: async () => ({
-      _id: new mongoose.Types.ObjectId(audioId),
-      artist: ownerId,
-      isPublic: true,
-      visibility: 'public',
-      publicationStatus: 'published',
-      isDeleted: false,
-      filename,
-      fileKey: filename,
-      mimeType: 'audio/mpeg',
-      originalName: 'range-test.mp3',
-      duration: 60,
-      fileSize: bytes.length,
-    }),
+    select: async () => mockAudio,
   });
 
   try {
@@ -54,6 +56,32 @@ test('signed audio stream serves exact HTTP ranges while raw storage stays block
 
     const address = server.address();
     const baseUrl = `http://127.0.0.1:${address.port}`;
+    const publicGrant = await fetch(`${baseUrl}/api/audio/${audioId}/public-stream-token`, {
+      method: 'POST',
+    });
+    assert.equal(publicGrant.status, 200);
+    const publicGrantBody = await publicGrant.json();
+    assert.match(publicGrantBody?.data?.streamUrl || '', /\/api\/audio\/.+\/stream\?token=/);
+    assert.match(publicGrantBody?.data?.downloadUrl || '', /download=1/);
+
+    mockAudio = {
+      ...mockAudio,
+      isPublic: false,
+      visibility: 'private',
+      publicationStatus: 'draft',
+    };
+    const privateGrant = await fetch(`${baseUrl}/api/audio/${audioId}/public-stream-token`, {
+      method: 'POST',
+    });
+    assert.equal(privateGrant.status, 404);
+
+    mockAudio = {
+      ...mockAudio,
+      isPublic: true,
+      visibility: 'public',
+      publicationStatus: 'published',
+    };
+
     const { token } = createAudioStreamToken({
       audioId,
       access: 'public',
