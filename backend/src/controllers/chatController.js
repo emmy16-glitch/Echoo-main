@@ -73,6 +73,11 @@ export async function sendMessage(req, res, next) {
         error: { code: 'VALIDATION_ERROR', message: 'Message content is required' },
       });
     }
+    if (content.length > 280) {
+      return res.status(400).json({
+        error: { code: 'VALIDATION_ERROR', message: 'Message cannot exceed 280 characters' },
+      });
+    }
 
     const { broadcast } = await requireBroadcastAccess(broadcastId, userId);
     requireOpenChat(broadcast);
