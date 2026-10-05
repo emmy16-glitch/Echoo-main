@@ -94,11 +94,11 @@ Echoo is deliberately **not** another upload-and-wait audio host. It separates l
 | Backend | Node.js 20 + Express + Socket.IO + Mongoose (MongoDB) |
 | Live audio | LiveKit Cloud (WebRTC SFU), `livekit-client` / `@livekit/react-native` |
 | Mobile | Expo React Native (iOS + Android), `expo-audio`, native foreground service for live |
-| Desktop | Electron 41, bundled API server, embedded-DB fallback |
+| Desktop | Electron 41 Windows client, locally packaged React renderer, secure native bridge, shared Echoo API + LiveKit |
 | Recordings | FFmpeg (server MP3); local disk by default, S3-compatible object storage when configured |
 | Transcription (optional) | Whisper gateway (Python service), failure-isolated |
 | Testing | `node --test` suites, `tsc`, Vite build, GitHub Actions (`echoo-check`) |
-| Deployment | Hosted site + Cloudflare, GitHub Releases (AppImage / NSIS `.exe` / DMG), EAS (mobile) |
+| Deployment | Hosted web/API + Cloudflare, Windows NSIS `.exe` via GitHub Releases, EAS (mobile) |
 
 ## How it works
 
