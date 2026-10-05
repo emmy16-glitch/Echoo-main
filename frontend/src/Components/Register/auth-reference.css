@@ -339,47 +339,6 @@
 .ear-error svg { margin-right: 4px; vertical-align: -1px; }
 .ear-notice { color: #b8f3d2; font-weight: 650; }
 
-.ear-password-requirements {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 7px 12px;
-  margin: -2px 0 0;
-  padding: 0;
-  list-style: none;
-  color: #9cabc0;
-  font-size: 11px;
-  line-height: 1.35;
-}
-
-.ear-password-requirements li {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  min-width: 0;
-}
-
-.ear-password-requirements li span {
-  width: 16px;
-  height: 16px;
-  display: grid;
-  place-items: center;
-  flex: 0 0 16px;
-  border: 1px solid rgba(255,255,255,.16);
-  border-radius: 50%;
-  color: #9cabc0;
-  font-size: 10px;
-}
-
-.ear-password-requirements li.is-met {
-  color: #c9f4dc;
-}
-
-.ear-password-requirements li.is-met span {
-  border-color: rgba(18,183,106,.42);
-  background: rgba(18,183,106,.14);
-  color: #73dfa9;
-}
-
 .ear-legal {
   margin: 0;
   color: #9cabc0;
@@ -829,5 +788,53 @@
   .echoo-auth-reference *::after {
     transition-duration: .01ms !important;
     animation-duration: .01ms !important;
+  }
+}
+
+
+/* Clean auth pass: keep account creation focused and preserve normal mobile
+ * selection/paste behavior for password managers and clipboard users. */
+.ear-password-hint {
+  margin: -3px 0 0;
+  color: #98a8bf;
+  font-size: 11px;
+  line-height: 1.4;
+}
+.ear-input-shell input {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+.echoo-auth-reference.is-signup .ear-form-heading {
+  margin-bottom: 16px;
+}
+.echoo-auth-reference.is-signup .ear-legal {
+  margin-top: -2px;
+}
+@media (max-width: 560px) {
+  .echoo-auth-reference.is-signup .ear-auth-shell {
+    padding-top: 28px;
+  }
+  .echoo-auth-reference.is-signup .ear-auth-card {
+    padding: 22px 18px 20px;
+  }
+  .echoo-auth-reference.is-signup .ear-card-brand {
+    margin-bottom: 14px;
+  }
+  .echoo-auth-reference.is-signup .ear-form-heading {
+    margin-bottom: 16px;
+  }
+  .echoo-auth-reference.is-signup .ear-form-heading h1 {
+    font-size: 28px;
+  }
+  .echoo-auth-reference.is-signup .ear-form {
+    gap: 11px;
+  }
+  .echoo-auth-reference.is-signup .ear-input-shell {
+    min-height: 46px;
+    border-radius: 12px;
+  }
+  .echoo-auth-reference.is-signup .ear-input-shell input {
+    height: 44px;
   }
 }
