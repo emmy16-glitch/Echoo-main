@@ -257,3 +257,11 @@ test('offline recovery stays retryable when a reload returns a failure result', 
   assert.match(offlineJs, /if \(!result\?\.ok\)/);
   assert.match(offlineJs, /setRetryReady/);
 });
+
+
+test('Windows identity and installer verify native protocol registration', () => {
+  const installerVerifier = fs.readFileSync(path.join(desktopRoot, 'scripts', 'verify-installer.ps1'), 'utf8');
+  assert.match(mainSource, /app\.setAppUserModelId\('com\.echoo\.desktop'\)/);
+  assert.match(installerVerifier, /Software\\Classes\\echoo\\shell\\open\\command/);
+  assert.match(installerVerifier, /Verified echoo:\/\/ protocol registration/);
+});

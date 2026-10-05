@@ -1860,6 +1860,12 @@ function checkForUpdates() {
 // ---------------------------------------------------------------------------
 function startApp() {
   try {
+    if (process.platform === 'win32') {
+      // Keep Windows notifications, taskbar grouping, Start-menu identity and
+      // protocol activation attached to the same application identity that
+      // electron-builder registers for the installer.
+      app.setAppUserModelId('com.echoo.desktop');
+    }
     if (app.isPackaged) {
       app.setAsDefaultProtocolClient('echoo');
     } else if (process.platform === 'win32') {

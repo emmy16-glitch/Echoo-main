@@ -62,6 +62,22 @@ try {
         throw "Installed Echoo executable is missing: $executablePath"
     }
 
+    $protocolCandidates = @(
+        'Registry::HKEY_CURRENT_USER\Software\Classes\echoo\shell\open\command',
+        'Registry::HKEY_CLASSES_ROOT\echoo\shell\open\command'
+    )
+    $protocolCommand = $null
+    foreach ($protocolKey in $protocolCandidates) {
+        if (Test-Path -LiteralPath $protocolKey) {
+            $protocolCommand = (Get-Item -LiteralPath $protocolKey).GetValue('')
+            if ($protocolCommand) { break }
+        }
+    }
+    if (-not $protocolCommand -or $protocolCommand -notmatch 'Echoo\.exe') {
+        throw "Installed Echoo did not register the echoo:// protocol correctly. Command: $protocolCommand"
+    }
+    Write-Host "Verified echoo:// protocol registration."
+
     $previousSmokeValue = $env:ECHOO_DESKTOP_SMOKE_TEST
     $previousRunAsNodeValue = $env:ELECTRON_RUN_AS_NODE
     $env:ECHOO_DESKTOP_SMOKE_TEST = '1'
