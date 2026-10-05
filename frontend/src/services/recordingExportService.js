@@ -1,4 +1,4 @@
-import { apiFetch } from './api.js';
+import audioService from './audioService.js';
 import {
   DEFAULT_LOCAL_MP3_BITRATE_KBPS,
   encodeLocalWavToMp3,
@@ -178,33 +178,173 @@ const tryMobileShare = async ({ blob, filename, mimeType }) => {
   }
 };
 
-// Server downloads remain useful for recordings whose local master has already
-// been cleared, but a just-finished live recording no longer depends on this
-// endpoint for its MP3 device copy.
-export const fetchServerRecordingBlob = async (audioId) => {
-  const response = await apiFetch(`/audio/${encodeURIComponent(audioId)}/download`, {
-    timeoutMs: 30_000,
+// A server replay can be hundreds of megabytes. Readiness checks must never
+// download the media body, and normal device downloads must never materialize
+// the whole replay as a JavaScript Blob.
+export const prepareServerRecordingDownload = async (audioId) => {
+  const { downloadUrl } = await audioService.getStreamUrl(audioId);
+  if (!downloadUrl) throw new Error('Server MP3 is not ready yet. Try again in a few seconds.');
+
+  const response = await fetch(downloadUrl, {
+    method: 'HEAD',
+    credentials: 'omit',
+    cache: 'no-store',
   });
   if (!response.ok) throw new Error('Server MP3 is not ready yet. Try again in a few seconds.');
-  const blob = await response.blob();
-  const mimeType = String(blob.type || response.headers.get('content-type') || '').toLowerCase();
+
+  const mimeType = String(response.headers.get('content-type') || '').toLowerCase();
   if (!(mimeType.includes('mpeg') || mimeType.includes('mp3'))) {
     throw new Error('Server MP3 is still being prepared. Try again in a few seconds.');
   }
-  return blob;
+
+  return {
+    downloadUrl,
+    mimeType: mimeType || 'audio/mpeg',
+    contentLength: Math.max(0, Number(response.headers.get('content-length')) || 0),
+  };
 };
 
 export const waitForServerMp3 = async (audioId, { attempts = 10, delayMs = 3000 } = {}) => {
   let lastError = null;
   for (let i = 0; i < attempts; i += 1) {
     try {
-      return await fetchServerRecordingBlob(audioId);
+      return await prepareServerRecordingDownload(audioId);
     } catch (error) {
       lastError = error;
       if (i < attempts - 1) await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
   }
   throw lastError || new Error('Server MP3 is not ready yet.');
+};
+
+// Kept only for older bounded callers. Large replays are intentionally refused
+// here so a future call site cannot reintroduce the 200 MB+ in-memory Blob bug.
+export const fetchServerRecordingBlob = async (audioId) => {
+  const prepared = await prepareServerRecordingDownload(audioId);
+  const maxCompatibilityBlobBytes = 64 * 1024 * 1024;
+  if (prepared.contentLength > maxCompatibilityBlobBytes) {
+    const error = new Error('This recording is too large for in-memory export. Use the direct Echoo download instead.');
+    error.code = 'SERVER_RECORDING_STREAM_REQUIRED';
+    throw error;
+  }
+
+  const response = await fetch(prepared.downloadUrl, {
+    credentials: 'omit',
+    cache: 'no-store',
+  });
+  if (!response.ok) throw new Error('Server MP3 is not ready yet. Try again in a few seconds.');
+  const blob = await response.blob();
+  if (blob.size > maxCompatibilityBlobBytes) {
+    throw new Error('This recording is too large for in-memory export. Use the direct Echoo download instead.');
+  }
+  return blob;
+};
+
+const startServerRecordingBrowserDownload = async ({ audioId, filename }) => {
+  const prepared = await prepareServerRecordingDownload(audioId);
+  const anchor = document.createElement('a');
+  anchor.href = prepared.downloadUrl;
+  anchor.download = filename;
+  anchor.rel = 'noopener';
+  anchor.style.display = 'none';
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  return {
+    saved: false,
+    downloadStarted: true,
+    unverifiedDownload: true,
+    filename,
+    format: 'mp3',
+    source: 'server-mp3-stream',
+    destination: 'browser-downloads',
+    deviceKind: isLikelyPc() ? 'computer' : 'mobile',
+  };
+};
+
+const saveServerRecordingToDesktop = async ({
+  audioId,
+  filename,
+  automatic = false,
+  startedAt = null,
+}) => {
+  if (!isDesktopBridge()) return null;
+
+  const bridge = window.echooDesktop;
+  const chunked =
+    typeof bridge.beginRecordingSave === 'function' &&
+    typeof bridge.appendRecordingChunk === 'function' &&
+    typeof bridge.finishRecordingSave === 'function' &&
+    typeof bridge.abortRecordingSave === 'function';
+
+  const prepared = await prepareServerRecordingDownload(audioId);
+
+  if (!chunked) {
+    if (prepared.contentLength > 128 * 1024 * 1024) {
+      throw new Error('Update Echoo Desktop to save this large recording safely.');
+    }
+    const bytes = await fetchServerRecordingBlob(audioId);
+    return saveDesktopBytes({
+      bytes,
+      filename,
+      format: 'mp3',
+      mimeType: 'audio/mpeg',
+      automatic,
+      startedAt,
+    });
+  }
+
+  const response = await fetch(prepared.downloadUrl, {
+    credentials: 'omit',
+    cache: 'no-store',
+  });
+  if (!response.ok || !response.body?.getReader) {
+    throw new Error('Echoo could not stream the server recording to this device.');
+  }
+
+  const started = await bridge.beginRecordingSave({
+    filename,
+    format: 'mp3',
+    mimeType: 'audio/mpeg',
+    automatic,
+    startedAt: startedAt || null,
+  });
+  if (started?.cancelled) return { saved: false, cancelled: true, format: 'mp3' };
+  if (!started?.started || !started?.sessionId) {
+    throw new Error(started?.error || 'Desktop recording save could not start.');
+  }
+
+  const reader = response.body.getReader();
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value?.byteLength) continue;
+      const result = await bridge.appendRecordingChunk(
+        started.sessionId,
+        value instanceof Uint8Array ? value : new Uint8Array(value)
+      );
+      if (!result?.written) {
+        throw new Error(result?.error || 'Desktop recording chunk could not be written.');
+      }
+    }
+
+    const finished = await bridge.finishRecordingSave(started.sessionId);
+    if (!finished?.saved) throw new Error(finished?.error || 'Desktop recording save failed.');
+    return {
+      saved: true,
+      filename,
+      format: 'mp3',
+      path: finished.path || started.path || '',
+      source: 'server-mp3-stream',
+      destination: ECHOO_RECORDINGS_LIBRARY,
+    };
+  } catch (error) {
+    await bridge.abortRecordingSave(started.sessionId).catch(() => null);
+    throw error;
+  } finally {
+    reader.releaseLock?.();
+  }
 };
 
 const createLocalMp3 = async (blob, { onProgress = null, onChunk = null } = {}) => {
@@ -406,10 +546,20 @@ export const saveAutomaticLocalCopy = async ({
     bytes = encodedLocal.blob;
     source = 'local-wav-encode';
   } else if (audioId) {
-    // Legacy/non-WAV fallback: use a durable server MP3 when no PCM master
-    // exists. This does not affect the normal OPFS-backed live path.
-    bytes = await waitForServerMp3(audioId, { attempts: 2, delayMs: 1000 });
-    source = 'server-mp3-fallback';
+    const filename = buildRecordingFilename({
+      title,
+      channelName,
+      startedAt,
+      format: 'mp3',
+    });
+    const streamed = await saveServerRecordingToDesktop({
+      audioId,
+      filename,
+      automatic: true,
+      startedAt,
+    });
+    if (streamed) return streamed;
+    return { saved: false, skipped: 'local-mp3-source-unavailable', format: 'mp3' };
   } else {
     return { saved: false, skipped: 'local-mp3-source-unavailable', format: 'mp3' };
   }
@@ -601,8 +751,16 @@ export const saveRecordingToPc = async ({
       bytes = encodedLocal.blob;
       source = 'local-wav-encode';
     } else if (audioId) {
-      bytes = await fetchServerRecordingBlob(audioId);
-      source = 'server-mp3-fallback';
+      if (isDesktopBridge()) {
+        const streamed = await saveServerRecordingToDesktop({
+          audioId,
+          filename,
+          automatic: false,
+          startedAt,
+        });
+        if (streamed) return streamed;
+      }
+      return startServerRecordingBrowserDownload({ audioId, filename });
     } else {
       throw new Error('A local WAV master is required to create an MP3 while the server is unavailable.');
     }
@@ -711,6 +869,7 @@ export default {
   saveAutomaticLocalCopy,
   saveRecordingToPc,
   fetchServerRecordingBlob,
+  prepareServerRecordingDownload,
   waitForServerMp3,
   prepareAutomaticLocalCopyDestination,
 };
