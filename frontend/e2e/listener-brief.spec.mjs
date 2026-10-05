@@ -272,9 +272,25 @@ test('live room stays inside the viewport from 320px mobile through desktop', as
     expect(play.x + play.width, `play control ends inside viewport at ${width}`).toBeLessThanOrEqual(width);
 
     if (width < 768) {
-      const chat = await page.locator('.listener-v2-room-chat-toggle').boundingBox();
+      const chatToggle = page.locator('.listener-v2-room-chat-toggle');
+      const chat = await chatToggle.boundingBox();
       expect(chat, `chat toggle exists at ${width}`).not.toBeNull();
       expect(chat.x + chat.width, `chat toggle stays inside viewport at ${width}`).toBeLessThanOrEqual(width);
+
+      await chatToggle.click();
+      const sheet = page.locator('.listener-v2-room-chat');
+      await expect(sheet).toHaveClass(/is-open/);
+      const sheetBox = await sheet.boundingBox();
+      expect(sheetBox, `chat sheet exists at ${width}`).not.toBeNull();
+      expect(sheetBox.x, `chat sheet starts inside viewport at ${width}`).toBeGreaterThanOrEqual(0);
+      expect(sheetBox.x + sheetBox.width, `chat sheet ends inside viewport at ${width}`).toBeLessThanOrEqual(width);
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+        `open chat overflows horizontally at ${width}`
+      ).toBe(true);
+      await expect(page.getByRole('textbox', { name: 'Message live chat' })).toBeInViewport();
+      await page.locator('.listener-v2-room-chat-close').click();
+      await expect(sheet).not.toHaveClass(/is-open/);
     }
   }
 });
