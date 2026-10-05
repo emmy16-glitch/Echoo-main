@@ -281,7 +281,7 @@ export default function CreatorSetup({ onCreatorReady }) {
       // CreatorSetup can be rendered by the /creator-studio role guard. A
       // document navigation makes that guard read the freshly persisted user
       // rather than retaining the incomplete capability from its first render.
-      window.location.assign('/creator-studio');
+      assignAppRoute('/creator-studio');
     } catch (error) {
       // A taken Channel name is a field problem, not a toast: point at the
       // name field, keep every entered value, and let retry succeed once the

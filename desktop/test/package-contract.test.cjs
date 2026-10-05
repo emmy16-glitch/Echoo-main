@@ -577,3 +577,17 @@ test('packaged auth uses React Router state instead of the custom-scheme window 
   assert.match(registerSource, /initialAuthAction\(location\.pathname, location\.search\)/);
   assert.doesNotMatch(registerSource, /window\.location\.pathname/);
 });
+
+
+test('HashRouter-sensitive screens use router state and public web URLs', () => {
+  const creatorSetupSource = fs.readFileSync(path.resolve(desktopRoot, '..', 'frontend', 'src', 'Components', 'CreatorSetup', 'CreatorSetup.jsx'), 'utf8');
+  const listenerSettingsSource = fs.readFileSync(path.resolve(desktopRoot, '..', 'frontend', 'src', 'Components', 'ListenerSettings', 'ListenerSettingsConnected.jsx'), 'utf8');
+  const audioDetailSource = fs.readFileSync(path.resolve(desktopRoot, '..', 'frontend', 'src', 'Components', 'ListenerAudioDetail', 'ListenerAudioDetail.jsx'), 'utf8');
+  assert.match(creatorSetupSource, /assignAppRoute\('\/creator-studio'\)/);
+  assert.doesNotMatch(creatorSetupSource, /window\.location\.assign/);
+  assert.match(listenerSettingsSource, /new URLSearchParams\(routerLocation\.search\)/);
+  assert.doesNotMatch(listenerSettingsSource, /window\.location\.search/);
+  assert.match(audioDetailSource, /getPublicAppUrl/);
+  assert.match(audioDetailSource, /copyTextToClipboard\(publicUrl\)/);
+  assert.doesNotMatch(audioDetailSource, /url:\s*window\.location\.href/);
+});

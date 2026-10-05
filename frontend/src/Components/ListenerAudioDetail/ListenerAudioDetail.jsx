@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import { FiArrowLeft, FiCheck, FiDownload, FiPause, FiPlay, FiShare2, FiUsers } from 'react-icons/fi';
 
 import audioService from '../../services/audioService';
@@ -7,6 +7,7 @@ import downloadService from '../../services/downloadService';
 import followService from '../../services/followService';
 import savedMomentService from '../../services/savedMomentService';
 import transcriptService from '../../services/transcriptService';
+import { copyTextToClipboard, getPublicAppUrl } from '../../services/stationPublicUrl';
 import { ChapterList, EchooButton, KeyMomentCard, Tabs, TranscriptPanel, Waveform } from '../../design-system';
 import { referenceChapters, referenceMoments, referenceReplay, referenceTranscript } from '../ListenerExperience/listenerExperienceData';
 import './ListenerAudioDetail.css';
@@ -24,8 +25,11 @@ const formatDate = (value) => {
 const ListenerAudioDetail = () => {
   const { audioId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const player = useOutletContext();
-  const previewMode = import.meta.env.DEV && new URLSearchParams(window.location.search).get('preview') === 'reference';
+  const previewMode =
+    import.meta.env.DEV &&
+    new URLSearchParams(location.search).get('preview') === 'reference';
   const [track, setTrack] = useState(previewMode ? referenceReplay : null);
   const [loading, setLoading] = useState(!previewMode);
   const [error, setError] = useState('');
@@ -226,14 +230,21 @@ const ListenerAudioDetail = () => {
   };
   const share = async () => {
     try {
-      if (navigator.share) {
-        await navigator.share({ title: normalizedTrack?.title || 'Echoo recording', url: window.location.href });
-      } else if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(window.location.href);
+      const publicUrl = getPublicAppUrl(`/listen/audio/${encodeURIComponent(audioId || '')}`);
+      if (!publicUrl) throw new Error('The public recording link is unavailable.');
+
+      const desktopRuntime =
+        typeof window !== 'undefined' && window.echooDesktop?.isDesktop === true;
+      if (!desktopRuntime && navigator.share) {
+        await navigator.share({
+          title: normalizedTrack?.title || 'Echoo recording',
+          url: publicUrl,
+        });
+        setNotice('Recording shared.');
       } else {
-        throw new Error('Sharing is unavailable in this browser.');
+        await copyTextToClipboard(publicUrl);
+        setNotice('Recording link copied.');
       }
-      setNotice(navigator.share ? 'Recording shared.' : 'Recording link copied.');
     } catch (shareError) {
       if (shareError?.name === 'AbortError') return;
       setError('Could not share this recording.');

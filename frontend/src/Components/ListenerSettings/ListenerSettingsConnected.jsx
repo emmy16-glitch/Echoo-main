@@ -43,7 +43,7 @@ const usernameFor = (username) =>
 const ListenerSettingsConnected = () => {
   const routerLocation = useRouterLocation();
   const [nav, setNav] = useState(() => {
-    const requested = new URLSearchParams(window.location.search).get('section');
+    const requested = new URLSearchParams(routerLocation.search).get('section');
     return ['profile', 'playback', 'notifications', 'help'].includes(requested) ? requested : 'profile';
   });
   const [volume, setVolume] = useState(readListenerVolume);
