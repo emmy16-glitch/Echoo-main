@@ -57,6 +57,9 @@ jobs:
           CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
 
+      - name: Run packaged Electron Playwright E2E
+        run: npm run test:e2e:packaged --prefix desktop
+
       - name: Install and launch packaged Echoo
         shell: powershell
         run: ./desktop/scripts/verify-installer.ps1 -InstallSmokeTest

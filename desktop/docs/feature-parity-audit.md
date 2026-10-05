@@ -174,14 +174,15 @@ The Windows workflow performs, in order:
 2. desktop security/package contract tests;
 3. local renderer build + bundle verification;
 4. Windows x64 NSIS build;
-5. silent install of the produced installer;
-6. installed-app launch;
-7. local-renderer / secure-bridge smoke verification;
-8. cold-start and second-instance deep-link checks;
-9. offline local-shell smoke with remote HTTP(S) blocked;
-10. signing-state report;
-11. verified artifact upload; and
-12. tagged-release publication only after verification.
+5. Playwright launches the packaged `win-unpacked/Echoo.exe` and verifies the local renderer, secure bridge, cold-start route, unsafe-link rejection, layout bounds, and reduced motion;
+6. silent install of the produced installer;
+7. installed-app launch;
+8. local-renderer / secure-bridge smoke verification;
+9. cold-start and second-instance deep-link checks;
+10. offline local-shell smoke with remote HTTP(S) blocked;
+11. signing-state report;
+12. verified artifact upload; and
+13. tagged-release publication only after verification.
 
 A prior Windows workflow at
 `a1b23c47cfc30ba4e0c026b224f76f2b075c7a15` completed successfully after the

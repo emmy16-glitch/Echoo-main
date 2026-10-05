@@ -470,3 +470,11 @@ test('production backend cannot fall back to a private desktop database', () => 
   assert.doesNotMatch(productionEnvExample, /^ECHOO_DESKTOP=/m);
   assert.doesNotMatch(deploymentScript, /ECHOO_DESKTOP=1/);
 });
+
+
+test('Windows workflow runs packaged Playwright E2E before installer smoke verification', () => {
+  assert.equal(packageJson.scripts['test:e2e:packaged'], 'playwright test --config=playwright.config.mjs');
+  assert.match(windowsWorkflow, /Run packaged Electron Playwright E2E/);
+  assert.match(windowsWorkflow, /npm run test:e2e:packaged --prefix desktop/);
+  assert.match(mainSource, /ECHOO_DISABLE_UPDATES/);
+});

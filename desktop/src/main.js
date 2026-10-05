@@ -2102,7 +2102,7 @@ async function promptForDownloadedUpdate() {
 }
 
 function checkForUpdates() {
-  if (!app.isPackaged) return; // updater needs a packaged app with update metadata
+  if (!app.isPackaged || process.env.ECHOO_DISABLE_UPDATES === '1') return; // deterministic tests may opt out
   try {
     autoUpdater.autoDownload = true;
     autoUpdater.on('update-downloaded', () => {
