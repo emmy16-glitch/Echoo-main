@@ -164,3 +164,19 @@ test('replay finalizer refuses partial server MP3 files after recorder interrupt
   assert.match(replay, /server-recording-not-complete/);
   assert.match(replay, /duration \+ tolerance < expectedDuration/);
 });
+
+
+test('live chat keeps one 280-character contract and bounded send rate', async () => {
+  const [controller, model, listenerChat] = await Promise.all([
+    read('../src/controllers/chatController.js'),
+    read('../src/models/ChatMessage.js'),
+    read('../../frontend/src/Components/ListenerExperience/ListenerExperienceComponents.jsx'),
+  ]);
+
+  assert.match(controller, /MAX_CHAT_MESSAGE_LENGTH = 280/);
+  assert.match(controller, /content\.length > MAX_CHAT_MESSAGE_LENGTH/);
+  assert.match(controller, /recentMessages >= 3/);
+  assert.match(controller, /Date\.now\(\) - 5001/);
+  assert.match(model, /maxlength:\s*\[280,/);
+  assert.match(listenerChat, /maxLength=\{280\}/);
+});
