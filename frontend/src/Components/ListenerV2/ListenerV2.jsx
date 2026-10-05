@@ -393,6 +393,8 @@ const ListenerV2Layout = () => {
   const audioRef = useRef(null);
   const autoplayRef = useRef(false);
   const pendingSeekRef = useRef(null);
+  const playbackRequestRef = useRef(0);
+  const streamRecoveryRef = useRef('');
   const lastProgressRef = useRef({ id: null, time: 0 });
   const [currentTrack, setCurrentTrack] = useState(null);
   const [queue, setQueue] = useState([]);
@@ -503,35 +505,92 @@ const ListenerV2Layout = () => {
     }
   }, []);
 
-  const playTrack = useCallback((track, incomingQueue = []) => {
+  const resolveFreshPlaybackTrack = useCallback(async (track) => {
     const normalized = normalizePlayable(track);
-    if (!normalized?.fileUrl) {
-      setPlayerError('This audio does not have a playable file attached to it.');
-      setPlaybackState('error');
-      return false;
+    if (!normalized) throw new Error('This audio is unavailable.');
+
+    const id = String(idOf(normalized) || '');
+    const existingUrl = String(normalized.fileUrl || '');
+
+    // Offline browser copies and explicit blob/data URLs are already local and
+    // must never be replaced with a network stream.
+    if (
+      normalized.storageMode === 'offline' ||
+      existingUrl.startsWith('blob:') ||
+      existingUrl.startsWith('data:')
+    ) {
+      if (!existingUrl) throw new Error('This downloaded audio is no longer available offline.');
+      return normalized;
     }
+
+    if (/^[a-f\d]{24}$/i.test(id)) {
+      try {
+        const { streamUrl, expiresIn } = await audioService.getStreamUrl(id);
+        if (!streamUrl) throw new Error('Echoo could not prepare this audio for playback.');
+        return {
+          ...normalized,
+          fileUrl: streamUrl,
+          streamExpiresIn: expiresIn,
+        };
+      } catch (error) {
+        // A freshly serialized public recording already carries a valid signed
+        // stream. Keep that as a resilience fallback if token refresh is
+        // temporarily unreachable; private/followers-only tracks have no such
+        // bearer URL and must fail closed.
+        if (existingUrl) return normalized;
+        throw error;
+      }
+    }
+
+    if (existingUrl) return normalized;
+    throw new Error('This audio does not have a playable source.');
+  }, []);
+
+  const playTrack = useCallback(async (track, incomingQueue = []) => {
+    const requested = normalizePlayable(track);
+    if (!requested) return false;
+
     setLiveSession(null);
-    if (idOf(normalized) === idOf(currentTrack)) {
-      const audio = audioRef.current;
-      if (!audio) return false;
-      if (audio.paused) void playAudioElement(audio);
-      else audio.pause();
+
+    if (
+      idOf(requested) === idOf(currentTrack) &&
+      audioRef.current &&
+      playbackState !== 'error'
+    ) {
+      if (audioRef.current.paused) void playAudioElement(audioRef.current);
+      else audioRef.current.pause();
       return true;
     }
-    const nextQueue = (Array.isArray(incomingQueue) ? incomingQueue : [])
-      .map(normalizePlayable)
-      .filter((item) => item?.fileUrl);
-    setQueue(nextQueue);
-    pendingSeekRef.current = null;
-    autoplayRef.current = true;
+
+    const requestId = ++playbackRequestRef.current;
     setPlayerError('');
     setPlaybackState('loading');
-    setCurrentTrack(normalized);
-    setCurrentTime(0);
-    setDuration(normalized.duration || 0);
-    if (isGuest) recordGuestPlayback(normalized, 0, nextQueue);
-    return true;
-  }, [currentTrack, isGuest, playAudioElement]);
+
+    try {
+      const normalized = await resolveFreshPlaybackTrack(requested);
+      if (requestId !== playbackRequestRef.current) return false;
+
+      const nextQueue = (Array.isArray(incomingQueue) ? incomingQueue : [])
+        .map(normalizePlayable)
+        .filter((item) => item && (item.fileUrl || idOf(item)));
+
+      setQueue(nextQueue);
+      pendingSeekRef.current = null;
+      autoplayRef.current = true;
+      streamRecoveryRef.current = '';
+      setCurrentTrack(normalized);
+      setCurrentTime(0);
+      setDuration(normalized.duration || 0);
+      if (isGuest) recordGuestPlayback(normalized, 0, nextQueue);
+      return true;
+    } catch (error) {
+      if (requestId !== playbackRequestRef.current) return false;
+      setIsPlaying(false);
+      setPlaybackState('error');
+      setPlayerError(error?.message || 'Echoo could not prepare this audio for playback.');
+      return false;
+    }
+  }, [currentTrack, isGuest, playbackState, playAudioElement, resolveFreshPlaybackTrack]);
 
   useEffect(() => {
     if (!isGuest) return;
@@ -548,17 +607,21 @@ const ListenerV2Layout = () => {
 
   const togglePlay = useCallback(() => {
     const audio = audioRef.current;
-    if (!audio || !currentTrack?.fileUrl) {
+    if (!currentTrack) {
       setPlayerError('Choose an audio track first.');
       return;
     }
-    if (audio.paused) {
-      if (playbackState === 'error') audio.load();
-      void playAudioElement(audio);
-    } else {
-      audio.pause();
+    if (playbackState === 'error') {
+      void playTrack(currentTrack, queue);
+      return;
     }
-  }, [currentTrack?.fileUrl, playbackState, playAudioElement]);
+    if (!audio || !currentTrack.fileUrl) {
+      void playTrack(currentTrack, queue);
+      return;
+    }
+    if (audio.paused) void playAudioElement(audio);
+    else audio.pause();
+  }, [currentTrack, playbackState, playAudioElement, playTrack, queue]);
 
   const seekTo = useCallback((seconds) => {
     const audio = audioRef.current;
@@ -575,41 +638,84 @@ const ListenerV2Layout = () => {
     return target;
   }, []);
 
-  const playTrackAt = useCallback((track, seconds, incomingQueue = []) => {
+  const playTrackAt = useCallback(async (track, seconds, incomingQueue = []) => {
     const normalized = normalizePlayable(track);
     const requested = Math.max(0, Number(seconds) || 0);
-    if (!normalized?.fileUrl) {
-      setPlayerError('This audio does not have a playable file attached to it.');
-      setPlaybackState('error');
-      return false;
-    }
+    if (!normalized) return false;
 
-    if (idOf(normalized) === idOf(currentTrack) && audioRef.current) {
+    if (
+      idOf(normalized) === idOf(currentTrack) &&
+      audioRef.current &&
+      playbackState !== 'error'
+    ) {
       seekTo(requested);
       if (audioRef.current.paused) void playAudioElement(audioRef.current);
       return true;
     }
 
-    const played = playTrack(normalized, incomingQueue);
-    if (played) pendingSeekRef.current = requested;
+    pendingSeekRef.current = requested;
+    const played = await playTrack(normalized, incomingQueue);
+    if (!played) pendingSeekRef.current = null;
     return played;
-  }, [currentTrack, playAudioElement, playTrack, seekTo]);
+  }, [currentTrack, playbackState, playAudioElement, playTrack, seekTo]);
 
   const seekBy = useCallback((deltaSeconds) => {
     const base = Number(audioRef.current?.currentTime) || 0;
     return seekTo(base + Number(deltaSeconds || 0));
   }, [seekTo]);
 
+  const recoverPlaybackStream = useCallback(async () => {
+    const track = currentTrack;
+    const id = String(idOf(track) || '');
+    const failedUrl = String(track?.fileUrl || '');
+
+    if (
+      !/^[a-f\d]{24}$/i.test(id) ||
+      track?.storageMode === 'offline' ||
+      failedUrl.startsWith('blob:') ||
+      failedUrl.startsWith('data:')
+    ) {
+      return false;
+    }
+
+    const recoveryKey = `${id}|${failedUrl}`;
+    if (streamRecoveryRef.current === recoveryKey) return false;
+    streamRecoveryRef.current = recoveryKey;
+
+    const resumeAt = Math.max(
+      0,
+      Number(audioRef.current?.currentTime) || Number(currentTime) || 0
+    );
+
+    try {
+      const { streamUrl } = await audioService.getStreamUrl(id);
+      if (!streamUrl) return false;
+
+      pendingSeekRef.current = resumeAt;
+      autoplayRef.current = true;
+      setPlayerError('');
+      setPlaybackState('loading');
+      setCurrentTrack((existing) => (
+        idOf(existing) === id
+          ? { ...existing, fileUrl: streamUrl }
+          : existing
+      ));
+      return true;
+    } catch {
+      return false;
+    }
+  }, [currentTime, currentTrack]);
+
   const playNext = useCallback(() => {
     if (!queue.length || !currentTrack) return;
     const index = queue.findIndex((item) => idOf(item) === idOf(currentTrack));
-    playTrack(queue[(index + 1 + queue.length) % queue.length], queue);
+    void playTrack(queue[(index + 1 + queue.length) % queue.length], queue);
   }, [currentTrack, playTrack, queue]);
 
   const playPrevious = useCallback(() => {
     if (!queue.length || !currentTrack) return;
     const index = queue.findIndex((item) => idOf(item) === idOf(currentTrack));
-    playTrack(queue[(index - 1 + queue.length) % queue.length], queue);
+    void playTrack(queue[(index - 1 + queue.length) % queue.length], queue);
   }, [currentTrack, playTrack, queue]);
 
   useEffect(() => {
@@ -797,8 +903,12 @@ const ListenerV2Layout = () => {
         }}
         onError={() => {
           setIsPlaying(false);
-          setPlaybackState('error');
-          setPlayerError('Echoo could not load this audio. Check your connection and try again.');
+          setPlaybackState('loading');
+          void recoverPlaybackStream().then((recovered) => {
+            if (recovered) return;
+            setPlaybackState('error');
+            setPlayerError('Echoo could not load this audio. Check your connection and try again.');
+          });
         }}
         onEnded={() => {
           setIsPlaying(false);
