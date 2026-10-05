@@ -171,3 +171,13 @@ test('recorded Listener playback owns a desktop tray session without colliding w
   assert.match(listenerV2Source, /\['loading', 'buffering', 'playing'\]\.includes\(playbackState\)/);
   assert.match(listenerV2Source, /if \(isLiveRoom \|\| liveSession\?\.isLive\) return/);
 });
+
+
+test('recording saves stay crash-safe until the complete file is synced', () => {
+  assert.match(mainSource, /\.echoo-partial-/);
+  assert.match(mainSource, /commitRecordingPartial/);
+  assert.match(mainSource, /await session\.handle\.sync\(\)/);
+  assert.match(mainSource, /await commitRecordingPartial\(session\.partialPath, session\.destination, sessionId\)/);
+  assert.match(mainSource, /recoveryPath:/);
+  assert.match(mainSource, /rm\(session\.partialPath/);
+});

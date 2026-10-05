@@ -170,6 +170,61 @@ function safeRecordingPath(value, { mustExist = true } = {}) {
   return candidate;
 }
 
+function recordingDestinationInUse(candidate) {
+  const resolved = path.resolve(candidate);
+  return [...recordingSaveSessions.values()].some(
+    (session) => path.resolve(session.destination) === resolved
+  );
+}
+
+function recordingPartialPath(destination, sessionId) {
+  return `${destination}.echoo-partial-${sessionId}`;
+}
+
+async function commitRecordingPartial(partialPath, destination, sessionId) {
+  try {
+    await fs.promises.rename(partialPath, destination);
+    return;
+  } catch (error) {
+    if (!['EEXIST', 'EPERM'].includes(error?.code) || !fs.existsSync(destination)) {
+      throw error;
+    }
+  }
+
+  // Windows can reject rename-over-existing even after the native Save dialog
+  // confirmed replacement. Keep the previous file recoverable until the fully
+  // synced replacement has been moved into place.
+  const backupPath = `${destination}.echoo-backup-${sessionId}`;
+  await fs.promises.rename(destination, backupPath);
+  try {
+    await fs.promises.rename(partialPath, destination);
+    await fs.promises.rm(backupPath, { force: true });
+  } catch (error) {
+    if (!fs.existsSync(destination) && fs.existsSync(backupPath)) {
+      await fs.promises.rename(backupPath, destination).catch(() => null);
+    }
+    throw error;
+  }
+}
+
+async function writeRecordingAtomically(destination, buffer) {
+  const sessionId = crypto.randomUUID();
+  const partialPath = recordingPartialPath(destination, sessionId);
+  let handle = null;
+  try {
+    handle = await fs.promises.open(partialPath, 'wx');
+    await handle.writeFile(buffer);
+    await handle.sync();
+    await handle.close();
+    handle = null;
+    await commitRecordingPartial(partialPath, destination, sessionId);
+  } catch (error) {
+    await handle?.close().catch(() => null);
+    await fs.promises.rm(partialPath, { force: true }).catch(() => null);
+    throw error;
+  }
+}
+
 function syncPowerSaveBlocker() {
   const shouldBlock = roomState.active === true && roomState.keepAwake === true;
 
@@ -1294,22 +1349,19 @@ function registerIpc() {
       await fs.promises.mkdir(libraryDir, { recursive: true });
 
       let destination = '';
-      let handle = null;
 
       if (automatic) {
         const parsed = path.parse(filename);
         let copyNumber = 1;
-        while (!handle) {
+        while (!destination) {
           const candidate = copyNumber === 1
             ? path.join(libraryDir, filename)
             : path.join(libraryDir, `${parsed.name} (${copyNumber})${parsed.ext}`);
-          try {
-            handle = await fs.promises.open(candidate, 'wx');
+          if (!fs.existsSync(candidate) && !recordingDestinationInUse(candidate)) {
             destination = candidate;
-          } catch (error) {
-            if (error?.code !== 'EEXIST') throw error;
-            copyNumber += 1;
+            break;
           }
+          copyNumber += 1;
         }
       } else {
         const result = await dialog.showSaveDialog(mainWindow, {
@@ -1323,13 +1375,18 @@ function registerIpc() {
           return { started: false, cancelled: true };
         }
         destination = result.filePath;
-        handle = await fs.promises.open(destination, 'w');
+        if (recordingDestinationInUse(destination)) {
+          return { started: false, error: 'That recording destination is already being written by Echoo.' };
+        }
       }
 
       const sessionId = crypto.randomUUID();
+      const partialPath = recordingPartialPath(destination, sessionId);
+      const handle = await fs.promises.open(partialPath, 'wx');
       recordingSaveSessions.set(sessionId, {
         handle,
         destination,
+        partialPath,
         folder: path.dirname(destination),
         automatic,
         format,
@@ -1388,11 +1445,12 @@ function registerIpc() {
       await session.writeChain;
       if (!session.bytesWritten) {
         await session.handle.close().catch(() => null);
-        await fs.promises.rm(session.destination, { force: true }).catch(() => null);
+        await fs.promises.rm(session.partialPath, { force: true }).catch(() => null);
         return { saved: false, error: 'Recording bytes are empty.' };
       }
       await session.handle.sync();
       await session.handle.close();
+      await commitRecordingPartial(session.partialPath, session.destination, sessionId);
       return {
         saved: true,
         path: session.destination,
@@ -1403,7 +1461,12 @@ function registerIpc() {
     } catch (error) {
       await session.handle.close().catch(() => null);
       log.warn('[echoo-desktop] recording-save-finish failed:', error.message);
-      return { saved: false, error: error?.message || String(error) };
+      return {
+        saved: false,
+        error: error?.message || String(error),
+        recoveryPath: fs.existsSync(session.partialPath) ? session.partialPath : '',
+        folder: session.folder,
+      };
     }
   });
 
@@ -1415,7 +1478,7 @@ function registerIpc() {
     recordingSaveSessions.delete(sessionId);
     try { await session.writeChain; } catch { /* close what is durable */ }
     await session.handle.close().catch(() => null);
-    await fs.promises.rm(session.destination, { force: true }).catch(() => null);
+    await fs.promises.rm(session.partialPath, { force: true }).catch(() => null);
     return { aborted: true };
   });
 
@@ -1457,7 +1520,7 @@ function registerIpc() {
           destination = path.join(libraryDir, `${parsed.name} (${copyNumber})${parsed.ext}`);
           copyNumber += 1;
         }
-        await fs.promises.writeFile(destination, buffer);
+        await writeRecordingAtomically(destination, buffer);
         return {
           saved: true,
           path: destination,
@@ -1474,7 +1537,7 @@ function registerIpc() {
           : [{ name: 'MP3 audio', extensions: ['mp3'] }, { name: 'All files', extensions: ['*'] }],
       });
       if (result.canceled || !result.filePath) return { saved: false, cancelled: true };
-      await fs.promises.writeFile(result.filePath, buffer);
+      await writeRecordingAtomically(result.filePath, buffer);
       return { saved: true, path: result.filePath, folder: path.dirname(result.filePath) };
     } catch (error) {
       log.warn('[echoo-desktop] save-recording failed:', error.message);
@@ -1760,7 +1823,8 @@ app.on('will-quit', () => {
     recordingSaveSessions.delete(sessionId);
     void Promise.resolve(session.writeChain)
       .catch(() => null)
-      .then(() => session.handle.close().catch(() => null));
+      .then(() => session.handle.close().catch(() => null))
+      .then(() => fs.promises.rm(session.partialPath, { force: true }).catch(() => null));
   }
   if (quitTimer) {
     clearTimeout(quitTimer);
