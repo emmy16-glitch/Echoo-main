@@ -102,6 +102,7 @@ const DEBUG_TOOLS =
   !app.isPackaged ||
   process.env.ECHOO_DEBUG === '1' ||
   process.argv.includes('--echoo-debug');
+const SMOKE_TEST = app.isPackaged && process.env.ECHOO_DESKTOP_SMOKE_TEST === '1';
 
 // Origins the app window itself is allowed to navigate to. Everything else
 // (chat links, profile links, help URLs) opens in the OS default browser.
@@ -559,7 +560,10 @@ function createWindow() {
       log.error('[echoo-desktop] could not load offline page:', error.message);
     });
   });
-  mainWindow.webContents.on('did-finish-load', dispatchPendingDeepLink);
+  mainWindow.webContents.on('did-finish-load', () => {
+    dispatchPendingDeepLink();
+    void completePackagedSmokeTest();
+  });
 
   if (!app.isPackaged) {
     // Never open a blank window: verify the dev server is actually reachable
@@ -612,6 +616,31 @@ function dispatchPendingDeepLink() {
   const route = pendingDeepLink;
   pendingDeepLink = null;
   mainWindow.webContents.send('echoo:deep-link', route);
+}
+
+async function completePackagedSmokeTest() {
+  if (!SMOKE_TEST || !mainWindow || mainWindow.isDestroyed()) return;
+  const markerPath = path.join(app.getPath('temp'), 'echoo-desktop-smoke.json');
+  try {
+    await new Promise((resolve) => setTimeout(resolve, 750));
+    const result = await mainWindow.webContents.executeJavaScript(`(() => ({
+      protocol: window.location.protocol,
+      identity: document.querySelector('meta[name="echoo-app"]')?.content || '',
+      rootChildren: document.querySelector('#root')?.childElementCount || 0,
+      desktopBridge: window.echooDesktop?.isDesktop === true
+    }))()`);
+    const passed = result?.protocol === 'file:'
+      && result?.identity === 'echoo-frontend'
+      && result?.rootChildren > 0
+      && result?.desktopBridge === true;
+    fs.writeFileSync(markerPath, JSON.stringify({ passed, ...result }, null, 2));
+    isQuitting = true;
+    app.exit(passed ? 0 : 1);
+  } catch (error) {
+    fs.writeFileSync(markerPath, JSON.stringify({ passed: false, error: error?.message || String(error) }, null, 2));
+    isQuitting = true;
+    app.exit(1);
+  }
 }
 
 // Loads the bundled offline/error page. If the file itself is missing from the

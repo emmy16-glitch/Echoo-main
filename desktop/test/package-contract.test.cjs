@@ -10,6 +10,10 @@ const packageJson = JSON.parse(fs.readFileSync(path.join(desktopRoot, 'package.j
 const mainSource = fs.readFileSync(path.join(desktopRoot, 'src', 'main.js'), 'utf8');
 const buildSource = fs.readFileSync(path.join(desktopRoot, 'scripts', 'build-renderer.mjs'), 'utf8');
 const securitySource = fs.readFileSync(path.join(desktopRoot, 'src', 'main', 'security.js'), 'utf8');
+const windowsWorkflow = fs.readFileSync(
+  path.resolve(desktopRoot, '..', '.github', 'workflows', 'desktop-windows.yml'),
+  'utf8'
+);
 
 test('Windows package identity and artifact are canonical', () => {
   assert.equal(packageJson.version, '2.0.0');
@@ -50,5 +54,15 @@ test('startup uses a bundled splash and hides the packaged main window until rea
   assert.ok(packageJson.build.files.includes('splash.html'));
   assert.match(mainSource, /createSplashWindow\(\)/);
   assert.match(mainSource, /show: !app\.isPackaged/);
+});
+
+test('Windows release workflow verifies the installed local renderer without server secrets', () => {
+  assert.match(windowsWorkflow, /verify-installer\.ps1 -InstallSmokeTest/);
+  assert.match(windowsWorkflow, /Echoo-Setup-2\.0\.0-x64\.exe/);
+  for (const forbiddenSecret of ['LIVEKIT_API_SECRET', 'JWT_SECRET', 'MONGODB_URI']) {
+    assert.equal(windowsWorkflow.includes(forbiddenSecret), false);
+  }
+  assert.match(mainSource, /ECHOO_DESKTOP_SMOKE_TEST === '1'/);
+  assert.match(mainSource, /protocol: window\.location\.protocol/);
 });
 
