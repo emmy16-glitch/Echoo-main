@@ -19,7 +19,7 @@ const safeLocalAudioPath = (audio) => {
 };
 
 const canonicalDownloadName = (audio) => {
-  const stored = path.basename(String(audio?.filename || audio?.fileKey || ''));
+  const stored = path.basename(String(audio?.filename || audio?.fileKey || audio?.cloudKey || ''));
   const storedExtension = path.extname(stored);
   const original = path.basename(String(audio?.originalName || 'Echoo recording'));
   const originalExtension = path.extname(original);
@@ -344,9 +344,13 @@ export async function streamAudio(req, res, next) {
         return undefined;
       }
 
-      if (typeof body.transformToByteArray === 'function') {
-        const bytes = await body.transformToByteArray();
-        return res.send(Buffer.from(bytes));
+      if (body?.[Symbol.asyncIterator]) {
+        for await (const chunk of body) {
+          if (!res.write(chunk)) {
+            await new Promise((resolve) => res.once('drain', resolve));
+          }
+        }
+        return res.end();
       }
 
       return res.status(503).json({
