@@ -9,6 +9,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 const ROOM_COMMAND_CHANNEL = 'echoo:room-command';
 const WILL_QUIT_CHANNEL = 'echoo:will-quit';
+const DEEP_LINK_CHANNEL = 'echoo:deep-link';
 
 contextBridge.exposeInMainWorld('echooDesktop', {
   isDesktop: true,
@@ -16,6 +17,13 @@ contextBridge.exposeInMainWorld('echooDesktop', {
 
   getAppInfo: () => ipcRenderer.invoke('echoo:get-app-info'),
   reload: () => ipcRenderer.invoke('echoo:reload'),
+  getInitialDeepLink: () => ipcRenderer.invoke('echoo:get-initial-deep-link'),
+  onDeepLink: (listener) => {
+    if (typeof listener !== 'function') return () => {};
+    const handler = (_event, route) => listener(String(route || ''));
+    ipcRenderer.on(DEEP_LINK_CHANNEL, handler);
+    return () => ipcRenderer.removeListener(DEEP_LINK_CHANNEL, handler);
+  },
 
   setRoomState: (state) => ipcRenderer.invoke('echoo:set-room-state', {
     active: state?.active === true,
@@ -25,6 +33,7 @@ contextBridge.exposeInMainWorld('echooDesktop', {
   }),
   getRoomState: () => ipcRenderer.invoke('echoo:get-room-state'),
   onRoomCommand: (listener) => {
+    if (typeof listener !== 'function') return () => {};
     const handler = (_event, command) => listener(command);
     ipcRenderer.on(ROOM_COMMAND_CHANNEL, handler);
     return () => ipcRenderer.removeListener(ROOM_COMMAND_CHANNEL, handler);
@@ -44,6 +53,7 @@ contextBridge.exposeInMainWorld('echooDesktop', {
   // Graceful-shutdown handshake: main sends will-quit, renderer answers
   // quitReady() after leaving LiveKit rooms and closing sockets.
   onWillQuit: (listener) => {
+    if (typeof listener !== 'function') return () => {};
     const handler = () => listener();
     ipcRenderer.on(WILL_QUIT_CHANNEL, handler);
     return () => ipcRenderer.removeListener(WILL_QUIT_CHANNEL, handler);
@@ -82,4 +92,15 @@ contextBridge.exposeInMainWorld('echooDesktop', {
   }),
   openRecordingsFolder: (targetPath = '') =>
     ipcRenderer.invoke('echoo:open-recordings-folder', String(targetPath || '')),
+  openRecording: (targetPath) =>
+    ipcRenderer.invoke('echoo:open-recording', String(targetPath || '')),
+  showRecording: (targetPath) =>
+    ipcRenderer.invoke('echoo:show-recording', String(targetPath || '')),
+  renameRecording: (targetPath, name) =>
+    ipcRenderer.invoke('echoo:rename-recording', {
+      path: String(targetPath || ''),
+      name: String(name || ''),
+    }),
+  trashRecording: (targetPath) =>
+    ipcRenderer.invoke('echoo:trash-recording', String(targetPath || '')),
 });

@@ -67,6 +67,18 @@ export const reloadDesktop = () => {
   return desktop().reload();
 };
 
+export const getDesktopInitialDeepLink = () => {
+  if (!isEchooDesktop() || typeof desktop()?.getInitialDeepLink !== 'function') {
+    return Promise.resolve(null);
+  }
+  return desktop().getInitialDeepLink();
+};
+
+export const onDesktopDeepLink = (listener) => {
+  if (!isEchooDesktop() || typeof desktop()?.onDeepLink !== 'function') return () => {};
+  return desktop().onDeepLink(listener);
+};
+
 export const onDesktopWillQuit = (listener) => {
   if (!isEchooDesktop()) return () => {};
   return desktop().onWillQuit(listener);
@@ -83,4 +95,32 @@ export const openDesktopRecordingsFolder = (targetPath = '') => {
     return Promise.resolve({ opened: false, unsupported: true });
   }
   return desktop().openRecordingsFolder(targetPath);
+};
+
+export const openDesktopRecording = (targetPath) => {
+  if (!isEchooDesktop() || typeof desktop()?.openRecording !== 'function') {
+    return Promise.resolve({ opened: false, unsupported: true });
+  }
+  return desktop().openRecording(targetPath);
+};
+
+export const showDesktopRecording = (targetPath) => {
+  if (!isEchooDesktop() || typeof desktop()?.showRecording !== 'function') {
+    return Promise.resolve({ shown: false, unsupported: true });
+  }
+  return desktop().showRecording(targetPath);
+};
+
+export const renameDesktopRecording = (targetPath, name) => {
+  if (!isEchooDesktop() || typeof desktop()?.renameRecording !== 'function') {
+    return Promise.resolve({ renamed: false, unsupported: true });
+  }
+  return desktop().renameRecording(targetPath, name);
+};
+
+export const trashDesktopRecording = (targetPath) => {
+  if (!isEchooDesktop() || typeof desktop()?.trashRecording !== 'function') {
+    return Promise.resolve({ trashed: false, unsupported: true });
+  }
+  return desktop().trashRecording(targetPath);
 };

@@ -1,8 +1,21 @@
-import { onDesktopWillQuit, quitDesktopReady } from './desktopBridge';
+import {
+  getDesktopInitialDeepLink,
+  onDesktopDeepLink,
+  onDesktopWillQuit,
+  quitDesktopReady,
+} from './desktopBridge';
 import realtimeService from './realtimeService';
 import { stopLiveKitPublishing } from './livekitPublisher';
 
 let installed = false;
+
+const applyDesktopRoute = (route) => {
+  const candidate = String(route || '').trim();
+  if (!/^\/(?:listen|creator-studio|login|register|reset-password)(?:\/|\?|$)/.test(candidate)) {
+    return;
+  }
+  window.location.hash = `#${candidate}`;
+};
 
 // Graceful-shutdown handshake for Echoo Desktop: the native shell sends
 // 'echoo:will-quit' and waits up to 2s for quitReady() before forcing exit.
@@ -13,7 +26,7 @@ export const installDesktopLifecycle = () => {
   if (typeof window === 'undefined' || !window.echooDesktop?.isDesktop) return () => {};
   installed = true;
 
-  const unsubscribe = onDesktopWillQuit(async () => {
+  const unsubscribeQuit = onDesktopWillQuit(async () => {
     try {
       await Promise.race([
         (async () => {
@@ -34,9 +47,12 @@ export const installDesktopLifecycle = () => {
       quitDesktopReady();
     }
   });
+  const unsubscribeDeepLink = onDesktopDeepLink(applyDesktopRoute);
+  void getDesktopInitialDeepLink().then(applyDesktopRoute).catch(() => null);
 
   return () => {
     installed = false;
-    unsubscribe();
+    unsubscribeQuit();
+    unsubscribeDeepLink();
   };
 };

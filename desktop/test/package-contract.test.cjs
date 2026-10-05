@@ -9,12 +9,14 @@ const desktopRoot = path.resolve(__dirname, '..');
 const packageJson = JSON.parse(fs.readFileSync(path.join(desktopRoot, 'package.json'), 'utf8'));
 const mainSource = fs.readFileSync(path.join(desktopRoot, 'src', 'main.js'), 'utf8');
 const buildSource = fs.readFileSync(path.join(desktopRoot, 'scripts', 'build-renderer.mjs'), 'utf8');
+const securitySource = fs.readFileSync(path.join(desktopRoot, 'src', 'main', 'security.js'), 'utf8');
 
 test('Windows package identity and artifact are canonical', () => {
   assert.equal(packageJson.version, '2.0.0');
   assert.equal(packageJson.build.productName, 'Echoo');
   assert.equal(packageJson.build.win.artifactName, 'Echoo-Setup-${version}-${arch}.${ext}');
   assert.deepEqual(packageJson.build.win.target[0].arch, ['x64']);
+  assert.deepEqual(packageJson.build.protocols[0].schemes, ['echoo']);
 });
 
 test('packaged runtime loads the local renderer', () => {
@@ -40,7 +42,13 @@ test('renderer build embeds only public client configuration', () => {
 });
 
 test('external handoff rejects non-web schemes', () => {
-  assert.match(mainSource, /!\['http:', 'https:'\]\.includes\(parsed\.protocol\)/);
-  assert.match(mainSource, /blocked external URL scheme/);
+  assert.match(securitySource, /WEB_PROTOCOLS = new Set\(\['http:', 'https:'\]\)/);
+  assert.match(mainSource, /normalizeExternalWebUrl/);
+});
+
+test('startup uses a bundled splash and hides the packaged main window until ready', () => {
+  assert.ok(packageJson.build.files.includes('splash.html'));
+  assert.match(mainSource, /createSplashWindow\(\)/);
+  assert.match(mainSource, /show: !app\.isPackaged/);
 });
 

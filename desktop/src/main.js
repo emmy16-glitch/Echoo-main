@@ -11,6 +11,7 @@ const {
   dialog,
   nativeImage,
   powerSaveBlocker,
+  systemPreferences,
 } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
@@ -20,6 +21,11 @@ const { fileURLToPath } = require('node:url');
 const { spawn } = require('node:child_process');
 const log = require('electron-log');
 const { autoUpdater } = require('electron-updater');
+const {
+  findEchooDeepLink,
+  isPathInside,
+  normalizeExternalWebUrl,
+} = require('./main/security');
 
 // ---------------------------------------------------------------------------
 // Logging: electron-log writes to the OS-appropriate log dir
@@ -89,6 +95,7 @@ const ECHOO_IDENTITY_MARKER = 'name="echoo-app"';
 // failed to load and users saw a blank white window on Windows installs.
 const PROD_INDEX = path.join(__dirname, '../frontend-dist/index.html');
 const OFFLINE_PAGE = path.join(__dirname, '../offline.html');
+const SPLASH_PAGE = path.join(__dirname, '../splash.html');
 
 // DevTools are gated: dev builds, or packaged builds with an explicit opt-in.
 const DEBUG_TOOLS =
@@ -118,8 +125,7 @@ function isAppUrl(url) {
     try {
       const candidate = path.resolve(fileURLToPath(url));
       const applicationRoot = path.resolve(__dirname, '..');
-      const relative = path.relative(applicationRoot, candidate);
-      return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+      return isPathInside(applicationRoot, candidate);
     } catch {
       return false;
     }
@@ -128,23 +134,19 @@ function isAppUrl(url) {
 }
 
 function openExternalUrl(url) {
-  try {
-    const parsed = new URL(url);
-    if (!['http:', 'https:'].includes(parsed.protocol)) {
-      log.warn(`[echoo-desktop] blocked external URL scheme: ${parsed.protocol}`);
-      return false;
-    }
-    void shell.openExternal(parsed.toString()).catch((error) => {
-      log.warn('[echoo-desktop] openExternal failed:', error.message);
-    });
-    return true;
-  } catch {
-    log.warn('[echoo-desktop] blocked malformed external URL');
+  const normalized = normalizeExternalWebUrl(url);
+  if (!normalized) {
+    log.warn('[echoo-desktop] blocked unsafe external URL');
     return false;
   }
+  void shell.openExternal(normalized).catch((error) => {
+    log.warn('[echoo-desktop] openExternal failed:', error.message);
+  });
+  return true;
 }
 
 let mainWindow = null;
+let splashWindow = null;
 let tray = null;
 let roomState = { active: false, muted: false, canToggleMute: false, keepAwake: false };
 let powerSaveBlockerId = null;
@@ -153,7 +155,22 @@ let quitTimer = null;
 let backendChild = null;
 let trayHideNoticed = false;
 const recordingSaveSessions = new Map();
+let pendingDeepLink = findEchooDeepLink(process.argv);
 const MAX_RECORDING_IPC_CHUNK_BYTES = 8 * 1024 * 1024;
+const RECORDING_EXTENSIONS = new Set(['.mp3', '.wav', '.flac', '.m4a', '.aac', '.ogg', '.opus', '.webm']);
+
+function recordingsLibraryRoot() {
+  return path.join(app.getPath('desktop'), 'Echoo Recordings');
+}
+
+function safeRecordingPath(value, { mustExist = true } = {}) {
+  const candidate = path.resolve(String(value || ''));
+  const root = path.resolve(recordingsLibraryRoot());
+  if (!value || !isPathInside(root, candidate)) return null;
+  if (!RECORDING_EXTENSIONS.has(path.extname(candidate).toLowerCase())) return null;
+  if (mustExist && (!fs.existsSync(candidate) || !fs.statSync(candidate).isFile())) return null;
+  return candidate;
+}
 
 function syncPowerSaveBlocker() {
   const shouldBlock = roomState.active === true && roomState.keepAwake === true;
@@ -373,9 +390,11 @@ const singleInstance = app.requestSingleInstanceLock();
 if (!singleInstance) {
   app.quit();
 } else {
-  app.on('second-instance', () => {
+  app.on('second-instance', (_event, argv) => {
     log.info('[echoo-desktop] second launch — focusing existing window');
+    pendingDeepLink = findEchooDeepLink(argv) || pendingDeepLink;
     showAndFocusWindow();
+    dispatchPendingDeepLink();
   });
 }
 
@@ -425,6 +444,70 @@ function writePrefs(prefs) {
 // ---------------------------------------------------------------------------
 // Window
 // ---------------------------------------------------------------------------
+function createSplashWindow() {
+  if (!app.isPackaged || splashWindow || !fs.existsSync(SPLASH_PAGE)) return null;
+  splashWindow = new BrowserWindow({
+    width: 400,
+    height: 250,
+    frame: false,
+    transparent: false,
+    resizable: false,
+    show: false,
+    center: true,
+    skipTaskbar: true,
+    alwaysOnTop: true,
+    backgroundColor: '#f7f9fc',
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  });
+  splashWindow.once('ready-to-show', () => splashWindow?.show());
+  splashWindow.on('closed', () => { splashWindow = null; });
+  void splashWindow.loadFile(SPLASH_PAGE);
+  return splashWindow;
+}
+
+function closeSplashWindow() {
+  const current = splashWindow;
+  if (!current || current.isDestroyed()) return;
+
+  let richMotion = true;
+  try {
+    richMotion = systemPreferences.getAnimationSettings().shouldRenderRichAnimation !== false;
+  } catch {
+    // Older Electron versions may not expose Windows animation settings.
+  }
+
+  if (!richMotion) {
+    current.close();
+    return;
+  }
+
+  let opacity = 1;
+  const fade = setInterval(() => {
+    if (current.isDestroyed()) {
+      clearInterval(fade);
+      return;
+    }
+    opacity -= 0.2;
+    if (opacity <= 0) {
+      clearInterval(fade);
+      current.close();
+      return;
+    }
+    current.setOpacity(opacity);
+  }, 24);
+}
+
+function revealMainWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.show();
+  mainWindow.focus();
+  closeSplashWindow();
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -432,6 +515,7 @@ function createWindow() {
     minWidth: 900,
     minHeight: 620,
     resizable: true,
+    show: !app.isPackaged,
     title: 'Echoo',
     backgroundColor: '#f7f9fc',
     webPreferences: {
@@ -441,6 +525,8 @@ function createWindow() {
       sandbox: true, // Compatible: preload only uses contextBridge + ipcRenderer
     },
   });
+
+  mainWindow.once('ready-to-show', revealMainWindow);
 
   // External links (chat messages, profile links, help URLs) open in the OS
   // default browser — never inside the app window.
@@ -473,6 +559,7 @@ function createWindow() {
       log.error('[echoo-desktop] could not load offline page:', error.message);
     });
   });
+  mainWindow.webContents.on('did-finish-load', dispatchPendingDeepLink);
 
   if (!app.isPackaged) {
     // Never open a blank window: verify the dev server is actually reachable
@@ -517,6 +604,14 @@ function createWindow() {
   });
 
   return mainWindow;
+}
+
+function dispatchPendingDeepLink() {
+  if (!pendingDeepLink || !mainWindow || mainWindow.isDestroyed()) return;
+  if (mainWindow.webContents.isLoading()) return;
+  const route = pendingDeepLink;
+  pendingDeepLink = null;
+  mainWindow.webContents.send('echoo:deep-link', route);
 }
 
 // Loads the bundled offline/error page. If the file itself is missing from the
@@ -983,6 +1078,12 @@ function showNotification({ title, body, silent }) {
 }
 
 function registerIpc() {
+  ipcMain.handle('echoo:get-initial-deep-link', async () => {
+    const route = pendingDeepLink;
+    pendingDeepLink = null;
+    return route;
+  });
+
   ipcMain.handle('echoo:get-app-info', async () => {
     try {
       return {
@@ -1149,7 +1250,7 @@ function registerIpc() {
       const filename = rawName.toLowerCase().endsWith(`.${format}`)
         ? rawName
         : `${rawName}.${format}`;
-      const baseLibraryDir = path.join(app.getPath('desktop'), 'Echoo Recordings');
+      const baseLibraryDir = recordingsLibraryRoot();
 
       const recordedAt = new Date(options?.startedAt || Date.now());
       const safeDate = Number.isNaN(recordedAt.getTime()) ? new Date() : recordedAt;
@@ -1297,7 +1398,7 @@ function registerIpc() {
         .replace(/[\\/:*?"<>|]/g, '-')
         .slice(0, 180) || `Echoo - recording.${format}`;
       const filename = rawName.toLowerCase().endsWith(`.${format}`) ? rawName : `${rawName}.${format}`;
-      const baseLibraryDir = path.join(app.getPath('desktop'), 'Echoo Recordings');
+      const baseLibraryDir = recordingsLibraryRoot();
 
       const recordedAt = new Date(options?.startedAt || Date.now());
       const safeDate = Number.isNaN(recordedAt.getTime()) ? new Date() : recordedAt;
@@ -1347,17 +1448,81 @@ function registerIpc() {
 
   ipcMain.handle('echoo:open-recordings-folder', async (_event, targetPath) => {
     try {
-      const baseLibraryDir = path.join(app.getPath('desktop'), 'Echoo Recordings');
+      const baseLibraryDir = recordingsLibraryRoot();
       await fs.promises.mkdir(baseLibraryDir, { recursive: true });
       const requested = String(targetPath || '').trim();
-      const folder = requested
-        ? (fs.existsSync(requested) && fs.statSync(requested).isDirectory() ? requested : path.dirname(requested))
-        : baseLibraryDir;
+      let folder = baseLibraryDir;
+      if (requested) {
+        const candidate = path.resolve(requested);
+        const requestedFolder = fs.existsSync(candidate) && fs.statSync(candidate).isDirectory()
+          ? candidate
+          : path.dirname(candidate);
+        if (isPathInside(baseLibraryDir, requestedFolder)) folder = requestedFolder;
+      }
       const result = await shell.openPath(folder);
       return result ? { opened: false, error: result } : { opened: true, path: folder };
     } catch (error) {
       log.warn('[echoo-desktop] open recordings folder failed:', error.message);
       return { opened: false, error: error?.message || String(error) };
+    }
+  });
+
+  ipcMain.handle('echoo:open-recording', async (_event, targetPath) => {
+    try {
+      const recordingPath = safeRecordingPath(targetPath);
+      if (!recordingPath) return { opened: false, error: 'Recording path is not allowed.' };
+      const result = await shell.openPath(recordingPath);
+      return result ? { opened: false, error: result } : { opened: true, path: recordingPath };
+    } catch (error) {
+      log.warn('[echoo-desktop] open recording failed:', error.message);
+      return { opened: false, error: 'Echoo could not open that recording.' };
+    }
+  });
+
+  ipcMain.handle('echoo:show-recording', async (_event, targetPath) => {
+    try {
+      const recordingPath = safeRecordingPath(targetPath);
+      if (!recordingPath) return { shown: false, error: 'Recording path is not allowed.' };
+      shell.showItemInFolder(recordingPath);
+      return { shown: true, path: recordingPath };
+    } catch (error) {
+      log.warn('[echoo-desktop] show recording failed:', error.message);
+      return { shown: false, error: 'Echoo could not show that recording.' };
+    }
+  });
+
+  ipcMain.handle('echoo:rename-recording', async (_event, payload = {}) => {
+    try {
+      const recordingPath = safeRecordingPath(payload?.path);
+      if (!recordingPath) return { renamed: false, error: 'Recording path is not allowed.' };
+      const requestedName = String(payload?.name || '').trim().replace(/[\\/:*?"<>|]/g, '-').slice(0, 180);
+      if (!requestedName) return { renamed: false, error: 'Enter a recording name.' };
+      const extension = path.extname(recordingPath).toLowerCase();
+      const nameWithoutExtension = requestedName.toLowerCase().endsWith(extension)
+        ? requestedName.slice(0, -extension.length)
+        : requestedName;
+      const destination = path.join(path.dirname(recordingPath), `${nameWithoutExtension}${extension}`);
+      if (!isPathInside(recordingsLibraryRoot(), destination)) {
+        return { renamed: false, error: 'Recording destination is not allowed.' };
+      }
+      if (fs.existsSync(destination)) return { renamed: false, error: 'A recording with that name already exists.' };
+      await fs.promises.rename(recordingPath, destination);
+      return { renamed: true, path: destination };
+    } catch (error) {
+      log.warn('[echoo-desktop] rename recording failed:', error.message);
+      return { renamed: false, error: 'Echoo could not rename that recording.' };
+    }
+  });
+
+  ipcMain.handle('echoo:trash-recording', async (_event, targetPath) => {
+    try {
+      const recordingPath = safeRecordingPath(targetPath);
+      if (!recordingPath) return { trashed: false, error: 'Recording path is not allowed.' };
+      await shell.trashItem(recordingPath);
+      return { trashed: true, path: recordingPath };
+    } catch (error) {
+      log.warn('[echoo-desktop] trash recording failed:', error.message);
+      return { trashed: false, error: 'Echoo could not move that recording to the Recycle Bin.' };
     }
   });
 
@@ -1429,6 +1594,11 @@ function checkForUpdates() {
 // ---------------------------------------------------------------------------
 function startApp() {
   try {
+    if (app.isPackaged) {
+      app.setAsDefaultProtocolClient('echoo');
+    } else if (process.platform === 'win32') {
+      app.setAsDefaultProtocolClient('echoo', process.execPath, [path.resolve(process.argv[1] || '.')]);
+    }
     registerIpc();
     buildMenu();
     // Hosted mode (default): NO bundled backend — the live server at
@@ -1442,6 +1612,7 @@ function startApp() {
       void startBundledBackend();
     }
     if (app.isPackaged) installProdCsp();
+    createSplashWindow();
     createWindow();
     createTray();
     checkForUpdates();

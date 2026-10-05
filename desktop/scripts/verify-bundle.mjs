@@ -10,6 +10,7 @@ const requiredFiles = [
   'src/preload.js',
   'src/offline.js',
   'offline.html',
+  'splash.html',
   'assets/icon.png',
   'frontend-dist/index.html',
 ];
