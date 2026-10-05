@@ -612,3 +612,14 @@ test('desktop settings remove marketing decoration and mobile-only haptics', () 
   assert.match(desktopRuntimeCss, /\.set-header::after[\s\S]{0,80}display:\s*none !important/);
   assert.match(desktopRuntimeCss, /\.set-mobile-only-preference[\s\S]{0,80}display:\s*none !important/);
 });
+
+
+test('desktop settings are scoped, restrained, and hide mobile-only haptics', () => {
+  const listenerSettingsSource = fs.readFileSync(path.resolve(desktopRoot, '..', 'frontend', 'src', 'Components', 'ListenerSettings', 'ListenerSettingsConnected.jsx'), 'utf8');
+  const desktopRuntimeCss = fs.readFileSync(path.resolve(desktopRoot, '..', 'frontend', 'src', 'styles', 'echoo-desktop-runtime.css'), 'utf8');
+  assert.match(listenerSettingsSource, /set-desktop-settings-group/);
+  assert.match(listenerSettingsSource, /set-mobile-only-preference/);
+  assert.match(desktopRuntimeCss, /Settings are a workstation surface/);
+  assert.match(desktopRuntimeCss, /set-header::after/);
+  assert.match(desktopRuntimeCss, /set-mobile-only-preference/);
+});
