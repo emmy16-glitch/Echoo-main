@@ -315,8 +315,8 @@ const downloadService = {
 
     // Always mint a fresh protected playback URL at download time instead of
     // trusting a possibly old token embedded in track metadata.
-    const { streamUrl } = await audioService.getStreamUrl(track.id);
-    const response = await fetch(streamUrl, { credentials:'omit' });
+    const { streamUrl, downloadUrl } = await audioService.getStreamUrl(track.id);
+    const response = await fetch(downloadUrl || streamUrl, { credentials:'omit' });
     if (!response.ok) {
       throw new Error(`Could not download audio. Server returned ${response.status}.`);
     }
