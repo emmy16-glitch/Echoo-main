@@ -7,6 +7,7 @@ const test = require('node:test');
 const {
   findEchooDeepLink,
   isPathInside,
+  normalizeExternalUrl,
   normalizeExternalWebUrl,
   parseEchooDeepLink,
 } = require('../src/main/security');
@@ -40,3 +41,12 @@ test('filesystem containment blocks sibling-prefix and traversal targets', () =>
   assert.equal(isPathInside(root, path.resolve(root, '..', 'private.txt')), false);
 });
 
+
+
+test('OS handoff allows safe mail drafts but blocks executable and custom schemes', () => {
+  assert.equal(normalizeExternalUrl('mailto:?subject=Echoo%20human%20support%20request'), 'mailto:?subject=Echoo%20human%20support%20request');
+  assert.equal(normalizeExternalUrl('https://echoo.digi02.org/listen'), 'https://echoo.digi02.org/listen');
+  assert.equal(normalizeExternalUrl('javascript:alert(1)'), null);
+  assert.equal(normalizeExternalUrl('file:///C:/Windows/System32/cmd.exe'), null);
+  assert.equal(normalizeExternalUrl('powershell:Start-Process calc.exe'), null);
+});

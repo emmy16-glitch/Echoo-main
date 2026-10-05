@@ -515,3 +515,10 @@ test('runtime product identity stays Echoo while the npm package remains echoo-d
   assert.equal(packageJson.build.productName, 'Echoo');
   assert.match(mainSource, /app\.setName\('Echoo'\)/);
 });
+
+
+test('window.open never creates browser-like child Electron windows', () => {
+  assert.match(mainSource, /setWindowOpenHandler/);
+  assert.match(mainSource, /normalizeRoute\(hashRoute \|\| pathRoute\)/);
+  assert.doesNotMatch(mainSource, /setWindowOpenHandler[\s\S]{0,1200}action: 'allow'/);
+});

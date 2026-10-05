@@ -29,7 +29,9 @@ const { autoUpdater } = require('electron-updater');
 const {
   findEchooDeepLink,
   isPathInside,
+  normalizeExternalUrl,
   normalizeExternalWebUrl,
+  normalizeRoute,
 } = require('./main/security');
 
 // ---------------------------------------------------------------------------
@@ -155,7 +157,7 @@ function isAppUrl(url) {
 }
 
 function openExternalUrl(url) {
-  const normalized = normalizeExternalWebUrl(url);
+  const normalized = normalizeExternalUrl(url);
   if (!normalized) {
     log.warn('[echoo-desktop] blocked unsafe external URL');
     return false;
@@ -647,19 +649,36 @@ function createWindow() {
     windowForState.on(eventName, () => scheduleWindowStateSave(windowForState));
   }
 
-  // External links (chat messages, profile links, help URLs) open in the OS
-  // default browser — never inside the app window.
+  // Echoo has one primary desktop window. Never let window.open create a
+  // browser-like child Electron window. Fold internal routes back into the
+  // existing renderer and hand public/help links to the Windows default app.
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     try {
-      if (!isAppUrl(url)) {
-        openExternalUrl(url);
+      if (isAppUrl(url)) {
+        let route = '';
+        try {
+          const parsed = new URL(url);
+          const hashRoute = parsed.hash?.startsWith('#/') ? parsed.hash.slice(1) : '';
+          const pathRoute =
+            parsed.pathname && parsed.pathname !== '/index.html'
+              ? `${parsed.pathname}${parsed.search || ''}`
+              : '';
+          route = normalizeRoute(hashRoute || pathRoute) || '';
+        } catch {
+          route = '';
+        }
+        if (route) {
+          mainWindow.webContents.send('echoo:deep-link', route);
+          showAndFocusWindow();
+        }
         return { action: 'deny' };
       }
+      openExternalUrl(url);
+      return { action: 'deny' };
     } catch (error) {
       log.warn('[echoo-desktop] setWindowOpenHandler error:', error.message);
       return { action: 'deny' };
     }
-    return { action: 'allow' };
   });
 
   mainWindow.webContents.on('will-navigate', (event, url) => {

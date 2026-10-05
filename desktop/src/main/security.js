@@ -3,6 +3,7 @@
 const path = require('node:path');
 
 const WEB_PROTOCOLS = new Set(['http:', 'https:']);
+const EXTERNAL_PROTOCOLS = new Set(['http:', 'https:', 'mailto:']);
 const DEEP_LINK_ROOTS = new Set([
   'listen',
   'creator-studio',
@@ -19,6 +20,23 @@ function normalizeExternalWebUrl(value) {
     if (!WEB_PROTOCOLS.has(parsed.protocol)) return null;
     if (parsed.username || parsed.password) return null;
     return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
+function normalizeExternalUrl(value) {
+  try {
+    const raw = String(value || '').trim();
+    if (!raw || raw.length > 2048 || /[\r\n]/.test(raw)) return null;
+    const parsed = new URL(raw);
+    if (!EXTERNAL_PROTOCOLS.has(parsed.protocol)) return null;
+    if (WEB_PROTOCOLS.has(parsed.protocol)) return normalizeExternalWebUrl(raw);
+    if (parsed.protocol === 'mailto:') {
+      if (parsed.username || parsed.password) return null;
+      return parsed.toString();
+    }
+    return null;
   } catch {
     return null;
   }
@@ -79,6 +97,7 @@ function findEchooDeepLink(argv = []) {
 module.exports = {
   findEchooDeepLink,
   isPathInside,
+  normalizeExternalUrl,
   normalizeExternalWebUrl,
   normalizeRoute,
   parseEchooDeepLink,
