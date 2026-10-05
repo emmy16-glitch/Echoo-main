@@ -267,8 +267,7 @@ test('guest shared room loads chat history read-only without horizontal overflow
   await page.locator('.listener-v2-room-chat-toggle').click();
   await expect(page.getByText(longMessage, { exact: true })).toBeVisible();
   await expect(page.getByRole('textbox', { name: 'Message live chat' })).toBeDisabled();
-  await expect(page.getByRole('button', { name: /React to .* message/ })).toBeVisible();
-  await expect(page.getByRole('button', { name: /React to .* message/ })).toBeDisabled({ timeout: 100 }).catch(() => {});
+  await expect(page.getByRole('button', { name: /React to .* message/ })).toHaveCount(0);
   const sheet = await page.locator('.listener-v2-room-chat').evaluate(node => ({
     clientWidth: node.clientWidth,
     scrollWidth: node.scrollWidth,
