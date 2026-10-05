@@ -79,7 +79,7 @@
 }
 
 .ld-storage-caption {
-  font-size: 12.5px;
+  font-size: 13px;
   color: var(--echoo-text, #5f6f85);
   white-space: nowrap;
 }
@@ -192,7 +192,7 @@
 }
 
 .ld-row-sub {
-  font-size: 12.5px;
+  font-size: 13px;
   color: var(--echoo-text, #5f6f85);
   white-space: nowrap;
   overflow: hidden;
@@ -214,7 +214,7 @@
 }
 
 .ld-row-when {
-  font-size: 12.5px;
+  font-size: 13px;
   color: var(--echoo-text, #5f6f85);
   white-space: nowrap;
 }
@@ -235,7 +235,7 @@
   border-radius: 8px;
   background: var(--echoo-blue-soft, #edf5ff);
   color: var(--echoo-blue, #1769d3);
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .ld-row-more {
@@ -249,7 +249,7 @@
   background: #ffffff;
   color: var(--echoo-text, #5f6f85);
   cursor: pointer;
-  font-size: 12px;
+  font-size: 13px;
   transition:
     border-color 0.15s ease,
     color 0.15s ease;
