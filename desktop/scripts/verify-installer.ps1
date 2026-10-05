@@ -10,6 +10,20 @@ $installerPath = Join-Path $distDirectory 'Echoo-Setup-2.0.0-x64.exe'
 $updateMetadataPath = Join-Path $distDirectory 'latest.yml'
 $blockmapPath = "$installerPath.blockmap"
 
+function Get-EchooProtocolCommand {
+    $protocolCandidates = @(
+        'Registry::HKEY_CURRENT_USER\Software\Classes\echoo\shell\open\command',
+        'Registry::HKEY_CLASSES_ROOT\echoo\shell\open\command'
+    )
+    foreach ($protocolKey in $protocolCandidates) {
+        if (Test-Path -LiteralPath $protocolKey) {
+            $command = (Get-Item -LiteralPath $protocolKey).GetValue('')
+            if ($command) { return [string]$command }
+        }
+    }
+    return $null
+}
+
 foreach ($requiredPath in @($installerPath, $updateMetadataPath, $blockmapPath)) {
     if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
         throw "Required Windows release artifact is missing: $requiredPath"
@@ -61,6 +75,15 @@ try {
     if (-not (Test-Path -LiteralPath $executablePath -PathType Leaf)) {
         throw "Installed Echoo executable is missing: $executablePath"
     }
+
+    # Prove NSIS registered the protocol itself. If we only check after the
+    # first Electron launch, app.setAsDefaultProtocolClient() can mask a broken
+    # installer and echoo:// links would fail before Echoo has ever been opened.
+    $protocolCommandBeforeLaunch = Get-EchooProtocolCommand
+    if (-not $protocolCommandBeforeLaunch -or $protocolCommandBeforeLaunch -notmatch 'Echoo\.exe') {
+        throw "NSIS did not register echoo:// before first launch. Command: $protocolCommandBeforeLaunch"
+    }
+    Write-Host 'Verified echoo:// protocol registration before first launch.'
 
     $previousSmokeValue = $env:ECHOO_DESKTOP_SMOKE_TEST
     $previousRunAsNodeValue = $env:ELECTRON_RUN_AS_NODE
@@ -206,22 +229,11 @@ try {
         Write-Host "Verified Echoo packaged layout at device scale $scale (reported DPR $($scaleSmoke.devicePixelRatio))."
     }
 
-    # The installed app registers echoo:// during Electron startup. Verify the
-    # real installed executable after the packaged-renderer smoke launch rather
-    # than assuming NSIS wrote a protocol key before the app ever ran.
-    $protocolCandidates = @(
-        'Registry::HKEY_CURRENT_USER\Software\Classes\echoo\shell\open\command',
-        'Registry::HKEY_CLASSES_ROOT\echoo\shell\open\command'
-    )
-    $protocolCommand = $null
-    foreach ($protocolKey in $protocolCandidates) {
-        if (Test-Path -LiteralPath $protocolKey) {
-            $protocolCommand = (Get-Item -LiteralPath $protocolKey).GetValue('')
-            if ($protocolCommand) { break }
-        }
-    }
-    if (-not $protocolCommand -or $protocolCommand -notmatch 'Echoo\.exe') {
-        throw "Installed Echoo did not register the echoo:// protocol correctly after launch. Command: $protocolCommand"
+    # Re-check after all launch/deep-link smoke tests so runtime startup never
+    # corrupts or removes the installer-owned association.
+    $protocolCommandAfterLaunch = Get-EchooProtocolCommand
+    if (-not $protocolCommandAfterLaunch -or $protocolCommandAfterLaunch -notmatch 'Echoo\.exe') {
+        throw "Installed Echoo lost the echoo:// protocol registration after launch. Command: $protocolCommandAfterLaunch"
     }
     Write-Host "Verified echoo:// protocol registration."
 
