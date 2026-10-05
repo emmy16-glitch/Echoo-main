@@ -322,12 +322,8 @@ const ListenerHistoryConnected = () => {
           ) : items.length === 0 ? (
             <div className="lh-empty">
               <FaClock />
-              <strong>
-                'No listening history yet.'
-              </strong>
-              <p>
-                'Start playing audio and your history will appear here.'
-              </p>
+              <strong>No listening history yet.</strong>
+              <p>Start playing audio and your history will appear here.</p>
             </div>
           ) : (
             <>
