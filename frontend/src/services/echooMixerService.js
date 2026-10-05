@@ -606,6 +606,12 @@ const connectStream = async (channelId, stream, sourceLabel, deviceId = '') => {
     applyMixState();
     notify();
 
+    if (['host', 'channel2', 'guest'].includes(channelId) && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('echoo:mixer-source-disconnected', {
+        detail: { channelId, deviceId: recoveryDeviceId },
+      }));
+    }
+
     // An input device/driver can disappear mid-broadcast while the post-master
     // MediaStreamDestination remains "live" and therefore keeps sending silence.
     // Voice inputs are safe to reacquire because this handler runs only for an
@@ -782,6 +788,7 @@ function scheduleUnexpectedVoiceInputRecovery(channelId, deviceId = '') {
     cancelled: false,
     attempt: 0,
     timer: null,
+    lastError: '',
   };
   unexpectedVoiceRecovery.set(channelId, token);
 
@@ -810,17 +817,27 @@ function scheduleUnexpectedVoiceInputRecovery(channelId, deviceId = '') {
       }));
       return;
     } catch (error) {
+      token.lastError = error?.message || String(error);
       window.dispatchEvent(new CustomEvent('echoo:mixer-source-recovery', {
         detail: {
           channelId,
           attempt: token.attempt,
-          error: error?.message || String(error),
+          error: token.lastError,
         },
       }));
     }
 
     if (token.attempt >= 8 || token.cancelled) {
       unexpectedVoiceRecovery.delete(channelId);
+      if (!token.cancelled) {
+        window.dispatchEvent(new CustomEvent('echoo:mixer-source-recovery-failed', {
+          detail: {
+            channelId,
+            attempt: token.attempt,
+            error: token.lastError || 'The previous audio input is unavailable.',
+          },
+        }));
+      }
       return;
     }
     const delay = Math.min(15000, 1000 * 2 ** Math.min(4, token.attempt - 1));

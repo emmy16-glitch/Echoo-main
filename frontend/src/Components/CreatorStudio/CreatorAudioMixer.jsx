@@ -59,6 +59,11 @@ import {
 import './CreatorAudioMixer.css';
 
 const DEFAULT_INPUT_VALUE = '__echoo_default_input__';
+const RECOVERY_SOURCE_LABELS = Object.freeze({
+  host: 'Host microphone',
+  channel2: 'Guest 1 input',
+  guest: 'Guest 2 input',
+});
 
 const formatDb = (value) => {
   const db = Number(value);
@@ -236,6 +241,8 @@ const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = n
   const mediaFileInputRef = useRef(null);
   const [qualitySummary, setQualitySummary] = useState({});
   const [error, setError] = useState('');
+  const [deviceRecovery, setDeviceRecovery] = useState(null);
+  const deviceRecoveryTimerRef = useRef(null);
   const parentSignatureRef = useRef('');
   const preferenceSaveTimerRef = useRef(null);
   const monitorWasEnabledBeforeTestRef = useRef(false);
@@ -377,6 +384,58 @@ const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = n
     if (!mediaDevices?.addEventListener) return undefined;
     mediaDevices.addEventListener('devicechange', refreshDevices);
     return () => mediaDevices.removeEventListener('devicechange', refreshDevices);
+  }, []);
+
+  useEffect(() => {
+    const clearRecoveryTimer = () => {
+      if (deviceRecoveryTimerRef.current) {
+        window.clearTimeout(deviceRecoveryTimerRef.current);
+        deviceRecoveryTimerRef.current = null;
+      }
+    };
+    const labelFor = (channelId) => RECOVERY_SOURCE_LABELS[channelId] || 'Audio input';
+
+    const onDisconnected = (event) => {
+      clearRecoveryTimer();
+      setDeviceRecovery({
+        tone: 'working',
+        message: `${labelFor(event?.detail?.channelId)} disconnected. Echoo is reconnecting it…`,
+      });
+    };
+    const onRecoveryAttempt = (event) => {
+      clearRecoveryTimer();
+      setDeviceRecovery({
+        tone: 'working',
+        message: `${labelFor(event?.detail?.channelId)} is unavailable. Echoo is still trying to reconnect it…`,
+      });
+    };
+    const onRecovered = (event) => {
+      clearRecoveryTimer();
+      setDeviceRecovery({
+        tone: 'success',
+        message: `${labelFor(event?.detail?.channelId)} reconnected.`,
+      });
+      deviceRecoveryTimerRef.current = window.setTimeout(() => setDeviceRecovery(null), 3500);
+    };
+    const onRecoveryFailed = (event) => {
+      clearRecoveryTimer();
+      const label = labelFor(event?.detail?.channelId);
+      setDeviceRecovery(null);
+      setError(`${label} is unavailable. Choose another input.`);
+    };
+
+    window.addEventListener('echoo:mixer-source-disconnected', onDisconnected);
+    window.addEventListener('echoo:mixer-source-recovery', onRecoveryAttempt);
+    window.addEventListener('echoo:mixer-source-recovered', onRecovered);
+    window.addEventListener('echoo:mixer-source-recovery-failed', onRecoveryFailed);
+
+    return () => {
+      clearRecoveryTimer();
+      window.removeEventListener('echoo:mixer-source-disconnected', onDisconnected);
+      window.removeEventListener('echoo:mixer-source-recovery', onRecoveryAttempt);
+      window.removeEventListener('echoo:mixer-source-recovered', onRecovered);
+      window.removeEventListener('echoo:mixer-source-recovery-failed', onRecoveryFailed);
+    };
   }, []);
 
   const connectHost = async () => {
@@ -873,6 +932,11 @@ const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = n
     return (
       <section className="eam-approved" aria-label="Workstation mixer">
         <input ref={mediaFileInputRef} className="eam-approved-file" type="file" accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.oga,.opus,.flac,.webm" onChange={chooseMediaFile} />
+        {deviceRecovery && (
+          <div className={`eam-approved-device-status is-${deviceRecovery.tone}`} role="status" aria-live="polite">
+            {deviceRecovery.message}
+          </div>
+        )}
         {error && <div className="eam-approved-error" role="alert"><FaExclamationTriangle /> {error}</div>}
         <div className="eam-approved-grid">
           {strips.map(renderApprovedStrip)}
@@ -1097,6 +1161,11 @@ const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = n
       </section>
       </>}
 
+      {deviceRecovery && (
+        <div className={`eam-device-status is-${deviceRecovery.tone}`} role="status" aria-live="polite">
+          {deviceRecovery.message}
+        </div>
+      )}
       {error && <div className="eam-error" role="alert"><FaExclamationTriangle /> {error}</div>}
 
       <div className="eam-workspace">

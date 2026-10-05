@@ -26,6 +26,14 @@ const listenerRoomSource = fs.readFileSync(
   path.resolve(desktopRoot, '..', 'frontend', 'src', 'Components', 'ListenerLiveExperience', 'ListenerRealLiveRoom.jsx'),
   'utf8'
 );
+const creatorMixerSource = fs.readFileSync(
+  path.resolve(desktopRoot, '..', 'frontend', 'src', 'Components', 'CreatorStudio', 'CreatorAudioMixer.jsx'),
+  'utf8'
+);
+const mixerServiceSource = fs.readFileSync(
+  path.resolve(desktopRoot, '..', 'frontend', 'src', 'services', 'echooMixerService.js'),
+  'utf8'
+);
 const windowsWorkflow = fs.readFileSync(
   path.resolve(desktopRoot, '..', '.github', 'workflows', 'desktop-windows.yml'),
   'utf8'
@@ -137,4 +145,15 @@ test('Windows package ships real Echoo icon assets', () => {
     assert.equal(fs.existsSync(absolutePath), true, `${relativePath} must exist`);
     assert.ok(fs.statSync(absolutePath).size > 0, `${relativePath} must not be empty`);
   }
+});
+
+
+test('Creator Studio surfaces microphone loss, recovery, and final failure without a setup wizard', () => {
+  assert.match(mixerServiceSource, /echoo:mixer-source-disconnected/);
+  assert.match(mixerServiceSource, /echoo:mixer-source-recovered/);
+  assert.match(mixerServiceSource, /echoo:mixer-source-recovery-failed/);
+  assert.match(creatorMixerSource, /disconnected\. Echoo is reconnecting it/);
+  assert.match(creatorMixerSource, /reconnected\./);
+  assert.match(creatorMixerSource, /is unavailable\. Choose another input/);
+  assert.doesNotMatch(creatorMixerSource, /Let's get your studio ready/i);
 });
