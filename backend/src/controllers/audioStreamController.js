@@ -18,6 +18,19 @@ const safeLocalAudioPath = (audio) => {
   return path.join(process.cwd(), 'uploads', 'audio', storedFilename);
 };
 
+const canonicalDownloadName = (audio) => {
+  const stored = path.basename(String(audio?.filename || audio?.fileKey || ''));
+  const storedExtension = path.extname(stored);
+  const original = path.basename(String(audio?.originalName || 'Echoo recording'));
+  const originalExtension = path.extname(original);
+  const stem = path.basename(original, originalExtension || undefined)
+    .replace(/[\\/:*?"<>|]+/g, '-')
+    .trim()
+    .slice(0, 140) || 'Echoo recording';
+
+  return `${stem}${storedExtension || originalExtension || '.audio'}`;
+};
+
 const bearerToken = (req) => {
   const header = String(req.headers.authorization || '');
   return header.startsWith('Bearer ') ? header.slice(7).trim() : '';
@@ -274,7 +287,7 @@ export async function streamAudio(req, res, next) {
       res.setHeader('Referrer-Policy', 'no-referrer');
       res.setHeader(
         'Content-Disposition',
-        `attachment; filename*=UTF-8''${encodeURIComponent(audio.originalName || 'echoo-audio')}`
+        `attachment; filename*=UTF-8''${encodeURIComponent(canonicalDownloadName(audio))}`
       );
       if (object.ContentRange) {
         res.status(206);
@@ -357,7 +370,7 @@ export async function streamAudio(req, res, next) {
     res.setHeader('Referrer-Policy', 'no-referrer');
     res.setHeader(
       'Content-Disposition',
-      `${downloadRequested ? 'attachment' : 'inline'}; filename*=UTF-8''${encodeURIComponent(audio.originalName || 'echoo-audio')}`
+      `${downloadRequested ? 'attachment' : 'inline'}; filename*=UTF-8''${encodeURIComponent(canonicalDownloadName(audio))}`
     );
 
     if (!range) {
