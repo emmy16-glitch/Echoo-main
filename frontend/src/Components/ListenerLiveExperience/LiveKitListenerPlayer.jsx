@@ -254,7 +254,9 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
         watchdogMissStreakRef.current = 0;
         needsAudioStartRef.current = false;
         setNeedsAudioStart(false);
-        setStatus('playing');
+        setIsPlaying(true);
+        setError('');
+        setStatus('listening');
         return true;
       }
       if (playbackIntentRef.current === 'pause' && entries.some(currentAttachmentIsHealthy)) {
@@ -1236,7 +1238,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
     // Keep the lock-screen transport icon truthful (playing vs paused).
     try {
       if (typeof navigator !== 'undefined' && 'mediaSession' in navigator && isLive) {
-        navigator.mediaSession.playbackState = status === 'playing' ? 'playing' : 'paused';
+        navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
       }
     } catch {
       // Best-effort only.
