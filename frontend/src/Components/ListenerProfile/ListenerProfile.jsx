@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FiChevronRight, FiUser } from 'react-icons/fi';
+import { FiChevronRight, FiLogOut, FiUser } from 'react-icons/fi';
 import { api } from '../../services/api';
 import { useGuestAuth } from '../Auth/GuestAuthGate';
 
@@ -21,11 +21,21 @@ export default function ListenerProfile() {
   };
   return <div className="listener-v2-page listener-profile-page">
     <header className="listener-v2-page-title"><h1>Profile</h1><p>Your account and listening preferences.</p></header>
-    <section className="listener-v2-panel"><FiUser aria-hidden="true" /><h2>{isGuest ? 'Welcome to Echoo' : user.displayName || user.username || 'Your account'}</h2>{!isGuest && user.email && <p>{user.email}</p>}
-      {isGuest && <button type="button" onClick={() => requestAuth({ action: 'Open Profile', destination: '/listen/profile' })}>Sign in</button>}
+    <section className="listener-v2-panel listener-profile-card">
+      <span className="listener-profile-avatar" aria-hidden="true"><FiUser /></span>
+      <div className="listener-profile-copy">
+        <h2>{isGuest ? 'Welcome to Echoo' : user.displayName || user.username || 'Your account'}</h2>
+        {!isGuest && user.email && <p>{user.email}</p>}
+      </div>
+      {isGuest && <button className="listener-profile-primary" type="button" onClick={() => requestAuth({ action: 'Open Profile', destination: '/listen/profile' })}>Sign in</button>}
     </section>
     <div className="listener-profile-links">{links.map(([label, path]) => <button type="button" key={label} onClick={() => navigate(path)}><span>{label}</span><FiChevronRight aria-hidden="true" /></button>)}</div>
-    {!isGuest && <button type="button" onClick={signOut} disabled={pending}>{pending ? 'Signing out…' : 'Sign out'}</button>}
-    {error && <p role="alert">{error}</p>}
+    {!isGuest && (
+      <button className="listener-profile-signout" type="button" onClick={signOut} disabled={pending}>
+        <FiLogOut aria-hidden="true" />
+        <span>{pending ? 'Signing out…' : 'Sign out'}</span>
+      </button>
+    )}
+    {error && <p className="listener-profile-error" role="alert">{error}</p>}
   </div>;
 }
