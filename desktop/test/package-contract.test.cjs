@@ -42,6 +42,10 @@ const windowsWorkflow = fs.readFileSync(
   path.resolve(desktopRoot, '..', '.github', 'workflows', 'desktop-windows.yml'),
   'utf8'
 );
+const backendAppSource = fs.readFileSync(
+  path.resolve(desktopRoot, '..', 'backend', 'src', 'app.js'),
+  'utf8'
+);
 
 test('Windows package identity and artifact are canonical', () => {
   assert.equal(packageJson.version, '2.0.0');
@@ -51,10 +55,14 @@ test('Windows package identity and artifact are canonical', () => {
   assert.deepEqual(packageJson.build.protocols[0].schemes, ['echoo']);
 });
 
-test('packaged runtime loads the local renderer', () => {
+test('packaged runtime loads the local renderer from one private desktop origin', () => {
   assert.match(mainSource, /loadPackagedRenderer\(\)/);
-  assert.match(mainSource, /mainWindow\.loadFile\(PROD_INDEX\)/);
+  assert.match(mainSource, /protocol\.registerSchemesAsPrivileged/);
+  assert.match(mainSource, /protocol\.handle\(PACKAGED_APP_SCHEME/);
+  assert.match(mainSource, /mainWindow\.loadURL\(PACKAGED_RENDERER_URL\)/);
   assert.doesNotMatch(mainSource, /mainWindow\.loadURL\(PUBLIC_APP_ORIGIN\)/);
+  assert.match(backendAppSource, /DESKTOP_RENDERER_ORIGIN = 'echoo-app:\/\/app'/);
+  assert.doesNotMatch(backendAppSource, /ECHOO_DESKTOP/);
   assert.ok(packageJson.build.files.includes('frontend-dist/**/*'));
 });
 

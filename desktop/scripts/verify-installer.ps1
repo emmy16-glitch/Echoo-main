@@ -103,7 +103,7 @@ try {
     if ($application.ExitCode -ne 0) {
         throw "Installed Echoo smoke test exited with code $($application.ExitCode): $($smoke | ConvertTo-Json -Compress)"
     }
-    if ($smoke.passed -ne $true -or $smoke.protocol -ne 'file:' -or $smoke.identity -ne 'echoo-frontend' -or $smoke.desktopBridge -ne $true) {
+    if ($smoke.passed -ne $true -or $smoke.protocol -ne 'echoo-app:' -or $smoke.identity -ne 'echoo-frontend' -or $smoke.desktopBridge -ne $true) {
         throw "Installed Echoo loaded an invalid renderer: $($smoke | ConvertTo-Json -Compress)"
     }
 

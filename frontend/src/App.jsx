@@ -298,14 +298,17 @@ const ListenerRoutePrefetch = () => {
 };
 
 function App() {
-  // The packaged desktop shell loads over file:// (loadFile), where the HTML5
-  // history API has no server to resolve deep links — BrowserRouter renders a
-  // blank window there. HashRouter keeps every route after '#' so the installed
-  // Windows/macOS/Linux app always boots. The web build keeps BrowserRouter.
-  const isDesktopFileRuntime =
+  // Echoo Desktop serves the bundled renderer from its private echoo-app://
+  // origin and uses HashRouter so deep links remain entirely inside the local
+  // package. The browser build continues to use BrowserRouter.
+  const isDesktopRuntime =
     typeof window !== 'undefined' &&
-    (window.echooDesktop?.isDesktop === true || window.location.protocol === 'file:');
-  const Router = isDesktopFileRuntime ? HashRouter : BrowserRouter;
+    (
+      window.echooDesktop?.isDesktop === true ||
+      window.location.protocol === 'echoo-app:' ||
+      window.location.protocol === 'file:'
+    );
+  const Router = isDesktopRuntime ? HashRouter : BrowserRouter;
   return (
     <Router>
       <GuestAuthProvider>

@@ -4,15 +4,17 @@
 
 ```text
 Echoo.exe
-  -> bundled local Vite renderer (React, HashRouter)
+  -> bundled local Vite renderer at `echoo-app://app` (React, HashRouter)
   -> context-isolated preload (`window.echooDesktop`)
   -> Electron main process (Windows/native capabilities)
   -> shared Echoo production API + LiveKit
 ```
 
-The renderer is local application code, not a remotely hosted UI. Network
-failure may make server-backed content unavailable, but it must not prevent the
-application shell from rendering.
+The renderer is local application code, not a remotely hosted UI. A privileged
+`echoo-app://app` protocol gives that local bundle one stable, non-null origin,
+so the production API can allow exactly the desktop client rather than trusting
+all opaque `file://` origins. Network failure may make server-backed content
+unavailable, but it must not prevent the application shell from rendering.
 
 ## Ownership boundaries
 

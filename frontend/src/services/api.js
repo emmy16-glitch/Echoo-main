@@ -3,19 +3,16 @@ const configuredApiBase = String(import.meta.env?.VITE_API_URL || '')
   .replace(/\/$/, '');
 const isEchooDesktopRuntime = () =>
   typeof window !== 'undefined' && window.echooDesktop?.isDesktop === true;
-const localRuntime =
+const localDevelopmentRuntime =
   typeof window !== 'undefined' &&
-  (['localhost', '127.0.0.1'].includes(window.location.hostname) ||
-    // Packaged desktop runs over file:// (hostname ''), never localhost — but
-    // its backend is still the local API on the project-specific port 5017.
-    isEchooDesktopRuntime());
+  !isEchooDesktopRuntime() &&
+  ['localhost', '127.0.0.1'].includes(window.location.hostname);
 
 // A LAN browser must never fall back to its own localhost for the API. The
-// explicit VITE_API_URL remains authoritative; this only keeps an unset local
-// development environment working from the same host that served Vite.
+// explicit VITE_API_URL remains authoritative; this fallback is development
+// only. Packaged Echoo Desktop must use its build-time public production API.
 const developmentApiBase = () => {
   if (typeof window === 'undefined') return '';
-  // file:// (packaged desktop) has no hostname — default to loopback, never ''.
   const hostname = window.location.hostname || '127.0.0.1';
   const host = hostname.includes(':') ? `[${hostname}]` : hostname;
   return `http://${host}:5017/api`;
@@ -23,7 +20,7 @@ const developmentApiBase = () => {
 
 export const API_BASE_URL =
   configuredApiBase ||
-  (import.meta.env?.DEV || localRuntime ? developmentApiBase() : '');
+  (import.meta.env?.DEV || localDevelopmentRuntime ? developmentApiBase() : '');
 
 export const API_ORIGIN =
   API_BASE_URL.replace(/\/api\/?$/, '');
@@ -118,9 +115,8 @@ const expireBrowserSession = () => {
   // cannot remain visible with a dead session and Back cannot restore it.
   // Guests land on public discovery; an expired session returns to sign-in so
   // the interruption is explicit instead of a silent downgrade to guest.
-  // file:// (packaged desktop + HashRouter) has no '/login' document — a raw
-  // '/login' replace escapes the bundle, fails to load, and shows a blank
-  // window. Route through the hash there instead.
+  // Packaged desktop uses HashRouter inside the local echoo-app:// renderer;
+  // route through the hash so session expiry never escapes the bundle.
   if (window.echooDesktop?.isDesktop === true || window.location.protocol === 'file:') {
     window.location.replace('#/login?reason=session-expired');
   } else {

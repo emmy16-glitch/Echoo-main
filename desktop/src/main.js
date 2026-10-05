@@ -13,12 +13,14 @@ const {
   powerSaveBlocker,
   screen,
   systemPreferences,
+  protocol,
+  net: electronNet,
 } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
-const net = require('node:net');
+const tcpNet = require('node:net');
 const crypto = require('node:crypto');
-const { fileURLToPath } = require('node:url');
+const { fileURLToPath, pathToFileURL } = require('node:url');
 const log = require('electron-log');
 const { autoUpdater } = require('electron-updater');
 const {
@@ -77,9 +79,29 @@ const ECHOO_IDENTITY_MARKER = 'name="echoo-app"';
 
 // Production renderer and startup surfaces are generated/verified before
 // electron-builder packages them into the application asar.
-const PROD_INDEX = path.join(__dirname, '../frontend-dist/index.html');
+const PROD_ROOT = path.resolve(__dirname, '../frontend-dist');
+const PROD_INDEX = path.join(PROD_ROOT, 'index.html');
 const OFFLINE_PAGE = path.join(__dirname, '../offline.html');
 const SPLASH_PAGE = path.join(__dirname, '../splash.html');
+const PACKAGED_APP_SCHEME = 'echoo-app';
+const PACKAGED_APP_ORIGIN = `${PACKAGED_APP_SCHEME}://app`;
+const PACKAGED_RENDERER_URL = `${PACKAGED_APP_ORIGIN}/index.html`;
+
+// Give the locally packaged renderer a real, isolated origin. Using file://
+// serializes cross-origin API/WebSocket requests as Origin: null, forcing the
+// production server to trust every opaque/null browser origin. A privileged
+// app-only scheme keeps the renderer local while giving CORS one exact origin.
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: PACKAGED_APP_SCHEME,
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+    },
+  },
+]);
 
 // DevTools are gated: dev builds, or packaged builds with an explicit opt-in.
 const DEBUG_TOOLS =
@@ -90,8 +112,8 @@ const SMOKE_TEST = app.isPackaged && process.env.ECHOO_DESKTOP_SMOKE_TEST === '1
 
 // Origins the app window itself is allowed to navigate to. Everything else
 // (chat links, profile links, help URLs) opens in the OS default browser.
-// Packaged builds permit only files inside the application bundle. Dev builds
-// permit only the configured Vite server origin.
+// Packaged builds permit the private echoo-app:// renderer and the bundled
+// file:// startup/error surfaces only. Dev builds permit only Vite.
 function appOrigins() {
   if (!app.isPackaged) {
     try {
@@ -100,7 +122,7 @@ function appOrigins() {
       return ['http://localhost:5273'];
     }
   }
-  return ['file://'];
+  return [PACKAGED_APP_ORIGIN, 'file://'];
 }
 
 function isAppUrl(url) {
@@ -717,7 +739,7 @@ async function completePackagedSmokeTest() {
       rootChildren: document.querySelector('#root')?.childElementCount || 0,
       desktopBridge: window.echooDesktop?.isDesktop === true
     }))()`);
-    const passed = result?.protocol === 'file:'
+    const passed = result?.protocol === `${PACKAGED_APP_SCHEME}:`
       && result?.identity === 'echoo-frontend'
       && result?.rootChildren > 0
       && result?.desktopBridge === true;
@@ -759,7 +781,7 @@ async function loadPackagedRenderer() {
     return;
   }
   try {
-    await mainWindow.loadFile(PROD_INDEX);
+    await mainWindow.loadURL(PACKAGED_RENDERER_URL);
   } catch (error) {
     log.error('[echoo-desktop] packaged renderer failed to load:', error.message);
     await loadOfflinePage('renderer-load-failed', PROD_INDEX);
@@ -799,7 +821,7 @@ function sendRoomCommand(command) {
 // port check (which fails loudly).
 function isTcpReachable(host, port, timeoutMs = 1000) {
   return new Promise((resolve) => {
-    const socket = new net.Socket();
+    const socket = new tcpNet.Socket();
     const done = (ok) => {
       socket.destroy();
       resolve(ok);
@@ -953,8 +975,11 @@ function installProdCsp() {
   try {
     const { session } = require('electron');
     session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
-      // Only stamp file:// app responses; never touch remote content.
-      if (details.url.startsWith('file://')) {
+      // Stamp only local Echoo application surfaces; never touch remote content.
+      if (
+        details.url.startsWith('file://') ||
+        details.url.startsWith(`${PACKAGED_APP_ORIGIN}/`)
+      ) {
         callback({
           responseHeaders: {
             ...details.responseHeaders,
@@ -969,6 +994,41 @@ function installProdCsp() {
   } catch (error) {
     log.warn('[echoo-desktop] could not install CSP:', error.message);
   }
+}
+
+let packagedRendererProtocolRegistered = false;
+
+function registerPackagedRendererProtocol() {
+  if (!app.isPackaged || packagedRendererProtocolRegistered) return;
+
+  protocol.handle(PACKAGED_APP_SCHEME, async (request) => {
+    try {
+      const parsed = new URL(request.url);
+      if (parsed.hostname !== 'app') {
+        return new Response('Not found', { status: 404 });
+      }
+
+      const relativePath = decodeURIComponent(parsed.pathname)
+        .replace(/^\/+/, '') || 'index.html';
+      const candidate = path.resolve(PROD_ROOT, relativePath);
+
+      if (
+        !isPathInside(PROD_ROOT, candidate) ||
+        !fs.existsSync(candidate) ||
+        !fs.statSync(candidate).isFile()
+      ) {
+        return new Response('Not found', { status: 404 });
+      }
+
+      return electronNet.fetch(pathToFileURL(candidate).toString());
+    } catch (error) {
+      log.warn('[echoo-desktop] packaged protocol request failed:', error.message);
+      return new Response('Not found', { status: 404 });
+    }
+  });
+
+  packagedRendererProtocolRegistered = true;
+  log.info('[echoo-desktop] local renderer protocol registered');
 }
 
 // ---------------------------------------------------------------------------
@@ -1873,7 +1933,10 @@ function startApp() {
     }
     registerIpc();
     buildMenu();
-    if (app.isPackaged) installProdCsp();
+    if (app.isPackaged) {
+      registerPackagedRendererProtocol();
+      installProdCsp();
+    }
     createSplashWindow();
     createWindow();
     createTray();
