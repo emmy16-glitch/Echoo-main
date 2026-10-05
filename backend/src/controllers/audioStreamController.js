@@ -121,7 +121,7 @@ export const parseSingleByteRange = (rangeHeader, size) => {
   return { start, end, partial: true };
 };
 
-const sendSignedStreamResponse = (res, signed) => {
+const sendSignedStreamResponse = (res, signed, mixerSigned = signed) => {
   if (!signed?.url) {
     return res.status(503).json({
       error: {
@@ -133,12 +133,14 @@ const sendSignedStreamResponse = (res, signed) => {
 
   res.setHeader('Cache-Control', 'no-store');
   const separator = signed.url.includes('?') ? '&' : '?';
+  const mixerSeparator = mixerSigned.url.includes('?') ? '&' : '?';
   return res.status(200).json({
     data: {
       streamUrl: signed.url,
       downloadUrl: `${signed.url}${separator}download=1`,
-      mixerUrl: `${signed.url}${separator}proxy=1`,
+      mixerUrl: `${mixerSigned.url}${mixerSeparator}proxy=1`,
       expiresIn: signed.expiresIn,
+      mixerExpiresIn: mixerSigned.expiresIn,
     },
     timestamp: new Date().toISOString(),
   });
@@ -212,7 +214,24 @@ export async function issueAudioStreamUrl(req, res, next) {
       };
     }
 
-    return sendSignedStreamResponse(res, signed);
+    let mixerSigned = signed;
+    if (isOwner) {
+      // Creator Music / FX can legitimately loop a short recording throughout
+      // a multi-hour show. Give only this owner-bound mixer stream a 12-hour
+      // grant; ordinary playback/download links keep their normal shorter TTL.
+      const mixerGrant = createAudioStreamToken({
+        audioId: audio._id,
+        access: 'owner',
+        ownerId: req.userId,
+        duration: 12 * 60 * 60,
+      });
+      mixerSigned = {
+        url: `/api/audio/${encodeURIComponent(String(audio._id))}/stream?token=${encodeURIComponent(mixerGrant.token)}`,
+        expiresIn: mixerGrant.ttl,
+      };
+    }
+
+    return sendSignedStreamResponse(res, signed, mixerSigned);
   } catch (error) {
     next(error);
   }
