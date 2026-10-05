@@ -8,14 +8,14 @@
   margin: 0;
   font-size: 26px;
   font-weight: 700;
-  color: var(--echoo-text-h, var(--echoo-text-h, #101828));
+  color: var(--echoo-text-h, #101828);
   line-height: 1.2;
 }
 
 .set-subtitle {
   margin: 6px 0 0;
   font-size: 14px;
-  color: var(--echoo-text, var(--echoo-text, #5f6f85));
+  color: var(--echoo-text, #5f6f85);
 }
 
 .set-layout {
@@ -32,7 +32,7 @@
   flex-direction: column;
   gap: 2px;
   background: #ffffff;
-  border: 1px solid var(--echoo-border, var(--echoo-border, #e3eaf2));
+  border: 1px solid var(--echoo-border, #e3eaf2);
   border-radius: 14px;
   padding: 8px;
 }
@@ -48,7 +48,7 @@
   font-family: inherit;
   font-size: 13.5px;
   font-weight: 500;
-  color: var(--echoo-text, var(--echoo-text, #5f6f85));
+  color: var(--echoo-text, #5f6f85);
   padding: 10px 12px;
   border-radius: 10px;
   cursor: pointer;
@@ -58,13 +58,13 @@
 }
 
 .set-nav-item:hover {
-  background: var(--echoo-blue-soft, var(--echoo-blue-soft, #edf5ff));
-  color: var(--echoo-blue, var(--echoo-blue, #245cff));
+  background: var(--echoo-blue-soft, #edf5ff);
+  color: var(--echoo-blue, #245cff);
 }
 
 .set-nav-active {
-  background: var(--echoo-blue-soft, var(--echoo-blue-soft, #edf5ff));
-  color: var(--echoo-blue, var(--echoo-blue, #245cff));
+  background: var(--echoo-blue-soft, #edf5ff);
+  color: var(--echoo-blue, #245cff);
   font-weight: 600;
 }
 
@@ -86,7 +86,7 @@
 
 .set-card {
   background: #ffffff;
-  border: 1px solid var(--echoo-border, var(--echoo-border, #e3eaf2));
+  border: 1px solid var(--echoo-border, #e3eaf2);
   border-radius: 14px;
 }
 
@@ -97,7 +97,7 @@
 .set-card-title {
   display: block;
   font-size: 15px;
-  color: var(--echoo-text-h, var(--echoo-text-h, #101828));
+  color: var(--echoo-text-h, #101828);
   margin-bottom: 16px;
 }
 
@@ -112,7 +112,7 @@
   width: 56px;
   height: 56px;
   border-radius: 999px;
-  background: linear-gradient(135deg, var(--echoo-blue, var(--echoo-blue, #245cff)), #6f9deb);
+  background: linear-gradient(135deg, var(--echoo-blue, #245cff), #6f9deb);
   color: #ffffff;
   display: flex;
   align-items: center;
@@ -125,7 +125,7 @@
 .set-avatar-name {
   display: block;
   font-size: 15px;
-  color: var(--echoo-text-h, var(--echoo-text-h, #101828));
+  color: var(--echoo-text-h, #101828);
 }
 
 .set-change-photo {
@@ -135,7 +135,7 @@
   font-family: inherit;
   font-size: 13px;
   font-weight: 600;
-  color: var(--echoo-blue, var(--echoo-blue, #245cff));
+  color: var(--echoo-blue, #245cff);
   padding: 4px 0 0;
   cursor: pointer;
 }
@@ -159,11 +159,11 @@
 
 .set-input {
   width: 100%;
-  border: 1px solid var(--echoo-border, var(--echoo-border, #e3eaf2));
+  border: 1px solid var(--echoo-border, #e3eaf2);
   border-radius: 10px;
   font-family: inherit;
   font-size: 14px;
-  color: var(--echoo-text-h, var(--echoo-text-h, #101828));
+  color: var(--echoo-text-h, #101828);
   background: #ffffff;
   padding: 10px 12px;
   outline: none;
@@ -171,7 +171,7 @@
 }
 
 .set-input:focus {
-  border-color: var(--echoo-blue, var(--echoo-blue, #245cff));
+  border-color: var(--echoo-blue, #245cff);
   box-shadow: 0 0 0 3px rgba(23, 105, 211, 0.15);
 }
 
@@ -183,16 +183,16 @@
 .set-readonly {
   display: block;
   width: 100%;
-  border: 1px solid var(--echoo-border, var(--echoo-border, #e3eaf2));
+  border: 1px solid var(--echoo-border, #e3eaf2);
   border-radius: 10px;
   background: var(--echoo-bg-soft, #f8fbff);
   font-size: 13.5px;
-  color: var(--echoo-text, var(--echoo-text, #5f6f85));
+  color: var(--echoo-text, #5f6f85);
   padding: 10px 12px;
 }
 
 .set-readonly-empty {
-  color: var(--echoo-text-muted, var(--echoo-text-muted, #98a2b3));
+  color: var(--echoo-text-muted, #98a2b3);
   font-style: italic;
 }
 
@@ -203,12 +203,12 @@
 .set-select {
   width: 100%;
   appearance: none;
-  border: 1px solid var(--echoo-border, var(--echoo-border, #e3eaf2));
+  border: 1px solid var(--echoo-border, #e3eaf2);
   border-radius: 10px;
   background: #ffffff;
   font-family: inherit;
   font-size: 14px;
-  color: var(--echoo-text-h, var(--echoo-text-h, #101828));
+  color: var(--echoo-text-h, #101828);
   padding: 10px 34px 10px 12px;
   outline: none;
   cursor: pointer;
@@ -216,7 +216,7 @@
 }
 
 .set-select:focus {
-  border-color: var(--echoo-blue, var(--echoo-blue, #245cff));
+  border-color: var(--echoo-blue, #245cff);
   box-shadow: 0 0 0 3px rgba(23, 105, 211, 0.15);
 }
 
@@ -226,7 +226,7 @@
   top: 50%;
   transform: translateY(-50%);
   font-size: 13px;
-  color: var(--echoo-text-muted, var(--echoo-text-muted, #98a2b3));
+  color: var(--echoo-text-muted, #98a2b3);
   pointer-events: none;
 }
 
@@ -236,7 +236,7 @@
   justify-content: space-between;
   gap: 16px;
   padding: 12px 0;
-  border-top: 1px solid var(--echoo-border, var(--echoo-border, #e3eaf2));
+  border-top: 1px solid var(--echoo-border, #e3eaf2);
 }
 
 .set-toggle-info {
@@ -248,12 +248,12 @@
 
 .set-toggle-title {
   font-size: 14px;
-  color: var(--echoo-text-h, var(--echoo-text-h, #101828));
+  color: var(--echoo-text-h, #101828);
 }
 
 .set-toggle-desc {
   font-size: 13px;
-  color: var(--echoo-text-muted, var(--echoo-text-muted, #98a2b3));
+  color: var(--echoo-text-muted, #98a2b3);
 }
 
 .set-toggle {
@@ -270,7 +270,7 @@
 }
 
 .set-toggle-on {
-  background: var(--echoo-blue, var(--echoo-blue, #245cff));
+  background: var(--echoo-blue, #245cff);
 }
 
 .set-toggle-thumb {
@@ -294,7 +294,7 @@
   justify-content: center;
   border: 0;
   border-radius: 10px;
-  background: var(--echoo-blue, var(--echoo-blue, #245cff));
+  background: var(--echoo-blue, #245cff);
   color: #ffffff;
   font-family: inherit;
   font-size: 14px;
@@ -315,18 +315,18 @@
 
 .set-panel-coming {
   background: #ffffff;
-  border: 1px dashed var(--echoo-border-strong, var(--echoo-border-strong, #d3deea));
+  border: 1px dashed var(--echoo-border-strong, #d3deea);
   border-radius: 14px;
   padding: 34px 26px;
   text-align: center;
-  color: var(--echoo-text, var(--echoo-text, #5f6f85));
+  color: var(--echoo-text, #5f6f85);
   font-size: 14px;
 }
 
 .set-panel-coming h2 {
   margin: 0 0 8px;
   font-size: 18px;
-  color: var(--echoo-text-h, var(--echoo-text-h, #101828));
+  color: var(--echoo-text-h, #101828);
 }
 
 .set-back-btn {
@@ -336,7 +336,7 @@
   font-family: inherit;
   font-size: 13px;
   font-weight: 600;
-  color: var(--echoo-blue, var(--echoo-blue, #245cff));
+  color: var(--echoo-blue, #245cff);
   cursor: pointer;
   padding: 8px 14px;
   border-radius: 8px;
@@ -344,7 +344,7 @@
 }
 
 .set-back-btn:hover {
-  background: var(--echoo-blue-soft, var(--echoo-blue-soft, #edf5ff));
+  background: var(--echoo-blue-soft, #edf5ff);
 }
 
 .set-empty {
@@ -352,10 +352,10 @@
   align-items: center;
   justify-content: center;
   min-height: 220px;
-  border: 1px dashed var(--echoo-border-strong, var(--echoo-border-strong, #d3deea));
+  border: 1px dashed var(--echoo-border-strong, #d3deea);
   border-radius: 14px;
   background: var(--echoo-bg-soft, #f8fbff);
-  color: var(--echoo-text, var(--echoo-text, #5f6f85));
+  color: var(--echoo-text, #5f6f85);
   font-size: 14px;
 }
 
@@ -375,8 +375,8 @@
   min-width: 260px;
   max-width: 360px;
   background: #ffffff;
-  border: 1px solid var(--echoo-border, var(--echoo-border, #e3eaf2));
-  border-left: 4px solid var(--echoo-blue, var(--echoo-blue, #245cff));
+  border: 1px solid var(--echoo-border, #e3eaf2);
+  border-left: 4px solid var(--echoo-blue, #245cff);
   border-radius: 12px;
   box-shadow: var(--echoo-shadow, 0 4px 16px rgba(16, 24, 40, 0.12));
   padding: 14px 16px;
@@ -390,7 +390,7 @@
   height: 28px;
   border-radius: 999px;
   background: rgba(23, 105, 211, 0.1);
-  color: var(--echoo-blue, var(--echoo-blue, #245cff));
+  color: var(--echoo-blue, #245cff);
   font-size: 13px;
   flex-shrink: 0;
 }
@@ -402,19 +402,19 @@
 .set-toast-body strong {
   display: block;
   font-size: 13.5px;
-  color: var(--echoo-text-h, var(--echoo-text-h, #101828));
+  color: var(--echoo-text-h, #101828);
 }
 
 .set-toast-body p {
   margin: 2px 0 0;
   font-size: 13px;
-  color: var(--echoo-text-muted, var(--echoo-text-muted, #98a2b3));
+  color: var(--echoo-text-muted, #98a2b3);
 }
 
 .set-toast-close {
   border: 0;
   background: transparent;
-  color: var(--echoo-text-muted, var(--echoo-text-muted, #98a2b3));
+  color: var(--echoo-text-muted, #98a2b3);
   font-size: 13px;
   cursor: pointer;
   padding: 4px 6px;
