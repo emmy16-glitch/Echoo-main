@@ -19,7 +19,12 @@ import {
   buildGeneratedStationBrandCoverUrl,
   randomStationBrandVariant,
 } from '../../stationBranding/stationBranding';
-import { getPublicStationPath, getPublicStationUrl } from '../../services/stationPublicUrl';
+import {
+  copyTextToClipboard,
+  getPublicStationPath,
+  getPublicStationUrl,
+  openPublicWebUrl,
+} from '../../services/stationPublicUrl';
 import { CHANNEL_CATEGORY_OPTIONS } from '../../services/channelCategories';
 import './CreatorStationsReference.css';
 
@@ -383,19 +388,16 @@ const CreatorStationsWorkspace = ({ onNavigate, onOpenRecording }) => {
   };
 
   const viewAsListener = () => {
-    if (!publicPath || typeof window === 'undefined') return;
-    try {
-      // new URL() throws on file:// (packaged desktop: origin 'null').
-      window.open(new URL(publicPath, window.location.origin).toString(), '_blank', 'noopener,noreferrer');
-    } catch {
-      setError('Open this station in a browser to view the Listener experience.');
-    }
+    if (!publicUrl) return;
+    void openPublicWebUrl(publicUrl).catch((openError) => {
+      setError(openError?.message || 'Could not open this Channel in your browser.');
+    });
   };
 
   const copyChannelLink = async () => {
-    if (!publicUrl || typeof navigator === 'undefined') return;
+    if (!publicUrl) return;
     try {
-      await navigator.clipboard.writeText(publicUrl);
+      await copyTextToClipboard(publicUrl);
       setError('');
       setMessage('Channel link copied.');
     } catch {

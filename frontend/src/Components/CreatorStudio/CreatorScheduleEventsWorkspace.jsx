@@ -18,6 +18,7 @@ import {
 } from 'react-icons/fi';
 
 import batch2Service from '../../services/batch2Service';
+import { getPublicAppUrl, openPublicWebUrl } from '../../services/stationPublicUrl';
 import { useCreatorStudioState } from './CreatorStudioState';
 import './CreatorScheduleEventsWorkspace.css';
 
@@ -202,11 +203,14 @@ export default function CreatorScheduleEventsWorkspace({ onNavigate }) {
   const viewAsListener = (broadcast) => {
     setOpenMenu('');
     if (!broadcast?.id) return;
-    window.open(
-      `/listen/live/${encodeURIComponent(broadcast.id)}`,
-      '_blank',
-      'noopener,noreferrer'
-    );
+    const url = getPublicAppUrl(`/listen/live/${encodeURIComponent(broadcast.id)}`);
+    if (!url) {
+      setError('Could not build the public Listener link.');
+      return;
+    }
+    void openPublicWebUrl(url).catch((openError) => {
+      setError(openError?.message || 'Could not open the Listener page.');
+    });
   };
 
   const openCompletedBroadcast = (broadcast) => {

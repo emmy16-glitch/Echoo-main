@@ -522,3 +522,17 @@ test('window.open never creates browser-like child Electron windows', () => {
   assert.match(mainSource, /normalizeRoute\(hashRoute \|\| pathRoute\)/);
   assert.doesNotMatch(mainSource, /setWindowOpenHandler[\s\S]{0,1200}action: 'allow'/);
 });
+
+
+test('public Creator view actions use the Windows default browser instead of child Electron windows', () => {
+  const scheduleSource = fs.readFileSync(path.resolve(desktopRoot, '..', 'frontend', 'src', 'Components', 'CreatorStudio', 'CreatorScheduleEventsWorkspace.jsx'), 'utf8');
+  const stationsSource = fs.readFileSync(path.resolve(desktopRoot, '..', 'frontend', 'src', 'Components', 'CreatorStudio', 'CreatorStationsWorkspace.jsx'), 'utf8');
+  const analyticsSource = fs.readFileSync(path.resolve(desktopRoot, '..', 'frontend', 'src', 'Components', 'CreatorStudio', 'CreatorAnalyticsConnectedWorkspace.jsx'), 'utf8');
+  assert.match(scheduleSource, /openPublicWebUrl\(url\)/);
+  assert.match(stationsSource, /openPublicWebUrl\(publicUrl\)/);
+  assert.match(analyticsSource, /openPublicWebUrl\(broadcast\.replayUrl\)/);
+  assert.match(stationsSource, /copyTextToClipboard\(publicUrl\)/);
+  assert.doesNotMatch(scheduleSource, /window\.open\(/);
+  assert.doesNotMatch(stationsSource, /window\.open\(/);
+  assert.doesNotMatch(analyticsSource, /window\.open\(/);
+});

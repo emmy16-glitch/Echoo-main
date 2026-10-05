@@ -21,9 +21,9 @@ export const getPublicStationPath = (station) => {
   return `/listen/stations/${encodeURIComponent(identifier)}`;
 };
 
-export const getPublicStationUrl = (station, options = {}) => {
-  const path = getPublicStationPath(station);
-  if (!path) return '';
+export const getPublicAppUrl = (path, options = {}) => {
+  const rawPath = String(path || '').trim();
+  if (!rawPath.startsWith('/')) return '';
 
   const configuredOrigin = options.configuredOrigin
     ?? import.meta.env?.VITE_PUBLIC_APP_ORIGIN;
@@ -32,7 +32,44 @@ export const getPublicStationUrl = (station, options = {}) => {
   const origin = normalizePublicOrigin(configuredOrigin)
     || normalizePublicOrigin(browserOrigin);
 
-  return origin ? new URL(path, origin).toString() : '';
+  return origin ? new URL(rawPath, origin).toString() : '';
+};
+
+export const getPublicStationUrl = (station, options = {}) => {
+  const path = getPublicStationPath(station);
+  return path ? getPublicAppUrl(path, options) : '';
+};
+
+export const openPublicWebUrl = async (
+  value,
+  { windowRef = typeof window !== 'undefined' ? window : null } = {}
+) => {
+  if (!windowRef) throw new Error('A browser window is unavailable');
+
+  let url = '';
+  try {
+    const raw = String(value || '').trim();
+    url = raw.startsWith('/') ? getPublicAppUrl(raw) : new URL(raw).toString();
+    const parsed = new URL(url);
+    if (!HTTP_PROTOCOLS.has(parsed.protocol) || parsed.username || parsed.password) {
+      throw new Error('Unsafe public URL');
+    }
+  } catch {
+    throw new Error('Could not open that public Echoo page.');
+  }
+
+  if (
+    windowRef.echooDesktop?.isDesktop === true &&
+    typeof windowRef.echooDesktop?.openExternalWebUrl === 'function'
+  ) {
+    const result = await windowRef.echooDesktop.openExternalWebUrl(url);
+    if (!result?.opened) throw new Error(result?.error || 'Could not open the public page.');
+    return true;
+  }
+
+  const opened = windowRef.open(url, '_blank', 'noopener,noreferrer');
+  if (!opened) throw new Error('The browser blocked the new page.');
+  return true;
 };
 
 export const copyTextToClipboard = async (
