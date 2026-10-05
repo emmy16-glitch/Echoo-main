@@ -167,7 +167,7 @@ const ChatPanel = ({ initialMessages = [], messages: controlledMessages, onSend,
   };
   return (
     <section className="lex-panel lex-chat" aria-labelledby="chat-panel-title">
-      <div className="lex-panel__header"><div><h2 id="chat-panel-title">Live Chat</h2><span>Community conversation</span></div><FiMessageCircle aria-hidden="true" /></div>
+      <div className="lex-panel__header"><div><h2 id="chat-panel-title">Live chat</h2><span>Community conversation</span></div><FiMessageCircle aria-hidden="true" /></div>
       <div className="lex-chat__messages" ref={scrollRef} onScroll={() => { const node = scrollRef.current; nearBottomRef.current = node.scrollHeight - node.scrollTop - node.clientHeight < 64; if (nearBottomRef.current) setNewMessages(false); }}>
         {loading && <div className="lex-panel-empty">Loading live chat...</div>}
         {messages.map((message) => (
