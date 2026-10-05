@@ -111,10 +111,17 @@ test('manual Creator upload uses measurable XHR progress instead of a spinner-on
   assert.match(studio, /Saving recording to Echoo/);
 });
 
-test('recording downloads stream progress when response bodies are readable', async () => {
+test('recording downloads hand off large transfers to the native browser download manager', async () => {
   const service = await source('../../frontend/src/services/studioService.js');
 
-  assert.match(service, /response\.body\?\.getReader/);
-  assert.match(service, /reader\.read\(\)/);
-  assert.match(service, /onProgress\(\{ loaded: blob\.size/);
+  const downloadStart = service.indexOf('downloadAudio: async');
+  const uploadStart = service.indexOf('uploadAudio: async', downloadStart);
+  const downloadBlock = service.slice(downloadStart, uploadStart);
+
+  assert.match(downloadBlock, /getAudioStreamUrl\(audioId\)/);
+  assert.match(downloadBlock, /anchor\.href = downloadUrl/);
+  assert.match(downloadBlock, /mode:\s*"native-stream"/);
+  assert.doesNotMatch(downloadBlock, /getReader\(\)/);
+  assert.doesNotMatch(downloadBlock, /response\.blob\(\)/);
+  assert.doesNotMatch(downloadBlock, /new Blob\(/);
 });
