@@ -9,7 +9,7 @@ import {
   FaVolumeMute,
   FaVolumeUp,
 } from 'react-icons/fa';
-import { FiArrowLeft, FiHeart, FiBookmark, FiCheck, FiMessageCircle, FiRadio, FiShare2, FiUsers, FiX } from 'react-icons/fi';
+import { FiArrowLeft, FiHeart, FiBookmark, FiCheck, FiLink, FiMessageCircle, FiMoreHorizontal, FiRadio, FiShare2, FiUsers, FiX } from 'react-icons/fi';
 
 import batch3Service from '../../services/batch3Service';
 import batch4Service, { normalizeChatMessage } from '../../services/batch4Service';
@@ -69,7 +69,7 @@ const normalizeBroadcast = (item) => ({
         category: item?.category,
       }
     ),
-  description: item?.description || 'Join the conversation and listen live on Echoo.',
+  description: item?.description || '',
   stationId: item?.stationId || item?.station?.id || item?.station?._id || null,
   status: String(item?.status || 'live').toLowerCase(),
   replayAudioId:
@@ -799,21 +799,41 @@ const ListenerRealLiveRoom = () => {
           {show.stationId && (
             <button
               type="button"
-              className={following ? 'is-following' : ''}
+              className={`listener-v2-room-follow${following ? ' is-following' : ''}`}
               onClick={toggleFollow}
               disabled={followPending}
+              aria-pressed={following}
             >
-              {followPending ? 'Updating…' : following ? 'Following' : 'Follow'}
+              <FiHeart aria-hidden="true" />
+              <span>{followPending ? 'Updating…' : following ? 'Following' : 'Follow'}</span>
             </button>
           )}
-          <button type="button" onClick={() => share()}>
-            <FiShare2 /> Share
+          <button
+            type="button"
+            className="listener-v2-room-icon-action"
+            onClick={() => share()}
+            aria-label="Share live broadcast"
+          >
+            <FiShare2 aria-hidden="true" />
+            <span>Share</span>
           </button>
-          <details className="listener-room-actions"><summary>More</summary><div>
-          <button type="button" onClick={() => share(true)}>Copy link</button>
-          <button type="button" disabled={Boolean(actionPending)} aria-pressed={liked} onClick={() => listenerAction('like')}><FiHeart /> {liked ? 'Liked' : 'Like'}</button>
-          <button type="button" disabled={Boolean(actionPending)} aria-pressed={Boolean(savedMomentId)} onClick={() => listenerAction('save')}><FiBookmark /> {savedMomentId ? 'Saved' : 'Save'}</button>
-          </div></details>
+          <details className="listener-room-actions">
+            <summary aria-label="More live broadcast actions">
+              <FiMoreHorizontal aria-hidden="true" />
+              <span>More</span>
+            </summary>
+            <div role="menu">
+              <button type="button" role="menuitem" onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); share(true); }}>
+                <FiLink aria-hidden="true" /><span>Copy link</span>
+              </button>
+              <button type="button" role="menuitem" disabled={Boolean(actionPending)} aria-pressed={liked} onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); listenerAction('like'); }}>
+                <FiHeart aria-hidden="true" /><span>{liked ? 'Liked' : 'Like'}</span>
+              </button>
+              <button type="button" role="menuitem" disabled={Boolean(actionPending)} aria-pressed={Boolean(savedMomentId)} onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); listenerAction('save'); }}>
+                <FiBookmark aria-hidden="true" /><span>{savedMomentId ? 'Saved' : 'Save'}</span>
+              </button>
+            </div>
+          </details>
         </div>
       </header>
 
@@ -865,7 +885,13 @@ const ListenerRealLiveRoom = () => {
           <div className="listener-v2-room-event-copy">
             <div>
               <h1>{show.title}</h1>
-              <p>{show.description || 'Live audio on Echoo.'}</p>
+              {show.creator && String(show.creator).trim().toLowerCase() !== String(show.title).trim().toLowerCase() && (
+                <span className="listener-v2-room-creator">{show.creator}</span>
+              )}
+              {show.description &&
+                ![show.title, show.creator].some((value) =>
+                  String(value || '').trim().toLowerCase() === String(show.description || '').trim().toLowerCase()
+                ) && <p>{show.description}</p>}
             </div>
             <div className="listener-v2-room-event-meta">
               {show.listenerCount != null && <span><FiUsers /> {show.listenerCount.toLocaleString()} listening</span>}
