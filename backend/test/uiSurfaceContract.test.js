@@ -370,6 +370,13 @@ test('active ListenerV2 separates live, scheduled and released audio and owns a 
 });
 
 
+test('Listener live room labels recovering audio as recovery, not creator wait', async () => {
+  const room = await source('../../frontend/src/Components/ListenerLiveExperience/ListenerRealLiveRoom.jsx');
+
+  assert.match(room, /audioState === 'recovering_audio'[\s\S]{0,80}\? 'Recovering audio…'/);
+  assert.match(room, /audioState === 'waiting_for_program'[\s\S]{0,80}\? 'Waiting for creator'/);
+});
+
 test('scheduled rooms describe a future start instead of an ended broadcast', async () => {
   const [room, css] = await Promise.all([
     source('../../frontend/src/Components/ListenerLiveExperience/ListenerRealLiveRoom.jsx'),
