@@ -88,6 +88,8 @@ test('live chat rejoin is acknowledged, backfills missed messages, and uses dedi
   assert.match(roomCss, /grid-template-rows:\s*auto minmax\(0,1fr\)/);
   assert.match(components, /className="lex-chat-new-messages"/);
   assert.match(components, /<FiHeart aria-hidden="true" \/>/);
+  assert.match(components, /onReact\s*&&\s*<button/);
+  assert.doesNotMatch(components, /message\.reaction\s*&&\s*<button/);
   assert.match(componentCss, /overflow-wrap:\s*anywhere/);
   assert.match(componentCss, /\.lex-chat-message > div \{ min-width:\s*0/);
 });
