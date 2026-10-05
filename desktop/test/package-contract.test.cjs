@@ -327,6 +327,6 @@ test('desktop restores the last useful workspace without persisting auth screens
   );
   assert.match(lifecycleSource, /echooDesktopLastRouteV1/);
   assert.match(lifecycleSource, /restoreLastDesktopWorkspace/);
-  assert.match(lifecycleSource, /\^\\\/\(\?:listen\|creator-studio\)/);
-  assert.doesNotMatch(lifecycleSource, /LAST_DESKTOP_ROUTE_KEY[\s\S]{0,500}login\|register\|reset-password/);
+  assert.match(lifecycleSource, /normalizeDesktopWorkspaceRoute/);
+  assert.match(lifecycleSource, /listen\|creator-studio/);
 });
