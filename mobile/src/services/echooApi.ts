@@ -485,6 +485,31 @@ export async function getBroadcastPresence(broadcastId: string) {
   return payload?.data || null;
 }
 
+export async function getAudioStreamUrl(audioId: string) {
+  const id = String(audioId || '').trim();
+  if (!id) throw new Error('Audio ID is missing.');
+
+  const signedIn = await hasEchooSession();
+  const payload = await apiRequest(
+    signedIn
+      ? `/audio/${encodeURIComponent(id)}/stream-token`
+      : `/audio/${encodeURIComponent(id)}/public-stream-token`,
+    {
+      method: 'POST',
+      auth: signedIn ? 'required' : 'none',
+    }
+  );
+
+  const streamUrl = normalizeUrl(payload?.data?.streamUrl);
+  if (!streamUrl) throw new Error('Echoo could not prepare this audio for playback.');
+
+  return {
+    streamUrl,
+    downloadUrl: normalizeUrl(payload?.data?.downloadUrl),
+    expiresIn: Math.max(0, Number(payload?.data?.expiresIn) || 0),
+  };
+}
+
 export async function getListenerLiveKitCredentials(broadcastId: string) {
   const payload = await apiRequest(`/broadcasts/${broadcastId}/listener-token`, {
     method: 'POST',
