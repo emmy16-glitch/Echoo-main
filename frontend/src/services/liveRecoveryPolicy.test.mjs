@@ -18,6 +18,10 @@ import {
   transportSampleAdvanced,
 } from './liveRecoveryPolicy.js';
 import { liveKitPublishOptionsFor } from './realtimeAudioQuality.js';
+import {
+  listenerLiveDetailCopy,
+  listenerLiveStatusLabel,
+} from './listenerLiveStatusCopy.js';
 
 test('live recovery uses bounded exponential backoff', () => {
   assert.deepEqual(LIVE_RECOVERY_DELAYS_MS, [0, 1000, 2000, 4000, 8000]);
@@ -113,4 +117,21 @@ test('realtime broadcast audio keeps RED packet-loss protection enabled', () => 
   assert.equal(options.dtx, false);
   assert.equal(options.forceStereo, true);
   assert.equal(options.audioPreset.maxBitrate, 128000);
+});
+
+
+test('listener live status copy stays human and consistent', () => {
+  assert.equal(listenerLiveStatusLabel('connecting'), 'Connecting audio…');
+  assert.equal(listenerLiveStatusLabel('waiting_for_program'), 'Waiting for live audio');
+  assert.equal(listenerLiveStatusLabel('reconnecting'), 'Reconnecting audio…');
+  assert.equal(listenerLiveStatusLabel('holding'), 'Weak connection — keeping audio live');
+  assert.equal(listenerLiveStatusLabel('recovering_audio'), 'Restoring audio…');
+  assert.equal(listenerLiveStatusLabel('failed'), 'Audio disconnected');
+  assert.equal(listenerLiveStatusLabel('unknown-state'), 'Connecting audio…');
+
+  assert.equal(listenerLiveDetailCopy({ needsAudioStart: true }), 'Audio is ready. Tap to start playback.');
+  assert.equal(listenerLiveDetailCopy({ trackCount: 1, isPlaying: false, status: 'recovering_audio' }), 'Restoring live audio.');
+  assert.equal(listenerLiveDetailCopy({ trackCount: 1, isPlaying: false }), 'Paused on this device.');
+  assert.equal(listenerLiveDetailCopy({ trackCount: 1, isPlaying: true }), 'Live audio is ready.');
+  assert.equal(listenerLiveDetailCopy({ trackCount: 0 }), 'Waiting for live audio.');
 });
