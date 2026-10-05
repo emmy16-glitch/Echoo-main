@@ -763,7 +763,7 @@ const ListenerRealLiveRoom = () => {
     return (
       <main className="listener-v2-live-room listener-v2-live-room--state">
         <button type="button" onClick={() => navigate('/listen/live')}>
-          <FiArrowLeft /> Back to Live Now
+          <FiArrowLeft /> Back to live
         </button>
         <div>{loadError || 'This live broadcast is unavailable.'}</div>
       </main>
@@ -777,7 +777,7 @@ const ListenerRealLiveRoom = () => {
           type="button"
           className="listener-v2-room-back"
           onClick={() => navigate('/listen/live')}
-          aria-label="Back to Live Now"
+          aria-label="Back to live"
         >
           <FiArrowLeft />
         </button>
