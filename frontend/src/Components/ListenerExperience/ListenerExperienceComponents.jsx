@@ -131,7 +131,18 @@ const TranscriptPanel = ({ segments = [], live = false, loading = false, status 
   );
 };
 
-const ChatPanel = ({ initialMessages = [], messages: controlledMessages, onSend, onReact, loading = false, disabled = false, disabledMessage = 'Live chat is unavailable.', error = '' }) => {
+const ChatPanel = ({
+  initialMessages = [],
+  messages: controlledMessages,
+  onSend,
+  onReact,
+  loading = false,
+  disabled = false,
+  disabledMessage = 'Live chat is unavailable.',
+  disabledActionLabel = '',
+  onDisabledAction,
+  error = '',
+}) => {
   const [localMessages, setLocalMessages] = useState(initialMessages);
   const [text, setText] = useState('');
   const messages = controlledMessages ?? localMessages;
@@ -161,6 +172,7 @@ const ChatPanel = ({ initialMessages = [], messages: controlledMessages, onSend,
   return (
     <section className="lex-panel lex-chat" aria-labelledby="chat-panel-title">
       <div className="lex-panel__header"><div><h2 id="chat-panel-title">Live chat</h2><span>Community conversation</span></div><FiMessageCircle aria-hidden="true" /></div>
+      {disabled && <div className="lex-chat-disabled" role="status"><span>{disabledMessage}</span>{disabledActionLabel && onDisabledAction && <button type="button" onClick={onDisabledAction}>{disabledActionLabel}</button>}</div>}
       <div className="lex-chat__messages" ref={scrollRef} onScroll={() => { const node = scrollRef.current; nearBottomRef.current = node.scrollHeight - node.scrollTop - node.clientHeight < 64; if (nearBottomRef.current) setNewMessages(false); }}>
         {loading && <div className="lex-panel-empty">Loading live chat...</div>}
         {messages.map((message) => (
@@ -169,11 +181,11 @@ const ChatPanel = ({ initialMessages = [], messages: controlledMessages, onSend,
             <div><span><strong>{message.name}</strong><time>{message.time}</time></span><p>{message.text}</p>{message.reaction && <button type="button" onClick={() => onReact?.(message, '❤️')} aria-label={`Like ${message.name}'s message`}><FiHeart aria-hidden="true" /> {message.reaction}</button>}</div>
           </article>
         ))}
-        {!loading && !messages.length && <div className="lex-panel-empty">{disabled ? disabledMessage : 'Be the first to join the conversation.'}</div>}
+        {!loading && !messages.length && <div className="lex-panel-empty">{disabled ? 'No messages yet.' : 'Be the first to join the conversation.'}</div>}
       </div>
       {newMessages && <button type="button" className="lex-chat-new-messages" onClick={() => { const node = scrollRef.current; node.scrollTop = node.scrollHeight; nearBottomRef.current = true; setNewMessages(false); }}>New messages ↓</button>}
       {error && <p className="lex-chat-error" role="status">{error}</p>}
-      <form className="lex-chat-composer" onSubmit={send}><input value={text} onChange={(event) => setText(event.target.value)} aria-label="Message live chat" placeholder={disabled ? disabledMessage : 'Message live chat…'} maxLength={280} disabled={disabled} /><button type="submit" aria-label="Send message" disabled={disabled || sending || !text.trim()}><FiSend /></button></form>
+      <form className="lex-chat-composer" onSubmit={send}><input value={text} onChange={(event) => setText(event.target.value)} aria-label="Message live chat" placeholder={disabled ? 'Chat unavailable' : 'Message live chat…'} maxLength={280} disabled={disabled} /><button type="submit" aria-label="Send message" disabled={disabled || sending || !text.trim()}><FiSend /></button></form>
     </section>
   );
 };
