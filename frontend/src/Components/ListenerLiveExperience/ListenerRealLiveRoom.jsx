@@ -115,6 +115,8 @@ const ListenerRealLiveRoom = () => {
   const navigate = useNavigate();
   const { setLiveSession, livePlayerState: liveState } = useOutletContext() || {};
   const stageRef = useRef(null);
+  const liveStateRef = useRef(liveState);
+  liveStateRef.current = liveState;
 
   const previewMode =
     import.meta.env.DEV &&
@@ -261,19 +263,28 @@ const ListenerRealLiveRoom = () => {
         keepAwake: false,
       });
     };
-  }, [isLive, joined, liveState, show?.title]);
+  }, [
+    isLive,
+    joined,
+    liveState?.isMuted,
+    liveState?.onToggleMute,
+    show?.title,
+  ]);
 
+  // LiveKit publishes level/connection telemetry frequently. Keep the native
+  // tray listener stable instead of tearing down/re-registering IPC callbacks
+  // whenever that telemetry object changes.
   useEffect(
     () =>
       onDesktopRoomCommand((command) => {
-        if (command === 'toggle-mute') liveState?.onToggleMute?.();
+        if (command === 'toggle-mute') liveStateRef.current?.onToggleMute?.();
         if (command === 'leave-room') {
           setJoined(false);
           setLiveSession(null);
           navigate('/listen/live');
         }
       }),
-    [liveState, navigate, setLiveSession]
+    [navigate, setLiveSession]
   );
 
   const playerTrack = useMemo(
