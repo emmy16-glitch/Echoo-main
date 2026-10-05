@@ -30,8 +30,8 @@ export default function FollowingRecordings({ excludeIds = [] }) {
     }).catch(() => {});
     return () => { active = false; };
   }, [excludeKey, excluded]);
-  return <section className="listener-v2-panel"><header className="listener-v2-section-title"><h2>From creators you follow</h2><button type="button" onClick={() => navigate('/listen/following')}>Following</button></header>
+  return <section className="listener-v2-panel"><header className="listener-v2-section-title"><h2>Following</h2><button type="button" onClick={() => navigate('/listen/following')}>View all</button></header>
     {tracks.length ? <div className="listener-v2-audio-list">{tracks.map(track => <article key={track.id}><span className="listener-v2-audio-art">{track.coverArt && <img src={track.coverArt} alt="" />}</span><div><strong>{track.title}</strong><span>{track.artistName}</span></div><button type="button" aria-label={`Play ${track.title}`} onClick={() => playTrack(track, tracks)}><FiPlay /></button></article>)}</div>
-      : <p>{hasFollowing ? 'No public recordings from your followed creators yet.' : 'Follow creators to find their latest audio here.'} <button className="listener-v2-inline-action" type="button" onClick={() => navigate('/listen/search')}>Find creators</button></p>}
+      : <p>{hasFollowing ? 'No new recordings yet.' : 'You’re not following any creators yet.'} <button className="listener-v2-inline-action" type="button" onClick={() => navigate('/listen/search')}>Find creators</button></p>}
   </section>;
 }
