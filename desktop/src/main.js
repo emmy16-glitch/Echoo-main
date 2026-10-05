@@ -130,6 +130,21 @@ function openExternalUrl(url) {
   return true;
 }
 
+async function openExternalWebUrl(url) {
+  const normalized = normalizeExternalWebUrl(url);
+  if (!normalized) {
+    log.warn('[echoo-desktop] blocked unsafe renderer external URL');
+    return { opened: false, error: 'Only safe web links can be opened.' };
+  }
+  try {
+    await shell.openExternal(normalized);
+    return { opened: true, url: normalized };
+  } catch (error) {
+    log.warn('[echoo-desktop] renderer openExternal failed:', error.message);
+    return { opened: false, error: error?.message || String(error) };
+  }
+}
+
 let mainWindow = null;
 let splashWindow = null;
 let tray = null;
@@ -1140,6 +1155,10 @@ function showNotification({ title, body, silent }) {
 }
 
 function registerIpc() {
+  ipcMain.handle('echoo:open-external-web-url', async (_event, url) =>
+    openExternalWebUrl(url)
+  );
+
   ipcMain.handle('echoo:get-initial-deep-link', async () => {
     const route = pendingDeepLink;
     pendingDeepLink = null;
@@ -1306,11 +1325,9 @@ function registerIpc() {
 
   ipcMain.handle('echoo:reload', async () => {
     try {
-  if (DEV_URL_IS_EXPLICIT) {
-    // Test/debug override (also honored in packaged builds so the packaged
-    // boot test can point at a fixture server).
-    void loadDevUrl();
-  } else if (!app.isPackaged) {
+      if (DEV_URL_IS_EXPLICIT || !app.isPackaged) {
+        // Test/debug override (also honored in packaged builds so the packaged
+        // boot test can point at a fixture server).
         await loadDevUrl();
       } else {
         await loadPackagedRenderer();
@@ -1318,7 +1335,7 @@ function registerIpc() {
       return { ok: true };
     } catch (error) {
       log.warn('[echoo-desktop] reload failed:', error.message);
-      return { ok: false };
+      return { ok: false, error: error?.message || String(error) };
     }
   });
 

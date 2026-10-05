@@ -9,7 +9,7 @@ import {
   FaVolumeMute,
   FaVolumeUp,
 } from 'react-icons/fa';
-import { FiArrowLeft, FiHeart, FiBookmark, FiCheck, FiLink, FiMessageCircle, FiMoreHorizontal, FiRadio, FiShare2, FiUsers, FiX } from 'react-icons/fi';
+import { FiArrowLeft, FiHeart, FiBookmark, FiCheck, FiExternalLink, FiLink, FiMessageCircle, FiMoreHorizontal, FiRadio, FiShare2, FiUsers, FiX } from 'react-icons/fi';
 
 import batch3Service from '../../services/batch3Service';
 import batch4Service, { normalizeChatMessage } from '../../services/batch4Service';
@@ -19,7 +19,13 @@ import { getGuestSession } from '../../services/guestSession';
 import { copyTextToClipboard } from '../../services/stationPublicUrl';
 import savedMomentService from '../../services/savedMomentService';
 import { apiRequest, buildMediaUrl } from '../../services/api';
-import { notifyDesktop, onDesktopRoomCommand, setDesktopRoomState } from '../../services/desktopBridge';
+import {
+  isEchooDesktop,
+  notifyDesktop,
+  onDesktopRoomCommand,
+  openDesktopExternalUrl,
+  setDesktopRoomState,
+} from '../../services/desktopBridge';
 import { buildGeneratedStationBrandCoverUrl } from '../../stationBranding/stationBranding';
 import { ChatPanel } from '../../design-system';
 import { referenceChat, referenceLiveShows } from '../ListenerExperience/listenerExperienceData';
@@ -589,17 +595,35 @@ const ListenerRealLiveRoom = () => {
     finally { setActionPending(''); }
   };
 
-  const share = async (copyOnly = false) => {
-    // Shared links must be absolute web URLs: prefer the configured public
-    // app origin, else the current page (dev browsers). file:// (packaged
-    // desktop without a configured origin) cannot produce a shareable link.
+  const publicLiveUrl = () => {
     const configuredOrigin = String(import.meta.env?.VITE_PUBLIC_APP_ORIGIN || '').trim().replace(/\/$/, '');
     const pageHref = window.location.href;
-    const url = configuredOrigin
+    return configuredOrigin
       ? `${configuredOrigin}/listen/live/${encodeURIComponent(broadcastId)}`
       : /^https?:\/\//i.test(pageHref)
         ? pageHref.split('?')[0]
         : '';
+  };
+
+  const openLiveInBrowser = async () => {
+    const url = publicLiveUrl();
+    if (!url) {
+      setShareMessage('The public live page is unavailable right now');
+      window.setTimeout(() => setShareMessage(''), 1800);
+      return;
+    }
+    const result = await openDesktopExternalUrl(url);
+    if (!result?.opened) {
+      setShareMessage('Could not open the public live page');
+      window.setTimeout(() => setShareMessage(''), 1800);
+    }
+  };
+
+  const share = async (copyOnly = false) => {
+    // Shared links must be absolute web URLs: prefer the configured public
+    // app origin, else the current page (dev browsers). file:// (packaged
+    // desktop without a configured origin) cannot produce a shareable link.
+    const url = publicLiveUrl();
     if (!url) {
       setShareMessage('Open this room in a browser to share its link');
       window.setTimeout(() => setShareMessage(''), 1800);
@@ -854,6 +878,11 @@ const ListenerRealLiveRoom = () => {
               <button type="button" role="menuitem" onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); share(true); }}>
                 <FiLink aria-hidden="true" /><span>Copy link</span>
               </button>
+              {isEchooDesktop() && (
+                <button type="button" role="menuitem" onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); void openLiveInBrowser(); }}>
+                  <FiExternalLink aria-hidden="true" /><span>Open in browser</span>
+                </button>
+              )}
               <button type="button" role="menuitem" disabled={Boolean(actionPending)} aria-pressed={liked} onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); listenerAction('like'); }}>
                 <FiHeart aria-hidden="true" /><span>{liked ? 'Liked' : 'Like'}</span>
               </button>

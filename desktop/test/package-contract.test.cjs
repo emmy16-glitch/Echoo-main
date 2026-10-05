@@ -198,3 +198,13 @@ test('renderer build preserves canonical checked-in Windows branding assets', ()
   assert.match(buildSource, /assets\/icon\.png/);
   assert.match(buildSource, /assets\/tray-icon\.png/);
 });
+
+
+test('desktop external links use a narrow default-browser bridge and reload waits for the real result', () => {
+  assert.match(mainSource, /echoo:open-external-web-url/);
+  assert.match(mainSource, /normalizeExternalWebUrl\(url\)/);
+  assert.match(mainSource, /await shell\.openExternal\(normalized\)/);
+  assert.match(mainSource, /await loadDevUrl\(\)/);
+  assert.match(listenerRoomSource, /Open in browser/);
+  assert.match(listenerRoomSource, /openDesktopExternalUrl\(url\)/);
+});

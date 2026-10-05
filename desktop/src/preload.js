@@ -17,6 +17,8 @@ contextBridge.exposeInMainWorld('echooDesktop', {
 
   getAppInfo: () => ipcRenderer.invoke('echoo:get-app-info'),
   reload: () => ipcRenderer.invoke('echoo:reload'),
+  openExternalWebUrl: (url) =>
+    ipcRenderer.invoke('echoo:open-external-web-url', String(url || '').slice(0, 2048)),
   getInitialDeepLink: () => ipcRenderer.invoke('echoo:get-initial-deep-link'),
   onDeepLink: (listener) => {
     if (typeof listener !== 'function') return () => {};
