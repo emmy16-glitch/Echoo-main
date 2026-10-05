@@ -546,3 +546,11 @@ test('desktop anti-slop layer removes glass, shimmer gradients, floating cards, 
   assert.match(desktopRuntimeCss, /\.listener-v2-live-art:hover[\s\S]{0,120}transform:\s*none !important/);
   assert.match(desktopRuntimeCss, /\.eb-shake[\s\S]{0,80}animation:\s*none !important/);
 });
+
+
+test('desktop media URL fallback never references the removed localRuntime symbol', () => {
+  const apiSource = fs.readFileSync(path.resolve(desktopRoot, '..', 'frontend', 'src', 'services', 'api.js'), 'utf8');
+  assert.doesNotMatch(apiSource, /\blocalRuntime\b/);
+  assert.match(apiSource, /localDevelopmentRuntime/);
+  assert.match(apiSource, /echoo-app:\/\/app/);
+});

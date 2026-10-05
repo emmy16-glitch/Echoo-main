@@ -443,10 +443,8 @@ export const buildMediaUrl = (
   }
 
   // Root-absolute app asset paths (seeded artwork, bundled covers) must be
-  // resolved against the running document, NOT returned raw: under file://
-  // (packaged desktop) a raw '/assets/...' escapes the app bundle and 404s,
-  // while document-relative resolution lands inside frontend-dist on desktop
-  // and at the domain root on the web.
+  // resolved against the running document rather than returned raw. The
+  // packaged desktop uses echoo-app://app while Web uses the domain root.
   if (
     fileUrl.startsWith('/assets/') ||
     fileUrl.startsWith('/favicon')
@@ -460,7 +458,7 @@ export const buildMediaUrl = (
 
   const origin =
     API_ORIGIN ||
-    (import.meta.env.DEV || localRuntime
+    (import.meta.env.DEV || localDevelopmentRuntime
       ? developmentApiBase().replace(/\/api\/?$/, '')
       : '');
   if (!origin) return fileUrl;
