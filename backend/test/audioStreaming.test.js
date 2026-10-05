@@ -61,6 +61,20 @@ test('signed audio stream serves exact HTTP ranges while raw storage stays block
     });
     const streamUrl = `${baseUrl}/api/audio/${audioId}/stream?token=${encodeURIComponent(token)}`;
 
+    const directDownload = await fetch(`${streamUrl}&download=1`);
+    assert.equal(directDownload.status, 200);
+    assert.match(directDownload.headers.get('content-disposition') || '', /^attachment;/);
+    assert.equal(directDownload.headers.get('content-length'), String(bytes.length));
+    assert.equal(Buffer.from(await directDownload.arrayBuffer()).toString(), bytes.toString());
+
+    const rangedDownload = await fetch(`${streamUrl}&download=1`, {
+      headers: { Range: 'bytes=4-8' },
+    });
+    assert.equal(rangedDownload.status, 206);
+    assert.match(rangedDownload.headers.get('content-disposition') || '', /^attachment;/);
+    assert.equal(rangedDownload.headers.get('content-range'), `bytes 4-8/${bytes.length}`);
+    assert.equal(Buffer.from(await rangedDownload.arrayBuffer()).toString(), '45678');
+
     const ranged = await fetch(streamUrl, {
       headers: { Range: 'bytes=10-19' },
     });
