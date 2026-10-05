@@ -26,6 +26,10 @@ const listenerRoomSource = fs.readFileSync(
   path.resolve(desktopRoot, '..', 'frontend', 'src', 'Components', 'ListenerLiveExperience', 'ListenerRealLiveRoom.jsx'),
   'utf8'
 );
+const listenerV2Source = fs.readFileSync(
+  path.resolve(desktopRoot, '..', 'frontend', 'src', 'Components', 'ListenerV2', 'ListenerV2.jsx'),
+  'utf8'
+);
 const creatorMixerSource = fs.readFileSync(
   path.resolve(desktopRoot, '..', 'frontend', 'src', 'Components', 'CreatorStudio', 'CreatorAudioMixer.jsx'),
   'utf8'
@@ -156,4 +160,14 @@ test('Creator Studio surfaces microphone loss, recovery, and final failure witho
   assert.match(creatorMixerSource, /reconnected\./);
   assert.match(creatorMixerSource, /is unavailable\. Choose another input/);
   assert.doesNotMatch(creatorMixerSource, /Let's get your studio ready/i);
+});
+
+
+test('recorded Listener playback owns a desktop tray session without colliding with live rooms', () => {
+  assert.match(mainSource, /roomState\.kind === 'replay'/);
+  assert.match(mainSource, /toggle-playback/);
+  assert.match(mainSource, /stop-playback/);
+  assert.match(listenerV2Source, /kind: active \? 'replay' : 'idle'/);
+  assert.match(listenerV2Source, /\['loading', 'buffering', 'playing'\]\.includes\(playbackState\)/);
+  assert.match(listenerV2Source, /if \(isLiveRoom \|\| liveSession\?\.isLive\) return/);
 });

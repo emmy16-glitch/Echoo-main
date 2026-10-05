@@ -928,9 +928,12 @@ const CreatorLiveConnectedWorkspace = ({
     setDesktopRoomState({
       active: Boolean(currentLiveBroadcast?.id),
       mode: currentLiveBroadcast?.id ? 'creator' : 'idle',
+      kind: currentLiveBroadcast?.id ? 'broadcast' : 'idle',
       title: currentLiveBroadcast?.title || title || selectedStation?.name || 'Creator Studio',
       muted: Boolean(mixerState?.master?.muted),
+      playing: Boolean(currentLiveBroadcast?.id),
       canToggleMute: Boolean(currentLiveBroadcast?.id),
+      canTogglePlay: false,
       keepAwake: Boolean(currentLiveBroadcast?.id),
     });
 
@@ -938,9 +941,12 @@ const CreatorLiveConnectedWorkspace = ({
       setDesktopRoomState({
         active: false,
         mode: 'idle',
+        kind: 'idle',
         title: '',
         muted: false,
+        playing: false,
         canToggleMute: false,
+        canTogglePlay: false,
         keepAwake: false,
       });
     };

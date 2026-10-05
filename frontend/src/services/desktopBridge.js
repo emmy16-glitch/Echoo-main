@@ -14,9 +14,12 @@ export const setDesktopRoomState = (state) => {
   return desktop().setRoomState({
     active: Boolean(state?.active),
     mode: state?.mode === 'creator' || state?.mode === 'listener' ? state.mode : 'idle',
+    kind: ['broadcast', 'live', 'replay'].includes(state?.kind) ? state.kind : 'idle',
     title: String(state?.title || ''),
     muted: Boolean(state?.muted),
+    playing: Boolean(state?.playing),
     canToggleMute: Boolean(state?.canToggleMute),
+    canTogglePlay: Boolean(state?.canTogglePlay),
     keepAwake: Boolean(state?.keepAwake),
   });
 };

@@ -30,9 +30,14 @@ contextBridge.exposeInMainWorld('echooDesktop', {
     mode: ['creator', 'listener'].includes(String(state?.mode || '').toLowerCase())
       ? String(state.mode).toLowerCase()
       : 'idle',
+    kind: ['broadcast', 'live', 'replay'].includes(String(state?.kind || '').toLowerCase())
+      ? String(state.kind).toLowerCase()
+      : 'idle',
     title: String(state?.title || '').slice(0, 120),
     muted: state?.muted === true,
+    playing: state?.playing === true,
     canToggleMute: state?.canToggleMute === true,
+    canTogglePlay: state?.canTogglePlay === true,
     keepAwake: state?.keepAwake === true,
   }),
   getRoomState: () => ipcRenderer.invoke('echoo:get-room-state'),

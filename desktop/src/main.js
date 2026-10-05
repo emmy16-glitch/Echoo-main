@@ -136,9 +136,12 @@ let tray = null;
 let roomState = {
   active: false,
   mode: 'idle',
+  kind: 'idle',
   title: '',
   muted: false,
+  playing: false,
   canToggleMute: false,
+  canTogglePlay: false,
   keepAwake: false,
 };
 let powerSaveBlockerId = null;
@@ -496,11 +499,18 @@ function createWindow() {
         trayHideNoticed = true;
         try {
           const creatorActive = roomState.mode === 'creator';
+          const replayActive = roomState.kind === 'replay';
           const notice = new Notification({
-            title: creatorActive ? 'Your broadcast stays live' : 'Echoo keeps playing',
+            title: creatorActive
+              ? 'Your broadcast stays live'
+              : replayActive
+                ? 'Audio keeps playing'
+                : 'Echoo keeps playing',
             body: creatorActive
               ? 'Your broadcast is still live while Echoo is in the tray. Open Echoo to manage or end it safely.'
-              : 'Live audio is still playing while Echoo is in the tray. Open Echoo to return to the room.',
+              : replayActive
+                ? 'Your Echoo audio is still playing in the background.'
+                : 'Live audio is still playing while Echoo is in the tray. Open Echoo to return to the room.',
           });
           notice.on('click', () => showAndFocusWindow());
           notice.show();
@@ -949,6 +959,21 @@ function buildTrayMenu() {
           sendRoomCommand('request-end-broadcast');
         },
       });
+    } else if (roomState.kind === 'replay') {
+      items.push({
+        label: `${roomState.playing ? 'Playing' : 'Audio'} · ${roomState.title || 'Echoo audio'}`,
+        enabled: false,
+      });
+      if (roomState.canTogglePlay) {
+        items.push({
+          label: roomState.playing ? 'Pause audio' : 'Play audio',
+          click: () => sendRoomCommand('toggle-playback'),
+        });
+      }
+      items.push({
+        label: 'Stop playback',
+        click: () => sendRoomCommand('stop-playback'),
+      });
     } else {
       items.push({
         label: `Listening · ${roomState.title || 'Live on Echoo'}`,
@@ -1161,14 +1186,27 @@ function registerIpc() {
     try {
       const wasActive = roomState.active === true;
       const requestedMode = String(state.mode || '').toLowerCase();
+      const requestedKind = String(state.kind || '').toLowerCase();
+      const active = state.active === true;
+      const mode = active && ['creator', 'listener'].includes(requestedMode)
+        ? requestedMode
+        : 'idle';
+      const kind = active && ['broadcast', 'live', 'replay'].includes(requestedKind)
+        ? requestedKind
+        : mode === 'creator'
+          ? 'broadcast'
+          : mode === 'listener'
+            ? 'live'
+            : 'idle';
       roomState = {
-        active: state.active === true,
-        mode: state.active === true && ['creator', 'listener'].includes(requestedMode)
-          ? requestedMode
-          : 'idle',
-        title: state.active === true ? String(state.title || '').trim().slice(0, 120) : '',
+        active,
+        mode,
+        kind,
+        title: active ? String(state.title || '').trim().slice(0, 120) : '',
         muted: state.muted === true,
+        playing: state.playing === true,
         canToggleMute: state.canToggleMute === true,
+        canTogglePlay: state.canTogglePlay === true,
         keepAwake: state.keepAwake === true,
       };
       syncPowerSaveBlocker();
@@ -1708,9 +1746,12 @@ app.on('will-quit', () => {
   roomState = {
     active: false,
     mode: 'idle',
+    kind: 'idle',
     title: '',
     muted: false,
+    playing: false,
     canToggleMute: false,
+    canTogglePlay: false,
     keepAwake: false,
   };
   syncPowerSaveBlocker();

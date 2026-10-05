@@ -29,6 +29,7 @@ import followService from '../../services/followService';
 import batch1Service from '../../services/batch1Service';
 import batch2Service from '../../services/batch2Service';
 import audioService from '../../services/audioService';
+import { onDesktopRoomCommand, setDesktopRoomState } from '../../services/desktopBridge';
 import notificationService from '../../services/notificationService';
 import { apiRequest, buildMediaUrl } from '../../services/api';
 import { getGuestSession, isAuthenticated, recordGuestPlayback, saveGuestPreferences } from '../../services/guestSession';
@@ -719,6 +720,67 @@ const ListenerV2Layout = () => {
     const index = queue.findIndex((item) => idOf(item) === idOf(currentTrack));
     void playTrack(queue[(index - 1 + queue.length) % queue.length], queue);
   }, [currentTrack, playTrack, queue]);
+
+  // Recorded Listener audio is a real desktop playback session too. Report it
+  // only when the live-room child is not authoritative, so closing the main
+  // window while audio is actually playing keeps the renderer alive in tray.
+  useEffect(() => {
+    if (isLiveRoom || liveSession?.isLive) return undefined;
+
+    const active = Boolean(
+      currentTrack &&
+      ['loading', 'buffering', 'playing'].includes(playbackState)
+    );
+
+    setDesktopRoomState({
+      active,
+      mode: active ? 'listener' : 'idle',
+      kind: active ? 'replay' : 'idle',
+      title: active ? currentTrack?.title || 'Echoo audio' : '',
+      muted: false,
+      playing: Boolean(active && isPlaying),
+      canToggleMute: false,
+      canTogglePlay: active,
+      keepAwake: false,
+    });
+
+    return () => {
+      setDesktopRoomState({
+        active: false,
+        mode: 'idle',
+        kind: 'idle',
+        title: '',
+        muted: false,
+        playing: false,
+        canToggleMute: false,
+        canTogglePlay: false,
+        keepAwake: false,
+      });
+    };
+  }, [currentTrack, isLiveRoom, isPlaying, liveSession?.isLive, playbackState]);
+
+  useEffect(
+    () =>
+      onDesktopRoomCommand((command) => {
+        if (isLiveRoom || liveSession?.isLive) return;
+
+        if (command === 'toggle-playback' && currentTrack) {
+          togglePlay();
+        }
+        if (command === 'stop-playback' && currentTrack) {
+          audioRef.current?.pause();
+          playbackRequestRef.current += 1;
+          setCurrentTrack(null);
+          setQueue([]);
+          setCurrentTime(0);
+          setDuration(0);
+          setPlayerError('');
+          setPlaybackState('idle');
+          setPlayerExpanded(false);
+        }
+      }),
+    [currentTrack, isLiveRoom, liveSession?.isLive, togglePlay]
+  );
 
   useEffect(() => {
     if (!playerExpanded) return undefined;

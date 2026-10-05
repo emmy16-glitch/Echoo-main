@@ -247,9 +247,12 @@ const ListenerRealLiveRoom = () => {
     setDesktopRoomState({
       active,
       mode: active ? 'listener' : 'idle',
+      kind: active ? 'live' : 'idle',
       title: active ? show?.title || 'Live on Echoo' : '',
       muted: Boolean(liveState?.isMuted),
+      playing: Boolean(active && liveState?.isPlaying),
       canToggleMute: typeof liveState?.onToggleMute === 'function',
+      canTogglePlay: false,
       keepAwake: false,
     });
 
@@ -257,9 +260,12 @@ const ListenerRealLiveRoom = () => {
       setDesktopRoomState({
         active: false,
         mode: 'idle',
+        kind: 'idle',
         title: '',
         muted: false,
+        playing: false,
         canToggleMute: false,
+        canTogglePlay: false,
         keepAwake: false,
       });
     };
@@ -267,6 +273,7 @@ const ListenerRealLiveRoom = () => {
     isLive,
     joined,
     liveState?.isMuted,
+    liveState?.isPlaying,
     liveState?.onToggleMute,
     show?.title,
   ]);
