@@ -129,3 +129,12 @@ test('renderer reports creator and listener native session modes explicitly', ()
   assert.match(creatorWorkspaceSource, /request-end-broadcast/);
   assert.match(listenerRoomSource, /mode: active \? 'listener' : 'idle'/);
 });
+
+
+test('Windows package ships real Echoo icon assets', () => {
+  for (const relativePath of ['assets/icon.png', 'assets/tray-icon.png']) {
+    const absolutePath = path.join(desktopRoot, relativePath);
+    assert.equal(fs.existsSync(absolutePath), true, `${relativePath} must exist`);
+    assert.ok(fs.statSync(absolutePath).size > 0, `${relativePath} must not be empty`);
+  }
+});
