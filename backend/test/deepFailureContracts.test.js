@@ -247,7 +247,7 @@ test('creator recording downloads stream natively instead of buffering whole aud
 
   assert.match(streamController, /downloadUrl:/);
   assert.match(streamController, /downloadRequested/);
-  assert.match(streamController, /attachment; filename/);
+  assert.match(streamController, /downloadRequested \? 'attachment' : 'inline'/);
   assert.match(streamController, /canonicalDownloadName/);
   assert.match(streamController, /storedExtension \|\| originalExtension \|\| '\.audio'/);
   assert.match(downloadController, /canonicalDownloadName/);
