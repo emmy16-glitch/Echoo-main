@@ -536,3 +536,13 @@ test('public Creator view actions use the Windows default browser instead of chi
   assert.doesNotMatch(stationsSource, /window\.open\(/);
   assert.doesNotMatch(analyticsSource, /window\.open\(/);
 });
+
+
+test('desktop anti-slop layer removes glass, shimmer gradients, floating cards, and error shaking', () => {
+  const desktopRuntimeCss = fs.readFileSync(path.resolve(desktopRoot, '..', 'frontend', 'src', 'styles', 'echoo-desktop-runtime.css'), 'utf8');
+  assert.match(desktopRuntimeCss, /Desktop anti-slop contract/);
+  assert.match(desktopRuntimeCss, /background-image:\s*none !important/);
+  assert.match(desktopRuntimeCss, /backdrop-filter:\s*none !important/);
+  assert.match(desktopRuntimeCss, /\.listener-v2-live-art:hover[\s\S]{0,120}transform:\s*none !important/);
+  assert.match(desktopRuntimeCss, /\.eb-shake[\s\S]{0,80}animation:\s*none !important/);
+});

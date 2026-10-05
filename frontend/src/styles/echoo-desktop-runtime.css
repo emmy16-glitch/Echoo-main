@@ -47,3 +47,34 @@ html.echoo-desktop-runtime body {
     scroll-behavior: auto !important;
   }
 }
+
+
+/* Desktop anti-slop contract.
+   Loading and modal states stay functional without glass, shimmer gradients,
+   floating-card motion, or exaggerated shadows. Web styling is untouched. */
+html.echoo-desktop-runtime .listener-v2-skeleton-grid > span,
+html.echoo-desktop-runtime .listener-v2-following-skeleton span {
+  background: #eef2f7 !important;
+  background-image: none !important;
+  animation: none !important;
+}
+
+html.echoo-desktop-runtime .listener-v2-full-player-backdrop,
+html.echoo-desktop-runtime .studio-modal-overlay {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html.echoo-desktop-runtime .listener-v2-full-player-sheet,
+html.echoo-desktop-runtime .studio-upload-modal {
+  box-shadow: 0 16px 42px rgba(1, 12, 29, .16) !important;
+}
+
+html.echoo-desktop-runtime .listener-v2-live-art:hover {
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+html.echoo-desktop-runtime .eb-shake {
+  animation: none !important;
+}
