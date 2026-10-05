@@ -3,7 +3,7 @@ import path from 'path';
 import { parseSingleByteRange } from './audioStreamController.js';
 
 const canonicalDownloadName = (audio) => {
-  const stored = path.basename(String(audio?.filename || audio?.fileKey || ''));
+  const stored = path.basename(String(audio?.filename || audio?.fileKey || audio?.cloudKey || ''));
   const storedExtension = path.extname(stored);
   const original = path.basename(String(audio?.originalName || 'Echoo recording'));
   const originalExtension = path.extname(original);
@@ -29,14 +29,6 @@ export async function downloadAuthorizedAudio(req, res, next) {
 
     const storedFilename = path.basename(String(audio.filename || audio.fileKey || ''));
     const downloadFilename = canonicalDownloadName(audio);
-    if (!storedFilename) {
-      return res.status(404).json({
-        error: {
-          code: 'AUDIO_FILE_MISSING',
-          message: 'The audio file is not available on this backend.',
-        },
-      });
-    }
 
     res.setHeader('Cache-Control', 'private, no-store, no-transform');
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -89,8 +81,10 @@ export async function downloadAuthorizedAudio(req, res, next) {
       } else {
         res.status(200);
       }
-      const contentLength = Number(object.ContentLength || 0);
-      if (contentLength >= 0) res.setHeader('Content-Length', String(contentLength));
+      const contentLength = Number(object.ContentLength);
+      if (Number.isFinite(contentLength) && contentLength >= 0) {
+        res.setHeader('Content-Length', String(contentLength));
+      }
 
       if (req.method === 'HEAD') {
         body.destroy?.();
@@ -107,15 +101,28 @@ export async function downloadAuthorizedAudio(req, res, next) {
         return undefined;
       }
 
-      if (typeof body.transformToByteArray === 'function') {
-        const bytes = await body.transformToByteArray();
-        return res.send(Buffer.from(bytes));
+      if (body?.[Symbol.asyncIterator]) {
+        for await (const chunk of body) {
+          if (!res.write(chunk)) {
+            await new Promise((resolve) => res.once('drain', resolve));
+          }
+        }
+        return res.end();
       }
 
       return res.status(503).json({
         error: {
           code: 'AUDIO_CLOUD_STREAM_UNAVAILABLE',
           message: 'The archived audio could not be streamed.',
+        },
+      });
+    }
+
+    if (!storedFilename) {
+      return res.status(404).json({
+        error: {
+          code: 'AUDIO_FILE_MISSING',
+          message: 'The audio file is not available on this backend.',
         },
       });
     }
