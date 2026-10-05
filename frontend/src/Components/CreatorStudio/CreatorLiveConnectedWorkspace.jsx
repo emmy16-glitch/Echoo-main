@@ -921,12 +921,14 @@ const CreatorLiveConnectedWorkspace = ({
     return () => stopCreatorSessionKeepAwake();
   }, [currentLiveBroadcast?.id]);
 
-  // Native tray integration (Echoo Desktop): report live-room state so the
-  // tray can offer Mute/Unmute + Leave actions, and honor commands sent back
-  // from the tray. Mirrors the listener-side wiring in ListenerRealLiveRoom.
+  // Native tray integration (Echoo Desktop): report creator broadcast state
+  // separately from listener playback. This keeps tray language truthful and
+  // ensures Quit/update behavior cannot treat a live broadcast as mere playback.
   useEffect(() => {
     setDesktopRoomState({
       active: Boolean(currentLiveBroadcast?.id),
+      mode: currentLiveBroadcast?.id ? 'creator' : 'idle',
+      title: currentLiveBroadcast?.title || title || selectedStation?.name || 'Creator Studio',
       muted: Boolean(mixerState?.master?.muted),
       canToggleMute: Boolean(currentLiveBroadcast?.id),
       keepAwake: Boolean(currentLiveBroadcast?.id),
@@ -935,12 +937,20 @@ const CreatorLiveConnectedWorkspace = ({
     return () => {
       setDesktopRoomState({
         active: false,
+        mode: 'idle',
+        title: '',
         muted: false,
         canToggleMute: false,
         keepAwake: false,
       });
     };
-  }, [currentLiveBroadcast?.id, mixerState?.master?.muted]);
+  }, [
+    currentLiveBroadcast?.id,
+    currentLiveBroadcast?.title,
+    mixerState?.master?.muted,
+    selectedStation?.name,
+    title,
+  ]);
 
   useEffect(
     () =>
@@ -948,7 +958,11 @@ const CreatorLiveConnectedWorkspace = ({
         if (command === 'toggle-mute' && currentLiveBroadcast?.id) {
           toggleMasterMute();
         }
-        if (command === 'leave-room' && currentLiveBroadcast?.id && !ending) {
+        if (
+          ['request-end-broadcast', 'leave-room'].includes(command) &&
+          currentLiveBroadcast?.id &&
+          !ending
+        ) {
           requestEndBroadcast();
         }
       }),

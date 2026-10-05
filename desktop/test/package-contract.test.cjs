@@ -14,6 +14,18 @@ const recordingBannerSource = fs.readFileSync(
   path.resolve(desktopRoot, '..', 'frontend', 'src', 'Components', 'RecordingSaveBanner.jsx'),
   'utf8'
 );
+const desktopBridgeSource = fs.readFileSync(
+  path.resolve(desktopRoot, '..', 'frontend', 'src', 'services', 'desktopBridge.js'),
+  'utf8'
+);
+const creatorWorkspaceSource = fs.readFileSync(
+  path.resolve(desktopRoot, '..', 'frontend', 'src', 'Components', 'CreatorStudio', 'CreatorLiveConnectedWorkspace.jsx'),
+  'utf8'
+);
+const listenerRoomSource = fs.readFileSync(
+  path.resolve(desktopRoot, '..', 'frontend', 'src', 'Components', 'ListenerLiveExperience', 'ListenerRealLiveRoom.jsx'),
+  'utf8'
+);
 const windowsWorkflow = fs.readFileSync(
   path.resolve(desktopRoot, '..', '.github', 'workflows', 'desktop-windows.yml'),
   'utf8'
@@ -108,4 +120,12 @@ test('creator and listener tray state stay distinct and updates never interrupt 
   assert.match(mainSource, /pendingUpdateReady/);
   assert.match(mainSource, /promptForDownloadedUpdate/);
   assert.match(mainSource, /End your broadcast before quitting/);
+});
+
+
+test('renderer reports creator and listener native session modes explicitly', () => {
+  assert.match(desktopBridgeSource, /mode: state\?\.mode === 'creator'/);
+  assert.match(creatorWorkspaceSource, /mode: currentLiveBroadcast\?\.id \? 'creator' : 'idle'/);
+  assert.match(creatorWorkspaceSource, /request-end-broadcast/);
+  assert.match(listenerRoomSource, /mode: active \? 'listener' : 'idle'/);
 });

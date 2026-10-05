@@ -13,6 +13,8 @@ export const setDesktopRoomState = (state) => {
   if (!isEchooDesktop()) return Promise.resolve(null);
   return desktop().setRoomState({
     active: Boolean(state?.active),
+    mode: state?.mode === 'creator' || state?.mode === 'listener' ? state.mode : 'idle',
+    title: String(state?.title || ''),
     muted: Boolean(state?.muted),
     canToggleMute: Boolean(state?.canToggleMute),
     keepAwake: Boolean(state?.keepAwake),

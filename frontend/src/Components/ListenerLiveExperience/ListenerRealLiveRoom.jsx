@@ -244,14 +244,24 @@ const ListenerRealLiveRoom = () => {
     const active = Boolean(isLive && joined);
     setDesktopRoomState({
       active,
+      mode: active ? 'listener' : 'idle',
+      title: active ? show?.title || 'Live on Echoo' : '',
       muted: Boolean(liveState?.isMuted),
       canToggleMute: typeof liveState?.onToggleMute === 'function',
+      keepAwake: false,
     });
 
     return () => {
-      setDesktopRoomState({ active: false, muted: false, canToggleMute: false });
+      setDesktopRoomState({
+        active: false,
+        mode: 'idle',
+        title: '',
+        muted: false,
+        canToggleMute: false,
+        keepAwake: false,
+      });
     };
-  }, [isLive, joined, liveState]);
+  }, [isLive, joined, liveState, show?.title]);
 
   useEffect(
     () =>
