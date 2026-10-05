@@ -99,3 +99,13 @@ test('legacy recording IPC is bounded and long recordings use chunk sessions', (
   assert.match(mainSource, /recording-save-abort/);
 });
 
+
+
+test('creator and listener tray state stay distinct and updates never interrupt active audio', () => {
+  assert.match(mainSource, /mode: 'idle'/);
+  assert.match(mainSource, /roomState\.mode === 'creator'/);
+  assert.match(mainSource, /request-end-broadcast/);
+  assert.match(mainSource, /pendingUpdateReady/);
+  assert.match(mainSource, /promptForDownloadedUpdate/);
+  assert.match(mainSource, /End your broadcast before quitting/);
+});

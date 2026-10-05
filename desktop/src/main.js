@@ -133,8 +133,18 @@ function openExternalUrl(url) {
 let mainWindow = null;
 let splashWindow = null;
 let tray = null;
-let roomState = { active: false, muted: false, canToggleMute: false, keepAwake: false };
+let roomState = {
+  active: false,
+  mode: 'idle',
+  title: '',
+  muted: false,
+  canToggleMute: false,
+  keepAwake: false,
+};
 let powerSaveBlockerId = null;
+let pendingUpdateReady = false;
+let updatePromptOpen = false;
+let creatorQuitWarningOpen = false;
 let isQuitting = false;
 let quitTimer = null;
 let trayHideNoticed = false;
@@ -485,9 +495,12 @@ function createWindow() {
       if (!trayHideNoticed) {
         trayHideNoticed = true;
         try {
+          const creatorActive = roomState.mode === 'creator';
           const notice = new Notification({
-            title: 'Echoo keeps playing',
-            body: 'The live room moved to the tray. Quit from the tray menu to stop playback.',
+            title: creatorActive ? 'Your broadcast stays live' : 'Echoo keeps playing',
+            body: creatorActive
+              ? 'Your broadcast is still live while Echoo is in the tray. Open Echoo to manage or end it safely.'
+              : 'Live audio is still playing while Echoo is in the tray. Open Echoo to return to the room.',
           });
           notice.on('click', () => showAndFocusWindow());
           notice.show();
@@ -910,27 +923,57 @@ function resolveTrayIcon() {
 }
 
 function buildTrayMenu() {
-  const items = [{ label: 'Show Echoo', click: () => showAndFocusWindow() }];
+  const items = [{ label: 'Open Echoo', click: () => showAndFocusWindow() }];
+
   if (roomState.active) {
     items.push({ type: 'separator' });
-    if (roomState.canToggleMute) {
+
+    if (roomState.mode === 'creator') {
       items.push({
-        label: roomState.muted ? 'Unmute room audio' : 'Mute room audio',
+        label: `LIVE · ${roomState.title || 'Creator Studio'}`,
+        enabled: false,
+      });
+      if (roomState.canToggleMute) {
+        items.push({
+          label: roomState.muted ? 'Unmute audience output' : 'Mute audience output',
+          click: () => {
+            showAndFocusWindow();
+            sendRoomCommand('toggle-mute');
+          },
+        });
+      }
+      items.push({
+        label: 'End broadcast…',
         click: () => {
           showAndFocusWindow();
-          sendRoomCommand('toggle-mute');
+          sendRoomCommand('request-end-broadcast');
+        },
+      });
+    } else {
+      items.push({
+        label: `Listening · ${roomState.title || 'Live on Echoo'}`,
+        enabled: false,
+      });
+      if (roomState.canToggleMute) {
+        items.push({
+          label: roomState.muted ? 'Unmute live audio' : 'Mute live audio',
+          click: () => {
+            showAndFocusWindow();
+            sendRoomCommand('toggle-mute');
+          },
+        });
+      }
+      items.push({
+        label: 'Leave live room',
+        click: () => {
+          showAndFocusWindow();
+          sendRoomCommand('leave-room');
         },
       });
     }
-    items.push({
-      label: 'Leave live room',
-      click: () => {
-        showAndFocusWindow();
-        sendRoomCommand('leave-room');
-      },
-    });
   }
-  items.push({ type: 'separator' }, { label: 'Quit', click: () => app.quit() });
+
+  items.push({ type: 'separator' }, { label: 'Quit Echoo', click: () => app.quit() });
   return Menu.buildFromTemplate(items);
 }
 
@@ -1116,14 +1159,24 @@ function registerIpc() {
 
   ipcMain.handle('echoo:set-room-state', async (_event, state = {}) => {
     try {
+      const wasActive = roomState.active === true;
+      const requestedMode = String(state.mode || '').toLowerCase();
       roomState = {
         active: state.active === true,
+        mode: state.active === true && ['creator', 'listener'].includes(requestedMode)
+          ? requestedMode
+          : 'idle',
+        title: state.active === true ? String(state.title || '').trim().slice(0, 120) : '',
         muted: state.muted === true,
         canToggleMute: state.canToggleMute === true,
         keepAwake: state.keepAwake === true,
       };
       syncPowerSaveBlocker();
       refreshTrayMenu();
+
+      if (wasActive && !roomState.active && pendingUpdateReady) {
+        void promptForDownloadedUpdate();
+      }
       return { ...roomState };
     } catch (error) {
       log.warn('[echoo-desktop] set-room-state failed:', error.message);
@@ -1490,29 +1543,63 @@ function registerIpc() {
 // ---------------------------------------------------------------------------
 function isMissingReleaseError(error) {
   const message = String(error?.message || error || '');
-  return message.includes('404') || message.includes('latest-linux.yml') || message.includes('latest.yml');
+  return message.includes('404') || message.includes('latest.yml');
+}
+
+async function promptForDownloadedUpdate() {
+  if (!pendingUpdateReady || updatePromptOpen || roomState.active) return;
+
+  updatePromptOpen = true;
+  try {
+    const { response } = await dialog.showMessageBox(mainWindow || undefined, {
+      type: 'info',
+      buttons: ['Restart now', 'Later'],
+      defaultId: 0,
+      cancelId: 1,
+      title: 'Echoo update ready',
+      message: 'An Echoo update is ready to install.',
+      detail: 'Restart Echoo now, or continue working and install it later.',
+    });
+
+    if (response === 0) {
+      if (roomState.active) {
+        log.info('[echoo-desktop] update restart deferred because an audio session became active');
+        return;
+      }
+      pendingUpdateReady = false;
+      autoUpdater.quitAndInstall(false, true);
+    }
+  } catch (error) {
+    log.warn('[echoo-desktop] update prompt failed:', error.message);
+  } finally {
+    updatePromptOpen = false;
+  }
 }
 
 function checkForUpdates() {
   if (!app.isPackaged) return; // updater needs a packaged app with update metadata
   try {
     autoUpdater.autoDownload = true;
-    autoUpdater.on('update-downloaded', async () => {
-      log.info('[echoo-desktop] update downloaded — prompting for restart');
-      try {
-        const { response } = await dialog.showMessageBox(mainWindow || undefined, {
-          type: 'info',
-          buttons: ['Restart now', 'Later'],
-          defaultId: 0,
-          title: 'Echoo update ready',
-          message: 'An Echoo update has been downloaded. Restart now to install it?',
-        });
-        if (response === 0) {
-          autoUpdater.quitAndInstall(false, true);
+    autoUpdater.on('update-downloaded', () => {
+      pendingUpdateReady = true;
+      if (roomState.active) {
+        log.info('[echoo-desktop] update downloaded — deferring restart prompt until the active audio session ends');
+        try {
+          const notice = new Notification({
+            title: 'Echoo update ready',
+            body: roomState.mode === 'creator'
+              ? 'The update will wait until your live broadcast has ended.'
+              : 'The update will wait until you leave the live room.',
+            silent: true,
+          });
+          notice.on('click', () => showAndFocusWindow());
+          notice.show();
+        } catch {
+          // Update remains queued even when native notifications are unavailable.
         }
-      } catch (error) {
-        log.warn('[echoo-desktop] update prompt failed:', error.message);
+        return;
       }
+      void promptForDownloadedUpdate();
     });
     autoUpdater.on('error', (error) => {
       if (isMissingReleaseError(error)) {
@@ -1565,6 +1652,38 @@ function startApp() {
 // close sockets before the process exits (2s grace, then force).
 app.on('before-quit', (event) => {
   if (isQuitting || !mainWindow) return;
+
+  // Ending a creator broadcast is a product operation, not the same thing as
+  // closing a desktop process. Never let File > Quit, Alt+F4, or the tray
+  // silently bypass Echoo's End Broadcast + recording-finalization flow.
+  if (roomState.active && roomState.mode === 'creator') {
+    event.preventDefault();
+    showAndFocusWindow();
+
+    if (!creatorQuitWarningOpen) {
+      creatorQuitWarningOpen = true;
+      void dialog.showMessageBox(mainWindow, {
+        type: 'warning',
+        buttons: ['Open Creator Studio', 'Cancel'],
+        defaultId: 0,
+        cancelId: 1,
+        title: 'End your broadcast before quitting',
+        message: 'Echoo is still live.',
+        detail: 'End the broadcast from Creator Studio first so listeners disconnect cleanly and your recording can finish safely.',
+      }).then(({ response }) => {
+        if (response === 0) {
+          showAndFocusWindow();
+          sendRoomCommand('request-end-broadcast');
+        }
+      }).catch((error) => {
+        log.warn('[echoo-desktop] creator quit warning failed:', error.message);
+      }).finally(() => {
+        creatorQuitWarningOpen = false;
+      });
+    }
+    return;
+  }
+
   event.preventDefault();
   log.info('[echoo-desktop] quit requested — waiting for renderer cleanup');
   try {
@@ -1586,7 +1705,14 @@ app.on('will-quit', () => {
     clearTimeout(windowStateSaveTimer);
     windowStateSaveTimer = null;
   }
-  roomState = { active: false, muted: false, canToggleMute: false, keepAwake: false };
+  roomState = {
+    active: false,
+    mode: 'idle',
+    title: '',
+    muted: false,
+    canToggleMute: false,
+    keepAwake: false,
+  };
   syncPowerSaveBlocker();
 
   for (const [sessionId, session] of recordingSaveSessions) {
