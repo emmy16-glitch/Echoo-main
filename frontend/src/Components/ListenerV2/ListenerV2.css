@@ -1013,3 +1013,140 @@ html.listener-v2-full-player-open body { overflow:hidden; }
     display: none;
   }
 }
+
+
+/* Intuitive Listener live-card contract.
+ * A live broadcast is one readable object: artwork -> identity/state -> Listen. */
+.listener-v2-live-copy {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+.listener-v2-live-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #607087;
+  font-size: 12px;
+  font-weight: 650;
+}
+.listener-v2-live-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  color: var(--listener-v2-blue);
+  font-size: 12px;
+  font-weight: 760;
+  white-space: nowrap;
+}
+.listener-v2-live-badge {
+  white-space: nowrap;
+}
+
+@media (max-width: 767px) {
+  .listener-v2-live-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .listener-v2-live-card {
+    width: 100%;
+    min-height: 88px;
+    display: grid;
+    grid-template-columns: 68px minmax(0, 1fr);
+    align-items: center;
+    gap: 0;
+    padding: 10px;
+    border: 1px solid #e4eaf2;
+    border-radius: 13px;
+    background: #fff;
+    text-align: left;
+  }
+
+  .listener-v2-live-art {
+    width: 64px;
+    height: 64px;
+    max-width: none;
+    margin: 0;
+    padding: 2px;
+  }
+
+  .listener-v2-live-art > img {
+    border-width: 2px;
+  }
+
+  .listener-v2-live-badge {
+    top: -3px;
+    min-height: 18px;
+    padding: 0 6px;
+    border-radius: 6px;
+    font-size: 10px;
+    line-height: 18px;
+    letter-spacing: .025em;
+  }
+
+  .listener-v2-live-meta {
+    min-width: 0;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 0 2px 0 12px;
+    text-align: left;
+  }
+
+  .listener-v2-live-meta strong,
+  .listener-v2-live-meta span {
+    min-width: 0;
+  }
+
+  .listener-v2-live-meta strong {
+    font-size: 14px;
+    line-height: 1.25;
+  }
+
+  .listener-v2-live-copy > span {
+    color: var(--listener-v2-copy);
+    font-size: 12px;
+  }
+
+  .listener-v2-live-count {
+    margin-top: 1px;
+    font-size: 11px;
+  }
+
+  .listener-v2-live-cta {
+    flex: 0 0 auto;
+    min-height: 32px;
+    padding: 0 9px;
+    border-radius: 8px;
+    background: var(--listener-v2-blue-soft);
+  }
+
+  .listener-v2-discover-page .listener-v2-empty {
+    min-height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 0;
+    border-radius: 11px;
+    background: #f8faff;
+    text-align: left;
+  }
+
+  .listener-v2-discover-page .listener-v2-empty-icon {
+    width: 34px;
+    height: 34px;
+    flex: 0 0 34px;
+    font-size: 15px;
+  }
+
+  .listener-v2-discover-page .listener-v2-empty strong {
+    margin: 0;
+    font-size: 13px;
+  }
+}
