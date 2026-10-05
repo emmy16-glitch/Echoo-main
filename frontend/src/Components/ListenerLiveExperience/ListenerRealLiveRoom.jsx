@@ -163,6 +163,11 @@ const ListenerRealLiveRoom = () => {
   const roomLoadGenerationRef = useRef(0);
   const chatLoadGenerationRef = useRef(0);
   const [chatOpen, setChatOpen] = useState(false);
+  const chatOpenRef = useRef(false);
+
+  useEffect(() => {
+    chatOpenRef.current = chatOpen;
+  }, [chatOpen]);
 
   useEffect(() => {
     if (!chatOpen) return undefined;
@@ -355,7 +360,7 @@ const ListenerRealLiveRoom = () => {
         : await batch3Service.getBroadcast(broadcastId);
       if (generation !== roomLoadGenerationRef.current) return;
       if (!response?.data) {
-        throw new Error('This live show could not be found.');
+        throw new Error('This live broadcast could not be found.');
       }
       const next = normalizeBroadcast(response.data);
       setShow(next);
@@ -378,7 +383,7 @@ const ListenerRealLiveRoom = () => {
       if (!localStorage.getItem('accessToken') && !isGuest) {
         setLoadError('Sign in to watch this live broadcast.');
       } else {
-        setLoadError(error?.message || 'This live show is unavailable.');
+        setLoadError(error?.message || 'This live broadcast is unavailable.');
       }
     } finally {
       if (generation === roomLoadGenerationRef.current) setLoading(false);
@@ -412,6 +417,7 @@ const ListenerRealLiveRoom = () => {
 
       const poll = () => {
         void refreshPresence();
+        if (!isGuest && chatOpenRef.current) void loadChat({ silent: true });
         // Spread fallback HTTP traffic so a realtime outage does not make a
         // large audience hit the API on the same 15-second boundary.
         const delay = 25_000 + Math.round(Math.random() * 20_000);
@@ -497,10 +503,22 @@ const ListenerRealLiveRoom = () => {
           fallback();
         };
         const onConnect = () => {
-          setRealtimeState('connected');
-          if (fallbackTimer) window.clearTimeout(fallbackTimer);
-          fallbackTimer = null;
-          connectedSocket.emit('broadcast:join', { broadcastId: show.id });
+          // Socket transport reconnecting is not enough: the server-side
+          // broadcast room membership must also be restored before Echoo says
+          // realtime is healthy again.
+          connectedSocket.emit('broadcast:join', { broadcastId: show.id }, (response) => {
+            if (!active) return;
+            if (!response?.ok) {
+              setRealtimeState('fallback');
+              fallback();
+              return;
+            }
+            setRealtimeState('connected');
+            if (fallbackTimer) window.clearTimeout(fallbackTimer);
+            fallbackTimer = null;
+            if (!isGuest) void loadChat({ silent: true });
+            void refreshPresence();
+          });
         };
 
         connectedSocket.on('chat:message', onMessage);
@@ -989,7 +1007,7 @@ const ListenerRealLiveRoom = () => {
               Listening as a guest.{' '}
               <button
                 type="button"
-                className="listener-v2-room-back"
+                className="listener-v2-room-chat-signin"
                 onClick={() => navigate({ pathname: '/', search: '?mode=login' })}
               >
                 Sign in to chat and follow
