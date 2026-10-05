@@ -13,6 +13,7 @@ import Toast from '../UI/Toast';
 import onboardingService from '../../services/onboardingService';
 import batch2Service from '../../services/batch2Service';
 import { CHANNEL_CATEGORY_OPTIONS } from '../../services/channelCategories';
+import { assignAppRoute } from '../../services/appNavigation';
 
 const categories = CHANNEL_CATEGORY_OPTIONS;
 
@@ -136,7 +137,7 @@ export default function CreatorSetup({ onCreatorReady }) {
     // setup must make Listener the active experience as well as change the URL;
     // otherwise a refresh/default redirect would immediately reopen setup.
     localStorage.setItem('echooActiveExperience', 'listener');
-    window.location.assign('/listen');
+    assignAppRoute('/listen');
   };
 
   const handleArtwork = async (event) => {

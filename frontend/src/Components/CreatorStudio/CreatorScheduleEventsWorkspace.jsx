@@ -18,6 +18,7 @@ import {
 } from 'react-icons/fi';
 
 import batch2Service from '../../services/batch2Service';
+import { assignAppRoute } from '../../services/appNavigation';
 import { getPublicAppUrl, openPublicWebUrl } from '../../services/stationPublicUrl';
 import { useCreatorStudioState } from './CreatorStudioState';
 import './CreatorScheduleEventsWorkspace.css';
@@ -217,7 +218,7 @@ export default function CreatorScheduleEventsWorkspace({ onNavigate }) {
     setOpenMenu('');
     const recordingId = recordingIdFor(broadcast);
     if (recordingId) {
-      window.location.assign(`/creator-studio/recordings/${encodeURIComponent(recordingId)}`);
+      assignAppRoute(`/creator-studio/recordings/${encodeURIComponent(recordingId)}`);
       return;
     }
     onNavigate?.('Analytics');

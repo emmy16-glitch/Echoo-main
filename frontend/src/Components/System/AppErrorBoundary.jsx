@@ -1,5 +1,6 @@
 import React from "react";
 
+import { assignAppRoute } from "../../services/appNavigation";
 import "./AppErrorBoundary.css";
 
 class AppErrorBoundary extends React.Component {
@@ -48,9 +49,7 @@ class AppErrorBoundary extends React.Component {
 
   goHome =
     () => {
-      window.location.assign(
-        "/"
-      );
+      assignAppRoute("/");
     };
 
   render() {
