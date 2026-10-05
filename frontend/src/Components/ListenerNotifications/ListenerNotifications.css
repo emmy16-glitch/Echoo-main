@@ -51,16 +51,16 @@
 
 .ln-tab:hover {
   background: var(--echoo-blue-soft, #edf5ff);
-  color: var(--echoo-blue, #1769d3);
+  color: var(--echoo-blue, #245cff);
 }
 
 .ln-tab-active {
-  background: var(--echoo-blue, #1769d3);
+  background: var(--echoo-blue, #245cff);
   color: #ffffff;
 }
 
 .ln-tab-active:hover {
-  background: var(--echoo-blue-hover, #125fbe);
+  background: var(--echoo-blue-hover, var(--echoo-blue, #245cff));
   color: #ffffff;
 }
 
@@ -70,7 +70,7 @@
   font-family: inherit;
   font-size: 13px;
   font-weight: 600;
-  color: var(--echoo-blue, #1769d3);
+  color: var(--echoo-blue, #245cff);
   cursor: pointer;
   padding: 7px 12px;
   border-radius: 8px;
@@ -160,7 +160,7 @@
 }
 
 .ln-when {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--echoo-text-muted, #98a2b3);
   white-space: nowrap;
 }
@@ -176,11 +176,11 @@
   width: 8px;
   height: 8px;
   border-radius: 999px;
-  background: var(--echoo-blue, #1769d3);
+  background: var(--echoo-blue, #245cff);
 }
 
 .ln-read-icon {
-  font-size: 12px;
+  font-size: 13px;
   color: #16a34a;
   opacity: 0.8;
 }
@@ -230,7 +230,7 @@
   font-family: inherit;
   font-size: 13.5px;
   font-weight: 600;
-  color: var(--echoo-blue, #1769d3);
+  color: var(--echoo-blue, #245cff);
   cursor: pointer;
   padding: 8px 12px;
   border-radius: 8px;
