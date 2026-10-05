@@ -680,7 +680,10 @@ const CreatorLiveConnectedWorkspace = ({
     setDescription(selectedStation.description || '');
   }, [selectedStation, savedBroadcast?.id, currentLiveBroadcast?.id]);
 
-  const prepareImmediateBroadcast = async (snapshot = getEchooMixerState()) => {
+  const prepareImmediateBroadcast = async (
+    snapshot = getEchooMixerState(),
+    stationOverride = null
+  ) => {
     const audioSnapshot = buildAudioSnapshot(snapshot, realtimeQualityProfile);
 
     if (savedBroadcast?.id && savedBroadcast.status !== 'live') {
@@ -703,8 +706,8 @@ const CreatorLiveConnectedWorkspace = ({
       }
     }
 
-    const station = selectedStation || stations[0] || null;
-    if (!entityId(station)) throw new Error('Complete your Channel setup before going live.');
+    const station = stationOverride || selectedStation || stations[0] || null;
+    if (!entityId(station)) throw new Error('Echoo could not load your Channel yet. Retry Go Live in a moment.');
 
     const start = new Date(Date.now() + 10 * 60 * 1000);
     const end = new Date(start.getTime() + 4 * 60 * 60 * 1000);
@@ -731,10 +734,39 @@ const CreatorLiveConnectedWorkspace = ({
 
   const goLive = async () => {
     if (goingLive || currentLiveBroadcast?.id) return;
-    const station = selectedStation || stations[0] || null;
+    let station = selectedStation || stations[0] || null;
+
     if (!entityId(station)) {
-      setError('Complete your Channel setup before going live.');
-      return;
+      setGoingLive(true);
+      setError('');
+      setMessage('Syncing your Channel…');
+      try {
+        const response = await batch2Service.getMyStations({ timeoutMs: 10_000 });
+        const refreshedStations = Array.isArray(response?.data) ? response.data : [];
+        station = refreshedStations[0] || null;
+        if (station) {
+          setStations(refreshedStations);
+          setStationId(entityId(station));
+          setTitle((current) => current || station.name || '');
+          setDescription((current) => current || station.description || '');
+        }
+      } catch (stationError) {
+        setMessage('');
+        setError(
+          stationError?.code === 'REQUEST_TIMEOUT'
+            ? 'Echoo is still reconnecting to your Channel. Try Go Live again in a moment.'
+            : 'Echoo could not refresh your Channel yet. Try Go Live again in a moment.'
+        );
+        setGoingLive(false);
+        return;
+      }
+
+      if (!entityId(station)) {
+        setMessage('');
+        setError('Echoo could not load your Channel yet. Try Go Live again in a moment.');
+        setGoingLive(false);
+        return;
+      }
     }
 
     const liveMixerSnapshot = getEchooMixerState();
@@ -766,7 +798,7 @@ const CreatorLiveConnectedWorkspace = ({
       setMessage('Preparing your broadcast…');
       setMixerState(liveMixerSnapshot);
       const prepareStartedAt = performance.now();
-      broadcast = await prepareImmediateBroadcast(liveMixerSnapshot);
+      broadcast = await prepareImmediateBroadcast(liveMixerSnapshot, station);
       const preparedAt = performance.now();
       setSessionOperation((current) => current
         ? { ...current, stage: 'opening-room' }
