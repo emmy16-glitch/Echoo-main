@@ -66,7 +66,7 @@ const ListenerSavedMoments = () => {
           {moments.map((moment) => (
             <article key={moment.id}>
               <button type="button" className="lsm-cover" onClick={() => open(moment)} aria-label={`Open ${moment.title || 'saved moment'}`}>{moment.coverArt ? <img src={moment.coverArt} alt="" /> : <FiBookmark />}</button>
-              <div className="lsm-copy"><span>{moment.status === 'live' ? 'LIVE' : 'REPLAY'} · {moment.category}</span><h2>{moment.title}</h2><p>&ldquo;{moment.transcriptSnippet || 'Saved audio moment'}&rdquo;</p><small>{moment.creatorName} · {moment.stationName}</small></div>
+              <div className="lsm-copy"><span>{[moment.status === 'live' ? 'LIVE' : 'RECORDING', moment.category].filter(Boolean).join(' · ')}</span><h2>{moment.title}</h2><p>&ldquo;{moment.transcriptSnippet || 'Saved audio moment'}&rdquo;</p><small>{[moment.creatorName, moment.stationName].filter(Boolean).join(' · ') || 'Echoo'}</small></div>
               <time><FiClock /> {formatTime(moment.timestampMs)}</time>
               <button type="button" className="lsm-play" onClick={() => open(moment)} aria-label={`Play ${moment.title} from ${formatTime(moment.timestampMs)}`}><FiPlay /></button>
               <button type="button" className="lsm-remove" onClick={() => remove(moment)} disabled={workingId === moment.id} aria-label="Remove saved moment"><FiTrash2 /></button>
