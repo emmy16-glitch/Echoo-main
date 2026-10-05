@@ -71,7 +71,7 @@
 .lex-transcript-note { margin: 0; padding: var(--echoo-space-3) var(--echoo-space-4); border-top: 1px solid var(--echoo-ds-line); color: var(--echoo-ds-muted); font-size: 13px; }
 .lex-panel-empty { padding: var(--echoo-space-8); color: var(--echoo-ds-muted); font-size: var(--echoo-ds-small-size); text-align: center; }
 
-.lex-chat { min-width: 0; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; overflow: hidden; }
+.lex-chat { min-width: 0; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto auto; overflow: hidden; }
 .lex-chat__messages { min-width: 0; min-height: 0; max-height: 520px; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; padding: var(--echoo-space-2) var(--echoo-space-4); }
 .lex-chat-message { min-width: 0; display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: var(--echoo-space-2); padding: var(--echoo-space-3) 0; }
 .lex-chat-message > div { min-width: 0; }
@@ -84,7 +84,7 @@
 .lex-chat-reaction:disabled { opacity: .45; cursor: not-allowed; }
 .lex-chat-new-messages { justify-self: center; min-height: 34px; margin: 6px 12px; padding: 0 12px; border: 1px solid var(--echoo-ds-brand-border); border-radius: var(--echoo-ds-radius-pill); background: var(--echoo-ds-brand-soft); color: var(--echoo-ds-brand); font-size: 13px; font-weight: 700; cursor: pointer; }
 .lex-chat-composer { min-width: 0; display: flex; gap: var(--echoo-space-2); padding: var(--echoo-space-3); border-top: 1px solid var(--echoo-ds-line); }
-.lex-chat-error { margin: 0; padding: var(--echoo-space-2) var(--echoo-space-4); border-top: 1px solid var(--echoo-ds-line); color: var(--echoo-ds-live); font-size: var(--echoo-ds-caption-size); }
+.lex-chat-error { min-width: 0; margin: 0; overflow-wrap: anywhere; padding: var(--echoo-space-2) var(--echoo-space-4); border-top: 1px solid var(--echoo-ds-line); color: var(--echoo-ds-live); font-size: var(--echoo-ds-caption-size); }
 .lex-chat-composer input { min-width: 0; min-height: 40px; flex: 1; padding: 0 var(--echoo-space-3); border: 1px solid var(--echoo-ds-line); border-radius: var(--echoo-ds-radius-sm); color: var(--echoo-ds-ink); }
 .lex-chat-composer button { display: grid; place-items: center; width: 40px; height: 40px; border: 0; border-radius: var(--echoo-ds-radius-sm); background: var(--echoo-ds-brand); color: var(--echoo-color-white); cursor: pointer; }
 .lex-chat-composer button:disabled { opacity: .45; cursor: not-allowed; }
