@@ -892,3 +892,31 @@ html.listener-v2-full-player-open body { overflow:hidden; }
     width: 100%;
   }
 }
+
+
+/* Discover empty states should stay quiet when there is no content. */
+.listener-v2-discover-page .listener-v2-empty {
+  min-height: 88px;
+  gap: 6px;
+}
+.listener-v2-discover-page .listener-v2-empty p {
+  display: none;
+}
+.listener-v2-discover-page .listener-v2-panel > p {
+  margin: 0;
+  color: var(--listener-v2-copy);
+  font-size: 14px;
+  line-height: 1.45;
+}
+.listener-v2-discover-page .listener-v2-inline-action {
+  margin-top: 12px;
+}
+@media (max-width: 767px) {
+  .listener-v2-discover-page .listener-v2-page-title {
+    margin-bottom: 12px;
+  }
+  .listener-v2-discover-page .listener-v2-empty {
+    min-height: 76px;
+    padding: 12px;
+  }
+}
