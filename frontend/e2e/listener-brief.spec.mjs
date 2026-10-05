@@ -256,6 +256,17 @@ test('live room stays inside the viewport from 320px mobile through desktop', as
   test.skip(testInfo.project.name !== 'desktop-1440', 'Run the live-room width sweep once.');
   test.setTimeout(90_000);
   await authenticate(page);
+  await page.route('**/api/chat/broadcast/*/messages?*', route => route.fulfill({
+    json: {
+      data: [{
+        id: 'long-chat-message',
+        displayName: 'VeryLongListenerNameThatMustNeverPushTheChatOutsideTheViewport',
+        content: 'W'.repeat(280),
+        createdAt: new Date().toISOString(),
+        reactions: [],
+      }],
+    },
+  }));
 
   for (const width of [320, 360, 390, 414, 768, 1024, 1280, 1440]) {
     await page.setViewportSize({ width, height: 900 });
@@ -288,6 +299,10 @@ test('live room stays inside the viewport from 320px mobile through desktop', as
         await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
         `open chat overflows horizontally at ${width}`
       ).toBe(true);
+      await expect(page.locator('.lex-chat-message').first(), `long chat message visible at ${width}`).toBeVisible();
+      const messageBox = await page.locator('.lex-chat-message').first().boundingBox();
+      expect(messageBox.x, `chat message starts inside sheet at ${width}`).toBeGreaterThanOrEqual(sheetBox.x - 1);
+      expect(messageBox.x + messageBox.width, `chat message ends inside sheet at ${width}`).toBeLessThanOrEqual(sheetBox.x + sheetBox.width + 1);
       await expect(page.getByRole('textbox', { name: 'Message live chat' })).toBeInViewport();
       await page.locator('.listener-v2-room-chat-close').click();
       await expect(sheet).not.toHaveClass(/is-open/);
