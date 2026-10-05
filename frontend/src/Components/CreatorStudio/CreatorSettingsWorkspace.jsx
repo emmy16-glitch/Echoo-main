@@ -11,6 +11,7 @@ import {
   getDesktopAutoLaunch,
   getDesktopNotificationPreferences,
   isEchooDesktop,
+  openDesktopRecordingsFolder,
   setDesktopAutoLaunch,
   setDesktopNotificationPreferences,
 } from '../../services/desktopBridge';
@@ -213,6 +214,15 @@ const CreatorSettingsWorkspace = () => {
       setError(saveError?.message || 'Could not update the startup preference.');
     } finally {
       setAutoLaunchLoading(false);
+    }
+  };
+
+  const openRecordingFolder = async () => {
+    if (!isDesktop) return;
+    setError('');
+    const result = await openDesktopRecordingsFolder();
+    if (!result?.opened) {
+      setError(result?.error || 'Could not open Echoo Recordings.');
     }
   };
 
@@ -504,6 +514,11 @@ const CreatorSettingsWorkspace = () => {
                   ? 'Echoo Desktop files recordings into Desktop/Echoo Recordings/<year>/<month>.'
                   : 'Web/phone browsers keep the local master ready and require one Save tap after the broadcast. Echoo then uses the file picker/share sheet when available, with normal browser download fallback.'}
               </span>
+              {isDesktop && (
+                <button type="button" onClick={() => { void openRecordingFolder(); }}>
+                  Open Echoo Recordings
+                </button>
+              )}
             </div>
 
             <button type="button" onClick={saveRecordingPreference}>

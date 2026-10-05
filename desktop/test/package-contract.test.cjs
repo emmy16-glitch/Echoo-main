@@ -275,3 +275,13 @@ test('Go Live keeps one truthful control across idle, connecting and live states
   assert.match(mixerCss, /\.eam-approved-go-live\.is-pending/);
   assert.match(mixerCss, /prefers-reduced-motion:\s*reduce/);
 });
+
+
+test('Creator Recording settings expose the real Windows recordings folder without a fake file manager', () => {
+  const settingsSource = fs.readFileSync(
+    path.resolve(desktopRoot, '..', 'frontend', 'src', 'Components', 'CreatorStudio', 'CreatorSettingsWorkspace.jsx'),
+    'utf8'
+  );
+  assert.match(settingsSource, /openDesktopRecordingsFolder/);
+  assert.match(settingsSource, />\s*Open Echoo Recordings\s*</);
+});
