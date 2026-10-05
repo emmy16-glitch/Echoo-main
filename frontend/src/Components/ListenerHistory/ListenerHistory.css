@@ -8,20 +8,20 @@
   margin: 0;
   font-size: 26px;
   font-weight: 700;
-  color: var(--echoo-text-h, var(--echoo-text-h, #101828));
+  color: var(--echoo-text-h, #101828);
   line-height: 1.2;
 }
 
 .lh-subtitle {
   margin: 6px 0 0;
   font-size: 14px;
-  color: var(--echoo-text, var(--echoo-text, #5f6f85));
+  color: var(--echoo-text, #5f6f85);
 }
 
 .lh-tabs-row {
   margin-top: 20px;
   padding-bottom: 14px;
-  border-bottom: 1px solid var(--echoo-border, var(--echoo-border, #e3eaf2));
+  border-bottom: 1px solid var(--echoo-border, #e3eaf2);
   display: flex;
   align-items: center;
 }
@@ -38,7 +38,7 @@
   font-family: inherit;
   font-size: 13.5px;
   font-weight: 600;
-  color: var(--echoo-text, var(--echoo-text, #5f6f85));
+  color: var(--echoo-text, #5f6f85);
   padding: 7px 16px;
   border-radius: 999px;
   cursor: pointer;
@@ -48,12 +48,12 @@
 }
 
 .lh-tab:hover {
-  background: var(--echoo-blue-soft, var(--echoo-blue-soft, #edf5ff));
-  color: var(--echoo-blue, var(--echoo-blue, #245cff));
+  background: var(--echoo-blue-soft, #edf5ff);
+  color: var(--echoo-blue, #245cff);
 }
 
 .lh-tab-active {
-  background: var(--echoo-blue, var(--echoo-blue, #245cff));
+  background: var(--echoo-blue, #245cff);
   color: #ffffff;
 }
 
@@ -82,7 +82,7 @@
   margin: 0;
   font-size: 17px;
   font-weight: 700;
-  color: var(--echoo-text-h, var(--echoo-text-h, #101828));
+  color: var(--echoo-text-h, #101828);
 }
 
 .lh-clear-btn {
@@ -164,7 +164,7 @@
   gap: 14px;
   width: 100%;
   background: #ffffff;
-  border: 1px solid var(--echoo-border, var(--echoo-border, #e3eaf2));
+  border: 1px solid var(--echoo-border, #e3eaf2);
   border-radius: 12px;
   padding: 12px 14px;
   text-align: left;
@@ -175,12 +175,12 @@
 }
 
 .lh-row:hover {
-  border-color: var(--echoo-border-strong, var(--echoo-border-strong, #d3deea));
+  border-color: var(--echoo-border-strong, #d3deea);
   box-shadow: var(--echoo-shadow, 0 2px 8px rgba(16, 24, 40, 0.06));
 }
 
 .lh-row-current {
-  border-color: var(--echoo-blue, var(--echoo-blue, #245cff));
+  border-color: var(--echoo-blue, #245cff);
 }
 
 .lh-row-art {
@@ -227,7 +227,7 @@
 .lh-row-title {
   font-size: 14.5px;
   font-weight: 600;
-  color: var(--echoo-text-h, var(--echoo-text-h, #101828));
+  color: var(--echoo-text-h, #101828);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -235,7 +235,7 @@
 
 .lh-row-sub {
   font-size: 13px;
-  color: var(--echoo-text, var(--echoo-text, #5f6f85));
+  color: var(--echoo-text, #5f6f85);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -258,7 +258,7 @@
   height: 5px;
   overflow: hidden;
   border-radius: 999px;
-  background: var(--echoo-border, var(--echoo-border, #e3eaf2));
+  background: var(--echoo-border, #e3eaf2);
 }
 
 .lh-row-progress > span {
@@ -266,12 +266,12 @@
   height: 100%;
   min-width: 2px;
   border-radius: inherit;
-  background: var(--echoo-blue, var(--echoo-blue, #245cff));
+  background: var(--echoo-blue, #245cff);
 }
 
 .lh-row-progress-label {
   flex: 0 0 auto;
-  color: var(--echoo-text-muted, var(--echoo-text-muted, #98a2b3));
+  color: var(--echoo-text-muted, #98a2b3);
   font-size: 13px;
   font-weight: 650;
   white-space: nowrap;
@@ -321,15 +321,15 @@
   width: 30px;
   height: 30px;
   padding: 0;
-  border: 1px solid var(--echoo-border, var(--echoo-border, #e3eaf2));
+  border: 1px solid var(--echoo-border, #e3eaf2);
   border-radius: 50%;
-  color: var(--echoo-blue, var(--echoo-blue, #245cff));
+  color: var(--echoo-blue, #245cff);
   background: #ffffff;
   cursor: pointer;
 }
 
 .lh-row-position-toggle:focus-visible {
-  outline: 2px solid var(--echoo-blue, var(--echoo-blue, #245cff));
+  outline: 2px solid var(--echoo-blue, #245cff);
   outline-offset: 2px;
 }
 
@@ -349,13 +349,13 @@
 .lh-row-duration {
   font-size: 13px;
   font-weight: 700;
-  color: var(--echoo-text-h, var(--echoo-text-h, #101828));
+  color: var(--echoo-text-h, #101828);
   white-space: nowrap;
 }
 
 .lh-row-when {
   font-size: 13px;
-  color: var(--echoo-text, var(--echoo-text, #5f6f85));
+  color: var(--echoo-text, #5f6f85);
   white-space: nowrap;
 }
 
@@ -373,8 +373,8 @@
   width: 28px;
   height: 28px;
   border-radius: 8px;
-  background: var(--echoo-blue-soft, var(--echoo-blue-soft, #edf5ff));
-  color: var(--echoo-blue, var(--echoo-blue, #245cff));
+  background: var(--echoo-blue-soft, #edf5ff);
+  color: var(--echoo-blue, #245cff);
   font-size: 13px;
 }
 
@@ -385,9 +385,9 @@
   width: 30px;
   height: 30px;
   border-radius: 8px;
-  border: 1px solid var(--echoo-border, var(--echoo-border, #e3eaf2));
+  border: 1px solid var(--echoo-border, #e3eaf2);
   background: #ffffff;
-  color: var(--echoo-text, var(--echoo-text, #5f6f85));
+  color: var(--echoo-text, #5f6f85);
   cursor: pointer;
   font-size: 13px;
   transition:
@@ -396,8 +396,8 @@
 }
 
 .lh-row-more:hover:not(.lh-more-busy) {
-  border-color: var(--echoo-border-strong, var(--echoo-border-strong, #d3deea));
-  color: var(--echoo-text-h, var(--echoo-text-h, #101828));
+  border-color: var(--echoo-border-strong, #d3deea);
+  color: var(--echoo-text-h, #101828);
 }
 
 .lh-more-busy {
@@ -410,20 +410,20 @@
   align-items: center;
   gap: 8px;
   padding: 44px 20px;
-  border: 1px dashed var(--echoo-border-strong, var(--echoo-border-strong, #d3deea));
+  border: 1px dashed var(--echoo-border-strong, #d3deea);
   border-radius: 14px;
-  color: var(--echoo-text, var(--echoo-text, #5f6f85));
+  color: var(--echoo-text, #5f6f85);
   text-align: center;
   background: var(--echoo-bg-soft, #f8fbff);
 }
 
 .lh-empty svg {
   font-size: 22px;
-  color: var(--echoo-text-muted, var(--echoo-text-muted, #98a2b3));
+  color: var(--echoo-text-muted, #98a2b3);
 }
 
 .lh-empty strong {
-  color: var(--echoo-text-h, var(--echoo-text-h, #101828));
+  color: var(--echoo-text-h, #101828);
   font-size: 14.5px;
 }
 
@@ -446,7 +446,7 @@
 
 .lh-card {
   background: #ffffff;
-  border: 1px solid var(--echoo-border, var(--echoo-border, #e3eaf2));
+  border: 1px solid var(--echoo-border, #e3eaf2);
   border-radius: 14px;
   padding: 18px;
 }
@@ -462,11 +462,11 @@
   margin: 0;
   font-size: 15px;
   font-weight: 700;
-  color: var(--echoo-text-h, var(--echoo-text-h, #101828));
+  color: var(--echoo-text-h, #101828);
 }
 
 .lh-summary-icon {
-  color: var(--echoo-text-muted, var(--echoo-text-muted, #98a2b3));
+  color: var(--echoo-text-muted, #98a2b3);
   font-size: 15px;
 }
 
@@ -485,7 +485,7 @@
 .lh-summary-label {
   font-size: 13px;
   font-weight: 500;
-  color: var(--echoo-text, var(--echoo-text, #5f6f85));
+  color: var(--echoo-text, #5f6f85);
 }
 
 .lh-summary-value {
@@ -495,16 +495,16 @@
 }
 
 .lh-summary-blue {
-  color: var(--echoo-blue, var(--echoo-blue, #245cff));
+  color: var(--echoo-blue, #245cff);
 }
 
 .lh-summary-dark {
-  color: var(--echoo-text-h, var(--echoo-text-h, #101828));
+  color: var(--echoo-text-h, #101828);
 }
 
 .lh-summary-sub {
   font-size: 13px;
-  color: var(--echoo-text-muted, var(--echoo-text-muted, #98a2b3));
+  color: var(--echoo-text-muted, #98a2b3);
 }
 
 .lh-patterns-card .lh-pattern {
@@ -512,7 +512,7 @@
   flex-direction: column;
   gap: 2px;
   padding: 9px 0;
-  border-bottom: 1px solid var(--echoo-border, var(--echoo-border, #e3eaf2));
+  border-bottom: 1px solid var(--echoo-border, #e3eaf2);
 }
 
 .lh-patterns-card .lh-pattern:last-child {
@@ -527,18 +527,18 @@
 .lh-pattern-label {
   font-size: 13px;
   font-weight: 500;
-  color: var(--echoo-text, var(--echoo-text, #5f6f85));
+  color: var(--echoo-text, #5f6f85);
 }
 
 .lh-pattern-value {
   font-size: 14px;
   font-weight: 700;
-  color: var(--echoo-blue, var(--echoo-blue, #245cff));
+  color: var(--echoo-blue, #245cff);
 }
 
 .lh-pattern-sub {
   font-size: 13px;
-  color: var(--echoo-text-muted, var(--echoo-text-muted, #98a2b3));
+  color: var(--echoo-text-muted, #98a2b3);
 }
 
 @media (max-width: 960px) {
