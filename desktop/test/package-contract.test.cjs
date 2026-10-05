@@ -237,3 +237,13 @@ test('Creator audio recovery preserves default-device intent and safely falls ba
   assert.match(creatorMixerSource, /Monitoring output disconnected\. Echoo switched monitoring to the Windows system default\./);
   assert.match(creatorMixerSource, /setMonitorOutputDevice\('', 'System default'\)/);
 });
+
+
+test('renderer crashes offer recovery and never delete non-empty recording partials on exit', () => {
+  assert.match(mainSource, /render-process-gone/);
+  assert.match(mainSource, /Restart Echoo/);
+  assert.match(mainSource, /preserveInterruptedRecordingSessions\('renderer crash'\)/);
+  assert.match(mainSource, /session\.bytesWritten > 0/);
+  assert.match(mainSource, /preserved interrupted recording partial/);
+  assert.match(mainSource, /rendererCrashed \? 'renderer crash during quit' : 'application quit'/);
+});

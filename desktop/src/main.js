@@ -163,6 +163,8 @@ let powerSaveBlockerId = null;
 let pendingUpdateReady = false;
 let updatePromptOpen = false;
 let creatorQuitWarningOpen = false;
+let rendererRecoveryPromptOpen = false;
+let rendererCrashed = false;
 let isQuitting = false;
 let quitTimer = null;
 let trayHideNoticed = false;
@@ -272,6 +274,32 @@ async function writeRecordingAtomically(destination, buffer) {
     await handle?.close().catch(() => null);
     await fs.promises.rm(partialPath, { force: true }).catch(() => null);
     throw error;
+  }
+}
+
+async function preserveInterruptedRecordingSessions(reason = 'renderer unavailable') {
+  const sessions = [...recordingSaveSessions.entries()];
+  if (!sessions.length) return;
+
+  for (const [sessionId, session] of sessions) {
+    recordingSaveSessions.delete(sessionId);
+    try {
+      await session.writeChain.catch(() => null);
+      if (session.bytesWritten > 0) {
+        await session.handle.sync().catch(() => null);
+      }
+      await session.handle.close().catch(() => null);
+
+      if (session.bytesWritten > 0 && fs.existsSync(session.partialPath)) {
+        log.warn(
+          `[echoo-desktop] preserved interrupted recording partial (${reason}): ${session.partialPath}`
+        );
+      } else {
+        await fs.promises.rm(session.partialPath, { force: true }).catch(() => null);
+      }
+    } catch (error) {
+      log.warn('[echoo-desktop] could not preserve interrupted recording session:', error.message);
+    }
   }
 }
 
@@ -569,8 +597,49 @@ function createWindow() {
     });
   });
   mainWindow.webContents.on('did-finish-load', () => {
+    rendererCrashed = false;
     dispatchPendingDeepLink();
     void completePackagedSmokeTest();
+  });
+
+  mainWindow.webContents.on('render-process-gone', (_event, details = {}) => {
+    if (isQuitting || details.reason === 'clean-exit') return;
+
+    rendererCrashed = true;
+    log.error(
+      `[echoo-desktop] renderer process gone: ${details.reason || 'unknown'} ${details.exitCode ?? ''}`
+    );
+    void preserveInterruptedRecordingSessions('renderer crash');
+
+    if (rendererRecoveryPromptOpen || !mainWindow || mainWindow.isDestroyed()) return;
+    rendererRecoveryPromptOpen = true;
+    void dialog.showMessageBox(mainWindow, {
+      type: 'error',
+      buttons: ['Restart Echoo', 'Close'],
+      defaultId: 0,
+      cancelId: 1,
+      title: 'Echoo stopped unexpectedly',
+      message: 'Echoo needs to reopen its interface.',
+      detail: 'Any recording data already written to disk has been preserved. Restart Echoo to continue.',
+    }).then(async ({ response }) => {
+      if (response === 0 && mainWindow && !mainWindow.isDestroyed()) {
+        try {
+          if (DEV_URL_IS_EXPLICIT || !app.isPackaged) await loadDevUrl();
+          else await loadPackagedRenderer();
+        } catch (error) {
+          log.error('[echoo-desktop] renderer restart failed:', error.message);
+          await loadOfflinePage('Echoo could not restart its interface.', '').catch(() => null);
+        }
+        return;
+      }
+
+      isQuitting = true;
+      app.quit();
+    }).catch((error) => {
+      log.warn('[echoo-desktop] renderer recovery prompt failed:', error.message);
+    }).finally(() => {
+      rendererRecoveryPromptOpen = false;
+    });
   });
 
   if (!app.isPackaged) {
@@ -1884,13 +1953,12 @@ app.on('will-quit', () => {
   };
   syncPowerSaveBlocker();
 
-  for (const [sessionId, session] of recordingSaveSessions) {
-    recordingSaveSessions.delete(sessionId);
-    void Promise.resolve(session.writeChain)
-      .catch(() => null)
-      .then(() => session.handle.close().catch(() => null))
-      .then(() => fs.promises.rm(session.partialPath, { force: true }).catch(() => null));
-  }
+  // A forced process exit must never erase bytes already written by a recording
+  // save. Explicit user abort still removes its own partial file; quit/crash
+  // preserves non-empty partials so recovery remains possible.
+  void preserveInterruptedRecordingSessions(
+    rendererCrashed ? 'renderer crash during quit' : 'application quit'
+  );
   if (quitTimer) {
     clearTimeout(quitTimer);
     quitTimer = null;
