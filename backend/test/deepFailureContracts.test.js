@@ -216,6 +216,41 @@ test('completed broadcast upload recovery marks replay lifecycle ready', async (
   assert.match(controller, /replayStatus: 'ready'/);
 });
 
+test('creator recording downloads stream natively instead of buffering whole audio in page memory', async () => {
+  const studioService = await frontendSource('src/services/studioService.js');
+  const recordings = await frontendSource('src/Components/CreatorStudio/CreatorCollectionsWorkspace.jsx');
+  const detail = await frontendSource('src/Components/CreatorStudio/CreatorAudioDetailModal.jsx');
+  const trim = await frontendSource('src/Components/CreatorStudio/CreatorAudioTrimSection.jsx');
+  const streamController = await source('src/controllers/audioStreamController.js');
+  const archive = await source('src/services/audioArchiveService.js');
+
+  const downloadStart = studioService.indexOf('downloadAudio: async');
+  const uploadStart = studioService.indexOf('uploadAudio: async', downloadStart);
+  const downloadBlock = studioService.slice(downloadStart, uploadStart);
+
+  assert.match(downloadBlock, /getAudioStreamUrl\(audioId\)/);
+  assert.match(downloadBlock, /anchor\.href = downloadUrl/);
+  assert.match(downloadBlock, /mode:\s*"native-stream"/);
+  assert.doesNotMatch(downloadBlock, /response\.blob\(\)/);
+  assert.doesNotMatch(downloadBlock, /new Blob\(/);
+  assert.doesNotMatch(downloadBlock, /getReader\(\)/);
+  assert.doesNotMatch(downloadBlock, /const chunks = \[\]/);
+  assert.doesNotMatch(studioService, /getCompatibilityPlaybackUrl/);
+
+  assert.match(streamController, /downloadUrl:/);
+  assert.match(streamController, /downloadRequested/);
+  assert.match(streamController, /attachment; filename/);
+  assert.match(streamController, /getCloudObject\(audio\.cloudKey,\s*\{[\s\S]*range:/);
+  assert.match(archive, /Range:\s*cleanRange/);
+
+  assert.match(recordings, /Download started/);
+  assert.match(recordings, /Preparing download/);
+  assert.doesNotMatch(recordings, /onProgress:\s*\(\{ loaded, total \}\)/);
+  assert.match(detail, /Download started\. Check your browser downloads\./);
+  assert.match(trim, /Download started\. Check your browser downloads\./);
+});
+
+
 test('protected downloads use one canonical authorization boundary from local or cloud bytes', async () => {
   const routes = await source('src/routes/audioRoutes.js');
   const middleware = await source('src/middleware/audioDownloadAccess.js');
