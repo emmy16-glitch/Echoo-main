@@ -166,7 +166,7 @@ const ChatPanel = ({ initialMessages = [], messages: controlledMessages, onSend,
         {messages.map((message) => (
           <article className="lex-chat-message" key={message.id}>
             <span className="lex-avatar lex-avatar--sm">{String(message.name || 'E').charAt(0)}</span>
-            <div><span><strong>{message.name}</strong><time>{message.time}</time></span><p>{message.text}</p>{message.reaction && <button type="button" onClick={() => onReact?.(message, '❤️')} aria-label={`Like ${message.name}'s message`}><FiHeart aria-hidden="true" /> {message.reaction}</button>}</div>
+            <div><span><strong>{message.name}</strong><time>{message.time}</time></span><p>{message.text}</p>{onReact && <button type="button" className="lex-chat-reaction" disabled={disabled} onClick={() => onReact(message, '❤️')} aria-label={`Like ${message.name}'s message`}><FiHeart aria-hidden="true" />{message.reaction ? <span>{message.reaction}</span> : null}</button>}</div>
           </article>
         ))}
         {!loading && !messages.length && <div className="lex-panel-empty">Be the first to join the conversation.</div>}
