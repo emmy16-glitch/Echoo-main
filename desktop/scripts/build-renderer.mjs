@@ -58,7 +58,7 @@ if (!index.includes('name="echoo-app"')) {
   throw new Error('Desktop renderer is missing the Echoo identity marker.');
 }
 if (/\b(?:src|href)="\/assets\//.test(index)) {
-  throw new Error('Desktop renderer contains absolute asset paths and cannot boot over file://.');
+  throw new Error('Desktop renderer contains absolute asset paths and cannot boot from the packaged local app origin.');
 }
 
 for (const requiredAsset of ['assets/icon.png', 'assets/tray-icon.png']) {

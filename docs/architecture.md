@@ -4,9 +4,9 @@
 
 ```text
 ┌─────────────┐   ┌─────────────┐   ┌──────────────┐
-│ Web (Vite)  │   │  Desktop    │   │ Mobile (Expo)│  ◄── clients, subscribe-only for listeners
+│ Web (Vite)  │   │  Desktop    │   │ Mobile (Expo)│  ◄── clients
 │ React SPA   │   │ (Electron + │   │ iOS + Android│
-└──────┬──────┘   │  bundled API)│   └──────┬───────┘
+└──────┬──────┘   │ local React)│   └──────┬───────┘
        │          └──────┬───────┘          │
        └────────┬───────┴────────┬─────────┘
                 ▼                ▼
@@ -28,7 +28,7 @@ Realtime product events (chat, presence, status) travel over Socket.IO from the 
 
 ## Authority rules
 
-- **One shared backend per environment.** Every install in an environment talks to the same API + database; that is what makes a broadcast visible to everyone. (Desktop installers can bundle a local server for offline/single-machine use, but a shared world needs the hosted API — see `deployment.md`.)
+- **One shared backend per environment.** Web, Windows Desktop, and Mobile talk to the same API + database; that is what makes accounts, broadcasts, chat, recordings, and channels consistent across clients. Echoo Desktop does **not** bundle a private API, database, Render service, or server credentials.
 - **LiveKit is the live media authority.** Playback attaches only to the named `echoo-studio-mix` publication; listener tokens are hidden and subscribe-only, listeners explicitly subscribe only to the program track, and reconnects are jittered to avoid audience stampedes.
 - **Private media by default.** Recording files, covers, and replays resolve through signed, time-limited stream URLs. Cloud object URLs are never exposed in API output.
 - **Recording runtime is a backend capability.** Automatic replay MP3 and saved-recording trim require FFmpeg + FFprobe. Production readiness is exposed by `GET /api/health/recording`.
@@ -42,8 +42,8 @@ Realtime product events (chat, presence, status) travel over Socket.IO from the 
 
 ## Clients
 
-- **Web** (`frontend/`): React SPA, lazy-loaded listener/creator shells, Vite proxy to the API in dev, relative asset base so the same bundle also runs inside Electron's `file://`.
-- **Desktop** (`desktop/`): Electron shell — single instance, tray with room controls, native notifications, auto-launch, GitHub auto-updates, graceful LiveKit/socket shutdown. Default builds are hosted thin clients; bundling the API server + embedded-database fallback is an explicit opt-in. Details: `desktop/README.md`.
+- **Web** (`frontend/`): React SPA, lazy-loaded Listener/Creator shells, and Vite proxying in development.
+- **Windows Desktop** (`desktop/`): the canonical Electron client. Its React renderer is built locally into the installer and served from the private `echoo-app://app` origin. Native Windows capabilities include single-instance routing, `echoo://` deep links, tray/background lifecycle, notifications, filesystem recording saves, File Explorer actions, audio-device recovery, auto-launch, power management, taskbar progress, default-browser handoff, and GitHub auto-updates. It uses the same shared Echoo API + LiveKit platform as Web and contains no private backend/database or server secrets. Details: `desktop/README.md`.
 - **Mobile** (`mobile/`): Expo app, `expo-audio` playback with lock-screen controls, LiveKit listener rooms, Android media-playback foreground service for background live audio. Details: `mobile/README.md`, builds: `mobile/APK_BUILD.md`.
 - **Landing** (`echoo-landing/`): marketing and release site (separate concern).
 
