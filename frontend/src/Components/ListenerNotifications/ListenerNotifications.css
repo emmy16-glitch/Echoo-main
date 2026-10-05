@@ -8,14 +8,14 @@
   margin: 0;
   font-size: 26px;
   font-weight: 700;
-  color: var(--echoo-text-h, #101828);
+  color: var(--echoo-text-h, var(--echoo-text-h, #101828));
   line-height: 1.2;
 }
 
 .ln-subtitle {
   margin: 6px 0 0;
   font-size: 14px;
-  color: var(--echoo-text, #5f6f85);
+  color: var(--echoo-text, var(--echoo-text, #5f6f85));
 }
 
 .ln-tabs-row {
@@ -25,7 +25,7 @@
   gap: 12px;
   margin-top: 20px;
   padding-bottom: 14px;
-  border-bottom: 1px solid var(--echoo-border, #e3eaf2);
+  border-bottom: 1px solid var(--echoo-border, var(--echoo-border, #e3eaf2));
 }
 
 .ln-tabs {
@@ -40,7 +40,7 @@
   font-family: inherit;
   font-size: 13.5px;
   font-weight: 600;
-  color: var(--echoo-text, #5f6f85);
+  color: var(--echoo-text, var(--echoo-text, #5f6f85));
   padding: 7px 16px;
   border-radius: 999px;
   cursor: pointer;
@@ -50,17 +50,17 @@
 }
 
 .ln-tab:hover {
-  background: var(--echoo-blue-soft, #edf5ff);
-  color: var(--echoo-blue, #1769d3);
+  background: var(--echoo-blue-soft, var(--echoo-blue-soft, #edf5ff));
+  color: var(--echoo-blue, var(--echoo-blue, #245cff));
 }
 
 .ln-tab-active {
-  background: var(--echoo-blue, #1769d3);
+  background: var(--echoo-blue, var(--echoo-blue, #245cff));
   color: #ffffff;
 }
 
 .ln-tab-active:hover {
-  background: var(--echoo-blue-hover, #125fbe);
+  background: var(--echoo-blue-hover, var(--echoo-blue, #245cff));
   color: #ffffff;
 }
 
@@ -70,7 +70,7 @@
   font-family: inherit;
   font-size: 13px;
   font-weight: 600;
-  color: var(--echoo-blue, #1769d3);
+  color: var(--echoo-blue, var(--echoo-blue, #245cff));
   cursor: pointer;
   padding: 7px 12px;
   border-radius: 8px;
@@ -79,7 +79,7 @@
 }
 
 .ln-mark-all:hover:not(:disabled) {
-  background: var(--echoo-blue-soft, #edf5ff);
+  background: var(--echoo-blue-soft, var(--echoo-blue-soft, #edf5ff));
 }
 
 .ln-mark-all:disabled {
@@ -101,7 +101,7 @@
   width: 100%;
   text-align: left;
   background: #ffffff;
-  border: 1px solid var(--echoo-border, #e3eaf2);
+  border: 1px solid var(--echoo-border, var(--echoo-border, #e3eaf2));
   border-radius: 12px;
   padding: 14px 16px;
   cursor: pointer;
@@ -112,7 +112,7 @@
 }
 
 .ln-row:hover {
-  border-color: var(--echoo-border-strong, #d3deea);
+  border-color: var(--echoo-border-strong, var(--echoo-border-strong, #d3deea));
   box-shadow: var(--echoo-shadow, 0 2px 8px rgba(16, 24, 40, 0.06));
 }
 
@@ -144,7 +144,7 @@
 .ln-title {
   font-size: 14.5px;
   font-weight: 700;
-  color: var(--echoo-text-h, #101828);
+  color: var(--echoo-text-h, var(--echoo-text-h, #101828));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -152,7 +152,7 @@
 
 .ln-message {
   font-size: 13px;
-  color: var(--echoo-text, #5f6f85);
+  color: var(--echoo-text, var(--echoo-text, #5f6f85));
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -161,7 +161,7 @@
 
 .ln-when {
   font-size: 13px;
-  color: var(--echoo-text-muted, #98a2b3);
+  color: var(--echoo-text-muted, var(--echoo-text-muted, #98a2b3));
   white-space: nowrap;
 }
 
@@ -176,7 +176,7 @@
   width: 8px;
   height: 8px;
   border-radius: 999px;
-  background: var(--echoo-blue, #1769d3);
+  background: var(--echoo-blue, var(--echoo-blue, #245cff));
 }
 
 .ln-read-icon {
@@ -192,20 +192,20 @@
   gap: 8px;
   padding: 44px 20px;
   margin-top: 14px;
-  border: 1px dashed var(--echoo-border-strong, #d3deea);
+  border: 1px dashed var(--echoo-border-strong, var(--echoo-border-strong, #d3deea));
   border-radius: 14px;
-  color: var(--echoo-text, #5f6f85);
+  color: var(--echoo-text, var(--echoo-text, #5f6f85));
   text-align: center;
   background: var(--echoo-bg-soft, #f8fbff);
 }
 
 .ln-empty svg {
   font-size: 22px;
-  color: var(--echoo-text-muted, #98a2b3);
+  color: var(--echoo-text-muted, var(--echoo-text-muted, #98a2b3));
 }
 
 .ln-empty strong {
-  color: var(--echoo-text-h, #101828);
+  color: var(--echoo-text-h, var(--echoo-text-h, #101828));
   font-size: 14.5px;
 }
 
@@ -230,7 +230,7 @@
   font-family: inherit;
   font-size: 13.5px;
   font-weight: 600;
-  color: var(--echoo-blue, #1769d3);
+  color: var(--echoo-blue, var(--echoo-blue, #245cff));
   cursor: pointer;
   padding: 8px 12px;
   border-radius: 8px;
@@ -238,7 +238,7 @@
 }
 
 .ln-view-all:hover:not(:disabled) {
-  background: var(--echoo-blue-soft, #edf5ff);
+  background: var(--echoo-blue-soft, var(--echoo-blue-soft, #edf5ff));
 }
 
 .ln-view-all:disabled {
