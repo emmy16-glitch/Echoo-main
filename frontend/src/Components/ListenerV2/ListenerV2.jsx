@@ -1,4 +1,5 @@
 import { readListenerVolume, saveListenerVolume } from '../../services/listenerVolume';
+import { listenerLiveStatusLabel } from '../../services/listenerLiveStatusCopy';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Outlet, useLocation, useNavigate, useOutletContext } from 'react-router-dom';
 import {
@@ -111,29 +112,10 @@ const playbackErrorMessage = (error) => {
 };
 const liveMiniStatusLabel = (session, state) => {
   if (!session?.isLive) return 'Broadcast ended';
-  if (state?.needsAudioStart) return 'Tap Play to hear audio';
-  if (state?.isPlaying) return 'Audio live';
-
-  switch (state?.status) {
-    case 'holding':
-      return 'Weak connection — staying live';
-    case 'reconnecting':
-      return 'Reconnecting audio…';
-    case 'recovering_audio':
-      return 'Recovering audio…';
-    case 'waiting_for_program':
-    case 'connected':
-      return 'Waiting for creator';
-    case 'connecting':
-      return 'Creator connecting';
-    case 'disconnected':
-    case 'failed':
-      return 'Audio disconnected';
-    case 'idle':
-      return 'Broadcast ended';
-    default:
-      return 'Connecting…';
-  }
+  if (state?.needsAudioStart) return listenerLiveStatusLabel('autoplay_blocked');
+  if (state?.isPlaying) return listenerLiveStatusLabel('playing');
+  if (state?.status === 'idle') return 'Broadcast ended';
+  return listenerLiveStatusLabel(state?.status);
 };
 const titleOf = (item) => item?.title || item?.station?.name || item?.stationName || item?.name || 'Live on Echoo';
 const stationNameOf = (item) => item?.station?.name || item?.stationName || item?.creator?.displayName || item?.name || 'Echoo';
