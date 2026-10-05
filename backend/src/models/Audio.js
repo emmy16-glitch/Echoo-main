@@ -20,6 +20,24 @@ export const ECHOO_AUDIO_GENRES = [
   'Other',
 ];
 
+const audioWaveformSchema = new mongoose.Schema(
+  {
+    version: { type: Number, required: true },
+    duration: { type: Number, required: true },
+    fileSize: { type: Number, required: true },
+    points: {
+      type: [Number],
+      default: [],
+      validate: {
+        validator: (values) => Array.isArray(values) && values.length >= 64 && values.length <= 800,
+        message: 'Waveform must contain between 64 and 800 points',
+      },
+    },
+    generatedAt: { type: Date, default: Date.now },
+  },
+  { _id: false }
+);
+
 const audioSchema = new mongoose.Schema(
   {
     title: {
@@ -96,6 +114,11 @@ const audioSchema = new mongoose.Schema(
     duration: {
       type: Number,
       default: 0,
+    },
+    waveform: {
+      type: audioWaveformSchema,
+      default: null,
+      select: false,
     },
     lastTrim: {
       startSeconds: { type: Number, default: null },
