@@ -83,6 +83,7 @@ const PROD_ROOT = path.resolve(__dirname, '../frontend-dist');
 const PROD_INDEX = path.join(PROD_ROOT, 'index.html');
 const OFFLINE_PAGE = path.join(__dirname, '../offline.html');
 const SPLASH_PAGE = path.join(__dirname, '../splash.html');
+const WINDOWS_APP_ICON = path.join(__dirname, '../assets/icon.png');
 const PACKAGED_APP_SCHEME = 'echoo-app';
 const PACKAGED_APP_ORIGIN = `${PACKAGED_APP_SCHEME}://app`;
 const PACKAGED_RENDERER_URL = `${PACKAGED_APP_ORIGIN}/index.html`;
@@ -617,6 +618,7 @@ function createWindow() {
     resizable: true,
     show: !app.isPackaged,
     title: 'Echoo',
+    icon: WINDOWS_APP_ICON,
     backgroundColor: '#f7f9fc',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -1386,7 +1388,7 @@ function registerIpc() {
         appName: app.getName(),
         appVersion: app.getVersion(),
         platform: process.platform,
-        startUrl: app.isPackaged && !DEV_URL_IS_EXPLICIT ? 'local://echoo' : DEV_URL,
+        startUrl: app.isPackaged && !DEV_URL_IS_EXPLICIT ? PACKAGED_RENDERER_URL : DEV_URL,
         publicAppOrigin: PUBLIC_APP_ORIGIN,
       };
     } catch (error) {

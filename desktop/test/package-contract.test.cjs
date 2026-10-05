@@ -366,3 +366,11 @@ test('desktop uses native Windows context menus only for real text operations', 
   assert.match(mainSource, /role: 'copy'/);
   assert.match(mainSource, /role: 'paste'/);
 });
+
+
+test('main window uses the canonical Windows app icon and reports the real packaged origin', () => {
+  assert.match(mainSource, /const WINDOWS_APP_ICON = path\.join\(__dirname, '\.\.\/assets\/icon\.png'\)/);
+  assert.match(mainSource, /icon: WINDOWS_APP_ICON/);
+  assert.match(mainSource, /startUrl: app\.isPackaged && !DEV_URL_IS_EXPLICIT \? PACKAGED_RENDERER_URL : DEV_URL/);
+  assert.doesNotMatch(mainSource, /local:\/\/echoo/);
+});
