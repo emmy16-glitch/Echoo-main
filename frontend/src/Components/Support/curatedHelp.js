@@ -3,8 +3,8 @@ export const humanSupportEmailDraft = 'mailto:?subject=Echoo%20human%20support%2
 export const curatedHelpSuggestions = {
   listener: [
     'What’s live now?',
-    'Find technology Channels',
-    'Show Channels I follow',
+    'Find technology channels',
+    'Show channels I follow',
     'Help with playback',
   ],
   creator: [
@@ -19,7 +19,7 @@ const privacyBoundary =
   'This is curated product guidance, not a generative AI service. It does not access account, room, chat, or playback data, cannot inspect the room’s live connection state, and cannot see device permissions.';
 
 const listenerFallback =
-  'I can guide you around Echoo listener features, including live rooms, Channel discovery, playback controls, following, history, connection troubleshooting, and settings. I cannot inspect private account or playback state.';
+  'I can guide you around Echoo listener features, including live rooms, channel discovery, playback controls, following, history, connection troubleshooting, and settings. I cannot inspect private account or playback state.';
 const creatorFallback =
   'I can offer a curated broadcast checklist, station-copy templates, audio-readiness and permission tips, connection troubleshooting, and privacy-safe audience guidance. I cannot access your private room, chat, audience, or account data.';
 
@@ -43,22 +43,22 @@ const listenerHelp = (query) => {
 
   if (includesAny(query, ['follow', 'following'])) {
     return response(
-      'Following Channels',
-      'Use the Follow control on public Channel cards and Channel profiles. Your followed Channels are collected in Following so you can return to them quickly and see what they publish or broadcast next.'
+      'Following channels',
+      'Use the Follow control on public channel cards and channel profiles. Your followed channels are collected in Following so you can return to them quickly and see what they publish or broadcast next.'
     );
   }
 
   if (includesAny(query, ['history', 'recent', 'continue', 'resume', 'left off'])) {
     return response(
       'Listening history',
-      'Open History to return to recently played audio. When Echoo has saved progress for a replay, Continue listening can take you back to that item without treating an unrelated Channel as your current playback.'
+      'Open History to return to recently played audio. When Echoo has saved progress for a replay, Continue listening can take you back to that item without treating an unrelated channel as your current playback.'
     );
   }
 
   if (includesAny(query, ['live', 'room', 'station', 'find', 'discover', 'search', 'browse', 'technology', 'business', 'music', 'sports'])) {
     return response(
       'Finding audio',
-      'Use Live now to browse current broadcasts, Channels to explore public creator pages, and Search when you already know a topic, Channel, or creator you want to find.'
+      'Use Live now to browse current broadcasts, Channels to explore public creator pages, and Search when you already know a topic, channel, or creator you want to find.'
     );
   }
 
@@ -137,5 +137,5 @@ export const getCuratedHelpWelcome = (mode) => response(
   'Echoo Copilot',
   mode === 'creator'
     ? 'Ask for a broadcast checklist, station-copy template, microphone-permission, connection, or audio-readiness reminder.'
-    : 'Ask how to find live audio, discover Channels, use playback controls, follow creators, return to listening history, troubleshoot a connection, or reach settings.'
+    : 'Ask how to find live audio, discover channels, use playback controls, follow creators, return to listening history, troubleshoot a connection, or reach settings.'
 );
