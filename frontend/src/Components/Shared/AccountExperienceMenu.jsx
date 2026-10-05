@@ -69,7 +69,7 @@ export default function AccountExperienceMenu({
   const image = profileImage || imageOf(user);
   const roleLabel = currentExperience === 'creator' ? 'Creator' : 'Listener';
   const creatorEnabled = hasCreatorCapability(user);
-  const creatorReady = hasCompletedCreatorProfile(user);
+  const creatorReady = currentExperience === 'creator' || hasCompletedCreatorProfile(user);
 
   useEffect(() => {
     const closeOutside = (event) => {

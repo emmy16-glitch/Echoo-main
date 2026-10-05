@@ -473,3 +473,17 @@ test('Broadcast workspace owns passive recording progress without duplicate glob
     /\['finalizing', 'uploading', 'device-saving', 'done', 'device-choice'\]/
   );
 });
+
+
+test('Go Live refreshes Channel identity before treating setup as missing', async () => {
+  const workspace = await read('./CreatorLiveConnectedWorkspace.jsx');
+
+  assert.match(workspace, /Promise\.allSettled\(\[/);
+  assert.match(workspace, /stationResult\.status !== 'fulfilled'/);
+  assert.match(workspace, /broadcastResult\.status === 'rejected'/);
+  assert.match(workspace, /const refreshCanonicalStation = useCallback/);
+  assert.match(workspace, /setMessage\('Refreshing your Channel…'\)/);
+  assert.match(workspace, /station = await refreshCanonicalStation\(\)/);
+  assert.match(workspace, /prepareImmediateBroadcast\(liveMixerSnapshot, station\)/);
+  assert.doesNotMatch(workspace, /Complete your Channel setup before going live\./);
+});

@@ -716,7 +716,7 @@ html.listener-v2-full-player-open body { overflow:hidden; }
 .listener-v2-root :focus-visible { outline: 2px solid var(--listener-v2-blue); outline-offset: 3px; }
 @media (max-width: 767px) {
   .listener-v2-header { position: relative; }
-  .listener-v2-header .account-experience-menu { position: static; display: flex; justify-content: center; min-height: 36px; }
+  .listener-v2-header .account-experience-menu { position: relative; display: flex; justify-content: center; min-height: 36px; }
 }
 @media (min-width: 768px) and (max-width: 1150px) {
   .listener-v2-header { height: auto; min-height: 124px; grid-template-columns: minmax(0,1fr) auto; gap: 16px; padding: 18px 28px; }

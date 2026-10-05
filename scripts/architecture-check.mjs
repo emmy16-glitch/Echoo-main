@@ -283,7 +283,7 @@ for (const requiredStudioFeature of [
   'batch3Service.startBroadcast',
   'batch3Service.confirmBroadcastLive',
   'batch3Service.endBroadcastRealtime',
-  'Complete your Channel setup before going live.',
+  'refreshCanonicalStation',
 ]) {
   if (!broadcastStudio.includes(requiredStudioFeature)) {
     failures.push(`Broadcast Studio is missing current live capability: ${requiredStudioFeature}`);
