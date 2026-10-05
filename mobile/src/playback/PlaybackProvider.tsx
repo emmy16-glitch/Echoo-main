@@ -297,8 +297,9 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     if (!active) return;
 
     if (active.kind === 'audio') {
+      const currentPlayer = playerRef.current;
       const stale =
-        !playerRef.current ||
+        !currentPlayer ||
         (
           audioStreamExpiresAtRef.current > 0 &&
           audioStreamExpiresAtRef.current <= Date.now() + (5 * 60 * 1000)
@@ -306,7 +307,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
       if (stale) {
         await playAudio(active);
       } else {
-        playerRef.current.play();
+        currentPlayer.play();
         setIsPlaying(true);
       }
       return;
