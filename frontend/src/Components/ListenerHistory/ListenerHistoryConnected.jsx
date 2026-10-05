@@ -18,7 +18,7 @@ import './ListenerHistoryInteractionFix.css';
 
 const TABS = [
   { id: 'all', label: 'All' },
-  { id: 'stations', label: 'Stations' },
+  { id: 'stations', label: 'Channels' },
   { id: 'shows', label: 'Shows' },
   { id: 'episodes', label: 'Episodes' },
   { id: 'clips', label: 'Clips' },
