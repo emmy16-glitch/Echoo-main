@@ -42,10 +42,25 @@
 @keyframes account-menu-in { from{opacity:0;transform:translateY(-5px)} to{opacity:1;transform:translateY(0)} }
 @media (prefers-reduced-motion:reduce) { .account-experience-dropdown{animation:none}.account-experience-chevron{transition:none} }
 @media (max-width:760px) {
-  .echoo-account-toolbar { display:grid; grid-template-columns:1fr auto auto; grid-template-areas:"switch switch switch" "bell profile profile"; justify-content:end; gap:10px 8px; width:100%; }
-  .echoo-mode-switcher { grid-area:switch; justify-self:center; width:180px; height:36px; }
-  .echoo-account-toolbar__notification { grid-area:bell; justify-self:end; width:34px; height:34px; font-size:16px; }
-  .account-experience-trigger { grid-area:profile; justify-self:end; }
+  .account-experience-menu { width:auto; flex:0 0 auto; }
+  .echoo-account-toolbar { display:flex; align-items:center; justify-content:flex-end; gap:6px; width:auto; }
+  .echoo-mode-switcher { width:146px; height:34px; box-shadow:none; }
+  .echoo-mode-switcher button { height:26px; padding:0 10px; line-height:26px; }
+  .echoo-create-channel {
+    min-height:34px;
+    padding:0 11px;
+    border-color:#cfe0ff;
+    background:#fff;
+    color:#0758f7;
+    box-shadow:none;
+    font-size:11.5px;
+  }
+  .echoo-create-channel:hover { background:#f3f7ff; }
+  .echoo-account-toolbar__notification { width:34px; height:34px; font-size:16px; }
+  .account-experience-trigger { min-width:34px; justify-content:center; }
+  .account-experience-trigger-copy,
+  .account-experience-chevron { display:none; }
   .account-experience-dropdown { width:min(232px,calc(100vw - 24px)); }
-  .account-experience-menu--creator .account-experience-dropdown,.account-experience-menu--listener .account-experience-dropdown { right:0; left:auto; }
+  .account-experience-menu--creator .account-experience-dropdown,
+  .account-experience-menu--listener .account-experience-dropdown { right:0; left:auto; }
 }
