@@ -227,6 +227,59 @@ const batch4Service = {
     };
   },
 
+  getPublicMessages: async (
+    broadcastId,
+    options = {}
+  ) => {
+    const params =
+      new URLSearchParams();
+
+    params.set(
+      "page",
+      String(
+        options.page ||
+        1
+      )
+    );
+
+    params.set(
+      "limit",
+      String(
+        options.limit ||
+        100
+      )
+    );
+
+    if (
+      options.before
+    ) {
+      params.set(
+        "before",
+        options.before
+      );
+    }
+
+    const response =
+      await apiRequest(
+        `/chat/broadcast/${encodeURIComponent(
+          broadcastId
+        )}/public/messages?${params.toString()}`,
+        {
+          skipAuth: true,
+          skipRefresh: true,
+        }
+      );
+
+    return {
+      ...response,
+
+      data:
+        normalizeList(
+          response
+        ),
+    };
+  },
+
   sendMessage: async (
     broadcastId,
     content

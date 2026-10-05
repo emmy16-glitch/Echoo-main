@@ -49,7 +49,9 @@ test('Socket.IO presence is coalesced and does not broadcast per-listener join/l
   assert.match(listenerRoom, /connectedSocket\.on\('presence:changed', onPresence\)/);
   assert.doesNotMatch(listenerRoom, /connectedSocket\.on\('presence:changed', refreshPresence\)/);
   assert.doesNotMatch(listenerRoom, /Promise\.all\(\[loadChat\(\), refreshPresence\(\)\]\)/);
-  assert.match(listenerRoom, /if \(!chatOpen \|\| previewMode \|\| isGuest\) return/);
+  assert.match(listenerRoom, /if \(!chatOpen \|\| previewMode\) return/);
+  assert.match(listenerRoom, /isGuest[\s\S]*batch4Service\.getPublicMessages/);
+  assert.doesNotMatch(listenerRoom, /Promise\.all\(\[loadChat\(\), refreshPresence\(\)\]\)/);
   assert.match(listenerRoom, /25_000 \+ Math\.round\(Math\.random\(\) \* 20_000\)/);
   assert.doesNotMatch(listenerRoom, /loadChat\(\{ silent: true \}\)/);
 });

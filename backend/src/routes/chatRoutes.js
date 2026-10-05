@@ -3,6 +3,7 @@ import { authenticate } from '../middleware/auth.js';
 import {
   sendMessage,
   getMessages,
+  getPublicMessages,
   deleteMessage,
   addReaction,
   pinMessage,
@@ -13,7 +14,11 @@ import {
 
 const router = express.Router();
 
-// All chat routes require authentication
+// Public shared-listen links may read sanitized chat history only. Posting,
+// reacting and moderation remain behind the authenticated routes below.
+router.get('/broadcast/:broadcastId/public/messages', getPublicMessages);
+
+// All mutating and account-scoped chat routes require authentication.
 router.use(authenticate);
 
 // Send message

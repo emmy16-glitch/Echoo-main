@@ -61,6 +61,26 @@ const loadMessageWithAccess = async (messageId, userId) => {
   return { message, ...access };
 };
 
+const publicChatMessageView = (message) => {
+  const value = typeof message?.toObject === 'function' ? message.toObject() : (message || {});
+  const populatedUser = value.userId && typeof value.userId === 'object' ? value.userId : null;
+  return {
+    id: String(value._id || value.id || ''),
+    _id: String(value._id || value.id || ''),
+    broadcastId: String(value.broadcastId || ''),
+    username: value.username || populatedUser?.username || 'listener',
+    displayName: value.displayName || populatedUser?.displayName || value.username || 'Echoo Listener',
+    avatar: value.avatar || populatedUser?.avatar || null,
+    content: String(value.content || ''),
+    type: value.type || 'message',
+    reactions: Array.isArray(value.reactions)
+      ? value.reactions.map((reaction) => ({ emoji: reaction?.emoji || '' })).filter((reaction) => reaction.emoji)
+      : [],
+    isPinned: Boolean(value.isPinned),
+    createdAt: value.createdAt || null,
+  };
+};
+
 // Send message
 export async function sendMessage(req, res, next) {
   try {
@@ -187,6 +207,67 @@ export async function getMessages(req, res, next) {
     next(error);
   }
 }
+
+
+export async function getPublicMessages(req, res, next) {
+  try {
+    const { broadcastId } = req.params;
+    requireValidId(broadcastId, 'broadcast');
+
+    const broadcast = await Broadcast.findOne({
+      _id: broadcastId,
+      isDeleted: false,
+      isPublic: true,
+    }).select('_id');
+
+    if (!broadcast) {
+      return res.status(404).json({
+        error: { code: 'NOT_FOUND', message: 'Broadcast not found' },
+      });
+    }
+
+    const page = Math.max(1, Number.parseInt(req.query.page || '1', 10) || 1);
+    const limit = Math.min(
+      MAX_CHAT_PAGE_SIZE,
+      Math.max(1, Number.parseInt(req.query.limit || '50', 10) || 50)
+    );
+    const skip = (page - 1) * limit;
+    const filter = { broadcastId, isDeleted: false };
+
+    if (req.query.before) {
+      const before = new Date(req.query.before);
+      if (Number.isNaN(before.getTime())) {
+        return res.status(400).json({
+          error: { code: 'INVALID_DATE', message: 'before must be a valid date' },
+        });
+      }
+      filter.createdAt = { $lt: before };
+    }
+
+    const [messages, total] = await Promise.all([
+      ChatMessage.find(filter)
+        .populate('userId', 'username displayName avatar')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      ChatMessage.countDocuments(filter),
+    ]);
+
+    return res.status(200).json({
+      data: messages.reverse().map(publicChatMessageView),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 
 // Live-chat deletion is moderation: only the broadcast owner can remove messages.
 export async function deleteMessage(req, res, next) {
