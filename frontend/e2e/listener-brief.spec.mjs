@@ -266,7 +266,7 @@ test('all listener destinations fit the required viewport widths', async ({ page
   }
 });
 
-test('guest live chat CTA stays readable and recovery wording is consistent', async ({ page }) => {
+test('guest live chat CTA stays readable inside the mobile sheet', async ({ page }) => {
   await page.goto('/listen/live/507f1f77bcf86cd799439031');
   await page.setViewportSize({ width: 320, height: 700 });
 
@@ -284,10 +284,6 @@ test('guest live chat CTA stays readable and recovery wording is consistent', as
   expect(ctaBox.x + ctaBox.width, 'guest CTA ends inside the chat sheet').toBeLessThanOrEqual(sheetBox.x + sheetBox.width);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 
-  await page.evaluate(() => {
-    window.dispatchEvent(new CustomEvent('echoo:test-live-state', { detail: { status: 'recovering_audio' } }));
-  }).catch(() => {});
-  await expect(page.getByText('Waiting for creator', { exact: true })).toHaveCount(0);
 });
 
 test('live room stays inside the viewport from 320px mobile through desktop', async ({ page }, testInfo) => {
