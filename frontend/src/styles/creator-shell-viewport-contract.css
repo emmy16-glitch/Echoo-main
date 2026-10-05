@@ -414,3 +414,173 @@
     display: none !important;
   }
 }
+
+
+/* Narrow/floating-window Creator contract.
+ * Android split/floating windows can expose a CSS viewport wider than the
+ * visible content area. Prefer the mobile Creator shell for touch surfaces
+ * until there is genuinely enough room for a sidebar. */
+@media (max-width: 900px), (pointer: coarse) and (max-width: 1180px) {
+  html body #root#root .studio-page.studio-final-shell.studio-v2-shell {
+    --studio-sidebar-width: 0px !important;
+    --creator-shell-sidebar-width: 0px !important;
+    display: block !important;
+    grid-template-columns: 1fr !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    padding: 0 !important;
+    overflow-x: clip !important;
+  }
+
+  html body #root#root .studio-page.studio-final-shell.studio-v2-shell > .studio-sidebar {
+    position: fixed !important;
+    inset: auto 0 0 0 !important;
+    z-index: 230 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    height: calc(72px + env(safe-area-inset-bottom, 0px)) !important;
+    min-height: 72px !important;
+    display: block !important;
+    padding: 5px 8px calc(5px + env(safe-area-inset-bottom, 0px)) !important;
+    overflow: hidden !important;
+    border: 0 !important;
+    border-top: 1px solid #dfe6f0 !important;
+    background: rgba(255,255,255,.985) !important;
+    box-shadow: 0 -8px 24px rgba(18,35,61,.07) !important;
+  }
+
+  html body #root#root .studio-page.studio-final-shell.studio-v2-shell .studio-sidebar-head,
+  html body #root#root .studio-page.studio-final-shell.studio-v2-shell .studio-sidebar-profile-wrap,
+  html body #root#root .studio-page.studio-final-shell.studio-v2-shell .studio-sidebar-watermark {
+    display: none !important;
+  }
+
+  html body #root#root .studio-page.studio-final-shell.studio-v2-shell .studio-navigation {
+    width: calc(100vw - 16px) !important;
+    max-width: calc(100vw - 16px) !important;
+    height: 62px !important;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: stretch !important;
+    gap: 3px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scrollbar-width: none !important;
+  }
+
+  html body #root#root .studio-page.studio-final-shell.studio-v2-shell .studio-navigation::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  html body #root#root .studio-page.studio-final-shell.studio-v2-shell .studio-navigation .studio-nav-item {
+    width: 80px !important;
+    min-width: 80px !important;
+    height: 60px !important;
+    min-height: 60px !important;
+    flex: 0 0 80px !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    gap: 4px !important;
+    padding: 5px 4px !important;
+    border-radius: 10px !important;
+    font-size: 10px !important;
+    text-align: center !important;
+  }
+
+  html body #root#root .studio-page.studio-final-shell.studio-v2-shell .studio-navigation .studio-nav-label,
+  html body #root#root .studio-page.studio-final-shell.studio-v2-shell .studio-navigation .studio-nav-item > span:last-child {
+    display: block !important;
+    width: 100% !important;
+    max-width: 76px !important;
+    overflow: hidden !important;
+    font-size: 10px !important;
+    line-height: 12px !important;
+    text-align: center !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  html body #root#root #echoo-main-content.studio-main {
+    grid-column: 1 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 0 0 calc(82px + env(safe-area-inset-bottom, 0px)) !important;
+    overflow-x: clip !important;
+  }
+
+  html body #root#root #echoo-main-content.studio-main > .studio-topbar-final {
+    width: 100% !important;
+    height: 68px !important;
+    min-height: 68px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
+    padding: 0 12px !important;
+  }
+
+  html body #root#root .studio-v2-shell .studio-command-search {
+    display: none !important;
+  }
+
+  html body #root#root .studio-v2-shell .studio-mobile-brand {
+    display: inline-flex !important;
+    min-width: 0 !important;
+    min-height: 32px !important;
+    flex: 0 1 auto !important;
+    align-items: center !important;
+    gap: 7px !important;
+    padding: 0 !important;
+  }
+
+  html body #root#root .studio-v2-shell .studio-mobile-brand img {
+    width: 29px !important;
+    height: 29px !important;
+    flex: 0 0 29px !important;
+  }
+
+  html body #root#root .studio-v2-shell .studio-mobile-brand span {
+    font-size: 21px !important;
+  }
+
+  html body #root#root .studio-v2-shell .studio-top-profile-wrap,
+  html body #root#root .studio-v2-shell .echoo-account-toolbar {
+    min-width: 0 !important;
+    width: auto !important;
+    display: flex !important;
+    flex: 0 0 auto !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 6px !important;
+    margin-left: auto !important;
+  }
+
+  html body #root#root .studio-v2-shell .echoo-mode-switcher {
+    width: 142px !important;
+    height: 36px !important;
+    flex: 0 0 142px !important;
+    grid-template-columns: repeat(2,minmax(0,1fr)) !important;
+    padding: 3px !important;
+  }
+
+  html body #root#root .studio-v2-shell .echoo-mode-switcher button {
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 28px !important;
+    min-height: 28px !important;
+    padding: 0 8px !important;
+    font-size: 12px !important;
+    line-height: 28px !important;
+  }
+
+  html body #root#root #echoo-main-content.studio-main > .studio-view {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    padding: 14px 12px calc(18px + env(safe-area-inset-bottom, 0px)) !important;
+    overflow-x: clip !important;
+  }
+}
