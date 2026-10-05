@@ -413,3 +413,19 @@ test('guest live chat uses one compact header and never exposes an unusable comp
   assert.match(roomCss, /\.listener-v2-room-chat-top/);
   assert.match(roomCss, /\.listener-v2-room-chat\.is-guest[\s\S]*height:\s*min\(54dvh, 460px\)/);
 });
+
+
+test('Creator shell responsive contract is component-owned and cropper CSS cannot mutate app chrome', async () => {
+  const [studio, main, crop] = await Promise.all([
+    source('../../frontend/src/Components/CreatorStudio/CreatorStudio.jsx'),
+    source('../../frontend/src/main.jsx'),
+    source('../../frontend/src/Components/Common/ImageCropProvider.css'),
+  ]);
+
+  const architectureImport = studio.indexOf("import './CreatorStudioShellArchitecture.css';");
+  const contractImport = studio.indexOf("import '../../styles/creator-shell-viewport-contract.css';");
+  assert.ok(architectureImport >= 0 && contractImport > architectureImport, 'Creator responsive contract must load after Creator shell layers');
+  assert.doesNotMatch(main, /creator-shell-viewport-contract\.css/);
+  assert.doesNotMatch(crop, /CreatorStudioViewportLock\.css/);
+  assert.doesNotMatch(crop, /\.studio-(?:page|sidebar|main|topbar)/);
+});
