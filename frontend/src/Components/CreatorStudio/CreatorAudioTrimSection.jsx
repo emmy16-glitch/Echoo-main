@@ -250,8 +250,8 @@ const CreatorAudioTrimSection = ({ track, onChanged, onNotice, onOpenTrimmed }) 
             <strong id={`creator-audio-trim-title-${trackId}`}><FaCut /> Trim recording</strong>
             <span>
               {sourceState === 'ready' && duration
-                ? 'Choose the part you want to keep. Echoo creates a trimmed copy without changing the original.'
-                : 'Create a separate trimmed copy. No large WAV upload is required.'}
+                ? 'Adjust the start and end points.'
+                : 'Keep only the part you need.'}
             </span>
           </div>
           {sourceState === 'ready' && duration > 0 && (
@@ -393,33 +393,40 @@ const CreatorAudioTrimSection = ({ track, onChanged, onNotice, onOpenTrimmed }) 
 
       <section className="creator-audio-device" aria-labelledby={`creator-audio-export-title-${trackId}`}>
         <div className="creator-audio-device-copy">
-          <strong id={`creator-audio-export-title-${trackId}`}>Export to this device</strong>
-          <span>Create a separate file for sharing or editing. Your Echoo recording stays unchanged.</span>
+          <strong id={`creator-audio-export-title-${trackId}`}>Export</strong>
+          <span>Save a copy on this device.</span>
         </div>
 
-        <div className="creator-audio-device-formats" role="radiogroup" aria-label="Export format">
-          {availableFormats.map((option) => {
-            const displayLabel = option.id === 'opus' && localMasterMime.includes('webm')
-              ? 'WebM / Opus'
-              : option.label;
-            return (
-              <label key={option.id} className={pcFormat === option.id ? 'is-selected' : ''}>
-                <input
-                  type="radio"
-                  name={`echoo-device-format-${trackId}`}
-                  value={option.id}
-                  checked={selectedFormat?.id === option.id}
-                  onChange={() => {
-                    setPcFormat(option.id);
-                    setPcMessage('');
-                  }}
-                />
-                <span>{displayLabel}</span>
-                <small>{option.hint}</small>
-              </label>
-            );
-          })}
-        </div>
+        {availableFormats.length > 1 ? (
+          <div className="creator-audio-device-formats" role="radiogroup" aria-label="Export format">
+            {availableFormats.map((option) => {
+              const displayLabel = option.id === 'opus' && localMasterMime.includes('webm')
+                ? 'WebM / Opus'
+                : option.label;
+              return (
+                <label key={option.id} className={pcFormat === option.id ? 'is-selected' : ''}>
+                  <input
+                    type="radio"
+                    name={`echoo-device-format-${trackId}`}
+                    value={option.id}
+                    checked={selectedFormat?.id === option.id}
+                    onChange={() => {
+                      setPcFormat(option.id);
+                      setPcMessage('');
+                    }}
+                  />
+                  <span>{displayLabel}</span>
+                  <small>{option.hint}</small>
+                </label>
+              );
+            })}
+          </div>
+        ) : selectedFormat ? (
+          <div className="creator-audio-device-format-single" aria-label="Export format">
+            <span>{selectedFormat.id === 'opus' && localMasterMime.includes('webm') ? 'WebM / Opus' : selectedFormat.label}</span>
+            <small>{selectedFormat.hint}</small>
+          </div>
+        ) : null}
 
         {selectedFormat ? (
           <button type="button" className="creator-audio-device-save" onClick={saveToDevice} disabled={pcSaving}>
@@ -438,11 +445,6 @@ const CreatorAudioTrimSection = ({ track, onChanged, onNotice, onOpenTrimmed }) 
 
         {pcMessage && <span className="creator-audio-device-message" role="status">{pcMessage}</span>}
 
-        <small className="creator-audio-device-help">
-          {localMaster?.blob?.size
-            ? 'Lossless or compressed master formats are available only while this device still has the local master.'
-            : 'This device no longer has the local master, so Echoo can export the stored MP3 copy only.'}
-        </small>
       </section>
     </div>
   );
