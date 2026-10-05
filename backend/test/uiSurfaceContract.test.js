@@ -332,3 +332,28 @@ test('scheduled rooms describe a future start instead of an ended broadcast', as
   assert.match(room, /isScheduled \? ' is-scheduled' : ' is-ended'/);
   assert.match(css, /\.listener-v2-room-live-badge\.is-scheduled/);
 });
+
+test('Listener live room chat stays overflow-safe and human-readable', async () => {
+  const [room, roomCss, chat, chatCss, player, listener, volume] = await Promise.all([
+    source('../../frontend/src/Components/ListenerLiveExperience/ListenerRealLiveRoom.jsx'),
+    source('../../frontend/src/Components/ListenerLiveExperience/ListenerV2LiveRoom.css'),
+    source('../../frontend/src/Components/ListenerExperience/ListenerExperienceComponents.jsx'),
+    source('../../frontend/src/Components/ListenerExperience/ListenerExperienceComponents.css'),
+    source('../../frontend/src/Components/ListenerLiveExperience/LiveKitListenerPlayer.jsx'),
+    source('../../frontend/src/Components/ListenerV2/ListenerV2.jsx'),
+    source('../../frontend/src/services/listenerVolume.js'),
+  ]);
+
+  assert.doesNotMatch(room, /ListenerLiveRoom\.css/);
+  assert.match(room, /disabledMessage=\{isGuest \? 'Listening as a guest\. Sign in to join the live chat\.'/);
+  assert.match(chat, /role="log"/);
+  assert.match(chat, /disabledActionLabel/);
+  assert.match(chatCss, /\.lex-chat-message p[\s\S]*overflow-wrap:\s*anywhere/);
+  assert.match(chatCss, /\.lex-chat__messages[\s\S]*overflow-x:\s*hidden/);
+  assert.match(roomCss, /padding:\s*13px 60px 13px 18px !important/);
+  assert.doesNotMatch(player, /studio mix found|studio mix received|publish the studio mix/i);
+  assert.match(player, /Weak connection — staying live/);
+  assert.doesNotMatch(listener, /livePlayerState\?\.status \|\|/);
+  assert.match(volume, /if \(value === null\) return 1/);
+});
+
