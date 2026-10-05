@@ -360,3 +360,24 @@ test('scheduled rooms describe a future start instead of an ended broadcast', as
   assert.match(room, /isScheduled \? ' is-scheduled' : ' is-ended'/);
   assert.match(css, /\.listener-v2-room-live-badge\.is-scheduled/);
 });
+
+
+test('Listener user-facing copy avoids replay and transport jargon drift', async () => {
+  const [savedMoments, listenerV2, liveRoom, livePlayer, statusCopy] = await Promise.all([
+    source('../../frontend/src/Components/ListenerSavedMoments/ListenerSavedMoments.jsx'),
+    source('../../frontend/src/Components/ListenerV2/ListenerV2.jsx'),
+    source('../../frontend/src/Components/ListenerLiveExperience/ListenerRealLiveRoom.jsx'),
+    source('../../frontend/src/Components/ListenerLiveExperience/LiveKitListenerPlayer.jsx'),
+    source('../../frontend/src/services/listenerLiveStatusCopy.js'),
+  ]);
+
+  assert.doesNotMatch(savedMoments, /['"]REPLAY['"]/);
+  assert.match(savedMoments, /['"]RECORDING['"]/);
+  assert.match(listenerV2, /listenerLiveStatusLabel/);
+  assert.match(liveRoom, /listenerLiveStatusLabel/);
+  assert.match(livePlayer, /listenerLiveStatusLabel/);
+  assert.doesNotMatch(livePlayer, /Studio mix found|Echoo studio mix received|Waiting for the creator to publish the studio mix/);
+  assert.match(statusCopy, /Connecting audio…/);
+  assert.match(statusCopy, /Reconnecting audio…/);
+  assert.match(statusCopy, /Waiting for live audio/);
+});

@@ -23,25 +23,13 @@ import {
   transportSampleAdvanced,
 } from '../../services/liveRecoveryPolicy';
 import { resolveLiveKitUrl } from '../../services/livekitUrl';
+import { listenerLiveDetailCopy, listenerLiveStatusLabel } from '../../services/listenerLiveStatusCopy';
 import './LiveKitListenerPlayer.css';
 
 const createLiveKitReconnectPolicy = () =>
   new DefaultReconnectPolicy([...LIVEKIT_RECONNECT_DELAYS_MS]);
 
-const STATUS_COPY = {
-  idle: 'Live audio',
-  connecting: 'Creator connecting',
-  waiting_for_program: 'Waiting for creator',
-  playing: 'Audio live',
-  connected: 'Waiting for creator',
-  listening: 'Audio live',
-  reconnecting: 'Reconnecting audio…',
-  holding: 'Weak connection — staying live',
-  recovering_audio: 'Recovering audio…',
-  autoplay_blocked: 'Tap Play to hear audio',
-  disconnected: 'Audio disconnected',
-  failed: 'Audio disconnected',
-};
+
 
 const isEchooProgramPublication = (publication) => {
   const name = String(
@@ -1270,20 +1258,17 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
 
   if (!isLive) return null;
 
-  const detail = needsAudioStart
-    ? 'Audio received — tap to allow playback'
-    : trackCount > 0 && !isPlaying
-      ? status === 'recovering_audio'
-        ? 'Studio mix found — restoring playback'
-        : 'Paused on this device'
-      : trackCount > 0
-        ? 'Echoo studio mix received'
-        : 'Waiting for the creator to publish the studio mix';
+  const detail = listenerLiveDetailCopy({
+    needsAudioStart,
+    trackCount,
+    isPlaying,
+    status,
+  });
 
   const statusCopy =
     status === 'connected' && trackCount > 0 && !needsAudioStart
       ? 'Paused'
-      : STATUS_COPY[status] || 'Live audio';
+      : listenerLiveStatusLabel(status, 'Live audio');
 
   return (
     <section className={`echoo-livekit-listener ${status}`} aria-live="polite">

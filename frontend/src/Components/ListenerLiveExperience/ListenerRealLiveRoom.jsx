@@ -17,6 +17,7 @@ import followService from '../../services/followService';
 import realtimeService from '../../services/realtimeService';
 import { getGuestSession } from '../../services/guestSession';
 import { copyTextToClipboard } from '../../services/stationPublicUrl';
+import { listenerLiveStatusLabel } from '../../services/listenerLiveStatusCopy';
 import savedMomentService from '../../services/savedMomentService';
 import { apiRequest, buildMediaUrl } from '../../services/api';
 import { notifyDesktop, onDesktopRoomCommand, setDesktopRoomState } from '../../services/desktopBridge';
@@ -694,26 +695,20 @@ const ListenerRealLiveRoom = () => {
     : !isLive
       ? 'Broadcast ended'
       : show.mediaState === 'audio_paused'
-      ? 'Broadcast paused'
-      : connectionStatus === 'holding'
-        ? 'Weak connection — staying live'
-        : connectionStatus === 'reconnecting'
-        ? 'Reconnecting audio…'
+        ? 'Broadcast paused'
         : needsReconnect
-          ? 'Audio disconnected'
+          ? listenerLiveStatusLabel('disconnected')
           : liveState?.needsAudioStart || audioState === 'autoplay_blocked'
-            ? 'Tap Play to hear audio'
+            ? listenerLiveStatusLabel('autoplay_blocked')
             : liveState?.isPlaying || audioState === 'playing'
-              ? 'Audio live'
+              ? listenerLiveStatusLabel('playing')
               : hasProgramTrack
                 ? 'Paused'
-                : ['recovering_audio', 'waiting_for_program'].includes(audioState)
-                  ? 'Waiting for creator'
-                  : connectionStatus === 'connecting' || show.mediaState === 'creator_connecting'
-                    ? 'Creator connecting'
-                    : connectionStatus === 'connected' || show.mediaState === 'waiting_for_creator'
-                      ? 'Waiting for creator'
-                      : 'Audio disconnected';
+                : listenerLiveStatusLabel(
+                    connectionStatus === 'connected' && show.mediaState === 'creator_connecting'
+                      ? 'connecting'
+                      : connectionStatus || audioState
+                  );
 
   const primaryPlaybackDisabled =
     !isLive ||
