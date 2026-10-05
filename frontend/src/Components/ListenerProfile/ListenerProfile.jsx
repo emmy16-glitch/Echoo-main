@@ -20,7 +20,7 @@ export default function ListenerProfile() {
     finally { setPending(false); }
   };
   return <div className="listener-v2-page listener-profile-page">
-    <header className="listener-v2-page-title"><h1>Profile</h1><p>Your account and listening preferences.</p></header>
+    <header className="listener-v2-page-title"><h1>Profile</h1></header>
     <section className="listener-v2-panel listener-profile-card">
       <span className="listener-profile-avatar" aria-hidden="true"><FiUser /></span>
       <div className="listener-profile-copy">
