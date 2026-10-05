@@ -81,6 +81,10 @@ contextBridge.exposeInMainWorld('echooDesktop', {
     format: options?.format === 'wav' ? 'wav' : 'mp3',
     automatic: options?.automatic === true,
     startedAt: options?.startedAt || null,
+    totalBytes:
+      Number.isFinite(Number(options?.totalBytes)) && Number(options.totalBytes) > 0
+        ? Number(options.totalBytes)
+        : 0,
   }),
   appendRecordingChunk: (sessionId, data) =>
     ipcRenderer.invoke('echoo:recording-save-chunk', {

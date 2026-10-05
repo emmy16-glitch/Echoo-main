@@ -329,6 +329,7 @@ const saveServerRecordingToDesktop = async ({
     mimeType: 'audio/mpeg',
     automatic,
     startedAt: startedAt || null,
+    totalBytes: prepared.contentLength || 0,
   });
   if (started?.cancelled) return { saved: false, cancelled: true, format: 'mp3' };
   if (!started?.started || !started?.sessionId) {
@@ -416,6 +417,7 @@ const saveDesktopBytes = async ({
       mimeType,
       automatic,
       startedAt: startedAt || null,
+      totalBytes: Number(bytes?.size) || 0,
     });
     if (started?.cancelled) return { saved: false, cancelled: true, format };
     if (!started?.started || !started?.sessionId) {

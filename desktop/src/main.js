@@ -191,6 +191,36 @@ let isQuitting = false;
 let quitTimer = null;
 let trayHideNoticed = false;
 const recordingSaveSessions = new Map();
+
+function refreshRecordingTaskbarProgress() {
+  if (process.platform !== 'win32' || !mainWindow || mainWindow.isDestroyed()) return;
+
+  const sessions = [...recordingSaveSessions.values()];
+  if (!sessions.length) {
+    mainWindow.setProgressBar(-1);
+    return;
+  }
+
+  const fullyMeasured = sessions.every(
+    (session) => Number.isFinite(session.totalBytes) && session.totalBytes > 0
+  );
+
+  if (!fullyMeasured) {
+    mainWindow.setProgressBar(2, { mode: 'indeterminate' });
+    return;
+  }
+
+  const totalBytes = sessions.reduce((sum, session) => sum + session.totalBytes, 0);
+  const writtenBytes = sessions.reduce(
+    (sum, session) => sum + Math.min(session.bytesWritten, session.totalBytes),
+    0
+  );
+  mainWindow.setProgressBar(
+    totalBytes > 0 ? Math.min(1, writtenBytes / totalBytes) : 0,
+    { mode: 'normal' }
+  );
+}
+
 // Paths chosen through Echoo's native Save dialog are trusted for this
 // process lifetime. This lets the post-save banner Open/Show/Rename/Trash an
 // explicit export outside the managed Echoo Recordings library without ever
@@ -301,7 +331,10 @@ async function writeRecordingAtomically(destination, buffer) {
 
 async function preserveInterruptedRecordingSessions(reason = 'renderer unavailable') {
   const sessions = [...recordingSaveSessions.entries()];
-  if (!sessions.length) return;
+  if (!sessions.length) {
+    refreshRecordingTaskbarProgress();
+    return;
+  }
 
   for (const [sessionId, session] of sessions) {
     recordingSaveSessions.delete(sessionId);
@@ -323,6 +356,7 @@ async function preserveInterruptedRecordingSessions(reason = 'renderer unavailab
       log.warn('[echoo-desktop] could not preserve interrupted recording session:', error.message);
     }
   }
+  refreshRecordingTaskbarProgress();
 }
 
 function syncPowerSaveBlocker() {
@@ -1564,6 +1598,7 @@ function registerIpc() {
       const sessionId = crypto.randomUUID();
       const partialPath = recordingPartialPath(destination, sessionId);
       const handle = await fs.promises.open(partialPath, 'wx');
+      const requestedTotalBytes = Number(options?.totalBytes);
       recordingSaveSessions.set(sessionId, {
         handle,
         destination,
@@ -1571,9 +1606,14 @@ function registerIpc() {
         folder: path.dirname(destination),
         automatic,
         format,
+        totalBytes:
+          Number.isFinite(requestedTotalBytes) && requestedTotalBytes > 0
+            ? Math.min(requestedTotalBytes, Number.MAX_SAFE_INTEGER)
+            : 0,
         bytesWritten: 0,
         writeChain: Promise.resolve(),
       });
+      refreshRecordingTaskbarProgress();
       return {
         started: true,
         sessionId,
@@ -1609,6 +1649,7 @@ function registerIpc() {
         session.bytesWritten += buffer.length;
       });
       await session.writeChain;
+      refreshRecordingTaskbarProgress();
       return { written: true, bytesWritten: session.bytesWritten };
     } catch (error) {
       log.warn('[echoo-desktop] recording-save-chunk failed:', error.message);
@@ -1622,6 +1663,7 @@ function registerIpc() {
     if (!session) return { saved: false, error: 'Recording save session is not active.' };
 
     recordingSaveSessions.delete(sessionId);
+    refreshRecordingTaskbarProgress();
     try {
       await session.writeChain;
       if (!session.bytesWritten) {
@@ -1658,6 +1700,7 @@ function registerIpc() {
     if (!session) return { aborted: true };
 
     recordingSaveSessions.delete(sessionId);
+    refreshRecordingTaskbarProgress();
     try { await session.writeChain; } catch { /* close what is durable */ }
     await session.handle.close().catch(() => null);
     await fs.promises.rm(session.partialPath, { force: true }).catch(() => null);

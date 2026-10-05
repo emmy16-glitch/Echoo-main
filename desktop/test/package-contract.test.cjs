@@ -302,3 +302,12 @@ test('Creator Studio accepts Windows Explorer audio drag and drop without a dupl
   assert.match(mixerServiceSource, /AUDIO_FILE_EXTENSION/);
   assert.doesNotMatch(creatorMixerSource, /Let's get your studio ready/i);
 });
+
+
+test('chunked recording saves expose native Windows taskbar progress without buffering whole files', () => {
+  assert.match(mainSource, /function refreshRecordingTaskbarProgress\(\)/);
+  assert.match(mainSource, /setProgressBar\(-1\)/);
+  assert.match(mainSource, /mode: 'indeterminate'/);
+  assert.match(mainSource, /mode: 'normal'/);
+  assert.match(mainSource, /requestedTotalBytes/);
+});
