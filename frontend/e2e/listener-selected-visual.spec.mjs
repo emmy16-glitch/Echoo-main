@@ -275,4 +275,18 @@ test('mobile live chat opens as a dismissible bottom sheet', async ({ page }) =>
   await close.click();
   await expect(sheet).not.toHaveClass(/is-open/);
   await expect(sheet).toBeHidden();
+
+  // Short landscape / keyboard-like viewports must keep the sheet fully inside
+  // the visible screen instead of letting the old 340px minimum overflow it.
+  await page.setViewportSize({ width: 568, height: 320 });
+  await toggle.click();
+  await expect(sheet).toBeVisible();
+  // Measure the settled sheet, not an intermediate slide-up animation frame.
+  await page.waitForTimeout(280);
+  const shortSheetBox = await sheet.boundingBox();
+  expect(shortSheetBox?.y || 0).toBeGreaterThanOrEqual(0);
+  expect((shortSheetBox?.y || 0) + (shortSheetBox?.height || 0)).toBeLessThanOrEqual(320);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await close.click();
+  await expect(sheet).toBeHidden();
 });

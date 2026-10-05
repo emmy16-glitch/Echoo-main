@@ -26,6 +26,20 @@ test('listener has five consistent destinations and honest compact discovery', a
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
+
+test('History has no disconnected legacy content-type filters', async ({ page }) => {
+  await authenticate(page);
+  await page.route('**/api/history?*', route => route.fulfill({ json: { success: true, data: { history: [] } } }));
+  await page.route('**/api/history/stats', route => route.fulfill({ json: { success: true, data: { totalPlays: 0, totalListeningTime: 0 } } }));
+  await page.goto('/listen/history');
+  await expect(page.getByRole('heading', { name: 'History', exact: true })).toBeVisible();
+  for (const label of ['Stations', 'Shows', 'Episodes', 'Clips']) {
+    await expect(page.getByRole('button', { name: label, exact: true })).toHaveCount(0);
+  }
+  await expect(page.getByText('No listening history yet.', { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
 test('live card does not invent listener counts', async ({ page }) => {
   await authenticate(page);
   await page.route('**/api/listener/dashboard', route => route.fulfill({ json: { success: true, data: { liveNow: [{ id: 'broadcast', title: 'Real broadcast', station: { name: 'Real creator' } }], upcoming: [] } } }));
