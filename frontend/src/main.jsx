@@ -60,7 +60,6 @@ import "./styles/playwright-run7-final-gate-fixes.css";
 import "./styles/echoo-artwork-fit.css";
 import "./Components/Register/auth-reference.css";
 import "./styles/modal-viewport-contract.css";
-import "./styles/creator-shell-viewport-contract.css";
 initializeEchooTheme();
 installDesktopLifecycle();
 
