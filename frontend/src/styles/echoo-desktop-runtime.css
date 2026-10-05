@@ -78,3 +78,48 @@ html.echoo-desktop-runtime .listener-v2-live-art:hover {
 html.echoo-desktop-runtime .eb-shake {
   animation: none !important;
 }
+
+
+/* Settings are a workstation surface, not a marketing dashboard. */
+html.echoo-desktop-runtime .set-header {
+  min-height: 112px;
+  padding: 22px 24px;
+  border-radius: 10px;
+  background: #fff !important;
+  box-shadow: none !important;
+}
+
+html.echoo-desktop-runtime .set-header::after {
+  display: none !important;
+}
+
+html.echoo-desktop-runtime .set-card,
+html.echoo-desktop-runtime .set-panel-coming,
+html.echoo-desktop-runtime .set-nav {
+  border-radius: 10px;
+  box-shadow: none !important;
+}
+
+html.echoo-desktop-runtime .set-avatar-row,
+html.echoo-desktop-runtime .set-toggle-row {
+  border-radius: 8px;
+  box-shadow: none !important;
+}
+
+html.echoo-desktop-runtime .set-desktop-settings-group {
+  margin-top: 20px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(22, 79, 157, .15);
+}
+
+html.echoo-desktop-runtime .set-desktop-settings-label {
+  margin: 12px 0 0;
+  color: rgba(22, 79, 157, .62);
+  font-size: .68rem;
+  font-weight: 700;
+  letter-spacing: .12em;
+}
+
+html.echoo-desktop-runtime .set-mobile-only-preference {
+  display: none !important;
+}

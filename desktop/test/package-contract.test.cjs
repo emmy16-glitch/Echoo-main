@@ -601,3 +601,14 @@ test('internal and public path helpers reject protocol-relative and traversal ro
   assert.match(publicUrlSource, /rawPath\.startsWith\('\/\/'\)/);
   assert.match(publicUrlSource, /target\.origin === origin/);
 });
+
+
+test('desktop settings remove marketing decoration and mobile-only haptics', () => {
+  const listenerSettingsSource = fs.readFileSync(path.resolve(desktopRoot, '..', 'frontend', 'src', 'Components', 'ListenerSettings', 'ListenerSettingsConnected.jsx'), 'utf8');
+  const desktopRuntimeCss = fs.readFileSync(path.resolve(desktopRoot, '..', 'frontend', 'src', 'styles', 'echoo-desktop-runtime.css'), 'utf8');
+  assert.doesNotMatch(listenerSettingsSource, /border-\[#164F9D\]|text-\[0\.68rem\]/);
+  assert.match(listenerSettingsSource, /set-mobile-only-preference/);
+  assert.match(desktopRuntimeCss, /Settings are a workstation surface/);
+  assert.match(desktopRuntimeCss, /\.set-header::after[\s\S]{0,80}display:\s*none !important/);
+  assert.match(desktopRuntimeCss, /\.set-mobile-only-preference[\s\S]{0,80}display:\s*none !important/);
+});

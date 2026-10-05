@@ -393,8 +393,8 @@ const ListenerSettingsConnected = () => {
                         <span className="set-toggle-thumb" />
                       </button>
                     </div>
-                    <div className="mt-5 border-t border-[#164F9D]/15 pt-2">
-                      <p className="mt-3 text-[0.68rem] font-bold tracking-[0.12em] text-[#164F9D]/60">STARTUP</p>
+                    <div className="set-desktop-settings-group">
+                      <p className="set-desktop-settings-label">STARTUP</p>
                       <div className="set-toggle-row">
                         <div className="set-toggle-info">
                           <strong className="set-toggle-title">Open Echoo at login</strong>
@@ -414,8 +414,8 @@ const ListenerSettingsConnected = () => {
                         </button>
                       </div>
                     </div>
-                    <div className="mt-5 border-t border-[#164F9D]/15 pt-2">
-                      <p className="mt-3 text-[0.68rem] font-bold tracking-[0.12em] text-[#164F9D]/60">CHOOSE ALERT TYPES</p>
+                    <div className="set-desktop-settings-group">
+                      <p className="set-desktop-settings-label">CHOOSE ALERT TYPES</p>
                       {[
                         ['message', 'Live-room messages', 'A neutral alert when a new message reaches an active room.'],
                         ['roomStarted', 'Room started', 'A neutral alert when your live room becomes active.'],
@@ -662,7 +662,7 @@ const ListenerSettingsConnected = () => {
                     </button>
                   </div>
 
-                  <div className="set-toggle-row">
+                  <div className="set-toggle-row set-mobile-only-preference">
                     <div className="set-toggle-info">
                       <strong className="set-toggle-title">Haptic feedback</strong>
                       <span className="set-toggle-desc">
