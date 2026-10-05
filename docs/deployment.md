@@ -331,19 +331,20 @@ not replace the Digi02 production acceptance flow. The current Render service is
 a frontend staging surface, so its successful build alone does not prove backend
 recording, FFmpeg/FFprobe, LiveKit Egress, or durable media storage are ready.
 
-## Desktop releases
+## Windows desktop releases
 
-Build from `desktop/`:
+Echoo Desktop 2.x is a Windows 10/11 x64 client. Build the verified NSIS
+installer from `desktop/`:
 
 ```bash
-npm run dist:linux
 npm run dist:win
-npm run dist:mac
 ```
 
-Default desktop builds are hosted thin clients. Their recording/server behavior
-therefore depends on the hosted backend being fully configured, including
-FFmpeg/FFprobe and durable recording storage.
+The installer contains the local Echoo renderer and native Windows shell. It
+connects to the same shared production API and LiveKit platform as Echoo Web;
+it does not contain a private backend, database, Render service, or server
+credentials. Server-side recording/finalization still depends on the production
+backend being healthy, including FFmpeg/FFprobe and durable recording storage.
 
 ## Operational rule for AI agents
 
