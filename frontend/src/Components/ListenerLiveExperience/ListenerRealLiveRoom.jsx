@@ -25,7 +25,6 @@ import { ChatPanel } from '../../design-system';
 import { referenceChat, referenceLiveShows } from '../ListenerExperience/listenerExperienceData';
 import BroadcastWaveform from '../CreatorStudio/BroadcastWaveform';
 import echooMark from '../Assets/echoo-logo-official.svg';
-import './ListenerLiveRoom.css';
 import './ListenerV2LiveRoom.css';
 
 const sameId = (first, second) => Boolean(first && second && String(first) === String(second));
@@ -355,7 +354,7 @@ const ListenerRealLiveRoom = () => {
         : await batch3Service.getBroadcast(broadcastId);
       if (generation !== roomLoadGenerationRef.current) return;
       if (!response?.data) {
-        throw new Error('This live show could not be found.');
+        throw new Error('This live broadcast could not be found.');
       }
       const next = normalizeBroadcast(response.data);
       setShow(next);
@@ -378,7 +377,7 @@ const ListenerRealLiveRoom = () => {
       if (!localStorage.getItem('accessToken') && !isGuest) {
         setLoadError('Sign in to watch this live broadcast.');
       } else {
-        setLoadError(error?.message || 'This live show is unavailable.');
+        setLoadError(error?.message || 'This live broadcast is unavailable.');
       }
     } finally {
       if (generation === roomLoadGenerationRef.current) setLoading(false);
@@ -766,7 +765,7 @@ const ListenerRealLiveRoom = () => {
         <button type="button" onClick={() => navigate('/listen/live')}>
           <FiArrowLeft /> Back to Live Now
         </button>
-        <div>{loadError || 'This live show is unavailable.'}</div>
+        <div>{loadError || 'This live broadcast is unavailable.'}</div>
       </main>
     );
   }
@@ -985,14 +984,13 @@ const ListenerRealLiveRoom = () => {
             <FiX />
           </button>
           {isGuest && (
-            <div className="listener-v2-room-notice" role="status">
-              Listening as a guest.{' '}
+            <div className="listener-v2-room-chat-guest" role="status">
+              <span>Listening as a guest</span>
               <button
                 type="button"
-                className="listener-v2-room-back"
                 onClick={() => navigate({ pathname: '/', search: '?mode=login' })}
               >
-                Sign in to chat and follow
+                Sign in to chat
               </button>
             </div>
           )}
@@ -1000,6 +998,7 @@ const ListenerRealLiveRoom = () => {
             messages={messages}
             loading={chatLoading}
             disabled={!isLive || isGuest}
+            disabledMessage={isGuest ? 'Sign in to join the live chat.' : 'Live chat is closed for this broadcast.'}
             error={chatError}
             onSend={sendMessage}
             onReact={react}
