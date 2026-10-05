@@ -1,436 +1,233 @@
-/* Channel Setup page: intro + form card. Shared primitives (shell, topbar,
- * card, fields, buttons, errors, identity selector) live in
- * ../Onboarding/onboarding-system.css — this file holds page layout only. */
-
+/* Create Channel: one focused form, shared Echoo onboarding primitives. */
 .channel-setup-page {
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
-
+.channel-setup-page .echoo-onboard-shell {
+  max-width: 760px;
+}
+.channel-setup-page .echoo-onboard-topbar {
+  margin-bottom: 22px;
+}
 .channel-setup-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 0.78fr) minmax(520px, 1.22fr);
-  gap: 44px;
-  align-items: start;
+  max-width: 720px;
+  margin: 0 auto;
 }
-
 .channel-setup-intro {
-  padding: 54px 20px 0 8px;
-}
-
-.channel-setup-eyebrow {
-  font-size: 12px;
-  letter-spacing: 0.12em;
-  font-weight: 800;
-  color: #61708c;
   margin: 0 0 16px;
+  padding: 0 2px;
 }
-
 .channel-setup-intro h1 {
-  font-size: 48px;
-  line-height: 1.03;
-  letter-spacing: -0.045em;
-  margin: 0 0 18px;
-  max-width: 520px;
+  margin: 0;
   color: #0f1b34;
+  font-size: 36px;
+  line-height: 1.08;
+  letter-spacing: -0.04em;
 }
-
-.channel-setup-intro > p {
-  font-size: 17px;
-  line-height: 1.6;
-  color: #66738d;
-  max-width: 430px;
-  margin: 0 0 28px;
-}
-
-.channel-setup-promise {
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
-  padding: 16px 0;
-  border-top: 1px solid #dde4f0;
-  max-width: 420px;
-}
-
-.channel-setup-promise-dot {
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  background: #eaf1ff;
-  display: grid;
-  place-items: center;
-  color: #2764eb;
-  font-weight: 900;
-  font-size: 14px;
-  flex: none;
-}
-
-.channel-setup-promise strong {
-  display: block;
-  font-size: 14px;
-  margin-bottom: 3px;
-  color: #0f1b34;
-}
-
-.channel-setup-promise span span {
-  display: block;
-  color: #66738d;
-  font-size: 13px;
-  line-height: 1.45;
-}
-
 .channel-setup-form {
-  padding: 28px 32px 30px;
+  padding: 24px;
 }
-
 .channel-setup-identity {
-  margin: 0 0 26px;
+  margin: 0 0 20px;
   padding: 0;
   border: 0;
 }
-
 .channel-setup-identity legend {
+  margin-bottom: 9px;
   padding: 0;
-  margin-bottom: 10px;
 }
-
+.channel-setup-page .echoo-onboard-identity {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.channel-setup-page .echoo-onboard-identity > button {
+  min-height: 62px;
+  gap: 10px;
+  padding: 11px 12px;
+  border-radius: 12px;
+}
+.channel-setup-page .echoo-onboard-identity > button.is-selected {
+  padding: 10px 11px;
+}
+.channel-setup-page .echoo-onboard-identity strong {
+  margin: 0;
+}
 .channel-setup-grid {
   display: grid;
-  grid-template-columns: 1.15fr 0.85fr;
-  gap: 18px 14px;
+  grid-template-columns: 1.1fr .9fr;
+  gap: 16px 12px;
 }
-
 .echoo-onboard-field-wide {
   grid-column: 1 / -1;
 }
-
-/* Organization type reveals without a large layout jump. */
 .channel-setup-org-reveal {
   animation: channel-setup-reveal 180ms ease-out;
 }
-
 @keyframes channel-setup-reveal {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
 }
-
 .channel-setup-textarea-wrap {
   position: relative;
 }
-
 .channel-setup-counter {
   position: absolute;
-  right: 13px;
-  bottom: 11px;
-  font-size: 11px;
+  right: 12px;
+  bottom: 10px;
   color: #8a95aa;
+  font-size: 11px;
   pointer-events: none;
 }
-
 .channel-setup-optional {
-  font-weight: 500;
   color: #8994aa;
+  font-weight: 500;
 }
-
 .channel-setup-upload {
-  border: 1px dashed #cfd8e8;
-  border-radius: 14px;
-  padding: 16px;
+  min-height: 70px;
   display: flex;
   align-items: center;
-  gap: 13px;
+  gap: 12px;
+  padding: 13px;
+  border: 1px dashed #cfd8e8;
+  border-radius: 12px;
   background: #f8faff;
   cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease;
+  transition: border-color .15s ease, background .15s ease;
 }
-
 .channel-setup-upload:hover {
   border-color: #8bb0ff;
   background: #f2f6ff;
 }
-
 .channel-setup-upload:focus-within {
   border-color: #8bb0ff;
-  box-shadow: 0 0 0 4px rgba(148, 182, 255, 0.35);
+  box-shadow: 0 0 0 4px rgba(148, 182, 255, .28);
 }
-
 .channel-setup-upload-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 10px;
-  background: #eef2f7;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
   display: grid;
   place-items: center;
-  font-size: 18px;
-  color: #65718a;
-  flex: none;
   overflow: hidden;
+  border-radius: 10px;
+  background: #eef2f7;
+  color: #65718a;
+  font-size: 16px;
 }
-
 .channel-setup-upload-icon img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
   display: block;
+  object-fit: cover;
 }
-
 .channel-setup-upload strong {
   display: block;
-  font-size: 13px;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
   color: #0f1b34;
+  font-size: 13px;
 }
-
 .channel-setup-upload small {
   display: block;
   color: #66738d;
-  font-size: 12px;
+  font-size: 11px;
 }
-
 .channel-setup-artwork-remove {
   align-self: flex-start;
-  margin-top: 8px;
-  padding: 8px 12px;
-  min-height: 36px;
+  min-height: 34px;
+  margin-top: 7px;
+  padding: 7px 10px;
   border: 1px solid #dde4f0;
-  border-radius: 10px;
+  border-radius: 9px;
   background: #fff;
   color: #334058;
+  cursor: pointer;
   font-size: 12px;
   font-weight: 700;
-  cursor: pointer;
 }
-
-.channel-setup-artwork-remove:hover {
-  border-color: #94b6ff;
-}
-
-.channel-setup-help {
-  margin: 12px 0 0;
-  color: #66738d;
-  font-size: 12px;
-  text-align: right;
-}
-
-/* Large desktop: intro left, form gets most of the width. */
-@media (max-width: 1100px) {
-  .channel-setup-layout {
-    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
-    gap: 32px;
-  }
-
-  .channel-setup-intro h1 {
-    font-size: 40px;
-  }
-}
-
-/* Tablet / smaller laptop: one column, intro above the form. */
-@media (max-width: 920px) {
-  .channel-setup-layout {
-    grid-template-columns: 1fr;
-    gap: 20px;
-    max-width: 680px;
-    margin: 0 auto;
-  }
-
-  .channel-setup-intro {
-    padding: 8px 2px 0;
-  }
-
-  .channel-setup-intro h1 {
-    font-size: 36px;
-    max-width: none;
-  }
-
-  .channel-setup-intro > p {
-    max-width: none;
-    margin-bottom: 14px;
-  }
-
-  .channel-setup-promise {
-    display: none;
-  }
-}
-
-@media (max-width: 620px) {
-  .channel-setup-intro {
-    padding-top: 0;
-  }
-
-  .channel-setup-intro h1 {
-    font-size: 31px;
-    margin-bottom: 10px;
-  }
-
-  .channel-setup-intro > p {
-    font-size: 15px;
-  }
-
-  .channel-setup-form {
-    padding: 22px 20px 24px;
-  }
-
-  .channel-setup-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .echoo-onboard-field-wide {
-    grid-column: auto;
-  }
-
-  .channel-setup-help {
-    text-align: left;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .channel-setup-org-reveal {
-    animation: none;
-  }
-}
-
-
-/* Intuitive mobile setup pass: keep the creator's task visible, reduce
- * repeated chrome, and make one primary completion action unmistakable. */
 .channel-setup-actions {
   justify-content: flex-end;
+  margin-top: 20px;
+  padding-top: 18px;
 }
 .channel-setup-actions .echoo-onboard-btn-primary {
-  min-width: 190px;
+  min-width: 170px;
 }
 
 @media (max-width: 620px) {
   .channel-setup-page {
     padding: 12px;
   }
-
   .channel-setup-page .echoo-onboard-topbar {
     margin-bottom: 14px;
   }
-
   .channel-setup-page .echoo-onboard-back {
-    min-height: 40px;
-    padding: 7px 10px;
+    min-height: 38px;
+    padding: 6px 8px;
     border-color: transparent;
     background: transparent;
     color: #40506a;
   }
-
-  .channel-setup-page .echoo-onboard-back:hover {
-    border-color: #dce5f2;
-    background: #f7f9fc;
+  .channel-setup-intro {
+    margin-bottom: 12px;
   }
-
-  .channel-setup-layout {
-    gap: 14px;
-  }
-
   .channel-setup-intro h1 {
-    max-width: none;
-    margin-bottom: 7px;
     font-size: 28px;
-    line-height: 1.08;
-    letter-spacing: -0.035em;
   }
-
-  .channel-setup-intro > p {
-    margin-bottom: 2px;
-    font-size: 14px;
-    line-height: 1.5;
-  }
-
-  .channel-setup-eyebrow {
-    margin-bottom: 9px;
-    font-size: 11px;
-  }
-
   .channel-setup-page .echoo-onboard-card {
     border-radius: 16px;
-    box-shadow: 0 10px 28px rgba(35, 58, 100, 0.06);
+    box-shadow: 0 10px 28px rgba(35, 58, 100, .06);
   }
-
-  .channel-setup-page .echoo-onboard-card-head {
-    display: none;
-  }
-
   .channel-setup-form {
-    padding: 18px 16px 20px;
+    padding: 17px 15px 18px;
   }
-
   .channel-setup-identity {
-    margin-bottom: 18px;
+    margin-bottom: 16px;
   }
-
   .channel-setup-page .echoo-onboard-identity {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
   }
-
   .channel-setup-page .echoo-onboard-identity > button {
-    min-height: 104px;
-    flex-direction: column;
-    align-items: flex-start;
-    justify-content: center;
-    gap: 8px;
-    padding: 12px;
+    min-height: 56px;
+    padding: 9px 10px;
   }
-
   .channel-setup-page .echoo-onboard-identity > button.is-selected {
-    padding: 11px;
+    padding: 8px 9px;
   }
-
-  .channel-setup-page .echoo-onboard-identity strong {
-    margin-bottom: 2px;
-    font-size: 13px;
+  .channel-setup-page .echoo-onboard-identity .identity-icon {
+    width: 32px;
+    height: 32px;
   }
-
-  .channel-setup-page .echoo-onboard-identity small {
-    font-size: 11px;
-    line-height: 1.25;
-  }
-
   .channel-setup-grid {
-    gap: 14px;
+    grid-template-columns: 1fr;
+    gap: 13px;
   }
-
+  .echoo-onboard-field-wide {
+    grid-column: auto;
+  }
   .channel-setup-page .echoo-onboard-field {
     gap: 6px;
   }
-
   .channel-setup-page .echoo-onboard-field input,
   .channel-setup-page .echoo-onboard-field select {
-    min-height: 48px;
-    padding: 11px 13px;
+    min-height: 47px;
+    padding: 10px 12px;
   }
-
   .channel-setup-page .echoo-onboard-field textarea {
-    min-height: 94px;
-    padding: 11px 13px 28px;
+    min-height: 88px;
+    padding: 10px 12px 27px;
   }
-
   .channel-setup-upload {
-    padding: 13px;
-    border-radius: 12px;
+    min-height: 62px;
+    padding: 11px;
   }
-
   .channel-setup-actions {
-    margin-top: 20px;
-    padding-top: 18px;
-    border-top-color: #edf1f7;
+    margin-top: 17px;
+    padding-top: 15px;
   }
-
   .channel-setup-actions .echoo-onboard-btn-primary {
     width: 100%;
     min-width: 0;
   }
-
-  .channel-setup-help {
-    margin-top: 10px;
-    text-align: center;
-  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .channel-setup-org-reveal { animation: none; }
 }
