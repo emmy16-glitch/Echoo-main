@@ -73,7 +73,14 @@ test('the studio graph keeps raw bypass, real processing and one post-master des
   assert.match(mixer, /masterAnalyser\.connect\(destinationNode\)/);
   assert.match(mixer, /export const setMasterMuted/);
   assert.match(mixer, /connectMediaFile/);
-  assert.match(mixer, /decodeAudioData/);
+  assert.match(mixer, /createMediaElementSource/);
+  assert.match(mixer, /connectMediaElementUrl/);
+  const libraryStreamStart = mixer.indexOf('export const connectMediaUrl');
+  const systemAudioStart = mixer.indexOf('export const connectSystemAudio', libraryStreamStart);
+  const libraryStreamBlock = mixer.slice(libraryStreamStart, systemAudioStart);
+  assert.doesNotMatch(libraryStreamBlock, /decodeAudioData/);
+  assert.doesNotMatch(libraryStreamBlock, /response\.blob\(\)/);
+  assert.doesNotMatch(libraryStreamBlock, /fetch\(url/);
   assert.match(mixer, /connectAcquiredStream\('screen'/);
   assert.match(mixer, /\['media', 'screen'\]\.includes\(channelId\)/);
   assert.match(limiter, /registerProcessor\('echoo-master-limiter'/);
