@@ -11,6 +11,7 @@ import {
   uploadAudio,
   getAudio,
   getAudioById,
+  getAudioWaveform,
   updateAudio,
   trimAudio,
   deleteAudio,
@@ -375,6 +376,7 @@ router.get(
   requireAudioDownloadAccess,
   downloadAuthorizedAudio
 );
+router.get('/:id/waveform', validateAudioId, authenticate, requireCreator, getAudioWaveform);
 router.get('/:id', validateAudioId, authenticate, getAudioById);
 router.post(
   '/upload',
