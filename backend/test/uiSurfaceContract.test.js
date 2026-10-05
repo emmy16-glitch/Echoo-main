@@ -192,6 +192,19 @@ test('active Listener CSS has one readable typography floor instead of legacy ov
   }
 });
 
+
+test('Listener user-facing recording terminology stays consistent', async () => {
+  const [savedMoments, collection] = await Promise.all([
+    source('../../frontend/src/Components/ListenerSavedMoments/ListenerSavedMoments.jsx'),
+    source('../../frontend/src/Components/ListenerCollectionDetail/ListenerCollectionDetail.jsx'),
+  ]);
+
+  assert.doesNotMatch(savedMoments, /replay timestamp/i);
+  assert.match(savedMoments, /recording timestamp/i);
+  assert.doesNotMatch(collection, /replayable set/i);
+  assert.match(collection, /collection of recordings/i);
+});
+
 test('Creator Notifications owns its stylesheet and uses separate accessible open/delete controls', async () => {
   const [workspace, css] = await Promise.all([
     source('../../frontend/src/Components/CreatorStudio/CreatorNotificationsWorkspace.jsx'),
