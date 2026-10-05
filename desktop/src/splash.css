@@ -16,24 +16,69 @@ body {
   background: #f7f9fc;
 }
 
-main { display: grid; justify-items: center; gap: 14px; }
-img { width: 86px; height: 86px; object-fit: contain; animation: settle 420ms cubic-bezier(.22, 1, .36, 1) both; }
-strong { font-size: 25px; line-height: 1; letter-spacing: -.04em; }
-span { width: 42px; height: 2px; overflow: hidden; border-radius: 999px; background: #d8e2f0; }
-span::after { content: ""; display: block; width: 18px; height: 100%; border-radius: inherit; background: #245cff; animation: echo 1s ease-in-out infinite alternate; }
-
-@keyframes settle {
-  from { opacity: 0; transform: translateY(5px) scale(.96); }
-  to { opacity: 1; transform: none; }
+main {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
 }
 
-@keyframes echo {
-  from { transform: translateX(0); }
-  to { transform: translateX(24px); }
+.echoo-mark {
+  width: 88px;
+  height: 88px;
+  overflow: visible;
+}
+
+.echoo-mark-primary {
+  fill: #214fa3;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: echoo-primary-settle 360ms cubic-bezier(.22, 1, .36, 1) both;
+}
+
+.echoo-mark-echo {
+  fill: #9db4d9;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: echoo-secondary-settle 430ms 70ms cubic-bezier(.22, 1, .36, 1) both;
+}
+
+strong {
+  margin-top: -2px;
+  font-size: 25px;
+  font-weight: 720;
+  line-height: 1;
+  letter-spacing: -.04em;
+  animation: echoo-copy-settle 280ms 120ms ease-out both;
+}
+
+.echoo-status {
+  min-height: 17px;
+  color: #6f7f96;
+  font-size: 12px;
+  line-height: 1.4;
+  animation: echoo-copy-settle 280ms 180ms ease-out both;
+}
+
+@keyframes echoo-primary-settle {
+  from { opacity: 0; transform: translate(-2px, 2px) scale(.94); }
+  to { opacity: 1; transform: translate(0, 0) scale(1); }
+}
+
+@keyframes echoo-secondary-settle {
+  from { opacity: 0; transform: translate(-5px, -4px) scale(.92); }
+  to { opacity: 1; transform: translate(0, 0) scale(1); }
+}
+
+@keyframes echoo-copy-settle {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  img,
-  span::after { animation: none; }
+  .echoo-mark-primary,
+  .echoo-mark-echo,
+  strong,
+  .echoo-status {
+    animation: none;
+  }
 }
-
