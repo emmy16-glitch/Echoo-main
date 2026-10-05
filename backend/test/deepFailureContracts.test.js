@@ -224,6 +224,7 @@ test('creator recording downloads stream natively instead of buffering whole aud
   const detail = await frontendSource('src/Components/CreatorStudio/CreatorAudioDetailModal.jsx');
   const trim = await frontendSource('src/Components/CreatorStudio/CreatorAudioTrimSection.jsx');
   const streamController = await source('src/controllers/audioStreamController.js');
+  const downloadController = await source('src/controllers/audioDownloadController.js');
   const archive = await source('src/services/audioArchiveService.js');
 
   const downloadStart = studioService.indexOf('downloadAudio: async');
@@ -247,6 +248,10 @@ test('creator recording downloads stream natively instead of buffering whole aud
   assert.match(streamController, /downloadUrl:/);
   assert.match(streamController, /downloadRequested/);
   assert.match(streamController, /attachment; filename/);
+  assert.match(streamController, /canonicalDownloadName/);
+  assert.match(streamController, /storedExtension \|\| originalExtension \|\| '\.audio'/);
+  assert.match(downloadController, /canonicalDownloadName/);
+  assert.match(downloadController, /storedExtension \|\| originalExtension \|\| '\.audio'/);
   assert.match(streamController, /getCloudObject\(audio\.cloudKey,\s*\{[\s\S]*range:/);
   assert.match(archive, /Range:\s*cleanRange/);
 
