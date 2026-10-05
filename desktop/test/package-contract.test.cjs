@@ -247,3 +247,13 @@ test('renderer crashes offer recovery and never delete non-empty recording parti
   assert.match(mainSource, /preserved interrupted recording partial/);
   assert.match(mainSource, /rendererCrashed \? 'renderer crash during quit' : 'application quit'/);
 });
+
+
+test('offline recovery stays retryable when a reload returns a failure result', () => {
+  const offlineHtml = fs.readFileSync(path.join(desktopRoot, 'offline.html'), 'utf8');
+  const offlineJs = fs.readFileSync(path.join(desktopRoot, 'src', 'offline.js'), 'utf8');
+  assert.match(offlineHtml, /role="status"/);
+  assert.doesNotMatch(offlineHtml, /Startup detail:/);
+  assert.match(offlineJs, /if \(!result\?\.ok\)/);
+  assert.match(offlineJs, /setRetryReady/);
+});
