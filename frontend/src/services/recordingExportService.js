@@ -233,11 +233,32 @@ export const fetchServerRecordingBlob = async (audioId) => {
     cache: 'no-store',
   });
   if (!response.ok) throw new Error('Server MP3 is not ready yet. Try again in a few seconds.');
-  const blob = await response.blob();
-  if (blob.size > maxCompatibilityBlobBytes) {
-    throw new Error('This recording is too large for in-memory export. Use the direct Echoo download instead.');
+  if (!response.body?.getReader) {
+    throw new Error('This browser cannot safely prepare an in-memory server recording.');
   }
-  return blob;
+
+  const reader = response.body.getReader();
+  const chunks = [];
+  let loaded = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value?.byteLength) continue;
+      loaded += value.byteLength;
+      if (loaded > maxCompatibilityBlobBytes) {
+        await reader.cancel('compatibility export size limit').catch(() => {});
+        const error = new Error('This recording is too large for in-memory export. Use the direct Echoo download instead.');
+        error.code = 'SERVER_RECORDING_STREAM_REQUIRED';
+        throw error;
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock?.();
+  }
+
+  return new Blob(chunks, { type: prepared.mimeType || 'audio/mpeg' });
 };
 
 const startServerRecordingBrowserDownload = async ({ audioId, filename }) => {
