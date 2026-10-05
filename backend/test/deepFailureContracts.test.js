@@ -588,6 +588,8 @@ test('Creator live mixer streams library audio instead of buffering whole record
   assert.match(studioService, /mixerUrl/);
   assert.match(audioMixer, /stream\?\.mixerUrl/);
   assert.match(streamController, /mixerUrl:/);
+  assert.match(streamController, /mixerExpiresIn:/);
+  assert.match(streamController, /duration:\s*12 \* 60 \* 60/);
   assert.match(streamController, /proxyRequested/);
   assert.match(streamController, /!downloadRequested && !proxyRequested/);
 
