@@ -279,7 +279,7 @@ const ListenerCreatorProfile = () => {
                   <button
                     type="button"
                     onClick={() => playTrack(track)}
-                    disabled={!track.fileUrl}
+                    disabled={!track.id && !track._id && !track.fileUrl}
                     aria-label={`${playing ? 'Pause' : 'Play'} ${track.title || 'audio'}`}
                   >
                     {playing ? <FaPause /> : <FaPlay />}
