@@ -389,3 +389,27 @@ test('scheduled rooms describe a future start instead of an ended broadcast', as
   assert.match(room, /isScheduled \? ' is-scheduled' : ' is-ended'/);
   assert.match(css, /\.listener-v2-room-live-badge\.is-scheduled/);
 });
+
+
+test('guest live chat uses one compact header and never exposes an unusable composer', async () => {
+  const [room, roomCss, components] = await Promise.all([
+    source('../../frontend/src/Components/ListenerLiveExperience/ListenerRealLiveRoom.jsx'),
+    source('../../frontend/src/Components/ListenerLiveExperience/ListenerV2LiveRoom.css'),
+    source('../../frontend/src/Components/ListenerExperience/ListenerExperienceComponents.jsx'),
+  ]);
+
+  assert.doesNotMatch(room, /Listening as a guest\./);
+  assert.doesNotMatch(room, /Sign in to chat and follow/);
+  assert.match(room, /className="listener-v2-room-chat-title"/);
+  assert.match(room, />Live chat</);
+  assert.match(room, />Guest</);
+  assert.match(room, />Sign in</);
+  assert.match(room, /showHeader=\{false\}/);
+  assert.match(room, /showComposer=\{!isGuest\}/);
+  assert.match(room, /isGuest \? 'No messages yet\.'/);
+  assert.match(components, /showHeader = true/);
+  assert.match(components, /showComposer = true/);
+  assert.match(components, /\{showComposer && \(/);
+  assert.match(roomCss, /\.listener-v2-room-chat-top/);
+  assert.match(roomCss, /\.listener-v2-room-chat\.is-guest[\s\S]*height:\s*min\(54dvh, 460px\)/);
+});
