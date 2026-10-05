@@ -95,5 +95,7 @@ echoo-audit-result.txt
 
 # Baked installer secrets (LiveKit creds for zero-config installs) — NEVER commit.
 desktop/.bundled-server-env
+desktop/frontend-dist/
+desktop/assets/icon.png
 .vercel
 .env*

@@ -16,6 +16,7 @@ const path = require('node:path');
 const fs = require('node:fs');
 const net = require('node:net');
 const crypto = require('node:crypto');
+const { fileURLToPath } = require('node:url');
 const { spawn } = require('node:child_process');
 const log = require('electron-log');
 const { autoUpdater } = require('electron-updater');
@@ -49,7 +50,7 @@ if (
 // Echoo-Studio 1.0.5 behavior that is known-good and in sync with live.
 // The old "bundled backend island" (local API on :5017 per install) is kept
 // ONLY as an opt-in via ECHOO_LOCAL_BACKEND=1 for offline development.
-const LIVE_APP_URL = process.env.ECHOO_URL || process.env.ECHOO_LIVE_URL || 'https://echoo.digi02.org';
+const PUBLIC_APP_ORIGIN = process.env.ECHOO_PUBLIC_ORIGIN || 'https://echoo.digi02.org';
 const LOCAL_BACKEND_OPT_IN = process.env.ECHOO_LOCAL_BACKEND === '1';
 // Vite dev server URL. Single source of truth: VITE_PORT env, else the
 // `|| '<port>'` default in frontend/vite.config.js (project-specific 5273 —
@@ -107,19 +108,40 @@ function appOrigins() {
       return ['http://localhost:5273'];
     }
   }
-  const origins = ['file://'];
-  try {
-    origins.unshift(new URL(LIVE_APP_URL).origin);
-  } catch {
-    origins.unshift('https://echoo.digi02.org');
-  }
-  return origins;
+  return ['file://'];
 }
 
 function isAppUrl(url) {
   const origins = appOrigins();
-  if (url.startsWith('file://')) return !app.isPackaged ? false : true;
+  if (url.startsWith('file://')) {
+    if (!app.isPackaged) return false;
+    try {
+      const candidate = path.resolve(fileURLToPath(url));
+      const applicationRoot = path.resolve(__dirname, '..');
+      const relative = path.relative(applicationRoot, candidate);
+      return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+    } catch {
+      return false;
+    }
+  }
   return origins.some((origin) => url === origin || url.startsWith(`${origin}/`));
+}
+
+function openExternalUrl(url) {
+  try {
+    const parsed = new URL(url);
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      log.warn(`[echoo-desktop] blocked external URL scheme: ${parsed.protocol}`);
+      return false;
+    }
+    void shell.openExternal(parsed.toString()).catch((error) => {
+      log.warn('[echoo-desktop] openExternal failed:', error.message);
+    });
+    return true;
+  } catch {
+    log.warn('[echoo-desktop] blocked malformed external URL');
+    return false;
+  }
 }
 
 let mainWindow = null;
@@ -407,8 +429,11 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
+    minWidth: 900,
+    minHeight: 620,
     resizable: true,
     title: 'Echoo',
+    backgroundColor: '#f7f9fc',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true, // MUST stay true — never weaken for convenience
@@ -422,7 +447,7 @@ function createWindow() {
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     try {
       if (!isAppUrl(url)) {
-        shell.openExternal(url).catch((error) => log.warn('[echoo-desktop] openExternal failed:', error.message));
+        openExternalUrl(url);
         return { action: 'deny' };
       }
     } catch (error) {
@@ -435,7 +460,7 @@ function createWindow() {
   mainWindow.webContents.on('will-navigate', (event, url) => {
     if (!isAppUrl(url)) {
       event.preventDefault();
-      shell.openExternal(url).catch((error) => log.warn('[echoo-desktop] openExternal failed:', error.message));
+      openExternalUrl(url);
     }
   });
 
@@ -459,10 +484,9 @@ function createWindow() {
     // server via ECHOO_URL/ECHOO_DEV_URL).
     void loadDevUrl();
   } else {
-    // Hosted mode: load the live shared server. Same users, channels,
-    // broadcasts and LiveKit audio as the browser at echoo.digi02.org.
-    // A load failure falls through to the offline page via did-fail-load.
-    mainWindow.loadURL(LIVE_APP_URL);
+    // Production always boots the bundled renderer. Server failures are shown
+    // inside the real Echoo shell instead of becoming a browser error page.
+    void loadPackagedRenderer();
   }
 
   mainWindow.on('closed', () => {
@@ -499,7 +523,7 @@ function createWindow() {
 // package (the old Windows blank-screen bug), falls back to an inline data-URL
 // page so the window NEVER renders blank white without an explanation.
 function loadOfflinePage(reason, url) {
-  const query = { reason: reason || 'unknown', url: url || (app.isPackaged ? LIVE_APP_URL : DEV_URL) };
+  const query = { reason: reason || 'unknown', url: url || (app.isPackaged ? PROD_INDEX : DEV_URL) };
   if (fs.existsSync(OFFLINE_PAGE)) {
     return mainWindow?.loadFile(OFFLINE_PAGE, { query });
   }
@@ -513,6 +537,21 @@ function loadOfflinePage(reason, url) {
         `<p>(${safeReason}) Restart the app. If this keeps happening, reinstall from the latest release.</p></main></body>`
     )}`
   );
+}
+
+async function loadPackagedRenderer() {
+  if (!mainWindow) return;
+  if (!fs.existsSync(PROD_INDEX)) {
+    log.error(`[echoo-desktop] packaged renderer missing at ${PROD_INDEX}`);
+    await loadOfflinePage('renderer-missing', PROD_INDEX);
+    return;
+  }
+  try {
+    await mainWindow.loadFile(PROD_INDEX);
+  } catch (error) {
+    log.error('[echoo-desktop] packaged renderer failed to load:', error.message);
+    await loadOfflinePage('renderer-load-failed', PROD_INDEX);
+  }
 }
 
 function showAndFocusWindow() {
@@ -786,7 +825,7 @@ function buildMenu() {
     {
       label: 'Echoo Support & Docs',
       click: async () => {
-        await shell.openExternal('https://github.com/emmy16-glitch/Echoo-main');
+        openExternalUrl('https://github.com/emmy16-glitch/Echoo-main');
       },
     },
   ];
@@ -951,7 +990,8 @@ function registerIpc() {
         appName: app.getName(),
         appVersion: app.getVersion(),
         platform: process.platform,
-        startUrl: app.isPackaged && !DEV_URL_IS_EXPLICIT ? LIVE_APP_URL : DEV_URL,
+        startUrl: app.isPackaged && !DEV_URL_IS_EXPLICIT ? 'local://echoo' : DEV_URL,
+        publicAppOrigin: PUBLIC_APP_ORIGIN,
       };
     } catch (error) {
       log.warn('[echoo-desktop] get-app-info failed:', error.message);
@@ -1087,8 +1127,7 @@ function registerIpc() {
   } else if (!app.isPackaged) {
         await loadDevUrl();
       } else {
-        // Hosted mode: go back to the live server (offline-page Retry lands here).
-        mainWindow?.loadURL(LIVE_APP_URL);
+        await loadPackagedRenderer();
       }
       return { ok: true };
     } catch (error) {
@@ -1402,9 +1441,9 @@ function startApp() {
       // the API answers); the server never blocks the shell from opening.
       void startBundledBackend();
     }
+    if (app.isPackaged) installProdCsp();
     createWindow();
     createTray();
-    if (app.isPackaged) installProdCsp();
     checkForUpdates();
 
     app.on('activate', () => {

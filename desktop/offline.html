@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light" />
+    <title>Echoo</title>
+    <style>
+      :root { font-family: "Segoe UI", system-ui, sans-serif; color: #0b1d3a; background: #f7f9fc; }
+      * { box-sizing: border-box; }
+      body { margin: 0; min-width: 320px; min-height: 100vh; display: grid; place-items: center; padding: 32px; }
+      main { width: min(440px, 100%); text-align: center; }
+      img { width: 72px; height: 72px; object-fit: contain; margin-bottom: 22px; }
+      h1 { margin: 0 0 10px; font-size: 28px; letter-spacing: -.03em; }
+      p { margin: 0 auto 24px; max-width: 390px; color: #40516b; line-height: 1.55; }
+      button { min-height: 42px; padding: 0 20px; border: 0; border-radius: 8px; background: #245cff; color: white; font: 600 14px/1 "Segoe UI", system-ui, sans-serif; cursor: pointer; }
+      button:hover { background: #1f4fdb; }
+      button:focus-visible { outline: 3px solid #94b4ff; outline-offset: 3px; }
+      small { display: block; margin-top: 18px; color: #77849a; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <img src="./assets/icon.png" alt="" />
+      <h1>Echoo could not open</h1>
+      <p>Your application files are safe. Try opening Echoo again.</p>
+      <button id="retry" type="button">Try again</button>
+      <small id="detail"></small>
+    </main>
+    <script src="./src/offline.js"></script>
+  </body>
+</html>
+
