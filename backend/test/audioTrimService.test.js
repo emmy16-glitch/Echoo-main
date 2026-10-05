@@ -7,6 +7,7 @@ import { spawn } from 'node:child_process';
 
 import {
   checkFfmpegCapability,
+  generateAudioWaveform,
   trimAudioFile,
   validateTrimRange,
 } from '../src/services/audioTrimService.js';
@@ -76,4 +77,30 @@ test('MP3 trim creates a high-quality trimmed MP3 and preserves the source', asy
   assert.ok(result.fileSize > 0);
   assert.ok(result.duration > 1.8 && result.duration < 2.2);
   assert.equal((await fs.promises.stat(sourcePath)).size, before.size);
+});
+
+
+test('server waveform generation returns compact peaks without browser decoding', async (t) => {
+  const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'echoo-waveform-'));
+  t.after(() => fs.promises.rm(directory, { recursive: true, force: true }));
+  const sourcePath = path.join(directory, 'source.mp3');
+
+  await run('ffmpeg', [
+    '-hide_banner', '-loglevel', 'error', '-y',
+    '-f', 'lavfi', '-i', 'sine=frequency=330:duration=8',
+    '-c:a', 'libmp3lame', '-b:a', '96k', sourcePath,
+  ]);
+
+  const result = await generateAudioWaveform({
+    sourcePath,
+    sourceDuration: 8,
+    points: 96,
+  });
+
+  assert.equal(result.version, 1);
+  assert.equal(result.points.length, 96);
+  assert.ok(result.duration > 7.9 && result.duration < 8.1);
+  assert.ok(result.points.some((value) => value > 0.01));
+  assert.ok(result.points.every((value) => value >= 0 && value <= 1));
+  assert.ok(result.sampleRate >= 20 && result.sampleRate <= 2000);
 });
