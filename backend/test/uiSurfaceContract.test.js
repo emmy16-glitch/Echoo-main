@@ -294,6 +294,24 @@ test('Creator transcript monitor reports live processing, progress, and actionab
 });
 
 
+test('guest live chat history is public-read-only while writes stay authenticated', async () => {
+  const [routes, controller, client, room] = await Promise.all([
+    source('../src/routes/chatRoutes.js'),
+    source('../src/controllers/chatController.js'),
+    source('../../frontend/src/services/batch4Service.js'),
+    source('../../frontend/src/Components/ListenerLiveExperience/ListenerRealLiveRoom.jsx'),
+  ]);
+
+  const publicRoute = routes.indexOf("router.get('/public/broadcast/:broadcastId/messages', getPublicMessages)");
+  const authGate = routes.indexOf('router.use(authenticate)');
+  assert.ok(publicRoute >= 0 && publicRoute < authGate, 'public history must be mounted before the chat auth gate');
+  assert.match(controller, /getPublicMessages[\s\S]*isPublic:\s*true[\s\S]*status:\s*\{\s*\$in:\s*\[\.\.\.OPEN_CHAT_STATUSES\]/);
+  assert.match(client, /getPublicMessages[\s\S]*skipAuth:\s*true[\s\S]*skipRefresh:\s*true/);
+  assert.match(room, /isGuest[\s\S]*batch4Service\.getPublicMessages/);
+  assert.match(routes, /router\.post\('\/broadcast\/:broadcastId\/messages', sendMessage\)/);
+  assert.ok(routes.indexOf("router.post('/broadcast/:broadcastId/messages', sendMessage)") > authGate);
+});
+
 test('active ListenerV2 separates live, scheduled and released audio and owns a persistent seekable player', async () => {
   const [listener, css] = await Promise.all([
     source('../../frontend/src/Components/ListenerV2/ListenerV2.jsx'),
