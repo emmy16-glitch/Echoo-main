@@ -42,8 +42,14 @@ const ListenerSavedMoments = () => {
 
   const open = (moment) => {
     const seconds = moment.timestampMs / 1000;
-    if (moment.audio?.fileUrl) {
-      player?.playTrackAt?.({ ...moment.audio, id: moment.audioId, coverArt: moment.coverArt, subtitle: moment.creatorName }, seconds, [moment.audio]);
+    if (moment.audioId || moment.audio?.id || moment.audio?._id || moment.audio?.fileUrl) {
+      const audio = {
+        ...(moment.audio || {}),
+        id: moment.audioId || moment.audio?.id || moment.audio?._id,
+        coverArt: moment.coverArt || moment.audio?.coverArt,
+        subtitle: moment.creatorName || moment.audio?.subtitle,
+      };
+      player?.playTrackAt?.(audio, seconds, [audio]);
       return;
     }
     if (moment.audioId) navigate(`/listen/audio/${moment.audioId}?t=${Math.floor(seconds)}`);
