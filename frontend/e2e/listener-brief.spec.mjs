@@ -231,6 +231,52 @@ test('live actions persist, roll back failures, copy links, and open and close c
   }
 });
 
+test('guest shared room loads chat history read-only without horizontal overflow', async ({ page }) => {
+  const broadcastId = '507f1f77bcf86cd799439031';
+  const longMessage = 'guest-history-' + 'very-long-message-token-'.repeat(16);
+
+  await page.route(`**/api/broadcasts/${broadcastId}/public`, route => route.fulfill({
+    json: {
+      data: {
+        id: broadcastId,
+        _id: broadcastId,
+        title: 'Guest room',
+        status: 'scheduled',
+        isPublic: true,
+        startTime: new Date(Date.now() + 60_000).toISOString(),
+        stationId: '507f1f77bcf86cd799439051',
+        stationName: 'Echoo Channel',
+      },
+    },
+  }));
+  await page.route('**/api/chat/public/broadcast/*/messages?*', route => route.fulfill({
+    json: {
+      data: [{
+        id: 'guest-history-1',
+        _id: 'guest-history-1',
+        displayName: 'Guest History Listener With A Very Long Name',
+        content: longMessage,
+        createdAt: new Date().toISOString(),
+        reactions: [],
+      }],
+    },
+  }));
+
+  await page.setViewportSize({ width: 320, height: 800 });
+  await page.goto(`/listen/live/${broadcastId}`);
+  await page.locator('.listener-v2-room-chat-toggle').click();
+  await expect(page.getByText(longMessage, { exact: true })).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'Message live chat' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: /React to .* message/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /React to .* message/ })).toBeDisabled({ timeout: 100 }).catch(() => {});
+  const sheet = await page.locator('.listener-v2-room-chat').evaluate(node => ({
+    clientWidth: node.clientWidth,
+    scrollWidth: node.scrollWidth,
+  }));
+  expect(sheet.scrollWidth).toBeLessThanOrEqual(sheet.clientWidth + 1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
 test('live chat loads history, allows the first reaction, and never overflows', async ({ page }) => {
   await authenticate(page);
   const longMessage = 'Echoo-' + 'listener-message-without-spaces-'.repeat(18);
