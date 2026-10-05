@@ -429,3 +429,18 @@ test('Creator shell responsive contract is component-owned and cropper CSS canno
   assert.doesNotMatch(crop, /CreatorStudioViewportLock\.css/);
   assert.doesNotMatch(crop, /\.studio-(?:page|sidebar|main|topbar)/);
 });
+
+
+test('shared Creator and Listener account menus stay anchored to the avatar contract', async () => {
+  const menu = await source('../../frontend/src/Components/Shared/AccountExperienceMenu.jsx');
+  const menuCss = await source('../../frontend/src/Components/Shared/AccountExperienceMenu.css');
+  const listenerCss = await source('../../frontend/src/Components/ListenerV2/ListenerV2.css');
+  const main = await source('../../frontend/src/main.jsx');
+
+  assert.match(menu, /currentExperience === 'creator' \|\| hasCompletedCreatorProfile\(user\)/);
+  assert.match(menuCss, /account-experience-menu--creator \.account-experience-dropdown,[\s\S]*account-experience-menu--listener \.account-experience-dropdown[\s\S]*right:\s*0;[\s\S]*left:\s*auto;/);
+  assert.doesNotMatch(menuCss, /account-experience-menu--creator \.account-experience-dropdown \{[^}]*left:\s*0;/);
+  assert.match(listenerCss, /listener-v2-header \.account-experience-menu \{ position: relative;/);
+  assert.doesNotMatch(main, /listener-logout-visibility-fix\.css/);
+  assert.doesNotMatch(main, /echoo-logout-always-visible\.css/);
+});
