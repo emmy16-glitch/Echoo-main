@@ -254,7 +254,8 @@ test('renderer crashes offer recovery and never delete non-empty recording parti
   assert.match(mainSource, /preserveInterruptedRecordingSessions\('renderer crash'\)/);
   assert.match(mainSource, /session\.bytesWritten > 0/);
   assert.match(mainSource, /preserved interrupted recording partial/);
-  assert.match(mainSource, /rendererCrashed \? 'renderer crash during quit' : 'application quit'/);
+  assert.match(mainSource, /async function finalizeDesktopQuit/);
+  assert.match(mainSource, /preserveInterruptedRecordingSessions\(reason\)/);
 });
 
 
