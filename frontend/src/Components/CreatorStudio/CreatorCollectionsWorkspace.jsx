@@ -400,26 +400,17 @@ export default function CreatorCollectionsWorkspace({
         kind: 'download',
         key: String(id),
         title: recordingDisplayTitle(track),
-        stage: 'downloading',
-        ...updateTransferEstimate(null, { loaded: 0, total: Number(track.fileSize) || 0 }),
+        stage: 'preparing-download',
+        startedAt: Date.now(),
+        elapsedSeconds: 0,
       });
       await studioService.downloadAudio(id, {
         title: recordingDisplayTitle(track),
         originalName: track.originalName,
         mimeType: track.mimeType,
-        onProgress: ({ loaded, total }) => {
-          setTransferOperation((current) => {
-            if (current?.kind !== 'download' || current?.key !== String(id)) return current;
-            return {
-              ...current,
-              ...updateTransferEstimate(current, { loaded, total: total || current.total || 0 }),
-              stage: 'downloading',
-            };
-          });
-        },
       });
       setTransferOperation((current) => current?.kind === 'download' && current?.key === String(id)
-        ? { ...current, stage: 'done', percent: 100, completedAt: Date.now() }
+        ? { ...current, stage: 'done', completedAt: Date.now() }
         : current);
       window.setTimeout(() => {
         setTransferOperation((current) => current?.kind === 'download' && current?.key === String(id) && current.stage === 'done' ? null : current);
@@ -647,7 +638,7 @@ export default function CreatorCollectionsWorkspace({
             <strong>
               {transferOperation.stage === 'done'
                 ? transferOperation.kind === 'download'
-                  ? 'Download ready'
+                  ? 'Download started'
                   : 'Saved successfully'
                 : transferOperation.stage === 'error'
                   ? 'Operation needs attention'
@@ -658,13 +649,15 @@ export default function CreatorCollectionsWorkspace({
                       : transferOperation.stage === 'verifying'
                         ? 'Transfer complete — verifying'
                         : transferOperation.kind === 'download'
-                          ? 'Downloading recording'
+                          ? 'Preparing download'
                           : 'Saving to Echoo'}
             </strong>
             <span>
-              {['uploading', 'downloading'].includes(transferOperation.stage)
-                ? `${Math.max(0, Math.min(100, Math.round(transferOperation.percent || 0)))}%`
-                : `${formatElapsedTime(transferOperation.elapsedSeconds || 0)} elapsed`}
+              {transferOperation.kind === 'download'
+                ? (transferOperation.stage === 'done' ? 'Browser download' : 'Starting…')
+                : ['uploading', 'downloading'].includes(transferOperation.stage)
+                  ? `${Math.max(0, Math.min(100, Math.round(transferOperation.percent || 0)))}%`
+                  : `${formatElapsedTime(transferOperation.elapsedSeconds || 0)} elapsed`}
             </span>
           </div>
           {['uploading', 'downloading', 'verifying'].includes(transferOperation.stage) && (
@@ -682,8 +675,12 @@ export default function CreatorCollectionsWorkspace({
                   : transferOperation.stage === 'error'
                     ? transferOperation.message || 'Please retry.'
                     : transferOperation.stage === 'done'
-                      ? transferOperation.title
-                      : transferProgressText(transferOperation)}
+                      ? transferOperation.kind === 'download'
+                        ? `${transferOperation.title} · check your browser downloads`
+                        : transferOperation.title
+                      : transferOperation.kind === 'download'
+                        ? 'Echoo is preparing a secure direct download.'
+                        : transferProgressText(transferOperation)}
           </small>
         </div>
       )}
