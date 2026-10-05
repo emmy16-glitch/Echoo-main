@@ -1000,34 +1000,45 @@ const ListenerRealLiveRoom = () => {
             onClick={() => setChatOpen(false)}
           />
         )}
-        <aside id="listener-live-chat" className={`listener-v2-room-chat${chatOpen ? ' is-open' : ''}`}>
-          <button
-            type="button"
-            className="listener-v2-room-chat-close"
-            aria-label="Close live chat"
-            onClick={() => setChatOpen(false)}
-          >
-            <FiX />
-          </button>
-          {isGuest && (
-            <div className="listener-v2-room-notice" role="status">
-              Listening as a guest.{' '}
+        <aside
+          id="listener-live-chat"
+          className={`listener-v2-room-chat${chatOpen ? ' is-open' : ''}${isGuest ? ' is-guest' : ''}`}
+          aria-label="Live chat"
+        >
+          <div className="listener-v2-room-chat-top">
+            <div className="listener-v2-room-chat-title">
+              <strong>Live chat</strong>
+              {isGuest && <span>Guest</span>}
+            </div>
+            <div className="listener-v2-room-chat-top-actions">
+              {isGuest && (
+                <button
+                  type="button"
+                  className="listener-v2-room-chat-signin"
+                  onClick={() => navigate({ pathname: '/', search: '?mode=login' })}
+                >
+                  Sign in
+                </button>
+              )}
               <button
                 type="button"
-                className="listener-v2-room-notice-action"
-                onClick={() => navigate({ pathname: '/', search: '?mode=login' })}
+                className="listener-v2-room-chat-close"
+                aria-label="Close live chat"
+                onClick={() => setChatOpen(false)}
               >
-                Sign in to chat and follow
+                <FiX />
               </button>
             </div>
-          )}
+          </div>
           <ChatPanel
             messages={messages}
             loading={chatLoading}
             disabled={!isLive || isGuest}
             error={chatError}
-            emptyMessage={isLive ? 'Be the first to join the conversation.' : 'This live chat has ended.'}
-            composerPlaceholder={isGuest ? 'Sign in to send messages' : isLive ? 'Message live chat...' : 'Live chat has ended'}
+            showHeader={false}
+            showComposer={!isGuest}
+            emptyMessage={isGuest ? 'No messages yet.' : isLive ? 'Be the first to join the conversation.' : 'This live chat has ended.'}
+            composerPlaceholder={isLive ? 'Message live chat...' : 'Live chat has ended'}
             onSend={sendMessage}
             onReact={isGuest || !isLive ? undefined : react}
           />
