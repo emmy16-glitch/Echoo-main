@@ -72,9 +72,11 @@ export const audioService = {
       { method: 'POST' }
     );
     const streamUrl = buildMediaUrl(response?.data?.streamUrl || '');
+    const downloadUrl = buildMediaUrl(response?.data?.downloadUrl || '');
     if (!streamUrl) throw new Error('Echoo could not prepare this audio for playback.');
     return {
       streamUrl,
+      downloadUrl,
       expiresIn: Number(response?.data?.expiresIn) || 0,
     };
   },
