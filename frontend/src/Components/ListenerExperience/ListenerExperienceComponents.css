@@ -80,6 +80,8 @@
 .lex-chat-message time { flex: 0 0 auto; color: var(--echoo-ds-muted); font-size: 12px; }
 .lex-chat-message p { max-width: 100%; margin: var(--echoo-space-1) 0 0; color: var(--echoo-ds-text); font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; word-break: normal; }
 .lex-chat-message button { min-height: 32px; margin-top: var(--echoo-space-2); padding: var(--echoo-space-1) var(--echoo-space-2); border: 0; border-radius: var(--echoo-ds-radius-pill); background: var(--echoo-ds-brand-soft); color: var(--echoo-ds-brand); font-size: 12px; }
+.lex-chat-reaction { display: inline-flex; align-items: center; gap: 5px; width: fit-content; cursor: pointer; }
+.lex-chat-reaction:disabled { opacity: .45; cursor: not-allowed; }
 .lex-chat-new-messages { justify-self: center; min-height: 34px; margin: 6px 12px; padding: 0 12px; border: 1px solid var(--echoo-ds-brand-border); border-radius: var(--echoo-ds-radius-pill); background: var(--echoo-ds-brand-soft); color: var(--echoo-ds-brand); font-size: 12px; font-weight: 700; cursor: pointer; }
 .lex-chat-composer { min-width: 0; display: flex; gap: var(--echoo-space-2); padding: var(--echoo-space-3); border-top: 1px solid var(--echoo-ds-line); }
 .lex-chat-error { margin: 0; padding: var(--echoo-space-2) var(--echoo-space-4); border-top: 1px solid var(--echoo-ds-line); color: var(--echoo-ds-live); font-size: var(--echoo-ds-caption-size); }
