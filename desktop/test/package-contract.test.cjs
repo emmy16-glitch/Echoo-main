@@ -554,3 +554,18 @@ test('desktop media URL fallback never references the removed localRuntime symbo
   assert.match(apiSource, /localDevelopmentRuntime/);
   assert.match(apiSource, /echoo-app:\/\/app/);
 });
+
+
+test('desktop internal navigation never escapes the packaged HashRouter', () => {
+  const navigationSource = fs.readFileSync(path.resolve(desktopRoot, '..', 'frontend', 'src', 'services', 'appNavigation.js'), 'utf8');
+  const errorBoundarySource = fs.readFileSync(path.resolve(desktopRoot, '..', 'frontend', 'src', 'Components', 'System', 'AppErrorBoundary.jsx'), 'utf8');
+  const creatorSetupSource = fs.readFileSync(path.resolve(desktopRoot, '..', 'frontend', 'src', 'Components', 'CreatorSetup', 'CreatorSetup.jsx'), 'utf8');
+  const scheduleSource = fs.readFileSync(path.resolve(desktopRoot, '..', 'frontend', 'src', 'Components', 'CreatorStudio', 'CreatorScheduleEventsWorkspace.jsx'), 'utf8');
+  assert.match(navigationSource, /window\.location\.hash/);
+  assert.match(navigationSource, /echoo-app:/);
+  assert.match(errorBoundarySource, /assignAppRoute\("\/"\)/);
+  assert.match(creatorSetupSource, /assignAppRoute\('\/listen'\)/);
+  assert.match(scheduleSource, /assignAppRoute\(`/);
+  assert.doesNotMatch(errorBoundarySource, /window\.location\.assign/);
+  assert.doesNotMatch(creatorSetupSource, /window\.location\.assign/);
+});
