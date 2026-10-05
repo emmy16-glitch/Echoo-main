@@ -136,6 +136,41 @@ try {
     }
     Write-Host 'Verified cold-start and second-instance echoo:// deep-link routing.'
 
+    # Prove the packaged shell itself does not depend on the website/API in
+    # order to render. This run blocks all remote HTTP(S) from the Electron
+    # session and still requires the local React renderer + secure bridge.
+    Remove-Item -LiteralPath $markerPath -Force -ErrorAction SilentlyContinue
+    $env:ECHOO_DESKTOP_SMOKE_TEST = 'offline'
+    $env:ELECTRON_RUN_AS_NODE = $null
+    try {
+        $offlineApplication = Start-Process -FilePath $executablePath -PassThru -WindowStyle Hidden
+    } finally {
+        $env:ECHOO_DESKTOP_SMOKE_TEST = $previousSmokeValue
+        $env:ELECTRON_RUN_AS_NODE = $previousRunAsNodeValue
+    }
+    try {
+        Wait-Process -Id $offlineApplication.Id -Timeout 45 -ErrorAction Stop
+    } catch {
+        Stop-Process -Id $offlineApplication.Id -Force -ErrorAction SilentlyContinue
+        throw 'Installed Echoo did not complete the offline packaged-shell smoke test within 45 seconds.'
+    }
+    if (-not (Test-Path -LiteralPath $markerPath -PathType Leaf)) {
+        throw 'Installed Echoo did not create the offline smoke marker.'
+    }
+    $offlineSmoke = Get-Content -Raw -LiteralPath $markerPath | ConvertFrom-Json
+    if (
+        $offlineSmoke.passed -ne $true -or
+        $offlineSmoke.smokeMode -ne 'offline' -or
+        $offlineSmoke.offlineNetworkBlocked -ne $true -or
+        $offlineSmoke.protocol -ne 'echoo-app:' -or
+        $offlineSmoke.identity -ne 'echoo-frontend' -or
+        $offlineSmoke.rootChildren -le 0 -or
+        $offlineSmoke.desktopBridge -ne $true
+    ) {
+        throw "Installed Echoo failed offline local-renderer startup: $($offlineSmoke | ConvertTo-Json -Compress)"
+    }
+    Write-Host 'Verified Echoo local shell starts with remote HTTP(S) blocked.'
+
     # The installed app registers echoo:// during Electron startup. Verify the
     # real installed executable after the packaged-renderer smoke launch rather
     # than assuming NSIS wrote a protocol key before the app ever ran.

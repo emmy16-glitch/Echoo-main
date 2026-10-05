@@ -114,8 +114,9 @@ const DEBUG_TOOLS =
 const SMOKE_TEST_MODE = app.isPackaged
   ? String(process.env.ECHOO_DESKTOP_SMOKE_TEST || '')
   : '';
-const SMOKE_TEST = ['1', 'second-instance'].includes(SMOKE_TEST_MODE);
+const SMOKE_TEST = ['1', 'second-instance', 'offline'].includes(SMOKE_TEST_MODE);
 const SECOND_INSTANCE_SMOKE_TEST = SMOKE_TEST_MODE === 'second-instance';
+const OFFLINE_SMOKE_TEST = SMOKE_TEST_MODE === 'offline';
 
 // Origins the app window itself is allowed to navigate to. Everything else
 // (chat links, profile links, help URLs) opens in the OS default browser.
@@ -834,6 +835,7 @@ async function completePackagedSmokeTest() {
         passed,
         smokeMode: SMOKE_TEST_MODE,
         secondInstanceRoute: smokeSecondInstanceRoute,
+        offlineNetworkBlocked: OFFLINE_SMOKE_TEST,
         ...result,
       }, null, 2)
     );
@@ -2135,6 +2137,16 @@ function checkForUpdates() {
   }
 }
 
+function installOfflineSmokeNetworkBlocker() {
+  if (!OFFLINE_SMOKE_TEST) return;
+
+  session.defaultSession.webRequest.onBeforeRequest(
+    { urls: ['http://*/*', 'https://*/*'] },
+    (_details, callback) => callback({ cancel: true })
+  );
+  log.info('[echoo-desktop] offline smoke mode: remote HTTP(S) requests are blocked');
+}
+
 // ---------------------------------------------------------------------------
 // App lifecycle
 // ---------------------------------------------------------------------------
@@ -2154,6 +2166,7 @@ function startApp() {
     registerIpc();
     buildMenu();
     installPermissionPolicy();
+    installOfflineSmokeNetworkBlocker();
     if (app.isPackaged) {
       registerPackagedRendererProtocol();
       installProdCsp();

@@ -428,3 +428,14 @@ test('desktop shell layout overrides never leak into Echoo Web', () => {
   assert.doesNotMatch(desktopRuntimeCss, /^\s*\.studio-final-shell/m);
   assert.doesNotMatch(desktopRuntimeCss, /^\s*\.listener-v2-root/m);
 });
+
+
+test('installed app proves its local shell works with remote HTTP(S) blocked', () => {
+  const installerVerifier = fs.readFileSync(path.join(desktopRoot, 'scripts', 'verify-installer.ps1'), 'utf8');
+  assert.match(mainSource, /OFFLINE_SMOKE_TEST/);
+  assert.match(mainSource, /installOfflineSmokeNetworkBlocker/);
+  assert.match(mainSource, /http:\/\/\*\/\*/);
+  assert.match(mainSource, /https:\/\/\*\/\*/);
+  assert.match(installerVerifier, /ECHOO_DESKTOP_SMOKE_TEST = 'offline'/);
+  assert.match(installerVerifier, /offlineNetworkBlocked/);
+});
