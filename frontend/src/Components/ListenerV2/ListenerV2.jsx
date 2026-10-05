@@ -217,17 +217,31 @@ const SectionTitle = ({ title, copy, action, actionLabel = 'View all' }) => (
 
 const LiveCard = ({ broadcast, onOpen }) => {
   const art = broadcastArtwork(broadcast);
+  const title = titleOf(broadcast);
+  const station = stationNameOf(broadcast);
+  const listenerCount = broadcast?.listenerCount ?? broadcast?.station?.listenerCount;
+  const duplicateStation = String(title || '').trim().toLowerCase() === String(station || '').trim().toLowerCase();
+
   return (
     <article className="listener-v2-live-card">
-      <button type="button" className="listener-v2-live-art" onClick={() => onOpen(broadcast)}>
+      <button
+        type="button"
+        className="listener-v2-live-art"
+        onClick={() => onOpen(broadcast)}
+        aria-label={`Listen to ${title}`}
+      >
         <Artwork src={art} />
         <span className="listener-v2-live-badge">LIVE</span>
-        {(broadcast?.listenerCount ?? broadcast?.station?.listenerCount) != null && <span className="listener-v2-live-listeners"><FiHeadphones /> {formatCount(broadcast.listenerCount ?? broadcast.station.listenerCount)} listening</span>}
       </button>
       <button type="button" className="listener-v2-live-meta" onClick={() => onOpen(broadcast)}>
-        <strong>{titleOf(broadcast)}</strong>
-        <span>{stationNameOf(broadcast)}</span>
-        <small>Listen Live</small>
+        <span className="listener-v2-live-copy">
+          <strong>{title}</strong>
+          {!duplicateStation && <span>{station}</span>}
+          {listenerCount != null && (
+            <small className="listener-v2-live-count"><FiHeadphones /> {formatCount(listenerCount)} listening</small>
+          )}
+        </span>
+        <span className="listener-v2-live-cta">Listen <FiChevronRight aria-hidden="true" /></span>
       </button>
     </article>
   );
