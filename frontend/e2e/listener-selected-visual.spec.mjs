@@ -214,6 +214,7 @@ test('capture strict Listener 2.0 core surfaces', async ({ page }, testInfo) => 
   await validateStrictShell(page, 'Live now', { room: true });
   await expect(page.locator('.listener-v2-room-stage')).toBeVisible();
   await expect(page.locator('.listener-v2-room-chat')).toBeVisible();
+  await expect(page.locator('.listener-v2-room-chat').getByText('Good morning everyone 👋', { exact: true })).toBeVisible();
   const stageBox = await page.locator('.listener-v2-room-stage').boundingBox();
   const chatBox = await page.locator('.listener-v2-room-chat').boundingBox();
   expect(stageBox?.y).toBeLessThanOrEqual((chatBox?.y || 0) + 2);
