@@ -6,6 +6,7 @@ import User from '../models/User.js';
 const ALLOWED_CHAT_REACTIONS = new Set(['👍', '❤️', '🔥', '👏', '😂', '🎉']);
 const OPEN_CHAT_STATUSES = new Set(['live', 'scheduled']);
 const MAX_CHAT_PAGE_SIZE = 100;
+const MAX_CHAT_MESSAGE_LENGTH = 280;
 
 const chatError = (status, code, message) => {
   const error = new Error(message);
@@ -71,6 +72,15 @@ export async function sendMessage(req, res, next) {
     if (!content) {
       return res.status(400).json({
         error: { code: 'VALIDATION_ERROR', message: 'Message content is required' },
+      });
+    }
+
+    if (content.length > MAX_CHAT_MESSAGE_LENGTH) {
+      return res.status(400).json({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: `Message cannot exceed ${MAX_CHAT_MESSAGE_LENGTH} characters`,
+        },
       });
     }
 
