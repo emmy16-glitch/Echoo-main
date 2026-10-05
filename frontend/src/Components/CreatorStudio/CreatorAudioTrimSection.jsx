@@ -1,10 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { FaCut, FaDownload, FaPlay, FaSave, FaStop } from 'react-icons/fa';
-import { apiFetch } from '../../services/api.js';
 import {
-  canTrimRecording,
-  computePeaksAsync,
-  decodeRecordingBlob,
+  prepareTrimWaveform,
   trimSavedAudio,
 } from '../../services/audioTrimService.js';
 import {
@@ -32,7 +29,6 @@ const CreatorAudioTrimSection = ({ track, onChanged, onNotice, onOpenTrimmed }) 
   const trackId = getId(track);
   const [sourceState, setSourceState] = useState('idle'); // idle|loading|ready|error
   const [sourceLabel, setSourceLabel] = useState('');
-  const [progress, setProgress] = useState(0);
   const [peaks, setPeaks] = useState([]);
   const [duration, setDuration] = useState(0);
   const [start, setStart] = useState(0);
@@ -47,10 +43,8 @@ const CreatorAudioTrimSection = ({ track, onChanged, onNotice, onOpenTrimmed }) 
   const [pcSaving, setPcSaving] = useState(false);
   const [pcMessage, setPcMessage] = useState('');
   const [mp3Ready, setMp3Ready] = useState(true);
-  const bufferRef = useRef(null);
-  const sourceBlobRef = useRef(null);
+  const waveformAbortRef = useRef(null);
   const previewAudioRef = useRef(null);
-  const previewUrlRef = useRef('');
   const previewTimerRef = useRef(null);
 
   const localMaster = peekLocalMaster(trackId);
@@ -67,9 +61,9 @@ const CreatorAudioTrimSection = ({ track, onChanged, onNotice, onOpenTrimmed }) 
   const selectedFormat = availableFormats.find((option) => option.id === pcFormat) || availableFormats[0] || null;
 
   useEffect(() => () => {
+    waveformAbortRef.current?.abort();
     window.clearTimeout(previewTimerRef.current);
     try { previewAudioRef.current?.pause(); } catch { /* noop */ }
-    if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
   }, []);
 
   const stopPreview = () => {
@@ -81,59 +75,100 @@ const CreatorAudioTrimSection = ({ track, onChanged, onNotice, onOpenTrimmed }) 
   const loadSource = async () => {
     const id = getId(track);
     if (!id || sourceState === 'loading') return;
+
+    waveformAbortRef.current?.abort();
+    const controller = new AbortController();
+    waveformAbortRef.current = controller;
+
     try {
       setError('');
       setSourceState('loading');
-      setProgress(2);
-      const localBlob = peekLocalMaster(id)?.blob || null;
-      let blob = canTrimRecording(localBlob) ? localBlob : null;
-      let label = blob ? 'local master' : 'saved Echoo copy';
+      setSourceLabel('Preparing waveform on Echoo…');
 
-      // Long live shows can leave a lossless local WAV that is intentionally
-      // hundreds of MB. That safety master is not suitable for browser waveform
-      // decoding, so use Echoo's much smaller stored copy for the trim UI
-      // instead of incorrectly blocking trimming.
-      if (!blob?.size) {
-        setSourceLabel(
-          localBlob?.size
-            ? 'Local safety master is large — loading the saved Echoo copy…'
-            : 'Getting the saved recording…'
-        );
-        const response = await apiFetch(`/audio/${encodeURIComponent(id)}/download`);
-        if (!response.ok) throw new Error('Could not fetch this recording for trimming.');
-        blob = await response.blob();
-        label = 'saved Echoo copy';
-      }
-      if (!canTrimRecording(blob)) {
-        throw new Error('This saved recording is too large to prepare in the browser.');
-      }
-      sourceBlobRef.current = blob;
-      setSourceLabel(label);
-      const buffer = await decodeRecordingBlob(blob, (value) => setProgress(Math.min(70, value * 0.7)));
-      bufferRef.current = buffer;
-      const computed = await computePeaksAsync(buffer, 120, (value) => setProgress(70 + Math.round(value * 0.3)));
-      setPeaks(computed);
-      setDuration(buffer.duration || 0);
+      const waveform = await prepareTrimWaveform(id, {
+        signal: controller.signal,
+        onStatus: ({ attempt }) => {
+          setSourceLabel(
+            attempt > 2
+              ? 'Preparing this long recording on Echoo…'
+              : 'Preparing waveform on Echoo…'
+          );
+        },
+      });
+
+      if (controller.signal.aborted) return;
+      setPeaks(waveform.points);
+      setDuration(waveform.duration);
       setStart(0);
-      setEnd(buffer.duration || 0);
-      setProgress(100);
+      setEnd(waveform.duration);
+      setSourceLabel(waveform.cached ? 'Waveform ready' : 'Waveform prepared');
       setSourceState('ready');
     } catch (loadError) {
+      if (loadError?.code === 'ABORT_ERR' || controller.signal.aborted) return;
       setError(loadError?.message || 'Could not prepare trimming for this recording.');
       setSourceState('error');
+    } finally {
+      if (waveformAbortRef.current === controller) waveformAbortRef.current = null;
     }
   };
 
-  const previewSelection = () => {
-    const blob = sourceBlobRef.current;
-    if (!blob?.size || !duration) return;
+  const previewSelection = async () => {
+    const id = getId(track);
+    if (!id || !duration || previewing) return;
+
     stopPreview();
-    if (!previewUrlRef.current) previewUrlRef.current = URL.createObjectURL(blob);
+    setError('');
     const audio = previewAudioRef.current;
     if (!audio) return;
-    const selectionEnd = end > start ? end : duration;
+
     try {
-      audio.src = previewUrlRef.current;
+      const stream = await studioService.getAudioStreamUrl(id);
+      if (!stream?.streamUrl) throw new Error('Echoo could not prepare streaming preview.');
+
+      audio.src = stream.streamUrl;
+      audio.preload = 'metadata';
+      audio.load();
+
+      if (audio.readyState < 1) {
+        await new Promise((resolve, reject) => {
+          const timer = window.setTimeout(
+            () => reject(new Error('Preview took too long to start.')),
+            12_000
+          );
+          const cleanup = () => {
+            window.clearTimeout(timer);
+            audio.removeEventListener('loadedmetadata', onReady);
+            audio.removeEventListener('error', onError);
+          };
+          const onReady = () => {
+            cleanup();
+            resolve();
+          };
+          const onError = () => {
+            cleanup();
+            reject(new Error('Echoo could not stream this recording for preview.'));
+          };
+          audio.addEventListener('loadedmetadata', onReady, { once: true });
+          audio.addEventListener('error', onError, { once: true });
+        });
+      }
+
+      const selectionEnd = end > start ? end : duration;
+      audio.currentTime = Math.max(0, start);
+      await audio.play();
+      setPreviewing(true);
+      previewTimerRef.current = window.setTimeout(
+        stopPreview,
+        Math.max(500, (selectionEnd - start) * 1000)
+      );
+    } catch (previewError) {
+      setPreviewing(false);
+      setError(previewError?.message || 'Could not preview this selection.');
+    }
+  };
+
+  const selectionEnd = end > start ? end : duration;
+    try {
       audio.currentTime = Math.max(0, start);
       void audio.play();
       setPreviewing(true);
@@ -268,12 +303,11 @@ const CreatorAudioTrimSection = ({ track, onChanged, onNotice, onOpenTrimmed }) 
         )}
 
         {sourceState === 'loading' && (
-          <div className="creator-audio-trim-loading">
-            <span>Preparing waveform… {progress}% ({sourceLabel})</span>
-            <i><b style={{ width: `${Math.max(2, progress)}%` }} /></i>
+          <div className="creator-audio-trim-loading" role="status">
+            <span>{sourceLabel || 'Preparing waveform on Echoo…'}</span>
+            <i className="is-indeterminate"><b /></i>
           </div>
         )}
-
         {sourceState === 'ready' && (
           <>
             <div className="creator-audio-trim-wave" role="img" aria-label="Recording waveform">
@@ -329,7 +363,7 @@ const CreatorAudioTrimSection = ({ track, onChanged, onNotice, onOpenTrimmed }) 
               <span>{isFullLength ? 'Full recording selected' : `${formatClock(selectedSeconds)} selected`}</span>
             </div>
 
-            <audio ref={previewAudioRef} preload="auto" onEnded={stopPreview} hidden />
+            <audio ref={previewAudioRef} preload="metadata" onEnded={stopPreview} hidden />
 
             {saving && (
               <div className="creator-audio-trim-loading" role="status">
@@ -451,3 +485,4 @@ const CreatorAudioTrimSection = ({ track, onChanged, onNotice, onOpenTrimmed }) 
 };
 
 export default CreatorAudioTrimSection;
+
