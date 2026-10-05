@@ -148,7 +148,7 @@ test('rapid current Listener navigation plus browser back and forward stays stab
   await page.getByRole('button', { name: 'Following', exact: true }).first().click();
   await expect(page).toHaveURL(/\/listen\/following$/);
 
-  const headerSearch = page.getByPlaceholder('Search live Channels...');
+  const headerSearch = page.getByPlaceholder('Search Echoo...');
   if (await headerSearch.isVisible()) {
     await headerSearch.fill('Echoo');
     await headerSearch.press('Enter');
