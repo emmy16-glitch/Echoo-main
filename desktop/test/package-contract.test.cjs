@@ -508,3 +508,10 @@ test('desktop diagnostics are reachable from both Creator and Listener settings'
   assert.match(creatorSettingsSource, /Open Echoo logs/);
   assert.match(listenerSettingsSource, /Open Echoo logs/);
 });
+
+
+test('runtime product identity stays Echoo while the npm package remains echoo-desktop', () => {
+  assert.equal(packageJson.name, 'echoo-desktop');
+  assert.equal(packageJson.build.productName, 'Echoo');
+  assert.match(mainSource, /app\.setName\('Echoo'\)/);
+});

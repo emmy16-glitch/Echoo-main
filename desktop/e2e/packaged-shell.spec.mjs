@@ -178,14 +178,18 @@ test.describe('packaged Echoo Windows shell', () => {
     expect(geometry.documentWidth).toBeLessThanOrEqual(geometry.viewport + 2);
 
     await mainPage.emulateMedia({ reducedMotion: 'reduce' });
-    const duration = await mainPage.evaluate(() => {
+    const reducedMotion = await mainPage.evaluate(() => {
       const probe = document.createElement('div');
       probe.className = 'eb-page-in';
       document.body.appendChild(probe);
-      const value = getComputedStyle(probe).animationDuration;
+      const styles = getComputedStyle(probe);
+      const value = {
+        animationName: styles.animationName,
+        animationDuration: styles.animationDuration,
+      };
       probe.remove();
       return value;
     });
-    expect(['0s', '0.00001s', '0.01ms']).toContain(duration);
+    expect(reducedMotion.animationName).toBe('none');
   });
 });

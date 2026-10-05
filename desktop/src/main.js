@@ -41,6 +41,10 @@ log.transports.file.level = 'info';
 log.transports.console.level = app.isPackaged ? 'warn' : 'debug';
 autoUpdater.logger = log;
 
+// Keep the installed/runtime product identity user-facing while the internal
+// npm package name remains echoo-desktop.
+app.setName('Echoo');
+
 // Blank white window on some Windows machines is caused by GPU/blacklisted
 // drivers. Opt out of hardware acceleration via ECHOO_DISABLE_GPU=1 or
 // --disable-gpu (must run before app.whenReady, hence here at the top).
