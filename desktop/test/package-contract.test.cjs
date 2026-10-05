@@ -478,3 +478,17 @@ test('Windows workflow runs packaged Playwright E2E before installer smoke verif
   assert.match(windowsWorkflow, /npm run test:e2e:packaged --prefix desktop/);
   assert.match(mainSource, /ECHOO_DISABLE_UPDATES/);
 });
+
+
+test('share links use a narrow native Windows clipboard bridge when packaged', () => {
+  const stationUrlSource = fs.readFileSync(
+    path.resolve(desktopRoot, '..', 'frontend', 'src', 'services', 'stationPublicUrl.js'),
+    'utf8'
+  );
+  assert.match(mainSource, /clipboard\.writeText\(text\)/);
+  assert.match(mainSource, /echoo:copy-text/);
+  assert.match(desktopBridgeSource, /copyDesktopText/);
+  assert.match(creatorWorkspaceSource, /copyTextToClipboard\(url\)/);
+  assert.match(stationUrlSource, /window\.echooDesktop\?\.copyText/);
+  assert.match(stationUrlSource, /navigatorRef\?\.clipboard\?\.writeText/);
+});

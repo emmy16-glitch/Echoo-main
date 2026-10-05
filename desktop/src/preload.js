@@ -19,6 +19,8 @@ contextBridge.exposeInMainWorld('echooDesktop', {
   reload: () => ipcRenderer.invoke('echoo:reload'),
   openExternalWebUrl: (url) =>
     ipcRenderer.invoke('echoo:open-external-web-url', String(url || '').slice(0, 2048)),
+  copyText: (value) =>
+    ipcRenderer.invoke('echoo:copy-text', String(value || '').slice(0, 32768)),
   getInitialDeepLink: () => ipcRenderer.invoke('echoo:get-initial-deep-link'),
   onDeepLink: (listener) => {
     if (typeof listener !== 'function') return () => {};

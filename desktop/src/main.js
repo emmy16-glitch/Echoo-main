@@ -9,6 +9,7 @@ const {
   ipcMain,
   shell,
   dialog,
+  clipboard,
   nativeImage,
   powerSaveBlocker,
   screen,
@@ -1502,6 +1503,20 @@ function registerIpc() {
   ipcMain.handle('echoo:open-external-web-url', async (_event, url) =>
     openExternalWebUrl(url)
   );
+
+  ipcMain.handle('echoo:copy-text', async (_event, value) => {
+    try {
+      const text = String(value || '');
+      if (!text || text.length > 32768) {
+        return { copied: false, reason: text ? 'too-long' : 'empty' };
+      }
+      clipboard.writeText(text);
+      return { copied: true };
+    } catch (error) {
+      log.warn('[echoo-desktop] copy-text failed:', error.message);
+      return { copied: false, reason: 'error' };
+    }
+  });
 
   ipcMain.handle('echoo:get-initial-deep-link', async () => {
     const route = pendingDeepLink;

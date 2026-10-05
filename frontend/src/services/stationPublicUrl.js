@@ -44,6 +44,17 @@ export const copyTextToClipboard = async (
 ) => {
   if (!text) throw new Error('Nothing to copy');
 
+  const nativeCopy =
+    typeof window !== 'undefined' &&
+    window.echooDesktop?.isDesktop === true &&
+    typeof window.echooDesktop?.copyText === 'function'
+      ? window.echooDesktop.copyText
+      : null;
+  if (nativeCopy) {
+    const result = await nativeCopy(String(text));
+    if (result?.copied) return;
+  }
+
   if (navigatorRef?.clipboard?.writeText) {
     await navigatorRef.clipboard.writeText(text);
     return;

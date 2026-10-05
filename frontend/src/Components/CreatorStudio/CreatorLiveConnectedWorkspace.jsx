@@ -33,6 +33,7 @@ import {
   stopLiveKitPublishing,
 } from '../../services/livekitPublisher';
 import realtimeService from '../../services/realtimeService';
+import { copyTextToClipboard } from '../../services/stationPublicUrl';
 import {
   prepareEndBroadcastDeviceSave,
   retryAutosave,
@@ -1115,8 +1116,7 @@ const CreatorLiveConnectedWorkspace = ({
         .replace(/\/$/, '');
       const shareOrigin = configuredOrigin || window.location.origin;
       const url = new URL(path, shareOrigin).toString();
-      if (!navigator.clipboard?.writeText) throw new Error('Clipboard unavailable');
-      await navigator.clipboard.writeText(url);
+      await copyTextToClipboard(url);
       setError('');
       setLinkCopied(true);
       window.setTimeout(() => setLinkCopied(false), 1800);
