@@ -252,6 +252,9 @@ test('recording management keeps trim copies safe and prevents cramped or mislab
   const studioService = await frontendSource('src/services/studioService.js');
   const trimController = await source('src/controllers/audioController.js');
   const trimService = await source('src/services/audioTrimService.js');
+  const clientTrimService = await frontendSource('src/services/audioTrimService.js');
+  const audioRoutes = await source('src/routes/audioRoutes.js');
+  const audioModel = await source('src/models/Audio.js');
   const routes = await source('src/routes/index.js');
 
   assert.doesNotMatch(trim, /studioService\.deleteAudio\(id\)/);
@@ -262,8 +265,15 @@ test('recording management keeps trim copies safe and prevents cramped or mislab
   assert.match(trim, /Download trimmed version/);
   assert.match(trim, /studioService\.downloadAudio\(trimmedId/);
   assert.match(trim, /availableFormats/);
-  assert.match(trim, /Export to this device/);
-  assert.match(modal, /Download stored file/);
+  assert.match(trim, />Export</);
+  assert.match(modal, /Download original/);
+  assert.match(trim, /prepareTrimWaveform\(id/);
+  assert.match(trim, /studioService\.getAudioStreamUrl\(id\)/);
+  assert.doesNotMatch(trim, /\/audio\/\$\{encodeURIComponent\(id\)\}\/download/);
+  assert.doesNotMatch(trim, /response\.blob\(\)/);
+  assert.doesNotMatch(clientTrimService, /decodeAudioData/);
+  assert.doesNotMatch(clientTrimService, /arrayBuffer\(\)/);
+  assert.match(clientTrimService, /\/waveform/);
   assert.match(modal, /createPortal/);
   assert.match(modal, /document\.body/);
 
@@ -275,6 +285,13 @@ test('recording management keeps trim copies safe and prevents cramped or mislab
   assert.match(trimService, /FFMPEG_REQUIRED/);
   assert.match(trimService, /TRIM_PROBE_TIMEOUT/);
   assert.match(trimService, /child\.kill\('SIGKILL'\)/);
+  assert.match(trimService, /generateAudioWaveform/);
+  assert.match(trimService, /-f', 's16le'/);
+  assert.match(trimService, /WAVEFORM_TIMEOUT/);
+  assert.match(trimController, /waveformJobs/);
+  assert.match(trimController, /buildAndCacheWaveform/);
+  assert.match(audioRoutes, /'\/:id\/waveform'/);
+  assert.match(audioModel, /select:\s*false/);
   assert.match(routes, /health\/recording/);
   assert.match(routes, /automaticServerMp3:\s*capability\.ok && livekitRecorder\.available/);
   assert.match(routes, /recoveryMp3Assembly:\s*capability\.ok/);
