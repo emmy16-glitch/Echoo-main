@@ -173,6 +173,24 @@ const readMessagePage = async (broadcastId, query = {}) => {
   };
 };
 
+const toPublicChatMessage = (message) => {
+  const value = typeof message?.toObject === 'function' ? message.toObject() : (message || {});
+  return {
+    id: String(value._id || value.id || ''),
+    broadcastId: String(value.broadcastId?._id || value.broadcastId || ''),
+    username: value.username || '',
+    displayName: value.displayName || value.username || 'Echoo Listener',
+    avatar: value.avatar || null,
+    content: value.content || '',
+    type: value.type || 'message',
+    reactions: Array.isArray(value.reactions)
+      ? value.reactions.map((reaction) => ({ emoji: reaction?.emoji || '' })).filter((reaction) => reaction.emoji)
+      : [],
+    isPinned: Boolean(value.isPinned),
+    createdAt: value.createdAt || null,
+  };
+};
+
 // Public live/scheduled rooms expose read-only chat history so a guest opening
 // a shared listen link sees the same conversation context. All write,
 // reaction, pin, delete and moderation routes remain behind authenticate.
@@ -191,7 +209,11 @@ export async function getPublicMessages(req, res, next) {
       throw chatError(404, 'NOT_FOUND', 'Live chat is unavailable');
     }
 
-    return res.status(200).json(await readMessagePage(broadcastId, req.query));
+    const page = await readMessagePage(broadcastId, req.query);
+    return res.status(200).json({
+      ...page,
+      data: page.data.map(toPublicChatMessage),
+    });
   } catch (error) {
     next(error);
   }
