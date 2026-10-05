@@ -355,7 +355,7 @@ const ListenerRealLiveRoom = () => {
         : await batch3Service.getBroadcast(broadcastId);
       if (generation !== roomLoadGenerationRef.current) return;
       if (!response?.data) {
-        throw new Error('This live show could not be found.');
+        throw new Error('This live broadcast could not be found.');
       }
       const next = normalizeBroadcast(response.data);
       setShow(next);
@@ -378,7 +378,7 @@ const ListenerRealLiveRoom = () => {
       if (!localStorage.getItem('accessToken') && !isGuest) {
         setLoadError('Sign in to watch this live broadcast.');
       } else {
-        setLoadError(error?.message || 'This live show is unavailable.');
+        setLoadError(error?.message || 'This live broadcast is unavailable.');
       }
     } finally {
       if (generation === roomLoadGenerationRef.current) setLoading(false);
@@ -766,7 +766,7 @@ const ListenerRealLiveRoom = () => {
         <button type="button" onClick={() => navigate('/listen/live')}>
           <FiArrowLeft /> Back to Live Now
         </button>
-        <div>{loadError || 'This live show is unavailable.'}</div>
+        <div>{loadError || 'This live broadcast is unavailable.'}</div>
       </main>
     );
   }
