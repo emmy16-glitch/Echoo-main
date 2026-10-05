@@ -121,8 +121,11 @@ const ListenerRealLiveRoom = () => {
   const navigate = useNavigate();
   const { setLiveSession, livePlayerState: liveState } = useOutletContext() || {};
   const stageRef = useRef(null);
-  const liveStateRef = useRef(liveState);
-  liveStateRef.current = liveState;
+  const liveMuteHandlerRef = useRef(liveState?.onToggleMute);
+
+  useEffect(() => {
+    liveMuteHandlerRef.current = liveState?.onToggleMute;
+  }, [liveState?.onToggleMute]);
 
   const previewMode =
     import.meta.env.DEV &&
@@ -290,7 +293,7 @@ const ListenerRealLiveRoom = () => {
   useEffect(
     () =>
       onDesktopRoomCommand((command) => {
-        if (command === 'toggle-mute') liveStateRef.current?.onToggleMute?.();
+        if (command === 'toggle-mute') liveMuteHandlerRef.current?.();
         if (command === 'leave-room') {
           setJoined(false);
           setLiveSession(null);
