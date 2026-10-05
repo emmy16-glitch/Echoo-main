@@ -256,6 +256,7 @@ const server = http.createServer(async (req, res) => {
 
   if (path === '/audio') return json(res, 200, listPage([replayAudio]));
   if (/^\/audio\/[^/]+\/stream-token$/.test(path)) return json(res, 200, data({ streamUrl: 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=', expiresIn: 300 }));
+  if (/^\/audio\/[^/]+\/waveform$/.test(path)) return json(res, 200, data({ status: 'ready', duration: 120, points: Array.from({ length: 240 }, (_, index) => 0.15 + ((index % 12) / 20)), cached: true }));
   if (/^\/audio\/[^/]+\/download$/.test(path)) {
     res.writeHead(200, { 'content-type': 'audio/wav', 'access-control-allow-origin': '*', 'content-length': '44' });
     return res.end(Buffer.alloc(44));
