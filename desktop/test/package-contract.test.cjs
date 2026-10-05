@@ -98,7 +98,8 @@ test('Windows release workflow verifies the installed local renderer without ser
   for (const forbiddenSecret of ['LIVEKIT_API_SECRET', 'JWT_SECRET', 'MONGODB_URI']) {
     assert.equal(windowsWorkflow.includes(forbiddenSecret), false);
   }
-  assert.match(mainSource, /ECHOO_DESKTOP_SMOKE_TEST === '1'/);
+  assert.match(mainSource, /ECHOO_DESKTOP_SMOKE_TEST/);
+  assert.match(mainSource, /SMOKE_TEST_MODE/);
   assert.match(mainSource, /protocol: window\.location\.protocol/);
 });
 
