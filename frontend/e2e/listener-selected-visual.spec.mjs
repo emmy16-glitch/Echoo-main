@@ -237,6 +237,7 @@ test('mobile live chat opens as a dismissible bottom sheet', async ({ page }) =>
   const sheet = page.locator('.listener-v2-room-chat');
   await expect(toggle).toBeVisible();
   await expect(sheet).not.toHaveClass(/is-open/);
+  await expect(sheet).toBeHidden();
 
   await toggle.click();
   await expect(sheet).toHaveClass(/is-open/);
