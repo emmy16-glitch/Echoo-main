@@ -1,6 +1,7 @@
 import {
   apiRequest,
   buildMediaUrl,
+  getCurrentAccessToken,
 } from './api.js';
 import { buildGeneratedAudioCoverUrl } from '../audioCover/audioCover.js';
 
@@ -67,10 +68,17 @@ export const audioService = {
 
   getStreamUrl: async (id) => {
     if (!id) throw new Error('Audio ID is missing.');
+
+    const signedIn = Boolean(getCurrentAccessToken());
     const response = await apiRequest(
-      `/audio/${encodeURIComponent(id)}/stream-token`,
-      { method: 'POST' }
+      signedIn
+        ? `/audio/${encodeURIComponent(id)}/stream-token`
+        : `/audio/${encodeURIComponent(id)}/public-stream-token`,
+      signedIn
+        ? { method: 'POST' }
+        : { method: 'POST', skipAuth: true, skipRefresh: true }
     );
+
     const streamUrl = buildMediaUrl(response?.data?.streamUrl || '');
     const downloadUrl = buildMediaUrl(response?.data?.downloadUrl || '');
     if (!streamUrl) throw new Error('Echoo could not prepare this audio for playback.');
