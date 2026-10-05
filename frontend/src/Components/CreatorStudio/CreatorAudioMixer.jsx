@@ -73,12 +73,14 @@ const formatMediaTime = (seconds) => {
 };
 
 const getLibraryAudioUrl = async (item = {}) => {
-  const directUrl = item.audioUrl || item.fileUrl || item.url || item.streamUrl || item.audioFile || '';
-  if (directUrl) return directUrl;
   const audioId = item.id || item._id;
-  if (!audioId) return '';
-  const stream = await studioService.getAudioStreamUrl(audioId);
-  return stream?.streamUrl || '';
+  if (audioId) {
+    const stream = await studioService.getAudioStreamUrl(audioId);
+    if (stream?.mixerUrl) return stream.mixerUrl;
+    if (stream?.streamUrl) return stream.streamUrl;
+  }
+
+  return item.audioUrl || item.fileUrl || item.url || item.streamUrl || item.audioFile || '';
 };
 
 const SOURCE_COPY = Object.freeze({
