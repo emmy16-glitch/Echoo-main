@@ -229,6 +229,9 @@ test('creator recording downloads stream natively instead of buffering whole aud
   const downloadStart = studioService.indexOf('downloadAudio: async');
   const uploadStart = studioService.indexOf('uploadAudio: async', downloadStart);
   const downloadBlock = studioService.slice(downloadStart, uploadStart);
+  const recordingDownloadStart = recordings.indexOf('const download = async');
+  const recordingRemoveStart = recordings.indexOf('const remove = async', recordingDownloadStart);
+  const recordingDownloadBlock = recordings.slice(recordingDownloadStart, recordingRemoveStart);
 
   assert.match(downloadBlock, /getAudioStreamUrl\(audioId\)/);
   assert.match(downloadBlock, /anchor\.href = downloadUrl/);
@@ -249,7 +252,8 @@ test('creator recording downloads stream natively instead of buffering whole aud
 
   assert.match(recordings, /Download started/);
   assert.match(recordings, /Preparing download/);
-  assert.doesNotMatch(recordings, /onProgress:\s*\(\{ loaded, total \}\)/);
+  assert.doesNotMatch(recordingDownloadBlock, /onProgress:\s*\(\{ loaded, total \}\)/);
+  assert.doesNotMatch(recordingDownloadBlock, /updateTransferEstimate/);
   assert.match(detail, /Download started\. Check your browser downloads\./);
   assert.match(trim, /Download started\. Check your browser downloads\./);
 });
@@ -352,7 +356,8 @@ test('recording management keeps trim copies safe and prevents cramped or mislab
   assert.doesNotMatch(exportService, /suggestedName:\s*suggestedInLibrary/);
   assert.match(studioService, /const originalStem = original/);
   assert.match(studioService, /canonical server copy may have been transcoded/);
-  assert.match(studioService, /mimeType: blob\.type \|\| metadata\?\.mimeType/);
+  assert.match(studioService, /anchor\.download = filename/);
+  assert.match(studioService, /mode:\s*"native-stream"/);
 
   assert.doesNotMatch(
     modalCss,
