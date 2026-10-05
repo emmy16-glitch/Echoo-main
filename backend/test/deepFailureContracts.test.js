@@ -564,3 +564,36 @@ test('ending lifecycle is authoritative over reconnect webhooks and late recorde
   assert.match(recording, /late recorder start/);
   assert.match(recording, /reason: !lifecycleStillLive[\s\S]{0,100}'broadcast-ended'/);
 });
+
+
+test('Creator live mixer streams library audio instead of buffering whole recordings', async () => {
+  const mixer = await frontendSource('src/services/echooMixerService.js');
+  const studioService = await frontendSource('src/services/studioService.js');
+  const audioMixer = await frontendSource('src/Components/CreatorStudio/CreatorAudioMixer.jsx');
+  const mixerCss = await frontendSource('src/Components/CreatorStudio/CreatorAudioMixer.css');
+  const creatorShell = await frontendSource('src/styles/creator-shell-viewport-contract.css');
+  const streamController = await source('src/controllers/audioStreamController.js');
+
+  const mediaUrlStart = mixer.indexOf('export const connectMediaUrl');
+  const systemAudioStart = mixer.indexOf('export const connectSystemAudio', mediaUrlStart);
+  const mediaUrlBlock = mixer.slice(mediaUrlStart, systemAudioStart);
+
+  assert.match(mixer, /createMediaElementSource/);
+  assert.match(mixer, /URL\.createObjectURL\(file\)/);
+  assert.match(mediaUrlBlock, /connectMediaElementUrl/);
+  assert.doesNotMatch(mediaUrlBlock, /fetch\(url/);
+  assert.doesNotMatch(mediaUrlBlock, /response\.blob\(\)/);
+  assert.doesNotMatch(mediaUrlBlock, /decodeAudioData/);
+
+  assert.match(studioService, /mixerUrl/);
+  assert.match(audioMixer, /stream\?\.mixerUrl/);
+  assert.match(streamController, /mixerUrl:/);
+  assert.match(streamController, /proxyRequested/);
+  assert.match(streamController, /!downloadRequested && !proxyRequested/);
+
+  const tinyMixerType = mixerCss.match(/font-size:\s*(?:8|9|10|10\.5|11|11\.5|12|12\.5)px/g) || [];
+  assert.equal(tinyMixerType.length, 0, `Creator mixer still has tiny operational text: ${tinyMixerType.join(', ')}`);
+
+  const tinyShellType = creatorShell.match(/font-size:\s*(?:8|9|10|10\.5|11|11\.5|12|12\.5)px\s*!important/g) || [];
+  assert.equal(tinyShellType.length, 0, `Creator mobile shell still forces tiny labels: ${tinyShellType.join(', ')}`);
+});
