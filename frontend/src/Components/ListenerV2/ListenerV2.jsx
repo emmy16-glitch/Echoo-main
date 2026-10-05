@@ -109,6 +109,27 @@ const playbackErrorMessage = (error) => {
   }
   return 'Echoo could not play this audio. Check your connection and try again.';
 };
+
+const livePlaybackLabel = (state, isLive) => {
+  if (!isLive) return 'Broadcast ended';
+  if (state?.needsAudioStart) return 'Tap to resume audio';
+  if (state?.isPlaying) return 'Listening';
+
+  switch (state?.status) {
+    case 'holding': return 'Weak connection — staying live';
+    case 'reconnecting': return 'Reconnecting audio…';
+    case 'recovering_audio': return 'Recovering audio…';
+    case 'waiting_for_program':
+    case 'connected': return 'Waiting for creator';
+    case 'autoplay_blocked': return 'Tap to resume audio';
+    case 'disconnected':
+    case 'failed':
+    case 'error': return 'Audio disconnected';
+    case 'idle': return 'Broadcast ended';
+    case 'connecting':
+    default: return 'Connecting audio…';
+  }
+};
 const titleOf = (item) => item?.title || item?.station?.name || item?.stationName || item?.name || 'Live on Echoo';
 const stationNameOf = (item) => item?.station?.name || item?.stationName || item?.creator?.displayName || item?.name || 'Echoo';
 const categoryOf = (item) => item?.category || item?.station?.category || 'Live';
@@ -201,7 +222,7 @@ const LiveCard = ({ broadcast, onOpen }) => {
       <button type="button" className="listener-v2-live-meta" onClick={() => onOpen(broadcast)}>
         <strong>{titleOf(broadcast)}</strong>
         <span>{stationNameOf(broadcast)}</span>
-        <small>Listen Live</small>
+        <small>Listen live</small>
       </button>
     </article>
   );
@@ -697,7 +718,7 @@ const ListenerV2Layout = () => {
       </div>
       {liveSession && !isLiveRoom && <section className="listener-v2-player listener-v2-live-mini" aria-label="Live mini player">
         <button type="button" className="listener-v2-player-art" aria-label="Open live room" onClick={() => navigate(`/listen/live/${liveSession.broadcastId}`)}><Artwork src={liveSession.track?.coverArt} /></button>
-        <button type="button" className="listener-v2-player-copy" onClick={() => navigate(`/listen/live/${liveSession.broadcastId}`)}><strong>{liveSession.isLive ? 'LIVE' : 'ENDED'} · {liveSession.track?.title}</strong><span>{!liveSession.isLive ? 'Broadcast ended' : livePlayerState?.needsAudioStart ? 'Tap to resume audio' : livePlayerState?.isPlaying ? 'Listening' : livePlayerState?.status === 'reconnecting' ? 'Reconnecting' : livePlayerState?.status === 'idle' ? 'Broadcast ended' : livePlayerState?.playerError || livePlayerState?.status || 'Connecting'} · {liveSession.track?.subtitle}</span></button>
+        <button type="button" className="listener-v2-player-copy" onClick={() => navigate(`/listen/live/${liveSession.broadcastId}`)}><strong>{liveSession.isLive ? 'LIVE' : 'ENDED'} · {liveSession.track?.title}</strong><span>{livePlaybackLabel(livePlayerState, liveSession.isLive)} · {liveSession.track?.subtitle}</span></button>
         <button type="button" className="listener-v2-player-play" onClick={livePlayerState?.onTogglePlay} disabled={!liveSession.isLive} aria-label={livePlayerState?.isPlaying ? 'Pause live audio' : 'Resume live audio'}>{livePlayerState?.isPlaying ? <FiPause /> : <FiPlay />}</button>
         <button type="button" aria-label="Stop live audio" onClick={() => setLiveSession(null)}><FiX /></button>
       </section>}
@@ -1059,7 +1080,7 @@ const ListenerV2Following = () => {
       setStations(Array.isArray(stationResult?.data) ? stationResult.data : []);
       setError('');
     } catch (loadError) {
-      setError(loadError?.message || "We couldn't load your followed Channels.");
+      setError(loadError?.message || "We couldn't load your followed channels.");
     } finally {
       setLoading(false);
     }
@@ -1075,7 +1096,7 @@ const ListenerV2Following = () => {
       await followService.unfollowStation(key);
       setStations((current) => current.filter((item) => idOf(item) !== key));
     } catch (actionError) {
-      setError(actionError?.message || 'Could not unfollow this Channel.');
+      setError(actionError?.message || 'Could not unfollow this channel.');
     } finally { setBusyId(''); }
   };
 
@@ -1109,9 +1130,9 @@ const ListenerV2Following = () => {
       <header className="listener-v2-page-title"><h1>Following</h1><p>Creators you follow, with live broadcasts first.</p></header>
 
       {loading ? (
-        <div className="listener-v2-following-skeleton" aria-label="Loading followed Channels"><span /><span /><span /></div>
+        <div className="listener-v2-following-skeleton" aria-label="Loading followed channels"><span /><span /><span /></div>
       ) : isGuest ? (
-        <EmptyState icon={<FiHeadphones />} title="Sign in to see followed Channels" copy="Following is personal — sign in and the Channels you follow will appear here." action={() => navigate('/login')} actionLabel="Sign in" />
+        <EmptyState icon={<FiHeadphones />} title="Sign in to see followed channels" copy="Following is personal — sign in and the channels you follow will appear here." action={() => navigate('/login')} actionLabel="Sign in" />
       ) : error ? (
         <EmptyState icon={<FiHeadphones />} title="Following couldn’t load" copy="Check your connection and try again." action={load} actionLabel="Try again" />
       ) : stations.length ? (
@@ -1223,7 +1244,7 @@ const ListenerV2Categories = () => {
       requestAuth({
         action: 'Follow channel',
         title: 'Follow your favourite creators',
-        message: 'Create an Echoo account to follow Channels, receive updates and build your library.',
+        message: 'Create an Echoo account to follow channels, receive updates and build your library.',
         resume: async () => {
           await followService.followStation(key);
           setFollowingIds((current) => new Set([...current, key]));
@@ -1248,7 +1269,7 @@ const ListenerV2Categories = () => {
     <div className="listener-v2-page">
       <div className="listener-v2-page-header listener-v2-page-header--categories">
         <div><h1>Channels</h1><p>Find Channels by topic and community.</p></div>
-        <SearchField value={query} onChange={setQuery} placeholder="Search Channels..." />
+        <SearchField value={query} onChange={setQuery} placeholder="Search channels…" />
       </div>
       {error && <div className="listener-v2-error" role="alert">{error}</div>}
 
@@ -1262,7 +1283,7 @@ const ListenerV2Categories = () => {
       </section>
 
       <section className="listener-v2-panel">
-        <SectionTitle title={category === 'All' ? 'Explore Channels' : category} copy={`${visible.length} Channel${visible.length === 1 ? '' : 's'}`} />
+        <SectionTitle title={category === 'All' ? 'Explore channels' : category} copy={`${visible.length} Channel${visible.length === 1 ? '' : 's'}`} />
         {loading ? <div className="listener-v2-station-grid listener-v2-skeleton-grid">{Array.from({ length: 8 }, (_, index) => <span key={index} />)}</div> : visible.length ? (
           <div className="listener-v2-station-grid">
             {visible.map((station) => (
@@ -1276,7 +1297,7 @@ const ListenerV2Categories = () => {
               />
             ))}
           </div>
-        ) : <EmptyState icon={<FiSearch />} title="No Channels found" copy="Try another category or search term." action={() => { setQuery(''); setCategory('All'); }} actionLabel="Clear filters" />}
+        ) : <EmptyState icon={<FiSearch />} title="No channels found" copy="Try another category or search term." action={() => { setQuery(''); setCategory('All'); }} actionLabel="Clear filters" />}
       </section>
     </div>
   );

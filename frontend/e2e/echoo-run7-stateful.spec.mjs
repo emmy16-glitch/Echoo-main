@@ -68,7 +68,7 @@ test('Channels browse survives repeated reflow and opens the canonical Channel U
   await settle(page);
 
   await expect(page.getByRole('heading', { name: 'Channels', exact: true })).toBeVisible();
-  const search = page.getByPlaceholder('Search Channels...');
+  const search = page.getByPlaceholder('Search channels…');
   await search.fill('Echoo');
 
   for (const state of [

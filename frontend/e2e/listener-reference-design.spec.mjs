@@ -82,9 +82,9 @@ test('Channels keeps artwork, real filters, and usable channel actions', async (
   await page.goto('/listen/channels');
   await settle(page);
   await expect(page.getByRole('heading', { level: 1, name: 'Channels' })).toBeVisible();
-  await expect(page.getByPlaceholder('Search Channels...')).toBeVisible();
+  await expect(page.getByPlaceholder('Search channels…')).toBeVisible();
   await expect(page.getByRole('button', { name: 'All Channels' })).toBeVisible();
-  await expect(page.getByRole('heading', { level: 2, name: 'Explore Channels' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 2, name: 'Explore channels' })).toBeVisible();
 
   const card = page.locator('.listener-v2-station-card').first();
   await expect(card).toBeVisible();

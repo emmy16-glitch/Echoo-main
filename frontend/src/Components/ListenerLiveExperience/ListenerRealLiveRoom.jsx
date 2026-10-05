@@ -763,7 +763,7 @@ const ListenerRealLiveRoom = () => {
     return (
       <main className="listener-v2-live-room listener-v2-live-room--state">
         <button type="button" onClick={() => navigate('/listen/live')}>
-          <FiArrowLeft /> Back to Live Now
+          <FiArrowLeft /> Back to live
         </button>
         <div>{loadError || 'This live broadcast is unavailable.'}</div>
       </main>
@@ -777,7 +777,7 @@ const ListenerRealLiveRoom = () => {
           type="button"
           className="listener-v2-room-back"
           onClick={() => navigate('/listen/live')}
-          aria-label="Back to Live Now"
+          aria-label="Back to live"
         >
           <FiArrowLeft />
         </button>
@@ -983,25 +983,16 @@ const ListenerRealLiveRoom = () => {
           >
             <FiX />
           </button>
-          {isGuest && (
-            <div className="listener-v2-room-notice" role="status">
-              Listening as a guest.{' '}
-              <button
-                type="button"
-                className="listener-v2-room-back"
-                onClick={() => navigate({ pathname: '/', search: '?mode=login' })}
-              >
-                Sign in to chat and follow
-              </button>
-            </div>
-          )}
           <ChatPanel
             messages={messages}
             loading={chatLoading}
             disabled={!isLive || isGuest}
+            disabledMessage={isGuest ? 'Listening as a guest. Sign in to join the live chat.' : 'Live chat is closed for this broadcast.'}
+            disabledActionLabel={isGuest ? 'Sign in to chat' : ''}
+            onDisabledAction={isGuest ? () => navigate({ pathname: '/', search: '?mode=login' }) : undefined}
             error={chatError}
-            emptyMessage={isGuest ? 'Live messages will appear here.' : isLive ? 'Be the first to join the conversation.' : 'This live chat has ended.'}
-            composerPlaceholder={isGuest ? 'Sign in to send messages' : isLive ? 'Message live chat...' : 'Live chat has ended'}
+            emptyMessage={isLive ? 'Be the first to join the conversation.' : 'No messages yet.'}
+            composerPlaceholder={isGuest ? 'Sign in to chat' : isLive ? 'Message live chat…' : 'Chat unavailable'}
             onSend={sendMessage}
             onReact={isGuest || !isLive ? undefined : react}
           />

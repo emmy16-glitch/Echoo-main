@@ -181,7 +181,7 @@ const ListenerCreatorProfile = () => {
 
         <div className="lcp-copy">
           <span className="lcp-kicker">
-            {profile.creatorProfile?.category || 'ECHOO CREATOR'}
+            {profile.creatorProfile?.category || 'Echoo creator'}
           </span>
           <h1>{name}</h1>
           <p>{profile.bio || 'Creator on Echoo.'}</p>
