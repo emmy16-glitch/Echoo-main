@@ -58,11 +58,14 @@ const tracks = [
   { id: 'track-3', _id: 'track-3', title: 'Morning Reflection', artistName: 'Adanna', duration: 1320, coverArt: art('REFLECTION', '#241140', '#60319a'), fileUrl: 'https://example.test/audio-3.mp3' },
 ];
 
+const longChatMessage = 'x'.repeat(260);
+
 const messages = [
   { id: 'm1', _id: 'm1', broadcastId: 'live-1', displayName: 'Ada', username: 'ada', content: 'Good morning everyone 👋', createdAt: new Date(Date.now() - 160000).toISOString(), reactions: [] },
   { id: 'm2', _id: 'm2', broadcastId: 'live-1', displayName: 'David', username: 'david', content: 'This point is powerful.', createdAt: new Date(Date.now() - 90000).toISOString(), reactions: [{ emoji: '❤️', userId: 'x' }] },
   { id: 'm3', _id: 'm3', broadcastId: 'live-1', displayName: 'Chidinma', username: 'chidinma', content: 'Listening from Kaduna.', createdAt: new Date(Date.now() - 35000).toISOString(), reactions: [] },
   { id: 'm4', _id: 'm4', broadcastId: 'live-1', displayName: 'Blessing', username: 'blessing', content: 'This is speaking to me.', createdAt: new Date(Date.now() - 12000).toISOString(), reactions: [] },
+  { id: 'm5', _id: 'm5', broadcastId: 'live-1', displayName: 'LongNameWithoutAnyBreaksAtAll', username: 'longname', content: longChatMessage, createdAt: new Date(Date.now() - 5000).toISOString(), reactions: [] },
 ];
 
 const json = (route, body) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
@@ -73,7 +76,7 @@ const mockApi = async (page) => {
     const path = url.pathname;
 
     if (path.endsWith('/api/listener/dashboard')) return json(route, { data: { liveNow: live, discoverStations: stations, continueListening: [] } });
-    if (path.endsWith('/api/player/state')) return json(route, { data: { volume: 0.85, isMuted: false, hapticsEnabled: true, isShuffled: false, repeatMode: 'none' } });
+    if (path.endsWith('/api/player/state')) return json(route, { data: { volume: 1, isMuted: false, hapticsEnabled: true, isShuffled: false, repeatMode: 'none' } });
     if (path.includes('/api/chat/broadcast/live-1/messages')) return json(route, { data: messages });
     if (path.endsWith('/api/broadcasts/live-1')) return json(route, { data: live[0] });
     if (path.includes('/api/broadcasts/live-1/presence')) return json(route, { status: 'live', listenerCount: 284, mediaState: 'audio_live' });
@@ -244,6 +247,13 @@ test('mobile live chat opens as a dismissible bottom sheet', async ({ page }) =>
   const sheetBox = await sheet.boundingBox();
   expect(sheetBox?.height || 0).toBeGreaterThan(330);
   expect((sheetBox?.y || 0) + (sheetBox?.height || 0)).toBeGreaterThanOrEqual(840);
+
+  await expect(sheet.getByRole('button', { name: "Like Ada's message" })).toBeVisible();
+  await expect(sheet.getByRole('textbox', { name: 'Message live chat' })).toHaveAttribute('maxlength', '280');
+  const chatOverflow = await sheet.evaluate((node) => node.scrollWidth - node.clientWidth);
+  expect(chatOverflow, 'mobile live chat sheet overflowed horizontally').toBeLessThanOrEqual(2);
+  const longMessageOverflow = await sheet.locator('.lex-chat-message').last().evaluate((node) => node.scrollWidth - node.clientWidth);
+  expect(longMessageOverflow, 'long chat message overflowed its row').toBeLessThanOrEqual(2);
 
   await page.locator('.listener-v2-room-chat-backdrop').click({ position: { x: 10, y: 10 } });
   await expect(sheet).not.toHaveClass(/is-open/);
