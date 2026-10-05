@@ -314,15 +314,13 @@ const ListenerRealLiveRoom = () => {
     async ({ silent = false } = {}) => {
       if (previewMode || !broadcastId) return;
       const generation = ++chatLoadGenerationRef.current;
-      // Chat history needs an account; guests still see live messages stream
-      // in over the realtime socket below.
-      if (isGuest) {
-        if (!silent && generation === chatLoadGenerationRef.current) setChatLoading(false);
-        return;
-      }
+      // Chat history stays lazy-loaded so large audience joins do not stampede
+      // the API. Guests receive only the sanitized public-history endpoint.
       if (!silent) setChatLoading(true);
       try {
-        const response = await batch4Service.getMessages(broadcastId, { limit: 100 });
+        const response = isGuest
+          ? await batch4Service.getPublicMessages(broadcastId, { limit: 100 })
+          : await batch4Service.getMessages(broadcastId, { limit: 100 });
         if (generation !== chatLoadGenerationRef.current) return;
         const history = Array.isArray(response?.data)
           ? response.data.map(chatView)
@@ -389,7 +387,7 @@ const ListenerRealLiveRoom = () => {
   }, [load]);
 
   useEffect(() => {
-    if (!chatOpen || previewMode || isGuest) return;
+    if (!chatOpen || previewMode) return;
     void loadChat();
   }, [chatOpen, previewMode, isGuest, loadChat]);
 
@@ -1000,7 +998,7 @@ const ListenerRealLiveRoom = () => {
             loading={chatLoading}
             disabled={!isLive || isGuest}
             error={chatError}
-            emptyMessage={isGuest ? 'Live messages will appear here.' : isLive ? 'Be the first to join the conversation.' : 'This live chat has ended.'}
+            emptyMessage={isLive ? 'Be the first to join the conversation.' : 'This live chat has ended.'}
             composerPlaceholder={isGuest ? 'Sign in to send messages' : isLive ? 'Message live chat...' : 'Live chat has ended'}
             onSend={sendMessage}
             onReact={isGuest || !isLive ? undefined : react}
