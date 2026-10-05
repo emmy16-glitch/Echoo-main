@@ -34,16 +34,22 @@ const abortError = () => {
 
 const wait = (ms, signal) => new Promise((resolve, reject) => {
   if (signal?.aborted) return reject(abortError());
-  const timer = globalThis.setTimeout(resolve, Math.max(100, Number(ms) || TRIM_WAVEFORM_DEFAULT_RETRY_MS));
-  const onAbort = () => {
-    globalThis.clearTimeout(timer);
-    reject(abortError());
+
+  const delay = Math.max(100, Number(ms) || TRIM_WAVEFORM_DEFAULT_RETRY_MS);
+  let settled = false;
+  let timer = null;
+
+  const finish = (callback, value) => {
+    if (settled) return;
+    settled = true;
+    if (timer) globalThis.clearTimeout(timer);
+    signal?.removeEventListener?.('abort', onAbort);
+    callback(value);
   };
+  const onAbort = () => finish(reject, abortError());
+
+  timer = globalThis.setTimeout(() => finish(resolve), delay);
   signal?.addEventListener?.('abort', onAbort, { once: true });
-  if (signal) {
-    const cleanup = () => signal.removeEventListener?.('abort', onAbort);
-    globalThis.setTimeout(cleanup, Math.max(100, Number(ms) || TRIM_WAVEFORM_DEFAULT_RETRY_MS) + 50);
-  }
 });
 
 export const prepareTrimWaveform = async (
