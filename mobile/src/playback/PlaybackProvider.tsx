@@ -17,7 +17,10 @@ import {
 import { View } from 'react-native';
 import { DefaultReconnectPolicy } from 'livekit-client';
 
-import { getListenerLiveKitCredentials } from '@/src/services/echooApi';
+import {
+  getAudioStreamUrl,
+  getListenerLiveKitCredentials,
+} from '@/src/services/echooApi';
 import {
   ensureLiveAudioNotificationPermission,
   startLiveAudioService,
@@ -40,7 +43,7 @@ export type AudioPlaybackItem = {
   title: string;
   subtitle: string;
   coverArt?: string;
-  fileUrl: string;
+  fileUrl?: string;
   genre?: string;
 };
 
@@ -92,6 +95,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   const playerRef = useRef<AudioPlayer | null>(null);
   const statusSubscriptionRef = useRef<{ remove: () => void } | null>(null);
   const currentRef = useRef<PlaybackItem | null>(null);
+  const audioStreamExpiresAtRef = useRef(0);
   const isPlayingRef = useRef(false);
   const liveCredentialsRef = useRef<LiveCredentials | null>(null);
   const liveRecoveryGenerationRef = useRef(0);
@@ -119,6 +123,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
 
     const player = playerRef.current;
     playerRef.current = null;
+    audioStreamExpiresAtRef.current = 0;
     if (player) {
       player.clearLockScreenControls();
       player.pause();
@@ -143,17 +148,17 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const playAudio = useCallback(async (item: AudioPlaybackItem) => {
-    if (!item.fileUrl) {
-      setError('This audio item does not have a playable media URL.');
-      return;
-    }
-
-    if (
+    const existingUrl = String(item.fileUrl || '');
+    const localUrl = /^(file:|content:|blob:|data:)/i.test(existingUrl);
+    const sameTrack =
       currentRef.current?.kind === 'audio' &&
       currentRef.current.id === item.id &&
-      playerRef.current
-    ) {
-      playerRef.current.play();
+      Boolean(playerRef.current);
+    const streamStillFresh =
+      localUrl || audioStreamExpiresAtRef.current > Date.now() + (5 * 60 * 1000);
+
+    if (sameTrack && streamStillFresh) {
+      playerRef.current?.play();
       setIsPlaying(true);
       return;
     }
@@ -165,12 +170,30 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     if (liveKit) await liveKit.AudioSession.stopAudioSession().catch(() => undefined);
     clearLiveConnection();
     releaseAudio();
-    setCurrent(item);
     // Foreground-service notifications need a runtime grant on Android 13+;
     // ask early so the lock-screen controls can appear. Never blocks playback.
     void ensureLiveAudioNotificationPermission();
 
     try {
+      let playbackUrl = existingUrl;
+      let expiresIn = 0;
+
+      if (!localUrl && item.id) {
+        const grant = await getAudioStreamUrl(item.id);
+        playbackUrl = grant.streamUrl;
+        expiresIn = grant.expiresIn;
+      }
+
+      if (!playbackUrl) {
+        throw new Error('Echoo could not prepare this audio for playback.');
+      }
+
+      const playableItem = { ...item, fileUrl: playbackUrl };
+      setCurrent(playableItem);
+      audioStreamExpiresAtRef.current = expiresIn > 0
+        ? Date.now() + (expiresIn * 1000)
+        : 0;
+
       await setAudioModeAsync({
         playsInSilentMode: true,
         shouldPlayInBackground: true,
@@ -178,7 +201,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
       });
 
       const player = createAudioPlayer(
-        { uri: item.fileUrl },
+        { uri: playbackUrl },
         { updateInterval: 250, keepAudioSessionActive: true }
       );
       player.loop = repeat;
@@ -274,8 +297,18 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     if (!active) return;
 
     if (active.kind === 'audio') {
-      playerRef.current?.play();
-      setIsPlaying(Boolean(playerRef.current));
+      const stale =
+        !playerRef.current ||
+        (
+          audioStreamExpiresAtRef.current > 0 &&
+          audioStreamExpiresAtRef.current <= Date.now() + (5 * 60 * 1000)
+        );
+      if (stale) {
+        await playAudio(active);
+      } else {
+        playerRef.current.play();
+        setIsPlaying(true);
+      }
       return;
     }
 
@@ -286,7 +319,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     }
 
     await playLive(active);
-  }, [liveCredentials, liveKit, playLive]);
+  }, [liveCredentials, liveKit, playAudio, playLive]);
 
   const toggle = useCallback(async () => {
     if (isPlaying) pause();
