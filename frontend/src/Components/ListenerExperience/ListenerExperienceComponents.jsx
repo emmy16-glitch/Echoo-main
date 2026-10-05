@@ -173,12 +173,12 @@ const ChatPanel = ({
     <section className="lex-panel lex-chat" aria-labelledby="chat-panel-title">
       <div className="lex-panel__header"><div><h2 id="chat-panel-title">Live chat</h2><span>Community conversation</span></div><FiMessageCircle aria-hidden="true" /></div>
       {disabled && <div className="lex-chat-disabled" role="status"><span>{disabledMessage}</span>{disabledActionLabel && onDisabledAction && <button type="button" onClick={onDisabledAction}>{disabledActionLabel}</button>}</div>}
-      <div className="lex-chat__messages" ref={scrollRef} onScroll={() => { const node = scrollRef.current; nearBottomRef.current = node.scrollHeight - node.scrollTop - node.clientHeight < 64; if (nearBottomRef.current) setNewMessages(false); }}>
+      <div className="lex-chat__messages" ref={scrollRef} role="log" aria-label="Live chat messages" onScroll={() => { const node = scrollRef.current; nearBottomRef.current = node.scrollHeight - node.scrollTop - node.clientHeight < 64; if (nearBottomRef.current) setNewMessages(false); }}>
         {loading && <div className="lex-panel-empty">Loading live chat...</div>}
         {messages.map((message) => (
           <article className="lex-chat-message" key={message.id}>
             <span className="lex-avatar lex-avatar--sm">{String(message.name || 'E').charAt(0)}</span>
-            <div><span><strong>{message.name}</strong><time>{message.time}</time></span><p>{message.text}</p>{message.reaction && <button type="button" onClick={() => onReact?.(message, '❤️')} aria-label={`Like ${message.name}'s message`}><FiHeart aria-hidden="true" /> {message.reaction}</button>}</div>
+            <div><span><strong>{message.name}</strong><time>{message.time}</time></span><p>{message.text}</p>{onReact && !disabled && <button type="button" className={message.reaction ? 'is-active' : ''} onClick={() => onReact(message, '❤️')} aria-label={`Like ${message.name}'s message`}><FiHeart aria-hidden="true" />{message.reaction ? <span>{message.reaction}</span> : null}</button>}</div>
           </article>
         ))}
         {!loading && !messages.length && <div className="lex-panel-empty">{disabled ? 'No messages yet.' : 'Be the first to join the conversation.'}</div>}
