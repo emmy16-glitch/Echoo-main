@@ -63,6 +63,7 @@ const messages = [
   { id: 'm2', _id: 'm2', broadcastId: 'live-1', displayName: 'David', username: 'david', content: 'This point is powerful.', createdAt: new Date(Date.now() - 90000).toISOString(), reactions: [{ emoji: '❤️', userId: 'x' }] },
   { id: 'm3', _id: 'm3', broadcastId: 'live-1', displayName: 'Chidinma', username: 'chidinma', content: 'Listening from Kaduna.', createdAt: new Date(Date.now() - 35000).toISOString(), reactions: [] },
   { id: 'm4', _id: 'm4', broadcastId: 'live-1', displayName: 'Blessing', username: 'blessing', content: 'This is speaking to me.', createdAt: new Date(Date.now() - 12000).toISOString(), reactions: [] },
+  { id: 'm5', _id: 'm5', broadcastId: 'live-1', displayName: 'Long Link', username: 'longlink', content: 'https://echoo.digi02.org/listen/live/' + 'a'.repeat(180), createdAt: new Date(Date.now() - 5000).toISOString(), reactions: [] },
 ];
 
 const json = (route, body) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
@@ -224,7 +225,7 @@ test('capture strict Listener 2.0 core surfaces', async ({ page }, testInfo) => 
 
 test('mobile live chat opens as a dismissible bottom sheet', async ({ page }) => {
   test.slow();
-  await page.setViewportSize({ width: 390, height: 844 });
+  await page.setViewportSize({ width: 320, height: 568 });
   await mockApi(page);
   await authenticate(page);
 
@@ -241,9 +242,16 @@ test('mobile live chat opens as a dismissible bottom sheet', async ({ page }) =>
   await expect(page.locator('.listener-v2-room-chat-backdrop')).toBeVisible();
   await expect(page.locator('.listener-v2-room-chat-close')).toBeVisible();
 
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  expect(overflow, 'mobile live chat must not create horizontal page overflow').toBeLessThanOrEqual(2);
+  const longMessage = page.locator('.lex-chat-message p').filter({ hasText: 'https://echoo.digi02.org/listen/live/' }).first();
+  await expect(longMessage).toBeVisible();
+  const longMessageFits = await longMessage.evaluate((node) => node.scrollWidth <= node.clientWidth + 1);
+  expect(longMessageFits, 'long live-chat content must wrap inside the chat sheet').toBeTruthy();
+
   const sheetBox = await sheet.boundingBox();
   expect(sheetBox?.height || 0).toBeGreaterThan(330);
-  expect((sheetBox?.y || 0) + (sheetBox?.height || 0)).toBeGreaterThanOrEqual(840);
+  expect((sheetBox?.y || 0) + (sheetBox?.height || 0)).toBeGreaterThanOrEqual(564);
 
   await page.locator('.listener-v2-room-chat-backdrop').click({ position: { x: 10, y: 10 } });
   await expect(sheet).not.toHaveClass(/is-open/);
