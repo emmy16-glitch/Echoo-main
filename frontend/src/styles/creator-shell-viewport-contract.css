@@ -311,3 +311,106 @@
     display: none !important;
   }
 }
+
+
+/* Shared mobile topbar geometry with Listener. Keep logo, mode switch,
+ * notification and avatar on one line in the same positions. */
+@media (max-width: 760px) {
+  html body #root#root #echoo-main-content.studio-main > .studio-topbar-final,
+  html body #root#root .studio-page.studio-final-shell.studio-v2-shell:has(.studio-view > .ec2-broadcast) #echoo-main-content.studio-main > .studio-topbar-final {
+    width: 100% !important;
+    height: 68px !important;
+    min-height: 68px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
+    padding: 0 16px !important;
+  }
+
+  html body #root#root .studio-v2-shell .studio-mobile-brand {
+    min-width: 0 !important;
+    min-height: 32px !important;
+    display: inline-flex !important;
+    flex: 0 1 auto !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 7px !important;
+    padding: 0 !important;
+  }
+
+  html body #root#root .studio-v2-shell .studio-mobile-brand img {
+    width: 29px !important;
+    height: 29px !important;
+    flex: 0 0 29px !important;
+  }
+
+  html body #root#root .studio-v2-shell .studio-mobile-brand span {
+    font-size: 21px !important;
+    font-weight: 780 !important;
+    letter-spacing: -.055em !important;
+  }
+
+  html body #root#root .studio-v2-shell .studio-top-profile-wrap {
+    min-width: 0 !important;
+    display: flex !important;
+    flex: 0 0 auto !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    margin-left: auto !important;
+  }
+
+  html body #root#root .studio-v2-shell .echoo-account-toolbar {
+    width: auto !important;
+    min-width: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 6px !important;
+  }
+
+  html body #root#root .studio-v2-shell .echoo-mode-switcher {
+    width: 142px !important;
+    height: 36px !important;
+    flex: 0 0 142px !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    padding: 3px !important;
+  }
+
+  html body #root#root .studio-v2-shell .echoo-mode-switcher button {
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 28px !important;
+    height: 28px !important;
+    padding: 0 8px !important;
+    font-size: 12px !important;
+    line-height: 28px !important;
+  }
+
+  html body #root#root .studio-v2-shell .echoo-account-toolbar .echoo-account-toolbar__notification,
+  html body #root#root .studio-v2-shell .echoo-account-toolbar .account-experience-trigger {
+    position: static !important;
+    inset: auto !important;
+    flex: 0 0 34px !important;
+  }
+
+  html body #root#root .studio-v2-shell .echoo-account-toolbar .echoo-account-toolbar__notification {
+    width: 34px !important;
+    height: 34px !important;
+  }
+
+  html body #root#root .studio-v2-shell .echoo-account-toolbar .studio-header-profile,
+  html body #root#root .studio-v2-shell .echoo-account-toolbar .studio-header-profile .top-avatar {
+    width: 34px !important;
+    min-width: 34px !important;
+    height: 34px !important;
+    min-height: 34px !important;
+    flex-basis: 34px !important;
+  }
+}
+
+@media (max-width: 360px) {
+  html body #root#root .studio-v2-shell .studio-mobile-brand span {
+    display: none !important;
+  }
+}
