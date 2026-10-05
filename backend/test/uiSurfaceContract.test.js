@@ -208,6 +208,26 @@ test('live chat uses one 280-character contract from composer through persistenc
 });
 
 
+test('public guest chat history is read-only, sanitized and routed before auth', async () => {
+  const [routes, controller, service, room] = await Promise.all([
+    source('../src/routes/chatRoutes.js'),
+    source('../src/controllers/chatController.js'),
+    source('../../frontend/src/services/batch4Service.js'),
+    source('../../frontend/src/Components/ListenerLiveExperience/ListenerRealLiveRoom.jsx'),
+  ]);
+
+  const publicRoute = routes.indexOf("router.get('/broadcast/:broadcastId/public/messages', getPublicMessages)");
+  const authGate = routes.indexOf('router.use(authenticate)');
+  assert.ok(publicRoute >= 0 && authGate > publicRoute, 'public history must be mounted before the auth gate');
+  assert.match(controller, /isPublic:\s*true/);
+  assert.match(controller, /publicChatMessageView/);
+  assert.match(controller, /reactions:[\s\S]*emoji:/);
+  assert.match(service, /getPublicMessages:[\s\S]*skipAuth:\s*true[\s\S]*skipRefresh:\s*true/);
+  assert.match(room, /isGuest[\s\S]*batch4Service\.getPublicMessages/);
+  assert.doesNotMatch(routes.slice(0, authGate), /router\.(post|put|patch|delete)\(/);
+});
+
+
 test('Listener user-facing recording terminology stays consistent', async () => {
   const [savedMoments, collection] = await Promise.all([
     source('../../frontend/src/Components/ListenerSavedMoments/ListenerSavedMoments.jsx'),
@@ -216,6 +236,8 @@ test('Listener user-facing recording terminology stays consistent', async () => 
 
   assert.doesNotMatch(savedMoments, /replay timestamp/i);
   assert.match(savedMoments, /recording timestamp/i);
+  assert.doesNotMatch(savedMoments, /'REPLAY'/);
+  assert.match(savedMoments, /'RECORDING'/);
   assert.doesNotMatch(collection, /replayable set/i);
   assert.match(collection, /collection of recordings/i);
 });
