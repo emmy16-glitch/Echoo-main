@@ -192,6 +192,7 @@ let creatorQuitWarningOpen = false;
 let rendererRecoveryPromptOpen = false;
 let rendererCrashed = false;
 let isQuitting = false;
+let quitFinalizing = false;
 let quitTimer = null;
 let trayHideNoticed = false;
 const recordingSaveSessions = new Map();
@@ -1856,14 +1857,34 @@ function registerIpc() {
   });
 
   ipcMain.on('echoo:quit-ready', () => {
-    if (quitTimer) {
-      clearTimeout(quitTimer);
-      quitTimer = null;
-    }
-    log.info('[echoo-desktop] renderer reported clean shutdown — exiting');
-    isQuitting = true;
-    app.exit(0);
+    log.info('[echoo-desktop] renderer reported clean shutdown');
+    void finalizeDesktopQuit('renderer clean shutdown');
   });
+}
+
+async function finalizeDesktopQuit(reason = 'application quit') {
+  if (quitFinalizing) return;
+  quitFinalizing = true;
+
+  if (quitTimer) {
+    clearTimeout(quitTimer);
+    quitTimer = null;
+  }
+
+  // Main-process recording streams are independent of the renderer cleanup
+  // handshake. Flush/sync/close them before app.exit so a quit never races the
+  // filesystem and silently truncates a long local recording.
+  try {
+    await Promise.race([
+      preserveInterruptedRecordingSessions(reason),
+      new Promise((resolve) => setTimeout(resolve, 1500)),
+    ]);
+  } catch (error) {
+    log.warn('[echoo-desktop] quit recording preservation failed:', error.message);
+  }
+
+  isQuitting = true;
+  app.exit(0);
 }
 
 // ---------------------------------------------------------------------------
@@ -2034,9 +2055,8 @@ app.on('before-quit', (event) => {
   }
   quitTimer = setTimeout(() => {
     quitTimer = null;
-    log.warn('[echoo-desktop] renderer cleanup timed out — forcing quit');
-    isQuitting = true;
-    app.exit(0);
+    log.warn('[echoo-desktop] renderer cleanup timed out — preserving native recording streams before exit');
+    void finalizeDesktopQuit('renderer cleanup timeout');
   }, 2000);
   if (quitTimer.unref) quitTimer.unref();
 });
@@ -2059,12 +2079,9 @@ app.on('will-quit', () => {
   };
   syncPowerSaveBlocker();
 
-  // A forced process exit must never erase bytes already written by a recording
-  // save. Explicit user abort still removes its own partial file; quit/crash
-  // preserves non-empty partials so recovery remains possible.
-  void preserveInterruptedRecordingSessions(
-    rendererCrashed ? 'renderer crash during quit' : 'application quit'
-  );
+  // Normal before-quit paths flush native recording streams in
+  // finalizeDesktopQuit() before app.exit. will-quit remains synchronous and
+  // only releases lightweight process state.
   if (quitTimer) {
     clearTimeout(quitTimer);
     quitTimer = null;

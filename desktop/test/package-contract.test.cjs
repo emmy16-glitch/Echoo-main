@@ -347,3 +347,11 @@ test('auto-update waits for recording saves as well as active audio sessions', (
   assert.match(mainSource, /update will wait until your recording finishes saving/i);
   assert.match(mainSource, /pendingUpdateReady && !roomState\.active/);
 });
+
+
+test('explicit quit waits for native recording streams to be preserved before app.exit', () => {
+  assert.match(mainSource, /async function finalizeDesktopQuit/);
+  assert.match(mainSource, /await Promise\.race\(\[[\s\S]*preserveInterruptedRecordingSessions/);
+  assert.match(mainSource, /renderer cleanup timed out — preserving native recording streams before exit/);
+  assert.match(mainSource, /finalizeDesktopQuit\('renderer clean shutdown'\)/);
+});
