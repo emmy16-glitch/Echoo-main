@@ -355,3 +355,13 @@ test('explicit quit waits for native recording streams to be preserved before ap
   assert.match(mainSource, /renderer cleanup timed out — preserving native recording streams before exit/);
   assert.match(mainSource, /finalizeDesktopQuit\('renderer clean shutdown'\)/);
 });
+
+
+test('desktop uses native Windows context menus only for real text operations', () => {
+  assert.match(mainSource, /webContents\.on\('context-menu'/);
+  assert.match(mainSource, /params\.isEditable/);
+  assert.match(mainSource, /params\.selectionText/);
+  assert.match(mainSource, /role: 'cut'/);
+  assert.match(mainSource, /role: 'copy'/);
+  assert.match(mainSource, /role: 'paste'/);
+});

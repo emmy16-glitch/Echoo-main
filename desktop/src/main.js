@@ -658,6 +658,32 @@ function createWindow() {
     }
   });
 
+  // Use restrained native Windows text context menus instead of a custom
+  // decorative menu. This gives inputs/chat editors normal cut/copy/paste
+  // behavior and selected read-only text a native Copy action.
+  mainWindow.webContents.on('context-menu', (_event, params = {}) => {
+    const template = [];
+    if (params.isEditable) {
+      template.push(
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'delete' },
+        { type: 'separator' },
+        { role: 'selectAll' }
+      );
+    } else if (String(params.selectionText || '').trim()) {
+      template.push({ role: 'copy' }, { type: 'separator' }, { role: 'selectAll' });
+    }
+
+    if (template.length) {
+      Menu.buildFromTemplate(template).popup({ window: mainWindow });
+    }
+  });
+
   // Load failure (missing frontend/dist in prod, dev server down in dev) shows
   // a retry/offline page instead of a blank/broken window.
   mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
