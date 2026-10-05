@@ -1659,6 +1659,9 @@ function registerIpc() {
       await session.handle.close();
       await commitRecordingPartial(session.partialPath, session.destination, sessionId);
       rememberRecordingPath(session.destination);
+      if (!recordingSaveSessions.size && pendingUpdateReady && !roomState.active) {
+        void promptForDownloadedUpdate();
+      }
       return {
         saved: true,
         path: session.destination,
@@ -1669,6 +1672,9 @@ function registerIpc() {
     } catch (error) {
       await session.handle.close().catch(() => null);
       log.warn('[echoo-desktop] recording-save-finish failed:', error.message);
+      if (!recordingSaveSessions.size && pendingUpdateReady && !roomState.active) {
+        void promptForDownloadedUpdate();
+      }
       return {
         saved: false,
         error: error?.message || String(error),
@@ -1688,6 +1694,9 @@ function registerIpc() {
     try { await session.writeChain; } catch { /* close what is durable */ }
     await session.handle.close().catch(() => null);
     await fs.promises.rm(session.partialPath, { force: true }).catch(() => null);
+    if (!recordingSaveSessions.size && pendingUpdateReady && !roomState.active) {
+      void promptForDownloadedUpdate();
+    }
     return { aborted: true };
   });
 
@@ -1868,8 +1877,12 @@ function isMissingReleaseError(error) {
   return message.includes('404') || message.includes('latest.yml');
 }
 
+function updateRestartBlocked() {
+  return roomState.active || recordingSaveSessions.size > 0;
+}
+
 async function promptForDownloadedUpdate() {
-  if (!pendingUpdateReady || updatePromptOpen || roomState.active) return;
+  if (!pendingUpdateReady || updatePromptOpen || updateRestartBlocked()) return;
 
   updatePromptOpen = true;
   try {
@@ -1884,8 +1897,8 @@ async function promptForDownloadedUpdate() {
     });
 
     if (response === 0) {
-      if (roomState.active) {
-        log.info('[echoo-desktop] update restart deferred because an audio session became active');
+      if (updateRestartBlocked()) {
+        log.info('[echoo-desktop] update restart deferred because protected audio/file work became active');
         return;
       }
       pendingUpdateReady = false;
@@ -1904,14 +1917,16 @@ function checkForUpdates() {
     autoUpdater.autoDownload = true;
     autoUpdater.on('update-downloaded', () => {
       pendingUpdateReady = true;
-      if (roomState.active) {
-        log.info('[echoo-desktop] update downloaded — deferring restart prompt until the active audio session ends');
+      if (updateRestartBlocked()) {
+        log.info('[echoo-desktop] update downloaded — deferring restart prompt until protected work ends');
         try {
           const notice = new Notification({
             title: 'Echoo update ready',
-            body: roomState.mode === 'creator'
-              ? 'The update will wait until your live broadcast has ended.'
-              : 'The update will wait until you leave the live room.',
+            body: recordingSaveSessions.size > 0
+              ? 'The update will wait until your recording finishes saving.'
+              : roomState.mode === 'creator'
+                ? 'The update will wait until your live broadcast has ended.'
+                : 'The update will wait until you leave the live room.',
             silent: true,
           });
           notice.on('click', () => showAndFocusWindow());

@@ -339,3 +339,11 @@ test('Windows-only package has no macOS notarization hook or cross-platform tray
   assert.doesNotMatch(mainSource, /process\.platform === 'darwin'/);
   assert.doesNotMatch(mainSource, /AppImage|Snap\/Flatpak|icon\.icns/);
 });
+
+
+test('auto-update waits for recording saves as well as active audio sessions', () => {
+  assert.match(mainSource, /function updateRestartBlocked\(\)/);
+  assert.match(mainSource, /recordingSaveSessions\.size > 0/);
+  assert.match(mainSource, /update will wait until your recording finishes saving/i);
+  assert.match(mainSource, /pendingUpdateReady && !roomState\.active/);
+});
