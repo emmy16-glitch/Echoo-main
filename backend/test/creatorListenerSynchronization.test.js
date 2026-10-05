@@ -73,13 +73,19 @@ test('listener consumes real LiveKit states without receiving live transcript da
   const player = await source('../../frontend/src/Components/ListenerLiveExperience/LiveKitListenerPlayer.jsx');
   const room = await source('../../frontend/src/Components/ListenerLiveExperience/ListenerRealLiveRoom.jsx');
   const service = await source('../../frontend/src/services/batch3Service.js');
+  const statusCopy = await source('../../frontend/src/services/listenerLiveStatusCopy.js');
 
   for (const label of [
-    'Waiting for creator',
-    'Creator connecting',
+    'Connecting audio…',
+    'Waiting for live audio',
     'Audio live',
+    'Reconnecting audio…',
+    'Restoring audio…',
     'Audio disconnected',
-  ]) assert.match(player + room, new RegExp(label));
+  ]) assert.match(statusCopy, new RegExp(label));
+
+  assert.match(player, /listenerLiveStatusLabel/);
+  assert.match(room, /listenerLiveStatusLabel/);
 
   // Guest and signed-in users may obtain different subscriber credentials,
   // but both must enter this one canonical LiveKit playback engine.
