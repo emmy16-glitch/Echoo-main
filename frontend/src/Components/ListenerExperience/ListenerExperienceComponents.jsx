@@ -131,7 +131,7 @@ const TranscriptPanel = ({ segments = [], live = false, loading = false, status 
   );
 };
 
-const ChatPanel = ({ initialMessages = [], messages: controlledMessages, onSend, onReact, loading = false, disabled = false, error = '' }) => {
+const ChatPanel = ({ initialMessages = [], messages: controlledMessages, onSend, onReact, loading = false, disabled = false, disabledMessage = 'Live chat is unavailable.', error = '' }) => {
   const [localMessages, setLocalMessages] = useState(initialMessages);
   const [text, setText] = useState('');
   const messages = controlledMessages ?? localMessages;
@@ -169,11 +169,11 @@ const ChatPanel = ({ initialMessages = [], messages: controlledMessages, onSend,
             <div><span><strong>{message.name}</strong><time>{message.time}</time></span><p>{message.text}</p>{message.reaction && <button type="button" onClick={() => onReact?.(message, '❤️')} aria-label={`Like ${message.name}'s message`}><FiHeart aria-hidden="true" /> {message.reaction}</button>}</div>
           </article>
         ))}
-        {!loading && !messages.length && <div className="lex-panel-empty">{disabled ? 'Sign in to join the live chat.' : 'Be the first to join the conversation.'}</div>}
+        {!loading && !messages.length && <div className="lex-panel-empty">{disabled ? disabledMessage : 'Be the first to join the conversation.'}</div>}
       </div>
       {newMessages && <button type="button" className="lex-chat-new-messages" onClick={() => { const node = scrollRef.current; node.scrollTop = node.scrollHeight; nearBottomRef.current = true; setNewMessages(false); }}>New messages ↓</button>}
       {error && <p className="lex-chat-error" role="status">{error}</p>}
-      <form className="lex-chat-composer" onSubmit={send}><input value={text} onChange={(event) => setText(event.target.value)} aria-label="Message live chat" placeholder={disabled ? 'Sign in to chat' : 'Message live chat…'} maxLength={280} disabled={disabled} /><button type="submit" aria-label="Send message" disabled={disabled || sending || !text.trim()}><FiSend /></button></form>
+      <form className="lex-chat-composer" onSubmit={send}><input value={text} onChange={(event) => setText(event.target.value)} aria-label="Message live chat" placeholder={disabled ? disabledMessage : 'Message live chat…'} maxLength={280} disabled={disabled} /><button type="submit" aria-label="Send message" disabled={disabled || sending || !text.trim()}><FiSend /></button></form>
     </section>
   );
 };
