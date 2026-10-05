@@ -569,3 +569,11 @@ test('desktop internal navigation never escapes the packaged HashRouter', () => 
   assert.doesNotMatch(errorBoundarySource, /window\.location\.assign/);
   assert.doesNotMatch(creatorSetupSource, /window\.location\.assign/);
 });
+
+
+test('packaged auth uses React Router state instead of the custom-scheme window pathname', () => {
+  const registerSource = fs.readFileSync(path.resolve(desktopRoot, '..', 'frontend', 'src', 'Components', 'Register', 'register.jsx'), 'utf8');
+  assert.match(registerSource, /useLocation/);
+  assert.match(registerSource, /initialAuthAction\(location\.pathname, location\.search\)/);
+  assert.doesNotMatch(registerSource, /window\.location\.pathname/);
+});

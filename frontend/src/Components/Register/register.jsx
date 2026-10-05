@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import "./auth-reference.css";
 import api from "../../services/api";
 
@@ -61,16 +61,18 @@ const AuthStatus = ({ title, message, duration, onContinue }) => {
   );
 };
 
-const initialAuthAction = () => {
-  if (typeof window === "undefined") return "Sign Up";
-  return window.location.pathname === '/login' || new URLSearchParams(window.location.search).get("mode") === "login"
-    ? "Login"
-    : "Sign Up";
-};
+const initialAuthAction = (pathname = '', search = '') => (
+  pathname === '/login' || new URLSearchParams(search).get('mode') === 'login'
+    ? 'Login'
+    : 'Sign Up'
+);
 
 const Register = ({ onAccountCreated, onLoginSuccess }) => {
   const navigate = useNavigate();
-  const [action, setAction] = useState(initialAuthAction);
+  const location = useLocation();
+  const [action, setAction] = useState(() =>
+    initialAuthAction(location.pathname, location.search)
+  );
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -84,6 +86,11 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
     title: "",
     message: "",
   });
+
+  useEffect(() => {
+    if (!['/login', '/register'].includes(location.pathname)) return;
+    setAction(initialAuthAction(location.pathname, location.search));
+  }, [location.pathname, location.search]);
 
   const [formData, setFormData] = useState({
     fullname: "",
