@@ -132,14 +132,19 @@ test('live room primary control recovers disconnected audio and never relies on 
   assert.match(room, /role="meter"/);
 });
 
-test('mobile live room keeps autoplay and reconnect recovery controls available', async () => {
-  const css = await source('../../frontend/src/Components/ListenerLiveExperience/ListenerV2LiveRoom.css');
+test('mobile live room keeps the actual autoplay and reconnect controls available', async () => {
+  const [room, css] = await Promise.all([
+    source('../../frontend/src/Components/ListenerLiveExperience/ListenerRealLiveRoom.jsx'),
+    source('../../frontend/src/Components/ListenerLiveExperience/ListenerV2LiveRoom.css'),
+  ]);
 
-  assert.doesNotMatch(
-    css,
-    /echoo-livekit-listener-copy,\.listener-v2-livekit-host \.echoo-livekit-start-audio,\.listener-v2-livekit-host \.echoo-livekit-retry\s*\{\s*display:\s*none/i
-  );
-  assert.match(css, /echoo-livekit-start-audio,\.listener-v2-livekit-host \.echoo-livekit-retry\s*\{[^}]*min-height:\s*40px/i);
+  assert.match(room, /className="listener-v2-room-tap-to-play"/);
+  assert.match(room, /className="listener-v2-room-play"/);
+  assert.match(room, /aria-label=\{needsReconnect \? 'Reconnect audio'/);
+  assert.match(css, /\.listener-v2-room-tap-to-play\s*\{[^}]*min-height:\s*60px/i);
+  assert.match(css, /\.listener-v2-room-play\s*\{[^}]*width:\s*62px/i);
+  assert.match(css, /@media \(max-width:\s*767px\)[\s\S]*\.listener-v2-room-control-center > span\s*\{[^}]*display:\s*block !important/i);
+  assert.doesNotMatch(css, /listener-v2-livekit-host/);
 });
 
 test('listener late-join subscription and non-autoplay failures remain recoverable', async () => {
