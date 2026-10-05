@@ -1739,6 +1739,7 @@ function registerIpc() {
           Number.isFinite(requestedTotalBytes) && requestedTotalBytes > 0
             ? Math.min(requestedTotalBytes, Number.MAX_SAFE_INTEGER)
             : 0,
+        state: 'writing',
         bytesWritten: 0,
         writeChain: Promise.resolve(),
       });
@@ -1759,7 +1760,9 @@ function registerIpc() {
   ipcMain.handle('echoo:recording-save-chunk', async (_event, payload = {}) => {
     const sessionId = String(payload?.sessionId || '');
     const session = recordingSaveSessions.get(sessionId);
-    if (!session) return { written: false, error: 'Recording save session is not active.' };
+    if (!session || session.state !== 'writing') {
+      return { written: false, error: 'Recording save session is not accepting more data.' };
+    }
 
     try {
       const buffer = Buffer.isBuffer(payload?.data)
@@ -1789,9 +1792,14 @@ function registerIpc() {
   ipcMain.handle('echoo:recording-save-finish', async (_event, sessionIdValue) => {
     const sessionId = String(sessionIdValue || '');
     const session = recordingSaveSessions.get(sessionId);
-    if (!session) return { saved: false, error: 'Recording save session is not active.' };
+    if (!session || session.state !== 'writing') {
+      return { saved: false, error: 'Recording save session is not active.' };
+    }
 
-    recordingSaveSessions.delete(sessionId);
+    // Keep the session registered while sync/close/atomic rename is still in
+    // progress. That keeps Quit and auto-update blocked until bytes are
+    // genuinely durable, while the state flag prevents any late chunk append.
+    session.state = 'finalizing';
     refreshRecordingTaskbarProgress();
     try {
       await session.writeChain;
@@ -1804,9 +1812,6 @@ function registerIpc() {
       await session.handle.close();
       await commitRecordingPartial(session.partialPath, session.destination, sessionId);
       rememberRecordingPath(session.destination);
-      if (!recordingSaveSessions.size && pendingUpdateReady && !roomState.active) {
-        void promptForDownloadedUpdate();
-      }
       return {
         saved: true,
         path: session.destination,
@@ -1817,15 +1822,18 @@ function registerIpc() {
     } catch (error) {
       await session.handle.close().catch(() => null);
       log.warn('[echoo-desktop] recording-save-finish failed:', error.message);
-      if (!recordingSaveSessions.size && pendingUpdateReady && !roomState.active) {
-        void promptForDownloadedUpdate();
-      }
       return {
         saved: false,
         error: error?.message || String(error),
         recoveryPath: fs.existsSync(session.partialPath) ? session.partialPath : '',
         folder: session.folder,
       };
+    } finally {
+      recordingSaveSessions.delete(sessionId);
+      refreshRecordingTaskbarProgress();
+      if (!recordingSaveSessions.size && pendingUpdateReady && !roomState.active) {
+        void promptForDownloadedUpdate();
+      }
     }
   });
 
@@ -1833,16 +1841,21 @@ function registerIpc() {
     const sessionId = String(sessionIdValue || '');
     const session = recordingSaveSessions.get(sessionId);
     if (!session) return { aborted: true };
+    if (session.state !== 'writing') return { aborted: false, finalizing: true };
 
-    recordingSaveSessions.delete(sessionId);
-    refreshRecordingTaskbarProgress();
-    try { await session.writeChain; } catch { /* close what is durable */ }
-    await session.handle.close().catch(() => null);
-    await fs.promises.rm(session.partialPath, { force: true }).catch(() => null);
-    if (!recordingSaveSessions.size && pendingUpdateReady && !roomState.active) {
-      void promptForDownloadedUpdate();
+    session.state = 'aborting';
+    try {
+      try { await session.writeChain; } catch { /* close what is durable */ }
+      await session.handle.close().catch(() => null);
+      await fs.promises.rm(session.partialPath, { force: true }).catch(() => null);
+      return { aborted: true };
+    } finally {
+      recordingSaveSessions.delete(sessionId);
+      refreshRecordingTaskbarProgress();
+      if (!recordingSaveSessions.size && pendingUpdateReady && !roomState.active) {
+        void promptForDownloadedUpdate();
+      }
     }
-    return { aborted: true };
   });
 
   // Legacy bounded save remains for older renderer bundles. Current builds use

@@ -389,3 +389,12 @@ test('renderer permissions are allowlisted and Windows display audio requires a 
   assert.match(mainSource, /audio: 'loopback'/);
   assert.match(mainSource, /Choose a screen or window for Echoo audio/);
 });
+
+
+test('recording session remains protected through final sync and atomic commit', () => {
+  assert.match(mainSource, /state: 'writing'/);
+  assert.match(mainSource, /session\.state = 'finalizing'/);
+  assert.match(mainSource, /recordingSaveSessions\.delete\(sessionId\)[\s\S]{0,160}refreshRecordingTaskbarProgress\(\)/);
+  assert.match(mainSource, /session\.state !== 'writing'/);
+  assert.match(mainSource, /updateRestartBlocked\(\)/);
+});
