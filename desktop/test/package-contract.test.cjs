@@ -623,3 +623,12 @@ test('desktop settings are scoped, restrained, and hide mobile-only haptics', ()
   assert.match(desktopRuntimeCss, /set-header::after/);
   assert.match(desktopRuntimeCss, /set-mobile-only-preference/);
 });
+
+
+test('recording saves keep the desktop alive while their window is closed or Quit is requested', () => {
+  assert.match(mainSource, /const recordingSaveActive = recordingSaveSessions\.size > 0/);
+  assert.match(mainSource, /Recording save continues/);
+  assert.match(mainSource, /Recording is still saving/);
+  assert.match(mainSource, /Saving recording…/);
+  assert.match(mainSource, /refreshTrayMenu\(\)/);
+});

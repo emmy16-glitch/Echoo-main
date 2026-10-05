@@ -793,7 +793,8 @@ function createWindow() {
   // Quit explicitly via tray > Quit or File > Quit (those set isQuitting).
   mainWindow.on('close', (event) => {
     persistWindowState(mainWindow);
-    if (!isQuitting && roomState.active && mainWindow) {
+    const recordingSaveActive = recordingSaveSessions.size > 0;
+    if (!isQuitting && (roomState.active || recordingSaveActive) && mainWindow) {
       event.preventDefault();
       mainWindow.hide();
       if (!trayHideNoticed) {
@@ -802,16 +803,20 @@ function createWindow() {
           const creatorActive = roomState.mode === 'creator';
           const replayActive = roomState.kind === 'replay';
           const notice = new Notification({
-            title: creatorActive
-              ? 'Your broadcast stays live'
-              : replayActive
-                ? 'Audio keeps playing'
-                : 'Echoo keeps playing',
-            body: creatorActive
-              ? 'Your broadcast is still live while Echoo is in the tray. Open Echoo to manage or end it safely.'
-              : replayActive
-                ? 'Your Echoo audio is still playing in the background.'
-                : 'Live audio is still playing while Echoo is in the tray. Open Echoo to return to the room.',
+            title: recordingSaveActive
+              ? 'Recording save continues'
+              : creatorActive
+                ? 'Your broadcast stays live'
+                : replayActive
+                  ? 'Audio keeps playing'
+                  : 'Echoo keeps playing',
+            body: recordingSaveActive
+              ? 'Echoo is finishing your recording in the tray. Reopen Echoo any time while it saves.'
+              : creatorActive
+                ? 'Your broadcast is still live while Echoo is in the tray. Open Echoo to manage or end it safely.'
+                : replayActive
+                  ? 'Your Echoo audio is still playing in the background.'
+                  : 'Live audio is still playing while Echoo is in the tray. Open Echoo to return to the room.',
           });
           notice.on('click', () => showAndFocusWindow());
           notice.show();
@@ -1375,6 +1380,18 @@ function resolveTrayIcon() {
 function buildTrayMenu() {
   const items = [{ label: 'Open Echoo', click: () => showAndFocusWindow() }];
 
+  if (recordingSaveSessions.size > 0) {
+    items.push(
+      { type: 'separator' },
+      {
+        label: recordingSaveSessions.size === 1
+          ? 'Saving recording…'
+          : `Saving ${recordingSaveSessions.size} recordings…`,
+        enabled: false,
+      }
+    );
+  }
+
   if (roomState.active) {
     items.push({ type: 'separator' });
 
@@ -1795,6 +1812,7 @@ function registerIpc() {
         writeChain: Promise.resolve(),
       });
       refreshRecordingTaskbarProgress();
+      refreshTrayMenu();
       return {
         started: true,
         sessionId,
@@ -1882,6 +1900,7 @@ function registerIpc() {
     } finally {
       recordingSaveSessions.delete(sessionId);
       refreshRecordingTaskbarProgress();
+      refreshTrayMenu();
       if (!recordingSaveSessions.size && pendingUpdateReady && !roomState.active) {
         void promptForDownloadedUpdate();
       }
@@ -1903,6 +1922,7 @@ function registerIpc() {
     } finally {
       recordingSaveSessions.delete(sessionId);
       refreshRecordingTaskbarProgress();
+      refreshTrayMenu();
       if (!recordingSaveSessions.size && pendingUpdateReady && !roomState.active) {
         void promptForDownloadedUpdate();
       }
@@ -2234,6 +2254,23 @@ function startApp() {
 // close sockets before the process exits (2s grace, then force).
 app.on('before-quit', (event) => {
   if (isQuitting || !mainWindow) return;
+
+  if (recordingSaveSessions.size > 0) {
+    event.preventDefault();
+    showAndFocusWindow();
+    try {
+      const notice = new Notification({
+        title: 'Recording is still saving',
+        body: 'Echoo will stay open until the recording finishes safely.',
+        silent: true,
+      });
+      notice.on('click', () => showAndFocusWindow());
+      notice.show();
+    } catch {
+      // The save still remains protected if Windows notifications are unavailable.
+    }
+    return;
+  }
 
   // Ending a creator broadcast is a product operation, not the same thing as
   // closing a desktop process. Never let File > Quit, Alt+F4, or the tray
