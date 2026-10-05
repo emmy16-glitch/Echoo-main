@@ -109,6 +109,32 @@ const playbackErrorMessage = (error) => {
   }
   return 'Echoo could not play this audio. Check your connection and try again.';
 };
+const liveMiniStatusLabel = (session, state) => {
+  if (!session?.isLive) return 'Broadcast ended';
+  if (state?.needsAudioStart) return 'Tap Play to hear audio';
+  if (state?.isPlaying) return 'Audio live';
+
+  switch (state?.status) {
+    case 'holding':
+      return 'Weak connection — staying live';
+    case 'reconnecting':
+      return 'Reconnecting audio…';
+    case 'recovering_audio':
+      return 'Recovering audio…';
+    case 'waiting_for_program':
+    case 'connected':
+      return 'Waiting for creator';
+    case 'connecting':
+      return 'Creator connecting';
+    case 'disconnected':
+    case 'failed':
+      return 'Audio disconnected';
+    case 'idle':
+      return 'Broadcast ended';
+    default:
+      return 'Connecting…';
+  }
+};
 const titleOf = (item) => item?.title || item?.station?.name || item?.stationName || item?.name || 'Live on Echoo';
 const stationNameOf = (item) => item?.station?.name || item?.stationName || item?.creator?.displayName || item?.name || 'Echoo';
 const categoryOf = (item) => item?.category || item?.station?.category || 'Live';
@@ -697,7 +723,7 @@ const ListenerV2Layout = () => {
       </div>
       {liveSession && !isLiveRoom && <section className="listener-v2-player listener-v2-live-mini" aria-label="Live mini player">
         <button type="button" className="listener-v2-player-art" aria-label="Open live room" onClick={() => navigate(`/listen/live/${liveSession.broadcastId}`)}><Artwork src={liveSession.track?.coverArt} /></button>
-        <button type="button" className="listener-v2-player-copy" onClick={() => navigate(`/listen/live/${liveSession.broadcastId}`)}><strong>{liveSession.isLive ? 'LIVE' : 'ENDED'} · {liveSession.track?.title}</strong><span>{!liveSession.isLive ? 'Broadcast ended' : livePlayerState?.needsAudioStart ? 'Tap to resume audio' : livePlayerState?.isPlaying ? 'Listening' : livePlayerState?.status === 'reconnecting' ? 'Reconnecting' : livePlayerState?.status === 'idle' ? 'Broadcast ended' : livePlayerState?.playerError || livePlayerState?.status || 'Connecting'} · {liveSession.track?.subtitle}</span></button>
+        <button type="button" className="listener-v2-player-copy" onClick={() => navigate(`/listen/live/${liveSession.broadcastId}`)}><strong>{liveSession.isLive ? 'LIVE' : 'ENDED'} · {liveSession.track?.title}</strong><span>{liveMiniStatusLabel(liveSession, livePlayerState)} · {liveSession.track?.subtitle}</span></button>
         <button type="button" className="listener-v2-player-play" onClick={livePlayerState?.onTogglePlay} disabled={!liveSession.isLive} aria-label={livePlayerState?.isPlaying ? 'Pause live audio' : 'Resume live audio'}>{livePlayerState?.isPlaying ? <FiPause /> : <FiPlay />}</button>
         <button type="button" aria-label="Stop live audio" onClick={() => setLiveSession(null)}><FiX /></button>
       </section>}

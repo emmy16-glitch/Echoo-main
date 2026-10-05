@@ -55,7 +55,7 @@ const ListenerAudioDetail = () => {
         transcriptService.getAudio(audioId, { final: true }).catch(() => ({ data: [] })),
       ]);
       const next = response?.data || response;
-      if (!next?.id) throw new Error('This replay could not be found.');
+      if (!next?.id) throw new Error('This recording could not be found.');
       setTrack(next);
       setTranscript(mapTranscript(transcriptResponse?.data || []));
       setTranscriptLoading(false);
@@ -71,7 +71,7 @@ const ListenerAudioDetail = () => {
       }
       setError('');
     } catch (loadError) {
-      setError(loadError?.message || 'This replay is unavailable.');
+      setError(loadError?.message || 'This recording is unavailable.');
     } finally { setLoading(false); setTranscriptLoading(false); }
   }, [audioId, mapTranscript, previewMode]);
 
@@ -98,7 +98,7 @@ const ListenerAudioDetail = () => {
   const normalizedTrack = useMemo(() => track ? {
     ...track,
     id: track.id || track._id || audioId,
-    title: track.title || 'Untitled Replay',
+    title: track.title || 'Untitled recording',
     artistName: track.artistName || track.creator?.displayName || track.creator || 'Echoo Creator',
     genre: track.genre || track.category || 'Audio',
     coverArt: track.coverArt || track.artwork || '',
@@ -221,27 +221,27 @@ const ListenerAudioDetail = () => {
     }
   };
   const download = async () => {
-    try { await downloadService.download(normalizedTrack); setNotice('Replay downloaded.'); }
-    catch { setError('Could not download this replay.'); }
+    try { await downloadService.download(normalizedTrack); setNotice('Recording downloaded.'); }
+    catch { setError('Could not download this recording.'); }
   };
   const share = async () => {
     try {
       if (navigator.share) {
-        await navigator.share({ title: normalizedTrack?.title || 'Echoo replay', url: window.location.href });
+        await navigator.share({ title: normalizedTrack?.title || 'Echoo recording', url: window.location.href });
       } else if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(window.location.href);
       } else {
         throw new Error('Sharing is unavailable in this browser.');
       }
-      setNotice(navigator.share ? 'Replay shared.' : 'Replay link copied.');
+      setNotice(navigator.share ? 'Recording shared.' : 'Recording link copied.');
     } catch (shareError) {
       if (shareError?.name === 'AbortError') return;
-      setError('Could not share this replay.');
+      setError('Could not share this recording.');
     }
   };
 
-  if (loading) return <div className="replay-page"><div className="replay-state">Loading replay...</div></div>;
-  if (!normalizedTrack) return <div className="replay-page"><button type="button" className="replay-back" onClick={() => navigate('/listen')}><FiArrowLeft /> Back</button><div className="replay-state">{error || 'Replay unavailable.'}</div></div>;
+  if (loading) return <div className="replay-page"><div className="replay-state">Loading recording...</div></div>;
+  if (!normalizedTrack) return <div className="replay-page"><button type="button" className="replay-back" onClick={() => navigate('/listen')}><FiArrowLeft /> Back</button><div className="replay-state">{error || 'Recording unavailable.'}</div></div>;
 
   const tabs = [
     { value: 'overview', label: 'Overview' },
@@ -251,25 +251,25 @@ const ListenerAudioDetail = () => {
 
   return (
     <div className="replay-page eb-page-in">
-      <button type="button" className="replay-back eb-press" onClick={() => navigate(-1)}><FiArrowLeft /> Back to Replays</button>
+      <button type="button" className="replay-back eb-press" onClick={() => navigate(-1)}><FiArrowLeft /> Back to recordings</button>
       {notice && <div className="replay-notice eb-toast-in" key={notice} role="status">{notice}</div>}
       {error && <div className="replay-error eb-shake" key={error} role="alert">{error}</div>}
       {playbackError && <div className="replay-error" role="alert">{playbackError}</div>}
 
       <section className="replay-hero" aria-labelledby="replay-title">
         <div className="replay-art">{normalizedTrack.coverArt && <img src={normalizedTrack.coverArt} alt="" />}<span>{formatTime(normalizedTrack.duration)}</span></div>
-        <div className="replay-copy"><h1 id="replay-title">{normalizedTrack.title}</h1><strong>{normalizedTrack.genre}</strong><p>{normalizedTrack.description || 'No description is available for this replay.'}</p><div className="replay-creator"><span>{normalizedTrack.artistName.charAt(0)}</span><span><strong>{normalizedTrack.artistName}</strong><small>@{normalizedTrack.artistName.toLowerCase().replace(/\s+/g, '')}</small></span><FiCheck aria-label="Verified" /><em><FiUsers /> {Number(normalizedTrack.sourceBroadcast?.peakListeners || normalizedTrack.playCount || 0).toLocaleString()} listens</em></div></div>
+        <div className="replay-copy"><h1 id="replay-title">{normalizedTrack.title}</h1><strong>{normalizedTrack.genre}</strong><p>{normalizedTrack.description || 'No description is available for this recording.'}</p><div className="replay-creator"><span>{normalizedTrack.artistName.charAt(0)}</span><span><strong>{normalizedTrack.artistName}</strong><small>@{normalizedTrack.artistName.toLowerCase().replace(/\s+/g, '')}</small></span><FiCheck aria-label="Verified" /><em><FiUsers /> {Number(normalizedTrack.sourceBroadcast?.peakListeners || normalizedTrack.playCount || 0).toLocaleString()} listens</em></div></div>
       </section>
 
       <div className="replay-actions"><EchooButton icon={playing ? <FiPause /> : <FiPlay />} onClick={play}>{playing ? 'Pause' : 'Play'}</EchooButton><EchooButton variant="secondary" icon={<FiCheck />} onClick={toggleFollow}>{following ? 'Following' : 'Follow'}</EchooButton><EchooButton variant="secondary" icon={<FiShare2 />} onClick={share}>Share</EchooButton><EchooButton variant="secondary" icon={<FiDownload />} onClick={download}>Download</EchooButton></div>
 
-      <section className="replay-timeline" aria-label="Replay audio timeline"><Waveform progress={progress} onSeek={seekPercent} /><div><span>{formatTime(displayCurrent)}</span><span>{formatTime(displayDuration)}</span></div></section>
-      <Tabs items={tabs} value={activeTab} onChange={setActiveTab} ariaLabel="Replay sections" className="replay-tabs" />
+      <section className="replay-timeline" aria-label="Recording audio timeline"><Waveform progress={progress} onSeek={seekPercent} /><div><span>{formatTime(displayCurrent)}</span><span>{formatTime(displayDuration)}</span></div></section>
+      <Tabs items={tabs} value={activeTab} onChange={setActiveTab} ariaLabel="Recording sections" className="replay-tabs" />
 
       {activeTab === 'overview' && <div className="replay-overview replay-overview--facts"><dl className="replay-facts"><div><dt>Category</dt><dd>{normalizedTrack.genre}</dd></div><div><dt>Duration</dt><dd>{formatTime(normalizedTrack.duration)}</dd></div><div><dt>Language</dt><dd>{transcript[0]?.language || 'Not specified'}</dd></div><div><dt>Recorded</dt><dd>{formatDate(normalizedTrack.sourceBroadcast?.endedAt || normalizedTrack.createdAt)}</dd></div><div><dt>Listeners</dt><dd>{Number(normalizedTrack.sourceBroadcast?.peakListeners || normalizedTrack.playCount || 0).toLocaleString()}</dd></div><div><dt>Type</dt><dd>{normalizedTrack.sourceBroadcast ? 'Live broadcast' : 'Audio'}</dd></div></dl></div>}
       {transcriptPublished && activeTab === 'transcript' && <TranscriptPanel segments={transcript} loading={transcriptLoading} onJump={jump} onSearch={previewMode ? undefined : searchTranscript} />}
       {transcriptPublished && activeTab === 'chapters' && (chapters.length ? <ChapterList chapters={chapters} onJump={jump} /> : <div className="replay-state">Chapters will appear when transcript moments are available.</div>)}
-      {activeTab === 'about' && <article className="replay-about replay-about--wide"><h2>About this replay</h2><p>{normalizedTrack.description || 'No description is available for this replay.'}</p><p>Recorded on {formatDate(normalizedTrack.sourceBroadcast?.endedAt || normalizedTrack.createdAt)}.</p></article>}
+      {activeTab === 'about' && <article className="replay-about replay-about--wide"><h2>About this recording</h2><p>{normalizedTrack.description || 'No description is available for this recording.'}</p><p>Recorded on {formatDate(normalizedTrack.sourceBroadcast?.endedAt || normalizedTrack.createdAt)}.</p></article>}
 
       {activeTab === 'overview' && transcriptPublished && moments.length > 0 && <section className="replay-moments replay-moments--overview"><div><h2>Key Moments</h2><button type="button" onClick={saveAllMoments}>Save all</button></div>{moments.map((moment) => <KeyMomentCard key={moment.id} moment={moment} onJump={jump} onSave={saveMoment} saved={savedMomentIds.has(`${Math.round(moment.seconds)}`)} />)}</section>}
     </div>

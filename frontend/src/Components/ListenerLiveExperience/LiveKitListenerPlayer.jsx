@@ -35,10 +35,10 @@ const STATUS_COPY = {
   playing: 'Audio live',
   connected: 'Waiting for creator',
   listening: 'Audio live',
-  reconnecting: 'Reconnecting audio',
-  holding: 'Weak connection — holding live audio',
+  reconnecting: 'Reconnecting audio…',
+  holding: 'Weak connection — staying live',
   recovering_audio: 'Recovering audio…',
-  autoplay_blocked: 'Audio ready — tap Play',
+  autoplay_blocked: 'Tap Play to hear audio',
   disconnected: 'Audio disconnected',
   failed: 'Audio disconnected',
 };

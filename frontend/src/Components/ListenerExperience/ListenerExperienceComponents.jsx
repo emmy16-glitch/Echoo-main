@@ -110,16 +110,16 @@ const TranscriptPanel = ({ segments = [], live = false, loading = false, status 
         <div><h2 id="transcript-panel-title">{live ? 'Live Transcript' : 'Transcript'}</h2><span>{live ? 'Updating as the conversation happens' : 'Search and jump to any moment'}</span></div>
         {(live || status === 'completed') && <span className="lex-transcript-state"><i /> {stateLabel}</span>}
       </div>
-      <label className="lex-panel-search"><FiSearch aria-hidden="true" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search transcript..." /></label>
+      <label className="lex-panel-search"><FiSearch aria-hidden="true" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search transcript…" /></label>
       {live && <label className="lex-transcript-autoscroll"><input type="checkbox" checked={autoScroll} onChange={(event) => setAutoScroll(event.target.checked)} /> Auto-scroll</label>}
       <div className="lex-transcript__segments" ref={segmentListRef}>
-        {loading && <div className="lex-panel-empty">Loading transcript...</div>}
+        {loading && <div className="lex-panel-empty">Loading transcript…</div>}
         {filtered.map((segment) => {
           const isSaved = Boolean(savedSegmentIds?.has?.(String(segment.id)));
           return <article className={`lex-transcript-segment is-${segment.state || 'final'}`} key={segment.id}>
             <button type="button" className="lex-transcript-segment__jump" onClick={() => onJump?.(segment.seconds)}>
               <time>{segment.time}</time>
-              <span><strong>{segment.speaker}</strong><p>{segment.text}</p>{segment.state === 'partial' && <small>Listening...</small>}</span>
+              <span><strong>{segment.speaker}</strong><p>{segment.text}</p>{segment.state === 'partial' && <small>Listening…</small>}</span>
             </button>
             {onSave && segment.state !== 'partial' && <button type="button" className={`lex-transcript-segment__save${isSaved ? ' is-saved' : ''}`} onClick={() => onSave(segment)} disabled={isSaved} aria-label={isSaved ? 'Saved moment' : 'Save this moment'}><FiBookmark /></button>}
           </article>;
@@ -131,7 +131,7 @@ const TranscriptPanel = ({ segments = [], live = false, loading = false, status 
   );
 };
 
-const ChatPanel = ({ initialMessages = [], messages: controlledMessages, onSend, onReact, loading = false, disabled = false, error = '', emptyMessage = 'Be the first to join the conversation.', composerPlaceholder = 'Message live chat...' }) => {
+const ChatPanel = ({ initialMessages = [], messages: controlledMessages, onSend, onReact, loading = false, disabled = false, error = '', emptyMessage = 'Be the first to join the conversation.', composerPlaceholder = 'Message live chat…' }) => {
   const [localMessages, setLocalMessages] = useState(initialMessages);
   const [text, setText] = useState('');
   const messages = controlledMessages ?? localMessages;
@@ -169,7 +169,7 @@ const ChatPanel = ({ initialMessages = [], messages: controlledMessages, onSend,
     <section className="lex-panel lex-chat" aria-labelledby="chat-panel-title">
       <div className="lex-panel__header"><div><h2 id="chat-panel-title">Live chat</h2><span>Community conversation</span></div><FiMessageCircle aria-hidden="true" /></div>
       <div className="lex-chat__messages" ref={scrollRef} onScroll={() => { const node = scrollRef.current; nearBottomRef.current = node.scrollHeight - node.scrollTop - node.clientHeight < 64; if (nearBottomRef.current) setNewMessages(false); }}>
-        {loading && <div className="lex-panel-empty">Loading live chat...</div>}
+        {loading && <div className="lex-panel-empty">Loading live chat…</div>}
         {messages.map((message) => (
           <article className="lex-chat-message" key={message.id}>
             <span className="lex-avatar lex-avatar--sm">{String(message.name || 'E').charAt(0)}</span>
