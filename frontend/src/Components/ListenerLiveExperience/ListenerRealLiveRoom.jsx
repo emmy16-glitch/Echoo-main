@@ -25,7 +25,6 @@ import { ChatPanel } from '../../design-system';
 import { referenceChat, referenceLiveShows } from '../ListenerExperience/listenerExperienceData';
 import BroadcastWaveform from '../CreatorStudio/BroadcastWaveform';
 import echooMark from '../Assets/echoo-logo-official.svg';
-import './ListenerLiveRoom.css';
 import './ListenerV2LiveRoom.css';
 
 const sameId = (first, second) => Boolean(first && second && String(first) === String(second));
