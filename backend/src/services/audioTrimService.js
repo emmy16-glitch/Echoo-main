@@ -195,7 +195,7 @@ export const generateAudioWaveform = async ({
   const configuredTimeout = Number(process.env.WAVEFORM_PROCESS_TIMEOUT_MS) || 0;
   const timeoutMs = Math.max(
     60_000,
-    Math.min(10 * 60 * 1000, configuredTimeout > 0 ? configuredTimeout : 5 * 60 * 1000)
+    Math.min(30 * 60 * 1000, configuredTimeout > 0 ? configuredTimeout : 15 * 60 * 1000)
   );
 
   await new Promise((resolve, reject) => {
