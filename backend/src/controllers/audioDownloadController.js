@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { parseSingleByteRange } from './audioStreamController.js';
 
 const canonicalDownloadName = (audio) => {
   const stored = path.basename(String(audio?.filename || audio?.fileKey || ''));
@@ -56,7 +57,9 @@ export async function downloadAuthorizedAudio(req, res, next) {
       const { getCloudObject } = await import('../services/audioArchiveService.js');
       let object;
       try {
-        object = await getCloudObject(audio.cloudKey);
+        object = await getCloudObject(audio.cloudKey, {
+          range: req.headers.range || '',
+        });
       } catch (cloudError) {
         console.warn('[audio-download] cloud object fetch failed:', cloudError?.message || cloudError);
         return res.status(503).json({
@@ -77,10 +80,22 @@ export async function downloadAuthorizedAudio(req, res, next) {
         });
       }
 
+      res.setHeader('Accept-Ranges', object.AcceptRanges || 'bytes');
       res.setHeader('Content-Type', object.ContentType || audio.mimeType || 'application/octet-stream');
-      const contentLength = Number(object.ContentLength || audio.fileSize || 0);
-      if (contentLength > 0) res.setHeader('Content-Length', String(contentLength));
-      res.attachment(downloadFilename);
+      res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(downloadFilename)}`);
+      if (object.ContentRange) {
+        res.status(206);
+        res.setHeader('Content-Range', object.ContentRange);
+      } else {
+        res.status(200);
+      }
+      const contentLength = Number(object.ContentLength || 0);
+      if (contentLength >= 0) res.setHeader('Content-Length', String(contentLength));
+
+      if (req.method === 'HEAD') {
+        body.destroy?.();
+        return res.end();
+      }
 
       if (typeof body.pipe === 'function') {
         body.once?.('error', (streamError) => {
@@ -130,15 +145,39 @@ export async function downloadAuthorizedAudio(req, res, next) {
       });
     }
 
-    if (audio.mimeType) res.setHeader('Content-Type', audio.mimeType);
+    const size = stat.size;
+    const range = parseSingleByteRange(req.headers.range, size);
 
-    return res.download(
-      absolutePath,
-      downloadFilename,
-      (downloadError) => {
-        if (downloadError && !res.headersSent) next(downloadError);
-      }
-    );
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader('Content-Type', audio.mimeType || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(downloadFilename)}`);
+
+    if (!range) {
+      res.setHeader('Content-Range', `bytes */${size}`);
+      return res.status(416).end();
+    }
+
+    const start = range.partial ? range.start : 0;
+    const end = range.partial ? range.end : Math.max(0, size - 1);
+    const contentLength = size === 0 ? 0 : end - start + 1;
+
+    if (range.partial) {
+      res.status(206);
+      res.setHeader('Content-Range', `bytes ${start}-${end}/${size}`);
+    } else {
+      res.status(200);
+    }
+    res.setHeader('Content-Length', String(contentLength));
+
+    if (req.method === 'HEAD' || size === 0) return res.end();
+
+    const stream = fs.createReadStream(absolutePath, { start, end });
+    stream.on('error', (streamError) => {
+      if (!res.headersSent) next(streamError);
+      else res.destroy(streamError);
+    });
+    stream.pipe(res);
+    return undefined;
   } catch (error) {
     return next(error);
   }
