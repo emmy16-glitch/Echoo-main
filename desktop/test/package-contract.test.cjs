@@ -410,3 +410,21 @@ test('shared motion layer avoids banned decorative effects and fully respects re
   assert.match(motionSource, /prefers-reduced-motion: reduce/);
   assert.match(motionSource, /\.eb-skeleton, \.eb-dots > i \{\s*animation: none;/);
 });
+
+
+test('desktop shell layout overrides never leak into Echoo Web', () => {
+  const rendererEntrySource = fs.readFileSync(
+    path.resolve(desktopRoot, '..', 'frontend', 'src', 'main.jsx'),
+    'utf8'
+  );
+  const desktopRuntimeCss = fs.readFileSync(
+    path.resolve(desktopRoot, '..', 'frontend', 'src', 'styles', 'echoo-desktop-runtime.css'),
+    'utf8'
+  );
+  assert.match(rendererEntrySource, /echoo-desktop-runtime\.css/);
+  assert.match(rendererEntrySource, /classList\.add\('echoo-desktop-runtime'\)/);
+  assert.match(desktopRuntimeCss, /html\.echoo-desktop-runtime \.studio-final-shell/);
+  assert.match(desktopRuntimeCss, /html\.echoo-desktop-runtime \.listener-v2-root/);
+  assert.doesNotMatch(desktopRuntimeCss, /^\s*\.studio-final-shell/m);
+  assert.doesNotMatch(desktopRuntimeCss, /^\s*\.listener-v2-root/m);
+});

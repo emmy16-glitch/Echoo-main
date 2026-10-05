@@ -58,6 +58,18 @@ import "./styles/playwright-run7-final-gate-fixes.css";
 import "./styles/echoo-artwork-fit.css";
 import "./Components/Register/auth-reference.css";
 import "./styles/modal-viewport-contract.css";
+import "./styles/echoo-desktop-runtime.css";
+
+if (
+  typeof window !== 'undefined' &&
+  (
+    window.echooDesktop?.isDesktop === true ||
+    window.location.protocol === 'echoo-app:'
+  )
+) {
+  document.documentElement.classList.add('echoo-desktop-runtime');
+}
+
 initializeEchooTheme();
 installDesktopLifecycle();
 

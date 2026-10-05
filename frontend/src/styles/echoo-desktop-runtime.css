@@ -1,0 +1,49 @@
+/* Echoo Windows desktop shell contract.
+   This file is intentionally imported last and every rule is scoped to the
+   native runtime marker so browser/web layout remains unchanged. */
+
+html.echoo-desktop-runtime,
+html.echoo-desktop-runtime body,
+html.echoo-desktop-runtime #root {
+  height: 100%;
+  min-height: 100%;
+}
+
+html.echoo-desktop-runtime body {
+  overscroll-behavior: none;
+}
+
+@media (min-width: 900px) {
+  html.echoo-desktop-runtime .studio-final-shell.studio-page {
+    height: 100dvh !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
+
+  html.echoo-desktop-runtime .studio-final-shell .studio-main {
+    min-height: 0 !important;
+    overflow: auto !important;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+
+  html.echoo-desktop-runtime .listener-v2-root:not(.listener-v2-root--room) {
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  html.echoo-desktop-runtime .listener-v2-root:not(.listener-v2-root--room) .listener-v2-main {
+    height: calc(100dvh - 76px);
+    min-height: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.echoo-desktop-runtime * {
+    scroll-behavior: auto !important;
+  }
+}
