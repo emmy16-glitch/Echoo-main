@@ -726,3 +726,58 @@ html.listener-v2-full-player-open body { overflow:hidden; }
   .listener-v2-nav { grid-column: 1 / -1; grid-row: 2; position: static; justify-content: center; align-items: center; min-height: 44px; }
   .listener-v2-nav button { height: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; padding-inline: 8px; }
 }
+
+
+/* Mobile listener typography/CTA guard.
+   Keep headings readable: page-level wrapping must never split words such as
+   "Discover" or "Search", and mobile title/copy stacks instead of competing
+   for the same narrow flex row. */
+.listener-v2-root :where(h1, h2, h3, h4, h5, h6) {
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: none;
+}
+.listener-v2-inline-action {
+  width: max-content;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 10px;
+  padding: 0 13px;
+  border: 1px solid #cddcff;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--listener-v2-blue);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+}
+.listener-v2-inline-action:hover {
+  border-color: #a9c2ff;
+  background: var(--listener-v2-blue-soft);
+}
+@media (max-width: 767px) {
+  .listener-v2-page-title,
+  .listener-v2-page-header {
+    width: 100%;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: 5px;
+  }
+  .listener-v2-page-title h1,
+  .listener-v2-page-header h1 {
+    width: 100%;
+    max-width: 100%;
+    overflow-wrap: normal;
+    word-break: normal;
+    hyphens: none;
+  }
+  .listener-v2-page-title p,
+  .listener-v2-page-header p {
+    width: 100%;
+    max-width: 100%;
+    margin-top: 0;
+  }
+}
