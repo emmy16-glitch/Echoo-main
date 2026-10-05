@@ -36,7 +36,7 @@ const STATUS_COPY = {
   connected: 'Waiting for creator',
   listening: 'Audio live',
   reconnecting: 'Reconnecting audio',
-  holding: 'Weak connection — holding live audio',
+  holding: 'Weak connection — staying live',
   recovering_audio: 'Recovering audio…',
   autoplay_blocked: 'Audio ready — tap Play',
   disconnected: 'Audio disconnected',
@@ -1269,14 +1269,18 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
   if (!isLive) return null;
 
   const detail = needsAudioStart
-    ? 'Audio received — tap to allow playback'
+    ? 'Audio is ready — tap to start playback'
     : trackCount > 0 && !isPlaying
       ? status === 'recovering_audio'
-        ? 'Studio mix found — restoring playback'
+        ? 'Restoring playback…'
         : 'Paused on this device'
       : trackCount > 0
-        ? 'Echoo studio mix received'
-        : 'Waiting for the creator to publish the studio mix';
+        ? 'Live audio is playing'
+        : 'Waiting for the creator’s audio';
+
+  const visibleError = error && !needsAudioStart
+    ? 'Echoo is restoring the live audio automatically.'
+    : '';
 
   const statusCopy =
     status === 'connected' && trackCount > 0 && !needsAudioStart
@@ -1290,7 +1294,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       <div className="echoo-livekit-listener-copy">
         <strong>{statusCopy}</strong>
         <span>{detail}</span>
-        {error && <small>{error}</small>}
+        {visibleError && <small>{visibleError}</small>}
       </div>
 
       {outputs.length > 1 && (
