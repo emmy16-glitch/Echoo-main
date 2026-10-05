@@ -162,11 +162,6 @@ const ListenerRealLiveRoom = () => {
   const roomLoadGenerationRef = useRef(0);
   const chatLoadGenerationRef = useRef(0);
   const [chatOpen, setChatOpen] = useState(false);
-  const chatOpenRef = useRef(false);
-
-  useEffect(() => {
-    chatOpenRef.current = chatOpen;
-  }, [chatOpen]);
 
   useEffect(() => {
     if (!chatOpen) return undefined;
@@ -394,9 +389,12 @@ const ListenerRealLiveRoom = () => {
   }, [load]);
 
   useEffect(() => {
-    if (!chatOpen || previewMode || isGuest) return;
+    if (previewMode || isGuest) return;
+    // Desktop chat is visible without the mobile bottom-sheet toggle, so
+    // authenticated history must load on room entry rather than waiting for
+    // chatOpen. Mobile benefits from the same warm history before first open.
     void loadChat();
-  }, [chatOpen, previewMode, isGuest, loadChat]);
+  }, [previewMode, isGuest, loadChat]);
 
   useEffect(() => {
     if (
@@ -416,7 +414,7 @@ const ListenerRealLiveRoom = () => {
 
       const poll = () => {
         void refreshPresence();
-        if (!isGuest && chatOpenRef.current) void loadChat({ silent: true });
+        if (!isGuest) void loadChat({ silent: true });
         // Spread fallback HTTP traffic so a realtime outage does not make a
         // large audience hit the API on the same 15-second boundary.
         const delay = 25_000 + Math.round(Math.random() * 20_000);
