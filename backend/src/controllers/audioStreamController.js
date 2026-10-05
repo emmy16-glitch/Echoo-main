@@ -132,11 +132,12 @@ const sendSignedStreamResponse = (res, signed) => {
   }
 
   res.setHeader('Cache-Control', 'no-store');
-  const downloadSeparator = signed.url.includes('?') ? '&' : '?';
+  const separator = signed.url.includes('?') ? '&' : '?';
   return res.status(200).json({
     data: {
       streamUrl: signed.url,
-      downloadUrl: `${signed.url}${downloadSeparator}download=1`,
+      proxyStreamUrl: `${signed.url}${separator}proxy=1`,
+      downloadUrl: `${signed.url}${separator}download=1`,
       expiresIn: signed.expiresIn,
     },
     timestamp: new Date().toISOString(),
@@ -221,6 +222,7 @@ export async function streamAudio(req, res, next) {
   try {
     const audioId = String(req.params.id || '');
     const downloadRequested = String(req.query.download || '') === '1';
+    const proxyRequested = String(req.query.proxy || '') === '1';
     const grant = streamGrantForRequest(req, audioId);
 
     // Authorization and current visibility are checked for every range request.
@@ -259,7 +261,7 @@ export async function streamAudio(req, res, next) {
       // Echoo URL as the browser-facing response lets us send Content-Disposition
       // while still streaming bytes with backpressure instead of buffering the
       // recording in the frontend.
-      if (!downloadRequested) {
+      if (!downloadRequested && !proxyRequested) {
         if (isCloudBucketPublic() && String(audio.cloudUrl || '').startsWith('http')) {
           return res.redirect(audio.cloudUrl);
         }
@@ -318,7 +320,7 @@ export async function streamAudio(req, res, next) {
       res.setHeader('Referrer-Policy', 'no-referrer');
       res.setHeader(
         'Content-Disposition',
-        `attachment; filename*=UTF-8''${encodeURIComponent(canonicalDownloadName(audio))}`
+        `${downloadRequested ? 'attachment' : 'inline'}; filename*=UTF-8''${encodeURIComponent(canonicalDownloadName(audio))}`
       );
       if (object.ContentRange) {
         res.status(206);
