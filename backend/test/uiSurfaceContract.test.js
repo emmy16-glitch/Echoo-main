@@ -403,7 +403,7 @@ test('guest live chat uses one compact header and never exposes an unusable comp
   assert.match(room, /className="listener-v2-room-chat-title"/);
   assert.match(room, />Live chat</);
   assert.match(room, />Guest</);
-  assert.match(room, />Sign in</);
+  assert.match(room, />\s*Sign in\s*</);
   assert.match(room, /showHeader=\{false\}/);
   assert.match(room, /showComposer=\{!isGuest\}/);
   assert.match(room, /isGuest \? 'No messages yet\.'/);
