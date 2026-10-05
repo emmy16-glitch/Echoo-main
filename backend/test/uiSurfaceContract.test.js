@@ -6,10 +6,15 @@ const source = (relativePath) =>
   readFile(new URL(relativePath, import.meta.url), 'utf8');
 
 const listenerRouteNames = [
+  'following',
   'search',
   'live',
+  'live/:broadcastId',
+  'channels',
+  'channels/:stationId',
   'stations',
   'audio/:audioId',
+  'collections/:collectionId',
   'library',
   'library/following',
   'playlist',
@@ -18,6 +23,7 @@ const listenerRouteNames = [
   'downloads',
   'creator/:creatorId',
   'notifications',
+  'profile',
   'settings',
 ];
 
@@ -50,24 +56,22 @@ const requireOrderedImports = (sourceText, imports) => {
   }
 };
 
-test('Listener uses the shared Creator/Listener shell and matching Home class contract', async () => {
-  const [layout, home, homeCss, integrationCss] = await Promise.all([
-    source('../../frontend/src/Components/ListenerLayout/ListenerLayout.jsx'),
-    source('../../frontend/src/Components/ListenerHome/ListenerHome.jsx'),
-    source('../../frontend/src/Components/ListenerHome/ListenerHome.css'),
-    source('../../frontend/src/styles/listener-creator-ui.css'),
+test('Listener routing mounts the canonical V2 shell and canonical design roles', async () => {
+  const [preloaders, listener, css] = await Promise.all([
+    source('../../frontend/src/routing/routePreloaders.js'),
+    source('../../frontend/src/Components/ListenerV2/ListenerV2.jsx'),
+    source('../../frontend/src/Components/ListenerV2/ListenerV2.css'),
   ]);
 
-  assert.match(layout, /import EchooAppShell from ['"]\.\.\/Shared\/EchooAppShell['"]/);
-  assert.match(layout, /<EchooAppShell[\s\S]*role="listener"/);
-  assert.doesNotMatch(layout, /<aside className="layout-sidebar"/);
-
-  assert.match(home, /className="echoo-home/);
-  assert.match(home, /echoo-home-welcome/);
-  assert.match(homeCss, /\.echoo-home\s*\{/);
-  assert.match(homeCss, /\.echoo-home-welcome/);
-  assert.match(integrationCss, /\.echoo-app-shell--listener \.echoo-home/);
-  assert.doesNotMatch(home, /FiMoreHorizontal|listener-home-history-more/);
+  assert.match(preloaders, /loadListenerV2Module/);
+  assert.match(preloaders, /loadListenerLayout = listenerV2Page\('ListenerV2Layout'\)/);
+  assert.doesNotMatch(preloaders, /Components\/ListenerLayout\/ListenerLayout/);
+  assert.match(listener, /listener-v2-root/);
+  assert.match(css, /--listener-v2-font-heading:\s*var\(--heading/);
+  assert.match(css, /--listener-v2-font-body:\s*var\(--sans/);
+  assert.match(css, /--listener-v2-font-control:\s*var\(--control/);
+  assert.match(css, /--listener-v2-blue:\s*var\(--echoo-blue/);
+  assert.doesNotMatch(css, /font-family:\s*Inter,/);
 });
 
 test('shared sidebar follows nested router state instead of exact-string-only highlighting', async () => {
@@ -145,6 +149,7 @@ test('active Listener pages remain routed, preloaded and backed by mounted API r
     'loadListenerAudioDetail',
     'loadListenerLiveRoom',
     'loadListenerStationProfile',
+    'loadListenerCollectionDetail',
   ]) {
     assert.match(preloaders, new RegExp(`export const ${loader}`));
   }
@@ -167,16 +172,25 @@ test('replay UI has no dead overflow affordance and meaningful copy remains visi
   assert.match(integrity, /\.replay-copy > p[\s\S]*display:\s*block !important/);
 });
 
-test('Listener deep integrity keeps playlist, replay, settings and live-room content readable and touchable', async () => {
-  const deep = await source('../../frontend/src/styles/listener-ui-deep-integrity-2026.css');
+test('active Listener CSS has one readable typography floor instead of legacy override layers', async () => {
+  const files = await Promise.all([
+    source('../../frontend/src/Components/ListenerV2/ListenerV2.css'),
+    source('../../frontend/src/Components/ListenerPlaylist/ListenerPlaylist.css'),
+    source('../../frontend/src/Components/ListenerSavedMoments/ListenerSavedMoments.css'),
+    source('../../frontend/src/Components/ListenerHistory/ListenerHistory.css'),
+    source('../../frontend/src/Components/ListenerDownloads/ListenerDownloads.css'),
+    source('../../frontend/src/Components/ListenerCreatorProfile/ListenerCreatorProfile.css'),
+    source('../../frontend/src/Components/ListenerNotifications/ListenerNotifications.css'),
+    source('../../frontend/src/Components/ListenerSettings/ListenerSettings.css'),
+    source('../../frontend/src/Components/ListenerAudioDetail/ListenerAudioDetail.css'),
+    source('../../frontend/src/Components/ListenerLiveExperience/ListenerLiveRoom.css'),
+    source('../../frontend/src/Components/ListenerLiveExperience/ListenerV2LiveRoom.css'),
+    source('../../frontend/src/Components/ListenerCollectionDetail/ListenerCollectionDetail.css'),
+  ]);
 
-  assert.match(deep, /\.pl-playlist-art-play[\s\S]*width:\s*40px !important/);
-  assert.match(deep, /\.pl-more-btn[\s\S]*min-height:\s*40px !important/);
-  assert.match(deep, /\.replay-timeline > div:last-child[\s\S]*font-size:\s*11\.5px !important/);
-  assert.match(deep, /\.set-toggle-desc[\s\S]*font-size:\s*12\.5px !important/);
-  assert.match(deep, /\.set-toast-close[\s\S]*width:\s*40px !important/);
-  assert.match(deep, /\.llr-status[\s\S]*font-size:\s*11px !important/);
-  assert.match(deep, /@media \(hover: none\), \(pointer: coarse\)/);
+  for (const css of files) {
+    assert.doesNotMatch(css, /font-size:\s*(?:8|9|10|11|11\.5|12|12\.5)px/);
+  }
 });
 
 test('Creator Notifications owns its stylesheet and uses separate accessible open/delete controls', async () => {
