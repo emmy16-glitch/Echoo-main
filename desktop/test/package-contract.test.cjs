@@ -318,3 +318,15 @@ test('installed Windows smoke covers cold-start and second-instance deep links',
   assert.match(mainSource, /smokeSecondInstanceRoute/);
   assert.match(windowsWorkflow, /verify-installer\.ps1 -InstallSmokeTest/);
 });
+
+
+test('desktop restores the last useful workspace without persisting auth screens', () => {
+  const lifecycleSource = fs.readFileSync(
+    path.resolve(desktopRoot, '..', 'frontend', 'src', 'services', 'desktopLifecycle.js'),
+    'utf8'
+  );
+  assert.match(lifecycleSource, /echooDesktopLastRouteV1/);
+  assert.match(lifecycleSource, /restoreLastDesktopWorkspace/);
+  assert.match(lifecycleSource, /\^\\\/\(\?:listen\|creator-studio\)/);
+  assert.doesNotMatch(lifecycleSource, /LAST_DESKTOP_ROUTE_KEY[\s\S]{0,500}login\|register\|reset-password/);
+});

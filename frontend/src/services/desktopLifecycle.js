@@ -8,6 +8,43 @@ import realtimeService from './realtimeService';
 import { stopLiveKitPublishing } from './livekitPublisher';
 
 let installed = false;
+const LAST_DESKTOP_ROUTE_KEY = 'echooDesktopLastRouteV1';
+
+const normalizeDesktopWorkspaceRoute = (value) => {
+  const candidate = String(value || '').trim();
+  if (!/^\/(?:listen|creator-studio)(?:\/|\?|$)/.test(candidate)) return '';
+  return candidate.slice(0, 2048);
+};
+
+const restoreLastDesktopWorkspace = () => {
+  try {
+    const current = String(window.location.hash || '').replace(/^#/, '');
+    if (normalizeDesktopWorkspaceRoute(current)) return;
+
+    const saved = normalizeDesktopWorkspaceRoute(
+      window.localStorage.getItem(LAST_DESKTOP_ROUTE_KEY)
+    );
+    if (!saved) return;
+
+    if (saved.startsWith('/creator-studio') && !window.localStorage.getItem('accessToken')) {
+      return;
+    }
+    window.location.hash = `#${saved}`;
+  } catch {
+    // Storage may be unavailable in hardened/private contexts.
+  }
+};
+
+const rememberCurrentDesktopWorkspace = () => {
+  try {
+    const route = normalizeDesktopWorkspaceRoute(
+      String(window.location.hash || '').replace(/^#/, '')
+    );
+    if (route) window.localStorage.setItem(LAST_DESKTOP_ROUTE_KEY, route);
+  } catch {
+    // Storage may be unavailable in hardened/private contexts.
+  }
+};
 
 const applyDesktopRoute = (route) => {
   const candidate = String(route || '').trim();
@@ -25,6 +62,10 @@ export const installDesktopLifecycle = () => {
   if (installed) return () => {};
   if (typeof window === 'undefined' || !window.echooDesktop?.isDesktop) return () => {};
   installed = true;
+
+  restoreLastDesktopWorkspace();
+  window.addEventListener('hashchange', rememberCurrentDesktopWorkspace);
+  rememberCurrentDesktopWorkspace();
 
   const unsubscribeQuit = onDesktopWillQuit(async () => {
     try {
@@ -52,6 +93,7 @@ export const installDesktopLifecycle = () => {
 
   return () => {
     installed = false;
+    window.removeEventListener('hashchange', rememberCurrentDesktopWorkspace);
     unsubscribeQuit();
     unsubscribeDeepLink();
   };
