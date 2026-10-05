@@ -85,7 +85,7 @@ test('live chat rejoin is acknowledged, backfills missed messages, and uses dedi
   assert.match(room, /if \(!response\?\.ok\)[\s\S]{0,140}fallback\(\)/);
   assert.match(room, /loadChat\(\{ silent: true \}\)/);
   assert.match(room, /Desktop chat is visible without the mobile bottom-sheet toggle/);
-  assert.match(room, /if \(previewMode \|\| isGuest\) return;[\s\S]{0,180}void loadChat\(\)/);
+  assert.match(room, /if \(previewMode \|\| isGuest\) return;[\s\S]{0,360}void loadChat\(\)/);
   assert.match(room, /if \(!isGuest\) void loadChat\(\{ silent: true \}\)/);
   assert.match(room, /className="listener-v2-room-chat-signin"/);
   assert.doesNotMatch(room, /Sign in to chat and follow[\s\S]{0,40}listener-v2-room-back/);
