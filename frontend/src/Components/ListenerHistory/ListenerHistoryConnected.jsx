@@ -16,14 +16,6 @@ import { progressFractionToPercent, progressPercentToFraction } from './historyP
 import './ListenerHistory.css';
 import './ListenerHistoryInteractionFix.css';
 
-const TABS = [
-  { id: 'all', label: 'All' },
-  { id: 'stations', label: 'Stations' },
-  { id: 'shows', label: 'Shows' },
-  { id: 'episodes', label: 'Episodes' },
-  { id: 'clips', label: 'Clips' },
-];
-
 const formatTime = (seconds) => {
   const total = Math.max(0, Math.floor(Number(seconds) || 0));
   const hours = Math.floor(total / 3600);
@@ -100,7 +92,6 @@ const ListenerHistoryConnected = () => {
     totalListeningTime: 0,
   });
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState('all');
   const [busyId, setBusyId] = useState('');
   const [clearing, setClearing] = useState(false);
   const [dismissedTooltipEntryId, setDismissedTooltipEntryId] = useState('');
@@ -201,15 +192,6 @@ const ListenerHistoryConnected = () => {
     };
   }, [load]);
 
-  const filtered = useMemo(() => {
-    if (tab === 'all') return items;
-    const key = String(tab).toLowerCase();
-    return items.filter((t) => {
-      const genre = String(t.genre || '').toLowerCase();
-      const title = String(t.title || '').toLowerCase();
-      return genre.includes(key) || title.includes(key);
-    });
-  }, [items, tab]);
 
   const patterns = useMemo(() => {
     const byGenre = {};
@@ -312,21 +294,6 @@ const ListenerHistoryConnected = () => {
         </div>
       </div>
 
-      <div className="lh-tabs-row">
-        <div className="lh-tabs">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              className={`lh-tab ${tab === t.id ? 'lh-tab-active' : ''}`}
-              onClick={() => setTab(t.id)}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
       <div className="lh-body">
         <div className="lh-main">
           <div className="lh-section-header">
@@ -352,18 +319,14 @@ const ListenerHistoryConnected = () => {
                 Sign in
               </button>
             </div>
-          ) : filtered.length === 0 ? (
+          ) : items.length === 0 ? (
             <div className="lh-empty">
               <FaClock />
               <strong>
-                {items.length === 0
-                  ? 'No listening history yet.'
-                  : 'Nothing matches this filter.'}
+                'No listening history yet.'
               </strong>
               <p>
-                {items.length === 0
-                  ? 'Start playing audio and your history will appear here.'
-                  : 'Try a different filter to see more of your history.'}
+                'Start playing audio and your history will appear here.'
               </p>
             </div>
           ) : (
@@ -376,7 +339,7 @@ const ListenerHistoryConnected = () => {
                 </div>
               )}
               <div className="lh-list">
-              {filtered.map((track, index) => {
+              {items.map((track, index) => {
                 const current = isCurrent(track);
                 const removing = busyId === String(track.entryId);
                 const progressPercent = progressFractionToPercent(track.progress);
