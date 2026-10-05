@@ -168,6 +168,20 @@ const CreatorAudioTrimSection = ({ track, onChanged, onNotice, onOpenTrimmed }) 
   };
 
   const selectionEnd = end > start ? end : duration;
+      audio.currentTime = Math.max(0, start);
+      await audio.play();
+      setPreviewing(true);
+      previewTimerRef.current = window.setTimeout(
+        stopPreview,
+        Math.max(500, (selectionEnd - start) * 1000)
+      );
+    } catch (previewError) {
+      setPreviewing(false);
+      setError(previewError?.message || 'Could not preview this selection.');
+    }
+  };
+
+  const selectionEnd = end > start ? end : duration;
   const isFullLength = duration > 0 && selectionEnd - start >= duration - 0.5 && start <= 0.5;
   const selectedSeconds = Math.max(0, selectionEnd - start);
 
