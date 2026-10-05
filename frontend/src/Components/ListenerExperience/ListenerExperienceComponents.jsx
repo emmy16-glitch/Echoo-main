@@ -4,6 +4,7 @@ import {
   FiCheck,
   FiChevronRight,
   FiClock,
+  FiHeart,
   FiMessageCircle,
   FiPlay,
   FiRadio,
@@ -151,7 +152,14 @@ const ChatPanel = ({ initialMessages = [], messages: controlledMessages, onSend,
     if (!content || disabled || sending) return;
     if (onSend) {
       setSending(true);
-      try { const sent = await onSend(content); if (sent !== false) setText(''); } finally { setSending(false); }
+      try {
+        const sent = await onSend(content);
+        if (sent !== false) {
+          nearBottomRef.current = true;
+          setNewMessages(false);
+          setText('');
+        }
+      } finally { setSending(false); }
       return;
     }
     setLocalMessages((current) => [...current, { id: `local-${Date.now()}`, name: 'You', time: 'Now', text: content, reaction: '' }]);
@@ -165,12 +173,12 @@ const ChatPanel = ({ initialMessages = [], messages: controlledMessages, onSend,
         {messages.map((message) => (
           <article className="lex-chat-message" key={message.id}>
             <span className="lex-avatar lex-avatar--sm">{String(message.name || 'E').charAt(0)}</span>
-            <div><span><strong>{message.name}</strong><time>{message.time}</time></span><p>{message.text}</p>{message.reaction && <button type="button" onClick={() => onReact?.(message, '❤️')} aria-label={`Like ${message.name}'s message`}><FiBookmark aria-hidden="true" /> {message.reaction}</button>}</div>
+            <div><span><strong>{message.name}</strong><time>{message.time}</time></span><p>{message.text}</p>{message.reaction && <button type="button" className="lex-chat-reaction" onClick={() => onReact?.(message, '❤️')} aria-label={`Like ${message.name}'s message`}><FiHeart aria-hidden="true" /> {message.reaction}</button>}</div>
           </article>
         ))}
         {!loading && !messages.length && <div className="lex-panel-empty">Be the first to join the conversation.</div>}
       </div>
-      {newMessages && <button type="button" onClick={() => { const node = scrollRef.current; node.scrollTop = node.scrollHeight; nearBottomRef.current = true; setNewMessages(false); }}>New messages ↓</button>}
+      {newMessages && <button type="button" className="lex-chat-new-messages" onClick={() => { const node = scrollRef.current; node.scrollTop = node.scrollHeight; nearBottomRef.current = true; setNewMessages(false); }}>New messages ↓</button>}
       {error && <p className="lex-chat-error" role="status">{error}</p>}
       <form className="lex-chat-composer" onSubmit={send}><input value={text} onChange={(event) => setText(event.target.value)} aria-label="Message live chat" placeholder="Message live chat..." maxLength={280} disabled={disabled} /><button type="submit" aria-label="Send message" disabled={disabled || sending || !text.trim()}><FiSend /></button></form>
     </section>
