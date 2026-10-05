@@ -678,9 +678,11 @@ const ListenerV2Layout = () => {
       return false;
     }
 
-    const recoveryKey = `${id}|${failedUrl}`;
-    if (streamRecoveryRef.current === recoveryKey) return false;
-    streamRecoveryRef.current = recoveryKey;
+    // Only one automatic refresh is allowed until media actually reaches the
+    // playing state. A missing/corrupt object must not create an endless cycle
+    // of newly signed URLs and repeated network requests.
+    if (streamRecoveryRef.current === id) return false;
+    streamRecoveryRef.current = id;
 
     const resumeAt = Math.max(
       0,
@@ -867,6 +869,7 @@ const ListenerV2Layout = () => {
           setIsPlaying(true);
           setPlaybackState('playing');
           setPlayerError('');
+          streamRecoveryRef.current = '';
         }}
         onTimeUpdate={() => {
           const position = audioRef.current?.currentTime || 0;
