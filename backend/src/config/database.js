@@ -1,9 +1,7 @@
 import mongoose from 'mongoose';
-import path from 'node:path';
 import { env } from './env.js';
 
 let isConnected = false;
-let desktopMemoryServer = null;
 // Serverless runtimes (Vercel Fluid) import this module once per instance and
 // serve many requests concurrently. Coalesce simultaneous first-request
 // connects into a single mongoose.connect() so a cold-start burst cannot open
@@ -55,21 +53,15 @@ export async function connectDatabase() {
         // behind a 10-second database checkout queue. Long-lived hosts retain
         // the larger queue for normal audience bursts.
         waitQueueTimeoutMS: serverlessRuntime ? 3000 : 10000,
-        // Packaged desktop tries the machine-local server first but must not
-        // hang the app boot when none exists — the in-memory fallback below
-        // takes over within a few seconds.
-        serverSelectionTimeoutMS: isDesktopRuntime() ? 2500 : 5000,
+        // Database availability is a server concern. Echoo Desktop uses this
+        // shared API and never falls back to a private machine-local database.
+        serverSelectionTimeoutMS: 5000,
         socketTimeoutMS: 45000,
       });
       isConnected = true;
       console.log('MongoDB connected successfully');
       console.log('MongoDB pool:', { minPoolSize, maxPoolSize });
     } catch (error) {
-      if (isDesktopRuntime()) {
-        console.warn('No machine-local MongoDB found — starting the desktop database instead.');
-        await connectDesktopMemoryDatabase({ maxPoolSize, minPoolSize });
-        return;
-      }
       console.error('Failed to connect to MongoDB:', error);
       throw error;
     } finally {
@@ -83,7 +75,7 @@ export async function connectDatabase() {
 }
 
 export async function disconnectDatabase() {
-  if (!isConnected && !desktopMemoryServer) return;
+  if (!isConnected) return;
   try {
     await mongoose.disconnect();
     isConnected = false;
@@ -91,15 +83,6 @@ export async function disconnectDatabase() {
   } catch (error) {
     console.error('Error disconnecting from MongoDB:', error);
     throw error;
-  } finally {
-    if (desktopMemoryServer) {
-      try {
-        await desktopMemoryServer.stop();
-      } catch {
-        // Best-effort shutdown of the embedded database.
-      }
-      desktopMemoryServer = null;
-    }
   }
 }
 
@@ -110,48 +93,4 @@ export function getDatabaseStatus() {
     host: mongoose.connection.host,
     name: mongoose.connection.name,
   };
-}
-
-// ---------------------------------------------------------------------------
-// Packaged-desktop fallback: end-user machines have no MongoDB installed.
-// When ECHOO_DESKTOP=1 and the machine-local server is unreachable, boot an
-// embedded MongoDB (mongodb-memory-server) with its data files inside the
-// backend working directory (the desktop shell points cwd at per-user app
-// storage), so accounts and content persist across restarts. First launch
-// downloads the mongod binary once (~100MB, needs internet); later launches
-// are fully offline. Server deployments never set ECHOO_DESKTOP, so their
-// behavior is unchanged — a missing database is still a hard startup error.
-// ---------------------------------------------------------------------------
-function isDesktopRuntime() {
-  return process.env.ECHOO_DESKTOP === '1';
-}
-
-async function connectDesktopMemoryDatabase({ maxPoolSize, minPoolSize }) {
-  let MongoMemoryServer;
-  try {
-    ({ MongoMemoryServer } = await import('mongodb-memory-server'));
-  } catch (error) {
-    console.error(
-      'Desktop database unavailable: mongodb-memory-server is not installed. ' +
-        'Install a machine-local MongoDB or run `npm install` in backend/ first.'
-    );
-    throw error;
-  }
-
-  const dbPath = path.join(process.cwd(), 'mongo-data');
-  console.log(`Starting desktop database (data: ${dbPath})...`);
-  const { mkdirSync } = await import('node:fs');
-  mkdirSync(dbPath, { recursive: true });
-  desktopMemoryServer = await MongoMemoryServer.create({
-    instance: { dbPath, storageEngine: 'wiredTiger' },
-  });
-  const uri = desktopMemoryServer.getUri('echoo-desktop');
-  await mongoose.connect(uri, {
-    maxPoolSize,
-    minPoolSize,
-    maxConnecting: 4,
-    serverSelectionTimeoutMS: 5000,
-  });
-  isConnected = true;
-  console.log('Desktop database ready (embedded MongoDB).');
 }
