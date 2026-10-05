@@ -1,7 +1,7 @@
 import { apiRequest } from './api.js';
 
 export const TRIM_WAVEFORM_POINTS = 240;
-export const TRIM_WAVEFORM_MAX_POLLS = 180;
+export const TRIM_WAVEFORM_MAX_POLLS = 600;
 export const TRIM_WAVEFORM_DEFAULT_RETRY_MS = 1500;
 
 export const validateAudioTrimRange = ({ startSeconds, endSeconds, duration = 0 }) => {
