@@ -1081,9 +1081,17 @@ const connectMediaElementUrl = async ({
   return true;
 };
 
+const AUDIO_FILE_EXTENSION = /\.(?:mp3|m4a|aac|wav|ogg|oga|opus|flac|webm)$/i;
+
 export const connectMediaFile = async (file) => {
-  if (!(file instanceof File) || !file.type.startsWith('audio/')) {
-    throw new Error('Choose an audio file for Music / FX.');
+  const validFile =
+    file instanceof File &&
+    (
+      String(file.type || '').startsWith('audio/') ||
+      AUDIO_FILE_EXTENSION.test(String(file.name || ''))
+    );
+  if (!validFile) {
+    throw new Error('Choose a supported audio file for Music / FX.');
   }
 
   const objectUrl = URL.createObjectURL(file);

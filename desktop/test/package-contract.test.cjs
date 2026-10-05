@@ -285,3 +285,12 @@ test('Creator Recording settings expose the real Windows recordings folder witho
   assert.match(settingsSource, /openDesktopRecordingsFolder/);
   assert.match(settingsSource, />\s*Open Echoo Recordings\s*</);
 });
+
+
+test('Creator Studio accepts Windows Explorer audio drag and drop without a duplicate setup flow', () => {
+  assert.match(creatorMixerSource, /onDragOver=\{handleMediaDragOver\}/);
+  assert.match(creatorMixerSource, /onDrop=\{handleMediaDrop\}/);
+  assert.match(creatorMixerSource, /window\.echooDesktop\?\.isDesktop === true/);
+  assert.match(mixerServiceSource, /AUDIO_FILE_EXTENSION/);
+  assert.doesNotMatch(creatorMixerSource, /Let's get your studio ready/i);
+});

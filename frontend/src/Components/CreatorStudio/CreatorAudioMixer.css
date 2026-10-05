@@ -1038,6 +1038,15 @@
 .eam-approved-media-dock { position: relative; min-width: 0; min-height: 118px; display: flex; align-items: center; padding: 14px 17px; border: 1px solid #e0e7f1; border-radius: 15px; background: #fff; box-shadow: 0 7px 18px rgba(13,36,78,.04); }
 .eam-approved-media-dock:not(.populated) { min-height: 46px; align-items: flex-start; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 .eam-approved-media-dock.populated { display: block; padding: 0; overflow: visible; }
+.eam-approved-media-dock.is-file-dragging {
+  outline: 2px solid #0758f7;
+  outline-offset: 2px;
+  background: #f7faff;
+}
+.eam-approved-media-dock.is-file-dragging:not(.populated) .eam-approved-add-audio {
+  border-color: #0758f7;
+  background: #f7faff;
+}
 .eam-approved-add-audio { min-width: 150px; min-height: 42px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid #cddaf0; border-radius: 9px; background: #fff; color: #0758f7; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
 .eam-approved-media-dock > header { min-height: 59px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 0 20px; border-bottom: 1px solid #e5ebf3; }
 .eam-approved-media-dock > header > div { display: flex; align-items: center; gap: 10px; }

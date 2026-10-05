@@ -249,6 +249,9 @@ const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = n
   const approvedMeterRefs = useRef(new Map());
   const [audioMenuOpen, setAudioMenuOpen] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const [mediaDragActive, setMediaDragActive] = useState(false);
+  const isDesktopRuntime =
+    typeof window !== 'undefined' && window.echooDesktop?.isDesktop === true;
 
   useEffect(() =>
     subscribeEchooMixer((next) => {
@@ -789,10 +792,8 @@ const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = n
     };
   }, [channels.host, channels.media]);
 
-  const chooseMediaFile = async (event) => {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file) return;
+  const addLocalMediaFile = async (file) => {
+    if (!file || workingChannel === 'media') return;
     try {
       setWorkingChannel('media');
       setError('');
@@ -803,6 +804,37 @@ const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = n
     } finally {
       setWorkingChannel('');
     }
+  };
+
+  const chooseMediaFile = (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (file) void addLocalMediaFile(file);
+  };
+
+  const mediaDragHasFiles = (event) =>
+    isDesktopRuntime && Array.from(event.dataTransfer?.types || []).includes('Files');
+
+  const handleMediaDragOver = (event) => {
+    if (!mediaDragHasFiles(event)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'copy';
+    setMediaDragActive(true);
+  };
+
+  const handleMediaDragLeave = (event) => {
+    if (!isDesktopRuntime) return;
+    const nextTarget = event.relatedTarget;
+    if (nextTarget && event.currentTarget.contains(nextTarget)) return;
+    setMediaDragActive(false);
+  };
+
+  const handleMediaDrop = (event) => {
+    if (!mediaDragHasFiles(event)) return;
+    event.preventDefault();
+    setMediaDragActive(false);
+    const file = event.dataTransfer?.files?.[0];
+    if (file) void addLocalMediaFile(file);
   };
 
   const changeApprovedInput = async (channelId, deviceId) => {
@@ -966,7 +998,14 @@ const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = n
           </article>
         </div>
         <div className={`eam-approved-lower ${activeMedia ? 'has-media' : ''}`}>
-          <section className={`eam-approved-media-dock ${activeMedia ? 'populated' : ''}`}>
+          <section
+            className={`eam-approved-media-dock ${activeMedia ? 'populated' : ''} ${mediaDragActive ? 'is-file-dragging' : ''}`}
+            aria-label="Media source"
+            onDragEnter={handleMediaDragOver}
+            onDragOver={handleMediaDragOver}
+            onDragLeave={handleMediaDragLeave}
+            onDrop={handleMediaDrop}
+          >
             {activeMedia ? (
               <>
                 <header><div><strong>MEDIA</strong><span>1 item</span></div><button type="button" onClick={() => setAudioMenuOpen((open) => !open)}><FiPlus /> Add audio <FiChevronDown /></button></header>
