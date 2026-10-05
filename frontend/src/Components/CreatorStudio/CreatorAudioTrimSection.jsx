@@ -218,7 +218,7 @@ const CreatorAudioTrimSection = ({ track, onChanged, onNotice, onOpenTrimmed }) 
         originalName: savedTrimmed?.originalName,
         mimeType: savedTrimmed?.mimeType,
       });
-      setTrimmedDownloadMessage('Trimmed recording downloaded.');
+      setTrimmedDownloadMessage('Download started. Check your browser downloads.');
     } catch (downloadError) {
       setError(downloadError?.message || 'Could not download the trimmed recording.');
     } finally {
