@@ -160,7 +160,7 @@
 }
 
 .ln-when {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--echoo-text-muted, #98a2b3);
   white-space: nowrap;
 }
@@ -180,7 +180,7 @@
 }
 
 .ln-read-icon {
-  font-size: 12px;
+  font-size: 13px;
   color: #16a34a;
   opacity: 0.8;
 }
