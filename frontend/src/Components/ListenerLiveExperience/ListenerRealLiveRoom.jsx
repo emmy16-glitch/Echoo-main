@@ -952,7 +952,7 @@ const ListenerRealLiveRoom = () => {
                 className="listener-v2-room-replay"
                 onClick={() => navigate(`/listen/audio/${show.replayAudioId}`)}
               >
-                Open replay
+                Open recording
               </button>
             )}
         </article>
