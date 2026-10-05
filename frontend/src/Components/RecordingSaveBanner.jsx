@@ -17,7 +17,11 @@ import {
   completeDeviceCopyChoice,
   uploadRecoveredTake,
 } from '../services/recordingAutosave.js';
-import { openDesktopRecordingsFolder } from '../services/desktopBridge.js';
+import {
+  openDesktopRecording,
+  openDesktopRecordingsFolder,
+  showDesktopRecording,
+} from '../services/desktopBridge.js';
 import './RecordingSaveBanner.css';
 
 const formatBytes = (bytes) => {
@@ -153,7 +157,14 @@ const RecordingSaveBanner = () => {
           break;
         case 'done':
           window.clearTimeout(hideTimerRef.current);
-          setState(null);
+          setState({
+            kind: 'done',
+            key: detail.key,
+            title: detail.title,
+            audioId: detail.audioId || null,
+            localCopy: detail.localCopy || null,
+          });
+          hideTimerRef.current = window.setTimeout(() => setState(null), 10000);
           break;
         case 'error':
           window.clearTimeout(hideTimerRef.current);
@@ -242,7 +253,7 @@ const RecordingSaveBanner = () => {
   const onBroadcastWorkspace = normalizedPath === '/creator-studio';
   if (
     onBroadcastWorkspace &&
-    ['finalizing', 'uploading', 'device-saving', 'done'].includes(state.kind)
+    ['finalizing', 'uploading', 'device-saving'].includes(state.kind)
   ) {
     return null;
   }
@@ -357,6 +368,24 @@ const RecordingSaveBanner = () => {
   const openLocalFolder = async () => {
     if (!state?.localCopy?.path) return;
     await openDesktopRecordingsFolder(state.localCopy.path).catch(() => {});
+  };
+
+  const openLocalRecording = async () => {
+    if (!state?.localCopy?.path) return;
+    const result = await openDesktopRecording(state.localCopy.path).catch(() => null);
+    if (result?.error) {
+      setState((current) => current ? { ...current, localActionError: result.error } : current);
+    }
+  };
+
+  const showLocalRecording = async () => {
+    if (!state?.localCopy?.path) return;
+    const result = await showDesktopRecording(state.localCopy.path).catch(() => null);
+    if (result?.unsupported) {
+      await openLocalFolder();
+    } else if (result?.error) {
+      setState((current) => current ? { ...current, localActionError: result.error } : current);
+    }
   };
 
   const uploadRecovered = async () => {
@@ -554,9 +583,18 @@ const RecordingSaveBanner = () => {
               <button
                 type="button"
                 className="eb-press"
-                onClick={openLocalFolder}
+                onClick={openLocalRecording}
               >
-                Open folder
+                Open file
+              </button>
+            )}
+            {state.localCopy?.path && (
+              <button
+                type="button"
+                className="eb-press"
+                onClick={showLocalRecording}
+              >
+                Show in File Explorer
               </button>
             )}
             <button
@@ -568,6 +606,11 @@ const RecordingSaveBanner = () => {
               <FaTimes />
             </button>
           </div>
+          {state.localActionError && (
+            <span className="echoo-save-banner-choice-error" role="alert">
+              {state.localActionError}
+            </span>
+          )}
         </>
       )}
 

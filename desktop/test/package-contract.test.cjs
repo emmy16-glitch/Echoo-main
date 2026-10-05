@@ -10,6 +10,10 @@ const packageJson = JSON.parse(fs.readFileSync(path.join(desktopRoot, 'package.j
 const mainSource = fs.readFileSync(path.join(desktopRoot, 'src', 'main.js'), 'utf8');
 const buildSource = fs.readFileSync(path.join(desktopRoot, 'scripts', 'build-renderer.mjs'), 'utf8');
 const securitySource = fs.readFileSync(path.join(desktopRoot, 'src', 'main', 'security.js'), 'utf8');
+const recordingBannerSource = fs.readFileSync(
+  path.resolve(desktopRoot, '..', 'frontend', 'src', 'Components', 'RecordingSaveBanner.jsx'),
+  'utf8'
+);
 const windowsWorkflow = fs.readFileSync(
   path.resolve(desktopRoot, '..', '.github', 'workflows', 'desktop-windows.yml'),
   'utf8'
@@ -64,5 +68,12 @@ test('Windows release workflow verifies the installed local renderer without ser
   }
   assert.match(mainSource, /ECHOO_DESKTOP_SMOKE_TEST === '1'/);
   assert.match(mainSource, /protocol: window\.location\.protocol/);
+});
+
+test('saved desktop recordings expose native Windows file actions', () => {
+  assert.match(recordingBannerSource, /openDesktopRecording/);
+  assert.match(recordingBannerSource, /showDesktopRecording/);
+  assert.match(recordingBannerSource, />\s*Open file\s*</);
+  assert.match(recordingBannerSource, />\s*Show in File Explorer\s*</);
 });
 
