@@ -18,50 +18,6 @@
   color: var(--echoo-text, #5f6f85);
 }
 
-.lh-tabs-row {
-  margin-top: 20px;
-  padding-bottom: 14px;
-  border-bottom: 1px solid var(--echoo-border, #e3eaf2);
-  display: flex;
-  align-items: center;
-}
-
-.lh-tabs {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.lh-tab {
-  border: 0;
-  background: transparent;
-  font-family: inherit;
-  font-size: 13.5px;
-  font-weight: 600;
-  color: var(--echoo-text, #5f6f85);
-  padding: 7px 16px;
-  border-radius: 999px;
-  cursor: pointer;
-  transition:
-    background 0.15s ease,
-    color 0.15s ease;
-}
-
-.lh-tab:hover {
-  background: var(--echoo-blue-soft, #edf5ff);
-  color: var(--echoo-blue, #245cff);
-}
-
-.lh-tab-active {
-  background: var(--echoo-blue, #245cff);
-  color: #ffffff;
-}
-
-.lh-tab-active:hover {
-  background: var(--echoo-blue-hover, var(--echoo-blue, #245cff));
-  color: #ffffff;
-}
-
 .lh-body {
   margin-top: 24px;
   display: grid;
