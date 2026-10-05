@@ -235,21 +235,42 @@ test('mobile live chat opens as a dismissible bottom sheet', async ({ page }) =>
   const sheet = page.locator('.listener-v2-room-chat');
   await expect(toggle).toBeVisible();
   await expect(sheet).not.toHaveClass(/is-open/);
+  await expect(sheet).toBeHidden();
 
   await toggle.click();
   await expect(sheet).toHaveClass(/is-open/);
+  await expect(sheet).toBeVisible();
   await expect(page.locator('.listener-v2-room-chat-backdrop')).toBeVisible();
-  await expect(page.locator('.listener-v2-room-chat-close')).toBeVisible();
+  const close = page.locator('.listener-v2-room-chat-close');
+  await expect(close).toBeVisible();
 
   const sheetBox = await sheet.boundingBox();
   expect(sheetBox?.height || 0).toBeGreaterThan(330);
   expect((sheetBox?.y || 0) + (sheetBox?.height || 0)).toBeGreaterThanOrEqual(840);
 
+  const headerCopy = page.locator('.listener-v2-room-chat .lex-panel__header > div');
+  const [headerCopyBox, closeBox] = await Promise.all([headerCopy.boundingBox(), close.boundingBox()]);
+  expect((headerCopyBox?.x || 0) + (headerCopyBox?.width || 0)).toBeLessThanOrEqual((closeBox?.x || 0) - 2);
+
+  await page.locator('.lex-chat-message p').first().evaluate((node) => {
+    node.textContent = 'https://echoo.example/' + 'verylongunbrokenmessage'.repeat(20);
+  });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+
   await page.locator('.listener-v2-room-chat-backdrop').click({ position: { x: 10, y: 10 } });
   await expect(sheet).not.toHaveClass(/is-open/);
+  await expect(sheet).toBeHidden();
 
+  await page.setViewportSize({ width: 320, height: 720 });
   await toggle.click();
-  await expect(sheet).toHaveClass(/is-open/);
-  await page.locator('.listener-v2-room-chat-close').click();
+  await expect(sheet).toBeVisible();
+  const composer = page.locator('.listener-v2-room-chat .lex-chat-composer');
+  const composerBox = await composer.boundingBox();
+  expect(composerBox?.x || 0).toBeGreaterThanOrEqual(0);
+  expect((composerBox?.x || 0) + (composerBox?.width || 0)).toBeLessThanOrEqual(320);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+
+  await close.click();
   await expect(sheet).not.toHaveClass(/is-open/);
+  await expect(sheet).toBeHidden();
 });
