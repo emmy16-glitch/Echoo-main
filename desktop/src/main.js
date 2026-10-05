@@ -108,7 +108,11 @@ const DEBUG_TOOLS =
   !app.isPackaged ||
   process.env.ECHOO_DEBUG === '1' ||
   process.argv.includes('--echoo-debug');
-const SMOKE_TEST = app.isPackaged && process.env.ECHOO_DESKTOP_SMOKE_TEST === '1';
+const SMOKE_TEST_MODE = app.isPackaged
+  ? String(process.env.ECHOO_DESKTOP_SMOKE_TEST || '')
+  : '';
+const SMOKE_TEST = ['1', 'second-instance'].includes(SMOKE_TEST_MODE);
+const SECOND_INSTANCE_SMOKE_TEST = SMOKE_TEST_MODE === 'second-instance';
 
 // Origins the app window itself is allowed to navigate to. Everything else
 // (chat links, profile links, help URLs) opens in the OS default browser.
@@ -227,6 +231,7 @@ function refreshRecordingTaskbarProgress() {
 // exposing an arbitrary filesystem path primitive to the renderer.
 const trustedRecordingPaths = new Set();
 let pendingDeepLink = findEchooDeepLink(process.argv);
+let smokeSecondInstanceRoute = '';
 const MAX_RECORDING_IPC_CHUNK_BYTES = 8 * 1024 * 1024;
 const MAX_LEGACY_RECORDING_IPC_BYTES = 16 * 1024 * 1024;
 const RECORDING_EXTENSIONS = new Set(['.mp3', '.wav', '.flac', '.m4a', '.aac', '.ogg', '.opus', '.webm']);
@@ -387,9 +392,18 @@ if (!singleInstance) {
 } else {
   app.on('second-instance', (_event, argv) => {
     log.info('[echoo-desktop] second launch — focusing existing window');
-    pendingDeepLink = findEchooDeepLink(argv) || pendingDeepLink;
+    const secondInstanceRoute = findEchooDeepLink(argv);
+    pendingDeepLink = secondInstanceRoute || pendingDeepLink;
+    if (SECOND_INSTANCE_SMOKE_TEST && secondInstanceRoute) {
+      smokeSecondInstanceRoute = secondInstanceRoute;
+    }
     showAndFocusWindow();
     dispatchPendingDeepLink();
+    if (SECOND_INSTANCE_SMOKE_TEST && secondInstanceRoute) {
+      setTimeout(() => {
+        void completePackagedSmokeTest();
+      }, 750);
+    }
   });
 }
 
@@ -764,20 +778,34 @@ function dispatchPendingDeepLink() {
 
 async function completePackagedSmokeTest() {
   if (!SMOKE_TEST || !mainWindow || mainWindow.isDestroyed()) return;
+  if (SECOND_INSTANCE_SMOKE_TEST && !smokeSecondInstanceRoute) return;
+
   const markerPath = path.join(app.getPath('temp'), 'echoo-desktop-smoke.json');
   try {
     await new Promise((resolve) => setTimeout(resolve, 750));
     const result = await mainWindow.webContents.executeJavaScript(`(() => ({
       protocol: window.location.protocol,
+      hash: window.location.hash,
       identity: document.querySelector('meta[name="echoo-app"]')?.content || '',
       rootChildren: document.querySelector('#root')?.childElementCount || 0,
       desktopBridge: window.echooDesktop?.isDesktop === true
     }))()`);
+    const routeVerified = !SECOND_INSTANCE_SMOKE_TEST
+      || result?.hash === `#${smokeSecondInstanceRoute}`;
     const passed = result?.protocol === `${PACKAGED_APP_SCHEME}:`
       && result?.identity === 'echoo-frontend'
       && result?.rootChildren > 0
-      && result?.desktopBridge === true;
-    fs.writeFileSync(markerPath, JSON.stringify({ passed, ...result }, null, 2));
+      && result?.desktopBridge === true
+      && routeVerified;
+    fs.writeFileSync(
+      markerPath,
+      JSON.stringify({
+        passed,
+        smokeMode: SMOKE_TEST_MODE,
+        secondInstanceRoute: smokeSecondInstanceRoute,
+        ...result,
+      }, null, 2)
+    );
     isQuitting = true;
     app.exit(passed ? 0 : 1);
   } catch (error) {

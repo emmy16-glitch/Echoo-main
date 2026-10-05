@@ -311,3 +311,10 @@ test('chunked recording saves expose native Windows taskbar progress without buf
   assert.match(mainSource, /mode: 'normal'/);
   assert.match(mainSource, /requestedTotalBytes/);
 });
+
+
+test('installed Windows smoke covers cold-start and second-instance deep links', () => {
+  assert.match(mainSource, /SECOND_INSTANCE_SMOKE_TEST/);
+  assert.match(mainSource, /smokeSecondInstanceRoute/);
+  assert.match(windowsWorkflow, /verify-installer\.ps1 -InstallSmokeTest/);
+});

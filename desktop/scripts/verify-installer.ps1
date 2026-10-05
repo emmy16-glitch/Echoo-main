@@ -67,7 +67,7 @@ try {
     $env:ECHOO_DESKTOP_SMOKE_TEST = '1'
     $env:ELECTRON_RUN_AS_NODE = $null
     try {
-        $application = Start-Process -FilePath $executablePath -PassThru -WindowStyle Hidden
+        $application = Start-Process -FilePath $executablePath -ArgumentList 'echoo://listen/live/smoke-cold' -PassThru -WindowStyle Hidden
     } finally {
         $env:ECHOO_DESKTOP_SMOKE_TEST = $previousSmokeValue
         $env:ELECTRON_RUN_AS_NODE = $previousRunAsNodeValue
@@ -87,9 +87,54 @@ try {
     if ($application.ExitCode -ne 0) {
         throw "Installed Echoo smoke test exited with code $($application.ExitCode): $($smoke | ConvertTo-Json -Compress)"
     }
-    if ($smoke.passed -ne $true -or $smoke.protocol -ne 'echoo-app:' -or $smoke.identity -ne 'echoo-frontend' -or $smoke.desktopBridge -ne $true) {
-        throw "Installed Echoo loaded an invalid renderer: $($smoke | ConvertTo-Json -Compress)"
+    if (
+        $smoke.passed -ne $true -or
+        $smoke.protocol -ne 'echoo-app:' -or
+        $smoke.hash -ne '#/listen/live/smoke-cold' -or
+        $smoke.identity -ne 'echoo-frontend' -or
+        $smoke.desktopBridge -ne $true
+    ) {
+        throw "Installed Echoo failed its cold-start renderer/deep-link smoke test: $($smoke | ConvertTo-Json -Compress)"
     }
+
+    # Verify that a second Windows launch is delivered to the existing Echoo
+    # process instead of creating another app session.
+    Remove-Item -LiteralPath $markerPath -Force -ErrorAction SilentlyContinue
+    $env:ECHOO_DESKTOP_SMOKE_TEST = 'second-instance'
+    $env:ELECTRON_RUN_AS_NODE = $null
+    try {
+        $primaryApplication = Start-Process -FilePath $executablePath -PassThru -WindowStyle Hidden
+        Start-Sleep -Seconds 5
+        $secondaryApplication = Start-Process -FilePath $executablePath -ArgumentList 'echoo://listen/live/smoke-second' -PassThru -WindowStyle Hidden
+        try {
+            Wait-Process -Id $secondaryApplication.Id -Timeout 15 -ErrorAction SilentlyContinue
+        } catch {
+            Stop-Process -Id $secondaryApplication.Id -Force -ErrorAction SilentlyContinue
+        }
+        try {
+            Wait-Process -Id $primaryApplication.Id -Timeout 45 -ErrorAction Stop
+        } catch {
+            Stop-Process -Id $primaryApplication.Id -Force -ErrorAction SilentlyContinue
+            throw 'Installed Echoo did not complete the second-instance deep-link smoke test within 45 seconds.'
+        }
+    } finally {
+        $env:ECHOO_DESKTOP_SMOKE_TEST = $previousSmokeValue
+        $env:ELECTRON_RUN_AS_NODE = $previousRunAsNodeValue
+    }
+
+    if (-not (Test-Path -LiteralPath $markerPath -PathType Leaf)) {
+        throw 'Installed Echoo did not create the second-instance smoke marker.'
+    }
+    $secondSmoke = Get-Content -Raw -LiteralPath $markerPath | ConvertFrom-Json
+    if (
+        $secondSmoke.passed -ne $true -or
+        $secondSmoke.smokeMode -ne 'second-instance' -or
+        $secondSmoke.secondInstanceRoute -ne '/listen/live/smoke-second' -or
+        $secondSmoke.hash -ne '#/listen/live/smoke-second'
+    ) {
+        throw "Installed Echoo failed second-instance deep-link routing: $($secondSmoke | ConvertTo-Json -Compress)"
+    }
+    Write-Host 'Verified cold-start and second-instance echoo:// deep-link routing.'
 
     # The installed app registers echoo:// during Electron startup. Verify the
     # real installed executable after the packaged-renderer smoke launch rather
