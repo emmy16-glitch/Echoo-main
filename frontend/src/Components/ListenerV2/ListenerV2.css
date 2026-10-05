@@ -1,12 +1,12 @@
 :root {
-  --listener-v2-ink: var(--echoo-text-h, var(--echoo-text-h, #101828));
-  --listener-v2-copy: var(--echoo-text, var(--echoo-text, #5f6f85));
-  --listener-v2-line: var(--echoo-border, var(--echoo-border, #e3eaf2));
+  --listener-v2-ink: var(--echoo-text-h, #101828);
+  --listener-v2-copy: var(--echoo-text, #5f6f85);
+  --listener-v2-line: var(--echoo-border, #e3eaf2);
   --listener-v2-surface: var(--echoo-surface, #ffffff);
-  --listener-v2-canvas: var(--echoo-bg, var(--echoo-bg, #f5f8fc));
+  --listener-v2-canvas: var(--echoo-bg, #f5f8fc);
   --listener-v2-blue: var(--echoo-blue, #245cff);
   --listener-v2-blue-hover: var(--echoo-blue-hover, #1f4fdb);
-  --listener-v2-blue-soft: var(--echoo-blue-soft, var(--echoo-blue-soft, #edf5ff));
+  --listener-v2-blue-soft: var(--echoo-blue-soft, #edf5ff);
   --listener-v2-focus: #94b4ff;
   --listener-v2-red: #ff3545;
   --listener-v2-success: #12b76a;
