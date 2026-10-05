@@ -37,7 +37,7 @@ routes through the same playback path as the center play button. */
   /* The playback status label under the center play button was hidden on all
   sizes — on phones it is the only text telling the listener what to do. */
   .listener-v2-room-control-center > span { display: block !important; color: #cbd6e3; font-size: 13px; font-weight: 700; margin-top: 6px; }
-  /* The fixed chat bar (44px + safe-area) overlays the viewport bottom and
+  /* The fixed chat bar (48px + safe-area) overlays the viewport bottom and
   was covering the playback controls. Hold the controls clear of it. */
   .listener-v2-room-controls { padding-bottom: calc(72px + env(safe-area-inset-bottom)) !important; }
   /* Keep the rescue banner clear of the chat bar too. */
