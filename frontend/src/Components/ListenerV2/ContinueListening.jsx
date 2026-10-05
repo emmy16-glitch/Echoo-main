@@ -16,7 +16,7 @@ export default function ContinueListening() {
     }
     return () => { active = false; };
   }, []);
-  const unfinished = tracks.filter(track => track.fileUrl && track.progress > 0 && track.progress < 100 && track.duration > 0);
+  const unfinished = tracks.filter(track => (track.id || track._id || track.fileUrl) && track.progress > 0 && track.progress < 100 && track.duration > 0);
   if (!unfinished.length) return null;
   return <section className="listener-v2-panel"><header className="listener-v2-section-title"><h2>Continue listening</h2></header><div className="listener-v2-audio-list">{unfinished.slice(0, 4).map(track => <article key={track.id || track._id}><span className="listener-v2-audio-art">{track.coverArt && <img src={track.coverArt} alt="" />}</span><div><strong>{track.title}</strong><span>{track.artistName}</span><progress max="100" value={track.progress} aria-label={`${Math.round(track.progress)}% listened`} /></div><button type="button" aria-label={`Resume ${track.title}`} onClick={() => playTrackAt(track, track.progress / 100 * track.duration, unfinished)}><FiPlay /></button></article>)}</div></section>;
 }
