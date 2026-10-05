@@ -4,47 +4,47 @@
 
 /* Base: views fade/slide on mount (page side-by-side lite). */
 @keyframes eb-page-in {
-  from { opacity: 0; transform: translateY(10px); }
+  from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
 }
-.eb-page-in { animation: eb-page-in 240ms var(--eb-ease-out, cubic-bezier(.22, 1, .36, 1)) both; }
+.eb-page-in { animation: eb-page-in 160ms ease-out both; }
 
 /* Modal open/close (scale + fade). */
 @keyframes eb-modal-in {
-  from { opacity: 0; transform: scale(.96) translateY(8px); }
-  to { opacity: 1; transform: scale(1) translateY(0); }
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
-.eb-modal-in { animation: eb-modal-in 200ms var(--eb-ease-out, cubic-bezier(.22, 1, .36, 1)) both; }
+.eb-modal-in { animation: eb-modal-in 160ms ease-out both; }
 @keyframes eb-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
 .eb-backdrop-in { animation: eb-backdrop-in 160ms ease-out both; }
 
-/* Toast open/close (rise + blur + scale, beUI stacked-toast feel). */
+/* Toast open/close: short positional feedback, no blur or bounce. */
 @keyframes eb-toast-in {
-  from { opacity: 0; transform: translateY(12px) scale(.97); filter: blur(4px); }
-  to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
 }
-.eb-toast-in { animation: eb-toast-in 260ms var(--eb-spring-soft, cubic-bezier(.3, 1.2, .4, 1)) both; }
+.eb-toast-in { animation: eb-toast-in 180ms ease-out both; }
 
-/* Skeleton loader → content reveal (pulse to cross-fade). */
+/* Skeleton loader → content reveal. */
 @keyframes eb-skeleton-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: .45; }
 }
 .eb-skeleton { animation: eb-skeleton-pulse 1.4s ease-in-out infinite; }
 @keyframes eb-content-reveal {
-  from { opacity: 0; filter: blur(3px); }
-  to { opacity: 1; filter: blur(0); }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
-.eb-content-reveal { animation: eb-content-reveal 260ms ease-out both; }
+.eb-content-reveal { animation: eb-content-reveal 180ms ease-out both; }
 
-/* Error state shake (cubic-bezier, transitions.dev). */
+/* Error state: one restrained acknowledgement, never repeated. */
 @keyframes eb-shake {
   10%, 90% { transform: translateX(-1px); }
   20%, 80% { transform: translateX(2px); }
   30%, 50%, 70% { transform: translateX(-4px); }
   40%, 60% { transform: translateX(4px); }
 }
-.eb-shake { animation: eb-shake .5s cubic-bezier(.36, .07, .19, .97) both; }
+.eb-shake { animation: eb-shake 180ms ease-out both; }
 
 /* Spinner → success check morph helper (draw-on check). */
 @keyframes eb-check-draw {
@@ -53,30 +53,29 @@
 }
 .eb-check-draw { stroke-dasharray: 48; animation: eb-check-draw 420ms ease-out .1s both; }
 @keyframes eb-pop-in {
-  0% { opacity: 0; transform: scale(.6); }
-  60% { opacity: 1; transform: scale(1.08); }
-  100% { opacity: 1; transform: scale(1); }
+  from { opacity: 0; transform: scale(.96); }
+  to { opacity: 1; transform: scale(1); }
 }
-.eb-pop-in { animation: eb-pop-in 320ms var(--eb-spring, cubic-bezier(.34, 1.4, .44, 1)) both; }
+.eb-pop-in { animation: eb-pop-in 160ms ease-out both; }
 
-/* Number pop-in (digit flip lite: blur + stagger via --eb-i). */
+/* Number update: slight rise only; no blur/flip effect. */
 @keyframes eb-number-pop {
-  from { opacity: 0; transform: translateY(8px); filter: blur(3px); }
-  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: translateY(0); }
 }
-.eb-number-pop { animation: eb-number-pop 300ms ease-out both; animation-delay: calc(var(--eb-i, 0) * 45ms); }
+.eb-number-pop { animation: eb-number-pop 150ms ease-out both; }
 
-/* Text states swap (blur cross-fade). */
+/* Text states use a simple cross-fade. */
 @keyframes eb-text-swap {
-  from { opacity: 0; filter: blur(4px); }
-  to { opacity: 1; filter: blur(0); }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 .eb-text-swap { animation: eb-text-swap 200ms ease-out both; }
 
-/* Icon swap (scale + blur). */
+/* Icon swap uses a small scale only. */
 @keyframes eb-icon-swap {
-  from { opacity: 0; transform: scale(.7); filter: blur(2px); }
-  to { opacity: 1; transform: scale(1); filter: blur(0); }
+  from { opacity: 0; transform: scale(.94); }
+  to { opacity: 1; transform: scale(1); }
 }
 .eb-icon-swap { animation: eb-icon-swap 180ms ease-out both; }
 
@@ -88,20 +87,20 @@
 .eb-accordion-panel.open { grid-template-rows: 1fr; }
 .eb-accordion-panel > div { overflow: hidden; }
 
-/* Success check with blur + rotate (transitions.dev). */
+/* Success check: quick, stable acknowledgement. */
 @keyframes eb-success-check {
-  from { opacity: 0; transform: rotate(-12deg) scale(.7); filter: blur(3px); }
-  to { opacity: 1; transform: rotate(0) scale(1); filter: blur(0); }
+  from { opacity: 0; transform: scale(.94); }
+  to { opacity: 1; transform: scale(1); }
 }
-.eb-success-check { animation: eb-success-check 380ms var(--eb-spring, cubic-bezier(.34, 1.4, .44, 1)) both; }
+.eb-success-check { animation: eb-success-check 180ms ease-out both; }
 
-/* Card stack hover fan (transitions.dev card stack). */
-.eb-card-stack { transition: transform 260ms var(--eb-spring-soft, cubic-bezier(.3, 1.2, .4, 1)), box-shadow 260ms ease; }
-.eb-card-stack:hover { transform: translateY(-4px); box-shadow: var(--eb-shadow-lg, 0 16px 48px rgba(16, 24, 40, .16)); }
+/* Cards remain spatially stable; hover must not make the workspace jump. */
+.eb-card-stack { transition: box-shadow 140ms ease, border-color 140ms ease; }
+.eb-card-stack:hover { transform: none; }
 
-/* beUI spring press for any button (additive, opt-in). */
-.eb-press { transition: transform 120ms var(--eb-spring, cubic-bezier(.34, 1.4, .44, 1)); }
-.eb-press:active:not(:disabled) { transform: scale(.95); }
+/* Button press feedback stays tiny and deterministic. */
+.eb-press { transition: transform 90ms ease-out; }
+.eb-press:active:not(:disabled) { transform: scale(.985); }
 
 /* Elapsed-time loader dots (Beautiful UI loading state). */
 @keyframes eb-dot-pulse {
