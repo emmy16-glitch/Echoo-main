@@ -340,7 +340,7 @@ test('protected downloads use one canonical authorization boundary from local or
   assert.match(middleware, /storage cloudKey cloudUrl/);
   assert.match(controller, /req\.audioAccessRecord/);
   assert.match(controller, /audio\.storage === 'cloud'/);
-  assert.match(controller, /getCloudObject\(audio\.cloudKey\)/);
+  assert.match(controller, /getCloudObject\(audio\.cloudKey,\s*\{[\s\S]*range:/);
   assert.doesNotMatch(routes, /downloadAudio\)/);
 });
 
