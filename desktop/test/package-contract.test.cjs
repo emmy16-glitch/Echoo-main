@@ -398,3 +398,15 @@ test('recording session remains protected through final sync and atomic commit',
   assert.match(mainSource, /session\.state !== 'writing'/);
   assert.match(mainSource, /updateRestartBlocked\(\)/);
 });
+
+
+test('shared motion layer avoids banned decorative effects and fully respects reduced motion', () => {
+  const motionSource = fs.readFileSync(
+    path.resolve(desktopRoot, '..', 'frontend', 'src', 'styles', 'echoo-motion.css'),
+    'utf8'
+  );
+  assert.doesNotMatch(motionSource, /eb-burst|particle burst/i);
+  assert.doesNotMatch(motionSource, /eb-shimmer-text|shimmer text sweep/i);
+  assert.match(motionSource, /prefers-reduced-motion: reduce/);
+  assert.match(motionSource, /\.eb-skeleton, \.eb-dots > i \{\s*animation: none;/);
+});

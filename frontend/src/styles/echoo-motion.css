@@ -83,20 +83,6 @@
 /* Sliding pill indicator base for tabs (positioned by JS or grid). */
 .eb-tab-pill { transition: transform 260ms var(--eb-spring-soft, cubic-bezier(.3, 1.2, .4, 1)), width 260ms ease; }
 
-/* Shimmer text sweep (loading/thinking states, Beautiful UI). */
-@keyframes eb-shimmer-sweep {
-  from { background-position: -200% 0; }
-  to { background-position: 200% 0; }
-}
-.eb-shimmer-text {
-  background: linear-gradient(100deg, var(--eb-muted-foreground, #667085) 30%, var(--eb-foreground, #101828) 50%, var(--eb-muted-foreground, #667085) 70%);
-  background-size: 200% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  animation: eb-shimmer-sweep 1.8s linear infinite;
-}
-
 /* Accordion open (grid-rows trick). */
 .eb-accordion-panel { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 280ms var(--eb-ease-out, cubic-bezier(.22, 1, .36, 1)); }
 .eb-accordion-panel.open { grid-template-rows: 1fr; }
@@ -108,13 +94,6 @@
   to { opacity: 1; transform: rotate(0) scale(1); filter: blur(0); }
 }
 .eb-success-check { animation: eb-success-check 380ms var(--eb-spring, cubic-bezier(.34, 1.4, .44, 1)) both; }
-
-/* Like-button particle burst lite. */
-@keyframes eb-burst {
-  0% { opacity: 1; transform: scale(.4); }
-  100% { opacity: 0; transform: scale(1.6); }
-}
-.eb-burst { animation: eb-burst 420ms ease-out both; }
 
 /* Card stack hover fan (transitions.dev card stack). */
 .eb-card-stack { transition: transform 260ms var(--eb-spring-soft, cubic-bezier(.3, 1.2, .4, 1)), box-shadow 260ms ease; }
@@ -136,9 +115,10 @@
 @media (prefers-reduced-motion: reduce) {
   .eb-page-in, .eb-modal-in, .eb-backdrop-in, .eb-toast-in, .eb-content-reveal,
   .eb-shake, .eb-pop-in, .eb-number-pop, .eb-text-swap, .eb-icon-swap,
-  .eb-success-check, .eb-burst, .eb-shimmer-text, .eb-check-draw {
+  .eb-success-check, .eb-check-draw, .eb-skeleton, .eb-dots > i {
     animation: none;
   }
-  .eb-skeleton, .eb-dots > i { animation-duration: 2.4s; }
+  .eb-tab-pill, .eb-accordion-panel, .eb-press { transition: none; }
+  .eb-card-stack { transition: box-shadow 120ms ease; }
   .eb-card-stack:hover { transform: none; }
 }
