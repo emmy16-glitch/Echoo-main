@@ -973,7 +973,7 @@ html.listener-v2-full-player-open body { overflow:hidden; }
     height: 28px;
     min-height: 28px;
     padding: 0 8px;
-    font-size: 12px;
+    font-size: 13px;
     line-height: 28px;
   }
 
@@ -1027,7 +1027,7 @@ html.listener-v2-full-player-open body { overflow:hidden; }
   align-items: center;
   gap: 5px;
   color: #607087;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 650;
 }
 .listener-v2-live-cta {
@@ -1036,7 +1036,7 @@ html.listener-v2-full-player-open body { overflow:hidden; }
   justify-content: center;
   gap: 3px;
   color: var(--listener-v2-blue);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 760;
   white-space: nowrap;
 }
@@ -1078,11 +1078,11 @@ html.listener-v2-full-player-open body { overflow:hidden; }
 
   .listener-v2-live-badge {
     top: -3px;
-    min-height: 18px;
-    padding: 0 6px;
+    min-height: 20px;
+    padding: 0 7px;
     border-radius: 6px;
-    font-size: 10px;
-    line-height: 18px;
+    font-size: 13px;
+    line-height: 20px;
     letter-spacing: .025em;
   }
 
@@ -1109,12 +1109,12 @@ html.listener-v2-full-player-open body { overflow:hidden; }
 
   .listener-v2-live-copy > span {
     color: var(--listener-v2-copy);
-    font-size: 12px;
+    font-size: 13px;
   }
 
   .listener-v2-live-count {
     margin-top: 1px;
-    font-size: 11px;
+    font-size: 13px;
   }
 
   .listener-v2-live-cta {
