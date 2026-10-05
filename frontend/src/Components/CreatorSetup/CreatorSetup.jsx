@@ -322,37 +322,16 @@ export default function CreatorSetup({ onCreatorReady }) {
             <span aria-label="Echoo">echoo</span>
           </span>
           <button type="button" className="echoo-onboard-back" onClick={backToListener} disabled={saving}>
-            Back to Listener
+            Back
           </button>
         </header>
 
         <div className="channel-setup-layout" aria-labelledby="channel-setup-title">
           <section className="channel-setup-intro">
-            <p className="channel-setup-eyebrow">CREATOR SETUP</p>
-            <h1 id="channel-setup-title">Create your Channel</h1>
-            <p>Choose how you’ll appear to listeners when you broadcast. You can edit these details later in Creator Studio.</p>
-            <div className="channel-setup-promise">
-              <span className="channel-setup-promise-dot" aria-hidden="true">1</span>
-              <div>
-                <strong>One quick setup</strong>
-                <span>Choose your creator identity, name your Channel, and add a short description.</span>
-              </div>
-            </div>
-            <div className="channel-setup-promise">
-              <span className="channel-setup-promise-dot" aria-hidden="true">2</span>
-              <div>
-                <strong>Artwork is optional</strong>
-                <span>You can publish now and add or change your Channel artwork later.</span>
-              </div>
-            </div>
+            <h1 id="channel-setup-title">Create Channel</h1>
           </section>
 
-          <section className="echoo-onboard-card" aria-labelledby="channel-details-title">
-            <div className="echoo-onboard-card-head">
-              <h2 id="channel-details-title">Channel details</h2>
-              <p>This is how your Channel will appear to listeners.</p>
-            </div>
-
+          <section className="echoo-onboard-card" aria-label="Channel details">
             <form className="channel-setup-form" onSubmit={submit} noValidate>
               <fieldset className="channel-setup-identity">
                 <legend className="echoo-onboard-legend">Creator identity</legend>
@@ -365,7 +344,7 @@ export default function CreatorSetup({ onCreatorReady }) {
                     disabled={saving}
                   >
                     <span className="identity-icon" aria-hidden="true"><FaUser /></span>
-                    <span><strong>Individual</strong><small>Create as yourself</small></span>
+                    <span><strong>Individual</strong></span>
                   </button>
                   <button
                     type="button"
@@ -375,7 +354,7 @@ export default function CreatorSetup({ onCreatorReady }) {
                     disabled={saving}
                   >
                     <span className="identity-icon" aria-hidden="true"><FaBuilding /></span>
-                    <span><strong>Organization</strong><small>Brand, church or community</small></span>
+                    <span><strong>Organization</strong></span>
                   </button>
                 </div>
               </fieldset>
@@ -457,7 +436,7 @@ export default function CreatorSetup({ onCreatorReady }) {
                       value={description}
                       onChange={(event) => { setDescription(event.target.value); clearFieldError('description'); }}
                       maxLength={DESCRIPTION_MAX}
-                      placeholder="What should listeners expect from this Channel?"
+                      placeholder="About your Channel"
                       required
                       aria-invalid={Boolean(fieldErrors.description)}
                       aria-describedby={descriptionErrorId ? `${descriptionErrorId} channel-description-counter` : 'channel-description-counter'}
@@ -472,7 +451,7 @@ export default function CreatorSetup({ onCreatorReady }) {
 
                 <div className="echoo-onboard-field echoo-onboard-field-wide">
                   <span className="echoo-onboard-legend" id="channel-artwork-label">
-                    Channel artwork <span className="channel-setup-optional">Optional</span>
+                    Artwork <span className="channel-setup-optional">(optional)</span>
                   </span>
                   <label className="channel-setup-upload" htmlFor="channel-artwork-input" aria-labelledby="channel-artwork-label">
                     <span className="channel-setup-upload-icon" aria-hidden="true">
@@ -482,7 +461,7 @@ export default function CreatorSetup({ onCreatorReady }) {
                     </span>
                     <span>
                       <strong>{artwork ? 'Change artwork' : 'Choose artwork'}</strong>
-                      <small>JPG, PNG or WebP · max 10 MB</small>
+                      <small>JPG, PNG or WebP · 10 MB max</small>
                     </span>
                   </label>
                   <input
@@ -512,7 +491,6 @@ export default function CreatorSetup({ onCreatorReady }) {
                   Create Channel
                 </LoadingButton>
               </div>
-              <p className="channel-setup-help">You can edit your Channel later in Creator Studio.</p>
             </form>
           </section>
         </div>
