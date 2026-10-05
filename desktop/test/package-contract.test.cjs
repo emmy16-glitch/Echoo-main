@@ -331,3 +331,11 @@ test('desktop restores the last useful workspace without persisting auth screens
   assert.match(lifecycleSource, /normalizeDesktopWorkspaceRoute/);
   assert.match(lifecycleSource, /listen\|creator-studio/);
 });
+
+
+test('Windows-only package has no macOS notarization hook or cross-platform tray branches', () => {
+  assert.equal(packageJson.build.afterSign, undefined);
+  assert.equal(fs.existsSync(path.join(desktopRoot, 'scripts', 'afterSign.js')), false);
+  assert.doesNotMatch(mainSource, /process\.platform === 'darwin'/);
+  assert.doesNotMatch(mainSource, /AppImage|Snap\/Flatpak|icon\.icns/);
+});

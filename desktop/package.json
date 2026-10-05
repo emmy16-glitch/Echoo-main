@@ -39,7 +39,6 @@
       }
     ],
     "copyright": "Copyright © 2026 Echoo",
-    "afterSign": "scripts/afterSign.js",
     "files": [
       "src/**/*",
       "offline.html",

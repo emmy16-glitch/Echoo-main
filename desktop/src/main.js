@@ -1112,87 +1112,65 @@ async function openLogsFolder() {
 }
 
 function buildMenu() {
-  const isMac = process.platform === 'darwin';
-  const template = [];
-
-  if (isMac) {
-    template.push({
-      label: 'Echoo',
-      submenu: [
-        { role: 'about' },
-        { type: 'separator' },
-        { role: 'services' },
-        { type: 'separator' },
-        { role: 'hide' },
-        { role: 'hideOthers' },
-        { role: 'unhide' },
-        { type: 'separator' },
-        { role: 'quit' },
-      ],
-    });
-  }
-
-  template.push({
-    label: 'Edit',
-    submenu: [
-      { role: 'undo' },
-      { role: 'redo' },
-      { type: 'separator' },
-      { role: 'cut' },
-      { role: 'copy' },
-      { role: 'paste' },
-      ...(isMac
-        ? [{ role: 'pasteAndMatchStyle' }, { role: 'delete' }, { role: 'selectAll' }]
-        : [{ role: 'delete' }, { type: 'separator' }, { role: 'selectAll' }]),
-    ],
-  });
-
-  const viewSubmenu = [
-    { role: 'reload' },
-    { role: 'forceReload' },
-    ...(DEBUG_TOOLS ? [{ role: 'toggleDevTools' }] : []),
-    { type: 'separator' },
-    { role: 'resetZoom' },
-    { role: 'zoomIn' },
-    { role: 'zoomOut' },
-    { type: 'separator' },
-    { role: 'togglefullscreen' },
-  ];
-  template.push({ label: 'View', submenu: viewSubmenu });
-
-  template.push({
-    label: 'Window',
-    submenu: [
-      { role: 'minimize' },
-      { role: 'zoom' },
-      ...(isMac ? [{ type: 'separator' }, { role: 'front' }] : [{ role: 'close' }]),
-    ],
-  });
-
-  const helpSubmenu = [
+  const template = [
     {
-      label: 'Open Echoo Logs',
-      click: () => { void openLogsFolder(); },
-    },
-    { type: 'separator' },
-    {
-      label: 'Echoo Support & Docs',
-      click: async () => {
-        openExternalUrl('https://github.com/emmy16-glitch/Echoo-main');
-      },
-    },
-  ];
-  if (!isMac) {
-    helpSubmenu.push({ type: 'separator' }, { role: 'about' });
-  }
-  template.push({ role: 'help', submenu: helpSubmenu });
-
-  if (!isMac) {
-    template.unshift({
       label: 'File',
       submenu: [{ role: 'quit' }],
-    });
-  }
+    },
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'delete' },
+        { type: 'separator' },
+        { role: 'selectAll' },
+      ],
+    },
+    {
+      label: 'View',
+      submenu: [
+        { role: 'reload' },
+        { role: 'forceReload' },
+        ...(DEBUG_TOOLS ? [{ role: 'toggleDevTools' }] : []),
+        { type: 'separator' },
+        { role: 'resetZoom' },
+        { role: 'zoomIn' },
+        { role: 'zoomOut' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' },
+      ],
+    },
+    {
+      label: 'Window',
+      submenu: [
+        { role: 'minimize' },
+        { role: 'close' },
+      ],
+    },
+    {
+      role: 'help',
+      submenu: [
+        {
+          label: 'Open Echoo Logs',
+          click: () => { void openLogsFolder(); },
+        },
+        { type: 'separator' },
+        {
+          label: 'Echoo Support & Docs',
+          click: () => {
+            openExternalUrl('https://github.com/emmy16-glitch/Echoo-main');
+          },
+        },
+        { type: 'separator' },
+        { role: 'about' },
+      ],
+    },
+  ];
 
   try {
     Menu.setApplicationMenu(Menu.buildFromTemplate(template));
@@ -1202,28 +1180,13 @@ function buildMenu() {
 }
 
 // ---------------------------------------------------------------------------
-// Tray (with room-state actions + macOS dark-mode-aware template icon)
+// Windows tray
 // ---------------------------------------------------------------------------
 function resolveTrayIcon() {
   const assetDir = path.join(__dirname, '../assets');
-  if (process.platform === 'darwin') {
-    for (const name of ['tray-iconTemplate.png', 'tray-icon.png']) {
-      const p = path.join(assetDir, name);
-      if (fs.existsSync(p)) return { path: p, template: name.includes('Template') };
-    }
-    return null;
-  }
-  for (const name of ['tray-icon.png', 'trayIcon.png', 'icon.png']) {
-    const p = path.join(assetDir, name);
-    if (fs.existsSync(p)) return { path: p, template: false };
-  }
-  // Packaged installs ship icons under build/ (icon.ico on Windows, icon.icns
-  // on mac fallback) — desktop/assets/ does not exist in this repo, so without
-  // this fallback Windows got an empty tray image (and Tray(empty) can throw).
-  const buildDir = path.join(__dirname, '../build');
-  for (const name of ['icon.ico', 'icon.png', 'icon.icns']) {
-    const p = path.join(buildDir, name);
-    if (fs.existsSync(p)) return { path: p, template: false };
+  for (const name of ['tray-icon.png', 'icon.png']) {
+    const candidate = path.join(assetDir, name);
+    if (fs.existsSync(candidate)) return candidate;
   }
   return null;
 }
@@ -1312,9 +1275,7 @@ function createTray() {
   const resolved = resolveTrayIcon();
   let image;
   if (resolved) {
-    image = nativeImage.createFromPath(resolved.path);
-    // Template images let macOS tint the menu-bar icon for light/dark mode.
-    if (resolved.template) image.setTemplateImage(true);
+    image = nativeImage.createFromPath(resolved);
   } else {
     image = nativeImage.createEmpty();
     log.warn('[echoo-desktop] no tray icon under desktop/assets/ — using empty placeholder');
@@ -1522,12 +1483,7 @@ function registerIpc() {
     }
   });
 
-  // --- Auto-launch on system startup (optional toggle) ---------------------
-  // NOTE: setLoginItemSettings is a no-op inside sandboxed Linux packaging
-  // (Snap/Flatpak strict confinement blocks login-item registration). Our
-  // build target is AppImage, which is NOT sandboxed that way, so this works
-  // there — if the target ever changes to Snap/Flatpak this will silently do
-  // nothing and needs a .desktop autostart-file approach instead.
+  // --- Windows auto-launch on system startup (optional toggle) -------------
   ipcMain.handle('echoo:set-auto-launch', async (_event, enabled) => {
     try {
       const openAtLogin = enabled === true;
@@ -2012,11 +1968,6 @@ function startApp() {
     createWindow();
     createTray();
     checkForUpdates();
-
-    app.on('activate', () => {
-      // macOS: recreate window on dock click when none are open.
-      if (BrowserWindow.getAllWindows().length === 0) createWindow();
-    });
   } catch (error) {
     log.error('[echoo-desktop] startup failed:', error);
     app.quit();
@@ -2118,6 +2069,5 @@ if (singleInstance) {
 }
 
 app.on('window-all-closed', () => {
-  // Quit on non-mac; stay alive in dock/tray on macOS.
-  if (process.platform !== 'darwin') app.quit();
+  app.quit();
 });
