@@ -203,7 +203,7 @@ Ports are project-specific, not framework defaults (`5273`/`5017`), and every re
 |---|---|---|
 | Backend | `backend/.env.example` | `PORT`, `MONGODB_URI`, `JWT_*`, `CLIENT_ORIGINS`, `LIVEKIT_*`, `AUDIO_*`, `WHISPER_*`, `MASTER_ARCHIVE_*`, `RADIO_*` |
 | Frontend | build-time | `VITE_API_URL` (packaged/desktop override), `VITE_PUBLIC_APP_ORIGIN` (share links), `VITE_LIVEKIT_URL` (fallback) |
-| Desktop | build-time | `LIVEKIT_*` (baked into installers for zero-config go-live) |
+| Desktop | build-time | public `VITE_API_URL` + `VITE_PUBLIC_APP_ORIGIN` only; server secrets are never bundled |
 
 See [backend/.env.example](backend/.env.example) for defaults and semantics. For hosting, follow [HOSTING.md](HOSTING.md) before copying values into production.
 
@@ -238,8 +238,8 @@ Echoo-main/
 │   ├── src/services/       # livekit, archive, transcription, mixer helpers
 │   ├── src/models/         # User, Broadcast, Audio, Recording, Chat, ...
 │   └── test/               # node --test suites
-├── desktop/                # Electron shell + packaging (AppImage / NSIS / DMG)
-│   └── src/main.js         # window, tray, IPC, bundled backend, updater
+├── desktop/                # Canonical Windows Electron client + NSIS packaging
+│   └── src/main.js         # windows, tray, secure IPC, filesystem, updater
 ├── mobile/                 # Expo app (iOS + Android) + live-audio foreground module
 ├── echoo-landing/          # Marketing and release site
 ├── echoo-whisper/          # Python transcription service (optional)

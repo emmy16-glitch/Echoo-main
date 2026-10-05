@@ -11,7 +11,7 @@
 | Local dev | `localhost:5273` | `localhost:5017` | local/shared MongoDB | Development |
 | Render staging | `https://echoo-render-staging.onrender.com/` | configured staging API/proxy | staging services | Test/staging only |
 | Digi02 production | `https://echoo.digi02.org/` | same origin `/api` | production database | Real hosted deployment |
-| Desktop installs | hosted app by default | hosted API | hosted DB | Thin client |
+| Windows desktop installs | locally packaged React renderer | shared production API | shared production DB | First-class Windows client |
 
 Do not treat Render staging as Echoo's real production environment. The real
 public deployment is currently `https://echoo.digi02.org/`. Vercel is retired
@@ -214,19 +214,20 @@ A typical same-origin host routes:
 Preserve websocket upgrade support for Socket.IO and
 `/api/internal/livekit-recording` when `LIVEKIT_SERVER_RECORDING_ENABLED=true`.
 
-## CORS and desktop thin clients
+## CORS and Echoo Desktop
 
 The production browser origin should be explicitly trusted.
 
-Echoo Desktop uses a hosted thin-client flow. Its `file://` context can send
-`Origin: null`. The backend contains a scoped allowance enabled by:
+Echoo Desktop loads its bundled renderer from the privileged local origin:
 
-```env
-ECHOO_DESKTOP=1
+```text
+echoo-app://app
 ```
 
-Do not replace this with a blanket wildcard or globally allow every `null`
-origin. See `HOSTED-SERVER-SYNC.md`.
+The backend allows that exact desktop origin for HTTP and Socket.IO. Do not
+replace it with a wildcard and do not allow opaque `Origin: null` requests.
+The desktop app still authenticates every protected API operation normally and
+contains no backend, database, Render, LiveKit signing, or server credentials.
 
 ## LiveKit
 

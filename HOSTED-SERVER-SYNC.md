@@ -42,29 +42,23 @@ automatic server MP3 replay finalization or saved-recording trimming.
 
 ---
 
-## Task 1 — Allow the desktop app through CORS (scoped, desktop runtime only)
+## Task 1 — Keep the Windows desktop origin allowed
 
 File: `backend/src/app.js`, function `isAllowedOrigin` (also used by the
-Socket.IO server via `echooCorsOrigin`, so one change covers HTTP + realtime).
+Socket.IO server via `echooCorsOrigin`, so one rule covers HTTP + realtime).
 
-The code already contains the scoped guard — on the server, only enable it
-via environment, never by blanket-allowing `"null"`:
+The packaged Windows client serves its local renderer from:
 
-```bash
-ECHOO_DESKTOP=1   # runtime env on the host that serves desktop shells
+```text
+echoo-app://app
 ```
 
-```js
-// backend/src/app.js — already in place; do NOT replace with a blanket rule:
-if ((normalized === 'null' || normalized === 'file://') && process.env.ECHOO_DESKTOP === '1') return true;
-```
+The backend must allow exactly that origin. Do not add a wildcard and do not
+restore the old `ECHOO_DESKTOP=1` / `Origin: null` exception. The desktop
+client is a normal authenticated client of the shared production backend; it
+does not run or bundle a private backend.
 
-Why: `file://` pages have no real origin; Chromium sends `"null"`.
-Without this, every desktop install gets `CORS_ORIGIN_DENIED`.
-Security note: per-request auth is still enforced; do NOT enable
-`credentials: true` (leave the existing CORS options untouched), and do NOT
-allow `"null"` for any other environment.
-Restart the backend afterwards.
+Restart the backend after deploying a change to this CORS contract.
 
 ---
 
