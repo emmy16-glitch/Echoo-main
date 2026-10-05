@@ -159,9 +159,11 @@ export async function issueAudioStreamUrl(req, res, next) {
     }
 
     res.setHeader('Cache-Control', 'no-store');
+    const downloadSeparator = signed.url.includes('?') ? '&' : '?';
     return res.status(200).json({
       data: {
         streamUrl: signed.url,
+        downloadUrl: `${signed.url}${downloadSeparator}download=1`,
         expiresIn: signed.expiresIn,
       },
       timestamp: new Date().toISOString(),
@@ -174,6 +176,7 @@ export async function issueAudioStreamUrl(req, res, next) {
 export async function streamAudio(req, res, next) {
   try {
     const audioId = String(req.params.id || '');
+    const downloadRequested = String(req.query.download || '') === '1';
     const grant = streamGrantForRequest(req, audioId);
 
     // Authorization and current visibility are checked for every range request.
@@ -201,24 +204,101 @@ export async function streamAudio(req, res, next) {
     // URL; private buckets (the free no-card setup) get a short-lived signed
     // URL minted just for this playback. Local files keep ranged streaming.
     if (audio.storage === 'cloud' && (audio.cloudKey || audio.cloudUrl)) {
-      const { isCloudBucketPublic, createCloudDownloadUrl } = await import(
-        '../services/audioArchiveService.js'
-      );
-      if (isCloudBucketPublic() && String(audio.cloudUrl || '').startsWith('http')) {
-        return res.redirect(audio.cloudUrl);
+      const {
+        isCloudBucketPublic,
+        createCloudDownloadUrl,
+        getCloudObject,
+      } = await import('../services/audioArchiveService.js');
+
+      // Normal playback should stay off the API process and let object storage
+      // serve ranges directly. Explicit downloads are different: keeping the
+      // Echoo URL as the browser-facing response lets us send Content-Disposition
+      // while still streaming bytes with backpressure instead of buffering the
+      // recording in the frontend.
+      if (!downloadRequested) {
+        if (isCloudBucketPublic() && String(audio.cloudUrl || '').startsWith('http')) {
+          return res.redirect(audio.cloudUrl);
+        }
+        try {
+          const signed = await createCloudDownloadUrl(audio.cloudKey || audio.cloudUrl);
+          return res.redirect(signed);
+        } catch (error) {
+          console.warn('[audio-stream] cloud signed URL failed:', error?.message || error);
+          return res.status(503).json({
+            error: {
+              code: 'AUDIO_STREAM_UNAVAILABLE',
+              message: 'Echoo could not prepare this audio stream.',
+            },
+          });
+        }
       }
+
+      let object;
       try {
-        const signed = await createCloudDownloadUrl(audio.cloudKey || audio.cloudUrl);
-        return res.redirect(signed);
+        object = await getCloudObject(audio.cloudKey || audio.cloudUrl, {
+          range: req.headers.range || '',
+        });
       } catch (error) {
-        console.warn('[audio-stream] cloud signed URL failed:', error?.message || error);
+        console.warn('[audio-download] cloud object read failed:', error?.message || error);
         return res.status(503).json({
           error: {
-            code: 'AUDIO_STREAM_UNAVAILABLE',
-            message: 'Echoo could not prepare this audio stream.',
+            code: 'AUDIO_CLOUD_UNAVAILABLE',
+            message: 'This recording is temporarily unavailable for download.',
           },
         });
       }
+
+      const body = object?.Body;
+      if (!body) {
+        return res.status(503).json({
+          error: {
+            code: 'AUDIO_CLOUD_STREAM_UNAVAILABLE',
+            message: 'This recording could not be streamed for download.',
+          },
+        });
+      }
+
+      res.setHeader('Accept-Ranges', object.AcceptRanges || 'bytes');
+      res.setHeader('Content-Type', object.ContentType || audio.mimeType || 'application/octet-stream');
+      res.setHeader('Cache-Control', 'private, no-store, no-transform');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Referrer-Policy', 'no-referrer');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename*=UTF-8''${encodeURIComponent(audio.originalName || 'echoo-audio')}`
+      );
+      if (object.ContentRange) {
+        res.status(206);
+        res.setHeader('Content-Range', object.ContentRange);
+      } else {
+        res.status(200);
+      }
+      if (Number(object.ContentLength) >= 0) {
+        res.setHeader('Content-Length', String(Number(object.ContentLength)));
+      }
+
+      if (req.method === 'HEAD') return res.end();
+
+      if (typeof body.pipe === 'function') {
+        body.once?.('error', (streamError) => {
+          if (!res.headersSent) next(streamError);
+          else res.destroy(streamError);
+        });
+        body.pipe(res);
+        return undefined;
+      }
+
+      if (typeof body.transformToByteArray === 'function') {
+        const bytes = await body.transformToByteArray();
+        return res.send(Buffer.from(bytes));
+      }
+
+      return res.status(503).json({
+        error: {
+          code: 'AUDIO_CLOUD_STREAM_UNAVAILABLE',
+          message: 'This recording could not be streamed for download.',
+        },
+      });
     }
 
     const absolutePath = safeLocalAudioPath(audio);
@@ -265,7 +345,7 @@ export async function streamAudio(req, res, next) {
     res.setHeader('Referrer-Policy', 'no-referrer');
     res.setHeader(
       'Content-Disposition',
-      `inline; filename*=UTF-8''${encodeURIComponent(audio.originalName || 'echoo-audio')}`
+      `${downloadRequested ? 'attachment' : 'inline'}; filename*=UTF-8''${encodeURIComponent(audio.originalName || 'echoo-audio')}`
     );
 
     if (!range) {
