@@ -180,11 +180,9 @@ test('capture strict Listener 2.0 core surfaces', async ({ page }, testInfo) => 
   await capture(page, testInfo, '/listen', 'HOME', 'Discover');
   await expect(page.locator('.listener-hero-artwork')).toHaveCount(0);
   await expect(page.locator('.listener-v2-live-card')).toHaveCount(5);
-  const playlistCard = page.getByRole('button', { name: 'Play Weekend Listening' });
-  await expect(playlistCard).toBeVisible();
-  await playlistCard.click();
-  await expect(page).toHaveURL(/\/listen$/);
-  await expect(page.locator('.listener-v2-player-copy strong')).toHaveText('Faith and Work');
+  await expect(page.getByRole('heading', { level: 2, name: 'Latest recordings' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Play Weekend Listening' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Popular playlists', exact: true })).toHaveCount(0);
 
   await capture(page, testInfo, '/listen/library/following', 'FOLLOWING', 'Following');
   await expect(page.locator('.listener-hero-artwork')).toHaveCount(0);
