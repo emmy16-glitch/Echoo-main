@@ -11,7 +11,7 @@ html body #root .echoo-listener-shell.echoo-app-shell .echoo-persistent-player .
 html body #root .echoo-listener-shell.echoo-app-shell .echoo-persistent-player .layout-player-time,
 html body #root .echoo-listener-shell.echoo-app-shell .echoo-persistent-player [class*="player-time"] {
   min-width: 36px !important;
-  font-size: 11px !important;
+  font-size: 13px !important;
   line-height: 1.25 !important;
   font-variant-numeric: tabular-nums !important;
 }
@@ -191,7 +191,7 @@ html body #root .echoo-listener-shell.echoo-app-shell .echoo-persistent-player [
     min-width: 76px !important;
     flex: 0 0 76px !important;
     min-height: 54px !important;
-    font-size: 11px !important;
+    font-size: 13px !important;
     line-height: 1.15 !important;
   }
 
@@ -199,7 +199,7 @@ html body #root .echoo-listener-shell.echoo-app-shell .echoo-persistent-player [
   html body #root .studio-final-shell.echoo-app-shell .studio-navigation .studio-nav-item > span:last-child {
     display: block !important;
     max-width: 72px !important;
-    font-size: 11px !important;
+    font-size: 13px !important;
     line-height: 1.15 !important;
     white-space: normal !important;
     overflow: visible !important;
@@ -225,7 +225,7 @@ html body #root .studio-final-shell .studio-view .ebsx.ecbs .ecbs-transcript-rea
 html body #root .studio-final-shell .studio-view .ebsx.ecbs .ecbs-studio-status > strong,
 html body #root .studio-final-shell .studio-view .ebsx.ecbs .ecbs-studio-status > span,
 html body #root .studio-final-shell .studio-view .ebsx.ecbs .ecbs-setup-action small {
-  font-size: 11px !important;
+  font-size: 13px !important;
   line-height: 1.4 !important;
 }
 
