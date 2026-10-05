@@ -51,7 +51,7 @@
   overflow: hidden;
   border-radius: 50%;
   background: #e7efff;
-  color: #1769ff;
+  color: var(--echoo-blue, #245cff);
   font-size: 54px;
   font-weight: 900;
 }
@@ -77,7 +77,7 @@
 }
 
 .lcp-kicker {
-  color: #1769ff;
+  color: var(--echoo-blue, #245cff);
   font-size: 13px;
   font-weight: 900;
   letter-spacing: .12em;
@@ -133,8 +133,8 @@
 }
 
 .lcp-actions button.primary {
-  border-color: #1769ff;
-  background: #1769ff;
+  border-color: var(--echoo-blue, #245cff);
+  background: var(--echoo-blue, #245cff);
   color: #fff;
 }
 
@@ -186,7 +186,7 @@
   overflow: hidden;
   border-radius: 12px;
   background: #eef4ff;
-  color: #1769ff;
+  color: var(--echoo-blue, #245cff);
   font-size: 28px;
 }
 
@@ -237,7 +237,7 @@
   overflow: hidden;
   border-radius: 11px;
   background: #eef4ff;
-  color: #1769ff;
+  color: var(--echoo-blue, #245cff);
 }
 
 .lcp-track-art img {
@@ -260,8 +260,8 @@
 .lcp-track button {
   width: 42px;
   padding: 0;
-  border-color: #1769ff;
-  background: #1769ff;
+  border-color: var(--echoo-blue, #245cff);
+  background: var(--echoo-blue, #245cff);
   color: #fff;
 }
 
