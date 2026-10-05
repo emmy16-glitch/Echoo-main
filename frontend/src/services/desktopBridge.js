@@ -79,6 +79,13 @@ export const openDesktopExternalUrl = (url) => {
   return desktop().openExternalWebUrl(url);
 };
 
+export const openDesktopLogsFolder = () => {
+  if (!isEchooDesktop() || typeof desktop()?.openLogsFolder !== 'function') {
+    return Promise.resolve({ opened: false, unsupported: true });
+  }
+  return desktop().openLogsFolder();
+};
+
 export const copyDesktopText = (value) => {
   if (!isEchooDesktop() || typeof desktop()?.copyText !== 'function') {
     return Promise.resolve({ copied: false, unsupported: true });

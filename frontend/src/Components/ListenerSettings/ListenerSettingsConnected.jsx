@@ -16,6 +16,7 @@ import {
   getDesktopAutoLaunch,
   getDesktopNotificationPreferences,
   isEchooDesktop,
+  openDesktopLogsFolder,
   setDesktopAutoLaunch,
   setDesktopNotificationPreferences,
 } from '../../services/desktopBridge';
@@ -459,6 +460,25 @@ const ListenerSettingsConnected = () => {
                   <button type="button" className="set-back-btn" onClick={() => setNav('playback')}>Playback help</button>
                   <button type="button" className="set-back-btn" onClick={() => setNav('notifications')}>Notification help</button>
                   <button type="button" className="set-back-btn" onClick={() => setNav('profile')}>Account help</button>
+                  {isDesktop && (
+                    <button
+                      type="button"
+                      className="set-back-btn"
+                      onClick={() => {
+                        void openDesktopLogsFolder().then((result) => {
+                          if (!result?.opened) {
+                            setToast({
+                              open: true,
+                              title: 'Could not open logs',
+                              message: result?.error || 'Echoo could not open its local logs folder.',
+                            });
+                          }
+                        });
+                      }}
+                    >
+                      Open Echoo logs
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

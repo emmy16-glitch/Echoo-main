@@ -492,3 +492,19 @@ test('share links use a narrow native Windows clipboard bridge when packaged', (
   assert.match(stationUrlSource, /window\.echooDesktop\?\.copyText/);
   assert.match(stationUrlSource, /navigatorRef\?\.clipboard\?\.writeText/);
 });
+
+
+test('desktop diagnostics are reachable from both Creator and Listener settings', () => {
+  const creatorSettingsSource = fs.readFileSync(
+    path.resolve(desktopRoot, '..', 'frontend', 'src', 'Components', 'CreatorStudio', 'CreatorSettingsWorkspace.jsx'),
+    'utf8'
+  );
+  const listenerSettingsSource = fs.readFileSync(
+    path.resolve(desktopRoot, '..', 'frontend', 'src', 'Components', 'ListenerSettings', 'ListenerSettingsConnected.jsx'),
+    'utf8'
+  );
+  assert.match(mainSource, /echoo:open-logs-folder/);
+  assert.match(desktopBridgeSource, /openDesktopLogsFolder/);
+  assert.match(creatorSettingsSource, /Open Echoo logs/);
+  assert.match(listenerSettingsSource, /Open Echoo logs/);
+});

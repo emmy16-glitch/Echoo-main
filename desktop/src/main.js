@@ -1503,6 +1503,7 @@ function registerIpc() {
   ipcMain.handle('echoo:open-external-web-url', async (_event, url) =>
     openExternalWebUrl(url)
   );
+  ipcMain.handle('echoo:open-logs-folder', async () => openLogsFolder());
 
   ipcMain.handle('echoo:copy-text', async (_event, value) => {
     try {

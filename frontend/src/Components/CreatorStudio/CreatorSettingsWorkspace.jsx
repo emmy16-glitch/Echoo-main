@@ -11,6 +11,7 @@ import {
   getDesktopAutoLaunch,
   getDesktopNotificationPreferences,
   isEchooDesktop,
+  openDesktopLogsFolder,
   openDesktopRecordingsFolder,
   setDesktopAutoLaunch,
   setDesktopNotificationPreferences,
@@ -573,6 +574,25 @@ const CreatorSettingsWorkspace = () => {
               <FaLock /> {busy === 'password' ? 'Updating…' : 'Update password'}
             </button>
           </form>
+
+          {isDesktop && (
+            <section className="creator-settings-real-card" aria-label="Desktop diagnostics">
+              <div className="creator-settings-section-heading">
+                <h3>Desktop diagnostics</h3>
+                <p>Open Echoo's local logs only when you need to troubleshoot the Windows app or share diagnostics with support.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  void openDesktopLogsFolder().then((result) => {
+                    if (!result?.opened) setError(result?.error || 'Could not open the Echoo logs folder.');
+                  });
+                }}
+              >
+                Open Echoo logs
+              </button>
+            </section>
+          )}
         </div>
       )}
         </div>
