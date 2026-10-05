@@ -453,6 +453,20 @@ const disconnectSource = (channelId, stopTracks = true) => {
     // A decoded media source may already have ended.
   }
 
+  if (current.mediaElement) {
+    try { current.mediaElement.pause(); } catch { /* already paused */ }
+    try {
+      current.mediaElement.removeAttribute('src');
+      current.mediaElement.load();
+    } catch {
+      // The element may already be detached.
+    }
+  }
+
+  if (current.objectUrlToRevoke) {
+    try { URL.revokeObjectURL(current.objectUrlToRevoke); } catch { /* best effort */ }
+  }
+
   sources.delete(channelId);
 
   if (channels[channelId]) {
@@ -699,7 +713,23 @@ function startMeterLoop() {
     });
 
     const mediaState = sources.get('media');
-    if (mediaState?.mediaPlaying && mediaState.audioBuffer && audioContext) {
+    if (mediaState?.mediaElement) {
+      const element = mediaState.mediaElement;
+      const currentTime = Number(element.currentTime) || 0;
+      const duration = Number.isFinite(element.duration) ? Number(element.duration) : 0;
+      const playing = !element.paused && !element.ended;
+      if (
+        Math.abs(currentTime - Number(channels.media?.currentTime || 0)) > 0.08 ||
+        Math.abs(duration - Number(channels.media?.duration || 0)) > 0.08 ||
+        playing !== Boolean(channels.media?.playing)
+      ) {
+        channels = {
+          ...channels,
+          media: { ...channels.media, currentTime, duration, playing },
+        };
+        changed = true;
+      }
+    } else if (mediaState?.mediaPlaying && mediaState.audioBuffer && audioContext) {
       const elapsed = audioContext.currentTime - mediaState.mediaStartedAt;
       const currentTime = (mediaState.mediaOffset + elapsed) % mediaState.audioBuffer.duration;
       if (Math.abs(currentTime - Number(channels.media?.currentTime || 0)) > 0.08) {
@@ -877,65 +907,169 @@ export const connectSecondInput = async (deviceId, audioConstraints = null) => {
   return connectAcquiredStream('channel2', stream, track?.label || 'Audio input', deviceId);
 };
 
+const waitForMediaReady = (element, timeoutMs = 15000) => new Promise((resolve, reject) => {
+  if (element.readyState >= 1 && Number.isFinite(element.duration)) {
+    resolve();
+    return;
+  }
+
+  const cleanup = () => {
+    window.clearTimeout(timer);
+    element.removeEventListener('loadedmetadata', onReady);
+    element.removeEventListener('canplay', onReady);
+    element.removeEventListener('error', onError);
+  };
+  const onReady = () => {
+    cleanup();
+    resolve();
+  };
+  const onError = () => {
+    cleanup();
+    reject(new Error('Echoo could not load that audio source.'));
+  };
+  const timer = window.setTimeout(() => {
+    cleanup();
+    reject(new Error('Echoo took too long to prepare that audio source.'));
+  }, timeoutMs);
+
+  element.addEventListener('loadedmetadata', onReady, { once: true });
+  element.addEventListener('canplay', onReady, { once: true });
+  element.addEventListener('error', onError, { once: true });
+});
+
+const connectMediaElementUrl = async ({
+  url,
+  label,
+  objectUrlToRevoke = '',
+}) => {
+  if (!url) throw new Error('This audio source has no playable URL.');
+
+  const context = await ensureContext();
+  disconnectSource('media');
+
+  const element = document.createElement('audio');
+  element.preload = 'metadata';
+  element.crossOrigin = 'anonymous';
+  element.loop = true;
+  element.playsInline = true;
+  element.src = url;
+
+  try {
+    await waitForMediaReady(element);
+  } catch (error) {
+    if (objectUrlToRevoke) {
+      try { URL.revokeObjectURL(objectUrlToRevoke); } catch { /* best effort */ }
+    }
+    throw error;
+  }
+
+  let source;
+  try {
+    source = context.createMediaElementSource(element);
+  } catch (error) {
+    if (objectUrlToRevoke) {
+      try { URL.revokeObjectURL(objectUrlToRevoke); } catch { /* best effort */ }
+    }
+    throw new Error('This browser could not connect that audio source to the mixer.', { cause: error });
+  }
+
+  const analyser = context.createAnalyser();
+  const channelSplitter = context.createChannelSplitter(2);
+  const leftAnalyser = context.createAnalyser();
+  const rightAnalyser = context.createAnalyser();
+  const meterSinkNode = context.createGain();
+  const gainNode = context.createGain();
+  const soloMonitorGainNode = context.createGain();
+
+  analyser.fftSize = 512;
+  analyser.smoothingTimeConstant = 0.72;
+  leftAnalyser.fftSize = 512;
+  leftAnalyser.smoothingTimeConstant = 0.72;
+  rightAnalyser.fftSize = 512;
+  rightAnalyser.smoothingTimeConstant = 0.72;
+  meterSinkNode.gain.value = 0;
+  soloMonitorGainNode.gain.value = 0;
+
+  source.connect(analyser);
+  analyser.connect(gainNode);
+  analyser.connect(channelSplitter);
+  channelSplitter.connect(leftAnalyser, 0);
+  channelSplitter.connect(rightAnalyser, 1);
+  leftAnalyser.connect(meterSinkNode);
+  rightAnalyser.connect(meterSinkNode);
+  meterSinkNode.connect(context.destination);
+  gainNode.connect(masterGainNode);
+
+  source.connect(soloMonitorGainNode);
+  soloMonitorGainNode.connect(monitorBusNode);
+
+  sources.set('media', {
+    stream: null,
+    source,
+    gainNode,
+    analyser,
+    channelSplitter,
+    leftAnalyser,
+    rightAnalyser,
+    meterSinkNode,
+    soloMonitorGainNode,
+    data: new Float32Array(analyser.fftSize),
+    leftMeterData: new Float32Array(leftAnalyser.fftSize),
+    rightMeterData: new Float32Array(rightAnalyser.fftSize),
+    isMono: false,
+    audioTrack: null,
+    deviceId: '',
+    mediaElement: element,
+    objectUrlToRevoke,
+    mediaPlaying: true,
+  });
+
+  channels = {
+    ...channels,
+    media: {
+      ...channels.media,
+      connected: true,
+      sourceLabel: label || 'Echoo library audio',
+      duration: Number.isFinite(element.duration) ? Number(element.duration) : 0,
+      currentTime: 0,
+      playing: true,
+      sourceKind: 'stream',
+    },
+  };
+
+  applyMixState();
+  startMeterLoop();
+
+  try {
+    if (context.state === 'suspended') await context.resume();
+    await element.play();
+  } catch (error) {
+    disconnectSource('media');
+    applyMixState();
+    notify();
+    throw new Error('The browser blocked that audio source. Tap Add audio again and retry.', { cause: error });
+  }
+
+  notify();
+  return true;
+};
+
 export const connectMediaFile = async (file) => {
   if (!(file instanceof File) || !file.type.startsWith('audio/')) {
     throw new Error('Choose an audio file for Music / FX.');
   }
-  if (file.size > 100 * 1024 * 1024) {
-    throw new Error('Music / FX files must be 100 MB or smaller.');
-  }
 
-  const context = await ensureContext();
-  let buffer;
-  try {
-    buffer = await context.decodeAudioData(await file.arrayBuffer());
-  } catch {
-    throw new Error('Echoo could not decode that audio file. Choose MP3, WAV, M4A, or OGG audio.');
-  }
-
-  const bufferSource = context.createBufferSource();
-  const mediaDestination = context.createMediaStreamDestination();
-  bufferSource.buffer = buffer;
-  bufferSource.loop = true;
-  bufferSource.connect(mediaDestination);
-
-  try {
-    const track = await connectStream('media', mediaDestination.stream, file.name);
-    const sourceState = sources.get('media');
-    if (sourceState) {
-      sourceState.bufferSource = bufferSource;
-      sourceState.audioBuffer = buffer;
-      sourceState.mediaDestination = mediaDestination;
-      sourceState.mediaStartedAt = context.currentTime;
-      sourceState.mediaOffset = 0;
-      sourceState.mediaPlaying = true;
-    }
-    channels = {
-      ...channels,
-      media: {
-        ...channels.media,
-        duration: buffer.duration,
-        currentTime: 0,
-        playing: true,
-        sourceKind: 'file',
-      },
-    };
-    bufferSource.start();
-    notify();
-    return track;
-  } catch (error) {
-    try { bufferSource.stop(); } catch { /* Source was not started. */ }
-    throw error;
-  }
+  const objectUrl = URL.createObjectURL(file);
+  return connectMediaElementUrl({
+    url: objectUrl,
+    label: file.name || 'Music / FX',
+    objectUrlToRevoke: objectUrl,
+  });
 };
 
 export const connectMediaUrl = async (url, label = 'Echoo library audio') => {
   if (!url) throw new Error('This Echoo library item has no playable audio URL.');
-  const response = await fetch(url, { credentials: 'include' });
-  if (!response.ok) throw new Error('Echoo could not load that library audio.');
-  const blob = await response.blob();
-  const type = blob.type.startsWith('audio/') ? blob.type : 'audio/mpeg';
-  return connectMediaFile(new File([blob], label, { type }));
+  return connectMediaElementUrl({ url, label });
 };
 
 const restartMediaBuffer = (sourceState, offset = 0) => {
@@ -955,7 +1089,46 @@ const restartMediaBuffer = (sourceState, offset = 0) => {
 
 export const toggleMediaPlayback = () => {
   const sourceState = sources.get('media');
-  if (!sourceState?.audioBuffer) return getSnapshot();
+  if (!sourceState) return getSnapshot();
+
+  if (sourceState.mediaElement) {
+    const element = sourceState.mediaElement;
+    if (element.paused) {
+      void element.play()
+        .then(() => {
+          sourceState.mediaPlaying = true;
+          channels = {
+            ...channels,
+            media: {
+              ...channels.media,
+              playing: true,
+              currentTime: Number(element.currentTime) || 0,
+            },
+          };
+          notify();
+        })
+        .catch(() => {
+          sourceState.mediaPlaying = false;
+          channels = { ...channels, media: { ...channels.media, playing: false } };
+          notify();
+        });
+    } else {
+      element.pause();
+      sourceState.mediaPlaying = false;
+      channels = {
+        ...channels,
+        media: {
+          ...channels.media,
+          playing: false,
+          currentTime: Number(element.currentTime) || 0,
+        },
+      };
+      notify();
+    }
+    return getSnapshot();
+  }
+
+  if (!sourceState.audioBuffer) return getSnapshot();
   if (sourceState.mediaPlaying) {
     const elapsed = audioContext.currentTime - sourceState.mediaStartedAt;
     sourceState.mediaOffset = (sourceState.mediaOffset + elapsed) % sourceState.audioBuffer.duration;
@@ -966,7 +1139,11 @@ export const toggleMediaPlayback = () => {
   }
   channels = {
     ...channels,
-    media: { ...channels.media, currentTime: sourceState.mediaOffset, playing: sourceState.mediaPlaying },
+    media: {
+      ...channels.media,
+      currentTime: sourceState.mediaOffset,
+      playing: sourceState.mediaPlaying,
+    },
   };
   notify();
   return getSnapshot();
@@ -974,7 +1151,24 @@ export const toggleMediaPlayback = () => {
 
 export const seekMedia = (seconds) => {
   const sourceState = sources.get('media');
-  if (!sourceState?.audioBuffer) return getSnapshot();
+  if (!sourceState) return getSnapshot();
+
+  if (sourceState.mediaElement) {
+    const duration = Number.isFinite(sourceState.mediaElement.duration)
+      ? Number(sourceState.mediaElement.duration)
+      : Number(channels.media?.duration) || 0;
+    const nextTime = Math.max(0, Math.min(duration || Number.MAX_SAFE_INTEGER, Number(seconds) || 0));
+    try {
+      sourceState.mediaElement.currentTime = nextTime;
+    } catch {
+      // Keep the current position if the browser rejects an early seek.
+    }
+    channels = { ...channels, media: { ...channels.media, currentTime: nextTime } };
+    notify();
+    return getSnapshot();
+  }
+
+  if (!sourceState.audioBuffer) return getSnapshot();
   const nextOffset = Math.max(0, Math.min(sourceState.audioBuffer.duration, Number(seconds) || 0));
   try { sourceState.bufferSource?.stop(); } catch { /* Already stopped. */ }
   sourceState.mediaOffset = nextOffset;
