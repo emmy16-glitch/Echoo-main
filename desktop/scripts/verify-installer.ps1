@@ -62,22 +62,6 @@ try {
         throw "Installed Echoo executable is missing: $executablePath"
     }
 
-    $protocolCandidates = @(
-        'Registry::HKEY_CURRENT_USER\Software\Classes\echoo\shell\open\command',
-        'Registry::HKEY_CLASSES_ROOT\echoo\shell\open\command'
-    )
-    $protocolCommand = $null
-    foreach ($protocolKey in $protocolCandidates) {
-        if (Test-Path -LiteralPath $protocolKey) {
-            $protocolCommand = (Get-Item -LiteralPath $protocolKey).GetValue('')
-            if ($protocolCommand) { break }
-        }
-    }
-    if (-not $protocolCommand -or $protocolCommand -notmatch 'Echoo\.exe') {
-        throw "Installed Echoo did not register the echoo:// protocol correctly. Command: $protocolCommand"
-    }
-    Write-Host "Verified echoo:// protocol registration."
-
     $previousSmokeValue = $env:ECHOO_DESKTOP_SMOKE_TEST
     $previousRunAsNodeValue = $env:ELECTRON_RUN_AS_NODE
     $env:ECHOO_DESKTOP_SMOKE_TEST = '1'
@@ -106,6 +90,25 @@ try {
     if ($smoke.passed -ne $true -or $smoke.protocol -ne 'echoo-app:' -or $smoke.identity -ne 'echoo-frontend' -or $smoke.desktopBridge -ne $true) {
         throw "Installed Echoo loaded an invalid renderer: $($smoke | ConvertTo-Json -Compress)"
     }
+
+    # The installed app registers echoo:// during Electron startup. Verify the
+    # real installed executable after the packaged-renderer smoke launch rather
+    # than assuming NSIS wrote a protocol key before the app ever ran.
+    $protocolCandidates = @(
+        'Registry::HKEY_CURRENT_USER\Software\Classes\echoo\shell\open\command',
+        'Registry::HKEY_CLASSES_ROOT\echoo\shell\open\command'
+    )
+    $protocolCommand = $null
+    foreach ($protocolKey in $protocolCandidates) {
+        if (Test-Path -LiteralPath $protocolKey) {
+            $protocolCommand = (Get-Item -LiteralPath $protocolKey).GetValue('')
+            if ($protocolCommand) { break }
+        }
+    }
+    if (-not $protocolCommand -or $protocolCommand -notmatch 'Echoo\.exe') {
+        throw "Installed Echoo did not register the echoo:// protocol correctly after launch. Command: $protocolCommand"
+    }
+    Write-Host "Verified echoo:// protocol registration."
 
     Write-Host 'Installed Echoo launched the local renderer with the secure desktop bridge.'
 } finally {
