@@ -114,9 +114,10 @@ const DEBUG_TOOLS =
 const SMOKE_TEST_MODE = app.isPackaged
   ? String(process.env.ECHOO_DESKTOP_SMOKE_TEST || '')
   : '';
-const SMOKE_TEST = ['1', 'second-instance', 'offline'].includes(SMOKE_TEST_MODE);
+const SMOKE_TEST = ['1', 'second-instance', 'offline', 'scale'].includes(SMOKE_TEST_MODE);
 const SECOND_INSTANCE_SMOKE_TEST = SMOKE_TEST_MODE === 'second-instance';
 const OFFLINE_SMOKE_TEST = SMOKE_TEST_MODE === 'offline';
+const DISPLAY_SCALE_SMOKE_TEST = SMOKE_TEST_MODE === 'scale';
 
 // Origins the app window itself is allowed to navigate to. Everything else
 // (chat links, profile links, help URLs) opens in the OS default browser.
@@ -820,15 +821,24 @@ async function completePackagedSmokeTest() {
       hash: window.location.hash,
       identity: document.querySelector('meta[name="echoo-app"]')?.content || '',
       rootChildren: document.querySelector('#root')?.childElementCount || 0,
-      desktopBridge: window.echooDesktop?.isDesktop === true
+      desktopBridge: window.echooDesktop?.isDesktop === true,
+      devicePixelRatio: window.devicePixelRatio || 1,
+      viewportWidth: window.innerWidth || 0,
+      documentWidth: document.documentElement?.scrollWidth || 0
     }))()`);
     const routeVerified = !SECOND_INSTANCE_SMOKE_TEST
       || result?.hash === `#${smokeSecondInstanceRoute}`;
+    const scaleLayoutVerified = !DISPLAY_SCALE_SMOKE_TEST
+      || (
+        Number(result?.viewportWidth) > 0 &&
+        Number(result?.documentWidth) <= Number(result?.viewportWidth) + 2
+      );
     const passed = result?.protocol === `${PACKAGED_APP_SCHEME}:`
       && result?.identity === 'echoo-frontend'
       && result?.rootChildren > 0
       && result?.desktopBridge === true
-      && routeVerified;
+      && routeVerified
+      && scaleLayoutVerified;
     fs.writeFileSync(
       markerPath,
       JSON.stringify({

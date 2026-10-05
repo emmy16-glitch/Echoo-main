@@ -441,3 +441,13 @@ test('installed app proves its local shell works with remote HTTP(S) blocked', (
   assert.match(installerVerifier, /ECHOO_DESKTOP_SMOKE_TEST = 'offline'/);
   assert.match(installerVerifier, /offlineNetworkBlocked/);
 });
+
+
+test('installed smoke exercises 100%, 125%, and 150% Windows display scaling', () => {
+  const installerVerifier = fs.readFileSync(path.join(desktopRoot, 'scripts', 'verify-installer.ps1'), 'utf8');
+  assert.match(mainSource, /DISPLAY_SCALE_SMOKE_TEST/);
+  assert.match(mainSource, /devicePixelRatio/);
+  assert.match(mainSource, /documentWidth/);
+  assert.match(installerVerifier, /@\('1', '1\.25', '1\.5'\)/);
+  assert.match(installerVerifier, /force-device-scale-factor/);
+});

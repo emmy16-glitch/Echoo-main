@@ -171,6 +171,41 @@ try {
     }
     Write-Host 'Verified Echoo local shell starts with remote HTTP(S) blocked.'
 
+    # Exercise the installed renderer under the Windows-equivalent Chromium
+    # scale factors used for 100%, 125%, and 150% display scaling. The app must
+    # still render locally without creating document-level horizontal overflow.
+    foreach ($scale in @('1', '1.25', '1.5')) {
+        Remove-Item -LiteralPath $markerPath -Force -ErrorAction SilentlyContinue
+        $env:ECHOO_DESKTOP_SMOKE_TEST = 'scale'
+        $env:ELECTRON_RUN_AS_NODE = $null
+        try {
+            $scaleApplication = Start-Process -FilePath $executablePath -ArgumentList "--force-device-scale-factor=$scale" -PassThru -WindowStyle Hidden
+        } finally {
+            $env:ECHOO_DESKTOP_SMOKE_TEST = $previousSmokeValue
+            $env:ELECTRON_RUN_AS_NODE = $previousRunAsNodeValue
+        }
+        try {
+            Wait-Process -Id $scaleApplication.Id -Timeout 45 -ErrorAction Stop
+        } catch {
+            Stop-Process -Id $scaleApplication.Id -Force -ErrorAction SilentlyContinue
+            throw "Installed Echoo did not complete the $scale display-scale smoke test within 45 seconds."
+        }
+        if (-not (Test-Path -LiteralPath $markerPath -PathType Leaf)) {
+            throw "Installed Echoo did not create the $scale display-scale smoke marker."
+        }
+        $scaleSmoke = Get-Content -Raw -LiteralPath $markerPath | ConvertFrom-Json
+        if (
+            $scaleSmoke.passed -ne $true -or
+            $scaleSmoke.smokeMode -ne 'scale' -or
+            $scaleSmoke.protocol -ne 'echoo-app:' -or
+            $scaleSmoke.rootChildren -le 0 -or
+            $scaleSmoke.documentWidth -gt ($scaleSmoke.viewportWidth + 2)
+        ) {
+            throw "Installed Echoo failed the $scale display-scale layout smoke: $($scaleSmoke | ConvertTo-Json -Compress)"
+        }
+        Write-Host "Verified Echoo packaged layout at device scale $scale (reported DPR $($scaleSmoke.devicePixelRatio))."
+    }
+
     # The installed app registers echoo:// during Electron startup. Verify the
     # real installed executable after the packaged-renderer smoke launch rather
     # than assuming NSIS wrote a protocol key before the app ever ran.
