@@ -405,6 +405,7 @@ const CreatorAudioDetailModal = ({
         originalName: track.originalName,
         mimeType: track.mimeType,
       });
+      setNotice('Download started. Check your browser downloads.');
     } catch (downloadError) {
       setError(downloadError?.message || 'Could not download the original audio file.');
     } finally {
@@ -446,7 +447,7 @@ const CreatorAudioDetailModal = ({
       <Toast
         open={Boolean(notice)}
         type="success"
-        title="Saved"
+        title={String(notice).startsWith('Download started') ? 'Download started' : 'Saved'}
         message={notice}
         duration={4000}
         onClose={() => setNotice('')}
@@ -643,7 +644,7 @@ const CreatorAudioDetailModal = ({
           )}
 
           <button type="button" className="download" onClick={downloadOriginal} disabled={downloading}>
-            <FaDownload /> {downloading ? 'Preparing...' : 'Download original'}
+            <FaDownload /> {downloading ? 'Preparing…' : 'Download original'}
           </button>
         </div>
 
