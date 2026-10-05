@@ -85,13 +85,10 @@ const safeDownloadName = ({ title, originalName, mimeType } = {}) => {
   return extension === '.audio' && original ? original : `${base}${extension}`;
 };
 
-let fallbackPlaybackObjectUrl = "";
-
-const releaseFallbackPlaybackUrl = () => {
-  if (!fallbackPlaybackObjectUrl || typeof URL === "undefined") return;
-  URL.revokeObjectURL(fallbackPlaybackObjectUrl);
-  fallbackPlaybackObjectUrl = "";
-};
+// Modern Echoo playback must always use the signed Range stream. Falling back
+// to an authenticated full-file Blob is unsafe for long recordings and can
+// exhaust mobile memory during a frontend/backend deploy mismatch.
+const releaseFallbackPlaybackUrl = () => {};
 
 const missingStreamTokenRoute = (error) =>
   Number(error?.status) === 404 &&
@@ -100,35 +97,6 @@ const missingStreamTokenRoute = (error) =>
     error?.data?.error?.code === "ROUTE_NOT_FOUND" ||
     /route not found/i.test(String(error?.message || ""))
   );
-
-const getCompatibilityPlaybackUrl = async (audioId) => {
-  const response = await apiFetch(`/audio/${encodeURIComponent(audioId)}/download`);
-
-  if (!response.ok) {
-    let message = "Could not prepare this audio for playback.";
-    let code = "PLAYBACK_FALLBACK_FAILED";
-    try {
-      const data = await response.json();
-      message = data?.error?.message || data?.message || message;
-      code = data?.error?.code || code;
-    } catch {
-      // Keep the safe fallback message for non-JSON failures.
-    }
-    const error = new Error(message);
-    error.status = response.status;
-    error.code = code;
-    throw error;
-  }
-
-  const blob = await response.blob();
-  releaseFallbackPlaybackUrl();
-  fallbackPlaybackObjectUrl = URL.createObjectURL(blob);
-  return {
-    streamUrl: fallbackPlaybackObjectUrl,
-    expiresIn: 0,
-    compatibilityFallback: true,
-  };
-};
 
 const studioService = {
   getDashboard: async () => apiRequest("/studio/dashboard"),
@@ -161,22 +129,25 @@ const studioService = {
         `/audio/${encodeURIComponent(audioId)}/stream-token`,
         { method: "POST" }
       );
-      const streamUrl = buildMediaUrl(response?.data?.streamUrl || "");
+      const rawStreamUrl = response?.data?.streamUrl || "";
+      const rawDownloadUrl = response?.data?.downloadUrl || "";
+      const streamUrl = buildMediaUrl(rawStreamUrl);
+      const downloadUrl = buildMediaUrl(rawDownloadUrl);
       if (!streamUrl) throw new Error("Echoo could not prepare this audio for playback.");
       return {
         streamUrl,
+        downloadUrl,
         expiresIn: Number(response?.data?.expiresIn) || 0,
         compatibilityFallback: false,
       };
     } catch (error) {
-      // A browser can stay open while a developer/server process is still running
-      // an older Echoo backend that predates /stream-token. Do not surface the
-      // generic "Route not found" banner to creators in that transitional state.
-      // Use the existing authenticated download route as a temporary in-memory
-      // playback source. The protected Range stream remains the primary path and
-      // is used automatically as soon as the backend exposes it.
       if (!missingStreamTokenRoute(error)) throw error;
-      return getCompatibilityPlaybackUrl(audioId);
+      const updating = new Error(
+        "Echoo audio streaming is updating. Please retry in a moment."
+      );
+      updating.code = "AUDIO_STREAM_UPDATING";
+      updating.status = 503;
+      throw updating;
     }
   },
 
@@ -197,74 +168,34 @@ const studioService = {
 
   downloadAudio: async (audioId, metadata = {}) => {
     if (!audioId) throw new Error("Audio ID is missing.");
+    if (typeof document === "undefined") {
+      throw new Error("Downloads are only available in the Echoo app.");
+    }
 
-    // apiFetch returns the raw Response but still performs Echoo's normal
-    // access-token refresh/retry. Large downloads therefore do not randomly fail
-    // with a stale access token after a long Creator Studio session.
-    const response = await apiFetch(
-      `/audio/${encodeURIComponent(audioId)}/download`
-    );
-
-    if (!response.ok) {
-      let message = "Could not download this audio.";
-      try {
-        const data = await response.json();
-        message = data?.error?.message || data?.message || message;
-      } catch {
-        // Non-JSON failures keep the safe fallback message.
-      }
-      const error = new Error(message);
-      error.status = response.status;
+    const { downloadUrl } = await studioService.getAudioStreamUrl(audioId);
+    if (!downloadUrl) {
+      const error = new Error("Echoo could not prepare this recording download.");
+      error.code = "AUDIO_DOWNLOAD_UNAVAILABLE";
       throw error;
     }
 
-    const total = Math.max(0, Number(response.headers.get("content-length")) || 0);
-    const onProgress = typeof metadata?.onProgress === "function" ? metadata.onProgress : null;
-    let blob;
-
-    if (onProgress && response.body?.getReader) {
-      const reader = response.body.getReader();
-      const chunks = [];
-      let loaded = 0;
-      onProgress({ loaded: 0, total, percent: total > 0 ? 0 : null });
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        if (value?.byteLength) {
-          chunks.push(value);
-          loaded += value.byteLength;
-          onProgress({
-            loaded,
-            total,
-            percent: total > 0 ? Math.max(0, Math.min(100, Math.round((loaded / total) * 100))) : null,
-          });
-        }
-      }
-
-      blob = new Blob(chunks, {
-        type: response.headers.get("content-type") || metadata?.mimeType || "application/octet-stream",
-      });
-      onProgress({ loaded: blob.size, total: total || blob.size, percent: 100 });
-    } else {
-      blob = await response.blob();
-      onProgress?.({ loaded: blob.size, total: total || blob.size, percent: 100 });
-    }
-
-    const objectUrl = URL.createObjectURL(blob);
+    const filename = safeDownloadName(metadata);
     const anchor = document.createElement("a");
-    anchor.href = objectUrl;
-    anchor.download = safeDownloadName({
-      ...metadata,
-      mimeType: blob.type || metadata?.mimeType,
-    });
+    anchor.href = downloadUrl;
+    anchor.download = filename;
+    anchor.rel = "noopener";
     anchor.style.display = "none";
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();
-    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
 
-    return { size: blob.size, mimeType: blob.type };
+    // The native browser download manager owns the transfer from this point.
+    // Do not fetch/blob the recording in page memory just to save it.
+    return {
+      started: true,
+      mode: "native-stream",
+      filename,
+    };
   },
 
   uploadAudio: async ({
