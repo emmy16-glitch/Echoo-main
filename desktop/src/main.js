@@ -11,6 +11,7 @@ const {
   dialog,
   nativeImage,
   powerSaveBlocker,
+  screen,
   systemPreferences,
 } = require('electron');
 const path = require('node:path');
@@ -18,7 +19,6 @@ const fs = require('node:fs');
 const net = require('node:net');
 const crypto = require('node:crypto');
 const { fileURLToPath } = require('node:url');
-const { spawn } = require('node:child_process');
 const log = require('electron-log');
 const { autoUpdater } = require('electron-updater');
 const {
@@ -50,14 +50,10 @@ if (
 // ---------------------------------------------------------------------------
 // Config
 // ---------------------------------------------------------------------------
-// HOSTED MODE (Windows .exe default): the packaged app is a thin client for
-// the live shared server — every download lands in the same world, same
-// users/channels/broadcasts as https://echoo.digi02.org/. This matches the
-// Echoo-Studio 1.0.5 behavior that is known-good and in sync with live.
-// The old "bundled backend island" (local API on :5017 per install) is kept
-// ONLY as an opt-in via ECHOO_LOCAL_BACKEND=1 for offline development.
+// Public website identity is returned for browser/share handoff only. The
+// packaged product always renders local application code and connects to the
+// shared production platform through its public API contracts.
 const PUBLIC_APP_ORIGIN = process.env.ECHOO_PUBLIC_ORIGIN || 'https://echoo.digi02.org';
-const LOCAL_BACKEND_OPT_IN = process.env.ECHOO_LOCAL_BACKEND === '1';
 // Vite dev server URL. Single source of truth: VITE_PORT env, else the
 // `|| '<port>'` default in frontend/vite.config.js (project-specific 5273 —
 // NOT Vite's 5173 default, which collides on shared multi-user machines).
@@ -79,20 +75,8 @@ const DEV_WAIT_MS = Number(process.env.DEV_WAIT_MS || '5000');
 // is not proof on a shared machine — require the marker before loadURL.
 const ECHOO_IDENTITY_MARKER = 'name="echoo-app"';
 
-// Production bundle. Rebuild the frontend first (`npm run build` in
-// ../frontend) — plain `npm run dist` packages whatever is in
-// frontend/dist, so packaging can never silently ship a blank window only if
-// the build step ran (only `dist:win:local-backend` chains it automatically). electron-builder copies
-// frontend/dist INTO the packaged app (see the {from,to} entry in the `files`
-// array in package.json), so this path resolves inside the asar in prod.
-// NOTE: an earlier revision pointed at ../../frontend/dist relative to the
-// repo — that 404s in the installed app (resources/frontend/... doesn't exist)
-// and was caught by the packaged boot test via did-fail-load.
-// offline.html is a sibling of src/ in the repo AND packaged at the asar root
-// (see the "offline.html" entry in `files`), hence '../offline.html' here.
-// A previous revision used path.join(__dirname, 'offline.html'), which resolves
-// to src/offline.html — a file that does not exist — so the error page itself
-// failed to load and users saw a blank white window on Windows installs.
+// Production renderer and startup surfaces are generated/verified before
+// electron-builder packages them into the application asar.
 const PROD_INDEX = path.join(__dirname, '../frontend-dist/index.html');
 const OFFLINE_PAGE = path.join(__dirname, '../offline.html');
 const SPLASH_PAGE = path.join(__dirname, '../splash.html');
@@ -106,8 +90,8 @@ const SMOKE_TEST = app.isPackaged && process.env.ECHOO_DESKTOP_SMOKE_TEST === '1
 
 // Origins the app window itself is allowed to navigate to. Everything else
 // (chat links, profile links, help URLs) opens in the OS default browser.
-// Packaged builds are hosted-mode: the live server origin (+ file:// for the
-// bundled offline/error page). Dev builds use the Vite server origin.
+// Packaged builds permit only files inside the application bundle. Dev builds
+// permit only the configured Vite server origin.
 function appOrigins() {
   if (!app.isPackaged) {
     try {
@@ -153,11 +137,11 @@ let roomState = { active: false, muted: false, canToggleMute: false, keepAwake: 
 let powerSaveBlockerId = null;
 let isQuitting = false;
 let quitTimer = null;
-let backendChild = null;
 let trayHideNoticed = false;
 const recordingSaveSessions = new Map();
 let pendingDeepLink = findEchooDeepLink(process.argv);
 const MAX_RECORDING_IPC_CHUNK_BYTES = 8 * 1024 * 1024;
+const MAX_LEGACY_RECORDING_IPC_BYTES = 16 * 1024 * 1024;
 const RECORDING_EXTENSIONS = new Set(['.mp3', '.wav', '.flac', '.m4a', '.aac', '.ogg', '.opus', '.webm']);
 
 function recordingsLibraryRoot() {
@@ -188,198 +172,6 @@ function syncPowerSaveBlocker() {
     }
     powerSaveBlockerId = null;
     log.info('[echoo-desktop] app suspension blocker released');
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Bundled backend: the installed app ships its own Echoo API (extraResources)
-// and starts it automatically — end users never run `node src/app.js`.
-// The server runs via ELECTRON_RUN_AS_NODE (Electron's embedded Node; the
-// backend has zero native modules, verified), with cwd pointed at per-user
-// app storage so uploads/mongo-data never touch the read-only app bundle.
-// If an Echoo API is ALREADY on the port (developer running the repo stack),
-// it is reused instead of spawning a second one.
-// ---------------------------------------------------------------------------
-const BACKEND_PORT = Number(process.env.ECHOO_BACKEND_PORT || '5017');
-const BACKEND_HEALTH_URL = `http://127.0.0.1:${BACKEND_PORT}/api/health`;
-
-function backendEntry() {
-  if (app.isPackaged) {
-    return path.join(process.resourcesPath, 'backend', 'src', 'app.js');
-  }
-  return path.resolve(__dirname, '../../backend/src/app.js');
-}
-
-function serverDataDir() {
-  const dir = path.join(app.getPath('userData'), 'server-data');
-  try {
-    fs.mkdirSync(dir, { recursive: true });
-  } catch (error) {
-    log.warn('[echoo-desktop] could not create server data dir:', error.message);
-  }
-  return dir;
-}
-
-// Stable per-machine JWT secrets for the bundled server (stored 0600 in
-// userData). The backend's built-in dev default would otherwise be identical
-// on every install. Explicit env always wins — this only fills the gap.
-function serverSecrets() {
-  const file = path.join(app.getPath('userData'), 'echoo-server-secrets.json');
-  try {
-    const raw = fs.readFileSync(file, 'utf8');
-    const parsed = JSON.parse(raw);
-    if (parsed.jwtSecret && parsed.jwtRefreshSecret) return parsed;
-  } catch {
-    // Missing or corrupt — generate fresh below.
-  }
-  const secrets = {
-    jwtSecret: crypto.randomBytes(48).toString('hex'),
-    jwtRefreshSecret: crypto.randomBytes(48).toString('hex'),
-  };
-  try {
-    fs.writeFileSync(file, JSON.stringify(secrets, null, 2), { mode: 0o600 });
-  } catch (error) {
-    log.warn('[echoo-desktop] could not persist server secrets:', error.message);
-  }
-  return secrets;
-}
-
-// Zero-config installs: the packager may bake a LiveKit config into the
-// installer (resources/backend/server-defaults.env, via
-// scripts/prepare-bundled-backend.js). On first launch it is copied to
-// server-data/.env so the bundled backend picks it up. A user-written
-// server-data/.env ALWAYS wins — it is never overwritten.
-function seedServerEnv(dataDir) {
-  try {
-    const userEnv = path.join(dataDir, '.env');
-    if (fs.existsSync(userEnv)) return;
-    const template = path.join(
-      app.isPackaged ? process.resourcesPath : path.resolve(__dirname, '..'),
-      app.isPackaged ? path.join('backend', 'server-defaults.env') : '.bundled-server-env'
-    );
-    if (!fs.existsSync(template)) return;
-    const raw = fs.readFileSync(template, 'utf8').trim();
-    if (!raw) return; // built without embedded config — nothing to seed
-    fs.writeFileSync(userEnv, `${raw}\n`, { mode: 0o600 });
-    log.info('[echoo-desktop] seeded server-data/.env from the installer defaults');
-  } catch (error) {
-    log.warn('[echoo-desktop] could not seed server .env:', error.message);
-  }
-}
-
-function fetchBackendHealth(timeoutMs = 2500) {
-  return new Promise((resolve) => {
-    const lib = require('node:http');
-    let settled = false;
-    const done = (healthy) => {
-      if (!settled) {
-        settled = true;
-        resolve(healthy);
-      }
-    };
-    const timer = setTimeout(() => {
-      req.destroy();
-      done(false);
-    }, timeoutMs);
-    if (timer.unref) timer.unref();
-    const req = lib.get(BACKEND_HEALTH_URL, { headers: { Accept: 'application/json' } }, (res) => {
-      let body = '';
-      res.on('data', (chunk) => {
-        if (body.length <= 64 * 1024) body += chunk.toString('utf8');
-      });
-      res.on('end', () => {
-        clearTimeout(timer);
-        try {
-          const parsed = JSON.parse(body);
-          done(parsed.status === 'ok' && parsed.service === 'echoo-api');
-        } catch {
-          done(false);
-        }
-      });
-      res.on('error', () => {
-        clearTimeout(timer);
-        done(false);
-      });
-    });
-    req.on('error', () => {
-      clearTimeout(timer);
-      done(false);
-    });
-  });
-}
-
-async function startBundledBackend() {
-  if (backendChild) return;
-  if (await fetchBackendHealth()) {
-    log.info(`[echoo-desktop] Echoo API already on :${BACKEND_PORT} — reusing it, no bundled server started`);
-    return;
-  }
-
-  const entry = backendEntry();
-  if (!fs.existsSync(entry)) {
-    log.warn(`[echoo-desktop] bundled backend not found at ${entry} — API-dependent features need a manually started server`);
-    return;
-  }
-
-  const secrets = serverSecrets();
-  const dataDir = serverDataDir();
-  seedServerEnv(dataDir);
-  try {
-    backendChild = spawn(process.execPath, [entry], {
-      cwd: dataDir,
-      env: {
-        ...process.env,
-        ELECTRON_RUN_AS_NODE: '1',
-        ECHOO_DESKTOP: '1',
-        PORT: String(BACKEND_PORT),
-        JWT_SECRET: process.env.JWT_SECRET || secrets.jwtSecret,
-        JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET || secrets.jwtRefreshSecret,
-      },
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-  } catch (error) {
-    backendChild = null;
-    log.warn('[echoo-desktop] could not spawn bundled backend:', error.message);
-    return;
-  }
-
-  log.info(`[echoo-desktop] bundled Echoo API starting (pid ${backendChild.pid}, data: ${dataDir})`);
-  backendChild.stdout?.on('data', (chunk) => {
-    for (const line of String(chunk).split('\n')) {
-      if (line.trim()) log.info(`[backend] ${line.trim()}`);
-    }
-  });
-  backendChild.stderr?.on('data', (chunk) => {
-    for (const line of String(chunk).split('\n')) {
-      if (line.trim()) log.warn(`[backend] ${line.trim()}`);
-    }
-  });
-  backendChild.on('error', (error) => {
-    log.warn('[echoo-desktop] bundled backend process error:', error.message);
-    backendChild = null;
-  });
-  backendChild.on('exit', (code, signal) => {
-    log.warn(`[echoo-desktop] bundled backend exited (code ${code}, signal ${signal})`);
-    backendChild = null;
-  });
-}
-
-function stopBundledBackend() {
-  const child = backendChild;
-  backendChild = null;
-  if (!child || child.exitCode !== null) return;
-  try {
-    child.kill('SIGTERM');
-    const killer = setTimeout(() => {
-      try {
-        if (child.exitCode === null) child.kill('SIGKILL');
-      } catch {
-        // Already gone.
-      }
-    }, 3000);
-    if (killer.unref) killer.unref();
-  } catch (error) {
-    log.warn('[echoo-desktop] could not stop bundled backend:', error.message);
   }
 }
 
@@ -440,6 +232,92 @@ function writePrefs(prefs) {
     log.warn('[echoo-desktop] could not persist notification prefs:', error.message);
   }
   return prefs;
+}
+
+const DEFAULT_WINDOW_BOUNDS = Object.freeze({ width: 1280, height: 800 });
+let windowStateSaveTimer = null;
+
+function windowStateFile() {
+  return path.join(app.getPath('userData'), 'echoo-window-state.json');
+}
+
+function intersectsVisibleDisplay(bounds) {
+  return screen.getAllDisplays().some(({ workArea }) => {
+    const overlapWidth = Math.max(
+      0,
+      Math.min(bounds.x + bounds.width, workArea.x + workArea.width) - Math.max(bounds.x, workArea.x)
+    );
+    const overlapHeight = Math.max(
+      0,
+      Math.min(bounds.y + bounds.height, workArea.y + workArea.height) - Math.max(bounds.y, workArea.y)
+    );
+    return overlapWidth >= 160 && overlapHeight >= 120;
+  });
+}
+
+function readWindowState() {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(windowStateFile(), 'utf8'));
+    const displays = screen.getAllDisplays();
+    const maxVisibleWidth = Math.max(
+      DEFAULT_WINDOW_BOUNDS.width,
+      ...displays.map(({ workArea }) => workArea.width)
+    );
+    const maxVisibleHeight = Math.max(
+      DEFAULT_WINDOW_BOUNDS.height,
+      ...displays.map(({ workArea }) => workArea.height)
+    );
+    const parsedWidth = Number(parsed.width);
+    const parsedHeight = Number(parsed.height);
+    const width = Number.isFinite(parsedWidth)
+      ? Math.max(900, Math.min(maxVisibleWidth, Math.round(parsedWidth)))
+      : DEFAULT_WINDOW_BOUNDS.width;
+    const height = Number.isFinite(parsedHeight)
+      ? Math.max(620, Math.min(maxVisibleHeight, Math.round(parsedHeight)))
+      : DEFAULT_WINDOW_BOUNDS.height;
+    const candidate = {
+      width,
+      height,
+    };
+    if (Number.isFinite(parsed.x) && Number.isFinite(parsed.y)) {
+      const positioned = {
+        ...candidate,
+        x: Math.round(parsed.x),
+        y: Math.round(parsed.y),
+      };
+      if (intersectsVisibleDisplay(positioned)) Object.assign(candidate, positioned);
+    }
+    return { ...candidate, maximized: parsed.maximized === true };
+  } catch {
+    return { ...DEFAULT_WINDOW_BOUNDS, maximized: false };
+  }
+}
+
+function persistWindowState(window) {
+  if (!window || window.isDestroyed()) return;
+  try {
+    const bounds = window.getNormalBounds();
+    const state = {
+      x: bounds.x,
+      y: bounds.y,
+      width: bounds.width,
+      height: bounds.height,
+      maximized: window.isMaximized(),
+    };
+    fs.mkdirSync(path.dirname(windowStateFile()), { recursive: true });
+    fs.writeFileSync(windowStateFile(), JSON.stringify(state, null, 2));
+  } catch (error) {
+    log.warn('[echoo-desktop] could not persist window state:', error.message);
+  }
+}
+
+function scheduleWindowStateSave(window) {
+  if (windowStateSaveTimer) clearTimeout(windowStateSaveTimer);
+  windowStateSaveTimer = setTimeout(() => {
+    windowStateSaveTimer = null;
+    persistWindowState(window);
+  }, 250);
+  if (windowStateSaveTimer.unref) windowStateSaveTimer.unref();
 }
 
 // ---------------------------------------------------------------------------
@@ -510,9 +388,13 @@ function revealMainWindow() {
 }
 
 function createWindow() {
+  const savedWindowState = readWindowState();
   mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 800,
+    width: savedWindowState.width,
+    height: savedWindowState.height,
+    ...(Number.isFinite(savedWindowState.x) && Number.isFinite(savedWindowState.y)
+      ? { x: savedWindowState.x, y: savedWindowState.y }
+      : {}),
     minWidth: 900,
     minHeight: 620,
     resizable: true,
@@ -527,7 +409,15 @@ function createWindow() {
     },
   });
 
-  mainWindow.once('ready-to-show', revealMainWindow);
+  mainWindow.once('ready-to-show', () => {
+    if (savedWindowState.maximized) mainWindow?.maximize();
+    revealMainWindow();
+  });
+
+  const windowForState = mainWindow;
+  for (const eventName of ['move', 'resize', 'maximize', 'unmaximize']) {
+    windowForState.on(eventName, () => scheduleWindowStateSave(windowForState));
+  }
 
   // External links (chat messages, profile links, help URLs) open in the OS
   // default browser — never inside the app window.
@@ -588,6 +478,7 @@ function createWindow() {
   // to the tray instead of quitting, so minimizing never kills the audio.
   // Quit explicitly via tray > Quit or File > Quit (those set isQuitting).
   mainWindow.on('close', (event) => {
+    persistWindowState(mainWindow);
     if (!isQuitting && roomState.active && mainWindow) {
       event.preventDefault();
       mainWindow.hide();
@@ -887,6 +778,20 @@ function installProdCsp() {
 // Native menu: macOS convention (app menu with product name first) vs
 // Windows/Linux convention (File > Quit, Help > About).
 // ---------------------------------------------------------------------------
+async function openLogsFolder() {
+  try {
+    const logFilePath = log.transports.file.getFile().path;
+    const logsFolder = path.dirname(logFilePath);
+    await fs.promises.mkdir(logsFolder, { recursive: true });
+    const result = await shell.openPath(logsFolder);
+    if (result) throw new Error(result);
+    return { opened: true, path: logsFolder };
+  } catch (error) {
+    log.warn('[echoo-desktop] could not open logs folder:', error.message);
+    return { opened: false, error: 'Echoo could not open its logs folder.' };
+  }
+}
+
 function buildMenu() {
   const isMac = process.platform === 'darwin';
   const template = [];
@@ -946,6 +851,11 @@ function buildMenu() {
   });
 
   const helpSubmenu = [
+    {
+      label: 'Open Echoo Logs',
+      click: () => { void openLogsFolder(); },
+    },
+    { type: 'separator' },
     {
       label: 'Echoo Support & Docs',
       click: async () => {
@@ -1441,6 +1351,12 @@ function registerIpc() {
 
       const buffer = Buffer.isBuffer(options?.data) ? options.data : Buffer.from(options?.data || []);
       if (!buffer.length) return { saved: false, error: 'Recording bytes are empty.' };
+      if (buffer.length > MAX_LEGACY_RECORDING_IPC_BYTES) {
+        return {
+          saved: false,
+          error: 'This recording must use Echoo’s chunked desktop save protocol.',
+        };
+      }
 
       if (options?.automatic === true) {
         const parsed = path.parse(filename);
@@ -1561,7 +1477,6 @@ function registerIpc() {
       quitTimer = null;
     }
     log.info('[echoo-desktop] renderer reported clean shutdown — exiting');
-    stopBundledBackend();
     isQuitting = true;
     app.exit(0);
   });
@@ -1630,16 +1545,6 @@ function startApp() {
     }
     registerIpc();
     buildMenu();
-    // Hosted mode (default): NO bundled backend — the live server at
-    // echoo.digi02.org owns users/channels/broadcasts/LiveKit, so every
-    // install is in sync out of the box. Opt back into the old local island
-    // only with ECHOO_LOCAL_BACKEND=1 (offline development).
-    if (LOCAL_BACKEND_OPT_IN) {
-      // The window loads immediately (first launch may download the embedded
-      // database binary in the background — the UI degrades gracefully until
-      // the API answers); the server never blocks the shell from opening.
-      void startBundledBackend();
-    }
     if (app.isPackaged) installProdCsp();
     createSplashWindow();
     createWindow();
@@ -1670,7 +1575,6 @@ app.on('before-quit', (event) => {
   quitTimer = setTimeout(() => {
     quitTimer = null;
     log.warn('[echoo-desktop] renderer cleanup timed out — forcing quit');
-    stopBundledBackend();
     isQuitting = true;
     app.exit(0);
   }, 2000);
@@ -1678,6 +1582,10 @@ app.on('before-quit', (event) => {
 });
 
 app.on('will-quit', () => {
+  if (windowStateSaveTimer) {
+    clearTimeout(windowStateSaveTimer);
+    windowStateSaveTimer = null;
+  }
   roomState = { active: false, muted: false, canToggleMute: false, keepAwake: false };
   syncPowerSaveBlocker();
 

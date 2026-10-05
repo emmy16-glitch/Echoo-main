@@ -77,3 +77,25 @@ test('saved desktop recordings expose native Windows file actions', () => {
   assert.match(recordingBannerSource, />\s*Show in File Explorer\s*</);
 });
 
+test('Windows shell restores safe window state and exposes diagnostics', () => {
+  assert.match(mainSource, /echoo-window-state\.json/);
+  assert.match(mainSource, /intersectsVisibleDisplay/);
+  assert.match(mainSource, /getNormalBounds\(\)/);
+  assert.match(mainSource, /Open Echoo Logs/);
+});
+
+test('desktop never bundles or starts a private Echoo backend', () => {
+  assert.doesNotMatch(mainSource, /startBundledBackend/);
+  assert.doesNotMatch(mainSource, /ECHOO_LOCAL_BACKEND/);
+  assert.doesNotMatch(JSON.stringify(packageJson.build), /backend\/src\/app\.js/);
+});
+
+test('legacy recording IPC is bounded and long recordings use chunk sessions', () => {
+  assert.match(mainSource, /MAX_RECORDING_IPC_CHUNK_BYTES = 8 \* 1024 \* 1024/);
+  assert.match(mainSource, /MAX_LEGACY_RECORDING_IPC_BYTES = 16 \* 1024 \* 1024/);
+  assert.match(mainSource, /recording-save-begin/);
+  assert.match(mainSource, /recording-save-chunk/);
+  assert.match(mainSource, /recording-save-finish/);
+  assert.match(mainSource, /recording-save-abort/);
+});
+
