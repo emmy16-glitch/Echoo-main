@@ -314,15 +314,11 @@ const ListenerRealLiveRoom = () => {
     async ({ silent = false } = {}) => {
       if (previewMode || !broadcastId) return;
       const generation = ++chatLoadGenerationRef.current;
-      // Chat history needs an account; guests still see live messages stream
-      // in over the realtime socket below.
-      if (isGuest) {
-        if (!silent && generation === chatLoadGenerationRef.current) setChatLoading(false);
-        return;
-      }
       if (!silent) setChatLoading(true);
       try {
-        const response = await batch4Service.getMessages(broadcastId, { limit: 100 });
+        const response = isGuest
+          ? await batch4Service.getPublicMessages(broadcastId, { limit: 100 })
+          : await batch4Service.getMessages(broadcastId, { limit: 100 });
         if (generation !== chatLoadGenerationRef.current) return;
         const history = Array.isArray(response?.data)
           ? response.data.map(chatView)
@@ -389,12 +385,12 @@ const ListenerRealLiveRoom = () => {
   }, [load]);
 
   useEffect(() => {
-    if (previewMode || isGuest) return;
+    if (previewMode) return;
     // Desktop chat is always visible, while mobile chat opens as a sheet.
     // Load history for the room itself so desktop never renders an empty panel
     // simply because the mobile-only chatOpen flag is false.
     void loadChat();
-  }, [previewMode, isGuest, loadChat]);
+  }, [previewMode, loadChat]);
 
   useEffect(() => {
     if (
