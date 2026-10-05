@@ -69,8 +69,8 @@ test('Following lists live and all-following channel sections without a dashboar
   await page.goto('/listen/following');
   await settle(page);
   await expect(page.getByRole('heading', { level: 1, name: 'Following' })).toBeVisible();
-  await expect(page.getByRole('heading', { level: 2, name: 'Live from your following' })).toBeVisible();
-  await expect(page.getByRole('heading', { level: 2, name: 'All following' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 2, name: 'Live from creators you follow' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 2, name: 'Creators you follow' })).toBeVisible();
   await expect(page.locator('.listener-v2-following-row').first()).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(2);
   await page.screenshot({ path: `test-results/reference-following-${testInfo.project.name}.png`, fullPage: true });
