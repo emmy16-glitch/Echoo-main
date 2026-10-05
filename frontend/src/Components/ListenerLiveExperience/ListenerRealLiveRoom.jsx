@@ -983,22 +983,13 @@ const ListenerRealLiveRoom = () => {
           >
             <FiX />
           </button>
-          {isGuest && (
-            <div className="listener-v2-room-chat-guest" role="status">
-              <span>Listening as a guest</span>
-              <button
-                type="button"
-                onClick={() => navigate({ pathname: '/', search: '?mode=login' })}
-              >
-                Sign in to chat
-              </button>
-            </div>
-          )}
           <ChatPanel
             messages={messages}
             loading={chatLoading}
             disabled={!isLive || isGuest}
-            disabledMessage={isGuest ? 'Sign in to join the live chat.' : 'Live chat is closed for this broadcast.'}
+            disabledMessage={isGuest ? 'Listening as a guest. Sign in to join the live chat.' : 'Live chat is closed for this broadcast.'}
+            disabledActionLabel={isGuest ? 'Sign in to chat' : ''}
+            onDisabledAction={isGuest ? () => navigate({ pathname: '/', search: '?mode=login' }) : undefined}
             error={chatError}
             onSend={sendMessage}
             onReact={react}
