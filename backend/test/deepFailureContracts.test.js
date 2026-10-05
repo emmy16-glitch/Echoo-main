@@ -218,6 +218,8 @@ test('completed broadcast upload recovery marks replay lifecycle ready', async (
 
 test('creator recording downloads stream natively instead of buffering whole audio in page memory', async () => {
   const studioService = await frontendSource('src/services/studioService.js');
+  const audioService = await frontendSource('src/services/audioService.js');
+  const downloadService = await frontendSource('src/services/downloadService.js');
   const recordings = await frontendSource('src/Components/CreatorStudio/CreatorCollectionsWorkspace.jsx');
   const detail = await frontendSource('src/Components/CreatorStudio/CreatorAudioDetailModal.jsx');
   const trim = await frontendSource('src/Components/CreatorStudio/CreatorAudioTrimSection.jsx');
@@ -236,6 +238,8 @@ test('creator recording downloads stream natively instead of buffering whole aud
   assert.doesNotMatch(downloadBlock, /getReader\(\)/);
   assert.doesNotMatch(downloadBlock, /const chunks = \[\]/);
   assert.doesNotMatch(studioService, /getCompatibilityPlaybackUrl/);
+  assert.match(audioService, /downloadUrl/);
+  assert.match(downloadService, /downloadUrl \|\| streamUrl/);
 
   assert.match(streamController, /downloadUrl:/);
   assert.match(streamController, /downloadRequested/);
