@@ -474,6 +474,25 @@
   transition: width 200ms ease;
 }
 
+.creator-audio-trim-loading > i.is-indeterminate > b {
+  width: 38%;
+  animation: echoo-trim-waveform-progress 1.15s ease-in-out infinite;
+}
+
+@keyframes echoo-trim-waveform-progress {
+  0% { transform: translateX(-120%); }
+  50% { transform: translateX(105%); }
+  100% { transform: translateX(290%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .creator-audio-trim-loading > i.is-indeterminate > b {
+    width: 65%;
+    animation: none;
+    transform: none;
+  }
+}
+
 .creator-audio-trim-wave {
   height: 68px;
   padding: 9px 10px;
