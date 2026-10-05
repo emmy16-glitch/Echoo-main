@@ -254,6 +254,12 @@ test('creator recording downloads stream natively instead of buffering whole aud
   assert.match(downloadController, /storedExtension \|\| originalExtension \|\| '\.audio'/);
   assert.match(streamController, /getCloudObject\(audio\.cloudKey,\s*\{[\s\S]*range:/);
   assert.match(archive, /Range:\s*cleanRange/);
+  assert.match(downloadController, /audio\?\.cloudKey/);
+  assert.match(downloadController, /Number\.isFinite\(contentLength\)/);
+  assert.doesNotMatch(downloadController, /transformToByteArray/);
+  assert.doesNotMatch(streamController, /transformToByteArray/);
+  assert.match(downloadController, /Symbol\.asyncIterator/);
+  assert.match(streamController, /Symbol\.asyncIterator/);
 
   assert.match(recordings, /Download started/);
   assert.match(recordings, /Preparing download/);
