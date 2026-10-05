@@ -233,9 +233,18 @@ export async function streamAudio(req, res, next) {
         }
       }
 
+      if (!audio.cloudKey) {
+        return res.status(503).json({
+          error: {
+            code: 'AUDIO_CLOUD_KEY_MISSING',
+            message: 'This recording cannot be located for download right now.',
+          },
+        });
+      }
+
       let object;
       try {
-        object = await getCloudObject(audio.cloudKey || audio.cloudUrl, {
+        object = await getCloudObject(audio.cloudKey, {
           range: req.headers.range || '',
         });
       } catch (error) {
@@ -277,7 +286,10 @@ export async function streamAudio(req, res, next) {
         res.setHeader('Content-Length', String(Number(object.ContentLength)));
       }
 
-      if (req.method === 'HEAD') return res.end();
+      if (req.method === 'HEAD') {
+        body.destroy?.();
+        return res.end();
+      }
 
       if (typeof body.pipe === 'function') {
         body.once?.('error', (streamError) => {
