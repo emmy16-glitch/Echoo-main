@@ -264,6 +264,72 @@ test('creator recording downloads stream natively instead of buffering whole aud
 });
 
 
+test('recording playback refreshes expiring grants across web, guest, follower and mobile flows', async () => {
+  const routes = await source('src/routes/audioRoutes.js');
+  const streamController = await source('src/controllers/audioStreamController.js');
+  const audioService = await frontendSource('src/services/audioService.js');
+  const listener = await frontendSource('src/Components/ListenerV2/ListenerV2.jsx');
+  const creatorProfile = await frontendSource('src/Components/ListenerCreatorProfile/ListenerCreatorProfile.jsx');
+  const continueListening = await frontendSource('src/Components/ListenerV2/ContinueListening.jsx');
+  const savedMoments = await frontendSource('src/Components/ListenerSavedMoments/ListenerSavedMoments.jsx');
+  const playlist = await frontendSource('src/Components/ListenerPlaylist/ListenerPlaylist.jsx');
+  const mobileApi = await fs.readFile(new URL('../../mobile/src/services/echooApi.ts', import.meta.url), 'utf8');
+  const mobilePlayback = await fs.readFile(new URL('../../mobile/src/playback/PlaybackProvider.tsx', import.meta.url), 'utf8');
+
+  assert.match(routes, /'\/:id\/public-stream-token',[\s\S]*issuePublicAudioStreamUrl/);
+  assert.doesNotMatch(routes, /'\/:id\/public-stream-token',[\s\S]{0,80}authenticate/);
+  assert.match(routes, /'\/:id\/stream-token',[\s\S]*authenticate,[\s\S]*issueAudioStreamUrl/);
+  assert.match(streamController, /issuePublicAudioStreamUrl/);
+  assert.match(streamController, /isPublic:\s*true/);
+  assert.match(streamController, /visibility:\s*'public'/);
+  assert.match(streamController, /publicationStatus:\s*'published'/);
+
+  assert.match(audioService, /getCurrentAccessToken/);
+  assert.match(audioService, /public-stream-token/);
+  assert.match(audioService, /stream-token/);
+
+  assert.match(listener, /resolveFreshPlaybackTrack/);
+  assert.match(listener, /audioService\.getStreamUrl\(id\)/);
+  assert.match(listener, /recoverPlaybackStream/);
+  assert.match(listener, /pendingSeekRef\.current = resumeAt/);
+  assert.match(listener, /streamRecoveryRef/);
+  assert.doesNotMatch(listener, /if \(!normalized\?\.fileUrl\)/);
+  assert.match(listener, /item\.fileUrl \|\| idOf\(item\)/);
+
+  assert.doesNotMatch(creatorProfile, /disabled=\{!track\.fileUrl\}/);
+  assert.match(continueListening, /track\.id \|\| track\._id \|\| track\.fileUrl/);
+  assert.match(savedMoments, /moment\.audioId \|\| moment\.audio\?\.id/);
+  assert.doesNotMatch(playlist, /track\?\.id && track\?\.fileUrl/);
+
+  assert.match(mobileApi, /getAudioStreamUrl/);
+  assert.match(mobileApi, /public-stream-token/);
+  assert.match(mobilePlayback, /getAudioStreamUrl/);
+  assert.match(mobilePlayback, /audioStreamExpiresAtRef/);
+  assert.doesNotMatch(mobilePlayback, /if \(!item\.fileUrl\)/);
+});
+
+test('large server replay exports stay streaming and bounded instead of becoming giant browser blobs', async () => {
+  const exportService = await frontendSource('src/services/recordingExportService.js');
+  const downloadController = await source('src/controllers/audioDownloadController.js');
+  const routes = await source('src/routes/audioRoutes.js');
+
+  assert.match(exportService, /prepareServerRecordingDownload/);
+  assert.match(exportService, /method:\s*'HEAD'/);
+  assert.match(exportService, /startServerRecordingBrowserDownload/);
+  assert.match(exportService, /saveServerRecordingToDesktop/);
+  assert.match(exportService, /response\.body\.getReader\(\)/);
+  assert.match(exportService, /maxCompatibilityBlobBytes = 64 \* 1024 \* 1024/);
+  assert.doesNotMatch(exportService, /timeoutMs:\s*30_000/);
+  assert.match(exportService, /SERVER_RECORDING_STREAM_REQUIRED/);
+
+  assert.match(downloadController, /parseSingleByteRange/);
+  assert.match(downloadController, /Accept-Ranges/);
+  assert.match(downloadController, /Content-Range/);
+  assert.match(downloadController, /getCloudObject\(audio\.cloudKey,[\s\S]*range:/);
+  assert.match(routes, /router\.head\([\s\S]*'\/:id\/download'/);
+});
+
+
 test('protected downloads use one canonical authorization boundary from local or cloud bytes', async () => {
   const routes = await source('src/routes/audioRoutes.js');
   const middleware = await source('src/middleware/audioDownloadAccess.js');
@@ -353,7 +419,7 @@ test('recording management keeps trim copies safe and prevents cramped or mislab
   assert.match(exportService, /requiresSecondTap/);
   assert.match(exportService, /prepared-local-mp3/);
   assert.match(exportService, /unverifiedDownload/);
-  assert.match(exportService, /server-mp3-fallback/);
+  assert.match(exportService, /server-mp3-stream/);
   assert.match(banner, /MP3 ready · Tap to save/);
   assert.match(banner, /browsers cannot confirm the file was actually retained/);
   assert.match(exportService, /localMime\.includes\('webm'\)/);
