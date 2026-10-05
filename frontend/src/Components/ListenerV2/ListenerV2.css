@@ -781,3 +781,114 @@ html.listener-v2-full-player-open body { overflow:hidden; }
     margin-top: 0;
   }
 }
+
+
+/* Listener profile: intentional account hierarchy instead of browser-default
+ * controls. Consequential sign-out remains clear, direct and recoverable. */
+.listener-profile-card {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+}
+.listener-profile-avatar {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border-radius: 15px;
+  background: var(--listener-v2-blue-soft);
+  color: var(--listener-v2-blue);
+  font-size: 21px;
+}
+.listener-profile-copy {
+  min-width: 0;
+}
+.listener-profile-copy h2 {
+  margin: 0;
+  color: var(--listener-v2-ink);
+  font-size: 22px;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+}
+.listener-profile-copy p {
+  margin: 5px 0 0;
+  overflow-wrap: anywhere;
+  color: var(--listener-v2-copy);
+  font-size: 14px;
+}
+.listener-profile-primary {
+  grid-column: 1 / -1;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--listener-v2-blue);
+  border-radius: 10px;
+  background: var(--listener-v2-blue);
+  color: #fff;
+  cursor: pointer;
+  font-weight: 750;
+}
+.listener-profile-signout {
+  min-height: 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 0 15px;
+  border: 1px solid #f0c7cb;
+  border-radius: 10px;
+  background: #fff;
+  color: #b4232f;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 750;
+}
+.listener-profile-signout:hover:not(:disabled) {
+  border-color: #e6a9af;
+  background: #fff7f7;
+}
+.listener-profile-signout:disabled {
+  cursor: wait;
+  opacity: .6;
+}
+.listener-profile-error {
+  width: max-content;
+  max-width: 100%;
+  margin: 10px 0 0;
+  padding: 9px 11px;
+  border: 1px solid #ffd2d5;
+  border-radius: 9px;
+  background: #fff5f5;
+  color: #b42318;
+  font-size: 13px;
+}
+
+@media (max-width: 767px) {
+  .listener-profile-card {
+    grid-template-columns: 46px minmax(0, 1fr);
+    gap: 12px;
+    padding: 18px;
+  }
+  .listener-profile-avatar {
+    width: 46px;
+    height: 46px;
+    border-radius: 13px;
+    font-size: 19px;
+  }
+  .listener-profile-copy h2 {
+    font-size: 19px;
+  }
+  .listener-profile-links {
+    margin: 14px 0;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--listener-v2-line);
+    background: #fff;
+  }
+  .listener-profile-links button {
+    padding-inline: 16px;
+  }
+  .listener-profile-signout {
+    width: 100%;
+  }
+}
