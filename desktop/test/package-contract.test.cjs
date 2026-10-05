@@ -374,3 +374,17 @@ test('main window uses the canonical Windows app icon and reports the real packa
   assert.match(mainSource, /startUrl: app\.isPackaged && !DEV_URL_IS_EXPLICIT \? PACKAGED_RENDERER_URL : DEV_URL/);
   assert.doesNotMatch(mainSource, /local:\/\/echoo/);
 });
+
+
+test('renderer permissions are allowlisted and Windows display audio requires a user choice', () => {
+  assert.match(mainSource, /function installPermissionPolicy\(\)/);
+  assert.match(mainSource, /setPermissionCheckHandler/);
+  assert.match(mainSource, /setPermissionRequestHandler/);
+  assert.match(mainSource, /permission !== 'media'/);
+  assert.match(mainSource, /mediaType === 'audio'/);
+  assert.match(mainSource, /setDisplayMediaRequestHandler/);
+  assert.match(mainSource, /request\.userGesture !== true/);
+  assert.match(mainSource, /desktopCapturer\.getSources/);
+  assert.match(mainSource, /audio: 'loopback'/);
+  assert.match(mainSource, /Choose a screen or window for Echoo audio/);
+});

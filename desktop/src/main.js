@@ -14,6 +14,8 @@ const {
   screen,
   systemPreferences,
   protocol,
+  desktopCapturer,
+  session,
   net: electronNet,
 } = require('electron');
 const path = require('node:path');
@@ -1062,6 +1064,116 @@ const PROD_CSP = [
   "form-action 'self'",
 ].join('; ');
 
+function trustedRendererOrigin(value) {
+  try {
+    const origin = new URL(String(value || '')).origin;
+    if (app.isPackaged) return origin === PACKAGED_APP_ORIGIN;
+    return origin === new URL(DEV_URL).origin;
+  } catch {
+    return false;
+  }
+}
+
+function installPermissionPolicy() {
+  const appSession = session.defaultSession;
+
+  // Electron defaults to approving permission requests unless an app provides
+  // a policy. Echoo grants microphone access only to its own renderer and
+  // denies camera/other web permissions by default.
+  appSession.setPermissionCheckHandler((_webContents, permission, requestingOrigin, details = {}) => {
+    if (permission !== 'media' || !trustedRendererOrigin(requestingOrigin)) return false;
+    const mediaType = String(details.mediaType || '').toLowerCase();
+    return !mediaType || mediaType === 'audio';
+  });
+
+  appSession.setPermissionRequestHandler((webContents, permission, callback, details = {}) => {
+    if (permission !== 'media') {
+      callback(false);
+      return;
+    }
+
+    const origin =
+      details.securityOrigin ||
+      details.requestingUrl ||
+      webContents?.getURL?.() ||
+      '';
+    const mediaTypes = Array.isArray(details.mediaTypes) ? details.mediaTypes : [];
+    const audioOnly = mediaTypes.length === 0 || mediaTypes.every((type) => type === 'audio');
+    callback(trustedRendererOrigin(origin) && audioOnly);
+  });
+
+  // Existing Creator Studio "Share audio" uses getDisplayMedia. On Windows,
+  // Electron needs an explicit source grant. Use a compact native source menu
+  // instead of silently capturing a screen or adding a new setup wizard.
+  appSession.setDisplayMediaRequestHandler(async (request, callback) => {
+    if (
+      !trustedRendererOrigin(request.securityOrigin) ||
+      request.userGesture !== true ||
+      !request.videoRequested
+    ) {
+      callback({});
+      return;
+    }
+
+    try {
+      const sources = await desktopCapturer.getSources({
+        types: ['screen', 'window'],
+        thumbnailSize: { width: 0, height: 0 },
+        fetchWindowIcons: false,
+      });
+
+      const visibleSources = sources.slice(0, 24);
+      if (!visibleSources.length || !mainWindow || mainWindow.isDestroyed()) {
+        callback({});
+        return;
+      }
+
+      let settled = false;
+      const finish = (streams = {}) => {
+        if (settled) return;
+        settled = true;
+        try {
+          callback(streams);
+        } catch (error) {
+          log.warn('[echoo-desktop] display-media callback failed:', error.message);
+        }
+      };
+
+      const menu = Menu.buildFromTemplate([
+        {
+          label: 'Choose a screen or window for Echoo audio',
+          enabled: false,
+        },
+        { type: 'separator' },
+        ...visibleSources.map((source) => ({
+          label: String(source.name || 'Screen').slice(0, 100),
+          click: () => {
+            finish({
+              video: source,
+              ...(request.audioRequested ? { audio: 'loopback' } : {}),
+            });
+          },
+        })),
+        { type: 'separator' },
+        {
+          label: 'Cancel',
+          click: () => finish({}),
+        },
+      ]);
+
+      menu.popup({
+        window: mainWindow,
+        callback: () => finish({}),
+      });
+    } catch (error) {
+      log.warn('[echoo-desktop] display-media selection failed:', error.message);
+      callback({});
+    }
+  });
+
+  log.info('[echoo-desktop] renderer permission policy installed');
+}
+
 function installProdCsp() {
   try {
     const { session } = require('electron');
@@ -2024,6 +2136,7 @@ function startApp() {
     }
     registerIpc();
     buildMenu();
+    installPermissionPolicy();
     if (app.isPackaged) {
       registerPackagedRendererProtocol();
       installProdCsp();
