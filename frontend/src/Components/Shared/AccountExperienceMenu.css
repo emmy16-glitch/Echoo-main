@@ -64,3 +64,25 @@
   .account-experience-menu--creator .account-experience-dropdown,
   .account-experience-menu--listener .account-experience-dropdown { right:0; left:auto; }
 }
+
+
+/* The mode switch is geometry-stable in both product modes. */
+@media (max-width: 760px) {
+  .echoo-mode-switcher {
+    width: 142px;
+    height: 36px;
+    flex: 0 0 142px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 3px;
+  }
+
+  .echoo-mode-switcher button {
+    width: 100%;
+    min-width: 0;
+    height: 28px;
+    min-height: 28px;
+    padding: 0 8px;
+    font-size: 12px;
+    line-height: 28px;
+  }
+}
