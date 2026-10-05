@@ -112,6 +112,16 @@ test('desktop never bundles or starts a private Echoo backend', () => {
   assert.doesNotMatch(mainSource, /startBundledBackend/);
   assert.doesNotMatch(mainSource, /ECHOO_LOCAL_BACKEND/);
   assert.doesNotMatch(JSON.stringify(packageJson.build), /backend\/src\/app\.js/);
+  assert.equal(
+    fs.existsSync(path.join(desktopRoot, 'scripts', 'prepare-bundled-backend.js')),
+    false,
+    'legacy secret-bundling script must not return'
+  );
+  assert.equal(
+    fs.existsSync(path.join(desktopRoot, 'entitlements.mac.plist')),
+    false,
+    'Windows-only desktop must not keep stale macOS packaging files'
+  );
 });
 
 test('legacy recording IPC is bounded and long recordings use chunk sessions', () => {
@@ -180,4 +190,11 @@ test('recording saves stay crash-safe until the complete file is synced', () => 
   assert.match(mainSource, /await commitRecordingPartial\(session\.partialPath, session\.destination, sessionId\)/);
   assert.match(mainSource, /recoveryPath:/);
   assert.match(mainSource, /rm\(session\.partialPath/);
+});
+
+
+test('renderer build preserves canonical checked-in Windows branding assets', () => {
+  assert.doesNotMatch(buildSource, /copyFileSync/);
+  assert.match(buildSource, /assets\/icon\.png/);
+  assert.match(buildSource, /assets\/tray-icon\.png/);
 });

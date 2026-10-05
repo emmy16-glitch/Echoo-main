@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
@@ -8,7 +8,6 @@ const desktopDirectory = resolve(scriptDirectory, '..');
 const repositoryDirectory = resolve(desktopDirectory, '..');
 const frontendDirectory = join(repositoryDirectory, 'frontend');
 const outputDirectory = join(desktopDirectory, 'frontend-dist');
-const assetsDirectory = join(desktopDirectory, 'assets');
 const viteCli = join(frontendDirectory, 'node_modules', 'vite', 'bin', 'vite.js');
 
 const publicAppOrigin = String(
@@ -24,7 +23,6 @@ if (!/^https:\/\//i.test(apiUrl)) {
 
 rmSync(outputDirectory, { recursive: true, force: true });
 mkdirSync(outputDirectory, { recursive: true });
-mkdirSync(assetsDirectory, { recursive: true });
 
 if (!existsSync(viteCli)) {
   throw new Error('Frontend dependencies are missing. Run `npm ci --prefix frontend` first.');
@@ -63,7 +61,12 @@ if (/\b(?:src|href)="\/assets\//.test(index)) {
   throw new Error('Desktop renderer contains absolute asset paths and cannot boot over file://.');
 }
 
-copyFileSync(join(repositoryDirectory, 'logo.png'), join(assetsDirectory, 'icon.png'));
+for (const requiredAsset of ['assets/icon.png', 'assets/tray-icon.png']) {
+  const assetPath = join(desktopDirectory, requiredAsset);
+  if (!existsSync(assetPath)) {
+    throw new Error(`Required Windows desktop asset is missing: ${requiredAsset}`);
+  }
+}
 
 console.log(`Echoo desktop renderer built for ${apiUrl}`);
 
