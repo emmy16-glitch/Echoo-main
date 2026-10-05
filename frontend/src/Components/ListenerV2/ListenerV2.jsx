@@ -1132,7 +1132,7 @@ const ListenerV2Following = () => {
 
   return (
     <div className="listener-v2-page listener-v2-following-page">
-      <header className="listener-v2-page-title"><h1>Following</h1><p>Creators you follow, with live broadcasts first.</p></header>
+      <header className="listener-v2-page-title"><h1>Following</h1></header>
 
       {loading ? (
         <div className="listener-v2-following-skeleton" aria-label="Loading followed Channels"><span /><span /><span /></div>
@@ -1365,7 +1365,7 @@ const ListenerV2Search = () => {
 
   return (
     <div className="listener-v2-page listener-v2-search-page">
-      <header className="listener-v2-page-title"><h1>Search</h1><p>Find live events, Channels, creators and recorded audio.</p></header>
+      <header className="listener-v2-page-title"><h1>Search</h1></header>
       <SearchField
         value={query}
         onChange={setQuery}
