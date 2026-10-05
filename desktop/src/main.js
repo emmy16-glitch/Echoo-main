@@ -1066,9 +1066,13 @@ const PROD_CSP = [
 
 function trustedRendererOrigin(value) {
   try {
-    const origin = new URL(String(value || '')).origin;
-    if (app.isPackaged) return origin === PACKAGED_APP_ORIGIN;
-    return origin === new URL(DEV_URL).origin;
+    const parsed = new URL(String(value || ''));
+    if (app.isPackaged) {
+      // Node's WHATWG URL reports "null" for non-special custom-scheme
+      // origins, so compare the registered scheme + host explicitly.
+      return parsed.protocol === `${PACKAGED_APP_SCHEME}:` && parsed.hostname === 'app';
+    }
+    return parsed.origin === new URL(DEV_URL).origin;
   } catch {
     return false;
   }

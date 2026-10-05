@@ -378,6 +378,7 @@ test('main window uses the canonical Windows app icon and reports the real packa
 
 test('renderer permissions are allowlisted and Windows display audio requires a user choice', () => {
   assert.match(mainSource, /function installPermissionPolicy\(\)/);
+  assert.match(mainSource, /parsed\.protocol === `\\\$\{PACKAGED_APP_SCHEME\}:` && parsed\.hostname === 'app'/);
   assert.match(mainSource, /setPermissionCheckHandler/);
   assert.match(mainSource, /setPermissionRequestHandler/);
   assert.match(mainSource, /permission !== 'media'/);
