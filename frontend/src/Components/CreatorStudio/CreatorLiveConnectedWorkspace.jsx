@@ -208,14 +208,32 @@ const CreatorLiveConnectedWorkspace = ({
         setLoading(true);
         setLoadingElapsed(0);
         setBootstrapError('');
-        const [stationResult, broadcastResult] = await Promise.all([
+        const [stationResult, broadcastResult] = await Promise.allSettled([
           batch2Service.getMyStations({ timeoutMs: 10_000 }),
           batch3Service.getCreatorBroadcasts({ timeoutMs: 10_000 }),
         ]);
         if (!active) return;
 
-        const realStations = Array.isArray(stationResult?.data) ? stationResult.data : [];
-        const realBroadcasts = Array.isArray(broadcastResult?.data) ? broadcastResult.data : [];
+        // Channel identity is required for Go Live. Broadcast history is useful
+        // context, but it must never make a valid Channel disappear just because
+        // that second request timed out.
+        if (stationResult.status !== 'fulfilled') throw stationResult.reason;
+
+        const realStations = Array.isArray(stationResult.value?.data)
+          ? stationResult.value.data
+          : [];
+        const realBroadcasts = broadcastResult.status === 'fulfilled' &&
+          Array.isArray(broadcastResult.value?.data)
+          ? broadcastResult.value.data
+          : [];
+
+        if (broadcastResult.status === 'rejected') {
+          console.warn(
+            '[Echoo Live] broadcast history refresh delayed:',
+            broadcastResult.reason?.message || broadcastResult.reason
+          );
+        }
+
         setStations(realStations);
         setBroadcasts(realBroadcasts);
 
@@ -669,6 +687,23 @@ const CreatorLiveConnectedWorkspace = ({
     if (ending) endingDialogRef.current?.focus();
   }, [ending]);
 
+  const refreshCanonicalStation = useCallback(async () => {
+    const response = await batch2Service.getMyStations({ timeoutMs: 10_000 });
+    const refreshedStations = Array.isArray(response?.data) ? response.data : [];
+    const canonicalStation = refreshedStations[0] || null;
+
+    setStations(refreshedStations);
+    setStationId(entityId(canonicalStation));
+
+    if (canonicalStation) {
+      setBootstrapError('');
+      setTitle((current) => current.trim() || canonicalStation.name || '');
+      setDescription((current) => current.trim() || canonicalStation.description || '');
+    }
+
+    return canonicalStation;
+  }, []);
+
   const selectedStation = useMemo(
     () => stations[0] || null,
     [stations]
@@ -680,7 +715,10 @@ const CreatorLiveConnectedWorkspace = ({
     setDescription(selectedStation.description || '');
   }, [selectedStation, savedBroadcast?.id, currentLiveBroadcast?.id]);
 
-  const prepareImmediateBroadcast = async (snapshot = getEchooMixerState()) => {
+  const prepareImmediateBroadcast = async (
+    snapshot = getEchooMixerState(),
+    stationOverride = null
+  ) => {
     const audioSnapshot = buildAudioSnapshot(snapshot, realtimeQualityProfile);
 
     if (savedBroadcast?.id && savedBroadcast.status !== 'live') {
@@ -703,8 +741,10 @@ const CreatorLiveConnectedWorkspace = ({
       }
     }
 
-    const station = selectedStation || stations[0] || null;
-    if (!entityId(station)) throw new Error('Complete your Channel setup before going live.');
+    const station = stationOverride || selectedStation || stations[0] || null;
+    if (!entityId(station)) {
+      throw new Error('Echoo could not find a Channel for this creator account. Open Channel and finish setup once, then try Go Live again.');
+    }
 
     const start = new Date(Date.now() + 10 * 60 * 1000);
     const end = new Date(start.getTime() + 4 * 60 * 60 * 1000);
@@ -731,24 +771,6 @@ const CreatorLiveConnectedWorkspace = ({
 
   const goLive = async () => {
     if (goingLive || currentLiveBroadcast?.id) return;
-    const station = selectedStation || stations[0] || null;
-    if (!entityId(station)) {
-      setError('Complete your Channel setup before going live.');
-      return;
-    }
-
-    const liveMixerSnapshot = getEchooMixerState();
-    const liveSourceIds = getValidAudioSourceIds(liveMixerSnapshot);
-    if (!liveSourceIds.length) {
-      setError('Connect a microphone, audio source, or shared browser tab with a live signal before going live.');
-      return;
-    }
-
-    const mediaTrack = await ensureEchooMixerOutputTrack();
-    if (!mediaTrack) {
-      setError('The studio mix is still starting. Reconnect the audio source if this message remains, then try Go Live again.');
-      return;
-    }
 
     const clickStartedAt = performance.now();
     let broadcast = null;
@@ -757,6 +779,30 @@ const CreatorLiveConnectedWorkspace = ({
     try {
       setGoingLive(true);
       setError('');
+
+      let station = selectedStation || stations[0] || null;
+      if (!entityId(station)) {
+        setMessage('Refreshing your Channel…');
+        station = await refreshCanonicalStation();
+      }
+
+      if (!entityId(station)) {
+        throw new Error(
+          'Echoo could not find a Channel for this creator account. Open Channel and finish setup once, then try Go Live again.'
+        );
+      }
+
+      const liveMixerSnapshot = getEchooMixerState();
+      const liveSourceIds = getValidAudioSourceIds(liveMixerSnapshot);
+      if (!liveSourceIds.length) {
+        throw new Error('Connect a microphone, audio source, or shared browser tab with a live signal before going live.');
+      }
+
+      const mediaTrack = await ensureEchooMixerOutputTrack();
+      if (!mediaTrack) {
+        throw new Error('The studio mix is still starting. Reconnect the audio source if this message remains, then try Go Live again.');
+      }
+
       setSessionOperation({
         kind: 'go-live',
         stage: 'preparing',
@@ -766,7 +812,7 @@ const CreatorLiveConnectedWorkspace = ({
       setMessage('Preparing your broadcast…');
       setMixerState(liveMixerSnapshot);
       const prepareStartedAt = performance.now();
-      broadcast = await prepareImmediateBroadcast(liveMixerSnapshot);
+      broadcast = await prepareImmediateBroadcast(liveMixerSnapshot, station);
       const preparedAt = performance.now();
       setSessionOperation((current) => current
         ? { ...current, stage: 'opening-room' }
