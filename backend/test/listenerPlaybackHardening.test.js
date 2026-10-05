@@ -70,6 +70,28 @@ test('live room route changes cannot leak stale room state into the next broadca
   assert.doesNotMatch(room, /listenerCount:\s*Number\(payload\?\.listenerCount\)\s*\|\|\s*0/);
 });
 
+test('live chat rejoin is acknowledged, backfills missed messages, and uses dedicated guest controls', async () => {
+  const [room, roomCss, components, componentCss] = await Promise.all([
+    source('../../frontend/src/Components/ListenerLiveExperience/ListenerRealLiveRoom.jsx'),
+    source('../../frontend/src/Components/ListenerLiveExperience/ListenerV2LiveRoom.css'),
+    source('../../frontend/src/Components/ListenerExperience/ListenerExperienceComponents.jsx'),
+    source('../../frontend/src/Components/ListenerExperience/ListenerExperienceComponents.css'),
+  ]);
+
+  assert.match(room, /connectedSocket\.emit\('broadcast:join',[\s\S]{0,220}\(response\) =>/);
+  assert.match(room, /if \(!response\?\.ok\)[\s\S]{0,140}fallback\(\)/);
+  assert.match(room, /loadChat\(\{ silent: true \}\)/);
+  assert.match(room, /chatOpenRef\.current/);
+  assert.match(room, /className="listener-v2-room-chat-signin"/);
+  assert.doesNotMatch(room, /Sign in to chat and follow[\s\S]{0,40}listener-v2-room-back/);
+  assert.match(roomCss, /listener-v2-room-chat-signin/);
+  assert.match(roomCss, /grid-template-rows:\s*auto minmax\(0,1fr\)/);
+  assert.match(components, /className="lex-chat-new-messages"/);
+  assert.match(components, /<FiHeart aria-hidden="true" \/>/);
+  assert.match(componentCss, /overflow-wrap:\s*anywhere/);
+  assert.match(componentCss, /\.lex-chat-message > div \{ min-width:\s*0/);
+});
+
 test('live room never fabricates listener counts or follow success when identity data is missing', async () => {
   const room = await source('../../frontend/src/Components/ListenerLiveExperience/ListenerRealLiveRoom.jsx');
 
@@ -189,7 +211,8 @@ test('listener watchdog and reattachment never override an intentional pause', a
 test('persistent live play action restarts a disconnected room instead of only calling startAudio', async () => {
   const player = await source('../../frontend/src/Components/ListenerLiveExperience/LiveKitListenerPlayer.jsx');
 
-  assert.match(player, /status === 'error' \|\| status === 'disconnected'[\s\S]{0,180}setRetryVersion/);
+  assert.match(player, /status === 'error' \|\| status === 'failed' \|\| status === 'disconnected'[\s\S]{0,180}setRetryVersion/);
+  assert.match(player, /canReconnect: status === 'error' \|\| status === 'failed' \|\| status === 'disconnected'/);
   assert.match(player, /playbackIntentRef\.current = 'play'/);
 });
 
