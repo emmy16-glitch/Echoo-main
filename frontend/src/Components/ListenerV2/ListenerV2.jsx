@@ -1088,7 +1088,7 @@ const ListenerV2Following = () => {
       setStations(Array.isArray(stationResult?.data) ? stationResult.data : []);
       setError('');
     } catch (loadError) {
-      setError(loadError?.message || "We couldn't load your followed Channels.");
+      setError(loadError?.message || "We couldn't load your followed channels.");
     } finally {
       setLoading(false);
     }
@@ -1104,7 +1104,7 @@ const ListenerV2Following = () => {
       await followService.unfollowStation(key);
       setStations((current) => current.filter((item) => idOf(item) !== key));
     } catch (actionError) {
-      setError(actionError?.message || 'Could not unfollow this Channel.');
+      setError(actionError?.message || 'Could not unfollow this channel.');
     } finally { setBusyId(''); }
   };
 
@@ -1138,9 +1138,9 @@ const ListenerV2Following = () => {
       <header className="listener-v2-page-title"><h1>Following</h1><p>Creators you follow, with live broadcasts first.</p></header>
 
       {loading ? (
-        <div className="listener-v2-following-skeleton" aria-label="Loading followed Channels"><span /><span /><span /></div>
+        <div className="listener-v2-following-skeleton" aria-label="Loading followed channels"><span /><span /><span /></div>
       ) : isGuest ? (
-        <EmptyState icon={<FiHeadphones />} title="Sign in to see followed Channels" copy="Following is personal — sign in and the Channels you follow will appear here." action={() => navigate('/login')} actionLabel="Sign in" />
+        <EmptyState icon={<FiHeadphones />} title="Sign in to see followed channels" copy="Following is personal — sign in and the channels you follow will appear here." action={() => navigate('/login')} actionLabel="Sign in" />
       ) : error ? (
         <EmptyState icon={<FiHeadphones />} title="Following couldn’t load" copy="Check your connection and try again." action={load} actionLabel="Try again" />
       ) : stations.length ? (
@@ -1252,7 +1252,7 @@ const ListenerV2Categories = () => {
       requestAuth({
         action: 'Follow channel',
         title: 'Follow your favourite creators',
-        message: 'Create an Echoo account to follow Channels, receive updates and build your library.',
+        message: 'Create an Echoo account to follow channels, receive updates and build your library.',
         resume: async () => {
           await followService.followStation(key);
           setFollowingIds((current) => new Set([...current, key]));
@@ -1277,7 +1277,7 @@ const ListenerV2Categories = () => {
     <div className="listener-v2-page">
       <div className="listener-v2-page-header listener-v2-page-header--categories">
         <div><h1>Channels</h1><p>Find Channels by topic and community.</p></div>
-        <SearchField value={query} onChange={setQuery} placeholder="Search Channels..." />
+        <SearchField value={query} onChange={setQuery} placeholder="Search channels…" />
       </div>
       {error && <div className="listener-v2-error" role="alert">{error}</div>}
 
@@ -1291,7 +1291,7 @@ const ListenerV2Categories = () => {
       </section>
 
       <section className="listener-v2-panel">
-        <SectionTitle title={category === 'All' ? 'Explore Channels' : category} copy={`${visible.length} Channel${visible.length === 1 ? '' : 's'}`} />
+        <SectionTitle title={category === 'All' ? 'Explore channels' : category} copy={`${visible.length} channel${visible.length === 1 ? '' : 's'}`} />
         {loading ? <div className="listener-v2-station-grid listener-v2-skeleton-grid">{Array.from({ length: 8 }, (_, index) => <span key={index} />)}</div> : visible.length ? (
           <div className="listener-v2-station-grid">
             {visible.map((station) => (
@@ -1305,7 +1305,7 @@ const ListenerV2Categories = () => {
               />
             ))}
           </div>
-        ) : <EmptyState icon={<FiSearch />} title="No Channels found" copy="Try another category or search term." action={() => { setQuery(''); setCategory('All'); }} actionLabel="Clear filters" />}
+        ) : <EmptyState icon={<FiSearch />} title="No channels found" copy="Try another category or search term." action={() => { setQuery(''); setCategory('All'); }} actionLabel="Clear filters" />}
       </section>
     </div>
   );
