@@ -1003,7 +1003,7 @@ const ListenerRealLiveRoom = () => {
             emptyMessage={isGuest ? 'Live messages will appear here.' : isLive ? 'Be the first to join the conversation.' : 'This live chat has ended.'}
             composerPlaceholder={isGuest ? 'Sign in to send messages' : isLive ? 'Message live chat...' : 'Live chat has ended'}
             onSend={sendMessage}
-            onReact={react}
+            onReact={isGuest || !isLive ? undefined : react}
           />
         </aside>
       </section>
