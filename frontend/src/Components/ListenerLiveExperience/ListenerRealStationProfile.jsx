@@ -159,7 +159,7 @@ const ListenerRealStationProfile = () => {
         <button
           type="button"
           className="b3-back"
-          title="Back to Channels"
+          title="Back to channels"
           onClick={() => navigate('/listen/channels')}
         >
           <FaArrowLeft /> Channels
@@ -184,7 +184,7 @@ const ListenerRealStationProfile = () => {
       <button
         type="button"
         className="b3-back"
-        title="Back to Channels"
+        title="Back to channels"
         onClick={() => navigate('/listen/channels')}
       >
         <FaArrowLeft /> Channels
@@ -216,7 +216,7 @@ const ListenerRealStationProfile = () => {
               disabled={followBusy}
               title={following ? `Unfollow ${station.name}` : `Follow ${station.name}`}
             >
-              {followBusy ? 'Updating...' : following ? 'Unfollow' : 'Follow Channel'}
+              {followBusy ? 'Updating...' : following ? 'Unfollow' : 'Follow channel'}
             </button>
 
             {creatorId && (
