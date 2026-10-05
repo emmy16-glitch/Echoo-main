@@ -208,3 +208,12 @@ test('desktop external links use a narrow default-browser bridge and reload wait
   assert.match(listenerRoomSource, /Open in browser/);
   assert.match(listenerRoomSource, /openDesktopExternalUrl\(url\)/);
 });
+
+
+test('native recording actions also trust exports selected through the Windows Save dialog', () => {
+  assert.match(mainSource, /const trustedRecordingPaths = new Set\(\)/);
+  assert.match(mainSource, /rememberRecordingPath\(session\.destination\)/);
+  assert.match(mainSource, /rememberRecordingPath\(result\.filePath\)/);
+  assert.match(mainSource, /safeRecordingFolder/);
+  assert.match(mainSource, /forgetRecordingPath\(recordingPath\)/);
+});

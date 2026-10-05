@@ -167,6 +167,11 @@ let isQuitting = false;
 let quitTimer = null;
 let trayHideNoticed = false;
 const recordingSaveSessions = new Map();
+// Paths chosen through Echoo's native Save dialog are trusted for this
+// process lifetime. This lets the post-save banner Open/Show/Rename/Trash an
+// explicit export outside the managed Echoo Recordings library without ever
+// exposing an arbitrary filesystem path primitive to the renderer.
+const trustedRecordingPaths = new Set();
 let pendingDeepLink = findEchooDeepLink(process.argv);
 const MAX_RECORDING_IPC_CHUNK_BYTES = 8 * 1024 * 1024;
 const MAX_LEGACY_RECORDING_IPC_BYTES = 16 * 1024 * 1024;
@@ -176,13 +181,43 @@ function recordingsLibraryRoot() {
   return path.join(app.getPath('desktop'), 'Echoo Recordings');
 }
 
+function rememberRecordingPath(value) {
+  const candidate = path.resolve(String(value || ''));
+  if (value && RECORDING_EXTENSIONS.has(path.extname(candidate).toLowerCase())) {
+    trustedRecordingPaths.add(candidate);
+  }
+  return candidate;
+}
+
+function forgetRecordingPath(value) {
+  if (!value) return;
+  trustedRecordingPaths.delete(path.resolve(String(value)));
+}
+
 function safeRecordingPath(value, { mustExist = true } = {}) {
   const candidate = path.resolve(String(value || ''));
   const root = path.resolve(recordingsLibraryRoot());
-  if (!value || !isPathInside(root, candidate)) return null;
+  const trusted = trustedRecordingPaths.has(candidate);
+  if (!value || (!isPathInside(root, candidate) && !trusted)) return null;
   if (!RECORDING_EXTENSIONS.has(path.extname(candidate).toLowerCase())) return null;
   if (mustExist && (!fs.existsSync(candidate) || !fs.statSync(candidate).isFile())) return null;
   return candidate;
+}
+
+function safeRecordingFolder(value) {
+  const candidate = path.resolve(String(value || ''));
+  const root = path.resolve(recordingsLibraryRoot());
+  if (!value) return root;
+  if (isPathInside(root, candidate) && fs.existsSync(candidate) && fs.statSync(candidate).isDirectory()) {
+    return candidate;
+  }
+
+  for (const trustedPath of trustedRecordingPaths) {
+    if (path.dirname(trustedPath) === candidate && fs.existsSync(candidate) && fs.statSync(candidate).isDirectory()) {
+      return candidate;
+    }
+  }
+  return null;
 }
 
 function recordingDestinationInUse(candidate) {
@@ -1468,6 +1503,7 @@ function registerIpc() {
       await session.handle.sync();
       await session.handle.close();
       await commitRecordingPartial(session.partialPath, session.destination, sessionId);
+      rememberRecordingPath(session.destination);
       return {
         saved: true,
         path: session.destination,
@@ -1538,6 +1574,7 @@ function registerIpc() {
           copyNumber += 1;
         }
         await writeRecordingAtomically(destination, buffer);
+        rememberRecordingPath(destination);
         return {
           saved: true,
           path: destination,
@@ -1555,6 +1592,7 @@ function registerIpc() {
       });
       if (result.canceled || !result.filePath) return { saved: false, cancelled: true };
       await writeRecordingAtomically(result.filePath, buffer);
+      rememberRecordingPath(result.filePath);
       return { saved: true, path: result.filePath, folder: path.dirname(result.filePath) };
     } catch (error) {
       log.warn('[echoo-desktop] save-recording failed:', error.message);
@@ -1570,10 +1608,11 @@ function registerIpc() {
       let folder = baseLibraryDir;
       if (requested) {
         const candidate = path.resolve(requested);
-        const requestedFolder = fs.existsSync(candidate) && fs.statSync(candidate).isDirectory()
-          ? candidate
-          : path.dirname(candidate);
-        if (isPathInside(baseLibraryDir, requestedFolder)) folder = requestedFolder;
+        const requestedFile = safeRecordingPath(candidate);
+        const requestedFolder = requestedFile
+          ? path.dirname(requestedFile)
+          : safeRecordingFolder(candidate);
+        if (requestedFolder) folder = requestedFolder;
       }
       const result = await shell.openPath(folder);
       return result ? { opened: false, error: result } : { opened: true, path: folder };
@@ -1618,11 +1657,19 @@ function registerIpc() {
         ? requestedName.slice(0, -extension.length)
         : requestedName;
       const destination = path.join(path.dirname(recordingPath), `${nameWithoutExtension}${extension}`);
-      if (!isPathInside(recordingsLibraryRoot(), destination)) {
+      // Renaming never changes the directory. Managed-library files stay
+      // inside the library; explicit exports stay inside the exact folder the
+      // user selected through the native Save dialog.
+      if (
+        !isPathInside(recordingsLibraryRoot(), destination) &&
+        !trustedRecordingPaths.has(recordingPath)
+      ) {
         return { renamed: false, error: 'Recording destination is not allowed.' };
       }
       if (fs.existsSync(destination)) return { renamed: false, error: 'A recording with that name already exists.' };
       await fs.promises.rename(recordingPath, destination);
+      forgetRecordingPath(recordingPath);
+      rememberRecordingPath(destination);
       return { renamed: true, path: destination };
     } catch (error) {
       log.warn('[echoo-desktop] rename recording failed:', error.message);
@@ -1635,6 +1682,7 @@ function registerIpc() {
       const recordingPath = safeRecordingPath(targetPath);
       if (!recordingPath) return { trashed: false, error: 'Recording path is not allowed.' };
       await shell.trashItem(recordingPath);
+      forgetRecordingPath(recordingPath);
       return { trashed: true, path: recordingPath };
     } catch (error) {
       log.warn('[echoo-desktop] trash recording failed:', error.message);
