@@ -130,12 +130,15 @@ const studioService = {
         { method: "POST" }
       );
       const rawStreamUrl = response?.data?.streamUrl || "";
+      const rawProxyStreamUrl = response?.data?.proxyStreamUrl || "";
       const rawDownloadUrl = response?.data?.downloadUrl || "";
       const streamUrl = buildMediaUrl(rawStreamUrl);
+      const proxyStreamUrl = buildMediaUrl(rawProxyStreamUrl);
       const downloadUrl = buildMediaUrl(rawDownloadUrl);
       if (!streamUrl) throw new Error("Echoo could not prepare this audio for playback.");
       return {
         streamUrl,
+        proxyStreamUrl,
         downloadUrl,
         expiresIn: Number(response?.data?.expiresIn) || 0,
         compatibilityFallback: false,
