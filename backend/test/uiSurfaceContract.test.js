@@ -183,7 +183,6 @@ test('active Listener CSS has one readable typography floor instead of legacy ov
     source('../../frontend/src/Components/ListenerNotifications/ListenerNotifications.css'),
     source('../../frontend/src/Components/ListenerSettings/ListenerSettings.css'),
     source('../../frontend/src/Components/ListenerAudioDetail/ListenerAudioDetail.css'),
-    source('../../frontend/src/Components/ListenerLiveExperience/ListenerLiveRoom.css'),
     source('../../frontend/src/Components/ListenerLiveExperience/ListenerV2LiveRoom.css'),
     source('../../frontend/src/Components/ListenerCollectionDetail/ListenerCollectionDetail.css'),
   ]);
