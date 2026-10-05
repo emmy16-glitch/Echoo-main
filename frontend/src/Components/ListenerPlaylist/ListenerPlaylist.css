@@ -44,7 +44,7 @@
   border-radius: 999px;
   background: var(--echoo-blue);
   color: #fff;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   cursor: pointer;
   transition: background 140ms ease;
@@ -65,7 +65,7 @@
   border-radius: 10px;
   background: #fff;
   color: var(--echoo-text-h);
-  font-size: 12px;
+  font-size: 13px;
   outline: none;
   font-family: inherit;
 }
@@ -77,7 +77,7 @@
   border-radius: 10px;
   background: var(--echoo-blue);
   color: #fff;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -100,7 +100,7 @@
   border-radius: 10px;
   background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%235f6f85' stroke-width='1.4'/%3E%3C/svg%3E") no-repeat right 11px center;
   color: var(--echoo-text-h);
-  font-size: 12px;
+  font-size: 13px;
   cursor: pointer;
   appearance: none;
   font-family: inherit;
@@ -111,7 +111,7 @@
 .pl-section { margin: 0 0 30px; }
 .pl-count {
   color: var(--echoo-text-muted);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
 }
 
@@ -130,7 +130,7 @@
 }
 .pl-empty svg { font-size: 20px; color: var(--echoo-blue); }
 .pl-empty strong { color: var(--echoo-text-h); font-size: 14px; }
-.pl-empty p { margin: 0; font-size: 12px; }
+.pl-empty p { margin: 0; font-size: 13px; }
 
 /* ---------- My playlist cards ---------- */
 .pl-playlist-grid {
@@ -167,7 +167,7 @@
   border-radius: 999px;
   background: rgba(16, 24, 40, 0.72);
   color: #fff;
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 700;
 }
 .pl-playlist-art-play {
@@ -182,7 +182,7 @@
   border-radius: 50%;
   background: #fff;
   color: var(--echoo-blue);
-  font-size: 10px;
+  font-size: 13px;
   cursor: pointer;
   box-shadow: 0 2px 8px rgba(16, 24, 40, 0.18);
 }
@@ -201,7 +201,7 @@
 .pl-playlist-info > span {
   display: block;
   color: var(--echoo-text-soft);
-  font-size: 11px;
+  font-size: 13px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -217,7 +217,7 @@
   align-items: center;
   gap: 5px;
   color: var(--echoo-text-muted);
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 600;
 }
 .pl-more-btn {
@@ -228,7 +228,7 @@
   border-radius: 8px;
   background: transparent;
   color: var(--echoo-text-soft);
-  font-size: 10px;
+  font-size: 13px;
   cursor: pointer;
 }
 .pl-more-btn:hover { color: #b42318; border-color: #f5c6c6; background: #fdf6f6; }
@@ -314,13 +314,13 @@
   }
   .pl-heading-text p {
     max-width: 230px;
-    font-size: 11px;
+    font-size: 13px;
     line-height: 1.4;
   }
   .pl-hero-cta {
     min-height: 34px;
     padding-inline: 11px;
-    font-size: 10px;
+    font-size: 13px;
   }
   .pl-create-form--panel {
     display: grid;
