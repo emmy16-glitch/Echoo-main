@@ -243,6 +243,8 @@ test('mobile live chat opens as a dismissible bottom sheet', async ({ page }) =>
   await expect(page.locator('.listener-v2-room-chat-backdrop')).toBeVisible();
   const close = page.locator('.listener-v2-room-chat-close');
   await expect(close).toBeVisible();
+  // A message with zero existing reactions must still expose the first Like action.
+  await expect(page.getByRole('button', { name: "Like Ada's message" })).toBeVisible();
 
   const sheetBox = await sheet.boundingBox();
   expect(sheetBox?.height || 0).toBeGreaterThan(330);
