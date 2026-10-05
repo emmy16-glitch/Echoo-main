@@ -5,6 +5,18 @@ import { fileURLToPath } from 'node:url';
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const desktopDirectory = resolve(scriptDirectory, '..');
 
+const readPngDimensions = (absolutePath) => {
+  const bytes = readFileSync(absolutePath);
+  const pngSignature = '89504e470d0a1a0a';
+  if (bytes.length < 24 || bytes.subarray(0, 8).toString('hex') !== pngSignature) {
+    throw new Error(`Windows icon is not a valid PNG: ${absolutePath}`);
+  }
+  return {
+    width: bytes.readUInt32BE(16),
+    height: bytes.readUInt32BE(20),
+  };
+};
+
 const requiredFiles = [
   'src/main.js',
   'src/preload.js',
@@ -20,6 +32,14 @@ for (const relativePath of requiredFiles) {
   if (!existsSync(absolutePath) || !statSync(absolutePath).isFile() || statSync(absolutePath).size === 0) {
     throw new Error(`Required desktop bundle file is missing or empty: ${relativePath}`);
   }
+}
+
+const windowsIconPath = join(desktopDirectory, 'assets', 'icon.png');
+const windowsIcon = readPngDimensions(windowsIconPath);
+if (windowsIcon.width < 256 || windowsIcon.height < 256) {
+  throw new Error(
+    `Windows installer icon must be at least 256x256 pixels; received ${windowsIcon.width}x${windowsIcon.height}.`
+  );
 }
 
 const packageJson = JSON.parse(readFileSync(join(desktopDirectory, 'package.json'), 'utf8'));
