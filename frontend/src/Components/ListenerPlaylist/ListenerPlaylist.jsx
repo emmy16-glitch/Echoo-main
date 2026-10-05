@@ -58,7 +58,7 @@ export default function ListenerPlaylist() {
   const handlePlaylistPlay = useCallback(
     (playlist) => {
       const queue = (Array.isArray(playlist?.tracks) ? playlist.tracks : [])
-        .filter((track) => track?.id && track?.fileUrl);
+        .filter((track) => track?.id || track?._id || track?.fileUrl);
 
       if (!queue.length) return;
 
