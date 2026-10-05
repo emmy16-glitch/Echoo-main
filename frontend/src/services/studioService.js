@@ -131,12 +131,15 @@ const studioService = {
       );
       const rawStreamUrl = response?.data?.streamUrl || "";
       const rawDownloadUrl = response?.data?.downloadUrl || "";
+      const rawMixerUrl = response?.data?.mixerUrl || "";
       const streamUrl = buildMediaUrl(rawStreamUrl);
       const downloadUrl = buildMediaUrl(rawDownloadUrl);
+      const mixerUrl = buildMediaUrl(rawMixerUrl);
       if (!streamUrl) throw new Error("Echoo could not prepare this audio for playback.");
       return {
         streamUrl,
         downloadUrl,
+        mixerUrl,
         expiresIn: Number(response?.data?.expiresIn) || 0,
         compatibilityFallback: false,
       };
