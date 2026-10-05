@@ -390,9 +390,12 @@ const ListenerRealLiveRoom = () => {
   }, [load]);
 
   useEffect(() => {
-    if (!chatOpen || previewMode || isGuest) return;
+    if (previewMode || isGuest) return;
+    // Desktop chat is always visible, while mobile chat opens as a sheet.
+    // Load history for the room itself so desktop never renders an empty panel
+    // simply because the mobile-only chatOpen flag is false.
     void loadChat();
-  }, [chatOpen, previewMode, isGuest, loadChat]);
+  }, [previewMode, isGuest, loadChat]);
 
   useEffect(() => {
     if (
@@ -697,7 +700,7 @@ const ListenerRealLiveRoom = () => {
       : show.mediaState === 'audio_paused'
       ? 'Broadcast paused'
       : connectionStatus === 'holding'
-        ? 'Weak connection — staying live'
+        ? 'Weak connection — reconnecting'
         : connectionStatus === 'reconnecting'
         ? 'Reconnecting audio…'
         : needsReconnect
@@ -764,7 +767,7 @@ const ListenerRealLiveRoom = () => {
     return (
       <main className="listener-v2-live-room listener-v2-live-room--state">
         <button type="button" onClick={() => navigate('/listen/live')}>
-          <FiArrowLeft /> Back to Live Now
+          <FiArrowLeft /> Back to live
         </button>
         <div>{loadError || 'This live show is unavailable.'}</div>
       </main>
@@ -778,7 +781,7 @@ const ListenerRealLiveRoom = () => {
           type="button"
           className="listener-v2-room-back"
           onClick={() => navigate('/listen/live')}
-          aria-label="Back to Live Now"
+          aria-label="Back to live"
         >
           <FiArrowLeft />
         </button>
@@ -989,7 +992,7 @@ const ListenerRealLiveRoom = () => {
               Listening as a guest.{' '}
               <button
                 type="button"
-                className="listener-v2-room-back"
+                className="listener-v2-room-guest-signin"
                 onClick={() => navigate({ pathname: '/', search: '?mode=login' })}
               >
                 Sign in to chat and follow
