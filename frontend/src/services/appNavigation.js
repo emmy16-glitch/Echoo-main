@@ -1,6 +1,12 @@
 const normalizeAppRoute = (value) => {
   const raw = String(value || '').trim();
-  if (!raw || !raw.startsWith('/') || raw.startsWith('//') || raw.includes('\\\\')) return '';
+  if (
+    !raw ||
+    !raw.startsWith('/') ||
+    raw.startsWith('//') ||
+    raw.includes('\\\\') ||
+    /(?:^|\/)\.\.(?:\/|$)/.test(raw)
+  ) return '';
 
   try {
     const parsed = new URL(raw, 'https://echoo.local.invalid');

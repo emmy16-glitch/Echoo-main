@@ -23,7 +23,12 @@ export const getPublicStationPath = (station) => {
 
 export const getPublicAppUrl = (path, options = {}) => {
   const rawPath = String(path || '').trim();
-  if (!rawPath.startsWith('/')) return '';
+  if (
+    !rawPath.startsWith('/') ||
+    rawPath.startsWith('//') ||
+    rawPath.includes('\\') ||
+    /(?:^|\/)\.\.(?:\/|$)/.test(rawPath)
+  ) return '';
 
   const configuredOrigin = options.configuredOrigin
     ?? import.meta.env?.VITE_PUBLIC_APP_ORIGIN;
@@ -31,8 +36,14 @@ export const getPublicAppUrl = (path, options = {}) => {
     ?? (typeof window !== 'undefined' ? window.location.origin : '');
   const origin = normalizePublicOrigin(configuredOrigin)
     || normalizePublicOrigin(browserOrigin);
+  if (!origin) return '';
 
-  return origin ? new URL(rawPath, origin).toString() : '';
+  try {
+    const target = new URL(rawPath, origin);
+    return target.origin === origin ? target.toString() : '';
+  } catch {
+    return '';
+  }
 };
 
 export const getPublicStationUrl = (station, options = {}) => {

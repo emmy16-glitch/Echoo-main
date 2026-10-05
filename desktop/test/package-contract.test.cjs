@@ -591,3 +591,13 @@ test('HashRouter-sensitive screens use router state and public web URLs', () => 
   assert.match(audioDetailSource, /copyTextToClipboard\(publicUrl\)/);
   assert.doesNotMatch(audioDetailSource, /url:\s*window\.location\.href/);
 });
+
+
+test('internal and public path helpers reject protocol-relative and traversal routes', () => {
+  const navigationSource = fs.readFileSync(path.resolve(desktopRoot, '..', 'frontend', 'src', 'services', 'appNavigation.js'), 'utf8');
+  const publicUrlSource = fs.readFileSync(path.resolve(desktopRoot, '..', 'frontend', 'src', 'services', 'stationPublicUrl.js'), 'utf8');
+  assert.match(navigationSource, /raw\.startsWith\('\/\/'\)/);
+  assert.match(navigationSource, /\\\.\\\./);
+  assert.match(publicUrlSource, /rawPath\.startsWith\('\/\/'\)/);
+  assert.match(publicUrlSource, /target\.origin === origin/);
+});
