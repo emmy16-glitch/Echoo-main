@@ -25,7 +25,6 @@ import { ChatPanel } from '../../design-system';
 import { referenceChat, referenceLiveShows } from '../ListenerExperience/listenerExperienceData';
 import BroadcastWaveform from '../CreatorStudio/BroadcastWaveform';
 import echooMark from '../Assets/echoo-logo-official.svg';
-import './ListenerLiveRoom.css';
 import './ListenerV2LiveRoom.css';
 
 const sameId = (first, second) => Boolean(first && second && String(first) === String(second));
@@ -163,6 +162,19 @@ const ListenerRealLiveRoom = () => {
   const roomLoadGenerationRef = useRef(0);
   const chatLoadGenerationRef = useRef(0);
   const [chatOpen, setChatOpen] = useState(false);
+  const [desktopChatVisible, setDesktopChatVisible] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches
+  );
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return undefined;
+    const media = window.matchMedia('(min-width: 768px)');
+    const sync = () => setDesktopChatVisible(media.matches);
+    sync();
+    media.addEventListener?.('change', sync);
+    return () => media.removeEventListener?.('change', sync);
+  }, []);
+
 
   useEffect(() => {
     if (!chatOpen) return undefined;
@@ -315,15 +327,11 @@ const ListenerRealLiveRoom = () => {
     async ({ silent = false } = {}) => {
       if (previewMode || !broadcastId) return;
       const generation = ++chatLoadGenerationRef.current;
-      // Chat history needs an account; guests still see live messages stream
-      // in over the realtime socket below.
-      if (isGuest) {
-        if (!silent && generation === chatLoadGenerationRef.current) setChatLoading(false);
-        return;
-      }
       if (!silent) setChatLoading(true);
       try {
-        const response = await batch4Service.getMessages(broadcastId, { limit: 100 });
+        const response = isGuest
+          ? await batch4Service.getPublicMessages(broadcastId, { limit: 100 })
+          : await batch4Service.getMessages(broadcastId, { limit: 100 });
         if (generation !== chatLoadGenerationRef.current) return;
         const history = Array.isArray(response?.data)
           ? response.data.map(chatView)
@@ -390,9 +398,12 @@ const ListenerRealLiveRoom = () => {
   }, [load]);
 
   useEffect(() => {
-    if (!chatOpen || previewMode || isGuest) return;
+    // Desktop chat is visible with the room, so hydrate it immediately.
+    // Mobile chat stays lazy until the listener opens the sheet; this avoids
+    // a large audience fetching 100 chat rows when most listeners only want audio.
+    if (previewMode || (!desktopChatVisible && !chatOpen)) return;
     void loadChat();
-  }, [chatOpen, previewMode, isGuest, loadChat]);
+  }, [previewMode, desktopChatVisible, chatOpen, loadChat]);
 
   useEffect(() => {
     if (
@@ -697,7 +708,7 @@ const ListenerRealLiveRoom = () => {
       : show.mediaState === 'audio_paused'
       ? 'Broadcast paused'
       : connectionStatus === 'holding'
-        ? 'Weak connection — staying live'
+        ? 'Weak connection — reconnecting'
         : connectionStatus === 'reconnecting'
         ? 'Reconnecting audio…'
         : needsReconnect
@@ -764,7 +775,7 @@ const ListenerRealLiveRoom = () => {
     return (
       <main className="listener-v2-live-room listener-v2-live-room--state">
         <button type="button" onClick={() => navigate('/listen/live')}>
-          <FiArrowLeft /> Back to Live Now
+          <FiArrowLeft /> Back to live
         </button>
         <div>{loadError || 'This live show is unavailable.'}</div>
       </main>
@@ -778,7 +789,7 @@ const ListenerRealLiveRoom = () => {
           type="button"
           className="listener-v2-room-back"
           onClick={() => navigate('/listen/live')}
-          aria-label="Back to Live Now"
+          aria-label="Back to live"
         >
           <FiArrowLeft />
         </button>
@@ -989,7 +1000,7 @@ const ListenerRealLiveRoom = () => {
               Listening as a guest.{' '}
               <button
                 type="button"
-                className="listener-v2-room-back"
+                className="listener-v2-room-guest-signin"
                 onClick={() => navigate({ pathname: '/', search: '?mode=login' })}
               >
                 Sign in to chat and follow
@@ -1002,7 +1013,7 @@ const ListenerRealLiveRoom = () => {
             disabled={!isLive || isGuest}
             error={chatError}
             onSend={sendMessage}
-            onReact={react}
+            onReact={isGuest ? undefined : react}
           />
         </aside>
       </section>

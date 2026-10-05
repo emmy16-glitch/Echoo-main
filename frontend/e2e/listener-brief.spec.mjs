@@ -231,6 +231,106 @@ test('live actions persist, roll back failures, copy links, and open and close c
   }
 });
 
+test('guest shared room loads chat history read-only without horizontal overflow', async ({ page }) => {
+  const broadcastId = '507f1f77bcf86cd799439031';
+  const longMessage = 'guest-history-' + 'very-long-message-token-'.repeat(16);
+
+  await page.route(`**/api/broadcasts/${broadcastId}/public`, route => route.fulfill({
+    json: {
+      data: {
+        id: broadcastId,
+        _id: broadcastId,
+        title: 'Guest room',
+        status: 'scheduled',
+        isPublic: true,
+        startTime: new Date(Date.now() + 60_000).toISOString(),
+        stationId: '507f1f77bcf86cd799439051',
+        stationName: 'Echoo Channel',
+      },
+    },
+  }));
+  await page.route('**/api/chat/public/broadcast/*/messages?*', route => route.fulfill({
+    json: {
+      data: [{
+        id: 'guest-history-1',
+        _id: 'guest-history-1',
+        displayName: 'Guest History Listener With A Very Long Name',
+        content: longMessage,
+        createdAt: new Date().toISOString(),
+        reactions: [],
+      }],
+    },
+  }));
+
+  await page.setViewportSize({ width: 320, height: 800 });
+  await page.goto(`/listen/live/${broadcastId}`);
+  await page.locator('.listener-v2-room-chat-toggle').click();
+  await expect(page.getByText(longMessage, { exact: true })).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'Message live chat' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: /React to .* message/ })).toHaveCount(0);
+  const sheet = await page.locator('.listener-v2-room-chat').evaluate(node => ({
+    clientWidth: node.clientWidth,
+    scrollWidth: node.scrollWidth,
+  }));
+  expect(sheet.scrollWidth).toBeLessThanOrEqual(sheet.clientWidth + 1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test('live chat loads history, allows the first reaction, and never overflows', async ({ page }) => {
+  await authenticate(page);
+  const longMessage = 'Echoo-' + 'listener-message-without-spaces-'.repeat(18);
+  let historyReads = 0;
+  let reactions = 0;
+
+  await page.route('**/api/chat/broadcast/*/messages?*', route => {
+    historyReads++;
+    return route.fulfill({ json: { data: [{
+      id: 'chat-1',
+      _id: 'chat-1',
+      displayName: 'Very Long Listener Name That Must Stay Inside The Chat Column',
+      content: longMessage,
+      createdAt: new Date().toISOString(),
+      reactions: [],
+    }] } });
+  });
+  await page.route('**/api/chat/messages/chat-1/reactions', route => {
+    reactions++;
+    return route.fulfill({ json: { data: { reactions: [{ emoji: '❤️', userId: 'listener' }] } } });
+  });
+
+  for (const width of [320, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto('/listen/live/507f1f77bcf86cd799439031');
+    if (width < 768) {
+      await page.locator('.listener-v2-room-chat-toggle').click();
+      await expect(page.locator('.listener-v2-room-chat')).toHaveClass(/is-open/);
+    }
+
+    await expect(page.getByRole('heading', { name: 'Live chat', exact: true })).toBeVisible();
+    const message = page.locator('.lex-chat-message').filter({ hasText: 'Echoo-' }).first();
+    await expect(message).toBeVisible();
+    const reaction = message.getByRole('button', { name: /React to .* message/ });
+    await expect(reaction).toBeVisible();
+    if (reactions === 0) {
+      await reaction.click();
+      await expect.poll(() => reactions).toBe(1);
+    }
+
+    const geometry = await page.locator('.listener-v2-room-chat').evaluate(node => ({
+      clientWidth: node.clientWidth,
+      scrollWidth: node.scrollWidth,
+    }));
+    expect(geometry.scrollWidth, `chat overflows at ${width}px`).toBeLessThanOrEqual(geometry.clientWidth + 1);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `page overflows with chat at ${width}px`).toBe(true);
+
+    if (width < 768) {
+      await page.locator('.listener-v2-room-chat-close').click();
+    }
+  }
+
+  expect(historyReads).toBeGreaterThanOrEqual(2);
+});
+
 test('all listener destinations fit the required viewport widths', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-1440', 'Run the full width sweep once.');
   test.setTimeout(120_000);
