@@ -121,6 +121,55 @@ export const parseSingleByteRange = (rangeHeader, size) => {
   return { start, end, partial: true };
 };
 
+const sendSignedStreamResponse = (res, signed) => {
+  if (!signed?.url) {
+    return res.status(503).json({
+      error: {
+        code: 'AUDIO_STREAM_UNAVAILABLE',
+        message: 'Echoo could not prepare this audio stream.',
+      },
+    });
+  }
+
+  res.setHeader('Cache-Control', 'no-store');
+  const downloadSeparator = signed.url.includes('?') ? '&' : '?';
+  return res.status(200).json({
+    data: {
+      streamUrl: signed.url,
+      downloadUrl: `${signed.url}${downloadSeparator}download=1`,
+      expiresIn: signed.expiresIn,
+    },
+    timestamp: new Date().toISOString(),
+  });
+};
+
+export async function issuePublicAudioStreamUrl(req, res, next) {
+  try {
+    const audio = await Audio.findOne({
+      _id: req.params.id,
+      isDeleted: false,
+      isPublic: true,
+      visibility: 'public',
+      publicationStatus: 'published',
+    }).select('_id artist isPublic visibility publicationStatus duration');
+
+    if (!audio || !isCanonicalPublicAudio(audio)) {
+      // Public token issuance deliberately does not reveal whether a private
+      // recording exists at this ID.
+      return res.status(404).json({
+        error: { code: 'NOT_FOUND', message: 'Audio not found' },
+      });
+    }
+
+    return sendSignedStreamResponse(
+      res,
+      buildAudioStreamUrl(audio, { access: 'public' })
+    );
+  } catch (error) {
+    next(error);
+  }
+}
+
 export async function issueAudioStreamUrl(req, res, next) {
   try {
     const audio = await Audio.findOne({
@@ -162,25 +211,7 @@ export async function issueAudioStreamUrl(req, res, next) {
       };
     }
 
-    if (!signed?.url) {
-      return res.status(503).json({
-        error: {
-          code: 'AUDIO_STREAM_UNAVAILABLE',
-          message: 'Echoo could not prepare this audio stream.',
-        },
-      });
-    }
-
-    res.setHeader('Cache-Control', 'no-store');
-    const downloadSeparator = signed.url.includes('?') ? '&' : '?';
-    return res.status(200).json({
-      data: {
-        streamUrl: signed.url,
-        downloadUrl: `${signed.url}${downloadSeparator}download=1`,
-        expiresIn: signed.expiresIn,
-      },
-      timestamp: new Date().toISOString(),
-    });
+    return sendSignedStreamResponse(res, signed);
   } catch (error) {
     next(error);
   }
@@ -413,6 +444,7 @@ export async function streamAudio(req, res, next) {
 
 export default {
   issueAudioStreamUrl,
+  issuePublicAudioStreamUrl,
   streamAudio,
   parseSingleByteRange,
 };
