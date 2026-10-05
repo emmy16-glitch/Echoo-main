@@ -73,7 +73,7 @@ const ListenerSavedMoments = () => {
             </article>
           ))}
         </section>
-      ) : <div className="lsm-state"><FiBookmark /><h2>No saved moments yet</h2><p>Save a transcript line or replay timestamp and it will appear here.</p><button type="button" onClick={() => navigate('/listen/live')}>Explore live shows</button></div>}
+      ) : <div className="lsm-state"><FiBookmark /><h2>No saved moments yet</h2><p>Save a transcript line or replay timestamp and it will appear here.</p><button type="button" onClick={() => navigate('/listen/live')}>Explore live broadcasts</button></div>}
     </div>
   );
 };

@@ -254,7 +254,9 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
         watchdogMissStreakRef.current = 0;
         needsAudioStartRef.current = false;
         setNeedsAudioStart(false);
-        setStatus('playing');
+        setIsPlaying(true);
+        setError('');
+        setStatus('listening');
         return true;
       }
       if (playbackIntentRef.current === 'pause' && entries.some(currentAttachmentIsHealthy)) {
@@ -1044,7 +1046,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
     // transport failure. In that state room.startAudio() cannot repair the
     // disconnected room; restart the connection supervisor instead. The
     // retained playback intent makes the fresh room resume audio automatically.
-    if (status === 'error' || status === 'disconnected') {
+    if (status === 'failed' || status === 'disconnected') {
       setRetryVersion((current) => current + 1);
       return false;
     }
@@ -1214,7 +1216,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
             : 'idle',
       connectionStatus: status,
       canPlay: trackCount > 0 || needsAudioStart,
-      canReconnect: status === 'error' || status === 'disconnected',
+      canReconnect: status === 'failed' || status === 'disconnected',
       userPaused: playbackIntentRef.current === 'pause',
       track: isLive && track ? { ...track, isLive: true } : null,
       playerError: error,
@@ -1236,7 +1238,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
     // Keep the lock-screen transport icon truthful (playing vs paused).
     try {
       if (typeof navigator !== 'undefined' && 'mediaSession' in navigator && isLive) {
-        navigator.mediaSession.playbackState = status === 'playing' ? 'playing' : 'paused';
+        navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
       }
     } catch {
       // Best-effort only.

@@ -189,8 +189,17 @@ test('listener watchdog and reattachment never override an intentional pause', a
 test('persistent live play action restarts a disconnected room instead of only calling startAudio', async () => {
   const player = await source('../../frontend/src/Components/ListenerLiveExperience/LiveKitListenerPlayer.jsx');
 
-  assert.match(player, /status === 'error' \|\| status === 'disconnected'[\s\S]{0,180}setRetryVersion/);
+  assert.match(player, /status === 'failed' \|\| status === 'disconnected'[\s\S]{0,180}setRetryVersion/);
   assert.match(player, /playbackIntentRef\.current = 'play'/);
+});
+
+test('failed listener connections expose retry and lock-screen state follows real playback', async () => {
+  const player = await source('../../frontend/src/Components/ListenerLiveExperience/LiveKitListenerPlayer.jsx');
+
+  assert.match(player, /canReconnect:\s*status === 'failed' \|\| status === 'disconnected'/);
+  assert.match(player, /setIsPlaying\(true\)[\s\S]{0,120}setStatus\('listening'\)/);
+  assert.match(player, /navigator\.mediaSession\.playbackState = isPlaying \? 'playing' : 'paused'/);
+  assert.doesNotMatch(player, /navigator\.mediaSession\.playbackState = status === 'playing'/);
 });
 
 test('listener reconnect supervisor never waits forever in LiveKit reconnecting', async () => {
