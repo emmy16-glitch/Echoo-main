@@ -48,32 +48,32 @@ const listenerGuidanceFor = (page) => {
     case 'Live now':
       return {
         title: 'Find a live conversation that fits your mood.',
-        intro: 'Browse what is happening now, open a live room, or jump to Channels you already follow.',
+        intro: 'Browse what is happening now, open a live room, or jump to channels you already follow.',
         actions: [
           { id: 'live', icon: <FaBroadcastTower />, title: 'See what’s live', body: 'Browse public broadcasts happening right now.', label: 'Explore', destination: '/listen/live' },
-          { id: 'following', icon: <FaHeart />, title: 'Check your following', body: 'See Channels you already chose to keep up with.', label: 'Open', destination: '/listen/library/following' },
+          { id: 'following', icon: <FaHeart />, title: 'Check your following', body: 'See channels you already chose to keep up with.', label: 'Open', destination: '/listen/library/following' },
         ],
-        suggestions: ['What’s live now?', 'How do I join a live room?', 'Show me Channels I follow', 'Help with playback'],
+        suggestions: ['What’s live now?', 'How do I join a live room?', 'Show me channels I follow', 'Help with playback'],
       };
     case 'Channels':
       return {
         title: 'Discover Channels worth coming back to.',
-        intro: 'Browse public Channels, follow creators you like, and use search when you already know what you want.',
+        intro: 'Browse public channels, follow creators you like, and use search when you already know what you want.',
         actions: [
-          { id: 'stations', icon: <FaCompass />, title: 'Browse public Channels', body: 'Explore creator Channels across Echoo.', label: 'Browse', destination: '/listen/channels' },
-          { id: 'following', icon: <FaHeart />, title: 'Your following', body: 'Return to Channels you already follow.', label: 'Open', destination: '/listen/library/following' },
+          { id: 'stations', icon: <FaCompass />, title: 'Browse public Channels', body: 'Explore creator channels across Echoo.', label: 'Browse', destination: '/listen/channels' },
+          { id: 'following', icon: <FaHeart />, title: 'Your following', body: 'Return to channels you already follow.', label: 'Open', destination: '/listen/library/following' },
         ],
-        suggestions: ['Find technology Channels', 'How do I follow a Channel?', 'Show Channels I follow', 'How do I search Echoo?'],
+        suggestions: ['Find technology channels', 'How do I follow a Channel?', 'Show channels I follow', 'How do I search Echoo?'],
       };
     case 'Following':
       return {
-        title: 'Keep up with the Channels you chose.',
-        intro: 'Use Following as your shortcut back to creators and Channels you already care about.',
+        title: 'Keep up with the channels you chose.',
+        intro: 'Use Following as your shortcut back to creators and channels you already care about.',
         actions: [
-          { id: 'following', icon: <FaHeart />, title: 'Review your following', body: 'Open the Channels you currently follow.', label: 'Open', destination: '/listen/library/following' },
-          { id: 'discover', icon: <FaCompass />, title: 'Find something new', body: 'Browse more public Channels across Echoo.', label: 'Discover', destination: '/listen/channels' },
+          { id: 'following', icon: <FaHeart />, title: 'Review your following', body: 'Open the channels you currently follow.', label: 'Open', destination: '/listen/library/following' },
+          { id: 'discover', icon: <FaCompass />, title: 'Find something new', body: 'Browse more public channels across Echoo.', label: 'Discover', destination: '/listen/channels' },
         ],
-        suggestions: ['Where are Channels I follow?', 'Find something similar', 'What’s live now?', 'Help with playback'],
+        suggestions: ['Where are channels I follow?', 'Find something similar', 'What’s live now?', 'Help with playback'],
       };
     case 'History':
       return {
@@ -98,12 +98,12 @@ const listenerGuidanceFor = (page) => {
     default:
       return {
         title: 'Find something worth hearing.',
-        intro: 'Explore live conversations, browse public Channels, or return to something you were listening to earlier.',
+        intro: 'Explore live conversations, browse public channels, or return to something you were listening to earlier.',
         actions: [
           { id: 'live', icon: <FaBroadcastTower />, title: 'See what’s live', body: 'Explore public broadcasts happening right now.', label: 'Explore', destination: '/listen/live' },
           { id: 'stations', icon: <FaCompass />, title: 'Browse Channels', body: 'Find creators and communities across Echoo.', label: 'Browse', destination: '/listen/channels' },
         ],
-        suggestions: ['What’s live now?', 'Find technology Channels', 'Show Channels I follow', 'Help with playback'],
+        suggestions: ['What’s live now?', 'Find technology channels', 'Show channels I follow', 'Help with playback'],
       };
   }
 };
