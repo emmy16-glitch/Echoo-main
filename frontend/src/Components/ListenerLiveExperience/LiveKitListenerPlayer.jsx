@@ -1044,7 +1044,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
     // transport failure. In that state room.startAudio() cannot repair the
     // disconnected room; restart the connection supervisor instead. The
     // retained playback intent makes the fresh room resume audio automatically.
-    if (status === 'error' || status === 'disconnected') {
+    if (status === 'error' || status === 'failed' || status === 'disconnected') {
       setRetryVersion((current) => current + 1);
       return false;
     }
@@ -1214,7 +1214,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
             : 'idle',
       connectionStatus: status,
       canPlay: trackCount > 0 || needsAudioStart,
-      canReconnect: status === 'error' || status === 'disconnected',
+      canReconnect: status === 'error' || status === 'failed' || status === 'disconnected',
       userPaused: playbackIntentRef.current === 'pause',
       track: isLive && track ? { ...track, isLive: true } : null,
       playerError: error,
