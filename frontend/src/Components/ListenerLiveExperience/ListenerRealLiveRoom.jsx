@@ -162,6 +162,19 @@ const ListenerRealLiveRoom = () => {
   const roomLoadGenerationRef = useRef(0);
   const chatLoadGenerationRef = useRef(0);
   const [chatOpen, setChatOpen] = useState(false);
+  const [desktopChatVisible, setDesktopChatVisible] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches
+  );
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return undefined;
+    const media = window.matchMedia('(min-width: 768px)');
+    const sync = () => setDesktopChatVisible(media.matches);
+    sync();
+    media.addEventListener?.('change', sync);
+    return () => media.removeEventListener?.('change', sync);
+  }, []);
+
 
   useEffect(() => {
     if (!chatOpen) return undefined;
@@ -385,12 +398,12 @@ const ListenerRealLiveRoom = () => {
   }, [load]);
 
   useEffect(() => {
-    if (previewMode) return;
-    // Desktop chat is always visible, while mobile chat opens as a sheet.
-    // Load history for the room itself so desktop never renders an empty panel
-    // simply because the mobile-only chatOpen flag is false.
+    // Desktop chat is visible with the room, so hydrate it immediately.
+    // Mobile chat stays lazy until the listener opens the sheet; this avoids
+    // a large audience fetching 100 chat rows when most listeners only want audio.
+    if (previewMode || (!desktopChatVisible && !chatOpen)) return;
     void loadChat();
-  }, [previewMode, loadChat]);
+  }, [previewMode, desktopChatVisible, chatOpen, loadChat]);
 
   useEffect(() => {
     if (
