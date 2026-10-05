@@ -14,7 +14,12 @@ import { createNotification } from './notificationController.js';
 import { createGeneratedAudioCover } from '../utils/audioCover.js';
 import { canAccessReplayAudio } from '../services/assetAccessService.js';
 import { archiveRecordingAudio, getCloudObject } from '../services/audioArchiveService.js';
-import { trimAudioFile } from '../services/audioTrimService.js';
+import {
+  DEFAULT_WAVEFORM_POINTS,
+  WAVEFORM_VERSION,
+  generateAudioWaveform,
+  trimAudioFile,
+} from '../services/audioTrimService.js';
 import { sendGeneratedCover } from '../utils/generatedCoverResponse.js';
 
 const safeDuration = (value) => {
@@ -128,6 +133,60 @@ const materializeTrimSource = async (audio) => {
     sourcePath: temporaryPath,
     cleanup: async () => removeLocalFile(temporaryPath),
   };
+};
+
+
+const waveformJobs = new Map();
+const waveformFailures = new Map();
+const WAVEFORM_FAILURE_TTL_MS = 15_000;
+
+const cachedWaveformFor = (audio) => {
+  const cached = audio?.waveform;
+  if (!cached || Number(cached.version) !== WAVEFORM_VERSION) return null;
+  if (Number(cached.fileSize) !== Number(audio.fileSize)) return null;
+  if (!Array.isArray(cached.points) || cached.points.length !== DEFAULT_WAVEFORM_POINTS) return null;
+  const duration = Number(cached.duration) || Number(audio.duration) || 0;
+  if (!(duration > 0)) return null;
+  return {
+    status: 'ready',
+    duration,
+    points: cached.points.map((value) => Math.max(0, Math.min(1, Number(value) || 0))),
+    generatedAt: cached.generatedAt || null,
+    cached: true,
+  };
+};
+
+const buildAndCacheWaveform = async (audio) => {
+  let cleanup = async () => {};
+  try {
+    const source = await materializeTrimSource(audio);
+    cleanup = source.cleanup;
+    const waveform = await generateAudioWaveform({
+      sourcePath: source.sourcePath,
+      sourceDuration: audio.duration,
+      points: DEFAULT_WAVEFORM_POINTS,
+    });
+
+    audio.waveform = {
+      version: waveform.version,
+      duration: waveform.duration,
+      fileSize: Number(audio.fileSize) || 0,
+      points: waveform.points,
+      generatedAt: new Date(),
+    };
+    if (!(Number(audio.duration) > 0)) audio.duration = waveform.duration;
+    await audio.save();
+
+    return {
+      status: 'ready',
+      duration: waveform.duration,
+      points: waveform.points,
+      generatedAt: audio.waveform.generatedAt,
+      cached: false,
+    };
+  } finally {
+    await cleanup().catch(() => {});
+  }
 };
 
 const trimmedOriginalName = (audio, extension) => {
@@ -647,6 +706,65 @@ export async function updateAudio(req, res, next) {
     });
   } catch (error) {
     next(error);
+  }
+}
+
+
+export async function getAudioWaveform(req, res, next) {
+  try {
+    const audio = await Audio.findOne({ _id: req.params.id, isDeleted: false })
+      .select('+waveform');
+    if (!audio) {
+      return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Audio not found' } });
+    }
+    if (String(audio.artist) !== String(req.userId)) {
+      return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'You do not own this audio' } });
+    }
+
+    const cached = cachedWaveformFor(audio);
+    if (cached) {
+      return res.status(200).json({
+        data: cached,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const key = String(audio._id);
+    const recentFailure = waveformFailures.get(key);
+    if (recentFailure && Date.now() - recentFailure.at < WAVEFORM_FAILURE_TTL_MS) {
+      const error = new Error(recentFailure.message || 'Echoo could not prepare this recording waveform.');
+      error.status = recentFailure.status || 422;
+      error.code = recentFailure.code || 'WAVEFORM_PROCESSING_FAILED';
+      throw error;
+    }
+    if (recentFailure) waveformFailures.delete(key);
+
+    if (!waveformJobs.has(key)) {
+      const job = buildAndCacheWaveform(audio)
+        .catch((error) => {
+          waveformFailures.set(key, {
+            at: Date.now(),
+            status: error?.status || 422,
+            code: error?.code || 'WAVEFORM_PROCESSING_FAILED',
+            message: error?.message || 'Echoo could not prepare this recording waveform.',
+          });
+          console.warn('[audio-waveform] generation failed:', key, error?.message || error);
+        })
+        .finally(() => {
+          waveformJobs.delete(key);
+        });
+      waveformJobs.set(key, job);
+    }
+
+    return res.status(202).json({
+      data: {
+        status: 'processing',
+        retryAfterMs: 1500,
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    return next(error);
   }
 }
 
