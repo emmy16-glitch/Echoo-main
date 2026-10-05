@@ -13,6 +13,9 @@ test('live listener keeps playback intent, device volume, and explicit recovery 
   assert.match(player, /mutedRef\s*=\s*useRef\(readListenerVolume\(\) === 0\)/);
   assert.match(player, /element\.volume\s*=\s*volumeRef\.current/);
   assert.match(player, /element\.muted\s*=\s*mutedRef\.current/);
+  assert.match(player, /lastAudibleVolumeRef\s*=\s*useRef/);
+  assert.match(player, /!nextMuted && volumeRef\.current <= 0/);
+  assert.match(player, /saveListenerVolume\(restoredVolume\)/);
   assert.match(player, /onReconnect:\s*\(\)\s*=>\s*setRetryVersion/);
   assert.match(player, /const onOnline[\s\S]*roomLinkRef\.current === 'reconnecting'[\s\S]*browser_online_missing_transport/);
   assert.match(player, /getReceiverStats/);
@@ -70,6 +73,32 @@ test('live room route changes cannot leak stale room state into the next broadca
   assert.doesNotMatch(room, /listenerCount:\s*Number\(payload\?\.listenerCount\)\s*\|\|\s*0/);
 });
 
+test('live chat rejoin is acknowledged, backfills missed messages, and uses dedicated guest controls', async () => {
+  const [room, roomCss, components, componentCss] = await Promise.all([
+    source('../../frontend/src/Components/ListenerLiveExperience/ListenerRealLiveRoom.jsx'),
+    source('../../frontend/src/Components/ListenerLiveExperience/ListenerV2LiveRoom.css'),
+    source('../../frontend/src/Components/ListenerExperience/ListenerExperienceComponents.jsx'),
+    source('../../frontend/src/Components/ListenerExperience/ListenerExperienceComponents.css'),
+  ]);
+
+  assert.match(room, /connectedSocket\.emit\('broadcast:join',[\s\S]{0,220}\(response\) =>/);
+  assert.match(room, /if \(!response\?\.ok\)[\s\S]{0,140}fallback\(\)/);
+  assert.match(room, /loadChat\(\{ silent: true \}\)/);
+  assert.match(room, /Desktop chat is visible without the mobile bottom-sheet toggle/);
+  assert.match(room, /if \(previewMode \|\| isGuest\) return;[\s\S]{0,360}void loadChat\(\)/);
+  assert.match(room, /if \(!isGuest\) void loadChat\(\{ silent: true \}\)/);
+  assert.match(room, /className="listener-v2-room-chat-signin"/);
+  assert.doesNotMatch(room, /Sign in to chat and follow[\s\S]{0,40}listener-v2-room-back/);
+  assert.match(roomCss, /listener-v2-room-chat-signin/);
+  assert.match(roomCss, /grid-template-rows:\s*auto minmax\(0,1fr\)/);
+  assert.match(components, /className="lex-chat-new-messages"/);
+  assert.match(components, /<FiHeart aria-hidden="true" \/>/);
+  assert.match(components, /onReact\s*&&\s*<button/);
+  assert.doesNotMatch(components, /message\.reaction\s*&&\s*<button/);
+  assert.match(componentCss, /overflow-wrap:\s*anywhere/);
+  assert.match(componentCss, /\.lex-chat-message > div \{ min-width:\s*0/);
+});
+
 test('live room never fabricates listener counts or follow success when identity data is missing', async () => {
   const room = await source('../../frontend/src/Components/ListenerLiveExperience/ListenerRealLiveRoom.jsx');
 
@@ -103,14 +132,19 @@ test('live room primary control recovers disconnected audio and never relies on 
   assert.match(room, /role="meter"/);
 });
 
-test('mobile live room keeps autoplay and reconnect recovery controls available', async () => {
-  const css = await source('../../frontend/src/Components/ListenerLiveExperience/ListenerV2LiveRoom.css');
+test('mobile live room keeps the actual autoplay and reconnect controls available', async () => {
+  const [room, css] = await Promise.all([
+    source('../../frontend/src/Components/ListenerLiveExperience/ListenerRealLiveRoom.jsx'),
+    source('../../frontend/src/Components/ListenerLiveExperience/ListenerV2LiveRoom.css'),
+  ]);
 
-  assert.doesNotMatch(
-    css,
-    /echoo-livekit-listener-copy,\.listener-v2-livekit-host \.echoo-livekit-start-audio,\.listener-v2-livekit-host \.echoo-livekit-retry\s*\{\s*display:\s*none/i
-  );
-  assert.match(css, /echoo-livekit-start-audio,\.listener-v2-livekit-host \.echoo-livekit-retry\s*\{[^}]*min-height:\s*40px/i);
+  assert.match(room, /className="listener-v2-room-tap-to-play"/);
+  assert.match(room, /className="listener-v2-room-play"/);
+  assert.match(room, /aria-label=\{needsReconnect \? 'Reconnect audio'/);
+  assert.match(css, /\.listener-v2-room-tap-to-play\s*\{[^}]*min-height:\s*60px/i);
+  assert.match(css, /\.listener-v2-room-play\s*\{[^}]*width:\s*62px/i);
+  assert.match(css, /@media \(max-width:\s*767px\)[\s\S]*\.listener-v2-room-control-center > span\s*\{[^}]*display:\s*block !important/i);
+  assert.doesNotMatch(css, /listener-v2-livekit-host/);
 });
 
 test('listener late-join subscription and non-autoplay failures remain recoverable', async () => {
@@ -189,7 +223,8 @@ test('listener watchdog and reattachment never override an intentional pause', a
 test('persistent live play action restarts a disconnected room instead of only calling startAudio', async () => {
   const player = await source('../../frontend/src/Components/ListenerLiveExperience/LiveKitListenerPlayer.jsx');
 
-  assert.match(player, /status === 'error' \|\| status === 'disconnected'[\s\S]{0,180}setRetryVersion/);
+  assert.match(player, /status === 'error' \|\| status === 'failed' \|\| status === 'disconnected'[\s\S]{0,180}setRetryVersion/);
+  assert.match(player, /canReconnect: status === 'error' \|\| status === 'failed' \|\| status === 'disconnected'/);
   assert.match(player, /playbackIntentRef\.current = 'play'/);
 });
 

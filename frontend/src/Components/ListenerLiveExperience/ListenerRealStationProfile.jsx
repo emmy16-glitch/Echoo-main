@@ -239,7 +239,7 @@ const ListenerRealStationProfile = () => {
                 title={`Listen live to ${station.name}`}
                 onClick={() => navigate(`/listen/live/${live.id}`)}
               >
-                <FaPlay /> Listen Live
+                <FaPlay /> Listen live
               </button>
             )}
           </div>

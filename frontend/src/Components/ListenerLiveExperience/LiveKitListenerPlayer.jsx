@@ -89,6 +89,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
   const roomLinkRef = useRef('connected');
   const needsAudioStartRef = useRef(false);
   const volumeRef = useRef(readListenerVolume());
+  const lastAudibleVolumeRef = useRef(readListenerVolume() > 0 ? readListenerVolume() : 1);
   const mutedRef = useRef(readListenerVolume() === 0);
   const playbackIntentRef = useRef('play');
   const [retryVersion, setRetryVersion] = useState(0);
@@ -112,6 +113,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
     const applyPreference = () => {
       const volume = readListenerVolume();
       volumeRef.current = volume;
+      if (volume > 0) lastAudibleVolumeRef.current = volume;
       mutedRef.current = volume === 0;
       setLiveVolume(volume);
       setLiveMuted(volume === 0);
@@ -1044,7 +1046,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
     // transport failure. In that state room.startAudio() cannot repair the
     // disconnected room; restart the connection supervisor instead. The
     // retained playback intent makes the fresh room resume audio automatically.
-    if (status === 'error' || status === 'disconnected') {
+    if (status === 'error' || status === 'failed' || status === 'disconnected') {
       setRetryVersion((current) => current + 1);
       return false;
     }
@@ -1100,8 +1102,26 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
 
   const toggleMute = useCallback(() => {
     const nextMuted = !mutedRef.current;
-    mutedRef.current = nextMuted;
     const elements = Array.from(audioHostRef.current?.querySelectorAll('audio') || []);
+
+    // A zero-volume slider is effectively muted. If the listener explicitly
+    // taps Unmute from that state, restore the most recent audible level
+    // instead of showing an unmuted icon while remaining silent.
+    if (!nextMuted && volumeRef.current <= 0) {
+      const restoredVolume = Math.max(0.01, Math.min(1, Number(lastAudibleVolumeRef.current) || 1));
+      volumeRef.current = saveListenerVolume(restoredVolume);
+      lastAudibleVolumeRef.current = restoredVolume;
+      elements.forEach((element) => {
+        element.volume = restoredVolume;
+        element.muted = false;
+      });
+      mutedRef.current = false;
+      setLiveVolume(restoredVolume);
+      setLiveMuted(false);
+      return;
+    }
+
+    mutedRef.current = nextMuted;
     elements.forEach((element) => { element.muted = nextMuted; });
     setLiveMuted(nextMuted);
   }, []);
@@ -1161,6 +1181,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
     const nextMuted = nextVolume === 0;
     saveListenerVolume(nextVolume);
     volumeRef.current = nextVolume;
+    if (nextVolume > 0) lastAudibleVolumeRef.current = nextVolume;
     mutedRef.current = nextMuted;
     const elements = Array.from(audioHostRef.current?.querySelectorAll('audio') || []);
     elements.forEach((element) => {
@@ -1214,7 +1235,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
             : 'idle',
       connectionStatus: status,
       canPlay: trackCount > 0 || needsAudioStart,
-      canReconnect: status === 'error' || status === 'disconnected',
+      canReconnect: status === 'error' || status === 'failed' || status === 'disconnected',
       userPaused: playbackIntentRef.current === 'pause',
       track: isLive && track ? { ...track, isLive: true } : null,
       playerError: error,

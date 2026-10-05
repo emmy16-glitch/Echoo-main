@@ -72,6 +72,7 @@ test('Listener routing mounts the canonical V2 shell and canonical design roles'
   assert.match(css, /--listener-v2-font-control:\s*var\(--control/);
   assert.match(css, /--listener-v2-blue:\s*var\(--echoo-blue/);
   assert.doesNotMatch(css, /font-family:\s*Inter,/);
+  assert.doesNotMatch(listener, /ListenerLiveRoom\.css/);
 });
 
 test('shared sidebar follows nested router state instead of exact-string-only highlighting', async () => {
@@ -183,7 +184,6 @@ test('active Listener CSS has one readable typography floor instead of legacy ov
     source('../../frontend/src/Components/ListenerNotifications/ListenerNotifications.css'),
     source('../../frontend/src/Components/ListenerSettings/ListenerSettings.css'),
     source('../../frontend/src/Components/ListenerAudioDetail/ListenerAudioDetail.css'),
-    source('../../frontend/src/Components/ListenerLiveExperience/ListenerLiveRoom.css'),
     source('../../frontend/src/Components/ListenerLiveExperience/ListenerV2LiveRoom.css'),
     source('../../frontend/src/Components/ListenerCollectionDetail/ListenerCollectionDetail.css'),
   ]);
