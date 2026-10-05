@@ -70,7 +70,7 @@
   border-radius: 999px;
   background: #b42318;
   color: #fff;
-  font-size: 10px;
+  font-size: 13px;
   font-style: normal;
   font-weight: 900;
   letter-spacing: .08em;
@@ -78,7 +78,7 @@
 
 .lcp-kicker {
   color: #1769ff;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 900;
   letter-spacing: .12em;
 }
@@ -198,7 +198,7 @@
 
 .lcp-station span {
   color: #667085;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .lcp-station small {
@@ -254,7 +254,7 @@
 
 .lcp-track span {
   color: #667085;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .lcp-track button {
