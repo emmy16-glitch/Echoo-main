@@ -621,14 +621,7 @@ const CreatorAudioDetailModal = ({
         )}
         {error && <div className="creator-audio-modal-error" role="alert">{error}</div>}
 
-        <CreatorAudioTrimSection
-          track={track}
-          onChanged={onChanged}
-          onNotice={setNotice}
-          onOpenTrimmed={onOpenRecording}
-        />
-
-        <div className="creator-audio-modal-actions">
+        <div className="creator-audio-modal-actions" aria-label="Recording actions">
           <button
             type="button"
             className={visibility ? 'visibility is-public' : 'visibility is-private'}
@@ -640,23 +633,26 @@ const CreatorAudioDetailModal = ({
               ? 'Saving...'
               : visibility
                 ? 'Make private'
-                : 'Publish to listeners'}
+                : 'Publish'}
           </button>
 
           {onAddToCollection && (
             <button type="button" className="collection" onClick={onAddToCollection}>
-              Add to Collection
+              Add to collection
             </button>
           )}
 
           <button type="button" className="download" onClick={downloadOriginal} disabled={downloading}>
-            <FaDownload /> {downloading ? 'Preparing download...' : 'Download stored file'}
+            <FaDownload /> {downloading ? 'Preparing...' : 'Download original'}
           </button>
         </div>
 
-        <p className="creator-audio-quality-note">
-          Export creates a separate copy for your device. “Download stored file” retrieves Echoo’s saved recording without another conversion.
-        </p>
+        <CreatorAudioTrimSection
+          track={track}
+          onChanged={onChanged}
+          onNotice={setNotice}
+          onOpenTrimmed={onOpenRecording}
+        />
       </section>
     </div>
   );
