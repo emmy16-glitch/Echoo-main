@@ -224,7 +224,7 @@ const parentStateSignature = (snapshot = {}) => [
   snapshot.monitoring?.outputDeviceId || '',
 ].join('|');
 
-const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = null, onStateChange, audioLibrary = [], onGoLive, goLiveBusy = false, qualityProfile = 'broadcast_high', onQualityProfileChange }) => {
+const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = null, onStateChange, audioLibrary = [], onGoLive, goLiveBusy = false, isLive = false, qualityProfile = 'broadcast_high', onQualityProfileChange }) => {
   const [mixer, setMixer] = useState(() => sessionState || getEchooMixerState());
   const [inputs, setInputs] = useState([]);
   const [outputs, setOutputs] = useState([]);
@@ -1001,7 +1001,18 @@ const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = n
               </div>
               <small>{ECHOO_REALTIME_AUDIO_PROFILES[normalizeRealtimeAudioProfile(qualityProfile)].description}</small>
             </div>
-            <button type="button" className="eam-approved-go-live" onClick={onGoLive} disabled={goLiveBusy}><FiRadio />{goLiveBusy ? 'Starting…' : 'Go Live'}</button>
+            <button
+              type="button"
+              className={`eam-approved-go-live${isLive ? ' is-live' : goLiveBusy ? ' is-pending' : ''}`}
+              onClick={onGoLive}
+              disabled={goLiveBusy || isLive}
+              aria-busy={goLiveBusy || undefined}
+            >
+              <span className="eam-approved-go-live-mark" aria-hidden="true"><FiRadio /></span>
+              <span className="eam-approved-go-live-label">
+                {isLive ? 'LIVE' : goLiveBusy ? 'Connecting…' : 'Go Live'}
+              </span>
+            </button>
             <p>Review your levels before going live.</p>
             <button
               type="button"

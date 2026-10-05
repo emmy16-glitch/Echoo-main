@@ -265,3 +265,13 @@ test('Windows identity and installer verify native protocol registration', () =>
   assert.match(installerVerifier, /Software\\Classes\\echoo\\shell\\open\\command/);
   assert.match(installerVerifier, /Verified echoo:\/\/ protocol registration/);
 });
+
+
+test('Go Live keeps one truthful control across idle, connecting and live states', () => {
+  assert.match(creatorMixerSource, /isLive \? 'LIVE' : goLiveBusy \? 'Connecting…' : 'Go Live'/);
+  assert.match(creatorMixerSource, /disabled=\{goLiveBusy \|\| isLive\}/);
+  assert.match(creatorWorkspaceSource, /isLive=\{isLive\}/);
+  const mixerCss = fs.readFileSync(path.resolve(desktopRoot, '..', 'frontend', 'src', 'Components', 'CreatorStudio', 'CreatorAudioMixer.css'), 'utf8');
+  assert.match(mixerCss, /\.eam-approved-go-live\.is-pending/);
+  assert.match(mixerCss, /prefers-reduced-motion:\s*reduce/);
+});

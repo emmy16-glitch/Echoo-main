@@ -1466,6 +1466,7 @@ const CreatorLiveConnectedWorkspace = ({
         audioLibrary={audioLibrary}
         onGoLive={goLive}
         goLiveBusy={goingLive}
+        isLive={isLive}
         qualityProfile={realtimeQualityProfile}
         onQualityProfileChange={(value) => setRealtimeQualityProfile(saveRealtimeAudioProfile(value))}
       />
