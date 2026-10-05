@@ -1000,7 +1000,7 @@ const ListenerRealLiveRoom = () => {
             disabled={!isLive || isGuest}
             error={chatError}
             onSend={sendMessage}
-            onReact={react}
+            onReact={isGuest ? undefined : react}
           />
         </aside>
       </section>
