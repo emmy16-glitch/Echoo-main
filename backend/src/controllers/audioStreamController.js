@@ -328,8 +328,9 @@ export async function streamAudio(req, res, next) {
       } else {
         res.status(200);
       }
-      if (Number(object.ContentLength) >= 0) {
-        res.setHeader('Content-Length', String(Number(object.ContentLength)));
+      const objectLength = Number(object.ContentLength);
+      if (Number.isFinite(objectLength) && objectLength >= 0) {
+        res.setHeader('Content-Length', String(objectLength));
       }
 
       if (req.method === 'HEAD') {
