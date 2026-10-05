@@ -451,3 +451,22 @@ test('installed smoke exercises 100%, 125%, and 150% Windows display scaling', (
   assert.match(installerVerifier, /@\('1', '1\.25', '1\.5'\)/);
   assert.match(installerVerifier, /force-device-scale-factor/);
 });
+
+
+test('production backend cannot fall back to a private desktop database', () => {
+  const databaseSource = fs.readFileSync(
+    path.resolve(desktopRoot, '..', 'backend', 'src', 'config', 'database.js'),
+    'utf8'
+  );
+  const productionEnvExample = fs.readFileSync(
+    path.resolve(desktopRoot, '..', 'deploy', 'echoo.production.env.example'),
+    'utf8'
+  );
+  const deploymentScript = fs.readFileSync(
+    path.resolve(desktopRoot, '..', 'deploy', 'deploy-echoo.sh'),
+    'utf8'
+  );
+  assert.doesNotMatch(databaseSource, /ECHOO_DESKTOP|connectDesktopMemoryDatabase|desktopMemoryServer/);
+  assert.doesNotMatch(productionEnvExample, /^ECHOO_DESKTOP=/m);
+  assert.doesNotMatch(deploymentScript, /ECHOO_DESKTOP=1/);
+});
