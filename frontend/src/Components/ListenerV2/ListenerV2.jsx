@@ -998,14 +998,14 @@ const DiscoverCatalog = () => {
 
   return (
     <div className="listener-v2-page listener-v2-discover-page">
-      <header className="listener-v2-page-title"><h1>Discover</h1><p>Live broadcasts and recordings, all in one place.</p></header>
+      <header className="listener-v2-page-title"><h1>Discover</h1></header>
 
       <section className="listener-v2-panel">
-        <SectionTitle title="Live now" copy="On air right now" action={() => navigate('/listen/live')} />
+        <SectionTitle title="Live now" action={() => navigate('/listen/live')} />
         {liveLoading ? <div className="listener-v2-row-skeleton" role="status" aria-label="Loading live broadcasts"><span /><span /><span /></div> : liveError ? <EmptyState icon={<FiRadio />} title="Live broadcasts are unavailable" copy={liveError} action={reload} actionLabel="Try again" /> : liveNow.length ? (
           <div className="listener-v2-live-grid">{liveNow.slice(0, 5).map((item) => <LiveCard key={idOf(item)} broadcast={item} onOpen={(broadcast) => navigate(`/listen/live/${idOf(broadcast)}`, { state: { show: broadcast } })} />)}</div>
         ) : (
-          <EmptyState icon={<FiRadio />} title="Nothing is live right now" copy="Explore the latest recordings below." />
+          <EmptyState icon={<FiRadio />} title="Nothing live right now" />
         )}
       </section>
 
@@ -1028,7 +1028,7 @@ const DiscoverCatalog = () => {
 
       <ContinueListening />
       <section className="listener-v2-panel">
-        <SectionTitle title="Latest recordings" copy="New recordings" action={() => navigate('/listen/search')} actionLabel="Search audio" />
+        <SectionTitle title="Latest recordings" action={() => navigate('/listen/search')} actionLabel="Search" />
         {recordingsLoading ? <div className="listener-v2-row-skeleton" role="status" aria-label="Loading recordings"><span /><span /><span /></div> : recordingsError ? <p role="alert">{recordingsError}</p> : recordings.length ? (
           <div className="listener-v2-audio-list listener-v2-release-list">
             {recordings.slice(0, 8).map((track) => (
@@ -1048,7 +1048,7 @@ const DiscoverCatalog = () => {
             ))}
           </div>
         ) : (
-          <EmptyState icon={<FiMusic />} title="No releases yet" copy="Public recordings appear here immediately after creators publish them." />
+          <EmptyState icon={<FiMusic />} title="No recordings yet" />
         )}
       </section>
 
