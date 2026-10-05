@@ -330,7 +330,7 @@ export default function CreatorSetup({ onCreatorReady }) {
           <section className="channel-setup-intro">
             <p className="channel-setup-eyebrow">CREATOR SETUP</p>
             <h1 id="channel-setup-title">Create your Channel</h1>
-            <p>Set up the identity listeners will see when you broadcast. You can change these details later in Creator Studio.</p>
+            <p>Choose how you’ll appear to listeners when you broadcast. You can edit these details later in Creator Studio.</p>
             <div className="channel-setup-promise">
               <span className="channel-setup-promise-dot" aria-hidden="true">1</span>
               <div>
@@ -502,15 +502,7 @@ export default function CreatorSetup({ onCreatorReady }) {
                 </div>
               </div>
 
-              <div className="echoo-onboard-actions">
-                <button
-                  type="button"
-                  className="echoo-onboard-btn echoo-onboard-btn-secondary"
-                  onClick={backToListener}
-                  disabled={saving}
-                >
-                  Cancel
-                </button>
+              <div className="echoo-onboard-actions channel-setup-actions">
                 <LoadingButton
                   type="submit"
                   className="echoo-onboard-btn echoo-onboard-btn-primary"
