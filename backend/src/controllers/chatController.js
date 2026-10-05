@@ -135,49 +135,74 @@ export async function sendMessage(req, res, next) {
   }
 }
 
-// Get messages
+const readMessagePage = async (broadcastId, query = {}) => {
+  const page = Math.max(1, Number.parseInt(query.page || '1', 10) || 1);
+  const limit = Math.min(
+    MAX_CHAT_PAGE_SIZE,
+    Math.max(1, Number.parseInt(query.limit || '50', 10) || 50)
+  );
+  const skip = (page - 1) * limit;
+  const filter = { broadcastId, isDeleted: false };
+
+  if (query.before) {
+    const before = new Date(query.before);
+    if (Number.isNaN(before.getTime())) {
+      throw chatError(400, 'INVALID_DATE', 'before must be a valid date');
+    }
+    filter.createdAt = { $lt: before };
+  }
+
+  const [messages, total] = await Promise.all([
+    ChatMessage.find(filter)
+      .populate('userId', 'username displayName avatar')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit),
+    ChatMessage.countDocuments(filter),
+  ]);
+
+  return {
+    data: messages.reverse(),
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    },
+    timestamp: new Date().toISOString(),
+  };
+};
+
+// Public live/scheduled rooms expose read-only chat history so a guest opening
+// a shared listen link sees the same conversation context. All write,
+// reaction, pin, delete and moderation routes remain behind authenticate.
+export async function getPublicMessages(req, res, next) {
+  try {
+    const { broadcastId } = req.params;
+    requireValidId(broadcastId, 'broadcast');
+
+    const broadcast = await Broadcast.findOne({
+      _id: broadcastId,
+      isPublic: true,
+      status: { $in: [...OPEN_CHAT_STATUSES] },
+    }).select('_id');
+
+    if (!broadcast) {
+      throw chatError(404, 'NOT_FOUND', 'Live chat is unavailable');
+    }
+
+    return res.status(200).json(await readMessagePage(broadcastId, req.query));
+  } catch (error) {
+    next(error);
+  }
+}
+
+// Authenticated chat history keeps private-owner access rules.
 export async function getMessages(req, res, next) {
   try {
     const { broadcastId } = req.params;
     await requireBroadcastAccess(broadcastId, req.userId);
-
-    const page = Math.max(1, Number.parseInt(req.query.page || '1', 10) || 1);
-    const limit = Math.min(
-      MAX_CHAT_PAGE_SIZE,
-      Math.max(1, Number.parseInt(req.query.limit || '50', 10) || 50)
-    );
-    const skip = (page - 1) * limit;
-    const filter = { broadcastId, isDeleted: false };
-
-    if (req.query.before) {
-      const before = new Date(req.query.before);
-      if (Number.isNaN(before.getTime())) {
-        return res.status(400).json({
-          error: { code: 'INVALID_DATE', message: 'before must be a valid date' },
-        });
-      }
-      filter.createdAt = { $lt: before };
-    }
-
-    const [messages, total] = await Promise.all([
-      ChatMessage.find(filter)
-        .populate('userId', 'username displayName avatar')
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit),
-      ChatMessage.countDocuments(filter),
-    ]);
-
-    return res.status(200).json({
-      data: messages.reverse(),
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
-      timestamp: new Date().toISOString(),
-    });
+    return res.status(200).json(await readMessagePage(broadcastId, req.query));
   } catch (error) {
     next(error);
   }
