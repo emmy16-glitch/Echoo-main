@@ -329,7 +329,7 @@ export default function CreatorSetup({ onCreatorReady }) {
 
         <div className="channel-setup-layout" aria-labelledby="channel-setup-title">
           <section className="channel-setup-intro">
-            <h1 id="channel-setup-title">Create Channel</h1>
+            <h1 id="channel-setup-title">Create your Channel</h1>
           </section>
 
           <section className="echoo-onboard-card" aria-label="Channel details">

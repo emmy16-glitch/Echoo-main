@@ -156,7 +156,7 @@ export default function AccountExperienceMenu({
         <button
           type="button"
           className="echoo-create-channel"
-          aria-label={creatorEnabled ? 'Finish Channel setup' : 'Create Channel'}
+          aria-label={creatorEnabled ? 'Finish Channel setup' : 'Create your Channel'}
           disabled={switching}
           onClick={() => switchExperience('creator')}
         >
@@ -164,7 +164,7 @@ export default function AccountExperienceMenu({
             ? 'Opening setup…'
             : creatorEnabled
               ? 'Finish setup'
-              : 'Create Channel'}
+              : 'Create your Channel'}
         </button>
       )}
 
