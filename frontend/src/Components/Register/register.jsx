@@ -42,26 +42,6 @@ const AuthField = ({
   </div>
 );
 
-const PasswordChecklist = ({ password = "" }) => {
-  const requirements = [
-    { label: "8+ characters", met: password.length >= 8 },
-    { label: "Upper & lowercase", met: /[a-z]/.test(password) && /[A-Z]/.test(password) },
-    { label: "Number", met: /\d/.test(password) },
-    { label: "Special character", met: /[^A-Za-z0-9]/.test(password) },
-  ];
-
-  return (
-    <ul className="ear-password-requirements" aria-label="Password requirements">
-      {requirements.map((requirement) => (
-        <li key={requirement.label} className={requirement.met ? "is-met" : ""}>
-          <span aria-hidden="true">{requirement.met ? "✓" : "•"}</span>
-          {requirement.label}
-        </li>
-      ))}
-    </ul>
-  );
-};
-
 const AuthStatus = ({ title, message, duration, onContinue }) => {
   useEffect(() => {
     const timeout = window.setTimeout(onContinue, duration);
@@ -152,6 +132,15 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
   const handleChange = (event) => {
     const { name, value } = event.target;
     setFormData((previousData) => ({ ...previousData, [name]: value }));
+    if (action === "Login") setLoginError("");
+    if (action === "Sign Up") setSignupError("");
+  };
+
+  const handlePasswordPaste = (field) => (event) => {
+    const pasted = event.clipboardData?.getData("text");
+    if (typeof pasted !== "string" || pasted.length === 0) return;
+    event.preventDefault();
+    setFormData((previousData) => ({ ...previousData, [field]: pasted }));
     if (action === "Login") setLoginError("");
     if (action === "Sign Up") setSignupError("");
   };
@@ -413,13 +402,9 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
             <>
               <header className="ear-form-heading">
                 <h1 id="ear-auth-title">
-                  {isLogin ? "Welcome back" : "Sign up"}
+                  {isLogin ? "Sign in" : "Create account"}
                 </h1>
-                <p>
-                  {isLogin
-                    ? "Sign in to your Echoo account."
-                    : "Follow creators, save what you love and join the conversation."}
-                </p>
+                {isLogin && <p>Welcome back to Echoo.</p>}
               </header>
 
               <form className="ear-form" onSubmit={handleSubmit} noValidate>
@@ -476,7 +461,6 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
                     label="Username"
                     icon={FaAt}
                     error={usernameInvalid}
-                    hint="This becomes your @username on Echoo."
                   >
                     <input
                       id="echoo-signup-username"
@@ -506,7 +490,6 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
                     label="Email address"
                     icon={FaEnvelope}
                     error={emailInvalid}
-                    hint="Used for account recovery and security notices."
                   >
                     <input
                       id="echoo-signup-email"
@@ -551,7 +534,11 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
                     placeholder={isLogin ? "Enter your password" : "Create a strong password"}
                     value={formData.password}
                     onChange={handleChange}
+                    onPaste={handlePasswordPaste("password")}
                     autoComplete={isLogin ? "current-password" : "new-password"}
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck="false"
                     aria-invalid={isLogin ? Boolean(loginError) : passwordInvalid}
                     aria-describedby={isLogin && loginError ? "echoo-login-error" : undefined}
                     required
@@ -581,7 +568,11 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
                       placeholder="Enter the password again"
                       value={formData.confirmPassword}
                       onChange={handleChange}
+                      onPaste={handlePasswordPaste("confirmPassword")}
                       autoComplete="new-password"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck="false"
                       aria-invalid={passwordsMismatch}
                       required
                     />
@@ -597,22 +588,18 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
                   </AuthField>
                 )}
 
-                {!isLogin && <PasswordChecklist password={formData.password} />}
-                {passwordTooShort && <p className="ear-error" role="alert">Password must be at least 8 characters.</p>}
+                {!isLogin && !formData.password && (
+                  <p className="ear-password-hint">8+ characters · upper/lowercase · number · symbol</p>
+                )}
+                {passwordTooShort && <p className="ear-error" role="alert">Use at least 8 characters.</p>}
                 {!passwordTooShort && passwordMissingCombination && (
-                  <p className="ear-error" role="alert">Use uppercase and lowercase letters, a number, and a special character.</p>
+                  <p className="ear-error" role="alert">Add upper/lowercase, a number and a symbol.</p>
                 )}
                 {passwordsMismatch && <p className="ear-error" role="alert">Passwords do not match.</p>}
                 {signupError && <p className="ear-error" role="alert">{signupError}</p>}
                 {loginError && (
                   <p id="echoo-login-error" className="ear-error" role="alert" aria-live="polite">
                     <FaExclamationCircle aria-hidden="true" /> {loginError}
-                  </p>
-                )}
-
-                {!isLogin && (
-                  <p className="ear-legal">
-                    By signing up, I agree to Echoo’s <button type="button">Terms of Service</button> and <button type="button">Privacy Policy</button>
                   </p>
                 )}
 
@@ -625,6 +612,12 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
                 >
                   {isLogin ? "Sign in" : "Create account"}
                 </LoadingButton>
+
+                {!isLogin && (
+                  <p className="ear-legal">
+                    By continuing, you agree to the <button type="button">Terms</button> and <button type="button">Privacy Policy</button>.
+                  </p>
+                )}
 
                 {isLogin && (
                   <>
