@@ -230,7 +230,7 @@ const ListenerNotificationsConnected = () => {
         <div className="ln-empty">
           <FaClock />
           <strong>Sign in to see your notifications.</strong>
-          <p>You will be notified here when Channels go live and new episodes drop — once you are signed in.</p>
+          <p>You will be notified here when channels go live and new episodes drop — once you are signed in.</p>
           <button type="button" className="ln-mark-all" onClick={() => navigate('/login')}>
             Sign in
           </button>
@@ -245,7 +245,7 @@ const ListenerNotificationsConnected = () => {
           </strong>
           <p>
             {notifications.length === 0
-              ? 'You will be notified here when Channels go live, new episodes drop, or Channels you follow share updates.'
+              ? 'You will be notified here when channels go live, new episodes drop, or channels you follow share updates.'
               : 'Switch to another category to see more notifications.'}
           </p>
         </div>
