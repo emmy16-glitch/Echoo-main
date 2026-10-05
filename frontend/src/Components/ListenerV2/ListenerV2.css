@@ -122,8 +122,33 @@ body:has(.listener-v2-root) .echoo-copilot, body:has(.listener-v2-root) .curated
   .listener-v2-player-copy strong { color:#071226; }
   .listener-v2-player-copy span { color:#50617a; }
   .listener-v2-player.has-error .listener-v2-player-copy span { color:#b42318; }
-  .listener-v2-mobile-nav { border-top:1px solid #dfe6f0; background:#fff; box-shadow:0 -8px 24px rgba(18,35,61,.05); }
-  .listener-v2-mobile-nav button { color:#66758e; }
+  .listener-v2-mobile-nav {
+    position:fixed;
+    right:0;
+    bottom:0;
+    left:0;
+    z-index:50;
+    height:calc(65px + env(safe-area-inset-bottom));
+    display:grid;
+    grid-template-columns:repeat(5,minmax(0,1fr));
+    padding:4px 8px env(safe-area-inset-bottom);
+    border-top:1px solid #dfe6f0;
+    background:#fff;
+    box-shadow:0 -8px 24px rgba(18,35,61,.05);
+  }
+  .listener-v2-mobile-nav button {
+    min-width:0;
+    display:grid;
+    place-content:center;
+    gap:3px;
+    padding:0;
+    border:0;
+    background:transparent;
+    color:#66758e;
+    cursor:pointer;
+    font-size:10px;
+  }
+  .listener-v2-mobile-nav button span { display:grid; place-items:center; font-size:17px; }
   .listener-v2-mobile-nav button.is-active { color:#0758f7; }
   .listener-v2-following-page .listener-v2-page-title { margin-bottom:24px; }
   .listener-v2-following-page .listener-v2-page-title h1 { font-size:28px; }

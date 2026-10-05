@@ -198,6 +198,7 @@ test('live room avoids duplicate live and listener metadata and hides internal c
   await expect(page.locator('.listener-v2-room-listeners')).toHaveCount(0);
   await expect(page.locator('.listener-v2-room-event-meta').getByText(/listening$/)).toHaveCount(1);
   await expect(page.getByText(/Room (connected|fallback|connecting)/i)).toHaveCount(0);
+  await expect(page.getByRole('slider', { name: 'Live volume' })).toBeVisible();
 });
 
 test('live actions persist, roll back failures, copy links, and open and close chat', async ({ page }) => {

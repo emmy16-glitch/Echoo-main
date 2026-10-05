@@ -898,6 +898,20 @@ const ListenerRealLiveRoom = () => {
               {liveState?.isMuted ? <FaVolumeMute /> : <FaVolumeUp />}
             </button>
 
+            <label className="listener-v2-room-volume">
+              <FaVolumeUp aria-hidden="true" />
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                value={Number.isFinite(Number(liveState?.volume)) ? Number(liveState.volume) : 1}
+                aria-label="Live volume"
+                disabled={!isLive || !hasProgramTrack}
+                onChange={(event) => liveState?.onVolumeChange?.(event.target.value)}
+              />
+            </label>
+
             <div className="listener-v2-room-control-center">
               <button
                 type="button"

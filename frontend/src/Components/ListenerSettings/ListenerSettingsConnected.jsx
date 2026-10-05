@@ -1,5 +1,6 @@
 import { readListenerVolume, saveListenerVolume } from '../../services/listenerVolume';
 import { useCallback, useEffect, useState } from 'react';
+import { useLocation as useRouterLocation } from 'react-router-dom';
 import {
   FaBell,
   FaCheck,
@@ -39,6 +40,7 @@ const usernameFor = (username) =>
   username ? `@${username}` : '@not set';
 
 const ListenerSettingsConnected = () => {
+  const routerLocation = useRouterLocation();
   const [nav, setNav] = useState(() => {
     const requested = new URLSearchParams(window.location.search).get('section');
     return ['profile', 'playback', 'notifications', 'help'].includes(requested) ? requested : 'profile';
@@ -66,6 +68,14 @@ const ListenerSettingsConnected = () => {
   const [autoLaunch, setAutoLaunch] = useState(false);
   const [autoLaunchLoading, setAutoLaunchLoading] = useState(isEchooDesktop());
   const isDesktop = isEchooDesktop();
+
+  useEffect(() => {
+    const requested = new URLSearchParams(routerLocation.search).get('section');
+    const nextSection = ['profile', 'playback', 'notifications', 'help'].includes(requested)
+      ? requested
+      : 'profile';
+    setNav(nextSection);
+  }, [routerLocation.search]);
 
   const notify = useCallback((message, success = true) => {
     setToast({
@@ -441,7 +451,7 @@ const ListenerSettingsConnected = () => {
           ) : nav === 'help' ? (
             <div className="set-card">
               <div className="set-card-inner">
-                <strong className="set-card-title">Help &amp; support</strong>
+                <h2 className="set-card-title">Help &amp; support</h2>
                 <p className="set-toggle-desc" style={{ marginTop: 0, maxWidth: '42rem' }}>
                   Keep support simple. Use Playback for sound and volume, Notifications for alerts, or Profile for account details.
                 </p>
