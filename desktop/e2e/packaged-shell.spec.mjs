@@ -98,6 +98,78 @@ test.describe('packaged Echoo Windows shell', () => {
     expect(result?.opened).toBe(false);
   });
 
+  test('round-trips native Listener replay state through the secure bridge', async () => {
+    const state = await mainPage.evaluate(async () => {
+      await window.echooDesktop.setRoomState({
+        active: true,
+        mode: 'listener',
+        kind: 'replay',
+        title: 'Playwright replay',
+        playing: true,
+        canTogglePlay: true,
+        keepAwake: false,
+      });
+      const current = await window.echooDesktop.getRoomState();
+      await window.echooDesktop.setRoomState({
+        active: false,
+        mode: 'idle',
+        kind: 'idle',
+      });
+      return current;
+    });
+
+    expect(state).toMatchObject({
+      active: true,
+      mode: 'listener',
+      kind: 'replay',
+      title: 'Playwright replay',
+      playing: true,
+      canTogglePlay: true,
+      keepAwake: false,
+    });
+  });
+
+  test('streams recording chunks to the managed Windows library and commits atomically', async () => {
+    const result = await mainPage.evaluate(async () => {
+      const filename = `playwright-${Date.now()}.mp3`;
+      const chunkSize = 256 * 1024;
+      const totalBytes = chunkSize * 2;
+
+      const started = await window.echooDesktop.beginRecordingSave({
+        filename,
+        format: 'mp3',
+        automatic: true,
+        totalBytes,
+      });
+      if (!started?.sessionId) return { started };
+
+      const first = new Uint8Array(chunkSize);
+      const second = new Uint8Array(chunkSize);
+      first.fill(0x45);
+      second.fill(0x43);
+
+      const writeOne = await window.echooDesktop.appendRecordingChunk(started.sessionId, first);
+      const writeTwo = await window.echooDesktop.appendRecordingChunk(started.sessionId, second);
+      const finished = await window.echooDesktop.finishRecordingSave(started.sessionId);
+
+      // CI runners are ephemeral, but best-effort cleanup keeps local developer
+      // E2E runs from accumulating test recordings.
+      const cleanup = finished?.saved && finished?.path
+        ? await window.echooDesktop.trashRecording(finished.path).catch(() => null)
+        : null;
+
+      return { started, writeOne, writeTwo, finished, cleanup, totalBytes };
+    });
+
+    expect(result.started?.sessionId).toBeTruthy();
+    expect(result.writeOne?.written).toBe(true);
+    expect(result.writeTwo?.written).toBe(true);
+    expect(result.writeTwo?.bytesWritten).toBe(result.totalBytes);
+    expect(result.finished?.saved).toBe(true);
+    expect(result.finished?.path).toMatch(/Echoo Recordings/i);
+    expect(result.finished?.path).toMatch(/\.mp3$/i);
+  });
+
   test('has no document-level horizontal overflow and honors reduced motion', async () => {
     const geometry = await mainPage.evaluate(() => ({
       viewport: window.innerWidth,
