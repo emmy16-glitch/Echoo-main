@@ -372,6 +372,24 @@ const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = n
           ? current
           : ''
       );
+
+      const currentMonitoring = getEchooMixerState().monitoring;
+      const selectedOutputId = String(currentMonitoring?.outputDeviceId || '');
+      if (
+        selectedOutputId &&
+        selectedOutputId !== 'default' &&
+        nextOutputs.length > 0 &&
+        !nextOutputs.some((device) => device.deviceId === selectedOutputId)
+      ) {
+        await setMonitorOutputDevice('', 'System default');
+        setMonitorDeviceId('');
+        setDeviceRecovery({
+          tone: 'success',
+          message: 'Monitoring output disconnected. Echoo switched monitoring to the Windows system default.',
+        });
+        window.clearTimeout(deviceRecoveryTimerRef.current);
+        deviceRecoveryTimerRef.current = window.setTimeout(() => setDeviceRecovery(null), 4500);
+      }
     } catch {
       setInputs([]);
       setOutputs([]);

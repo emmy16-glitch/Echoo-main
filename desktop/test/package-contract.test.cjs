@@ -229,3 +229,11 @@ test('splash uses the real Echoo mark with restrained non-looping motion', () =>
   assert.match(splashCss, /prefers-reduced-motion:\s*reduce/);
   assert.doesNotMatch(splashCss, /infinite/);
 });
+
+
+test('Creator audio recovery preserves default-device intent and safely falls back monitoring output', () => {
+  assert.match(mixerServiceSource, /requestedDeviceId: deviceId/);
+  assert.match(mixerServiceSource, /channelId === 'host'[\s\S]{0,180}current\.requestedDeviceId/);
+  assert.match(creatorMixerSource, /Monitoring output disconnected\. Echoo switched monitoring to the Windows system default\./);
+  assert.match(creatorMixerSource, /setMonitorOutputDevice\('', 'System default'\)/);
+});

@@ -592,6 +592,10 @@ const connectStream = async (channelId, stream, sourceLabel, deviceId = '') => {
     // that declares two channels retains independent L/R measurements.
     isMono: Number(audioTrack.getSettings?.().channelCount || 0) === 1,
     audioTrack,
+    // Keep selection intent separate from the physical device Chromium chose.
+    // Empty requestedDeviceId means "Windows system default"; recovery can
+    // therefore follow a changed default instead of retrying stale hardware.
+    requestedDeviceId: deviceId,
     deviceId: deviceId || audioTrack.getSettings?.().deviceId || '',
   });
 
@@ -600,7 +604,13 @@ const connectStream = async (channelId, stream, sourceLabel, deviceId = '') => {
     if (!current || current.audioTrack !== audioTrack) return;
 
     const recoveryDeviceId = String(
-      current.deviceId || channels[channelId]?.deviceId || audioTrack.getSettings?.().deviceId || ''
+      channelId === 'host'
+        ? current.requestedDeviceId ?? ''
+        : current.requestedDeviceId ||
+          current.deviceId ||
+          channels[channelId]?.deviceId ||
+          audioTrack.getSettings?.().deviceId ||
+          ''
     );
     disconnectSource(channelId, false);
     applyMixState();
