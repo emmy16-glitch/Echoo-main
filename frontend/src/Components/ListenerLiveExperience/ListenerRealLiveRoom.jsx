@@ -705,9 +705,11 @@ const ListenerRealLiveRoom = () => {
               ? 'Audio live'
               : hasProgramTrack
                 ? 'Paused'
-                : ['recovering_audio', 'waiting_for_program'].includes(audioState)
-                  ? 'Waiting for creator'
-                  : connectionStatus === 'connecting' || show.mediaState === 'creator_connecting'
+                : audioState === 'recovering_audio'
+                  ? 'Recovering audio…'
+                  : audioState === 'waiting_for_program'
+                    ? 'Waiting for creator'
+                    : connectionStatus === 'connecting' || show.mediaState === 'creator_connecting'
                     ? 'Creator connecting'
                     : connectionStatus === 'connected' || show.mediaState === 'waiting_for_creator'
                       ? 'Waiting for creator'
@@ -986,7 +988,7 @@ const ListenerRealLiveRoom = () => {
               Listening as a guest.{' '}
               <button
                 type="button"
-                className="listener-v2-room-back"
+                className="listener-v2-room-notice-action"
                 onClick={() => navigate({ pathname: '/', search: '?mode=login' })}
               >
                 Sign in to chat and follow

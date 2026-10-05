@@ -266,6 +266,26 @@ test('all listener destinations fit the required viewport widths', async ({ page
   }
 });
 
+test('guest live chat CTA stays readable inside the mobile sheet', async ({ page }) => {
+  await page.goto('/listen/live/507f1f77bcf86cd799439031');
+  await page.setViewportSize({ width: 320, height: 700 });
+
+  const chatToggle = page.locator('.listener-v2-room-chat-toggle');
+  await expect(chatToggle).toBeVisible();
+  await chatToggle.click();
+
+  const signIn = page.getByRole('button', { name: 'Sign in to chat and follow', exact: true });
+  await expect(signIn).toBeVisible();
+  const ctaBox = await signIn.boundingBox();
+  const sheetBox = await page.locator('.listener-v2-room-chat').boundingBox();
+  expect(ctaBox).not.toBeNull();
+  expect(sheetBox).not.toBeNull();
+  expect(ctaBox.x, 'guest CTA starts inside the chat sheet').toBeGreaterThanOrEqual(sheetBox.x);
+  expect(ctaBox.x + ctaBox.width, 'guest CTA ends inside the chat sheet').toBeLessThanOrEqual(sheetBox.x + sheetBox.width);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+
+});
+
 test('live room stays inside the viewport from 320px mobile through desktop', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-1440', 'Run the live-room width sweep once.');
   test.setTimeout(90_000);
