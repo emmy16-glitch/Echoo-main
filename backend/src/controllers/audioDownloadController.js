@@ -1,6 +1,19 @@
 import fs from 'fs';
 import path from 'path';
 
+const canonicalDownloadName = (audio) => {
+  const stored = path.basename(String(audio?.filename || audio?.fileKey || ''));
+  const storedExtension = path.extname(stored);
+  const original = path.basename(String(audio?.originalName || 'Echoo recording'));
+  const originalExtension = path.extname(original);
+  const stem = path.basename(original, originalExtension || undefined)
+    .replace(/[\\/:*?"<>|]+/g, '-')
+    .trim()
+    .slice(0, 140) || 'Echoo recording';
+
+  return `${stem}${storedExtension || originalExtension || '.audio'}`;
+};
+
 export async function downloadAuthorizedAudio(req, res, next) {
   try {
     const audio = req.audioAccessRecord;
@@ -14,7 +27,7 @@ export async function downloadAuthorizedAudio(req, res, next) {
     }
 
     const storedFilename = path.basename(String(audio.filename || audio.fileKey || ''));
-    const downloadFilename = path.basename(String(audio.originalName || storedFilename || 'Echoo recording.mp3'));
+    const downloadFilename = canonicalDownloadName(audio);
     if (!storedFilename) {
       return res.status(404).json({
         error: {
