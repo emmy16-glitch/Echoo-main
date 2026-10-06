@@ -253,15 +253,17 @@ test('native recording actions also trust exports selected through the Windows S
 });
 
 
-test('splash uses the real Echoo mark with restrained non-looping motion', () => {
+test('splash uses the real Echoo mark as the restrained startup motion', () => {
   const splashHtml = fs.readFileSync(path.join(desktopRoot, 'splash.html'), 'utf8');
   const splashCss = fs.readFileSync(path.join(desktopRoot, 'src', 'splash.css'), 'utf8');
   assert.match(splashHtml, /echoo-mark-primary/);
   assert.match(splashHtml, /echoo-mark-echo/);
-  assert.match(splashHtml, /Starting Echoo/);
+  assert.doesNotMatch(splashHtml, /Starting Echoo/);
   assert.doesNotMatch(splashHtml, /progress/i);
   assert.match(splashCss, /prefers-reduced-motion:\s*reduce/);
-  assert.doesNotMatch(splashCss, /infinite/);
+  assert.match(splashCss, /1\.35s[\s\S]*infinite alternate/);
+  assert.match(mainSource, /width: 240,[\s\S]{0,100}height: 190,[\s\S]{0,120}transparent: true/);
+  assert.match(mainSource, /backgroundColor: '#00000000'/);
 });
 
 

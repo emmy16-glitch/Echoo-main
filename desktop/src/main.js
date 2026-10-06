@@ -13,7 +13,6 @@ const {
   nativeImage,
   powerSaveBlocker,
   screen,
-  systemPreferences,
   protocol,
   desktopCapturer,
   session,
@@ -601,16 +600,17 @@ function scheduleWindowStateSave(window) {
 function createSplashWindow() {
   if (!app.isPackaged || splashWindow || !fs.existsSync(SPLASH_PAGE)) return null;
   splashWindow = new BrowserWindow({
-    width: 400,
-    height: 250,
+    width: 240,
+    height: 190,
     frame: false,
-    transparent: false,
+    transparent: true,
+    hasShadow: false,
     resizable: false,
     show: false,
     center: true,
     skipTaskbar: true,
     alwaysOnTop: true,
-    backgroundColor: '#f7f9fc',
+    backgroundColor: '#00000000',
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -626,33 +626,7 @@ function createSplashWindow() {
 function closeSplashWindow() {
   const current = splashWindow;
   if (!current || current.isDestroyed()) return;
-
-  let richMotion = true;
-  try {
-    richMotion = systemPreferences.getAnimationSettings().shouldRenderRichAnimation !== false;
-  } catch {
-    // Older Electron versions may not expose Windows animation settings.
-  }
-
-  if (!richMotion) {
-    current.close();
-    return;
-  }
-
-  let opacity = 1;
-  const fade = setInterval(() => {
-    if (current.isDestroyed()) {
-      clearInterval(fade);
-      return;
-    }
-    opacity -= 0.2;
-    if (opacity <= 0) {
-      clearInterval(fade);
-      current.close();
-      return;
-    }
-    current.setOpacity(opacity);
-  }, 24);
+  current.close();
 }
 
 function revealMainWindow() {

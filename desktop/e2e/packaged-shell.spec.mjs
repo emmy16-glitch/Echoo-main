@@ -85,23 +85,18 @@ test.describe('packaged Echoo Windows shell', () => {
   });
 
   test('keeps APP_READY idempotent after the main window is visible', async () => {
-    const before = await electronApp.evaluate(({ BrowserWindow }) =>
-      BrowserWindow.getAllWindows().map((window) => ({
-        visible: window.isVisible(),
-        url: window.webContents.getURL(),
-      }))
-    );
-
     await mainPage.evaluate(() => {
       window.echooDesktop.appReady();
       window.echooDesktop.appReady();
     });
 
-    await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) =>
-      BrowserWindow.getAllWindows().filter((window) => window.isVisible()).length
-    )).toBe(1);
-    expect(before.filter((window) => window.visible)).toHaveLength(1);
-    expect(before.some((window) => window.url.includes('splash.html'))).toBe(false);
+    await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => {
+      const windows = BrowserWindow.getAllWindows();
+      return {
+        visible: windows.filter((window) => window.isVisible()).length,
+        splash: windows.filter((window) => window.webContents.getURL().includes('splash.html')).length,
+      };
+    })).toEqual({ visible: 1, splash: 0 });
   });
 
   test('applies the cold-start echoo:// route inside the local package', async () => {
