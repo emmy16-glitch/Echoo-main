@@ -189,7 +189,7 @@ const CreatorBroadcastAudioSurface = ({ variant = 'setup', onStateChange, showMo
           </select>
         )}
         {channelId === 'media' && (
-          <input ref={mediaFileInput} className="ecbs-file-input" type="file" accept="audio/*" onChange={chooseMediaFile} />
+          <input ref={mediaFileInput} className="ecbs-file-input" type="file" accept="audio/*,.mp3,.mpeg,.mpga,.mp2,.mpa,.m4a,.aac,.wav,.ogg,.oga,.opus,.flac,.webm,.weba" onChange={chooseMediaFile} />
         )}
         <AudioMeter level={channel.level} label={`${SOURCE_META[channelId].label} level`} />
         {channel.connected ? (
