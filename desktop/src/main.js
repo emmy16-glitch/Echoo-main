@@ -940,14 +940,26 @@ async function completePackagedSmokeTest() {
       desktopBridge: window.echooDesktop?.isDesktop === true,
       devicePixelRatio: window.devicePixelRatio || 1,
       viewportWidth: window.innerWidth || 0,
-      documentWidth: document.documentElement?.scrollWidth || 0
+      viewportHeight: window.innerHeight || 0,
+      documentWidth: document.documentElement?.scrollWidth || 0,
+      screenAvailWidth: window.screen?.availWidth || 0,
+      screenAvailHeight: window.screen?.availHeight || 0
     }))()`);
     const routeVerified = !SECOND_INSTANCE_SMOKE_TEST
       || result?.hash === `#${smokeSecondInstanceRoute}`;
     const scaleLayoutVerified = !DISPLAY_SCALE_SMOKE_TEST
       || (
         Number(result?.viewportWidth) > 0 &&
-        Number(result?.documentWidth) <= Number(result?.viewportWidth) + 2
+        Number(result?.viewportHeight) > 0 &&
+        Number(result?.documentWidth) <= Number(result?.viewportWidth) + 2 &&
+        (
+          Number(result?.screenAvailWidth) <= 0 ||
+          Number(result?.viewportWidth) <= Number(result?.screenAvailWidth) + 2
+        ) &&
+        (
+          Number(result?.screenAvailHeight) <= 0 ||
+          Number(result?.viewportHeight) <= Number(result?.screenAvailHeight) + 2
+        )
       );
     const passed = result?.protocol === `${PACKAGED_APP_SCHEME}:`
       && result?.identity === 'echoo-frontend'
