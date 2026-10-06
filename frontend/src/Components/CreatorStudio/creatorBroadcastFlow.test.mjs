@@ -11,6 +11,7 @@ test('OFF AIR and LIVE share one hero contract with one live badge and a live-on
   assert.match(source, /OFF AIR/);
   assert.match(source, /heroState === 'live' \?/);
   assert.match(source, /YOU&apos;RE BROADCASTING NOW\./);
+  assert.match(source, /index === 0 \? 'is-primary' : 'is-repeat'/);
   assert.equal((source.match(/<i \/> LIVE<\/span>/g) || []).length, 1);
   assert.match(source, /heroState === 'ending' \?/);
 });
