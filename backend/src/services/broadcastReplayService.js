@@ -273,19 +273,22 @@ const wavHeader = ({ dataBytes, sampleRate = 48000, channels = 2, bitDepth = 24 
 };
 
 const assembleChunksToWav = async ({ chunks, outputPath }) => {
-  const validated = [];
   let totalPcmBytes = 0;
 
+  // First pass validates and sizes each bounded chunk without retaining the
+  // full recording in memory.
   for (const chunk of chunks) {
     const buffer = await fs.readFile(chunk.filePath);
-    const pcm = pcmFromWavChunk(buffer);
-    validated.push(pcm);
-    totalPcmBytes += pcm.length;
+    totalPcmBytes += pcmFromWavChunk(buffer).length;
   }
 
   await fs.writeFile(outputPath, wavHeader({ dataBytes: totalPcmBytes }));
-  for (const pcm of validated) {
-    await fs.appendFile(outputPath, pcm);
+
+  // Second pass appends one chunk at a time, so multi-hour recovery remains
+  // memory-bounded even when the fallback WAV is several gigabytes.
+  for (const chunk of chunks) {
+    const buffer = await fs.readFile(chunk.filePath);
+    await fs.appendFile(outputPath, pcmFromWavChunk(buffer));
   }
 
   return {
@@ -363,14 +366,26 @@ export async function finalizeBroadcastReplay({ broadcastId, creatorId, expected
   const gate = new Promise((resolve) => { release = resolve; });
   locks.set(bid, gate);
   try {
-    return await finalizeInner({ broadcastId: bid, creatorId, expectedChunkCount, uploadErrors });
+    return await finalizeInner({
+      broadcastId: bid,
+      creatorId,
+      expectedChunkCount,
+      uploadErrors,
+      toolingAvailable: recordingTooling.ok,
+    });
   } finally {
     locks.delete(bid);
     release();
   }
 }
 
-async function finalizeInner({ broadcastId, creatorId, expectedChunkCount, uploadErrors }) {
+async function finalizeInner({
+  broadcastId,
+  creatorId,
+  expectedChunkCount,
+  uploadErrors,
+  toolingAvailable = true,
+}) {
   const fileKey = replayFileKey(broadcastId);
 
   // Idempotency first: End Broadcast retries, double complete posts and page
@@ -475,7 +490,7 @@ async function finalizeInner({ broadcastId, creatorId, expectedChunkCount, uploa
   }
 
   const bitrate = mp3Bitrate();
-  const fallbackToWav = !recordingTooling.ok;
+  const fallbackToWav = !toolingAvailable;
   const extension = fallbackToWav ? 'wav' : 'mp3';
   const mimeType = fallbackToWav ? 'audio/wav' : 'audio/mpeg';
   const filename = `replay-${broadcastId}.${extension}`;
