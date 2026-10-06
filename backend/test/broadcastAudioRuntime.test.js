@@ -331,6 +331,19 @@ test('uploaded file signature checks reject extension-only spoofing', () => {
     matchesUploadedFileSignature({ originalname: 'fake.wav' }, Buffer.from('not-wave-data')),
     false
   );
+
+  const mpegFrame = Buffer.from([0xff, 0xfb, 0x90, 0x64, 0x00, 0x00]);
+  for (const filename of ['voice.mpeg', 'voice.mpga', 'voice.mp2', 'voice.mpa', 'voice.mp3']) {
+    assert.equal(
+      matchesUploadedFileSignature({ originalname: filename }, mpegFrame),
+      true,
+      `${filename} should be accepted as MPEG-family audio`
+    );
+  }
+  assert.equal(
+    matchesUploadedFileSignature({ originalname: 'fake.mpeg' }, Buffer.from('not-mpeg-audio')),
+    false
+  );
   assert.equal(
     matchesUploadedFileSignature({ originalname: 'cover.png' }, png),
     true
