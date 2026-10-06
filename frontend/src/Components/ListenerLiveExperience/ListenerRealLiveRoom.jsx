@@ -172,7 +172,25 @@ const ListenerRealLiveRoom = () => {
   const statusRef = useRef(show?.status || '');
   const roomLoadGenerationRef = useRef(0);
   const chatLoadGenerationRef = useRef(0);
+  const shareMessageTimerRef = useRef(null);
   const [chatOpen, setChatOpen] = useState(false);
+
+  const showShareMessage = useCallback((message, duration = 1800) => {
+    if (shareMessageTimerRef.current !== null) {
+      window.clearTimeout(shareMessageTimerRef.current);
+    }
+    setShareMessage(message);
+    shareMessageTimerRef.current = window.setTimeout(() => {
+      setShareMessage('');
+      shareMessageTimerRef.current = null;
+    }, duration);
+  }, []);
+
+  useEffect(() => () => {
+    if (shareMessageTimerRef.current !== null) {
+      window.clearTimeout(shareMessageTimerRef.current);
+    }
+  }, []);
 
   useEffect(() => {
     if (!chatOpen) return undefined;
@@ -219,6 +237,10 @@ const ListenerRealLiveRoom = () => {
     setLiked(false);
     setSavedMomentId('');
     setActionPending('');
+    if (shareMessageTimerRef.current !== null) {
+      window.clearTimeout(shareMessageTimerRef.current);
+      shareMessageTimerRef.current = null;
+    }
     setShareMessage('');
     setRealtimeState('connecting');
     setAudioState('connecting');
@@ -593,8 +615,8 @@ const ListenerRealLiveRoom = () => {
       if (kind === 'like') await apiRequest(`/broadcasts/${encodeURIComponent(broadcastId)}/like`, { method: wasLiked ? 'DELETE' : 'PUT' });
       else if (savedMomentId) { await savedMomentService.remove(savedMomentId); setSavedMomentId(''); }
       else { const response = await savedMomentService.create({ broadcastId, timestampMs: 0 }); setSavedMomentId(response.data.id); }
-      setShareMessage(kind === 'like' ? (wasLiked ? 'Like removed' : 'Liked') : (savedMomentId ? 'Removed from Saved' : 'Saved to Library'));
-    } catch (error) { if (kind === 'like') setLiked(wasLiked); setShareMessage(error.message || 'Could not update. Try again.'); }
+      showShareMessage(kind === 'like' ? (wasLiked ? 'Like removed' : 'Liked') : (savedMomentId ? 'Removed from Saved' : 'Saved to Library'));
+    } catch (error) { if (kind === 'like') setLiked(wasLiked); showShareMessage(error.message || 'Could not update. Try again.'); }
     finally { setActionPending(''); }
   };
 
@@ -611,14 +633,12 @@ const ListenerRealLiveRoom = () => {
   const openLiveInBrowser = async () => {
     const url = publicLiveUrl();
     if (!url) {
-      setShareMessage('The public live page is unavailable right now');
-      window.setTimeout(() => setShareMessage(''), 1800);
+      showShareMessage('The public live page is unavailable right now');
       return;
     }
     const result = await openDesktopExternalUrl(url);
     if (!result?.opened) {
-      setShareMessage('Could not open the public live page');
-      window.setTimeout(() => setShareMessage(''), 1800);
+      showShareMessage('Could not open the public live page');
     }
   };
 
@@ -628,23 +648,21 @@ const ListenerRealLiveRoom = () => {
     // desktop without a configured origin) cannot produce a shareable link.
     const url = publicLiveUrl();
     if (!url) {
-      setShareMessage('Open this room in a browser to share its link');
-      window.setTimeout(() => setShareMessage(''), 1800);
+      showShareMessage('Open this room in a browser to share its link');
       return;
     }
     try {
       if (!copyOnly && navigator.share) {
         await navigator.share({ title: show?.title || 'Live on Echoo', url });
-        setShareMessage('Shared');
+        showShareMessage('Shared');
       } else {
         await copyTextToClipboard(url);
-        setShareMessage('Live link copied');
+        showShareMessage('Live link copied');
       }
     } catch (error) {
       if (error?.name === 'AbortError') return;
-      setShareMessage('Could not share this live link');
+      showShareMessage('Could not share this live link');
     }
-    window.setTimeout(() => setShareMessage(''), 1800);
   };
 
   const toggleFollow = async () => {
@@ -657,8 +675,7 @@ const ListenerRealLiveRoom = () => {
     // A real follow must have a durable station identity. Never make the UI
     // look successful when there is nothing the backend can persist.
     if (!show?.stationId) {
-      setShareMessage('Follow is unavailable for this broadcast');
-      window.setTimeout(() => setShareMessage(''), 1800);
+      showShareMessage('Follow is unavailable for this broadcast');
       return;
     }
 

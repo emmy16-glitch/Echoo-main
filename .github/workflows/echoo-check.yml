@@ -39,6 +39,8 @@ jobs:
         run: npm run test:realtime-identity
       - name: Verify Listener playback resource cleanup
         run: npm run test:player-resources
+      - name: Verify packaged Listener route state
+        run: npm run test:listener-route
       - run: npm run build
 
   frontend-e2e-critical:

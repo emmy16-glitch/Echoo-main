@@ -654,6 +654,8 @@ test('HashRouter-sensitive screens use router state and public web URLs', () => 
   assert.match(listenerSettingsSource, /new URLSearchParams\(routerLocation\.search\)/);
   assert.doesNotMatch(listenerSettingsSource, /window\.location\.search/);
   assert.match(audioDetailSource, /getPublicAppUrl/);
+  assert.match(audioDetailSource, /requestedPlaybackTime\(location\.search\)/);
+  assert.doesNotMatch(audioDetailSource, /window\.location\.search/);
   assert.match(audioDetailSource, /copyTextToClipboard\(publicUrl\)/);
   assert.doesNotMatch(audioDetailSource, /url:\s*window\.location\.href/);
 });
