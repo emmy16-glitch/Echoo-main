@@ -1253,7 +1253,12 @@ const CreatorLiveConnectedWorkspace = ({
                   {[0, 1].map((group) => (
                     <div className="ec2-live-ticker-group" key={group}>
                       {Array.from({ length: 4 }, (_, index) => (
-                        <span key={index}>YOU&apos;RE BROADCASTING NOW.</span>
+                        <span
+                          className={index === 0 ? 'is-primary' : 'is-repeat'}
+                          key={index}
+                        >
+                          YOU&apos;RE BROADCASTING NOW.
+                        </span>
                       ))}
                     </div>
                   ))}

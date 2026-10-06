@@ -5,14 +5,22 @@ import test from 'node:test';
 const read = (relativePath) => readFile(new URL(relativePath, import.meta.url), 'utf8');
 
 test('OFF AIR and LIVE share one hero contract with one live badge and a live-only ticker', async () => {
-  const source = await read('./CreatorLiveConnectedWorkspace.jsx');
+  const [source, css] = await Promise.all([
+    read('./CreatorLiveConnectedWorkspace.jsx'),
+    read('./CreatorBroadcastApproved.css'),
+  ]);
 
   assert.match(source, /READY TO BROADCAST/);
   assert.match(source, /OFF AIR/);
   assert.match(source, /heroState === 'live' \?/);
   assert.match(source, /YOU&apos;RE BROADCASTING NOW\./);
+  assert.match(source, /index === 0 \? 'is-primary' : 'is-repeat'/);
   assert.equal((source.match(/<i \/> LIVE<\/span>/g) || []).length, 1);
   assert.match(source, /heroState === 'ending' \?/);
+  assert.match(css, /animation:\s*ec2-live-ticker 48s linear infinite/);
+  assert.match(css, /span\.is-primary[\s\S]*opacity:\s*\.98/);
+  assert.match(css, /span::after[\s\S]*content:\s*'•'/);
+  assert.match(css, /prefers-reduced-motion:[\s\S]*ec2-live-ticker-track[\s\S]*animation:\s*none/);
 });
 
 test('End Broadcast opens an app dialog and only the confirmed action calls the service once', async () => {
