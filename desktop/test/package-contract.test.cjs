@@ -119,6 +119,9 @@ test('Windows release workflow verifies the installed local renderer without ser
   assert.match(windowsWorkflow, /Echoo-Setup-\*-x64\.exe/);
   assert.match(windowsWorkflow, /desktop\/package\.json/);
   assert.match(windowsWorkflow, /\$package\.version/);
+  assert.match(windowsWorkflow, /Invoke-WebRequest/);
+  assert.match(windowsWorkflow, /\$statusCode -ne 404/);
+  assert.doesNotMatch(windowsWorkflow, /gh release view/);
   for (const forbiddenSecret of ['LIVEKIT_API_SECRET', 'JWT_SECRET', 'MONGODB_URI']) {
     assert.equal(windowsWorkflow.includes(forbiddenSecret), false);
   }
