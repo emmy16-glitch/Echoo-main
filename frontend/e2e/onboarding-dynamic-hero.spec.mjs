@@ -210,6 +210,7 @@ test('listener can create a Channel and enter Creator Studio with the same accou
     onboardingCompleted: true,
     creatorProfile: { creatorType: 'individual' },
   });
+  await expect(page.getByText('Loading…', { exact: true })).toHaveCount(0, { timeout: 20_000 });
   await expect(page.getByRole('button', { name: 'Broadcast', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Channel', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Recordings', exact: true })).toBeVisible();

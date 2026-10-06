@@ -160,7 +160,7 @@ test('reset-password completion uses the new design, both eye toggles and return
     });
   });
 
-  await page.goto('/reset-password?token=reset-token');
+  await page.goto('/reset-password?token=reset-token', { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('heading', { name: 'Choose a new password' })).toBeVisible();
 
   const password = page.getByRole('textbox', { name: 'New password', exact: true });
@@ -187,7 +187,7 @@ test('reset-password completion uses the new design, both eye toggles and return
   await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible({ timeout: 4_000 });
   await expect(page).toHaveURL(/\/login$/);
 
-  await page.goto('/reset-password');
+  await page.goto('/reset-password', { waitUntil: 'domcontentloaded' });
   await expect(page.getByText('This reset link is invalid or incomplete.')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Update password' })).toBeDisabled();
 
