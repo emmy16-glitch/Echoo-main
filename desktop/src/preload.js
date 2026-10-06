@@ -21,6 +21,7 @@ contextBridge.exposeInMainWorld('echooDesktop', {
 
   getAppInfo: () => ipcRenderer.invoke('echoo:get-app-info'),
   reload: () => ipcRenderer.invoke('echoo:reload'),
+  restart: () => ipcRenderer.invoke('echoo:restart'),
   openLogsFolder: () => ipcRenderer.invoke('echoo:open-logs-folder'),
   openExternalWebUrl: (url) =>
     ipcRenderer.invoke('echoo:open-external-web-url', String(url || '').slice(0, 2048)),

@@ -23,6 +23,7 @@ const fs = require('node:fs');
 const tcpNet = require('node:net');
 const crypto = require('node:crypto');
 const { fileURLToPath, pathToFileURL } = require('node:url');
+const { performance } = require('node:perf_hooks');
 const log = require('electron-log');
 const { autoUpdater } = require('electron-updater');
 const {
@@ -41,6 +42,20 @@ const {
 log.transports.file.level = 'info';
 log.transports.console.level = app.isPackaged ? 'warn' : 'debug';
 autoUpdater.logger = log;
+
+const desktopStartupStartedAt = performance.now();
+const desktopStartupEvents = [];
+
+function logStartupEvent(event, details = '') {
+  const elapsedMs = Math.max(0, Math.round(performance.now() - desktopStartupStartedAt));
+  const entry = { event, elapsedMs };
+  desktopStartupEvents.push(entry);
+  const suffix = details ? ` ${details}` : '';
+  log.info(`[desktop-startup] ${event} +${elapsedMs}ms${suffix}`);
+  return entry;
+}
+
+logStartupEvent('process-start');
 
 // Keep the installed/runtime product identity user-facing while the internal
 // npm package name remains echoo-desktop.
@@ -128,6 +143,15 @@ const configuredStartupReadyTimeout = Number(process.env.ECHOO_STARTUP_READY_TIM
 const STARTUP_READY_TIMEOUT_MS = Number.isFinite(configuredStartupReadyTimeout)
   ? Math.max(1000, configuredStartupReadyTimeout)
   : 9000;
+const STARTUP_TEST_MODE = app.isPackaged
+  ? String(process.env.ECHOO_DESKTOP_STARTUP_TEST || '')
+  : '';
+const STARTUP_TEST_APP_READY_NEVER = STARTUP_TEST_MODE === 'never-ready';
+const configuredAppReadyDelay = Number(process.env.ECHOO_TEST_APP_READY_DELAY_MS || '0');
+const STARTUP_TEST_APP_READY_DELAY_MS = STARTUP_TEST_MODE === 'delayed-ready'
+  && Number.isFinite(configuredAppReadyDelay)
+  ? Math.min(15_000, Math.max(0, configuredAppReadyDelay))
+  : 0;
 
 // Origins the app window itself is allowed to navigate to. Everything else
 // (chat links, profile links, help URLs) opens in the OS default browser.
@@ -224,6 +248,11 @@ let rendererCrashed = false;
 let mainWindowNativeReady = false;
 let mainWindowRendererReady = false;
 let startupReadyTimer = null;
+let delayedAppReadyTimer = null;
+let rendererLoadGeneration = 0;
+let rendererLifecyclePhase = 'idle';
+let mainWindowVisibleGeneration = -1;
+let postStartupTasksScheduled = false;
 let isQuitting = false;
 let quitFinalizing = false;
 let quitTimer = null;
@@ -598,8 +627,11 @@ function scheduleWindowStateSave(window) {
 // Window
 // ---------------------------------------------------------------------------
 function createSplashWindow() {
-  if (!app.isPackaged || splashWindow || !fs.existsSync(SPLASH_PAGE)) return null;
-  splashWindow = new BrowserWindow({
+  if (!app.isPackaged || !fs.existsSync(SPLASH_PAGE)) return null;
+  if (splashWindow && !splashWindow.isDestroyed()) return splashWindow;
+  splashWindow = null;
+
+  const createdSplash = new BrowserWindow({
     width: 240,
     height: 190,
     frame: false,
@@ -609,7 +641,7 @@ function createSplashWindow() {
     show: false,
     center: true,
     skipTaskbar: true,
-    alwaysOnTop: true,
+    alwaysOnTop: false,
     backgroundColor: '#00000000',
     webPreferences: {
       contextIsolation: true,
@@ -617,27 +649,66 @@ function createSplashWindow() {
       sandbox: true,
     },
   });
-  splashWindow.once('ready-to-show', () => splashWindow?.show());
-  splashWindow.on('closed', () => { splashWindow = null; });
-  void splashWindow.loadFile(SPLASH_PAGE);
-  return splashWindow;
+  splashWindow = createdSplash;
+  logStartupEvent('splash-created');
+  createdSplash.once('ready-to-show', () => {
+    if (createdSplash !== splashWindow || createdSplash.isDestroyed()) return;
+    createdSplash.show();
+    logStartupEvent('splash-visible');
+  });
+  createdSplash.on('closed', () => {
+    if (splashWindow === createdSplash) splashWindow = null;
+  });
+  void createdSplash.loadFile(SPLASH_PAGE).catch((error) => {
+    log.warn('[echoo-desktop] splash failed to load:', error.message);
+    if (splashWindow === createdSplash) destroySplashWindow('load-failed');
+  });
+  return createdSplash;
 }
 
-function closeSplashWindow() {
+function destroySplashWindow(reason = 'complete') {
   const current = splashWindow;
-  if (!current || current.isDestroyed()) return;
-  current.close();
+  splashWindow = null;
+  if (!current) return;
+  if (!current.isDestroyed()) current.destroy();
+  logStartupEvent('splash-destroyed', `reason=${reason}`);
+}
+
+function clearStartupReadyTimeout() {
+  if (!startupReadyTimer) return;
+  clearTimeout(startupReadyTimer);
+  startupReadyTimer = null;
+}
+
+function clearDelayedAppReady() {
+  if (!delayedAppReadyTimer) return;
+  clearTimeout(delayedAppReadyTimer);
+  delayedAppReadyTimer = null;
+}
+
+function schedulePostStartupTasks() {
+  if (postStartupTasksScheduled) return;
+  postStartupTasksScheduled = true;
+  setImmediate(() => {
+    createTray();
+    checkForUpdates();
+  });
 }
 
 function revealMainWindow() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
-  if (startupReadyTimer) {
-    clearTimeout(startupReadyTimer);
-    startupReadyTimer = null;
-  }
+  const firstRevealForGeneration = mainWindowVisibleGeneration !== rendererLoadGeneration;
+  clearStartupReadyTimeout();
+  clearDelayedAppReady();
   mainWindow.show();
   mainWindow.focus();
-  closeSplashWindow();
+  if (firstRevealForGeneration) {
+    mainWindowVisibleGeneration = rendererLoadGeneration;
+    logStartupEvent('main-visible', `phase=${rendererLifecyclePhase}`);
+  }
+  destroySplashWindow('main-visible');
+  schedulePostStartupTasks();
+  if (firstRevealForGeneration) void completePackagedSmokeTest();
 }
 
 function rendererUrlCanRevealImmediately(url) {
@@ -670,12 +741,14 @@ async function revealMainWindowWhenReady() {
   // bridge. Navigation completion and DOM polling are not app readiness.
 }
 
-function armStartupReadyTimeout() {
+function armStartupReadyTimeout(generation) {
   if (!app.isPackaged) return;
-  if (startupReadyTimer) clearTimeout(startupReadyTimer);
+  clearStartupReadyTimeout();
   startupReadyTimer = setTimeout(() => {
     startupReadyTimer = null;
     if (
+      generation !== rendererLoadGeneration ||
+      rendererLifecyclePhase !== 'renderer-loading' ||
       mainWindowRendererReady ||
       !mainWindow ||
       mainWindow.isDestroyed() ||
@@ -683,6 +756,7 @@ function armStartupReadyTimeout() {
     ) return;
 
     const timedOutUrl = mainWindow.webContents.getURL();
+    logStartupEvent('renderer-ready-timeout', `generation=${generation}`);
     log.error('[echoo-desktop] renderer did not report app-ready before startup timeout');
     void loadOfflinePage('startup-timeout', timedOutUrl).catch((error) => {
       log.error('[echoo-desktop] could not show startup recovery:', error.message);
@@ -714,9 +788,11 @@ function createWindow() {
       sandbox: true, // Compatible: preload only uses contextBridge + ipcRenderer
     },
   });
+  logStartupEvent('main-window-created');
 
   mainWindow.once('ready-to-show', () => {
     mainWindowNativeReady = true;
+    logStartupEvent('native-ready');
     if (savedWindowState.maximized) mainWindow?.maximize();
     if (!app.isPackaged) {
       revealMainWindow();
@@ -798,10 +874,13 @@ function createWindow() {
   // Load failure (missing frontend/dist in prod, dev server down in dev) shows
   // a retry/offline page instead of a blank/broken window.
   mainWindow.webContents.on('did-start-loading', () => {
+    logStartupEvent('renderer-navigation-start', `phase=${rendererLifecyclePhase}`);
     // Chromium's native reload shortcuts and menu roles do not pass through
-    // loadPackagedRenderer(). Put those reloads behind the same splash contract
-    // as cold start so a previous "ready" flag cannot reveal an empty document.
-    if (app.isPackaged) preparePackagedRendererLoad();
+    // loadPackagedRenderer(). Prepare only an unclassified renderer load.
+    // Recovery navigation is explicit and must never recreate the splash.
+    if (app.isPackaged && rendererLifecyclePhase !== 'recovery-loading') {
+      preparePackagedRendererLoad('native-navigation');
+    }
   });
   mainWindow.webContents.on('did-fail-load', (
     _event,
@@ -822,9 +901,9 @@ function createWindow() {
   });
   mainWindow.webContents.on('did-finish-load', () => {
     rendererCrashed = false;
+    logStartupEvent('renderer-load-complete', `phase=${rendererLifecyclePhase}`);
     dispatchPendingDeepLink();
     void revealMainWindowWhenReady();
-    void completePackagedSmokeTest();
   });
 
   mainWindow.webContents.on('render-process-gone', (_event, details = {}) => {
@@ -980,6 +1059,7 @@ async function completePackagedSmokeTest() {
       && result?.desktopBridge === true
       && routeVerified
       && scaleLayoutVerified;
+    const desktopWindows = BrowserWindow.getAllWindows();
     fs.writeFileSync(
       markerPath,
       JSON.stringify({
@@ -987,6 +1067,12 @@ async function completePackagedSmokeTest() {
         smokeMode: SMOKE_TEST_MODE,
         secondInstanceRoute: smokeSecondInstanceRoute,
         offlineNetworkBlocked: OFFLINE_SMOKE_TEST,
+        startupEvents: desktopStartupEvents,
+        browserWindowCount: desktopWindows.length,
+        visibleWindowCount: desktopWindows.filter((window) => window.isVisible()).length,
+        splashWindowCount: desktopWindows.filter(
+          (window) => window.webContents.getURL().includes('splash.html')
+        ).length,
         ...result,
       }, null, 2)
     );
@@ -1003,41 +1089,62 @@ async function completePackagedSmokeTest() {
 // package (the old Windows blank-screen bug), falls back to an inline data-URL
 // page so the window NEVER renders blank white without an explanation.
 function loadOfflinePage(reason, url) {
+  if (app.isPackaged) {
+    rendererLoadGeneration += 1;
+    rendererLifecyclePhase = 'recovery-loading';
+    mainWindowRendererReady = false;
+    clearStartupReadyTimeout();
+    clearDelayedAppReady();
+    destroySplashWindow('recovery');
+    logStartupEvent('recovery-navigation-start', `reason=${String(reason || 'unknown').slice(0, 64)}`);
+  }
   const query = { reason: reason || 'unknown', url: url || (app.isPackaged ? PROD_INDEX : DEV_URL) };
+  const revealRecovery = (loadPromise) => Promise.resolve(loadPromise).then((result) => {
+    if (app.isPackaged && mainWindow && !mainWindow.isDestroyed()) {
+      mainWindowRendererReady = true;
+      rendererLifecyclePhase = 'recovery-visible';
+      logStartupEvent('recovery-ready');
+      revealMainWindow();
+    }
+    return result;
+  });
   if (fs.existsSync(OFFLINE_PAGE)) {
-    return mainWindow?.loadFile(OFFLINE_PAGE, { query });
+    return revealRecovery(mainWindow?.loadFile(OFFLINE_PAGE, { query }));
   }
   log.error(`[echoo-desktop] offline page missing at ${OFFLINE_PAGE} — showing inline fallback`);
   const safeReason = String(query.reason).replace(/[<>&"]/g, '');
-  return mainWindow?.loadURL(
+  return revealRecovery(mainWindow?.loadURL(
     `data:text/html;charset=utf-8,${encodeURIComponent(
       `<!doctype html><title>Echoo needs a connection</title>` +
         `<body style="margin:0;min-height:100vh;display:grid;place-items:center;background:#f8fbff;color:#164f9d;font-family:Arial,sans-serif">` +
         `<main style="text-align:center;max-width:420px"><h1>Echoo could not start.</h1>` +
         `<p>(${safeReason}) Restart the app. If this keeps happening, reinstall from the latest release.</p></main></body>`
     )}`
-  );
+  ));
 }
 
-function preparePackagedRendererLoad() {
+function preparePackagedRendererLoad(trigger = 'explicit') {
   if (!app.isPackaged || !mainWindow || mainWindow.isDestroyed()) return;
-  mainWindowRendererReady = false;
-  armStartupReadyTimeout();
+  if (rendererLifecyclePhase === 'renderer-loading') return rendererLoadGeneration;
 
-  const splash = createSplashWindow();
-  if (splash && !splash.isDestroyed()) {
-    splash.show();
-    splash.focus();
-  }
+  rendererLoadGeneration += 1;
+  rendererLifecyclePhase = 'renderer-loading';
+  mainWindowRendererReady = false;
+  clearDelayedAppReady();
+  armStartupReadyTimeout(rendererLoadGeneration);
+  logStartupEvent('renderer-load-prepared', `generation=${rendererLoadGeneration} trigger=${trigger}`);
+
+  createSplashWindow();
 
   // Never expose an in-between Chromium document while the local React shell
   // is replacing the offline/recovery surface.
   mainWindow.hide();
+  return rendererLoadGeneration;
 }
 
 async function loadPackagedRenderer() {
   if (!mainWindow) return;
-  preparePackagedRendererLoad();
+  preparePackagedRendererLoad('load-packaged-renderer');
   if (!fs.existsSync(PROD_INDEX)) {
     log.error(`[echoo-desktop] packaged renderer missing at ${PROD_INDEX}`);
     await loadOfflinePage('renderer-missing', PROD_INDEX);
@@ -1058,9 +1165,10 @@ function showAndFocusWindow() {
   }
   try {
     if (app.isPackaged && (!mainWindowNativeReady || !mainWindowRendererReady)) {
-      if (splashWindow && !splashWindow.isDestroyed()) {
-        splashWindow.show();
-        splashWindow.focus();
+      // A second launch during startup reuses the canonical splash without
+      // stealing focus back from whichever Windows app the user selected.
+      if (splashWindow && !splashWindow.isDestroyed() && !splashWindow.isVisible()) {
+        splashWindow.showInactive();
       }
       void revealMainWindowWhenReady();
       return;
@@ -1737,10 +1845,35 @@ function registerIpc() {
       log.warn('[echoo-desktop] blocked untrusted IPC caller on echoo:app-ready');
       return;
     }
-    if (mainWindowRendererReady) return;
-    mainWindowRendererReady = true;
-    log.info('[echoo-desktop] renderer reported app-ready');
-    void revealMainWindowWhenReady();
+    if (mainWindowRendererReady || rendererLifecyclePhase !== 'renderer-loading') return;
+
+    const generation = rendererLoadGeneration;
+    logStartupEvent('renderer-app-ready-received', `generation=${generation}`);
+    if (STARTUP_TEST_APP_READY_NEVER) {
+      log.info('[echoo-desktop] startup test is withholding renderer app-ready');
+      return;
+    }
+
+    const acceptRendererReady = () => {
+      delayedAppReadyTimer = null;
+      if (
+        generation !== rendererLoadGeneration ||
+        rendererLifecyclePhase !== 'renderer-loading' ||
+        mainWindowRendererReady
+      ) return;
+      mainWindowRendererReady = true;
+      rendererLifecyclePhase = 'renderer-ready';
+      logStartupEvent('renderer-app-ready', `generation=${generation}`);
+      log.info('[echoo-desktop] renderer reported app-ready');
+      void revealMainWindowWhenReady();
+    };
+
+    if (STARTUP_TEST_APP_READY_DELAY_MS > 0) {
+      if (delayedAppReadyTimer) return;
+      delayedAppReadyTimer = setTimeout(acceptRendererReady, STARTUP_TEST_APP_READY_DELAY_MS);
+      return;
+    }
+    acceptRendererReady();
   });
 
   handleTrustedIpc('echoo:open-external-url', async (_event, url) =>
@@ -1750,6 +1883,15 @@ function registerIpc() {
     openExternalWebUrl(url)
   );
   handleTrustedIpc('echoo:open-logs-folder', async () => openLogsFolder());
+  handleTrustedIpc('echoo:restart', async () => {
+    if (updateRestartBlocked()) {
+      return { restarted: false, busy: true };
+    }
+    app.relaunch();
+    isQuitting = true;
+    app.exit(0);
+    return { restarted: true };
+  });
 
   handleTrustedIpc('echoo:copy-text', async (_event, value) => {
     try {
@@ -2440,6 +2582,7 @@ function installOfflineSmokeNetworkBlocker() {
 // ---------------------------------------------------------------------------
 function startApp() {
   try {
+    logStartupEvent('app-ready');
     if (process.platform === 'win32') {
       // Keep Windows notifications, taskbar grouping, Start-menu identity and
       // protocol activation attached to the same application identity that
@@ -2459,10 +2602,7 @@ function startApp() {
       registerPackagedRendererProtocol();
       installProdCsp();
     }
-    createSplashWindow();
     createWindow();
-    createTray();
-    checkForUpdates();
   } catch (error) {
     log.error('[echoo-desktop] startup failed:', error);
     app.quit();
@@ -2538,10 +2678,9 @@ app.on('before-quit', (event) => {
 });
 
 app.on('will-quit', () => {
-  if (startupReadyTimer) {
-    clearTimeout(startupReadyTimer);
-    startupReadyTimer = null;
-  }
+  clearStartupReadyTimeout();
+  clearDelayedAppReady();
+  destroySplashWindow('app-quit');
   if (windowStateSaveTimer) {
     clearTimeout(windowStateSaveTimer);
     windowStateSaveTimer = null;

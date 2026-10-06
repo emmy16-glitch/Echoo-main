@@ -776,31 +776,58 @@ test('packaged startup uses an explicit, idempotent renderer-ready handshake', (
   assert.match(preloadSource, /appReady:\s*\(\)\s*=>\s*ipcRenderer\.send\(APP_READY_CHANNEL\)/);
   assert.match(rendererSource, /<DesktopAppReady \/>/);
   assert.match(rendererReadySource, /function DesktopAppReady\(\)[\s\S]*echooDesktop\?\.appReady\?\.\(\)/);
-  assert.match(mainSource, /ipcMain\.on\('echoo:app-ready'[\s\S]*if \(mainWindowRendererReady\) return;[\s\S]*revealMainWindowWhenReady/);
+  assert.match(mainSource, /ipcMain\.on\('echoo:app-ready'[\s\S]*rendererLifecyclePhase !== 'renderer-loading'[\s\S]*revealMainWindowWhenReady/);
   assert.doesNotMatch(mainSource, /executeJavaScript\([\s\S]{0,200}#root/);
   assert.match(mainSource, /ECHOO_STARTUP_READY_TIMEOUT_MS \|\| '9000'/);
   assert.match(mainSource, /Number\.isFinite\(configuredStartupReadyTimeout\)/);
   assert.match(mainSource, /loadOfflinePage\('startup-timeout'/);
   assert.match(mainSource, /did-finish-load[\s\S]{0,220}revealMainWindowWhenReady/);
+  assert.match(mainSource, /STARTUP_TEST_MODE === 'delayed-ready'/);
+  assert.match(mainSource, /STARTUP_TEST_APP_READY_NEVER/);
+  assert.match(mainSource, /\[desktop-startup\]/);
 });
 
 test('packaged retry and renderer recovery never expose an in-between Chromium page', () => {
-  assert.match(mainSource, /function preparePackagedRendererLoad\(\)/);
+  assert.match(mainSource, /function preparePackagedRendererLoad\(/);
   assert.match(mainSource, /mainWindowRendererReady = false/);
-  assert.match(mainSource, /const splash = createSplashWindow\(\)/);
+  assert.match(mainSource, /createSplashWindow\(\)/);
   assert.match(mainSource, /mainWindow\.hide\(\)/);
-  assert.match(mainSource, /async function loadPackagedRenderer\(\)[\s\S]{0,180}preparePackagedRendererLoad\(\)/);
+  assert.match(mainSource, /async function loadPackagedRenderer\(\)[\s\S]{0,180}preparePackagedRendererLoad\(/);
+  assert.match(mainSource, /rendererLifecyclePhase = 'recovery-loading'/);
+  assert.match(mainSource, /destroySplashWindow\('recovery'\)/);
+  assert.match(mainSource, /rendererLifecyclePhase !== 'recovery-loading'/);
 });
 
 test('native and keyboard reloads return behind the splash until React mounts again', () => {
   assert.match(mainSource, /webContents\.on\('did-start-loading'/);
-  assert.match(mainSource, /if \(app\.isPackaged\) preparePackagedRendererLoad\(\)/);
+  assert.match(mainSource, /preparePackagedRendererLoad\('native-navigation'\)/);
   assert.match(mainSource, /mainWindowRendererReady = false/);
   assert.match(mainSource, /function reloadMainWindow\(\{ ignoreCache = false \} = \{\}\)/);
   assert.match(mainSource, /if \(updateRestartBlocked\(\)\)/);
   assert.doesNotMatch(mainSource, /\{ role: 'reload' \}/);
   assert.doesNotMatch(mainSource, /\{ role: 'forceReload' \}/);
   assert.match(mainSource, /Echoo cannot reload during active audio or a recording save/);
+});
+
+test('startup splash is one non-topmost window and is destroyed after readiness', () => {
+  assert.match(mainSource, /if \(splashWindow && !splashWindow\.isDestroyed\(\)\) return splashWindow/);
+  assert.match(mainSource, /alwaysOnTop: false/);
+  assert.doesNotMatch(mainSource, /splashWindow\.focus\(\)/);
+  assert.match(mainSource, /function destroySplashWindow\(/);
+  assert.match(mainSource, /splashWindow = null;[\s\S]{0,120}current\.destroy\(\)/);
+  assert.match(mainSource, /destroySplashWindow\('main-visible'\)/);
+});
+
+test('startup recovery offers retry, restart, and diagnostics inside Echoo', () => {
+  const offlineHtml = fs.readFileSync(path.join(desktopRoot, 'offline.html'), 'utf8');
+  const offlineSource = fs.readFileSync(path.join(desktopRoot, 'src', 'offline.js'), 'utf8');
+  const preloadSource = fs.readFileSync(path.join(desktopRoot, 'src', 'preload.js'), 'utf8');
+  assert.match(offlineHtml, /id="retry"/);
+  assert.match(offlineHtml, /id="restart"/);
+  assert.match(offlineHtml, /id="diagnostics"/);
+  assert.match(offlineSource, /echooDesktop\?\.restart\?\.\(\)/);
+  assert.match(preloadSource, /restart:\s*\(\)\s*=>\s*ipcRenderer\.invoke\('echoo:restart'\)/);
+  assert.match(mainSource, /handleTrustedIpc\('echoo:restart'/);
 });
 
 test('desktop window bounds stay inside the active Windows work area at high DPI', () => {
