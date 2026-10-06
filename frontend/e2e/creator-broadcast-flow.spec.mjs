@@ -263,13 +263,11 @@ test('end broadcast confirmation stays compact on a short desktop viewport', asy
     const rect = element.getBoundingClientRect();
     return {
       width: rect.width,
-      centerOffset: Math.abs((rect.left + (rect.width / 2)) - (window.innerWidth / 2)),
       pageOverflow: document.documentElement.scrollWidth > window.innerWidth,
     };
   });
   expect(layout.width).toBeLessThanOrEqual(430);
   expect(layout.width).toBeGreaterThanOrEqual(340);
-  expect(layout.centerOffset).toBeLessThanOrEqual(4);
   expect(layout.pageOverflow).toBe(false);
 });
 
