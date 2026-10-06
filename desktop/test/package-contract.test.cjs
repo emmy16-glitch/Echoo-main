@@ -687,6 +687,9 @@ test('desktop loading and motion remain restrained in the final native CSS layer
   );
   assert.match(desktopRuntimeCss, /Native loading is intentionally quiet/);
   assert.match(desktopRuntimeCss, /\.echoo-skeleton::after[\s\S]{0,100}display:\s*none !important/);
+  assert.match(desktopRuntimeCss, /\.eca-loading span[\s\S]{0,260}animation:\s*none !important/);
+  assert.match(desktopRuntimeCss, /\.creator10-header-loading/);
+  assert.match(desktopRuntimeCss, /html\.echoo-desktop-runtime \*::after[\s\S]{0,180}backdrop-filter:\s*none !important/);
   assert.match(desktopRuntimeCss, /\.echoo-success-pulse[\s\S]{0,140}animation:\s*none !important/);
   assert.match(desktopRuntimeCss, /prefers-reduced-motion:\s*reduce[\s\S]{0,300}animation-duration:\s*0\.001ms !important/);
   assert.match(desktopRuntimeCss, /transition-duration:\s*0\.001ms !important/);
