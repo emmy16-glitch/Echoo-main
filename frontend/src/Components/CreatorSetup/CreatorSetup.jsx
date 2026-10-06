@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   FaBuilding,
   FaUpload,
@@ -13,7 +14,6 @@ import Toast from '../UI/Toast';
 import onboardingService from '../../services/onboardingService';
 import batch2Service from '../../services/batch2Service';
 import { CHANNEL_CATEGORY_OPTIONS } from '../../services/channelCategories';
-import { assignAppRoute } from '../../services/appNavigation';
 
 const categories = CHANNEL_CATEGORY_OPTIONS;
 
@@ -69,6 +69,7 @@ const imageFileFromDataUrl = async (dataUrl) => {
 };
 
 export default function CreatorSetup({ onCreatorReady }) {
+  const navigate = useNavigate();
   const storedUser = useMemo(() => getStoredUser(), []);
   const displayName = storedUser.displayName || storedUser.fullname || storedUser.name || storedUser.username || '';
   const storedCreatorType = storedUser.creatorProfile?.creatorType || storedUser.creatorType || '';
@@ -137,7 +138,7 @@ export default function CreatorSetup({ onCreatorReady }) {
     // setup must make Listener the active experience as well as change the URL;
     // otherwise a refresh/default redirect would immediately reopen setup.
     localStorage.setItem('echooActiveExperience', 'listener');
-    assignAppRoute('/listen');
+    navigate('/listen', { replace: true });
   };
 
   const handleArtwork = async (event) => {
@@ -276,12 +277,11 @@ export default function CreatorSetup({ onCreatorReady }) {
         // ignore storage failures — the in-memory session already succeeded
       }
 
-      onCreatorReady?.(readyUser);
-
-      // CreatorSetup can be rendered by the /creator-studio role guard. A
-      // document navigation makes that guard read the freshly persisted user
-      // rather than retaining the incomplete capability from its first render.
-      assignAppRoute('/creator-studio');
+      if (onCreatorReady) {
+        onCreatorReady(readyUser);
+      } else {
+        navigate('/creator-studio', { replace: true });
+      }
     } catch (error) {
       // A taken Channel name is a field problem, not a toast: point at the
       // name field, keep every entered value, and let retry succeed once the
