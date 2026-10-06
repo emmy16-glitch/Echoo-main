@@ -710,10 +710,12 @@ test('recording saves keep the desktop alive while their window is closed or Qui
 test('packaged startup uses an explicit, idempotent renderer-ready handshake', () => {
   const preloadSource = fs.readFileSync(path.join(desktopRoot, 'src', 'preload.js'), 'utf8');
   const rendererSource = fs.readFileSync(path.resolve(desktopRoot, '..', 'frontend', 'src', 'main.jsx'), 'utf8');
+  const rendererReadySource = fs.readFileSync(path.resolve(desktopRoot, '..', 'frontend', 'src', 'Components', 'System', 'DesktopAppReady.jsx'), 'utf8');
 
   assert.match(mainSource, /async function revealMainWindowWhenReady\(\)/);
   assert.match(preloadSource, /appReady:\s*\(\)\s*=>\s*ipcRenderer\.send\(APP_READY_CHANNEL\)/);
-  assert.match(rendererSource, /function DesktopAppReady\(\)[\s\S]*echooDesktop\?\.appReady\?\.\(\)/);
+  assert.match(rendererSource, /<DesktopAppReady \/>/);
+  assert.match(rendererReadySource, /function DesktopAppReady\(\)[\s\S]*echooDesktop\?\.appReady\?\.\(\)/);
   assert.match(mainSource, /ipcMain\.on\('echoo:app-ready'[\s\S]*if \(mainWindowRendererReady\) return;[\s\S]*revealMainWindowWhenReady/);
   assert.doesNotMatch(mainSource, /executeJavaScript\([\s\S]{0,200}#root/);
   assert.match(mainSource, /ECHOO_STARTUP_READY_TIMEOUT_MS \|\| '9000'/);

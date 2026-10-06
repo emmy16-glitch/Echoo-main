@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.jsx";
 import AppErrorBoundary from "./Components/System/AppErrorBoundary.jsx";
+import DesktopAppReady from "./Components/System/DesktopAppReady.jsx";
 import settingsService from "./services/settingsService.js";
 import { installDesktopLifecycle } from "./services/desktopLifecycle.js";
 import { initializeEchooTheme } from "./theme/themePreference.js";
@@ -59,13 +60,6 @@ import "./styles/echoo-artwork-fit.css";
 import "./Components/Register/auth-reference.css";
 import "./styles/modal-viewport-contract.css";
 import "./styles/echoo-desktop-runtime.css";
-
-function DesktopAppReady() {
-  React.useEffect(() => {
-    window.echooDesktop?.appReady?.();
-  }, []);
-  return null;
-}
 
 if (
   typeof window !== 'undefined' &&
