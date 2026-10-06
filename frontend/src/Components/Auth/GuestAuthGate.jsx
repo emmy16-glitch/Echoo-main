@@ -29,9 +29,9 @@ export function GuestAuthProvider({ children }) {
     return false;
   }, [location.pathname, location.search]);
 
-  const completeAuthentication = useCallback(async () => {
+  const completeAuthentication = useCallback(async (destinationOverride) => {
     const resume = resumeRef.current;
-    const destination = prompt?.destination || '/listen';
+    const destination = destinationOverride || prompt?.destination || '/listen';
     resumeRef.current = null;
     setPrompt(null);
     navigate(destination, { replace: true });
