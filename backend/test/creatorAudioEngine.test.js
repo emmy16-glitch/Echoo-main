@@ -73,6 +73,7 @@ test('the studio graph keeps raw bypass, real processing and one post-master des
   assert.match(mixer, /masterAnalyser\.connect\(destinationNode\)/);
   assert.match(mixer, /export const setMasterMuted/);
   assert.match(mixer, /connectMediaFile/);
+  assert.match(mixer, /mp3\|mpeg\|mpga\|mp2\|mpa/);
   assert.match(mixer, /createMediaElementSource/);
   assert.match(mixer, /connectMediaElementUrl/);
   const libraryStreamStart = mixer.indexOf('export const connectMediaUrl');
