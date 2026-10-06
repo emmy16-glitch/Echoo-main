@@ -1403,7 +1403,7 @@ const CreatorLiveConnectedWorkspace = ({
                         ? 'Transfer complete · verifying recording'
                         : recordingProgress.stage === 'preparing'
                           ? 'Preparing recording save'
-                          : 'Saving recording to Echoo'}
+                          : 'Uploading recovery copy to Echoo'}
             </strong>
             <span>
               {recordingProgress.stage === 'uploading' ||
@@ -1423,7 +1423,7 @@ const CreatorLiveConnectedWorkspace = ({
                   ? `Verifying saved recording · ${formatElapsedTime(recordingProgress.elapsedSeconds || 0)} elapsed`
                   : recordingProgress.stage === 'device-saving'
                     ? 'Encoding the MP3 locally after OFF AIR. This does not use the Echoo server.'
-                    : transferProgressText(recordingProgress)}
+                    : `Your recording is protected locally. Echoo is uploading the recovery copy over your internet connection · ${transferProgressText(recordingProgress)}`}
               </small>
             </>
           ) : (
