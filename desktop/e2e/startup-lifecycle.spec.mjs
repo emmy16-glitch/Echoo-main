@@ -19,6 +19,18 @@ function launchEnvironment(overrides = {}) {
   };
 }
 
+async function keepAutomationWindowsOffscreen(electronApp) {
+  await electronApp.evaluate(({ app, BrowserWindow }) => {
+    const moveOffscreen = (window) => {
+      if (!window || window.isDestroyed()) return;
+      window.setPosition(-10_000, -10_000, false);
+    };
+
+    for (const window of BrowserWindow.getAllWindows()) moveOffscreen(window);
+    app.on('browser-window-created', (_event, window) => moveOffscreen(window));
+  });
+}
+
 async function nativeWindowState(electronApp) {
   return electronApp.evaluate(({ BrowserWindow }) => {
     const windows = BrowserWindow.getAllWindows().map((window) => ({
@@ -57,6 +69,7 @@ test.describe('packaged startup lifecycle', () => {
           ECHOO_TEST_APP_READY_DELAY_MS: String(delayMs),
         }),
       });
+      await keepAutomationWindowsOffscreen(electronApp);
 
       try {
         await expect.poll(async () => {
@@ -157,6 +170,7 @@ test.describe('packaged startup lifecycle', () => {
         ECHOO_STARTUP_READY_TIMEOUT_MS: '1500',
       }),
     });
+    await keepAutomationWindowsOffscreen(electronApp);
 
     try {
       await expect.poll(async () => {
