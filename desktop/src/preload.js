@@ -10,10 +10,14 @@ const { contextBridge, ipcRenderer } = require('electron');
 const ROOM_COMMAND_CHANNEL = 'echoo:room-command';
 const WILL_QUIT_CHANNEL = 'echoo:will-quit';
 const DEEP_LINK_CHANNEL = 'echoo:deep-link';
+const APP_READY_CHANNEL = 'echoo:app-ready';
 
 contextBridge.exposeInMainWorld('echooDesktop', {
   isDesktop: true,
   platform: process.platform,
+
+  // React reports its first usable commit; main owns the splash transition.
+  appReady: () => ipcRenderer.send(APP_READY_CHANNEL),
 
   getAppInfo: () => ipcRenderer.invoke('echoo:get-app-info'),
   reload: () => ipcRenderer.invoke('echoo:reload'),

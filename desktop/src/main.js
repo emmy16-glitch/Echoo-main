@@ -125,6 +125,10 @@ const SMOKE_TEST = ['1', 'second-instance', 'offline', 'scale'].includes(SMOKE_T
 const SECOND_INSTANCE_SMOKE_TEST = SMOKE_TEST_MODE === 'second-instance';
 const OFFLINE_SMOKE_TEST = SMOKE_TEST_MODE === 'offline';
 const DISPLAY_SCALE_SMOKE_TEST = SMOKE_TEST_MODE === 'scale';
+const configuredStartupReadyTimeout = Number(process.env.ECHOO_STARTUP_READY_TIMEOUT_MS || '9000');
+const STARTUP_READY_TIMEOUT_MS = Number.isFinite(configuredStartupReadyTimeout)
+  ? Math.max(1000, configuredStartupReadyTimeout)
+  : 9000;
 
 // Origins the app window itself is allowed to navigate to. Everything else
 // (chat links, profile links, help URLs) opens in the OS default browser.
@@ -220,7 +224,7 @@ let rendererRecoveryPromptOpen = false;
 let rendererCrashed = false;
 let mainWindowNativeReady = false;
 let mainWindowRendererReady = false;
-let rendererRevealCheckRunning = false;
+let startupReadyTimer = null;
 let isQuitting = false;
 let quitFinalizing = false;
 let quitTimer = null;
@@ -653,6 +657,10 @@ function closeSplashWindow() {
 
 function revealMainWindow() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (startupReadyTimer) {
+    clearTimeout(startupReadyTimer);
+    startupReadyTimer = null;
+  }
   mainWindow.show();
   mainWindow.focus();
   closeSplashWindow();
@@ -672,7 +680,7 @@ async function revealMainWindowWhenReady() {
     revealMainWindow();
     return;
   }
-  if (!mainWindowNativeReady || rendererRevealCheckRunning) return;
+  if (!mainWindowNativeReady) return;
   if (mainWindowRendererReady) {
     revealMainWindow();
     return;
@@ -684,39 +692,29 @@ async function revealMainWindowWhenReady() {
     revealMainWindow();
     return;
   }
-  if (!currentUrl.startsWith(PACKAGED_APP_ORIGIN)) return;
+  // The packaged React renderer reports readiness over the narrow preload
+  // bridge. Navigation completion and DOM polling are not app readiness.
+}
 
-  rendererRevealCheckRunning = true;
-  try {
-    const deadline = Date.now() + 3000;
-    while (Date.now() < deadline && mainWindow && !mainWindow.isDestroyed()) {
-      const liveUrl = mainWindow.webContents.getURL();
-      if (rendererUrlCanRevealImmediately(liveUrl)) {
-        mainWindowRendererReady = true;
-        revealMainWindow();
-        return;
-      }
-      if (!liveUrl.startsWith(PACKAGED_APP_ORIGIN)) return;
+function armStartupReadyTimeout() {
+  if (!app.isPackaged) return;
+  if (startupReadyTimer) clearTimeout(startupReadyTimer);
+  startupReadyTimer = setTimeout(() => {
+    startupReadyTimer = null;
+    if (
+      mainWindowRendererReady ||
+      !mainWindow ||
+      mainWindow.isDestroyed() ||
+      rendererUrlCanRevealImmediately(mainWindow.webContents.getURL())
+    ) return;
 
-      let mounted = false;
-      try {
-        mounted = await mainWindow.webContents.executeJavaScript("(() => (document.querySelector('meta[name=\\\"echoo-app\\\"]')?.content === 'echoo-frontend' && (document.querySelector('#root')?.childElementCount || 0) > 0))()");
-      } catch {
-        mounted = false;
-      }
-      if (mounted) {
-        mainWindowRendererReady = true;
-        revealMainWindow();
-        return;
-      }
-      await new Promise((resolve) => setTimeout(resolve, 75));
-    }
-
-    log.error('[echoo-desktop] renderer loaded but did not mount a visible Echoo shell');
-    await loadOfflinePage('renderer-not-ready', currentUrl);
-  } finally {
-    rendererRevealCheckRunning = false;
-  }
+    const timedOutUrl = mainWindow.webContents.getURL();
+    log.error('[echoo-desktop] renderer did not report app-ready before startup timeout');
+    void loadOfflinePage('startup-timeout', timedOutUrl).catch((error) => {
+      log.error('[echoo-desktop] could not show startup recovery:', error.message);
+    });
+  }, STARTUP_READY_TIMEOUT_MS);
+  if (startupReadyTimer.unref) startupReadyTimer.unref();
 }
 
 function createWindow() {
@@ -1050,6 +1048,7 @@ function loadOfflinePage(reason, url) {
 function preparePackagedRendererLoad() {
   if (!app.isPackaged || !mainWindow || mainWindow.isDestroyed()) return;
   mainWindowRendererReady = false;
+  armStartupReadyTimeout();
 
   const splash = createSplashWindow();
   if (splash && !splash.isDestroyed()) {
@@ -1759,6 +1758,17 @@ function showNotification({ title, body, silent }) {
 }
 
 function registerIpc() {
+  ipcMain.on('echoo:app-ready', (event) => {
+    if (!isTrustedIpcEvent(event)) {
+      log.warn('[echoo-desktop] blocked untrusted IPC caller on echoo:app-ready');
+      return;
+    }
+    if (mainWindowRendererReady) return;
+    mainWindowRendererReady = true;
+    log.info('[echoo-desktop] renderer reported app-ready');
+    void revealMainWindowWhenReady();
+  });
+
   handleTrustedIpc('echoo:open-external-url', async (_event, url) =>
     openRendererExternalUrl(url)
   );
@@ -2554,6 +2564,10 @@ app.on('before-quit', (event) => {
 });
 
 app.on('will-quit', () => {
+  if (startupReadyTimer) {
+    clearTimeout(startupReadyTimer);
+    startupReadyTimer = null;
+  }
   if (windowStateSaveTimer) {
     clearTimeout(windowStateSaveTimer);
     windowStateSaveTimer = null;

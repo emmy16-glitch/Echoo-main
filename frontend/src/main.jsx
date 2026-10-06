@@ -60,6 +60,13 @@ import "./Components/Register/auth-reference.css";
 import "./styles/modal-viewport-contract.css";
 import "./styles/echoo-desktop-runtime.css";
 
+function DesktopAppReady() {
+  React.useEffect(() => {
+    window.echooDesktop?.appReady?.();
+  }, []);
+  return null;
+}
+
 if (
   typeof window !== 'undefined' &&
   (
@@ -91,6 +98,7 @@ if (localStorage.getItem("accessToken")) {
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <AppErrorBoundary>
+      <DesktopAppReady />
       <App />
     </AppErrorBoundary>
   </React.StrictMode>
