@@ -15,7 +15,7 @@ test('listener has five consistent destinations and honest compact discovery', a
   await page.route('**/api/playlists?*', route => route.fulfill({ json: { success: true, data: [] } }));
   await page.goto('/listen');
   await expect(page.getByRole('heading', { name: 'Discover', exact: true })).toBeVisible();
-  await expect(page.getByText('Nothing is live right now', { exact: true })).toBeVisible();
+  await expect(page.getByText('Nothing live right now', { exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Upcoming broadcasts' })).toHaveCount(0);
   await expect(page.getByRole('heading', { name: /Popular|Trending/ })).toHaveCount(0);
   const nav = page.locator(await page.locator('.listener-v2-mobile-nav').isVisible() ? '.listener-v2-mobile-nav' : '.listener-v2-nav');
@@ -47,7 +47,7 @@ test('live card does not invent listener counts', async ({ page }) => {
   await expect(page.locator('.listener-v2-live-card')).toBeVisible();
   await expect(page.locator('.listener-v2-live-listeners')).toHaveCount(0);
   await expect(page.locator('.listener-v2-live-meta')).toContainText('Real creator');
-  await expect(page.locator('.listener-v2-live-meta')).toContainText('Listen Live');
+  await expect(page.locator('.listener-v2-live-cta')).toHaveText('Listen');
 });
 
 test('recording player survives navigation without creating another audio element', async ({ page }) => {
@@ -226,15 +226,21 @@ test('live actions persist, roll back failures, copy links, and open and close c
   });
   await page.route('**/api/saved-moments*', route => route.fulfill({ json: { data: route.request().method() === 'POST' ? { id: 'saved', broadcastId: '507f1f77bcf86cd799439031', timestampMs: 0 } : [] } }));
   await page.goto('/listen/live/507f1f77bcf86cd799439031');
-  await page.locator('.listener-room-actions summary').click();
-  const like = page.getByRole('button', { name: 'Like', exact: true });
-  await like.click();
-  await expect(like).toHaveAttribute('aria-pressed', 'false');
-  await like.click();
-  await expect(page.getByRole('button', { name: 'Liked', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  await page.getByRole('button', { name: 'Save', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Saved', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  await page.getByRole('button', { name: 'Copy link', exact: true }).click();
+  const moreActions = page.locator('.listener-room-actions');
+  await moreActions.locator('summary').click();
+  await moreActions.getByRole('menuitem', { name: 'Like', exact: true }).click();
+  await expect(moreActions.locator('button[aria-pressed="false"]').filter({ hasText: 'Like' })).toHaveCount(1);
+
+  await moreActions.locator('summary').click();
+  await moreActions.getByRole('menuitem', { name: 'Like', exact: true }).click();
+  await expect(moreActions.locator('button[aria-pressed="true"]').filter({ hasText: 'Liked' })).toHaveCount(1);
+
+  await moreActions.locator('summary').click();
+  await moreActions.getByRole('menuitem', { name: 'Save', exact: true }).click();
+  await expect(moreActions.locator('button[aria-pressed="true"]').filter({ hasText: 'Saved' })).toHaveCount(1);
+
+  await moreActions.locator('summary').click();
+  await moreActions.getByRole('menuitem', { name: 'Copy link', exact: true }).click();
   await expect(page.getByText('Live link copied', { exact: true })).toBeVisible();
   expect(await page.evaluate(() => window.copiedLink)).toContain('/listen/live/507f1f77bcf86cd799439031');
   if (await page.locator('.listener-v2-room-chat-toggle').isVisible()) {
@@ -274,7 +280,7 @@ test('guest live chat CTA stays readable inside the mobile sheet', async ({ page
   await expect(chatToggle).toBeVisible();
   await chatToggle.click();
 
-  const signIn = page.getByRole('button', { name: 'Sign in to chat and follow', exact: true });
+  const signIn = page.getByRole('button', { name: 'Sign in', exact: true });
   await expect(signIn).toBeVisible();
   const ctaBox = await signIn.boundingBox();
   const sheetBox = await page.locator('.listener-v2-room-chat').boundingBox();
