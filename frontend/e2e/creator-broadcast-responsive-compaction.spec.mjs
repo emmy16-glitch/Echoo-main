@@ -198,6 +198,19 @@ test('Broadcast workstation compacts cleanly across the complete viewport matrix
       await expect(page.getByText("You're broadcasting now.", { exact: true })).toBeVisible();
     } else {
       await expect(page.locator('.ec2-live-ticker')).toBeVisible();
+      const tickerState = await page.locator('.ec2-live-ticker').evaluate((node) => {
+        const track = node.querySelector('.ec2-live-ticker-track');
+        const primary = node.querySelector('.ec2-live-ticker-track .is-primary');
+        const repeat = node.querySelector('.ec2-live-ticker-track .is-repeat');
+        return {
+          animationName: track ? getComputedStyle(track).animationName : 'none',
+          primaryOpacity: primary ? Number(getComputedStyle(primary).opacity) : 0,
+          repeatOpacity: repeat ? Number(getComputedStyle(repeat).opacity) : 0,
+        };
+      });
+      expect(tickerState.animationName).not.toBe('none');
+      expect(tickerState.primaryOpacity).toBeGreaterThan(tickerState.repeatOpacity);
+
       const heroHeight = await page.locator('.ec2-hero').evaluate((node) => node.getBoundingClientRect().height);
       expect(heroHeight).toBeLessThanOrEqual(126);
     }
@@ -207,4 +220,16 @@ test('Broadcast workstation compacts cleanly across the complete viewport matrix
       fullPage: true,
     });
   }
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.reload();
+  await expect(page.locator('.ec2-live-ticker')).toBeVisible();
+  const reducedMotionState = await page.locator('.ec2-live-ticker-track').evaluate((node) => ({
+    animationName: getComputedStyle(node).animationName,
+    visibleGroups: Array.from(node.querySelectorAll('.ec2-live-ticker-group'))
+      .filter((group) => getComputedStyle(group).display !== 'none').length,
+  }));
+  expect(reducedMotionState.animationName).toBe('none');
+  expect(reducedMotionState.visibleGroups).toBe(1);
 });
