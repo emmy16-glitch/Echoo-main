@@ -23,7 +23,9 @@ const requiredFiles = [
   'src/offline.js',
   'offline.html',
   'splash.html',
-  'assets/icon.png',
+  'assets/generated/icon.ico',
+  'assets/generated/icon.png',
+  'assets/generated/tray-icon.png',
   'frontend-dist/index.html',
 ];
 
@@ -34,7 +36,7 @@ for (const relativePath of requiredFiles) {
   }
 }
 
-const windowsIconPath = join(desktopDirectory, 'assets', 'icon.png');
+const windowsIconPath = join(desktopDirectory, 'assets', 'generated', 'icon.png');
 const windowsIcon = readPngDimensions(windowsIconPath);
 if (windowsIcon.width < 256 || windowsIcon.height < 256) {
   throw new Error(
