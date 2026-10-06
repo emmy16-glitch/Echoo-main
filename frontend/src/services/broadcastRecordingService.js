@@ -1598,7 +1598,7 @@ const handleServerRecordingHandshakeFailure = async (recording, error) => {
     window.dispatchEvent(new CustomEvent('echoo:toast', {
       detail: {
         type: 'error',
-        message: 'Server recording is unavailable because FFmpeg/FFprobe is not installed. Your local safety master is still recording, but this broadcast cannot auto-save a server MP3 until the server is fixed.',
+        message: 'Echoo could not start its saved recording. Your local recording is still protected and you can continue broadcasting.',
       },
     }));
   }

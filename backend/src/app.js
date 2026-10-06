@@ -40,6 +40,7 @@ import {
   attachLiveKitRecordingWebSocket,
   closeLiveKitRecordingWebSocket,
 } from './services/livekitServerRecording.js';
+import { checkFfmpegCapability } from './services/audioTrimService.js';
 
 const app = express();
 
@@ -570,6 +571,14 @@ async function startServer() {
     }
 
     await connectDatabase();
+
+    const recordingTooling = await checkFfmpegCapability({ force: true });
+    console.log('[Echoo Recording] tooling readiness:', {
+      ffmpeg: recordingTooling.ffmpeg,
+      ffprobe: recordingTooling.ffprobe,
+      automaticServerMp3: recordingTooling.ok,
+      trimming: recordingTooling.ok,
+    });
 
     // Background sweep/processing loops belong on the long-running Echoo
     // server. Starting them inside short-lived serverless staging instances
