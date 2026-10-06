@@ -86,7 +86,7 @@ test('login accepts both @username and email and exposes working recovery', asyn
   });
 
   await page.goto('/login');
-  await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
   await expect(page.getByLabel('Username or email')).toBeVisible();
 
   await page.getByLabel('Username or email').fill('@echo-listener');
@@ -105,7 +105,7 @@ test('login accepts both @username and email and exposes working recovery', asyn
     sessionStorage.clear();
   });
   await page.goto('/login');
-  await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
   await page.getByLabel('Username or email').fill('listener@example.test');
   await page.getByLabel('Password', { exact: true }).fill('Password123!');
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
@@ -127,7 +127,7 @@ test('login accepts both @username and email and exposes working recovery', asyn
   await page.getByRole('button', { name: 'Send reset link' }).click();
   await expect(page.getByText('Reset link sent')).toBeVisible();
   await page.getByRole('button', { name: /Back to sign in/i }).click();
-  await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
 
   await assertNoHorizontalOverflow(page);
   expect(browserErrors).toEqual([]);
@@ -137,7 +137,7 @@ test('logged-out listeners can leave auth and return to public listening', async
   const browserErrors = collectBrowserErrors(page);
   await page.goto('/login');
 
-  await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
   await expect(page.getByText('Example: @okunlola or name@example.com')).toHaveCount(0);
   await page.getByRole('button', { name: 'Continue listening without an account' }).click();
 
@@ -184,7 +184,7 @@ test('reset-password completion uses the new design, both eye toggles and return
   await page.getByRole('button', { name: 'Update password' }).click();
   await expect(page.getByText(/Password reset successfully/i)).toBeVisible();
   expect(resetPayloads).toEqual([{ token: 'reset-token', password: 'NewPassword123!' }]);
-  await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible({ timeout: 4_000 });
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible({ timeout: 4_000 });
   await expect(page).toHaveURL(/\/login$/);
 
   await page.goto('/reset-password');
