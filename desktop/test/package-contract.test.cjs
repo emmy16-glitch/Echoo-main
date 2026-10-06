@@ -67,6 +67,7 @@ test('packaged runtime loads the local renderer from one private desktop origin'
 });
 
 test('Windows desktop CI follows the shared backend origin contract', () => {
+  assert.match(windowsWorkflow, /pull_request:/);
   assert.match(windowsWorkflow, /backend\/src\/app\.js/);
   assert.match(windowsWorkflow, /backend\/src\/config\/env\.js/);
   assert.match(backendAppSource, /if \(normalized === DESKTOP_RENDERER_ORIGIN\) return true;/);
