@@ -705,10 +705,13 @@ test('desktop internal navigation never escapes the packaged HashRouter', () => 
   assert.match(navigationSource, /window\.location\.hash/);
   assert.match(navigationSource, /echoo-app:/);
   assert.match(errorBoundarySource, /assignAppRoute\("\/"\)/);
-  assert.match(creatorSetupSource, /assignAppRoute\('\/listen'\)/);
-  assert.match(scheduleSource, /assignAppRoute\(`/);
+  assert.match(creatorSetupSource, /useNavigate/);
+  assert.match(creatorSetupSource, /navigate\('\/listen', \{ replace: true \}\)/);
+  assert.match(scheduleSource, /useNavigate/);
+  assert.match(scheduleSource, /navigate\(`\/creator-studio\/recordings\//);
   assert.doesNotMatch(errorBoundarySource, /window\.location\.assign/);
   assert.doesNotMatch(creatorSetupSource, /window\.location\.assign/);
+  assert.doesNotMatch(scheduleSource, /window\.location\.assign/);
 });
 
 
@@ -724,7 +727,8 @@ test('HashRouter-sensitive screens use router state and public web URLs', () => 
   const creatorSetupSource = fs.readFileSync(path.resolve(desktopRoot, '..', 'frontend', 'src', 'Components', 'CreatorSetup', 'CreatorSetup.jsx'), 'utf8');
   const listenerSettingsSource = fs.readFileSync(path.resolve(desktopRoot, '..', 'frontend', 'src', 'Components', 'ListenerSettings', 'ListenerSettingsConnected.jsx'), 'utf8');
   const audioDetailSource = fs.readFileSync(path.resolve(desktopRoot, '..', 'frontend', 'src', 'Components', 'ListenerAudioDetail', 'ListenerAudioDetail.jsx'), 'utf8');
-  assert.match(creatorSetupSource, /assignAppRoute\('\/creator-studio'\)/);
+  assert.match(creatorSetupSource, /useNavigate/);
+  assert.match(creatorSetupSource, /navigate\('\/creator-studio', \{ replace: true \}\)/);
   assert.doesNotMatch(creatorSetupSource, /window\.location\.assign/);
   assert.match(listenerSettingsSource, /new URLSearchParams\(routerLocation\.search\)/);
   assert.doesNotMatch(listenerSettingsSource, /window\.location\.search/);
