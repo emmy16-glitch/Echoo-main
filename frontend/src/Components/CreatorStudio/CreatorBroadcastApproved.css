@@ -179,7 +179,8 @@
 
 .ec2-live-ticker-track span {
   position: relative;
-  color: rgba(255, 255, 255, .58);
+  color: #fff;
+  opacity: .58;
   font-size: clamp(15px, 1.18vw, 17px);
   font-weight: 720;
   letter-spacing: .005em;
@@ -188,7 +189,7 @@
 }
 
 .ec2-live-ticker-track span.is-primary {
-  color: rgba(255, 255, 255, .98);
+  opacity: .98;
   font-weight: 820;
 }
 
