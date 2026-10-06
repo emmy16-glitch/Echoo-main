@@ -42,6 +42,10 @@ const windowsWorkflow = fs.readFileSync(
   path.resolve(desktopRoot, '..', '.github', 'workflows', 'desktop-windows.yml'),
   'utf8'
 );
+const packagedShellE2eSource = fs.readFileSync(
+  path.join(desktopRoot, 'e2e', 'packaged-shell.spec.mjs'),
+  'utf8'
+);
 const backendAppSource = fs.readFileSync(
   path.resolve(desktopRoot, '..', 'backend', 'src', 'app.js'),
   'utf8'
@@ -224,6 +228,13 @@ test('Windows branding is generated from the canonical Echoo mark with a real mu
   });
   assert.deepEqual(sizes, [16, 24, 32, 48, 64, 128, 256]);
   assert.equal(packageJson.build.win.icon, 'assets/generated/icon.ico');
+  assert.equal(packageJson.build.nsis.oneClick, true);
+  assert.equal(packageJson.build.nsis.perMachine, false);
+  assert.equal(packageJson.build.nsis.allowElevation, false);
+  assert.equal(packageJson.build.nsis.deleteAppDataOnUninstall, false);
+  assert.equal('allowToChangeInstallationDirectory' in packageJson.build.nsis, false);
+  assert.match(packagedShellE2eSource, /ELECTRON_RUN_AS_NODE: _electronRunAsNode/);
+  assert.doesNotMatch(packagedShellE2eSource, /env:\s*\{\s*\.\.\.process\.env/);
   assert.equal(packageJson.build.nsis.installerIcon, 'assets/generated/icon.ico');
   assert.equal(packageJson.build.nsis.uninstallerIcon, 'assets/generated/icon.ico');
   assert.equal(packageJson.build.nsis.installerHeaderIcon, 'assets/generated/icon.ico');

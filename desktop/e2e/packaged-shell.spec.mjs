@@ -22,11 +22,15 @@ test.describe('packaged Echoo Windows shell', () => {
       );
     }
 
+    // Some Node-based runners set this for their own Electron helpers. Passing
+    // it to the packaged executable turns Echoo into a Node process instead of
+    // launching Chromium, so strip it at the native application boundary.
+    const { ELECTRON_RUN_AS_NODE: _electronRunAsNode, ...launchEnvironment } = process.env;
     electronApp = await electron.launch({
       executablePath,
       args: ['echoo://listen'],
       env: {
-        ...process.env,
+        ...launchEnvironment,
         ECHOO_DISABLE_UPDATES: '1',
         ECHOO_DEBUG: '0',
       },
