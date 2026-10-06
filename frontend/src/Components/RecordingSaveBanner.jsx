@@ -525,9 +525,9 @@ const RecordingSaveBanner = () => {
         <>
           <FaCheckCircle aria-hidden="true" />
           <div className="echoo-save-banner-body">
-            <strong>Echoo server recording is ready</strong>
+            <strong>Recording saved in Echoo</strong>
             <span>
-              {state.message || 'Choose the file you want to save to this device. MP3 is recommended; WAV keeps the lossless local master.'}
+              {state.message || 'Your recording is already saved in Echoo. The options below only create an optional copy on this device.'}
             </span>
             {state.choiceError && (
               <span className="echoo-save-banner-choice-error">
@@ -548,16 +548,16 @@ const RecordingSaveBanner = () => {
                 ? 'Saving…'
                 : state.preparedFormat === 'mp3'
                   ? 'MP3 ready · Tap to save'
-                  : 'Save MP3 to device'}
+                  : 'Save MP3 copy'}
             </button>
             <button
               type="button"
               onClick={() => chooseDeviceCopy('wav')}
               disabled={Boolean(state.choosing)}
             >
-              {state.choosing === 'wav' ? 'Saving…' : 'Save WAV to device'}
+              {state.choosing === 'wav' ? 'Saving…' : 'Save WAV copy'}
             </button>
-            <button type="button" onClick={() => chooseDeviceCopy('none')} disabled={Boolean(state.choosing)}>Keep this recording in Echoo only</button>
+            <button type="button" onClick={() => chooseDeviceCopy('none')} disabled={Boolean(state.choosing)}>No device copy</button>
           </div>
         </>
       )}
