@@ -248,6 +248,10 @@ const CreatorSetupRoute = () => {
 };
 
 const RequireRole = ({ role, children }) => {
+  // Subscribe the guard to router location changes. Channel setup can grant
+  // Creator capability while already on /creator-studio; the location-state
+  // replace below must force this guard to re-read the persisted user.
+  useLocation();
   const accessToken = localStorage.getItem('accessToken');
   if (!accessToken) return <Navigate to="/" replace />;
 
