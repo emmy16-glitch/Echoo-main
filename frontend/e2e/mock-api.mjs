@@ -1,6 +1,7 @@
 import http from 'node:http';
 
 const PORT = Number(process.env.ECHOO_E2E_API_PORT || 5001);
+const APP_ORIGIN = String(process.env.ECHOO_E2E_APP_ORIGIN || 'http://127.0.0.1:4173');
 const LONG = 'A deliberately long Echoo title used to stress wrapping across compact mobile, tablet and desktop layouts without clipping important actions.';
 const COVER = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600"><rect width="100%" height="100%" fill="#eef2ff"/><circle cx="300" cy="260" r="140" fill="#c7d2fe"/><text x="300" y="480" text-anchor="middle" font-size="40" fill="#312e81">Echoo E2E</text></svg>`);
 
@@ -125,8 +126,12 @@ const notification = {
 const json = (res, status, body) => {
   res.writeHead(status, {
     'content-type': 'application/json; charset=utf-8',
-    'access-control-allow-origin': '*',
+    // Use the real test-app origin instead of '*' so WebKit exercises the
+    // same explicit-origin CORS shape as production, including requests that
+    // carry Echoo's Authorization header.
+    'access-control-allow-origin': APP_ORIGIN,
     'access-control-allow-headers': 'authorization,content-type',
+    'vary': 'Origin',
     'access-control-allow-methods': 'GET,POST,PATCH,DELETE,OPTIONS',
     'cache-control': 'no-store',
   });
