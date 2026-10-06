@@ -45,6 +45,10 @@ export type AudioPlaybackItem = {
   coverArt?: string;
   fileUrl?: string;
   genre?: string;
+  stationId?: string;
+  stationName?: string;
+  collectionId?: string;
+  collectionName?: string;
 };
 
 export type LivePlaybackItem = {
@@ -59,6 +63,9 @@ export type PlaybackItem = AudioPlaybackItem | LivePlaybackItem;
 
 type PlaybackContextValue = {
   current: PlaybackItem | null;
+  queue: AudioPlaybackItem[];
+  queueIndex: number;
+  upNext: AudioPlaybackItem[];
   isPlaying: boolean;
   isLoading: boolean;
   error: string;
@@ -66,8 +73,11 @@ type PlaybackContextValue = {
   duration: number;
   repeat: boolean;
   liveNativeUnavailable: boolean;
-  playAudio: (item: AudioPlaybackItem) => Promise<void>;
+  playAudio: (item: AudioPlaybackItem, options?: PlayAudioOptions) => Promise<void>;
+  playAudioQueue: (items: AudioPlaybackItem[], startIndex?: number) => Promise<void>;
   playLive: (item: LivePlaybackItem) => Promise<void>;
+  playNext: () => Promise<void>;
+  playPrevious: () => Promise<void>;
   pause: () => void;
   resume: () => Promise<void>;
   toggle: () => Promise<void>;
@@ -78,9 +88,23 @@ type PlaybackContextValue = {
   clearError: () => void;
 };
 
+type PlayAudioOptions = {
+  queue?: AudioPlaybackItem[];
+  index?: number;
+  preserveQueue?: boolean;
+};
+
 const PlaybackContext = createContext<PlaybackContextValue | null>(null);
 
 let liveKitGlobalsRegistered = false;
+
+async function configureBackgroundPlaybackMode() {
+  await setAudioModeAsync({
+    playsInSilentMode: true,
+    shouldPlayInBackground: true,
+    interruptionMode: 'doNotMix',
+  });
+}
 
 async function loadLiveKitNativeModule() {
   const liveKit = await import('@livekit/react-native');
@@ -95,6 +119,9 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   const playerRef = useRef<AudioPlayer | null>(null);
   const statusSubscriptionRef = useRef<{ remove: () => void } | null>(null);
   const currentRef = useRef<PlaybackItem | null>(null);
+  const queueRef = useRef<AudioPlaybackItem[]>([]);
+  const queueIndexRef = useRef(-1);
+  const playNextRef = useRef<(() => Promise<void>) | null>(null);
   const audioStreamExpiresAtRef = useRef(0);
   const isPlayingRef = useRef(false);
   const liveCredentialsRef = useRef<LiveCredentials | null>(null);
@@ -102,6 +129,8 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   const liveRecoveryRunningRef = useRef(false);
 
   const [current, setCurrentState] = useState<PlaybackItem | null>(null);
+  const [queue, setQueueState] = useState<AudioPlaybackItem[]>([]);
+  const [queueIndex, setQueueIndexState] = useState(-1);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -115,6 +144,13 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   const setCurrent = useCallback((item: PlaybackItem | null) => {
     currentRef.current = item;
     setCurrentState(item);
+  }, []);
+
+  const setQueue = useCallback((items: AudioPlaybackItem[], index: number) => {
+    queueRef.current = items;
+    queueIndexRef.current = index;
+    setQueueState(items);
+    setQueueIndexState(index);
   }, []);
 
   const releaseAudio = useCallback(() => {
@@ -145,9 +181,19 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     setIsPlaying(status.playing);
     setPosition(Math.max(0, status.currentTime * 1000));
     setDuration(Math.max(0, status.duration * 1000));
-  }, []);
+    if ((status as any).didJustFinish && !repeat) {
+      void playNextRef.current?.();
+    }
+  }, [repeat]);
 
-  const playAudio = useCallback(async (item: AudioPlaybackItem) => {
+  const playAudio = useCallback(async (item: AudioPlaybackItem, options: PlayAudioOptions = {}) => {
+    if (options.queue?.length) {
+      const nextIndex = Math.max(0, Math.min(options.index ?? 0, options.queue.length - 1));
+      setQueue(options.queue, nextIndex);
+    } else if (!options.preserveQueue) {
+      setQueue([item], 0);
+    }
+
     const existingUrl = String(item.fileUrl || '');
     const localUrl = /^(file:|content:|blob:|data:)/i.test(existingUrl);
     const sameTrack =
@@ -194,11 +240,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
         ? Date.now() + (expiresIn * 1000)
         : 0;
 
-      await setAudioModeAsync({
-        playsInSilentMode: true,
-        shouldPlayInBackground: true,
-        interruptionMode: 'doNotMix',
-      });
+      await configureBackgroundPlaybackMode();
 
       const player = createAudioPlayer(
         { uri: playbackUrl },
@@ -231,7 +273,33 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
       setIsPlaying(false);
       setError(playbackError?.message || 'Could not play this audio.');
     }
-  }, [clearLiveConnection, handleAudioStatus, liveKit, releaseAudio, repeat, setCurrent]);
+  }, [clearLiveConnection, handleAudioStatus, liveKit, releaseAudio, repeat, setCurrent, setQueue]);
+
+  const playAudioQueue = useCallback(async (items: AudioPlaybackItem[], startIndex = 0) => {
+    const cleanItems = items.filter((item) => item.id);
+    if (!cleanItems.length) return;
+    const index = Math.max(0, Math.min(startIndex, cleanItems.length - 1));
+    await playAudio(cleanItems[index], { queue: cleanItems, index });
+  }, [playAudio]);
+
+  const playNext = useCallback(async () => {
+    const nextIndex = queueIndexRef.current + 1;
+    const next = queueRef.current[nextIndex];
+    if (!next) return;
+    setQueue(queueRef.current, nextIndex);
+    await playAudio(next, { preserveQueue: true });
+  }, [playAudio, setQueue]);
+
+  const playPrevious = useCallback(async () => {
+    const previousIndex = Math.max(0, queueIndexRef.current - 1);
+    const previous = queueRef.current[previousIndex];
+    if (!previous) {
+      await playerRef.current?.seekTo(0);
+      return;
+    }
+    setQueue(queueRef.current, previousIndex);
+    await playAudio(previous, { preserveQueue: true });
+  }, [playAudio, setQueue]);
 
   const playLive = useCallback(async (item: LivePlaybackItem) => {
     if (
@@ -247,6 +315,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
 
     releaseAudio();
     clearLiveConnection();
+    setQueue([], -1);
     setCurrent(item);
     setPosition(0);
     setDuration(0);
@@ -255,6 +324,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     void ensureLiveAudioNotificationPermission();
 
     try {
+      await configureBackgroundPlaybackMode();
       const [liveKitModule, credentials] = await Promise.all([
         loadLiveKitNativeModule(),
         getListenerLiveKitCredentials(item.id),
@@ -280,7 +350,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, [clearLiveConnection, liveCredentials, liveKit, releaseAudio, setCurrent]);
+  }, [clearLiveConnection, liveCredentials, liveKit, releaseAudio, setCurrent, setQueue]);
 
   const pause = useCallback(() => {
     if (currentRef.current?.kind === 'audio') {
@@ -346,15 +416,20 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     isPlayingRef.current = false;
     releaseAudio();
     clearLiveConnection();
+    setQueue([], -1);
     setCurrent(null);
     setIsPlaying(false);
     setIsLoading(false);
     setError('');
     setPosition(0);
     setDuration(0);
-  }, [clearLiveConnection, releaseAudio, setCurrent]);
+  }, [clearLiveConnection, releaseAudio, setCurrent, setQueue]);
 
   const clearError = useCallback(() => setError(''), []);
+
+  useEffect(() => {
+    playNextRef.current = playNext;
+  }, [playNext]);
 
   const recoverLiveConnection = useCallback(async (
     sourceToken: string,
@@ -427,24 +502,33 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     void recoverLiveConnection(sourceToken, message);
   }, [recoverLiveConnection]);
 
+  useEffect(() => {
+    void configureBackgroundPlaybackMode().catch(() => undefined);
+  }, []);
+
   useEffect(() => () => releaseAudio(), [releaseAudio]);
 
-  // Keep live audio alive when the app is minimized. iOS is covered by the
-  // audio background mode; on Android this starts the mediaPlayback
-  // foreground service (lock-screen notification included) for exactly as
-  // long as a live room is connected. Best-effort: unavailable platforms
-  // simply play without it, as before.
+  // Keep Echoo playback alive when the app is minimized. iOS is covered by the
+  // audio background mode; Android uses our mediaPlayback foreground service
+  // for both recorded audio and LiveKit audio.
   useEffect(() => {
-    const live =
-      current?.kind === 'live' && liveKit && liveCredentials && isPlaying;
-    if (!live || current?.kind !== 'live') {
+    const shouldRun =
+      isPlaying &&
+      (
+        current?.kind === 'audio' ||
+        (current?.kind === 'live' && liveKit && liveCredentials)
+      );
+
+    if (!shouldRun || !current) {
       void stopLiveAudioService();
       return;
     }
+
     void startLiveAudioService({
-      title: current.title || 'Live on Echoo',
+      title: current.title || (current.kind === 'live' ? 'Live on Echoo' : 'Playing on Echoo'),
       artist: current.subtitle || '',
       broadcastId: current.id,
+      kind: current.kind,
     });
     return () => {
       void stopLiveAudioService();
@@ -453,6 +537,9 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<PlaybackContextValue>(() => ({
     current,
+    queue,
+    queueIndex,
+    upNext: queueIndex >= 0 ? queue.slice(queueIndex + 1) : [],
     isPlaying,
     isLoading,
     error,
@@ -461,7 +548,10 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     repeat,
     liveNativeUnavailable,
     playAudio,
+    playAudioQueue,
     playLive,
+    playNext,
+    playPrevious,
     pause,
     resume,
     toggle,
@@ -480,8 +570,13 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     liveNativeUnavailable,
     pause,
     playAudio,
+    playAudioQueue,
     playLive,
+    playNext,
+    playPrevious,
     position,
+    queue,
+    queueIndex,
     repeat,
     resume,
     seekBy,

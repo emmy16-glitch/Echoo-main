@@ -1,9 +1,9 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { Heart, Music2, Radio } from 'lucide-react-native';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,12 +12,17 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
+  AudioRowActions,
+} from '@/src/components/AudioRowActions';
+import {
   ListenerAuthCard,
   ListenerEmptyState,
   ListenerListRow,
   ListenerPageHeader,
   ListenerSectionHeader,
+  ListenerSkeletonRows,
   ListenerTopBar,
+  friendlyErrorMessage,
 } from '@/src/components/ListenerV2';
 import {
   EchooAudio,
@@ -27,6 +32,7 @@ import {
   hasEchooSession,
 } from '@/src/services/echooApi';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { getLocalDownloads, LocalDownload } from '@/src/services/localDownloads';
 import { EchooColors, getEchooColors } from '@/src/theme/echooTheme';
 
 export default function FavoritesScreen() {
@@ -37,12 +43,16 @@ export default function FavoritesScreen() {
 
   const [signedIn, setSignedIn] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [savedAudio, setSavedAudio] = useState<EchooAudio[]>([]);
   const [stations, setStations] = useState<EchooStation[]>([]);
+  const [downloads, setDownloads] = useState<LocalDownload[]>([]);
   const [error, setError] = useState('');
+  const hasLoadedOnce = useRef(false);
 
-  const loadFavorites = useCallback(async () => {
-    setLoading(true);
+  const loadFavorites = useCallback(async (force = false, silent = false) => {
+    if (force) setRefreshing(true);
+    else if (!silent) setLoading(true);
     setError('');
     const activeSession = await hasEchooSession();
     setSignedIn(activeSession);
@@ -50,31 +60,38 @@ export default function FavoritesScreen() {
     if (!activeSession) {
       setSavedAudio([]);
       setStations([]);
+      setDownloads([]);
       setLoading(false);
+      setRefreshing(false);
+      hasLoadedOnce.current = true;
       return;
     }
 
     try {
-      const [audio, followedStations] = await Promise.all([
-        getSavedAudio(),
-        getFollowedStations(),
+      const [audio, followedStations, localDownloads] = await Promise.all([
+        getSavedAudio({ force }),
+        getFollowedStations({ force }),
+        getLocalDownloads().catch(() => []),
       ]);
       setSavedAudio(audio);
       setStations(followedStations);
+      setDownloads(localDownloads);
     } catch (loadError: any) {
       if (loadError?.code === 'AUTH_REQUIRED' || loadError?.code === 'SESSION_EXPIRED') {
         setSignedIn(false);
       } else {
-        setError(loadError?.message || 'Could not refresh favorites.');
+        setError(friendlyErrorMessage(loadError, 'Could not refresh favorites.'));
       }
     } finally {
       setLoading(false);
+      setRefreshing(false);
+      hasLoadedOnce.current = true;
     }
   }, []);
 
   useFocusEffect(
     useCallback(() => {
-      loadFavorites();
+      loadFavorites(false, hasLoadedOnce.current);
     }, [loadFavorites])
   );
 
@@ -97,11 +114,26 @@ export default function FavoritesScreen() {
   };
 
   const total = savedAudio.length + stations.length;
+  const downloadedTrackIds = useMemo(
+    () => new Set(downloads.map((download) => download.trackId).filter(Boolean)),
+    [downloads]
+  );
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <ListenerTopBar />
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => loadFavorites(true)}
+            tintColor={palette.blue}
+            colors={[palette.blue]}
+          />
+        }
+      >
         <ListenerPageHeader
           eyebrow="YOUR ECHOO"
           title="Favorites"
@@ -117,10 +149,7 @@ export default function FavoritesScreen() {
         ) : null}
 
         {loading ? (
-          <View style={styles.loadingState}>
-            <ActivityIndicator color={palette.blue} />
-            <Text style={styles.loadingText}>Loading favorites...</Text>
-          </View>
+          <ListenerSkeletonRows count={5} />
         ) : null}
 
         {signedIn && !loading ? (
@@ -143,7 +172,7 @@ export default function FavoritesScreen() {
                 title="Favorites could not refresh"
                 subtitle={error}
                 action="Try again"
-                onAction={loadFavorites}
+                onAction={() => loadFavorites(true)}
               />
             ) : null}
 
@@ -179,6 +208,14 @@ export default function FavoritesScreen() {
                   meta={track.genre || 'Saved'}
                   image={track.coverArt}
                   fallback={<Music2 color={palette.blue} size={21} />}
+                  trailing={
+                    <AudioRowActions
+                      track={track}
+                      initialSaved
+                      downloaded={downloadedTrackIds.has(track.id)}
+                      onChanged={() => loadFavorites(true)}
+                    />
+                  }
                   onPress={() => openAudio(track)}
                 />
               ))
@@ -200,8 +237,6 @@ export default function FavoritesScreen() {
 const createStyles = (palette: EchooColors) => StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: palette.background },
   content: { paddingHorizontal: 18, paddingTop: 8, paddingBottom: 120 },
-  loadingState: { minHeight: 160, alignItems: 'center', justifyContent: 'center', gap: 10 },
-  loadingText: { color: palette.muted, fontSize: 12.5, fontWeight: '700' },
   summaryCard: { backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line, borderRadius: 20, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 14 },
   heartIcon: { width: 56, height: 56, borderRadius: 18, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
   summaryCopy: { flex: 1 },

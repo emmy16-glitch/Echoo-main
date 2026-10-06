@@ -179,7 +179,7 @@ export default function SettingsScreen() {
               subtitle="Permanently delete your Echoo account"
               value="Delete"
               palette={palette}
-              onPress={() => router.push('/delete-account')}
+              onPress={() => router.push('/delete-account' as any)}
               last
             />
           ) : null}

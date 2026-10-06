@@ -119,6 +119,15 @@ export async function getPlaylists(req, res, next) {
       filter.$text = { $search: String(req.query.search).slice(0, 120) };
     }
 
+    if (req.query.ownerId) {
+      if (!validId(req.query.ownerId)) {
+        return res.status(400).json({
+          error: { code: 'INVALID_OWNER_ID', message: 'Invalid playlist owner ID' },
+        });
+      }
+      filter.owner = req.query.ownerId;
+    }
+
     const [playlists, total] = await Promise.all([
       populatePlaylist(
         Playlist.find(filter)

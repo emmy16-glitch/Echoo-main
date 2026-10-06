@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ListenerAuthCard, ListenerBackHeader } from '@/src/components/ListenerV2';
+import { ListenerAuthCard, ListenerBackHeader, friendlyErrorMessage } from '@/src/components/ListenerV2';
 import {
   getBroadcastPresence,
   hasEchooSession,
@@ -83,7 +83,7 @@ export default function LiveRoomScreen() {
         if (!isCurrentLive) await playLive(requestedLive);
       } catch (prepareError: any) {
         if (!active) return;
-        setPrepareError(prepareError?.message || 'Could not join this live broadcast.');
+        setPrepareError(friendlyErrorMessage(prepareError, 'Could not join this live broadcast.'));
       } finally {
         if (active) setPreparing(false);
       }
@@ -161,7 +161,7 @@ export default function LiveRoomScreen() {
           <View style={styles.centerState}>
             <View style={styles.errorIcon}><Radio color={palette.red} size={25} /></View>
             <Text style={styles.stateTitle}>Could not join live audio</Text>
-            <Text style={styles.stateText}>{error}</Text>
+            <Text style={styles.stateText}>{friendlyErrorMessage({ message: error }, 'Could not join this live broadcast.')}</Text>
             <Pressable style={styles.backHomeButton} onPress={() => router.back()}>
               <Text style={styles.backHomeText}>Back to Live</Text>
             </Pressable>

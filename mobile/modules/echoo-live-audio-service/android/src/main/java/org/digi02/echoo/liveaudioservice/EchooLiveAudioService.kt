@@ -14,28 +14,27 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 
 /**
- * Keeps Echoo live (LiveKit) audio alive when the app is minimized.
+ * Keeps Echoo audio alive when the app is minimized.
  *
- * LiveKit renders audio outside expo-audio, so expo-audio's own media
- * foreground service does not cover live sessions. This minimal service holds
- * foreground importance (mediaPlayback type) with a lock-screen notification
- * while a live room is connected. Swiping the app away stops it via
- * onTaskRemoved — dismissing the app means stop listening.
+ * This minimal service holds foreground importance (mediaPlayback type) with a
+ * lock-screen notification while recorded audio or a live room is playing.
  */
 class EchooLiveAudioService : Service() {
   companion object {
-    private const val CHANNEL_ID = "echoo_live_audio"
+    private const val CHANNEL_ID = "echoo_audio_playback"
     private const val NOTIFICATION_ID = 0xE000
     private const val EXTRA_TITLE = "extra_title"
     private const val EXTRA_ARTIST = "extra_artist"
     private const val EXTRA_BROADCAST_ID = "extra_broadcast_id"
+    private const val EXTRA_KIND = "extra_kind"
     private const val ACTION_STOP = "org.digi02.echoo.liveaudioservice.STOP"
 
-    fun start(context: Context, title: String, artist: String, broadcastId: String) {
+    fun start(context: Context, title: String, artist: String, broadcastId: String, kind: String) {
       val intent = Intent(context, EchooLiveAudioService::class.java).apply {
         putExtra(EXTRA_TITLE, title)
         putExtra(EXTRA_ARTIST, artist)
         putExtra(EXTRA_BROADCAST_ID, broadcastId)
+        putExtra(EXTRA_KIND, kind)
       }
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
         context.startForegroundService(intent)
@@ -56,27 +55,36 @@ class EchooLiveAudioService : Service() {
       stopSelf()
       return START_NOT_STICKY
     }
-    val title = intent?.getStringExtra(EXTRA_TITLE).orEmpty().ifEmpty { "Live on Echoo" }
+
+    val kind = intent?.getStringExtra(EXTRA_KIND).orEmpty().ifEmpty { "live" }
+    val title = intent?.getStringExtra(EXTRA_TITLE).orEmpty().ifEmpty {
+      if (kind == "audio") "Playing on Echoo" else "Live on Echoo"
+    }
     val artist = intent?.getStringExtra(EXTRA_ARTIST).orEmpty()
     val broadcastId = intent?.getStringExtra(EXTRA_BROADCAST_ID).orEmpty()
-    startForegroundWithNotification(title, artist, broadcastId)
+
+    startForegroundWithNotification(title, artist, broadcastId, kind)
     return START_NOT_STICKY
   }
 
-  override fun onTaskRemoved(rootIntent: Intent?) {
-    stopSelf()
-  }
-
-  private fun startForegroundWithNotification(title: String, artist: String, broadcastId: String) {
+  private fun startForegroundWithNotification(
+    title: String,
+    artist: String,
+    broadcastId: String,
+    kind: String
+  ) {
     val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
       manager.createNotificationChannel(
-        NotificationChannel(CHANNEL_ID, "Live audio", NotificationManager.IMPORTANCE_LOW)
+        NotificationChannel(CHANNEL_ID, "Echoo playback", NotificationManager.IMPORTANCE_LOW)
       )
     }
 
-    // Tap returns to the live room through the app deep-link scheme.
-    val deepLink = if (broadcastId.isNotEmpty()) "echoo://listen/live/$broadcastId" else "echoo://"
+    val deepLink = if (kind == "live" && broadcastId.isNotEmpty()) {
+      "echoo://listen/live/$broadcastId"
+    } else {
+      "echoo://audio-player"
+    }
     val launchIntent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
       data = Uri.parse(deepLink)
     }
@@ -92,9 +100,15 @@ class EchooLiveAudioService : Service() {
       PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
 
+    val contentText = if (artist.isNotEmpty()) {
+      if (kind == "live") "$artist - LIVE" else artist
+    } else {
+      if (kind == "live") "LIVE on Echoo" else "Playing on Echoo"
+    }
+
     val builder = NotificationCompat.Builder(this, CHANNEL_ID)
       .setContentTitle(title)
-      .setContentText(if (artist.isNotEmpty()) "$artist • LIVE" else "LIVE on Echoo")
+      .setContentText(contentText)
       .setSmallIcon(android.R.drawable.ic_media_play)
       .setOngoing(true)
       .addAction(android.R.drawable.ic_media_pause, "Stop", stopIntent)

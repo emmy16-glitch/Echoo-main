@@ -4,10 +4,11 @@ export type LiveAudioServiceInfo = {
   title: string;
   artist?: string;
   broadcastId?: string;
+  kind?: 'audio' | 'live';
 };
 
 type NativeLiveAudioService = {
-  start: (title: string, artist: string, broadcastId: string) => boolean;
+  start: (title: string, artist: string, broadcastId: string, kind: string) => boolean;
   stop: () => boolean;
 };
 
@@ -38,9 +39,10 @@ export async function startLiveAudioService(
   try {
     return (
       nativeModule.start(
-        String(info.title || 'Live on Echoo'),
+        String(info.title || (info.kind === 'audio' ? 'Playing on Echoo' : 'Live on Echoo')),
         String(info.artist || ''),
-        String(info.broadcastId || '')
+        String(info.broadcastId || ''),
+        info.kind === 'audio' ? 'audio' : 'live'
       ) === true
     );
   } catch {

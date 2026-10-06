@@ -36,6 +36,7 @@
         "android.permission.BLUETOOTH",
         "android.permission.FOREGROUND_SERVICE",
         "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+        "android.permission.FOREGROUND_SERVICE_MICROPHONE",
         "android.permission.POST_NOTIFICATIONS"
       ]
     },
@@ -70,9 +71,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "4e270bb3-9d11-4bcf-b5f4-bffc97049db4"
+        "projectId": "e020c582-8b7d-4508-88b1-94d364db132f"
       }
     },
-    "owner": "effiukp-dev"
+    "owner": "convy12"
   }
 }

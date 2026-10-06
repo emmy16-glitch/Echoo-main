@@ -11,7 +11,7 @@ import {
   Trash2,
   UserPlus,
 } from 'lucide-react-native';
-import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -27,6 +27,9 @@ import {
   ListenerBackHeader,
   ListenerEmptyState,
   ListenerPageHeader,
+  ListenerSkeletonRows,
+  ListenerToast,
+  friendlyErrorMessage,
 } from '@/src/components/ListenerV2';
 import { hasEchooSession } from '@/src/services/echooApi';
 import {
@@ -51,9 +54,10 @@ export default function NotificationsScreen() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [error, setError] = useState('');
   const [markingAll, setMarkingAll] = useState(false);
+  const hasLoadedOnce = useRef(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     setError('');
     const session = await hasEchooSession();
     setSignedIn(session);
@@ -62,6 +66,7 @@ export default function NotificationsScreen() {
       setNotifications([]);
       setUnreadCount(0);
       setLoading(false);
+      hasLoadedOnce.current = true;
       return;
     }
 
@@ -73,15 +78,16 @@ export default function NotificationsScreen() {
       if (loadError?.code === 'AUTH_REQUIRED' || loadError?.status === 401) {
         setSignedIn(false);
       } else {
-        setError(loadError?.message || 'Could not load notifications.');
+        setError(friendlyErrorMessage(loadError, 'Could not load notifications.'));
       }
     } finally {
       setLoading(false);
+      hasLoadedOnce.current = true;
     }
   }, []);
 
   useEffect(() => {
-    load();
+    load(hasLoadedOnce.current);
   }, [load]);
 
   const markAll = async () => {
@@ -93,7 +99,7 @@ export default function NotificationsScreen() {
       setNotifications((items) => items.map((item) => ({ ...item, read: true })));
       setUnreadCount(0);
     } catch (markError: any) {
-      setError(markError?.message || 'Could not mark notifications as read.');
+      setError(friendlyErrorMessage(markError, 'Could not mark notifications as read.'));
     } finally {
       setMarkingAll(false);
     }
@@ -137,7 +143,7 @@ export default function NotificationsScreen() {
       setNotifications((items) => items.filter((item) => item.id !== notificationId));
       if (target && !target.read) setUnreadCount((count) => Math.max(0, count - 1));
     } catch (deleteError: any) {
-      setError(deleteError?.message || 'Could not remove this notification.');
+      setError(friendlyErrorMessage(deleteError, 'Could not remove this notification.'));
     }
   };
 
@@ -160,10 +166,7 @@ export default function NotificationsScreen() {
         ) : null}
 
         {loading ? (
-          <View style={styles.loadingState}>
-            <ActivityIndicator color={palette.blue} />
-            <Text style={styles.loadingText}>Loading notifications...</Text>
-          </View>
+          <ListenerSkeletonRows count={5} />
         ) : null}
 
         {signedIn && !loading ? (
@@ -188,9 +191,17 @@ export default function NotificationsScreen() {
               ) : null}
             </View>
 
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+            {error ? <ListenerToast message={error} /> : null}
 
-            {notifications.length ? (
+            {error && !notifications.length ? (
+              <ListenerEmptyState
+                title="Notifications could not refresh"
+                subtitle={error}
+                action="Try again"
+                onAction={() => load(false)}
+                icon={<Bell color={palette.blue} size={22} strokeWidth={2} />}
+              />
+            ) : notifications.length ? (
               <View style={styles.notificationList}>
                 {notifications.map((notification) => (
                   <NotificationRow
@@ -294,8 +305,6 @@ function formatNotificationTime(value?: string) {
 const createStyles = (palette: EchooColors) => StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: palette.background },
   content: { paddingHorizontal: 18, paddingTop: 8, paddingBottom: 48 },
-  loadingState: { minHeight: 180, alignItems: 'center', justifyContent: 'center', gap: 10 },
-  loadingText: { color: palette.muted, fontSize: 12.5, fontWeight: '700' },
   summaryCard: { minHeight: 78, borderRadius: 19, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line, padding: 13, flexDirection: 'row', alignItems: 'center', gap: 11 },
   summaryIcon: { width: 24, alignItems: 'center', justifyContent: 'center' },
   summaryCopy: { flex: 1 },
@@ -303,7 +312,6 @@ const createStyles = (palette: EchooColors) => StyleSheet.create({
   summaryLabel: { color: palette.muted, fontSize: 11.5, fontWeight: '700', marginTop: 1 },
   readAllButton: { minHeight: 39, borderRadius: 13, backgroundColor: palette.blueSoft, paddingHorizontal: 11, flexDirection: 'row', alignItems: 'center', gap: 6 },
   readAllText: { color: palette.blue, fontSize: 11, fontWeight: '900' },
-  errorText: { color: palette.red, fontSize: 11.5, lineHeight: 17, marginTop: 10, textAlign: 'center' },
   notificationList: { marginTop: 16, gap: 9 },
   notificationRow: { minHeight: 88, borderRadius: 17, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line, flexDirection: 'row', alignItems: 'center', overflow: 'hidden' },
   notificationUnread: { borderColor: `${palette.blue}55`, backgroundColor: palette.surfaceRaised },

@@ -1,11 +1,12 @@
+import { useFocusEffect } from '@react-navigation/native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { Clock3, Headphones, Radio, Users } from 'lucide-react-native';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -18,7 +19,9 @@ import {
   ListenerListRow,
   ListenerPageHeader,
   ListenerSectionHeader,
+  ListenerSkeletonRows,
   ListenerTopBar,
+  friendlyErrorMessage,
 } from '@/src/components/ListenerV2';
 import {
   EchooBroadcast,
@@ -37,30 +40,37 @@ export default function LiveScreen() {
   const [live, setLive] = useState<EchooBroadcast[]>([]);
   const [scheduled, setScheduled] = useState<EchooBroadcast[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
   const [error, setError] = useState('');
+  const hasLoadedOnce = useRef(false);
 
-  const load = async () => {
-    setLoading(true);
+  const load = useCallback(async (force = false, silent = false) => {
+    if (force) setRefreshing(true);
+    else if (!silent) setLoading(true);
     setError('');
     try {
       const [data, activeSession] = await Promise.all([
-        getMobileDiscovery(),
+        getMobileDiscovery({ force }),
         hasEchooSession(),
       ]);
       setLive(data.live);
       setScheduled(data.scheduled);
       setSignedIn(activeSession);
     } catch (loadError: any) {
-      setError(loadError?.message || 'Could not load live broadcasts.');
+      setError(friendlyErrorMessage(loadError, 'Could not load live broadcasts.'));
     } finally {
       setLoading(false);
+      setRefreshing(false);
+      hasLoadedOnce.current = true;
     }
-  };
-
-  useEffect(() => {
-    load();
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      load(false, hasLoadedOnce.current);
+    }, [load])
+  );
 
   const openLiveRoom = (item: EchooBroadcast) => {
     if (!signedIn) {
@@ -85,7 +95,18 @@ export default function LiveScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <ListenerTopBar />
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => load(true)}
+            tintColor={palette.blue}
+            colors={[palette.blue]}
+          />
+        }
+      >
         <ListenerPageHeader
           eyebrow="ON AIR"
           title="Live on Echoo"
@@ -93,10 +114,7 @@ export default function LiveScreen() {
         />
 
         {loading ? (
-          <View style={styles.loadingState}>
-            <ActivityIndicator color={palette.blue} />
-            <Text style={styles.loadingText}>Checking who is live...</Text>
-          </View>
+          <ListenerSkeletonRows count={5} />
         ) : null}
 
         {!loading && error ? (
@@ -104,7 +122,7 @@ export default function LiveScreen() {
             title="Live discovery is unavailable"
             subtitle={error}
             action="Try again"
-            onAction={load}
+            onAction={() => load(true)}
           />
         ) : null}
 
@@ -216,8 +234,6 @@ function formatStart(value: string) {
 const createStyles = (palette: EchooColors) => StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: palette.background },
   content: { paddingHorizontal: 18, paddingTop: 8, paddingBottom: 120 },
-  loadingState: { minHeight: 160, alignItems: 'center', justifyContent: 'center', gap: 10 },
-  loadingText: { color: palette.muted, fontSize: 12.5, fontWeight: '700' },
   featuredCard: { height: 290, borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: palette.lineStrong },
   liveBadge: { position: 'absolute', top: 16, left: 16, minHeight: 28, borderRadius: 9, backgroundColor: palette.red, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 6 },
   liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#FFFFFF' },
