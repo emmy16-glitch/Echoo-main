@@ -39,7 +39,7 @@ unavailable, but it must not prevent the application shell from rendering.
   icons are verified before `electron-builder` runs.
 - The supported release target is Windows 10/11 x64 using NSIS. The installed
   product name is **Echoo** and the target artifact is
-  `Echoo-Setup-2.0.1-x64.exe`.
+  `Echoo-Setup-<package-version>-x64.exe`.
 
 ## Security invariants
 
@@ -63,4 +63,3 @@ unavailable, but it must not prevent the application shell from rendering.
 - A LIVE label is shown only after actual backend/LiveKit confirmation.
 - Native behavior complements the product; it does not duplicate backend
   business logic or create a second Echoo platform.
-
