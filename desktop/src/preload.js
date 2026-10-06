@@ -20,6 +20,8 @@ contextBridge.exposeInMainWorld('echooDesktop', {
   openLogsFolder: () => ipcRenderer.invoke('echoo:open-logs-folder'),
   openExternalWebUrl: (url) =>
     ipcRenderer.invoke('echoo:open-external-web-url', String(url || '').slice(0, 2048)),
+  openExternalUrl: (url) =>
+    ipcRenderer.invoke('echoo:open-external-url', String(url || '').slice(0, 2048)),
   copyText: (value) =>
     ipcRenderer.invoke('echoo:copy-text', String(value || '').slice(0, 32768)),
   getInitialDeepLink: () => ipcRenderer.invoke('echoo:get-initial-deep-link'),

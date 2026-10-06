@@ -28,12 +28,20 @@ function normalizeExternalWebUrl(value) {
 function normalizeExternalUrl(value) {
   try {
     const raw = String(value || '').trim();
-    if (!raw || raw.length > 2048 || /[\r\n]/.test(raw)) return null;
+    if (!raw || raw.length > 2048 || /[\0\r\n]/.test(raw)) return null;
     const parsed = new URL(raw);
     if (!EXTERNAL_PROTOCOLS.has(parsed.protocol)) return null;
     if (WEB_PROTOCOLS.has(parsed.protocol)) return normalizeExternalWebUrl(raw);
     if (parsed.protocol === 'mailto:') {
-      if (parsed.username || parsed.password) return null;
+      // Encoded CR/LF/NUL characters can otherwise become mail-header
+      // injection after the operating system decodes the URI.
+      let decoded;
+      try {
+        decoded = decodeURIComponent(raw);
+      } catch {
+        return null;
+      }
+      if (/[\0\r\n]/.test(decoded) || parsed.hash) return null;
       return parsed.toString();
     }
     return null;
@@ -102,4 +110,3 @@ module.exports = {
   normalizeRoute,
   parseEchooDeepLink,
 };
-

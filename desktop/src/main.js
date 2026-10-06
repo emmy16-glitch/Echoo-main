@@ -183,6 +183,21 @@ async function openExternalWebUrl(url) {
   }
 }
 
+async function openRendererExternalUrl(url) {
+  const normalized = normalizeExternalUrl(url);
+  if (!normalized) {
+    log.warn('[echoo-desktop] blocked unsafe renderer external target');
+    return { opened: false, error: 'Only safe web and email links can be opened.' };
+  }
+  try {
+    await shell.openExternal(normalized);
+    return { opened: true, url: normalized };
+  } catch (error) {
+    log.warn('[echoo-desktop] renderer external target failed:', error.message);
+    return { opened: false, error: 'Windows could not open the requested app.' };
+  }
+}
+
 let mainWindow = null;
 let splashWindow = null;
 let tray = null;
@@ -1732,6 +1747,9 @@ function showNotification({ title, body, silent }) {
 }
 
 function registerIpc() {
+  handleTrustedIpc('echoo:open-external-url', async (_event, url) =>
+    openRendererExternalUrl(url)
+  );
   handleTrustedIpc('echoo:open-external-web-url', async (_event, url) =>
     openExternalWebUrl(url)
   );

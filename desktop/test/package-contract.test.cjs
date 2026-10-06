@@ -530,6 +530,22 @@ test('share links use a narrow native Windows clipboard bridge when packaged', (
   assert.match(stationUrlSource, /navigatorRef\?\.clipboard\?\.writeText/);
 });
 
+test('packaged mail drafts use the validated native external-target bridge', () => {
+  const preloadSource = fs.readFileSync(path.join(desktopRoot, 'src', 'preload.js'), 'utf8');
+  const helpSource = fs.readFileSync(
+    path.resolve(desktopRoot, '..', 'frontend', 'src', 'Components', 'Support', 'CuratedHelpAssistant.jsx'),
+    'utf8'
+  );
+  const helpServiceSource = fs.readFileSync(
+    path.resolve(desktopRoot, '..', 'frontend', 'src', 'Components', 'Support', 'curatedHelp.js'),
+    'utf8'
+  );
+  assert.match(mainSource, /echoo:open-external-url/);
+  assert.match(preloadSource, /openExternalUrl/);
+  assert.match(helpServiceSource, /echooDesktop\.openExternalUrl\(humanSupportEmailDraft\)/);
+  assert.doesNotMatch(helpSource, /window\.location\.href\s*=\s*humanSupportEmailDraft/);
+});
+
 
 test('desktop diagnostics are reachable from both Creator and Listener settings', () => {
   const creatorSettingsSource = fs.readFileSync(

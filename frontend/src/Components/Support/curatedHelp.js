@@ -1,5 +1,28 @@
 export const humanSupportEmailDraft = 'mailto:?subject=Echoo%20human%20support%20request';
 
+export const openHumanSupportEmailDraft = async (
+  windowRef = typeof window !== 'undefined' ? window : null
+) => {
+  if (!windowRef) throw new Error('A browser window is unavailable.');
+
+  if (
+    windowRef.echooDesktop?.isDesktop === true &&
+    typeof windowRef.echooDesktop?.openExternalUrl === 'function'
+  ) {
+    const result = await windowRef.echooDesktop.openExternalUrl(humanSupportEmailDraft);
+    if (!result?.opened) {
+      throw new Error(result?.error || 'Windows could not open your email app.');
+    }
+    return true;
+  }
+
+  if (typeof windowRef.location?.assign !== 'function') {
+    throw new Error('An email app could not be opened.');
+  }
+  windowRef.location.assign(humanSupportEmailDraft);
+  return true;
+};
+
 export const curatedHelpSuggestions = {
   listener: [
     'What’s live now?',

@@ -17,7 +17,7 @@ import {
 } from 'react-icons/fa';
 import {
   getCuratedHelpWelcome,
-  humanSupportEmailDraft,
+  openHumanSupportEmailDraft,
   resolveCuratedHelpResponse,
 } from './curatedHelp';
 import { useOptionalCreatorStudioState } from '../CreatorStudio/CreatorStudioState';
@@ -118,6 +118,7 @@ const CuratedHelpAssistant = ({ mode = 'listener', page = 'Home', onNavigate, in
   const [isSelectingGuidance, setIsSelectingGuidance] = useState(false);
   const [escalationOpen, setEscalationOpen] = useState(false);
   const [hasEscalationConsent, setHasEscalationConsent] = useState(false);
+  const [escalationError, setEscalationError] = useState('');
   const triggerRef = useRef(null);
   const dialogRef = useRef(null);
   const questionRef = useRef(null);
@@ -168,6 +169,7 @@ const CuratedHelpAssistant = ({ mode = 'listener', page = 'Home', onNavigate, in
     setIsSelectingGuidance(false);
     setEscalationOpen(false);
     setHasEscalationConsent(false);
+    setEscalationError('');
     window.requestAnimationFrame(() => triggerRef.current?.focus());
   }, [clearResponseTimer, mode]);
 
@@ -224,11 +226,16 @@ const CuratedHelpAssistant = ({ mode = 'listener', page = 'Home', onNavigate, in
     ask(question);
   };
 
-  const openHumanSupportDraft = () => {
+  const openHumanSupportDraft = async () => {
     if (!hasEscalationConsent) return;
-    window.location.href = humanSupportEmailDraft;
-    setEscalationOpen(false);
-    setHasEscalationConsent(false);
+    setEscalationError('');
+    try {
+      await openHumanSupportEmailDraft(window);
+      setEscalationOpen(false);
+      setHasEscalationConsent(false);
+    } catch (error) {
+      setEscalationError(error?.message || 'Your email app could not be opened.');
+    }
   };
 
   const runAction = (action) => {
@@ -318,6 +325,7 @@ const CuratedHelpAssistant = ({ mode = 'listener', page = 'Home', onNavigate, in
                   <p>Echoo will not send your question. With your consent, this prepares an empty email draft in your mail app; you choose what to write and whether to send it.</p>
                   <label><input type="checkbox" checked={hasEscalationConsent} onChange={(event) => setHasEscalationConsent(event.target.checked)} /><span>I understand that anything I add and send is handled by my email provider. I will not include passwords, codes, or private room details.</span></label>
                   <button type="button" disabled={!hasEscalationConsent} onClick={openHumanSupportDraft}><FaEnvelope /> Prepare email draft</button>
+                  {escalationError && <p className="echoo-curated-help__escalation-error" role="alert">{escalationError}</p>}
                 </section>
               )}
               <form onSubmit={submit}>
