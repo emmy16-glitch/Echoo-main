@@ -46,10 +46,16 @@ test('offline token refresh preserves desktop authentication for reconnect', asy
   const { api, replacements } = await loadApi({
     fetchImpl: async () => {
       requestCount += 1;
-      if (requestCount === 1) {
+      if (requestCount === 1 || requestCount === 3) {
         return jsonResponse(401, { error: { code: 'AUTH_INVALID' } });
       }
-      throw new TypeError('Failed to fetch');
+      if (requestCount === 2) throw new TypeError('Failed to fetch');
+      if (requestCount === 4) {
+        return jsonResponse(200, {
+          data: { accessToken: 'reconnected-access', refreshToken: 'rotated-refresh' },
+        });
+      }
+      return jsonResponse(200, { data: { recovered: true } });
     },
   });
 
@@ -60,6 +66,12 @@ test('offline token refresh preserves desktop authentication for reconnect', asy
   assert.equal(localStorage.getItem('accessToken'), 'expired-access');
   assert.equal(localStorage.getItem('refreshToken'), 'still-valid-refresh');
   assert.equal(localStorage.getItem('user'), JSON.stringify({ id: 'user-1' }));
+  assert.deepEqual(replacements, []);
+
+  const recovered = await api.apiRequest('/protected');
+  assert.equal(recovered?.data?.recovered, true);
+  assert.equal(localStorage.getItem('accessToken'), 'reconnected-access');
+  assert.equal(localStorage.getItem('refreshToken'), 'rotated-refresh');
   assert.deepEqual(replacements, []);
 });
 
@@ -113,6 +125,26 @@ test('refresh timeout preserves desktop authentication', async () => {
   } finally {
     globalThis.setTimeout = originalSetTimeout;
   }
+});
+
+test('malformed refresh success preserves desktop authentication', async () => {
+  let requestCount = 0;
+  const { api, replacements } = await loadApi({
+    fetchImpl: async () => {
+      requestCount += 1;
+      if (requestCount === 1) {
+        return jsonResponse(401, { error: { code: 'AUTH_INVALID' } });
+      }
+      return jsonResponse(200, { data: {} });
+    },
+  });
+
+  await assert.rejects(
+    api.apiRequest('/protected'),
+    /Backend did not return a new access token/
+  );
+  assert.equal(localStorage.getItem('refreshToken'), 'still-valid-refresh');
+  assert.deepEqual(replacements, []);
 });
 
 test('explicitly invalid refresh token clears auth and uses the packaged login route', async () => {
