@@ -1014,8 +1014,24 @@ function loadOfflinePage(reason, url) {
   );
 }
 
+function preparePackagedRendererLoad() {
+  if (!app.isPackaged || !mainWindow || mainWindow.isDestroyed()) return;
+  mainWindowRendererReady = false;
+
+  const splash = createSplashWindow();
+  if (splash && !splash.isDestroyed()) {
+    splash.show();
+    splash.focus();
+  }
+
+  // Never expose an in-between Chromium document while the local React shell
+  // is replacing the offline/recovery surface.
+  mainWindow.hide();
+}
+
 async function loadPackagedRenderer() {
   if (!mainWindow) return;
+  preparePackagedRendererLoad();
   if (!fs.existsSync(PROD_INDEX)) {
     log.error(`[echoo-desktop] packaged renderer missing at ${PROD_INDEX}`);
     await loadOfflinePage('renderer-missing', PROD_INDEX);
