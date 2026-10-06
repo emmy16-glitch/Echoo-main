@@ -1081,7 +1081,7 @@ const connectMediaElementUrl = async ({
   return true;
 };
 
-const AUDIO_FILE_EXTENSION = /\.(?:mp3|m4a|aac|wav|ogg|oga|opus|flac|webm)$/i;
+const AUDIO_FILE_EXTENSION = /\.(?:mp3|mpeg|mpga|mp2|mpa|m4a|aac|wav|ogg|oga|opus|flac|webm|weba)$/i;
 
 export const connectMediaFile = async (file) => {
   const validFile =
