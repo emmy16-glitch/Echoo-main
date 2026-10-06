@@ -290,11 +290,14 @@ test('offline recovery stays retryable when a reload returns a failure result', 
 });
 
 
-test('Windows identity and installer verify native protocol registration', () => {
+test('Windows identity and installer verify native protocol registration before first launch', () => {
   const installerVerifier = fs.readFileSync(path.join(desktopRoot, 'scripts', 'verify-installer.ps1'), 'utf8');
   assert.match(mainSource, /app\.setAppUserModelId\('com\.echoo\.desktop'\)/);
   assert.match(installerVerifier, /Software\\Classes\\echoo\\shell\\open\\command/);
-  assert.match(installerVerifier, /Verified echoo:\/\/ protocol registration/);
+  assert.match(installerVerifier, /Verified echoo:\/\/ protocol registration immediately after install/);
+  const protocolCheckIndex = installerVerifier.indexOf('Verified echoo:// protocol registration immediately after install.');
+  const firstLaunchIndex = installerVerifier.indexOf("$application = Start-Process -FilePath $executablePath");
+  assert.ok(protocolCheckIndex >= 0 && firstLaunchIndex > protocolCheckIndex);
 });
 
 
