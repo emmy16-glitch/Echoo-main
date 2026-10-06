@@ -159,29 +159,47 @@
   min-width: 0;
   flex: 1;
   overflow: hidden;
-  mask-image: linear-gradient(90deg, transparent 0%, #000 3%, #000 97%, transparent 100%);
-  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 3%, #000 97%, transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0%, #000 5%, #000 95%, transparent 100%);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 5%, #000 95%, transparent 100%);
 }
 
 .ec2-live-ticker-track {
   display: flex;
   width: max-content;
-  animation: ec2-live-ticker 36s linear infinite;
+  will-change: transform;
+  animation: ec2-live-ticker 48s linear infinite;
 }
 
 .ec2-live-ticker-group {
   display: flex;
-  gap: 64px;
-  padding-right: 64px;
+  align-items: center;
+  gap: 34px;
+  padding-right: 34px;
 }
 
 .ec2-live-ticker-track span {
-  color: rgba(255, 255, 255, .96);
-  font-size: clamp(18px, 1.45vw, 21px);
-  font-weight: 820;
-  letter-spacing: -.01em;
+  position: relative;
+  color: rgba(255, 255, 255, .58);
+  font-size: clamp(15px, 1.18vw, 17px);
+  font-weight: 720;
+  letter-spacing: .005em;
   line-height: 1;
   white-space: nowrap;
+}
+
+.ec2-live-ticker-track span.is-primary {
+  color: rgba(255, 255, 255, .98);
+  font-weight: 820;
+}
+
+.ec2-live-ticker-track span::after {
+  content: '•';
+  position: absolute;
+  left: calc(100% + 15px);
+  color: rgba(124, 162, 221, .62);
+  font-size: 9px;
+  font-weight: 800;
+  transform: translateY(1px);
 }
 
 @keyframes ec2-live-ticker {
@@ -830,7 +848,11 @@ html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-workstation
 
 @media (prefers-reduced-motion: reduce) {
   .ec2-hero.is-live .ec2-status-pill i { animation: none; }
-  .ec2-live-ticker-track { animation: none; }
+  .ec2-live-ticker-track {
+    animation: none;
+    transform: none;
+  }
+  .ec2-live-ticker-group + .ec2-live-ticker-group { display: none; }
   .ec2-dialog-backdrop,
   .ec2-end-dialog { animation: none; }
   .ec2-ending-spinner { animation: none; }
