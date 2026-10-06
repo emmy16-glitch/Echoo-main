@@ -16,7 +16,9 @@
     "test:player-feedback": "node --test src/config/playerFeedback.test.mjs",
     "test:local-recording": "node --test src/services/localRecordingTranscode.test.mjs",
     "test:listener-preferences": "node --test src/services/listenerVolume.test.mjs",
-    "test:live-recovery": "node --test src/services/liveRecoveryPolicy.test.mjs"
+    "test:live-recovery": "node --test src/services/liveRecoveryPolicy.test.mjs",
+    "test:player-resources": "node --test src/services/listenerPlaybackResources.test.mjs",
+    "test:realtime-identity": "node --test src/services/realtimeIdentity.test.mjs"
   },
   "dependencies": {
     "@audio/encode-mp3": "^1.2.2",

@@ -42,7 +42,7 @@ test('Listener Home keeps the Listener 2.0 shell and responsive navigation geome
   await expect(page.getByRole('heading', { level: 2, name: 'Live now' })).toBeVisible();
   await expect(page.getByRole('heading', { level: 2, name: 'Upcoming broadcasts' })).toHaveCount(0);
   await expect(page.getByRole('heading', { level: 2, name: 'Popular playlists' })).toHaveCount(0);
-  await expect(page.getByRole('heading', { level: 2, name: 'From creators you follow' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 2, name: 'Following' })).toBeVisible();
 
   const shell = page.locator('.listener-v2-root');
   await expect(shell).toBeVisible();

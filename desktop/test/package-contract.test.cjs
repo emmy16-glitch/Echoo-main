@@ -416,6 +416,17 @@ test('renderer permissions are allowlisted and Windows display audio requires a 
   assert.match(mainSource, /Choose a screen or window for Echoo audio/);
 });
 
+test('every native IPC capability is restricted to the primary trusted renderer frame', () => {
+  assert.match(mainSource, /function isTrustedIpcEvent\(event\)/);
+  assert.match(mainSource, /event\?\.sender !== mainWindow\.webContents/);
+  assert.match(mainSource, /event\.senderFrame !== event\.sender\.mainFrame/);
+  assert.match(mainSource, /return isAppUrl\(event\.senderFrame\.url \|\| event\.sender\.getURL\(\)\)/);
+  assert.match(mainSource, /function handleTrustedIpc\(channel, listener\)/);
+  assert.doesNotMatch(mainSource, /ipcMain\.handle\('echoo:/);
+  assert.match(mainSource, /handleTrustedIpc\('echoo:recording-save-begin'/);
+  assert.match(mainSource, /blocked untrusted IPC caller on echoo:quit-ready/);
+});
+
 
 test('recording session remains protected through final sync and atomic commit', () => {
   assert.match(mainSource, /state: 'writing'/);
@@ -674,6 +685,17 @@ test('packaged retry and renderer recovery never expose an in-between Chromium p
   assert.match(mainSource, /const splash = createSplashWindow\(\)/);
   assert.match(mainSource, /mainWindow\.hide\(\)/);
   assert.match(mainSource, /async function loadPackagedRenderer\(\)[\s\S]{0,180}preparePackagedRendererLoad\(\)/);
+});
+
+test('native and keyboard reloads return behind the splash until React mounts again', () => {
+  assert.match(mainSource, /webContents\.on\('did-start-loading'/);
+  assert.match(mainSource, /if \(app\.isPackaged\) preparePackagedRendererLoad\(\)/);
+  assert.match(mainSource, /mainWindowRendererReady = false/);
+  assert.match(mainSource, /function reloadMainWindow\(\{ ignoreCache = false \} = \{\}\)/);
+  assert.match(mainSource, /if \(updateRestartBlocked\(\)\)/);
+  assert.doesNotMatch(mainSource, /\{ role: 'reload' \}/);
+  assert.doesNotMatch(mainSource, /\{ role: 'forceReload' \}/);
+  assert.match(mainSource, /Echoo cannot reload during active audio or a recording save/);
 });
 
 test('desktop window bounds stay inside the active Windows work area at high DPI', () => {

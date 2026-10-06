@@ -90,7 +90,7 @@ test('leaving interrupted Channel setup persists Listener mode across reload', a
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Create your Channel' })).toBeVisible();
 
-  await page.getByRole('button', { name: 'Back to Listener' }).click();
+  await page.getByRole('button', { name: 'Back', exact: true }).click();
   await expect(page).toHaveURL(/\/listen$/);
   await expect(page.getByRole('heading', { name: 'Discover' })).toBeVisible();
   await expect.poll(() => page.evaluate(() => localStorage.getItem('echooActiveExperience'))).toBe('listener');
@@ -112,7 +112,7 @@ test('partial Creator cannot bypass Channel setup with a direct Studio URL', asy
   await page.goto('/creator-studio/channels');
   await expect(page).toHaveURL(/\/creator-studio\/channels$/);
   await expect(page.getByRole('heading', { name: 'Create your Channel' })).toBeVisible();
-  await expect(page.getByText('Set up the identity listeners will see when you broadcast. You can change these details later in Creator Studio.')).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Channel details' })).toBeVisible();
   expect(errors).toEqual([]);
 });
 
@@ -133,7 +133,7 @@ test('failed token refresh ejects the user from protected UI and clears the sess
 
   await page.goto('/listen');
   await expect(page).toHaveURL(/\/login\?reason=session-expired$/);
-  await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
 
   const state = await page.evaluate(() => ({
     accessToken: localStorage.getItem('accessToken'),

@@ -57,7 +57,7 @@ export const openPublicWebUrl = async (
 ) => {
   if (!windowRef) throw new Error('A browser window is unavailable');
 
-  let url = '';
+  let url;
   try {
     const raw = String(value || '').trim();
     url = raw.startsWith('/') ? getPublicAppUrl(raw) : new URL(raw).toString();

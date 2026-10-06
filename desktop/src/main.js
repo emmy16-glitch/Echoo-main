@@ -810,6 +810,12 @@ function createWindow() {
 
   // Load failure (missing frontend/dist in prod, dev server down in dev) shows
   // a retry/offline page instead of a blank/broken window.
+  mainWindow.webContents.on('did-start-loading', () => {
+    // Chromium's native reload shortcuts and menu roles do not pass through
+    // loadPackagedRenderer(). Put those reloads behind the same splash contract
+    // as cold start so a previous "ready" flag cannot reveal an empty document.
+    if (app.isPackaged) preparePackagedRendererLoad();
+  });
   mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
     if (validatedURL.includes('offline.html')) return; // already showing it (query string included)
     log.warn(`[echoo-desktop] load failed (${errorCode} ${errorDescription}): ${validatedURL}`);
@@ -1250,6 +1256,27 @@ function trustedRendererOrigin(value) {
   }
 }
 
+function isTrustedIpcEvent(event) {
+  try {
+    if (!mainWindow || mainWindow.isDestroyed()) return false;
+    if (event?.sender !== mainWindow.webContents) return false;
+    if (!event.senderFrame || event.senderFrame !== event.sender.mainFrame) return false;
+    return isAppUrl(event.senderFrame.url || event.sender.getURL());
+  } catch {
+    return false;
+  }
+}
+
+function handleTrustedIpc(channel, listener) {
+  ipcMain.handle(channel, async (event, ...args) => {
+    if (!isTrustedIpcEvent(event)) {
+      log.warn(`[echoo-desktop] blocked untrusted IPC caller on ${channel}`);
+      throw new Error('Echoo blocked an untrusted desktop request.');
+    }
+    return listener(event, ...args);
+  });
+}
+
 function installPermissionPolicy() {
   const appSession = session.defaultSession;
 
@@ -1428,6 +1455,32 @@ async function openLogsFolder() {
   }
 }
 
+function reloadMainWindow({ ignoreCache = false } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed()) return false;
+  if (updateRestartBlocked()) {
+    try {
+      const notice = new Notification({
+        title: 'Echoo is keeping your audio safe',
+        body: recordingSaveSessions.size > 0
+          ? 'Reload is unavailable until your recording finishes saving.'
+          : roomState.mode === 'creator'
+            ? 'End the live broadcast before reloading Echoo.'
+            : 'Leave or stop the active audio session before reloading Echoo.',
+        silent: true,
+      });
+      notice.on('click', () => showAndFocusWindow());
+      notice.show();
+    } catch {
+      // Reload remains blocked even if Windows notifications are unavailable.
+    }
+    return false;
+  }
+
+  if (ignoreCache) mainWindow.webContents.reloadIgnoringCache();
+  else mainWindow.webContents.reload();
+  return true;
+}
+
 function buildMenu() {
   const template = [
     {
@@ -1451,8 +1504,16 @@ function buildMenu() {
     {
       label: 'View',
       submenu: [
-        { role: 'reload' },
-        { role: 'forceReload' },
+        {
+          label: 'Reload',
+          accelerator: 'CmdOrCtrl+R',
+          click: () => reloadMainWindow(),
+        },
+        {
+          label: 'Force Reload',
+          accelerator: 'CmdOrCtrl+Shift+R',
+          click: () => reloadMainWindow({ ignoreCache: true }),
+        },
         ...(DEBUG_TOOLS ? [{ role: 'toggleDevTools' }] : []),
         { type: 'separator' },
         { role: 'resetZoom' },
@@ -1671,12 +1732,12 @@ function showNotification({ title, body, silent }) {
 }
 
 function registerIpc() {
-  ipcMain.handle('echoo:open-external-web-url', async (_event, url) =>
+  handleTrustedIpc('echoo:open-external-web-url', async (_event, url) =>
     openExternalWebUrl(url)
   );
-  ipcMain.handle('echoo:open-logs-folder', async () => openLogsFolder());
+  handleTrustedIpc('echoo:open-logs-folder', async () => openLogsFolder());
 
-  ipcMain.handle('echoo:copy-text', async (_event, value) => {
+  handleTrustedIpc('echoo:copy-text', async (_event, value) => {
     try {
       const text = String(value || '');
       if (!text || text.length > 32768) {
@@ -1690,13 +1751,13 @@ function registerIpc() {
     }
   });
 
-  ipcMain.handle('echoo:get-initial-deep-link', async () => {
+  handleTrustedIpc('echoo:get-initial-deep-link', async () => {
     const route = pendingDeepLink;
     pendingDeepLink = null;
     return route;
   });
 
-  ipcMain.handle('echoo:get-app-info', async () => {
+  handleTrustedIpc('echoo:get-app-info', async () => {
     try {
       return {
         ok: true,
@@ -1712,7 +1773,7 @@ function registerIpc() {
     }
   });
 
-  ipcMain.handle('echoo:get-room-state', async () => {
+  handleTrustedIpc('echoo:get-room-state', async () => {
     try {
       return { ...roomState };
     } catch (error) {
@@ -1721,7 +1782,7 @@ function registerIpc() {
     }
   });
 
-  ipcMain.handle('echoo:notify', async (_event, options = {}) => {
+  handleTrustedIpc('echoo:notify', async (_event, options = {}) => {
     try {
       const prefs = readPrefs();
       if (prefs.notificationsEnabled !== true) return { shown: false, reason: 'disabled' };
@@ -1735,8 +1796,10 @@ function registerIpc() {
         if (prefs.notificationEvents[key] !== true) return { shown: false, reason: 'event-disabled' };
         ({ title, body } = NOTIFICATION_COPY[key]);
       } else {
-        title = typeof options.title === 'string' && options.title ? options.title : 'Echoo';
-        body = typeof options.body === 'string' ? options.body : '';
+        title = typeof options.title === 'string' && options.title
+          ? options.title.trim().slice(0, 80)
+          : 'Echoo';
+        body = typeof options.body === 'string' ? options.body.trim().slice(0, 240) : '';
       }
 
       showNotification({ title, body, silent: options.silent === true });
@@ -1747,7 +1810,7 @@ function registerIpc() {
     }
   });
 
-  ipcMain.handle('echoo:get-notification-preferences', async () => {
+  handleTrustedIpc('echoo:get-notification-preferences', async () => {
     try {
       return readPrefs();
     } catch (error) {
@@ -1756,7 +1819,7 @@ function registerIpc() {
     }
   });
 
-  ipcMain.handle('echoo:set-notification-preferences', async (_event, update = {}) => {
+  handleTrustedIpc('echoo:set-notification-preferences', async (_event, update = {}) => {
     try {
       const prefs = readPrefs();
       if (typeof update.notificationsEnabled === 'boolean') {
@@ -1777,17 +1840,17 @@ function registerIpc() {
   });
 
   // Back-compat singular aliases.
-  ipcMain.handle('echoo:get-notification-preference', async () => {
+  handleTrustedIpc('echoo:get-notification-preference', async () => {
     const prefs = readPrefs();
     return { notificationsEnabled: prefs.notificationsEnabled };
   });
-  ipcMain.handle('echoo:set-notification-preference', async (_event, enabled) => {
+  handleTrustedIpc('echoo:set-notification-preference', async (_event, enabled) => {
     const prefs = readPrefs();
     prefs.notificationsEnabled = enabled === true;
     return { notificationsEnabled: writePrefs(prefs).notificationsEnabled };
   });
 
-  ipcMain.handle('echoo:set-room-state', async (_event, state = {}) => {
+  handleTrustedIpc('echoo:set-room-state', async (_event, state = {}) => {
     try {
       const wasActive = roomState.active === true;
       const requestedMode = String(state.mode || '').toLowerCase();
@@ -1828,7 +1891,7 @@ function registerIpc() {
   });
 
   // --- Windows auto-launch on system startup (optional toggle) -------------
-  ipcMain.handle('echoo:set-auto-launch', async (_event, enabled) => {
+  handleTrustedIpc('echoo:set-auto-launch', async (_event, enabled) => {
     try {
       const openAtLogin = enabled === true;
       app.setLoginItemSettings({ openAtLogin });
@@ -1839,7 +1902,7 @@ function registerIpc() {
     }
   });
 
-  ipcMain.handle('echoo:get-auto-launch', async () => {
+  handleTrustedIpc('echoo:get-auto-launch', async () => {
     try {
       const { openAtLogin } = app.getLoginItemSettings();
       return { openAtLogin: !!openAtLogin };
@@ -1849,8 +1912,11 @@ function registerIpc() {
     }
   });
 
-  ipcMain.handle('echoo:reload', async () => {
+  handleTrustedIpc('echoo:reload', async () => {
     try {
+      if (updateRestartBlocked()) {
+        return { ok: false, busy: true, error: 'Echoo cannot reload during active audio or a recording save.' };
+      }
       if (DEV_URL_IS_EXPLICIT || !app.isPackaged) {
         // Test/debug override (also honored in packaged builds so the packaged
         // boot test can point at a fixture server).
@@ -1869,7 +1935,7 @@ function registerIpc() {
   // Creator recording library: ~/Desktop/Echoo Recordings. Long recordings
   // use a chunked IPC protocol so multi-GB RF64/WAV files never cross the
   // context bridge as one giant ArrayBuffer.
-  ipcMain.handle('echoo:recording-save-begin', async (_event, options = {}) => {
+  handleTrustedIpc('echoo:recording-save-begin', async (_event, options = {}) => {
     try {
       const format = String(options?.format || 'mp3').toLowerCase() === 'wav' ? 'wav' : 'mp3';
       const rawName = String(options?.filename || `Echoo - recording.${format}`)
@@ -1957,7 +2023,7 @@ function registerIpc() {
     }
   });
 
-  ipcMain.handle('echoo:recording-save-chunk', async (_event, payload = {}) => {
+  handleTrustedIpc('echoo:recording-save-chunk', async (_event, payload = {}) => {
     const sessionId = String(payload?.sessionId || '');
     const session = recordingSaveSessions.get(sessionId);
     if (!session || session.state !== 'writing') {
@@ -1989,7 +2055,7 @@ function registerIpc() {
     }
   });
 
-  ipcMain.handle('echoo:recording-save-finish', async (_event, sessionIdValue) => {
+  handleTrustedIpc('echoo:recording-save-finish', async (_event, sessionIdValue) => {
     const sessionId = String(sessionIdValue || '');
     const session = recordingSaveSessions.get(sessionId);
     if (!session || session.state !== 'writing') {
@@ -2038,7 +2104,7 @@ function registerIpc() {
     }
   });
 
-  ipcMain.handle('echoo:recording-save-abort', async (_event, sessionIdValue) => {
+  handleTrustedIpc('echoo:recording-save-abort', async (_event, sessionIdValue) => {
     const sessionId = String(sessionIdValue || '');
     const session = recordingSaveSessions.get(sessionId);
     if (!session) return { aborted: true };
@@ -2062,7 +2128,7 @@ function registerIpc() {
 
   // Legacy bounded save remains for older renderer bundles. Current builds use
   // the chunked protocol above for long recordings.
-  ipcMain.handle('echoo:save-recording', async (_event, options = {}) => {
+  handleTrustedIpc('echoo:save-recording', async (_event, options = {}) => {
     try {
       const format = String(options?.format || 'mp3').toLowerCase() === 'wav' ? 'wav' : 'mp3';
       const rawName = String(options?.filename || `Echoo - recording.${format}`)
@@ -2125,7 +2191,7 @@ function registerIpc() {
     }
   });
 
-  ipcMain.handle('echoo:open-recordings-folder', async (_event, targetPath) => {
+  handleTrustedIpc('echoo:open-recordings-folder', async (_event, targetPath) => {
     try {
       const baseLibraryDir = recordingsLibraryRoot();
       await fs.promises.mkdir(baseLibraryDir, { recursive: true });
@@ -2147,7 +2213,7 @@ function registerIpc() {
     }
   });
 
-  ipcMain.handle('echoo:open-recording', async (_event, targetPath) => {
+  handleTrustedIpc('echoo:open-recording', async (_event, targetPath) => {
     try {
       const recordingPath = safeRecordingPath(targetPath);
       if (!recordingPath) return { opened: false, error: 'Recording path is not allowed.' };
@@ -2159,7 +2225,7 @@ function registerIpc() {
     }
   });
 
-  ipcMain.handle('echoo:show-recording', async (_event, targetPath) => {
+  handleTrustedIpc('echoo:show-recording', async (_event, targetPath) => {
     try {
       const recordingPath = safeRecordingPath(targetPath);
       if (!recordingPath) return { shown: false, error: 'Recording path is not allowed.' };
@@ -2171,7 +2237,7 @@ function registerIpc() {
     }
   });
 
-  ipcMain.handle('echoo:rename-recording', async (_event, payload = {}) => {
+  handleTrustedIpc('echoo:rename-recording', async (_event, payload = {}) => {
     try {
       const recordingPath = safeRecordingPath(payload?.path);
       if (!recordingPath) return { renamed: false, error: 'Recording path is not allowed.' };
@@ -2202,7 +2268,7 @@ function registerIpc() {
     }
   });
 
-  ipcMain.handle('echoo:trash-recording', async (_event, targetPath) => {
+  handleTrustedIpc('echoo:trash-recording', async (_event, targetPath) => {
     try {
       const recordingPath = safeRecordingPath(targetPath);
       if (!recordingPath) return { trashed: false, error: 'Recording path is not allowed.' };
@@ -2215,7 +2281,11 @@ function registerIpc() {
     }
   });
 
-  ipcMain.on('echoo:quit-ready', () => {
+  ipcMain.on('echoo:quit-ready', (event) => {
+    if (!isTrustedIpcEvent(event)) {
+      log.warn('[echoo-desktop] blocked untrusted IPC caller on echoo:quit-ready');
+      return;
+    }
     log.info('[echoo-desktop] renderer reported clean shutdown');
     void finalizeDesktopQuit('renderer clean shutdown');
   });

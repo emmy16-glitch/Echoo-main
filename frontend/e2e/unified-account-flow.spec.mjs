@@ -119,7 +119,7 @@ test('Listener can start Channel setup in the same account and return without an
   expect(identityDuringSetup.user.creatorProfile.setupCompleted).toBe(false);
   expect(identityDuringSetup.experience).toBe('creator');
 
-  await page.getByRole('button', { name: 'Back to Listener' }).click();
+  await page.getByRole('button', { name: 'Back', exact: true }).click();
   await expect(page).toHaveURL(/\/listen$/);
   await expect.poll(() => page.evaluate(() => localStorage.getItem('accessToken'))).toBe('listener-token');
   await expect.poll(() => page.evaluate(() => localStorage.getItem('echooActiveExperience'))).toBe('listener');

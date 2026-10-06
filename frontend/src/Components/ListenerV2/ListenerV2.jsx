@@ -408,6 +408,11 @@ const ListenerV2Layout = () => {
   const [livePlayerState, setLivePlayerState] = useState(null);
   const [liveSession, setLiveSession] = useState(null);
   const [listenerVolume, setListenerVolume] = useState(readListenerVolume);
+  useEffect(() => {
+    const source = String(currentTrack?.fileUrl || '');
+    if (!source.startsWith('blob:')) return undefined;
+    return () => URL.revokeObjectURL(source);
+  }, [currentTrack?.fileUrl]);
   useEffect(() => { if (audioRef.current) audioRef.current.volume = listenerVolume; }, [listenerVolume]);
   useEffect(() => {
     const syncVolume = () => setListenerVolume(readListenerVolume());
@@ -569,7 +574,11 @@ const ListenerV2Layout = () => {
 
     try {
       const normalized = await resolveFreshPlaybackTrack(requested);
-      if (requestId !== playbackRequestRef.current) return false;
+      if (requestId !== playbackRequestRef.current) {
+        const supersededUrl = String(normalized?.fileUrl || '');
+        if (supersededUrl.startsWith('blob:')) URL.revokeObjectURL(supersededUrl);
+        return false;
+      }
 
       const nextQueue = (Array.isArray(incomingQueue) ? incomingQueue : [])
         .map(normalizePlayable)

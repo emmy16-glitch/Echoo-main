@@ -15,7 +15,7 @@ test('guests open Echoo into Discover and are prompted only for a follow action'
   await page.goto('/');
   await expect(page).toHaveURL(/\/listen$/);
   await expect(page.getByRole('heading', { name: 'Discover' })).toBeVisible();
-  await expect(page.getByText('Live broadcasts and recordings, all in one place.')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Latest recordings' })).toBeVisible();
 
   await page.goto('/listen/stations');
   await expect(page.getByRole('heading', { name: 'Channels', exact: true })).toBeVisible();

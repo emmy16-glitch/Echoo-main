@@ -109,7 +109,7 @@ const connect = async () => {
   const token = getCurrentAccessToken();
   if (!token) throw new Error('Login is required for realtime Echoo updates.');
 
-  if (sharedSocket?.connected) {
+  if (sharedSocket?.connected && sharedSocket.__echooGuest !== true) {
     updateSocketAuth(token);
     return sharedSocket;
   }
@@ -130,8 +130,16 @@ const connect = async () => {
     });
     installSocketRecovery(sharedSocket);
   } else {
+    // Socket.IO applies `auth` only during a handshake. A socket that is
+    // already connected as a guest must reconnect before the server can grant
+    // the signed-in identity; mutating socket.auth alone leaves it guest-only.
+    if (sharedSocket.__echooGuest === true && sharedSocket.connected) {
+      sharedSocket.disconnect();
+    }
     updateSocketAuth(token);
   }
+
+  sharedSocket.__echooGuest = false;
 
   if (!sharedSocket.connected) sharedSocket.connect();
 
@@ -256,6 +264,12 @@ const connectGuest = async ({ guestId = '', displayName = '' } = {}) => {
     sharedSocket.__echooGuest = true;
     installSocketRecovery(sharedSocket);
   } else {
+    // Do not let an authenticated server-side socket keep its privileges after
+    // the renderer switches to public guest listening. Re-handshake with the
+    // explicit read-only guest identity.
+    if (sharedSocket.__echooGuest !== true && sharedSocket.connected) {
+      sharedSocket.disconnect();
+    }
     sharedSocket.auth = auth;
     sharedSocket.__echooGuest = true;
   }
