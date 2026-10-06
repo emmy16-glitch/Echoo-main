@@ -66,6 +66,19 @@ test('packaged runtime loads the local renderer from one private desktop origin'
   assert.ok(packageJson.build.files.includes('frontend-dist/**/*'));
 });
 
+test('Windows desktop PR validation stays read-only and release writes are isolated', () => {
+  assert.match(windowsWorkflow, /permissions:\s*\n\s*contents:\s*read/);
+  assert.match(
+    windowsWorkflow,
+    /publish-tagged-release:[\s\S]*permissions:\s*\n\s*contents:\s*write/
+  );
+  assert.match(
+    windowsWorkflow,
+    /publish-tagged-release:[\s\S]*needs:\s*build-test-installer/
+  );
+});
+
+
 test('Windows desktop CI follows the shared backend origin contract', () => {
   assert.match(windowsWorkflow, /pull_request:/);
   assert.match(windowsWorkflow, /backend\/src\/app\.js/);
