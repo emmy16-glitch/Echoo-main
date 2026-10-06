@@ -3,10 +3,12 @@ import {
   Bell,
   ChevronRight,
   Download,
+  FileText,
   Headphones,
   Languages,
   MoonStar,
   Shield,
+  Trash2,
   UserRound,
   Volume2,
 } from 'lucide-react-native';
@@ -160,8 +162,27 @@ export default function SettingsScreen() {
             subtitle="Secure mobile session storage and account controls"
             value={signedIn ? 'Protected' : 'Guest'}
             palette={palette}
-            last
           />
+          <SettingRow
+            icon={<FileText color={palette.muted} size={19} strokeWidth={2} />}
+            title="Privacy Policy"
+            subtitle="Read how Echoo handles account, listening and broadcast data"
+            value="Open"
+            palette={palette}
+            onPress={() => { void Linking.openURL('https://echoo.digi02.org/privacy-policy'); }}
+            last={!signedIn}
+          />
+          {signedIn ? (
+            <SettingRow
+              icon={<Trash2 color={palette.red} size={19} strokeWidth={2} />}
+              title="Delete account"
+              subtitle="Permanently delete your Echoo account"
+              value="Delete"
+              palette={palette}
+              onPress={() => router.push('/delete-account')}
+              last
+            />
+          ) : null}
         </View>
 
         <View style={styles.securityCard}>

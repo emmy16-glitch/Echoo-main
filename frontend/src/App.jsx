@@ -6,6 +6,7 @@ import {
   Navigate,
   Route,
   Routes,
+  useLocation,
   useNavigate,
 } from 'react-router-dom';
 
@@ -13,6 +14,8 @@ import Register from './Components/Register/register';
 import ResetPassword from './Components/Register/ResetPassword';
 import ProfileSetup from './Components/ProfileSetup/ProfileSetup';
 import CreatorSetup from './Components/CreatorSetup/CreatorSetup';
+import PrivacyPolicy from './Components/Legal/PrivacyPolicy';
+import DeleteAccount from './Components/Legal/DeleteAccount';
 
 // Logged-in shells are lazy-loaded so Listener and Creator download only the
 // workspace they are using. Listener chunks are warmed after authentication.
@@ -148,14 +151,25 @@ const getStartingStage = () => {
   return 'listener-done';
 };
 
+const safeReturnToFrom = (search = '') => {
+  const candidate = new URLSearchParams(search).get('returnTo') || '';
+  if (!candidate.startsWith('/') || candidate.startsWith('//')) return '';
+  const allowedRoots = ['/listen', '/creator-studio', '/delete-account', '/privacy-policy'];
+  return allowedRoots.some((root) => candidate === root || candidate.startsWith(`${root}/`) || candidate.startsWith(`${root}?`))
+    ? candidate
+    : '';
+};
+
 const OnboardingFlow = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { completeAuthentication } = useGuestAuth();
+  const returnTo = safeReturnToFrom(location.search);
   const [stage, setStage] = useState(getStartingStage);
 
   const finishAuthentication = (user) => {
     migrateGuestSessionToAccount(user || getStoredUser());
-    void completeAuthentication();
+    void completeAuthentication(returnTo || undefined);
   };
 
   const handleLoginSuccess = (user) => {
@@ -331,6 +345,8 @@ function App() {
             <Route path="/login" element={<OnboardingFlow />} />
             <Route path="/register" element={<OnboardingFlow />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+            <Route path="/delete-account" element={<DeleteAccount />} />
 
             <Route
               path="/creator-studio/*"

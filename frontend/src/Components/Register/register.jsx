@@ -622,7 +622,7 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
 
                 {!isLogin && (
                   <p className="ear-legal">
-                    By continuing, you agree to the <button type="button">Terms</button> and <button type="button">Privacy Policy</button>.
+                    By creating an account, you acknowledge the <button type="button" onClick={() => navigate("/privacy-policy")}>Privacy Policy</button>.
                   </p>
                 )}
 

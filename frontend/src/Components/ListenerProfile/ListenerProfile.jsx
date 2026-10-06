@@ -11,7 +11,7 @@ export default function ListenerProfile() {
   const [error, setError] = useState('');
   let user = {};
   try { user = JSON.parse(localStorage.getItem('user') || '{}'); } catch { /* No saved identity. */ }
-  const links = [['Settings', '/listen/settings'], ['Help and support', '/listen/settings?section=help']];
+  const links = [['Settings', '/listen/settings'], ['Privacy Policy', '/privacy-policy'], ['Delete account', '/delete-account'], ['Help and support', '/listen/settings?section=help']];
   const signOut = async () => {
     if (pending) return;
     setPending(true);

@@ -423,6 +423,16 @@ export async function logoutEchoo() {
   }
 }
 
+export async function deleteEchooAccount(password: string) {
+  const payload = await apiRequest('/settings/account', {
+    method: 'DELETE',
+    body: JSON.stringify({ password }),
+    auth: 'required',
+  });
+  await clearSession();
+  return payload;
+}
+
 export async function getSavedAudio() {
   const payload = await apiRequest('/library/tracks?page=1&limit=100', { auth: 'required' });
   return (payload?.data?.tracks || []).map(normalizeAudio).filter((item: EchooAudio) => item.id);

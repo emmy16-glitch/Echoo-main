@@ -52,6 +52,12 @@ const settingsService = {
       method: 'PATCH',
       body: JSON.stringify(payload),
     }),
+
+  deleteAccount: async (password) =>
+    apiRequest('/settings/account', {
+      method: 'DELETE',
+      body: JSON.stringify({ password }),
+    }),
 };
 
 export default settingsService;
