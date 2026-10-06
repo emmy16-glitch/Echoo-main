@@ -728,7 +728,7 @@ test('HashRouter-sensitive screens use router state and public web URLs', () => 
   const listenerSettingsSource = fs.readFileSync(path.resolve(desktopRoot, '..', 'frontend', 'src', 'Components', 'ListenerSettings', 'ListenerSettingsConnected.jsx'), 'utf8');
   const audioDetailSource = fs.readFileSync(path.resolve(desktopRoot, '..', 'frontend', 'src', 'Components', 'ListenerAudioDetail', 'ListenerAudioDetail.jsx'), 'utf8');
   assert.match(creatorSetupSource, /useNavigate/);
-  assert.match(creatorSetupSource, /navigate\('\/creator-studio', \{ replace: true \}\)/);
+  assert.match(creatorSetupSource, /creatorReady: true/);
   assert.doesNotMatch(creatorSetupSource, /window\.location\.assign/);
   assert.match(listenerSettingsSource, /new URLSearchParams\(routerLocation\.search\)/);
   assert.doesNotMatch(listenerSettingsSource, /window\.location\.search/);
