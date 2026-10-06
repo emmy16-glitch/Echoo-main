@@ -6,15 +6,10 @@ import {
 } from './desktopBridge';
 import realtimeService from './realtimeService';
 import { stopLiveKitPublishing } from './livekitPublisher';
+import { normalizeDesktopWorkspaceRoute } from './desktopWorkspaceRoute';
 
 let installed = false;
 const LAST_DESKTOP_ROUTE_KEY = 'echooDesktopLastRouteV1';
-
-const normalizeDesktopWorkspaceRoute = (value) => {
-  const candidate = String(value || '').trim();
-  if (!/^\/(?:listen|creator-studio)(?:\/|\?|$)/.test(candidate)) return '';
-  return candidate.slice(0, 2048);
-};
 
 const restoreLastDesktopWorkspace = () => {
   try {

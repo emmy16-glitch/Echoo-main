@@ -834,10 +834,21 @@ const ListenerRealLiveRoom = () => {
   if (!show) {
     return (
       <main className="listener-v2-live-room listener-v2-live-room--state">
-        <button type="button" onClick={() => navigate('/listen/live')}>
-          <FiArrowLeft /> Back to Live Now
-        </button>
         <div>{loadError || 'This live broadcast is unavailable.'}</div>
+        <div className="listener-v2-room-state-actions">
+          <button type="button" onClick={() => navigate('/listen/live')}>
+            <FiArrowLeft /> Back to Live Now
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setLoadError('');
+              void load();
+            }}
+          >
+            <FaRedoAlt /> Try again
+          </button>
+        </div>
       </main>
     );
   }

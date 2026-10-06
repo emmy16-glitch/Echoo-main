@@ -111,7 +111,7 @@ test.describe('packaged startup lifecycle', () => {
           surfaceBackground: 'rgb(247, 249, 252)',
           surfaceWidth: '160px',
           surfaceHeight: '160px',
-          animationDuration: '1.05s',
+          animationDuration: '1.15s',
         });
         expect(splashVisual.animationName).not.toBe('none');
 

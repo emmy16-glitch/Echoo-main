@@ -885,16 +885,38 @@ function createWindow() {
     }
   });
 
-  // Load failure (missing frontend/dist in prod, dev server down in dev) shows
-  // a retry/offline page instead of a blank/broken window.
-  mainWindow.webContents.on('did-start-loading', () => {
-    logStartupEvent('renderer-navigation-start', `phase=${rendererLifecyclePhase}`);
-    // Chromium's native reload shortcuts and menu roles do not pass through
-    // loadPackagedRenderer(). Prepare only an unclassified renderer load.
-    // Recovery navigation is explicit and must never recreate the splash.
-    if (app.isPackaged && rendererLifecyclePhase !== 'recovery-loading') {
-      preparePackagedRendererLoad('native-navigation');
+  // Distinguish a real main-document reload from an in-place HashRouter route
+  // change. The desktop splash belongs to renderer boot/reload only; treating a
+  // hash navigation (for example session-expiry -> #/login or restoring a
+  // Listener workspace) as a fresh renderer boot recreates the splash after
+  // APP_READY and guarantees a false startup timeout because React is already
+  // mounted and will not emit a second boot-ready signal.
+  mainWindow.webContents.on(
+    'did-start-navigation',
+    (_event, url, isInPlace, isMainFrame) => {
+      logStartupEvent(
+        'renderer-navigation-start',
+        `phase=${rendererLifecyclePhase} inPlace=${Boolean(isInPlace)} mainFrame=${Boolean(isMainFrame)}`
+      );
+
+      if (
+        !app.isPackaged ||
+        rendererLifecyclePhase === 'recovery-loading' ||
+        isMainFrame === false ||
+        isInPlace === true ||
+        !isAppUrl(url)
+      ) {
+        return;
+      }
+
+      // Explicit loadPackagedRenderer() already prepares before loadURL. This
+      // second call is intentionally idempotent there, while native Chromium
+      // reloads still get a fresh generation, splash and APP_READY watchdog.
+      preparePackagedRendererLoad('main-frame-navigation');
     }
+  );
+  mainWindow.webContents.on('did-start-loading', () => {
+    logStartupEvent('renderer-load-start', `phase=${rendererLifecyclePhase}`);
   });
   mainWindow.webContents.on('did-fail-load', (
     _event,

@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
+const { pathToFileURL } = require('node:url');
 
 const desktopRoot = path.resolve(__dirname, '..');
 const packageJson = JSON.parse(fs.readFileSync(path.join(desktopRoot, 'package.json'), 'utf8'));
@@ -321,8 +322,9 @@ test('splash uses the real Echoo mark as the restrained startup motion', () => {
   assert.doesNotMatch(splashHtml, /Starting Echoo/);
   assert.doesNotMatch(splashHtml, /progress/i);
   assert.match(splashCss, /prefers-reduced-motion:\s*reduce/);
-  assert.match(splashCss, /1\.05s[\s\S]*infinite alternate/);
-  assert.match(splashCss, /translate\(-3px, 3px\)/);
+  assert.match(splashCss, /1\.15s[\s\S]*infinite/);
+  assert.match(splashCss, /translate\(3px, -2px\)/);
+  assert.match(splashCss, /translate\(-3px, 2px\)/);
   assert.match(splashCss, /background:\s*#f7f9fc/);
   assert.match(mainSource, /width: 176,[\s\S]{0,100}height: 176,[\s\S]{0,120}transparent: true/);
   assert.match(mainSource, /backgroundColor: '#00000000'/);
@@ -419,15 +421,29 @@ test('installed Windows smoke covers cold-start and second-instance deep links',
 });
 
 
-test('desktop restores the last useful workspace without persisting auth screens', () => {
+test('desktop restores stable workspaces without reopening stale live-room IDs', async () => {
   const lifecycleSource = fs.readFileSync(
     path.resolve(desktopRoot, '..', 'frontend', 'src', 'services', 'desktopLifecycle.js'),
     'utf8'
   );
+  const routeModulePath = path.resolve(
+    desktopRoot,
+    '..',
+    'frontend',
+    'src',
+    'services',
+    'desktopWorkspaceRoute.js'
+  );
+  const { normalizeDesktopWorkspaceRoute } = await import(pathToFileURL(routeModulePath).href);
+
   assert.match(lifecycleSource, /echooDesktopLastRouteV1/);
   assert.match(lifecycleSource, /restoreLastDesktopWorkspace/);
   assert.match(lifecycleSource, /normalizeDesktopWorkspaceRoute/);
-  assert.match(lifecycleSource, /listen\|creator-studio/);
+  assert.equal(normalizeDesktopWorkspaceRoute('/listen/live/abc123'), '/listen/live');
+  assert.equal(normalizeDesktopWorkspaceRoute('/listen/live/abc123?from=share'), '/listen/live');
+  assert.equal(normalizeDesktopWorkspaceRoute('/listen/library'), '/listen/library');
+  assert.equal(normalizeDesktopWorkspaceRoute('/creator-studio/recordings'), '/creator-studio/recordings');
+  assert.equal(normalizeDesktopWorkspaceRoute('/login'), '');
 });
 
 
@@ -451,6 +467,17 @@ test('auto-update waits for recording saves as well as active audio sessions', (
 
 test('cancelled and subframe loads cannot replace a healthy app with the recovery page', () => {
   assert.match(mainSource, /errorCode === -3 \|\| isMainFrame === false/);
+});
+
+test('in-place desktop navigation never restarts the packaged startup lifecycle', () => {
+  assert.match(mainSource, /did-start-navigation/);
+  assert.match(mainSource, /isInPlace === true/);
+  assert.match(mainSource, /isMainFrame === false/);
+  assert.match(mainSource, /preparePackagedRendererLoad\('main-frame-navigation'\)/);
+  assert.doesNotMatch(
+    mainSource,
+    /webContents\.on\('did-start-loading'[\s\S]{0,500}preparePackagedRendererLoad/
+  );
 });
 
 
@@ -689,6 +716,18 @@ test('desktop anti-slop layer removes glass, shimmer gradients, floating cards, 
 });
 
 
+test('desktop and live-room network failures never expose raw browser fetch errors', () => {
+  const apiSource = fs.readFileSync(
+    path.resolve(desktopRoot, '..', 'frontend', 'src', 'services', 'api.js'),
+    'utf8'
+  );
+  assert.match(apiSource, /NETWORK_UNAVAILABLE/);
+  assert.match(apiSource, /Echoo could not reach the service\. Check your connection and try again\./);
+  assert.doesNotMatch(listenerRoomSource, /setLoadError\(error\?\.message \|\| 'Failed to fetch'/);
+  assert.match(listenerRoomSource, />\s*Try again/);
+  assert.match(listenerRoomSource, /void load\(\)/);
+});
+
 test('desktop media URL fallback never references the removed localRuntime symbol', () => {
   const apiSource = fs.readFileSync(path.resolve(desktopRoot, '..', 'frontend', 'src', 'services', 'api.js'), 'utf8');
   assert.doesNotMatch(apiSource, /\blocalRuntime\b/);
@@ -806,12 +845,13 @@ test('packaged retry and renderer recovery never expose an in-between Chromium p
   assert.match(mainSource, /async function loadPackagedRenderer\(\)[\s\S]{0,180}preparePackagedRendererLoad\(/);
   assert.match(mainSource, /rendererLifecyclePhase = 'recovery-loading'/);
   assert.match(mainSource, /destroySplashWindow\('recovery'\)/);
-  assert.match(mainSource, /rendererLifecyclePhase !== 'recovery-loading'/);
+  assert.match(mainSource, /rendererLifecyclePhase === 'recovery-loading'/);
 });
 
 test('native and keyboard reloads return behind the splash until React mounts again', () => {
-  assert.match(mainSource, /webContents\.on\('did-start-loading'/);
-  assert.match(mainSource, /preparePackagedRendererLoad\('native-navigation'\)/);
+  assert.match(mainSource, /webContents\.on\([\s\S]{0,80}'did-start-navigation'/);
+  assert.match(mainSource, /isInPlace === true/);
+  assert.match(mainSource, /preparePackagedRendererLoad\('main-frame-navigation'\)/);
   assert.match(mainSource, /mainWindowRendererReady = false/);
   assert.match(mainSource, /function reloadMainWindow\(\{ ignoreCache = false \} = \{\}\)/);
   assert.match(mainSource, /if \(updateRestartBlocked\(\)\)/);

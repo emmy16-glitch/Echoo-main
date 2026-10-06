@@ -111,6 +111,31 @@ test.describe('packaged Echoo Windows shell', () => {
     expect(mainPage.url()).not.toContain('echoo.digi02.org');
   });
 
+  test('does not recreate the splash for in-place auth or workspace navigation', async () => {
+    await mainPage.evaluate(() => {
+      window.location.replace('#/login?reason=session-expired');
+    });
+
+    await expect
+      .poll(() => mainPage.evaluate(() => window.location.hash))
+      .toBe('#/login?reason=session-expired');
+
+    await mainPage.waitForTimeout(750);
+
+    await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => {
+      const windows = BrowserWindow.getAllWindows();
+      return {
+        visible: windows.filter((window) => window.isVisible()).length,
+        splash: windows.filter((window) => window.webContents.getURL().includes('splash.html')).length,
+      };
+    })).toEqual({ visible: 1, splash: 0 });
+
+    await mainPage.evaluate(() => {
+      window.location.hash = '#/listen';
+    });
+    await expect.poll(() => mainPage.evaluate(() => window.location.hash)).toBe('#/listen');
+  });
+
   test('blocks unsafe external schemes at the native boundary', async () => {
     const results = await mainPage.evaluate(async () => Promise.all([
       window.echooDesktop.openExternalWebUrl('javascript:alert(document.domain)'),
