@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   FaCamera,
   FaLock,
@@ -31,6 +32,7 @@ const TABS = [
 ];
 
 const CreatorSettingsWorkspace = () => {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('profile');
   const [profile, setProfile] = useState({ displayName: '', bio: '', avatar: '' });
   const [notifications, setNotifications] = useState({
@@ -574,6 +576,15 @@ const CreatorSettingsWorkspace = () => {
               <FaLock /> {busy === 'password' ? 'Updating…' : 'Update password'}
             </button>
           </form>
+
+          <section className="creator-settings-real-card" aria-label="Privacy and account">
+            <div className="creator-settings-section-heading">
+              <h3>Privacy &amp; account</h3>
+              <p>Read how Echoo handles your information or permanently delete this Echoo account.</p>
+            </div>
+            <button type="button" onClick={() => navigate('/privacy-policy')}>Privacy Policy</button>
+            <button type="button" onClick={() => navigate('/delete-account')}>Delete account</button>
+          </section>
 
           {isDesktop && (
             <section className="creator-settings-real-card" aria-label="Desktop diagnostics">
