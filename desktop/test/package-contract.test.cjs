@@ -64,6 +64,13 @@ test('Windows package identity and artifact are canonical', () => {
   assert.deepEqual(packageJson.build.protocols[0].schemes, ['echoo']);
 });
 
+test('bundle verification does not hard-code a previous desktop release version', () => {
+  assert.doesNotMatch(buildSource, /Desktop package version must be 2\.0\.2/);
+  const verifierSource = fs.readFileSync(path.join(desktopRoot, 'scripts', 'verify-bundle.mjs'), 'utf8');
+  assert.match(verifierSource, /stable semantic version/);
+  assert.doesNotMatch(verifierSource, /packageJson\.version !== '2\.0\.2'/);
+});
+
 test('packaged runtime loads the local renderer from one private desktop origin', () => {
   assert.match(mainSource, /loadPackagedRenderer\(\)/);
   assert.match(mainSource, /protocol\.registerSchemesAsPrivileged/);
