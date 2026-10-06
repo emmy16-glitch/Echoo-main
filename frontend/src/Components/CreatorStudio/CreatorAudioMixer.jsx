@@ -981,7 +981,7 @@ const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = n
     const mediaCurrentTime = Number(channels.media?.currentTime) || 0;
     return (
       <section className="eam-approved" aria-label="Workstation mixer">
-        <input ref={mediaFileInputRef} className="eam-approved-file" type="file" accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.oga,.opus,.flac,.webm" onChange={chooseMediaFile} />
+        <input ref={mediaFileInputRef} className="eam-approved-file" type="file" accept="audio/*,.mp3,.mpeg,.mpga,.mp2,.mpa,.m4a,.aac,.wav,.ogg,.oga,.opus,.flac,.webm,.weba" onChange={chooseMediaFile} />
         {deviceRecovery && (
           <div className={`eam-approved-device-status is-${deviceRecovery.tone}`} role="status" aria-live="polite">
             {deviceRecovery.message}
