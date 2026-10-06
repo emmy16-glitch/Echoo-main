@@ -160,6 +160,26 @@ html.echoo-desktop-runtime .echoo-skeleton::after {
   animation: none !important;
 }
 
+html.echoo-desktop-runtime .eca-loading span,
+html.echoo-desktop-runtime .est-loading-featured,
+html.echoo-desktop-runtime .est-loading-recent,
+html.echoo-desktop-runtime .creator10-header-loading,
+html.echoo-desktop-runtime .creator10-metric-loading span {
+  background: #eef2f7 !important;
+  background-image: none !important;
+  animation: none !important;
+}
+
+/* The installed app uses solid, predictable workstation surfaces instead of
+   web-style glass. This final native-only rule also catches older feature CSS
+   that still carries backdrop blur. */
+html.echoo-desktop-runtime *,
+html.echoo-desktop-runtime *::before,
+html.echoo-desktop-runtime *::after {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
 html.echoo-desktop-runtime .echoo-success-pulse,
 html.echoo-desktop-runtime .echoo-success-loading span {
   animation: none !important;
