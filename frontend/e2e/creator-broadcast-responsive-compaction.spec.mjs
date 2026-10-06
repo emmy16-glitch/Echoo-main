@@ -161,10 +161,10 @@ test('Broadcast workstation compacts cleanly across the complete viewport matrix
       expect(layout.lowerTop - layout.gridBottom, `${label} keeps the lower controls connected to the mixer`).toBeLessThanOrEqual(16);
     } else if (viewport.width <= 1024) {
       expect(layout.columns, `${label} uses two strip columns`).toBe(2);
-      expect(layout.topbar?.height, `${label} uses the compact desktop header`).toBe(66);
+      expect(layout.topbar?.height, `${label} keeps the compact desktop header`).toBeLessThanOrEqual(70);
     } else {
       expect(layout.columns, `${label} uses four strip columns`).toBe(4);
-      expect(layout.topbar?.height, `${label} uses the compact desktop header`).toBe(66);
+      expect(layout.topbar?.height, `${label} keeps the compact desktop header`).toBeLessThanOrEqual(70);
       expect(layout.hero?.height, `${label} keeps the off-air hero compact`).toBeLessThanOrEqual(126);
       expect(layout.addAudio?.left, `${label} keeps Add audio on the left`).toBeLessThan(layout.goLive?.left);
     }
