@@ -5,6 +5,15 @@ permissions:
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'desktop/**'
+      - 'frontend/**'
+      - 'backend/src/app.js'
+      - 'backend/src/config/env.js'
+      - '.github/workflows/desktop-windows.yml'
   push:
     branches:
       - main
@@ -13,6 +22,11 @@ on:
     paths:
       - 'desktop/**'
       - 'frontend/**'
+      # The packaged renderer talks directly to the shared Echoo API/Socket.IO.
+      # Re-run Windows verification when the exact desktop-origin/CORS contract
+      # or its environment parsing changes, even if desktop/ itself did not.
+      - 'backend/src/app.js'
+      - 'backend/src/config/env.js'
       - '.github/workflows/desktop-windows.yml'
 
 concurrency:

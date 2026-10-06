@@ -66,6 +66,28 @@ test('packaged runtime loads the local renderer from one private desktop origin'
   assert.ok(packageJson.build.files.includes('frontend-dist/**/*'));
 });
 
+test('Windows desktop CI follows the shared backend origin contract', () => {
+  assert.match(windowsWorkflow, /pull_request:/);
+  assert.match(windowsWorkflow, /backend\/src\/app\.js/);
+  assert.match(windowsWorkflow, /backend\/src\/config\/env\.js/);
+  assert.match(backendAppSource, /if \(normalized === DESKTOP_RENDERER_ORIGIN\) return true;/);
+  assert.match(
+    backendAppSource,
+    /app\.use\(\s*cors\(\{\s*origin:\s*echooCorsOrigin/
+  );
+  assert.match(
+    backendAppSource,
+    /new Server\(server,\s*\{\s*cors:\s*\{\s*origin:\s*echooCorsOrigin/
+  );
+  assert.doesNotMatch(backendAppSource, /DESKTOP_RENDERER_ORIGIN\s*=\s*['"]null['"]/);
+  assert.equal(
+    fs.existsSync(path.resolve(desktopRoot, '..', 'backend', 'src', 'config', 'cors.js')),
+    false,
+    'unused legacy CORS policy must not drift away from the canonical HTTP/Socket.IO policy'
+  );
+});
+
+
 test('renderer build embeds only public client configuration', () => {
   assert.match(buildSource, /VITE_API_URL/);
   assert.match(buildSource, /VITE_PUBLIC_APP_ORIGIN/);
@@ -269,11 +291,14 @@ test('offline recovery stays retryable when a reload returns a failure result', 
 });
 
 
-test('Windows identity and installer verify native protocol registration', () => {
+test('Windows identity and installer verify native protocol registration before first launch', () => {
   const installerVerifier = fs.readFileSync(path.join(desktopRoot, 'scripts', 'verify-installer.ps1'), 'utf8');
   assert.match(mainSource, /app\.setAppUserModelId\('com\.echoo\.desktop'\)/);
   assert.match(installerVerifier, /Software\\Classes\\echoo\\shell\\open\\command/);
-  assert.match(installerVerifier, /Verified echoo:\/\/ protocol registration/);
+  assert.match(installerVerifier, /Verified echoo:\/\/ protocol registration immediately after install/);
+  const protocolCheckIndex = installerVerifier.indexOf('Verified echoo:// protocol registration immediately after install.');
+  const firstLaunchIndex = installerVerifier.indexOf("$application = Start-Process -FilePath $executablePath");
+  assert.ok(protocolCheckIndex >= 0 && firstLaunchIndex > protocolCheckIndex);
 });
 
 
