@@ -125,6 +125,15 @@ html body .est-form-actions {
     border-radius: 14px !important;
   }
 
+  /* Keep compact confirmation dialogs compact on short-but-wide displays.
+     The generic short-viewport rule above is for tall forms that need room to
+     scroll; applying it to a simple two-action confirmation made the End
+     broadcast dialog stretch almost edge-to-edge on a short desktop window. */
+  html body .ec2-end-dialog.ec2-end-dialog {
+    width: min(420px, calc(100vw - 24px)) !important;
+    max-width: min(420px, calc(100vw - 24px)) !important;
+  }
+
   /* Keep the Channel editor compact on short-but-wide displays too. The
      generic short-viewport rule above deliberately lets other dialogs use
      the available width, so this dialog-specific cap must follow it. */
