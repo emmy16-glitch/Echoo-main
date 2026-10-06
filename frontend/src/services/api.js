@@ -200,6 +200,14 @@ const createError = (
 let refreshPromise = null;
 const SESSION_REFRESH_TIMEOUT_MS = 10_000;
 
+const isDefinitiveSessionExpiry = (error) => (
+  error?.code === 'SESSION_EXPIRED' ||
+  error?.code === 'INVALID_REFRESH_TOKEN' ||
+  error?.code === 'REFRESH_TOKEN_REQUIRED' ||
+  error?.status === 401 ||
+  error?.status === 403
+);
+
 // Shared by normal API retries and Socket.IO reconnect recovery. Coalescing the
 // promise prevents a network flap from rotating the refresh token many times at
 // once across API calls and realtime reconnect attempts.
@@ -214,26 +222,14 @@ export const refreshSessionAccessToken = async () => {
     return refreshPromise;
   }
 
-  const controller = typeof AbortController !== 'undefined'
-    ? new AbortController()
-    : null;
-  const timeoutId = controller
-    ? globalThis.setTimeout(
-        () => controller.abort('refresh-timeout'),
-        SESSION_REFRESH_TIMEOUT_MS
-      )
-    : null;
-
-  refreshPromise = fetch(
-    `${requireApiBaseUrl()}/auth/refresh`,
+  refreshPromise = makeRequest(
+    '/auth/refresh',
     {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
       body: JSON.stringify({ refreshToken }),
-      ...(controller ? { signal: controller.signal } : {}),
-    }
+      timeoutMs: SESSION_REFRESH_TIMEOUT_MS,
+    },
+    ''
   )
     .then(async (response) => {
       const data = await parseResponse(response);
@@ -257,7 +253,6 @@ export const refreshSessionAccessToken = async () => {
       return newAccessToken;
     })
     .finally(() => {
-      if (timeoutId) globalThis.clearTimeout(timeoutId);
       refreshPromise = null;
     });
 
@@ -403,6 +398,11 @@ export const apiFetch = async (
       }
     } catch (error) {
       if (error?.code === 'SESSION_EXPIRED') throw error;
+      // A network outage, timeout, malformed success response, or backend 5xx
+      // does not prove that the refresh token is invalid. Preserve the local
+      // account state so desktop reconnect/retry can recover when the service
+      // returns. Only an explicit auth rejection is allowed to sign out.
+      if (!isDefinitiveSessionExpiry(error)) throw error;
       if (accessToken) expireBrowserSession();
       throw sessionExpiredError();
     }

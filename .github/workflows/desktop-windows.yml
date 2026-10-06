@@ -64,6 +64,9 @@ jobs:
       - name: Test desktop security and package contracts
         run: npm test --prefix desktop
 
+      - name: Test desktop authentication recovery
+        run: npm run test:desktop-auth --prefix frontend
+
       - name: Build and verify local renderer
         run: |
           npm run build:renderer --prefix desktop
