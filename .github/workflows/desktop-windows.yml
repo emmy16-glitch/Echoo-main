@@ -95,10 +95,10 @@ jobs:
       - name: Upload verified Windows release files
         uses: actions/upload-artifact@v4
         with:
-          name: echoo-windows-2.0.0-x64
+          name: echoo-windows-x64
           path: |
-            desktop/dist/Echoo-Setup-2.0.0-x64.exe
-            desktop/dist/Echoo-Setup-2.0.0-x64.exe.blockmap
+            desktop/dist/Echoo-Setup-*-x64.exe
+            desktop/dist/Echoo-Setup-*-x64.exe.blockmap
             desktop/dist/latest.yml
           if-no-files-found: error
           retention-days: 14
@@ -130,8 +130,8 @@ jobs:
           target_commitish: ${{ github.sha }}
           name: Echoo Desktop ${{ steps.release_state.outputs.tag }}
           files: |
-            desktop/dist/Echoo-Setup-2.0.0-x64.exe
-            desktop/dist/Echoo-Setup-2.0.0-x64.exe.blockmap
+            desktop/dist/Echoo-Setup-*-x64.exe
+            desktop/dist/Echoo-Setup-*-x64.exe.blockmap
             desktop/dist/latest.yml
           generate_release_notes: true
           make_latest: true
@@ -143,8 +143,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            desktop/dist/Echoo-Setup-2.0.0-x64.exe
-            desktop/dist/Echoo-Setup-2.0.0-x64.exe.blockmap
+            desktop/dist/Echoo-Setup-*-x64.exe
+            desktop/dist/Echoo-Setup-*-x64.exe.blockmap
             desktop/dist/latest.yml
           generate_release_notes: true
         env:
