@@ -227,6 +227,10 @@ test('Windows branding is generated from the canonical Echoo mark with a real mu
   assert.equal(packageJson.build.nsis.installerIcon, 'assets/generated/icon.ico');
   assert.equal(packageJson.build.nsis.uninstallerIcon, 'assets/generated/icon.ico');
   assert.equal(packageJson.build.nsis.installerHeaderIcon, 'assets/generated/icon.ico');
+
+  const offlineHtml = fs.readFileSync(path.join(desktopRoot, 'offline.html'), 'utf8');
+  assert.match(offlineHtml, /\.\/assets\/generated\/icon\.png/);
+  assert.doesNotMatch(offlineHtml, /\.\/assets\/icon\.png/);
 });
 
 
