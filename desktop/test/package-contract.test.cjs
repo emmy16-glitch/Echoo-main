@@ -125,9 +125,10 @@ test('startup uses a bundled splash and hides the packaged main window until rea
 test('Windows release workflow verifies the installed local renderer without server secrets', () => {
   assert.match(windowsWorkflow, /verify-installer\.ps1 -InstallSmokeTest/);
   assert.match(installerVerificationSource, /ECHOO_DISABLE_UPDATES = '1'/);
+  assert.doesNotMatch(windowsWorkflow, /Publish verified main Windows release/);
+  assert.match(windowsWorkflow, /Publish verified tagged release/);
+  assert.match(windowsWorkflow, /startsWith\(github\.ref, 'refs\/tags\/v'\)/);
   assert.match(windowsWorkflow, /Echoo-Setup-\*-x64\.exe/);
-  assert.match(windowsWorkflow, /desktop\/package\.json/);
-  assert.match(windowsWorkflow, /\$package\.version/);
   for (const forbiddenSecret of ['LIVEKIT_API_SECRET', 'JWT_SECRET', 'MONGODB_URI']) {
     assert.equal(windowsWorkflow.includes(forbiddenSecret), false);
   }
