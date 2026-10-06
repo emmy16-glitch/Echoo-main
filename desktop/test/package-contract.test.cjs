@@ -668,6 +668,14 @@ test('packaged startup keeps the splash until the real local React shell mounts'
   assert.match(mainSource, /did-finish-load[\s\S]{0,220}revealMainWindowWhenReady/);
 });
 
+test('packaged retry and renderer recovery never expose an in-between Chromium page', () => {
+  assert.match(mainSource, /function preparePackagedRendererLoad\(\)/);
+  assert.match(mainSource, /mainWindowRendererReady = false/);
+  assert.match(mainSource, /const splash = createSplashWindow\(\)/);
+  assert.match(mainSource, /mainWindow\.hide\(\)/);
+  assert.match(mainSource, /async function loadPackagedRenderer\(\)[\s\S]{0,180}preparePackagedRendererLoad\(\)/);
+});
+
 test('desktop window bounds stay inside the active Windows work area at high DPI', () => {
   assert.match(mainSource, /const MIN_WINDOW_BOUNDS = Object\.freeze\(\{ width: 760, height: 440 \}\)/);
   assert.match(mainSource, /function fitWindowBoundsToDisplay\(bounds, display\)/);
