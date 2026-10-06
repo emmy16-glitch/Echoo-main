@@ -46,6 +46,10 @@ const packagedShellE2eSource = fs.readFileSync(
   path.join(desktopRoot, 'e2e', 'packaged-shell.spec.mjs'),
   'utf8'
 );
+const installerVerificationSource = fs.readFileSync(
+  path.join(desktopRoot, 'scripts', 'verify-installer.ps1'),
+  'utf8'
+);
 const backendAppSource = fs.readFileSync(
   path.resolve(desktopRoot, '..', 'backend', 'src', 'app.js'),
   'utf8'
@@ -120,6 +124,7 @@ test('startup uses a bundled splash and hides the packaged main window until rea
 
 test('Windows release workflow verifies the installed local renderer without server secrets', () => {
   assert.match(windowsWorkflow, /verify-installer\.ps1 -InstallSmokeTest/);
+  assert.match(installerVerificationSource, /ECHOO_DISABLE_UPDATES = '1'/);
   assert.match(windowsWorkflow, /Echoo-Setup-\*-x64\.exe/);
   assert.match(windowsWorkflow, /desktop\/package\.json/);
   assert.match(windowsWorkflow, /\$package\.version/);

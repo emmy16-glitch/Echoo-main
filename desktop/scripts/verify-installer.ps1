@@ -46,6 +46,7 @@ if (-not $installDirectory.StartsWith($tempRoot, [StringComparison]::OrdinalIgno
 $markerPath = Join-Path $tempRoot 'echoo-desktop-smoke.json'
 $userDataSentinelPath = $null
 $recordingSentinelPath = $null
+$previousUpdateValue = $env:ECHOO_DISABLE_UPDATES
 if (Test-Path -LiteralPath $markerPath) {
     Remove-Item -LiteralPath $markerPath -Force
 }
@@ -87,11 +88,13 @@ try {
     $previousRunAsNodeValue = $env:ELECTRON_RUN_AS_NODE
     $env:ECHOO_DESKTOP_SMOKE_TEST = '1'
     $env:ELECTRON_RUN_AS_NODE = $null
+    $env:ECHOO_DISABLE_UPDATES = '1'
     try {
         $application = Start-Process -FilePath $executablePath -ArgumentList 'echoo://listen/live/smoke-cold' -PassThru -WindowStyle Hidden
     } finally {
         $env:ECHOO_DESKTOP_SMOKE_TEST = $previousSmokeValue
         $env:ELECTRON_RUN_AS_NODE = $previousRunAsNodeValue
+        $env:ECHOO_DISABLE_UPDATES = $previousUpdateValue
     }
     try {
         Wait-Process -Id $application.Id -Timeout 45 -ErrorAction Stop
@@ -136,6 +139,7 @@ try {
     Remove-Item -LiteralPath $markerPath -Force -ErrorAction SilentlyContinue
     $env:ECHOO_DESKTOP_SMOKE_TEST = 'second-instance'
     $env:ELECTRON_RUN_AS_NODE = $null
+    $env:ECHOO_DISABLE_UPDATES = '1'
     try {
         $primaryApplication = Start-Process -FilePath $executablePath -PassThru -WindowStyle Hidden
         Start-Sleep -Seconds 5
@@ -154,6 +158,7 @@ try {
     } finally {
         $env:ECHOO_DESKTOP_SMOKE_TEST = $previousSmokeValue
         $env:ELECTRON_RUN_AS_NODE = $previousRunAsNodeValue
+        $env:ECHOO_DISABLE_UPDATES = $previousUpdateValue
     }
 
     if (-not (Test-Path -LiteralPath $markerPath -PathType Leaf)) {
@@ -176,11 +181,13 @@ try {
     Remove-Item -LiteralPath $markerPath -Force -ErrorAction SilentlyContinue
     $env:ECHOO_DESKTOP_SMOKE_TEST = 'offline'
     $env:ELECTRON_RUN_AS_NODE = $null
+    $env:ECHOO_DISABLE_UPDATES = '1'
     try {
         $offlineApplication = Start-Process -FilePath $executablePath -PassThru -WindowStyle Hidden
     } finally {
         $env:ECHOO_DESKTOP_SMOKE_TEST = $previousSmokeValue
         $env:ELECTRON_RUN_AS_NODE = $previousRunAsNodeValue
+        $env:ECHOO_DISABLE_UPDATES = $previousUpdateValue
     }
     try {
         Wait-Process -Id $offlineApplication.Id -Timeout 45 -ErrorAction Stop
@@ -212,11 +219,13 @@ try {
         Remove-Item -LiteralPath $markerPath -Force -ErrorAction SilentlyContinue
         $env:ECHOO_DESKTOP_SMOKE_TEST = 'scale'
         $env:ELECTRON_RUN_AS_NODE = $null
+        $env:ECHOO_DISABLE_UPDATES = '1'
         try {
             $scaleApplication = Start-Process -FilePath $executablePath -ArgumentList "--force-device-scale-factor=$scale" -PassThru -WindowStyle Hidden
         } finally {
             $env:ECHOO_DESKTOP_SMOKE_TEST = $previousSmokeValue
             $env:ELECTRON_RUN_AS_NODE = $previousRunAsNodeValue
+            $env:ECHOO_DISABLE_UPDATES = $previousUpdateValue
         }
         try {
             Wait-Process -Id $scaleApplication.Id -Timeout 45 -ErrorAction Stop
@@ -261,6 +270,7 @@ try {
 
     Write-Host 'Installed Echoo launched the local renderer with the secure desktop bridge.'
 } finally {
+    $env:ECHOO_DISABLE_UPDATES = $previousUpdateValue
     $preservationFailures = @()
     $uninstallerPath = Join-Path $installDirectory 'Uninstall Echoo.exe'
     if (Test-Path -LiteralPath $uninstallerPath -PathType Leaf) {
