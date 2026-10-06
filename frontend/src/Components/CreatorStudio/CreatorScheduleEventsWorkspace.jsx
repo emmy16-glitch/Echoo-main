@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import {
   FiBarChart2,
@@ -18,7 +19,6 @@ import {
 } from 'react-icons/fi';
 
 import batch2Service from '../../services/batch2Service';
-import { assignAppRoute } from '../../services/appNavigation';
 import { getPublicAppUrl, openPublicWebUrl } from '../../services/stationPublicUrl';
 import { useCreatorStudioState } from './CreatorStudioState';
 import './CreatorScheduleEventsWorkspace.css';
@@ -84,6 +84,7 @@ const recordingIdFor = (broadcast) => (
 );
 
 export default function CreatorScheduleEventsWorkspace({ onNavigate }) {
+  const navigate = useNavigate();
   const { ownedStations, broadcasts: stateBroadcasts, refresh, notifyChanged } = useCreatorStudioState();
   const [broadcasts, setBroadcasts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -218,7 +219,7 @@ export default function CreatorScheduleEventsWorkspace({ onNavigate }) {
     setOpenMenu('');
     const recordingId = recordingIdFor(broadcast);
     if (recordingId) {
-      assignAppRoute(`/creator-studio/recordings/${encodeURIComponent(recordingId)}`);
+      navigate(`/creator-studio/recordings/${encodeURIComponent(recordingId)}`);
       return;
     }
     onNavigate?.('Analytics');
