@@ -724,7 +724,7 @@ test('desktop and live-room network failures never expose raw browser fetch erro
   assert.match(apiSource, /NETWORK_UNAVAILABLE/);
   assert.match(apiSource, /Echoo could not reach the service\. Check your connection and try again\./);
   assert.doesNotMatch(listenerRoomSource, /setLoadError\(error\?\.message \|\| 'Failed to fetch'/);
-  assert.match(listenerRoomSource, />Try again</);
+  assert.match(listenerRoomSource, />\s*Try again/);
   assert.match(listenerRoomSource, /void load\(\)/);
 });
 
@@ -845,12 +845,13 @@ test('packaged retry and renderer recovery never expose an in-between Chromium p
   assert.match(mainSource, /async function loadPackagedRenderer\(\)[\s\S]{0,180}preparePackagedRendererLoad\(/);
   assert.match(mainSource, /rendererLifecyclePhase = 'recovery-loading'/);
   assert.match(mainSource, /destroySplashWindow\('recovery'\)/);
-  assert.match(mainSource, /rendererLifecyclePhase !== 'recovery-loading'/);
+  assert.match(mainSource, /rendererLifecyclePhase === 'recovery-loading'/);
 });
 
 test('native and keyboard reloads return behind the splash until React mounts again', () => {
-  assert.match(mainSource, /webContents\.on\('did-start-loading'/);
-  assert.match(mainSource, /preparePackagedRendererLoad\('native-navigation'\)/);
+  assert.match(mainSource, /webContents\.on\([\s\S]{0,80}'did-start-navigation'/);
+  assert.match(mainSource, /isInPlace === true/);
+  assert.match(mainSource, /preparePackagedRendererLoad\('main-frame-navigation'\)/);
   assert.match(mainSource, /mainWindowRendererReady = false/);
   assert.match(mainSource, /function reloadMainWindow\(\{ ignoreCache = false \} = \{\}\)/);
   assert.match(mainSource, /if \(updateRestartBlocked\(\)\)/);
