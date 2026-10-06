@@ -78,6 +78,8 @@ test('recording progress distinguishes local device save from Echoo server recov
   assert.match(autosave, /isLosslessWavRecovery/);
   assert.match(autosave, /return \['mp3', 'wav'\]/);
   assert.match(autosave, /status:\s*'progress'/);
+  assert.match(workspace, /Uploading recovery copy to Echoo/);
+  assert.match(workspace, /uses your internet connection/);
   assert.match(recording, /uploadedBytes/);
   assert.match(recording, /onProgress/);
 });
