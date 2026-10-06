@@ -114,7 +114,8 @@
 .recordings-table-head span { display:flex; align-items:center; gap:7px; font-size:10px; font-weight:760; letter-spacing:.025em; }
 .recordings-table-head span:nth-child(3)::after { content:"↓"; color:var(--rec-blue); font-size:16px; font-weight:700; line-height:1; transform:translateY(-1px); }
 
-.recordings-row { min-height:112px; border-bottom:1px solid #edf1f6; }
+.recordings-row { position:relative; min-height:112px; border-bottom:1px solid #edf1f6; }
+.recordings-row:has(.recordings-more-menu) { z-index:120; }
 .recordings-recording-cell { min-width:0; display:flex; align-items:center; gap:23px; }
 .recordings-art { position:relative; width:154px; height:94px; display:block; flex:0 0 154px; overflow:hidden; padding:0; border:0; border-radius:9px; background:linear-gradient(135deg,#071638,#16458d 58%,#246bfe); cursor:pointer; }
 .recordings-art img { position:relative; z-index:1; width:100%; height:100%; display:block; object-fit:cover; }
@@ -190,7 +191,7 @@
 .recordings-icon-action:hover { border-color:#a9c4fb; color:var(--rec-blue); }
 .recordings-more-wrap { position:relative; }
 .recordings-more { width:44px; min-width:44px; height:44px; min-height:44px; display:grid; place-items:center; flex:0 0 44px; border:0; background:transparent; color:#354a72; font-size:18px; cursor:pointer; }
-.recordings-more-menu { position:absolute; z-index:45; top:calc(100% + 6px); right:0; width:175px; display:grid; gap:3px; padding:6px; border:1px solid #dfe6f0; border-radius:9px; background:#fff; box-shadow:0 14px 30px rgba(7,22,56,.14); }
+.recordings-more-menu { position:absolute; z-index:900; top:calc(100% + 6px); right:0; width:175px; display:grid; gap:3px; padding:6px; border:1px solid #dfe6f0; border-radius:9px; background:#fff; box-shadow:0 14px 30px rgba(7,22,56,.14); }
 .recordings-more-menu button { min-height:36px; display:flex; align-items:center; gap:8px; padding:0 10px; border:0; border-radius:7px; background:transparent; color:#25385f; font-size:11px; text-align:left; cursor:pointer; }
 .recordings-more-menu button:hover { background:#edf4ff; color:var(--rec-blue); }
 .recordings-more-menu button.danger { color:#a52d25; }
