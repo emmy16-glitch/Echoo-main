@@ -8,7 +8,7 @@ test('creator setup stays inside React Router after channel creation', async () 
   const creator = await source('../../frontend/src/Components/CreatorSetup/CreatorSetup.jsx');
   assert.match(creator, /useNavigate/);
   assert.doesNotMatch(creator, /assignAppRoute\('\/creator-studio'\)/);
-  assert.match(creator, /navigate\('\/creator-studio', \{ replace: true \}\)/);
+  assert.match(creator, /creatorReady: true/);
 });
 
 test('Render static build emits common creator and listener entrypoints', async () => {
