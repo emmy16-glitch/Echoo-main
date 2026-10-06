@@ -1,6 +1,6 @@
 {
   "name": "echoo-desktop",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Echoo for Windows — locally packaged desktop client for the shared Echoo platform",
   "main": "src/main.js",
   "private": true,

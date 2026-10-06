@@ -39,7 +39,7 @@ unavailable, but it must not prevent the application shell from rendering.
   icons are verified before `electron-builder` runs.
 - The supported release target is Windows 10/11 x64 using NSIS. The installed
   product name is **Echoo** and the target artifact is
-  `Echoo-Setup-2.0.0-x64.exe`.
+  `Echoo-Setup-2.0.1-x64.exe`.
 
 ## Security invariants
 

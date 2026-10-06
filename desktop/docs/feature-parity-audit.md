@@ -38,12 +38,12 @@ The backend explicitly allows the exact packaged renderer origin
 
 | Area | Status | Evidence |
 | --- | --- | --- |
-| Product/version | IMPLEMENTED | `Echoo`, package `echoo-desktop`, version `2.0.0` |
+| Product/version | IMPLEMENTED | `Echoo`, package `echoo-desktop`, version `2.0.1` |
 | Platform | IMPLEMENTED | Windows 10/11 x64, NSIS only |
-| Installer | AUTOMATED VERIFIED on prior green Windows run | `Echoo-Setup-2.0.0-x64.exe`, `.blockmap`, `latest.yml` |
+| Installer | AUTOMATED VERIFIED locally; release CI must remain green | `Echoo-Setup-2.0.1-x64.exe`, `.blockmap`, `latest.yml` |
 | Local renderer | IMPLEMENTED + AUTOMATED VERIFIED | `frontend-dist` is built, packaged, loaded from `echoo-app://app` |
 | Offline shell independence | IMPLEMENTED; latest Windows CI must remain green | installed smoke mode blocks remote HTTP(S) and still requires the local renderer + bridge to render |
-| Windows identity/icon | IMPLEMENTED | app ID `com.echoo.desktop`, checked-in high-resolution Echoo icon, tray icon |
+| Windows identity/icon | IMPLEMENTED + AUTOMATED VERIFIED | app ID `com.echoo.desktop`; multi-frame ICO and tray assets generated from the canonical transparent Echoo mark |
 | macOS/Linux release paths | REMOVED | no DMG/AppImage targets, notarization hook, or mac/Linux app lifecycle branch |
 | Code signing | MANUAL/CI CREDENTIAL DEPENDENT | Authenticode is used only when signing credentials are supplied securely |
 

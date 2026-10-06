@@ -84,7 +84,7 @@ test.describe('packaged Echoo Windows shell', () => {
     expect(state.requireType).toBe('undefined');
     expect(state.appInfo?.ok).toBe(true);
     expect(state.appInfo?.appName).toBe('Echoo');
-    expect(state.appInfo?.appVersion).toBe('2.0.0');
+    expect(state.appInfo?.appVersion).toBe('2.0.1');
     expect(state.appInfo?.startUrl).toBe('echoo-app://app/index.html');
   });
 

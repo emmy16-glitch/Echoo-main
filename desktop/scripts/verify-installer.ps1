@@ -6,7 +6,8 @@ $ErrorActionPreference = 'Stop'
 
 $desktopRoot = Split-Path -Parent $PSScriptRoot
 $distDirectory = Join-Path $desktopRoot 'dist'
-$installerPath = Join-Path $distDirectory 'Echoo-Setup-2.0.0-x64.exe'
+$package = Get-Content -Raw -LiteralPath (Join-Path $desktopRoot 'package.json') | ConvertFrom-Json
+$installerPath = Join-Path $distDirectory "Echoo-Setup-$($package.version)-x64.exe"
 $updateMetadataPath = Join-Path $distDirectory 'latest.yml'
 $blockmapPath = "$installerPath.blockmap"
 
