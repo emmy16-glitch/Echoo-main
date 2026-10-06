@@ -1253,7 +1253,12 @@ const CreatorLiveConnectedWorkspace = ({
                   {[0, 1].map((group) => (
                     <div className="ec2-live-ticker-group" key={group}>
                       {Array.from({ length: 4 }, (_, index) => (
-                        <span key={index}>YOU&apos;RE BROADCASTING NOW.</span>
+                        <span
+                          className={index === 0 ? 'is-primary' : 'is-repeat'}
+                          key={index}
+                        >
+                          YOU&apos;RE BROADCASTING NOW.
+                        </span>
                       ))}
                     </div>
                   ))}
@@ -1382,15 +1387,15 @@ const CreatorLiveConnectedWorkspace = ({
       )}
 
       {recordingProgress && recordingProgress.stage !== 'done' && (
-        <div className="ec2-operation-progress" role="status" aria-live="polite">
+        <div className={`ec2-operation-progress ${recordingProgress.stage === 'error' ? 'is-attention' : ''}`} role="status" aria-live="polite">
           <div className="ec2-operation-progress__head">
             <strong>
               {recordingProgress.stage === 'waiting-network'
                 ? 'Waiting for connection'
                 : recordingProgress.stage === 'error'
                   ? recordingProgress.localSaved
-                    ? 'Device copy saved · Echoo server save needs retry'
-                    : 'Recording protected locally · Echoo server save needs retry'
+                    ? 'Device copy saved · Echoo save needs attention'
+                    : 'Recording safe · Echoo save needs attention'
                   : recordingProgress.stage === 'recovered'
                   ? 'Recovered recording is protected locally'
                   : recordingProgress.stage === 'device-saving'
@@ -1431,7 +1436,9 @@ const CreatorLiveConnectedWorkspace = ({
               {recordingProgress.stage === 'waiting-network'
                 ? 'Your local master is safe. Echoo will continue when the connection is available.'
                 : recordingProgress.stage === 'error'
-                  ? recordingProgress.message || 'Your recording is protected locally. Retry the Echoo server save when the connection is ready.'
+                  ? recordingProgress.localSaved
+                    ? 'Your device copy is safe. Echoo could not finish its saved recording. Try the Echoo save again.'
+                    : 'Your recording is safe on this device. Echoo could not finish its saved recording. Try the Echoo save again.'
                   : recordingProgress.stage === 'finalizing'
                   ? recordingProgress.localSaved
                     ? 'The file on this device is already safe. Echoo is finishing its separate saved copy.'
@@ -1442,19 +1449,21 @@ const CreatorLiveConnectedWorkspace = ({
             </small>
           )}
           {recordingProgress.stage === 'error' && recordingProgress.key && (
-            <button
-              type="button"
-              className="eb-press"
-              onClick={() => {
-                const retryKey = recordingProgress.key;
-                setRecordingProgress((current) => current
-                  ? { ...current, stage: 'preparing', startedAt: Date.now(), elapsedSeconds: 0 }
-                  : current);
-                void retryAutosave(retryKey).catch(() => {});
-              }}
-            >
-              Retry Echoo save
-            </button>
+            <div className="ec2-operation-progress__actions">
+              <button
+                type="button"
+                className="ec2-retry-save"
+                onClick={() => {
+                  const retryKey = recordingProgress.key;
+                  setRecordingProgress((current) => current
+                    ? { ...current, stage: 'preparing', startedAt: Date.now(), elapsedSeconds: 0 }
+                    : current);
+                  void retryAutosave(retryKey).catch(() => {});
+                }}
+              >
+                Retry save
+              </button>
+            </div>
           )}
         </div>
       )}

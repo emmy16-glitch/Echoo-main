@@ -630,7 +630,11 @@ const RecordingSaveBanner = () => {
             <span>
               {state.retryingServer
                 ? `Retrying Echoo save · ${elapsed}s`
-                : state.message || 'Your recovery copy is kept safely on this device.'}
+                : state.localSaved
+                  ? 'Your device copy is safe. Echoo could not finish its saved recording yet.'
+                  : state.serverReady
+                    ? 'Your Echoo recording is safe. The optional device copy needs attention.'
+                    : 'Your recording is safe on this device. Echoo could not finish its saved recording yet.'}
             </span>
           </div>
 
