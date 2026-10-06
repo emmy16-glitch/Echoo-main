@@ -56,6 +56,11 @@ jobs:
           npm ci --prefix frontend
           npm ci --prefix desktop
 
+      - name: Audit packaged production dependencies
+        run: |
+          npm audit --omit=dev --audit-level=high --prefix frontend
+          npm audit --omit=dev --audit-level=high --prefix desktop
+
       - name: Test desktop security and package contracts
         run: npm test --prefix desktop
 

@@ -527,6 +527,7 @@ test('Windows workflow runs packaged Playwright E2E before installer smoke verif
   assert.match(windowsWorkflow, /Run packaged Electron Playwright E2E/);
   assert.match(windowsWorkflow, /npm run test:e2e:packaged --prefix desktop/);
   assert.match(mainSource, /ECHOO_DISABLE_UPDATES/);
+  assert.match(windowsWorkflow, /npm audit --omit=dev --audit-level=high --prefix desktop/);
 });
 
 
