@@ -61,7 +61,7 @@ if (/\b(?:src|href)="\/assets\//.test(index)) {
   throw new Error('Desktop renderer contains absolute asset paths and cannot boot from the packaged local app origin.');
 }
 
-for (const requiredAsset of ['assets/icon.png', 'assets/tray-icon.png']) {
+for (const requiredAsset of ['assets/generated/icon.ico', 'assets/generated/icon.png', 'assets/generated/tray-icon.png']) {
   const assetPath = join(desktopDirectory, requiredAsset);
   if (!existsSync(assetPath)) {
     throw new Error(`Required Windows desktop asset is missing: ${requiredAsset}`);

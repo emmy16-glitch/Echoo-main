@@ -17,7 +17,12 @@
     "dist": "npm run dist:win",
     "dist:win": "npm run build:renderer && npm run verify:bundle && electron-builder --win --x64",
     "test": "node --test test/package-contract.test.cjs test/security.test.cjs",
-    "test:e2e:packaged": "playwright test --config=playwright.config.mjs"
+    "test:e2e:packaged": "playwright test --config=playwright.config.mjs",
+    "prepare:icons": "node scripts/generate-windows-icons.mjs",
+    "prestart": "npm run prepare:icons",
+    "predev": "npm run prepare:icons",
+    "prebuild:renderer": "npm run prepare:icons",
+    "pretest": "npm run prepare:icons"
   },
   "dependencies": {
     "electron-log": "^5.4.2",
@@ -57,7 +62,7 @@
           ]
         }
       ],
-      "icon": "assets/icon.png",
+      "icon": "assets/generated/icon.ico",
       "artifactName": "Echoo-Setup-${version}-${arch}.${ext}"
     },
     "nsis": {
@@ -66,7 +71,10 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Echoo",
-      "runAfterFinish": true
+      "runAfterFinish": true,
+      "installerIcon": "assets/generated/icon.ico",
+      "uninstallerIcon": "assets/generated/icon.ico",
+      "installerHeaderIcon": "assets/generated/icon.ico"
     },
     "publish": {
       "provider": "github",

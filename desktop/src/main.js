@@ -91,7 +91,7 @@ const PROD_ROOT = path.resolve(__dirname, '../frontend-dist');
 const PROD_INDEX = path.join(PROD_ROOT, 'index.html');
 const OFFLINE_PAGE = path.join(__dirname, '../offline.html');
 const SPLASH_PAGE = path.join(__dirname, '../splash.html');
-const WINDOWS_APP_ICON = path.join(__dirname, '../assets/icon.png');
+const WINDOWS_APP_ICON = path.join(__dirname, '../assets/generated/icon.ico');
 const PACKAGED_APP_SCHEME = 'echoo-app';
 const PACKAGED_APP_ORIGIN = `${PACKAGED_APP_SCHEME}://app`;
 const PACKAGED_RENDERER_URL = `${PACKAGED_APP_ORIGIN}/index.html`;
@@ -1562,7 +1562,7 @@ function buildMenu() {
 // ---------------------------------------------------------------------------
 function resolveTrayIcon() {
   const assetDir = path.join(__dirname, '../assets');
-  for (const name of ['tray-icon.png', 'icon.png']) {
+  for (const name of ['generated/tray-icon.png', 'generated/icon.png']) {
     const candidate = path.join(assetDir, name);
     if (fs.existsSync(candidate)) return candidate;
   }

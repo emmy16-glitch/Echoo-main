@@ -187,12 +187,46 @@ test('renderer reports creator and listener native session modes explicitly', ()
 });
 
 
-test('Windows package ships real Echoo icon assets', () => {
-  for (const relativePath of ['assets/icon.png', 'assets/tray-icon.png']) {
-    const absolutePath = path.join(desktopRoot, relativePath);
-    assert.equal(fs.existsSync(absolutePath), true, `${relativePath} must exist`);
-    assert.ok(fs.statSync(absolutePath).size > 0, `${relativePath} must not be empty`);
+test('Windows branding is generated from the canonical Echoo mark with a real multi-frame ICO', () => {
+  const generatorSource = fs.readFileSync(path.join(desktopRoot, 'scripts', 'generate-windows-icons.mjs'), 'utf8');
+  const canonicalMarkPath = path.resolve(
+    desktopRoot,
+    '..',
+    'frontend',
+    'src',
+    'Components',
+    'Assets',
+    'echoo-mark-transparent.svg'
+  );
+  const canonicalMark = fs.readFileSync(canonicalMarkPath, 'utf8');
+  const generatedDirectory = path.join(desktopRoot, 'assets', 'generated');
+  const icoPath = path.join(generatedDirectory, 'icon.ico');
+
+  assert.match(canonicalMark, /fill="#214FA3"/);
+  assert.match(canonicalMark, /fill="#9DB4D9"/);
+  assert.match(generatorSource, /echoo-mark-transparent\.svg/);
+  assert.match(generatorSource, /ICON_SIZES = \[16, 24, 32, 48, 64, 128, 256\]/);
+  assert.match(generatorSource, /ART_OCCUPANCY = 0\.82/);
+
+  for (const relativePath of ['icon.ico', 'icon.png', 'tray-icon.png']) {
+    const absolutePath = path.join(generatedDirectory, relativePath);
+    assert.equal(fs.existsSync(absolutePath), true, `generated ${relativePath} must exist`);
+    assert.ok(fs.statSync(absolutePath).size > 0, `generated ${relativePath} must not be empty`);
   }
+
+  const ico = fs.readFileSync(icoPath);
+  assert.equal(ico.readUInt16LE(0), 0);
+  assert.equal(ico.readUInt16LE(2), 1);
+  const count = ico.readUInt16LE(4);
+  const sizes = Array.from({ length: count }, (_, index) => {
+    const value = ico[6 + index * 16];
+    return value === 0 ? 256 : value;
+  });
+  assert.deepEqual(sizes, [16, 24, 32, 48, 64, 128, 256]);
+  assert.equal(packageJson.build.win.icon, 'assets/generated/icon.ico');
+  assert.equal(packageJson.build.nsis.installerIcon, 'assets/generated/icon.ico');
+  assert.equal(packageJson.build.nsis.uninstallerIcon, 'assets/generated/icon.ico');
+  assert.equal(packageJson.build.nsis.installerHeaderIcon, 'assets/generated/icon.ico');
 });
 
 
@@ -227,10 +261,14 @@ test('recording saves stay crash-safe until the complete file is synced', () => 
 });
 
 
-test('renderer build preserves canonical checked-in Windows branding assets', () => {
+test('renderer build requires the generated Windows branding assets', () => {
   assert.doesNotMatch(buildSource, /copyFileSync/);
-  assert.match(buildSource, /assets\/icon\.png/);
-  assert.match(buildSource, /assets\/tray-icon\.png/);
+  assert.match(buildSource, /assets\/generated\/icon\.ico/);
+  assert.match(buildSource, /assets\/generated\/icon\.png/);
+  assert.match(buildSource, /assets\/generated\/tray-icon\.png/);
+  assert.equal(packageJson.scripts['prepare:icons'], 'node scripts/generate-windows-icons.mjs');
+  assert.equal(packageJson.scripts['prebuild:renderer'], 'npm run prepare:icons');
+  assert.equal(packageJson.scripts.pretest, 'npm run prepare:icons');
 });
 
 
@@ -403,9 +441,10 @@ test('desktop uses native Windows context menus only for real text operations', 
 });
 
 
-test('main window uses the canonical Windows app icon and reports the real packaged origin', () => {
-  assert.match(mainSource, /const WINDOWS_APP_ICON = path\.join\(__dirname, '\.\.\/assets\/icon\.png'\)/);
+test('main window uses the generated canonical Windows app icon and reports the real packaged origin', () => {
+  assert.match(mainSource, /const WINDOWS_APP_ICON = path\.join\(__dirname, '\.\.\/assets\/generated\/icon\.ico'\)/);
   assert.match(mainSource, /icon: WINDOWS_APP_ICON/);
+  assert.match(mainSource, /generated\/tray-icon\.png/);
   assert.match(mainSource, /startUrl: app\.isPackaged && !DEV_URL_IS_EXPLICIT \? PACKAGED_RENDERER_URL : DEV_URL/);
   assert.doesNotMatch(mainSource, /local:\/\/echoo/);
 });
