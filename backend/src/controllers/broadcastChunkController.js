@@ -10,7 +10,7 @@ import {
   stopBroadcastOutputs,
 } from '../services/broadcastOutputService.js';
 import { finalizeBroadcastReplay } from '../services/broadcastReplayService.js';
-import { assertFfmpegAvailable } from '../services/audioTrimService.js';
+import { checkFfmpegCapability } from '../services/audioTrimService.js';
 import { isTranscriptionConfigured } from '../services/transcriptionGateway.js';
 import { waitForCreatorProgramAudio } from '../services/broadcastAudioReadiness.js';
 import {
@@ -111,16 +111,16 @@ export async function startBroadcastAudioChunks(req, res, next) {
       return res.status(409).json({ error: { code: 'INVALID_BROADCAST_STATE', message: 'Recording transport can only start for a running broadcast or an incomplete completed recording.' } });
     }
 
-    // Echoo promises an automatic server MP3 for every completed live show.
-    // Fail this recording-path handshake clearly when the host cannot provide
-    // FFmpeg/FFprobe, instead of allowing a show to end with a mysterious
-    // missing replay. LiveKit itself remains independent.
-    await assertFfmpegAvailable();
+    // Prefer the MP3 pipeline when media tooling exists. On lightweight
+    // staging hosts without FFmpeg/FFprobe, keep broadcasting normally and
+    // fall back after OFF AIR to a durable WAV replay assembled from the
+    // browser's bounded recovery chunks.
+    const recordingTooling = await checkFfmpegCapability();
 
     // Preferred path: LiveKit sends the already-published program track to the
     // Echoo backend over a signed WebSocket. The browser keeps OPFS only as a
     // safety master and does not upload raw PCM during or after a healthy show.
-    if (isLiveKitServerRecordingEnabled() && ['starting', 'live'].includes(broadcast.status)) {
+    if (recordingTooling.ok && isLiveKitServerRecordingEnabled() && ['starting', 'live'].includes(broadcast.status)) {
       try {
         let trackSid = String(broadcast.programTrackSid || '');
         if (!trackSid) {
