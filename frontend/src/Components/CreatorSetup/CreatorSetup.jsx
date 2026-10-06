@@ -264,10 +264,9 @@ export default function CreatorSetup({ onCreatorReady }) {
       }));
       localStorage.setItem('echooActiveExperience', 'creator');
 
-      // Mark the profile as completed for route guards and ensure the
-      // client loads the Creator Studio workspace immediately. A full
-      // navigation here guarantees the app picks up the newly granted
-      // creator capability from localStorage in all client shells.
+      // Mark the profile as completed before the route change so the
+      // Creator guard reads the newly granted capability on its next render.
+      // React Router navigation keeps hosted static previews inside the SPA.
       localStorage.setItem('echooProfileCompleted', 'true');
       // Persist the updated user snapshot so app route guards and shells
       // see the newly granted creator capability before the route guard runs.
