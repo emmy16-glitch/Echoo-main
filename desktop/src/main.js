@@ -675,6 +675,14 @@ async function revealMainWindowWhenReady() {
   try {
     const deadline = Date.now() + 3000;
     while (Date.now() < deadline && mainWindow && !mainWindow.isDestroyed()) {
+      const liveUrl = mainWindow.webContents.getURL();
+      if (rendererUrlCanRevealImmediately(liveUrl)) {
+        mainWindowRendererReady = true;
+        revealMainWindow();
+        return;
+      }
+      if (!liveUrl.startsWith(PACKAGED_APP_ORIGIN)) return;
+
       let mounted = false;
       try {
         mounted = await mainWindow.webContents.executeJavaScript("(() => (document.querySelector('meta[name=\\\"echoo-app\\\"]')?.content === 'echoo-frontend' && (document.querySelector('#root')?.childElementCount || 0) > 0))()");
