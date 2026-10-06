@@ -320,7 +320,17 @@ const makeRequest = async (
       timeoutError.code = 'REQUEST_TIMEOUT';
       throw timeoutError;
     }
-    throw error;
+    if (externalSignal?.aborted) throw error;
+
+    // Browser fetch rejects with raw implementation text such as
+    // "Failed to fetch" when DNS, TLS, CORS/preflight or the service itself is
+    // unreachable. Keep that diagnostic detail out of the product surface and
+    // expose one stable recovery message instead.
+    const networkError = new Error(
+      'Echoo could not reach the service. Check your connection and try again.'
+    );
+    networkError.code = 'NETWORK_UNAVAILABLE';
+    throw networkError;
   } finally {
     if (timeoutId) globalThis.clearTimeout(timeoutId);
     externalSignal?.removeEventListener?.('abort', onExternalAbort);

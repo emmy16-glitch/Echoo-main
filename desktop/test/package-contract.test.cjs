@@ -322,8 +322,9 @@ test('splash uses the real Echoo mark as the restrained startup motion', () => {
   assert.doesNotMatch(splashHtml, /Starting Echoo/);
   assert.doesNotMatch(splashHtml, /progress/i);
   assert.match(splashCss, /prefers-reduced-motion:\s*reduce/);
-  assert.match(splashCss, /1\.05s[\s\S]*infinite alternate/);
-  assert.match(splashCss, /translate\(-3px, 3px\)/);
+  assert.match(splashCss, /1\.15s[\s\S]*infinite/);
+  assert.match(splashCss, /translate\(3px, -2px\)/);
+  assert.match(splashCss, /translate\(-3px, 2px\)/);
   assert.match(splashCss, /background:\s*#f7f9fc/);
   assert.match(mainSource, /width: 176,[\s\S]{0,100}height: 176,[\s\S]{0,120}transparent: true/);
   assert.match(mainSource, /backgroundColor: '#00000000'/);
@@ -714,6 +715,18 @@ test('desktop anti-slop layer removes glass, shimmer gradients, floating cards, 
   assert.match(desktopRuntimeCss, /\.eb-shake[\s\S]{0,80}animation:\s*none !important/);
 });
 
+
+test('desktop and live-room network failures never expose raw browser fetch errors', () => {
+  const apiSource = fs.readFileSync(
+    path.resolve(desktopRoot, '..', 'frontend', 'src', 'services', 'api.js'),
+    'utf8'
+  );
+  assert.match(apiSource, /NETWORK_UNAVAILABLE/);
+  assert.match(apiSource, /Echoo could not reach the service\. Check your connection and try again\./);
+  assert.doesNotMatch(listenerRoomSource, /setLoadError\(error\?\.message \|\| 'Failed to fetch'/);
+  assert.match(listenerRoomSource, />Try again</);
+  assert.match(listenerRoomSource, /void load\(\)/);
+});
 
 test('desktop media URL fallback never references the removed localRuntime symbol', () => {
   const apiSource = fs.readFileSync(path.resolve(desktopRoot, '..', 'frontend', 'src', 'services', 'api.js'), 'utf8');
