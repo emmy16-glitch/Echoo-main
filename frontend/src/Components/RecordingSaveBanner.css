@@ -119,7 +119,7 @@
 
 
 .echoo-save-banner.is-device-choice {
-  width: min(760px, calc(100vw - 24px));
+  width: min(560px, calc(100vw - 24px));
   border-color: #b9c8ff;
   background: #f7f9ff;
 }

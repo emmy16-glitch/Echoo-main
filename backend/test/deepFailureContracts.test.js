@@ -152,8 +152,8 @@ test('recording completion retries and automatic save preserves recovery state',
   assert.match(banner, /beforeunload/);
   assert.match(banner, /Retry/);
   assert.match(banner, /kind: 'finalizing'|finishing your Echoo recording/);
-  assert.match(banner, /Save MP3 to device/);
-  assert.match(banner, /Save WAV to device/);
+  assert.match(banner, /Save MP3 copy/);
+  assert.match(banner, /Save WAV copy/);
   assert.match(banner, /keep this tab open/);
   assert.match(banner, /Upload/);
   assert.match(banner, /Discard/);

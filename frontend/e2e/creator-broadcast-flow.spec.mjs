@@ -230,23 +230,45 @@ test('Creator broadcast moves through OFF AIR, LIVE, confirmation, ending, saved
   await expect(page.getByText('READY TO BROADCAST', { exact: true })).toBeVisible();
 
   await announceRecording(page);
-  const deviceChoice = page.locator('.echoo-save-banner').filter({ hasText: 'Echoo server recording is ready' });
+  const deviceChoice = page.locator('.echoo-save-banner').filter({ hasText: 'Recording saved in Echoo' });
   await expect(deviceChoice).toBeVisible({ timeout: 12_000 });
-  await expect(deviceChoice.getByRole('button', { name: 'Save MP3 to device' })).toBeVisible();
-  await expect(deviceChoice.getByRole('button', { name: 'Save WAV to device' })).toBeVisible();
-  await deviceChoice.getByRole('button', { name: 'Save MP3 to device' }).click();
+  await expect(deviceChoice.getByRole('button', { name: 'Save MP3 copy' })).toBeVisible();
+  await expect(deviceChoice.getByRole('button', { name: 'Save WAV copy' })).toBeVisible();
+  await deviceChoice.getByRole('button', { name: 'Save MP3 copy' }).click();
   await expect.poll(() => page.evaluate(() => Number(window.__echooE2eSavedMp3Bytes || 0))).toBeGreaterThan(1000);
   await expect(deviceChoice).toHaveCount(0);
   await page.screenshot({ path: 'design-qa-evidence/broadcast-approved/recording-saved-1536x1024.png' });
   await expect(page.getByText('READY TO BROADCAST', { exact: true })).toBeVisible();
 
   await announceRecording(page, '507f1f77bcf86cd799439105');
-  const secondChoice = page.locator('.echoo-save-banner').filter({ hasText: 'Echoo server recording is ready' });
+  const secondChoice = page.locator('.echoo-save-banner').filter({ hasText: 'Recording saved in Echoo' });
   await expect(secondChoice).toBeVisible({ timeout: 12_000 });
-  await secondChoice.getByRole('button', { name: 'Save WAV to device' }).click();
+  await secondChoice.getByRole('button', { name: 'Save WAV copy' }).click();
   await expect(secondChoice).toHaveCount(0);
 
   expect(pageErrors).toEqual([]);
+});
+
+test('end broadcast confirmation stays compact on a short desktop viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 1044, height: 395 });
+  await authenticate(page);
+  await installBaseRoutes(page, [liveBroadcast]);
+  await page.goto('/creator-studio');
+
+  await page.getByRole('button', { name: 'End broadcast' }).click();
+  const dialog = page.getByRole('alertdialog', { name: 'End broadcast?' });
+  await expect(dialog).toBeVisible();
+
+  const layout = await dialog.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return {
+      width: rect.width,
+      pageOverflow: document.documentElement.scrollWidth > window.innerWidth,
+    };
+  });
+  expect(layout.width).toBeLessThanOrEqual(430);
+  expect(layout.width).toBeGreaterThanOrEqual(340);
+  expect(layout.pageOverflow).toBe(false);
 });
 
 test('broadcast hero and modal remain usable without horizontal overflow on mobile', async ({ page }) => {

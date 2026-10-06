@@ -55,8 +55,8 @@ test('browser device download is offered only after Echoo server finalization an
   assert.match(exportService, /showSaveFilePicker/);
   assert.doesNotMatch(autosave, /uploadAudioWithProgress/);
   assert.doesNotMatch(autosave, /new File\(\[recording\.blob/);
-  assert.match(banner, /Save MP3 to device/);
-  assert.match(banner, /Save WAV to device/);
+  assert.match(banner, /Save MP3 copy/);
+  assert.match(banner, /Save WAV copy/);
   assert.match(banner, /Retry Echoo save/);
   assert.match(autosave, /SERVER_END_PENDING/);
   assert.match(autosave, /skipDeviceSave:\s*true/);
