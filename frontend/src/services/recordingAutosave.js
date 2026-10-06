@@ -477,7 +477,7 @@ const startAutosaveLive = async ({
             startedAt,
             serverFormat: 'mp3',
             recoveryFormats: availableLocalFormats(recording),
-            message: 'Echoo finished the server MP3. Choose MP3 or WAV if you also want a copy on this device.',
+            message: 'Your recording is already saved in Echoo. Choose MP3 or WAV only if you also want a copy on this device.',
           });
           notifySaved(`“${title}” saved safely to Echoo as MP3.`);
           return {
