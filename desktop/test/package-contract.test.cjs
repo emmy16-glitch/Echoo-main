@@ -134,7 +134,8 @@ test('saved desktop recordings expose native Windows file actions', () => {
 
 test('Windows shell restores safe window state and exposes diagnostics', () => {
   assert.match(mainSource, /echoo-window-state\.json/);
-  assert.match(mainSource, /intersectsVisibleDisplay/);
+  assert.match(mainSource, /fitWindowBoundsToDisplay/);
+  assert.match(mainSource, /screen\.getDisplayMatching/);
   assert.match(mainSource, /getNormalBounds\(\)/);
   assert.match(mainSource, /Open Echoo Logs/);
 });
