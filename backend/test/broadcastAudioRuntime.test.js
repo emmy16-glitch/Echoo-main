@@ -17,6 +17,7 @@ import {
 import { CreatorBroadcastLease } from '../src/services/creatorBroadcastLease.js';
 import LiveKitProvider from '../src/providers/livekit.js';
 import { matchesUploadedFileSignature } from '../src/routes/audioRoutes.js';
+import { canonicalUploadedAudioMime } from '../src/controllers/audioController.js';
 import { normalizeApiError } from '../src/app.js';
 import {
   parseSingleByteRange,
@@ -351,6 +352,21 @@ test('uploaded file signature checks reject extension-only spoofing', () => {
   assert.equal(
     matchesUploadedFileSignature({ originalname: 'cover.jpg' }, png),
     false
+  );
+});
+
+test('messaging-app audio MIME is normalized for browser streaming', () => {
+  assert.equal(
+    canonicalUploadedAudioMime({ originalname: 'WhatsApp Audio.mpeg', mimetype: 'application/octet-stream' }),
+    'audio/mpeg'
+  );
+  assert.equal(
+    canonicalUploadedAudioMime({ originalname: 'voice.weba', mimetype: 'application/octet-stream' }),
+    'audio/webm'
+  );
+  assert.equal(
+    canonicalUploadedAudioMime({ originalname: 'clip.m4a', mimetype: 'audio/x-m4a' }),
+    'audio/mp4'
   );
 });
 
