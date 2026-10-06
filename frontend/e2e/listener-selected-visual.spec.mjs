@@ -250,7 +250,7 @@ test('mobile live chat opens as a dismissible bottom sheet', async ({ page }) =>
   expect(sheetBox?.height || 0).toBeGreaterThan(330);
   expect((sheetBox?.y || 0) + (sheetBox?.height || 0)).toBeGreaterThanOrEqual(840);
 
-  const headerCopy = page.locator('.listener-v2-room-chat .lex-panel__header > div');
+  const headerCopy = page.locator('.listener-v2-room-chat-title');
   const [headerCopyBox, closeBox] = await Promise.all([headerCopy.boundingBox(), close.boundingBox()]);
   expect((headerCopyBox?.x || 0) + (headerCopyBox?.width || 0)).toBeLessThanOrEqual((closeBox?.x || 0) - 2);
 
