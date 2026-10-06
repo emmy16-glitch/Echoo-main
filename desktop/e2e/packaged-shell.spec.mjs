@@ -170,26 +170,48 @@ test.describe('packaged Echoo Windows shell', () => {
     expect(result.finished?.path).toMatch(/\.mp3$/i);
   });
 
-  test('has no document-level horizontal overflow and honors reduced motion', async () => {
+  test('fits the Windows work area and honors reduced motion without decorative loader effects', async () => {
     const geometry = await mainPage.evaluate(() => ({
-      viewport: window.innerWidth,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
       documentWidth: document.documentElement.scrollWidth,
+      availableWidth: window.screen.availWidth,
+      availableHeight: window.screen.availHeight,
+      desktopRuntime: document.documentElement.classList.contains('echoo-desktop-runtime'),
     }));
-    expect(geometry.documentWidth).toBeLessThanOrEqual(geometry.viewport + 2);
+    expect(geometry.desktopRuntime).toBe(true);
+    expect(geometry.documentWidth).toBeLessThanOrEqual(geometry.viewportWidth + 2);
+    expect(geometry.viewportWidth).toBeLessThanOrEqual(geometry.availableWidth + 2);
+    expect(geometry.viewportHeight).toBeLessThanOrEqual(geometry.availableHeight + 2);
 
     await mainPage.emulateMedia({ reducedMotion: 'reduce' });
     const reducedMotion = await mainPage.evaluate(() => {
-      const probe = document.createElement('div');
-      probe.className = 'eb-page-in';
-      document.body.appendChild(probe);
-      const styles = getComputedStyle(probe);
+      const motionProbe = document.createElement('div');
+      motionProbe.className = 'eb-page-in';
+      const skeletonProbe = document.createElement('div');
+      skeletonProbe.className = 'echoo-skeleton';
+      const successProbe = document.createElement('div');
+      successProbe.className = 'echoo-success-pulse';
+      document.body.append(motionProbe, skeletonProbe, successProbe);
+
+      const motionStyles = getComputedStyle(motionProbe);
+      const skeletonAfter = getComputedStyle(skeletonProbe, '::after');
+      const successStyles = getComputedStyle(successProbe);
       const value = {
-        animationName: styles.animationName,
-        animationDuration: styles.animationDuration,
+        motionAnimationName: motionStyles.animationName,
+        motionDuration: motionStyles.animationDuration,
+        skeletonDisplay: skeletonAfter.display,
+        skeletonAnimationName: skeletonAfter.animationName,
+        successAnimationDuration: successStyles.animationDuration,
       };
-      probe.remove();
+      motionProbe.remove();
+      skeletonProbe.remove();
+      successProbe.remove();
       return value;
     });
-    expect(reducedMotion.animationName).toBe('none');
+    expect(reducedMotion.motionAnimationName).toBe('none');
+    expect(reducedMotion.skeletonDisplay).toBe('none');
+    expect(reducedMotion.skeletonAnimationName).toBe('none');
+    expect(Number.parseFloat(reducedMotion.successAnimationDuration)).toBeLessThanOrEqual(0.001);
   });
 });

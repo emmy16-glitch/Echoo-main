@@ -203,6 +203,9 @@ let updatePromptOpen = false;
 let creatorQuitWarningOpen = false;
 let rendererRecoveryPromptOpen = false;
 let rendererCrashed = false;
+let mainWindowNativeReady = false;
+let mainWindowRendererReady = false;
+let rendererRevealCheckRunning = false;
 let isQuitting = false;
 let quitFinalizing = false;
 let quitTimer = null;
@@ -464,62 +467,86 @@ function writePrefs(prefs) {
 }
 
 const DEFAULT_WINDOW_BOUNDS = Object.freeze({ width: 1280, height: 800 });
+const MIN_WINDOW_BOUNDS = Object.freeze({ width: 760, height: 440 });
 let windowStateSaveTimer = null;
 
 function windowStateFile() {
   return path.join(app.getPath('userData'), 'echoo-window-state.json');
 }
 
-function intersectsVisibleDisplay(bounds) {
-  return screen.getAllDisplays().some(({ workArea }) => {
-    const overlapWidth = Math.max(
-      0,
-      Math.min(bounds.x + bounds.width, workArea.x + workArea.width) - Math.max(bounds.x, workArea.x)
-    );
-    const overlapHeight = Math.max(
-      0,
-      Math.min(bounds.y + bounds.height, workArea.y + workArea.height) - Math.max(bounds.y, workArea.y)
-    );
-    return overlapWidth >= 160 && overlapHeight >= 120;
-  });
+function clampNumber(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function fitWindowBoundsToDisplay(bounds, display) {
+  const workArea = display?.workArea || {
+    x: 0,
+    y: 0,
+    width: DEFAULT_WINDOW_BOUNDS.width,
+    height: DEFAULT_WINDOW_BOUNDS.height,
+  };
+  const minWidth = Math.min(MIN_WINDOW_BOUNDS.width, workArea.width);
+  const minHeight = Math.min(MIN_WINDOW_BOUNDS.height, workArea.height);
+  const requestedWidth = Number.isFinite(Number(bounds?.width))
+    ? Math.round(Number(bounds.width))
+    : DEFAULT_WINDOW_BOUNDS.width;
+  const requestedHeight = Number.isFinite(Number(bounds?.height))
+    ? Math.round(Number(bounds.height))
+    : DEFAULT_WINDOW_BOUNDS.height;
+  const width = clampNumber(requestedWidth, Math.max(1, minWidth), Math.max(1, workArea.width));
+  const height = clampNumber(requestedHeight, Math.max(1, minHeight), Math.max(1, workArea.height));
+  const maxX = workArea.x + Math.max(0, workArea.width - width);
+  const maxY = workArea.y + Math.max(0, workArea.height - height);
+  const x = Number.isFinite(Number(bounds?.x))
+    ? clampNumber(Math.round(Number(bounds.x)), workArea.x, maxX)
+    : Math.round(workArea.x + Math.max(0, workArea.width - width) / 2);
+  const y = Number.isFinite(Number(bounds?.y))
+    ? clampNumber(Math.round(Number(bounds.y)), workArea.y, maxY)
+    : Math.round(workArea.y + Math.max(0, workArea.height - height) / 2);
+
+  return {
+    x,
+    y,
+    width,
+    height,
+    minWidth: Math.max(1, minWidth),
+    minHeight: Math.max(1, minHeight),
+  };
 }
 
 function readWindowState() {
+  let parsed = {};
   try {
-    const parsed = JSON.parse(fs.readFileSync(windowStateFile(), 'utf8'));
-    const displays = screen.getAllDisplays();
-    const maxVisibleWidth = Math.max(
-      DEFAULT_WINDOW_BOUNDS.width,
-      ...displays.map(({ workArea }) => workArea.width)
-    );
-    const maxVisibleHeight = Math.max(
-      DEFAULT_WINDOW_BOUNDS.height,
-      ...displays.map(({ workArea }) => workArea.height)
-    );
-    const parsedWidth = Number(parsed.width);
-    const parsedHeight = Number(parsed.height);
-    const width = Number.isFinite(parsedWidth)
-      ? Math.max(900, Math.min(maxVisibleWidth, Math.round(parsedWidth)))
-      : DEFAULT_WINDOW_BOUNDS.width;
-    const height = Number.isFinite(parsedHeight)
-      ? Math.max(620, Math.min(maxVisibleHeight, Math.round(parsedHeight)))
-      : DEFAULT_WINDOW_BOUNDS.height;
-    const candidate = {
-      width,
-      height,
-    };
-    if (Number.isFinite(parsed.x) && Number.isFinite(parsed.y)) {
-      const positioned = {
-        ...candidate,
-        x: Math.round(parsed.x),
-        y: Math.round(parsed.y),
-      };
-      if (intersectsVisibleDisplay(positioned)) Object.assign(candidate, positioned);
-    }
-    return { ...candidate, maximized: parsed.maximized === true };
+    parsed = JSON.parse(fs.readFileSync(windowStateFile(), 'utf8'));
   } catch {
-    return { ...DEFAULT_WINDOW_BOUNDS, maximized: false };
+    parsed = {};
   }
+
+  const displays = screen.getAllDisplays();
+  const primaryDisplay = screen.getPrimaryDisplay?.() || displays[0] || null;
+  const requestedBounds = {
+    x: Number(parsed.x),
+    y: Number(parsed.y),
+    width: Number(parsed.width),
+    height: Number(parsed.height),
+  };
+
+  let display = primaryDisplay;
+  if (Number.isFinite(requestedBounds.x) && Number.isFinite(requestedBounds.y)) {
+    try {
+      display = screen.getDisplayMatching({
+        x: requestedBounds.x,
+        y: requestedBounds.y,
+        width: Math.max(1, Number.isFinite(requestedBounds.width) ? requestedBounds.width : 1),
+        height: Math.max(1, Number.isFinite(requestedBounds.height) ? requestedBounds.height : 1),
+      }) || primaryDisplay;
+    } catch {
+      display = primaryDisplay;
+    }
+  }
+
+  const fitted = fitWindowBoundsToDisplay(requestedBounds, display);
+  return { ...fitted, maximized: parsed.maximized === true };
 }
 
 function persistWindowState(window) {
@@ -616,16 +643,78 @@ function revealMainWindow() {
   closeSplashWindow();
 }
 
+function rendererUrlCanRevealImmediately(url) {
+  const value = String(url || '');
+  return (
+    value.startsWith('file://') ||
+    value.startsWith('data:text/html') ||
+    value.includes('/offline.html')
+  );
+}
+
+async function revealMainWindowWhenReady() {
+  if (!app.isPackaged || !mainWindow || mainWindow.isDestroyed()) {
+    revealMainWindow();
+    return;
+  }
+  if (!mainWindowNativeReady || rendererRevealCheckRunning) return;
+  if (mainWindowRendererReady) {
+    revealMainWindow();
+    return;
+  }
+
+  const currentUrl = mainWindow.webContents.getURL();
+  if (rendererUrlCanRevealImmediately(currentUrl)) {
+    mainWindowRendererReady = true;
+    revealMainWindow();
+    return;
+  }
+  if (!currentUrl.startsWith(PACKAGED_APP_ORIGIN)) return;
+
+  rendererRevealCheckRunning = true;
+  try {
+    const deadline = Date.now() + 3000;
+    while (Date.now() < deadline && mainWindow && !mainWindow.isDestroyed()) {
+      const liveUrl = mainWindow.webContents.getURL();
+      if (rendererUrlCanRevealImmediately(liveUrl)) {
+        mainWindowRendererReady = true;
+        revealMainWindow();
+        return;
+      }
+      if (!liveUrl.startsWith(PACKAGED_APP_ORIGIN)) return;
+
+      let mounted = false;
+      try {
+        mounted = await mainWindow.webContents.executeJavaScript("(() => (document.querySelector('meta[name=\\\"echoo-app\\\"]')?.content === 'echoo-frontend' && (document.querySelector('#root')?.childElementCount || 0) > 0))()");
+      } catch {
+        mounted = false;
+      }
+      if (mounted) {
+        mainWindowRendererReady = true;
+        revealMainWindow();
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 75));
+    }
+
+    log.error('[echoo-desktop] renderer loaded but did not mount a visible Echoo shell');
+    await loadOfflinePage('renderer-not-ready', currentUrl);
+  } finally {
+    rendererRevealCheckRunning = false;
+  }
+}
+
 function createWindow() {
   const savedWindowState = readWindowState();
+  mainWindowNativeReady = !app.isPackaged;
+  mainWindowRendererReady = !app.isPackaged;
   mainWindow = new BrowserWindow({
     width: savedWindowState.width,
     height: savedWindowState.height,
-    ...(Number.isFinite(savedWindowState.x) && Number.isFinite(savedWindowState.y)
-      ? { x: savedWindowState.x, y: savedWindowState.y }
-      : {}),
-    minWidth: 900,
-    minHeight: 620,
+    x: savedWindowState.x,
+    y: savedWindowState.y,
+    minWidth: savedWindowState.minWidth,
+    minHeight: savedWindowState.minHeight,
     resizable: true,
     show: !app.isPackaged,
     title: 'Echoo',
@@ -640,8 +729,13 @@ function createWindow() {
   });
 
   mainWindow.once('ready-to-show', () => {
+    mainWindowNativeReady = true;
     if (savedWindowState.maximized) mainWindow?.maximize();
-    revealMainWindow();
+    if (!app.isPackaged) {
+      revealMainWindow();
+      return;
+    }
+    void revealMainWindowWhenReady();
   });
 
   const windowForState = mainWindow;
@@ -726,6 +820,7 @@ function createWindow() {
   mainWindow.webContents.on('did-finish-load', () => {
     rendererCrashed = false;
     dispatchPendingDeepLink();
+    void revealMainWindowWhenReady();
     void completePackagedSmokeTest();
   });
 
@@ -853,14 +948,26 @@ async function completePackagedSmokeTest() {
       desktopBridge: window.echooDesktop?.isDesktop === true,
       devicePixelRatio: window.devicePixelRatio || 1,
       viewportWidth: window.innerWidth || 0,
-      documentWidth: document.documentElement?.scrollWidth || 0
+      viewportHeight: window.innerHeight || 0,
+      documentWidth: document.documentElement?.scrollWidth || 0,
+      screenAvailWidth: window.screen?.availWidth || 0,
+      screenAvailHeight: window.screen?.availHeight || 0
     }))()`);
     const routeVerified = !SECOND_INSTANCE_SMOKE_TEST
       || result?.hash === `#${smokeSecondInstanceRoute}`;
     const scaleLayoutVerified = !DISPLAY_SCALE_SMOKE_TEST
       || (
         Number(result?.viewportWidth) > 0 &&
-        Number(result?.documentWidth) <= Number(result?.viewportWidth) + 2
+        Number(result?.viewportHeight) > 0 &&
+        Number(result?.documentWidth) <= Number(result?.viewportWidth) + 2 &&
+        (
+          Number(result?.screenAvailWidth) <= 0 ||
+          Number(result?.viewportWidth) <= Number(result?.screenAvailWidth) + 2
+        ) &&
+        (
+          Number(result?.screenAvailHeight) <= 0 ||
+          Number(result?.viewportHeight) <= Number(result?.screenAvailHeight) + 2
+        )
       );
     const passed = result?.protocol === `${PACKAGED_APP_SCHEME}:`
       && result?.identity === 'echoo-frontend'
@@ -907,8 +1014,24 @@ function loadOfflinePage(reason, url) {
   );
 }
 
+function preparePackagedRendererLoad() {
+  if (!app.isPackaged || !mainWindow || mainWindow.isDestroyed()) return;
+  mainWindowRendererReady = false;
+
+  const splash = createSplashWindow();
+  if (splash && !splash.isDestroyed()) {
+    splash.show();
+    splash.focus();
+  }
+
+  // Never expose an in-between Chromium document while the local React shell
+  // is replacing the offline/recovery surface.
+  mainWindow.hide();
+}
+
 async function loadPackagedRenderer() {
   if (!mainWindow) return;
+  preparePackagedRendererLoad();
   if (!fs.existsSync(PROD_INDEX)) {
     log.error(`[echoo-desktop] packaged renderer missing at ${PROD_INDEX}`);
     await loadOfflinePage('renderer-missing', PROD_INDEX);
@@ -928,6 +1051,14 @@ function showAndFocusWindow() {
     return;
   }
   try {
+    if (app.isPackaged && (!mainWindowNativeReady || !mainWindowRendererReady)) {
+      if (splashWindow && !splashWindow.isDestroyed()) {
+        splashWindow.show();
+        splashWindow.focus();
+      }
+      void revealMainWindowWhenReady();
+      return;
+    }
     if (mainWindow.isMinimized()) mainWindow.restore();
     mainWindow.show();
     mainWindow.focus();

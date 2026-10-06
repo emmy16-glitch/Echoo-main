@@ -134,7 +134,8 @@ test('saved desktop recordings expose native Windows file actions', () => {
 
 test('Windows shell restores safe window state and exposes diagnostics', () => {
   assert.match(mainSource, /echoo-window-state\.json/);
-  assert.match(mainSource, /intersectsVisibleDisplay/);
+  assert.match(mainSource, /fitWindowBoundsToDisplay/);
+  assert.match(mainSource, /screen\.getDisplayMatching/);
   assert.match(mainSource, /getNormalBounds\(\)/);
   assert.match(mainSource, /Open Echoo Logs/);
 });
@@ -656,4 +657,48 @@ test('recording saves keep the desktop alive while their window is closed or Qui
   assert.match(mainSource, /Recording is still saving/);
   assert.match(mainSource, /Saving recording…/);
   assert.match(mainSource, /refreshTrayMenu\(\)/);
+});
+
+
+test('packaged startup keeps the splash until the real local React shell mounts', () => {
+  assert.match(mainSource, /async function revealMainWindowWhenReady\(\)/);
+  assert.match(mainSource, /document\.querySelector\('#root'\)\?\.childElementCount/);
+  assert.match(mainSource, /renderer loaded but did not mount a visible Echoo shell/);
+  assert.match(mainSource, /loadOfflinePage\('renderer-not-ready'/);
+  assert.match(mainSource, /did-finish-load[\s\S]{0,220}revealMainWindowWhenReady/);
+});
+
+test('packaged retry and renderer recovery never expose an in-between Chromium page', () => {
+  assert.match(mainSource, /function preparePackagedRendererLoad\(\)/);
+  assert.match(mainSource, /mainWindowRendererReady = false/);
+  assert.match(mainSource, /const splash = createSplashWindow\(\)/);
+  assert.match(mainSource, /mainWindow\.hide\(\)/);
+  assert.match(mainSource, /async function loadPackagedRenderer\(\)[\s\S]{0,180}preparePackagedRendererLoad\(\)/);
+});
+
+test('desktop window bounds stay inside the active Windows work area at high DPI', () => {
+  assert.match(mainSource, /const MIN_WINDOW_BOUNDS = Object\.freeze\(\{ width: 760, height: 440 \}\)/);
+  assert.match(mainSource, /function fitWindowBoundsToDisplay\(bounds, display\)/);
+  assert.match(mainSource, /screen\.getDisplayMatching/);
+  assert.match(mainSource, /width: savedWindowState\.width/);
+  assert.match(mainSource, /minWidth: savedWindowState\.minWidth/);
+  assert.match(mainSource, /minHeight: savedWindowState\.minHeight/);
+  assert.match(mainSource, /screenAvailWidth/);
+  assert.match(mainSource, /screenAvailHeight/);
+  assert.doesNotMatch(mainSource, /Math\.max\(\s*DEFAULT_WINDOW_BOUNDS\.height,[\s\S]{0,100}workArea\.height/);
+});
+
+test('desktop loading and motion remain restrained in the final native CSS layer', () => {
+  const desktopRuntimeCss = fs.readFileSync(
+    path.resolve(desktopRoot, '..', 'frontend', 'src', 'styles', 'echoo-desktop-runtime.css'),
+    'utf8'
+  );
+  assert.match(desktopRuntimeCss, /Native loading is intentionally quiet/);
+  assert.match(desktopRuntimeCss, /\.echoo-skeleton::after[\s\S]{0,100}display:\s*none !important/);
+  assert.match(desktopRuntimeCss, /\.eca-loading span[\s\S]{0,700}animation:\s*none !important/);
+  assert.match(desktopRuntimeCss, /\.creator10-header-loading/);
+  assert.match(desktopRuntimeCss, /html\.echoo-desktop-runtime \*::after[\s\S]{0,180}backdrop-filter:\s*none !important/);
+  assert.match(desktopRuntimeCss, /\.echoo-success-pulse[\s\S]{0,140}animation:\s*none !important/);
+  assert.match(desktopRuntimeCss, /prefers-reduced-motion:\s*reduce[\s\S]{0,300}animation-duration:\s*0\.001ms !important/);
+  assert.match(desktopRuntimeCss, /transition-duration:\s*0\.001ms !important/);
 });
