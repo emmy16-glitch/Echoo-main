@@ -510,9 +510,9 @@ const RecordingSaveBanner = () => {
         <>
           <FaSyncAlt className="spin" aria-hidden="true" />
           <div className="echoo-save-banner-body">
-            <strong>Saving “{state.title}”</strong>
+            <strong>Uploading recovery copy to Echoo</strong>
             <span>
-              {formatBytes(state.loaded)} of {formatBytes(state.total)} · {state.percent}% · {elapsed}s — keep this tab open
+              Your recording is protected locally. This fallback upload uses your internet connection · {formatBytes(state.loaded)} of {formatBytes(state.total)} · {state.percent}% · {elapsed}s — keep this tab open
             </span>
             <i className="echoo-save-banner-bar">
               <b style={{ width: `${Math.max(2, state.percent || 0)}%` }} />
