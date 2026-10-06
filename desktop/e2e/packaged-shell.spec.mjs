@@ -1,10 +1,11 @@
 import { expect, test } from '@playwright/test';
 import { _electron as electron } from 'playwright';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const desktopRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const desktopPackage = JSON.parse(readFileSync(path.join(desktopRoot, 'package.json'), 'utf8'));
 const executablePath =
   process.env.ECHOO_PACKAGED_EXE ||
   path.join(desktopRoot, 'dist', 'win-unpacked', 'Echoo.exe');
@@ -84,7 +85,7 @@ test.describe('packaged Echoo Windows shell', () => {
     expect(state.requireType).toBe('undefined');
     expect(state.appInfo?.ok).toBe(true);
     expect(state.appInfo?.appName).toBe('Echoo');
-    expect(state.appInfo?.appVersion).toBe('2.0.1');
+    expect(state.appInfo?.appVersion).toBe(desktopPackage.version);
     expect(state.appInfo?.startUrl).toBe('echoo-app://app/index.html');
   });
 
