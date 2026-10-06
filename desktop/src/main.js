@@ -894,11 +894,6 @@ function createWindow() {
   mainWindow.webContents.on(
     'did-start-navigation',
     (_event, url, isInPlace, isMainFrame) => {
-      logStartupEvent(
-        'renderer-navigation-start',
-        `phase=${rendererLifecyclePhase} inPlace=${Boolean(isInPlace)} mainFrame=${Boolean(isMainFrame)}`
-      );
-
       if (
         !app.isPackaged ||
         rendererLifecyclePhase === 'recovery-loading' ||

@@ -91,8 +91,11 @@ if (localStorage.getItem("accessToken")) {
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
+    {/* Keep the native readiness handshake outside the application error
+        boundary. If the first App render fails, Echoo's committed recovery UI
+        is still usable and must replace the splash deterministically. */}
+    <DesktopAppReady />
     <AppErrorBoundary>
-      <DesktopAppReady />
       <App />
     </AppErrorBoundary>
   </React.StrictMode>
