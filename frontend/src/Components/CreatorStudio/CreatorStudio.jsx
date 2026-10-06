@@ -71,7 +71,7 @@ const MAX_COVER_SIZE = 5 * 1024 * 1024;
 const RECORDING_UPLOAD_EVENT = 'echoo:recording-upload';
 const COVER_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const AUDIO_EXTENSIONS = new Set([
-  'mp3', 'm4a', 'aac', 'wav', 'ogg', 'oga', 'opus', 'flac', 'webm',
+  'mp3', 'mpeg', 'mpga', 'mp2', 'mpa', 'm4a', 'aac', 'wav', 'ogg', 'oga', 'opus', 'flac', 'webm', 'weba',
 ]);
 
 const CREATOR_WORKSPACE_PATHS = {
@@ -116,10 +116,11 @@ const readJson = (key, fallback = {}) => {
 const isSupportedAudioFile = (file) => {
   if (!file) return false;
   const extension = String(file.name || '').split('.').pop()?.toLowerCase() || '';
-  return (
-    String(file.type || '').startsWith('audio/') ||
-    String(file.type || '').toLowerCase() === 'video/webm'
-  ) && AUDIO_EXTENSIONS.has(extension);
+  // File.type is not reliable for downloads from messaging apps and some
+  // Windows browsers: valid audio may arrive as application/octet-stream.
+  // Keep the chooser permissive for known audio extensions; the backend
+  // performs byte-signature verification before committing library uploads.
+  return AUDIO_EXTENSIONS.has(extension);
 };
 
 const CreatorStudioBody = () => {
@@ -440,7 +441,7 @@ const CreatorStudioBody = () => {
     if (name === 'file') {
       const file = files?.[0] || null;
       if (file && !isSupportedAudioFile(file)) {
-        setError('Choose MP3, M4A/AAC, WAV, OGG/Opus, FLAC or audio WebM.');
+        setError('Choose MP3/MPEG, M4A/AAC, WAV, OGG/Opus, FLAC or audio WebM.');
         event.target.value = '';
         return;
       }
@@ -843,7 +844,7 @@ const CreatorStudioBody = () => {
                     <input
                       type="file"
                       name="file"
-                      accept="audio/*,.webm,.m4a,.aac,.ogg,.oga,.opus,.flac"
+                      accept="audio/*,.mp3,.mpeg,.mpga,.mp2,.mpa,.m4a,.aac,.wav,.ogg,.oga,.opus,.flac,.webm,.weba"
                       onChange={handleUploadChange}
                       hidden
                     />

@@ -579,7 +579,8 @@ test('Creator live mixer streams library audio instead of buffering whole record
   const mediaUrlBlock = mixer.slice(mediaUrlStart, systemAudioStart);
 
   assert.match(mixer, /createMediaElementSource/);
-  assert.match(mixer, /URL\.createObjectURL\(file\)/);
+  assert.match(mixer, /URL\.createObjectURL\(playableFile\)/);
+  assert.match(mixer, /new File\(\[file\][\s\S]{0,300}type: canonicalMime/);
   assert.match(mediaUrlBlock, /connectMediaElementUrl/);
   assert.doesNotMatch(mediaUrlBlock, /fetch\(url/);
   assert.doesNotMatch(mediaUrlBlock, /response\.blob\(\)/);
