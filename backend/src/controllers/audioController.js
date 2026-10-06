@@ -27,6 +27,27 @@ const safeDuration = (value) => {
   return Number.isFinite(duration) && duration > 0 ? duration : 0;
 };
 
+export const canonicalUploadedAudioMime = (file = {}) => {
+  const extension = path.extname(String(file.originalname || file.filename || '')).toLowerCase();
+  const byExtension = {
+    '.mp3': 'audio/mpeg',
+    '.mpeg': 'audio/mpeg',
+    '.mpga': 'audio/mpeg',
+    '.mp2': 'audio/mpeg',
+    '.mpa': 'audio/mpeg',
+    '.m4a': 'audio/mp4',
+    '.aac': 'audio/aac',
+    '.wav': 'audio/wav',
+    '.ogg': 'audio/ogg',
+    '.oga': 'audio/ogg',
+    '.opus': 'audio/ogg',
+    '.flac': 'audio/flac',
+    '.webm': 'audio/webm',
+    '.weba': 'audio/webm',
+  };
+  return byExtension[extension] || String(file.mimetype || '').toLowerCase() || 'application/octet-stream';
+};
+
 const creatorDisplayName = (user) =>
   user?.creatorProfile?.artistName ||
   user?.creatorProfile?.organizationName ||
@@ -387,7 +408,7 @@ export async function uploadAudio(req, res, next) {
       fileSize: audioFile.size,
       fileUrl: `/uploads/audio/${audioFile.filename}`,
       fileKey: audioFile.filename,
-      mimeType: audioFile.mimetype,
+      mimeType: canonicalUploadedAudioMime(audioFile),
       duration: safeDuration(duration),
       coverArt,
       coverArtMode,
