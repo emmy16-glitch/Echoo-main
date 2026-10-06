@@ -15,7 +15,7 @@ test('listener has five consistent destinations and honest compact discovery', a
   await page.route('**/api/playlists?*', route => route.fulfill({ json: { success: true, data: [] } }));
   await page.goto('/listen');
   await expect(page.getByRole('heading', { name: 'Discover', exact: true })).toBeVisible();
-  await expect(page.getByText('Nothing is live right now.', { exact: true })).toBeVisible();
+  await expect(page.getByText('Nothing live right now', { exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Upcoming broadcasts' })).toHaveCount(0);
   await expect(page.getByRole('heading', { name: /Popular|Trending/ })).toHaveCount(0);
   const nav = page.locator(await page.locator('.listener-v2-mobile-nav').isVisible() ? '.listener-v2-mobile-nav' : '.listener-v2-nav');
