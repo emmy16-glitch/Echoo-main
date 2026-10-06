@@ -17,7 +17,7 @@ import {
   uploadToObjectStorage,
 } from './audioArchiveService.js';
 import { isTranscriptionConfigured } from './transcriptionGateway.js';
-import { assertFfmpegAvailable } from './audioTrimService.js';
+import { checkFfmpegCapability } from './audioTrimService.js';
 
 // ---------------------------------------------------------------------------
 // Canonical server replay finalization.
@@ -62,13 +62,13 @@ const recordingDateStamp = (value = Date.now()) => {
   return `${safe.getFullYear()}-${pad(safe.getMonth() + 1)}-${pad(safe.getDate())} ${pad(safe.getHours())}-${pad(safe.getMinutes())}`;
 };
 
-const buildHumanRecordingName = ({ title, channelName, startedAt } = {}) => {
+const buildHumanRecordingName = ({ title, channelName, startedAt, extension = 'mp3' } = {}) => {
   const parts = ['Echoo'];
   const channel = cleanHumanSegment(channelName);
   const recordingTitle = cleanHumanSegment(title, 'Live broadcast');
   if (channel && channel.toLowerCase() !== recordingTitle.toLowerCase()) parts.push(channel);
   parts.push(recordingTitle, recordingDateStamp(startedAt));
-  return `${parts.join(' - ')}.mp3`;
+  return `${parts.join(' - ')}.${extension}`;
 };
 
 const runCommand = (command, args, { timeoutMs = 60_000 } = {}) =>
@@ -218,6 +218,85 @@ const mp3Bitrate = () => {
   return /^\d+k$/i.test(raw) ? raw.toLowerCase() : '320k';
 };
 
+const wavHeader = ({ dataBytes, sampleRate = 48000, channels = 2, bitDepth = 24 } = {}) => {
+  const bytesPerSample = bitDepth / 8;
+  const blockAlign = channels * bytesPerSample;
+  const byteRate = sampleRate * blockAlign;
+  const safeBytes = Math.max(0, Math.floor(Number(dataBytes) || 0));
+
+  if (safeBytes <= 0xffffffff - 36) {
+    const header = Buffer.alloc(44);
+    header.write('RIFF', 0, 'ascii');
+    header.writeUInt32LE(36 + safeBytes, 4);
+    header.write('WAVE', 8, 'ascii');
+    header.write('fmt ', 12, 'ascii');
+    header.writeUInt32LE(16, 16);
+    header.writeUInt16LE(1, 20);
+    header.writeUInt16LE(channels, 22);
+    header.writeUInt32LE(sampleRate, 24);
+    header.writeUInt32LE(byteRate, 28);
+    header.writeUInt16LE(blockAlign, 32);
+    header.writeUInt16LE(bitDepth, 34);
+    header.write('data', 36, 'ascii');
+    header.writeUInt32LE(safeBytes, 40);
+    return header;
+  }
+
+  // RF64 keeps long-session WAV recovery valid beyond RIFF's 4 GiB limit.
+  const header = Buffer.alloc(80);
+  const writeU64LE = (offset, value) => {
+    const low = value % 0x100000000;
+    const high = Math.floor(value / 0x100000000);
+    header.writeUInt32LE(low >>> 0, offset);
+    header.writeUInt32LE(high >>> 0, offset + 4);
+  };
+  header.write('RF64', 0, 'ascii');
+  header.writeUInt32LE(0xffffffff, 4);
+  header.write('WAVE', 8, 'ascii');
+  header.write('ds64', 12, 'ascii');
+  header.writeUInt32LE(28, 16);
+  writeU64LE(20, 72 + safeBytes);
+  writeU64LE(28, safeBytes);
+  writeU64LE(36, Math.floor(safeBytes / blockAlign));
+  header.writeUInt32LE(0, 44);
+  header.write('fmt ', 48, 'ascii');
+  header.writeUInt32LE(16, 52);
+  header.writeUInt16LE(1, 56);
+  header.writeUInt16LE(channels, 58);
+  header.writeUInt32LE(sampleRate, 60);
+  header.writeUInt32LE(byteRate, 64);
+  header.writeUInt16LE(blockAlign, 68);
+  header.writeUInt16LE(bitDepth, 70);
+  header.write('data', 72, 'ascii');
+  header.writeUInt32LE(0xffffffff, 76);
+  return header;
+};
+
+const assembleChunksToWav = async ({ chunks, outputPath }) => {
+  let totalPcmBytes = 0;
+
+  // First pass validates and sizes each bounded chunk without retaining the
+  // full recording in memory.
+  for (const chunk of chunks) {
+    const buffer = await fs.readFile(chunk.filePath);
+    totalPcmBytes += pcmFromWavChunk(buffer).length;
+  }
+
+  await fs.writeFile(outputPath, wavHeader({ dataBytes: totalPcmBytes }));
+
+  // Second pass appends one chunk at a time, so multi-hour recovery remains
+  // memory-bounded even when the fallback WAV is several gigabytes.
+  for (const chunk of chunks) {
+    const buffer = await fs.readFile(chunk.filePath);
+    await fs.appendFile(outputPath, pcmFromWavChunk(buffer));
+  }
+
+  return {
+    bytes: totalPcmBytes,
+    duration: totalPcmBytes / (48000 * 2 * 3),
+  };
+};
+
 export const estimateReplayDurationSeconds = ({
   chunks = [],
   serverPcmBytes = 0,
@@ -274,7 +353,7 @@ export const isTrustedCompletedServerReplay = ({
 };
 
 export async function finalizeBroadcastReplay({ broadcastId, creatorId, expectedChunkCount = 0, uploadErrors = 0 } = {}) {
-  await assertFfmpegAvailable();
+  const recordingTooling = await checkFfmpegCapability();
   const bid = String(broadcastId || '');
   if (!bid) throw Object.assign(new Error('broadcastId is required'), { status: 400, code: 'INVALID_BROADCAST' });
 
@@ -287,14 +366,26 @@ export async function finalizeBroadcastReplay({ broadcastId, creatorId, expected
   const gate = new Promise((resolve) => { release = resolve; });
   locks.set(bid, gate);
   try {
-    return await finalizeInner({ broadcastId: bid, creatorId, expectedChunkCount, uploadErrors });
+    return await finalizeInner({
+      broadcastId: bid,
+      creatorId,
+      expectedChunkCount,
+      uploadErrors,
+      toolingAvailable: recordingTooling.ok,
+    });
   } finally {
     locks.delete(bid);
     release();
   }
 }
 
-async function finalizeInner({ broadcastId, creatorId, expectedChunkCount, uploadErrors }) {
+async function finalizeInner({
+  broadcastId,
+  creatorId,
+  expectedChunkCount,
+  uploadErrors,
+  toolingAvailable = true,
+}) {
   const fileKey = replayFileKey(broadcastId);
 
   // Idempotency first: End Broadcast retries, double complete posts and page
@@ -399,13 +490,17 @@ async function finalizeInner({ broadcastId, creatorId, expectedChunkCount, uploa
   }
 
   const bitrate = mp3Bitrate();
-  const filename = `replay-${broadcastId}.mp3`;
+  const fallbackToWav = !toolingAvailable;
+  const extension = fallbackToWav ? 'wav' : 'mp3';
+  const mimeType = fallbackToWav ? 'audio/wav' : 'audio/mpeg';
+  const filename = `replay-${broadcastId}.${extension}`;
   await fs.mkdir(AUDIO_UPLOAD_DIR, { recursive: true });
   const finalPath = path.join(AUDIO_UPLOAD_DIR, filename);
 
-  // Prefer the always-on streamed replay MP3; fall back to deterministic
-  // one-shot assembly from the durable chunk files.
-  let mp3Source = null;
+  // Prefer the always-on streamed replay MP3 when tooling exists. Lightweight
+  // staging hosts without FFmpeg get a durable WAV assembled directly from
+  // validated PCM chunks so End Broadcast still completes without a retry loop.
+  let replaySource = null;
   if (streamFileLooksOwned) {
     try {
       const header = Buffer.alloc(4);
@@ -423,13 +518,13 @@ async function finalizeInner({ broadcastId, creatorId, expectedChunkCount, uploa
           probedDurationSeconds: streamDuration,
         })
       ) {
-        mp3Source = 'stream';
+        replaySource = 'stream';
       }
     } catch {
-      mp3Source = null;
+      replaySource = null;
     }
   }
-  if (!mp3Source) {
+  if (!replaySource) {
     if (!accounted) {
       await Broadcast.updateOne({ _id: broadcastId }, { $set: { replayStatus: 'incomplete' } }).catch(() => null);
       return {
@@ -461,20 +556,29 @@ async function finalizeInner({ broadcastId, creatorId, expectedChunkCount, uploa
         return { status: 'incomplete', audioId: null, receivedChunks: chunks.length, expectedChunks: expected, missingChunkIndices: missing.slice(0, 50), uploadErrors: Number(uploadErrors) || 0, reason: 'chunk-invalid' };
       }
     }
-    await assembleChunksToMp3({ chunks, outputPath: finalPath, bitrate });
-    mp3Source = 'assembled';
+    if (fallbackToWav) {
+      await assembleChunksToWav({ chunks, outputPath: finalPath });
+      replaySource = 'assembled-wav';
+    } else {
+      await assembleChunksToMp3({ chunks, outputPath: finalPath, bitrate });
+      replaySource = 'assembled';
+    }
   } else {
     await fs.copyFile(replayFile.path, finalPath);
   }
 
-  const header = Buffer.alloc(4);
+  const header = Buffer.alloc(12);
   const verifyHandle = await fs.open(finalPath, 'r');
-  await verifyHandle.read(header, 0, 4, 0);
+  await verifyHandle.read(header, 0, 12, 0);
   await verifyHandle.close();
-  if (!isRealMp3Bytes(header)) {
+  const verified = fallbackToWav
+    ? ((header.toString('ascii', 0, 4) === 'RIFF' || header.toString('ascii', 0, 4) === 'RF64') &&
+      header.toString('ascii', 8, 12) === 'WAVE')
+    : isRealMp3Bytes(header.subarray(0, 4));
+  if (!verified) {
     await fs.rm(finalPath, { force: true }).catch(() => null);
     await Broadcast.updateOne({ _id: broadcastId }, { $set: { replayStatus: 'failed' } }).catch(() => null);
-    const error = new Error('Replay MP3 verification failed; recovery data kept.');
+    const error = new Error('Replay verification failed; recovery data kept.');
     error.status = 500;
     error.code = 'REPLAY_VERIFY_FAILED';
     throw error;
@@ -493,15 +597,17 @@ async function finalizeInner({ broadcastId, creatorId, expectedChunkCount, uploa
     creatorProfile?.username ||
     'Echoo Creator';
   const channelName = stationProfile?.name || '';
-  await applyEchooMp3Metadata({
-    filePath: finalPath,
-    title: broadcast.title,
-    artist: channelName || creatorName,
-    startedAt: broadcast.startedAt || broadcast.startTime || Date.now(),
-  }).catch(() => false);
+  if (!fallbackToWav) {
+    await applyEchooMp3Metadata({
+      filePath: finalPath,
+      title: broadcast.title,
+      artist: channelName || creatorName,
+      startedAt: broadcast.startedAt || broadcast.startTime || Date.now(),
+    }).catch(() => false);
+  }
 
   const stat = await fs.stat(finalPath);
-  const probedDuration = await probeMp3DurationSeconds(finalPath);
+  const probedDuration = fallbackToWav ? 0 : await probeMp3DurationSeconds(finalPath);
   const duration = probedDuration || estimateReplayDurationSeconds({
     chunks,
     serverPcmBytes: broadcast.serverRecording?.pcmBytes,
@@ -514,6 +620,7 @@ async function finalizeInner({ broadcastId, creatorId, expectedChunkCount, uploa
     title: broadcast.title,
     channelName,
     startedAt: broadcast.startedAt || broadcast.startTime || Date.now(),
+    extension,
   });
   let audio = null;
   try {
@@ -527,10 +634,10 @@ async function finalizeInner({ broadcastId, creatorId, expectedChunkCount, uploa
       originalName: humanFilename,
       fileSize: stat.size,
       fileKey,
-      mimeType: 'audio/mpeg',
+      mimeType,
       duration,
       genre: 'Other',
-      tags: ['live-recording', 'broadcast', 'server-mp3'],
+      tags: ['live-recording', 'broadcast', fallbackToWav ? 'server-wav-fallback' : 'server-mp3'],
       isPublic: false,
       visibility: 'private',
       publicationStatus: 'draft',
@@ -553,7 +660,7 @@ async function finalizeInner({ broadcastId, creatorId, expectedChunkCount, uploa
   let cloudKey = null;
   if (isCloudArchiveEnabled()) {
     try {
-      const { objectKey } = await uploadToObjectStorage(finalPath, filename, 'audio/mpeg');
+      const { objectKey } = await uploadToObjectStorage(finalPath, filename, mimeType);
       cloudKey = objectKey;
       audio.storage = 'cloud';
       audio.cloudKey = objectKey;
@@ -562,7 +669,7 @@ async function finalizeInner({ broadcastId, creatorId, expectedChunkCount, uploa
       const keepLocal = String(process.env.AUDIO_KEEP_LOCAL_AFTER_ARCHIVE || '').toLowerCase() === 'true';
       if (!keepLocal) await fs.rm(finalPath, { force: true }).catch(() => null);
     } catch (error) {
-      console.warn('[Echoo Replay] cloud archive failed; local MP3 kept:', error?.message || error);
+      console.warn('[Echoo Replay] cloud archive failed; local replay kept:', error?.message || error);
     }
   }
 
@@ -583,7 +690,14 @@ async function finalizeInner({ broadcastId, creatorId, expectedChunkCount, uploa
     { _id: broadcastId },
     { $set: { replayAudio: audio._id, replayAudioId: audio._id, replayStatus: 'ready' } }
   ).catch(() => null);
-  return { status: 'ready', audioId: String(audio._id), duplicate: false, source: mp3Source, cloud: Boolean(cloudKey) };
+  return {
+    status: 'ready',
+    audioId: String(audio._id),
+    duplicate: false,
+    source: replaySource,
+    format: extension,
+    cloud: Boolean(cloudKey),
+  };
 }
 
 export default { finalizeBroadcastReplay, isRealMp3Bytes };

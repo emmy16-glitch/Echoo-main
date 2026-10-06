@@ -59,6 +59,25 @@ test('recovery route is creator-gated and upload keeps its idempotency key', asy
   assert.match(audio, /unique:\s*true/);
 });
 
+test('recording recovery stays durable when FFmpeg is unavailable on staging', async () => {
+  const controller = await read('../src/controllers/broadcastChunkController.js');
+  const replay = await read('../src/services/broadcastReplayService.js');
+
+  // Missing media tooling must not block Go Live or the recording handshake.
+  assert.match(controller, /checkFfmpegCapability/);
+  assert.match(controller, /recordingTooling\.ok && isLiveKitServerRecordingEnabled/);
+  assert.doesNotMatch(controller, /await assertFfmpegAvailable\(\)/);
+
+  // After OFF AIR, the same bounded WAV chunks can become the durable replay
+  // without FFmpeg. Long sessions use RF64 and assembly stays memory-bounded.
+  assert.match(replay, /fallbackToWav = !toolingAvailable/);
+  assert.match(replay, /assembleChunksToWav/);
+  assert.match(replay, /RF64/);
+  assert.match(replay, /mimeType = fallbackToWav \? 'audio\/wav' : 'audio\/mpeg'/);
+  assert.match(replay, /for \(const chunk of chunks\)[\s\S]*fs\.appendFile\(outputPath, pcmFromWavChunk\(buffer\)\)/);
+  assert.doesNotMatch(replay, /const validated = \[\]/);
+});
+
 test('autosave finalizes server-side, respects offline, and never loops requests', async () => {
   const autosave = await read('../../frontend/src/services/recordingAutosave.js');
 
