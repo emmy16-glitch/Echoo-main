@@ -259,14 +259,23 @@ test('end broadcast confirmation stays compact on a short desktop viewport', asy
   const dialog = page.getByRole('alertdialog', { name: 'End broadcast?' });
   await expect(dialog).toBeVisible();
 
-  const box = await dialog.boundingBox();
-  expect(box).not.toBeNull();
+  const box = await dialog.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return {
+      x: rect.x,
+      y: rect.y,
+      width: rect.width,
+      height: rect.height,
+      right: rect.right,
+      bottom: rect.bottom,
+    };
+  });
   expect(box.width).toBeLessThanOrEqual(430);
   expect(box.width).toBeGreaterThanOrEqual(340);
   expect(box.x).toBeGreaterThan(200);
-  expect(box.x + box.width).toBeLessThan(844);
+  expect(box.right).toBeLessThan(844);
   expect(box.y).toBeGreaterThanOrEqual(8);
-  expect(box.y + box.height).toBeLessThanOrEqual(387);
+  expect(box.bottom).toBeLessThanOrEqual(387);
 });
 
 test('broadcast hero and modal remain usable without horizontal overflow on mobile', async ({ page }) => {
