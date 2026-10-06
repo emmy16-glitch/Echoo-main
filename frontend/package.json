@@ -6,7 +6,7 @@
   "scripts": {
     "predev": "sh ../scripts/check-ports.sh ${VITE_PORT:-5273} \"Vite dev server\"",
     "dev": "vite --strictPort",
-    "build": "vite build",
+    "build": "vite build && node scripts/write-static-spa-entrypoints.mjs",
     "lint": "eslint .",
     "preview": "vite preview",
     "test:e2e": "playwright test",
