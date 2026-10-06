@@ -49,4 +49,7 @@ test('OS handoff allows safe mail drafts but blocks executable and custom scheme
   assert.equal(normalizeExternalUrl('javascript:alert(1)'), null);
   assert.equal(normalizeExternalUrl('file:///C:/Windows/System32/cmd.exe'), null);
   assert.equal(normalizeExternalUrl('powershell:Start-Process calc.exe'), null);
+  assert.equal(normalizeExternalUrl('mailto:test@example.com?subject=ok%0D%0ABcc:attacker@example.com'), null);
+  assert.equal(normalizeExternalUrl('mailto:test@example.com#unexpected'), null);
+  assert.equal(normalizeExternalUrl('tel:+15551234567'), null);
 });

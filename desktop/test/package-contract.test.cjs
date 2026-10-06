@@ -116,7 +116,9 @@ test('startup uses a bundled splash and hides the packaged main window until rea
 
 test('Windows release workflow verifies the installed local renderer without server secrets', () => {
   assert.match(windowsWorkflow, /verify-installer\.ps1 -InstallSmokeTest/);
-  assert.match(windowsWorkflow, /Echoo-Setup-2\.0\.0-x64\.exe/);
+  assert.match(windowsWorkflow, /Echoo-Setup-\*-x64\.exe/);
+  assert.match(windowsWorkflow, /desktop\/package\.json/);
+  assert.match(windowsWorkflow, /\$package\.version/);
   for (const forbiddenSecret of ['LIVEKIT_API_SECRET', 'JWT_SECRET', 'MONGODB_URI']) {
     assert.equal(windowsWorkflow.includes(forbiddenSecret), false);
   }
@@ -370,9 +372,14 @@ test('Windows-only package has no macOS notarization hook or cross-platform tray
 
 test('auto-update waits for recording saves as well as active audio sessions', () => {
   assert.match(mainSource, /function updateRestartBlocked\(\)/);
+  assert.match(mainSource, /autoUpdater\.autoInstallOnAppQuit = false/);
   assert.match(mainSource, /recordingSaveSessions\.size > 0/);
   assert.match(mainSource, /update will wait until your recording finishes saving/i);
   assert.match(mainSource, /pendingUpdateReady && !roomState\.active/);
+});
+
+test('cancelled and subframe loads cannot replace a healthy app with the recovery page', () => {
+  assert.match(mainSource, /errorCode === -3 \|\| isMainFrame === false/);
 });
 
 
@@ -479,6 +486,14 @@ test('installed app proves its local shell works with remote HTTP(S) blocked', (
   assert.match(installerVerifier, /offlineNetworkBlocked/);
 });
 
+test('installer verification proves uninstall preserves user data and local recordings', () => {
+  const installerVerifier = fs.readFileSync(path.join(desktopRoot, 'scripts', 'verify-installer.ps1'), 'utf8');
+  assert.match(mainSource, /userDataPath:/);
+  assert.match(mainSource, /recordingsLibraryPath:/);
+  assert.match(installerVerifier, /Echoo uninstall removed persistent user data/);
+  assert.match(installerVerifier, /Echoo uninstall removed the local recording library/);
+});
+
 
 test('installed smoke exercises 100%, 125%, and 150% Windows display scaling', () => {
   const installerVerifier = fs.readFileSync(path.join(desktopRoot, 'scripts', 'verify-installer.ps1'), 'utf8');
@@ -514,6 +529,7 @@ test('Windows workflow runs packaged Playwright E2E before installer smoke verif
   assert.match(windowsWorkflow, /Run packaged Electron Playwright E2E/);
   assert.match(windowsWorkflow, /npm run test:e2e:packaged --prefix desktop/);
   assert.match(mainSource, /ECHOO_DISABLE_UPDATES/);
+  assert.match(windowsWorkflow, /npm audit --omit=dev --audit-level=high --prefix desktop/);
 });
 
 
@@ -528,6 +544,22 @@ test('share links use a narrow native Windows clipboard bridge when packaged', (
   assert.match(creatorWorkspaceSource, /copyTextToClipboard\(url\)/);
   assert.match(stationUrlSource, /window\.echooDesktop\?\.copyText/);
   assert.match(stationUrlSource, /navigatorRef\?\.clipboard\?\.writeText/);
+});
+
+test('packaged mail drafts use the validated native external-target bridge', () => {
+  const preloadSource = fs.readFileSync(path.join(desktopRoot, 'src', 'preload.js'), 'utf8');
+  const helpSource = fs.readFileSync(
+    path.resolve(desktopRoot, '..', 'frontend', 'src', 'Components', 'Support', 'CuratedHelpAssistant.jsx'),
+    'utf8'
+  );
+  const helpServiceSource = fs.readFileSync(
+    path.resolve(desktopRoot, '..', 'frontend', 'src', 'Components', 'Support', 'curatedHelp.js'),
+    'utf8'
+  );
+  assert.match(mainSource, /echoo:open-external-url/);
+  assert.match(preloadSource, /openExternalUrl/);
+  assert.match(helpServiceSource, /echooDesktop\.openExternalUrl\(humanSupportEmailDraft\)/);
+  assert.doesNotMatch(helpSource, /window\.location\.href\s*=\s*humanSupportEmailDraft/);
 });
 
 
@@ -625,6 +657,8 @@ test('HashRouter-sensitive screens use router state and public web URLs', () => 
   assert.match(listenerSettingsSource, /new URLSearchParams\(routerLocation\.search\)/);
   assert.doesNotMatch(listenerSettingsSource, /window\.location\.search/);
   assert.match(audioDetailSource, /getPublicAppUrl/);
+  assert.match(audioDetailSource, /requestedPlaybackTime\(location\.search\)/);
+  assert.doesNotMatch(audioDetailSource, /window\.location\.search/);
   assert.match(audioDetailSource, /copyTextToClipboard\(publicUrl\)/);
   assert.doesNotMatch(audioDetailSource, /url:\s*window\.location\.href/);
 });

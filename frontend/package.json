@@ -18,6 +18,7 @@
     "test:listener-preferences": "node --test src/services/listenerVolume.test.mjs",
     "test:live-recovery": "node --test src/services/liveRecoveryPolicy.test.mjs",
     "test:player-resources": "node --test src/services/listenerPlaybackResources.test.mjs",
+    "test:listener-route": "node --test src/services/listenerPlaybackRoute.test.mjs",
     "test:realtime-identity": "node --test src/services/realtimeIdentity.test.mjs"
   },
   "dependencies": {

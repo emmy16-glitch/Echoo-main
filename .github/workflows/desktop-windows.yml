@@ -56,6 +56,11 @@ jobs:
           npm ci --prefix frontend
           npm ci --prefix desktop
 
+      - name: Audit packaged production dependencies
+        run: |
+          npm audit --omit=dev --audit-level=high --prefix frontend
+          npm audit --omit=dev --audit-level=high --prefix desktop
+
       - name: Test desktop security and package contracts
         run: npm test --prefix desktop
 
@@ -90,21 +95,56 @@ jobs:
       - name: Upload verified Windows release files
         uses: actions/upload-artifact@v4
         with:
-          name: echoo-windows-2.0.0-x64
+          name: echoo-windows-x64
           path: |
-            desktop/dist/Echoo-Setup-2.0.0-x64.exe
-            desktop/dist/Echoo-Setup-2.0.0-x64.exe.blockmap
+            desktop/dist/Echoo-Setup-*-x64.exe
+            desktop/dist/Echoo-Setup-*-x64.exe.blockmap
             desktop/dist/latest.yml
           if-no-files-found: error
           retention-days: 14
+
+      - name: Detect unreleased desktop version
+        id: release_state
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $package = Get-Content -LiteralPath './desktop/package.json' -Raw | ConvertFrom-Json
+          $tag = "v$($package.version)"
+          "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          gh release view $tag --repo $env:GITHUB_REPOSITORY --json tagName *> $null
+          if ($LASTEXITCODE -eq 0) {
+            "publish=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+            Write-Host "Release $tag already exists; leaving it unchanged."
+          } else {
+            "publish=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+            Write-Host "Release $tag does not exist and will be published after verification."
+          }
+
+      - name: Publish verified main Windows release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.release_state.outputs.publish == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release_state.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: Echoo Desktop ${{ steps.release_state.outputs.tag }}
+          files: |
+            desktop/dist/Echoo-Setup-*-x64.exe
+            desktop/dist/Echoo-Setup-*-x64.exe.blockmap
+            desktop/dist/latest.yml
+          generate_release_notes: true
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish verified tagged release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            desktop/dist/Echoo-Setup-2.0.0-x64.exe
-            desktop/dist/Echoo-Setup-2.0.0-x64.exe.blockmap
+            desktop/dist/Echoo-Setup-*-x64.exe
+            desktop/dist/Echoo-Setup-*-x64.exe.blockmap
             desktop/dist/latest.yml
           generate_release_notes: true
         env:

@@ -7,6 +7,7 @@ import downloadService from '../../services/downloadService';
 import followService from '../../services/followService';
 import savedMomentService from '../../services/savedMomentService';
 import transcriptService from '../../services/transcriptService';
+import { requestedPlaybackTime } from '../../services/listenerPlaybackRoute';
 import { copyTextToClipboard, getPublicAppUrl } from '../../services/stationPublicUrl';
 import { ChapterList, EchooButton, KeyMomentCard, Tabs, TranscriptPanel, Waveform } from '../../design-system';
 import { referenceChapters, referenceMoments, referenceReplay, referenceTranscript } from '../ListenerExperience/listenerExperienceData';
@@ -40,6 +41,7 @@ const ListenerAudioDetail = () => {
   const [transcript, setTranscript] = useState(previewMode ? referenceTranscript : []);
   const [transcriptLoading, setTranscriptLoading] = useState(!previewMode);
   const transcriptSearchSequence = useRef(0);
+  const loadSequence = useRef(0);
   const initialSeekApplied = useRef(false);
 
   const mapTranscript = useCallback((segments = []) => segments.map((segment) => ({
@@ -52,31 +54,45 @@ const ListenerAudioDetail = () => {
 
   const load = useCallback(async () => {
     if (!audioId || previewMode) return;
+    const sequence = loadSequence.current + 1;
+    loadSequence.current = sequence;
     try {
       setLoading(true);
       const [response, transcriptResponse] = await Promise.all([
         audioService.getById(audioId),
         transcriptService.getAudio(audioId, { final: true }).catch(() => ({ data: [] })),
       ]);
+      if (loadSequence.current !== sequence) return;
       const next = response?.data || response;
       if (!next?.id) throw new Error('This recording could not be found.');
       setTrack(next);
       setTranscript(mapTranscript(transcriptResponse?.data || []));
       setTranscriptLoading(false);
       const momentResponse = await savedMomentService.list({ limit: 100 }).catch(() => ({ data: [] }));
+      if (loadSequence.current !== sequence) return;
       setSavedMomentIds(new Set((momentResponse?.data || []).filter((moment) => String(moment.audioId) === String(next.id)).map((moment) => `${Math.round(moment.timestampMs / 1000)}`)));
       const artistId = typeof next.artist === 'object'
         ? next.artist?.id || next.artist?._id
         : next.artist;
       if (artistId) {
         followService.getCreatorStatus(artistId)
-          .then((status) => setFollowing(Boolean(status?.isFollowing)))
+          .then((status) => {
+            if (loadSequence.current === sequence) {
+              setFollowing(Boolean(status?.isFollowing));
+            }
+          })
           .catch(() => {});
       }
       setError('');
     } catch (loadError) {
+      if (loadSequence.current !== sequence) return;
       setError(loadError?.message || 'This recording is unavailable.');
-    } finally { setLoading(false); setTranscriptLoading(false); }
+    } finally {
+      if (loadSequence.current === sequence) {
+        setLoading(false);
+        setTranscriptLoading(false);
+      }
+    }
   }, [audioId, mapTranscript, previewMode]);
 
   const searchTranscript = useCallback(async (search) => {
@@ -97,7 +113,13 @@ const ListenerAudioDetail = () => {
     }
   }, [audioId, mapTranscript, previewMode]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    void load();
+    return () => {
+      loadSequence.current += 1;
+      transcriptSearchSequence.current += 1;
+    };
+  }, [load]);
 
   const normalizedTrack = useMemo(() => track ? {
     ...track,
@@ -165,9 +187,14 @@ const ListenerAudioDetail = () => {
     }
   };
   useEffect(() => {
+    initialSeekApplied.current = false;
+  }, [audioId, location.search]);
+
+  useEffect(() => {
     if (!normalizedTrack || initialSeekApplied.current || !player) return;
-    const requested = Number(new URLSearchParams(window.location.search).get('t'));
-    if (!Number.isFinite(requested) || requested < 0) return;
+    if (String(normalizedTrack.id) !== String(audioId)) return;
+    const requested = requestedPlaybackTime(location.search);
+    if (requested === null) return;
     initialSeekApplied.current = true;
     if (typeof player.playTrackAt === 'function') {
       player.playTrackAt(normalizedTrack, requested, [normalizedTrack]);
@@ -175,7 +202,7 @@ const ListenerAudioDetail = () => {
       player.playTrack?.(normalizedTrack, [normalizedTrack]);
       player.seekTo?.(requested);
     }
-  }, [normalizedTrack, player]);
+  }, [audioId, location.search, normalizedTrack, player]);
 
   const saveMoment = async (moment) => {
     const key = `${Math.round(moment.seconds)}`;

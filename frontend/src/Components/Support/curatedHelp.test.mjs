@@ -4,6 +4,7 @@ import {
   curatedHelpSuggestions,
   getCuratedHelpWelcome,
   humanSupportEmailDraft,
+  openHumanSupportEmailDraft,
   resolveCuratedHelpResponse,
 } from './curatedHelp.js';
 
@@ -44,6 +45,44 @@ test('creator fallback stays deterministic and refuses private-data access', () 
 test('human-support draft has no recipient or prefilled user content', () => {
   assert.equal(humanSupportEmailDraft, 'mailto:?subject=Echoo%20human%20support%20request');
   assert.ok(!humanSupportEmailDraft.includes('body='));
+});
+
+test('desktop human support opens the mail draft through the validated native bridge', async () => {
+  const opened = [];
+  const windowRef = {
+    echooDesktop: {
+      isDesktop: true,
+      openExternalUrl: async (url) => {
+        opened.push(url);
+        return { opened: true };
+      },
+    },
+    location: { assign: () => assert.fail('desktop must not navigate the renderer') },
+  };
+
+  assert.equal(await openHumanSupportEmailDraft(windowRef), true);
+  assert.deepEqual(opened, [humanSupportEmailDraft]);
+});
+
+test('human support keeps a browser-only mailto fallback', async () => {
+  const assigned = [];
+  assert.equal(await openHumanSupportEmailDraft({
+    location: { assign: (url) => assigned.push(url) },
+  }), true);
+  assert.deepEqual(assigned, [humanSupportEmailDraft]);
+});
+
+test('desktop human support reports a native handoff failure without renderer navigation', async () => {
+  await assert.rejects(
+    openHumanSupportEmailDraft({
+      echooDesktop: {
+        isDesktop: true,
+        openExternalUrl: async () => ({ opened: false, error: 'No email app is configured.' }),
+      },
+      location: { assign: () => assert.fail('desktop must not navigate the renderer') },
+    }),
+    /No email app is configured/
+  );
 });
 
 test('each authenticated context has a bounded local welcome and four suggestions', () => {

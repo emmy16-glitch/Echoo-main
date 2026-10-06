@@ -92,10 +92,20 @@ test.describe('packaged Echoo Windows shell', () => {
   });
 
   test('blocks unsafe external schemes at the native boundary', async () => {
-    const result = await mainPage.evaluate(() =>
-      window.echooDesktop.openExternalWebUrl('javascript:alert(document.domain)')
-    );
-    expect(result?.opened).toBe(false);
+    const results = await mainPage.evaluate(async () => Promise.all([
+      window.echooDesktop.openExternalWebUrl('javascript:alert(document.domain)'),
+      window.echooDesktop.openExternalUrl('file:///C:/Windows/System32/cmd.exe'),
+      window.echooDesktop.openExternalUrl('mailto:test@example.com?subject=ok%0D%0ABcc:bad@example.com'),
+    ]));
+    expect(results.every((result) => result?.opened === false)).toBe(true);
+  });
+
+  test('copies share text through the native Windows clipboard bridge', async () => {
+    const expected = `Echoo packaged clipboard ${Date.now()}`;
+    const result = await mainPage.evaluate((text) => window.echooDesktop.copyText(text), expected);
+    const clipboardText = await electronApp.evaluate(({ clipboard }) => clipboard.readText());
+    expect(result).toEqual({ copied: true });
+    expect(clipboardText).toBe(expected);
   });
 
   test('round-trips native Listener replay state through the secure bridge', async () => {

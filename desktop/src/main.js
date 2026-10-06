@@ -183,6 +183,21 @@ async function openExternalWebUrl(url) {
   }
 }
 
+async function openRendererExternalUrl(url) {
+  const normalized = normalizeExternalUrl(url);
+  if (!normalized) {
+    log.warn('[echoo-desktop] blocked unsafe renderer external target');
+    return { opened: false, error: 'Only safe web and email links can be opened.' };
+  }
+  try {
+    await shell.openExternal(normalized);
+    return { opened: true, url: normalized };
+  } catch (error) {
+    log.warn('[echoo-desktop] renderer external target failed:', error.message);
+    return { opened: false, error: 'Windows could not open the requested app.' };
+  }
+}
+
 let mainWindow = null;
 let splashWindow = null;
 let tray = null;
@@ -816,7 +831,17 @@ function createWindow() {
     // as cold start so a previous "ready" flag cannot reveal an empty document.
     if (app.isPackaged) preparePackagedRendererLoad();
   });
-  mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
+  mainWindow.webContents.on('did-fail-load', (
+    _event,
+    errorCode,
+    errorDescription,
+    validatedURL,
+    isMainFrame
+  ) => {
+    // Chromium reports ERR_ABORTED when a load is deliberately replaced by a
+    // retry, deep link, or recovery navigation. Subframe failures must also
+    // stay inside the React surface instead of replacing the whole app.
+    if (errorCode === -3 || isMainFrame === false) return;
     if (validatedURL.includes('offline.html')) return; // already showing it (query string included)
     log.warn(`[echoo-desktop] load failed (${errorCode} ${errorDescription}): ${validatedURL}`);
     void loadOfflinePage(`${errorCode} ${errorDescription}`, validatedURL).catch((error) => {
@@ -957,7 +982,9 @@ async function completePackagedSmokeTest() {
       viewportHeight: window.innerHeight || 0,
       documentWidth: document.documentElement?.scrollWidth || 0,
       screenAvailWidth: window.screen?.availWidth || 0,
-      screenAvailHeight: window.screen?.availHeight || 0
+      screenAvailHeight: window.screen?.availHeight || 0,
+      userDataPath: ${JSON.stringify(app.getPath('userData'))},
+      recordingsLibraryPath: ${JSON.stringify(recordingsLibraryRoot())}
     }))()`);
     const routeVerified = !SECOND_INSTANCE_SMOKE_TEST
       || result?.hash === `#${smokeSecondInstanceRoute}`;
@@ -1732,6 +1759,9 @@ function showNotification({ title, body, silent }) {
 }
 
 function registerIpc() {
+  handleTrustedIpc('echoo:open-external-url', async (_event, url) =>
+    openRendererExternalUrl(url)
+  );
   handleTrustedIpc('echoo:open-external-web-url', async (_event, url) =>
     openExternalWebUrl(url)
   );
@@ -2365,6 +2395,10 @@ function checkForUpdates() {
   if (!app.isPackaged || process.env.ECHOO_DISABLE_UPDATES === '1') return; // deterministic tests may opt out
   try {
     autoUpdater.autoDownload = true;
+    // Installation is an explicit idle-state action. The updater must never
+    // piggyback on a quit that is still preserving live audio or recording
+    // data; promptForDownloadedUpdate is the only install entry point.
+    autoUpdater.autoInstallOnAppQuit = false;
     autoUpdater.on('update-downloaded', () => {
       pendingUpdateReady = true;
       if (updateRestartBlocked()) {

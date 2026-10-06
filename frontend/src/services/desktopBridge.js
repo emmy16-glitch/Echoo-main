@@ -73,10 +73,12 @@ export const reloadDesktop = () => {
 };
 
 export const openDesktopExternalUrl = (url) => {
-  if (!isEchooDesktop() || typeof desktop()?.openExternalWebUrl !== 'function') {
+  if (!isEchooDesktop()) {
     return Promise.resolve({ opened: false, unsupported: true });
   }
-  return desktop().openExternalWebUrl(url);
+  if (typeof desktop()?.openExternalUrl === 'function') return desktop().openExternalUrl(url);
+  if (typeof desktop()?.openExternalWebUrl === 'function') return desktop().openExternalWebUrl(url);
+  return Promise.resolve({ opened: false, unsupported: true });
 };
 
 export const openDesktopLogsFolder = () => {
