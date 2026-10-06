@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
+const { pathToFileURL } = require('node:url');
 
 const desktopRoot = path.resolve(__dirname, '..');
 const packageJson = JSON.parse(fs.readFileSync(path.join(desktopRoot, 'package.json'), 'utf8'));
@@ -419,15 +420,29 @@ test('installed Windows smoke covers cold-start and second-instance deep links',
 });
 
 
-test('desktop restores the last useful workspace without persisting auth screens', () => {
+test('desktop restores stable workspaces without reopening stale live-room IDs', async () => {
   const lifecycleSource = fs.readFileSync(
     path.resolve(desktopRoot, '..', 'frontend', 'src', 'services', 'desktopLifecycle.js'),
     'utf8'
   );
+  const routeModulePath = path.resolve(
+    desktopRoot,
+    '..',
+    'frontend',
+    'src',
+    'services',
+    'desktopWorkspaceRoute.js'
+  );
+  const { normalizeDesktopWorkspaceRoute } = await import(pathToFileURL(routeModulePath).href);
+
   assert.match(lifecycleSource, /echooDesktopLastRouteV1/);
   assert.match(lifecycleSource, /restoreLastDesktopWorkspace/);
   assert.match(lifecycleSource, /normalizeDesktopWorkspaceRoute/);
-  assert.match(lifecycleSource, /listen\|creator-studio/);
+  assert.equal(normalizeDesktopWorkspaceRoute('/listen/live/abc123'), '/listen/live');
+  assert.equal(normalizeDesktopWorkspaceRoute('/listen/live/abc123?from=share'), '/listen/live');
+  assert.equal(normalizeDesktopWorkspaceRoute('/listen/library'), '/listen/library');
+  assert.equal(normalizeDesktopWorkspaceRoute('/creator-studio/recordings'), '/creator-studio/recordings');
+  assert.equal(normalizeDesktopWorkspaceRoute('/login'), '');
 });
 
 
@@ -451,6 +466,17 @@ test('auto-update waits for recording saves as well as active audio sessions', (
 
 test('cancelled and subframe loads cannot replace a healthy app with the recovery page', () => {
   assert.match(mainSource, /errorCode === -3 \|\| isMainFrame === false/);
+});
+
+test('in-place desktop navigation never restarts the packaged startup lifecycle', () => {
+  assert.match(mainSource, /did-start-navigation/);
+  assert.match(mainSource, /isInPlace === true/);
+  assert.match(mainSource, /isMainFrame === false/);
+  assert.match(mainSource, /preparePackagedRendererLoad\('main-frame-navigation'\)/);
+  assert.doesNotMatch(
+    mainSource,
+    /webContents\.on\('did-start-loading'[\s\S]{0,500}preparePackagedRendererLoad/
+  );
 });
 
 
