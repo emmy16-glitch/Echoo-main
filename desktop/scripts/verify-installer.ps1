@@ -45,9 +45,56 @@ if (-not $installDirectory.StartsWith($tempRoot, [StringComparison]::OrdinalIgno
 }
 
 $markerPath = Join-Path $tempRoot 'echoo-desktop-smoke.json'
+$startupTimingReportPath = Join-Path $distDirectory 'installed-startup-timings.json'
 $userDataSentinelPath = $null
 $recordingSentinelPath = $null
+$startupSamples = @()
 $previousUpdateValue = $env:ECHOO_DISABLE_UPDATES
+
+function Get-StartupEventElapsedMs {
+    param(
+        [Parameter(Mandatory = $true)]$Smoke,
+        [Parameter(Mandatory = $true)][string]$EventName
+    )
+
+    $matchingEvents = @($Smoke.startupEvents | Where-Object { $_.event -eq $EventName })
+    if ($matchingEvents.Count -eq 0) {
+        throw "Installed Echoo smoke result did not include startup event '$EventName'."
+    }
+    return [int]$matchingEvents[-1].elapsedMs
+}
+
+function New-StartupTimingSample {
+    param(
+        [Parameter(Mandatory = $true)]$Smoke,
+        [Parameter(Mandatory = $true)][int]$Run
+    )
+
+    return [pscustomobject]@{
+        run = $Run
+        appReadyMs = Get-StartupEventElapsedMs -Smoke $Smoke -EventName 'renderer-app-ready'
+        mainVisibleMs = Get-StartupEventElapsedMs -Smoke $Smoke -EventName 'main-visible'
+        splashDestroyedMs = Get-StartupEventElapsedMs -Smoke $Smoke -EventName 'splash-destroyed'
+    }
+}
+
+function Get-TimingSummary {
+    param([Parameter(Mandatory = $true)][double[]]$Values)
+
+    $sorted = @($Values | Sort-Object)
+    $middle = [int][math]::Floor($sorted.Count / 2)
+    $median = if (($sorted.Count % 2) -eq 0) {
+        ($sorted[$middle - 1] + $sorted[$middle]) / 2
+    } else {
+        $sorted[$middle]
+    }
+    return [pscustomobject]@{
+        minMs = [double]$sorted[0]
+        maxMs = [double]$sorted[-1]
+        averageMs = [math]::Round(($sorted | Measure-Object -Average).Average, 1)
+        medianMs = [math]::Round($median, 1)
+    }
+}
 if (Test-Path -LiteralPath $markerPath) {
     Remove-Item -LiteralPath $markerPath -Force
 }
@@ -117,10 +164,67 @@ try {
         $smoke.protocol -ne 'echoo-app:' -or
         $smoke.hash -ne '#/listen/live/smoke-cold' -or
         $smoke.identity -ne 'echoo-frontend' -or
-        $smoke.desktopBridge -ne $true
+        $smoke.desktopBridge -ne $true -or
+        $smoke.browserWindowCount -ne 1 -or
+        $smoke.visibleWindowCount -ne 1 -or
+        $smoke.splashWindowCount -ne 0
     ) {
         throw "Installed Echoo failed its cold-start renderer/deep-link smoke test: $($smoke | ConvertTo-Json -Compress)"
     }
+    $startupSamples += New-StartupTimingSample -Smoke $smoke -Run 1
+
+    # One successful launch is not enough for the installed application. Run
+    # four more sequential cold starts and require exactly one visible main
+    # window with no surviving splash after APP_READY on every run.
+    for ($run = 2; $run -le 5; $run++) {
+        Remove-Item -LiteralPath $markerPath -Force -ErrorAction SilentlyContinue
+        $env:ECHOO_DESKTOP_SMOKE_TEST = '1'
+        $env:ELECTRON_RUN_AS_NODE = $null
+        $env:ECHOO_DISABLE_UPDATES = '1'
+        try {
+            $coldApplication = Start-Process -FilePath $executablePath -PassThru -WindowStyle Hidden
+        } finally {
+            $env:ECHOO_DESKTOP_SMOKE_TEST = $previousSmokeValue
+            $env:ELECTRON_RUN_AS_NODE = $previousRunAsNodeValue
+            $env:ECHOO_DISABLE_UPDATES = $previousUpdateValue
+        }
+        try {
+            Wait-Process -Id $coldApplication.Id -Timeout 45 -ErrorAction Stop
+        } catch {
+            Stop-Process -Id $coldApplication.Id -Force -ErrorAction SilentlyContinue
+            throw "Installed Echoo cold-start run $run did not complete within 45 seconds."
+        }
+        $coldApplication.Refresh()
+        if (-not (Test-Path -LiteralPath $markerPath -PathType Leaf)) {
+            throw "Installed Echoo cold-start run $run did not create its smoke marker."
+        }
+        $coldSmoke = Get-Content -Raw -LiteralPath $markerPath | ConvertFrom-Json
+        if (
+            $coldApplication.ExitCode -ne 0 -or
+            $coldSmoke.passed -ne $true -or
+            $coldSmoke.protocol -ne 'echoo-app:' -or
+            $coldSmoke.identity -ne 'echoo-frontend' -or
+            $coldSmoke.desktopBridge -ne $true -or
+            $coldSmoke.browserWindowCount -ne 1 -or
+            $coldSmoke.visibleWindowCount -ne 1 -or
+            $coldSmoke.splashWindowCount -ne 0
+        ) {
+            throw "Installed Echoo cold-start run $run failed: $($coldSmoke | ConvertTo-Json -Compress)"
+        }
+        $startupSamples += New-StartupTimingSample -Smoke $coldSmoke -Run $run
+    }
+
+    $startupTimingReport = [pscustomobject]@{
+        executable = $executablePath
+        runCount = $startupSamples.Count
+        appReady = Get-TimingSummary -Values @($startupSamples | ForEach-Object { $_.appReadyMs })
+        mainVisible = Get-TimingSummary -Values @($startupSamples | ForEach-Object { $_.mainVisibleMs })
+        splashDestroyed = Get-TimingSummary -Values @($startupSamples | ForEach-Object { $_.splashDestroyedMs })
+        runs = $startupSamples
+    }
+    $startupTimingReport | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $startupTimingReportPath
+    Write-Host "Verified 5 installed Echoo cold starts with zero surviving splash windows."
+    Write-Host "Installed startup timings: $($startupTimingReport | ConvertTo-Json -Compress -Depth 5)"
 
     # An upgrade or uninstall must not erase account state or the user's only
     # local recording copy. Place canaries in the actual paths reported by the

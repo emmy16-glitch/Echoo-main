@@ -22,4 +22,10 @@ p { max-width: 390px; margin: 0 auto 24px; color: #40516b; line-height: 1.55; }
 button { min-height: 42px; padding: 0 20px; border: 0; border-radius: 8px; background: #245cff; color: white; font: 600 14px/1 "Segoe UI", system-ui, sans-serif; cursor: pointer; }
 button:hover { background: #1f4fdb; }
 button:focus-visible { outline: 3px solid #94b4ff; outline-offset: 3px; }
+button:disabled { cursor: wait; opacity: .65; }
+.echoo-recovery-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.echoo-secondary-action { border: 1px solid #c7d2e4; background: #fff; color: #164f9d; }
+.echoo-secondary-action:hover { background: #edf3fb; }
+.echoo-diagnostics-action { min-height: 34px; margin-top: 14px; padding: 0 8px; background: transparent; color: #40516b; font-weight: 500; text-decoration: underline; text-underline-offset: 3px; }
+.echoo-diagnostics-action:hover { background: transparent; color: #164f9d; }
 small { display: block; margin-top: 18px; color: #77849a; }

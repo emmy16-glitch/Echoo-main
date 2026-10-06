@@ -21,6 +21,9 @@ jobs:
         with:
           node-version: 20
 
+      - name: Test cross-platform architecture path handling
+        run: node --test scripts/architecture-check.test.mjs
+
       - name: Check duplicate, mock and synthetic-data architecture
         run: node scripts/architecture-check.mjs
 

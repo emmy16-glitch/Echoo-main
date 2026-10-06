@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { normalizeRepositoryRelativePath } from './architecture-paths.mjs';
 
 const root = process.cwd();
 const failures = [];
@@ -12,7 +13,7 @@ const walk = (directory) => {
   if (!fs.existsSync(absolute)) return [];
 
   return fs.readdirSync(absolute, { withFileTypes: true }).flatMap((entry) => {
-    const relative = path.join(directory, entry.name);
+    const relative = normalizeRepositoryRelativePath(path.join(directory, entry.name));
     if (entry.isDirectory()) return walk(relative);
     return [relative];
   });
