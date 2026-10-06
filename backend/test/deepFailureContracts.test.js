@@ -566,6 +566,14 @@ test('ending lifecycle is authoritative over reconnect webhooks and late recorde
 });
 
 
+test('backend reports recording tooling readiness at startup without blocking live audio', async () => {
+  const app = await source('../src/app.js');
+  assert.match(app, /checkFfmpegCapability\(\{ force: true \}\)/);
+  assert.match(app, /\[Echoo Recording\] tooling readiness:/);
+  assert.match(app, /automaticServerMp3: recordingTooling\.ok/);
+  assert.match(app, /trimming: recordingTooling\.ok/);
+});
+
 test('Creator live mixer streams library audio instead of buffering whole recordings', async () => {
   const mixer = await frontendSource('src/services/echooMixerService.js');
   const studioService = await frontendSource('src/services/studioService.js');
