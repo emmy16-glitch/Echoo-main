@@ -44,6 +44,8 @@ if (-not $installDirectory.StartsWith($tempRoot, [StringComparison]::OrdinalIgno
 }
 
 $markerPath = Join-Path $tempRoot 'echoo-desktop-smoke.json'
+$userDataSentinelPath = $null
+$recordingSentinelPath = $null
 if (Test-Path -LiteralPath $markerPath) {
     Remove-Item -LiteralPath $markerPath -Force
 }
@@ -115,6 +117,19 @@ try {
     ) {
         throw "Installed Echoo failed its cold-start renderer/deep-link smoke test: $($smoke | ConvertTo-Json -Compress)"
     }
+
+    # An upgrade or uninstall must not erase account state or the user's only
+    # local recording copy. Place canaries in the actual paths reported by the
+    # packaged app and verify them after the NSIS uninstaller runs.
+    if (-not $smoke.userDataPath -or -not $smoke.recordingsLibraryPath) {
+        throw 'Installed Echoo did not report its persistent user-data and recording-library paths.'
+    }
+    New-Item -ItemType Directory -Force -Path $smoke.userDataPath | Out-Null
+    New-Item -ItemType Directory -Force -Path $smoke.recordingsLibraryPath | Out-Null
+    $userDataSentinelPath = Join-Path $smoke.userDataPath 'echoo-uninstall-preserve-smoke.txt'
+    $recordingSentinelPath = Join-Path $smoke.recordingsLibraryPath 'echoo-uninstall-preserve-smoke.mp3'
+    Set-Content -LiteralPath $userDataSentinelPath -Value 'preserve-user-data' -NoNewline
+    Set-Content -LiteralPath $recordingSentinelPath -Value 'preserve-recording' -NoNewline
 
     # Verify that a second Windows launch is delivered to the existing Echoo
     # process instead of creating another app session.
@@ -246,9 +261,22 @@ try {
 
     Write-Host 'Installed Echoo launched the local renderer with the secure desktop bridge.'
 } finally {
+    $preservationFailures = @()
     $uninstallerPath = Join-Path $installDirectory 'Uninstall Echoo.exe'
     if (Test-Path -LiteralPath $uninstallerPath -PathType Leaf) {
         Start-Process -FilePath $uninstallerPath -ArgumentList '/S' -Wait -WindowStyle Hidden
+    }
+    if ($userDataSentinelPath -and -not (Test-Path -LiteralPath $userDataSentinelPath -PathType Leaf)) {
+        $preservationFailures += 'Echoo uninstall removed persistent user data.'
+    }
+    if ($recordingSentinelPath -and -not (Test-Path -LiteralPath $recordingSentinelPath -PathType Leaf)) {
+        $preservationFailures += 'Echoo uninstall removed the local recording library.'
+    }
+    if ($userDataSentinelPath) {
+        Remove-Item -LiteralPath $userDataSentinelPath -Force -ErrorAction SilentlyContinue
+    }
+    if ($recordingSentinelPath) {
+        Remove-Item -LiteralPath $recordingSentinelPath -Force -ErrorAction SilentlyContinue
     }
     if (Test-Path -LiteralPath $installDirectory) {
         if (-not $installDirectory.StartsWith($tempRoot, [StringComparison]::OrdinalIgnoreCase)) {
@@ -258,5 +286,8 @@ try {
     }
     if (Test-Path -LiteralPath $markerPath) {
         Remove-Item -LiteralPath $markerPath -Force
+    }
+    if ($preservationFailures.Count -gt 0) {
+        throw ($preservationFailures -join ' ')
     }
 }

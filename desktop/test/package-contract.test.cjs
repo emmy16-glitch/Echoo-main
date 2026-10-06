@@ -370,9 +370,14 @@ test('Windows-only package has no macOS notarization hook or cross-platform tray
 
 test('auto-update waits for recording saves as well as active audio sessions', () => {
   assert.match(mainSource, /function updateRestartBlocked\(\)/);
+  assert.match(mainSource, /autoUpdater\.autoInstallOnAppQuit = false/);
   assert.match(mainSource, /recordingSaveSessions\.size > 0/);
   assert.match(mainSource, /update will wait until your recording finishes saving/i);
   assert.match(mainSource, /pendingUpdateReady && !roomState\.active/);
+});
+
+test('cancelled and subframe loads cannot replace a healthy app with the recovery page', () => {
+  assert.match(mainSource, /errorCode === -3 \|\| isMainFrame === false/);
 });
 
 
@@ -477,6 +482,14 @@ test('installed app proves its local shell works with remote HTTP(S) blocked', (
   assert.match(mainSource, /https:\/\/\*\/\*/);
   assert.match(installerVerifier, /ECHOO_DESKTOP_SMOKE_TEST = 'offline'/);
   assert.match(installerVerifier, /offlineNetworkBlocked/);
+});
+
+test('installer verification proves uninstall preserves user data and local recordings', () => {
+  const installerVerifier = fs.readFileSync(path.join(desktopRoot, 'scripts', 'verify-installer.ps1'), 'utf8');
+  assert.match(mainSource, /userDataPath:/);
+  assert.match(mainSource, /recordingsLibraryPath:/);
+  assert.match(installerVerifier, /Echoo uninstall removed persistent user data/);
+  assert.match(installerVerifier, /Echoo uninstall removed the local recording library/);
 });
 
 
