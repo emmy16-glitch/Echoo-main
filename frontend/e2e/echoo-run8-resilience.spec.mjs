@@ -54,6 +54,31 @@ const assertNoHorizontalOverflow = async (page, label) => {
   expect(geometry.scrollWidth, `${label}: horizontal document overflow`).toBeLessThanOrEqual(geometry.width + 2);
 };
 
+test('signed-out History and Settings stay local and console-clean', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+  const consoleErrors = [];
+  const protectedRequests = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error') consoleErrors.push(message.text());
+  });
+  page.on('request', (request) => {
+    if (/\/api\/(?:history|settings)(?:[/?]|$)/.test(request.url())) {
+      protectedRequests.push(request.url());
+    }
+  });
+
+  await page.goto('/listen/history');
+  await expect(page.getByText('Sign in to see your history.')).toBeVisible();
+  await page.goto('/listen/settings');
+  await expect(page.getByRole('heading', { name: 'Sign in for account settings.' })).toBeVisible();
+
+  expect(protectedRequests).toEqual([]);
+  expect(consoleErrors).toEqual([]);
+});
+
 test('unified account boundaries survive deep links and reloads', async ({ page }) => {
   await authenticate(page, 'listener');
   await page.goto('/listen/history');

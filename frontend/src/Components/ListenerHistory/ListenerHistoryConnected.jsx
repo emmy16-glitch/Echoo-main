@@ -139,6 +139,12 @@ const ListenerHistoryConnected = () => {
   // StrictMode double-mount in dev) so one logical refresh costs one request.
   const loadInflightRef = useRef(null);
   const load = useCallback(async ({ silent = false } = {}) => {
+    if (!localStorage.getItem('accessToken')) {
+      setItems([]);
+      setNeedsAuth(true);
+      if (!silent) setLoading(false);
+      return;
+    }
     if (loadInflightRef.current) {
       try { await loadInflightRef.current; } catch { /* shared attempt settled */ }
       return;
@@ -159,13 +165,13 @@ const ListenerHistoryConnected = () => {
         setNeedsAuth(false);
         if (!silent) await loadStats();
       } catch (error) {
-        console.error('History load failed', error);
         // Logged-out visitors get a 401 here — that is "not signed in", not
         // a service failure. Show the sign-in state instead of stacking a
         // "Something went wrong" toast on top of the empty state.
         if (!localStorage.getItem('accessToken')) {
           setNeedsAuth(true);
         } else if (!silent) {
+          console.warn('[Echoo History] load unavailable:', error?.message || 'unknown error');
           setNeedsAuth(false);
           notify('Could not load listening history', 'error');
         }

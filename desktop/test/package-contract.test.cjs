@@ -58,6 +58,7 @@ const backendAppSource = fs.readFileSync(
 
 test('Windows package identity and artifact are canonical', () => {
   assert.equal(packageJson.version, '2.0.2');
+  assert.equal(packageJson.author, 'EMMANUEL AYOMIDE OKUNLOLA');
   assert.equal(packageJson.build.productName, 'Echoo');
   assert.equal(packageJson.build.win.artifactName, 'Echoo-Setup-${version}-${arch}.${ext}');
   assert.deepEqual(packageJson.build.win.target[0].arch, ['x64']);
@@ -823,7 +824,7 @@ test('packaged startup uses an explicit, idempotent renderer-ready handshake', (
 
   assert.match(mainSource, /async function revealMainWindowWhenReady\(\)/);
   assert.match(preloadSource, /appReady:\s*\(\)\s*=>\s*ipcRenderer\.send\(APP_READY_CHANNEL\)/);
-  assert.match(rendererSource, /<DesktopAppReady \/>/);
+  assert.match(rendererSource, /<DesktopAppReady \/>[\s\S]{0,160}<AppErrorBoundary>/);
   assert.match(rendererReadySource, /function DesktopAppReady\(\)[\s\S]*echooDesktop\?\.appReady\?\.\(\)/);
   assert.match(mainSource, /ipcMain\.on\('echoo:app-ready'[\s\S]*rendererLifecyclePhase !== 'renderer-loading'[\s\S]*revealMainWindowWhenReady/);
   assert.doesNotMatch(mainSource, /executeJavaScript\([\s\S]{0,200}#root/);
@@ -858,6 +859,15 @@ test('native and keyboard reloads return behind the splash until React mounts ag
   assert.doesNotMatch(mainSource, /\{ role: 'reload' \}/);
   assert.doesNotMatch(mainSource, /\{ role: 'forceReload' \}/);
   assert.match(mainSource, /Echoo cannot reload during active audio or a recording save/);
+});
+
+test('in-app navigation is not retained as repeated startup telemetry', () => {
+  const navigationHandler = mainSource.match(
+    /webContents\.on\(\s*'did-start-navigation'[\s\S]*?\n\s*\);/
+  )?.[0] || '';
+  assert.match(navigationHandler, /isInPlace === true/);
+  assert.doesNotMatch(navigationHandler, /logStartupEvent/);
+  assert.match(navigationHandler, /preparePackagedRendererLoad\('main-frame-navigation'\)/);
 });
 
 test('startup splash is one non-topmost window and is destroyed after readiness', () => {

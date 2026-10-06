@@ -65,10 +65,10 @@ npm test --prefix desktop
 npm run dist:win --prefix desktop -- --publish never
 ```
 
-Expected unsigned artifact:
+Expected unsigned artifact (using the current `desktop/package.json` version):
 
 ```text
-desktop/dist/Echoo-Setup-2.0.1-x64.exe
+desktop/dist/Echoo-Setup-<version>-x64.exe
 ```
 
 Electron Builder uses `CSC_LINK` and `CSC_KEY_PASSWORD` when Authenticode
