@@ -6,9 +6,12 @@ const source = async (path) => readFile(new URL(path, import.meta.url), 'utf8');
 
 test('creator setup stays inside React Router after channel creation', async () => {
   const creator = await source('../../frontend/src/Components/CreatorSetup/CreatorSetup.jsx');
+  const app = await source('../../frontend/src/App.jsx');
   assert.match(creator, /useNavigate/);
   assert.doesNotMatch(creator, /assignAppRoute\('\/creator-studio'\)/);
   assert.match(creator, /creatorReady: true/);
+  assert.match(app, /const RequireRole = \(\{ role, children \}\) => \{[\s\S]{0,300}useLocation\(\)/);
+  assert.match(app, /state: \{ creatorReady: true \}/);
 });
 
 test('Render static build emits common creator and listener entrypoints', async () => {
