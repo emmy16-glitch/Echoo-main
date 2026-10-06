@@ -58,7 +58,8 @@ const storage = multer.diskStorage({
 });
 
 const ALLOWED_AUDIO_EXTENSIONS = new Set([
-  '.mp3', '.m4a', '.aac', '.wav', '.ogg', '.oga', '.opus', '.flac', '.webm',
+  '.mp3', '.mpeg', '.mpga', '.mp2', '.mpa',
+  '.m4a', '.aac', '.wav', '.ogg', '.oga', '.opus', '.flac', '.webm', '.weba',
 ]);
 const ALLOWED_IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp']);
 
@@ -78,13 +79,20 @@ const fileFilter = (req, file, cb) => {
     return cb(null, true);
   }
 
+  // Downloads from WhatsApp/other messaging apps are often labelled as
+  // application/octet-stream even though their bytes are valid audio. Accept
+  // generic MIME only for a known audio extension, then verify the actual file
+  // signature below before the upload can be committed.
+  const genericMime = new Set(['', 'application/octet-stream', 'binary/octet-stream']);
   const looksLikeAudio =
     mimeType.startsWith('audio/') ||
-    (mimeType === 'video/webm' && extension === '.webm');
+    ((mimeType === 'video/webm' || mimeType === 'audio/webm') &&
+      (extension === '.webm' || extension === '.weba')) ||
+    genericMime.has(mimeType);
 
   if (!looksLikeAudio || !ALLOWED_AUDIO_EXTENSIONS.has(extension)) {
     const error = new Error(
-      'Unsupported audio file. Upload MP3, M4A/AAC, WAV, OGG/Opus, FLAC or audio WebM.'
+      'Unsupported audio file. Upload MP3/MPEG, M4A/AAC, WAV, OGG/Opus, FLAC or audio WebM.'
     );
     error.code = 'UNSUPPORTED_AUDIO_FILE';
     error.status = 415;
@@ -274,12 +282,17 @@ export const matchesUploadedFileSignature = (file, header) => {
     case '.opus':
       return header.length >= 4 && ascii(header, 0, 4) === 'OggS';
     case '.webm':
+    case '.weba':
       return header.length >= 4 &&
         header[0] === 0x1a &&
         header[1] === 0x45 &&
         header[2] === 0xdf &&
         header[3] === 0xa3;
     case '.mp3':
+    case '.mpeg':
+    case '.mpga':
+    case '.mp2':
+    case '.mpa':
       return (
         (header.length >= 3 && ascii(header, 0, 3) === 'ID3') ||
         (header.length >= 2 && header[0] === 0xff && (header[1] & 0xe0) === 0xe0)
