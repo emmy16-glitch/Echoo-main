@@ -222,7 +222,7 @@ const OnboardingFlow = () => {
       <CreatorSetup
         onCreatorReady={() => {
           localStorage.setItem('echooActiveExperience', 'creator');
-          navigate('/creator-studio', { replace: true });
+          navigate('/creator-studio', { replace: true, state: { creatorReady: true } });
         }}
       />
     );
