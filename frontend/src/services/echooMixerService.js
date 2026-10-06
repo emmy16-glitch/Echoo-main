@@ -1082,6 +1082,22 @@ const connectMediaElementUrl = async ({
 };
 
 const AUDIO_FILE_EXTENSION = /\.(?:mp3|mpeg|mpga|mp2|mpa|m4a|aac|wav|ogg|oga|opus|flac|webm|weba)$/i;
+const AUDIO_FILE_MIME_BY_EXTENSION = Object.freeze({
+  mp3: 'audio/mpeg',
+  mpeg: 'audio/mpeg',
+  mpga: 'audio/mpeg',
+  mp2: 'audio/mpeg',
+  mpa: 'audio/mpeg',
+  m4a: 'audio/mp4',
+  aac: 'audio/aac',
+  wav: 'audio/wav',
+  ogg: 'audio/ogg',
+  oga: 'audio/ogg',
+  opus: 'audio/ogg',
+  flac: 'audio/flac',
+  webm: 'audio/webm',
+  weba: 'audio/webm',
+});
 
 export const connectMediaFile = async (file) => {
   const validFile =
@@ -1094,7 +1110,21 @@ export const connectMediaFile = async (file) => {
     throw new Error('Choose a supported audio file for Music / FX.');
   }
 
-  const objectUrl = URL.createObjectURL(file);
+  // Messaging apps and Windows downloads sometimes mark valid audio as
+  // application/octet-stream. Blob URLs preserve that MIME, which can stop
+  // Chromium from attaching the file to an <audio> element. Re-label only
+  // whitelisted extensions; the original bytes are unchanged.
+  const extension = String(file.name || '').split('.').pop()?.toLowerCase() || '';
+  const canonicalMime = AUDIO_FILE_MIME_BY_EXTENSION[extension] || String(file.type || '');
+  const playableFile =
+    canonicalMime && canonicalMime !== file.type
+      ? new File([file], file.name || `echoo-audio.${extension || 'bin'}`, {
+          type: canonicalMime,
+          lastModified: file.lastModified || Date.now(),
+        })
+      : file;
+
+  const objectUrl = URL.createObjectURL(playableFile);
   return connectMediaElementUrl({
     url: objectUrl,
     label: file.name || 'Music / FX',
