@@ -317,11 +317,14 @@ test('splash uses the real Echoo mark as the restrained startup motion', () => {
   const splashCss = fs.readFileSync(path.join(desktopRoot, 'src', 'splash.css'), 'utf8');
   assert.match(splashHtml, /echoo-mark-primary/);
   assert.match(splashHtml, /echoo-mark-echo/);
+  assert.doesNotMatch(splashHtml, /<strong>echoo<\/strong>/);
   assert.doesNotMatch(splashHtml, /Starting Echoo/);
   assert.doesNotMatch(splashHtml, /progress/i);
   assert.match(splashCss, /prefers-reduced-motion:\s*reduce/);
-  assert.match(splashCss, /1\.35s[\s\S]*infinite alternate/);
-  assert.match(mainSource, /width: 240,[\s\S]{0,100}height: 190,[\s\S]{0,120}transparent: true/);
+  assert.match(splashCss, /1\.05s[\s\S]*infinite alternate/);
+  assert.match(splashCss, /translate\(-3px, 3px\)/);
+  assert.match(splashCss, /background:\s*#f7f9fc/);
+  assert.match(mainSource, /width: 176,[\s\S]{0,100}height: 176,[\s\S]{0,120}transparent: true/);
   assert.match(mainSource, /backgroundColor: '#00000000'/);
 });
 

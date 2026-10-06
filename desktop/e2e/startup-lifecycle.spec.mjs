@@ -73,6 +73,41 @@ test.describe('packaged startup lifecycle', () => {
         expect(waitingState.splash[0].alwaysOnTop).toBe(false);
         expect(waitingState.main.filter((window) => window.visible)).toHaveLength(0);
 
+        const splashPage = electronApp.windows().find((candidate) =>
+          candidate.url().includes('splash.html')
+        );
+        expect(splashPage).toBeTruthy();
+        const splashVisual = await splashPage.evaluate(() => {
+          const surface = document.querySelector('main');
+          const primary = document.querySelector('.echoo-mark-primary');
+          const surfaceStyle = getComputedStyle(surface);
+          const primaryStyle = getComputedStyle(primary);
+          return {
+            visibleWordmark: document.querySelector('strong')?.textContent || '',
+            ariaLabel: surface?.getAttribute('aria-label') || '',
+            surfaceBackground: surfaceStyle.backgroundColor,
+            surfaceWidth: surfaceStyle.width,
+            surfaceHeight: surfaceStyle.height,
+            animationDuration: primaryStyle.animationDuration,
+            animationName: primaryStyle.animationName,
+          };
+        });
+        expect(splashVisual).toMatchObject({
+          visibleWordmark: '',
+          ariaLabel: 'Echoo is opening',
+          surfaceBackground: 'rgb(247, 249, 252)',
+          surfaceWidth: '160px',
+          surfaceHeight: '160px',
+          animationDuration: '1.05s',
+        });
+        expect(splashVisual.animationName).not.toBe('none');
+
+        await splashPage.emulateMedia({ reducedMotion: 'reduce' });
+        const reducedMotionAnimation = await splashPage.locator('.echoo-mark-primary').evaluate(
+          (node) => getComputedStyle(node).animationName
+        );
+        expect(reducedMotionAnimation).toBe('none');
+
         await expect.poll(async () => {
           const state = await nativeWindowState(electronApp);
           return {

@@ -632,8 +632,8 @@ function createSplashWindow() {
   splashWindow = null;
 
   const createdSplash = new BrowserWindow({
-    width: 240,
-    height: 190,
+    width: 176,
+    height: 176,
     frame: false,
     transparent: true,
     hasShadow: false,
