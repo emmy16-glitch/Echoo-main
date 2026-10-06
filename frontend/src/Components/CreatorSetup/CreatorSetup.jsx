@@ -322,7 +322,13 @@ export default function CreatorSetup({ onCreatorReady }) {
             <img src={echooLogoMark} alt="" aria-hidden="true" />
             <span aria-label="Echoo">echoo</span>
           </span>
-          <button type="button" className="echoo-onboard-back" onClick={backToListener} disabled={saving}>
+          <button
+            type="button"
+            className="echoo-onboard-back"
+            onClick={backToListener}
+            disabled={saving}
+            aria-label="Back to Listener"
+          >
             Back
           </button>
         </header>
