@@ -112,7 +112,8 @@ test('partial Creator cannot bypass Channel setup with a direct Studio URL', asy
   await page.goto('/creator-studio/channels');
   await expect(page).toHaveURL(/\/creator-studio\/channels$/);
   await expect(page.getByRole('heading', { name: 'Create your Channel' })).toBeVisible();
-  await expect(page.getByText('Set up the identity listeners will see when you broadcast. You can change these details later in Creator Studio.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Individual' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Organization' })).toBeVisible();
   expect(errors).toEqual([]);
 });
 
@@ -133,7 +134,7 @@ test('failed token refresh ejects the user from protected UI and clears the sess
 
   await page.goto('/listen');
   await expect(page).toHaveURL(/\/login\?reason=session-expired$/);
-  await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
 
   const state = await page.evaluate(() => ({
     accessToken: localStorage.getItem('accessToken'),
