@@ -11,10 +11,11 @@ import {
   Shield,
   UserRound,
 } from 'lucide-react-native';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -26,7 +27,10 @@ import {
   ListenerAuthCard,
   ListenerPageHeader,
   ListenerSectionHeader,
+  ListenerSkeletonRows,
+  ListenerToast,
   ListenerTopBar,
+  friendlyErrorMessage,
 } from '@/src/components/ListenerV2';
 import {
   EchooLibraryStats,
@@ -56,13 +60,16 @@ export default function ProfileScreen() {
 
   const [signedIn, setSignedIn] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [user, setUser] = useState<EchooUser | null>(null);
   const [stats, setStats] = useState<EchooLibraryStats>(emptyStats);
   const [error, setError] = useState('');
   const [loggingOut, setLoggingOut] = useState(false);
+  const hasLoadedOnce = useRef(false);
 
-  const loadProfile = useCallback(async () => {
-    setLoading(true);
+  const loadProfile = useCallback(async (force = false, silent = false) => {
+    if (force) setRefreshing(true);
+    else if (!silent) setLoading(true);
     setError('');
     const activeSession = await hasEchooSession();
     setSignedIn(activeSession);
@@ -71,13 +78,15 @@ export default function ProfileScreen() {
       setUser(null);
       setStats(emptyStats);
       setLoading(false);
+      setRefreshing(false);
+      hasLoadedOnce.current = true;
       return;
     }
 
     try {
       const [nextUser, nextStats] = await Promise.all([
         getCurrentUser(),
-        getLibraryStats().catch(() => emptyStats),
+        getLibraryStats({ force }).catch(() => emptyStats),
       ]);
       setUser(nextUser);
       setStats(nextStats);
@@ -87,16 +96,18 @@ export default function ProfileScreen() {
         setSignedIn(false);
         setUser(null);
       } else {
-        setError(loadError?.message || 'Could not load your Echoo account.');
+        setError(friendlyErrorMessage(loadError, 'Could not load your Echoo account.'));
       }
     } finally {
       setLoading(false);
+      setRefreshing(false);
+      hasLoadedOnce.current = true;
     }
   }, []);
 
   useFocusEffect(
     useCallback(() => {
-      loadProfile();
+      loadProfile(false, hasLoadedOnce.current);
     }, [loadProfile])
   );
 
@@ -129,16 +140,24 @@ export default function ProfileScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <ListenerTopBar />
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => loadProfile(true)}
+            tintColor={palette.blue}
+            colors={[palette.blue]}
+          />
+        }
+      >
         <ListenerPageHeader
           title="Profile"
         />
 
         {loading ? (
-          <View style={styles.loadingState}>
-            <ActivityIndicator color={palette.blue} />
-            <Text style={styles.loadingText}>Loading profile...</Text>
-          </View>
+          <ListenerSkeletonRows count={4} />
         ) : null}
 
         {!loading && !signedIn ? (
@@ -188,7 +207,7 @@ export default function ProfileScreen() {
               </View>
             </View>
 
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+            {error ? <ListenerToast message={error} /> : null}
           </>
         ) : null}
 
@@ -222,8 +241,6 @@ export default function ProfileScreen() {
 const createStyles = (palette: EchooColors) => StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: palette.background },
   content: { paddingHorizontal: 18, paddingTop: 8, paddingBottom: 150 },
-  loadingState: { minHeight: 150, alignItems: 'center', justifyContent: 'center', gap: 10 },
-  loadingText: { color: palette.muted, fontSize: 12.5, fontWeight: '700' },
   guestHero: { backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line, borderRadius: 8, padding: 20, alignItems: 'center', marginBottom: 12 },
   guestAvatar: { width: 70, height: 70, borderRadius: 35, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
   guestTitle: { color: palette.ink, fontSize: 19, fontWeight: '900', marginTop: 13 },
@@ -239,7 +256,6 @@ const createStyles = (palette: EchooColors) => StyleSheet.create({
   statCard: { flex: 1, minHeight: 78, backgroundColor: palette.surface, borderRadius: 8, borderWidth: 1, borderColor: palette.line, padding: 11, alignItems: 'center', justifyContent: 'center' },
   statValue: { color: palette.ink, fontSize: 19, fontWeight: '900' },
   statLabel: { color: palette.muted, fontSize: 10.5, fontWeight: '700', marginTop: 2, textAlign: 'center' },
-  errorText: { color: palette.red, fontSize: 11.5, marginTop: 8 },
   settingsGroup: { backgroundColor: palette.surface, borderRadius: 8, borderWidth: 1, borderColor: palette.line, overflow: 'hidden' },
   settingRow: { minHeight: 70, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 13, borderBottomWidth: 1, borderBottomColor: palette.line },
   settingIcon: { width: 22, alignItems: 'center', justifyContent: 'center' },

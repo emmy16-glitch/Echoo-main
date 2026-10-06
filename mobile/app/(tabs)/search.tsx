@@ -8,10 +8,10 @@ import {
   Newspaper,
   Radio,
 } from 'lucide-react-native';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -20,11 +20,16 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
+  AudioRowActions,
+} from '@/src/components/AudioRowActions';
+import {
   ListenerEmptyState,
   ListenerListRow,
   ListenerSearchInput,
   ListenerSectionHeader,
+  ListenerSkeletonRows,
   ListenerTopBar,
+  friendlyErrorMessage,
 } from '@/src/components/ListenerV2';
 import {
   EchooAudio,
@@ -61,11 +66,36 @@ export default function SearchScreen() {
   const [stations, setStations] = useState<EchooStation[]>([]);
   const [live, setLive] = useState<Awaited<ReturnType<typeof searchEchoo>>['live']>([]);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
     if (params.q !== undefined) setQuery(String(params.q));
   }, [params.q]);
+
+  const runSearch = useCallback(async (value: string, force = false) => {
+    const cleanQuery = value.trim();
+    if (!cleanQuery) return;
+
+    if (force) setRefreshing(true);
+    else setLoading(true);
+
+    try {
+      const results = await searchEchoo(cleanQuery, { force });
+      setAudio(results.audio);
+      setStations(results.stations);
+      setLive(results.live);
+      setError('');
+    } catch (searchError: any) {
+      setAudio([]);
+      setStations([]);
+      setLive([]);
+      setError(friendlyErrorMessage(searchError, 'Search is unavailable right now.'));
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
 
   useEffect(() => {
     const cleanQuery = query.trim();
@@ -94,7 +124,7 @@ export default function SearchScreen() {
           setAudio([]);
           setStations([]);
           setLive([]);
-          setError(searchError?.message || 'Search is unavailable right now.');
+          setError(friendlyErrorMessage(searchError, 'Search is unavailable right now.'));
         })
         .finally(() => {
           if (active) setLoading(false);
@@ -134,6 +164,15 @@ export default function SearchScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => runSearch(query, true)}
+            enabled={Boolean(query.trim())}
+            tintColor={palette.blue}
+            colors={[palette.blue]}
+          />
+        }
       >
         <Text style={styles.pageTitle}>Search</Text>
 
@@ -170,10 +209,7 @@ export default function SearchScreen() {
         ) : null}
 
         {loading ? (
-          <View style={styles.loadingRow}>
-            <ActivityIndicator color={palette.blue} />
-            <Text style={styles.loadingText}>Searching Echoo...</Text>
-          </View>
+          <ListenerSkeletonRows count={4} />
         ) : null}
 
         {!loading && error ? (
@@ -181,6 +217,8 @@ export default function SearchScreen() {
             title="Search is temporarily unavailable"
             subtitle={error}
             icon={<Radio color={palette.blue} size={24} />}
+            action="Try again"
+            onAction={() => runSearch(query, true)}
           />
         ) : null}
 
@@ -219,6 +257,7 @@ export default function SearchScreen() {
                 meta={track.genre || 'Audio'}
                 image={track.coverArt}
                 fallback={<Music2 color={palette.blue} size={21} />}
+                trailing={<AudioRowActions track={track} />}
                 onPress={() => openAudio(track)}
               />
             ))}
@@ -278,12 +317,4 @@ const createStyles = (palette: EchooColors) => StyleSheet.create({
     lineHeight: 18,
     fontWeight: '800',
   },
-  loadingRow: {
-    minHeight: 110,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    gap: 9,
-  },
-  loadingText: { color: palette.muted, fontSize: 12.5, fontWeight: '700' },
 });

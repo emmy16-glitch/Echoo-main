@@ -1,6 +1,6 @@
 import { readListenerVolume, saveListenerVolume } from '../../services/listenerVolume';
 import { useCallback, useEffect, useState } from 'react';
-import { useLocation as useRouterLocation } from 'react-router-dom';
+import { useLocation as useRouterLocation, useNavigate } from 'react-router-dom';
 import {
   FaBell,
   FaCheck,
@@ -42,12 +42,14 @@ const usernameFor = (username) =>
 
 const ListenerSettingsConnected = () => {
   const routerLocation = useRouterLocation();
+  const navigate = useNavigate();
   const [nav, setNav] = useState(() => {
     const requested = new URLSearchParams(routerLocation.search).get('section');
     return ['profile', 'playback', 'notifications', 'help'].includes(requested) ? requested : 'profile';
   });
   const [volume, setVolume] = useState(readListenerVolume);
   const [loading, setLoading] = useState(true);
+  const [needsAuth, setNeedsAuth] = useState(false);
   const [saving, setSaving] = useState(false);
   const [displayName, setDisplayName] = useState('');
   const [bio, setBio] = useState('');
@@ -87,6 +89,11 @@ const ListenerSettingsConnected = () => {
   }, []);
 
   const load = useCallback(async () => {
+    if (!localStorage.getItem('accessToken')) {
+      setNeedsAuth(true);
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       const [response, playerResponse] = await Promise.all([
@@ -112,10 +119,15 @@ const ListenerSettingsConnected = () => {
         : 'auto');
       setLocation(profile.location || '');
       setWebsite(profile.website || '');
+      setNeedsAuth(false);
       setDirty(false);
     } catch (error) {
-      console.error('Settings load failed', error);
-      setToast({ open: true, title: 'Something went wrong', message: 'Could not load your settings.' });
+      if (!localStorage.getItem('accessToken')) {
+        setNeedsAuth(true);
+      } else {
+        console.warn('[Echoo Settings] load unavailable:', error?.message || 'unknown error');
+        setToast({ open: true, title: 'Something went wrong', message: 'Could not load your settings.' });
+      }
     } finally {
       setLoading(false);
     }
@@ -331,6 +343,25 @@ const ListenerSettingsConnected = () => {
     return (
       <div className="set-page">
         <div className="set-empty set-empty-loading">Loading your settings…</div>
+      </div>
+    );
+  }
+
+  if (needsAuth) {
+    return (
+      <div className="set-page">
+        <header className="set-header">
+          <span>SETTINGS</span>
+          <h1>Sign in for account settings.</h1>
+          <p className="set-subtitle">
+            Playback stays available while signed out. Sign in to manage your Echoo profile and preferences.
+          </p>
+        </header>
+        <div className="set-empty">
+          <button type="button" className="set-back-btn" onClick={() => navigate('/login')}>
+            Sign in
+          </button>
+        </div>
       </div>
     );
   }

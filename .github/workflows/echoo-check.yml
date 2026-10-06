@@ -39,6 +39,8 @@ jobs:
         run: npm run test:live-recovery
       - name: Verify realtime identity transitions
         run: npm run test:realtime-identity
+      - name: Verify desktop authentication recovery
+        run: npm run test:desktop-auth
       - name: Verify Listener playback resource cleanup
         run: npm run test:player-resources
       - name: Verify packaged Listener route state

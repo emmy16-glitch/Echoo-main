@@ -1,5 +1,5 @@
 import express from 'express';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, optionalAuth } from '../middleware/auth.js';
 import {
   createPlaylist,
   getPlaylists,
@@ -16,7 +16,7 @@ const router = express.Router();
 
 router.get('/', getPlaylists);
 router.get('/mine/all', authenticate, getMyPlaylists);
-router.get('/:id', authenticate, getPlaylistById);
+router.get('/:id', optionalAuth, getPlaylistById);
 router.post('/', authenticate, createPlaylist);
 router.patch('/:id', authenticate, updatePlaylist);
 router.delete('/:id', authenticate, deletePlaylist);

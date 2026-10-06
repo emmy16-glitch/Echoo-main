@@ -1,6 +1,6 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { Eye, EyeOff, Headphones, Mail, UserRound } from 'lucide-react-native';
+import { Eye, EyeOff, Headphones, Mail, Mic, UserRound } from 'lucide-react-native';
 import { ReactNode, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ListenerBackHeader } from '@/src/components/ListenerV2';
+import { ListenerBackHeader, friendlyErrorMessage } from '@/src/components/ListenerV2';
 import { loginEchoo, registerEchoo } from '@/src/services/echooApi';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { EchooColors, getEchooColors } from '@/src/theme/echooTheme';
@@ -48,19 +48,21 @@ export default function AuthScreen() {
     setBusy(true);
     setError('');
     try {
+      const user = mode === 'login'
+        ? await loginEchoo(identifier, password)
+        : await registerEchoo({
+            username: identifier.trim(),
+            email: email.trim(),
+            password,
+            displayName: displayName.trim() || identifier.trim(),
+          });
       if (mode === 'login') {
-        await loginEchoo(identifier, password);
-      } else {
-        await registerEchoo({
-          username: identifier.trim(),
-          email: email.trim(),
-          password,
-          displayName: displayName.trim() || identifier.trim(),
-        });
+        router.replace(user.userType === 'creator' ? '/creator' : '/profile');
+        return;
       }
       router.replace('/profile');
     } catch (submitError: any) {
-      setError(submitError?.message || 'Could not sign in to Echoo.');
+      setError(friendlyErrorMessage(submitError, 'Could not sign in to Echoo.'));
     } finally {
       setBusy(false);
     }
@@ -81,16 +83,32 @@ export default function AuthScreen() {
 
           <View style={styles.hero}>
             <LinearGradient colors={[palette.blue, palette.blueDeep]} style={styles.heroIcon}>
-              <Headphones color="#FFFFFF" size={34} strokeWidth={2.5} />
+              {mode === 'login' ? (
+                <Headphones color="#FFFFFF" size={34} strokeWidth={2.5} />
+              ) : (
+                <UserRound color="#FFFFFF" size={34} strokeWidth={2.5} />
+              )}
             </LinearGradient>
             <Text style={styles.heroTitle}>
-              {mode === 'login' ? 'Welcome back' : 'Create your listener account'}
+              {mode === 'login' ? 'Welcome back' : 'Create your Echoo account'}
             </Text>
             <Text style={styles.heroText}>
               {mode === 'login'
-                ? 'Sign in to sync favorites, stations, listening history and your Echoo library.'
-                : 'Your Echoo account keeps your listening experience with you across devices.'}
+                ? 'Listeners continue to their library. Creators continue to the mobile studio.'
+                : 'Start as a listener. You can activate creator tools from the web studio when you are ready.'}
             </Text>
+          </View>
+
+          <View style={styles.creatorNote}>
+            <View style={styles.creatorNoteIcon}>
+              <Mic color={palette.blue} size={19} />
+            </View>
+            <View style={styles.creatorNoteCopy}>
+              <Text style={styles.creatorNoteTitle}>Creator account?</Text>
+              <Text style={styles.creatorNoteText}>
+                Sign in here and Echoo will take you straight to Creator Studio.
+              </Text>
+            </View>
           </View>
 
           <View style={styles.modeSwitch}>
@@ -228,6 +246,29 @@ const createStyles = (palette: EchooColors) => StyleSheet.create({
   modeText: { color: palette.muted, fontSize: 13, fontWeight: '800' },
   modeTextActive: { color: palette.ink },
   formCard: { backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line, borderRadius: 22, padding: 16 },
+  creatorNote: {
+    minHeight: 70,
+    borderRadius: 8,
+    backgroundColor: palette.surfaceRaised,
+    borderWidth: 1,
+    borderColor: palette.line,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+    marginBottom: 14,
+  },
+  creatorNoteIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 8,
+    backgroundColor: palette.blueSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  creatorNoteCopy: { flex: 1, minWidth: 0 },
+  creatorNoteTitle: { color: palette.ink, fontSize: 13.5, fontWeight: '900' },
+  creatorNoteText: { color: palette.muted, fontSize: 11.5, lineHeight: 16, marginTop: 2 },
   field: { height: 54, borderRadius: 14, borderWidth: 1, borderColor: palette.line, backgroundColor: palette.surfaceMuted, flexDirection: 'row', alignItems: 'center', marginBottom: 11 },
   fieldIcon: { width: 48, alignItems: 'center', justifyContent: 'center' },
   passwordDot: { color: palette.muted, fontSize: 18 },

@@ -3,16 +3,17 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import {
   Headphones,
+  Heart,
   Library,
   Music2,
   Play,
   Radio,
   Search,
 } from 'lucide-react-native';
-import { ReactNode, useEffect, useMemo, useState } from 'react';
+import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -20,12 +21,17 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ListenerTopBar } from '@/src/components/ListenerV2';
+import { ListenerSkeletonRows, ListenerToast, ListenerTopBar, friendlyErrorMessage } from '@/src/components/ListenerV2';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
   EchooAudio,
   EchooBroadcast,
+  EchooHistoryItem,
+  EchooStation,
+  getFollowedStations,
+  getListeningHistory,
   getMobileDiscovery,
+  getSavedAudio,
   hasEchooSession,
 } from '@/src/services/echooApi';
 import { EchooColors, getEchooColors } from '@/src/theme/echooTheme';
@@ -62,34 +68,78 @@ export default function HomeScreen() {
 
   const [discovery, setDiscovery] = useState<Discovery>(emptyDiscovery);
   const [signedIn, setSignedIn] = useState(false);
+  const [followedStations, setFollowedStations] = useState<EchooStation[]>([]);
+  const [recentHistory, setRecentHistory] = useState<EchooHistoryItem[]>([]);
+  const [savedAudio, setSavedAudio] = useState<EchooAudio[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+  const hasLoadedOnce = useRef(false);
+
+  const loadHome = useCallback(async (force = false, silent = false) => {
+    if (force) setRefreshing(true);
+    else if (!silent) setLoading(true);
+
+    try {
+      const [next, activeSession] = await Promise.all([
+        getMobileDiscovery({ force }),
+        hasEchooSession(),
+      ]);
+      setDiscovery(next);
+      setSignedIn(activeSession);
+
+      if (activeSession) {
+        const [followed, history, saved] = await Promise.all([
+          getFollowedStations({ force }).catch(() => []),
+          getListeningHistory({ force }).catch(() => []),
+          getSavedAudio({ force }).catch(() => []),
+        ]);
+        setFollowedStations(followed);
+        setRecentHistory(history);
+        setSavedAudio(saved);
+      } else {
+        setFollowedStations([]);
+        setRecentHistory([]);
+        setSavedAudio([]);
+      }
+
+      setError('');
+    } catch (loadError: any) {
+      setError(friendlyErrorMessage(loadError, 'Could not load Echoo right now.'));
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+      hasLoadedOnce.current = true;
+    }
+  }, []);
 
   useEffect(() => {
-    let active = true;
+    loadHome(false, hasLoadedOnce.current);
+  }, [loadHome]);
 
-    Promise.all([getMobileDiscovery(), hasEchooSession()])
-      .then(([next, activeSession]) => {
-        if (!active) return;
-        setDiscovery(next);
-        setSignedIn(activeSession);
-        setError('');
-      })
-      .catch((loadError) => {
-        if (!active) return;
-        setError(loadError?.message || 'Could not load Echoo right now.');
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, []);
 
   const published = discovery.audio.slice(0, 8);
   const liveNow = discovery.live.slice(0, 8);
+  const followedStationIds = useMemo(
+    () => new Set(followedStations.map((station) => station.id).filter(Boolean)),
+    [followedStations]
+  );
+  const followedStationNames = useMemo(
+    () => new Set(followedStations.map((station) => station.name.toLowerCase()).filter(Boolean)),
+    [followedStations]
+  );
+  const continueListening = recentHistory
+    .map((item) => item.track)
+    .filter((track): track is EchooAudio => Boolean(track?.id))
+    .slice(0, 8);
+  const fromYourStations: EchooAudio[] = published.filter((track: EchooAudio) =>
+    followedStationIds.has(track.stationId || '') ||
+    followedStationNames.has(String(track.stationName || '').toLowerCase())
+  );
+  const followedLive: EchooBroadcast[] = liveNow.filter((item: EchooBroadcast) =>
+    followedStationIds.has(item.stationId || '') ||
+    followedStationNames.has(String(item.stationName || '').toLowerCase())
+  );
   const topStations = [...discovery.stations]
     .sort(
       (a, b) =>
@@ -108,6 +158,8 @@ export default function HomeScreen() {
         coverArt: track.coverArt || '',
         fileUrl: track.fileUrl || '',
         genre: track.genre || '',
+        stationId: track.stationId || '',
+        stationName: track.stationName || track.artistName || '',
       },
     });
   };
@@ -131,7 +183,18 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <ListenerTopBar />
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => loadHome(true)}
+            tintColor={palette.blue}
+            colors={[palette.blue]}
+          />
+        }
+      >
         <View style={styles.welcomeRow}>
           <View>
             <Text style={styles.greeting}>{greeting()}</Text>
@@ -163,17 +226,90 @@ export default function HomeScreen() {
         </ScrollView>
 
         {loading ? (
-          <View style={styles.loadingState}>
-            <ActivityIndicator color={palette.blue} />
-            <Text style={styles.loadingText}>Loading your Echoo...</Text>
-          </View>
+          <ListenerSkeletonRows count={3} />
         ) : null}
 
         {!loading && error ? (
-          <View style={styles.notice}>
-            <Text style={styles.noticeTitle}>Echoo is temporarily quiet</Text>
-            <Text style={styles.noticeText}>{error}</Text>
-          </View>
+          <ListenerToast message={error} />
+        ) : null}
+
+        {signedIn && continueListening.length ? (
+          <>
+            <SectionHeader
+              title="Continue listening"
+              action="Library"
+              onPress={() => router.push('/library')}
+              palette={palette}
+            />
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.releaseRail}
+            >
+              {continueListening.map((track) => (
+                <Pressable key={track.id} style={styles.releaseCard} onPress={() => openAudio(track)}>
+                  <Artwork uri={track.coverArt} style={styles.releaseArt} palette={palette} />
+                  <Text style={styles.releaseTitle} numberOfLines={1}>{track.title}</Text>
+                  <Text style={styles.releaseSubtitle} numberOfLines={1}>
+                    {track.stationName || track.subtitle || track.artistName || 'Recent play'}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </>
+        ) : null}
+
+        {signedIn && followedLive.length ? (
+          <>
+            <SectionHeader
+              title="Live from your stations"
+              action="Live"
+              onPress={() => router.push('/live')}
+              palette={palette}
+            />
+            <View style={styles.personalStack}>
+              {followedLive.slice(0, 3).map((item: EchooBroadcast) => (
+                <Pressable key={item.id} style={styles.personalRow} onPress={() => openLiveRoom(item)}>
+                  <View style={styles.personalIcon}>
+                    <Headphones color={palette.red} size={20} />
+                  </View>
+                  <View style={styles.personalCopy}>
+                    <Text style={styles.personalTitle} numberOfLines={1}>{item.title}</Text>
+                    <Text style={styles.personalText} numberOfLines={1}>{item.stationName || 'Echoo Station'}</Text>
+                  </View>
+                  <View style={styles.liveTinyBadge}>
+                    <Text style={styles.liveTinyText}>LIVE</Text>
+                  </View>
+                </Pressable>
+              ))}
+            </View>
+          </>
+        ) : null}
+
+        {signedIn && fromYourStations.length ? (
+          <>
+            <SectionHeader
+              title="New from your stations"
+              action="Library"
+              onPress={() => router.push('/library')}
+              palette={palette}
+            />
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.releaseRail}
+            >
+              {fromYourStations.slice(0, 8).map((track: EchooAudio) => (
+                <Pressable key={track.id} style={styles.releaseCard} onPress={() => openAudio(track)}>
+                  <Artwork uri={track.coverArt} style={styles.releaseArt} palette={palette} />
+                  <Text style={styles.releaseTitle} numberOfLines={1}>{track.title}</Text>
+                  <Text style={styles.releaseSubtitle} numberOfLines={1}>
+                    {track.stationName || track.subtitle || track.artistName || 'Followed station'}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </>
         ) : null}
 
         <SectionHeader
@@ -287,6 +423,31 @@ export default function HomeScreen() {
             />
           )}
         </View>
+
+        {signedIn && savedAudio.length ? (
+          <>
+            <SectionHeader
+              title="Saved for later"
+              action="See all"
+              onPress={() => router.push('/favorites')}
+              palette={palette}
+            />
+            <View style={styles.personalStack}>
+              {savedAudio.slice(0, 3).map((track) => (
+                <Pressable key={track.id} style={styles.personalRow} onPress={() => openAudio(track)}>
+                  <Artwork uri={track.coverArt} style={styles.personalArt} palette={palette} />
+                  <View style={styles.personalCopy}>
+                    <Text style={styles.personalTitle} numberOfLines={1}>{track.title}</Text>
+                    <Text style={styles.personalText} numberOfLines={1}>
+                      {track.stationName || track.subtitle || track.artistName || 'Saved audio'}
+                    </Text>
+                  </View>
+                  <Heart color={palette.blue} fill={palette.blue} size={18} />
+                </Pressable>
+              ))}
+            </View>
+          </>
+        ) : null}
 
         <Pressable
           style={styles.libraryPrompt}
@@ -486,6 +647,35 @@ const createStyles = (palette: EchooColors) => StyleSheet.create({
     justifyContent: 'center',
   },
   stationList: { gap: 1 },
+  personalStack: { gap: 4 },
+  personalRow: {
+    minHeight: 64,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+    paddingVertical: 5,
+  },
+  personalIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 8,
+    backgroundColor: palette.blueSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  personalArt: { width: 50, height: 50, borderRadius: 8 },
+  personalCopy: { flex: 1, minWidth: 0 },
+  personalTitle: { color: palette.ink, fontSize: 13.5, fontWeight: '900' },
+  personalText: { color: palette.muted, fontSize: 11.5, marginTop: 3 },
+  liveTinyBadge: {
+    minHeight: 22,
+    borderRadius: 4,
+    backgroundColor: `${palette.red}20`,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  liveTinyText: { color: palette.red, fontSize: 9, fontWeight: '900' },
   stationRow: {
     minHeight: 70,
     flexDirection: 'row',

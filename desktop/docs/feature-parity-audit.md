@@ -38,9 +38,9 @@ The backend explicitly allows the exact packaged renderer origin
 
 | Area | Status | Evidence |
 | --- | --- | --- |
-| Product/version | IMPLEMENTED | `Echoo`, package `echoo-desktop`, version `2.0.1` |
+| Product/version | IMPLEMENTED | `Echoo`, package `echoo-desktop`; version comes from the release branch's `desktop/package.json` |
 | Platform | IMPLEMENTED | Windows 10/11 x64, NSIS only |
-| Installer | AUTOMATED VERIFIED locally; release CI must remain green | `Echoo-Setup-2.0.1-x64.exe`, `.blockmap`, `latest.yml` |
+| Installer | AUTOMATED VERIFIED locally; release CI must remain green | `Echoo-Setup-<package-version>-x64.exe`, `.blockmap`, `latest.yml` |
 | Local renderer | IMPLEMENTED + AUTOMATED VERIFIED | `frontend-dist` is built, packaged, loaded from `echoo-app://app` |
 | Offline shell independence | IMPLEMENTED; latest Windows CI must remain green | installed smoke mode blocks remote HTTP(S) and still requires the local renderer + bridge to render |
 | Windows identity/icon | IMPLEMENTED + AUTOMATED VERIFIED | app ID `com.echoo.desktop`; multi-frame ICO and tray assets generated from the canonical transparent Echoo mark |

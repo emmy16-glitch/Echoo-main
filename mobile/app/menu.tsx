@@ -7,6 +7,7 @@ import {
   Library,
   LogIn,
   LogOut,
+  Mic,
   Radio,
   Search,
   Settings,
@@ -142,6 +143,11 @@ export default function MenuScreen() {
           </View>
 
           <View style={styles.menuGroup}>{primaryItems.map(renderItem)}</View>
+          {user?.userType === 'creator' ? (
+            <View style={styles.menuGroup}>
+              {renderItem({ label: 'Creator Studio', path: '/creator', icon: Mic })}
+            </View>
+          ) : null}
           <View style={styles.divider} />
           <View style={styles.menuGroup}>{accountItems.map(renderItem)}</View>
 

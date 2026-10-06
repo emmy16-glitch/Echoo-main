@@ -71,8 +71,15 @@ function RootLayoutContent() {
             <Stack.Screen name="notifications" />
             <Stack.Screen name="settings" />
             <Stack.Screen name="station" />
+            <Stack.Screen name="collection" />
             <Stack.Screen name="audio-player" />
             <Stack.Screen name="live-room" />
+            <Stack.Screen name="creator-live" />
+            <Stack.Screen name="creator-upload" />
+            <Stack.Screen name="creator-content" />
+            <Stack.Screen name="creator-schedule" />
+            <Stack.Screen name="creator-replay" />
+            <Stack.Screen name="creator-station" />
             <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
           </Stack>
           <ListenerMiniPlayer />

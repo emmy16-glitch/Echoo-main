@@ -70,8 +70,10 @@ export function useEchooColorScheme() {
 
 export function useThemePreference() {
   const context = useContext(ThemePreferenceContext);
-  if (!context) {
-    throw new Error('useThemePreference must be used inside EchooThemeProvider');
-  }
-  return context;
+  const systemScheme = useSystemColorScheme();
+  return context || {
+    colorScheme: systemScheme || 'light',
+    preference: 'system',
+    setPreference: async () => undefined,
+  };
 }

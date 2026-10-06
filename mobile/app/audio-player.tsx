@@ -3,10 +3,15 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   ChevronDown,
+  Check,
+  Download,
   Heart,
+  ListMusic,
   MoreHorizontal,
+  Music2,
   Pause,
   Play,
+  Plus,
   Repeat2,
   Share2,
   Shuffle,
@@ -17,24 +22,37 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   LayoutChangeEvent,
+  Modal,
   Pressable,
   ScrollView,
   Share,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
   EchooAudio,
+  EchooPlaylist,
+  addTrackToPlaylist,
+  createPlaylist,
   getSavedAudio,
+  getMyPlaylists,
   hasEchooSession,
   saveAudio,
   unsaveAudio,
 } from '@/src/services/echooApi';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { ListenerToast, friendlyErrorMessage } from '@/src/components/ListenerV2';
 import { AudioPlaybackItem, usePlayback } from '@/src/playback/PlaybackProvider';
+import {
+  downloadAudioToDevice,
+  getLocalDownloadStatusSnapshot,
+  isAudioDownloaded,
+  subscribeLocalDownloadStatus,
+} from '@/src/services/localDownloads';
 import { EchooColors, getEchooColors } from '@/src/theme/echooTheme';
 
 export default function AudioPlayerScreen() {
@@ -46,6 +64,10 @@ export default function AudioPlayerScreen() {
     coverArt?: string;
     fileUrl?: string;
     genre?: string;
+    stationId?: string;
+    stationName?: string;
+    collectionId?: string;
+    collectionName?: string;
   }>();
   const scheme = useColorScheme();
   const palette = getEchooColors(scheme);
@@ -66,11 +88,19 @@ export default function AudioPlayerScreen() {
             coverArt: String(params.coverArt || ''),
             fileUrl: requestedFileUrl,
             genre: String(params.genre || ''),
+            stationId: String(params.stationId || ''),
+            stationName: String(params.stationName || ''),
+            collectionId: String(params.collectionId || ''),
+            collectionName: String(params.collectionName || ''),
           }
         : null,
     [
       params.coverArt,
       params.genre,
+      params.stationId,
+      params.stationName,
+      params.collectionId,
+      params.collectionName,
       params.subtitle,
       params.title,
       requestedFileUrl,
@@ -82,6 +112,10 @@ export default function AudioPlayerScreen() {
   const audioId = activeAudio?.id || '';
   const title = activeAudio?.title || 'Echoo Audio';
   const subtitle = activeAudio?.subtitle || 'Echoo Creator';
+  const stationId = activeAudio?.stationId || '';
+  const stationName = activeAudio?.stationName || subtitle;
+  const collectionId = activeAudio?.collectionId || '';
+  const collectionName = activeAudio?.collectionName || '';
   const coverArt = activeAudio?.coverArt || '';
   const genre = activeAudio?.genre || '';
   const canControl = currentAudio?.id === audioId;
@@ -90,23 +124,35 @@ export default function AudioPlayerScreen() {
   const position = canControl ? playback.position : 0;
   const duration = canControl ? playback.duration : 0;
   const repeatOn = playback.repeat;
+  const upNext = playback.upNext;
+  const hasQueue = playback.queue.length > 1;
 
   const [progressWidth, setProgressWidth] = useState(1);
   const [actionError, setActionError] = useState('');
   const [signedIn, setSignedIn] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [downloaded, setDownloaded] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState(0);
+  const [playlistModalOpen, setPlaylistModalOpen] = useState(false);
+  const [playlistLoading, setPlaylistLoading] = useState(false);
+  const [playlistBusyId, setPlaylistBusyId] = useState('');
+  const [playlists, setPlaylists] = useState<EchooPlaylist[]>([]);
+  const [newPlaylistName, setNewPlaylistName] = useState('');
   const error = actionError || playback.error;
 
   useEffect(() => {
-    if (!requestedAudio || !requestedFileUrl) return;
+    if (!requestedAudio) return;
     if (currentAudio?.id === requestedAudio.id) return;
     playAudio(requestedAudio);
-  }, [currentAudio?.id, playAudio, requestedAudio, requestedFileUrl]);
+  }, [currentAudio?.id, playAudio, requestedAudio]);
 
   useEffect(() => {
     let active = true;
     setSaved(false);
+    setDownloaded(false);
+    setDownloadProgress(0);
 
     const loadSavedState = async () => {
       const session = await hasEchooSession();
@@ -122,15 +168,69 @@ export default function AudioPlayerScreen() {
       }
     };
 
+    const syncDownloadState = async () => {
+      if (!audioId) return;
+      const snapshot = getLocalDownloadStatusSnapshot(audioId);
+      if (snapshot) {
+        setDownloading(snapshot.status === 'downloading');
+        setDownloaded(snapshot.status === 'completed');
+        setDownloadProgress(snapshot.progress);
+      }
+
+      const exists = await isAudioDownloaded(audioId);
+      if (!active) return;
+      if (exists) {
+        setDownloading(false);
+        setDownloaded(true);
+        setDownloadProgress(100);
+      }
+    };
+
     loadSavedState();
+    syncDownloadState();
+    const unsubscribeDownloads = subscribeLocalDownloadStatus(() => {
+      if (!audioId) return;
+      const status = getLocalDownloadStatusSnapshot(audioId);
+      if (!status) return;
+      setDownloading(status.status === 'downloading');
+      setDownloaded(status.status === 'completed');
+      setDownloadProgress(status.progress);
+    });
 
     return () => {
       active = false;
+      unsubscribeDownloads();
     };
   }, [audioId]);
 
+  const currentTrack = useMemo<EchooAudio | null>(() => {
+    if (!activeAudio || !audioId) return null;
+    return {
+      id: audioId,
+      title,
+      subtitle: stationName,
+      artistName: stationName,
+      stationId,
+      stationName,
+      collectionId,
+      collectionName,
+      coverArt,
+      fileUrl: activeAudio.fileUrl,
+      genre,
+      duration: duration ? Math.round(duration / 1000) : 0,
+    } as EchooAudio & { collectionId?: string; collectionName?: string };
+  }, [activeAudio, audioId, collectionId, collectionName, coverArt, duration, genre, stationId, stationName, title]);
+
   const togglePlayback = () => playback.toggle();
   const seekBy = (deltaMs: number) => playback.seekBy(deltaMs);
+  const previousTrack = () => {
+    if (hasQueue) playback.playPrevious();
+    else seekBy(-15000);
+  };
+  const nextTrack = () => {
+    if (upNext.length) playback.playNext();
+    else seekBy(15000);
+  };
 
   const seekToFraction = async (fraction: number) => {
     if (!canControl || duration <= 0) return;
@@ -150,12 +250,14 @@ export default function AudioPlayerScreen() {
       if (saved) {
         await unsaveAudio(audioId);
         setSaved(false);
+        setActionError('Removed from saved audio.');
       } else {
         await saveAudio(audioId);
         setSaved(true);
+        setActionError('Saved to your library.');
       }
     } catch (saveError: any) {
-      setActionError(saveError?.message || 'Could not update your library.');
+      setActionError(friendlyErrorMessage(saveError, 'Could not update your library.'));
     } finally {
       setSaving(false);
     }
@@ -164,6 +266,98 @@ export default function AudioPlayerScreen() {
   const shareTrack = async () => {
     await Share.share({
       message: `${title} - ${subtitle} on Echoo`,
+    });
+  };
+
+  const downloadTrack = async () => {
+    if (!currentTrack) return;
+    if (!signedIn) {
+      router.push('/auth');
+      return;
+    }
+
+    setDownloading(true);
+    setDownloadProgress(1);
+    setActionError('');
+    try {
+      await downloadAudioToDevice(currentTrack, setDownloadProgress);
+      setDownloaded(true);
+      setDownloadProgress(100);
+      setActionError('Downloaded for offline listening.');
+    } catch (downloadError: any) {
+      setActionError(friendlyErrorMessage(downloadError, 'Could not download this audio.'));
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const openPlaylistPicker = async () => {
+    if (!audioId) return;
+    if (!signedIn) {
+      router.push('/auth');
+      return;
+    }
+
+    setPlaylistModalOpen(true);
+    setPlaylistLoading(true);
+    setActionError('');
+    try {
+      setPlaylists(await getMyPlaylists());
+    } catch (playlistError: any) {
+      setActionError(friendlyErrorMessage(playlistError, 'Could not load your playlists.'));
+    } finally {
+      setPlaylistLoading(false);
+    }
+  };
+
+  const addToPlaylist = async (playlist: EchooPlaylist) => {
+    if (!audioId) return;
+    setPlaylistBusyId(playlist.id);
+    setActionError('');
+    try {
+      await addTrackToPlaylist(playlist.id, audioId);
+      setPlaylistModalOpen(false);
+      setActionError(`Added to ${playlist.name}.`);
+    } catch (playlistError: any) {
+      if (playlistError?.code === 'TRACK_ALREADY_IN_PLAYLIST') {
+        setPlaylistModalOpen(false);
+        setActionError('Already in this playlist.');
+      } else {
+        setActionError(friendlyErrorMessage(playlistError, 'Could not add this audio to the playlist.'));
+      }
+    } finally {
+      setPlaylistBusyId('');
+    }
+  };
+
+  const createAndAddPlaylist = async () => {
+    const cleanName = newPlaylistName.trim();
+    if (!cleanName || !audioId) return;
+    setPlaylistBusyId('new');
+    setActionError('');
+    try {
+      const playlist = await createPlaylist({ name: cleanName });
+      await addTrackToPlaylist(playlist.id, audioId);
+      setNewPlaylistName('');
+      setPlaylistModalOpen(false);
+      setActionError(`Added to ${playlist.name}.`);
+    } catch (playlistError: any) {
+      setActionError(friendlyErrorMessage(playlistError, 'Could not create this playlist.'));
+    } finally {
+      setPlaylistBusyId('');
+    }
+  };
+
+  const openStation = () => {
+    if (!stationId) return;
+    router.push({ pathname: '/station', params: { stationId } });
+  };
+
+  const openCollection = () => {
+    if (!collectionId) return;
+    router.push({
+      pathname: '/collection' as any,
+      params: { collectionId, stationId, stationName },
     });
   };
 
@@ -221,7 +415,18 @@ export default function AudioPlayerScreen() {
         <View style={styles.metaRow}>
           <View style={styles.metaCopy}>
             <Text style={styles.title} numberOfLines={1}>{title}</Text>
-            <Text style={styles.subtitle} numberOfLines={1}>{subtitle}</Text>
+            <Pressable disabled={!stationId} onPress={openStation}>
+              <Text style={[styles.subtitle, stationId ? styles.linkText : null]} numberOfLines={1}>
+                {stationName}
+              </Text>
+            </Pressable>
+            {collectionId ? (
+              <Pressable onPress={openCollection}>
+                <Text style={styles.collectionContext} numberOfLines={1}>
+                  From {collectionName || 'collection'}
+                </Text>
+              </Pressable>
+            ) : null}
           </View>
           <Pressable
             style={styles.actionButton}
@@ -266,7 +471,7 @@ export default function AudioPlayerScreen() {
           </View>
         ) : null}
 
-        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+        {error ? <ListenerToast message={error} tone={/saved|downloaded|removed|added|already/i.test(error) ? 'info' : 'error'} /> : null}
 
         <View style={styles.controls}>
           <Pressable
@@ -278,9 +483,9 @@ export default function AudioPlayerScreen() {
           </Pressable>
           <Pressable
             style={styles.transportButton}
-            onPress={() => seekBy(-15000)}
+            onPress={previousTrack}
             disabled={!canControl}
-            accessibilityLabel="Back 15 seconds"
+            accessibilityLabel={hasQueue ? 'Previous track' : 'Back 15 seconds'}
           >
             <SkipBack color={palette.ink} fill={palette.ink} size={29} />
           </Pressable>
@@ -298,9 +503,9 @@ export default function AudioPlayerScreen() {
           </Pressable>
           <Pressable
             style={styles.transportButton}
-            onPress={() => seekBy(15000)}
+            onPress={nextTrack}
             disabled={!canControl}
-            accessibilityLabel="Forward 15 seconds"
+            accessibilityLabel={upNext.length ? 'Next track' : 'Forward 15 seconds'}
           >
             <SkipForward color={palette.ink} fill={palette.ink} size={29} />
           </Pressable>
@@ -321,16 +526,128 @@ export default function AudioPlayerScreen() {
               fill={saved ? palette.red : 'transparent'}
               size={20}
             />
-            <Text style={[styles.footerLabel, saved && styles.footerLabelActive]}>
+            <Text style={[styles.footerLabel, saved ? styles.footerLabelActive : null]}>
               {saved ? 'Saved' : 'Save'}
             </Text>
+          </Pressable>
+          <Pressable style={styles.footerAction} onPress={downloadTrack} disabled={downloading || !currentTrack}>
+            {downloading ? (
+              <ActivityIndicator color={palette.blue} size="small" />
+            ) : downloaded ? (
+              <Check color={palette.blue} size={20} />
+            ) : (
+              <Download color={palette.muted} size={20} />
+            )}
+            <Text style={[styles.footerLabel, downloaded ? styles.footerLabelBlue : null]}>
+              {downloading ? `${downloadProgress}%` : downloaded ? 'Downloaded' : 'Download'}
+            </Text>
+            {downloading ? (
+              <View style={styles.footerProgressTrack}>
+                <View style={[styles.footerProgressFill, { width: `${Math.max(1, Math.min(100, downloadProgress))}%` }]} />
+              </View>
+            ) : null}
+          </Pressable>
+          <Pressable style={styles.footerAction} onPress={openPlaylistPicker}>
+            <ListMusic color={palette.muted} size={20} />
+            <Text style={styles.footerLabel}>Playlist</Text>
           </Pressable>
           <Pressable style={styles.footerAction} onPress={shareTrack}>
             <Share2 color={palette.muted} size={20} />
             <Text style={styles.footerLabel}>Share</Text>
           </Pressable>
         </View>
+
+        {hasQueue ? (
+          <View style={styles.upNextPanel}>
+            <View style={styles.upNextHeader}>
+              <Text style={styles.upNextTitle}>Up next</Text>
+              <Text style={styles.upNextCount}>{upNext.length} queued</Text>
+            </View>
+            {upNext.length ? (
+              upNext.slice(0, 5).map((item, index) => (
+                <Pressable
+                  key={item.id}
+                  style={styles.upNextRow}
+                  onPress={() => playback.playAudio(item, {
+                    queue: playback.queue,
+                    index: playback.queueIndex + index + 1,
+                  })}
+                >
+                  <View style={styles.upNextArt}>
+                    {item.coverArt ? (
+                      <Image source={{ uri: item.coverArt }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
+                    ) : (
+                      <Music2 color={palette.blue} size={18} />
+                    )}
+                  </View>
+                  <View style={styles.upNextCopy}>
+                    <Text style={styles.upNextTrack} numberOfLines={1}>{item.title}</Text>
+                    <Text style={styles.upNextMeta} numberOfLines={1}>{item.stationName || item.subtitle}</Text>
+                  </View>
+                </Pressable>
+              ))
+            ) : (
+              <Text style={styles.upNextEmpty}>This is the last item in the queue.</Text>
+            )}
+          </View>
+        ) : null}
       </ScrollView>
+
+      <Modal
+        visible={playlistModalOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setPlaylistModalOpen(false)}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={() => setPlaylistModalOpen(false)}>
+          <Pressable style={styles.playlistSheet}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sheetTitle}>Add to playlist</Text>
+            <View style={styles.newPlaylistRow}>
+              <TextInput
+                value={newPlaylistName}
+                onChangeText={setNewPlaylistName}
+                placeholder="New playlist name"
+                placeholderTextColor={palette.faint}
+                style={styles.playlistInput}
+              />
+              <Pressable
+                style={[styles.createButton, !newPlaylistName.trim() ? styles.controlDisabled : null]}
+                onPress={createAndAddPlaylist}
+                disabled={!newPlaylistName.trim() || playlistBusyId === 'new'}
+              >
+                {playlistBusyId === 'new' ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                  <Plus color="#FFFFFF" size={20} />
+                )}
+              </Pressable>
+            </View>
+
+            {playlistLoading ? (
+              <View style={styles.sheetLoading}>
+                <ActivityIndicator color={palette.blue} />
+                <Text style={styles.sheetMuted}>Loading playlists...</Text>
+              </View>
+            ) : playlists.length ? (
+              playlists.map((playlist) => (
+                <Pressable key={playlist.id} style={styles.playlistRow} onPress={() => addToPlaylist(playlist)}>
+                  <View style={styles.playlistIcon}>
+                    <ListMusic color={palette.blue} size={19} />
+                  </View>
+                  <View style={styles.playlistCopy}>
+                    <Text style={styles.playlistName} numberOfLines={1}>{playlist.name}</Text>
+                    <Text style={styles.playlistMeta}>{playlist.trackCount || 0} tracks</Text>
+                  </View>
+                  {playlistBusyId === playlist.id ? <ActivityIndicator color={palette.blue} size="small" /> : null}
+                </Pressable>
+              ))
+            ) : (
+              <Text style={styles.sheetMuted}>Create your first playlist above.</Text>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -386,6 +703,8 @@ const createStyles = (palette: EchooColors) => StyleSheet.create({
   metaCopy: { flex: 1, minWidth: 0 },
   title: { color: palette.ink, fontSize: 23, lineHeight: 28, fontWeight: '900' },
   subtitle: { color: palette.muted, fontSize: 13, marginTop: 5 },
+  linkText: { color: palette.blue, fontWeight: '900' },
+  collectionContext: { color: palette.muted, fontSize: 11.5, marginTop: 4, fontWeight: '700' },
   actionButton: {
     width: 44,
     height: 44,
@@ -463,15 +782,106 @@ const createStyles = (palette: EchooColors) => StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: palette.line,
     flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 44,
+    justifyContent: 'space-between',
+    gap: 8,
   },
   footerAction: {
-    minWidth: 64,
+    minWidth: 68,
+    minHeight: 54,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
   },
   footerLabel: { color: palette.muted, fontSize: 11, fontWeight: '800' },
   footerLabelActive: { color: palette.red },
+  footerLabelBlue: { color: palette.blue },
+  footerProgressTrack: {
+    width: 46,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: palette.lineStrong,
+    overflow: 'hidden',
+  },
+  footerProgressFill: { height: 3, borderRadius: 2, backgroundColor: palette.blue },
+  upNextPanel: {
+    marginTop: 24,
+    borderTopWidth: 1,
+    borderTopColor: palette.line,
+    paddingTop: 16,
+  },
+  upNextHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+  upNextTitle: { color: palette.ink, fontSize: 16, fontWeight: '900' },
+  upNextCount: { color: palette.muted, fontSize: 11, fontWeight: '800' },
+  upNextRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  upNextArt: { width: 44, height: 44, borderRadius: 7, overflow: 'hidden', backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
+  upNextCopy: { flex: 1, minWidth: 0 },
+  upNextTrack: { color: palette.ink, fontSize: 13, fontWeight: '900' },
+  upNextMeta: { color: palette.muted, fontSize: 11, marginTop: 2 },
+  upNextEmpty: { color: palette.muted, fontSize: 12, paddingVertical: 8 },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.52)',
+    justifyContent: 'flex-end',
+  },
+  playlistSheet: {
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    backgroundColor: palette.surface,
+    borderTopWidth: 1,
+    borderColor: palette.line,
+    paddingHorizontal: 18,
+    paddingTop: 10,
+    paddingBottom: 28,
+  },
+  sheetHandle: {
+    width: 42,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: palette.lineStrong,
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+  sheetTitle: { color: palette.ink, fontSize: 18, fontWeight: '900', marginBottom: 14 },
+  newPlaylistRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
+  playlistInput: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 12,
+    backgroundColor: palette.surfaceRaised,
+    borderWidth: 1,
+    borderColor: palette.line,
+    color: palette.ink,
+    paddingHorizontal: 13,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  createButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: palette.blue,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sheetLoading: { minHeight: 94, alignItems: 'center', justifyContent: 'center', gap: 8 },
+  sheetMuted: { color: palette.muted, fontSize: 12.5, lineHeight: 18, paddingVertical: 14 },
+  playlistRow: {
+    minHeight: 62,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+    borderTopWidth: 1,
+    borderTopColor: palette.line,
+  },
+  playlistIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 10,
+    backgroundColor: palette.blueSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  playlistCopy: { flex: 1, minWidth: 0 },
+  playlistName: { color: palette.ink, fontSize: 13.5, fontWeight: '900' },
+  playlistMeta: { color: palette.muted, fontSize: 11, marginTop: 3 },
 });

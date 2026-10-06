@@ -36,17 +36,23 @@ const serialize = (collection, viewerId = null, savedIds = new Set()) => {
   const id = idOf(plain);
   const ownerId = idOf(plain.owner);
   const tracks = visibleTracks(plain, viewerId);
+  const title = plain.name || 'Untitled Collection';
   return {
     id,
-    title: plain.name || 'Untitled Collection',
+    title,
+    name: title,
     description: plain.description || '',
     coverArt: plain.coverArt || tracks[0]?.coverArt || null,
     station: plain.station || null,
     stationId: idOf(plain.station),
     creator: plain.owner || null,
     creatorId: ownerId,
+    owner: plain.owner || null,
+    mode: 'series',
     broadcastCount: tracks.length,
+    trackCount: tracks.length,
     recordings: tracks,
+    tracks,
     isPublic: plain.isPublic === true,
     isSaved: savedIds.has(id),
     createdAt: plain.createdAt,

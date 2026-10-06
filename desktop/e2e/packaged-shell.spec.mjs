@@ -15,6 +15,15 @@ test.describe('packaged Echoo Windows shell', () => {
 
   let electronApp;
   let mainPage;
+  const rendererErrors = [];
+  const nativeDiagnostics = [];
+
+  const watchRendererDiagnostics = (page) => {
+    page.on('console', (message) => {
+      if (message.type() === 'error') rendererErrors.push(message.text());
+    });
+    page.on('pageerror', (error) => rendererErrors.push(error?.stack || error?.message || String(error)));
+  };
 
   test.beforeAll(async () => {
     if (!existsSync(executablePath)) {
@@ -36,6 +45,10 @@ test.describe('packaged Echoo Windows shell', () => {
         ECHOO_DEBUG: '0',
       },
     });
+    electronApp.on('window', watchRendererDiagnostics);
+    for (const stream of [electronApp.process().stdout, electronApp.process().stderr]) {
+      stream?.on('data', (chunk) => nativeDiagnostics.push(String(chunk)));
+    }
 
     await electronApp.firstWindow();
 
@@ -53,6 +66,7 @@ test.describe('packaged Echoo Windows shell', () => {
       .toMatch(/^echoo-app:\/\/app\//);
 
     await mainPage.waitForLoadState('domcontentloaded');
+    watchRendererDiagnostics(mainPage);
 
     await expect
       .poll(() => mainPage.locator('#root').evaluate((node) => node.childElementCount))
@@ -134,6 +148,44 @@ test.describe('packaged Echoo Windows shell', () => {
       window.location.hash = '#/listen';
     });
     await expect.poll(() => mainPage.evaluate(() => window.location.hash)).toBe('#/listen');
+  });
+
+  test('survives repeated major-route navigation plus back and forward without restarting', async () => {
+    const routes = [
+      '/listen',
+      '/listen/search',
+      '/listen/live',
+      '/listen/channels',
+      '/listen/library',
+      '/listen/history',
+      '/listen/settings',
+    ];
+
+    for (let pass = 0; pass < 2; pass += 1) {
+      for (const route of routes) {
+        await mainPage.evaluate((nextRoute) => {
+          window.location.hash = `#${nextRoute}`;
+        }, route);
+        await expect.poll(() => mainPage.evaluate(() => window.location.hash)).toBe(`#${route}`);
+      }
+    }
+
+    await mainPage.goBack();
+    await mainPage.goBack();
+    await mainPage.goForward();
+
+    await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => {
+      const windows = BrowserWindow.getAllWindows();
+      return {
+        total: windows.length,
+        visibleMain: windows.filter(
+          (window) => window.isVisible() && window.webContents.getURL().startsWith('echoo-app://app/')
+        ).length,
+        splash: windows.filter(
+          (window) => window.webContents.getURL().includes('splash.html')
+        ).length,
+      };
+    })).toEqual({ total: 1, visibleMain: 1, splash: 0 });
   });
 
   test('blocks unsafe external schemes at the native boundary', async () => {
@@ -268,5 +320,25 @@ test.describe('packaged Echoo Windows shell', () => {
     expect(reducedMotion.skeletonDisplay).toBe('none');
     expect(reducedMotion.skeletonAnimationName).toBe('none');
     expect(Number.parseFloat(reducedMotion.successAnimationDuration)).toBeLessThanOrEqual(0.001);
+  });
+
+  test('keeps packaged renderer and native lifecycle diagnostics free of unresolved errors', async () => {
+    await mainPage.waitForTimeout(500);
+    expect(rendererErrors).toEqual([]);
+
+    const logsDirectory = await electronApp.evaluate(({ app }) => app.getPath('logs'));
+    const mainLogPath = path.join(logsDirectory, 'main.log');
+    const mainLog = existsSync(mainLogPath) ? readFileSync(mainLogPath, 'utf8') : '';
+    const diagnostics = `${nativeDiagnostics.join('')}\n${mainLog}`;
+    const forbidden = [
+      /uncaughtException/i,
+      /unhandledRejection/i,
+      /renderer process gone/i,
+      /renderer did not report app-ready/i,
+      /could not show startup recovery/i,
+      /blocked untrusted IPC caller/i,
+      /navigation lifecycle/i,
+    ];
+    for (const pattern of forbidden) expect(diagnostics).not.toMatch(pattern);
   });
 });

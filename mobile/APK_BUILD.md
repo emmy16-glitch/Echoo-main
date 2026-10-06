@@ -40,18 +40,17 @@ Production build configuration must be reviewed before release because it may pr
 ## Background audio (minimized app keeps playing)
 
 - Recorded music/audio: `expo-audio` with `shouldPlayInBackground` + lock-screen
-  controls, backed by its media foreground service. Requires the
-  `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MEDIA_PLAYBACK`, and
-  `POST_NOTIFICATIONS` permissions already declared in `app.json`.
-- Live rooms (LiveKit): covered by the local `echoo-live-audio-service` Expo
-  module (`mobile/modules/echoo-live-audio-service`), which runs a
-  `mediaPlayback` foreground service with a lock-screen notification for
-  exactly as long as a live room is connected. Swiping the app away stops it.
+  controls, plus the local `echoo-live-audio-service` Expo module
+  (`mobile/modules/echoo-live-audio-service`) for Android foreground playback.
+- Live rooms (LiveKit): covered by the same local mediaPlayback foreground
+  service with a lock-screen notification while the room is connected.
+- Android requires `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MEDIA_PLAYBACK`,
+  and `POST_NOTIFICATIONS`; these are already declared in `app.json`.
 - iOS needs nothing extra (audio background mode is set).
 - On-device check after installing a fresh build: play a recording, minimize
-  60 seconds → audio continues with lock-screen controls; join a live room,
-  minimize → audio continues with an "Echoo • LIVE" notification; swipe away
-  → audio stops.
+  60 seconds -> audio continues with lock-screen controls; join a live room,
+  minimize -> audio continues with an "Echoo - LIVE" notification; pause/stop
+  from the app or notification to end playback.
 
 ## Support-data boundary
 

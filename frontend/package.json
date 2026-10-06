@@ -19,7 +19,8 @@
     "test:live-recovery": "node --test src/services/liveRecoveryPolicy.test.mjs",
     "test:player-resources": "node --test src/services/listenerPlaybackResources.test.mjs",
     "test:listener-route": "node --test src/services/listenerPlaybackRoute.test.mjs",
-    "test:realtime-identity": "node --test src/services/realtimeIdentity.test.mjs"
+    "test:realtime-identity": "node --test src/services/realtimeIdentity.test.mjs",
+    "test:desktop-auth": "node --test --test-concurrency=1 src/services/api.authRecovery.test.mjs"
   },
   "dependencies": {
     "@audio/encode-mp3": "^1.2.2",
