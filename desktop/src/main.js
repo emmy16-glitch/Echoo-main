@@ -1,5 +1,7 @@
 'use strict';
 
+const desktopStartupStartedAt = process.hrtime.bigint();
+
 const {
   app,
   BrowserWindow,
@@ -23,9 +25,7 @@ const fs = require('node:fs');
 const tcpNet = require('node:net');
 const crypto = require('node:crypto');
 const { fileURLToPath, pathToFileURL } = require('node:url');
-const { performance } = require('node:perf_hooks');
 const log = require('electron-log');
-const { autoUpdater } = require('electron-updater');
 const {
   findEchooDeepLink,
   isPathInside,
@@ -41,13 +41,22 @@ const {
 // ---------------------------------------------------------------------------
 log.transports.file.level = 'info';
 log.transports.console.level = app.isPackaged ? 'warn' : 'debug';
-autoUpdater.logger = log;
-
-const desktopStartupStartedAt = performance.now();
 const desktopStartupEvents = [];
+let autoUpdater = null;
+
+function getAutoUpdater() {
+  if (!autoUpdater) {
+    autoUpdater = require('electron-updater').autoUpdater;
+    autoUpdater.logger = log;
+  }
+  return autoUpdater;
+}
 
 function logStartupEvent(event, details = '') {
-  const elapsedMs = Math.max(0, Math.round(performance.now() - desktopStartupStartedAt));
+  const elapsedMs = Math.max(
+    0,
+    Math.round(Number(process.hrtime.bigint() - desktopStartupStartedAt) / 1_000_000)
+  );
   const entry = { event, elapsedMs };
   desktopStartupEvents.push(entry);
   const suffix = details ? ` ${details}` : '';
@@ -790,10 +799,15 @@ function createWindow() {
   });
   logStartupEvent('main-window-created');
 
-  mainWindow.once('ready-to-show', () => {
+  const markMainWindowNativeReady = (source) => {
+    if (mainWindowNativeReady) return;
     mainWindowNativeReady = true;
-    logStartupEvent('native-ready');
     if (savedWindowState.maximized) mainWindow?.maximize();
+    logStartupEvent('native-ready', `source=${source}`);
+  };
+
+  mainWindow.once('ready-to-show', () => {
+    markMainWindowNativeReady('ready-to-show');
     if (!app.isPackaged) {
       revealMainWindow();
       return;
@@ -902,6 +916,12 @@ function createWindow() {
   mainWindow.webContents.on('did-finish-load', () => {
     rendererCrashed = false;
     logStartupEvent('renderer-load-complete', `phase=${rendererLifecyclePhase}`);
+    // On some installed Windows launches (and when the process is started
+    // hidden by automation), BrowserWindow's ready-to-show event never fires
+    // even though Chromium finished the main document. A completed main-frame
+    // load is sufficient native-window readiness; React APP_READY remains the
+    // separate authoritative signal that the Echoo shell is usable.
+    markMainWindowNativeReady('did-finish-load');
     dispatchPendingDeepLink();
     void revealMainWindowWhenReady();
   });
@@ -2508,7 +2528,7 @@ async function promptForDownloadedUpdate() {
         return;
       }
       pendingUpdateReady = false;
-      autoUpdater.quitAndInstall(false, true);
+      getAutoUpdater().quitAndInstall(false, true);
     }
   } catch (error) {
     log.warn('[echoo-desktop] update prompt failed:', error.message);
@@ -2520,12 +2540,13 @@ async function promptForDownloadedUpdate() {
 function checkForUpdates() {
   if (!app.isPackaged || process.env.ECHOO_DISABLE_UPDATES === '1') return; // deterministic tests may opt out
   try {
-    autoUpdater.autoDownload = true;
+    const updater = getAutoUpdater();
+    updater.autoDownload = true;
     // Installation is an explicit idle-state action. The updater must never
     // piggyback on a quit that is still preserving live audio or recording
     // data; promptForDownloadedUpdate is the only install entry point.
-    autoUpdater.autoInstallOnAppQuit = false;
-    autoUpdater.on('update-downloaded', () => {
+    updater.autoInstallOnAppQuit = false;
+    updater.on('update-downloaded', () => {
       pendingUpdateReady = true;
       if (updateRestartBlocked()) {
         log.info('[echoo-desktop] update downloaded — deferring restart prompt until protected work ends');
@@ -2548,14 +2569,14 @@ function checkForUpdates() {
       }
       void promptForDownloadedUpdate();
     });
-    autoUpdater.on('error', (error) => {
+    updater.on('error', (error) => {
       if (isMissingReleaseError(error)) {
         log.info('[echoo-desktop] no published desktop release found — skipping update check');
         return;
       }
       log.warn('[echoo-desktop] update check failed (non-fatal):', error?.message || error);
     });
-    autoUpdater.checkForUpdates().catch((error) => {
+    updater.checkForUpdates().catch((error) => {
       if (isMissingReleaseError(error)) {
         log.info('[echoo-desktop] no published desktop release found — skipping update check');
         return;

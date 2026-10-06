@@ -411,6 +411,11 @@ test('installed Windows smoke covers cold-start and second-instance deep links',
   assert.match(mainSource, /SECOND_INSTANCE_SMOKE_TEST/);
   assert.match(mainSource, /smokeSecondInstanceRoute/);
   assert.match(windowsWorkflow, /verify-installer\.ps1 -InstallSmokeTest/);
+  const installerVerifier = fs.readFileSync(path.join(desktopRoot, 'scripts', 'verify-installer.ps1'), 'utf8');
+  assert.match(installerVerifier, /for \(\$run = 2; \$run -le 5; \$run\+\+\)/);
+  assert.match(installerVerifier, /splashWindowCount -ne 0/);
+  assert.match(installerVerifier, /installed-startup-timings\.json/);
+  assert.match(installerVerifier, /Get-TimingSummary/);
 });
 
 
@@ -436,7 +441,9 @@ test('Windows-only package has no macOS notarization hook or cross-platform tray
 
 test('auto-update waits for recording saves as well as active audio sessions', () => {
   assert.match(mainSource, /function updateRestartBlocked\(\)/);
-  assert.match(mainSource, /autoUpdater\.autoInstallOnAppQuit = false/);
+  assert.match(mainSource, /updater\.autoInstallOnAppQuit = false/);
+  assert.match(mainSource, /function getAutoUpdater\(\)[\s\S]*require\('electron-updater'\)/);
+  assert.match(mainSource, /schedulePostStartupTasks\(\)[\s\S]*checkForUpdates\(\)/);
   assert.match(mainSource, /recordingSaveSessions\.size > 0/);
   assert.match(mainSource, /update will wait until your recording finishes saving/i);
   assert.match(mainSource, /pendingUpdateReady && !roomState\.active/);
@@ -784,7 +791,8 @@ test('packaged startup uses an explicit, idempotent renderer-ready handshake', (
   assert.match(mainSource, /ECHOO_STARTUP_READY_TIMEOUT_MS \|\| '9000'/);
   assert.match(mainSource, /Number\.isFinite\(configuredStartupReadyTimeout\)/);
   assert.match(mainSource, /loadOfflinePage\('startup-timeout'/);
-  assert.match(mainSource, /did-finish-load[\s\S]{0,220}revealMainWindowWhenReady/);
+  assert.match(mainSource, /did-finish-load[\s\S]{0,800}revealMainWindowWhenReady/);
+  assert.match(mainSource, /markMainWindowNativeReady\('did-finish-load'\)/);
   assert.match(mainSource, /STARTUP_TEST_MODE === 'delayed-ready'/);
   assert.match(mainSource, /STARTUP_TEST_APP_READY_NEVER/);
   assert.match(mainSource, /\[desktop-startup\]/);
