@@ -548,6 +548,44 @@
   transition:width .2s ease;
 }
 
+.ec2-operation-progress.is-attention {
+  border-color:#d7e2f5;
+  background:#fbfcff;
+}
+
+.ec2-operation-progress__actions {
+  display:flex;
+  justify-content:flex-end;
+  align-items:center;
+  margin-top:1px;
+}
+
+.ec2-retry-save {
+  min-height:34px;
+  width:auto;
+  max-width:100%;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding:0 13px;
+  border:1px solid #b9c9e6;
+  border-radius:8px;
+  background:#fff;
+  color:#184fae;
+  font:inherit;
+  font-size:11.5px;
+  font-weight:740;
+  line-height:1;
+  cursor:pointer;
+  box-shadow:none;
+}
+
+.ec2-retry-save:hover { background:#f3f7ff; border-color:#8fb0ea; }
+.ec2-retry-save:focus-visible {
+  outline:3px solid rgba(72,131,255,.35);
+  outline-offset:2px;
+}
+
 /* LIVE is a state of the approved workstation, not a separate console. */
 .ec2-broadcast.is-live .eam-approved-live-actions {
   display: none !important;
