@@ -35,9 +35,11 @@ test('Creator content API exposes source broadcast audio lifecycle and Channel m
 });
 
 test('Recordings UI separates save health from audience visibility', async () => {
-  const [workspace, css] = await Promise.all([
+  const [workspace, css, scheduleCss, runtimeCss] = await Promise.all([
     source('../../frontend/src/Components/CreatorStudio/CreatorCollectionsWorkspace.jsx'),
     source('../../frontend/src/Components/CreatorStudio/CreatorCollectionsWorkspace.css'),
+    source('../../frontend/src/Components/CreatorStudio/CreatorScheduleEventsWorkspace.css'),
+    source('../../frontend/src/Components/CreatorStudio/CreatorStudioRuntimeFixes.css'),
   ]);
 
   assert.match(workspace, />Save status</);
@@ -50,4 +52,17 @@ test('Recordings UI separates save health from audience visibility', async () =>
   assert.match(css, /grid-template-columns:repeat\(3,1fr\)/);
   assert.match(css, /recordings-save-state\.is-processing/);
   assert.match(css, /recordings-save-state\.is-attention/);
+
+  // Row-level action menus must raise their owning row above later siblings.
+  // Without this, the next row's Play / Download / More buttons paint over
+  // the open menu, as seen in the recordings screenshot regression.
+  assert.match(css, /recordings-row:has\(\.recordings-more-menu\)\s*\{[^}]*z-index:\s*120/s);
+  assert.match(css, /recordings-more-menu\s*\{[^}]*z-index:\s*900/s);
+  assert.match(scheduleCss, /schedule-row:has\(\.schedule-menu\)\s*\{[^}]*z-index:\s*120/s);
+  assert.match(scheduleCss, /schedule-menu\s*\{[^}]*z-index:\s*900/s);
+
+  // Existing Creator Audio and Channel row menus already use the same
+  // active-row stacking pattern; keep that protection in place.
+  assert.match(runtimeCss, /article:has\(\.eca-more-menu\)[\s\S]*z-index:\s*80/);
+  assert.match(runtimeCss, /est-station-row:has\(\.est-more-menu\)[\s\S]*z-index:\s*120/);
 });
