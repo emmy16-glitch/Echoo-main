@@ -72,6 +72,8 @@ test('browser device download is offered only after Echoo server finalization an
 
 test('recording progress distinguishes local device save from Echoo server recovery', async () => {
   const workspace = await read('./CreatorLiveConnectedWorkspace.jsx');
+  const workspaceCss = await read('./CreatorBroadcastApproved.css');
+  const banner = await read('../RecordingSaveBanner.jsx');
   const studio = await read('./CreatorStudio.jsx');
   const autosave = await read('../../services/recordingAutosave.js');
   const recording = await read('../../services/broadcastRecordingService.js');
@@ -83,6 +85,15 @@ test('recording progress distinguishes local device save from Echoo server recov
     assert.match(source, /stage: 'preparing'/);
   }
   assert.match(workspace, /Recording ready locally · finishing on Echoo/);
+  assert.match(workspace, /Recording safe · Echoo save needs attention/);
+  assert.match(workspace, /className="ec2-retry-save"/);
+  assert.match(workspaceCss, /\.ec2-retry-save[\s\S]*width:auto/);
+  assert.match(workspaceCss, /\.ec2-operation-progress__actions[\s\S]*justify-content:flex-end/);
+  assert.doesNotMatch(workspace, /FFmpeg|FFprobe/);
+  assert.doesNotMatch(banner, /state\.message \|\| 'Your recovery copy/);
+  assert.doesNotMatch(banner, /FFmpeg|FFprobe/);
+  assert.doesNotMatch(recording, /Server recording is unavailable because FFmpeg\/FFprobe/);
+  assert.match(recording, /Echoo could not start its saved recording/);
   assert.match(autosave, /isLosslessWavRecovery/);
   assert.match(autosave, /return \['mp3', 'wav'\]/);
   assert.match(autosave, /status:\s*'progress'/);
