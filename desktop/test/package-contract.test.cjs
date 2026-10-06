@@ -158,6 +158,14 @@ test('Windows release workflow verifies the installed local renderer without ser
   assert.match(mainSource, /protocol: window\.location\.protocol/);
 });
 
+test('tagged Windows releases require a valid Authenticode signature', () => {
+  assert.match(windowsWorkflow, /Get-AuthenticodeSignature/);
+  assert.match(windowsWorkflow, /signature\.Status -ne 'Valid'/);
+  assert.match(windowsWorkflow, /IS_RELEASE_TAG: \$\{\{ startsWith\(github\.ref, 'refs\/tags\/v'\) \}\}/);
+  assert.match(windowsWorkflow, /Refusing to publish an unsigned tagged Windows release/);
+  assert.match(windowsWorkflow, /Publish verified tagged release/);
+});
+
 test('saved desktop recordings expose native Windows file actions', () => {
   assert.match(recordingBannerSource, /openDesktopRecording/);
   assert.match(recordingBannerSource, /showDesktopRecording/);
