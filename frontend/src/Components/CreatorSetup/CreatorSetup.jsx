@@ -279,7 +279,7 @@ export default function CreatorSetup({ onCreatorReady }) {
       if (onCreatorReady) {
         onCreatorReady(readyUser);
       } else {
-        navigate('/creator-studio', { replace: true });
+        navigate('/creator-studio', { replace: true, state: { creatorReady: true } });
       }
     } catch (error) {
       // A taken Channel name is a field problem, not a toast: point at the
