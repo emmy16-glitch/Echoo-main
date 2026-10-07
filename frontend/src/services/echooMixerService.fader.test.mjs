@@ -10,3 +10,12 @@ test('Host fader keeps its meter pre-fader and writes the program gain node', as
   assert.match(source, /node\.gain\.value\s*=\s*channel\.muted\s*\?\s*0\s*:\s*channel\.gain/);
   assert.match(source, /export const setMixerChannelGainDb[\s\S]*?setMixerChannelGain\(channelId, dbToGain\(safeDb\)\);/);
 });
+
+test('microphone failures provide actionable recovery guidance', async () => {
+  const source = await readFile(new URL('./echooMixerService.js', import.meta.url), 'utf8');
+  assert.match(source, /export const describeMicrophoneAccessError/);
+  assert.match(source, /Windows Settings > Privacy & security > Microphone/);
+  assert.match(source, /No microphone was found/);
+  assert.match(source, /This microphone is busy or unavailable/);
+  assert.match(source, /await requestMicrophone\(constraints\)/);
+});

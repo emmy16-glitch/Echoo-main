@@ -790,6 +790,34 @@ const normalizedMicConstraints = (audioConstraints) => ({
   ...(audioConstraints && typeof audioConstraints === 'object' ? audioConstraints : {}),
 });
 
+// Chromium deliberately uses the same NotAllowedError for a rejected browser
+// prompt, Electron's permission policy, and Windows microphone privacy.  Keep
+// the original error as the cause, but give a Creator a recovery step that
+// matches the runtime instead of exposing the unhelpful "Permission denied by
+// system" text.
+export const describeMicrophoneAccessError = (error) => {
+  const name = String(error?.name || '');
+  const isDesktop = typeof window !== 'undefined' && window.echooDesktop?.isDesktop === true;
+  if (name === 'NotAllowedError' || name === 'SecurityError') {
+    return isDesktop
+      ? 'Microphone access is blocked by Echoo or Windows. In Windows Settings > Privacy & security > Microphone, turn on Microphone access and Let desktop apps access your microphone, then allow Echoo and retry.'
+      : 'Microphone permission is blocked. Allow microphone access for Echoo in your browser site settings, then retry.';
+  }
+  if (name === 'NotFoundError') return 'No microphone was found. Connect or enable an input device, then retry.';
+  if (name === 'NotReadableError' || name === 'TrackStartError') return 'This microphone is busy or unavailable. Close another app using it, then retry.';
+  if (name === 'OverconstrainedError') return 'The selected microphone is unavailable. Choose another input, then retry.';
+  if (name === 'TypeError') return 'Microphone access is unsupported in this window. Open Echoo on HTTPS or in the desktop app.';
+  return error?.message || 'Could not access the microphone.';
+};
+
+const requestMicrophone = async (constraints) => {
+  try {
+    return await navigator.mediaDevices.getUserMedia(constraints);
+  } catch (error) {
+    throw new Error(describeMicrophoneAccessError(error), { cause: error });
+  }
+};
+
 function scheduleUnexpectedVoiceInputRecovery(channelId, deviceId = '') {
   if (typeof window === 'undefined' || !['host', 'channel2', 'guest'].includes(channelId)) return;
   if (unexpectedVoiceRecovery.has(channelId)) return;
@@ -888,7 +916,7 @@ export const ensureHostInput = async (deviceId = '', audioConstraints = null) =>
     },
   };
 
-  const stream = await navigator.mediaDevices.getUserMedia(constraints);
+  const stream = await requestMicrophone(constraints);
   const track = stream.getAudioTracks()[0];
   const label = track?.label || 'Host microphone';
   return connectAcquiredStream('host', stream, label, deviceId);
@@ -905,7 +933,7 @@ export const connectGuestInput = async (deviceId, audioConstraints = null) => {
     throw new Error('Choose a guest microphone first.');
   }
 
-  const stream = await navigator.mediaDevices.getUserMedia({
+  const stream = await requestMicrophone({
     audio: {
       ...normalizedMicConstraints(audioConstraints),
       deviceId: { exact: deviceId },
@@ -924,7 +952,7 @@ export const connectSecondInput = async (deviceId, audioConstraints = null) => {
   }
   if (!deviceId) throw new Error('Choose an input for Channel 2.');
 
-  const stream = await navigator.mediaDevices.getUserMedia({
+  const stream = await requestMicrophone({
     audio: {
       ...normalizedMicConstraints(audioConstraints),
       deviceId: { exact: deviceId },
