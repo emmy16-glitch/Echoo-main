@@ -174,10 +174,9 @@ test.describe('packaged startup lifecycle', () => {
   test('settles immediately without motion when Windows requests reduced motion', async () => {
     const electronApp = await electron.launch({
       executablePath,
-      args: ['--force-prefers-reduced-motion=reduce'],
       env: launchEnvironment({
         ECHOO_DESKTOP_STARTUP_TEST: 'delayed-ready',
-        ECHOO_TEST_APP_READY_DELAY_MS: '15000',
+        ECHOO_TEST_APP_READY_DELAY_MS: '5000',
       }),
     });
     await keepAutomationWindowsOffscreen(electronApp);
@@ -188,6 +187,8 @@ test.describe('packaged startup lifecycle', () => {
         candidate.url().includes('splash.html')
       );
       expect(splashPage).toBeTruthy();
+      await splashPage.emulateMedia({ reducedMotion: 'reduce' });
+      await splashPage.reload();
       await splashPage.waitForLoadState('domcontentloaded');
       const reducedMotionState = await splashPage.evaluate(() => ({
         reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches,
