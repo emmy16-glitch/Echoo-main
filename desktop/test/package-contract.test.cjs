@@ -857,8 +857,8 @@ test('packaged startup uses an explicit, idempotent renderer-ready handshake', (
   assert.match(mainSource, /echoo:get-microphone-access-status[\s\S]{0,250}getMediaAccessStatus\('microphone'\)/);
   assert.match(rendererSource, /<DesktopAppReady \/>[\s\S]{0,160}<AppErrorBoundary>/);
   assert.match(rendererReadySource, /function DesktopAppReady\(\)[\s\S]*echooDesktop\?\.appReady\?\.\(\)/);
-  assert.match(rendererReadySource, /const firstFrame = requestAnimationFrame/);
-  assert.match(rendererReadySource, /secondFrame = requestAnimationFrame\(\(\) => window\.echooDesktop\?\.appReady/);
+  assert.match(rendererReadySource, /useLayoutEffect\(\(\) => \{[\s\S]*window\.echooDesktop\?\.appReady\?\.\(\)/);
+  assert.doesNotMatch(rendererReadySource, /(?:firstFrame|secondFrame)\s*=\s*requestAnimationFrame/);
   assert.doesNotMatch(rendererReadySource, /MutationObserver/);
   assert.match(mainSource, /ipcMain\.on\('echoo:app-ready'[\s\S]*rendererLifecyclePhase !== 'renderer-loading'[\s\S]*revealMainWindowWhenReady/);
   assert.doesNotMatch(mainSource, /executeJavaScript\([\s\S]{0,200}#root/);
