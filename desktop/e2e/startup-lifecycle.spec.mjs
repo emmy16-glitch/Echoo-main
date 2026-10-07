@@ -174,10 +174,10 @@ test.describe('packaged startup lifecycle', () => {
   test('settles immediately without motion when Windows requests reduced motion', async () => {
     const electronApp = await electron.launch({
       executablePath,
-      args: ['--force-prefers-reduced-motion'],
+      args: ['--force-prefers-reduced-motion=reduce'],
       env: launchEnvironment({
         ECHOO_DESKTOP_STARTUP_TEST: 'delayed-ready',
-        ECHOO_TEST_APP_READY_DELAY_MS: '5000',
+        ECHOO_TEST_APP_READY_DELAY_MS: '15000',
       }),
     });
     await keepAutomationWindowsOffscreen(electronApp);
@@ -188,11 +188,17 @@ test.describe('packaged startup lifecycle', () => {
         candidate.url().includes('splash.html')
       );
       expect(splashPage).toBeTruthy();
-      await expect.poll(() => splashPage.evaluate(() => ({
+      await splashPage.waitForLoadState('domcontentloaded');
+      const reducedMotionState = await splashPage.evaluate(() => ({
         reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches,
         markAnimation: getComputedStyle(document.querySelector('.echoo-mark')).animationName,
         primaryAnimation: getComputedStyle(document.querySelector('.echoo-mark-primary')).animationName,
-      }))).toEqual({ reducedMotion: true, markAnimation: 'none', primaryAnimation: 'none' });
+      }));
+      expect(reducedMotionState).toEqual({
+        reducedMotion: true,
+        markAnimation: 'none',
+        primaryAnimation: 'none',
+      });
 
       await expect.poll(async () => {
         const state = await nativeWindowState(electronApp);
