@@ -71,6 +71,7 @@ const CreatorContentWorkspace = ({
   const [visibility, setVisibility] = useState('All');
   const [sortMode, setSortMode] = useState('newest');
   const [playingId, setPlayingId] = useState('');
+  const [loadingPlayId, setLoadingPlayId] = useState('');
   const [selectedTrack, setSelectedTrack] = useState(null);
   const [openMenuId, setOpenMenuId] = useState('');
   const [busyId, setBusyId] = useState('');
@@ -126,6 +127,7 @@ const CreatorContentWorkspace = ({
       audioRef.current = null;
     }
     setPlayingId('');
+    setLoadingPlayId('');
   };
 
   const openTrack = (track) => {
@@ -147,8 +149,10 @@ const CreatorContentWorkspace = ({
     stopQuickPlayer();
 
     try {
+      setLoadingPlayId(id);
       const { streamUrl } = await studioService.getAudioStreamUrl(id);
       const player = new Audio(streamUrl);
+      player.preload = 'metadata';
       audioRef.current = player;
       player.addEventListener('ended', () => setPlayingId(''), { once: true });
       player.addEventListener('error', () => setPlayingId(''), { once: true });
@@ -157,6 +161,8 @@ const CreatorContentWorkspace = ({
     } catch (playError) {
       setPlayingId('');
       setActionError(playError?.message || 'Could not play this audio.');
+    } finally {
+      setLoadingPlayId((current) => current === id ? '' : current);
     }
   };
 
@@ -263,6 +269,7 @@ const CreatorContentWorkspace = ({
               const id = String(getId(track) || index);
               const artwork = getArtwork(track);
               const isPlaying = playingId === id;
+              const isLoadingPlay = loadingPlayId === id;
               const plays = Number(track.plays ?? track.playCount) || 0;
               const likes = Number(track.likes ?? track.likeCount) || 0;
 
@@ -293,7 +300,7 @@ const CreatorContentWorkspace = ({
                   </div>
 
                   <div className="eca-actions">
-                    <button type="button" className="icon-primary" onClick={() => togglePlay(track)} disabled={!getId(track)} aria-label={isPlaying ? 'Pause audio' : 'Play audio'}>{isPlaying ? <FaPause /> : <FaPlay />}</button>
+                    <button type="button" className="icon-primary" onClick={() => togglePlay(track)} disabled={!getId(track) || isLoadingPlay} aria-busy={isLoadingPlay || undefined} aria-label={isLoadingPlay ? 'Loading audio' : isPlaying ? 'Pause audio' : 'Play audio'}>{isPlaying ? <FaPause /> : <FaPlay />}</button>
                     <button type="button" className="details" onClick={() => openTrack(track)}><FaList /> Details</button>
                     <div className="eca-more-wrap">
                       <button type="button" className="more" onClick={() => setOpenMenuId((current) => current === id ? '' : id)} aria-expanded={openMenuId === id} aria-label={`More actions for ${track.title || 'audio'}`}><FaEllipsisH /></button>

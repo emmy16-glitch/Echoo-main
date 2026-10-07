@@ -128,6 +128,7 @@ export default function CreatorCollectionsWorkspace({
   const [sortMode, setSortMode] = useState('newest');
   const [filterOpen, setFilterOpen] = useState(false);
   const [playingId, setPlayingId] = useState('');
+  const [loadingPlayId, setLoadingPlayId] = useState('');
   const [busyId, setBusyId] = useState('');
   const [menuId, setMenuId] = useState('');
   const [selectedTrack, setSelectedTrack] = useState(null);
@@ -348,6 +349,7 @@ export default function CreatorCollectionsWorkspace({
     audioRef.current?.pause?.();
     audioRef.current = null;
     setPlayingId('');
+    setLoadingPlayId('');
   };
 
   const togglePlay = async (track) => {
@@ -361,8 +363,10 @@ export default function CreatorCollectionsWorkspace({
     try {
       stopPlayback();
       setError('');
+      setLoadingPlayId(id);
       const { streamUrl } = await studioService.getAudioStreamUrl(id);
       const player = new Audio(streamUrl);
+      player.preload = 'metadata';
       audioRef.current = player;
       player.addEventListener('ended', () => setPlayingId(''), { once: true });
       player.addEventListener('error', () => setPlayingId(''), { once: true });
@@ -370,6 +374,8 @@ export default function CreatorCollectionsWorkspace({
       setPlayingId(id);
     } catch (playError) {
       setError(playError?.message || 'Could not play this recording.');
+    } finally {
+      setLoadingPlayId((current) => current === id ? '' : current);
     }
   };
 
@@ -727,6 +733,7 @@ export default function CreatorCollectionsWorkspace({
             const saveState = recordingSaveState(track);
             const sourceBroadcast = sourceBroadcastOf(track);
             const isPlaying = playingId === id;
+            const isLoadingPlay = loadingPlayId === id;
             const date = formatDate(track.createdAt || track.updatedAt);
             const artwork = getArtwork(track, studioName);
             const displayTitle = recordingDisplayTitle(track);
@@ -737,7 +744,7 @@ export default function CreatorCollectionsWorkspace({
             return (
               <article className="recordings-row" role="row" key={id || track.title}>
                 <div className="recordings-recording-cell" role="cell">
-                  <button type="button" className="recordings-art" aria-label={`${isPlaying ? 'Pause' : 'Play'} ${displayTitle}`} onClick={() => togglePlay(track)}>
+                  <button type="button" className="recordings-art" aria-label={`${isLoadingPlay ? 'Loading' : isPlaying ? 'Pause' : 'Play'} ${displayTitle}`} aria-busy={isLoadingPlay || undefined} disabled={isLoadingPlay} onClick={() => togglePlay(track)}>
                     <img src={artwork} alt="" />
                     <span className="recordings-art-play">{isPlaying ? <FiPause /> : <FiPlay />}</span>
                     <small>{formatDuration(track.duration)}</small>
@@ -761,7 +768,7 @@ export default function CreatorCollectionsWorkspace({
 
                 <div className="recordings-actions" role="cell">
                   <button type="button" className="recordings-primary-action" onClick={() => openRecording(track)}><FiSettings /> Manage</button>
-                  <button type="button" className="recordings-icon-action" aria-label={isPlaying ? 'Pause recording' : 'Play recording'} onClick={() => togglePlay(track)}>{isPlaying ? <FiPause /> : <FiPlay />}</button>
+                  <button type="button" className="recordings-icon-action" aria-label={isLoadingPlay ? 'Loading recording' : isPlaying ? 'Pause recording' : 'Play recording'} aria-busy={isLoadingPlay || undefined} disabled={isLoadingPlay} onClick={() => togglePlay(track)}>{isPlaying ? <FiPause /> : <FiPlay />}</button>
                   <button type="button" className="recordings-icon-action" aria-label="Download recording" disabled={busyId === id} onClick={() => download(track)}><FiDownload /></button>
                   <div className="recordings-more-wrap">
                     <button type="button" className="recordings-more" aria-label="More recording actions" aria-expanded={menuId === id} onClick={() => setMenuId((current) => current === id ? '' : id)}><FiMoreVertical /></button>

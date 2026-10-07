@@ -90,6 +90,13 @@ const safeDownloadName = ({ title, originalName, mimeType } = {}) => {
 // exhaust mobile memory during a frontend/backend deploy mismatch.
 const releaseFallbackPlaybackUrl = () => {};
 
+// Stream grants are scoped to one recording and remain authorization-checked
+// by the stream endpoint on every Range request. Reusing a still-valid grant
+// removes a needless token round trip when a creator pauses, resumes, or
+// returns to Recordings.
+const audioStreamUrlCache = new Map();
+const AUDIO_STREAM_CACHE_EARLY_REFRESH_MS = 60 * 1000;
+
 const missingStreamTokenRoute = (error) =>
   Number(error?.status) === 404 &&
   (
@@ -123,6 +130,11 @@ const studioService = {
 
   getAudioStreamUrl: async (audioId) => {
     if (!audioId) throw new Error("Audio ID is missing.");
+    const cacheKey = String(audioId);
+    const cached = audioStreamUrlCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now() + AUDIO_STREAM_CACHE_EARLY_REFRESH_MS) {
+      return cached.value;
+    }
 
     try {
       const response = await apiRequest(
@@ -136,13 +148,16 @@ const studioService = {
       const downloadUrl = buildMediaUrl(rawDownloadUrl);
       const mixerUrl = buildMediaUrl(rawMixerUrl);
       if (!streamUrl) throw new Error("Echoo could not prepare this audio for playback.");
-      return {
+      const value = {
         streamUrl,
         downloadUrl,
         mixerUrl,
         expiresIn: Number(response?.data?.expiresIn) || 0,
         compatibilityFallback: false,
       };
+      const expiresAt = Date.now() + Math.max(0, value.expiresIn * 1000);
+      if (value.expiresIn > 0) audioStreamUrlCache.set(cacheKey, { value, expiresAt });
+      return value;
     } catch (error) {
       if (!missingStreamTokenRoute(error)) throw error;
       const updating = new Error(
