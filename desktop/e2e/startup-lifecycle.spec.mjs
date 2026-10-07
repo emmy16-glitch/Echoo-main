@@ -177,7 +177,7 @@ test.describe('packaged startup lifecycle', () => {
       args: ['--force-prefers-reduced-motion'],
       env: launchEnvironment({
         ECHOO_DESKTOP_STARTUP_TEST: 'delayed-ready',
-        ECHOO_TEST_APP_READY_DELAY_MS: '2000',
+        ECHOO_TEST_APP_READY_DELAY_MS: '5000',
       }),
     });
     await keepAutomationWindowsOffscreen(electronApp);

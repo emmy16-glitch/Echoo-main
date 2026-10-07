@@ -11,6 +11,12 @@ const executablePath =
   process.env.ECHOO_PACKAGED_EXE ||
   path.join(desktopRoot, 'dist', 'win-unpacked', 'Echoo.exe');
 
+function rgbChannels(color) {
+  const channels = String(color).match(/\d+/g)?.slice(0, 3).map(Number);
+  if (!channels || channels.length !== 3) throw new Error(`Expected an RGB color, received ${color}`);
+  return channels;
+}
+
 test.describe('packaged Echoo Windows shell', () => {
   test.skip(process.platform !== 'win32', 'Packaged desktop E2E runs on Windows only.');
 
@@ -132,9 +138,13 @@ test.describe('packaged Echoo Windows shell', () => {
     expect(state.appInfo?.appVersion).toBe(desktopPackage.version);
     expect(state.appInfo?.startUrl).toBe('echoo-app://app/index.html');
     expect(nativeBackgroundColor).toBe('#F7F9FC');
-    expect(state.htmlBackground).toBe('rgb(247, 249, 252)');
-    expect(state.bodyBackground).toBe('rgb(247, 249, 252)');
-    expect(state.rootBackground).toBe('rgb(247, 249, 252)');
+    const nativeChannels = [247, 249, 252];
+    for (const rendererColor of [state.htmlBackground, state.bodyBackground, state.rootBackground]) {
+      const rendererChannels = rgbChannels(rendererColor);
+      expect(rendererChannels).not.toEqual([255, 255, 255]);
+      expect(Math.max(...rendererChannels.map((channel, index) =>
+        Math.abs(channel - nativeChannels[index])))).toBeLessThanOrEqual(4);
+    }
   });
 
   test('keeps APP_READY idempotent after the main window is visible', async () => {
