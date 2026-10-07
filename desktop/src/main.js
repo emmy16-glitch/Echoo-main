@@ -148,10 +148,10 @@ const SMOKE_TEST = ['1', 'second-instance', 'offline', 'scale'].includes(SMOKE_T
 const SECOND_INSTANCE_SMOKE_TEST = SMOKE_TEST_MODE === 'second-instance';
 const OFFLINE_SMOKE_TEST = SMOKE_TEST_MODE === 'offline';
 const DISPLAY_SCALE_SMOKE_TEST = SMOKE_TEST_MODE === 'scale';
-const configuredStartupReadyTimeout = Number(process.env.ECHOO_STARTUP_READY_TIMEOUT_MS || '9000');
+const configuredStartupReadyTimeout = Number(process.env.ECHOO_STARTUP_READY_TIMEOUT_MS || '20000');
 const STARTUP_READY_TIMEOUT_MS = Number.isFinite(configuredStartupReadyTimeout)
   ? Math.max(1000, configuredStartupReadyTimeout)
-  : 9000;
+  : 20000;
 const STARTUP_TEST_MODE = app.isPackaged
   ? String(process.env.ECHOO_DESKTOP_STARTUP_TEST || '')
   : '';

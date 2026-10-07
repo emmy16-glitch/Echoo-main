@@ -68,9 +68,27 @@ test.describe('packaged Echoo Windows shell', () => {
     await mainPage.waitForLoadState('domcontentloaded');
     watchRendererDiagnostics(mainPage);
 
-    await expect
-      .poll(() => mainPage.locator('#root').evaluate((node) => node.childElementCount))
-      .toBeGreaterThan(0);
+    try {
+      await expect
+        .poll(
+          () => mainPage.locator('#root').evaluate((node) => node.childElementCount),
+          { timeout: 30_000, message: 'Echoo should mount React before native startup recovery.' }
+        )
+        .toBeGreaterThan(0);
+    } catch (error) {
+      const logsDirectory = await electronApp.evaluate(({ app }) => app.getPath('logs')).catch(() => '');
+      const mainLogPath = logsDirectory ? path.join(logsDirectory, 'main.log') : '';
+      const mainLog = mainLogPath && existsSync(mainLogPath) ? readFileSync(mainLogPath, 'utf8') : '';
+      const bodyText = await mainPage.locator('body').innerText().catch(() => '');
+      throw new Error([
+        error?.message || String(error),
+        `Renderer URL: ${mainPage.url()}`,
+        `Renderer body: ${bodyText.slice(0, 2_000)}`,
+        `Renderer errors: ${rendererErrors.join('\n')}`,
+        `Native output: ${nativeDiagnostics.join('').slice(-8_000)}`,
+        `Main log: ${mainLog.slice(-12_000)}`,
+      ].join('\n\n'));
+    }
   });
 
   test.afterAll(async () => {
