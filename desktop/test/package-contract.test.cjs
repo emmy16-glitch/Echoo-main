@@ -836,7 +836,7 @@ test('packaged startup uses an explicit, idempotent renderer-ready handshake', (
   assert.match(rendererReadySource, /function DesktopAppReady\(\)[\s\S]*echooDesktop\?\.appReady\?\.\(\)/);
   assert.match(mainSource, /ipcMain\.on\('echoo:app-ready'[\s\S]*rendererLifecyclePhase !== 'renderer-loading'[\s\S]*revealMainWindowWhenReady/);
   assert.doesNotMatch(mainSource, /executeJavaScript\([\s\S]{0,200}#root/);
-  assert.match(mainSource, /ECHOO_STARTUP_READY_TIMEOUT_MS \|\| '9000'/);
+  assert.match(mainSource, /ECHOO_STARTUP_READY_TIMEOUT_MS \|\| '20000'/);
   assert.match(mainSource, /Number\.isFinite\(configuredStartupReadyTimeout\)/);
   assert.match(mainSource, /loadOfflinePage\('startup-timeout'/);
   assert.match(mainSource, /did-finish-load[\s\S]{0,800}revealMainWindowWhenReady/);
@@ -844,6 +844,9 @@ test('packaged startup uses an explicit, idempotent renderer-ready handshake', (
   assert.match(mainSource, /STARTUP_TEST_MODE === 'delayed-ready'/);
   assert.match(mainSource, /STARTUP_TEST_APP_READY_NEVER/);
   assert.match(mainSource, /\[desktop-startup\]/);
+  assert.match(packagedShellE2eSource, /Echoo should mount React before native startup recovery/);
+  const startupLifecycleSource = fs.readFileSync(path.join(desktopRoot, 'e2e', 'startup-lifecycle.spec.mjs'), 'utf8');
+  assert.match(startupLifecycleSource, /15_000/);
 });
 
 test('packaged retry and renderer recovery never expose an in-between Chromium page', () => {

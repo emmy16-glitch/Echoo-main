@@ -59,7 +59,7 @@ test.describe('packaged startup lifecycle', () => {
     }
   });
 
-  for (const delayMs of [2_000, 5_000]) {
+  for (const delayMs of [2_000, 5_000, 15_000]) {
     test(`keeps exactly one non-topmost splash until delayed APP_READY (${delayMs}ms)`, async () => {
       const launchedAt = Date.now();
       const electronApp = await electron.launch({
