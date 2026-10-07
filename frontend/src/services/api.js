@@ -200,7 +200,7 @@ const createError = (
 let refreshPromise = null;
 const SESSION_REFRESH_TIMEOUT_MS = 10_000;
 
-const isDefinitiveSessionExpiry = (error) => (
+export const isDefinitiveSessionExpiry = (error) => (
   error?.code === 'SESSION_EXPIRED' ||
   error?.code === 'INVALID_REFRESH_TOKEN' ||
   error?.code === 'REFRESH_TOKEN_REQUIRED' ||
@@ -215,7 +215,10 @@ export const refreshSessionAccessToken = async () => {
   const refreshToken = getRefreshToken();
 
   if (!refreshToken) {
-    throw new Error('No refresh token available');
+    const error = new Error('No refresh token available');
+    error.code = 'REFRESH_TOKEN_REQUIRED';
+    error.status = 401;
+    throw error;
   }
 
   if (refreshPromise) {

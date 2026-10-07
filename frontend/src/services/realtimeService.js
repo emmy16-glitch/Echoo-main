@@ -2,6 +2,7 @@ import {
   API_ORIGIN,
   clearAuthTokens,
   getCurrentAccessToken,
+  isDefinitiveSessionExpiry,
   refreshSessionAccessToken,
 } from './api.js';
 
@@ -68,10 +69,15 @@ const recoverSocketAuthentication = async () => {
       return token;
     })
     .catch((error) => {
-      // Authentication failed after an explicit token refresh attempt. Avoid an
-      // infinite reconnect loop using a permanently-invalid credential.
-      clearAuthTokens();
-      sharedSocket?.disconnect();
+      // Network loss, timeouts, malformed success payloads, and backend 5xx
+      // responses do not prove that the account session is invalid. Preserve
+      // the desktop identity so Socket.IO can reconnect when the service
+      // returns. Only an explicit auth rejection may clear local account data
+      // and stop the permanently-invalid reconnect loop.
+      if (isDefinitiveSessionExpiry(error)) {
+        clearAuthTokens();
+        sharedSocket?.disconnect();
+      }
       throw error;
     })
     .finally(() => {
