@@ -46,3 +46,17 @@ test('listener catalogue keeps navigation and live cards aligned on a narrow vie
   await expect(page.locator('.listener-v2-live-grid')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
 });
+
+test('full player keeps long recording names inside its sheet', async ({ page }) => {
+  await authenticate(page);
+  await page.goto('/listen');
+  await page.locator('.listener-v2-audio-list button').first().click();
+  await page.getByRole('button', { name: 'Open full player' }).click();
+
+  const sheet = page.locator('.listener-v2-full-player-sheet');
+  const title = sheet.locator('.listener-v2-full-player-copy h2');
+  await expect(sheet).toBeVisible();
+  await expect(title).toBeVisible();
+  expect(await title.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+  expect(await sheet.evaluate((node) => node.getBoundingClientRect().right <= window.innerWidth)).toBe(true);
+});

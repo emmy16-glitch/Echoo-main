@@ -1036,13 +1036,13 @@ const ListenerV2Layout = () => {
               <button type="button" className="listener-v2-full-player-backdrop" aria-label="Minimize player" onClick={() => setPlayerExpanded(false)} />
               <section className="listener-v2-full-player-sheet" role="dialog" aria-modal="true" aria-label="Now playing">
                 <header>
-                  <div><span>NOW PLAYING</span><strong>{currentTrack.title}</strong></div>
+                  <div><span>NOW PLAYING</span><strong title={currentTrack.title}>{currentTrack.title}</strong></div>
                   <button type="button" onClick={() => setPlayerExpanded(false)} aria-label="Minimize player"><FiX /></button>
                 </header>
                 <div className="listener-v2-full-player-body">
                   <div className="listener-v2-full-player-art"><Artwork src={currentTrack.coverArt} /></div>
                   <div className="listener-v2-full-player-copy">
-                    <h2>{currentTrack.title}</h2>
+                    <h2 title={currentTrack.title}>{currentTrack.title}</h2>
                     <p>{currentTrack.subtitle}</p>
                     {playerError && <small role="alert">{playerError}</small>}
                   </div>
