@@ -100,7 +100,8 @@ test.describe('packaged Echoo Windows shell', () => {
   });
 
   test('uses the local renderer and secure desktop bridge', async () => {
-    const state = await mainPage.evaluate(async () => {
+    const [state, nativeBackgroundColor] = await Promise.all([
+      mainPage.evaluate(async () => {
       const appInfo = await window.echooDesktop.getAppInfo();
       return {
         protocol: window.location.protocol,
@@ -110,8 +111,15 @@ test.describe('packaged Echoo Windows shell', () => {
         processType: typeof window.process,
         requireType: typeof window.require,
         appInfo,
+        htmlBackground: getComputedStyle(document.documentElement).backgroundColor,
+        bodyBackground: getComputedStyle(document.body).backgroundColor,
+        rootBackground: getComputedStyle(document.querySelector('#root')).backgroundColor,
       };
-    });
+      }),
+      electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()
+        .find((window) => window.webContents.getURL().startsWith('echoo-app://app/'))
+        ?.getBackgroundColor()),
+    ]);
 
     expect(state.protocol).toBe('echoo-app:');
     expect(state.appIdentity).toBe('echoo-frontend');
@@ -123,6 +131,10 @@ test.describe('packaged Echoo Windows shell', () => {
     expect(state.appInfo?.appName).toBe('Echoo');
     expect(state.appInfo?.appVersion).toBe(desktopPackage.version);
     expect(state.appInfo?.startUrl).toBe('echoo-app://app/index.html');
+    expect(nativeBackgroundColor).toBe('#F7F9FC');
+    expect(state.htmlBackground).toBe('rgb(247, 249, 252)');
+    expect(state.bodyBackground).toBe('rgb(247, 249, 252)');
+    expect(state.rootBackground).toBe('rgb(247, 249, 252)');
   });
 
   test('keeps APP_READY idempotent after the main window is visible', async () => {

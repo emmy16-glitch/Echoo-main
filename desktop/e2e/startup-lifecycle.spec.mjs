@@ -38,6 +38,7 @@ async function nativeWindowState(electronApp) {
       visible: window.isVisible(),
       alwaysOnTop: window.isAlwaysOnTop(),
       destroyed: window.isDestroyed(),
+      backgroundColor: window.getBackgroundColor(),
     }));
     return {
       windows,
@@ -169,6 +170,41 @@ test.describe('packaged startup lifecycle', () => {
       }
     });
   }
+
+  test('settles immediately without motion when Windows requests reduced motion', async () => {
+    const electronApp = await electron.launch({
+      executablePath,
+      args: ['--force-prefers-reduced-motion'],
+      env: launchEnvironment({
+        ECHOO_DESKTOP_STARTUP_TEST: 'delayed-ready',
+        ECHOO_TEST_APP_READY_DELAY_MS: '2000',
+      }),
+    });
+    await keepAutomationWindowsOffscreen(electronApp);
+
+    try {
+      await expect.poll(async () => (await nativeWindowState(electronApp)).splash.length).toBe(1);
+      const splashPage = electronApp.windows().find((candidate) =>
+        candidate.url().includes('splash.html')
+      );
+      expect(splashPage).toBeTruthy();
+      await expect.poll(() => splashPage.evaluate(() => ({
+        reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches,
+        markAnimation: getComputedStyle(document.querySelector('.echoo-mark')).animationName,
+        primaryAnimation: getComputedStyle(document.querySelector('.echoo-mark-primary')).animationName,
+      }))).toEqual({ reducedMotion: true, markAnimation: 'none', primaryAnimation: 'none' });
+
+      await expect.poll(async () => {
+        const state = await nativeWindowState(electronApp);
+        return {
+          splash: state.splash.length,
+          visibleMain: state.main.filter((window) => window.visible).length,
+        };
+      }, { timeout: 20_000 }).toEqual({ splash: 0, visibleMain: 1 });
+    } finally {
+      await electronApp.close().catch(() => {});
+    }
+  });
 
   test('destroys the splash and shows in-app recovery when APP_READY never arrives', async () => {
     const electronApp = await electron.launch({
