@@ -28,20 +28,49 @@ import {
 } from '../../services/progressTiming';
 import ListenerLiveConnected from '../ListenerLive/ListenerLiveConnected';
 import { CreatorStudioStateProvider } from './CreatorStudioState';
-// Lazy workspaces: each tab loads only its own code, so Channels/Recordings
-// open instantly instead of downloading every workspace up-front.
-const CreatorDiscoverWorkspace = lazy(() => import('./CreatorDiscoverWorkspace'));
-const CreatorContentWorkspace = lazy(() => import('./CreatorContentWorkspace'));
-const CreatorBroadcastWorkspace = lazy(() => import('./CreatorLiveConnectedWorkspace'));
-const CreatorStationsWorkspace = lazy(() => import('./CreatorStationsWorkspace'));
-const CreatorAudienceWorkspace = lazy(() => import('./CreatorAudienceWorkspace'));
-const CreatorAnalyticsWorkspace = lazy(() => import('./CreatorAnalyticsConnectedWorkspace'));
-const CreatorScheduleEventsWorkspace = lazy(() => import('./CreatorScheduleEventsWorkspace'));
-const CreatorBroadcastSettingsWorkspace = lazy(() => import('./CreatorBroadcastSettingsWorkspace'));
-const CreatorSettingsWorkspace = lazy(() => import('./CreatorSettingsWorkspace'));
-const CreatorNotificationsWorkspace = lazy(() => import('./CreatorNotificationsWorkspace'));
-const CreatorRecordingsWorkspace = lazy(() => import('./CreatorCollectionsWorkspace'));
-const CreatorCollectionWorkspace = lazy(() => import('./CreatorCollectionWorkspace'));
+// Lazy workspaces keep the first Creator render small.  Cache the import
+// promise as well so an idle prefetch and a quick click share one request.
+const cachedWorkspaceImport = (loader) => {
+  let promise;
+  return () => {
+    if (!promise) promise = loader().catch((error) => {
+      promise = undefined;
+      throw error;
+    });
+    return promise;
+  };
+};
+const loadCreatorDiscover = cachedWorkspaceImport(() => import('./CreatorDiscoverWorkspace'));
+const loadCreatorContent = cachedWorkspaceImport(() => import('./CreatorContentWorkspace'));
+const loadCreatorBroadcast = cachedWorkspaceImport(() => import('./CreatorLiveConnectedWorkspace'));
+const loadCreatorStations = cachedWorkspaceImport(() => import('./CreatorStationsWorkspace'));
+const loadCreatorAudience = cachedWorkspaceImport(() => import('./CreatorAudienceWorkspace'));
+const loadCreatorAnalytics = cachedWorkspaceImport(() => import('./CreatorAnalyticsConnectedWorkspace'));
+const loadCreatorSchedule = cachedWorkspaceImport(() => import('./CreatorScheduleEventsWorkspace'));
+const loadCreatorBroadcastSettings = cachedWorkspaceImport(() => import('./CreatorBroadcastSettingsWorkspace'));
+const loadCreatorSettings = cachedWorkspaceImport(() => import('./CreatorSettingsWorkspace'));
+const loadCreatorNotifications = cachedWorkspaceImport(() => import('./CreatorNotificationsWorkspace'));
+const loadCreatorRecordings = cachedWorkspaceImport(() => import('./CreatorCollectionsWorkspace'));
+const loadCreatorCollection = cachedWorkspaceImport(() => import('./CreatorCollectionWorkspace'));
+const CreatorDiscoverWorkspace = lazy(loadCreatorDiscover);
+const CreatorContentWorkspace = lazy(loadCreatorContent);
+const CreatorBroadcastWorkspace = lazy(loadCreatorBroadcast);
+const CreatorStationsWorkspace = lazy(loadCreatorStations);
+const CreatorAudienceWorkspace = lazy(loadCreatorAudience);
+const CreatorAnalyticsWorkspace = lazy(loadCreatorAnalytics);
+const CreatorScheduleEventsWorkspace = lazy(loadCreatorSchedule);
+const CreatorBroadcastSettingsWorkspace = lazy(loadCreatorBroadcastSettings);
+const CreatorSettingsWorkspace = lazy(loadCreatorSettings);
+const CreatorNotificationsWorkspace = lazy(loadCreatorNotifications);
+const CreatorRecordingsWorkspace = lazy(loadCreatorRecordings);
+const CreatorCollectionWorkspace = lazy(loadCreatorCollection);
+
+const CREATOR_IDLE_PREFETCH = [
+  loadCreatorStations,
+  loadCreatorRecordings,
+  loadCreatorSchedule,
+  loadCreatorAnalytics,
+];
 
 const WorkspaceFallback = () => (
   <div className="channels-grid is-loading" aria-label="Loading workspace">
@@ -147,6 +176,7 @@ const CreatorStudioBody = () => {
   const [uploadProgress, setUploadProgress] = useState(null);
   const [backgroundRecordingProgress, setBackgroundRecordingProgress] = useState(null);
   const [uploadForm, setUploadForm] = useState(EMPTY_UPLOAD);
+  const contentCacheRef = useRef(new Map());
 
   const creatorSetup = useMemo(() => readJson('creatorSetup', {}), []);
   const [user, setUser] = useState(() => readJson('user', {}));
@@ -195,17 +225,38 @@ const CreatorStudioBody = () => {
   }, []);
 
   useEffect(() => {
+    // These are the four primary navigation destinations.  Defer until the
+    // browser is idle so Broadcast remains the only startup-critical chunk.
+    const preload = () => CREATOR_IDLE_PREFETCH.forEach((load) => load().catch(() => null));
+    const idleId = window.requestIdleCallback?.(preload, { timeout: 1800 });
+    const timeoutId = idleId == null ? window.setTimeout(preload, 900) : null;
+    return () => {
+      if (idleId != null) window.cancelIdleCallback?.(idleId);
+      if (timeoutId != null) window.clearTimeout(timeoutId);
+    };
+  }, []);
+
+  useEffect(() => {
     let active = true;
     const load = async () => {
       if (!['Audio', 'Broadcast', 'Recordings', 'Audience'].includes(activeNav)) return;
       try {
-        setLoading(true);
         setError('');
         if (activeNav === 'Audio' || activeNav === 'Broadcast' || activeNav === 'Recordings') {
+          const cacheKey = `${contentPage}:${refreshKey}`;
+          const cached = contentCacheRef.current.get(cacheKey);
+          if (cached) {
+            if (active) setContent(cached);
+            return;
+          }
+          if (active) setLoading(true);
           const response = await studioService.getContent({ page: contentPage, limit: 20 });
-          if (active) setContent(response?.data || { tracks: [], pagination: {} });
+          const nextContent = response?.data || { tracks: [], pagination: {} };
+          contentCacheRef.current.set(cacheKey, nextContent);
+          if (active) setContent(nextContent);
         }
         if (activeNav === 'Audience') {
+          if (active) setLoading(true);
           const response = await studioService.getAudience();
           if (active) setAudience(response?.data || null);
         }
