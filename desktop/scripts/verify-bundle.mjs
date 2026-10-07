@@ -45,7 +45,7 @@ if (windowsIcon.width < 256 || windowsIcon.height < 256) {
 }
 
 const packageJson = JSON.parse(readFileSync(join(desktopDirectory, 'package.json'), 'utf8'));
-if (packageJson.version !== '2.0.2') throw new Error('Desktop package version must be 2.0.2.');
+if (!/^\d+\.\d+\.\d+$/.test(String(packageJson.version || ''))) throw new Error('Desktop package version must be a stable semantic version.');
 if (packageJson.build?.productName !== 'Echoo') throw new Error('Installed product name must be Echoo.');
 if (!String(packageJson.build?.win?.artifactName || '').includes('Echoo-Setup-')) {
   throw new Error('Windows installer artifact name is not configured.');

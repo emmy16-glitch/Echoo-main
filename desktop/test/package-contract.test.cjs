@@ -8,6 +8,7 @@ const { pathToFileURL } = require('node:url');
 
 const desktopRoot = path.resolve(__dirname, '..');
 const packageJson = JSON.parse(fs.readFileSync(path.join(desktopRoot, 'package.json'), 'utf8'));
+const packageLock = JSON.parse(fs.readFileSync(path.join(desktopRoot, 'package-lock.json'), 'utf8'));
 const mainSource = fs.readFileSync(path.join(desktopRoot, 'src', 'main.js'), 'utf8');
 const buildSource = fs.readFileSync(path.join(desktopRoot, 'scripts', 'build-renderer.mjs'), 'utf8');
 const securitySource = fs.readFileSync(path.join(desktopRoot, 'src', 'main', 'security.js'), 'utf8');
@@ -57,12 +58,30 @@ const backendAppSource = fs.readFileSync(
 );
 
 test('Windows package identity and artifact are canonical', () => {
-  assert.equal(packageJson.version, '2.0.2');
+  assert.equal(packageJson.version, '2.0.3');
   assert.equal(packageJson.author, 'EMMANUEL AYOMIDE OKUNLOLA');
   assert.equal(packageJson.build.productName, 'Echoo');
   assert.equal(packageJson.build.win.artifactName, 'Echoo-Setup-${version}-${arch}.${ext}');
   assert.deepEqual(packageJson.build.win.target[0].arch, ['x64']);
   assert.deepEqual(packageJson.build.protocols[0].schemes, ['echoo']);
+});
+
+test('desktop lockfile package versions match their registry tarballs', () => {
+  for (const [packagePath, entry] of Object.entries(packageLock.packages)) {
+    if (!entry?.resolved?.startsWith('https://registry.npmjs.org/') || !entry.version) continue;
+    const tarballName = decodeURIComponent(new URL(entry.resolved).pathname.split('/').pop());
+    assert.ok(
+      tarballName.endsWith(`-${entry.version}.tgz`),
+      `${packagePath} declares ${entry.version} but resolves ${tarballName}`
+    );
+  }
+});
+
+test('bundle verification does not hard-code a previous desktop release version', () => {
+  assert.doesNotMatch(buildSource, /Desktop package version must be 2\.0\.2/);
+  const verifierSource = fs.readFileSync(path.join(desktopRoot, 'scripts', 'verify-bundle.mjs'), 'utf8');
+  assert.match(verifierSource, /stable semantic version/);
+  assert.doesNotMatch(verifierSource, /packageJson\.version !== '2\.0\.2'/);
 });
 
 test('packaged runtime loads the local renderer from one private desktop origin', () => {
