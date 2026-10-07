@@ -363,6 +363,8 @@ test('splash uses the real Echoo mark as the restrained startup motion', () => {
   assert.doesNotMatch(splashCss, /infinite/);
   assert.match(splashPreload, /prefers-reduced-motion: reduce/);
   assert.match(splashPreload, /echoo:splash-intro-complete/);
+  assert.match(splashPreload, /event\.target !== mark/);
+  assert.match(splashPreload, /removeEventListener\('animationend', handleMarkAnimationEnd\)/);
   assert.match(mainSource, /width: 216,[\s\S]{0,100}height: 216,[\s\S]{0,120}transparent: true/);
   assert.match(mainSource, /backgroundColor: '#00000000'/);
 });
