@@ -29,6 +29,7 @@
     "production-apk": {
       "distribution": "internal",
       "environment": "production",
+      "autoIncrement": true,
       "android": {
         "buildType": "apk"
       },
