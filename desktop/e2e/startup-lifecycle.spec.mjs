@@ -92,31 +92,39 @@ test.describe('packaged startup lifecycle', () => {
         expect(splashPage).toBeTruthy();
         const splashVisual = await splashPage.evaluate(() => {
           const surface = document.querySelector('main');
+          const mark = document.querySelector('.echoo-mark');
           const primary = document.querySelector('.echoo-mark-primary');
           const surfaceStyle = getComputedStyle(surface);
+          const markStyle = getComputedStyle(mark);
           const primaryStyle = getComputedStyle(primary);
           return {
             visibleWordmark: document.querySelector('strong')?.textContent || '',
             ariaLabel: surface?.getAttribute('aria-label') || '',
-            surfaceBackground: surfaceStyle.backgroundColor,
+            surfaceBackgroundImage: surfaceStyle.backgroundImage,
             surfaceWidth: surfaceStyle.width,
             surfaceHeight: surfaceStyle.height,
-            animationDuration: primaryStyle.animationDuration,
-            animationName: primaryStyle.animationName,
+            markWidth: markStyle.width,
+            markAnimationDuration: markStyle.animationDuration,
+            markAnimationIterationCount: markStyle.animationIterationCount,
+            markAnimationName: markStyle.animationName,
+            primaryAnimationName: primaryStyle.animationName,
           };
         });
         expect(splashVisual).toMatchObject({
           visibleWordmark: '',
           ariaLabel: 'Echoo is opening',
-          surfaceBackground: 'rgb(247, 249, 252)',
-          surfaceWidth: '160px',
-          surfaceHeight: '160px',
-          animationDuration: '1.15s',
+          surfaceWidth: '192px',
+          surfaceHeight: '192px',
+          markWidth: '120px',
+          markAnimationDuration: '1.25s',
+          markAnimationIterationCount: '1',
+          markAnimationName: 'echoo-mark-arrive',
         });
-        expect(splashVisual.animationName).not.toBe('none');
+        expect(splashVisual.surfaceBackgroundImage).toContain('linear-gradient');
+        expect(splashVisual.primaryAnimationName).toBe('echoo-primary-settle');
 
         await splashPage.emulateMedia({ reducedMotion: 'reduce' });
-        const reducedMotionAnimation = await splashPage.locator('.echoo-mark-primary').evaluate(
+        const reducedMotionAnimation = await splashPage.locator('.echoo-mark').evaluate(
           (node) => getComputedStyle(node).animationName
         );
         expect(reducedMotionAnimation).toBe('none');

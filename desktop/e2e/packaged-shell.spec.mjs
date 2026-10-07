@@ -344,6 +344,43 @@ test.describe('packaged Echoo Windows shell', () => {
     expect(Number.parseFloat(reducedMotion.successAnimationDuration)).toBeLessThanOrEqual(0.001);
   });
 
+  test('minimizes, restores, maximizes, and returns to its saved desktop bounds', async () => {
+    const getMainWindowState = () => electronApp.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows().find((candidate) =>
+        candidate.webContents.getURL().startsWith('echoo-app://app/')
+      );
+      return {
+        minimized: window?.isMinimized() === true,
+        maximized: window?.isMaximized() === true,
+        visible: window?.isVisible() === true,
+      };
+    });
+
+    await electronApp.evaluate(({ BrowserWindow }) => {
+      BrowserWindow.getFocusedWindow()?.minimize();
+    });
+    await expect.poll(getMainWindowState).toMatchObject({ minimized: true });
+
+    await electronApp.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows().find((candidate) =>
+        candidate.webContents.getURL().startsWith('echoo-app://app/')
+      );
+      window?.restore();
+      window?.show();
+    });
+    await expect.poll(getMainWindowState).toEqual({ minimized: false, maximized: false, visible: true });
+
+    await electronApp.evaluate(({ BrowserWindow }) => {
+      BrowserWindow.getFocusedWindow()?.maximize();
+    });
+    await expect.poll(getMainWindowState).toMatchObject({ maximized: true, visible: true });
+
+    await electronApp.evaluate(({ BrowserWindow }) => {
+      BrowserWindow.getFocusedWindow()?.unmaximize();
+    });
+    await expect.poll(getMainWindowState).toEqual({ minimized: false, maximized: false, visible: true });
+  });
+
   test('keeps packaged renderer and native lifecycle diagnostics free of unresolved errors', async () => {
     await mainPage.waitForTimeout(500);
     expect(rendererErrors).toEqual([]);

@@ -70,12 +70,20 @@ function New-StartupTimingSample {
         [Parameter(Mandatory = $true)][int]$Run
     )
 
-    return [pscustomobject]@{
+    $sample = [pscustomobject]@{
         run = $Run
         appReadyMs = Get-StartupEventElapsedMs -Smoke $Smoke -EventName 'renderer-app-ready'
+        splashIntroCompleteMs = Get-StartupEventElapsedMs -Smoke $Smoke -EventName 'splash-intro-complete'
         mainVisibleMs = Get-StartupEventElapsedMs -Smoke $Smoke -EventName 'main-visible'
         splashDestroyedMs = Get-StartupEventElapsedMs -Smoke $Smoke -EventName 'splash-destroyed'
     }
+    if ($sample.mainVisibleMs -lt $sample.appReadyMs) {
+        throw "Installed Echoo revealed its main window before APP_READY on run $Run."
+    }
+    if ($sample.mainVisibleMs -lt $sample.splashIntroCompleteMs) {
+        throw "Installed Echoo revealed its main window before the splash intro settled on run $Run."
+    }
+    return $sample
 }
 
 function Get-TimingSummary {
@@ -111,6 +119,18 @@ try {
     $executablePath = Join-Path $installDirectory 'Echoo.exe'
     if (-not (Test-Path -LiteralPath $executablePath -PathType Leaf)) {
         throw "Installed Echoo executable is missing: $executablePath"
+    }
+
+    $desktopShortcutPath = Join-Path ([Environment]::GetFolderPath('Desktop')) 'Echoo.lnk'
+    $startMenuShortcutPath = Join-Path ([Environment]::GetFolderPath('Programs')) 'Echoo.lnk'
+    foreach ($shortcutPath in @($desktopShortcutPath, $startMenuShortcutPath)) {
+        if (-not (Test-Path -LiteralPath $shortcutPath -PathType Leaf)) {
+            throw "Echoo installer did not create the expected Windows shortcut: $shortcutPath"
+        }
+        $shortcut = (New-Object -ComObject WScript.Shell).CreateShortcut($shortcutPath)
+        if ([IO.Path]::GetFullPath($shortcut.TargetPath) -ne [IO.Path]::GetFullPath($executablePath)) {
+            throw "Echoo shortcut points to the wrong executable: $shortcutPath -> $($shortcut.TargetPath)"
+        }
     }
 
     # Protocol registration is an installer responsibility, not something the
@@ -218,6 +238,7 @@ try {
         executable = $executablePath
         runCount = $startupSamples.Count
         appReady = Get-TimingSummary -Values @($startupSamples | ForEach-Object { $_.appReadyMs })
+        splashIntroComplete = Get-TimingSummary -Values @($startupSamples | ForEach-Object { $_.splashIntroCompleteMs })
         mainVisible = Get-TimingSummary -Values @($startupSamples | ForEach-Object { $_.mainVisibleMs })
         splashDestroyed = Get-TimingSummary -Values @($startupSamples | ForEach-Object { $_.splashDestroyedMs })
         runs = $startupSamples
@@ -225,6 +246,43 @@ try {
     $startupTimingReport | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $startupTimingReportPath
     Write-Host "Verified 5 installed Echoo cold starts with zero surviving splash windows."
     Write-Host "Installed startup timings: $($startupTimingReport | ConvertTo-Json -Compress -Depth 5)"
+
+    # Launch the actual links users click from Windows rather than assuming
+    # electron-builder created usable shortcuts because package.json asked for
+    # them. Each shortcut must reach the same local renderer and exit cleanly.
+    foreach ($shortcutPath in @($desktopShortcutPath, $startMenuShortcutPath)) {
+        Remove-Item -LiteralPath $markerPath -Force -ErrorAction SilentlyContinue
+        $env:ECHOO_DESKTOP_SMOKE_TEST = '1'
+        $env:ELECTRON_RUN_AS_NODE = $null
+        $env:ECHOO_DISABLE_UPDATES = '1'
+        try {
+            $shortcutApplication = Start-Process -FilePath $shortcutPath -PassThru -WindowStyle Hidden
+        } finally {
+            $env:ECHOO_DESKTOP_SMOKE_TEST = $previousSmokeValue
+            $env:ELECTRON_RUN_AS_NODE = $previousRunAsNodeValue
+            $env:ECHOO_DISABLE_UPDATES = $previousUpdateValue
+        }
+        try {
+            Wait-Process -Id $shortcutApplication.Id -Timeout 45 -ErrorAction Stop
+        } catch {
+            Stop-Process -Id $shortcutApplication.Id -Force -ErrorAction SilentlyContinue
+            throw "Installed Echoo shortcut launch did not complete within 45 seconds: $shortcutPath"
+        }
+        if (-not (Test-Path -LiteralPath $markerPath -PathType Leaf)) {
+            throw "Installed Echoo shortcut did not create its smoke marker: $shortcutPath"
+        }
+        $shortcutSmoke = Get-Content -Raw -LiteralPath $markerPath | ConvertFrom-Json
+        if (
+            $shortcutSmoke.passed -ne $true -or
+            $shortcutSmoke.protocol -ne 'echoo-app:' -or
+            $shortcutSmoke.identity -ne 'echoo-frontend' -or
+            $shortcutSmoke.browserWindowCount -ne 1 -or
+            $shortcutSmoke.splashWindowCount -ne 0
+        ) {
+            throw "Installed Echoo shortcut failed its local-renderer smoke test: $($shortcutSmoke | ConvertTo-Json -Compress)"
+        }
+    }
+    Write-Host 'Verified installed Echoo launches from Desktop and Start-menu shortcuts.'
 
     # An upgrade or uninstall must not erase account state or the user's only
     # local recording copy. Place canaries in the actual paths reported by the
@@ -386,6 +444,30 @@ try {
     }
     if ($recordingSentinelPath -and -not (Test-Path -LiteralPath $recordingSentinelPath -PathType Leaf)) {
         $preservationFailures += 'Echoo uninstall removed the local recording library.'
+    }
+    if (
+        $userDataSentinelPath -and
+        $recordingSentinelPath -and
+        $preservationFailures.Count -eq 0
+    ) {
+        $reinstall = Start-Process -FilePath $installerPath -ArgumentList @('/S', "/D=$installDirectory") -Wait -PassThru -WindowStyle Hidden
+        if ($reinstall.ExitCode -ne 0) {
+            $preservationFailures += "Echoo reinstall exited with code $($reinstall.ExitCode)."
+        } elseif (-not (Test-Path -LiteralPath (Join-Path $installDirectory 'Echoo.exe') -PathType Leaf)) {
+            $preservationFailures += 'Echoo reinstall did not restore the installed application.'
+        } elseif (
+            -not (Test-Path -LiteralPath $userDataSentinelPath -PathType Leaf) -or
+            -not (Test-Path -LiteralPath $recordingSentinelPath -PathType Leaf)
+        ) {
+            $preservationFailures += 'Echoo reinstall did not preserve user data and local recordings.'
+        } else {
+            Write-Host 'Verified uninstall and reinstall preserve Echoo user data and local recordings.'
+        }
+
+        $reinstalledUninstallerPath = Join-Path $installDirectory 'Uninstall Echoo.exe'
+        if (Test-Path -LiteralPath $reinstalledUninstallerPath -PathType Leaf) {
+            Start-Process -FilePath $reinstalledUninstallerPath -ArgumentList '/S' -Wait -WindowStyle Hidden
+        }
     }
     if ($userDataSentinelPath) {
         Remove-Item -LiteralPath $userDataSentinelPath -Force -ErrorAction SilentlyContinue
