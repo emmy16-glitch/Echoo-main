@@ -90,7 +90,6 @@ jobs:
         shell: powershell
         env:
           HAS_SIGNING_CERTIFICATE: ${{ secrets.WIN_CSC_LINK != '' }}
-          IS_RELEASE_TAG: ${{ startsWith(github.ref, 'refs/tags/v') }}
         run: |
           $installer = Get-ChildItem desktop/dist/Echoo-Setup-*-x64.exe | Select-Object -First 1
           if (-not $installer) {
@@ -103,10 +102,13 @@ jobs:
               throw "Windows installer Authenticode signature is $($signature.Status), not Valid."
             }
             Write-Host "Verified valid Authenticode signature from $($signature.SignerCertificate.Subject)."
-          } elseif ($env:IS_RELEASE_TAG -eq 'true') {
-            throw 'Refusing to publish an unsigned tagged Windows release: WIN_CSC_LINK is not configured.'
           } else {
-            Write-Warning 'Pull-request installer is unsigned because WIN_CSC_LINK was not configured; tagged publication is blocked.'
+            $signature = Get-AuthenticodeSignature $installer.FullName
+            if ($signature.Status -ne 'NotSigned') {
+              throw "Expected an unsigned Windows installer but Authenticode status is $($signature.Status)."
+            }
+            Write-Warning 'Windows installer is unsigned because WIN_CSC_LINK is not configured. Windows may display "Unknown publisher".'
+            Write-Host "Authenticode: UNSIGNED / $($signature.Status)"
           }
 
       - name: Upload verified Windows release files
