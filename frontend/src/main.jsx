@@ -60,6 +60,7 @@ import "./styles/echoo-artwork-fit.css";
 import "./Components/Register/auth-reference.css";
 import "./styles/modal-viewport-contract.css";
 import "./styles/echoo-desktop-runtime.css";
+import "./Components/CreatorStudio/CreatorShellResponsiveContract.css";
 
 if (
   typeof window !== 'undefined' &&

@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld('echooDesktop', {
   appReady: () => ipcRenderer.send(APP_READY_CHANNEL),
 
   getAppInfo: () => ipcRenderer.invoke('echoo:get-app-info'),
+  getMicrophoneAccessStatus: () => ipcRenderer.invoke('echoo:get-microphone-access-status'),
   reload: () => ipcRenderer.invoke('echoo:reload'),
   restart: () => ipcRenderer.invoke('echoo:restart'),
   openLogsFolder: () => ipcRenderer.invoke('echoo:open-logs-folder'),

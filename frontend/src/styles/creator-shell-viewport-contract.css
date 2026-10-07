@@ -6,7 +6,7 @@
  * selectors so every Creator route uses one stable, compact frame.
  */
 
-@media (min-width: 761px) {
+@media (min-width: 721px) {
   html body #root#root .studio-page.studio-final-shell.studio-v2-shell {
     --studio-sidebar-width: 204px !important;
     --creator-shell-sidebar-width: 204px !important;
@@ -90,16 +90,16 @@
   }
 }
 
-@media (min-width: 761px) and (max-width: 1100px) {
+@media (min-width: 721px) and (max-width: 1023px) {
   html body #root#root .studio-page.studio-final-shell.studio-v2-shell {
-    --studio-sidebar-width: 190px !important;
-    --creator-shell-sidebar-width: 190px !important;
-    grid-template-columns: 190px minmax(0, 1fr) !important;
+    --studio-sidebar-width: 196px !important;
+    --creator-shell-sidebar-width: 196px !important;
+    grid-template-columns: 196px minmax(0, 1fr) !important;
   }
 
   html body #root#root .studio-page.studio-final-shell.studio-v2-shell > .studio-sidebar {
-    width: 190px !important;
-    min-width: 190px !important;
+    width: 196px !important;
+    min-width: 196px !important;
   }
 
   html body #root#root #echoo-main-content.studio-main > .studio-view {
@@ -108,7 +108,7 @@
   }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 720px) {
   html body #root#root .studio-page.studio-final-shell.studio-v2-shell {
     --studio-sidebar-width: 0px !important;
     display: block !important;
@@ -315,7 +315,7 @@
 
 /* Shared mobile topbar geometry with Listener. Keep logo, mode switch,
  * notification and avatar on one line in the same positions. */
-@media (max-width: 760px) {
+@media (max-width: 720px) {
   html body #root#root #echoo-main-content.studio-main > .studio-topbar-final,
   html body #root#root .studio-page.studio-final-shell.studio-v2-shell:has(.studio-view > .ec2-broadcast) #echoo-main-content.studio-main > .studio-topbar-final {
     width: 100% !important;
@@ -420,7 +420,7 @@
  * Android split/floating windows can expose a CSS viewport wider than the
  * visible content area. Prefer the mobile Creator shell for touch surfaces
  * until there is genuinely enough room for a sidebar. */
-@media (max-width: 900px), (pointer: coarse) and (max-width: 1180px) {
+@media (max-width: 720px), (pointer: coarse) and (max-width: 720px) {
   html body #root#root .studio-page.studio-final-shell.studio-v2-shell {
     --studio-sidebar-width: 0px !important;
     --creator-shell-sidebar-width: 0px !important;

@@ -46,6 +46,10 @@ const viewports = [
   { width: 375, height: 812 },
   { width: 390, height: 844 },
   { width: 412, height: 915 },
+  { width: 720, height: 900 },
+  { width: 721, height: 900 },
+  { width: 760, height: 900 },
+  { width: 761, height: 900 },
   { width: 768, height: 1024 },
   { width: 820, height: 1180 },
   { width: 1024, height: 768 },
@@ -143,6 +147,14 @@ test('Broadcast workstation compacts cleanly across the complete viewport matrix
     const label = `${viewport.width}x${viewport.height}`;
 
     expect(layout.overflow, `${label} has no document-level horizontal overflow`).toBe(false);
+    if (viewport.width <= 720) {
+      expect(layout.sidebar?.height, `${label} uses a bottom navigation rail`).toBeLessThanOrEqual(90);
+      expect(layout.sidebar?.bottom, `${label} keeps mobile navigation at the viewport bottom`).toBeLessThanOrEqual(viewport.height);
+    } else {
+      expect(layout.sidebar?.left, `${label} keeps the desktop rail at the viewport edge`).toBe(0);
+      expect(layout.sidebar?.width, `${label} keeps a usable labelled sidebar width`).toBeGreaterThanOrEqual(196);
+      expect(layout.sidebar?.width, `${label} keeps the sidebar compact at desktop sizes`).toBeLessThanOrEqual(244);
+    }
     if (viewport.width >= 600) {
       expect(layout.cardWidths.every((width) => width <= 326), `${label} cards remain naturally capped`).toBe(true);
     }

@@ -1,0 +1,161 @@
+/* One owner for Creator frame geometry. Workspace CSS controls its contents;
+   this file controls only the shared sidebar, main canvas and mobile rail. */
+.studio-page.studio-final-shell.studio-v2-shell {
+  --creator-shell-sidebar-width: 244px;
+  min-width: 0;
+}
+
+@media (min-width: 721px) {
+  html body #root#root .studio-page.studio-final-shell.studio-v2-shell {
+    --creator-shell-sidebar-width: 244px !important;
+    display: grid !important;
+    grid-template-columns: var(--creator-shell-sidebar-width) minmax(0, 1fr) !important;
+    width: 100% !important;
+    height: 100dvh !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+  }
+
+  html body #root#root .studio-page.studio-final-shell.studio-v2-shell > .studio-sidebar {
+    position: fixed !important;
+    inset: 0 auto 0 0 !important;
+    grid-column: 1 !important;
+    width: var(--creator-shell-sidebar-width) !important;
+    min-width: var(--creator-shell-sidebar-width) !important;
+    max-width: var(--creator-shell-sidebar-width) !important;
+    height: 100dvh !important;
+    overflow: hidden !important;
+  }
+
+  html body #root#root .studio-page.studio-final-shell.studio-v2-shell > .studio-main {
+    grid-column: 2 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    height: 100dvh !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    overflow-x: clip !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+  }
+
+  html body #root#root .studio-page.studio-final-shell.studio-v2-shell .studio-topbar-final {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 70 !important;
+  }
+
+  html body #root#root .studio-page.studio-final-shell.studio-v2-shell .studio-navigation .studio-nav-label,
+  html body #root#root .studio-page.studio-final-shell.studio-v2-shell .studio-navigation .studio-nav-item > span:last-child {
+    display: block !important;
+  }
+}
+
+/* Keep a labelled rail through the narrow desktop/tablet range. The next
+   structural change is mobile navigation at 720px. */
+@media (min-width: 721px) and (max-width: 1023px) {
+  html body #root#root .studio-page.studio-final-shell.studio-v2-shell {
+    --creator-shell-sidebar-width: 196px !important;
+  }
+}
+
+@media (max-width: 720px) {
+  html body #root#root .studio-page.studio-final-shell.studio-v2-shell {
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 100svh !important;
+    padding: 0 0 calc(72px + env(safe-area-inset-bottom, 0px)) !important;
+    overflow-x: clip !important;
+    overflow-y: visible !important;
+  }
+
+  html body #root#root .studio-page.studio-final-shell.studio-v2-shell > .studio-sidebar {
+    position: fixed !important;
+    inset: auto 0 0 0 !important;
+    z-index: 120 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    height: calc(72px + env(safe-area-inset-bottom, 0px)) !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+  }
+
+  html body #root#root .studio-page.studio-final-shell.studio-v2-shell > .studio-sidebar > .studio-sidebar-head,
+  html body #root#root .studio-page.studio-final-shell.studio-v2-shell > .studio-sidebar > .studio-sidebar-profile-wrap,
+  html body #root#root .studio-page.studio-final-shell.studio-v2-shell > .studio-sidebar > .studio-sidebar-watermark {
+    display: none !important;
+  }
+
+  html body #root#root .studio-page.studio-final-shell.studio-v2-shell > .studio-sidebar > .studio-navigation {
+    position: absolute !important;
+    inset: auto 8px calc(5px + env(safe-area-inset-bottom, 0px)) !important;
+    display: flex !important;
+    width: auto !important;
+    max-width: none !important;
+    height: 62px !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scrollbar-width: none;
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  html body #root#root .studio-page.studio-final-shell.studio-v2-shell > .studio-sidebar > .studio-navigation::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  html body #root#root .studio-page.studio-final-shell.studio-v2-shell > .studio-sidebar > .studio-navigation > .studio-navigation-track {
+    display: flex !important;
+    flex: 0 0 auto !important;
+    width: max-content !important;
+    min-width: max-content !important;
+    gap: 3px !important;
+  }
+
+  html body #root#root .studio-page.studio-final-shell.studio-v2-shell > .studio-sidebar .studio-nav-item {
+    display: grid !important;
+    flex: 0 0 80px !important;
+    width: 80px !important;
+    min-width: 80px !important;
+    max-width: 80px !important;
+    height: 60px !important;
+    min-height: 60px !important;
+    justify-items: center !important;
+    align-content: center !important;
+    gap: 4px !important;
+    padding: 4px 3px !important;
+    text-align: center !important;
+  }
+
+  html body #root#root .studio-page.studio-final-shell.studio-v2-shell .studio-navigation .studio-nav-label,
+  html body #root#root .studio-page.studio-final-shell.studio-v2-shell .studio-navigation .studio-nav-item > span:last-child {
+    display: block !important;
+    max-width: 76px !important;
+    white-space: normal !important;
+  }
+
+  html body #root#root .studio-page.studio-final-shell.studio-v2-shell > .studio-main {
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 100svh !important;
+    margin: 0 !important;
+    overflow: visible !important;
+  }
+
+  html body #root#root .studio-page.studio-final-shell.studio-v2-shell > .studio-main > .studio-topbar-final {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 70 !important;
+    min-height: 60px !important;
+    height: 60px !important;
+  }
+}

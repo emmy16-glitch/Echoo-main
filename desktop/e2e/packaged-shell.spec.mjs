@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { _electron as electron } from 'playwright';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -15,6 +16,7 @@ test.describe('packaged Echoo Windows shell', () => {
 
   let electronApp;
   let mainPage;
+  let testUserDataPath;
   const rendererErrors = [];
   const nativeDiagnostics = [];
 
@@ -36,9 +38,10 @@ test.describe('packaged Echoo Windows shell', () => {
     // it to the packaged executable turns Echoo into a Node process instead of
     // launching Chromium, so strip it at the native application boundary.
     const { ELECTRON_RUN_AS_NODE: _electronRunAsNode, ...launchEnvironment } = process.env;
+    testUserDataPath = mkdtempSync(path.join(tmpdir(), 'echoo-packaged-shell-'));
     electronApp = await electron.launch({
       executablePath,
-      args: ['echoo://listen'],
+      args: [`--user-data-dir=${testUserDataPath}`, 'echoo://listen'],
       env: {
         ...launchEnvironment,
         ECHOO_DISABLE_UPDATES: '1',
@@ -93,6 +96,7 @@ test.describe('packaged Echoo Windows shell', () => {
 
   test.afterAll(async () => {
     await electronApp?.close().catch(() => {});
+    if (testUserDataPath) rmSync(testUserDataPath, { recursive: true, force: true });
   });
 
   test('uses the local renderer and secure desktop bridge', async () => {

@@ -18,6 +18,7 @@ const {
   protocol,
   desktopCapturer,
   session,
+  systemPreferences,
   net: electronNet,
 } = require('electron');
 const path = require('node:path');
@@ -1948,6 +1949,16 @@ function registerIpc() {
     const route = pendingDeepLink;
     pendingDeepLink = null;
     return route;
+  });
+
+  handleTrustedIpc('echoo:get-microphone-access-status', async () => {
+    if (process.platform !== 'win32' && process.platform !== 'darwin') return 'unknown';
+    try {
+      return systemPreferences.getMediaAccessStatus('microphone') || 'unknown';
+    } catch (error) {
+      log.warn('[echoo-desktop] microphone status check failed:', error.message);
+      return 'unknown';
+    }
   });
 
   handleTrustedIpc('echoo:get-app-info', async () => {

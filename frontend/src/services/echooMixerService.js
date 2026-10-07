@@ -795,13 +795,18 @@ const normalizedMicConstraints = (audioConstraints) => ({
 // the original error as the cause, but give a Creator a recovery step that
 // matches the runtime instead of exposing the unhelpful "Permission denied by
 // system" text.
-export const describeMicrophoneAccessError = (error) => {
+export const describeMicrophoneAccessError = (error, { desktop = false, systemStatus = 'unknown' } = {}) => {
   const name = String(error?.name || '');
-  const isDesktop = typeof window !== 'undefined' && window.echooDesktop?.isDesktop === true;
   if (name === 'NotAllowedError' || name === 'SecurityError') {
-    return isDesktop
-      ? 'Microphone access is blocked by Echoo or Windows. In Windows Settings > Privacy & security > Microphone, turn on Microphone access and Let desktop apps access your microphone, then allow Echoo and retry.'
-      : 'Microphone permission is blocked. Allow microphone access for Echoo in your browser site settings, then retry.';
+    if (!desktop) {
+      return 'Microphone permission is blocked. Allow microphone access for Echoo in your browser site settings, then retry.';
+    }
+    if (systemStatus === 'denied' || systemStatus === 'restricted') {
+      return 'Windows microphone privacy is blocking Echoo. In Windows Settings > Privacy & security > Microphone, turn on Microphone access and Let desktop apps access your microphone, then restart Echoo.';
+    }
+    return systemStatus === 'granted'
+      ? 'Windows reports microphone access is allowed, but Echoo’s audio permission was rejected. Restart Echoo and retry. If it continues, open Echoo Settings > Diagnostics and share the desktop log with support.'
+      : 'Echoo could not confirm Windows microphone permission. In Windows Settings > Privacy & security > Microphone, turn on Microphone access and Let desktop apps access your microphone, then restart Echoo.';
   }
   if (name === 'NotFoundError') return 'No microphone was found. Connect or enable an input device, then retry.';
   if (name === 'NotReadableError' || name === 'TrackStartError') return 'This microphone is busy or unavailable. Close another app using it, then retry.';
@@ -814,7 +819,16 @@ const requestMicrophone = async (constraints) => {
   try {
     return await navigator.mediaDevices.getUserMedia(constraints);
   } catch (error) {
-    throw new Error(describeMicrophoneAccessError(error), { cause: error });
+    const desktop = typeof window !== 'undefined' && window.echooDesktop?.isDesktop === true;
+    let systemStatus = 'unknown';
+    if (desktop) {
+      try {
+        systemStatus = await window.echooDesktop.getMicrophoneAccessStatus?.() || 'unknown';
+      } catch {
+        systemStatus = 'unknown';
+      }
+    }
+    throw new Error(describeMicrophoneAccessError(error, { desktop, systemStatus }), { cause: error });
   }
 };
 

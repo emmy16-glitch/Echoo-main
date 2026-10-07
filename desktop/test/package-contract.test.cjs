@@ -58,7 +58,7 @@ const backendAppSource = fs.readFileSync(
 );
 
 test('Windows package identity and artifact are canonical', () => {
-  assert.equal(packageJson.version, '2.0.3');
+  assert.equal(packageJson.version, '2.0.4');
   assert.equal(packageJson.author, 'EMMANUEL AYOMIDE OKUNLOLA');
   assert.equal(packageJson.build.productName, 'Echoo');
   assert.equal(packageJson.build.win.artifactName, 'Echoo-Setup-${version}-${arch}.${ext}');
@@ -853,8 +853,13 @@ test('packaged startup uses an explicit, idempotent renderer-ready handshake', (
 
   assert.match(mainSource, /async function revealMainWindowWhenReady\(\)/);
   assert.match(preloadSource, /appReady:\s*\(\)\s*=>\s*ipcRenderer\.send\(APP_READY_CHANNEL\)/);
+  assert.match(preloadSource, /getMicrophoneAccessStatus:\s*\(\)\s*=>\s*ipcRenderer\.invoke\('echoo:get-microphone-access-status'\)/);
+  assert.match(mainSource, /echoo:get-microphone-access-status[\s\S]{0,250}getMediaAccessStatus\('microphone'\)/);
   assert.match(rendererSource, /<DesktopAppReady \/>[\s\S]{0,160}<AppErrorBoundary>/);
   assert.match(rendererReadySource, /function DesktopAppReady\(\)[\s\S]*echooDesktop\?\.appReady\?\.\(\)/);
+  assert.match(rendererReadySource, /const firstFrame = requestAnimationFrame/);
+  assert.match(rendererReadySource, /secondFrame = requestAnimationFrame\(\(\) => window\.echooDesktop\?\.appReady/);
+  assert.doesNotMatch(rendererReadySource, /MutationObserver/);
   assert.match(mainSource, /ipcMain\.on\('echoo:app-ready'[\s\S]*rendererLifecyclePhase !== 'renderer-loading'[\s\S]*revealMainWindowWhenReady/);
   assert.doesNotMatch(mainSource, /executeJavaScript\([\s\S]{0,200}#root/);
   assert.match(mainSource, /ECHOO_STARTUP_READY_TIMEOUT_MS \|\| '20000'/);

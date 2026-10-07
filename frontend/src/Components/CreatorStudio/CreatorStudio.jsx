@@ -16,6 +16,7 @@ import './CreatorStudioShellFinal.css';
 import './CreatorStudioV2Shell.css';
 import './CreatorStudioShellArchitecture.css';
 import '../../styles/creator-shell-viewport-contract.css';
+import './CreatorShellResponsiveContract.css';
 import echooLogo from '../Assets/echoo-logo-mark.png';
 import echooDecorativeLogo from '../Assets/echoo-logo.png';
 import studioService from '../../services/studioService';

@@ -2,7 +2,14 @@ import { useEffect } from "react";
 
 export default function DesktopAppReady() {
   useEffect(() => {
-    window.echooDesktop?.appReady?.();
+    let secondFrame = 0;
+    const firstFrame = requestAnimationFrame(() => {
+      secondFrame = requestAnimationFrame(() => window.echooDesktop?.appReady?.());
+    });
+    return () => {
+      cancelAnimationFrame(firstFrame);
+      if (secondFrame) cancelAnimationFrame(secondFrame);
+    };
   }, []);
 
   return null;

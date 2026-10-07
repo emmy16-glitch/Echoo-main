@@ -103,7 +103,7 @@ test('Creator Studio sidebar stays pinned while long studio routes scroll', asyn
   await page.goto('/creator-studio');
 
   const sidebar = page.locator('.studio-final-shell > .studio-sidebar');
-  if (page.viewportSize().width <= 760) {
+  if (page.viewportSize().width <= 720) {
     await expect(sidebar).toBeVisible();
     await expect(sidebar).toHaveCSS('position', 'fixed');
     return;
