@@ -6,6 +6,7 @@ import { api } from '../../services/api';
 import {
   hasCompletedCreatorProfile,
   hasCreatorCapability,
+  resolveCachedExperienceSwitch,
   resolveExperienceSwitch,
 } from '../../services/accountExperience';
 import './AccountExperienceMenu.css';
@@ -100,6 +101,16 @@ export default function AccountExperienceMenu({
 
   const switchExperience = async (targetExperience) => {
     if (switching) return;
+    const cachedResult = resolveCachedExperienceSwitch(targetExperience, user);
+    if (cachedResult) {
+      // Navigate in the click handler.  In particular, do not put a network
+      // request between the selected control and the destination shell.
+      localStorage.setItem('echooActiveExperience', targetExperience);
+      onUserChange?.(cachedResult.user);
+      setOpen(false);
+      navigate(cachedResult.route, { replace: true });
+      return;
+    }
     try {
       setSwitching(true);
       setError('');

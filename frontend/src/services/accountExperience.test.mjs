@@ -7,6 +7,7 @@ import {
   hasCreatorCapability,
   hasListenerProfile,
 } from './accountCapabilities.js';
+import { resolveCachedExperienceSwitch } from './accountExperience.js';
 
 const listener = {
   id: 'user-1',
@@ -71,4 +72,24 @@ test('legacy flattened creatorType remains accepted during migration', () => {
   };
 
   assert.equal(hasCompletedCreatorProfile(readyLegacy), true);
+});
+
+test('a completed account switches experiences without an auth request', () => {
+  const ready = {
+    ...listener,
+    userType: 'creator',
+    roles: ['listener', 'creator'],
+    creatorProfile: { creatorType: 'individual' },
+  };
+
+  assert.deepEqual(resolveCachedExperienceSwitch('listener', ready), {
+    user: ready,
+    route: '/listen',
+    requiresSetup: false,
+  });
+  assert.deepEqual(resolveCachedExperienceSwitch('creator', ready), {
+    user: ready,
+    route: '/creator-studio',
+    requiresSetup: false,
+  });
 });

@@ -18,6 +18,27 @@ export {
 
 const currentUserFromResponse = (response) => response?.data?.user || response?.data || null;
 
+// A mode change is a client-side navigation, not an authentication event.  The
+// signed-in user that already owns the current shell is sufficient to move
+// between the two experiences when both profiles are complete.  Keep this
+// decision separate from the network-backed setup path below so switching
+// never waits on /auth/me during a healthy session.
+export const resolveCachedExperienceSwitch = (targetExperience, cachedUser) => {
+  if (!['creator', 'listener'].includes(targetExperience) || !cachedUser || typeof cachedUser !== 'object') {
+    return null;
+  }
+
+  if (targetExperience === 'listener' && hasListenerProfile(cachedUser)) {
+    return { user: cachedUser, route: '/listen', requiresSetup: false };
+  }
+
+  if (targetExperience === 'creator' && hasCompletedCreatorProfile(cachedUser)) {
+    return { user: cachedUser, route: '/creator-studio', requiresSetup: false };
+  }
+
+  return null;
+};
+
 export const saveAccountUser = (user) => {
   if (!user || typeof user !== 'object') return null;
 
@@ -42,6 +63,12 @@ export const resolveExperienceSwitch = async (
 ) => {
   if (!['creator', 'listener'].includes(targetExperience)) {
     throw new Error('Unsupported Echoo experience.');
+  }
+
+  const cachedResult = resolveCachedExperienceSwitch(targetExperience, readStoredAccountUser());
+  if (cachedResult) {
+    localStorage.setItem('echooActiveExperience', targetExperience);
+    return cachedResult;
   }
 
   const currentResponse = await loadCurrentUser();
@@ -82,4 +109,14 @@ export const resolveExperienceSwitch = async (
     route: '/creator-studio',
     requiresSetup: true,
   };
+};
+
+const readStoredAccountUser = () => {
+  if (typeof localStorage === 'undefined') return null;
+  try {
+    const value = JSON.parse(localStorage.getItem('user') || 'null');
+    return value && typeof value === 'object' ? value : null;
+  } catch {
+    return null;
+  }
 };
