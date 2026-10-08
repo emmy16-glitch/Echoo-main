@@ -249,8 +249,8 @@ const CreatorLiveConnectedWorkspace = ({
             activeBroadcast.realtimeAudio?.qualityProfile || getSavedRealtimeAudioProfile()
           ));
           setStationId(entityId(realStations[0]));
-          setTitle(activeBroadcast.title || realStations[0]?.name || '');
-          setDescription(activeBroadcast.description || realStations[0]?.description || '');
+          setTitle(activeBroadcast.title || '');
+          setDescription(activeBroadcast.description || '');
           clearPreparedBroadcast();
           return;
         }
@@ -265,8 +265,8 @@ const CreatorLiveConnectedWorkspace = ({
           setCurrentLiveBroadcast(null);
           setSavedBroadcast(null);
           setStationId(entityId(realStations[0]));
-          setTitle(realStations[0]?.name || endingBroadcast.title || '');
-          setDescription(realStations[0]?.description || endingBroadcast.description || '');
+          setTitle('');
+          setDescription('');
           clearPreparedBroadcast();
           setMessage('Broadcast ended. Your recording is being prepared in the background.');
           void batch3Service.recoverBroadcast(endingBroadcast.id).then(() => {
@@ -284,8 +284,8 @@ const CreatorLiveConnectedWorkspace = ({
             interruptedStart.realtimeAudio?.qualityProfile || getSavedRealtimeAudioProfile()
           ));
           setStationId(entityId(realStations[0]));
-          setTitle(interruptedStart.title || realStations[0]?.name || '');
-          setDescription(interruptedStart.description || realStations[0]?.description || '');
+          setTitle(interruptedStart.title || '');
+          setDescription(interruptedStart.description || '');
           sessionStorage.setItem('echooPreparedBroadcastId', String(interruptedStart.id));
           setMessage('Your previous live start was interrupted. Your workstation is ready to reconnect.');
           return;
@@ -317,8 +317,8 @@ const CreatorLiveConnectedWorkspace = ({
               prepared.realtimeAudio?.qualityProfile || getSavedRealtimeAudioProfile()
             ));
             setStationId(entityId(realStations[0]));
-            setTitle(prepared.title || realStations[0]?.name || '');
-            setDescription(prepared.description || realStations[0]?.description || '');
+            setTitle(prepared.title || '');
+            setDescription(prepared.description || '');
             return;
           }
 
@@ -327,8 +327,8 @@ const CreatorLiveConnectedWorkspace = ({
 
         const canonicalStation = realStations[0] || null;
         setStationId(entityId(canonicalStation));
-        setTitle(canonicalStation?.name || '');
-        setDescription(canonicalStation?.description || '');
+        setTitle('');
+        setDescription('');
         bootstrapRetryRef.current = 0;
       } catch (loadError) {
         if (active) {
@@ -698,8 +698,7 @@ const CreatorLiveConnectedWorkspace = ({
 
     if (canonicalStation) {
       setBootstrapError('');
-      setTitle((current) => current.trim() || canonicalStation.name || '');
-      setDescription((current) => current.trim() || canonicalStation.description || '');
+      // Reloading Channel identity must never fill the broadcast title or description.
     }
 
     return canonicalStation;
@@ -710,12 +709,6 @@ const CreatorLiveConnectedWorkspace = ({
     [stations]
   );
 
-  useEffect(() => {
-    if (!selectedStation || savedBroadcast?.id || currentLiveBroadcast?.id) return;
-    setTitle(selectedStation.name || '');
-    setDescription(selectedStation.description || '');
-  }, [selectedStation, savedBroadcast?.id, currentLiveBroadcast?.id]);
-
   const prepareImmediateBroadcast = async (
     snapshot = getEchooMixerState(),
     stationOverride = null
@@ -725,7 +718,7 @@ const CreatorLiveConnectedWorkspace = ({
     if (savedBroadcast?.id && savedBroadcast.status !== 'live') {
       try {
         const response = await batch2Service.updateBroadcast(savedBroadcast.id, {
-          title: title.trim(),
+          title: title.trim() || savedBroadcast.title || 'Live broadcast',
           description: description.trim(),
           ...audioSnapshot,
         });
@@ -750,7 +743,7 @@ const CreatorLiveConnectedWorkspace = ({
     const start = new Date(Date.now() + 10 * 60 * 1000);
     const end = new Date(start.getTime() + 4 * 60 * 60 * 1000);
     const response = await batch2Service.createBroadcast({
-      title: title.trim() || station.name || 'Live broadcast',
+      title: title.trim() || 'Live broadcast',
       description: description.trim(),
       stationId: entityId(station),
       startTime: start.toISOString(),
@@ -1465,6 +1458,22 @@ const CreatorLiveConnectedWorkspace = ({
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {!isLive && heroState !== 'ending' && (
+        <div className="ec2-broadcast-identity" aria-label="This broadcast">
+          <label htmlFor="ec2-broadcast-title">Broadcast title</label>
+          <input
+            id="ec2-broadcast-title"
+            type="text"
+            maxLength={200}
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            placeholder="e.g. Tuesday Bible Study - 06th Oct, 2026"
+            disabled={goingLive || ending}
+          />
+          <p>Title for this livestream only. Your Channel name stays {liveStation?.name || 'unchanged'}.</p>
         </div>
       )}
 
