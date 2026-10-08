@@ -467,8 +467,8 @@ const CreatorStationsWorkspace = ({ onNavigate, onOpenRecording }) => {
 
               <div className="est-channel-primary-actions">
                 <button type="button" onClick={openEdit}><FaEdit /> Edit Channel</button>
-                <button type="button" className="est-prepare-broadcast" onClick={() => onNavigate?.('Broadcast')}>
-                  <FaBroadcastTower /> Prepare broadcast
+                <button type="button" className="primary est-prepare-broadcast" onClick={() => onNavigate?.('Broadcast')}>
+                  <FaBroadcastTower /> Set broadcast title
                 </button>
               </div>
               <p className="est-channel-title-hint">Your Channel name stays the same. Set a different title for each service in Broadcast before going live.</p>
