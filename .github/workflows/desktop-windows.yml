@@ -146,7 +146,7 @@ jobs:
           for ($attempt = 0; $attempt -lt 120; $attempt++) {
             $payload = gh api "repos/$env:GITHUB_REPOSITORY/actions/runs?head_sha=$env:GITHUB_SHA&per_page=100"
             if ($LASTEXITCODE -ne 0) { throw 'Unable to verify required checks.' }
-            $allRuns = ($payload | ConvertFrom-Json).workflow_runs
+            $allRuns = (($payload -join "`n") | ConvertFrom-Json).workflow_runs
             $found = @()
             foreach ($name in $required) {
               $run = $allRuns | Where-Object { $_.name -eq $name -and $_.head_sha -eq $env:GITHUB_SHA } |
@@ -170,7 +170,7 @@ jobs:
           $tag = "v$($package.version)"
           $releaseJson = gh release list --repo $env:GITHUB_REPOSITORY --json tagName --limit 100
           if ($LASTEXITCODE -ne 0) { throw 'Unable to inspect existing GitHub releases.' }
-          $existing = $releaseJson | ConvertFrom-Json
+          $existing = ($releaseJson -join "`n") | ConvertFrom-Json
           if (@($existing | Where-Object { $_.tagName -eq $tag }).Count -gt 0) {
             Write-Host "$tag already exists; leaving it unchanged."
             exit 0
