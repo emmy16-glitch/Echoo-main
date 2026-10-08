@@ -1,3 +1,5 @@
+import { clearPrivateNavigationData } from './navigationDataCache.js';
+
 const configuredApiBase = String(import.meta.env?.VITE_API_URL || '')
   .trim()
   .replace(/\/$/, '');
@@ -93,6 +95,7 @@ const AUTH_LOCAL_STORAGE_KEYS = [
 ];
 
 export const clearAuthTokens = () => {
+  clearPrivateNavigationData();
   AUTH_LOCAL_STORAGE_KEYS.forEach((key) => {
     localStorage.removeItem(key);
   });
@@ -414,21 +417,24 @@ export const apiFetch = async (
   return response;
 };
 
-export const apiRequest = async (
-  path,
-  options = {}
-) => {
-  const response = await apiFetch(path, options);
-  const data = await parseResponse(response);
+const pendingJsonRequests = new Map();
 
-  if (!response.ok) {
-    throw createError(
-      response,
-      data
-    );
-  }
+export const apiRequest = async (path, options = {}) => {
+  const method = String(options.method || 'GET').toUpperCase();
+  const canDedupe = method === 'GET' && !options.signal && options.dedupe !== false;
+  const accountToken = canDedupe ? (localStorage.getItem('accessToken') || 'guest') : '';
+  const requestKey = canDedupe ? `${accountToken}:${path}` : '';
+  if (requestKey && pendingJsonRequests.has(requestKey)) return pendingJsonRequests.get(requestKey);
 
-  return data;
+  const request = apiFetch(path, options).then(async (response) => {
+    const data = await parseResponse(response);
+    if (!response.ok) throw createError(response, data);
+    return data;
+  });
+
+  if (!requestKey) return request;
+  pendingJsonRequests.set(requestKey, request);
+  return request.finally(() => pendingJsonRequests.delete(requestKey));
 };
 
 export const buildMediaUrl = (
