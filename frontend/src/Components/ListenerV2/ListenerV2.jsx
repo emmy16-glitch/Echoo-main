@@ -144,7 +144,8 @@ const liveMiniStatusLabel = (session, state) => {
       return 'Connecting…';
   }
 };
-const titleOf = (item) => item?.title || item?.station?.name || item?.stationName || item?.name || 'Live on Echoo';
+// A program's title must never be synthesized from its station's permanent name.
+const titleOf = (item) => item?.title || 'Live broadcast';
 const stationNameOf = (item) => item?.station?.name || item?.stationName || item?.creator?.displayName || item?.name || 'Echoo';
 const categoryOf = (item) => item?.category || item?.station?.category || 'Live';
 const stationArtwork = (station) => buildMediaUrl(
