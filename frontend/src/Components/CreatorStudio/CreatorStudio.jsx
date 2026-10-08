@@ -29,7 +29,7 @@ import {
 } from '../../services/progressTiming';
 import ListenerLiveConnected from '../ListenerLive/ListenerLiveConnected';
 import { CreatorStudioStateProvider } from './CreatorStudioState';
-import { readNavigationData, writeNavigationData } from '../../services/navigationDataCache';
+import { isNavigationDataFresh, readNavigationData, writeNavigationData } from '../../services/navigationDataCache';
 // Lazy workspaces keep the first Creator render small.  Cache the import
 // promise as well so an idle prefetch and a quick click share one request.
 const cachedWorkspaceImport = (loader) => {
@@ -189,7 +189,6 @@ const CreatorStudioBody = () => {
   const [uploadProgress, setUploadProgress] = useState(null);
   const [backgroundRecordingProgress, setBackgroundRecordingProgress] = useState(null);
   const [uploadForm, setUploadForm] = useState(EMPTY_UPLOAD);
-  const contentCacheRef = useRef(new Map([['1:0', cachedInitialContent]]));
 
   const creatorSetup = useMemo(() => readJson('creatorSetup', {}), []);
   const [user, setUser] = useState(() => readJson('user', {}));
@@ -256,17 +255,19 @@ const CreatorStudioBody = () => {
       try {
         setError('');
         if (activeNav === 'Audio' || activeNav === 'Broadcast' || activeNav === 'Recordings') {
-          const cacheKey = `${contentPage}:${refreshKey}`;
-          const cached = contentCacheRef.current.get(cacheKey);
-          if (cached) {
-            if (active) setContent(cached);
-            return;
+          // An empty default list is not a successful cached API response.
+          // Reuse only real account-scoped cache entries, refresh expired ones
+          // in the background, and always fetch after a content mutation.
+          const cacheKey = `creator-content-page-${contentPage}`;
+          const cached = refreshKey === 0 ? readNavigationData(cacheKey) : null;
+          if (cached?.data) {
+            if (active) setContent(cached.data);
+            if (isNavigationDataFresh(cached)) return;
           }
-          if (active) setLoading(true);
+          if (active && !cached?.data) setLoading(true);
           const response = await studioService.getContent({ page: contentPage, limit: 20 });
           const nextContent = response?.data || { tracks: [], pagination: {} };
-          contentCacheRef.current.set(cacheKey, nextContent);
-          writeNavigationData(`creator-content-page-${contentPage}`, nextContent, { ttlMs: 5 * 60_000 });
+          writeNavigationData(cacheKey, nextContent, { ttlMs: 5 * 60_000 });
           if (active) setContent(nextContent);
         }
         if (activeNav === 'Audience') {
