@@ -64,6 +64,19 @@ test('Channel is the canonical creator station surface', async ({ page }) => {
   await expect.poll(() => page.evaluate(() => localStorage.getItem('echooRole'))).toBeNull();
 });
 
+
+test('Channel identity paints before slow broadcast history finishes', async ({ page }) => {
+  await page.route('**/api/broadcasts/mine/all**', async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 4500));
+    await fulfill(route, []);
+  });
+  await page.goto('/creator-studio/channels');
+  await expect(page.getByRole('heading', { name: 'My Station', level: 2 }))
+    .toBeVisible({ timeout: 3000 });
+  await expect(page.locator('.est-loading-featured')).toHaveCount(0);
+  await expect(page.locator('.est-loading-recent')).toHaveCount(0);
+});
+
 test('Creator navigation moves between Broadcast and Channel without losing account or route state', async ({ page }) => {
   await page.goto('/creator-studio/channels');
   await expect(page.getByRole('heading', { name: 'Channel', level: 1 })).toBeVisible();
