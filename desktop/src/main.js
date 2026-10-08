@@ -1423,20 +1423,22 @@ function fetchDevIdentity(devUrl, timeoutMs = 2500) {
 // ---------------------------------------------------------------------------
 // Content-Security-Policy (production only)
 // ---------------------------------------------------------------------------
-// The built frontend needs NO unsafe-inline / unsafe-eval: index.html has no
-// inline scripts (verified), no CSS-in-JS or eval() in the bundles, and React
-// inline `style={}` props go through CSSOM (not blocked by CSP). Dev is left
-// alone so Vite HMR / React DevTools keep working.
+// The built frontend needs no general unsafe-inline / unsafe-eval. Local MP3
+// export does compile its bundled encoder WebAssembly, so Chromium's narrow
+// wasm-unsafe-eval permission is required without enabling JavaScript eval().
+// Dev is left alone so Vite HMR / React DevTools keep working.
 const PROD_CSP = [
   "default-src 'self'",
-  "script-src 'self'",
+  "script-src 'self' 'wasm-unsafe-eval'",
   "style-src 'self' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com data:",
   'img-src \'self\' data: blob: https: http://localhost:5017 http://127.0.0.1:5017',
   'media-src \'self\' blob: data: https: http://localhost:5017 http://127.0.0.1:5017',
   // localhost: API + socket.io (project-specific backend port 5017);
   // https:/wss: for LiveKit Cloud (deployment-specific hosts).
-  'connect-src \'self\' http://localhost:5017 ws://localhost:5017 http://127.0.0.1:5017 ws://127.0.0.1:5017 https: wss:',
+  // data: is limited to fetch/connect here so the bundled MP3 encoder can
+  // instantiate its embedded data:application/wasm payload.
+  'connect-src \'self\' data: http://localhost:5017 ws://localhost:5017 http://127.0.0.1:5017 ws://127.0.0.1:5017 https: wss:',
   "worker-src 'self' blob:",
   'child-src blob:',
   "object-src 'none'",

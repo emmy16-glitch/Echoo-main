@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { _electron as electron } from 'playwright';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, unlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -11,6 +11,8 @@ const executablePath =
   process.env.ECHOO_PACKAGED_EXE ||
   path.join(desktopRoot, 'dist', 'win-unpacked', 'Echoo.exe');
 const productionApiPrefix = 'https://echoo.digi02.org/api/';
+const mp3EncoderChunk = readdirSync(path.join(desktopRoot, 'frontend-dist', 'assets'))
+  .find((name) => /^mp3-encode-.*\.js$/.test(name));
 
 function isExpectedBackendTransportDiagnostic({ text, url }) {
   const isProductionApiRequest = url?.startsWith(productionApiPrefix);
@@ -168,6 +170,63 @@ test.describe('packaged Echoo Windows shell', () => {
       expect(rendererChannels).not.toEqual([255, 255, 255]);
       expect(Math.max(...rendererChannels.map((channel, index) =>
         Math.abs(channel - nativeChannels[index])))).toBeLessThanOrEqual(4);
+    }
+  });
+
+  test('encodes, decodes, and saves a real MP3 under the packaged CSP', async () => {
+    expect(mp3EncoderChunk).toBeTruthy();
+    const result = await mainPage.evaluate(async (chunkName) => {
+      const { default: createMp3Encoder } = await import(`/assets/${chunkName}`);
+      const sampleRate = 48_000;
+      const frameCount = sampleRate;
+      const left = new Float32Array(frameCount);
+      const right = new Float32Array(frameCount);
+      for (let index = 0; index < frameCount; index += 1) {
+        const sample = Math.sin(index * Math.PI * 2 * 440 / sampleRate) * 0.2;
+        left[index] = sample;
+        right[index] = sample;
+      }
+      const encoder = await createMp3Encoder({ sampleRate, channels: 2, bitrate: 320 });
+      const encoded = encoder.encode([left, right]);
+      const flushed = encoder.flush();
+      encoder.free();
+      const mp3 = new Uint8Array(encoded.length + flushed.length);
+      mp3.set(encoded, 0);
+      mp3.set(flushed, encoded.length);
+
+      const context = new AudioContext();
+      const decoded = await context.decodeAudioData(mp3.buffer.slice(0));
+      await context.close();
+
+      const started = await window.echooDesktop.beginRecordingSave({
+        filename: `Echoo packaged MP3 CSP ${Date.now()}.mp3`,
+        format: 'mp3',
+        automatic: true,
+      });
+      if (!started?.started) throw new Error(started?.error || 'Could not start MP3 save.');
+      const write = await window.echooDesktop.appendRecordingChunk(started.sessionId, mp3);
+      if (!write?.written) throw new Error(write?.error || 'Could not write MP3 bytes.');
+      const finished = await window.echooDesktop.finishRecordingSave(started.sessionId);
+      return {
+        path: finished?.path || '',
+        byteLength: mp3.byteLength,
+        decodedDuration: decoded.duration,
+        channels: decoded.numberOfChannels,
+      };
+    }, mp3EncoderChunk);
+
+    try {
+      expect(result.byteLength).toBeGreaterThan(1_000);
+      expect(result.decodedDuration).toBeGreaterThan(0.9);
+      expect(result.channels).toBe(2);
+      expect(result.path).toMatch(/\.mp3$/i);
+      const saved = readFileSync(result.path);
+      const hasId3 = saved.subarray(0, 3).toString('ascii') === 'ID3';
+      const hasFrameSync = saved.some((value, index) =>
+        index < saved.length - 1 && value === 0xff && (saved[index + 1] & 0xe0) === 0xe0);
+      expect(hasId3 || hasFrameSync).toBe(true);
+    } finally {
+      if (result.path && existsSync(result.path)) unlinkSync(result.path);
     }
   });
 

@@ -10,6 +10,12 @@ const desktopRoot = path.resolve(__dirname, '..');
 const packageJson = JSON.parse(fs.readFileSync(path.join(desktopRoot, 'package.json'), 'utf8'));
 const packageLock = JSON.parse(fs.readFileSync(path.join(desktopRoot, 'package-lock.json'), 'utf8'));
 const mainSource = fs.readFileSync(path.join(desktopRoot, 'src', 'main.js'), 'utf8');
+
+test('packaged CSP permits only WebAssembly compilation for local MP3 export', () => {
+  assert.match(mainSource, /script-src 'self' 'wasm-unsafe-eval'/);
+  assert.match(mainSource, /connect-src \\'self\\' data:/);
+  assert.doesNotMatch(mainSource, /script-src[^\n]*'unsafe-eval'/);
+});
 const buildSource = fs.readFileSync(path.join(desktopRoot, 'scripts', 'build-renderer.mjs'), 'utf8');
 const securitySource = fs.readFileSync(path.join(desktopRoot, 'src', 'main', 'security.js'), 'utf8');
 const recordingBannerSource = fs.readFileSync(
