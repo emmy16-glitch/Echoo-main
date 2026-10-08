@@ -6,6 +6,7 @@ import {
   FiDownload,
   FiFilter,
   FiFolder,
+  FiLoader,
   FiMoreVertical,
   FiPlay,
   FiPause,
@@ -13,6 +14,8 @@ import {
   FiSettings,
   FiTrash2,
   FiUploadCloud,
+  FiVolume2,
+  FiX,
 } from 'react-icons/fi';
 
 import { buildMediaUrl } from '../../services/api.js';
@@ -129,6 +132,11 @@ export default function CreatorCollectionsWorkspace({
   const [filterOpen, setFilterOpen] = useState(false);
   const [playingId, setPlayingId] = useState('');
   const [loadingPlayId, setLoadingPlayId] = useState('');
+  const [activeTrack, setActiveTrack] = useState(null);
+  const [playbackPhase, setPlaybackPhase] = useState('idle');
+  const [playbackTime, setPlaybackTime] = useState(0);
+  const [playbackDuration, setPlaybackDuration] = useState(0);
+  const [playbackVolume, setPlaybackVolume] = useState(1);
   const [busyId, setBusyId] = useState('');
   const [menuId, setMenuId] = useState('');
   const [selectedTrack, setSelectedTrack] = useState(null);
@@ -143,10 +151,15 @@ export default function CreatorCollectionsWorkspace({
   const [collectionChoices, setCollectionChoices] = useState([]);
   const [transferOperation, setTransferOperation] = useState(null);
   const audioRef = useRef(null);
+  const playbackRequestRef = useRef(0);
   const fileRef = useRef(null);
 
   useEffect(() => () => {
-    audioRef.current?.pause?.();
+    playbackRequestRef.current += 1;
+    const player = audioRef.current;
+    audioRef.current = null;
+    player?.pause();
+    if (player) player.removeAttribute('src');
     studioService.releaseFallbackPlaybackUrl?.();
   }, []);
 
@@ -346,37 +359,123 @@ export default function CreatorCollectionsWorkspace({
   };
 
   const stopPlayback = () => {
-    audioRef.current?.pause?.();
+    playbackRequestRef.current += 1;
+    const player = audioRef.current;
     audioRef.current = null;
+    player?.pause();
+    if (player) player.removeAttribute('src');
     setPlayingId('');
     setLoadingPlayId('');
+    setActiveTrack(null);
+    setPlaybackPhase('idle');
+    setPlaybackTime(0);
+    setPlaybackDuration(0);
   };
 
   const togglePlay = async (track) => {
     const id = String(getId(track) || '');
     if (!id) return;
-    if (playingId === id) {
+
+    if (String(getId(activeTrack) || '') === id && audioRef.current) {
+      const current = audioRef.current;
+      if (!current.paused) {
+        current.pause();
+        setPlayingId('');
+        setPlaybackPhase('paused');
+        return;
+      }
+      try {
+        setPlaybackPhase('buffering');
+        await current.play();
+      } catch (playError) {
+        setPlaybackPhase('error');
+        setError(playError?.message || 'Could not resume this recording.');
+      }
+      return;
+    }
+    if (loadingPlayId === id) {
+      // Allow a second click to cancel a slow stream-token request.
       stopPlayback();
       return;
     }
 
+    stopPlayback();
+    const requestId = playbackRequestRef.current;
+    setActiveTrack(track);
+    setPlaybackPhase('preparing');
+    setPlaybackDuration(parseDurationSeconds(track.duration));
+    setError('');
+    setLoadingPlayId(id);
     try {
-      stopPlayback();
-      setError('');
-      setLoadingPlayId(id);
+      // Request a short-lived authorized stream; do not fetch the whole audio
+      // as a blob or bypass the private recording's playback permissions.
       const { streamUrl } = await studioService.getAudioStreamUrl(id);
-      const player = new Audio(streamUrl);
-      player.preload = 'metadata';
+      if (requestId !== playbackRequestRef.current) return;
+      if (!streamUrl) throw new Error('Echoo could not prepare this recording.');
+
+      const player = new Audio();
+      player.preload = 'auto';
+      player.volume = playbackVolume;
       audioRef.current = player;
-      player.addEventListener('ended', () => setPlayingId(''), { once: true });
-      player.addEventListener('error', () => setPlayingId(''), { once: true });
+      const isCurrent = () => audioRef.current === player && requestId === playbackRequestRef.current;
+      player.addEventListener('loadedmetadata', () => {
+        if (isCurrent() && Number.isFinite(player.duration)) setPlaybackDuration(player.duration);
+      });
+      player.addEventListener('timeupdate', () => {
+        if (isCurrent()) setPlaybackTime(player.currentTime || 0);
+      });
+      player.addEventListener('waiting', () => {
+        if (isCurrent()) setPlaybackPhase('buffering');
+      });
+      player.addEventListener('playing', () => {
+        if (!isCurrent()) return;
+        setPlayingId(id);
+        setPlaybackPhase('playing');
+        setLoadingPlayId('');
+      });
+      player.addEventListener('pause', () => {
+        if (!isCurrent() || player.ended) return;
+        setPlayingId('');
+        setPlaybackPhase('paused');
+      });
+      player.addEventListener('ended', () => {
+        if (!isCurrent()) return;
+        setPlayingId('');
+        setPlaybackPhase('ended');
+      });
+      player.addEventListener('error', () => {
+        if (!isCurrent()) return;
+        setPlayingId('');
+        setLoadingPlayId('');
+        setPlaybackPhase('error');
+        setError('This recording could not be played. Try again or open Manage.');
+      });
+      player.src = streamUrl;
+      setPlaybackPhase('buffering');
       await player.play();
-      setPlayingId(id);
     } catch (playError) {
+      if (requestId !== playbackRequestRef.current) return;
+      setPlayingId('');
+      setPlaybackPhase('error');
       setError(playError?.message || 'Could not play this recording.');
     } finally {
-      setLoadingPlayId((current) => current === id ? '' : current);
+      if (requestId === playbackRequestRef.current) {
+        setLoadingPlayId((current) => current === id ? '' : current);
+      }
     }
+  };
+
+  const seekPlayback = (seconds) => {
+    const player = audioRef.current;
+    if (!player || !Number.isFinite(player.duration)) return;
+    player.currentTime = Math.max(0, Math.min(player.duration, Number(seconds) || 0));
+    setPlaybackTime(player.currentTime);
+  };
+
+  const changePlaybackVolume = (value) => {
+    const volume = Math.max(0, Math.min(1, Number(value) || 0));
+    setPlaybackVolume(volume);
+    if (audioRef.current) audioRef.current.volume = volume;
   };
 
   const setVisibility = async (track, makePublic) => {
@@ -746,7 +845,7 @@ export default function CreatorCollectionsWorkspace({
                 <div className="recordings-recording-cell" role="cell">
                   <button type="button" className="recordings-art" aria-label={`${isLoadingPlay ? 'Loading' : isPlaying ? 'Pause' : 'Play'} ${displayTitle}`} aria-busy={isLoadingPlay || undefined} disabled={isLoadingPlay} onClick={() => togglePlay(track)}>
                     <img src={artwork} alt="" />
-                    <span className="recordings-art-play">{isPlaying ? <FiPause /> : <FiPlay />}</span>
+                    <span className="recordings-art-play">{isLoadingPlay ? <FiLoader className="recordings-play-spin" /> : isPlaying ? <FiPause /> : <FiPlay />}</span>
                     <small>{formatDuration(track.duration)}</small>
                   </button>
                   <div className="recordings-copy">
@@ -768,7 +867,7 @@ export default function CreatorCollectionsWorkspace({
 
                 <div className="recordings-actions" role="cell">
                   <button type="button" className="recordings-primary-action" onClick={() => openRecording(track)}><FiSettings /> Manage</button>
-                  <button type="button" className="recordings-icon-action" aria-label={isLoadingPlay ? 'Loading recording' : isPlaying ? 'Pause recording' : 'Play recording'} aria-busy={isLoadingPlay || undefined} disabled={isLoadingPlay} onClick={() => togglePlay(track)}>{isPlaying ? <FiPause /> : <FiPlay />}</button>
+                  <button type="button" className="recordings-icon-action" aria-label={isLoadingPlay ? 'Loading recording' : isPlaying ? 'Pause recording' : 'Play recording'} aria-busy={isLoadingPlay || undefined} disabled={isLoadingPlay} onClick={() => togglePlay(track)}>{isLoadingPlay ? <FiLoader className="recordings-play-spin" /> : isPlaying ? <FiPause /> : <FiPlay />}</button>
                   <button type="button" className="recordings-icon-action" aria-label="Download recording" disabled={busyId === id} onClick={() => download(track)}><FiDownload /></button>
                   <div className="recordings-more-wrap">
                     <button type="button" className="recordings-more" aria-label="More recording actions" aria-expanded={menuId === id} onClick={() => setMenuId((current) => current === id ? '' : id)}><FiMoreVertical /></button>
@@ -805,6 +904,44 @@ export default function CreatorCollectionsWorkspace({
           <label className="recordings-page-size"><span>Show</span><select value={perPage} onChange={(event) => setPerPage(Number(event.target.value))}><option value="5">5 per page</option><option value="10">10 per page</option><option value="20">20 per page</option></select></label>
         </footer>
       </section>
+
+      {activeTrack && (
+        <aside className="recordings-mini-player" role="region" aria-label="Recording player">
+          <div className="recordings-mini-player-copy">
+            <span aria-live="polite">
+              {playbackPhase === 'preparing' ? 'Preparing audio…'
+                : playbackPhase === 'buffering' ? 'Buffering audio…'
+                  : playbackPhase === 'playing' ? 'Now playing'
+                    : playbackPhase === 'paused' ? 'Paused'
+                      : playbackPhase === 'ended' ? 'Playback finished'
+                        : playbackPhase === 'error' ? 'Playback unavailable' : 'Recording'}
+            </span>
+            <strong title={recordingDisplayTitle(activeTrack)}>{recordingDisplayTitle(activeTrack)}</strong>
+          </div>
+          <button type="button" className="recordings-mini-player-toggle"
+            aria-label={playbackPhase === 'playing' ? 'Pause recording' : 'Play recording'}
+            onClick={() => togglePlay(activeTrack)}>
+            {playbackPhase === 'preparing' || playbackPhase === 'buffering'
+              ? <FiLoader className="recordings-play-spin" /> : playbackPhase === 'playing' ? <FiPause /> : <FiPlay />}
+          </button>
+          <div className="recordings-mini-player-progress">
+            <input type="range" min="0" max={Math.max(1, playbackDuration)} step="0.1"
+              value={Math.min(playbackTime, Math.max(1, playbackDuration))}
+              disabled={!audioRef.current || !Number.isFinite(audioRef.current.duration)}
+              onChange={(event) => seekPlayback(event.target.value)}
+              aria-label="Recording playback position" />
+            <span>{formatDuration(playbackTime)} / {formatDuration(playbackDuration)}</span>
+          </div>
+          <label className="recordings-mini-player-volume">
+            <FiVolume2 aria-hidden="true" />
+            <input type="range" min="0" max="1" step="0.05" value={playbackVolume}
+              onChange={(event) => changePlaybackVolume(event.target.value)} aria-label="Recording volume" />
+          </label>
+          <button type="button" className="recordings-mini-player-close" onClick={stopPlayback} aria-label="Close recording player">
+            <FiX />
+          </button>
+        </aside>
+      )}
 
       {collectionPickerTrack && <div className="recordings-collection-picker" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setCollectionPickerTrack(null)}><section role="dialog" aria-modal="true" aria-label="Add to Collection"><header><strong>Add to Collection</strong><button type="button" onClick={() => setCollectionPickerTrack(null)}>×</button></header>{collectionChoices.length ? collectionChoices.map((collection) => <button type="button" key={collection.id} onClick={() => addToCollection(collection.id)}>{collection.title}<small>{collection.broadcastCount} recordings</small></button>) : <p>No Collections yet.</p>}<button type="button" className="new" onClick={createCollectionForRecording}>{collectionChoices.length ? '+ New Collection' : 'Create Collection'}</button></section></div>}
     </section>
