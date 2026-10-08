@@ -84,3 +84,44 @@ test('Recordings provides immediate active player feedback and playable audio', 
   await player.getByRole('button', { name: 'Close recording player' }).click();
   await expect(player).toHaveCount(0);
 });
+
+
+test('uses the signed link supplied with the recording without a second token request', async ({ page }) => {
+  let tokenRequests = 0;
+  await page.route('**/api/audio/' + recordingId + '/stream-token', (route) => {
+    tokenRequests += 1;
+    return route.fulfill({ json: { data: { streamUrl, expiresIn: 300 } } });
+  });
+  await page.route('**/api/studio/content**', (route) => route.fulfill({
+    json: { data: { tracks: [{ ...recording, fileUrl: streamUrl }], pagination: { total: 1, page: 1, limit: 20 } } },
+  }));
+
+  await page.goto('/creator-studio/recordings');
+  await page.getByRole('button', { name: 'Play recording', exact: true }).first().click();
+
+  const player = page.getByRole('region', { name: 'Recording player' });
+  await expect(player).toBeVisible();
+  await expect(player.getByText('Now playing')).toBeVisible({ timeout: 10_000 });
+  expect(tokenRequests).toBe(0);
+});
+
+test('shows a visible player while an uncached signed playback request is delayed', async ({ page }) => {
+  let releaseTokenRequest;
+  await page.route('**/api/audio/' + recordingId + '/stream-token', async (route) => {
+    await new Promise((resolve) => { releaseTokenRequest = resolve; });
+    await route.fulfill({ json: { data: { streamUrl, expiresIn: 300 } } });
+  });
+
+  await page.goto('/creator-studio/recordings');
+  await page.getByRole('button', { name: 'Play recording', exact: true }).first().click();
+
+  const player = page.getByRole('region', { name: 'Recording player' });
+  await expect(player).toBeVisible();
+  await expect(player.getByText('Preparing audio…')).toBeVisible();
+  await expect(player.getByRole('slider', { name: 'Recording playback position' })).toBeVisible();
+  await expect.poll(() => Boolean(releaseTokenRequest)).toBeTruthy();
+  releaseTokenRequest();
+  await expect(player.getByText('Now playing')).toBeVisible({ timeout: 10_000 });
+  await player.getByRole('button', { name: 'Close recording player' }).click();
+  await expect(player).toHaveCount(0);
+});
