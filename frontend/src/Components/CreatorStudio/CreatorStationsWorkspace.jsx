@@ -15,6 +15,7 @@ import {
 } from 'react-icons/fa';
 
 import batch2Service from '../../services/batch2Service';
+import { readNavigationData } from '../../services/navigationDataCache.js';
 import {
   buildGeneratedStationBrandCoverUrl,
   randomStationBrandVariant,
@@ -96,10 +97,14 @@ const broadcastArtwork = (broadcast, channel, fallback) =>
   channel?.logo ||
   fallback;
 
+const readInitialChannel = () => readNavigationData('creator-studio-core')?.data || null;
+
 const CreatorStationsWorkspace = ({ onNavigate, onOpenRecording }) => {
-  const [stations, setStations] = useState([]);
-  const [broadcasts, setBroadcasts] = useState([]);
-  const [loading, setLoading] = useState(true);
+  // The creator shell has already fetched/cached these records. Render them
+  // synchronously on route entry instead of waiting for duplicate requests.
+  const [stations, setStations] = useState(() => readInitialChannel()?.ownedStations || []);
+  const [broadcasts, setBroadcasts] = useState(() => readInitialChannel()?.broadcasts || []);
+  const [loading, setLoading] = useState(() => !readInitialChannel());
   const [formOpen, setFormOpen] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
@@ -108,31 +113,30 @@ const CreatorStationsWorkspace = ({ onNavigate, onOpenRecording }) => {
   const logoInputRef = useRef(null);
 
   const loadChannel = useCallback(async () => {
+    setError('');
+    // A slow broadcast-history response must not hold the Channel identity
+    // hostage. Get both in parallel but paint the station as soon as it arrives.
+    const stationRequest = batch2Service.getMyStations();
+    const broadcastRequest = batch2Service.getCreatorBroadcasts()
+      .then((response) => {
+        if (Array.isArray(response?.data)) setBroadcasts(response.data);
+      })
+      .catch(() => {
+        // Broadcast history is optional to the Channel identity panel.
+      });
+
     try {
-      setLoading(true);
-      setError('');
-      const [stationResult, broadcastResult] = await Promise.allSettled([
-        batch2Service.getMyStations(),
-        batch2Service.getCreatorBroadcasts(),
-      ]);
-
-      const nextStations = stationResult.status === 'fulfilled' && Array.isArray(stationResult.value?.data)
-        ? stationResult.value.data
-        : [];
-      const nextBroadcasts = broadcastResult.status === 'fulfilled' && Array.isArray(broadcastResult.value?.data)
-        ? broadcastResult.value.data
-        : [];
-
-      setStations(nextStations);
-      setBroadcasts(nextBroadcasts);
-      if (stationResult.status === 'rejected') throw stationResult.reason;
+      const response = await stationRequest;
+      if (!Array.isArray(response?.data)) throw new Error('Could not load your Channel.');
+      setStations(response.data);
     } catch (loadError) {
-      setStations([]);
-      setBroadcasts([]);
-      setError(loadError?.message || 'Could not load your Channel.');
+      // Keep an already-rendered account-scoped snapshot visible during outages.
+      setError(loadError?.message || 'Could not refresh your Channel.');
     } finally {
       setLoading(false);
     }
+    // A background broadcast request may still finish after the Channel paints.
+    void broadcastRequest;
   }, []);
 
   useEffect(() => {
@@ -407,11 +411,11 @@ const CreatorStationsWorkspace = ({ onNavigate, onOpenRecording }) => {
 
   if (loading) {
     return (
-      <section className="est est-reference-page">
-        <div className="est-page-loading">
-          <div className="est-loading-featured" />
-          <div className="est-loading-recent" />
-        </div>
+      <section className="est est-reference-page" aria-busy="true">
+        <header className="est-header">
+          <div><h1>Channel</h1><p>Manage how listeners see and discover your Channel.</p></div>
+        </header>
+        <div className="est-message" role="status" aria-live="polite">Loading your Channel…</div>
       </section>
     );
   }
