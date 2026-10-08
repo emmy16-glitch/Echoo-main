@@ -22,23 +22,18 @@ main {
   height: 192px;
   justify-items: center;
   align-items: center;
-  border: 1px solid rgba(202, 216, 239, .9);
-  border-radius: 26px;
-  background: linear-gradient(145deg, rgba(249, 251, 254, .99), rgba(235, 241, 249, .98));
-  box-shadow:
-    0 18px 42px rgba(11, 29, 58, .16),
-    inset 0 1px 0 rgba(255, 255, 255, .9);
+  background: transparent;
   animation: echoo-surface-arrive 420ms cubic-bezier(.22, 1, .36, 1) both;
   perspective: 620px;
 }
 
 .echoo-mark {
-  width: 120px;
-  height: 120px;
+  width: 164px;
+  height: 164px;
   overflow: visible;
   transform-origin: center;
   transform-style: preserve-3d;
-  animation: echoo-mark-arrive 1.25s cubic-bezier(.16, 1, .3, 1) both;
+  animation: echoo-mark-cycle 1.8s cubic-bezier(.45, 0, .2, 1) infinite both;
 }
 
 .echoo-mark-primary,
@@ -51,22 +46,23 @@ main {
 .echoo-mark-shadows {
   fill: #0b1d3a;
   opacity: 0;
-  animation: echoo-shadow-settle 1.05s ease-out both;
+  animation: echoo-shadow-cycle 1.8s cubic-bezier(.45, 0, .2, 1) infinite both;
 }
 
 .echoo-mark-primary {
   fill: #214fa3;
-  animation: echoo-primary-settle 1.14s cubic-bezier(.16, 1, .3, 1) both;
+  animation: echoo-primary-cycle 1.8s cubic-bezier(.45, 0, .2, 1) infinite both;
 }
 
 .echoo-mark-echo {
   fill: #9db4d9;
-  animation: echoo-secondary-settle 1.14s cubic-bezier(.16, 1, .3, 1) both;
+  animation: echoo-secondary-cycle 1.8s cubic-bezier(.45, 0, .2, 1) infinite both;
 }
 
-.echoo-mark-highlight {
+.echoo-mark-highlight,
+.echoo-mark-rim {
   opacity: 0;
-  animation: echoo-highlight-settle 1.05s ease-out both;
+  animation: echoo-highlight-cycle 1.8s cubic-bezier(.45, 0, .2, 1) infinite both;
 }
 
 .echoo-status {
@@ -86,43 +82,87 @@ main {
   to { opacity: 1; transform: scale(1); }
 }
 
-@keyframes echoo-mark-arrive {
+@keyframes echoo-mark-cycle {
   0% {
-    opacity: .62;
-    transform: rotateX(5deg) rotateY(-6deg) translateY(3px) scale(.95);
+    opacity: .72;
+    filter: drop-shadow(0 8px 7px rgba(11, 29, 58, .22));
+    transform: rotateX(7deg) rotateY(-9deg) rotateZ(-1deg) translateY(2px) scale(.965);
+  }
+  24% {
+    opacity: 1;
+    filter: drop-shadow(0 11px 9px rgba(11, 29, 58, .25));
+    transform: rotateX(-4deg) rotateY(7deg) rotateZ(.8deg) translateY(-1px) scale(1.018);
   }
   58% {
     opacity: 1;
-    transform: rotateX(1.5deg) rotateY(-1.5deg) translateY(0) scale(1.018);
+    filter: drop-shadow(0 6px 5px rgba(11, 29, 58, .16));
+    transform: rotateX(2deg) rotateY(-3deg) rotateZ(0) translateY(0) scale(1.004);
+  }
+  76% {
+    opacity: 1;
+    filter: drop-shadow(0 2px 2px rgba(11, 29, 58, .08));
+    transform: rotateX(0) rotateY(0) rotateZ(0) translateY(0) scale(1);
   }
   100% {
-    opacity: 1;
-    transform: rotateX(0) rotateY(0) translateY(0) scale(1);
+    opacity: .72;
+    filter: drop-shadow(0 8px 7px rgba(11, 29, 58, .22));
+    transform: rotateX(7deg) rotateY(-9deg) rotateZ(-1deg) translateY(2px) scale(.965);
   }
 }
 
-@keyframes echoo-primary-settle {
-  0% { transform: translate(-4px, 5px) scale(1.045); }
-  62% { transform: translate(.7px, -.5px) scale(1.008); }
-  100% { transform: translate(0) scale(1); }
+@keyframes echoo-primary-cycle {
+  0%, 100% { transform: translate(-2.2px, 2.6px) scale(1.025); }
+  24% { transform: translate(1.5px, -1.8px) scale(1.04); }
+  58% { transform: translate(-.6px, .6px) scale(1.012); }
+  76% { transform: translate(0) scale(1); }
 }
 
-@keyframes echoo-secondary-settle {
-  0% { transform: translate(5px, -4px) scale(.975); }
-  62% { transform: translate(-.7px, .5px) scale(1.006); }
-  100% { transform: translate(0) scale(1); }
+@keyframes echoo-secondary-cycle {
+  0%, 100% { transform: translate(2.4px, -2px) scale(.982); }
+  24% { transform: translate(-1.4px, 1.5px) scale(.97); }
+  58% { transform: translate(.5px, -.5px) scale(.992); }
+  76% { transform: translate(0) scale(1); }
 }
 
-@keyframes echoo-highlight-settle {
-  0% { opacity: .15; }
-  34% { opacity: .48; }
-  100% { opacity: 0; }
+@keyframes echoo-highlight-cycle {
+  0%, 100% { opacity: .28; }
+  24% { opacity: .62; }
+  58% { opacity: .25; }
+  76% { opacity: 0; }
 }
 
-@keyframes echoo-shadow-settle {
-  0% { opacity: .2; transform: translate(1px, 2.3px) scale(1.01); }
-  52% { opacity: .1; transform: translate(.5px, 1px) scale(1.005); }
-  100% { opacity: 0; transform: translate(0) scale(1); }
+@keyframes echoo-shadow-cycle {
+  0%, 100% { opacity: .16; transform: translate(1px, 2px) scale(1.01); }
+  24% { opacity: .22; transform: translate(-.8px, 2.4px) scale(1.018); }
+  58% { opacity: .09; transform: translate(.4px, 1px) scale(1.005); }
+  76% { opacity: 0; transform: translate(0) scale(1); }
+}
+
+.splash-finishing .echoo-mark {
+  animation: echoo-mark-finish 220ms cubic-bezier(.22, 1, .36, 1) both;
+}
+
+.splash-finishing .echoo-mark-primary,
+.splash-finishing .echoo-mark-echo {
+  animation: echoo-shape-finish 220ms cubic-bezier(.22, 1, .36, 1) both;
+}
+
+.splash-finishing .echoo-mark-shadows,
+.splash-finishing .echoo-mark-highlight,
+.splash-finishing .echoo-mark-rim {
+  animation: echoo-light-finish 180ms ease-out both;
+}
+
+@keyframes echoo-mark-finish {
+  to { opacity: 1; filter: none; transform: none; }
+}
+
+@keyframes echoo-shape-finish {
+  to { transform: none; }
+}
+
+@keyframes echoo-light-finish {
+  to { opacity: 0; transform: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -131,7 +171,8 @@ main {
   .echoo-mark-shadows,
   .echoo-mark-primary,
   .echoo-mark-echo,
-  .echoo-mark-highlight {
+  .echoo-mark-highlight,
+  .echoo-mark-rim {
     animation: none;
   }
 

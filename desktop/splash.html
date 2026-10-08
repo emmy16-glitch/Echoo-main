@@ -11,14 +11,26 @@
       <svg class="echoo-mark" viewBox="0 0 32 32" aria-hidden="true">
         <defs>
           <linearGradient id="echoo-primary-highlight" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stop-color="#ffffff" stop-opacity=".68" />
-            <stop offset=".48" stop-color="#ffffff" stop-opacity=".08" />
+            <stop offset="0" stop-color="#ffffff" stop-opacity=".94" />
+            <stop offset=".16" stop-color="#8edcff" stop-opacity=".7" />
+            <stop offset=".43" stop-color="#ffffff" stop-opacity=".12" />
             <stop offset="1" stop-color="#ffffff" stop-opacity="0" />
           </linearGradient>
           <linearGradient id="echoo-secondary-highlight" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stop-color="#ffffff" stop-opacity=".72" />
-            <stop offset=".5" stop-color="#ffffff" stop-opacity=".1" />
+            <stop offset="0" stop-color="#ffffff" stop-opacity=".96" />
+            <stop offset=".18" stop-color="#d9e7ff" stop-opacity=".74" />
+            <stop offset=".48" stop-color="#ffffff" stop-opacity=".14" />
             <stop offset="1" stop-color="#ffffff" stop-opacity="0" />
+          </linearGradient>
+          <linearGradient id="echoo-primary-rim" x1="0" y1="1" x2="1" y2="0">
+            <stop offset="0" stop-color="#123c91" stop-opacity=".5" />
+            <stop offset=".55" stop-color="#5ecfff" stop-opacity=".36" />
+            <stop offset="1" stop-color="#ffffff" stop-opacity=".9" />
+          </linearGradient>
+          <linearGradient id="echoo-secondary-rim" x1="0" y1="1" x2="1" y2="0">
+            <stop offset="0" stop-color="#587dbd" stop-opacity=".46" />
+            <stop offset=".58" stop-color="#c9dcff" stop-opacity=".42" />
+            <stop offset="1" stop-color="#ffffff" stop-opacity=".92" />
           </linearGradient>
           <filter id="echoo-depth-shadow" x="-30%" y="-30%" width="170%" height="180%">
             <feGaussianBlur stdDeviation=".72" />
@@ -31,10 +43,12 @@
         <g class="echoo-mark-primary">
           <ellipse cx="12.5" cy="11.2" rx="10.2" ry="6.8" transform="rotate(-31 12.5 11.2)" />
           <ellipse class="echoo-mark-highlight" cx="12.5" cy="11.2" rx="10.2" ry="6.8" transform="rotate(-31 12.5 11.2)" fill="url(#echoo-primary-highlight)" />
+          <ellipse class="echoo-mark-rim" cx="12.5" cy="11.2" rx="9.86" ry="6.46" transform="rotate(-31 12.5 11.2)" fill="none" stroke="url(#echoo-primary-rim)" stroke-width=".68" />
         </g>
         <g class="echoo-mark-echo">
           <ellipse cx="19.5" cy="20.8" rx="10.2" ry="6.8" transform="rotate(-31 19.5 20.8)" />
           <ellipse class="echoo-mark-highlight" cx="19.5" cy="20.8" rx="10.2" ry="6.8" transform="rotate(-31 19.5 20.8)" fill="url(#echoo-secondary-highlight)" />
+          <ellipse class="echoo-mark-rim" cx="19.5" cy="20.8" rx="9.86" ry="6.46" transform="rotate(-31 19.5 20.8)" fill="none" stroke="url(#echoo-secondary-rim)" stroke-width=".68" />
         </g>
       </svg>
       <span class="echoo-status">Opening</span>

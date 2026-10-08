@@ -262,6 +262,7 @@ let startupReadyTimer = null;
 let delayedAppReadyTimer = null;
 let splashIntroFallbackTimer = null;
 let splashIntroComplete = false;
+let splashFinishRequested = false;
 let rendererLoadGeneration = 0;
 let rendererLifecyclePhase = 'idle';
 let mainWindowVisibleGeneration = -1;
@@ -645,6 +646,7 @@ function createSplashWindow() {
   splashWindow = null;
 
   splashIntroComplete = false;
+  splashFinishRequested = false;
   const createdSplash = new BrowserWindow({
     width: 216,
     height: 216,
@@ -667,11 +669,6 @@ function createSplashWindow() {
   splashWindow = createdSplash;
   logStartupEvent('splash-created');
   clearSplashIntroFallback();
-  splashIntroFallbackTimer = setTimeout(() => {
-    splashIntroFallbackTimer = null;
-    markSplashIntroComplete(createdSplash, 'fallback');
-  }, SPLASH_INTRO_FALLBACK_MS);
-  if (splashIntroFallbackTimer.unref) splashIntroFallbackTimer.unref();
   createdSplash.once('ready-to-show', () => {
     if (createdSplash !== splashWindow || createdSplash.isDestroyed()) return;
     createdSplash.show();
@@ -706,6 +703,26 @@ function markSplashIntroComplete(window, source = 'animation') {
   clearSplashIntroFallback();
   logStartupEvent('splash-intro-complete', `source=${source}`);
   void revealMainWindowWhenReady();
+}
+
+function requestSplashFinish() {
+  if (
+    splashIntroComplete ||
+    splashFinishRequested ||
+    !splashWindow ||
+    splashWindow.isDestroyed()
+  ) return;
+
+  splashFinishRequested = true;
+  logStartupEvent('splash-finish-requested');
+  splashWindow.webContents.send('echoo:splash-finish');
+  clearSplashIntroFallback();
+  const finishingSplash = splashWindow;
+  splashIntroFallbackTimer = setTimeout(() => {
+    splashIntroFallbackTimer = null;
+    markSplashIntroComplete(finishingSplash, 'finish-fallback');
+  }, SPLASH_INTRO_FALLBACK_MS);
+  if (splashIntroFallbackTimer.unref) splashIntroFallbackTimer.unref();
 }
 
 function destroySplashWindow(reason = 'complete') {
@@ -770,7 +787,10 @@ async function revealMainWindowWhenReady() {
   }
   if (!mainWindowNativeReady) return;
   if (mainWindowRendererReady) {
-    if (splashWindow && !splashWindow.isDestroyed() && !splashIntroComplete) return;
+    if (splashWindow && !splashWindow.isDestroyed() && !splashIntroComplete) {
+      requestSplashFinish();
+      return;
+    }
     revealMainWindow();
     return;
   }

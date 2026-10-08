@@ -116,13 +116,13 @@ test.describe('packaged startup lifecycle', () => {
           ariaLabel: 'Echoo is opening',
           surfaceWidth: '192px',
           surfaceHeight: '192px',
-          markWidth: '120px',
-          markAnimationDuration: '1.25s',
-          markAnimationIterationCount: '1',
-          markAnimationName: 'echoo-mark-arrive',
+          markWidth: '164px',
+          markAnimationDuration: '1.8s',
+          markAnimationIterationCount: 'infinite',
+          markAnimationName: 'echoo-mark-cycle',
         });
-        expect(splashVisual.surfaceBackgroundImage).toContain('linear-gradient');
-        expect(splashVisual.primaryAnimationName).toBe('echoo-primary-settle');
+        expect(splashVisual.surfaceBackgroundImage).toBe('none');
+        expect(splashVisual.primaryAnimationName).toBe('echoo-primary-cycle');
 
         await splashPage.emulateMedia({ reducedMotion: 'reduce' });
         const reducedMotionAnimation = await splashPage.locator('.echoo-mark').evaluate(
