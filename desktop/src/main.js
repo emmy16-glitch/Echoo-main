@@ -25,6 +25,7 @@ const path = require('node:path');
 const fs = require('node:fs');
 const tcpNet = require('node:net');
 const crypto = require('node:crypto');
+const { spawn } = require('node:child_process');
 const { fileURLToPath, pathToFileURL } = require('node:url');
 const log = require('electron-log');
 const {
@@ -252,6 +253,7 @@ let roomState = {
 };
 let powerSaveBlockerId = null;
 let pendingUpdateReady = false;
+let pendingUpdateVersion = '';
 let updatePromptOpen = false;
 let creatorQuitWarningOpen = false;
 let rendererRecoveryPromptOpen = false;
@@ -2606,6 +2608,58 @@ function updateRestartBlocked() {
   return roomState.active || recordingSaveSessions.size > 0;
 }
 
+// Some Windows NSIS one-click installations replace Echoo successfully but do not
+// relaunch it after quitAndInstall. Keep an independent, bounded Windows-only
+// watchdog alive through the installer process. It will only reopen the exact
+// installed executable after its on-disk version matches the downloaded update,
+// and only if the updater has not already restarted the application.
+function scheduleWindowsUpdateRelaunch(expectedVersion) {
+  if (process.platform !== 'win32' || !app.isPackaged) return;
+  if (!/^\d+\.\d+\.\d+(?:\.\d+)?$/.test(String(expectedVersion || ''))) return;
+
+  const exePath = process.execPath;
+  if (path.basename(exePath).toLowerCase() !== 'echoo.exe') return;
+
+  const encodedExe = Buffer.from(exePath, 'utf8').toString('base64');
+  const script = [
+    '$ErrorActionPreference = "Stop"',
+    '$sourceProcessId = ' + String(process.pid),
+    '$exe = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("' + encodedExe + '"))',
+    '$expected = "' + expectedVersion + '"',
+    '$deadline = (Get-Date).AddMinutes(3)',
+    'while ((Get-Date) -lt $deadline) {',
+    '  Start-Sleep -Seconds 2',
+    '  if (Get-Process -Id $sourceProcessId -ErrorAction SilentlyContinue) { continue }',
+    '  if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) { continue }',
+    '  $found = (Get-Item -LiteralPath $exe).VersionInfo.ProductVersion',
+    '  if (-not $found) { continue }',
+    '  $installed = $found -replace "(\\.0)+$", ""',
+    '  if ($installed -ne $expected) { continue }',
+    '  Start-Sleep -Seconds 8',
+    '  $alreadyRunning = @(Get-CimInstance Win32_Process -Filter "Name=''Echoo.exe''" -ErrorAction SilentlyContinue | Where-Object { $_.ExecutablePath -and [string]::Equals($_.ExecutablePath, $exe, [StringComparison]::OrdinalIgnoreCase) }).Count -gt 0',
+    '  if (-not $alreadyRunning) {',
+    '    Remove-Item Env:\ELECTRON_RUN_AS_NODE -ErrorAction SilentlyContinue',
+    '    Start-Process -FilePath $exe -WorkingDirectory (Split-Path -Parent $exe)',
+    '  }',
+    '  break',
+    '}',
+  ].join('\n');
+
+  try {
+    const encoded = Buffer.from(script, 'utf16le').toString('base64');
+    const child = spawn('powershell.exe', [
+      '-NoLogo', '-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden',
+      '-EncodedCommand', encoded,
+    ], { detached: true, windowsHide: true, stdio: 'ignore' });
+    child.on('error', (error) => {
+      log.warn('[echoo-desktop] Windows updater relaunch watchdog unavailable:', error.message);
+    });
+    child.unref();
+  } catch (error) {
+    log.warn('[echoo-desktop] Windows updater relaunch watchdog failed to start:', error.message);
+  }
+}
+
 async function promptForDownloadedUpdate() {
   if (!pendingUpdateReady || updatePromptOpen || updateRestartBlocked()) return;
 
@@ -2626,8 +2680,20 @@ async function promptForDownloadedUpdate() {
         log.info('[echoo-desktop] update restart deferred because protected audio/file work became active');
         return;
       }
+      // Skip Electron's ordinary graceful-quit handshake: the audio/recording
+      // idle check above has already proved it is safe to install.
+      // A genuine update exit must not become a normal renderer shutdown.
       pendingUpdateReady = false;
-      getAutoUpdater().quitAndInstall(false, true);
+      isQuitting = true;
+      try {
+        scheduleWindowsUpdateRelaunch(pendingUpdateVersion);
+        getAutoUpdater().quitAndInstall(true, true);
+      } catch (error) {
+        isQuitting = false;
+        pendingUpdateReady = true;
+        log.error('[echoo-desktop] Windows update could not begin:', error.message);
+        throw error;
+      }
     }
   } catch (error) {
     log.warn('[echoo-desktop] update prompt failed:', error.message);
@@ -2645,7 +2711,8 @@ function checkForUpdates() {
     // piggyback on a quit that is still preserving live audio or recording
     // data; promptForDownloadedUpdate is the only install entry point.
     updater.autoInstallOnAppQuit = false;
-    updater.on('update-downloaded', () => {
+    updater.on('update-downloaded', (info) => {
+      pendingUpdateVersion = String(info?.version || '');
       pendingUpdateReady = true;
       if (updateRestartBlocked()) {
         log.info('[echoo-desktop] update downloaded — deferring restart prompt until protected work ends');
