@@ -119,6 +119,25 @@ test('Creator navigation moves between Broadcast and Channel without losing acco
   });
 });
 
+test('Broadcast title is editable without replacing the permanent Channel identity', async ({ page }) => {
+  await page.goto('/creator-studio/channels');
+  await expect(page.getByRole('heading', { name: 'My Station', level: 2 })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Broadcast', exact: true }).click();
+  const titleInput = page.getByRole('textbox', { name: 'Broadcast title' });
+  await expect(titleInput).toBeVisible();
+  await expect(titleInput).toHaveValue('');
+  await titleInput.fill('Tuesday Bible Study - 06th Oct, 2026');
+  await expect(page.getByText('Your Channel name stays My Station.')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Channel', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'My Station', level: 2 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Tuesday Bible Study - 06th Oct, 2026', level: 2 })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Edit Channel' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Edit Channel' });
+  await expect(dialog.getByRole('textbox', { name: 'Channel name' })).toHaveValue('My Station');
+});
+
 test('Channel remains usable without horizontal overflow on a narrow viewport', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/creator-studio/channels');
