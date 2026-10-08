@@ -513,6 +513,20 @@ test('auto-update waits for recording saves as well as active audio sessions', (
   assert.match(mainSource, /pendingUpdateReady && !roomState\.active/);
 });
 
+test('downloaded Windows update bypasses ordinary quit safely and restores the new installer when NSIS relaunch fails', () => {
+  assert.match(mainSource, /updater\.on\('update-downloaded', \(info\) =>/);
+  assert.match(mainSource, /pendingUpdateVersion = String\(info\?\.version \|\| ''\)/);
+  assert.match(mainSource, /if \(!pendingUpdateReady \|\| updatePromptOpen \|\| updateRestartBlocked\(\)\) return/);
+  assert.match(mainSource, /if \(updateRestartBlocked\(\)\) \{/);
+  assert.match(mainSource, /scheduleWindowsUpdateRelaunch\(pendingUpdateVersion\)/);
+  assert.match(mainSource, /getAutoUpdater\(\)\.quitAndInstall\(true, true\)/);
+  assert.match(mainSource, /isQuitting = true;\s*try \{\s*scheduleWindowsUpdateRelaunch/);
+  assert.match(mainSource, /if \(process\.platform !== 'win32' \|\| !app\.isPackaged\) return/);
+  assert.match(mainSource, /\[Version\]\$found/);
+  assert.match(mainSource, /if \(-not \$alreadyRunning\)/);
+  assert.match(mainSource, /Start-Process -FilePath \$exe/);
+});
+
 test('cancelled and subframe loads cannot replace a healthy app with the recovery page', () => {
   assert.match(mainSource, /errorCode === -3 \|\| isMainFrame === false/);
 });
