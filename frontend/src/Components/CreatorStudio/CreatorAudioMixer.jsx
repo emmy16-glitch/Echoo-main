@@ -50,6 +50,7 @@ import {
   normalizeRealtimeAudioProfile,
 } from '../../services/realtimeAudioQuality';
 import studioService from '../../services/studioService';
+import CreatorAudioLibraryPicker from './CreatorAudioLibraryPicker';
 import {
   getCachedCreatorAudioSettings,
   loadCreatorAudioSettings,
@@ -224,7 +225,7 @@ const parentStateSignature = (snapshot = {}) => [
   snapshot.monitoring?.outputDeviceId || '',
 ].join('|');
 
-const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = null, onStateChange, audioLibrary = [], onGoLive, goLiveBusy = false, isLive = false, qualityProfile = 'broadcast_high', onQualityProfileChange }) => {
+const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = null, onStateChange, onGoLive, goLiveBusy = false, isLive = false, qualityProfile = 'broadcast_high', onQualityProfileChange }) => {
   const [mixer, setMixer] = useState(() => sessionState || getEchooMixerState());
   const [inputs, setInputs] = useState([]);
   const [outputs, setOutputs] = useState([]);
@@ -1020,7 +1021,7 @@ const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = n
               </>
             ) : <button type="button" className="eam-approved-add-audio" onClick={() => setAudioMenuOpen((open) => !open)}><FiPlus /> Add audio <FiChevronDown /></button>}
             {audioMenuOpen && <div className="eam-approved-audio-menu"><button type="button" onClick={() => { setAudioMenuOpen(false); mediaFileInputRef.current?.click(); }}>Upload audio file</button><button type="button" onClick={() => setLibraryOpen(true)}>From Echoo library</button><button type="button" onClick={addBrowserAudio} disabled={workingChannel === 'screen'}>{workingChannel === 'screen' ? 'Opening browser picker…' : 'Share browser audio'}</button></div>}
-            {libraryOpen && <div className="eam-approved-library" role="dialog" aria-modal="true" aria-label="Echoo audio library"><header><strong>Echoo library</strong><button type="button" onClick={() => setLibraryOpen(false)}>Close</button></header>{audioLibrary.length ? audioLibrary.map((item) => <button type="button" key={item.id || item._id || item.title} onClick={() => addLibraryAudio(item)} disabled={workingChannel === 'media'}><span>{item.title || item.name || 'Untitled audio'}</span><small>{item.genre || item.category || 'Audio'}</small></button>) : <p>Your Echoo library is empty.</p>}</div>}
+            <CreatorAudioLibraryPicker open={libraryOpen} busy={workingChannel === 'media'} onClose={() => setLibraryOpen(false)} onSelect={addLibraryAudio} />
           </section>
           <aside className="eam-approved-live-actions">
             <div className="eam-approved-quality" role="group" aria-labelledby="audio-quality-label">

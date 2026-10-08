@@ -108,10 +108,12 @@ const missingStreamTokenRoute = (error) =>
 const studioService = {
   getDashboard: async () => apiRequest("/studio/dashboard"),
 
-  getContent: async ({ page = 1, limit = 20 } = {}) => {
+  getContent: async ({ page = 1, limit = 20, search = "", sort = "latest" } = {}) => {
     const params = new URLSearchParams();
     params.set("page", String(page));
     params.set("limit", String(limit));
+    if (String(search).trim()) params.set("search", String(search).trim());
+    if (sort) params.set("sort", String(sort));
     return apiRequest(`/studio/content?${params.toString()}`);
   },
 

@@ -4,6 +4,7 @@ import Analytics from '../models/Analytics.js';
 import Follow from '../models/Follow.js';
 import Broadcast from '../models/Broadcast.js';
 import { buildAudioStreamUrl } from '../services/audioStreamAccess.js';
+import { boundedSearchText, escapeRegexLiteral } from '../utils/queryText.js';
 
 function formatDuration(seconds) {
   const value = Number(seconds) || 0;
@@ -276,9 +277,24 @@ export async function getContentList(req, res, next) {
     const skip = (page - 1) * limit;
 
     const filter = { artist: user._id, isDeleted: false };
+    const searchText = boundedSearchText(req.query.search, { maxLength: 120 });
+    if (searchText) {
+      const search = escapeRegexLiteral(searchText);
+      filter.$or = [
+        { title: { $regex: search, $options: 'i' } },
+        { originalName: { $regex: search, $options: 'i' } },
+        { tags: { $regex: search, $options: 'i' } },
+      ];
+    }
+    const sort = String(req.query.sort || 'latest');
+    const sortOption = sort === 'oldest'
+      ? { createdAt: 1 }
+      : sort === 'title'
+        ? { title: 1, createdAt: -1 }
+        : { createdAt: -1 };
     const [tracks, total] = await Promise.all([
       Audio.find(filter)
-        .sort({ createdAt: -1 })
+        .sort(sortOption)
         .skip(skip)
         .limit(limit)
         .select(

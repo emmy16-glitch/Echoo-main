@@ -1014,7 +1014,6 @@ const connectMediaElementUrl = async ({
   if (!url) throw new Error('This audio source has no playable URL.');
 
   const context = await ensureContext();
-  disconnectSource('media');
 
   const element = document.createElement('audio');
   element.preload = 'metadata';
@@ -1041,6 +1040,11 @@ const connectMediaElementUrl = async ({
     }
     throw new Error('This browser could not connect that audio source to the mixer.', { cause: error });
   }
+
+  // Keep the current media channel intact until the replacement has proved it
+  // can load and attach to Web Audio. A bad/expired Library item must not stop
+  // audio that is already in the broadcast mix.
+  disconnectSource('media');
 
   const analyser = context.createAnalyser();
   const channelSplitter = context.createChannelSplitter(2);

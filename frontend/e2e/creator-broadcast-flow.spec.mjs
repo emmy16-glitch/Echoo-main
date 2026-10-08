@@ -48,6 +48,28 @@ const liveBroadcast = {
 
 const fulfill = (route, data) => route.fulfill({ json: { data } });
 
+const playableWav = () => {
+  const sampleRate = 8000;
+  const samples = sampleRate / 2;
+  const bytes = Buffer.alloc(44 + samples * 2);
+  bytes.write('RIFF', 0);
+  bytes.writeUInt32LE(bytes.length - 8, 4);
+  bytes.write('WAVEfmt ', 8);
+  bytes.writeUInt32LE(16, 16);
+  bytes.writeUInt16LE(1, 20);
+  bytes.writeUInt16LE(1, 22);
+  bytes.writeUInt32LE(sampleRate, 24);
+  bytes.writeUInt32LE(sampleRate * 2, 28);
+  bytes.writeUInt16LE(2, 32);
+  bytes.writeUInt16LE(16, 34);
+  bytes.write('data', 36);
+  bytes.writeUInt32LE(samples * 2, 40);
+  for (let index = 0; index < samples; index += 1) {
+    bytes.writeInt16LE(Math.round(Math.sin(index * Math.PI * 2 * 220 / sampleRate) * 4000), 44 + index * 2);
+  }
+  return bytes;
+};
+
 const authenticate = async (page) => {
   await page.addInitScript(({ user }) => {
     localStorage.setItem('accessToken', 'creator-token');
@@ -67,10 +89,10 @@ const authenticate = async (page) => {
   }, { user: creator });
 };
 
-const installBaseRoutes = async (page, broadcasts) => {
+const installBaseRoutes = async (page, broadcasts, tracks = []) => {
   await page.route('**/api/auth/me', (route) => fulfill(route, { user: creator }));
   await page.route('**/api/settings', (route) => fulfill(route, {}));
-  await page.route('**/api/studio/content**', (route) => fulfill(route, { tracks: [], pagination: {} }));
+  await page.route('**/api/studio/content**', (route) => fulfill(route, { tracks, pagination: {} }));
   await page.route('**/api/stations/mine/all**', (route) => fulfill(route, [station]));
   await page.route('**/api/broadcasts/mine/all**', (route) => fulfill(route, broadcasts));
   await page.route(`**/api/broadcasts/${BROADCAST_ID}/presence`, (route) => fulfill(route, {
@@ -100,6 +122,47 @@ const installBaseRoutes = async (page, broadcasts) => {
   }));
   await page.route('**/api/**', (route) => route.fallback());
 };
+
+test('Creator can choose an existing Echoo Library recording as a media source', async ({ page }) => {
+  await page.setViewportSize({ width: 1536, height: 1024 });
+  await authenticate(page);
+  await installBaseRoutes(page, [], [{
+    id: '507f1f77bcf86cd799439110',
+    title: 'Library audio test track',
+    genre: 'Faith & Spirituality',
+    duration: '0:30',
+  }]);
+  await page.route('**/api/audio/507f1f77bcf86cd799439110/stream?**', (route) => route.fulfill({
+    status: 200,
+    contentType: 'audio/wav',
+    headers: { 'Accept-Ranges': 'bytes' },
+    body: playableWav(),
+  }));
+  await page.route('**/api/audio/507f1f77bcf86cd799439110/stream-token', (route) => fulfill(route, {
+    streamUrl: '/api/audio/507f1f77bcf86cd799439110/stream?token=test-token',
+    mixerUrl: '/api/audio/507f1f77bcf86cd799439110/stream?token=test-token&proxy=1',
+    expiresIn: 43200,
+  }));
+  await page.goto('/creator-studio');
+  await page.getByRole('button', { name: /Add audio/ }).click();
+  await page.getByRole('button', { name: 'From Echoo library' }).click();
+
+  const dialog = page.getByRole('dialog', { name: 'Choose from Echoo Library' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText('Library audio test track')).toBeVisible();
+  await dialog.getByPlaceholder('Search recordings by title').fill('Library audio');
+  await expect(dialog.getByText('Library audio test track')).toBeVisible();
+  await dialog.getByRole('button', { name: /Library audio test track/ }).click();
+
+  await expect(page.locator('.eam-approved-media-copy strong', { hasText: 'Library audio test track' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Pause audio' })).toBeVisible();
+  await expect(page.getByRole('slider', { name: 'Media position' })).toBeVisible();
+  await expect(page.getByRole('slider', { name: 'Media volume' })).toBeVisible();
+  const mediaSource = page.getByLabel('Media source');
+  await expect(mediaSource.getByRole('button', { name: 'Monitor' })).toBeVisible();
+  await expect(mediaSource.getByRole('button', { name: 'Mute' })).toBeVisible();
+  await expect(mediaSource.getByRole('button', { name: 'Remove' })).toBeVisible();
+});
 
 const announceRecording = (page, broadcastId = BROADCAST_ID) => page.evaluate(({ broadcast, id }) => {
   const sampleRate = 48000;

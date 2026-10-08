@@ -717,7 +717,6 @@ const CreatorStudioBody = () => {
             studioName={studioName}
             profileImage={profileImage}
             initialBroadcastId={preparedBroadcastId}
-            audioLibrary={Array.isArray(content?.tracks) ? content.tracks : []}
             onNavigate={navigateStudio}
             onClearPreparedBroadcast={clearPreparedBroadcast}
           />
