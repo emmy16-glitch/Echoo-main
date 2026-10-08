@@ -16,7 +16,7 @@ import {
 } from "react-icons/fa";
 
 import EchooLogoImage from "../Assets/echoo-logo-mark.png";
-import EchooAuthBackground from "../Assets/echoo-auth-cinematic-headphones.jpeg";
+import EchooAuthBackground from "../Assets/echoo-auth-studio-reference.jpg";
 import LoadingButton from "../UI/LoadingButton";
 import Toast from "../UI/Toast";
 
@@ -359,9 +359,8 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
       <div className="ear-auth-shell">
         <aside className="ear-auth-story" aria-label="About Echoo">
           <div className="ear-auth-story-copy">
-            <span className="ear-auth-story-kicker"><i aria-hidden="true" /> Live sound, made human</span>
             <h2>Hear the moment.<br />Own the room.</h2>
-            <p>Creators broadcast. Listeners join instantly. Public live audio stays open without an account wall.</p>
+            <p>Start a live room to share what&apos;s happening, or join one to listen. You don&apos;t need an account to listen.</p>
           </div>
         </aside>
 
@@ -409,9 +408,9 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
             <>
               <header className="ear-form-heading">
                 <h1 id="ear-auth-title">
-                  {isLogin ? "Sign in" : "Sign up"}
+                  {isLogin ? "Sign in" : "Create your account"}
                 </h1>
-                {isLogin && <p>Welcome back to Echoo.</p>}
+                <p>{isLogin ? "Welcome back to Echoo." : "Join Echoo and start sharing or listening."}</p>
               </header>
 
               <form className="ear-form" onSubmit={handleSubmit} noValidate>
@@ -626,18 +625,14 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
                   </p>
                 )}
 
-                {isLogin && (
-                  <>
-                    <div className="ear-auth-divider" aria-hidden="true"><span>or</span></div>
-                    <button
-                      type="button"
-                      className="ear-guest-listen"
-                      onClick={() => navigate("/listen")}
-                    >
-                      Continue listening without an account
-                    </button>
-                  </>
-                )}
+                <div className="ear-auth-divider" aria-hidden="true"><span>or</span></div>
+                <button
+                  type="button"
+                  className="ear-guest-listen"
+                  onClick={() => navigate("/listen")}
+                >
+                  Continue listening without an account
+                </button>
 
                 <p className="ear-auth-switch">
                   {isLogin ? "Don’t have an account? " : "Already have an account? "}

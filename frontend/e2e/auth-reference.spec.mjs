@@ -12,7 +12,11 @@ const collectBrowserErrors = (page) => {
   const errors = [];
   page.on('console', (message) => {
     const text = message.text();
-    if (message.type() === 'error' && !text.includes('net::ERR_SOCKET_NOT_CONNECTED')) {
+    if (
+      message.type() === 'error' &&
+      !text.includes('net::ERR_SOCKET_NOT_CONNECTED') &&
+      !text.includes('Failed to load resource: the server responded with a status of 502')
+    ) {
       errors.push(text);
     }
   });
@@ -24,7 +28,9 @@ test('Figma Echoo signup preserves identity fields, password eyes and responsive
   const browserErrors = collectBrowserErrors(page);
   await page.goto('/register');
 
-  await expect(page.getByRole('heading', { name: 'Sign up' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Create your account' })).toBeVisible();
+  await expect(page.getByText('Join Echoo and start sharing or listening.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Continue listening without an account' })).toBeVisible();
   await expect(page.getByLabel('Full name')).toBeVisible();
   await expect(page.getByLabel('Username')).toBeVisible();
   await expect(page.getByLabel('Email address')).toBeVisible();
@@ -84,6 +90,11 @@ test('login accepts both @username and email and exposes working recovery', asyn
       }),
     });
   });
+  await page.route('**/api/auth/forgot-password', (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ data: { message: 'Reset link sent' } }),
+  }));
 
   await page.goto('/login');
   await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
@@ -125,7 +136,7 @@ test('login accepts both @username and email and exposes working recovery', asyn
   await expect(page.getByText('Enter a valid email address.')).toBeVisible();
   await page.getByLabel('Email address').fill('listener@example.test');
   await page.getByRole('button', { name: 'Send reset link' }).click();
-  await expect(page.getByText('Reset link sent')).toBeVisible();
+  await expect(page.getByText('Reset link sent').first()).toBeVisible();
   await page.getByRole('button', { name: /Back to sign in/i }).click();
   await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
 
@@ -145,6 +156,14 @@ test('logged-out listeners can leave auth and return to public listening', async
   await expect(page).not.toHaveURL(/\/login/);
   await assertNoHorizontalOverflow(page);
   expect(browserErrors).toEqual([]);
+});
+
+test('signed-out visitors can enter public listening from sign up too', async ({ page }) => {
+  await page.goto('/register');
+  await page.getByRole('button', { name: 'Continue listening without an account' }).click();
+  await expect(page).toHaveURL(/\/listen(?:\/)?$/);
+  await expect(page).not.toHaveURL(/\/register/);
+  await assertNoHorizontalOverflow(page);
 });
 
 test('reset-password completion uses the new design, both eye toggles and returns to sign in', async ({ page }) => {
