@@ -1212,5 +1212,5 @@ html.listener-v2-full-player-open body { overflow:hidden; }
 .listener-v2-followed-note { margin: 4px 0 0; color: var(--listener-v2-copy, #69778b); font-size: 13px; line-height: 1.5; }
 @media (max-width: 550px) {
   .listener-v2-followed-accounts { gap: 8px; }
-  .listener-v2-followed-account { max-width: calc(50% - 4px); flex: 1 1 calc(50% - 4px); font-size: 12px; }
+  .listener-v2-followed-account { max-width: calc(50% - 4px); flex: 1 1 calc(50% - 4px); font-size: 13px; }
 }
