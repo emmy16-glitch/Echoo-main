@@ -549,7 +549,8 @@ const CreatorStationsWorkspace = ({ onNavigate, onOpenRecording }) => {
             <div className="est-form-grid">
               <label>
                 <span>Channel name</span>
-                <input value={form.name} onChange={(event) => updateField('name', event.target.value)} maxLength="120" required autoFocus />
+                <input value={form.name} onChange={(event) => updateField('name', event.target.value)} maxLength="100" required autoFocus />
+                <small>This is your permanent Channel name. Each live broadcast has its own title.</small>
               </label>
 
               <label>
