@@ -1264,6 +1264,7 @@ const ListenerV2Following = () => {
   const cachedFollowingEntry = useMemo(() => readNavigationData('listener-following-stations'), []);
   const cachedFollowing = cachedFollowingEntry?.data;
   const [stations, setStations] = useState(() => Array.isArray(cachedFollowing) ? cachedFollowing : []);
+  const [creators, setCreators] = useState([]);
   const [loading, setLoading] = useState(!cachedFollowing);
   const [busyId, setBusyId] = useState('');
   const [error, setError] = useState('');
@@ -1274,15 +1275,27 @@ const ListenerV2Following = () => {
     // render the sign-in state instead of an error banner.
     if (isGuest) {
       setStations([]);
+      setCreators([]);
       setError('');
       setLoading(false);
       return;
     }
     try {
-      const stationResult = await followService.getFollowingStations();
-      const nextStations = Array.isArray(stationResult?.data) ? stationResult.data : [];
-      setStations(nextStations);
-      writeNavigationData('listener-following-stations', nextStations, { ttlMs: 2 * 60_000 });
+      const [stationResult, creatorResult] = await Promise.allSettled([
+        followService.getFollowingStations(),
+        followService.getFollowingCreators(),
+      ]);
+      if (stationResult.status === 'rejected' && creatorResult.status === 'rejected') {
+        throw new Error('Following could not load.');
+      }
+      if (stationResult.status === 'fulfilled') {
+        const nextStations = Array.isArray(stationResult.value?.data) ? stationResult.value.data : [];
+        setStations(nextStations);
+        writeNavigationData('listener-following-stations', nextStations, { ttlMs: 2 * 60_000 });
+      }
+      if (creatorResult.status === 'fulfilled') {
+        setCreators(Array.isArray(creatorResult.value?.data) ? creatorResult.value.data : []);
+      }
       setError('');
     } catch (loadError) {
       setError(loadError?.message || "We couldn't load your followed Channels.");
@@ -1292,11 +1305,17 @@ const ListenerV2Following = () => {
   }, [isGuest]);
 
   useEffect(() => {
-    if (!isNavigationDataFresh(cachedFollowingEntry)) load();
-  }, [cachedFollowingEntry, load]);
+    // Always reconcile on entry: Follow may have happened on a profile page
+    // while this route was unmounted, even if the navigation cache is fresh.
+    void load();
+  }, [load]);
   useEffect(() => {
     window.addEventListener('echoo:network-restored', load);
-    return () => window.removeEventListener('echoo:network-restored', load);
+    window.addEventListener('echoo:following-changed', load);
+    return () => {
+      window.removeEventListener('echoo:network-restored', load);
+      window.removeEventListener('echoo:following-changed', load);
+    };
   }, [load]);
 
   const unfollowStation = async (station) => {
@@ -1312,6 +1331,18 @@ const ListenerV2Following = () => {
       });
     } catch (actionError) {
       setError(actionError?.message || 'Could not unfollow this Channel.');
+    } finally { setBusyId(''); }
+  };
+
+  const unfollowCreator = async (creator) => {
+    const key = idOf(creator);
+    if (!key || busyId) return;
+    try {
+      setBusyId(key);
+      await followService.unfollowCreator(key);
+      setCreators((current) => current.filter((item) => idOf(item) !== key));
+    } catch (actionError) {
+      setError(actionError?.message || 'Could not unfollow this creator.');
     } finally { setBusyId(''); }
   };
 
@@ -1350,7 +1381,7 @@ const ListenerV2Following = () => {
         <EmptyState icon={<FiHeadphones />} title="Sign in to see followed Channels" copy="Following is personal — sign in and the Channels you follow will appear here." action={() => navigate('/login')} actionLabel="Sign in" />
       ) : error ? (
         <EmptyState icon={<FiHeadphones />} title="Following couldn’t load" copy="Check your connection and try again." action={load} actionLabel="Try again" />
-      ) : stations.length ? (
+      ) : stations.length || creators.length ? (
         <>
           {liveStations.length > 0 && (
             <section className="listener-v2-following-live">
@@ -1374,7 +1405,7 @@ const ListenerV2Following = () => {
 
           {offlineStations.length > 0 && (
             <section className="listener-v2-following-all">
-              <h2>Creators you follow</h2>
+              <h2>Channels you follow</h2>
               <div className="listener-v2-following-list">
                 {offlineStations.map((station) => (
                   <article className="listener-v2-following-row" key={idOf(station)}>
@@ -1401,10 +1432,27 @@ const ListenerV2Following = () => {
               </div>
             </section>
           )}
-          <FollowingRecordings />
+          {creators.length > 0 && (
+            <section className="listener-v2-following-all" aria-label="Followed creators">
+              <h2>Creators you follow</h2>
+              <div className="listener-v2-creator-grid">
+                {creators.map((creator) => (
+                  <CreatorCard
+                    key={idOf(creator)}
+                    creator={creator}
+                    following
+                    busy={busyId === idOf(creator)}
+                    onOpen={(item) => navigate(`/listen/creator/${idOf(item)}`)}
+                    onFollow={unfollowCreator}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+          <FollowingRecordings showAccounts={false} />
         </>
       ) : (
-        <EmptyState icon={<FiHeadphones />} title="No channels followed yet" copy="Discover creators and follow channels to keep up with new broadcasts." action={() => navigate('/listen/search')} actionLabel="Find creators" />
+        <EmptyState icon={<FiHeadphones />} title="No creators or Channels followed yet" copy="Follow a creator or Channel and it will appear here, even before a new recording is available." action={() => navigate('/listen/search')} actionLabel="Find creators" />
       )}
     </div>
   );

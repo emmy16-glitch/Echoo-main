@@ -1,5 +1,5 @@
 import { apiRequest, buildMediaUrl } from './api.js';
-import batch2Service, { normalizeStation } from './batch2Service.js';
+import { normalizeStation } from './batch2Service.js';
 
 const normalizeCreator = (creator) => {
   if (!creator) return null;
@@ -20,6 +20,14 @@ const normalizeCreator = (creator) => {
     category: profile.category || creator.category || 'Creator',
     verified: Boolean(profile.isVerified || creator.verified),
   };
+};
+
+// Refresh both Following surfaces after a confirmed relationship change.
+const announceFollowingChanged = (type, id, following) => {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent('echoo:following-changed', {
+    detail: { type, id: String(id), following },
+  }));
 };
 
 const loadFollowingCreators = async () => {
@@ -62,6 +70,7 @@ const followService = {
       `/follows/users/${encodeURIComponent(creatorId)}`,
       { method: 'POST' }
     );
+    announceFollowingChanged('creator', creatorId, true);
     return response?.data || null;
   },
 
@@ -70,6 +79,7 @@ const followService = {
       `/follows/users/${encodeURIComponent(creatorId)}`,
       { method: 'DELETE' }
     );
+    announceFollowingChanged('creator', creatorId, false);
     return response?.data || null;
   },
 
@@ -88,6 +98,7 @@ const followService = {
       `/follows/stations/${encodeURIComponent(stationId)}`,
       { method: 'POST' }
     );
+    announceFollowingChanged('station', stationId, true);
     return response?.data || null;
   },
 
@@ -96,6 +107,7 @@ const followService = {
       `/follows/stations/${encodeURIComponent(stationId)}`,
       { method: 'DELETE' }
     );
+    announceFollowingChanged('station', stationId, false);
     return response?.data || null;
   },
 
@@ -107,21 +119,12 @@ const followService = {
         ? response.data.map(normalizeStation).filter(Boolean)
         : [];
 
-    const canonical = await Promise.all(
-      raw.map(async (station) => {
-        if (!station?.id) return station;
-        try {
-          const current = await batch2Service.getStation(station.id);
-          return current?.data || station;
-        } catch {
-          return station;
-        }
-      })
-    );
-
+    // The authenticated follow endpoint already returns the current, populated
+    // Channel. Avoid one more request per followed Channel, which delays the
+    // Following panel and leaves it apparently empty on slow connections.
     return {
       ...response,
-      data: canonical.filter(Boolean),
+      data: raw,
     };
   },
 

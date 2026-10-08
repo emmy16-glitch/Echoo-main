@@ -1161,3 +1161,56 @@ html.listener-v2-full-player-open body { overflow:hidden; }
     font-size: 13px;
   }
 }
+
+/* Listener Following: surface real followed accounts even when no new audio
+   exists. Compact, keyboard-accessible and resilient on phone widths. */
+.listener-v2-followed-accounts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 3px 0 15px;
+}
+.listener-v2-followed-account {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  max-width: min(100%, 230px);
+  min-height: 46px;
+  padding: 4px 9px 4px 4px;
+  border: 1px solid #e4eaf3;
+  border-radius: 10px;
+  background: #fff;
+  color: var(--listener-v2-ink, #142541);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+}
+.listener-v2-followed-account:hover { border-color: #b6cdf4; background: #f8fbff; }
+.listener-v2-followed-account:focus-visible { outline: 2px solid #246bfe; outline-offset: 2px; }
+.listener-v2-followed-account-art {
+  display: grid;
+  flex: 0 0 38px;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  overflow: hidden;
+  border-radius: 9px;
+  background: #edf4ff;
+  color: #215abb;
+  font-size: 14px;
+}
+.listener-v2-followed-account-art img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.listener-v2-followed-account > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.listener-v2-followed-note { margin: 4px 0 0; color: var(--listener-v2-copy, #69778b); font-size: 13px; line-height: 1.5; }
+@media (max-width: 550px) {
+  .listener-v2-followed-accounts { gap: 8px; }
+  .listener-v2-followed-account { max-width: calc(50% - 4px); flex: 1 1 calc(50% - 4px); font-size: 13px; }
+}
