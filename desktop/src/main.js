@@ -2636,7 +2636,7 @@ function scheduleWindowsUpdateRelaunch(expectedVersion) {
     '  $installed = $found -replace "(\\.0)+$", ""',
     '  if ($installed -ne $expected) { continue }',
     '  Start-Sleep -Seconds 8',
-    '  $alreadyRunning = @(Get-CimInstance Win32_Process -Filter "Name=''Echoo.exe''" -ErrorAction SilentlyContinue | Where-Object { $_.ExecutablePath -and [string]::Equals($_.ExecutablePath, $exe, [StringComparison]::OrdinalIgnoreCase) }).Count -gt 0',
+    "  $alreadyRunning = @(Get-CimInstance Win32_Process -Filter \"Name='Echoo.exe'\" -ErrorAction SilentlyContinue | Where-Object { $_.ExecutablePath -and [string]::Equals($_.ExecutablePath, $exe, [StringComparison]::OrdinalIgnoreCase) }).Count -gt 0",
     '  if (-not $alreadyRunning) {',
     '    Remove-Item Env:\ELECTRON_RUN_AS_NODE -ErrorAction SilentlyContinue',
     '    Start-Process -FilePath $exe -WorkingDirectory (Split-Path -Parent $exe)',
