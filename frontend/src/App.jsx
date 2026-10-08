@@ -28,6 +28,7 @@ import {
   loadListenerHome,
   loadListenerLayout,
   loadListenerLibrary,
+  loadListenerProfile,
   loadListenerLive,
   loadListenerLiveRoom,
   loadListenerNotifications,
@@ -43,7 +44,7 @@ import {
 
 const CreatorStudio = lazy(() => import('./Components/CreatorStudio/CreatorStudio'));
 const ListenerLayout = lazy(loadListenerLayout);
-const ListenerProfile = lazy(() => import('./Components/ListenerProfile/ListenerProfile'));
+const ListenerProfile = lazy(loadListenerProfile);
 const ListenerHome = lazy(loadListenerHome);
 const ListenerSearch = lazy(loadListenerSearch);
 const ListenerLive = lazy(loadListenerLive);

@@ -31,6 +31,7 @@ export const loadListenerFollowing = listenerV2Page('ListenerV2Following');
 // Secondary/detail experiences retain their proven data and interaction logic.
 // They now render inside the strict Listener 2.0 shell.
 export const loadListenerLibrary = cachedLoader(() => import('../Components/ListenerLibrary/ListenerLibrary'));
+export const loadListenerProfile = cachedLoader(() => import('../Components/ListenerProfile/ListenerProfile'));
 export const loadListenerPlaylist = cachedLoader(() => import('../Components/ListenerPlaylist/ListenerPlaylist'));
 export const loadListenerSavedMoments = cachedLoader(() => import('../Components/ListenerSavedMoments/ListenerSavedMoments'));
 export const loadListenerHistory = cachedLoader(() => import('../Components/ListenerHistory/ListenerHistoryConnected'));
@@ -55,5 +56,18 @@ const LISTENER_ROUTE_PREFETCH = [
   loadListenerFollowing,
 ];
 
-export const preloadListenerRoutes = () =>
-  Promise.all(LISTENER_ROUTE_PREFETCH.map((load) => load().catch(() => null)));
+const LISTENER_SECONDARY_PREFETCH = [
+  loadListenerLibrary,
+  loadListenerProfile,
+  loadListenerPlaylist,
+  loadListenerSavedMoments,
+  loadListenerHistory,
+  loadListenerDownloads,
+  loadListenerNotifications,
+  loadListenerSettings,
+];
+
+export const preloadListenerRoutes = async () => {
+  await Promise.all(LISTENER_ROUTE_PREFETCH.map((load) => load().catch(() => null)));
+  return Promise.all(LISTENER_SECONDARY_PREFETCH.map((load) => load().catch(() => null)));
+};

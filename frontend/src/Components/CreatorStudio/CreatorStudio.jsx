@@ -29,6 +29,7 @@ import {
 } from '../../services/progressTiming';
 import ListenerLiveConnected from '../ListenerLive/ListenerLiveConnected';
 import { CreatorStudioStateProvider } from './CreatorStudioState';
+import { readNavigationData, writeNavigationData } from '../../services/navigationDataCache';
 // Lazy workspaces keep the first Creator render small.  Cache the import
 // promise as well so an idle prefetch and a quick click share one request.
 const cachedWorkspaceImport = (loader) => {
@@ -67,10 +68,17 @@ const CreatorRecordingsWorkspace = lazy(loadCreatorRecordings);
 const CreatorCollectionWorkspace = lazy(loadCreatorCollection);
 
 const CREATOR_IDLE_PREFETCH = [
+  loadCreatorContent,
   loadCreatorStations,
   loadCreatorRecordings,
+  loadCreatorCollection,
   loadCreatorSchedule,
   loadCreatorAnalytics,
+  loadCreatorBroadcastSettings,
+  loadCreatorSettings,
+  loadCreatorNotifications,
+  loadCreatorAudience,
+  loadCreatorDiscover,
 ];
 
 const WorkspaceFallback = () => (
@@ -161,7 +169,11 @@ const CreatorStudioBody = () => {
     () => creatorWorkspaceForPath(location.pathname),
     [location.pathname]
   );
-  const [content, setContent] = useState({ tracks: [], pagination: {} });
+  const cachedInitialContent = useMemo(
+    () => readNavigationData('creator-content-page-1')?.data || { tracks: [], pagination: {} },
+    []
+  );
+  const [content, setContent] = useState(cachedInitialContent);
   const [audience, setAudience] = useState(null);
   const [contentPage, setContentPage] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -177,7 +189,7 @@ const CreatorStudioBody = () => {
   const [uploadProgress, setUploadProgress] = useState(null);
   const [backgroundRecordingProgress, setBackgroundRecordingProgress] = useState(null);
   const [uploadForm, setUploadForm] = useState(EMPTY_UPLOAD);
-  const contentCacheRef = useRef(new Map());
+  const contentCacheRef = useRef(new Map([['1:0', cachedInitialContent]]));
 
   const creatorSetup = useMemo(() => readJson('creatorSetup', {}), []);
   const [user, setUser] = useState(() => readJson('user', {}));
@@ -254,6 +266,7 @@ const CreatorStudioBody = () => {
           const response = await studioService.getContent({ page: contentPage, limit: 20 });
           const nextContent = response?.data || { tracks: [], pagination: {} };
           contentCacheRef.current.set(cacheKey, nextContent);
+          writeNavigationData(`creator-content-page-${contentPage}`, nextContent, { ttlMs: 5 * 60_000 });
           if (active) setContent(nextContent);
         }
         if (activeNav === 'Audience') {

@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import batch2Service from '../../services/batch2Service';
 import studioService from '../../services/studioService';
 import realtimeService from '../../services/realtimeService';
+import { readNavigationData, writeNavigationData } from '../../services/navigationDataCache';
 
 const CreatorStudioStateContext = createContext(null);
 
@@ -11,37 +12,20 @@ const asList = (value) => (Array.isArray(value) ? value : []);
 const readProfileComplete = (user = {}) =>
   Boolean(user?.profileCompleted) || localStorage.getItem('echooProfileCompleted') === 'true';
 
-const STUDIO_CACHE_KEY = 'echooCreatorStudioCacheV1';
+const STUDIO_CACHE_KEY = 'creator-studio-core';
 const STUDIO_CACHE_TTL_MS = 60 * 1000;
 
-const readCachedStudio = () => {
-  try {
-    const raw = sessionStorage.getItem(STUDIO_CACHE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!parsed || Date.now() - Number(parsed.savedAt || 0) > STUDIO_CACHE_TTL_MS) return null;
-    return parsed.state || null;
-  } catch {
-    return null;
-  }
-};
+const readCachedStudio = () => readNavigationData(STUDIO_CACHE_KEY)?.data || null;
 
 const writeCachedStudio = (state) => {
-  try {
-    sessionStorage.setItem(STUDIO_CACHE_KEY, JSON.stringify({
-      savedAt: Date.now(),
-      state: {
-        dashboard: state.dashboard,
-        ownedStations: state.ownedStations,
-        audioUploads: state.audioUploads?.slice?.(0, 20) || [],
-        broadcasts: state.broadcasts,
-        publicStations: state.publicStations?.slice?.(0, 30) || [],
-        analytics: state.analytics,
-      },
-    }));
-  } catch {
-    // Cache is best-effort only.
-  }
+  writeNavigationData(STUDIO_CACHE_KEY, {
+    dashboard: state.dashboard,
+    ownedStations: state.ownedStations,
+    audioUploads: state.audioUploads?.slice?.(0, 20) || [],
+    broadcasts: state.broadcasts,
+    publicStations: state.publicStations?.slice?.(0, 30) || [],
+    analytics: state.analytics,
+  }, { ttlMs: STUDIO_CACHE_TTL_MS });
 };
 
 export function CreatorStudioStateProvider({ user, children }) {

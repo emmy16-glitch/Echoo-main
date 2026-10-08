@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   isNavigationDataFresh,
   loadNavigationData,
@@ -14,21 +14,25 @@ export default function useNavigationResource({
   scope = 'account',
   ttlMs = 60_000,
   enabled = true,
+  allowExpired = true,
 }) {
   const initial = useMemo(
     () => readNavigationData(cacheKey, { scope }),
     [cacheKey, scope]
   );
-  const [data, setData] = useState(initial?.data ?? fallback);
-  const [loading, setLoading] = useState(enabled && !initial);
+  const usableInitial = initial && (allowExpired || isNavigationDataFresh(initial)) ? initial : null;
+  const [data, setData] = useState(usableInitial?.data ?? fallback);
+  const dataRef = useRef(usableInitial?.data ?? fallback);
+  const [loading, setLoading] = useState(enabled && !usableInitial);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
 
-  const refresh = useCallback(async ({ force = true, silent = Boolean(data) } = {}) => {
-    if (!enabled) return data;
+  const refresh = useCallback(async ({ force = true, silent = Boolean(dataRef.current) } = {}) => {
+    if (!enabled) return dataRef.current;
     if (silent) setRefreshing(true); else setLoading(true);
     try {
       const next = await loadNavigationData(cacheKey, loader, { scope, ttlMs, force });
+      dataRef.current = next;
       setData(next);
       setError('');
       return next;
@@ -39,14 +43,17 @@ export default function useNavigationResource({
       setLoading(false);
       setRefreshing(false);
     }
-  }, [cacheKey, data, enabled, loader, scope, ttlMs]);
+  }, [cacheKey, enabled, loader, scope, ttlMs]);
 
   useEffect(() => {
     const cached = readNavigationData(cacheKey, { scope });
-    if (cached) {
-      setData(cached.data);
+    const usableCached = cached && (allowExpired || isNavigationDataFresh(cached)) ? cached : null;
+    if (usableCached) {
+      dataRef.current = usableCached.data;
+      setData(usableCached.data);
       setLoading(false);
     } else {
+      dataRef.current = fallback;
       setData(fallback);
       setLoading(enabled);
     }
@@ -55,20 +62,24 @@ export default function useNavigationResource({
 
     let active = true;
     const unsubscribe = subscribeNavigationData(cacheKey, (entry) => {
-      if (active && entry) setData(entry.data);
+      if (active && entry) {
+        dataRef.current = entry.data;
+        setData(entry.data);
+      }
     }, { scope });
     if (!isNavigationDataFresh(cached)) {
-      refresh({ force: true, silent: Boolean(cached) }).catch(() => {});
+      refresh({ force: true, silent: Boolean(usableCached) }).catch(() => {});
     }
     return () => { active = false; unsubscribe(); };
-  }, [cacheKey, enabled, fallback, refresh, scope]);
+  }, [allowExpired, cacheKey, enabled, fallback, refresh, scope]);
 
   const mutate = useCallback((next) => {
-    const value = typeof next === 'function' ? next(data) : next;
+    const value = typeof next === 'function' ? next(dataRef.current) : next;
     writeNavigationData(cacheKey, value, { scope, ttlMs });
+    dataRef.current = value;
     setData(value);
     return value;
-  }, [cacheKey, data, scope, ttlMs]);
+  }, [cacheKey, scope, ttlMs]);
 
   return { data, loading, refreshing, error, refresh, mutate };
 }

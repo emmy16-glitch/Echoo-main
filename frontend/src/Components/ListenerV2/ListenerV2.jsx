@@ -34,6 +34,8 @@ import notificationService from '../../services/notificationService';
 import { apiRequest, buildMediaUrl } from '../../services/api';
 import { getGuestSession, isAuthenticated, recordGuestPlayback, saveGuestPreferences } from '../../services/guestSession';
 import { useGuestAuth } from '../Auth/GuestAuthGate';
+import useNavigationResource from '../../hooks/useNavigationResource';
+import { readNavigationData, writeNavigationData } from '../../services/navigationDataCache';
 import { getCreatorProfilePath } from '../../services/profileIdentifier';
 import { buildGeneratedStationBrandCoverUrl } from '../../stationBranding/stationBranding';
 import AccountExperienceMenu from '../Shared/AccountExperienceMenu';
@@ -44,6 +46,8 @@ import echooMark from '../Assets/echoo-logo-official.svg';
 import './ListenerV2.css';
 
 const LIVE_SYNC_MS = 15000;
+const EMPTY_LIVE_CATALOG = Object.freeze({ liveNow: [], upcoming: [] });
+const EMPTY_RECORDINGS = Object.freeze([]);
 const CATEGORY_FALLBACK = ['Faith', 'Talk', 'Music', 'Education', 'News', 'Sports', 'Business', 'Technology'];
 const readUser = () => {
   try {
@@ -320,71 +324,64 @@ const CreatorCard = ({ creator, following = true, busy, onOpen, onFollow }) => {
   );
 };
 
-const useLiveCatalog = () => {
-  const [liveNow, setLiveNow] = useState([]);
-  const [upcoming, setUpcoming] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+const fetchLiveCatalog = async () => {
+  if (isAuthenticated()) {
+    const response = await listenerService.getDashboard();
+    return {
+      liveNow: Array.isArray(response?.data?.liveNow) ? response.data.liveNow : [],
+      upcoming: (Array.isArray(response?.data?.upcoming) ? response.data.upcoming : [])
+        .slice()
+        .sort((a, b) => new Date(a?.startTime || 0) - new Date(b?.startTime || 0)),
+    };
+  }
+  const [liveResult, upcomingResult] = await Promise.allSettled([
+    batch2Service.listBroadcasts({ status: 'live', page: 1, limit: 100, cache: 'no-store' }),
+    batch2Service.listBroadcasts({ status: 'scheduled', page: 1, limit: 24, cache: 'no-store' }),
+  ]);
+  if (liveResult.status === 'rejected') throw liveResult.reason;
+  return {
+    liveNow: (Array.isArray(liveResult.value?.data) ? liveResult.value.data : [])
+      .filter((broadcast) => broadcast?.isPublic !== false),
+    upcoming: upcomingResult.status === 'fulfilled'
+      ? (Array.isArray(upcomingResult.value?.data) ? upcomingResult.value.data : [])
+          .filter((broadcast) => broadcast?.isPublic !== false)
+          .sort((a, b) => new Date(a?.startTime || 0) - new Date(b?.startTime || 0))
+      : [],
+  };
+};
 
-  const load = useCallback(async ({ silent = false } = {}) => {
-    try {
-      if (!silent) setLoading(true);
-      if (isAuthenticated()) {
-        const response = await listenerService.getDashboard();
-        setLiveNow(Array.isArray(response?.data?.liveNow) ? response.data.liveNow : []);
-        setUpcoming(
-          (Array.isArray(response?.data?.upcoming) ? response.data.upcoming : [])
-            .slice()
-            .sort((a, b) => new Date(a?.startTime || 0) - new Date(b?.startTime || 0))
-        );
-      } else {
-        const [liveResult, upcomingResult] = await Promise.allSettled([
-          batch2Service.listBroadcasts({
-            status: 'live',
-            page: 1,
-            limit: 100,
-            cache: 'no-store',
-          }),
-          batch2Service.listBroadcasts({
-            status: 'scheduled',
-            page: 1,
-            limit: 24,
-            cache: 'no-store',
-          }),
-        ]);
-        if (liveResult.status === 'rejected') throw liveResult.reason;
-        setLiveNow(
-          (Array.isArray(liveResult.value?.data) ? liveResult.value.data : [])
-            .filter((broadcast) => broadcast?.isPublic !== false)
-        );
-        setUpcoming(
-          upcomingResult.status === 'fulfilled'
-            ? (Array.isArray(upcomingResult.value?.data) ? upcomingResult.value.data : [])
-                .filter((broadcast) => broadcast?.isPublic !== false)
-                .sort((a, b) => new Date(a?.startTime || 0) - new Date(b?.startTime || 0))
-            : []
-        );
-      }
-      setError('');
-    } catch (loadError) {
-      if (!silent) setError(loadError?.message || 'Echoo could not load live events.');
-    } finally {
-      if (!silent) setLoading(false);
-    }
-  }, []);
+const useLiveCatalog = () => {
+  const authenticated = isAuthenticated();
+  const { data, loading, error, refresh } = useNavigationResource({
+    cacheKey: 'listener-live-catalog',
+    loader: fetchLiveCatalog,
+    fallback: EMPTY_LIVE_CATALOG,
+    scope: authenticated ? 'account' : 'public',
+    ttlMs: LIVE_SYNC_MS,
+    // An expired live snapshot is not truthful offline. Scheduled/live data
+    // must be reconfirmed instead of presenting an old broadcast as current.
+    allowExpired: false,
+  });
 
   useEffect(() => {
-    load();
-    const sync = () => load({ silent: true });
+    const sync = () => refresh({ force: true, silent: true }).catch(() => {});
     const interval = window.setInterval(sync, LIVE_SYNC_MS);
     window.addEventListener('focus', sync);
     return () => {
       window.clearInterval(interval);
       window.removeEventListener('focus', sync);
     };
-  }, [load]);
+  }, [refresh]);
 
-  return { liveNow, upcoming, loading, error, reload: load };
+  const liveNow = Array.isArray(data?.liveNow) ? data.liveNow : [];
+  const upcoming = Array.isArray(data?.upcoming) ? data.upcoming : [];
+  return {
+    liveNow,
+    upcoming,
+    loading,
+    error: liveNow.length || upcoming.length ? '' : error,
+    reload: () => refresh({ force: true, silent: false }).catch(() => {}),
+  };
 };
 
 const ListenerV2Layout = () => {
@@ -1168,31 +1165,24 @@ const DiscoverCatalog = () => {
   const navigate = useNavigate();
   const { playTrack } = useOutletContext();
   const { liveNow, upcoming, loading: liveLoading, error: liveError, reload } = useLiveCatalog();
-  const [recordings, setRecordings] = useState([]);
-  const [recordingsLoading, setRecordingsLoading] = useState(true);
-  const [recordingsError, setRecordingsError] = useState('');
-
-  useEffect(() => {
-    let active = true;
-    audioService.getAll({ public: true, page: 1, limit: 8 })
-      .then((result) => {
-        if (!active) return;
-        setRecordings(
-          (result?.data || [])
-            .map(normalizePlayable)
-            .filter(Boolean)
-            .sort((a, b) => new Date(releaseDateOf(b) || 0) - new Date(releaseDateOf(a) || 0))
-        );
-        setRecordingsError('');
-      })
-      .catch(() => {
-        if (active) setRecordingsError('Recordings could not load. Refresh to try again.');
-      })
-      .finally(() => {
-        if (active) setRecordingsLoading(false);
-      });
-    return () => { active = false; };
+  const loadRecordings = useCallback(async () => {
+    const result = await audioService.getAll({ public: true, page: 1, limit: 8 });
+    return (result?.data || [])
+      .map(normalizePlayable)
+      .filter(Boolean)
+      .sort((a, b) => new Date(releaseDateOf(b) || 0) - new Date(releaseDateOf(a) || 0));
   }, []);
+  const {
+    data: recordings,
+    loading: recordingsLoading,
+    error: recordingsError,
+  } = useNavigationResource({
+    cacheKey: 'listener-latest-recordings',
+    loader: loadRecordings,
+    fallback: EMPTY_RECORDINGS,
+    scope: 'public',
+    ttlMs: 5 * 60_000,
+  });
 
   return (
     <div className="listener-v2-page listener-v2-discover-page">
@@ -1262,8 +1252,9 @@ const ListenerV2Live = () => <LiveCatalog />;
 const ListenerV2Following = () => {
   const navigate = useNavigate();
   const { isGuest } = useGuestAuth();
-  const [stations, setStations] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const cachedFollowing = useMemo(() => readNavigationData('listener-following-stations')?.data, []);
+  const [stations, setStations] = useState(() => Array.isArray(cachedFollowing) ? cachedFollowing : []);
+  const [loading, setLoading] = useState(!cachedFollowing);
   const [busyId, setBusyId] = useState('');
   const [error, setError] = useState('');
 
@@ -1278,9 +1269,10 @@ const ListenerV2Following = () => {
       return;
     }
     try {
-      setLoading(true);
       const stationResult = await followService.getFollowingStations();
-      setStations(Array.isArray(stationResult?.data) ? stationResult.data : []);
+      const nextStations = Array.isArray(stationResult?.data) ? stationResult.data : [];
+      setStations(nextStations);
+      writeNavigationData('listener-following-stations', nextStations, { ttlMs: 2 * 60_000 });
       setError('');
     } catch (loadError) {
       setError(loadError?.message || "We couldn't load your followed Channels.");
@@ -1297,7 +1289,11 @@ const ListenerV2Following = () => {
     try {
       setBusyId(key);
       await followService.unfollowStation(key);
-      setStations((current) => current.filter((item) => idOf(item) !== key));
+      setStations((current) => {
+        const next = current.filter((item) => idOf(item) !== key);
+        writeNavigationData('listener-following-stations', next, { ttlMs: 2 * 60_000 });
+        return next;
+      });
     } catch (actionError) {
       setError(actionError?.message || 'Could not unfollow this Channel.');
     } finally { setBusyId(''); }
@@ -1402,9 +1398,13 @@ const ListenerV2Categories = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { requestAuth, isGuest } = useGuestAuth();
-  const [stations, setStations] = useState([]);
-  const [followingIds, setFollowingIds] = useState(new Set());
-  const [loading, setLoading] = useState(true);
+  const cachedChannels = useMemo(() => readNavigationData(
+    isGuest ? 'listener-public-channels' : 'listener-account-channels',
+    { scope: isGuest ? 'public' : 'account' }
+  )?.data, [isGuest]);
+  const [stations, setStations] = useState(() => Array.isArray(cachedChannels?.stations) ? cachedChannels.stations : []);
+  const [followingIds, setFollowingIds] = useState(() => new Set(cachedChannels?.followingIds || []));
+  const [loading, setLoading] = useState(!cachedChannels);
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState(() => new URLSearchParams(location.search).get('category') || 'All');
   const [busyId, setBusyId] = useState('');
@@ -1412,16 +1412,25 @@ const ListenerV2Categories = () => {
 
   const load = useCallback(async () => {
     try {
-      setLoading(true);
       const requests = [batch2Service.listStations({ page: 1, limit: 100 })];
       if (!isGuest) requests.push(followService.getFollowingStations());
       const [stationsResult, followedResult] = await Promise.allSettled(requests);
       if (stationsResult.status === 'rejected') throw stationsResult.reason;
-      setStations((Array.isArray(stationsResult.value?.data) ? stationsResult.value.data : []).filter((item) => item?.isPublic !== false));
+      const nextStations = (Array.isArray(stationsResult.value?.data) ? stationsResult.value.data : [])
+        .filter((item) => item?.isPublic !== false);
+      const nextFollowingIds = followedResult?.status === 'fulfilled'
+        ? (followedResult.value?.data || []).map(idOf).filter(Boolean)
+        : [];
+      setStations(nextStations);
       // Guests only issue the stations request, so followedResult is undefined
       // for them — guard before reading .status (previously threw
       // "Cannot read properties of undefined" and rendered as an error banner).
-      if (followedResult && followedResult.status === 'fulfilled') setFollowingIds(new Set((followedResult.value?.data || []).map(idOf).filter(Boolean)));
+      if (followedResult && followedResult.status === 'fulfilled') setFollowingIds(new Set(nextFollowingIds));
+      writeNavigationData(
+        isGuest ? 'listener-public-channels' : 'listener-account-channels',
+        { stations: nextStations, followingIds: nextFollowingIds },
+        { scope: isGuest ? 'public' : 'account', ttlMs: 2 * 60_000 }
+      );
       setError('');
     } catch (loadError) {
       setError(loadError?.message || 'Channels could not be loaded.');
@@ -1450,7 +1459,11 @@ const ListenerV2Categories = () => {
         message: 'Create an Echoo account to follow Channels, receive updates and build your library.',
         resume: async () => {
           await followService.followStation(key);
-          setFollowingIds((current) => new Set([...current, key]));
+          setFollowingIds((current) => {
+            const next = new Set([...current, key]);
+            writeNavigationData('listener-account-channels', { stations, followingIds: [...next] }, { ttlMs: 2 * 60_000 });
+            return next;
+          });
         },
       });
       return;
@@ -1461,6 +1474,7 @@ const ListenerV2Categories = () => {
       setFollowingIds((current) => {
         const next = new Set(current);
         if (following) next.delete(key); else next.add(key);
+        writeNavigationData('listener-account-channels', { stations, followingIds: [...next] }, { ttlMs: 2 * 60_000 });
         return next;
       });
     } catch (actionError) {
