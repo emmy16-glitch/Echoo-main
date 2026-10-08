@@ -2,6 +2,7 @@ name: Echoo Windows desktop
 
 permissions:
   contents: write
+  actions: read
 
 on:
   workflow_dispatch:
