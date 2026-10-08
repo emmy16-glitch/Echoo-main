@@ -132,12 +132,17 @@ routes through the same playback path as the center play button. */
   opacity: .48;
   cursor: wait;
 }
+.listener-v2-room-station,
 .listener-v2-room-creator {
   display: block;
   margin-top: 6px;
   color: #a9bad0;
   font-size: 13px;
   font-weight: 650;
+}
+.listener-v2-room-station {
+  color: #dce7f6;
+  font-weight: 750;
 }
 .listener-v2-room-live-badge {
   white-space: nowrap;

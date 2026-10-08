@@ -39,7 +39,7 @@ const stations = [
 const live = stations.slice(0, 5).map((station, index) => ({
   id: `live-${index + 1}`,
   _id: `live-${index + 1}`,
-  title: ['Sunday Morning Broadcast', 'Morning Worship', 'Covenant Hour', 'Prayer Session', 'The Tech Circle'][index],
+  title: ['Tuesday Bible Study - 06th Oct, 2026', 'Morning Worship', 'Covenant Hour', 'Prayer Session', 'The Tech Circle'][index],
   status: 'live',
   category: station.category,
   listenerCount: station.listenerCount,
@@ -180,6 +180,9 @@ test('capture strict Listener 2.0 core surfaces', async ({ page }, testInfo) => 
   await capture(page, testInfo, '/listen', 'HOME', 'Discover');
   await expect(page.locator('.listener-hero-artwork')).toHaveCount(0);
   await expect(page.locator('.listener-v2-live-card')).toHaveCount(5);
+  const identityCard = page.locator('.listener-v2-live-card').first();
+  await expect(identityCard.locator('strong')).toHaveText('Layers of Truth');
+  await expect(identityCard.locator('.listener-v2-live-copy > span')).toHaveText('Tuesday Bible Study - 06th Oct, 2026');
   await expect(page.getByRole('heading', { level: 2, name: 'Latest recordings' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Play Weekend Listening' })).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Popular playlists', exact: true })).toHaveCount(0);
@@ -212,6 +215,8 @@ test('capture strict Listener 2.0 core surfaces', async ({ page }, testInfo) => 
   await page.waitForTimeout(1400);
   await validateStrictShell(page, 'Live now', { room: true });
   await expect(page.locator('.listener-v2-room-stage')).toBeVisible();
+  await expect(page.locator('.listener-v2-room-event-copy h1')).toHaveText('Tuesday Bible Study - 06th Oct, 2026');
+  await expect(page.locator('.listener-v2-room-station')).toHaveText('Layers of Truth');
   await expect(page.locator('.listener-v2-room-chat')).toBeVisible();
   const stageBox = await page.locator('.listener-v2-room-stage').boundingBox();
   const chatBox = await page.locator('.listener-v2-room-chat').boundingBox();

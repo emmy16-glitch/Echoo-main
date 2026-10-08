@@ -235,8 +235,8 @@ export default function SearchScreen() {
             {live.map((item: EchooBroadcast) => (
               <ListenerListRow
                 key={item.id}
-                title={item.title}
-                subtitle={item.stationName || 'Echoo Station'}
+                title={item.stationName || 'Echoo Station'}
+                subtitle={item.title}
                 meta={`${item.listenerCount || 0} live`}
                 image={item.coverArt}
                 fallback={<Headphones color={palette.red} size={21} />}

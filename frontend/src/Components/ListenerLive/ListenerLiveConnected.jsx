@@ -41,6 +41,9 @@ const categoryOf = (broadcast) =>
 const artworkOf = (broadcast) =>
   buildMediaUrl(broadcast?.station?.brandCover || broadcast?.coverArt || null);
 
+const stationNameOf = (broadcast) =>
+  broadcast?.station?.name || broadcast?.stationName || 'Echoo Station';
+
 const sortBroadcasts = (list, sortBy) => {
   const copy = [...list];
   if (sortBy === 'most') {
@@ -265,7 +268,10 @@ const ListenerLiveConnected = () => {
                 <span className="listener-live-featured-status">
                   <i aria-hidden="true" /> LIVE NOW
                 </span>
-                <h2>{featured.title}</h2>
+                <h2>{stationNameOf(featured)}</h2>
+                {featured.title && featured.title !== stationNameOf(featured) && (
+                  <p className="listener-live-featured-title">{featured.title}</p>
+                )}
                 <div className="listener-live-featured-chips">
                   <span className="listener-live-featured-chip">
                     {categoryOf(featured)}
@@ -334,7 +340,10 @@ const ListenerLiveConnected = () => {
                       <span className="listener-live-card-listeners"><FaUsers aria-hidden="true" /> {Number(broadcast.listenerCount) || 0}</span>
                     </button>
                     <div className="listener-live-card-body">
-                      <h3>{broadcast.title}</h3>
+                      <h3>{stationNameOf(broadcast)}</h3>
+                      {broadcast.title && broadcast.title !== stationNameOf(broadcast) && (
+                        <span className="listener-live-card-title">{broadcast.title}</span>
+                      )}
                       <span className="listener-live-card-category">{categoryOf(broadcast)}</span>
                       {broadcast.description && <p className="listener-live-card-description">{broadcast.description}</p>}
                       <div className="listener-live-card-bottom">

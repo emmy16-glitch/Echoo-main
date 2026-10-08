@@ -142,8 +142,10 @@ export default function LiveScreen() {
               <Text style={styles.liveBadgeText}>LIVE NOW</Text>
             </View>
             <View style={styles.featuredCopy}>
-              <Text style={styles.featuredStation} numberOfLines={1}>{featured.stationName || 'Echoo Station'}</Text>
-              <Text style={styles.featuredTitle} numberOfLines={2}>{featured.title}</Text>
+              <Text style={styles.featuredTitle} numberOfLines={2}>{featured.stationName || 'Echoo Station'}</Text>
+              {featured.title !== featured.stationName ? (
+                <Text style={styles.featuredBroadcastTitle} numberOfLines={2}>{featured.title}</Text>
+              ) : null}
               <View style={styles.featuredMeta}>
                 <Users color="#FFFFFF" size={14} />
                 <Text style={styles.featuredMetaText}>{featured.listenerCount || 0} listening</Text>
@@ -185,8 +187,8 @@ export default function LiveScreen() {
             {live.map((item) => (
               <ListenerListRow
                 key={item.id}
-                title={item.title}
-                subtitle={item.stationName || 'Echoo Station'}
+                title={item.stationName || 'Echoo Station'}
+                subtitle={item.title}
                 meta={`${item.listenerCount || 0} live`}
                 image={item.coverArt}
                 fallback={<Radio color={palette.red} size={21} />}
@@ -201,8 +203,8 @@ export default function LiveScreen() {
           scheduled.slice(0, 10).map((item) => (
             <ListenerListRow
               key={item.id}
-              title={item.title}
-              subtitle={item.stationName || 'Echoo Station'}
+              title={item.stationName || 'Echoo Station'}
+              subtitle={item.title}
               meta={item.startTime ? formatStart(item.startTime) : 'Scheduled'}
               image={item.coverArt}
               fallback={<Clock3 color={palette.blue} size={21} />}
@@ -239,8 +241,8 @@ const createStyles = (palette: EchooColors) => StyleSheet.create({
   liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#FFFFFF' },
   liveBadgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '900', letterSpacing: 0.4 },
   featuredCopy: { position: 'absolute', left: 18, right: 18, bottom: 18 },
-  featuredStation: { color: '#DCE4F5', fontSize: 12, fontWeight: '800' },
   featuredTitle: { color: '#FFFFFF', fontSize: 27, lineHeight: 30, fontWeight: '900', letterSpacing: -0.7, marginTop: 4, maxWidth: 310 },
+  featuredBroadcastTitle: { color: '#DCE4F5', fontSize: 14, lineHeight: 19, fontWeight: '700', marginTop: 5, maxWidth: 310 },
   featuredMeta: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 },
   featuredMetaText: { color: '#FFFFFF', fontSize: 11.5, fontWeight: '700' },
   listenButton: { marginTop: 14, alignSelf: 'flex-start', minHeight: 43, borderRadius: 14, backgroundColor: palette.blue, paddingHorizontal: 15, flexDirection: 'row', alignItems: 'center', gap: 8 },

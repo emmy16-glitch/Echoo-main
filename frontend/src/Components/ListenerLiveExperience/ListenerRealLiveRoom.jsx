@@ -39,6 +39,7 @@ const normalizeBroadcast = (item) => ({
   ...item,
   id: item?.id || item?._id || item?.broadcastId,
   title: item?.title || item?.stationName || item?.station?.name || 'Live on Echoo',
+  stationName: item?.station?.name || item?.stationName || 'Echoo Station',
   category: item?.category || item?.station?.category || 'Live',
   creator:
     item?.creatorName ||
@@ -71,7 +72,7 @@ const normalizeBroadcast = (item) => ({
     ) ||
     buildGeneratedStationBrandCoverUrl(
       item?.station || {
-        name: item?.title || item?.stationName,
+        name: item?.stationName || 'Echoo Station',
         category: item?.category,
       }
     ),
@@ -973,6 +974,9 @@ const ListenerRealLiveRoom = () => {
           <div className="listener-v2-room-event-copy">
             <div>
               <h1>{show.title}</h1>
+              {show.stationName && String(show.stationName).trim().toLowerCase() !== String(show.title).trim().toLowerCase() && (
+                <span className="listener-v2-room-station">{show.stationName}</span>
+              )}
               {show.creator && String(show.creator).trim().toLowerCase() !== String(show.title).trim().toLowerCase() && (
                 <span className="listener-v2-room-creator">{show.creator}</span>
               )}

@@ -7,6 +7,20 @@ import Broadcast from '../src/models/Broadcast.js';
 const source = (relativePath) =>
   readFile(new URL(relativePath, import.meta.url), 'utf8');
 
+test('broadcast lifecycle never writes its title into permanent station identity', async () => {
+  const controller = await source('../src/controllers/broadcastController.js');
+  const lifecycleStationUpdates = [...controller.matchAll(/Station\.findByIdAndUpdate\([\s\S]*?\n\s*\}\);/g)]
+    .map(([call]) => call);
+
+  assert.ok(lifecycleStationUpdates.length >= 4, 'expected station live-state lifecycle updates');
+  for (const update of lifecycleStationUpdates) {
+    assert.doesNotMatch(update, /\bname\s*:/, 'broadcast lifecycle must not rename a station');
+    assert.doesNotMatch(update, /\btitle\s*:/, 'broadcast title must not be copied into a station');
+  }
+
+  assert.match(controller, /const broadcast = new Broadcast\(\{[\s\S]*?title: String\(title\)\.trim\(\),[\s\S]*?station: station\._id/);
+});
+
 test('broadcast state stores authoritative media and transcript lifecycle values', () => {
   const mediaState = Broadcast.schema.path('mediaState');
   const transcriptState = Broadcast.schema.path('transcriptState');

@@ -226,10 +226,10 @@ const SectionTitle = ({ title, copy, action, actionLabel = 'View all' }) => (
 
 const LiveCard = ({ broadcast, onOpen }) => {
   const art = broadcastArtwork(broadcast);
-  const title = titleOf(broadcast);
+  const broadcastTitle = titleOf(broadcast);
   const station = stationNameOf(broadcast);
   const listenerCount = broadcast?.listenerCount ?? broadcast?.station?.listenerCount;
-  const duplicateStation = String(title || '').trim().toLowerCase() === String(station || '').trim().toLowerCase();
+  const duplicateStation = String(broadcastTitle || '').trim().toLowerCase() === String(station || '').trim().toLowerCase();
 
   return (
     <article className="listener-v2-live-card">
@@ -237,15 +237,15 @@ const LiveCard = ({ broadcast, onOpen }) => {
         type="button"
         className="listener-v2-live-art"
         onClick={() => onOpen(broadcast)}
-        aria-label={`Listen to ${title}`}
+        aria-label={`Listen to ${station}: ${broadcastTitle}`}
       >
         <Artwork src={art} />
         <span className="listener-v2-live-badge">LIVE</span>
       </button>
       <button type="button" className="listener-v2-live-meta" onClick={() => onOpen(broadcast)}>
         <span className="listener-v2-live-copy">
-          <strong>{title}</strong>
-          {!duplicateStation && <span>{station}</span>}
+          <strong>{station}</strong>
+          {!duplicateStation && <span>{broadcastTitle}</span>}
           {listenerCount != null && (
             <small className="listener-v2-live-count"><FiHeadphones /> {formatCount(listenerCount)} listening</small>
           )}
@@ -256,19 +256,23 @@ const LiveCard = ({ broadcast, onOpen }) => {
   );
 };
 
-const UpcomingCard = ({ broadcast, onOpen }) => (
-  <article className="listener-v2-upcoming-card">
+const UpcomingCard = ({ broadcast, onOpen }) => {
+  const station = stationNameOf(broadcast);
+  const broadcastTitle = titleOf(broadcast);
+  const duplicateStation = String(broadcastTitle || '').trim().toLowerCase() === String(station || '').trim().toLowerCase();
+
+  return <article className="listener-v2-upcoming-card">
     <button type="button" className="listener-v2-upcoming-art" onClick={() => onOpen(broadcast)}>
       <Artwork src={broadcastArtwork(broadcast)} />
       <span><FiCalendar /> Upcoming</span>
     </button>
     <button type="button" className="listener-v2-upcoming-copy" onClick={() => onOpen(broadcast)}>
-      <strong>{titleOf(broadcast)}</strong>
-      <span>{stationNameOf(broadcast)}</span>
+      <strong>{station}</strong>
+      {!duplicateStation && <span>{broadcastTitle}</span>}
       <small>{formatUpcomingDate(broadcast)}</small>
     </button>
-  </article>
-);
+  </article>;
+};
 
 const StationCard = ({ station, following, busy, onOpen, onFollow }) => {
   const live = Boolean(station?.isLive);
