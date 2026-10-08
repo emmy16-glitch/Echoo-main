@@ -6,6 +6,7 @@ import {
   getCurrentAccessToken,
   refreshSessionAccessToken,
 } from "./api.js";
+import { getActiveAccountId } from "./accountStorage.js";
 
 const readResponse = async (response) => {
   const contentType = response.headers.get("content-type") || "";
@@ -95,7 +96,9 @@ const releaseFallbackPlaybackUrl = () => {};
 // removes a needless token round trip when a creator pauses, resumes, or
 // returns to Recordings.
 const audioStreamUrlCache = new Map();
+const audioStreamPending = new Map();
 const AUDIO_STREAM_CACHE_EARLY_REFRESH_MS = 60 * 1000;
+const audioStreamCacheKey = (audioId) => (getActiveAccountId() || 'guest') + ':' + String(audioId);
 
 const missingStreamTokenRoute = (error) =>
   Number(error?.status) === 404 &&
@@ -132,43 +135,49 @@ const studioService = {
 
   getAudioStreamUrl: async (audioId) => {
     if (!audioId) throw new Error("Audio ID is missing.");
-    const cacheKey = String(audioId);
+    const cacheKey = audioStreamCacheKey(audioId);
     const cached = audioStreamUrlCache.get(cacheKey);
-    if (cached && cached.expiresAt > Date.now() + AUDIO_STREAM_CACHE_EARLY_REFRESH_MS) {
+    if (cached && cached.expiresAt > Date.now() + cached.refreshBufferMs) {
       return cached.value;
     }
+    // Hover prewarming and a click in quick succession must share one signed
+    // URL request. Private grants may never be shared across accounts.
+    if (audioStreamPending.has(cacheKey)) return audioStreamPending.get(cacheKey);
 
-    try {
-      const response = await apiRequest(
-        `/audio/${encodeURIComponent(audioId)}/stream-token`,
-        { method: "POST" }
-      );
-      const rawStreamUrl = response?.data?.streamUrl || "";
-      const rawDownloadUrl = response?.data?.downloadUrl || "";
-      const rawMixerUrl = response?.data?.mixerUrl || "";
-      const streamUrl = buildMediaUrl(rawStreamUrl);
-      const downloadUrl = buildMediaUrl(rawDownloadUrl);
-      const mixerUrl = buildMediaUrl(rawMixerUrl);
-      if (!streamUrl) throw new Error("Echoo could not prepare this audio for playback.");
-      const value = {
-        streamUrl,
-        downloadUrl,
-        mixerUrl,
-        expiresIn: Number(response?.data?.expiresIn) || 0,
-        compatibilityFallback: false,
-      };
-      const expiresAt = Date.now() + Math.max(0, value.expiresIn * 1000);
-      if (value.expiresIn > 0) audioStreamUrlCache.set(cacheKey, { value, expiresAt });
-      return value;
-    } catch (error) {
-      if (!missingStreamTokenRoute(error)) throw error;
-      const updating = new Error(
-        "Echoo audio streaming is updating. Please retry in a moment."
-      );
-      updating.code = "AUDIO_STREAM_UPDATING";
-      updating.status = 503;
-      throw updating;
-    }
+    const pending = (async () => {
+      try {
+        const response = await apiRequest(
+          "/audio/" + encodeURIComponent(audioId) + "/stream-token",
+          { method: "POST" }
+        );
+        const streamUrl = buildMediaUrl(response?.data?.streamUrl || "");
+        const downloadUrl = buildMediaUrl(response?.data?.downloadUrl || "");
+        const mixerUrl = buildMediaUrl(response?.data?.mixerUrl || "");
+        if (!streamUrl) throw new Error("Echoo could not prepare this audio for playback.");
+        const value = {
+          streamUrl,
+          downloadUrl,
+          mixerUrl,
+          expiresIn: Number(response?.data?.expiresIn) || 0,
+          compatibilityFallback: false,
+        };
+        const lifetimeMs = Math.max(0, value.expiresIn * 1000);
+        if (lifetimeMs > 0) audioStreamUrlCache.set(cacheKey, {
+          value,
+          expiresAt: Date.now() + lifetimeMs,
+          refreshBufferMs: Math.min(AUDIO_STREAM_CACHE_EARLY_REFRESH_MS, Math.floor(lifetimeMs / 5)),
+        });
+        return value;
+      } catch (error) {
+        if (!missingStreamTokenRoute(error)) throw error;
+        const updating = new Error("Echoo audio streaming is updating. Please retry in a moment.");
+        updating.code = "AUDIO_STREAM_UPDATING";
+        updating.status = 503;
+        throw updating;
+      }
+    })().finally(() => audioStreamPending.delete(cacheKey));
+    audioStreamPending.set(cacheKey, pending);
+    return pending;
   },
 
   releaseFallbackPlaybackUrl,
