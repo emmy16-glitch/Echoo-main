@@ -35,7 +35,11 @@ import { apiRequest, buildMediaUrl } from '../../services/api';
 import { getGuestSession, isAuthenticated, recordGuestPlayback, saveGuestPreferences } from '../../services/guestSession';
 import { useGuestAuth } from '../Auth/GuestAuthGate';
 import useNavigationResource from '../../hooks/useNavigationResource';
-import { readNavigationData, writeNavigationData } from '../../services/navigationDataCache';
+import {
+  isNavigationDataFresh,
+  readNavigationData,
+  writeNavigationData,
+} from '../../services/navigationDataCache';
 import { getCreatorProfilePath } from '../../services/profileIdentifier';
 import { buildGeneratedStationBrandCoverUrl } from '../../stationBranding/stationBranding';
 import AccountExperienceMenu from '../Shared/AccountExperienceMenu';
@@ -1252,7 +1256,8 @@ const ListenerV2Live = () => <LiveCatalog />;
 const ListenerV2Following = () => {
   const navigate = useNavigate();
   const { isGuest } = useGuestAuth();
-  const cachedFollowing = useMemo(() => readNavigationData('listener-following-stations')?.data, []);
+  const cachedFollowingEntry = useMemo(() => readNavigationData('listener-following-stations'), []);
+  const cachedFollowing = cachedFollowingEntry?.data;
   const [stations, setStations] = useState(() => Array.isArray(cachedFollowing) ? cachedFollowing : []);
   const [loading, setLoading] = useState(!cachedFollowing);
   const [busyId, setBusyId] = useState('');
@@ -1281,7 +1286,13 @@ const ListenerV2Following = () => {
     }
   }, [isGuest]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (!isNavigationDataFresh(cachedFollowingEntry)) load();
+  }, [cachedFollowingEntry, load]);
+  useEffect(() => {
+    window.addEventListener('echoo:network-restored', load);
+    return () => window.removeEventListener('echoo:network-restored', load);
+  }, [load]);
 
   const unfollowStation = async (station) => {
     const key = idOf(station);
@@ -1398,10 +1409,11 @@ const ListenerV2Categories = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { requestAuth, isGuest } = useGuestAuth();
-  const cachedChannels = useMemo(() => readNavigationData(
+  const cachedChannelsEntry = useMemo(() => readNavigationData(
     isGuest ? 'listener-public-channels' : 'listener-account-channels',
     { scope: isGuest ? 'public' : 'account' }
-  )?.data, [isGuest]);
+  ), [isGuest]);
+  const cachedChannels = cachedChannelsEntry?.data;
   const [stations, setStations] = useState(() => Array.isArray(cachedChannels?.stations) ? cachedChannels.stations : []);
   const [followingIds, setFollowingIds] = useState(() => new Set(cachedChannels?.followingIds || []));
   const [loading, setLoading] = useState(!cachedChannels);
@@ -1437,7 +1449,13 @@ const ListenerV2Categories = () => {
     } finally { setLoading(false); }
   }, [isGuest]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (!isNavigationDataFresh(cachedChannelsEntry)) load();
+  }, [cachedChannelsEntry, load]);
+  useEffect(() => {
+    window.addEventListener('echoo:network-restored', load);
+    return () => window.removeEventListener('echoo:network-restored', load);
+  }, [load]);
   useEffect(() => { setCategory(new URLSearchParams(location.search).get('category') || 'All'); }, [location.search]);
 
   const categories = useMemo(() => ['All', ...Array.from(new Set(stations.map((station) => station?.category).filter(Boolean))).sort()], [stations]);

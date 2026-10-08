@@ -64,6 +64,7 @@ const ListenerRealStationProfile = lazy(loadListenerStationProfile);
 const ListenerCollectionDetail = lazy(loadListenerCollectionDetail);
 import RecordingSaveBanner, { RecordingAutosaveMount } from './Components/RecordingSaveBanner.jsx';
 import CommandPalette from './Components/Shared/CommandPalette.jsx';
+import NetworkStatus from './Components/System/NetworkStatus.jsx';
 
 import EchooExperienceOrchestrator from './Components/EchooSystem/EchooExperienceOrchestrator';
 import ImageCropProvider from './Components/Common/ImageCropProvider';
@@ -333,6 +334,7 @@ function App() {
         </a>
 
         <EchooExperienceOrchestrator />
+        <NetworkStatus />
         <div id="echoo-route-content" tabIndex={-1}>
           <Routes>
             <Route

@@ -73,6 +73,25 @@ export default function useNavigationResource({
     return () => { active = false; unsubscribe(); };
   }, [allowExpired, cacheKey, enabled, fallback, refresh, scope]);
 
+  useEffect(() => {
+    if (!enabled) return undefined;
+    let timer = null;
+    const revalidate = () => {
+      window.clearTimeout(timer);
+      // A small deterministic spread prevents every mounted page resource
+      // from retrying in the same task after a connection interruption.
+      const delay = Math.min(480, [...cacheKey].reduce((sum, char) => sum + char.charCodeAt(0), 0) % 480);
+      timer = window.setTimeout(() => {
+        refresh({ force: true, silent: Boolean(dataRef.current) }).catch(() => {});
+      }, delay);
+    };
+    window.addEventListener('echoo:network-restored', revalidate);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener('echoo:network-restored', revalidate);
+    };
+  }, [cacheKey, enabled, refresh]);
+
   const mutate = useCallback((next) => {
     const value = typeof next === 'function' ? next(dataRef.current) : next;
     writeNavigationData(cacheKey, value, { scope, ttlMs });
