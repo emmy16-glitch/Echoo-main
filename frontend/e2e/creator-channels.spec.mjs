@@ -138,6 +138,18 @@ test('Broadcast title is editable without replacing the permanent Channel identi
   await expect(dialog.getByRole('textbox', { name: 'Channel name' })).toHaveValue('My Station');
 });
 
+test('Channel links to a per-service title before going live', async ({ page }) => {
+  await page.goto('/creator-studio/channels');
+  await page.getByRole('button', { name: 'Set broadcast title' }).click();
+  await expect(page).toHaveURL(/\/creator-studio\/?$/);
+  const titleInput = page.getByRole('textbox', { name: 'Broadcast title' });
+  await expect(titleInput).toBeVisible();
+  await titleInput.fill('Thursday Evening Service');
+  await expect(page.getByText('Your Channel name stays My Station.')).toBeVisible();
+  await page.getByRole('button', { name: 'Channel', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'My Station', level: 2 })).toBeVisible();
+});
+
 test('Channel remains usable without horizontal overflow on a narrow viewport', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/creator-studio/channels');
@@ -199,6 +211,7 @@ test('Channel popup stays compact, centered, and fully reachable across phone an
 
   for (const viewport of [
     { width: 320, height: 568 },
+    { width: 390, height: 580 },
     { width: 390, height: 844 },
     { width: 768, height: 640 },
     { width: 834, height: 720 },
@@ -210,11 +223,19 @@ test('Channel popup stays compact, centered, and fully reachable across phone an
       const modal = document.querySelector('.est-form')?.getBoundingClientRect();
       const backdrop = document.querySelector('.est-modal-backdrop')?.getBoundingClientRect();
       const actions = document.querySelector('.est-form-actions')?.getBoundingClientRect();
+      const save = document.querySelector('.est-form-actions .primary');
+      const saveRect = save?.getBoundingClientRect();
+      const saveStyles = save ? getComputedStyle(save) : null;
       const nav = document.querySelector('.studio-sidebar');
       return {
         modal: modal && { left: modal.left, top: modal.top, right: modal.right, bottom: modal.bottom, width: modal.width, height: modal.height },
         backdrop: backdrop && { left: backdrop.left, top: backdrop.top, right: backdrop.right, bottom: backdrop.bottom },
         actions: actions && { top: actions.top, bottom: actions.bottom },
+        save: saveRect && {
+          top: saveRect.top, bottom: saveRect.bottom, width: saveRect.width, height: saveRect.height,
+          background: saveStyles.backgroundColor, color: saveStyles.color,
+          visibility: saveStyles.visibility,
+        },
         modalZ: Number(getComputedStyle(document.querySelector('.est-modal-backdrop')).zIndex),
         navZ: nav ? Number(getComputedStyle(nav).zIndex) || 0 : 0,
         overflow: document.documentElement.scrollWidth > window.innerWidth + 1,
@@ -231,6 +252,13 @@ test('Channel popup stays compact, centered, and fully reachable across phone an
     expect(layout.modal.height).toBeLessThanOrEqual(640);
     expect(layout.actions.top).toBeGreaterThanOrEqual(layout.modal.top);
     expect(layout.actions.bottom).toBeLessThanOrEqual(layout.modal.bottom + 1);
+    expect(layout.save.visibility).toBe('visible');
+    expect(layout.save.background).toBe('rgb(11, 99, 246)');
+    expect(layout.save.color).toBe('rgb(255, 255, 255)');
+    expect(layout.save.width).toBeGreaterThan(90);
+    expect(layout.save.height).toBeGreaterThanOrEqual(36);
+    expect(layout.save.top).toBeGreaterThanOrEqual(0);
+    expect(layout.save.bottom).toBeLessThanOrEqual(viewport.height);
     expect(layout.modalZ).toBeGreaterThan(layout.navZ);
   }
 

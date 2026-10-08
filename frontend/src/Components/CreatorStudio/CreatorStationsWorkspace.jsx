@@ -467,7 +467,11 @@ const CreatorStationsWorkspace = ({ onNavigate, onOpenRecording }) => {
 
               <div className="est-channel-primary-actions">
                 <button type="button" onClick={openEdit}><FaEdit /> Edit Channel</button>
+                <button type="button" className="primary est-prepare-broadcast" onClick={() => onNavigate?.('Broadcast')}>
+                  <FaBroadcastTower /> Set broadcast title
+                </button>
               </div>
+              <p className="est-channel-title-hint">Your Channel name stays the same. Set a different title for each service in Broadcast before going live.</p>
 
               <div
                 className="est-channel-secondary-actions"
@@ -550,7 +554,7 @@ const CreatorStationsWorkspace = ({ onNavigate, onOpenRecording }) => {
               <label>
                 <span>Channel name</span>
                 <input value={form.name} onChange={(event) => updateField('name', event.target.value)} maxLength="100" required autoFocus />
-                <small>This is your permanent Channel name. Each live broadcast has its own title.</small>
+                <small>This is your permanent Channel name. Set each service title in Broadcast before going live.</small>
               </label>
 
               <label>
@@ -589,7 +593,7 @@ const CreatorStationsWorkspace = ({ onNavigate, onOpenRecording }) => {
               </label>
             </div>
 
-            <footer className="est-form-actions">
+            <footer className="est-form-actions" aria-label="Channel form actions">
               <button type="button" onClick={closeForm} disabled={saving}>Cancel</button>
               <button type="submit" className="primary" disabled={saving || !form.name.trim()}>
                 <FaSave /> {saving ? 'Saving…' : 'Save Channel'}

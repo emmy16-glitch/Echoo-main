@@ -191,6 +191,14 @@
   box-shadow: 0 8px 18px rgba(11, 99, 246, .16);
 }
 
+.est-channel-copy > .est-channel-title-hint {
+  max-width: 520px;
+  margin: 10px 0 0;
+  color: #526581;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .est-channel-secondary-actions {
   display: flex;
   flex-wrap: wrap;
@@ -359,6 +367,13 @@
 
 /* Channel edit/setup modal */
 .est-modal-backdrop {
+  /* This dialog is portaled to document.body and does not inherit .est's
+     scoped tokens. Without them the white Save Channel label can lose its
+     blue button background and become effectively invisible. */
+  --est-blue: #0b63f6;
+  --est-ink: #0b1730;
+  --est-muted: #68778f;
+  --est-line: #e0e7f0;
   position: fixed;
   inset: 0;
   z-index: 220;

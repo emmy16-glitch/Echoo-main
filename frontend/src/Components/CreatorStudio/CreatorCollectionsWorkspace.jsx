@@ -18,6 +18,7 @@ import {
   FiX,
 } from 'react-icons/fi';
 
+import { createPortal } from 'react-dom';
 import { buildMediaUrl } from '../../services/api.js';
 import studioService from '../../services/studioService.js';
 import collectionService from '../../services/collectionService.js';
@@ -134,6 +135,7 @@ export default function CreatorCollectionsWorkspace({
   const [loadingPlayId, setLoadingPlayId] = useState('');
   const [activeTrack, setActiveTrack] = useState(null);
   const [playbackPhase, setPlaybackPhase] = useState('idle');
+  const [playbackError, setPlaybackError] = useState('');
   const [playbackTime, setPlaybackTime] = useState(0);
   const [playbackDuration, setPlaybackDuration] = useState(0);
   const [playbackSeekable, setPlaybackSeekable] = useState(false);
@@ -369,6 +371,7 @@ export default function CreatorCollectionsWorkspace({
     setLoadingPlayId('');
     setActiveTrack(null);
     setPlaybackPhase('idle');
+    setPlaybackError('');
     setPlaybackTime(0);
     setPlaybackDuration(0);
     setPlaybackSeekable(false);
@@ -378,6 +381,11 @@ export default function CreatorCollectionsWorkspace({
     const id = String(getId(track) || '');
     if (!id) return;
 
+    if (loadingPlayId === id) {
+      // A second click cancels a pending signed grant or slow media start.
+      stopPlayback();
+      return;
+    }
     if (String(getId(activeTrack) || '') === id && audioRef.current) {
       const current = audioRef.current;
       if (!current.paused) {
@@ -391,13 +399,9 @@ export default function CreatorCollectionsWorkspace({
         await current.play();
       } catch (playError) {
         setPlaybackPhase('error');
+        setPlaybackError(playError?.message || 'Could not resume this recording.');
         setError(playError?.message || 'Could not resume this recording.');
       }
-      return;
-    }
-    if (loadingPlayId === id) {
-      // Allow a second click to cancel a slow stream-token request.
-      stopPlayback();
       return;
     }
 
@@ -405,13 +409,21 @@ export default function CreatorCollectionsWorkspace({
     const requestId = playbackRequestRef.current;
     setActiveTrack(track);
     setPlaybackPhase('preparing');
+    setPlaybackError('');
     setPlaybackDuration(parseDurationSeconds(track.duration));
     setError('');
     setLoadingPlayId(id);
     try {
       // Request a short-lived authorized stream; do not fetch the whole audio
       // as a blob or bypass the private recording's playback permissions.
-      const { streamUrl } = await studioService.getAudioStreamUrl(id);
+      // The authenticated Studio content response already carries an owner-scoped,
+      // short-lived signed stream link. Start directly from that link inside the
+      // click gesture instead of waiting for another API request. A fresh grant
+      // remains available when the list link has expired.
+      const listedUrl = buildMediaUrl(track.fileUrl || null);
+      const { streamUrl } = listedUrl
+        ? { streamUrl: listedUrl }
+        : await studioService.getAudioStreamUrl(id);
       if (requestId !== playbackRequestRef.current) return;
       if (!streamUrl) throw new Error('Echoo could not prepare this recording.');
 
@@ -420,6 +432,30 @@ export default function CreatorCollectionsWorkspace({
       player.volume = playbackVolume;
       audioRef.current = player;
       const isCurrent = () => audioRef.current === player && requestId === playbackRequestRef.current;
+      const failPlayback = (message) => {
+        if (!isCurrent()) return;
+        setPlayingId('');
+        setLoadingPlayId('');
+        setPlaybackPhase('error');
+        setPlaybackError(message);
+        setError(message);
+      };
+      let freshGrantAttempted = false;
+      const retryWithFreshGrant = async () => {
+        if (!isCurrent() || freshGrantAttempted) return;
+        freshGrantAttempted = true;
+        setPlaybackPhase('preparing');
+        try {
+          const { streamUrl: freshUrl } = await studioService.getAudioStreamUrl(id);
+          if (!isCurrent()) return;
+          if (!freshUrl) throw new Error('Echoo could not refresh this recording.');
+          player.src = freshUrl;
+          setPlaybackPhase('buffering');
+          await player.play();
+        } catch (retryError) {
+          failPlayback(retryError?.message || 'This recording could not be played.');
+        }
+      };
       player.addEventListener('loadedmetadata', () => {
         if (isCurrent() && Number.isFinite(player.duration)) {
           setPlaybackDuration(player.duration);
@@ -450,18 +486,29 @@ export default function CreatorCollectionsWorkspace({
       });
       player.addEventListener('error', () => {
         if (!isCurrent()) return;
-        setPlayingId('');
-        setLoadingPlayId('');
-        setPlaybackPhase('error');
-        setError('This recording could not be played. Try again or open Manage.');
+        if (listedUrl && !freshGrantAttempted) {
+          void retryWithFreshGrant();
+          return;
+        }
+        failPlayback('This recording could not be played. Try again or open Manage.');
       });
       player.src = streamUrl;
       setPlaybackPhase('buffering');
-      await player.play();
+      try {
+        await player.play();
+      } catch (playError) {
+        if (!isCurrent()) return;
+        if (listedUrl && !freshGrantAttempted) {
+          await retryWithFreshGrant();
+        } else if (!freshGrantAttempted) {
+          throw playError;
+        }
+      }
     } catch (playError) {
       if (requestId !== playbackRequestRef.current) return;
       setPlayingId('');
       setPlaybackPhase('error');
+      setPlaybackError(playError?.message || 'Could not play this recording.');
       setError(playError?.message || 'Could not play this recording.');
     } finally {
       if (requestId === playbackRequestRef.current) {
@@ -472,8 +519,8 @@ export default function CreatorCollectionsWorkspace({
 
   const prewarmPlayback = (track) => {
     const id = String(getId(track) || '');
-    if (!id) return;
-    // A hover starts the lightweight authorized token request; clicks reuse it.
+    if (!id || track.fileUrl) return;
+    // Content rows with no embedded grant can prewarm an authorized token on hover.
     // Ignore hover-only failures and report them only when Play is requested.
     void studioService.getAudioStreamUrl(id).catch(() => {});
   };
@@ -715,7 +762,7 @@ export default function CreatorCollectionsWorkspace({
   }
 
   return (
-    <section className="recordings-page">
+    <section className={`recordings-page${activeTrack ? ' has-active-player' : ''}`}>
       <header className="recordings-heading">
         <div className="recordings-heading-copy">
           <h1>Recordings</h1>
@@ -918,16 +965,16 @@ export default function CreatorCollectionsWorkspace({
         </footer>
       </section>
 
-      {activeTrack && (
+      {activeTrack && typeof document !== 'undefined' && createPortal((
         <aside className="recordings-mini-player" role="region" aria-label="Recording player">
           <div className="recordings-mini-player-copy">
-            <span aria-live="polite">
+            <span aria-live="polite" title={playbackPhase === 'error' ? playbackError : undefined}>
               {playbackPhase === 'preparing' ? 'Preparing audio…'
                 : playbackPhase === 'buffering' ? 'Buffering audio…'
                   : playbackPhase === 'playing' ? 'Now playing'
                     : playbackPhase === 'paused' ? 'Paused'
                       : playbackPhase === 'ended' ? 'Playback finished'
-                        : playbackPhase === 'error' ? 'Playback unavailable' : 'Recording'}
+                        : playbackPhase === 'error' ? (playbackError || 'Playback unavailable') : 'Recording'}
             </span>
             <strong title={recordingDisplayTitle(activeTrack)}>{recordingDisplayTitle(activeTrack)}</strong>
           </div>
@@ -954,7 +1001,7 @@ export default function CreatorCollectionsWorkspace({
             <FiX />
           </button>
         </aside>
-      )}
+      ), document.body)}
 
       {collectionPickerTrack && <div className="recordings-collection-picker" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setCollectionPickerTrack(null)}><section role="dialog" aria-modal="true" aria-label="Add to Collection"><header><strong>Add to Collection</strong><button type="button" onClick={() => setCollectionPickerTrack(null)}>×</button></header>{collectionChoices.length ? collectionChoices.map((collection) => <button type="button" key={collection.id} onClick={() => addToCollection(collection.id)}>{collection.title}<small>{collection.broadcastCount} recordings</small></button>) : <p>No Collections yet.</p>}<button type="button" className="new" onClick={createCollectionForRecording}>{collectionChoices.length ? '+ New Collection' : 'Create Collection'}</button></section></div>}
     </section>

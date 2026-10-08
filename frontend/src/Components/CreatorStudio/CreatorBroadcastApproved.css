@@ -1041,8 +1041,21 @@ html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-workstation
 .ec2-broadcast-identity {
   display: grid;
   gap: 7px;
-  margin: 0 0 18px;
-  max-width: 650px;
+  width: 100%;
+  max-width: 780px;
+  margin: 18px 0 24px;
+  padding: 16px 18px;
+  border: 1px solid #d6e2f5;
+  border-radius: 12px;
+  background: #f8fbff;
+}
+.ec2-broadcast-identity-optional {
+  color: #5b718f;
+  font-size: 12px;
+  font-weight: 500;
+}
+@media (max-width: 560px) {
+  .ec2-broadcast-identity { padding: 14px; margin: 14px 0 20px; }
 }
 .ec2-broadcast-identity label {
   color: var(--echoo-ink, #152948);
