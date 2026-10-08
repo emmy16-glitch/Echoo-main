@@ -1035,3 +1035,40 @@ html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-workstation
 @media (max-width: 640px) {
   .ec2-operation-progress__head { align-items:flex-start; flex-direction:column; gap:4px; }
 }
+
+
+/* Broadcast metadata is separate from the permanent Channel identity. */
+.ec2-broadcast-identity {
+  display: grid;
+  gap: 7px;
+  margin: 0 0 18px;
+  max-width: 650px;
+}
+.ec2-broadcast-identity label {
+  color: var(--echoo-ink, #152948);
+  font-size: 13px;
+  font-weight: 700;
+}
+.ec2-broadcast-identity input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 43px;
+  padding: 10px 12px;
+  border: 1px solid #cbd8eb;
+  border-radius: 9px;
+  background: #fff;
+  color: #162f52;
+  font: inherit;
+  font-size: 14px;
+}
+.ec2-broadcast-identity input:focus-visible {
+  outline: 2px solid #2e6bff;
+  outline-offset: 2px;
+}
+.ec2-broadcast-identity input:disabled { opacity: .65; }
+.ec2-broadcast-identity p {
+  margin: 0;
+  color: #65758e;
+  font-size: 12px;
+  line-height: 1.5;
+}
