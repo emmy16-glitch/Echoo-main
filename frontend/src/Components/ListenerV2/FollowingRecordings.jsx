@@ -103,8 +103,8 @@ export default function FollowingRecordings({ excludeIds = [], showAccounts = tr
   return (
     <section className="listener-v2-panel listener-v2-followed-panel">
       <header className="listener-v2-section-title">
-        <h2>Following</h2>
-        <button type="button" onClick={() => navigate('/listen/following')}>View all</button>
+        <h2>{showAccounts ? 'Following' : 'Recordings from followed creators'}</h2>
+        {showAccounts && <button type="button" onClick={() => navigate('/listen/following')}>View all</button>}
       </header>
 
       {showAccounts && accounts.length > 0 && (
