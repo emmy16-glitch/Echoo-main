@@ -8,6 +8,16 @@ const assertNoHorizontalOverflow = async (page) => {
   expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth + 1);
 };
 
+const assertAuthFitsViewport = async (page) => {
+  const dimensions = await page.evaluate(() => ({
+    scrollHeight: document.documentElement.scrollHeight,
+    clientHeight: document.documentElement.clientHeight,
+    bodyScrollHeight: document.body.scrollHeight,
+  }));
+  expect(dimensions.scrollHeight).toBeLessThanOrEqual(dimensions.clientHeight + 1);
+  expect(dimensions.bodyScrollHeight).toBeLessThanOrEqual(dimensions.clientHeight + 1);
+};
+
 const collectBrowserErrors = (page) => {
   const errors = [];
   page.on('console', (message) => {
@@ -60,6 +70,7 @@ test('Figma Echoo signup preserves identity fields, password eyes and responsive
   await expect(confirm).toHaveAttribute('type', 'password');
 
   await assertNoHorizontalOverflow(page);
+  await assertAuthFitsViewport(page);
   expect(browserErrors).toEqual([]);
 });
 
@@ -141,6 +152,7 @@ test('login accepts both @username and email and exposes working recovery', asyn
   await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
 
   await assertNoHorizontalOverflow(page);
+  await assertAuthFitsViewport(page);
   expect(browserErrors).toEqual([]);
 });
 

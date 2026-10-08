@@ -364,7 +364,6 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
               <span>Echoo</span>
             </div>
             <h2>Hear the moment.<br />Own the room.</h2>
-            <p>Start a live room to share what&apos;s happening, or join one to listen. You don&apos;t need an account to listen.</p>
           </div>
         </aside>
 

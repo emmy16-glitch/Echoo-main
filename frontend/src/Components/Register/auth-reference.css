@@ -22,9 +22,10 @@
 
 .echoo-auth-reference:not(.is-profile):not(.is-auth-status) {
   position: relative;
-  min-height: 100dvh;
+  height: 100dvh;
+  min-height: 0;
   overflow-x: clip;
-  overflow-y: auto;
+  overflow-y: hidden;
   display: grid;
   color: #f8faff;
   background: var(--ear-night);
@@ -54,13 +55,14 @@
   position: relative;
   z-index: 1;
   width: min(1240px, 100%);
-  min-height: 100dvh;
+  height: 100dvh;
+  min-height: 0;
   margin: 0 auto;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(420px, 510px);
   align-items: center;
   gap: clamp(32px, 5vw, 64px);
-  padding: clamp(32px, 4vw, 56px);
+  padding: clamp(16px, 3.5vh, 40px) clamp(24px, 4vw, 56px);
 }
 
 .ear-auth-story {
@@ -499,15 +501,12 @@
   .ear-auth-shell {
     grid-template-columns: 1fr;
     width: min(560px, 100%);
-    gap: 18px;
-    padding: 24px 20px 30px;
+    gap: 0;
+    padding: 16px 20px;
   }
 
   .ear-auth-story {
-    display: block;
-    min-height: 152px;
-    align-self: auto;
-    padding: 24px 4px 10px;
+    display: none;
   }
   .ear-story-brand { display: none; }
   .ear-auth-story h2 { font-size: clamp(34px, 8vw, 48px); }
@@ -522,6 +521,53 @@
   .ear-auth-backdrop {
     background-position: 50% 42%;
   }
+}
+
+/* Authentication always fits the usable desktop window. Compact-height rules
+ * reduce spacing and control height instead of introducing a document scroll. */
+@media (max-height: 800px) {
+  .ear-auth-shell { padding-block: 10px; }
+  .echoo-auth-reference:not(.is-profile):not(.is-auth-status) .ear-auth-card {
+    padding: 14px 24px;
+    border-radius: 20px;
+  }
+  .ear-card-brand {
+    min-height: 30px;
+    margin-bottom: 7px;
+    font-size: 18px;
+  }
+  .ear-logo-mark { width: 24px; height: 30px; }
+  .ear-form-heading { margin-bottom: 8px; }
+  .ear-form-heading h1 { font-size: 27px; }
+  .ear-form-heading p { margin-top: 4px; font-size: 12px; line-height: 1.3; }
+  .ear-form { gap: 6px; }
+  .ear-field { gap: 3px; }
+  .ear-field-label-row label { font-size: 11px; }
+  .ear-input-shell { min-height: 36px; border-radius: 11px; }
+  .ear-input-shell input { height: 34px; font-size: 13px; }
+  .ear-password-toggle { width: 32px; height: 32px; }
+  .ear-submit { min-height: 38px; border-radius: 11px; }
+  .ear-guest-listen { min-height: 38px; border-radius: 11px; }
+  .ear-field-action { min-height: 14px; }
+  .ear-password-hint,
+  .ear-field-hint,
+  .ear-legal { font-size: 10px; line-height: 1.25; }
+  .ear-auth-switch { font-size: 11px; line-height: 1.3; }
+}
+
+@media (max-height: 650px) {
+  .ear-auth-shell { padding-block: 6px; }
+  .echoo-auth-reference:not(.is-profile):not(.is-auth-status) .ear-auth-card { padding: 10px 18px; }
+  .ear-card-brand { min-height: 24px; margin-bottom: 3px; }
+  .ear-logo-mark { width: 20px; height: 24px; }
+  .ear-form-heading { margin-bottom: 4px; }
+  .ear-form-heading h1 { font-size: 23px; }
+  .ear-form-heading p { margin-top: 2px; }
+  .ear-form { gap: 4px; }
+  .ear-input-shell { min-height: 32px; }
+  .ear-input-shell input { height: 30px; }
+  .ear-submit,
+  .ear-guest-listen { min-height: 34px; }
 }
 
 @media (max-width: 560px) {
@@ -853,4 +899,35 @@
   .echoo-auth-reference.is-signup .ear-input-shell input {
     height: 44px;
   }
+}
+
+/* Final viewport ownership wins over legacy mobile/profile rules above. */
+.echoo-auth-reference:not(.is-profile):not(.is-auth-status) {
+  padding: 0;
+  place-items: initial;
+}
+
+@media (max-height: 800px) {
+  .echoo-auth-reference.is-signup .ear-auth-shell { padding-block: 10px; }
+  .echoo-auth-reference.is-signup .ear-auth-card {
+    padding: 14px 24px;
+    border-radius: 20px;
+  }
+  .echoo-auth-reference.is-signup .ear-card-brand { min-height: 30px; margin-bottom: 7px; }
+  .echoo-auth-reference.is-signup .ear-form-heading { margin-bottom: 8px; }
+  .echoo-auth-reference.is-signup .ear-form-heading h1 { font-size: 27px; }
+  .echoo-auth-reference.is-signup .ear-form { gap: 6px; }
+  .echoo-auth-reference.is-signup .ear-input-shell { min-height: 36px; border-radius: 11px; }
+  .echoo-auth-reference.is-signup .ear-input-shell input { height: 34px; }
+}
+
+@media (max-height: 650px) {
+  .echoo-auth-reference.is-signup .ear-auth-shell { padding-block: 6px; }
+  .echoo-auth-reference.is-signup .ear-auth-card { padding: 10px 18px; }
+  .echoo-auth-reference.is-signup .ear-card-brand { min-height: 24px; margin-bottom: 3px; }
+  .echoo-auth-reference.is-signup .ear-form-heading { margin-bottom: 4px; }
+  .echoo-auth-reference.is-signup .ear-form-heading h1 { font-size: 23px; }
+  .echoo-auth-reference.is-signup .ear-form { gap: 4px; }
+  .echoo-auth-reference.is-signup .ear-input-shell { min-height: 32px; }
+  .echoo-auth-reference.is-signup .ear-input-shell input { height: 30px; }
 }
