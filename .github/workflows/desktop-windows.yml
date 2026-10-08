@@ -112,7 +112,7 @@ jobs:
             Write-Host "Authenticode: UNSIGNED / $($signature.Status)"
           }
 
-      - name: Verify installed v2.0.5 to v2.0.6 upgrade preserves user data
+      - name: Verify installed v2.0.6 to v2.0.7 upgrade preserves user data
         if: github.ref == 'refs/heads/main'
         shell: powershell
         run: ./desktop/scripts/verify-upgrade.ps1
@@ -128,7 +128,7 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: Release v2.0.6 only after desktop and main checks pass
+      - name: Release v2.0.7 only after desktop and main checks pass
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         shell: pwsh
         env:
@@ -136,7 +136,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $package = Get-Content -Raw -LiteralPath desktop/package.json | ConvertFrom-Json
-          if ($package.version -ne '2.0.6') {
+          if ($package.version -ne '2.0.7') {
             Write-Host "No automated release requested for version $($package.version)."
             exit 0
           }
@@ -152,7 +152,7 @@ jobs:
               $run = $allRuns | Where-Object { $_.name -eq $name -and $_.head_sha -eq $env:GITHUB_SHA } |
                 Sort-Object created_at -Descending | Select-Object -First 1
               if ($run -and $run.status -eq 'completed' -and $run.conclusion -ne 'success') {
-                throw "Cannot publish v2.0.6: $name concluded $($run.conclusion)."
+                throw "Cannot publish v2.0.7: $name concluded $($run.conclusion)."
               }
               if ($run -and $run.status -eq 'completed' -and $run.conclusion -eq 'success') {
                 $found += $name
@@ -187,7 +187,7 @@ jobs:
             }
           }
 
-          gh release create $tag @files --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --latest --title "Echoo $tag" --notes "Windows desktop maintenance release: Echoo Library mixer import, WebAssembly MP3 export, permanent station identity, Windows updater restart handling, and packaged regression tests. Installer unsigned; Windows SmartScreen may warn."
+          gh release create $tag @files --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --latest --title "Echoo $tag" --notes "Windows desktop playback and navigation update: immediately visible Recordings transport, signed audio URL request deduplication and prewarming, cached Channel identity, background broadcast-history loading, responsive playback controls and regression tests. Installer unsigned; Windows SmartScreen may warn."
           if ($LASTEXITCODE -ne 0) { throw "Publishing $tag failed." }
           Write-Host "Published $tag after all required checks passed."
 
