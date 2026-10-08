@@ -136,6 +136,7 @@ export default function CreatorCollectionsWorkspace({
   const [playbackPhase, setPlaybackPhase] = useState('idle');
   const [playbackTime, setPlaybackTime] = useState(0);
   const [playbackDuration, setPlaybackDuration] = useState(0);
+  const [playbackSeekable, setPlaybackSeekable] = useState(false);
   const [playbackVolume, setPlaybackVolume] = useState(1);
   const [busyId, setBusyId] = useState('');
   const [menuId, setMenuId] = useState('');
@@ -370,6 +371,7 @@ export default function CreatorCollectionsWorkspace({
     setPlaybackPhase('idle');
     setPlaybackTime(0);
     setPlaybackDuration(0);
+    setPlaybackSeekable(false);
   };
 
   const togglePlay = async (track) => {
@@ -419,7 +421,10 @@ export default function CreatorCollectionsWorkspace({
       audioRef.current = player;
       const isCurrent = () => audioRef.current === player && requestId === playbackRequestRef.current;
       player.addEventListener('loadedmetadata', () => {
-        if (isCurrent() && Number.isFinite(player.duration)) setPlaybackDuration(player.duration);
+        if (isCurrent() && Number.isFinite(player.duration)) {
+          setPlaybackDuration(player.duration);
+          setPlaybackSeekable(true);
+        }
       });
       player.addEventListener('timeupdate', () => {
         if (isCurrent()) setPlaybackTime(player.currentTime || 0);
@@ -851,7 +856,7 @@ export default function CreatorCollectionsWorkspace({
             return (
               <article className="recordings-row" role="row" key={id || track.title}>
                 <div className="recordings-recording-cell" role="cell">
-                  <button type="button" className="recordings-art" aria-label={`${isLoadingPlay ? 'Loading' : isPlaying ? 'Pause' : 'Play'} ${displayTitle}`} aria-busy={isLoadingPlay || undefined} disabled={false} onMouseEnter={() => prewarmPlayback(track)} onFocus={() => prewarmPlayback(track)} onClick={() => togglePlay(track)}>
+                  <button type="button" className="recordings-art" aria-label={`${isLoadingPlay ? 'Loading' : isPlaying ? 'Pause' : 'Play'} ${displayTitle}`} aria-busy={isLoadingPlay || undefined} onMouseEnter={() => prewarmPlayback(track)} onFocus={() => prewarmPlayback(track)} onClick={() => togglePlay(track)}>
                     <img src={artwork} alt="" />
                     <span className="recordings-art-play">{isLoadingPlay ? <FiLoader className="recordings-play-spin" /> : isPlaying ? <FiPause /> : <FiPlay />}</span>
                     <small>{formatDuration(track.duration)}</small>
@@ -875,7 +880,7 @@ export default function CreatorCollectionsWorkspace({
 
                 <div className="recordings-actions" role="cell">
                   <button type="button" className="recordings-primary-action" onClick={() => openRecording(track)}><FiSettings /> Manage</button>
-                  <button type="button" className="recordings-icon-action" aria-label={isLoadingPlay ? 'Loading recording' : isPlaying ? 'Pause recording' : 'Play recording'} aria-busy={isLoadingPlay || undefined} disabled={false} onMouseEnter={() => prewarmPlayback(track)} onFocus={() => prewarmPlayback(track)} onClick={() => togglePlay(track)}>{isLoadingPlay ? <FiLoader className="recordings-play-spin" /> : isPlaying ? <FiPause /> : <FiPlay />}</button>
+                  <button type="button" className="recordings-icon-action" aria-label={isLoadingPlay ? 'Loading recording' : isPlaying ? 'Pause recording' : 'Play recording'} aria-busy={isLoadingPlay || undefined} onMouseEnter={() => prewarmPlayback(track)} onFocus={() => prewarmPlayback(track)} onClick={() => togglePlay(track)}>{isLoadingPlay ? <FiLoader className="recordings-play-spin" /> : isPlaying ? <FiPause /> : <FiPlay />}</button>
                   <button type="button" className="recordings-icon-action" aria-label="Download recording" disabled={busyId === id} onClick={() => download(track)}><FiDownload /></button>
                   <div className="recordings-more-wrap">
                     <button type="button" className="recordings-more" aria-label="More recording actions" aria-expanded={menuId === id} onClick={() => setMenuId((current) => current === id ? '' : id)}><FiMoreVertical /></button>
@@ -935,7 +940,7 @@ export default function CreatorCollectionsWorkspace({
           <div className="recordings-mini-player-progress">
             <input type="range" min="0" max={Math.max(1, playbackDuration)} step="0.1"
               value={Math.min(playbackTime, Math.max(1, playbackDuration))}
-              disabled={!audioRef.current || !Number.isFinite(audioRef.current.duration)}
+              disabled={!playbackSeekable}
               onChange={(event) => seekPlayback(event.target.value)}
               aria-label="Recording playback position" />
             <span>{formatDuration(playbackTime)} / {formatDuration(playbackDuration)}</span>
