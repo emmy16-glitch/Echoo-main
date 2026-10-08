@@ -35,7 +35,7 @@
   position: fixed;
   inset: 0;
   z-index: 0;
-  background-image: var(--ear-auth-background-image, url('../Assets/echoo-auth-studio-reference.jpg'));
+  background-image: var(--ear-auth-background-image, url('../Assets/echoo-auth-studio-reference-v2.png'));
   background-size: cover;
   background-position: center 44%;
   background-repeat: no-repeat;
@@ -72,6 +72,24 @@
 .ear-auth-story-copy {
   width: min(690px, 100%);
   text-shadow: 0 4px 28px rgba(0,0,0,.36);
+}
+
+.ear-story-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 38px;
+  color: #fff;
+  font-family: "Space Grotesk", Manrope, sans-serif;
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -.035em;
+}
+
+.ear-story-brand img {
+  width: 58px;
+  height: 58px;
+  object-fit: contain;
 }
 
 .ear-auth-story-kicker {
@@ -491,6 +509,7 @@
     align-self: auto;
     padding: 24px 4px 10px;
   }
+  .ear-story-brand { display: none; }
   .ear-auth-story h2 { font-size: clamp(34px, 8vw, 48px); }
   .ear-auth-story p { margin-top: 12px; font-size: 14px; line-height: 1.5; }
 

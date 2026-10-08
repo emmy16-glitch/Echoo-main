@@ -16,7 +16,7 @@ import {
 } from "react-icons/fa";
 
 import EchooLogoImage from "../Assets/echoo-logo-mark.png";
-import EchooAuthBackground from "../Assets/echoo-auth-studio-reference.jpg";
+import EchooAuthBackground from "../Assets/echoo-auth-studio-reference-v2.png";
 import LoadingButton from "../UI/LoadingButton";
 import Toast from "../UI/Toast";
 
@@ -359,6 +359,10 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
       <div className="ear-auth-shell">
         <aside className="ear-auth-story" aria-label="About Echoo">
           <div className="ear-auth-story-copy">
+            <div className="ear-story-brand" aria-label="Echoo">
+              <img src={EchooLogoImage} alt="" />
+              <span>Echoo</span>
+            </div>
             <h2>Hear the moment.<br />Own the room.</h2>
             <p>Start a live room to share what&apos;s happening, or join one to listen. You don&apos;t need an account to listen.</p>
           </div>
