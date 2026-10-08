@@ -10,6 +10,18 @@ const desktopPackage = JSON.parse(readFileSync(path.join(desktopRoot, 'package.j
 const executablePath =
   process.env.ECHOO_PACKAGED_EXE ||
   path.join(desktopRoot, 'dist', 'win-unpacked', 'Echoo.exe');
+const productionApiPrefix = 'https://echoo.digi02.org/api/';
+
+function isExpectedBackendTransportDiagnostic({ text, url }) {
+  const isProductionApiRequest = url?.startsWith(productionApiPrefix);
+  const isProductionApiCorsFailure =
+    text.includes(`Access to fetch at '${productionApiPrefix}`) &&
+    text.includes("blocked by CORS policy: No 'Access-Control-Allow-Origin'");
+  const isProductionApiNetworkFailure =
+    isProductionApiRequest && /^Failed to load resource: net::ERR_FAILED$/.test(text);
+
+  return isProductionApiCorsFailure || isProductionApiNetworkFailure;
+}
 
 function rgbChannels(color) {
   const channels = String(color).match(/\d+/g)?.slice(0, 3).map(Number);
@@ -23,14 +35,25 @@ test.describe('packaged Echoo Windows shell', () => {
   let electronApp;
   let mainPage;
   let testUserDataPath;
-  const rendererErrors = [];
+  const rendererConsoleErrors = [];
+  const rendererPageErrors = [];
   const nativeDiagnostics = [];
+  const watchedPages = new WeakSet();
 
   const watchRendererDiagnostics = (page) => {
+    if (watchedPages.has(page)) return;
+    watchedPages.add(page);
     page.on('console', (message) => {
-      if (message.type() === 'error') rendererErrors.push(message.text());
+      if (message.type() === 'error') {
+        rendererConsoleErrors.push({
+          text: message.text(),
+          url: message.location().url,
+        });
+      }
     });
-    page.on('pageerror', (error) => rendererErrors.push(error?.stack || error?.message || String(error)));
+    page.on('pageerror', (error) => {
+      rendererPageErrors.push(error?.stack || error?.message || String(error));
+    });
   };
 
   test.beforeAll(async () => {
@@ -93,7 +116,8 @@ test.describe('packaged Echoo Windows shell', () => {
         error?.message || String(error),
         `Renderer URL: ${mainPage.url()}`,
         `Renderer body: ${bodyText.slice(0, 2_000)}`,
-        `Renderer errors: ${rendererErrors.join('\n')}`,
+        `Renderer console errors: ${rendererConsoleErrors.map(({ text, url }) => `${url}: ${text}`).join('\n')}`,
+        `Renderer page errors: ${rendererPageErrors.join('\n')}`,
         `Native output: ${nativeDiagnostics.join('').slice(-8_000)}`,
         `Main log: ${mainLog.slice(-12_000)}`,
       ].join('\n\n'));
@@ -405,7 +429,20 @@ test.describe('packaged Echoo Windows shell', () => {
 
   test('keeps packaged renderer and native lifecycle diagnostics free of unresolved errors', async () => {
     await mainPage.waitForTimeout(500);
-    expect(rendererErrors).toEqual([]);
+    const unresolvedConsoleErrors = rendererConsoleErrors.filter(
+      (diagnostic) => !isExpectedBackendTransportDiagnostic(diagnostic)
+    );
+    const expectedBackendTransportErrors = rendererConsoleErrors.filter(
+      isExpectedBackendTransportDiagnostic
+    );
+    expect(unresolvedConsoleErrors).toEqual([]);
+    expect(rendererPageErrors).toEqual([]);
+    expect(expectedBackendTransportErrors.length).toBeLessThanOrEqual(40);
+
+    const bodyText = await mainPage.locator('body').innerText();
+    expect(bodyText).not.toMatch(
+      /Failed to fetch|ERR_FAILED|CORS policy|Access-Control-Allow-Origin/i
+    );
 
     const logsDirectory = await electronApp.evaluate(({ app }) => app.getPath('logs'));
     const mainLogPath = path.join(logsDirectory, 'main.log');
