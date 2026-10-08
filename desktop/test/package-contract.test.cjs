@@ -64,7 +64,9 @@ const backendAppSource = fs.readFileSync(
 );
 
 test('Windows package identity and artifact are canonical', () => {
-  assert.equal(packageJson.version, '2.0.5');
+  assert.match(packageJson.version, /^\d+\.\d+\.\d+$/);
+  assert.equal(packageJson.version, packageLock.version);
+  assert.equal(packageJson.version, packageLock.packages[''].version);
   assert.equal(packageJson.author, 'EMMANUEL AYOMIDE OKUNLOLA');
   assert.equal(packageJson.build.productName, 'Echoo');
   assert.equal(packageJson.build.win.artifactName, 'Echoo-Setup-${version}-${arch}.${ext}');
