@@ -53,14 +53,16 @@ test.beforeEach(async ({ page }) => {
   await page.route('**/api/auth/me', (route) => route.fulfill({ json: { data: { user: creator } } }));
   await page.route('**/api/stations/mine/all**', (route) => route.fulfill({ json: { data: [] } }));
   await page.route('**/api/broadcasts/mine/all**', (route) => route.fulfill({ json: { data: [] } }));
+  // Playwright checks the most recently registered route first. Keep the
+  // broad fallback ahead of the specific recording and stream-token routes.
+  await page.route('**/api/**', (route) => route.fallback());
+  await page.route('**/api/studio/**', (route) => route.fulfill({ json: { data: {} } }));
   await page.route('**/api/studio/content**', (route) => route.fulfill({
     json: { data: { tracks: [recording], pagination: { total: 1, page: 1, limit: 20 } } },
   }));
   await page.route('**/api/audio/' + recordingId + '/stream-token', (route) => route.fulfill({
     json: { data: { streamUrl, expiresIn: 300 } },
   }));
-  await page.route('**/api/studio/**', (route) => route.fulfill({ json: { data: {} } }));
-  await page.route('**/api/**', (route) => route.fallback());
 });
 
 test('Recordings provides immediate active player feedback and playable audio', async ({ page }) => {
