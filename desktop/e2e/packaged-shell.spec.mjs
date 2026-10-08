@@ -363,6 +363,50 @@ test.describe('packaged Echoo Windows shell', () => {
     });
   });
 
+  test('closing active Listener playback hides Echoo to tray without ending the session', async () => {
+    await mainPage.evaluate(() => window.echooDesktop.setRoomState({
+      active: true,
+      mode: 'listener',
+      kind: 'replay',
+      title: 'Background-playback regression',
+      playing: true,
+      canTogglePlay: true,
+    }));
+
+    try {
+      const destroyed = await electronApp.evaluate(({ BrowserWindow }) => {
+        const window = BrowserWindow.getAllWindows()
+          .find((candidate) => candidate.webContents.getURL().startsWith('echoo-app://app/'));
+        if (!window) throw new Error('Packaged Echoo main window was not found.');
+        window.close();
+        return window.isDestroyed();
+      });
+      expect(destroyed).toBe(false);
+      await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => {
+        const window = BrowserWindow.getAllWindows()
+          .find((candidate) => candidate.webContents.getURL().startsWith('echoo-app://app/'));
+        return window ? window.isVisible() : null;
+      })).toBe(false);
+      expect(await mainPage.evaluate(() => window.echooDesktop.getRoomState())).toMatchObject({
+        active: true,
+        mode: 'listener',
+        kind: 'replay',
+        playing: true,
+      });
+    } finally {
+      await electronApp.evaluate(({ BrowserWindow }) => {
+        BrowserWindow.getAllWindows()
+          .find((candidate) => candidate.webContents.getURL().startsWith('echoo-app://app/'))
+          ?.show();
+      });
+      await mainPage.evaluate(() => window.echooDesktop.setRoomState({
+        active: false,
+        mode: 'idle',
+        kind: 'idle',
+      }));
+    }
+  });
+
   test('streams recording chunks to the managed Windows library and commits atomically', async () => {
     const result = await mainPage.evaluate(async () => {
       const filename = `playwright-${Date.now()}.mp3`;
