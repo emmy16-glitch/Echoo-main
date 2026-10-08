@@ -1343,7 +1343,7 @@ const CreatorLiveConnectedWorkspace = ({
             placeholder="e.g. Sunday Service - 11 October"
             disabled={goingLive || ending}
           />
-          <p>This title appears with your livestream and its recording. Your Channel name stays {liveStation?.name || 'unchanged'}.</p>
+          <p>Title for this livestream only. It also appears on its saved recording. Your Channel name stays {liveStation?.name || 'unchanged'}.</p>
         </div>
       )}
 
