@@ -366,7 +366,13 @@ test('active ListenerV2 separates live, scheduled and released audio and owns a 
   assert.match(css, /\.listener-v2-release-list/);
   assert.match(css, /\.listener-v2-full-player-sheet/);
   assert.match(css, /\.listener-v2-player-seek/);
-  assert.match(listener, /setUpcoming\([\s\S]*sort\(\(a, b\) => new Date\(a\?\.startTime \|\| 0\) - new Date\(b\?\.startTime \|\| 0\)\)/);
+  // Scheduled broadcasts now come from the cached live catalog rather than
+  // local setUpcoming state. Both the authenticated and guest paths must
+  // sort by ascending start time before presenting the upcoming list.
+  assert.match(listener, /const fetchLiveCatalog = async \(\) =>/);
+  assert.match(listener, /const upcoming = Array\.isArray\(data\?\.upcoming\) \? data\.upcoming : \[\]/);
+  const ascendingUpcomingSorts = listener.match(/\.sort\(\(a, b\) => new Date\(a\?\.startTime \|\| 0\) - new Date\(b\?\.startTime \|\| 0\)\)/g) || [];
+  assert.equal(ascendingUpcomingSorts.length, 2, 'authenticated and guest upcoming broadcasts must both be sorted chronologically');
 });
 
 
