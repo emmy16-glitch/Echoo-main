@@ -420,12 +420,12 @@
 }
 
 
-/* One visible transport for quick recording playback. It is fixed so a row
-   click has immediate feedback without scrolling to a hidden player. */
-.recordings-page:has(.recordings-mini-player) { padding-bottom: 108px; }
+/* The player portals to document.body so transformed or scroll-clipped Studio
+   panels cannot hide it; reserve footer space while playback is active. */
+.recordings-page.has-active-player { padding-bottom: 108px; }
 .recordings-mini-player {
   position:fixed;
-  z-index:65;
+  z-index:1100;
   left:max(220px, calc((100vw - 1160px) / 2));
   right:20px;
   bottom:16px;
@@ -444,7 +444,7 @@
   box-shadow:0 14px 35px rgba(7,22,56,.18);
 }
 .recordings-mini-player-copy { flex:0 1 220px; min-width:105px; display:grid; gap:4px; }
-.recordings-mini-player-copy > span { color:#4067a9; font-size:11px; font-weight:700; }
+.recordings-mini-player-copy > span { color:#4067a9; font-size:11px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .recordings-mini-player-copy > strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; }
 .recordings-mini-player-toggle { flex:none; display:grid; place-items:center; width:40px; height:40px; border:0; border-radius:50%; background:#246bfe; color:#fff; font-size:17px; cursor:pointer; }
 .recordings-mini-player-progress { flex:1 1 220px; min-width:100px; display:grid; gap:4px; }
