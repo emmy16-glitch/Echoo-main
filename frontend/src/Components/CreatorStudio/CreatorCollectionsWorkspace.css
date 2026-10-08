@@ -418,3 +418,60 @@
   font-weight: 750;
   cursor: pointer;
 }
+
+
+/* One visible transport for quick recording playback. It is fixed so a row
+   click has immediate feedback without scrolling to a hidden player. */
+.recordings-page:has(.recordings-mini-player) { padding-bottom: 108px; }
+.recordings-mini-player {
+  position:fixed;
+  z-index:65;
+  left:max(220px, calc((100vw - 1160px) / 2));
+  right:20px;
+  bottom:16px;
+  max-width:1120px;
+  min-width:0;
+  margin-left:auto;
+  margin-right:auto;
+  display:flex;
+  align-items:center;
+  gap:16px;
+  padding:12px 15px;
+  border:1px solid #d3dff0;
+  border-radius:13px;
+  background:#fff;
+  color:#10244b;
+  box-shadow:0 14px 35px rgba(7,22,56,.18);
+}
+.recordings-mini-player-copy { flex:0 1 220px; min-width:105px; display:grid; gap:4px; }
+.recordings-mini-player-copy > span { color:#4067a9; font-size:11px; font-weight:700; }
+.recordings-mini-player-copy > strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; }
+.recordings-mini-player-toggle { flex:none; display:grid; place-items:center; width:40px; height:40px; border:0; border-radius:50%; background:#246bfe; color:#fff; font-size:17px; cursor:pointer; }
+.recordings-mini-player-progress { flex:1 1 220px; min-width:100px; display:grid; gap:4px; }
+.recordings-mini-player-progress input { width:100%; accent-color:#246bfe; cursor:pointer; }
+.recordings-mini-player-progress input:disabled { opacity:.4; cursor:default; }
+.recordings-mini-player-progress > span { color:#657693; font-size:10px; font-variant-numeric:tabular-nums; text-align:right; }
+.recordings-mini-player-volume { flex:0 0 132px; display:flex; align-items:center; gap:9px; color:#62789e; }
+.recordings-mini-player-volume input { min-width:0; width:100%; accent-color:#246bfe; }
+.recordings-mini-player-close { flex:none; display:grid; place-items:center; width:32px; height:32px; padding:0; border:0; border-radius:7px; background:transparent; color:#5c708f; font-size:20px; cursor:pointer; }
+.recordings-mini-player-close:hover { background:#edf4ff; color:#246bfe; }
+.recordings-mini-player button:focus-visible,
+.recordings-mini-player input:focus-visible { outline:2px solid #246bfe; outline-offset:3px; }
+.recordings-play-spin { animation:recordings-play-rotate .85s linear infinite; }
+@keyframes recordings-play-rotate { to { transform:rotate(360deg); } }
+
+@media (max-width:950px) {
+  .recordings-mini-player { left:16px; right:16px; gap:10px; }
+  .recordings-mini-player-volume { flex-basis:90px; }
+}
+@media (max-width:560px) {
+  .recordings-mini-player { padding:12px; display:grid; grid-template-columns:1fr 40px 32px; gap:8px; bottom:10px; }
+  .recordings-mini-player-copy { grid-column:1; grid-row:1; }
+  .recordings-mini-player-toggle { grid-column:2; grid-row:1; }
+  .recordings-mini-player-close { grid-column:3; grid-row:1; }
+  .recordings-mini-player-progress { grid-column:1 / -1; grid-row:2; }
+  .recordings-mini-player-volume { display:none; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .recordings-play-spin { animation:none; }
+}
