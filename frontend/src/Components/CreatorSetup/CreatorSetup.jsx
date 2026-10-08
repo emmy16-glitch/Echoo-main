@@ -379,6 +379,7 @@ export default function CreatorSetup({ onCreatorReady }) {
                     aria-describedby={nameErrorId}
                     disabled={saving}
                   />
+                  <p className="echoo-onboard-field-help">Use your church, organization or Channel name here, not the title of one livestream.</p>
                   {fieldErrors.channelName && (
                     <p className="echoo-onboard-error" id="channel-name-error" role="alert">{fieldErrors.channelName}</p>
                   )}
