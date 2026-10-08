@@ -128,8 +128,8 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      # Release publication paused at the owner's request. Windows build, E2E,
-      # installer validation and artifact upload remain enabled.
+      # Direct main publication remains gated below. Tagged releases are
+      # published only after this complete Windows verification job passes.
       - name: Release v2.0.7 only after desktop and main checks pass
         if: ${{ false }}
         shell: pwsh
@@ -194,7 +194,7 @@ jobs:
           Write-Host "Published $tag after all required checks passed."
 
       - name: Publish verified tagged release
-        if: ${{ false }}
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v3
         with:
           files: |
