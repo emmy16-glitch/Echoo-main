@@ -465,6 +465,14 @@ export default function CreatorCollectionsWorkspace({
     }
   };
 
+  const prewarmPlayback = (track) => {
+    const id = String(getId(track) || '');
+    if (!id) return;
+    // A hover starts the lightweight authorized token request; clicks reuse it.
+    // Ignore hover-only failures and report them only when Play is requested.
+    void studioService.getAudioStreamUrl(id).catch(() => {});
+  };
+
   const seekPlayback = (seconds) => {
     const player = audioRef.current;
     if (!player || !Number.isFinite(player.duration)) return;
@@ -843,7 +851,7 @@ export default function CreatorCollectionsWorkspace({
             return (
               <article className="recordings-row" role="row" key={id || track.title}>
                 <div className="recordings-recording-cell" role="cell">
-                  <button type="button" className="recordings-art" aria-label={`${isLoadingPlay ? 'Loading' : isPlaying ? 'Pause' : 'Play'} ${displayTitle}`} aria-busy={isLoadingPlay || undefined} disabled={isLoadingPlay} onClick={() => togglePlay(track)}>
+                  <button type="button" className="recordings-art" aria-label={`${isLoadingPlay ? 'Loading' : isPlaying ? 'Pause' : 'Play'} ${displayTitle}`} aria-busy={isLoadingPlay || undefined} disabled={false} onMouseEnter={() => prewarmPlayback(track)} onFocus={() => prewarmPlayback(track)} onClick={() => togglePlay(track)}>
                     <img src={artwork} alt="" />
                     <span className="recordings-art-play">{isLoadingPlay ? <FiLoader className="recordings-play-spin" /> : isPlaying ? <FiPause /> : <FiPlay />}</span>
                     <small>{formatDuration(track.duration)}</small>
@@ -867,7 +875,7 @@ export default function CreatorCollectionsWorkspace({
 
                 <div className="recordings-actions" role="cell">
                   <button type="button" className="recordings-primary-action" onClick={() => openRecording(track)}><FiSettings /> Manage</button>
-                  <button type="button" className="recordings-icon-action" aria-label={isLoadingPlay ? 'Loading recording' : isPlaying ? 'Pause recording' : 'Play recording'} aria-busy={isLoadingPlay || undefined} disabled={isLoadingPlay} onClick={() => togglePlay(track)}>{isLoadingPlay ? <FiLoader className="recordings-play-spin" /> : isPlaying ? <FiPause /> : <FiPlay />}</button>
+                  <button type="button" className="recordings-icon-action" aria-label={isLoadingPlay ? 'Loading recording' : isPlaying ? 'Pause recording' : 'Play recording'} aria-busy={isLoadingPlay || undefined} disabled={false} onMouseEnter={() => prewarmPlayback(track)} onFocus={() => prewarmPlayback(track)} onClick={() => togglePlay(track)}>{isLoadingPlay ? <FiLoader className="recordings-play-spin" /> : isPlaying ? <FiPause /> : <FiPlay />}</button>
                   <button type="button" className="recordings-icon-action" aria-label="Download recording" disabled={busyId === id} onClick={() => download(track)}><FiDownload /></button>
                   <div className="recordings-more-wrap">
                     <button type="button" className="recordings-more" aria-label="More recording actions" aria-expanded={menuId === id} onClick={() => setMenuId((current) => current === id ? '' : id)}><FiMoreVertical /></button>
