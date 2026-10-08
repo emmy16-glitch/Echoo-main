@@ -22,3 +22,15 @@ test('Socket.IO authentication recovery always reads the latest access token', (
   assert.match(source, /updateSocketAuth\(\)/);
   assert.match(source, /if \(socket\.__echooGuest\) return/);
 });
+
+test('Socket.IO preserves desktop authentication through transient refresh failures', () => {
+  assert.match(source, /isDefinitiveSessionExpiry/);
+  assert.match(
+    source,
+    /if \(isDefinitiveSessionExpiry\(error\)\) \{[\s\S]{0,180}clearAuthTokens\(\)[\s\S]{0,100}sharedSocket\?\.disconnect\(\)/
+  );
+  assert.doesNotMatch(
+    source,
+    /\.catch\(\(error\) => \{\s*clearAuthTokens\(\)/
+  );
+});

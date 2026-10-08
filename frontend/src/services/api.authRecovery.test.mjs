@@ -170,3 +170,18 @@ test('explicitly invalid refresh token clears auth and uses the packaged login r
   assert.equal(localStorage.getItem('user'), null);
   assert.deepEqual(replacements, ['#/login?reason=session-expired']);
 });
+
+test('session expiry classification distinguishes auth rejection from recoverable outages', async () => {
+  const { api } = await loadApi({
+    fetchImpl: async () => jsonResponse(200, { data: {} }),
+  });
+
+  assert.equal(api.isDefinitiveSessionExpiry({ code: 'INVALID_REFRESH_TOKEN' }), true);
+  assert.equal(api.isDefinitiveSessionExpiry({ code: 'REFRESH_TOKEN_REQUIRED' }), true);
+  assert.equal(api.isDefinitiveSessionExpiry({ status: 401 }), true);
+  assert.equal(api.isDefinitiveSessionExpiry({ status: 403 }), true);
+  assert.equal(api.isDefinitiveSessionExpiry({ code: 'NETWORK_UNAVAILABLE' }), false);
+  assert.equal(api.isDefinitiveSessionExpiry({ code: 'REQUEST_TIMEOUT' }), false);
+  assert.equal(api.isDefinitiveSessionExpiry({ status: 503 }), false);
+  assert.equal(api.isDefinitiveSessionExpiry(new Error('Malformed refresh response')), false);
+});

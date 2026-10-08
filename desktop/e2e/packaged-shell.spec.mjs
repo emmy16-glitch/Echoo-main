@@ -11,6 +11,12 @@ const executablePath =
   process.env.ECHOO_PACKAGED_EXE ||
   path.join(desktopRoot, 'dist', 'win-unpacked', 'Echoo.exe');
 
+function rgbChannels(color) {
+  const channels = String(color).match(/\d+/g)?.slice(0, 3).map(Number);
+  if (!channels || channels.length !== 3) throw new Error(`Expected an RGB color, received ${color}`);
+  return channels;
+}
+
 test.describe('packaged Echoo Windows shell', () => {
   test.skip(process.platform !== 'win32', 'Packaged desktop E2E runs on Windows only.');
 
@@ -100,7 +106,8 @@ test.describe('packaged Echoo Windows shell', () => {
   });
 
   test('uses the local renderer and secure desktop bridge', async () => {
-    const state = await mainPage.evaluate(async () => {
+    const [state, nativeBackgroundColor] = await Promise.all([
+      mainPage.evaluate(async () => {
       const appInfo = await window.echooDesktop.getAppInfo();
       return {
         protocol: window.location.protocol,
@@ -110,8 +117,15 @@ test.describe('packaged Echoo Windows shell', () => {
         processType: typeof window.process,
         requireType: typeof window.require,
         appInfo,
+        htmlBackground: getComputedStyle(document.documentElement).backgroundColor,
+        bodyBackground: getComputedStyle(document.body).backgroundColor,
+        rootBackground: getComputedStyle(document.querySelector('#root')).backgroundColor,
       };
-    });
+      }),
+      electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()
+        .find((window) => window.webContents.getURL().startsWith('echoo-app://app/'))
+        ?.getBackgroundColor()),
+    ]);
 
     expect(state.protocol).toBe('echoo-app:');
     expect(state.appIdentity).toBe('echoo-frontend');
@@ -123,6 +137,14 @@ test.describe('packaged Echoo Windows shell', () => {
     expect(state.appInfo?.appName).toBe('Echoo');
     expect(state.appInfo?.appVersion).toBe(desktopPackage.version);
     expect(state.appInfo?.startUrl).toBe('echoo-app://app/index.html');
+    expect(nativeBackgroundColor).toBe('#F7F9FC');
+    const nativeChannels = [247, 249, 252];
+    for (const rendererColor of [state.htmlBackground, state.bodyBackground, state.rootBackground]) {
+      const rendererChannels = rgbChannels(rendererColor);
+      expect(rendererChannels).not.toEqual([255, 255, 255]);
+      expect(Math.max(...rendererChannels.map((channel, index) =>
+        Math.abs(channel - nativeChannels[index])))).toBeLessThanOrEqual(4);
+    }
   });
 
   test('keeps APP_READY idempotent after the main window is visible', async () => {
@@ -342,6 +364,43 @@ test.describe('packaged Echoo Windows shell', () => {
     expect(reducedMotion.skeletonDisplay).toBe('none');
     expect(reducedMotion.skeletonAnimationName).toBe('none');
     expect(Number.parseFloat(reducedMotion.successAnimationDuration)).toBeLessThanOrEqual(0.001);
+  });
+
+  test('minimizes, restores, maximizes, and returns to its saved desktop bounds', async () => {
+    const getMainWindowState = () => electronApp.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows().find((candidate) =>
+        candidate.webContents.getURL().startsWith('echoo-app://app/')
+      );
+      return {
+        minimized: window?.isMinimized() === true,
+        maximized: window?.isMaximized() === true,
+        visible: window?.isVisible() === true,
+      };
+    });
+
+    await electronApp.evaluate(({ BrowserWindow }) => {
+      BrowserWindow.getFocusedWindow()?.minimize();
+    });
+    await expect.poll(getMainWindowState).toMatchObject({ minimized: true });
+
+    await electronApp.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows().find((candidate) =>
+        candidate.webContents.getURL().startsWith('echoo-app://app/')
+      );
+      window?.restore();
+      window?.show();
+    });
+    await expect.poll(getMainWindowState).toEqual({ minimized: false, maximized: false, visible: true });
+
+    await electronApp.evaluate(({ BrowserWindow }) => {
+      BrowserWindow.getFocusedWindow()?.maximize();
+    });
+    await expect.poll(getMainWindowState).toMatchObject({ maximized: true, visible: true });
+
+    await electronApp.evaluate(({ BrowserWindow }) => {
+      BrowserWindow.getFocusedWindow()?.unmaximize();
+    });
+    await expect.poll(getMainWindowState).toEqual({ minimized: false, maximized: false, visible: true });
   });
 
   test('keeps packaged renderer and native lifecycle diagnostics free of unresolved errors', async () => {

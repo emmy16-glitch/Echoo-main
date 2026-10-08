@@ -346,17 +346,26 @@ test('native recording actions also trust exports selected through the Windows S
 test('splash uses the real Echoo mark as the restrained startup motion', () => {
   const splashHtml = fs.readFileSync(path.join(desktopRoot, 'splash.html'), 'utf8');
   const splashCss = fs.readFileSync(path.join(desktopRoot, 'src', 'splash.css'), 'utf8');
+  const splashPreload = fs.readFileSync(path.join(desktopRoot, 'src', 'splash-preload.js'), 'utf8');
   assert.match(splashHtml, /echoo-mark-primary/);
   assert.match(splashHtml, /echoo-mark-echo/);
+  assert.match(splashHtml, /echoo-mark-highlight/);
   assert.doesNotMatch(splashHtml, /<strong>echoo<\/strong>/);
   assert.doesNotMatch(splashHtml, /Starting Echoo/);
   assert.doesNotMatch(splashHtml, /progress/i);
   assert.match(splashCss, /prefers-reduced-motion:\s*reduce/);
-  assert.match(splashCss, /1\.15s[\s\S]*infinite/);
-  assert.match(splashCss, /translate\(3px, -2px\)/);
-  assert.match(splashCss, /translate\(-3px, 2px\)/);
-  assert.match(splashCss, /background:\s*#f7f9fc/);
-  assert.match(mainSource, /width: 176,[\s\S]{0,100}height: 176,[\s\S]{0,120}transparent: true/);
+  assert.match(splashCss, /width:\s*120px/);
+  assert.match(splashCss, /echoo-mark-arrive 1\.25s/);
+  assert.match(splashCss, /rotateX\(5deg\) rotateY\(-6deg\)/);
+  assert.match(splashCss, /echoo-primary-settle/);
+  assert.match(splashCss, /echoo-secondary-settle/);
+  assert.match(splashCss, /linear-gradient\(145deg/);
+  assert.doesNotMatch(splashCss, /infinite/);
+  assert.match(splashPreload, /prefers-reduced-motion: reduce/);
+  assert.match(splashPreload, /echoo:splash-intro-complete/);
+  assert.match(splashPreload, /event\.target !== mark/);
+  assert.match(splashPreload, /removeEventListener\('animationend', handleMarkAnimationEnd\)/);
+  assert.match(mainSource, /width: 216,[\s\S]{0,100}height: 216,[\s\S]{0,120}transparent: true/);
   assert.match(mainSource, /backgroundColor: '#00000000'/);
 });
 
@@ -621,6 +630,16 @@ test('installer verification proves uninstall preserves user data and local reco
   assert.match(mainSource, /recordingsLibraryPath:/);
   assert.match(installerVerifier, /Echoo uninstall removed persistent user data/);
   assert.match(installerVerifier, /Echoo uninstall removed the local recording library/);
+  assert.match(installerVerifier, /Verified uninstall and reinstall preserve Echoo user data and local recordings/);
+  assert.match(installerVerifier, /Echoo reinstall did not restore the installed application/);
+});
+
+test('installer verification launches the real Desktop and Start-menu shortcuts', () => {
+  const installerVerifier = fs.readFileSync(path.join(desktopRoot, 'scripts', 'verify-installer.ps1'), 'utf8');
+  assert.match(installerVerifier, /GetFolderPath\('Desktop'\)/);
+  assert.match(installerVerifier, /GetFolderPath\('Programs'\)/);
+  assert.match(installerVerifier, /CreateShortcut\(\$shortcutPath\)/);
+  assert.match(installerVerifier, /Start-Process -FilePath \$shortcutPath/);
 });
 
 
@@ -914,6 +933,9 @@ test('startup splash is one non-topmost window and is destroyed after readiness'
   assert.match(mainSource, /function destroySplashWindow\(/);
   assert.match(mainSource, /splashWindow = null;[\s\S]{0,120}current\.destroy\(\)/);
   assert.match(mainSource, /destroySplashWindow\('main-visible'\)/);
+  assert.match(mainSource, /SPLASH_INTRO_FALLBACK_MS = 1800/);
+  assert.match(mainSource, /echoo:splash-intro-complete/);
+  assert.match(mainSource, /splashWindow && !splashWindow\.isDestroyed\(\) && !splashIntroComplete/);
 });
 
 test('startup recovery offers retry, restart, and diagnostics inside Echoo', () => {

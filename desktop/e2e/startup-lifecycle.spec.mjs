@@ -38,6 +38,7 @@ async function nativeWindowState(electronApp) {
       visible: window.isVisible(),
       alwaysOnTop: window.isAlwaysOnTop(),
       destroyed: window.isDestroyed(),
+      backgroundColor: window.getBackgroundColor(),
     }));
     return {
       windows,
@@ -92,31 +93,39 @@ test.describe('packaged startup lifecycle', () => {
         expect(splashPage).toBeTruthy();
         const splashVisual = await splashPage.evaluate(() => {
           const surface = document.querySelector('main');
+          const mark = document.querySelector('.echoo-mark');
           const primary = document.querySelector('.echoo-mark-primary');
           const surfaceStyle = getComputedStyle(surface);
+          const markStyle = getComputedStyle(mark);
           const primaryStyle = getComputedStyle(primary);
           return {
             visibleWordmark: document.querySelector('strong')?.textContent || '',
             ariaLabel: surface?.getAttribute('aria-label') || '',
-            surfaceBackground: surfaceStyle.backgroundColor,
+            surfaceBackgroundImage: surfaceStyle.backgroundImage,
             surfaceWidth: surfaceStyle.width,
             surfaceHeight: surfaceStyle.height,
-            animationDuration: primaryStyle.animationDuration,
-            animationName: primaryStyle.animationName,
+            markWidth: markStyle.width,
+            markAnimationDuration: markStyle.animationDuration,
+            markAnimationIterationCount: markStyle.animationIterationCount,
+            markAnimationName: markStyle.animationName,
+            primaryAnimationName: primaryStyle.animationName,
           };
         });
         expect(splashVisual).toMatchObject({
           visibleWordmark: '',
           ariaLabel: 'Echoo is opening',
-          surfaceBackground: 'rgb(247, 249, 252)',
-          surfaceWidth: '160px',
-          surfaceHeight: '160px',
-          animationDuration: '1.15s',
+          surfaceWidth: '192px',
+          surfaceHeight: '192px',
+          markWidth: '120px',
+          markAnimationDuration: '1.25s',
+          markAnimationIterationCount: '1',
+          markAnimationName: 'echoo-mark-arrive',
         });
-        expect(splashVisual.animationName).not.toBe('none');
+        expect(splashVisual.surfaceBackgroundImage).toContain('linear-gradient');
+        expect(splashVisual.primaryAnimationName).toBe('echoo-primary-settle');
 
         await splashPage.emulateMedia({ reducedMotion: 'reduce' });
-        const reducedMotionAnimation = await splashPage.locator('.echoo-mark-primary').evaluate(
+        const reducedMotionAnimation = await splashPage.locator('.echoo-mark').evaluate(
           (node) => getComputedStyle(node).animationName
         );
         expect(reducedMotionAnimation).toBe('none');
@@ -161,6 +170,48 @@ test.describe('packaged startup lifecycle', () => {
       }
     });
   }
+
+  test('settles immediately without motion when Windows requests reduced motion', async () => {
+    const electronApp = await electron.launch({
+      executablePath,
+      env: launchEnvironment({
+        ECHOO_DESKTOP_STARTUP_TEST: 'delayed-ready',
+        ECHOO_TEST_APP_READY_DELAY_MS: '5000',
+      }),
+    });
+    await keepAutomationWindowsOffscreen(electronApp);
+
+    try {
+      await expect.poll(async () => (await nativeWindowState(electronApp)).splash.length).toBe(1);
+      const splashPage = electronApp.windows().find((candidate) =>
+        candidate.url().includes('splash.html')
+      );
+      expect(splashPage).toBeTruthy();
+      await splashPage.emulateMedia({ reducedMotion: 'reduce' });
+      await splashPage.reload();
+      await splashPage.waitForLoadState('domcontentloaded');
+      const reducedMotionState = await splashPage.evaluate(() => ({
+        reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches,
+        markAnimation: getComputedStyle(document.querySelector('.echoo-mark')).animationName,
+        primaryAnimation: getComputedStyle(document.querySelector('.echoo-mark-primary')).animationName,
+      }));
+      expect(reducedMotionState).toEqual({
+        reducedMotion: true,
+        markAnimation: 'none',
+        primaryAnimation: 'none',
+      });
+
+      await expect.poll(async () => {
+        const state = await nativeWindowState(electronApp);
+        return {
+          splash: state.splash.length,
+          visibleMain: state.main.filter((window) => window.visible).length,
+        };
+      }, { timeout: 20_000 }).toEqual({ splash: 0, visibleMain: 1 });
+    } finally {
+      await electronApp.close().catch(() => {});
+    }
+  });
 
   test('destroys the splash and shows in-app recovery when APP_READY never arrives', async () => {
     const electronApp = await electron.launch({

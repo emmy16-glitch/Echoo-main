@@ -162,6 +162,7 @@ const STARTUP_TEST_APP_READY_DELAY_MS = STARTUP_TEST_MODE === 'delayed-ready'
   && Number.isFinite(configuredAppReadyDelay)
   ? Math.min(15_000, Math.max(0, configuredAppReadyDelay))
   : 0;
+const SPLASH_INTRO_FALLBACK_MS = 1800;
 
 // Origins the app window itself is allowed to navigate to. Everything else
 // (chat links, profile links, help URLs) opens in the OS default browser.
@@ -259,6 +260,8 @@ let mainWindowNativeReady = false;
 let mainWindowRendererReady = false;
 let startupReadyTimer = null;
 let delayedAppReadyTimer = null;
+let splashIntroFallbackTimer = null;
+let splashIntroComplete = false;
 let rendererLoadGeneration = 0;
 let rendererLifecyclePhase = 'idle';
 let mainWindowVisibleGeneration = -1;
@@ -641,9 +644,10 @@ function createSplashWindow() {
   if (splashWindow && !splashWindow.isDestroyed()) return splashWindow;
   splashWindow = null;
 
+  splashIntroComplete = false;
   const createdSplash = new BrowserWindow({
-    width: 176,
-    height: 176,
+    width: 216,
+    height: 216,
     frame: false,
     transparent: true,
     hasShadow: false,
@@ -654,6 +658,7 @@ function createSplashWindow() {
     alwaysOnTop: false,
     backgroundColor: '#00000000',
     webPreferences: {
+      preload: path.join(__dirname, 'splash-preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -661,6 +666,12 @@ function createSplashWindow() {
   });
   splashWindow = createdSplash;
   logStartupEvent('splash-created');
+  clearSplashIntroFallback();
+  splashIntroFallbackTimer = setTimeout(() => {
+    splashIntroFallbackTimer = null;
+    markSplashIntroComplete(createdSplash, 'fallback');
+  }, SPLASH_INTRO_FALLBACK_MS);
+  if (splashIntroFallbackTimer.unref) splashIntroFallbackTimer.unref();
   createdSplash.once('ready-to-show', () => {
     if (createdSplash !== splashWindow || createdSplash.isDestroyed()) return;
     createdSplash.show();
@@ -672,13 +683,35 @@ function createSplashWindow() {
   void createdSplash.loadFile(SPLASH_PAGE).catch((error) => {
     log.warn('[echoo-desktop] splash failed to load:', error.message);
     if (splashWindow === createdSplash) destroySplashWindow('load-failed');
+    void revealMainWindowWhenReady();
   });
   return createdSplash;
+}
+
+function clearSplashIntroFallback() {
+  if (!splashIntroFallbackTimer) return;
+  clearTimeout(splashIntroFallbackTimer);
+  splashIntroFallbackTimer = null;
+}
+
+function markSplashIntroComplete(window, source = 'animation') {
+  if (
+    splashIntroComplete ||
+    !window ||
+    window !== splashWindow ||
+    window.isDestroyed()
+  ) return;
+
+  splashIntroComplete = true;
+  clearSplashIntroFallback();
+  logStartupEvent('splash-intro-complete', `source=${source}`);
+  void revealMainWindowWhenReady();
 }
 
 function destroySplashWindow(reason = 'complete') {
   const current = splashWindow;
   splashWindow = null;
+  clearSplashIntroFallback();
   if (!current) return;
   if (!current.isDestroyed()) current.destroy();
   logStartupEvent('splash-destroyed', `reason=${reason}`);
@@ -737,6 +770,7 @@ async function revealMainWindowWhenReady() {
   }
   if (!mainWindowNativeReady) return;
   if (mainWindowRendererReady) {
+    if (splashWindow && !splashWindow.isDestroyed() && !splashIntroComplete) return;
     revealMainWindow();
     return;
   }
@@ -790,6 +824,8 @@ function createWindow() {
     show: !app.isPackaged,
     title: 'Echoo',
     icon: WINDOWS_APP_ICON,
+    // Match the canonical renderer canvas before its first paint so Windows
+    // never inserts a white frame between the splash and the local app shell.
     backgroundColor: '#f7f9fc',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -1878,6 +1914,19 @@ function showNotification({ title, body, silent }) {
 }
 
 function registerIpc() {
+  ipcMain.on('echoo:splash-intro-complete', (event, detail = {}) => {
+    if (
+      !splashWindow ||
+      splashWindow.isDestroyed() ||
+      event.sender !== splashWindow.webContents
+    ) return;
+
+    markSplashIntroComplete(
+      splashWindow,
+      detail?.reducedMotion === true ? 'reduced-motion' : 'animation'
+    );
+  });
+
   ipcMain.on('echoo:app-ready', (event) => {
     if (!isTrustedIpcEvent(event)) {
       log.warn('[echoo-desktop] blocked untrusted IPC caller on echoo:app-ready');
