@@ -35,3 +35,8 @@
 .echoo-legal-footer{padding:24px;border-top:1px solid rgba(17,24,39,.08);display:flex;justify-content:center;flex-wrap:wrap;gap:9px;color:#667085;font-size:13px}
 @media(max-width:640px){.echoo-legal-topbar{min-height:64px;padding:0 16px}.echoo-legal-nav{gap:12px}.echoo-legal-nav a{font-size:12px}.echoo-legal-document{width:min(100% - 32px,780px);padding:48px 0 60px}.echoo-legal-document p,.echoo-legal-document li{font-size:15px}.echoo-delete-auth-card,.echoo-delete-form,.echoo-delete-success{padding:20px}}
 @media(prefers-reduced-motion:reduce){.echoo-legal-page *,.echoo-legal-page *::before,.echoo-legal-page *::after{scroll-behavior:auto!important;transition:none!important}}
+
+/* Accessible return path from policy review during account creation. */
+.echoo-privacy-return { display: inline-flex; align-items: center; margin: 0 0 18px; color: #145bf4; font-size: 14px; font-weight: 700; text-decoration: none; }
+.echoo-privacy-return:hover { text-decoration: underline; text-underline-offset: 3px; }
+.echoo-privacy-return:focus-visible { outline: 2px solid #145bf4; outline-offset: 4px; }
