@@ -168,13 +168,14 @@ test('listener can create a Channel and enter Creator Studio with the same accou
   });
 
   await page.goto('/register');
-  await expect(page.getByRole('heading', { name: 'Sign up' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Create an account' })).toBeVisible();
 
   await page.getByLabel('Full name').fill('Journey User');
   await page.getByLabel('Username').fill('journey-user');
   await page.getByLabel('Email address').fill('journey@example.test');
   await page.getByLabel('Password', { exact: true }).fill('Password123!');
   await page.getByLabel('Confirm password').fill('Password123!');
+  await page.getByRole('checkbox', { name: /I agree to the/i }).check();
   await page.getByRole('button', { name: 'Create account' }).click();
 
   await expect(page.getByRole('heading', { name: 'Create your profile' })).toBeVisible();

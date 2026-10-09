@@ -34,14 +34,18 @@ const collectBrowserErrors = (page) => {
   return errors;
 };
 
-test('Figma Echoo signup preserves identity fields, password eyes and responsive layout', async ({ page }) => {
+test('Echoo photographed signup preserves fields, policy consent and responsive layout', async ({ page }) => {
   const browserErrors = collectBrowserErrors(page);
   await page.goto('/register');
 
-  await expect(page.getByRole('heading', { name: 'Create your account' })).toBeVisible();
-  await expect(page.getByText('Join Echoo and start sharing or listening.')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Continue listening without an account' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Create an account' })).toBeVisible();
+  await expect(page.getByText('Join Echoo and start sharing or listening.')).toHaveCount(0);
+  await expect(page.locator('.ear-auth-backdrop')).toHaveCSS('background-image', /echoo-auth-studio-reference-v2/);
+  await expect(page.locator('.ear-auth-story')).toHaveCount(0);
+  await expect(page.locator('.ear-policy-agreement')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Continue without an account' })).toBeVisible();
   await expect(page.getByLabel('Full name')).toBeVisible();
+  await page.getByLabel('Full name').fill('New Echoo Listener');
   await expect(page.getByLabel('Username')).toBeVisible();
   await expect(page.getByLabel('Email address')).toBeVisible();
 
@@ -69,6 +73,18 @@ test('Figma Echoo signup preserves identity fields, password eyes and responsive
   await page.getByRole('button', { name: 'Hide confirmed password' }).click();
   await expect(confirm).toHaveAttribute('type', 'password');
 
+  const agreement = page.getByRole('checkbox', { name: /I agree to the/i });
+  await expect(agreement).not.toBeChecked();
+  await expect(page.getByRole('button', { name: 'Create account' })).toBeDisabled();
+  await agreement.check();
+  await expect(page.getByRole('button', { name: 'Create account' })).toBeEnabled();
+  await page.getByRole('button', { name: 'Privacy Policy' }).click();
+  await expect(page).toHaveURL(/\/privacy-policy$/);
+  await expect(page.getByRole('heading', { name: 'Privacy Policy' })).toBeVisible();
+  await page.getByRole('link', { name: /Back to sign up/i }).click();
+  await expect(page.getByRole('checkbox', { name: /I agree to the/i })).toBeChecked();
+  await expect(page.getByLabel('Username')).toHaveValue('new-listener');
+  await expect(page.getByLabel('Password', { exact: true })).toHaveValue('Password123!');
   await assertNoHorizontalOverflow(page);
   await assertAuthFitsViewport(page);
   expect(browserErrors).toEqual([]);
@@ -151,6 +167,7 @@ test('login accepts both @username and email and exposes working recovery', asyn
   await page.getByRole('button', { name: /Back to sign in/i }).click();
   await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
 
+  await expect(page.getByRole('checkbox', { name: /I agree to the/i })).toHaveCount(0);
   await assertNoHorizontalOverflow(page);
   await assertAuthFitsViewport(page);
   expect(browserErrors).toEqual([]);
@@ -162,7 +179,7 @@ test('logged-out listeners can leave auth and return to public listening', async
 
   await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
   await expect(page.getByText('Example: @okunlola or name@example.com')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Continue listening without an account' }).click();
+  await page.getByRole('button', { name: 'Continue without an account' }).click();
 
   await expect(page).toHaveURL(/\/listen(?:\/)?$/);
   await expect(page).not.toHaveURL(/\/login/);
@@ -172,7 +189,7 @@ test('logged-out listeners can leave auth and return to public listening', async
 
 test('signed-out visitors can enter public listening from sign up too', async ({ page }) => {
   await page.goto('/register');
-  await page.getByRole('button', { name: 'Continue listening without an account' }).click();
+  await page.getByRole('button', { name: 'Continue without an account' }).click();
   await expect(page).toHaveURL(/\/listen(?:\/)?$/);
   await expect(page).not.toHaveURL(/\/register/);
   await assertNoHorizontalOverflow(page);

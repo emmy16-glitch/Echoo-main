@@ -421,10 +421,12 @@ test('Windows identity and installer verify native protocol registration before 
 });
 
 
-test('Go Live keeps one truthful control across idle, connecting and live states', () => {
-  assert.match(creatorMixerSource, /isLive \? 'LIVE' : goLiveBusy \? 'Connecting…' : 'Go Live'/);
-  assert.match(creatorMixerSource, /disabled=\{goLiveBusy \|\| isLive\}/);
+test('Go Live and End broadcast use one truthful action slot in the shared desktop mixer', () => {
+  assert.match(creatorMixerSource, /isLive \? 'End broadcast' : goLiveBusy \? 'Connecting…' : 'Go Live'/);
+  assert.match(creatorMixerSource, /onClick=\{isLive \? onEndBroadcast : onGoLive\}/);
+  assert.match(creatorMixerSource, /disabled=\{goLiveBusy\}/);
   assert.match(creatorWorkspaceSource, /isLive=\{isLive\}/);
+  assert.match(creatorWorkspaceSource, /onEndBroadcast=\{requestEndBroadcast\}/);
   const mixerCss = fs.readFileSync(path.resolve(desktopRoot, '..', 'frontend', 'src', 'Components', 'CreatorStudio', 'CreatorAudioMixer.css'), 'utf8');
   assert.match(mixerCss, /\.eam-approved-go-live\.is-pending/);
   assert.match(mixerCss, /prefers-reduced-motion:\s*reduce/);

@@ -629,6 +629,8 @@ async function finalizeInner({
       description: String(broadcast.description || '').slice(0, 2000),
       artist: broadcastCreatorId,
       sourceBroadcast: broadcast._id,
+      // Keep the flyer that belongs to this service on its saved replay.
+      ...(broadcast.coverArt ? { coverArt: broadcast.coverArt, coverArtMode: 'uploaded' } : {}),
       filename,
       fileUrl: `/uploads/audio/${filename}`,
       originalName: humanFilename,

@@ -481,7 +481,7 @@ export const normalizeBroadcast = (broadcast: any): EchooBroadcast => {
     typeof broadcast?.station === 'object'
       ? broadcast.station?.id || broadcast.station?._id || ''
       : broadcast?.station || broadcast?.stationId || '';
-  const rawCover = broadcast?.coverArt || broadcast?.station?.coverArt || broadcast?.station?.logo;
+  const rawCover = broadcast?.eventArtwork || broadcast?.coverArt || broadcast?.station?.brandCover || broadcast?.station?.coverArt || broadcast?.station?.logo;
 
   return {
     ...broadcast,

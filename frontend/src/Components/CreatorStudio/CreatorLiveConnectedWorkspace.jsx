@@ -5,7 +5,6 @@ import {
   FiCopy,
   FiLoader,
   FiRadio,
-  FiSquare,
   FiX,
 } from 'react-icons/fi';
 
@@ -137,6 +136,7 @@ const CreatorLiveConnectedWorkspace = ({
   const [, setBroadcasts] = useState([]);
   const [, setStationId] = useState('');
   const [title, setTitle] = useState('');
+  const [serviceArtwork, setServiceArtwork] = useState('');
   const [description, setDescription] = useState('');
   const [realtimeQualityProfile, setRealtimeQualityProfile] = useState(getSavedRealtimeAudioProfile);
   const [savedBroadcast, setSavedBroadcast] = useState(null);
@@ -182,6 +182,7 @@ const CreatorLiveConnectedWorkspace = ({
     window.clearTimeout(offAirNoticeTimeoutRef.current);
     setCurrentLiveBroadcast(null);
     setSavedBroadcast(null);
+    setServiceArtwork('');
     setElapsed(0);
     setLinkCopied(false);
     setPresence({ listenerCount: 0, peakListeners: 0, creatorConnected: false });
@@ -243,6 +244,7 @@ const CreatorLiveConnectedWorkspace = ({
         ) || null;
 
         if (activeBroadcast) {
+          setMessage('');
           setCurrentLiveBroadcast(activeBroadcast);
           setSavedBroadcast(activeBroadcast);
           setRealtimeQualityProfile(normalizeRealtimeAudioProfile(
@@ -250,6 +252,7 @@ const CreatorLiveConnectedWorkspace = ({
           ));
           setStationId(entityId(realStations[0]));
           setTitle(activeBroadcast.title || '');
+          setServiceArtwork(activeBroadcast.eventArtwork || '');
           setDescription(activeBroadcast.description || '');
           clearPreparedBroadcast();
           return;
@@ -266,6 +269,7 @@ const CreatorLiveConnectedWorkspace = ({
           setSavedBroadcast(null);
           setStationId(entityId(realStations[0]));
           setTitle('');
+          setServiceArtwork('');
           setDescription('');
           clearPreparedBroadcast();
           setMessage('Broadcast ended. Your recording is being prepared in the background.');
@@ -285,6 +289,7 @@ const CreatorLiveConnectedWorkspace = ({
           ));
           setStationId(entityId(realStations[0]));
           setTitle(interruptedStart.title || '');
+          setServiceArtwork(interruptedStart.eventArtwork || '');
           setDescription(interruptedStart.description || '');
           sessionStorage.setItem('echooPreparedBroadcastId', String(interruptedStart.id));
           setMessage('Your previous live start was interrupted. Your workstation is ready to reconnect.');
@@ -318,6 +323,7 @@ const CreatorLiveConnectedWorkspace = ({
             ));
             setStationId(entityId(realStations[0]));
             setTitle(prepared.title || '');
+            setServiceArtwork(prepared.eventArtwork || '');
             setDescription(prepared.description || '');
             return;
           }
@@ -328,6 +334,7 @@ const CreatorLiveConnectedWorkspace = ({
         const canonicalStation = realStations[0] || null;
         setStationId(entityId(canonicalStation));
         setTitle('');
+        setServiceArtwork('');
         setDescription('');
         bootstrapRetryRef.current = 0;
       } catch (loadError) {
@@ -704,6 +711,29 @@ const CreatorLiveConnectedWorkspace = ({
     return canonicalStation;
   }, []);
 
+  const onServiceArtwork = (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      setError('Service flyer must be JPG, PNG or WebP.');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setError('Service flyer must be 2 MB or smaller.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setServiceArtwork(reader.result);
+        setError('');
+      }
+    };
+    reader.onerror = () => setError('Could not read the service flyer. Please try again.');
+    reader.readAsDataURL(file);
+  };
+
   const selectedStation = useMemo(
     () => stations[0] || null,
     [stations]
@@ -720,6 +750,7 @@ const CreatorLiveConnectedWorkspace = ({
         const response = await batch2Service.updateBroadcast(savedBroadcast.id, {
           title: title.trim() || savedBroadcast.title || 'Live broadcast',
           description: description.trim(),
+          coverArt: serviceArtwork || savedBroadcast.eventArtwork || null,
           ...audioSnapshot,
         });
         const updated = response?.data || savedBroadcast;
@@ -752,7 +783,8 @@ const CreatorLiveConnectedWorkspace = ({
       isRecurring: false,
       isPublic: true,
       tags: [],
-      coverArt: station.coverArt || station.logo || null,
+      // A flyer belongs to this service, never to the permanent Channel.
+      coverArt: serviceArtwork || null,
       ...audioSnapshot,
     });
 
@@ -1240,23 +1272,8 @@ const CreatorLiveConnectedWorkspace = ({
           <>
             <div className="ec2-live-banner">
               <span className="ec2-status-pill" aria-label="Live"><i /> LIVE</span>
-              <span className="ec2-sr-only">You&apos;re broadcasting now.</span>
-              <div className="ec2-live-ticker">
-                <div className="ec2-live-ticker-track" aria-hidden="true">
-                  {[0, 1].map((group) => (
-                    <div className="ec2-live-ticker-group" key={group}>
-                      {Array.from({ length: 4 }, (_, index) => (
-                        <span
-                          className={index === 0 ? 'is-primary' : 'is-repeat'}
-                          key={index}
-                        >
-                          YOU&apos;RE BROADCASTING NOW.
-                        </span>
-                      ))}
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <strong className="ec2-live-summary">{liveStation?.name || 'Your Channel'}</strong>
+              <span className="ec2-live-duration"><FiClock aria-hidden="true" /> {formatTimer(elapsed)}</span>
             </div>
             <div className="ec2-live-details" aria-label="Live broadcast status">
               <aside className="ec2-station-identity">
@@ -1264,12 +1281,11 @@ const CreatorLiveConnectedWorkspace = ({
                 <strong>{liveStation?.name || 'Your Channel'}</strong>
               </aside>
               <div className="ec2-live-identity">
-                <span>CATEGORY</span>
-                <strong>{liveStation?.category || 'Your Echoo Channel'}</strong>
+                <span>BROADCAST</span>
+                <strong>{currentLiveBroadcast?.title || title || 'Live broadcast'}</strong>
               </div>
               <div className="ec2-live-fact"><FiRadio aria-hidden="true" /><strong>{presence.listenerCount || 0}</strong><span>listening</span></div>
               <div className={`ec2-live-fact ${mixerState?.recordingTapActive ? 'is-recording' : ''}`}><strong>{mixerState?.recordingTapActive ? 'Recording' : 'Preparing recording'}</strong></div>
-              <div className="ec2-live-fact"><FiClock aria-hidden="true" /><strong>Live for {formatTimer(elapsed)}</strong></div>
               <span className={`ec2-live-connection ${connectionHealthy ? 'is-healthy' : ''}`}>
                 {connectionLabel}
               </span>
@@ -1323,8 +1339,20 @@ const CreatorLiveConnectedWorkspace = ({
                 <span>CATEGORY</span>
                 <strong>{liveStation?.category || 'Your Echoo Channel'}</strong>
               </div>
-              <span className="ec2-live-fact">Not live</span>
-              <p>Connect your inputs, test your mix, and go live.</p>
+              <div className="ec2-broadcast-identity ec2-broadcast-identity--hero" aria-label="This broadcast">
+                <div className="ec2-service-field-heading"><label htmlFor="ec2-broadcast-title">Title for this broadcast</label><label className="ec2-service-flyer-picker" htmlFor="ec2-service-flyer">Service flyer{serviceArtwork ? ' ✓' : ' (optional)'}<input id="ec2-service-flyer" type="file" accept="image/jpeg,image/png,image/webp" onChange={onServiceArtwork} disabled={goingLive || ending} /></label>{serviceArtwork && <button type="button" className="ec2-service-flyer-remove" onClick={() => setServiceArtwork('')} aria-label="Remove service flyer">Remove</button>}</div>
+                <input
+                  id="ec2-broadcast-title"
+                  type="text"
+                  aria-label="Broadcast title"
+                  maxLength={200}
+                  value={title}
+                  onChange={(event) => setTitle(event.target.value)}
+                  placeholder="e.g. Sunday Service - 11 October"
+                  disabled={goingLive || ending}
+                />
+              </div>
+              <p>Ready to broadcast.</p>
             </div>
           </>
         )}
@@ -1335,21 +1363,6 @@ const CreatorLiveConnectedWorkspace = ({
           <h2>Workstation</h2>
           <p>{isLive ? 'Your live mix stays exactly where you prepared it.' : 'Mix, monitor and go live.'}</p>
         </div>
-        {!isLive && heroState !== 'ending' && (
-          <div className="ec2-broadcast-identity" aria-label="This broadcast">
-            <label htmlFor="ec2-broadcast-title">Title for this broadcast</label>
-            <input
-              id="ec2-broadcast-title"
-              type="text"
-              aria-label="Broadcast title"
-              maxLength={200}
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              placeholder="e.g. Sunday Service - 11 October"
-              disabled={goingLive || ending}
-            />
-          </div>
-        )}
       </header>
 
       {bootstrapError && (
@@ -1485,19 +1498,13 @@ const CreatorLiveConnectedWorkspace = ({
         onStateChange={setMixerState}
         audioLibrary={audioLibrary}
         onGoLive={goLive}
+        onEndBroadcast={requestEndBroadcast}
+        endBroadcastButtonRef={endBroadcastButtonRef}
         goLiveBusy={goingLive}
         isLive={isLive}
         qualityProfile={realtimeQualityProfile}
         onQualityProfileChange={(value) => setRealtimeQualityProfile(saveRealtimeAudioProfile(value))}
       />
-
-      {isLive && !ending && (
-        <div className="ec2-live-action-panel" aria-label="Live broadcast actions">
-          <button ref={endBroadcastButtonRef} type="button" className="ec2-end-live" onClick={requestEndBroadcast} disabled={ending}>
-            <FiSquare /> End broadcast
-          </button>
-        </div>
-      )}
 
       {confirmEndOpen && (
         <div

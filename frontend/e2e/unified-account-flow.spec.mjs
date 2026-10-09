@@ -66,6 +66,7 @@ test('new Echoo signup becomes Listener without any role-choice screen', async (
   await page.getByLabel('Email address').fill('newlistener@example.test');
   await page.getByLabel('Password', { exact: true }).fill('StrongPass1!');
   await page.getByLabel('Confirm password').fill('StrongPass1!');
+  await page.getByRole('checkbox', { name: /I agree to the/i }).check();
   await page.getByRole('button', { name: 'Create account' }).click();
 
   await expect(page.getByText('Creator / Listener')).toHaveCount(0);
@@ -105,7 +106,7 @@ test('Listener can start Channel setup in the same account and return without an
   await expect(page).toHaveURL(/\/creator-studio/);
   await expect(page.getByRole('heading', { name: 'Create your Channel' })).toBeVisible();
   await expect(page.getByText('Individual')).toBeVisible();
-  await expect(page.getByText('Organization')).toBeVisible();
+  await expect(page.getByText('Organization', { exact: true }).first()).toBeVisible();
 
   const identityDuringSetup = await page.evaluate(() => ({
     token: localStorage.getItem('accessToken'),

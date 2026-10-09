@@ -33,6 +33,12 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    // Separate from marketing consent. No implicit agreement is recorded for
+    // older clients that do not yet send the policy acknowledgment.
+    privacyPolicyAcceptance: {
+      version: { type: String },
+      acceptedAt: { type: Date },
+    },
     emailVerificationCodeHash: {
       type: String,
       default: null,
@@ -318,6 +324,7 @@ const userSchema = new mongoose.Schema(
     toJSON: {
       transform(doc, ret) {
         delete ret.passwordHash;
+        delete ret.privacyPolicyAcceptance;
         delete ret.refreshTokenVersion;
         delete ret.emailVerificationCodeHash;
         delete ret.emailVerificationExpiresAt;

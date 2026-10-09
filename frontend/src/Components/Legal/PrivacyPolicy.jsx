@@ -1,9 +1,14 @@
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import LegalShell from './LegalShell';
 
 export default function PrivacyPolicy() {
+  const location = useLocation();
+  const fromSignup = location.state?.authReturn === '/register';
   return (
     <LegalShell eyebrow="ECHOO · LEGAL" title="Privacy Policy" updated="October 6, 2026">
+      {fromSignup && (
+        <Link to="/register" className="echoo-privacy-return">← Back to sign up</Link>
+      )}
       <section className="echoo-legal-intro">
         <p>
           Echoo is an audio platform for live broadcasts, recordings, listening, chat and creator communities.

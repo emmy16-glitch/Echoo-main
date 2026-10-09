@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import "./auth-reference.css";
+import "./auth-approved-studio.css";
 import api from "../../services/api";
 
 import {
@@ -19,6 +20,11 @@ import EchooLogoImage from "../Assets/echoo-logo-mark.png";
 import EchooAuthBackground from "../Assets/echoo-auth-studio-reference-v2.png";
 import LoadingButton from "../UI/LoadingButton";
 import Toast from "../UI/Toast";
+
+// Memory-only draft allows a policy visit without putting passwords in history,
+// URLs, sessionStorage, or localStorage. It is discarded after registration.
+let pendingPrivacyDraft = null;
+const PRIVACY_POLICY_VERSION = "2026-10-06";
 
 const AuthField = ({
   id,
@@ -71,9 +77,10 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [action, setAction] = useState(() =>
-    initialAuthAction(location.pathname, location.search)
+    pendingPrivacyDraft?.action || initialAuthAction(location.pathname, location.search)
   );
   const [loading, setLoading] = useState(false);
+  const [agreedToPrivacy, setAgreedToPrivacy] = useState(() => pendingPrivacyDraft?.agreed === true);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loginError, setLoginError] = useState("");
@@ -89,10 +96,12 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
 
   useEffect(() => {
     if (!['/login', '/register'].includes(location.pathname)) return;
-    setAction(initialAuthAction(location.pathname, location.search));
+    setAction(pendingPrivacyDraft?.action && location.pathname === "/register"
+      ? pendingPrivacyDraft.action
+      : initialAuthAction(location.pathname, location.search));
   }, [location.pathname, location.search]);
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState(() => pendingPrivacyDraft?.form || {
     fullname: "",
     username: "",
     email: "",
@@ -155,6 +164,7 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
   const formIsComplete = () => {
     if (action === "Sign Up") {
       return (
+        agreedToPrivacy &&
         formData.fullname.trim() !== "" &&
         !fullNameInvalid &&
         cleanUsername !== "" &&
@@ -199,7 +209,9 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
     if (loading) return;
 
     if (action === "Sign Up" && !formIsComplete()) {
-      if (fullNameInvalid) {
+      if (!agreedToPrivacy) {
+        setSignupError("Please agree to the Privacy Policy before creating your account.");
+      } else if (fullNameInvalid) {
         setSignupError("Full name can contain letters, spaces, apostrophes, or hyphens only.");
       } else if (usernameInvalid) {
         setSignupError("Username must be between 3 and 30 characters.");
@@ -229,8 +241,11 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
           email: cleanEmail,
           password: formData.password,
           displayName: formData.fullname.trim(),
+          privacyPolicyAccepted: true,
+          privacyPolicyVersion: PRIVACY_POLICY_VERSION,
         });
         const user = saveSession(response);
+        pendingPrivacyDraft = null;
         setSuccessUser(user);
         setSuccessState("signup");
         return;
@@ -308,11 +323,13 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
   };
 
   const switchToLogin = () => {
+    pendingPrivacyDraft = null;
     resetMessages();
     setAction("Login");
   };
 
   const switchToSignUp = () => {
+    pendingPrivacyDraft = null;
     resetMessages();
     setAction("Sign Up");
   };
@@ -339,6 +356,11 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
     );
   }
 
+  const openPrivacyPolicy = () => {
+    pendingPrivacyDraft = { form: { ...formData }, agreed: agreedToPrivacy, action: "Sign Up" };
+    navigate("/privacy-policy", { state: { authReturn: "/register" } });
+  };
+
   const isLogin = action === "Login";
   const isRecovery = action === "Forgot Password";
 
@@ -357,16 +379,6 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
 
       <div className="ear-auth-backdrop" aria-hidden="true" />
       <div className="ear-auth-shell">
-        <aside className="ear-auth-story" aria-label="About Echoo">
-          <div className="ear-auth-story-copy">
-            <div className="ear-story-brand" aria-label="Echoo">
-              <img src={EchooLogoImage} alt="" />
-              <span>Echoo</span>
-            </div>
-            <h2>Hear the moment.<br />Own the room.</h2>
-          </div>
-        </aside>
-
         <section className="ear-auth-card" aria-labelledby="ear-auth-title">
         <div className="ear-card-brand">
           <img className="ear-logo-mark" src={EchooLogoImage} alt="" />
@@ -411,9 +423,8 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
             <>
               <header className="ear-form-heading">
                 <h1 id="ear-auth-title">
-                  {isLogin ? "Sign in" : "Create your account"}
+                  {isLogin ? "Sign in" : "Create an account"}
                 </h1>
-                <p>{isLogin ? "Welcome back to Echoo." : "Join Echoo and start sharing or listening."}</p>
               </header>
 
               <form className="ear-form" onSubmit={handleSubmit} noValidate>
@@ -597,9 +608,6 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
                   </AuthField>
                 )}
 
-                {!isLogin && !formData.password && (
-                  <p className="ear-password-hint">8+ characters · upper/lowercase · number · symbol</p>
-                )}
                 {passwordTooShort && <p className="ear-error" role="alert">Use at least 8 characters.</p>}
                 {!passwordTooShort && passwordMissingCombination && (
                   <p className="ear-error" role="alert">Add upper/lowercase, a number and a symbol.</p>
@@ -612,29 +620,41 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
                   </p>
                 )}
 
+                {!isLogin && (
+                  <div className="ear-policy-agreement">
+                    <input
+                      id="echoo-privacy-agree"
+                      type="checkbox"
+                      checked={agreedToPrivacy}
+                      onChange={(event) => {
+                        setAgreedToPrivacy(event.target.checked);
+                        setSignupError("");
+                      }}
+                      aria-describedby="echoo-privacy-copy"
+                      required
+                    />
+                    <span id="echoo-privacy-copy">
+                      <label htmlFor="echoo-privacy-agree">I agree to the</label>{" "}
+                      <button type="button" className="ear-policy-link" onClick={openPrivacyPolicy}>Privacy Policy</button>
+                    </span>
+                  </div>
+                )}
                 <LoadingButton
                   type="submit"
                   loading={loading}
                   loadingText={isLogin ? "Signing in..." : "Creating account..."}
-                  disabled={!formIsComplete()}
+                  disabled={loading || !formIsComplete()}
                   className="ear-submit"
                 >
                   {isLogin ? "Sign in" : "Create account"}
                 </LoadingButton>
 
-                {!isLogin && (
-                  <p className="ear-legal">
-                    By creating an account, you acknowledge the <button type="button" onClick={() => navigate("/privacy-policy")}>Privacy Policy</button>.
-                  </p>
-                )}
-
-                <div className="ear-auth-divider" aria-hidden="true"><span>or</span></div>
                 <button
                   type="button"
                   className="ear-guest-listen"
                   onClick={() => navigate("/listen")}
                 >
-                  Continue listening without an account
+                  Continue without an account
                 </button>
 
                 <p className="ear-auth-switch">

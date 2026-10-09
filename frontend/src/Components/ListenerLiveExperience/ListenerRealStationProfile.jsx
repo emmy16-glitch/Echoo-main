@@ -269,7 +269,7 @@ const ListenerRealStationProfile = () => {
       {collections.length > 0 && (
         <section className="b3-section">
           <div className="b3-section-title"><h2>Collections</h2></div>
-          <div className="b3-upcoming-list">
+          <div className="b3-collections-list">
             {collections.slice(0, 4).map((collection) => (
               <article key={collection.id}>
                 <div><strong>{collection.title}</strong><span>{collection.broadcastCount} {collection.broadcastCount === 1 ? 'recording' : 'recordings'}</span></div>

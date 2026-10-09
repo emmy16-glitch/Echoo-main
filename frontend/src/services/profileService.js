@@ -56,7 +56,7 @@ const applyCanonicalStations = (profile, canonicalStations = []) => {
   const enrichBroadcast = (broadcast) => {
     if (!broadcast) return null;
     const station = stationMap.get(String(broadcast.stationId)) || null;
-    const artwork = station?.brandCover || station?.coverArt || broadcast.coverArt || null;
+    const artwork = broadcast.eventArtwork || broadcast.coverArt || station?.brandCover || station?.coverArt || null;
 
     return {
       ...broadcast,
