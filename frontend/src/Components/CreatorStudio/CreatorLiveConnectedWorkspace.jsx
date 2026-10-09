@@ -136,6 +136,7 @@ const CreatorLiveConnectedWorkspace = ({
   const [, setBroadcasts] = useState([]);
   const [, setStationId] = useState('');
   const [title, setTitle] = useState('');
+  const [serviceArtwork, setServiceArtwork] = useState('');
   const [description, setDescription] = useState('');
   const [realtimeQualityProfile, setRealtimeQualityProfile] = useState(getSavedRealtimeAudioProfile);
   const [savedBroadcast, setSavedBroadcast] = useState(null);
@@ -250,6 +251,7 @@ const CreatorLiveConnectedWorkspace = ({
           ));
           setStationId(entityId(realStations[0]));
           setTitle(activeBroadcast.title || '');
+          setServiceArtwork(activeBroadcast.eventArtwork || '');
           setDescription(activeBroadcast.description || '');
           clearPreparedBroadcast();
           return;
@@ -285,6 +287,7 @@ const CreatorLiveConnectedWorkspace = ({
           ));
           setStationId(entityId(realStations[0]));
           setTitle(interruptedStart.title || '');
+          setServiceArtwork(interruptedStart.eventArtwork || '');
           setDescription(interruptedStart.description || '');
           sessionStorage.setItem('echooPreparedBroadcastId', String(interruptedStart.id));
           setMessage('Your previous live start was interrupted. Your workstation is ready to reconnect.');
@@ -704,6 +707,29 @@ const CreatorLiveConnectedWorkspace = ({
     return canonicalStation;
   }, []);
 
+  const onServiceArtwork = (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      setError('Service flyer must be JPG, PNG or WebP.');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setError('Service flyer must be 2 MB or smaller.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setServiceArtwork(reader.result);
+        setError('');
+      }
+    };
+    reader.onerror = () => setError('Could not read the service flyer. Please try again.');
+    reader.readAsDataURL(file);
+  };
+
   const selectedStation = useMemo(
     () => stations[0] || null,
     [stations]
@@ -720,6 +746,7 @@ const CreatorLiveConnectedWorkspace = ({
         const response = await batch2Service.updateBroadcast(savedBroadcast.id, {
           title: title.trim() || savedBroadcast.title || 'Live broadcast',
           description: description.trim(),
+          coverArt: serviceArtwork || savedBroadcast.eventArtwork || null,
           ...audioSnapshot,
         });
         const updated = response?.data || savedBroadcast;
@@ -752,7 +779,8 @@ const CreatorLiveConnectedWorkspace = ({
       isRecurring: false,
       isPublic: true,
       tags: [],
-      coverArt: station.coverArt || station.logo || null,
+      // A flyer belongs to this service, never to the permanent Channel.
+      coverArt: serviceArtwork || null,
       ...audioSnapshot,
     });
 
@@ -1308,7 +1336,7 @@ const CreatorLiveConnectedWorkspace = ({
                 <strong>{liveStation?.category || 'Your Echoo Channel'}</strong>
               </div>
               <div className="ec2-broadcast-identity ec2-broadcast-identity--hero" aria-label="This broadcast">
-                <label htmlFor="ec2-broadcast-title">Service title <span className="ec2-broadcast-identity-optional">(Broadcast title)</span></label>
+                <div className="ec2-service-field-heading"><label htmlFor="ec2-broadcast-title">Title for this broadcast</label><label className="ec2-service-flyer-picker" htmlFor="ec2-service-flyer">Service flyer{serviceArtwork ? ' ✓' : ' (optional)'}<input id="ec2-service-flyer" type="file" accept="image/jpeg,image/png,image/webp" onChange={onServiceArtwork} disabled={goingLive || ending} /></label>{serviceArtwork && <button type="button" className="ec2-service-flyer-remove" onClick={() => setServiceArtwork('')} aria-label="Remove service flyer">Remove</button>}</div>
                 <input
                   id="ec2-broadcast-title"
                   type="text"
