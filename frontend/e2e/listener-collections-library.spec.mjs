@@ -6,12 +6,12 @@ const publicId = '507f1f77bcf86cd799439092';
 
 const station = { id: stationId, name: 'Layers of Truth', isPublic: true };
 const saved = {
-  id: savedId, title: 'School of Doctrine – Day 01', station, isPublic: true,
+  id: savedId, title: 'School of Doctrine – Day 01', station, mode: 'series', isPublic: true,
   isSaved: true, broadcastCount: 2, recordings: [
     { id: '507f1f77bcf86cd799439041', title: 'Morning Session', duration: 1800, coverArt: null },
   ],
 };
-const published = { id: publicId, title: 'Thursday Bible Study', station, isPublic: true, isSaved: false, broadcastCount: 1, recordings: [] };
+const published = { id: publicId, title: 'Thursday Bible Study', station, mode: 'series', isPublic: true, isSaved: false, broadcastCount: 1, recordings: [] };
 const response = (route, data) => route.fulfill({ json: { data } });
 const authenticate = (page) => page.addInitScript(() => {
   localStorage.setItem('accessToken', 'listener-token');
@@ -26,7 +26,7 @@ const authenticate = (page) => page.addInitScript(() => {
 
 test('web Library distinguishes saved Collections from published series and opens recordings', async ({ page }) => {
   await authenticate(page);
-  await page.route('**/api/collections/public?*', (route) => response(route, [saved, published]));
+  await page.route('**/api/playlists?*', (route) => response(route, [saved, published]));
   await page.route('**/api/collections/saved/mine*', (route) => response(route, [saved]));
   await page.route(`**/api/collections/${publicId}`, (route) => response(route, published));
   await page.goto('/listen/library?tab=collections');
@@ -44,7 +44,7 @@ test('web Library distinguishes saved Collections from published series and open
 });
 
 test('published Collections can be found from Discover without opening the Channel profile', async ({ page }) => {
-  await page.route('**/api/collections/public?*', (route) => response(route, [published]));
+  await page.route('**/api/playlists?*', (route) => response(route, [published]));
   await page.goto('/listen');
   const preview = page.getByRole('region', { name: 'Published Collections' });
   await expect(preview.getByText('Thursday Bible Study')).toBeVisible();
