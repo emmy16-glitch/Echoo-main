@@ -1161,3 +1161,110 @@ html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-workstation
   .ec2-hero.is-off-air .ec2-broadcast-identity--hero { grid-column: 1 / -1; }
   .ec2-hero.is-off-air .ec2-off-air-details > p { white-space: normal; }
 }
+
+/* Approved workstation: OFF AIR and LIVE share the same compact arrangement.
+   LIVE is communicated by state, not by a moving ticker or displaced actions. */
+.ec2-broadcast { --ec2-blue: #145bf4; --ec2-navy: #061426; --ec2-live: #b42318; }
+.ec2-broadcast .ec2-hero {
+  background: #0d203c;
+  border-color: #29496f;
+  box-shadow: 0 8px 20px rgba(6, 20, 38, .12);
+}
+.ec2-broadcast .ec2-hero.is-live {
+  border-color: #b42318;
+}
+.ec2-broadcast .ec2-live-banner {
+  gap: 14px;
+}
+.ec2-broadcast .ec2-live-banner .ec2-live-summary {
+  font-size: 15px;
+  font-weight: 760;
+}
+.ec2-broadcast .ec2-hero.is-live .ec2-status-pill {
+  border-radius: 8px;
+  border: 1px solid #eb4141;
+  background: #e52534;
+  color: #fff;
+  font-weight: 800;
+}
+.ec2-broadcast .ec2-hero.is-live .ec2-status-pill i {
+  background: #fff;
+  animation: none;
+}
+.ec2-broadcast .ec2-hero.is-off-air .ec2-live-details.ec2-off-air-details {
+  grid-template-columns: minmax(110px, .95fr) minmax(110px, .8fr) minmax(230px, 1.65fr);
+  align-items: center;
+}
+.ec2-broadcast .ec2-hero.is-off-air .ec2-broadcast-identity--hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+.ec2-broadcast .ec2-hero.is-off-air .ec2-broadcast-identity--hero label {
+  color: #e4efff;
+  font-size: 12px;
+  font-weight: 700;
+}
+.ec2-broadcast .ec2-hero.is-off-air .ec2-broadcast-identity--hero input {
+  min-height: 36px;
+  height: 36px;
+  padding: 7px 12px;
+  border-color: #43668e;
+  border-radius: 9px;
+  background: #1a3355;
+  color: #f4f8ff;
+  font-size: 13px;
+}
+.ec2-broadcast .ec2-hero.is-off-air .ec2-broadcast-identity--hero input::placeholder {
+  color: #b9cbe4;
+}
+.ec2-broadcast .ec2-hero.is-off-air .ec2-broadcast-identity--hero input:focus-visible {
+  outline-color: #91beff;
+}
+.ec2-broadcast .ec2-hero.is-off-air .ec2-off-air-details > p {
+  display: none;
+}
+.ec2-broadcast .ec2-hero.is-live .ec2-live-details {
+  grid-template-columns: minmax(108px, 1fr) minmax(155px, 1.4fr) repeat(3, max-content) minmax(120px, max-content);
+  gap: 7px 12px;
+}
+.ec2-broadcast .ec2-live-connection:not(.is-healthy) { color: #ffc9a9; }
+.ec2-broadcast .ec2-live-connection:not(.is-healthy)::before { background: #f59e0b; }
+.ec2-broadcast .ec2-workstation-heading p {
+  color: #52658e;
+}
+.ec2-broadcast .eam-approved .eam-approved-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.ec2-broadcast .eam-approved-strip {
+  border-color: #d6e1f0;
+  box-shadow: 0 5px 13px rgba(6,20,38,.045);
+}
+.ec2-broadcast .eam-approved-strip.master { border-color: #b7cef8; }
+.ec2-broadcast .eam-approved-live-actions .eam-approved-go-live.is-end {
+  border-color: #b42318;
+  background: #d92d20;
+  color: #fff;
+  box-shadow: 0 5px 13px rgba(180,35,24,.14);
+}
+.ec2-broadcast .eam-approved-live-actions .eam-approved-go-live.is-end:hover {
+  border-color: #951c15;
+  background: #b42318;
+}
+.ec2-broadcast .eam-approved-live-actions .eam-approved-go-live.is-end .eam-approved-go-live-mark {
+  color: #fff;
+}
+@media (max-width: 1100px) {
+  .ec2-broadcast .ec2-hero.is-live .ec2-live-details {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 760px) {
+  .ec2-broadcast .ec2-hero.is-off-air .ec2-live-details.ec2-off-air-details,
+  .ec2-broadcast .ec2-hero.is-live .ec2-live-details {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .ec2-broadcast .ec2-hero.is-off-air .ec2-broadcast-identity--hero { grid-column: 1 / -1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ec2-broadcast .ec2-hero.is-live .ec2-status-pill i { animation: none; }
+}
