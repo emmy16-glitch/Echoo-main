@@ -152,12 +152,12 @@ const stationArtwork = (station) => buildMediaUrl(
   station?.brandCover || station?.coverArt || buildGeneratedStationBrandCoverUrl(station)
 );
 const broadcastArtwork = (item) => buildMediaUrl(
-  item?.station?.brandCover ||
-  item?.station?.coverArt ||
-  item?.brandCover ||
+  item?.eventArtwork ||
   item?.coverArt ||
   item?.artwork ||
   item?.image ||
+  item?.station?.brandCover ||
+  item?.station?.coverArt ||
   null
 );
 
