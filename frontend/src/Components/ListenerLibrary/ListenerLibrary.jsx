@@ -88,7 +88,6 @@ const ListenerLibrary = () => {
       <button type="button" className={collectionTab ? "is-active" : ""} aria-current={collectionTab ? "page" : undefined} onClick={() => setSearchParams({ tab: "collections" })}>Collections</button>
       <button type="button" onClick={() => navigate('/listen/history')}>History</button>
       <button type="button" onClick={() => navigate('/listen/playlist')}>Playlists</button>
-      <button type="button" onClick={() => navigate('/listen/saved-moments')}>Saved moments</button>
       <button type="button" onClick={() => navigate('/listen/downloads')}>Downloads</button>
     </div>
     {collectionTab ? (
