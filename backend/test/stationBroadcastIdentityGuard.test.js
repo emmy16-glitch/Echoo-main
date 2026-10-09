@@ -24,7 +24,7 @@ test('Creator Studio does not auto-fill broadcast metadata from permanent Channe
   const channelEditor = await read('../../frontend/src/Components/CreatorStudio/CreatorStationsWorkspace.jsx');
   const onboarding = await read('../../frontend/src/Components/CreatorSetup/CreatorSetup.jsx');
   assert.match(workspace, /htmlFor="ec2-broadcast-title"/);
-  assert.match(workspace, /Service title/);
+  assert.match(workspace, /Title for this broadcast/);
   assert.match(workspace, /title:\s*title\.trim\(\) \|\| 'Live broadcast'/);
   assert.doesNotMatch(workspace, /setTitle\([^\n;]*\?\.name/);
   assert.doesNotMatch(workspace, /setTitle\(selectedStation\.name/);
