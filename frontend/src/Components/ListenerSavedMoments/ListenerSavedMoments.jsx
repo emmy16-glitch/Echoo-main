@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate, useOutletContext } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { FiBookmark, FiClock, FiPlay, FiTrash2 } from 'react-icons/fi';
 import savedMomentService from '../../services/savedMomentService';
 import './ListenerSavedMoments.css';
@@ -11,7 +11,6 @@ const formatTime = (milliseconds) => {
 
 const ListenerSavedMoments = () => {
   const navigate = useNavigate();
-  const player = useOutletContext();
   const [moments, setMoments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -42,18 +41,15 @@ const ListenerSavedMoments = () => {
 
   const open = (moment) => {
     const seconds = moment.timestampMs / 1000;
-    if (moment.audioId || moment.audio?.id || moment.audio?._id || moment.audio?.fileUrl) {
-      const audio = {
-        ...(moment.audio || {}),
-        id: moment.audioId || moment.audio?.id || moment.audio?._id,
-        coverArt: moment.coverArt || moment.audio?.coverArt,
-        subtitle: moment.creatorName || moment.audio?.subtitle,
-      };
-      player?.playTrackAt?.(audio, seconds, [audio]);
+    const audioId = moment.audioId || moment.audio?.id || moment.audio?._id;
+    if (audioId) {
+      // Let the recording route load its authoritative audio metadata first,
+      // then seek through the normal player lifecycle. A bare saved-moment
+      // object may have only an ID and cannot always be played directly.
+      navigate(`/listen/audio/${encodeURIComponent(audioId)}?t=${encodeURIComponent(seconds)}`);
       return;
     }
-    if (moment.audioId) navigate(`/listen/audio/${moment.audioId}?t=${Math.floor(seconds)}`);
-    else if (moment.broadcastId) navigate(`/listen/live/${moment.broadcastId}`);
+    if (moment.broadcastId) navigate(`/listen/live/${moment.broadcastId}`);
   };
   const remove = async (moment) => {
     try { setWorkingId(moment.id); await savedMomentService.remove(moment.id); setMoments((current) => current.filter((item) => item.id !== moment.id)); }

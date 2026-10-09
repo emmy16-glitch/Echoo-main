@@ -45,6 +45,8 @@ jobs:
         run: npm run test:player-resources
       - name: Verify packaged Listener route state
         run: npm run test:listener-route
+      - name: Verify Listener save and download integrity
+        run: npm run test:download-integrity
       - run: npm run build
 
   frontend-e2e-critical:

@@ -60,6 +60,7 @@ const broadcastLive = {
   peakListeners: 1900,
   station,
   creator,
+  startedAt: new Date(Date.now() - 20 * 60 * 1000).toISOString(),
   startTime: new Date(Date.now() - 20 * 60 * 1000).toISOString(),
   coverArt: COVER,
 };

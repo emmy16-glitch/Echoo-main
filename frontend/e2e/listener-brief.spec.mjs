@@ -145,7 +145,7 @@ test('Library has one saved-audio owner and links to dedicated secondary pages',
   await authenticate(page);
   await page.goto('/listen/library');
   const sections = page.locator('.listener-v2-category-tabs');
-  await expect(sections.getByRole('button')).toHaveText(['Saved audio', 'Collections', 'History', 'Playlists', 'Saved moments', 'Downloads']);
+  await expect(sections.getByRole('button')).toHaveText(['Saved audio', 'Collections', 'History', 'Playlists', 'Downloads']);
   await expect(sections.getByRole('button', { name: 'Saved audio', exact: true })).toHaveAttribute('aria-current', 'page');
   await expect(page.getByText(/% listened/)).toHaveCount(0);
 });
@@ -224,7 +224,12 @@ test('live actions persist, roll back failures, copy links, and open and close c
     attempts++;
     return attempts === 1 ? route.fulfill({ status: 500, json: { error: { message: 'Try again' } } }) : route.fulfill({ json: { data: { liked: true } } });
   });
-  await page.route('**/api/saved-moments*', route => route.fulfill({ json: { data: route.request().method() === 'POST' ? { id: 'saved', broadcastId: '507f1f77bcf86cd799439031', timestampMs: 0 } : [] } }));
+  await page.route('**/api/saved-moments*', route => {
+    const timestampMs = route.request().method() === 'POST'
+      ? route.request().postDataJSON()?.timestampMs || 0
+      : 0;
+    return route.fulfill({ json: { data: route.request().method() === 'POST' ? { id: 'saved', broadcastId: '507f1f77bcf86cd799439031', timestampMs } : [] } });
+  });
   await page.goto('/listen/live/507f1f77bcf86cd799439031');
   const actions = page.locator('.listener-room-actions summary');
   await actions.click();
@@ -235,7 +240,7 @@ test('live actions persist, roll back failures, copy links, and open and close c
   await page.getByRole('menuitem', { name: 'Like', exact: true }).click();
   await actions.click();
   await expect(page.getByRole('menuitem', { name: 'Liked', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  await page.getByRole('menuitem', { name: 'Save', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Save this moment', exact: true }).click();
   await actions.click();
   await expect(page.getByRole('menuitem', { name: 'Saved', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await page.getByRole('menuitem', { name: 'Copy link', exact: true }).click();

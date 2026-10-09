@@ -34,6 +34,10 @@ import echooMark from '../Assets/echoo-logo-official.svg';
 import './ListenerV2LiveRoom.css';
 
 const sameId = (first, second) => Boolean(first && second && String(first) === String(second));
+const broadcastElapsedMs = (show) => {
+  const startedAt = Date.parse(show?.startedAt || show?.actualStartedAt || show?.liveStartedAt || '');
+  return Number.isFinite(startedAt) ? Math.max(0, Date.now() - startedAt) : null;
+};
 
 const normalizeBroadcast = (item) => ({
   ...item,
@@ -150,7 +154,7 @@ const ListenerRealLiveRoom = () => {
   const [following, setFollowing] = useState(false);
   const [followPending, setFollowPending] = useState(false);
   const [liked, setLiked] = useState(false);
-  const [savedMomentId, setSavedMomentId] = useState('');
+  const [savedMoments, setSavedMoments] = useState([]);
   const [actionPending, setActionPending] = useState('');
   const [shareMessage, setShareMessage] = useState('');
   // Shared listen links: no access token → guest mode. Guests get the public
@@ -236,7 +240,7 @@ const ListenerRealLiveRoom = () => {
     setFollowing(false);
     setFollowPending(false);
     setLiked(false);
-    setSavedMomentId('');
+    setSavedMoments([]);
     setActionPending('');
     if (shareMessageTimerRef.current !== null) {
       window.clearTimeout(shareMessageTimerRef.current);
@@ -598,11 +602,11 @@ const ListenerRealLiveRoom = () => {
 
   useEffect(() => {
     setLiked(false);
-    setSavedMomentId('');
+    setSavedMoments([]);
     if (isGuest || previewMode || !broadcastId) return;
     let active = true;
     apiRequest(`/broadcasts/${encodeURIComponent(broadcastId)}/like`).then(response => { if (active) setLiked(Boolean(response?.data?.liked)); }).catch(() => {});
-    savedMomentService.list({ limit: 100 }).then(response => { if (active) setSavedMomentId(response.data.find(moment => String(moment.broadcastId) === String(broadcastId) && moment.timestampMs === 0)?.id || ''); }).catch(() => {});
+    savedMomentService.list({ limit: 100 }).then(response => { if (active) setSavedMoments(response.data.filter(moment => String(moment.broadcastId) === String(broadcastId))); }).catch(() => {});
     return () => { active = false; };
   }, [broadcastId, isGuest, previewMode]);
 
@@ -612,14 +616,29 @@ const ListenerRealLiveRoom = () => {
     const wasLiked = liked;
     setActionPending(kind);
     if (kind === 'like') setLiked(!wasLiked);
+    const timestampMs = kind === 'save' ? broadcastElapsedMs(show) : null;
+    const savedAtCurrentTime = kind === 'save' && timestampMs !== null
+      ? savedMoments.find(moment => Math.abs(moment.timestampMs - timestampMs) < 5000)
+      : null;
     try {
       if (kind === 'like') await apiRequest(`/broadcasts/${encodeURIComponent(broadcastId)}/like`, { method: wasLiked ? 'DELETE' : 'PUT' });
-      else if (savedMomentId) { await savedMomentService.remove(savedMomentId); setSavedMomentId(''); }
-      else { const response = await savedMomentService.create({ broadcastId, timestampMs: 0 }); setSavedMomentId(response.data.id); }
-      showShareMessage(kind === 'like' ? (wasLiked ? 'Like removed' : 'Liked') : (savedMomentId ? 'Removed from Saved' : 'Saved to Library'));
+      else if (timestampMs === null) throw new Error('This broadcast has not provided a start time, so its current moment cannot be located.');
+      else if (savedAtCurrentTime) {
+        await savedMomentService.remove(savedAtCurrentTime.id);
+        setSavedMoments(current => current.filter(moment => moment.id !== savedAtCurrentTime.id));
+      } else {
+        const response = await savedMomentService.create({ broadcastId, timestampMs });
+        setSavedMoments(current => [...current, response.data]);
+      }
+      showShareMessage(kind === 'like' ? (wasLiked ? 'Like removed' : 'Liked') : (savedAtCurrentTime ? 'Removed from Saved' : 'Moment saved to Library'));
     } catch (error) { if (kind === 'like') setLiked(wasLiked); showShareMessage(error.message || 'Could not update. Try again.'); }
     finally { setActionPending(''); }
   };
+
+  const liveTimestampMs = broadcastElapsedMs(show);
+  const savedAtCurrentTime = liveTimestampMs !== null
+    ? savedMoments.find(moment => Math.abs(moment.timestampMs - liveTimestampMs) < 5000)
+    : null;
 
   const publicLiveUrl = () => {
     const configuredOrigin = String(import.meta.env?.VITE_PUBLIC_APP_ORIGIN || '').trim().replace(/\/$/, '');
@@ -918,8 +937,8 @@ const ListenerRealLiveRoom = () => {
               <button type="button" role="menuitem" disabled={Boolean(actionPending)} aria-pressed={liked} onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); listenerAction('like'); }}>
                 <FiHeart aria-hidden="true" /><span>{liked ? 'Liked' : 'Like'}</span>
               </button>
-              <button type="button" role="menuitem" disabled={Boolean(actionPending)} aria-pressed={Boolean(savedMomentId)} onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); listenerAction('save'); }}>
-                <FiBookmark aria-hidden="true" /><span>{savedMomentId ? 'Saved' : 'Save'}</span>
+              <button type="button" role="menuitem" disabled={Boolean(actionPending)} aria-pressed={Boolean(savedAtCurrentTime)} onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); listenerAction('save'); }}>
+                <FiBookmark aria-hidden="true" /><span>{savedAtCurrentTime ? 'Saved' : 'Save this moment'}</span>
               </button>
             </div>
           </details>
