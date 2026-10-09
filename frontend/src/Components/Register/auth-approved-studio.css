@@ -398,6 +398,7 @@
   .echoo-auth-reference:not(.is-profile):not(.is-auth-status).is-signup .ear-auth-shell {
     height: 100dvh;
     min-height: 0;
+    grid-template-columns: minmax(0, 1fr);
     padding: 8px 20px;
     place-content: center;
     overflow: hidden;
@@ -475,6 +476,7 @@
   .echoo-auth-reference:not(.is-profile):not(.is-auth-status).is-login .ear-auth-shell {
     height: 100dvh;
     min-height: 0;
+    grid-template-columns: minmax(0, 1fr);
     padding: 12px 20px;
     place-content: center;
     overflow: hidden;
@@ -545,6 +547,7 @@
   .echoo-auth-reference:not(.is-profile):not(.is-auth-status):is(.is-login,.is-signup) .ear-auth-shell {
     height: 100dvh;
     min-height: 0;
+    grid-template-columns: minmax(0, 1fr);
     padding: 8px 12px;
     place-content: center;
     overflow: hidden;

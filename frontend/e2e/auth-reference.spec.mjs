@@ -16,6 +16,10 @@ const assertAuthFitsViewport = async (page) => {
   }));
   expect(dimensions.scrollHeight).toBeLessThanOrEqual(dimensions.clientHeight + 1);
   expect(dimensions.bodyScrollHeight).toBeLessThanOrEqual(dimensions.clientHeight + 1);
+  const card = await page.locator('.ear-auth-card').boundingBox();
+  const viewport = page.viewportSize();
+  expect(card).not.toBeNull();
+  expect(Math.abs((card.x + card.width / 2) - viewport.width / 2)).toBeLessThan(2);
 };
 
 const assertSignupViewportBehavior = async (page) => {

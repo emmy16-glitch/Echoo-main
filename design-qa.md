@@ -29,6 +29,7 @@ The product photo has a different studio composition from the reference artwork,
 - **Compared state:** clean sign-up and sign-in pages, no account data entered. The original microphone-studio background remains visible behind the glass card.
 - **Result:** At 1365×672, both cards are centered and all form controls, actions, and account-switch links are within the viewport. At 320×568 and 390×844, both forms also fit without document scrolling or horizontal overflow. At very short viewport heights (460px or less, e.g. with a mobile keyboard open), natural vertical scrolling remains available so focused fields are reachable.
 - **Root cause/fix:** The approved auth stylesheet overrode older compact-height rules. Added scoped compact-height rules in the approved stylesheet for desktop and mobile without changing the background treatment or auth flow.
+- **CI follow-up:** Full GitHub E2E exposed a late legacy grid rule restoring a two-column shell in the short desktop viewport. The compact auth rule now explicitly enforces a single centered column; regressions assert centering on desktop and phone-sized viewports.
 - **Verification:** Playwright auth regression group: 8 passed, 4 skipped (other project-specific cases); frontend lint and production build passed; desktop package tests: 83 passed.
 - **Result:** PASS for tested viewports.
 
