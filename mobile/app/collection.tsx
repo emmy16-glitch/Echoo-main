@@ -29,8 +29,6 @@ import { AudioPlaybackItem, usePlayback } from '@/src/playback/PlaybackProvider'
 import { EchooAudio, EchooPlaylist, EchooPlaylistTrack, getPlaylistById, hasEchooSession, toggleSavedCollection } from '@/src/services/echooApi';
 import { EchooColors, getEchooColors } from '@/src/theme/echooTheme';
 
-const collectionScreenCache = new Map<string, EchooPlaylist>();
-
 function formatDuration(seconds = 0) {
   const safe = Math.max(0, Math.round(Number(seconds) || 0));
   const hours = Math.floor(safe / 3600);
@@ -54,10 +52,10 @@ export default function CollectionScreen() {
   const palette = getEchooColors(scheme);
   const styles = useMemo(() => createStyles(palette), [palette]);
   const playback = usePlayback();
-  const cachedCollection = collectionId ? collectionScreenCache.get(collectionId) : undefined;
-
-  const [collection, setCollection] = useState<EchooPlaylist | null>(cachedCollection || null);
-  const [loading, setLoading] = useState(!cachedCollection);
+  // Collection details include account-specific saved state. Do not retain an
+  // in-memory detail cache across sign-out or account switches.
+  const [collection, setCollection] = useState<EchooPlaylist | null>(null);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [saveError, setSaveError] = useState('');
@@ -77,7 +75,6 @@ export default function CollectionScreen() {
     try {
       const nextCollection = await getPlaylistById(collectionId, { force });
       setCollection(nextCollection);
-      collectionScreenCache.set(collectionId, nextCollection);
     } catch (loadError: any) {
       setError(friendlyErrorMessage(loadError, 'Could not load this collection.'));
     } finally {
@@ -87,7 +84,7 @@ export default function CollectionScreen() {
   }, [collectionId]);
 
   useEffect(() => {
-    load(false, Boolean(collectionScreenCache.get(collectionId)));
+    load(false);
   }, [load]);
 
   const openStation = () => {
@@ -165,7 +162,6 @@ export default function CollectionScreen() {
       await toggleSavedCollection(collection.id, nextSaved);
       const updated = { ...collection, isSaved: nextSaved };
       setCollection(updated);
-      collectionScreenCache.set(collection.id, updated);
     } catch (saveFailure: any) {
       setSaveError(friendlyErrorMessage(saveFailure, 'Could not update saved Collections.'));
     } finally {

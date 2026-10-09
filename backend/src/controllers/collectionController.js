@@ -22,13 +22,15 @@ const requireCreator = (req, res) => {
 
 const populateCollection = (query) => query
   .populate('owner', OWNER_FIELDS)
-  .populate('station', 'name slug coverArt category isPublic')
+  .populate('station', 'name slug coverArt category isPublic isDeleted')
   .populate('tracks.trackId', TRACK_FIELDS);
 
 const visibleTracks = (collection, viewerId) => (collection.tracks || [])
   .filter((entry) => isAudioAccessibleToUser(entry?.trackId, viewerId))
   .map((entry) => entry.trackId)
   .filter(Boolean);
+
+const isPublicStation = (station) => Boolean(station && station.isPublic === true && station.isDeleted !== true);
 
 const serialize = (collection, viewerId = null, savedIds = new Set()) => {
   if (!collection) return null;
@@ -107,13 +109,8 @@ export async function createCollection(req, res, next) {
 export async function getMyCollections(req, res, next) {
   try {
     if (!requireCreator(req, res)) return;
-    const canonicalStation = await canonicalStationForCreator(req.userId);
-    if (canonicalStation) {
-      await Playlist.updateMany(
-        { owner: req.userId, mode: 'series', isDeleted: false, station: { $ne: canonicalStation._id } },
-        { $set: { station: canonicalStation._id } }
-      );
-    }
+    // A read endpoint must never repair or reassign station ownership. A
+    // creator may intentionally have Collections on more than one Channel.
     const collections = await populateCollection(
       Playlist.find({ owner: req.userId, mode: 'series', isDeleted: false }).sort({ updatedAt: -1 })
     );
@@ -126,6 +123,8 @@ export async function getMyCollections(req, res, next) {
 export async function getPublicCollectionsForStation(req, res, next) {
   try {
     if (!validId(req.params.stationId)) return error(res, 400, 'INVALID_STATION_ID', 'Invalid Channel');
+    const station = await Station.findOne({ _id: req.params.stationId, isPublic: true, isDeleted: false }).select('_id');
+    if (!station) return res.status(200).json({ data: [], timestamp: new Date().toISOString() });
     const saved = await savedIdSet(req.userId);
     const collections = await populateCollection(
       Playlist.find({ station: req.params.stationId, mode: 'series', isDeleted: false, isPublic: true })
@@ -151,7 +150,7 @@ export async function getPublicCollections(req, res, next) {
     );
     const saved = await savedIdSet(req.userId);
     // A Channel marked private cannot be promoted by a public Collection.
-    const visible = collections.filter((item) => item.station && item.station.isPublic !== false);
+    const visible = collections.filter((item) => isPublicStation(item.station));
     return res.status(200).json({
       data: visible.map((item) => serialize(item, req.userId, saved)),
       pagination: { page, limit, hasMore: collections.length === limit },
@@ -170,7 +169,9 @@ export async function getCollection(req, res, next) {
     );
     if (!collection) return error(res, 404, 'NOT_FOUND', 'Collection not found');
     const owns = idOf(collection.owner) === idOf(req.userId);
-    if (!collection.isPublic && !owns) return error(res, 404, 'NOT_FOUND', 'Collection not found');
+    if (!owns && (!collection.isPublic || !isPublicStation(collection.station))) {
+      return error(res, 404, 'NOT_FOUND', 'Collection not found');
+    }
     const saved = await savedIdSet(req.userId);
     return res.status(200).json({ data: serialize(collection, req.userId, saved), timestamp: new Date().toISOString() });
   } catch (caught) {
@@ -277,8 +278,10 @@ export async function reorderCollection(req, res, next) {
 
 export async function saveCollection(req, res, next) {
   try {
-    const collection = await Playlist.findOne({ _id: req.params.id, mode: 'series', isDeleted: false, isPublic: true }).select('_id');
-    if (!collection) return error(res, 404, 'NOT_FOUND', 'Collection not found');
+    const collection = await populateCollection(
+      Playlist.findOne({ _id: req.params.id, mode: 'series', isDeleted: false, isPublic: true })
+    );
+    if (!collection || !isPublicStation(collection.station)) return error(res, 404, 'NOT_FOUND', 'Collection not found');
     await User.updateOne({ _id: req.userId }, { $addToSet: { savedCollections: collection._id } });
     return res.status(200).json({ data: { saved: true }, timestamp: new Date().toISOString() });
   } catch (caught) {
@@ -301,7 +304,8 @@ export async function getSavedCollections(req, res, next) {
     const collections = await populateCollection(
       Playlist.find({ _id: { $in: [...saved] }, mode: 'series', isDeleted: false, isPublic: true }).sort({ updatedAt: -1 })
     );
-    return res.status(200).json({ data: collections.map((item) => serialize(item, req.userId, saved)), timestamp: new Date().toISOString() });
+    const visible = collections.filter((item) => isPublicStation(item.station));
+    return res.status(200).json({ data: visible.map((item) => serialize(item, req.userId, saved)), timestamp: new Date().toISOString() });
   } catch (caught) {
     return next(caught);
   }
