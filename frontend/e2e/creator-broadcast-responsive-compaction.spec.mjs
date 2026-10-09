@@ -203,7 +203,7 @@ test('Broadcast workstation compacts cleanly across the complete viewport matrix
   // Playwright projects at once.
   await page.unroute('**/api/broadcasts/mine/all**');
   await page.route('**/api/broadcasts/mine/all**', (route) => fulfill(route, broadcasts));
-  for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
+  for (const viewport of [{ width: 390, height: 844 }, { width: 1280, height: 720 }, { width: 1440, height: 900 }]) {
     await page.setViewportSize(viewport);
     await page.reload();
     await expect(page.locator('.ec2-status-pill[aria-label="Live"]')).toBeVisible();
@@ -212,6 +212,14 @@ test('Broadcast workstation compacts cleanly across the complete viewport matrix
     await expect(page.locator('.ec2-live-ticker, .ec2-live-ticker-track')).toHaveCount(0);
     await expect(page.locator('.ec2-live-summary')).toHaveText(station.name);
     await expect(page.locator('.ec2-live-identity')).toContainText(liveBroadcast.title);
+    await expect(page.getByRole('button', { name: 'End broadcast' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Preview listener mix' })).toBeVisible();
+    if (viewport.width === 1280) {
+      const endAction = await page.getByRole('button', { name: 'End broadcast' }).boundingBox();
+      const monitorAction = await page.getByRole('button', { name: 'Monitor Mix' }).boundingBox();
+      expect(endAction?.y + endAction?.height, 'End broadcast must be in the first viewport').toBeLessThanOrEqual(viewport.height);
+      expect(monitorAction?.y + monitorAction?.height, 'Monitor Mix must be reachable without scrolling').toBeLessThanOrEqual(viewport.height);
+    }
     if (viewport.width >= 600) {
       const heroHeight = await page.locator('.ec2-hero').evaluate((node) => node.getBoundingClientRect().height);
       expect(heroHeight).toBeLessThanOrEqual(126);
