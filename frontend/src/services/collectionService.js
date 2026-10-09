@@ -39,6 +39,7 @@ const request = (path, options) => apiRequest(path, options);
 const collectionService = {
   getMine: async () => collectionList(await request('/collections/mine/all')),
   getSaved: async () => collectionList(await request('/collections/saved/mine')),
+  getPublic: async ({ page = 1, limit = 40 } = {}) => collectionList(await request(`/collections/public?page=${page}&limit=${limit}`, { cache: 'no-store' })),
   getForStation: async (stationId) => collectionList(await request(`/collections/station/${encodeURIComponent(stationId)}`)),
   getById: async (collectionId) => collectionOne(await request(`/collections/${encodeURIComponent(collectionId)}`)),
   create: async (payload) => collectionOne(await request('/collections', { method: 'POST', body: JSON.stringify(payload) })),
