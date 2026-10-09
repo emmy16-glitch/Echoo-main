@@ -1,10 +1,11 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { Eye, EyeOff, Headphones, Mail, Mic, UserRound } from 'lucide-react-native';
+import { Check, Eye, EyeOff, Headphones, Mail, Mic, UserRound } from 'lucide-react-native';
 import { ReactNode, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -32,6 +33,7 @@ export default function AuthScreen() {
   const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [privacyPolicyAccepted, setPrivacyPolicyAccepted] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -42,6 +44,10 @@ export default function AuthScreen() {
     }
     if (mode === 'register' && !email.trim()) {
       setError('Enter your email address to create an account.');
+      return;
+    }
+    if (mode === 'register' && !privacyPolicyAccepted) {
+      setError('Agree to the Privacy Policy before creating your account.');
       return;
     }
 
@@ -55,6 +61,7 @@ export default function AuthScreen() {
             email: email.trim(),
             password,
             displayName: displayName.trim() || identifier.trim(),
+            privacyPolicyAcceptance: { accepted: true, version: '2026-10-06' },
           });
       if (mode === 'login') {
         router.replace(user.userType === 'creator' ? '/creator' : '/profile');
@@ -186,6 +193,27 @@ export default function AuthScreen() {
 
             {error ? <Text style={styles.error}>{error}</Text> : null}
 
+            {mode === 'register' ? (
+              <View style={styles.policyRow}>
+                <Pressable
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: privacyPolicyAccepted }}
+                  accessibilityLabel="Agree to the Privacy Policy"
+                  onPress={() => setPrivacyPolicyAccepted((value) => !value)}
+                  style={[styles.checkbox, privacyPolicyAccepted && styles.checkboxChecked]}
+                >
+                  {privacyPolicyAccepted ? <Check color="#FFFFFF" size={15} strokeWidth={3} /> : null}
+                </Pressable>
+                <Text style={styles.policyText}>I agree to the </Text>
+                <Pressable
+                  accessibilityRole="link"
+                  onPress={() => Linking.openURL('https://echoo.digi02.org/privacy-policy')}
+                >
+                  <Text style={styles.policyLink}>Privacy Policy</Text>
+                </Pressable>
+              </View>
+            ) : null}
+
             <Pressable style={styles.submitButton} onPress={submit} disabled={busy}>
               {busy ? (
                 <ActivityIndicator color="#FFFFFF" />
@@ -275,6 +303,11 @@ const createStyles = (palette: EchooColors) => StyleSheet.create({
   input: { flex: 1, color: palette.ink, fontSize: 14, fontWeight: '600', paddingVertical: 13, paddingRight: 12 },
   eyeButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   error: { color: palette.red, fontSize: 12, lineHeight: 17, marginTop: 1, marginBottom: 11 },
+  policyRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 },
+  checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 1, borderColor: palette.line, alignItems: 'center', justifyContent: 'center', marginRight: 9 },
+  checkboxChecked: { backgroundColor: palette.blue, borderColor: palette.blue },
+  policyText: { color: palette.muted, fontSize: 13 },
+  policyLink: { color: palette.blue, fontSize: 13, fontWeight: '800', textDecorationLine: 'underline' },
   submitButton: { height: 50, borderRadius: 15, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center', marginTop: 3 },
   submitText: { color: '#FFFFFF', fontSize: 14, fontWeight: '900' },
   securityText: { color: palette.faint, fontSize: 10.5, lineHeight: 16, textAlign: 'center', marginTop: 15, paddingHorizontal: 10 },

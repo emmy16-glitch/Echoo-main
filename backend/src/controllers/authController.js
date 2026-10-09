@@ -5,6 +5,7 @@ import { env } from '../config/env.js';
 import { sendPasswordResetEmail, sendEmailVerificationCode, sendWelcomeEmail, sendPasswordChangedEmail, sendNewSignInEmail } from '../services/emailService.js';
 import { hasCreatorCapability } from '../utils/accountCapabilities.js';
 import { countryFromRequest, describeUserAgent } from '../utils/signInContext.js';
+import { PRIVACY_POLICY_VERSION, validatePrivacyPolicyAcceptance } from '../config/privacyPolicy.js';
 
 const USERNAME_PATTERN = /^[A-Za-z0-9._-]{3,30}$/;
 const EMAIL_VERIFICATION_CODE_TTL_MS = 10 * 60 * 1000;
@@ -85,13 +86,23 @@ const registrationError = (res, caught) => {
 
 export async function register(req, res, next) {
   try {
-    const { username, email, password, displayName } = req.body;
+    const { username, email, password, displayName, privacyPolicyAcceptance } = req.body;
     const cleanUsername = String(username || '').trim();
     const cleanEmail = String(email || '').trim().toLowerCase();
 
     if (!cleanUsername || !cleanEmail || !password) {
       return res.status(400).json({
         error: { code: 'VALIDATION_ERROR', message: 'Username, email, and password are required' }
+      });
+    }
+
+    if (!validatePrivacyPolicyAcceptance(privacyPolicyAcceptance)) {
+      return res.status(400).json({
+        error: {
+          code: 'PRIVACY_POLICY_ACCEPTANCE_REQUIRED',
+          message: 'Review and agree to the current Privacy Policy before creating an account.',
+          policyVersion: PRIVACY_POLICY_VERSION,
+        },
       });
     }
 
@@ -152,6 +163,10 @@ export async function register(req, res, next) {
       emailVerificationCodeHash: hashVerificationCode(verificationCode),
       emailVerificationExpiresAt: new Date(Date.now() + EMAIL_VERIFICATION_CODE_TTL_MS),
       emailVerificationSentAt: new Date(),
+      privacyPolicyAcceptance: {
+        version: PRIVACY_POLICY_VERSION,
+        acceptedAt: new Date(),
+      },
     });
 
     await user.save();

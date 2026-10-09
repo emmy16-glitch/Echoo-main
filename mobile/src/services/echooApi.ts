@@ -916,6 +916,10 @@ export async function registerEchoo(input: {
   email: string;
   password: string;
   displayName?: string;
+  privacyPolicyAcceptance: {
+    accepted: true;
+    version: '2026-10-06';
+  };
 }) {
   const payload = await apiRequest('/auth/register', {
     method: 'POST',
