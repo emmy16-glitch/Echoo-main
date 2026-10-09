@@ -225,7 +225,7 @@ const parentStateSignature = (snapshot = {}) => [
   snapshot.monitoring?.outputDeviceId || '',
 ].join('|');
 
-const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = null, onStateChange, onGoLive, goLiveBusy = false, isLive = false, qualityProfile = 'broadcast_high', onQualityProfileChange }) => {
+const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = null, onStateChange, onGoLive, onEndBroadcast, endBroadcastButtonRef, goLiveBusy = false, isLive = false, qualityProfile = 'broadcast_high', onQualityProfileChange }) => {
   const [mixer, setMixer] = useState(() => sessionState || getEchooMixerState());
   const [inputs, setInputs] = useState([]);
   const [outputs, setOutputs] = useState([]);
@@ -1043,17 +1043,18 @@ const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = n
             </div>
             <button
               type="button"
-              className={`eam-approved-go-live${isLive ? ' is-live' : goLiveBusy ? ' is-pending' : ''}`}
-              onClick={onGoLive}
-              disabled={goLiveBusy || isLive}
+              ref={isLive ? endBroadcastButtonRef : undefined}
+              className={`eam-approved-go-live${isLive ? ' is-end ec2-end-live' : goLiveBusy ? ' is-pending' : ''}`}
+              onClick={isLive ? onEndBroadcast : onGoLive}
+              disabled={goLiveBusy}
               aria-busy={goLiveBusy || undefined}
             >
               <span className="eam-approved-go-live-mark" aria-hidden="true"><FiRadio /></span>
               <span className="eam-approved-go-live-label">
-                {isLive ? 'LIVE' : goLiveBusy ? 'Connecting…' : 'Go Live'}
+                {isLive ? 'End broadcast' : goLiveBusy ? 'Connecting…' : 'Go Live'}
               </span>
             </button>
-            <p>Review your levels before going live.</p>
+            {!isLive && <p>Review your levels before going live.</p>}
             <button
               type="button"
               className="eam-approved-test-mix"
@@ -1064,7 +1065,7 @@ const CreatorAudioMixer = ({ compact = false, approved = false, sessionState = n
             >
               <FiVolume2 /> {testingAudio && monitoring.enabled ? 'Stop preview' : 'Preview listener mix'}
             </button>
-            <small className="eam-approved-preview-help">Private preview — only you can hear it. This does not start a broadcast.</small>
+            <small className="eam-approved-preview-help">{isLive ? 'Monitor your live mix privately.' : 'Private preview — only you can hear it. This does not start a broadcast.'}</small>
           </aside>
         </div>
       </section>
