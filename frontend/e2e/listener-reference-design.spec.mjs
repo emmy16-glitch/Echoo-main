@@ -70,9 +70,9 @@ test('Following lists live and all-following channel sections without a dashboar
   await settle(page);
   await expect(page.getByRole('heading', { level: 1, name: 'Following' })).toBeVisible();
   await expect(page.getByRole('heading', { level: 2, name: 'Live from creators you follow' })).toBeVisible();
-  // The mock fixture makes every followed Channel live. Live Channels belong only
-  // in the live section; do not duplicate them in an offline "Creators you follow" list.
-  await expect(page.getByRole('heading', { level: 2, name: 'Creators you follow', exact: true })).toHaveCount(0);
+  // A followed creator is a person and remains discoverable even when their
+  // Channel is live. Only the Channel row itself must not duplicate the live row.
+  await expect(page.getByRole('heading', { level: 2, name: 'Creators you follow', exact: true })).toBeVisible();
   await expect(page.locator('.listener-v2-following-row')).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(2);
   await page.screenshot({ path: `test-results/reference-following-${testInfo.project.name}.png`, fullPage: true });
