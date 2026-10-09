@@ -266,6 +266,52 @@
   color: #475467;
 }
 
+.creator-audio-tag-editor {
+  margin-top: 14px;
+}
+
+.creator-audio-tag-editor > label,
+.creator-audio-tag-editor > small {
+  display: block;
+  color: #667085;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.creator-audio-tag-editor > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.creator-audio-tag-editor input {
+  min-width: 0;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid #d0d5dd;
+  border-radius: 10px;
+  color: #101828;
+  font: inherit;
+  font-size: 13px;
+}
+
+.creator-audio-tag-editor button {
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid #265dff;
+  border-radius: 10px;
+  background: #265dff;
+  color: #fff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.creator-audio-tag-editor button:disabled { cursor: wait; opacity: .65; }
+.creator-audio-tag-editor > small { margin-top: 6px; font-weight: 500; }
+
 .creator-audio-transport {
   padding: 18px;
   border: 1px solid #e2e8f0;

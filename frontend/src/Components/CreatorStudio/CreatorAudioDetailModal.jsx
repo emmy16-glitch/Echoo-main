@@ -57,6 +57,13 @@ const formatType = (mimeType = '') => {
   return mimeType || 'Original format';
 };
 
+const normalizeTags = (value) => [...new Set(
+  String(value || '')
+    .split(',')
+    .map((tag) => tag.trim().replace(/^#/, ''))
+    .filter(Boolean)
+)].slice(0, 20);
+
 const CreatorAudioDetailModal = ({
   track,
   onClose,
@@ -82,6 +89,8 @@ const CreatorAudioDetailModal = ({
   const [savedTitle, setSavedTitle] = useState(track?.title || '');
   const [titleEditing, setTitleEditing] = useState(false);
   const [titleSaving, setTitleSaving] = useState(false);
+  const [tagsDraft, setTagsDraft] = useState((track?.tags || []).join(', '));
+  const [tagsSaving, setTagsSaving] = useState(false);
   const [recordingArtwork, setRecordingArtwork] = useState(track?.coverArt || '');
   const [artworkPreview, setArtworkPreview] = useState('');
   const [artworkUploading, setArtworkUploading] = useState(false);
@@ -128,6 +137,7 @@ const CreatorAudioDetailModal = ({
     setTitleDraft(track?.title || '');
     setSavedTitle(track?.title || '');
     setTitleEditing(false);
+    setTagsDraft((track?.tags || []).join(', '));
     setRecordingArtwork(track?.coverArt || '');
     setArtworkPreview('');
     setArtworkToast(false);
@@ -346,6 +356,23 @@ const CreatorAudioDetailModal = ({
     }
   };
 
+  const saveTags = async () => {
+    if (!trackId || tagsSaving) return;
+    try {
+      setTagsSaving(true);
+      setError('');
+      const tags = normalizeTags(tagsDraft);
+      await studioService.updateAudio(trackId, { tags });
+      setTagsDraft(tags.join(', '));
+      setNotice(tags.length ? 'Recording tags saved.' : 'Recording tags cleared.');
+      onChanged?.();
+    } catch (saveError) {
+      setError(saveError?.message || 'Could not save recording tags.');
+    } finally {
+      setTagsSaving(false);
+    }
+  };
+
   const changeArtwork = async (event) => {
     const file = event.target.files?.[0] || null;
     event.target.value = '';
@@ -556,12 +583,31 @@ const CreatorAudioDetailModal = ({
           </div>
 
           <div className="creator-audio-modal-tags">
-            <span>{track.genre || 'Other'}</span>
+            {track.genre && track.genre !== 'Other' && <span>{track.genre}</span>}
             <span className={visibility ? 'public' : 'private'}>
               {visibility ? <><FaGlobe /> Public</> : <><FaLock /> Private</>}
             </span>
             <span>{formatType(track.mimeType)}</span>
             <span>{formatBytes(track.fileSize)}</span>
+          </div>
+          <div className="creator-audio-tag-editor">
+            <label htmlFor="creator-audio-tags">Tags</label>
+            <div>
+              <input
+                id="creator-audio-tags"
+                value={tagsDraft}
+                onChange={(event) => setTagsDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') saveTags();
+                }}
+                maxLength="300"
+                placeholder="e.g. Bible Study, Prayer"
+              />
+              <button type="button" onClick={saveTags} disabled={tagsSaving}>
+                {tagsSaving ? 'Saving…' : 'Save tags'}
+              </button>
+            </div>
+            <small>Separate tags with commas. They are separate from the recording title.</small>
           </div>
         </div>
         </div>
