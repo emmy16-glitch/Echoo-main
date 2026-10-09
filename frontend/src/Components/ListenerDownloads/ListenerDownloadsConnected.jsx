@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate, useOutletContext } from 'react-router-dom';
+import { useOutletContext } from 'react-router-dom';
 import {
   FaCheck,
   FaClock,
@@ -10,7 +10,6 @@ import {
 } from 'react-icons/fa';
 import Toast from '../ListenerUI/ListenerToast';
 import audioService from '../../services/audioService';
-import batch6Service from '../../services/batch6Service';
 import downloadService from '../../services/downloadService';
 import './ListenerDownloads.css';
 
@@ -22,8 +21,6 @@ const TABS = [
   { id: 'music', label: 'Music' },
 ];
 
-const STORAGE_LIMIT_GB = 25;
-
 const formatBytes = (bytes) => {
   const total = Math.max(0, Number(bytes) || 0);
   if (total >= 1024 * 1024 * 1024)
@@ -32,11 +29,6 @@ const formatBytes = (bytes) => {
     return `${(total / (1024 * 1024)).toFixed(1)} MB`;
   if (total >= 1024) return `${Math.round(total / 1024)} KB`;
   return `${total} B`;
-};
-
-const formatGb = (bytes) => {
-  const gb = (Math.max(0, Number(bytes) || 0)) / (1024 * 1024 * 1024);
-  return gb >= 1 ? gb.toFixed(1) : gb.toFixed(2);
 };
 
 const relativeTime = (value) => {
@@ -56,29 +48,7 @@ const relativeTime = (value) => {
   return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
 };
 
-const normalizedRow = (download) => {
-  const track = download?.track && typeof download.track === 'object' ? download.track : null;
-  if (!track) return null;
-  const normalized = audioService.normalize(track);
-  if (!normalized?.id) return null;
-  const duration = Number(track.duration) || 0;
-  const progress = Math.max(0, Math.min(1, Number(download.progress) || 0));
-  return {
-    ...normalized,
-    downloadId: download.id,
-    duration,
-    listenedSeconds: duration > 0 ? Math.round(duration * progress) : 0,
-    fileSize: Number(download.fileSize) || 0,
-    downloadedSize: Number(download.downloadedSize) || 0,
-    status: download.status || 'completed',
-    downloadedAt: download.createdAt,
-    genre: track.genre || null,
-    completed: progress >= 1,
-  };
-};
-
 const ListenerDownloadsConnected = () => {
-  const navigate = useNavigate();
   const { playTrack, currentTrack, isPlaying, togglePlay } = useOutletContext();
   const [toast, setToast] = useState({ open: false, type: 'info', title: '', message: '' });
   const notify = useCallback((message, type = 'info') => {
@@ -91,7 +61,6 @@ const ListenerDownloadsConnected = () => {
   }, []);
 
   const [items, setItems] = useState([]);
-  const [needsAuth, setNeedsAuth] = useState(false);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('all');
   const [busyId, setBusyId] = useState('');
@@ -100,20 +69,17 @@ const ListenerDownloadsConnected = () => {
   const load = useCallback(async ({ silent = false } = {}) => {
     try {
       if (!silent) setLoading(true);
-      const response = await batch6Service.getDownloads({ page: 1, limit: 100 });
-      const raw = response?.data || {};
-      const downloads = Array.isArray(raw.downloads) ? raw.downloads : [];
-      setItems(downloads.map(normalizedRow).filter(Boolean));
-      setNeedsAuth(false);
+      const downloads = await downloadService.getVerifiedAll();
+      setItems(downloads.map((download) => ({
+        ...audioService.normalize(download),
+        ...download,
+        downloadedAt: download.downloadedAt,
+        status: 'completed',
+        completed: true,
+      })).filter((item) => item.id));
     } catch (error) {
       console.error('Downloads load failed', error);
-      // Logged-out visitors get a 401 here — that is "not signed in", not a
-      // service failure. Show the sign-in state instead of stacking a
-      // "Something went wrong" toast on top of the empty state.
-      if (!localStorage.getItem('accessToken')) {
-        setNeedsAuth(true);
-      } else if (!silent) {
-        setNeedsAuth(false);
+      if (!silent) {
         notify('Could not load downloads', 'error');
       }
     } finally {
@@ -136,26 +102,19 @@ const ListenerDownloadsConnected = () => {
       (sum, t) => sum + Math.max(t.fileSize, t.downloadedSize, 0),
       0
     );
-    const usedGb = Number(formatGb(usedBytes));
-    return {
-      usedBytes,
-      usedGb,
-      limitGb: STORAGE_LIMIT_GB,
-      percent: Math.min(100, Math.max(0, Math.round((usedGb / STORAGE_LIMIT_GB) * 100))),
-      usedLabel: `${usedGb >= 1 ? usedGb.toFixed(1) : usedGb.toFixed(2)} GB of ${STORAGE_LIMIT_GB} GB used`,
-    };
+    return usedBytes;
   }, [items]);
 
   const handleDelete = async (track) => {
     if (busyId || !track?.id) return;
-    const key = String(track.downloadId || track.id);
+    const key = String(track.id);
     try {
       setBusyId(key);
       // Remove both the browser's actual offline bytes/metadata and the backend
       // download record. Deleting only the backend row leaves a ghost download
       // in Cache Storage/IndexedDB that can reappear on the next reconciliation.
       await downloadService.remove(track.id);
-      setItems((prev) => prev.filter((item) => String(item.downloadId) !== String(track.downloadId)));
+      setItems((prev) => prev.filter((item) => String(item.id) !== String(track.id)));
       notify('Download removed', 'success');
     } catch (error) {
       console.error('Delete download failed', error);
@@ -179,7 +138,7 @@ const ListenerDownloadsConnected = () => {
 
     try {
       setPlayingId(String(track.id));
-      const playableUrl = await downloadService.getPlayableUrl(track.id);
+      const playableUrl = await downloadService.getPlayableUrl(track.id, { localOnly: true });
       playTrack({ ...track, fileUrl: playableUrl, storageMode: 'offline' });
     } catch (error) {
       notify(error?.message || 'This downloaded audio is no longer available offline.', 'error');
@@ -215,21 +174,12 @@ const ListenerDownloadsConnected = () => {
       <div className="ld-section-header">
         <h2>Downloaded audio</h2>
         <span className="ld-storage-caption">
-          {items.length > 0 ? storage.usedLabel : 'No storage used yet'}
+          {items.length > 0 ? `${formatBytes(storage)} stored on this device` : 'No storage used yet'}
         </span>
       </div>
 
       {loading ? (
         <div className="ld-empty ld-empty-loading">Loading your downloads…</div>
-      ) : needsAuth ? (
-        <div className="ld-empty">
-          <FaClock />
-          <strong>Sign in to see your downloads.</strong>
-          <p>Downloads sync with your account — sign in and your offline audio will appear here.</p>
-          <button type="button" className="ld-tab ld-tab-active" onClick={() => navigate('/login')}>
-            Sign in
-          </button>
-        </div>
       ) : filtered.length === 0 ? (
         <div className="ld-empty">
           <FaClock />
@@ -246,11 +196,11 @@ const ListenerDownloadsConnected = () => {
         <div className="ld-list">
           {filtered.map((track) => {
             const current = isCurrent(track);
-            const ready = track.status === 'completed' && track.fileSize > 0;
-            const removing = busyId === String(track.downloadId || track.id);
+            const ready = true;
+            const removing = busyId === String(track.id);
             return (
               <div
-                key={track.downloadId}
+                key={track.id}
                 className={`ld-row ${current && isPlaying ? 'ld-row-current' : ''} ${ready ? '' : 'ld-row-disabled'}`}
               >
                 <button
@@ -279,7 +229,7 @@ const ListenerDownloadsConnected = () => {
                 </button>
                 <span className="ld-row-meta">
                   <span className="ld-row-size">
-                    {ready ? formatBytes(track.fileSize) : '—'}
+                    {formatBytes(track.fileSize)}
                   </span>
                   <span className="ld-row-when">{relativeTime(track.downloadedAt)}</span>
                 </span>

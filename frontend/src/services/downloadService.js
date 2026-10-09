@@ -156,6 +156,27 @@ const deleteIndexedDbBlob = async (trackId) => {
   });
 };
 
+const hasStoredAudio = async (trackId) => {
+  const target = readDownloads().find((item) => String(item.id) === String(trackId));
+  if (!target) return false;
+
+  if (cacheStorageAvailable()) {
+    try {
+      const cache = await caches.open(offlineCacheName());
+      const preferredKey = target.cacheUrl || offlineCacheUrl(trackId);
+      if (await cache.match(preferredKey) || await cache.match(offlineCacheUrl(trackId))) return true;
+    } catch { /* fall through to IndexedDB */ }
+  }
+
+  if (indexedDbAvailable()) {
+    try {
+      const blob = await getIndexedDbBlob(trackId);
+      if (blob?.size) return true;
+    } catch { /* stale metadata is pruned by getVerifiedAll */ }
+  }
+  return false;
+};
+
 const clearIndexedDbAudio = async () => {
   if (!indexedDbAvailable()) return;
   const database = await openOfflineDb();
@@ -308,6 +329,17 @@ const persistOfflineResponse = async (item, response) => {
 const downloadService = {
   getAll: () => readDownloads(),
 
+  getVerifiedAll: async () => {
+    const current = readDownloads();
+    const checks = await Promise.all(current.map(async (item) => ({
+      item,
+      exists: await hasStoredAudio(item.id),
+    })));
+    const verified = checks.filter(({ exists }) => exists).map(({ item }) => item);
+    if (verified.length !== current.length) writeDownloads(verified);
+    return verified;
+  },
+
   isDownloaded: (trackId) => readDownloads().some((item) => String(item.id) === String(trackId)),
 
   download: async (track) => {
@@ -332,6 +364,37 @@ const downloadService = {
     // failure must never invalidate a successfully stored offline file.
     await markBackendDownloaded(storedItem);
     return storedItem;
+  },
+
+  saveFile: async (track) => {
+    if (!track?.id) throw new Error('This track does not have an ID.');
+    const { streamUrl, downloadUrl } = await audioService.getStreamUrl(track.id);
+    const response = await fetch(downloadUrl || streamUrl, { credentials: 'omit' });
+    if (!response.ok) throw new Error(`Could not save the audio file. Server returned ${response.status}.`);
+    const blob = await response.blob();
+    if (!blob.size) throw new Error('The audio file was empty.');
+    const mime = String(response.headers.get('content-type') || blob.type || '').toLowerCase();
+    const sourceExtension = String(track.fileUrl || '').split('?')[0].match(/\.([a-z0-9]{2,5})$/i)?.[1]?.toLowerCase();
+    const extension = mime.includes('mpeg') || mime.includes('mp3') ? 'mp3'
+      : mime.includes('wav') ? 'wav'
+        : mime.includes('ogg') ? 'ogg'
+          : ['mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac'].includes(sourceExtension) ? sourceExtension
+            : 'mp3';
+    const safeTitle = String(track.title || 'echoo-audio')
+      .normalize('NFKD')
+      .replace(/[^a-z0-9 _-]/gi, '')
+      .trim()
+      .replace(/\s+/g, '-') || 'echoo-audio';
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = objectUrl;
+    link.download = `${safeTitle}.${extension}`;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+    return { fileName: link.download, size: blob.size };
   },
 
   remove: async (trackId) => {
@@ -371,7 +434,7 @@ const downloadService = {
     return [];
   },
 
-  getPlayableUrl: async (trackId) => {
+  getPlayableUrl: async (trackId, { localOnly = false } = {}) => {
     if (!trackId) throw new Error('Downloaded track does not have an ID.');
     const target = readDownloads().find((item) => String(item.id) === String(trackId));
 
@@ -409,6 +472,8 @@ const downloadService = {
         );
       }
     }
+
+    if (localOnly) throw new Error('This audio is not stored on this device. Connect to the internet and download it for offline listening.');
 
     // Backend download rows can exist without a browser-local copy (for example
     // after a fresh login, cleared site storage, or another device). In that
