@@ -1327,3 +1327,9 @@ html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-workstation
     min-height: 45px;
   }
 }
+
+/* This scoped grid override must also honor the mobile one-column mixer. */
+@media (max-width: 599px) {
+  .ec2-broadcast .eam-approved .eam-approved-grid { grid-template-columns: minmax(0, 1fr); }
+  .ec2-broadcast .eam-approved-strip { width: 100%; max-width: 100%; }
+}
