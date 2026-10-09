@@ -896,9 +896,10 @@ export default function CreatorCollectionsWorkspace({
             const date = formatDate(track.createdAt || track.updatedAt);
             const artwork = getArtwork(track, studioName);
             const displayTitle = recordingDisplayTitle(track);
-            const category = track.category || sourceBroadcast?.station?.category || track.genre;
+            const rawCategory = track.category || sourceBroadcast?.station?.category || track.genre;
+            const category = rawCategory === 'Other' ? '' : rawCategory;
             const metadata = [category, track.description].filter(Boolean).join(' • ');
-            const channelName = track.stationName || sourceBroadcast?.station?.name || track.channelName || studioName;
+            const channelName = track.stationName || sourceBroadcast?.station?.name || track.channelName || '';
 
             return (
               <article className="recordings-row" role="row" key={id || track.title}>
@@ -910,7 +911,7 @@ export default function CreatorCollectionsWorkspace({
                   </button>
                   <div className="recordings-copy">
                     <button type="button" className="recordings-title" onClick={() => openRecording(track)}>{displayTitle}</button>
-                    <p>{channelName}</p>
+                    {channelName && <p>{channelName}</p>}
                     {metadata && <span>{metadata}</span>}
                   </div>
                 </div>
