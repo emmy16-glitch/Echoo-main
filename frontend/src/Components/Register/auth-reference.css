@@ -144,14 +144,16 @@
 }
 
 .echoo-auth-reference:not(.is-profile):not(.is-auth-status) .ear-auth-card {
-  justify-self: end;
-  padding: clamp(24px, 2.4vw, 30px);
+  justify-self: center;
+  width: min(472px, calc(100% - 24px));
+  margin: 0 auto;
+  padding: 26px 30px 24px;
   border: 1px solid var(--ear-auth-line);
   border-radius: 24px;
   background: var(--ear-auth-card);
   box-shadow: 0 28px 90px rgba(0, 0, 0, .34);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
+  backdrop-filter: blur(12px) saturate(120%);
+  -webkit-backdrop-filter: blur(12px) saturate(120%);
 }
 
 .echoo-auth-reference.is-signup .ear-auth-card {
@@ -527,7 +529,7 @@
 /* Authentication always fits the usable desktop window. Compact-height rules
  * reduce spacing and control height instead of introducing a document scroll. */
 @media (max-height: 800px) {
-  .ear-auth-shell { padding-block: 10px; }
+  .echoo-auth-reference:not(.is-profile):not(.is-auth-status) .ear-auth-shell { padding-block: 10px; }
   .echoo-auth-reference:not(.is-profile):not(.is-auth-status) .ear-auth-card {
     padding: 14px 24px;
     border-radius: 20px;

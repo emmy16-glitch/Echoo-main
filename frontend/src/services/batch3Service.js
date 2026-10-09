@@ -220,6 +220,17 @@ const batch3Service = {
 
   checkLiveKitReadiness,
 
+  uploadBroadcastCover: async (file) => {
+    const form = new FormData();
+    form.append('cover', file);
+    return apiRequest('/broadcasts/covers', {
+      method: 'POST',
+      body: form,
+      isFormData: true,
+      timeoutMs: 20_000,
+    });
+  },
+
   startBroadcast: async (broadcastId) => {
     const response = await apiRequest(
       `/broadcasts/${encodeURIComponent(broadcastId)}/start`,

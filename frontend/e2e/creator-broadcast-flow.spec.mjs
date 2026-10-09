@@ -164,6 +164,61 @@ test('Creator can choose an existing Echoo Library recording as a media source',
   await expect(mediaSource.getByRole('button', { name: 'Remove' })).toBeVisible();
 });
 
+test('Creator must upload a compact Broadcast Cover before Go Live', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await authenticate(page);
+  await installBaseRoutes(page, []);
+
+  let coverUploads = 0;
+  const coverRequestMethods = [];
+  let starts = 0;
+  await page.route('**/api/broadcasts/covers', async (route) => {
+    coverRequestMethods.push(route.request().method());
+    if (route.request().method() === 'OPTIONS') {
+      await route.fulfill({
+        status: 204,
+        headers: {
+          'access-control-allow-origin': '*',
+          'access-control-allow-methods': 'POST, OPTIONS',
+          'access-control-allow-headers': 'authorization, content-type',
+          'access-control-allow-credentials': 'true',
+        },
+      });
+      return;
+    }
+    if (route.request().method() !== 'POST') {
+      await route.continue();
+      return;
+    }
+    coverUploads += 1;
+    await fulfill(route, { coverArt: '/uploads/broadcast-covers/test-cover.png' });
+  });
+  await page.route('**/api/broadcasts/*/start', async (route) => {
+    starts += 1;
+    await fulfill(route, { id: BROADCAST_ID });
+  });
+
+  await page.goto('/creator-studio');
+  const goLive = page.getByRole('button', { name: 'Go Live' });
+  await expect(goLive).toBeVisible();
+  await goLive.click();
+  await expect(page.getByRole('alert')).toContainText('Add a Broadcast Cover before going live.');
+  expect(starts).toBe(0);
+
+  await page.locator('#ec2-broadcast-cover').setInputFiles({
+    name: 'broadcast-cover.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l6sAAAAASUVORK5CYII=', 'base64'),
+  });
+  await page.getByRole('button', { name: 'Use this crop' }).click();
+  await expect.poll(() => coverUploads).toBeGreaterThan(0);
+  expect(coverRequestMethods.filter((method) => method === 'POST')).toHaveLength(1);
+  await expect(page.getByRole('button', { name: 'Preview Broadcast Cover' })).toBeVisible();
+  await expect(page.locator('.ec2-broadcast-cover-picker img')).toHaveAttribute('src', /test-cover/);
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  expect(starts).toBe(0);
+});
+
 const announceRecording = (page, broadcastId = BROADCAST_ID) => page.evaluate(({ broadcast, id }) => {
   const sampleRate = 48000;
   const frames = 4800;

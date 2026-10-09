@@ -3,6 +3,8 @@ import {
   FiAlertTriangle,
   FiClock,
   FiCopy,
+  FiEye,
+  FiImage,
   FiLoader,
   FiRadio,
   FiX,
@@ -11,6 +13,7 @@ import {
 import CreatorAudioMixer from './CreatorAudioMixer';
 import batch2Service from '../../services/batch2Service';
 import batch3Service from '../../services/batch3Service';
+import { buildMediaUrl } from '../../services/api';
 import {
   ensureEchooMixerOutputTrack,
   getEchooMixerState,
@@ -137,6 +140,9 @@ const CreatorLiveConnectedWorkspace = ({
   const [, setStationId] = useState('');
   const [title, setTitle] = useState('');
   const [serviceArtwork, setServiceArtwork] = useState('');
+  const [coverUploading, setCoverUploading] = useState(false);
+  const coverUploadInFlightRef = useRef(false);
+  const [coverPreviewOpen, setCoverPreviewOpen] = useState(false);
   const [description, setDescription] = useState('');
   const [realtimeQualityProfile, setRealtimeQualityProfile] = useState(getSavedRealtimeAudioProfile);
   const [savedBroadcast, setSavedBroadcast] = useState(null);
@@ -711,27 +717,36 @@ const CreatorLiveConnectedWorkspace = ({
     return canonicalStation;
   }, []);
 
-  const onServiceArtwork = (event) => {
+  const onServiceArtwork = async (event) => {
+    if (coverUploadInFlightRef.current) return;
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      setError('Service flyer must be JPG, PNG or WebP.');
+      setError('Broadcast Cover must be a JPG, PNG or WebP image.');
       return;
     }
     if (file.size > 2 * 1024 * 1024) {
-      setError('Service flyer must be 2 MB or smaller.');
+      setError('Broadcast Cover must be 2 MB or smaller.');
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        setServiceArtwork(reader.result);
-        setError('');
-      }
-    };
-    reader.onerror = () => setError('Could not read the service flyer. Please try again.');
-    reader.readAsDataURL(file);
+    coverUploadInFlightRef.current = true;
+    setCoverUploading(true);
+    setError('');
+    try {
+      const response = await batch3Service.uploadBroadcastCover(file);
+      const coverArt = response?.data?.coverArt;
+      if (!coverArt) throw new Error('Broadcast Cover upload failed. Please try again.');
+      setServiceArtwork(coverArt);
+      setSavedBroadcast((current) => current
+        ? { ...current, coverArt, eventArtwork: coverArt }
+        : current);
+    } catch (uploadError) {
+      setError(uploadError?.message || 'Broadcast Cover upload failed. Please try again.');
+    } finally {
+      coverUploadInFlightRef.current = false;
+      setCoverUploading(false);
+    }
   };
 
   const selectedStation = useMemo(
@@ -797,6 +812,14 @@ const CreatorLiveConnectedWorkspace = ({
 
   const goLive = async () => {
     if (goingLive || currentLiveBroadcast?.id) return;
+    if (coverUploading) {
+      setError('Wait for the Broadcast Cover upload to finish before going live.');
+      return;
+    }
+    if (!serviceArtwork) {
+      setError('Add a Broadcast Cover before going live.');
+      return;
+    }
 
     const clickStartedAt = performance.now();
     let broadcast = null;
@@ -1340,7 +1363,35 @@ const CreatorLiveConnectedWorkspace = ({
                 <strong>{liveStation?.category || 'Your Echoo Channel'}</strong>
               </div>
               <div className="ec2-broadcast-identity ec2-broadcast-identity--hero" aria-label="This broadcast">
-                <div className="ec2-service-field-heading"><label htmlFor="ec2-broadcast-title">Title for this broadcast</label><label className="ec2-service-flyer-picker" htmlFor="ec2-service-flyer">Service flyer{serviceArtwork ? ' ✓' : ' (optional)'}<input id="ec2-service-flyer" type="file" accept="image/jpeg,image/png,image/webp" onChange={onServiceArtwork} disabled={goingLive || ending} /></label>{serviceArtwork && <button type="button" className="ec2-service-flyer-remove" onClick={() => setServiceArtwork('')} aria-label="Remove service flyer">Remove</button>}</div>
+                <div className="ec2-service-field-heading">
+                  <label htmlFor="ec2-broadcast-title">Title for this broadcast</label>
+                  <div className="ec2-broadcast-cover-control">
+                    <label className="ec2-broadcast-cover-picker" htmlFor="ec2-broadcast-cover" aria-busy={coverUploading || undefined} aria-disabled={coverUploading || goingLive || ending || undefined}>
+                      {serviceArtwork
+                        ? <img src={buildMediaUrl(serviceArtwork)} alt="" />
+                        : coverUploading
+                          ? <FiLoader className="ec2-cover-uploading" aria-hidden="true" />
+                          : <FiImage aria-hidden="true" />}
+                      <span>{coverUploading ? 'Uploading…' : 'Broadcast Cover'}</span>
+                      <input
+                        id="ec2-broadcast-cover"
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        onChange={onServiceArtwork}
+                        disabled={goingLive || ending || coverUploading}
+                      />
+                    </label>
+                    {serviceArtwork && (
+                      <button
+                        type="button"
+                        className="ec2-broadcast-cover-preview"
+                        onClick={() => setCoverPreviewOpen(true)}
+                        aria-label="Preview Broadcast Cover"
+                        title="Preview Broadcast Cover"
+                      ><FiEye aria-hidden="true" /></button>
+                    )}
+                  </div>
+                </div>
                 <input
                   id="ec2-broadcast-title"
                   type="text"
@@ -1505,6 +1556,23 @@ const CreatorLiveConnectedWorkspace = ({
         qualityProfile={realtimeQualityProfile}
         onQualityProfileChange={(value) => setRealtimeQualityProfile(saveRealtimeAudioProfile(value))}
       />
+
+      {coverPreviewOpen && serviceArtwork && (
+        <div
+          className="ec2-cover-preview-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setCoverPreviewOpen(false);
+          }}
+        >
+          <section className="ec2-cover-preview-dialog" role="dialog" aria-modal="true" aria-label="Broadcast Cover preview">
+            <button type="button" className="ec2-cover-preview-close" onClick={() => setCoverPreviewOpen(false)} aria-label="Close preview">
+              <FiX aria-hidden="true" />
+            </button>
+            <img src={buildMediaUrl(serviceArtwork)} alt="Broadcast Cover preview" />
+          </section>
+        </div>
+      )}
 
       {confirmEndOpen && (
         <div

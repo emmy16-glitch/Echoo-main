@@ -5,7 +5,7 @@ const COLLECTION_ID = '507f1f77bcf86cd799439221';
 
 const fulfill = (route, data) => route.fulfill({ json: { data } });
 
-test('Channel Collections use a readable two-column row and open the selected Collection', async ({ page }) => {
+test('Channel Collections show collection artwork and a styled action that opens the selected Collection', async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem('echooActiveExperience', 'listener');
   });
@@ -26,6 +26,7 @@ test('Channel Collections use a readable two-column row and open the selected Co
     id: COLLECTION_ID,
     title: 'School of Doctrine - Day 01 with a deliberately long readable title',
     broadcastCount: 6,
+    coverArt: 'https://echoo.digi02.org/uploads/audio-covers/collection-cover.jpg',
   }]));
   await page.route('**/api/**', (route) => route.fallback());
 
@@ -36,7 +37,9 @@ test('Channel Collections use a readable two-column row and open the selected Co
   await expect(row).toBeVisible();
   await expect(row.getByText(/School of Doctrine/)).toBeVisible();
   await expect(row.getByText('6 recordings')).toBeVisible();
+  await expect(row.locator('.b3-collection-art')).toHaveAttribute('src', 'https://echoo.digi02.org/uploads/audio-covers/collection-cover.jpg');
   await expect(row.getByRole('button', { name: 'View' })).toBeVisible();
+  await expect(row.getByRole('button', { name: 'View' })).toHaveCSS('border-radius', '8px');
 
   const layout = await row.evaluate((node) => {
     const title = node.querySelector('strong')?.getBoundingClientRect();
