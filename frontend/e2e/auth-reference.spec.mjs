@@ -20,7 +20,9 @@ const assertAuthFitsViewport = async (page) => {
 
 const assertSignupViewportBehavior = async (page) => {
   await assertNoHorizontalOverflow(page);
-  if (page.viewportSize().width > 700) await assertAuthFitsViewport(page);
+  if (page.viewportSize().width > 700 || page.viewportSize().height >= 461) {
+    await assertAuthFitsViewport(page);
+  }
 };
 
 const toggleEyeWithoutDrift = async (page, input, showName, hideName) => {
@@ -76,6 +78,10 @@ test('Echoo photographed signup preserves fields, policy consent and responsive 
   await expect(page.getByRole('heading', { name: 'Create an account' })).toHaveCSS('color', 'rgb(105, 168, 255)');
   await expect(page.getByText('Create your Echoo account to get started.')).toBeVisible();
   await expect(page.getByText('Continue with Google')).toHaveCount(0);
+  await assertSignupViewportBehavior(page);
+  if (page.viewportSize().width <= 560) {
+    await page.screenshot({ path: `design-qa-evidence/auth-approved/auth-signup-${test.info().project.name}.png` });
+  }
   await expect(page.getByLabel('Full name')).toBeVisible();
   await page.getByLabel('Full name').fill('New Echoo Listener');
   await expect(page.getByLabel('Username')).toBeVisible();
@@ -118,6 +124,42 @@ test('Echoo photographed signup preserves fields, policy consent and responsive 
   await expect(page.getByRole('button', { name: 'Login', exact: true })).toBeVisible();
   await assertSignupViewportBehavior(page);
   expect(browserErrors).toEqual([]);
+});
+
+test('signup card fits and stays centered in an Electron-sized desktop viewport', async ({ page }) => {
+  test.skip(test.info().project.name !== 'desktop-1280');
+  await page.setViewportSize({ width: 1365, height: 672 });
+  await page.goto('/register');
+
+  await assertAuthFitsViewport(page);
+  const viewport = page.viewportSize();
+  const card = await page.locator('.ear-auth-card').boundingBox();
+  expect(card).not.toBeNull();
+  expect(card.y).toBeGreaterThanOrEqual(0);
+  expect(card.y + card.height).toBeLessThanOrEqual(viewport.height + 1);
+  expect(Math.abs((card.x + card.width / 2) - viewport.width / 2)).toBeLessThan(2);
+  await expect(page.getByRole('button', { name: 'Create account' })).toBeInViewport();
+  await expect(page.getByRole('button', { name: 'Continue listening without an account' })).toBeInViewport();
+  await expect(page.getByRole('button', { name: 'Login', exact: true })).toBeInViewport();
+  await page.screenshot({ path: 'design-qa-evidence/auth-approved/auth-signup-short-1365x672.png' });
+});
+
+test('login card fits and stays centered in an Electron-sized desktop viewport', async ({ page }) => {
+  test.skip(test.info().project.name !== 'desktop-1280');
+  await page.setViewportSize({ width: 1365, height: 672 });
+  await page.goto('/login');
+
+  await assertAuthFitsViewport(page);
+  const viewport = page.viewportSize();
+  const card = await page.locator('.ear-auth-card').boundingBox();
+  expect(card).not.toBeNull();
+  expect(card.y).toBeGreaterThanOrEqual(0);
+  expect(card.y + card.height).toBeLessThanOrEqual(viewport.height + 1);
+  expect(Math.abs((card.x + card.width / 2) - viewport.width / 2)).toBeLessThan(2);
+  await expect(page.getByRole('button', { name: 'Login', exact: true })).toBeInViewport();
+  await expect(page.getByRole('button', { name: 'Sign up', exact: true })).toBeInViewport();
+  await expect(page.getByRole('button', { name: 'Continue listening without an account' })).toBeInViewport();
+  await page.screenshot({ path: 'design-qa-evidence/auth-approved/auth-login-short-1365x672.png' });
 });
 
 test('login accepts both @username and email and exposes working recovery', async ({ page }) => {
@@ -166,6 +208,10 @@ test('login accepts both @username and email and exposes working recovery', asyn
   await expect(page.getByText('Welcome back, please log in to your account.')).toBeVisible();
   await expect(page.getByText('Continue with Google')).toHaveCount(0);
   await expect(page.getByLabel('Username or email')).toBeVisible();
+  if (page.viewportSize().width <= 560) {
+    await assertAuthFitsViewport(page);
+    await page.screenshot({ path: `design-qa-evidence/auth-approved/auth-login-${test.info().project.name}.png` });
+  }
 
   await page.getByLabel('Username or email').fill('@echo-listener');
   await page.getByLabel('Password', { exact: true }).fill('Password123!');

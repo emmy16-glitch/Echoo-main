@@ -22,3 +22,12 @@ The product photo has a different studio composition from the reference artwork,
 - The Google Fonts stylesheet is fulfilled locally in the login flow test so a transient CDN failure cannot make the interaction check nondeterministic; product fallback fonts remain available.
 - Frontend production build completed successfully. Vite emitted the repository's existing large-chunk advisory (>500 kB); it is unrelated to this visual change.
 - Direct side-by-side visual comparison was performed on the reference and captured Login/Signup states. The `12ui` CLI installer could not start under this Windows environment (`spawn EINVAL`); browser-based inspection and direct viewport measurements were used instead.
+# Authentication compact-window follow-up — 2026-10-09
+
+- **Source:** `C:\Users\member\Pictures\Screenshots\Screenshot 2026-10-09 171230.png`. The app frame leaves a 1365×672 renderer viewport; the sign-up card in the source extends below the window, hiding the footer action.
+- **Implementation captures:** `frontend/design-qa-evidence/auth-approved/auth-signup-short-1365x672.png` and `auth-login-short-1365x672.png`; mobile captures at 320×568 and 390×844 are in the same directory.
+- **Compared state:** clean sign-up and sign-in pages, no account data entered. The original microphone-studio background remains visible behind the glass card.
+- **Result:** At 1365×672, both cards are centered and all form controls, actions, and account-switch links are within the viewport. At 320×568 and 390×844, both forms also fit without document scrolling or horizontal overflow. At very short viewport heights (460px or less, e.g. with a mobile keyboard open), natural vertical scrolling remains available so focused fields are reachable.
+- **Root cause/fix:** The approved auth stylesheet overrode older compact-height rules. Added scoped compact-height rules in the approved stylesheet for desktop and mobile without changing the background treatment or auth flow.
+- **Verification:** Playwright auth regression group: 8 passed, 4 skipped (other project-specific cases); frontend lint and production build passed; desktop package tests: 83 passed.
+- **Result:** PASS for tested viewports.
