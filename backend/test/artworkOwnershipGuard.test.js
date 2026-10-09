@@ -3,11 +3,12 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 const read = (file) => readFile(new URL(file, import.meta.url), 'utf8');
 
-test('Go Live accepts its own flyer and never saves permanent Channel cover as service artwork', async () => {
+test('Go Live requires its uploaded Broadcast Cover and never borrows permanent Channel artwork', async () => {
   const studio = await read('../../frontend/src/Components/CreatorStudio/CreatorLiveConnectedWorkspace.jsx');
   assert.match(studio, /coverArt: serviceArtwork \|\| null/);
   assert.doesNotMatch(studio, /coverArt: station\.coverArt \|\| station\.logo/);
-  assert.match(studio, /id="ec2-service-flyer"/);
+  assert.match(studio, /id="ec2-broadcast-cover"/);
+  assert.match(studio, /Add a Broadcast Cover before going live/);
   assert.match(studio, /image\/jpeg.*image\/png.*image\/webp/);
 });
 
