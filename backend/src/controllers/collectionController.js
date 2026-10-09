@@ -137,6 +137,31 @@ export async function getPublicCollectionsForStation(req, res, next) {
   }
 }
 
+// Browse published Collections without first opening a Channel profile.
+// This is discovery, never a user's personal saved-Collections library.
+export async function getPublicCollections(req, res, next) {
+  try {
+    const page = Math.max(1, Math.floor(Number(req.query.page) || 1));
+    const limit = Math.min(50, Math.max(1, Math.floor(Number(req.query.limit) || 20)));
+    const collections = await populateCollection(
+      Playlist.find({ mode: 'series', isDeleted: false, isPublic: true })
+        .sort({ updatedAt: -1, _id: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+    );
+    const saved = await savedIdSet(req.userId);
+    // A Channel marked private cannot be promoted by a public Collection.
+    const visible = collections.filter((item) => item.station && item.station.isPublic !== false);
+    return res.status(200).json({
+      data: visible.map((item) => serialize(item, req.userId, saved)),
+      pagination: { page, limit, hasMore: collections.length === limit },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (caught) {
+    return next(caught);
+  }
+}
+
 export async function getCollection(req, res, next) {
   try {
     if (!validId(req.params.id)) return error(res, 400, 'INVALID_COLLECTION_ID', 'Invalid Collection');
