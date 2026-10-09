@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useOutletContext, useParams } from 'react-router-dom';
-import { FiArrowLeft, FiCheck, FiDownload, FiPause, FiPlay, FiShare2, FiUsers } from 'react-icons/fi';
+import { FiArrowLeft, FiCheck, FiDownload, FiHeart, FiPause, FiPlay, FiShare2, FiUsers } from 'react-icons/fi';
 
 import audioService from '../../services/audioService';
+import batch1Service from '../../services/batch1Service';
 import downloadService from '../../services/downloadService';
 import followService from '../../services/followService';
 import savedMomentService from '../../services/savedMomentService';
@@ -37,6 +38,8 @@ const ListenerAudioDetail = () => {
   const [notice, setNotice] = useState('');
   const [savedMomentIds, setSavedMomentIds] = useState(() => new Set());
   const [following, setFollowing] = useState(false);
+  const [savedAudio, setSavedAudio] = useState(false);
+  const [savingAudio, setSavingAudio] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   const [transcript, setTranscript] = useState(previewMode ? referenceTranscript : []);
   const [transcriptLoading, setTranscriptLoading] = useState(!previewMode);
@@ -66,6 +69,11 @@ const ListenerAudioDetail = () => {
       const next = response?.data || response;
       if (!next?.id) throw new Error('This recording could not be found.');
       setTrack(next);
+      batch1Service.checkSaved(next.id).then((result) => {
+        if (loadSequence.current === sequence) setSavedAudio(Boolean(result?.data?.saved));
+      }).catch(() => {
+        if (loadSequence.current === sequence) setSavedAudio(false);
+      });
       setTranscript(mapTranscript(transcriptResponse?.data || []));
       setTranscriptLoading(false);
       const momentResponse = await savedMomentService.list({ limit: 100 }).catch(() => ({ data: [] }));
@@ -255,6 +263,22 @@ const ListenerAudioDetail = () => {
     try { await downloadService.download(normalizedTrack); setNotice('Recording downloaded.'); }
     catch { setError('Could not download this recording.'); }
   };
+  const toggleSavedAudio = async () => {
+    if (!normalizedTrack || savingAudio) return;
+    const wasSaved = savedAudio;
+    setSavedAudio(!wasSaved);
+    setSavingAudio(true);
+    try {
+      if (wasSaved) await batch1Service.unsaveTrack(normalizedTrack.id);
+      else await batch1Service.saveTrack(normalizedTrack.id);
+      setNotice(wasSaved ? 'Removed from Saved audio.' : 'Saved to your Library.');
+    } catch (saveError) {
+      setSavedAudio(wasSaved);
+      setError(saveError?.message || 'Could not update Saved audio.');
+    } finally {
+      setSavingAudio(false);
+    }
+  };
   const share = async () => {
     try {
       const publicUrl = getPublicAppUrl(`/listen/audio/${encodeURIComponent(audioId || '')}`);
@@ -299,7 +323,7 @@ const ListenerAudioDetail = () => {
         <div className="replay-copy"><h1 id="replay-title">{normalizedTrack.title}</h1><strong>{normalizedTrack.genre}</strong><p>{normalizedTrack.description || 'No description is available for this recording.'}</p><div className="replay-creator"><span>{normalizedTrack.artistName.charAt(0)}</span><span><strong>{normalizedTrack.artistName}</strong><small>@{normalizedTrack.artistName.toLowerCase().replace(/\s+/g, '')}</small></span><FiCheck aria-label="Verified" /><em><FiUsers /> {Number(normalizedTrack.sourceBroadcast?.peakListeners || normalizedTrack.playCount || 0).toLocaleString()} listens</em></div></div>
       </section>
 
-      <div className="replay-actions"><EchooButton icon={playing ? <FiPause /> : <FiPlay />} onClick={play}>{playing ? 'Pause' : 'Play'}</EchooButton><EchooButton variant="secondary" icon={<FiCheck />} onClick={toggleFollow}>{following ? 'Following' : 'Follow'}</EchooButton><EchooButton variant="secondary" icon={<FiShare2 />} onClick={share}>Share</EchooButton><EchooButton variant="secondary" icon={<FiDownload />} onClick={download}>Download</EchooButton></div>
+      <div className="replay-actions"><EchooButton icon={playing ? <FiPause /> : <FiPlay />} onClick={play}>{playing ? 'Pause' : 'Play'}</EchooButton><EchooButton variant="secondary" icon={<FiHeart />} onClick={toggleSavedAudio} disabled={savingAudio}>{savingAudio ? 'Saving…' : savedAudio ? 'Saved' : 'Save'}</EchooButton><EchooButton variant="secondary" icon={<FiCheck />} onClick={toggleFollow}>{following ? 'Following' : 'Follow'}</EchooButton><EchooButton variant="secondary" icon={<FiShare2 />} onClick={share}>Share</EchooButton><EchooButton variant="secondary" icon={<FiDownload />} onClick={download}>Download</EchooButton></div>
 
       <section className="replay-timeline" aria-label="Recording audio timeline"><Waveform progress={progress} onSeek={seekPercent} /><div><span>{formatTime(displayCurrent)}</span><span>{formatTime(displayDuration)}</span></div></section>
       <Tabs items={tabs} value={activeTab} onChange={setActiveTab} ariaLabel="Recording sections" className="replay-tabs" />
