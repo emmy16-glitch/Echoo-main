@@ -1,0 +1,203 @@
+/* Approved Echoo authentication: one quiet navy card over the actual studio
+ * photograph. Scope this layer to account entry, never profile setup. */
+.echoo-auth-reference:is(.is-login,.is-signup,.is-recovery) {
+  --ear-blue: #145bf4;
+  --ear-blue-dark: #0f4bd0;
+  --ear-auth-card: #0d203c;
+  --ear-auth-line: #2f4665;
+  min-height: 100dvh;
+  height: auto;
+  overflow-x: clip;
+  overflow-y: auto;
+  background: #061426;
+  color: #f4f8ff;
+}
+.echoo-auth-reference:is(.is-login,.is-signup,.is-recovery) .ear-auth-backdrop {
+  background-position: center 48%;
+  background-size: cover;
+}
+.echoo-auth-reference:is(.is-login,.is-signup,.is-recovery) .ear-auth-backdrop::after {
+  background: linear-gradient(90deg, rgba(3,12,27,.55), rgba(3,12,27,.62));
+}
+.echoo-auth-reference:is(.is-login,.is-signup,.is-recovery) .ear-auth-shell {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  min-height: 100dvh;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  place-items: center;
+  padding: 24px 18px;
+}
+.echoo-auth-reference:is(.is-login,.is-signup,.is-recovery) .ear-auth-card {
+  width: min(472px, 100%);
+  max-width: 100%;
+  justify-self: center;
+  padding: 26px 30px 24px;
+  border: 1px solid #2f4665;
+  border-radius: 22px;
+  background: #0d203c;
+  box-shadow: 0 24px 76px rgba(2,10,24,.48);
+  animation: echoo-approved-auth-entry 230ms ease-out both;
+}
+@keyframes echoo-approved-auth-entry {
+  from { opacity: 0; transform: translateY(7px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.echoo-auth-reference:is(.is-login,.is-signup,.is-recovery) .ear-card-brand {
+  justify-content: center;
+  min-height: 34px;
+  margin: 0 0 15px;
+  font-family: inherit;
+  font-size: 21px;
+  font-weight: 760;
+}
+.echoo-auth-reference:is(.is-login,.is-signup,.is-recovery) .ear-logo-mark {
+  width: 27px;
+  height: 34px;
+  margin: 0;
+}
+.echoo-auth-reference:is(.is-login,.is-signup,.is-recovery) .ear-form-heading {
+  margin: 0 0 19px;
+  text-align: center;
+}
+.echoo-auth-reference:is(.is-login,.is-signup,.is-recovery) .ear-form-heading h1 {
+  color: #f4f8ff;
+  font-family: inherit;
+  font-size: clamp(26px, 3.2vw, 32px);
+  font-weight: 760;
+  line-height: 1.16;
+  letter-spacing: -.035em;
+}
+.echoo-auth-reference:is(.is-login,.is-signup,.is-recovery) .ear-form-heading p {
+  margin: 7px 0 0;
+  color: #b6c9e4;
+  font-size: 13px;
+}
+.echoo-auth-reference:is(.is-login,.is-signup,.is-recovery) .ear-form {
+  gap: 11px;
+}
+.echoo-auth-reference:is(.is-login,.is-signup,.is-recovery) .ear-field {
+  gap: 5px;
+}
+.echoo-auth-reference:is(.is-login,.is-signup,.is-recovery) .ear-field-label-row label {
+  color: #f4f8ff;
+  font-size: 13px;
+  line-height: 1.3;
+}
+.echoo-auth-reference:is(.is-login,.is-signup,.is-recovery) .ear-input-shell {
+  min-height: 45px;
+  border: 1px solid #344e73;
+  border-radius: 10px;
+  background: #1a3355;
+}
+.echoo-auth-reference:is(.is-login,.is-signup,.is-recovery) .ear-input-shell:hover {
+  background: #203c60;
+  border-color: #6b8ab6;
+}
+.echoo-auth-reference:is(.is-login,.is-signup,.is-recovery) .ear-input-shell:focus-within {
+  border-color: #91beff;
+  box-shadow: 0 0 0 3px rgba(20,91,244,.22);
+}
+.echoo-auth-reference:is(.is-login,.is-signup,.is-recovery) .ear-input-shell input {
+  height: 43px;
+  font-family: inherit;
+  font-size: 14px;
+  color: #f4f8ff;
+}
+.echoo-auth-reference:is(.is-login,.is-signup,.is-recovery) .ear-input-icon {
+  color: #91beff;
+}
+.echoo-auth-reference:is(.is-login,.is-signup,.is-recovery) .ear-field-action {
+  min-height: 16px;
+}
+.echoo-auth-reference:is(.is-login,.is-signup,.is-recovery) .ear-forgot,
+.echoo-auth-reference:is(.is-login,.is-signup,.is-recovery) .ear-auth-switch button {
+  color: #a8cbff;
+  font-size: 13px;
+}
+.echoo-auth-reference:is(.is-login,.is-signup,.is-recovery) .ear-submit,
+.echoo-auth-reference:is(.is-login,.is-signup,.is-recovery) .ear-guest-listen {
+  min-height: 44px;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 740;
+}
+.echoo-auth-reference:is(.is-login,.is-signup,.is-recovery) .ear-guest-listen {
+  border-color: #456086;
+  background: transparent;
+  color: #f4f8ff;
+}
+.echoo-auth-reference:is(.is-login,.is-signup,.is-recovery) .ear-guest-listen:hover {
+  border-color: #91beff;
+  background: rgba(145,190,255,.08);
+}
+.echoo-auth-reference:is(.is-login,.is-signup,.is-recovery) .ear-auth-switch {
+  margin: 0;
+  color: #bdcbe0;
+  font-size: 13px;
+}
+.ear-policy-agreement {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 2px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #e8f0ff;
+}
+.ear-policy-agreement input {
+  appearance: auto;
+  flex: 0 0 17px;
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  accent-color: #145bf4;
+  cursor: pointer;
+}
+.ear-policy-agreement label { cursor: pointer; }
+.ear-policy-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #a8cbff;
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.ear-policy-agreement input:focus-visible,
+.ear-policy-link:focus-visible {
+  outline: 2px solid #91beff;
+  outline-offset: 3px;
+}
+.echoo-auth-reference:is(.is-login,.is-signup,.is-recovery) .ear-error {
+  margin: -2px 0 0;
+  color: #ffb3ac;
+  font-size: 12px;
+  line-height: 1.45;
+}
+@media (max-width: 560px) {
+  .echoo-auth-reference:is(.is-login,.is-signup,.is-recovery) .ear-auth-shell {
+    min-height: 100dvh;
+    height: auto;
+    padding: 20px 12px 34px;
+  }
+  .echoo-auth-reference:is(.is-login,.is-signup,.is-recovery) .ear-auth-card {
+    width: 100%;
+    padding: 23px 19px 22px;
+    border-radius: 19px;
+  }
+}
+@media (max-height: 760px) and (min-width: 561px) {
+  .echoo-auth-reference:is(.is-login,.is-signup,.is-recovery) .ear-auth-shell { padding-block: 12px; }
+  .echoo-auth-reference:is(.is-login,.is-signup,.is-recovery) .ear-auth-card { padding: 18px 24px; }
+  .echoo-auth-reference:is(.is-login,.is-signup,.is-recovery) .ear-card-brand { margin-bottom: 9px; }
+  .echoo-auth-reference:is(.is-login,.is-signup,.is-recovery) .ear-form-heading { margin-bottom: 11px; }
+  .echoo-auth-reference:is(.is-login,.is-signup,.is-recovery) .ear-form { gap: 7px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .echoo-auth-reference:is(.is-login,.is-signup,.is-recovery) .ear-auth-card { animation: none; }
+}
