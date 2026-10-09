@@ -130,7 +130,7 @@ export const normalizeBroadcast = (broadcast) => {
   const eventArtwork = buildMediaUrl(
     broadcast.eventArtwork || broadcast.coverArt || broadcast.artwork || broadcast.image || null
   );
-  const coverArt = replayAudio?.coverArt || eventArtwork || normalizedStation?.brandCover || null;
+  const coverArt = eventArtwork || replayAudio?.coverArt || normalizedStation?.brandCover || null;
   const status = broadcast.status || 'scheduled';
 
   return {
