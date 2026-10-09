@@ -1218,7 +1218,9 @@
 /* Narrow phone: preserve usable monitoring/fader controls without forcing
    each source card past the compact source-grid contract. */
 @media (max-width: 359px) {
-  .eam-approved-strip { min-height: 296px; padding: 10px; }
+  /* Source cards must remain the same readable 318px height on 320px devices.
+     Internal controls below are already compacted to fit without clipping. */
+  .eam-approved-strip { box-sizing: border-box; height: 318px; min-height: 318px; max-height: 318px; padding: 10px; }
   .eam-approved-strip > header { min-height: 37px; }
   .eam-approved-controls { min-height: 118px; height: 118px; margin-top: 0; margin-bottom: 3px; }
   .eam-approved-meter-area, .eam-approved-db, .eam-approved-fader,
