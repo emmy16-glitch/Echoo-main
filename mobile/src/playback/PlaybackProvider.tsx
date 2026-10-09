@@ -20,6 +20,7 @@ import { DefaultReconnectPolicy } from 'livekit-client';
 import {
   getAudioStreamUrl,
   getListenerLiveKitCredentials,
+  syncListeningProgress,
 } from '@/src/services/echooApi';
 import {
   ensureLiveAudioNotificationPermission,
@@ -127,6 +128,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   const liveCredentialsRef = useRef<LiveCredentials | null>(null);
   const liveRecoveryGenerationRef = useRef(0);
   const liveRecoveryRunningRef = useRef(false);
+  const audioProgressRef = useRef({ trackId: '', position: 0, duration: 0, sentPosition: 0, lastSentAt: 0, wasPlaying: false, completed: false });
 
   const [current, setCurrentState] = useState<PlaybackItem | null>(null);
   const [queue, setQueueState] = useState<AudioPlaybackItem[]>([]);
@@ -153,7 +155,22 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     setQueueIndexState(index);
   }, []);
 
+  const persistAudioProgress = useCallback((completed = false, force = false) => {
+    const state = audioProgressRef.current;
+    const active = currentRef.current;
+    if (active?.kind !== 'audio' || active.id !== state.trackId || !state.duration || state.position < 1 || state.completed) return;
+    const now = Date.now();
+    if (!completed && !force && now - state.lastSentAt < 15_000) return;
+    if (!completed && Math.abs(state.position - state.sentPosition) < 1.5) return;
+    state.lastSentAt = now;
+    state.sentPosition = state.position;
+    state.completed = completed;
+    // Account sync is best-effort and never blocks playback, live audio, or local downloads.
+    void syncListeningProgress({ trackId: state.trackId, positionSeconds: state.position, durationSeconds: state.duration, completed }).catch(() => undefined);
+  }, []);
+
   const releaseAudio = useCallback(() => {
+    persistAudioProgress(false, true);
     statusSubscriptionRef.current?.remove();
     statusSubscriptionRef.current = null;
 
@@ -165,7 +182,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
       player.pause();
       player.remove();
     }
-  }, []);
+  }, [persistAudioProgress]);
 
   const clearLiveConnection = useCallback(() => {
     liveRecoveryGenerationRef.current += 1;
@@ -177,6 +194,22 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const handleAudioStatus = useCallback((status: AudioStatus) => {
+    const active = currentRef.current;
+    if (active?.kind === 'audio' && status.isLoaded && status.duration > 0) {
+      const previous = audioProgressRef.current;
+      const sameTrack = previous.trackId === active.id;
+      const wasPlaying = sameTrack && previous.wasPlaying;
+      audioProgressRef.current = {
+        ...(sameTrack ? previous : { trackId: active.id, sentPosition: 0, lastSentAt: 0, completed: false }),
+        trackId: active.id,
+        position: Math.max(0, status.currentTime),
+        duration: status.duration,
+        wasPlaying: status.playing,
+      };
+      const finished = Boolean((status as AudioStatus & { didJustFinish?: boolean }).didJustFinish) && !repeat;
+      if (finished) persistAudioProgress(true, true);
+      else if (status.playing || wasPlaying) persistAudioProgress(false, wasPlaying && !status.playing);
+    }
     setIsLoading(status.isBuffering || !status.isLoaded);
     setIsPlaying(status.playing);
     setPosition(Math.max(0, status.currentTime * 1000));
@@ -184,7 +217,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     if ((status as any).didJustFinish && !repeat) {
       void playNextRef.current?.();
     }
-  }, [repeat]);
+  }, [persistAudioProgress, repeat]);
 
   const playAudio = useCallback(async (item: AudioPlaybackItem, options: PlayAudioOptions = {}) => {
     if (options.queue?.length) {
@@ -235,6 +268,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
       }
 
       const playableItem = { ...item, fileUrl: playbackUrl };
+      audioProgressRef.current = { trackId: item.id, position: 0, duration: 0, sentPosition: 0, lastSentAt: 0, wasPlaying: false, completed: false };
       setCurrent(playableItem);
       audioStreamExpiresAtRef.current = expiresIn > 0
         ? Date.now() + (expiresIn * 1000)

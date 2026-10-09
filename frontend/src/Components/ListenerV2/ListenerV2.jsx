@@ -45,6 +45,7 @@ import { buildGeneratedStationBrandCoverUrl } from '../../stationBranding/statio
 import AccountExperienceMenu from '../Shared/AccountExperienceMenu';
 import FollowingRecordings from './FollowingRecordings';
 import ContinueListening from './ContinueListening';
+import PublishedCollectionsPreview from './PublishedCollectionsPreview';
 import LiveKitListenerPlayer from '../ListenerLiveExperience/LiveKitListenerPlayer';
 import echooMark from '../Assets/echoo-logo-official.svg';
 import './ListenerV2.css';
@@ -1248,6 +1249,8 @@ const DiscoverCatalog = () => {
           <EmptyState icon={<FiMusic />} title="No recordings yet" />
         )}
       </section>
+
+      <PublishedCollectionsPreview />
 
       <FollowingRecordings excludeIds={recordings.map(idOf)} />
 

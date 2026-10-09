@@ -42,6 +42,8 @@ import {
   getLibraryStats,
   getListeningHistory,
   getMyPlaylists,
+  getPublicCollections,
+  getSavedCollections,
   getSavedAudio,
   hasEchooSession,
 } from '@/src/services/echooApi';
@@ -56,13 +58,14 @@ const emptyStats: EchooLibraryStats = {
   listeningHistory: 0,
 };
 
-type LibraryTab = 'saved' | 'downloads' | 'playlists' | 'stations' | 'history';
+type LibraryTab = 'saved' | 'downloads' | 'playlists' | 'collections' | 'stations' | 'history';
 type SortMode = 'recent' | 'title';
 
 const libraryTabs: { key: LibraryTab; label: string }[] = [
   { key: 'saved', label: 'Saved' },
   { key: 'downloads', label: 'Downloads' },
   { key: 'playlists', label: 'Playlists' },
+  { key: 'collections', label: 'Collections' },
   { key: 'stations', label: 'Stations' },
   { key: 'history', label: 'History' },
 ];
@@ -81,6 +84,9 @@ export default function LibraryScreen() {
   const [stations, setStations] = useState<EchooStation[]>([]);
   const [history, setHistory] = useState<EchooHistoryItem[]>([]);
   const [playlists, setPlaylists] = useState<EchooPlaylist[]>([]);
+  const [savedCollections, setSavedCollections] = useState<EchooPlaylist[]>([]);
+  const [publicCollections, setPublicCollections] = useState<EchooPlaylist[]>([]);
+  const [collectionsError, setCollectionsError] = useState('');
   const [downloads, setDownloads] = useState<LocalDownload[]>([]);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState<LibraryTab>('saved');
@@ -89,7 +95,7 @@ export default function LibraryScreen() {
   const hasLoadedOnce = useRef(false);
 
   const loadLibrary = useCallback(async (force = false, silent = false) => {
-    if (force) setRefreshing(true);
+    if (force && !silent) setRefreshing(true);
     else if (!silent) setLoading(true);
     setError('');
     const activeSession = await hasEchooSession();
@@ -100,6 +106,9 @@ export default function LibraryScreen() {
       setStations([]);
       setHistory([]);
       setPlaylists([]);
+      setSavedCollections([]);
+      setPublicCollections([]);
+      setCollectionsError('');
       setDownloads([]);
       setStats(emptyStats);
       setLoading(false);
@@ -109,13 +118,14 @@ export default function LibraryScreen() {
     }
 
     try {
-      const [nextStats, nextSaved, nextStations, nextHistory, nextPlaylists, nextDownloads] = await Promise.all([
+      const [nextStats, nextSaved, nextStations, nextHistory, nextPlaylists, nextDownloads, collections] = await Promise.all([
         getLibraryStats({ force }),
         getSavedAudio({ force }),
         getFollowedStations({ force }),
         getListeningHistory({ force }),
         getMyPlaylists({ force }).catch(() => []),
         getLocalDownloads().catch(() => []),
+        Promise.allSettled([getSavedCollections({ force }), getPublicCollections({ force })]),
       ]);
       setStats(nextStats);
       setSaved(nextSaved);
@@ -123,6 +133,9 @@ export default function LibraryScreen() {
       setHistory(nextHistory);
       setPlaylists(nextPlaylists);
       setDownloads(nextDownloads);
+      setSavedCollections(collections[0].status === 'fulfilled' ? collections[0].value : []);
+      setPublicCollections(collections[1].status === 'fulfilled' ? collections[1].value : []);
+      setCollectionsError(collections.some((result) => result.status === 'rejected') ? 'Some Collections could not refresh. Pull down to try again.' : '');
     } catch (loadError: any) {
       if (loadError?.code === 'AUTH_REQUIRED' || loadError?.code === 'SESSION_EXPIRED') {
         setSignedIn(false);
@@ -138,7 +151,9 @@ export default function LibraryScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      loadLibrary(false, hasLoadedOnce.current);
+      // Returning from a Channel or Collection refreshes server-backed lists,
+      // including saved audio, History, and Collections, instead of stale cache.
+      loadLibrary(hasLoadedOnce.current, hasLoadedOnce.current);
     }, [loadLibrary])
   );
 
@@ -164,8 +179,8 @@ export default function LibraryScreen() {
       pathname: '/collection' as any,
       params: {
         collectionId: playlist.id,
-        stationId: playlist.owner?.id || '',
-        stationName: playlist.owner?.displayName || '',
+        stationId: playlist.stationId || '',
+        stationName: playlist.stationName || playlist.owner?.displayName || '',
       },
     });
   };
@@ -206,6 +221,7 @@ export default function LibraryScreen() {
     saved: saved.length,
     downloads: downloads.length,
     playlists: playlists.length || stats.playlists,
+    collections: publicCollections.length + savedCollections.filter((item) => !publicCollections.some((entry) => entry.id === item.id)).length,
     stations: stations.length,
     history: history.length,
   };
@@ -249,7 +265,9 @@ export default function LibraryScreen() {
                     : activeTab === 'saved'
                       ? 'saved audio synced to your account'
                       : activeTab === 'playlists'
-                        ? 'playlists and series'
+                        ? 'playlists you created'
+                        : activeTab === 'collections'
+                          ? 'saved and published Collections'
                         : activeTab === 'stations'
                           ? 'followed stations'
                           : 'recent plays'}
@@ -396,6 +414,44 @@ export default function LibraryScreen() {
               </>
             ) : null}
 
+            {activeTab === 'collections' ? (
+              <>
+                {collectionsError ? <ListenerToast message={collectionsError} /> : null}
+                <ListenerSectionHeader title="Saved Collections" />
+                {savedCollections.length ? (
+                  savedCollections.map((collection) => (
+                    <ListenerListRow
+                      key={`saved-${collection.id}`}
+                      title={collection.name}
+                      subtitle={collection.stationName || collection.owner?.displayName || 'Echoo Collection'}
+                      meta={`${collection.trackCount ?? collection.tracks.length} recordings`}
+                      image={collection.coverArt}
+                      fallback={<ListMusic color={palette.blue} size={21} />}
+                      onPress={() => openPlaylist(collection)}
+                    />
+                  ))
+                ) : (
+                  <Text style={styles.inlineEmptyText}>Collections you save will appear here on all your devices.</Text>
+                )}
+                <ListenerSectionHeader title="Explore published Collections" />
+                {publicCollections.length ? (
+                  publicCollections.filter((collection) => !savedCollections.some((savedItem) => savedItem.id === collection.id)).map((collection) => (
+                    <ListenerListRow
+                      key={`public-${collection.id}`}
+                      title={collection.name}
+                      subtitle={collection.stationName || collection.owner?.displayName || 'Echoo Collection'}
+                      meta={`${collection.trackCount ?? collection.tracks.length} recordings`}
+                      image={collection.coverArt}
+                      fallback={<ListMusic color={palette.blue} size={21} />}
+                      onPress={() => openPlaylist(collection)}
+                    />
+                  ))
+                ) : (
+                  <Text style={styles.inlineEmptyText}>Published Collections will appear here when available.</Text>
+                )}
+              </>
+            ) : null}
+
             {activeTab === 'stations' ? (
               <>
             <ListenerSectionHeader title="Followed stations" />
@@ -493,7 +549,7 @@ function LibraryShortcut({
 
 function LibraryGlyph({ activeTab }: { activeTab: LibraryTab }) {
   if (activeTab === 'downloads') return <Download color="#FFFFFF" size={23} />;
-  if (activeTab === 'playlists') return <ListMusic color="#FFFFFF" size={23} />;
+  if (activeTab === 'playlists' || activeTab === 'collections') return <ListMusic color="#FFFFFF" size={23} />;
   if (activeTab === 'stations') return <Radio color="#FFFFFF" size={23} />;
   if (activeTab === 'history') return <History color="#FFFFFF" size={23} />;
   return <Heart color="#FFFFFF" fill="#FFFFFF" size={23} />;

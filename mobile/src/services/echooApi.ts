@@ -109,7 +109,9 @@ export type EchooPlaylist = {
   mode?: 'playlist' | 'series';
   coverArt?: string | null;
   stationId?: string;
+  stationName?: string;
   trackCount?: number;
+  isSaved?: boolean;
   followerCount?: number;
   updatedAt?: string;
   createdAt?: string;
@@ -561,6 +563,7 @@ export const normalizePlaylist = (playlist: any): EchooPlaylist => {
     mode: playlist?.mode === 'series' ? 'series' : 'playlist',
     coverArt: normalizeCoverArt(playlist?.coverArt, `/playlists/${id}/cover-art`),
     stationId: playlist?.stationId || playlist?.station?.id || playlist?.station?._id || '',
+    stationName: playlist?.stationName || playlist?.station?.name || '',
     trackCount: Number.isFinite(trackCount) ? trackCount : tracks.length,
     followerCount: Number(playlist?.followerCount) || 0,
     updatedAt: playlist?.updatedAt,
@@ -1024,6 +1027,23 @@ export async function getLibraryStats(options: CacheControlOptions = {}): Promis
   };
 }
 
+// Browser and mobile share the same account-authoritative listening history.
+export async function syncListeningProgress({
+  trackId, positionSeconds, durationSeconds, completed = false,
+}: { trackId: string; positionSeconds: number; durationSeconds: number; completed?: boolean }) {
+  if (!trackId || !(await getAccessToken())) return;
+  const duration = Math.max(0, Number(durationSeconds) || 0);
+  if (!duration) return;
+  const progress = completed ? 100 : Math.max(0, Math.min(99.4, (Math.max(0, positionSeconds) / duration) * 100));
+  if (!completed && progress < 0.1) return;
+  await apiRequest('/player/progress', {
+    method: 'POST',
+    auth: 'required',
+    body: JSON.stringify({ trackId, progress, duration, completed }),
+  });
+  await invalidateAccountCache(['/history?page=1&limit=50', '/library/stats']);
+}
+
 export async function getListeningHistory(options: CacheControlOptions = {}) {
   const payload = await cachedAccountRequest('/history?page=1&limit=50', CACHE.account, options);
   return (payload?.data?.history || []).map((item: any): EchooHistoryItem => ({
@@ -1055,6 +1075,19 @@ export async function getPublicCollectionsByOwner(ownerId: string, options: Cach
   return unwrapList(payload).map(normalizePlaylist).filter((item: EchooPlaylist) => item.id);
 }
 
+// Published Collections are public discovery; saved Collections are per-account.
+// Separate endpoints prevent a published series from being mistaken for a saved item.
+export async function getPublicCollections(options: CacheControlOptions = {}): Promise<EchooPlaylist[]> {
+  const payload = await cachedPublicRequest('/playlists?mode=series&page=1&limit=50', CACHE.publicList, CACHE.stale, options);
+  // Mode filters are applied locally for compatibility with older digi02 APIs.
+  return unwrapList(payload).map(normalizePlaylist).filter((item: EchooPlaylist) => item.id && item.mode === 'series');
+}
+
+export async function getSavedCollections(options: CacheControlOptions = {}): Promise<EchooPlaylist[]> {
+  const payload = await cachedAccountRequest('/collections/saved/mine', CACHE.account, options);
+  return unwrapList(payload).map(normalizePlaylist).filter((item: EchooPlaylist) => item.id);
+}
+
 export async function getPublicCollectionsForStation(stationId: string, options: CacheControlOptions = {}) {
   if (!stationId) return [];
   const payload = await cachedPublicRequest(
@@ -1066,13 +1099,29 @@ export async function getPublicCollectionsForStation(stationId: string, options:
   return unwrapList(payload).map(normalizePlaylist).filter((item: EchooPlaylist) => item.id);
 }
 
-export async function getPlaylistById(playlistId: string, options: CacheControlOptions = {}) {
-  const payload = await getCachedJson(
-    `playlist:${API_URL}:${playlistId}`,
-    { maxAgeMs: CACHE.publicList, staleAgeMs: CACHE.stale, forceRefresh: options.force },
-    () => apiRequest(`/playlists/${playlistId}`, { auth: 'optional' })
-  );
+export async function getPlaylistById(playlistId: string, _options: CacheControlOptions = {}) {
+  // Collections use the canonical API so isSaved and currently visible tracks
+  // match the signed-in account. Personal playlists retain the legacy route.
+  // Detail is fetched live: it must not leak private cached data across accounts.
+  const id = encodeURIComponent(playlistId);
+  let payload;
+  try {
+    payload = await apiRequest(`/collections/${id}`, { auth: 'optional' });
+  } catch (error: any) {
+    if (error?.status !== 404) throw error;
+    payload = await apiRequest(`/playlists/${id}`, { auth: 'optional' });
+  }
   return normalizePlaylist(payload?.data);
+}
+
+export async function toggleSavedCollection(collectionId: string, save: boolean) {
+  const id = encodeURIComponent(collectionId);
+  await apiRequest(`/collections/${id}/save`, {
+    method: save ? 'POST' : 'DELETE',
+    auth: 'required',
+  });
+  await invalidateAccountCache(['/collections/saved/mine']);
+  return save;
 }
 
 export async function getMyPlaylists(options: CacheControlOptions = {}) {

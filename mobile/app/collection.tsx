@@ -26,7 +26,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AudioRowActions } from '@/src/components/AudioRowActions';
 import { ListenerEmptyState, ListenerSkeletonRows, ListenerToast, friendlyErrorMessage } from '@/src/components/ListenerV2';
 import { AudioPlaybackItem, usePlayback } from '@/src/playback/PlaybackProvider';
-import { EchooAudio, EchooPlaylist, EchooPlaylistTrack, getPlaylistById } from '@/src/services/echooApi';
+import { EchooAudio, EchooPlaylist, EchooPlaylistTrack, getPlaylistById, hasEchooSession, toggleSavedCollection } from '@/src/services/echooApi';
 import { EchooColors, getEchooColors } from '@/src/theme/echooTheme';
 
 const collectionScreenCache = new Map<string, EchooPlaylist>();
@@ -60,6 +60,8 @@ export default function CollectionScreen() {
   const [loading, setLoading] = useState(!cachedCollection);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+  const [saveError, setSaveError] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const load = useCallback(async (force = false, silent = false) => {
     if (!collectionId) {
@@ -150,6 +152,26 @@ export default function CollectionScreen() {
   });
 
   const isSeries = collection?.mode === 'series';
+  const toggleSave = async () => {
+    if (!isSeries || !collection || saving) return;
+    if (!(await hasEchooSession())) {
+      router.push('/auth');
+      return;
+    }
+    const nextSaved = !collection.isSaved;
+    setSaving(true);
+    setSaveError('');
+    try {
+      await toggleSavedCollection(collection.id, nextSaved);
+      const updated = { ...collection, isSaved: nextSaved };
+      setCollection(updated);
+      collectionScreenCache.set(collection.id, updated);
+    } catch (saveFailure: any) {
+      setSaveError(friendlyErrorMessage(saveFailure, 'Could not update saved Collections.'));
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'right', 'bottom', 'left']}>
@@ -214,7 +236,9 @@ export default function CollectionScreen() {
             <Pressable disabled={!stationId} onPress={openStation}>
               <Text style={styles.stationLink}>{stationName || collection.owner?.displayName || 'Echoo Station'}</Text>
             </Pressable>
-            <Text style={styles.meta}>{collection.trackCount || collection.tracks.length} items</Text>
+            <Text style={styles.meta}>{collection.trackCount ?? collection.tracks.length} items</Text>
+            {isSeries ? <Pressable style={styles.saveCollection} disabled={saving} onPress={toggleSave} accessibilityRole="button" accessibilityLabel={collection.isSaved ? 'Remove saved Collection' : 'Save Collection'}><Text style={styles.saveCollectionText}>{saving ? 'Saving…' : collection.isSaved ? 'Saved Collection' : 'Save Collection'}</Text></Pressable> : null}
+            {saveError ? <ListenerToast message={saveError} /> : null}
             {collection.description ? <Text style={styles.description}>{collection.description}</Text> : null}
 
             <Pressable
@@ -283,6 +307,8 @@ const createStyles = (palette: EchooColors) => StyleSheet.create({
   stationLink: { color: palette.blue, fontSize: 13, fontWeight: '900', marginTop: 5 },
   meta: { color: palette.muted, fontSize: 12, marginTop: 5 },
   description: { color: palette.ink2, fontSize: 12.5, lineHeight: 18, marginTop: 12 },
+  saveCollection: { marginTop: 12, paddingHorizontal: 15, minHeight: 42, alignSelf: 'flex-start', borderColor: palette.blue, borderWidth: 1, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+  saveCollectionText: { color: palette.blue, fontSize: 13, fontWeight: '800' },
   playButton: { minHeight: 48, borderRadius: 24, backgroundColor: palette.blue, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 18 },
   playButtonDisabled: { opacity: 0.55 },
   playButtonText: { color: '#FFFFFF', fontSize: 14, fontWeight: '900' },

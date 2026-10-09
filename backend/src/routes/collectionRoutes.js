@@ -11,6 +11,7 @@ import {
   getCollection,
   getMyCollections,
   getPublicCollectionsForStation,
+  getPublicCollections,
   getSavedCollections,
   removeRecording,
   reorderCollection,
@@ -60,6 +61,7 @@ const uploadCollectionCover = (req, res, next) => {
 router.get('/mine/all', authenticate, getMyCollections);
 router.get('/saved/mine', authenticate, getSavedCollections);
 router.get('/station/:stationId', optionalAuth, getPublicCollectionsForStation);
+router.get('/public', optionalAuth, getPublicCollections);
 router.get('/:id', optionalAuth, getCollection);
 router.post('/', authenticate, createCollection);
 router.patch('/:id', authenticate, uploadCollectionCover, updateCollection);

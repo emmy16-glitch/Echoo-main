@@ -33,6 +33,7 @@ function normalizeSeasons(value) {
 function populatePlaylist(query) {
   return query
     .populate('owner', OWNER_FIELDS)
+    .populate('station', 'name slug coverArt isPublic')
     .populate(
       'tracks.trackId',
       'title artist duration fileUrl coverArt genre isPublic visibility publicationStatus isDeleted'
@@ -114,6 +115,7 @@ export async function getPlaylists(req, res, next) {
       isDeleted: false,
       isPublic: true,
     };
+    if (req.query.mode === 'series') filter.mode = 'series';
 
     if (req.query.search) {
       filter.$text = { $search: String(req.query.search).slice(0, 120) };
