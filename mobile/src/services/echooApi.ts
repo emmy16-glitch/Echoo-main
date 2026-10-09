@@ -111,6 +111,7 @@ export type EchooPlaylist = {
   stationId?: string;
   stationName?: string;
   trackCount?: number;
+  isSaved?: boolean;
   followerCount?: number;
   updatedAt?: string;
   createdAt?: string;
@@ -1097,13 +1098,29 @@ export async function getPublicCollectionsForStation(stationId: string, options:
   return unwrapList(payload).map(normalizePlaylist).filter((item: EchooPlaylist) => item.id);
 }
 
-export async function getPlaylistById(playlistId: string, options: CacheControlOptions = {}) {
-  const payload = await getCachedJson(
-    `playlist:${API_URL}:${playlistId}`,
-    { maxAgeMs: CACHE.publicList, staleAgeMs: CACHE.stale, forceRefresh: options.force },
-    () => apiRequest(`/playlists/${playlistId}`, { auth: 'optional' })
-  );
+export async function getPlaylistById(playlistId: string, _options: CacheControlOptions = {}) {
+  // Collections use the canonical API so isSaved and currently visible tracks
+  // match the signed-in account. Personal playlists retain the legacy route.
+  // Detail is fetched live: it must not leak private cached data across accounts.
+  const id = encodeURIComponent(playlistId);
+  let payload;
+  try {
+    payload = await apiRequest(`/collections/${id}`, { auth: 'optional' });
+  } catch (error: any) {
+    if (error?.status !== 404) throw error;
+    payload = await apiRequest(`/playlists/${id}`, { auth: 'optional' });
+  }
   return normalizePlaylist(payload?.data);
+}
+
+export async function toggleSavedCollection(collectionId: string, save: boolean) {
+  const id = encodeURIComponent(collectionId);
+  await apiRequest(`/collections/${id}/save`, {
+    method: save ? 'POST' : 'DELETE',
+    auth: 'required',
+  });
+  await invalidateAccountCache(['/collections/saved/mine']);
+  return save;
 }
 
 export async function getMyPlaylists(options: CacheControlOptions = {}) {
