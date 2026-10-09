@@ -39,3 +39,11 @@ The product photo has a different studio composition from the reference artwork,
 - Regression verifies that cover art is present, the action is styled, the row does not overflow at 390px, and activation still opens the selected Collection.
 - Verification: listener-collection-row.spec.mjs passed on the 390px mobile project; ESLint passed.
 - **Result:** PASS for the tested mobile profile view.
+
+## Creator Broadcast Cover — 2026-10-09
+
+- Replaced the old optional service-flyer wording with the compact “Broadcast Cover” picker beside the title label. The full image view is a separate preview dialog and does not grow the setup form.
+- Verification covers the no-cover Go Live validation, local file selection/crop confirmation, upload request, resulting thumbnail/preview action, and that the Go Live API is not called without the required cover.
+- Backend unit checks validate supported image signatures, creator-only upload routing, and rejection of a missing cover before broadcast start.
+- Verification: Creator Playwright flow passed (desktop Chromium); Broadcast Cover backend regression file passed (3 tests).
+- **Result:** PASS for the tested upload/validation flow. Actual packaged/released build remains gated on PR and Windows workflow checks.

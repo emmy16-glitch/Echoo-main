@@ -1267,7 +1267,7 @@ html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-workstation
   .ec2-broadcast .ec2-hero.is-live .ec2-status-pill i { animation: none; }
 }
 
-/* Keep the optional service flyer action in the title label row: no taller hero. */
+/* Compact Broadcast Cover control stays aligned with the broadcast title. */
 .ec2-broadcast .ec2-service-field-heading {
   display: flex;
   align-items: center;
@@ -1276,18 +1276,40 @@ html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-workstation
   min-width: 0;
 }
 .ec2-broadcast .ec2-service-field-heading > label:first-child { margin: 0; }
-.ec2-broadcast .ec2-service-flyer-picker {
+.ec2-broadcast .ec2-broadcast-cover-control {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  min-width: 0;
+  flex: 0 1 auto;
+}
+.ec2-broadcast .ec2-broadcast-cover-picker {
   position: relative;
   flex: 0 0 auto;
-  padding: 3px 6px;
-  border: 1px solid #5b7eb0;
-  border-radius: 5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  min-height: 26px;
+  padding: 2px 5px;
+  border: 1px solid rgba(145, 190, 255, .22);
+  border-radius: 6px;
+  background: rgba(10, 27, 51, .3);
   color: #c8e0ff;
   font-size: 11px;
   line-height: 1.2;
   cursor: pointer;
 }
-.ec2-broadcast .ec2-service-flyer-picker input[type=file] {
+.ec2-broadcast .ec2-broadcast-cover-picker:hover { border-color: rgba(145, 190, 255, .42); background: rgba(39, 77, 128, .2); }
+.ec2-broadcast .ec2-broadcast-cover-picker:focus-within { outline: 2px solid #91beff; outline-offset: 2px; }
+.ec2-broadcast .ec2-broadcast-cover-picker[aria-disabled="true"] { opacity: .72; pointer-events: none; }
+.ec2-broadcast .ec2-broadcast-cover-picker > svg { width: 14px; height: 14px; flex: 0 0 14px; }
+.ec2-broadcast .ec2-cover-uploading { animation: ec2-cover-spin 1s linear infinite; }
+@keyframes ec2-cover-spin { to { transform: rotate(360deg); } }
+.ec2-broadcast .ec2-broadcast-cover-picker img { display: block; width: 20px; height: 20px; flex: 0 0 20px; border-radius: 3px; object-fit: cover; }
+.ec2-broadcast .ec2-broadcast-cover-picker span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ec2-broadcast .ec2-broadcast-cover-picker input[type=file] {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -1296,15 +1318,31 @@ html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-workstation
   overflow: hidden;
   clip: rect(0, 0, 0, 0);
 }
-.ec2-broadcast .ec2-service-flyer-picker:focus-within { outline: 2px solid #91beff; outline-offset: 2px; }
-.ec2-broadcast .ec2-service-flyer-remove {
-  padding: 2px 4px;
-  border: 0;
+.ec2-broadcast .ec2-broadcast-cover-preview {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid rgba(145, 190, 255, .18);
+  border-radius: 6px;
   background: transparent;
   color: #c8e0ff;
-  font-size: 11px;
-  text-decoration: underline;
   cursor: pointer;
+}
+.ec2-broadcast .ec2-broadcast-cover-preview:hover { background: rgba(145, 190, 255, .12); }
+.ec2-broadcast .ec2-broadcast-cover-preview svg { width: 13px; height: 13px; }
+.ec2-cover-preview-backdrop { position: fixed; inset: 0; z-index: 1200; display: grid; place-items: center; padding: 20px; background: rgba(3, 10, 22, .78); }
+.ec2-cover-preview-dialog { position: relative; display: grid; place-items: center; width: min(420px, 100%); max-height: min(80vh, 520px); padding: 18px; border: 1px solid rgba(145, 190, 255, .24); border-radius: 14px; background: #0b1e38; box-shadow: 0 24px 80px rgba(0, 0, 0, .42); }
+.ec2-cover-preview-dialog img { display: block; max-width: 100%; max-height: calc(80vh - 56px); object-fit: contain; border-radius: 8px; }
+.ec2-cover-preview-close { position: absolute; top: 8px; right: 8px; z-index: 1; display: grid; place-items: center; width: 30px; height: 30px; border: 1px solid rgba(145, 190, 255, .24); border-radius: 50%; background: #0b1e38; color: #eef5ff; cursor: pointer; }
+.ec2-cover-preview-close svg { width: 16px; height: 16px; }
+@media (max-width: 420px) {
+  .ec2-broadcast .ec2-service-field-heading { align-items: flex-start; flex-wrap: wrap; }
+  .ec2-broadcast .ec2-broadcast-cover-control { margin-left: auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ec2-broadcast .ec2-cover-uploading { animation: none; }
 }
 @media (max-width: 1120px) {
   .ec2-broadcast.is-live .eam-approved-lower { grid-template-columns: 1fr; }

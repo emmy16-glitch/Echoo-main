@@ -230,6 +230,15 @@ export async function startBroadcast(req, res, next) {
       });
     }
 
+    if (!String(broadcast.coverArt || '').trim()) {
+      return res.status(400).json({
+        error: {
+          code: 'BROADCAST_COVER_REQUIRED',
+          message: 'Upload a Broadcast Cover before going live.',
+        },
+      });
+    }
+
     if (broadcast.status === 'live') {
       return res.status(409).json({
         error: { code: 'ALREADY_LIVE', message: 'Broadcast is already live' },

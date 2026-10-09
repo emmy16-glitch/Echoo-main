@@ -43,6 +43,7 @@ import {
   uploadBroadcastAudioChunk,
 } from '../controllers/broadcastChunkController.js';
 import { recoverBroadcast } from '../controllers/broadcastRecoveryController.js';
+import { uploadBroadcastCover } from '../controllers/broadcastCoverController.js';
 import {
   beginTranscriptReview,
   discardReplay,
@@ -56,6 +57,18 @@ const router = express.Router();
 const chunkUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
+});
+const broadcastCoverUpload = multer({
+  storage: multer.memoryStorage(),
+  fileFilter: (req, file, callback) => {
+    if (['image/jpeg', 'image/png', 'image/webp'].includes(String(file.mimetype || '').toLowerCase())) {
+      return callback(null, true);
+    }
+    const error = new Error('Broadcast Cover must be a JPG, PNG or WebP image.');
+    error.status = 415;
+    return callback(error, false);
+  },
+  limits: { fileSize: 2 * 1024 * 1024, files: 1 },
 });
 
 const requireCreator = (req, res, next) => {
@@ -85,6 +98,19 @@ const chunkUploadFile = (req, res, next) => {
   });
 };
 
+const broadcastCoverUploadFile = (req, res, next) => {
+  broadcastCoverUpload.single('cover')(req, res, (error) => {
+    if (!error) return next();
+    const tooLarge = error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE';
+    return res.status(tooLarge ? 413 : error.status || 400).json({
+      error: {
+        code: tooLarge ? 'BROADCAST_COVER_TOO_LARGE' : error.code || 'INVALID_BROADCAST_COVER',
+        message: tooLarge ? 'Broadcast Cover must be 2 MB or smaller.' : error.message || 'The Broadcast Cover could not be uploaded.',
+      },
+    });
+  });
+};
+
 // Public discovery uses only public broadcasts. Validate IDs/dates and treat
 // search as literal text before it reaches MongoDB regex matching.
 router.get('/', validateBroadcastListQuery, getBroadcasts);
@@ -107,6 +133,7 @@ router.get('/:broadcastId/public', getPublicBroadcast);
 
 // Creator-owned broadcast collection.
 router.get('/mine/all', authenticate, requireCreator, getCreatorBroadcasts);
+router.post('/covers', authenticate, requireCreator, broadcastCoverUploadFile, uploadBroadcastCover);
 
 // Authenticated single-broadcast access is intentionally available to listeners
 // when the broadcast itself is public. All writes below require creator status.
