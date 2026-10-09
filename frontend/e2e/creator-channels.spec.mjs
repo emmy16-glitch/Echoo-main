@@ -128,7 +128,7 @@ test('Broadcast title is editable without replacing the permanent Channel identi
   await expect(titleInput).toBeVisible();
   await expect(titleInput).toHaveValue('');
   await titleInput.fill('Tuesday Bible Study - 06th Oct, 2026');
-  await expect(page.getByText('Your Channel name stays My Station.')).toBeVisible();
+  await expect(page.locator('.ec2-station-identity strong')).toHaveText('My Station');
 
   await page.getByRole('button', { name: 'Channel', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'My Station', level: 2 })).toBeVisible();
@@ -145,7 +145,7 @@ test('Channel links to a per-service title before going live', async ({ page }) 
   const titleInput = page.getByRole('textbox', { name: 'Broadcast title' });
   await expect(titleInput).toBeVisible();
   await titleInput.fill('Thursday Evening Service');
-  await expect(page.getByText('Your Channel name stays My Station.')).toBeVisible();
+  await expect(page.locator('.ec2-station-identity strong')).toHaveText('My Station');
   await page.getByRole('button', { name: 'Channel', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'My Station', level: 2 })).toBeVisible();
 });
