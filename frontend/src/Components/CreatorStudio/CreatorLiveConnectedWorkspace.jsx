@@ -1467,19 +1467,13 @@ const CreatorLiveConnectedWorkspace = ({
         onStateChange={setMixerState}
         audioLibrary={audioLibrary}
         onGoLive={goLive}
+        onEndBroadcast={requestEndBroadcast}
+        endBroadcastButtonRef={endBroadcastButtonRef}
         goLiveBusy={goingLive}
         isLive={isLive}
         qualityProfile={realtimeQualityProfile}
         onQualityProfileChange={(value) => setRealtimeQualityProfile(saveRealtimeAudioProfile(value))}
       />
-
-      {isLive && !ending && (
-        <div className="ec2-live-action-panel" aria-label="Live broadcast actions">
-          <button ref={endBroadcastButtonRef} type="button" className="ec2-end-live" onClick={requestEndBroadcast} disabled={ending}>
-            <FiSquare /> End broadcast
-          </button>
-        </div>
-      )}
 
       {confirmEndOpen && (
         <div
