@@ -120,7 +120,7 @@ export async function getLocalDownloads(): Promise<LocalDownload[]> {
   const rows: LocalDownload[] = [];
   const validStored: Record<string, LocalDownload> = {};
   for (const [trackId, download] of Object.entries(stored)) {
-    const info = download.localUri && FileSystem?.getInfoAsync
+    const info: { exists: boolean; size?: number } = download.localUri && FileSystem?.getInfoAsync
       ? await FileSystem.getInfoAsync(download.localUri).catch(() => ({ exists: false }))
       : { exists: false };
     if (download.status === 'completed' && download.localUri && info.exists && (info.size == null || Number(info.size) > 0)) {
