@@ -1330,26 +1330,26 @@ const CreatorLiveConnectedWorkspace = ({
         )}
       </section>
 
-      {!isLive && heroState !== 'ending' && (
-        <div className="ec2-broadcast-identity" aria-label="This broadcast">
-          <label htmlFor="ec2-broadcast-title">Title for this service <span className="ec2-broadcast-identity-optional">(Broadcast title)</span></label>
-          <input
-            id="ec2-broadcast-title"
-            type="text"
-            aria-label="Broadcast title"
-            maxLength={200}
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            placeholder="e.g. Sunday Service - 11 October"
-            disabled={goingLive || ending}
-          />
-          <p>Title for this livestream only. It also appears on its saved recording. Your Channel name stays {liveStation?.name || 'unchanged'}.</p>
-        </div>
-      )}
-
       <header className="ec2-workstation-heading">
-        <h2>Workstation</h2>
-        <p>{isLive ? 'Your live mix stays exactly where you prepared it.' : 'Mix, monitor and go live.'}</p>
+        <div>
+          <h2>Workstation</h2>
+          <p>{isLive ? 'Your live mix stays exactly where you prepared it.' : 'Mix, monitor and go live.'}</p>
+        </div>
+        {!isLive && heroState !== 'ending' && (
+          <div className="ec2-broadcast-identity" aria-label="This broadcast">
+            <label htmlFor="ec2-broadcast-title">Title for this broadcast</label>
+            <input
+              id="ec2-broadcast-title"
+              type="text"
+              aria-label="Broadcast title"
+              maxLength={200}
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              placeholder="e.g. Sunday Service - 11 October"
+              disabled={goingLive || ending}
+            />
+          </div>
+        )}
       </header>
 
       {bootstrapError && (

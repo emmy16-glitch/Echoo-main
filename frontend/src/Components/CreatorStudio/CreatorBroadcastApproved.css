@@ -473,7 +473,13 @@
   line-height: 1.4;
 }
 
-.ec2-workstation-heading { margin: 12px 8px 5px; }
+.ec2-workstation-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin: 12px 8px 5px;
+}
 
 .ec2-workstation-heading h2 {
   margin: 0;
@@ -1040,22 +1046,19 @@ html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-workstation
 /* Broadcast metadata is separate from the permanent Channel identity. */
 .ec2-broadcast-identity {
   display: grid;
-  gap: 7px;
+  grid-template-columns: auto minmax(220px, 340px);
+  align-items: center;
+  gap: 10px;
   width: 100%;
-  max-width: 780px;
-  margin: 18px 0 24px;
-  padding: 16px 18px;
-  border: 1px solid #d6e2f5;
-  border-radius: 12px;
-  background: #f8fbff;
-}
-.ec2-broadcast-identity-optional {
-  color: #5b718f;
-  font-size: 12px;
-  font-weight: 500;
+  max-width: 520px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
 }
 @media (max-width: 560px) {
-  .ec2-broadcast-identity { padding: 14px; margin: 14px 0 20px; }
+  .ec2-workstation-heading { align-items: stretch; flex-direction: column; gap: 8px; }
+  .ec2-broadcast-identity { grid-template-columns: 1fr; gap: 5px; }
 }
 .ec2-broadcast-identity label {
   color: var(--echoo-ink, #152948);
@@ -1065,8 +1068,8 @@ html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-workstation
 .ec2-broadcast-identity input {
   box-sizing: border-box;
   width: 100%;
-  min-height: 43px;
-  padding: 10px 12px;
+  min-height: 36px;
+  padding: 7px 10px;
   border: 1px solid #cbd8eb;
   border-radius: 9px;
   background: #fff;
@@ -1079,9 +1082,3 @@ html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-workstation
   outline-offset: 2px;
 }
 .ec2-broadcast-identity input:disabled { opacity: .65; }
-.ec2-broadcast-identity p {
-  margin: 0;
-  color: #65758e;
-  font-size: 12px;
-  line-height: 1.5;
-}
