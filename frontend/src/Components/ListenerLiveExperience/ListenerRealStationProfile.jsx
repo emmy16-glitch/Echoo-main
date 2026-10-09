@@ -272,6 +272,7 @@ const ListenerRealStationProfile = () => {
           <div className="b3-collections-list">
             {collections.slice(0, 4).map((collection) => (
               <article key={collection.id}>
+                <img className="b3-collection-art" src={collection.coverArt} alt="" loading="lazy" />
                 <div><strong>{collection.title}</strong><span>{collection.broadcastCount} {collection.broadcastCount === 1 ? 'recording' : 'recordings'}</span></div>
                 <button type="button" onClick={() => navigate(`/listen/collections/${collection.id}`)}>View</button>
               </article>

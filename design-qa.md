@@ -31,3 +31,11 @@ The product photo has a different studio composition from the reference artwork,
 - **Root cause/fix:** The approved auth stylesheet overrode older compact-height rules. Added scoped compact-height rules in the approved stylesheet for desktop and mobile without changing the background treatment or auth flow.
 - **Verification:** Playwright auth regression group: 8 passed, 4 skipped (other project-specific cases); frontend lint and production build passed; desktop package tests: 83 passed.
 - **Result:** PASS for tested viewports.
+
+## Listener Channel Collections row — 2026-10-09
+
+- The supplied 1270×164 screenshot shows the Channel profile's Collections list: its collection cover was omitted and the native-looking “View” action lacked the surrounding Echoo styling.
+- Added the normalized Collection cover as a compact thumbnail, a responsive three-column cover/title/action row, and a clear blue outlined action with hover and keyboard-focus treatment.
+- Regression verifies that cover art is present, the action is styled, the row does not overflow at 390px, and activation still opens the selected Collection.
+- Verification: listener-collection-row.spec.mjs passed on the 390px mobile project; ESLint passed.
+- **Result:** PASS for the tested mobile profile view.
