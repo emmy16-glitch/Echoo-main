@@ -5,7 +5,6 @@ import {
   FiCopy,
   FiLoader,
   FiRadio,
-  FiSquare,
   FiX,
 } from 'react-icons/fi';
 
