@@ -309,7 +309,7 @@ const CreatorCard = ({ creator, following = true, busy, onOpen, onFollow }) => {
   const handle = creator?.username ? `@${String(creator.username).replace(/^@/, '')}` : 'Creator';
   return (
     <article className="listener-v2-creator-card">
-      <button type="button" className="listener-v2-creator-avatar" onClick={() => onOpen(creator)}>
+      <button type="button" className="listener-v2-creator-avatar" onClick={() => onOpen(creator)} aria-label={`Open ${name} creator profile`}>
         {buildMediaUrl(creator?.profileImage || creator?.avatar)
           ? <Artwork src={buildMediaUrl(creator?.profileImage || creator?.avatar)} />
           : <span>{name.charAt(0).toUpperCase()}</span>}
