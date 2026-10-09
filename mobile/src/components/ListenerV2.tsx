@@ -1,5 +1,6 @@
 import { Image } from 'expo-image';
-import { useRouter, useSegments } from 'expo-router';
+import { useSegments } from 'expo-router';
+import { useGuardedRouter } from '@/src/navigation/useGuardedRouter';
 import {
   Bell,
   ChevronLeft,
@@ -68,7 +69,7 @@ export function ListenerTopBar({
   onNotifications?: () => void;
   notificationCount?: number;
 }) {
-  const router = useRouter();
+  const { push } = useGuardedRouter();
   const palette = useListenerPalette();
   const styles = useMemo(() => makeStyles(palette), [palette]);
   const [unreadCount, setUnreadCount] = useState(notificationCount || 0);
@@ -97,7 +98,7 @@ export function ListenerTopBar({
     <View style={styles.topBar}>
       <Pressable
         style={styles.iconButton}
-        onPress={onMenu || (() => router.push('/menu'))}
+        onPress={onMenu || (() => push('/menu'))}
         accessibilityLabel="Open menu"
       >
         <Menu color={palette.ink} size={25} strokeWidth={2.1} />
@@ -107,7 +108,7 @@ export function ListenerTopBar({
 
       <Pressable
         style={styles.notificationButton}
-        onPress={onNotifications || (() => router.push('/notifications'))}
+        onPress={onNotifications || (() => push('/notifications'))}
         accessibilityLabel="Notifications"
       >
         <Bell color={palette.ink} size={22} strokeWidth={2.1} />
@@ -337,25 +338,23 @@ export function ListenerListRow({
 }
 
 export function ListenerMiniPlayer() {
-  const router = useRouter();
+  const { push } = useGuardedRouter();
   const segments = useSegments();
   const insets = useSafeAreaInsets();
   const palette = useListenerPalette();
   const styles = useMemo(() => makeStyles(palette), [palette]);
-  const { current, duration, isLoading, isPlaying, position, toggle } = usePlayback();
-  const [dismissedKey, setDismissedKey] = useState('');
+  const { current, duration, isLoading, isPlaying, position, stop, toggle } = usePlayback();
 
   const rootRoute = String(segments[0] || '');
-  const currentKey = current ? `${current.kind}:${current.id}` : '';
-  if (!current || currentKey === dismissedKey || rootRoute === 'audio-player' || rootRoute === 'live-room') return null;
+  if (!current || rootRoute === 'audio-player' || rootRoute === 'live-room') return null;
   const bottomOffset = rootRoute === '(tabs)'
     ? getListenerTabBarMetrics(insets.bottom).height + 8
     : insets.bottom + 12;
 
   const openPlayer = () => {
-    if (current.kind === 'audio') router.push('/audio-player');
+    if (current.kind === 'audio') push('/audio-player');
     else {
-      router.push({
+      push({
         pathname: '/live-room',
         params: {
           broadcastId: current.id,
@@ -410,8 +409,8 @@ export function ListenerMiniPlayer() {
       </Pressable>
       <Pressable
         style={styles.miniCloseButton}
-        onPress={() => setDismissedKey(currentKey)}
-        accessibilityLabel="Hide mini player"
+        onPress={stop}
+        accessibilityLabel="Stop playback"
       >
         <X color={palette.muted} size={18} />
       </Pressable>
@@ -427,7 +426,7 @@ export function ListenerMiniPlayer() {
 }
 
 export function ListenerBackHeader({ title }: { title: string }) {
-  const router = useRouter();
+  const { router } = useGuardedRouter();
   const palette = useListenerPalette();
   const styles = useMemo(() => makeStyles(palette), [palette]);
   return (

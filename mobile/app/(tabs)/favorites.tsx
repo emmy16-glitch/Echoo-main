@@ -1,5 +1,5 @@
 import { useFocusEffect } from '@react-navigation/native';
-import { useRouter } from 'expo-router';
+import { useGuardedRouter } from '@/src/navigation/useGuardedRouter';
 import { Heart, Music2, Radio } from 'lucide-react-native';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import {
@@ -36,7 +36,7 @@ import { getLocalDownloads, LocalDownload } from '@/src/services/localDownloads'
 import { EchooColors, getEchooColors } from '@/src/theme/echooTheme';
 
 export default function FavoritesScreen() {
-  const router = useRouter();
+  const { push } = useGuardedRouter();
   const scheme = useColorScheme();
   const palette = getEchooColors(scheme);
   const styles = useMemo(() => createStyles(palette), [palette]);
@@ -96,7 +96,7 @@ export default function FavoritesScreen() {
   );
 
   const openAudio = (track: EchooAudio) => {
-    router.push({
+    push({
       pathname: '/audio-player',
       params: {
         audioId: track.id,
@@ -110,7 +110,7 @@ export default function FavoritesScreen() {
   };
 
   const openStation = (station: EchooStation) => {
-    router.push({ pathname: '/station', params: { stationId: station.id } });
+    push({ pathname: '/station', params: { stationId: station.id } });
   };
 
   const total = savedAudio.length + stations.length;
@@ -144,7 +144,7 @@ export default function FavoritesScreen() {
           <ListenerAuthCard
             title="Sign in to sync favorites"
             subtitle="Saved audio and followed stations belong to your Echoo account, not just this phone."
-            onPress={() => router.push('/auth')}
+            onPress={() => push('/auth')}
           />
         ) : null}
 
@@ -194,7 +194,7 @@ export default function FavoritesScreen() {
                 title="No favorite stations yet"
                 subtitle="Follow a station from discovery or search and it will appear here."
                 action="Find stations"
-                onAction={() => router.push('/search')}
+                onAction={() => push('/search')}
               />
             )}
 
@@ -224,7 +224,7 @@ export default function FavoritesScreen() {
                 title="No favorite audio yet"
                 subtitle="Save published audio so you can return to it without searching again."
                 action="Discover audio"
-                onAction={() => router.push('/search')}
+                onAction={() => push('/search')}
               />
             )}
           </>

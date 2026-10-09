@@ -1,7 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
-import { deleteCachedJson, getCachedJson } from '@/src/services/localCache';
+import { deleteCachedJson, getCachedJson, peekCachedJson } from '@/src/services/localCache';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://127.0.0.1:5001/api';
 const REQUEST_TIMEOUT_MS = 12000;
@@ -91,6 +91,8 @@ export type EchooAudio = {
   playCount?: number;
   likeCount?: number;
   fileUrl?: string | null;
+  collectionId?: string;
+  collectionName?: string;
 };
 
 export type EchooPlaylistTrack = {
@@ -278,7 +280,11 @@ export async function clearSession() {
 }
 
 export async function hasEchooSession() {
-  return Boolean(await readSecureToken(TOKEN_KEYS.access));
+  const [accessToken, refreshToken] = await Promise.all([
+    readSecureToken(TOKEN_KEYS.access),
+    readSecureToken(TOKEN_KEYS.refresh),
+  ]);
+  return Boolean(accessToken || refreshToken);
 }
 
 export async function getAccessToken() {
@@ -332,13 +338,18 @@ async function refreshAccessToken() {
     const payload = await parseResponse(response);
 
     if (!response.ok) {
-      await clearSession();
+      if ([400, 401, 403].includes(response.status)) {
+        await clearSession();
+      }
       throw makeApiError(payload, response.status);
     }
 
     const accessToken = payload?.data?.accessToken;
     const nextRefreshToken = payload?.data?.refreshToken;
-    if (!accessToken) throw new Error('Echoo did not return a refreshed access token');
+    if (!accessToken) {
+      await clearSession();
+      throw new Error('Echoo did not return a refreshed access token');
+    }
 
     await saveSession(accessToken, nextRefreshToken);
     return accessToken as string;
@@ -351,13 +362,17 @@ async function refreshAccessToken() {
 
 async function apiRequest(path: string, options: RequestOptions = {}) {
   const auth = options.auth || 'optional';
-  const accessToken = auth === 'none' ? '' : (await readSecureToken(TOKEN_KEYS.access)) || '';
+  let accessToken = auth === 'none' ? '' : (await readSecureToken(TOKEN_KEYS.access)) || '';
 
   if (auth === 'required' && !accessToken) {
-    const error = new Error('Sign in to use this Echoo feature') as Error & { code?: string; status?: number };
-    error.code = 'AUTH_REQUIRED';
-    error.status = 401;
-    throw error;
+    try {
+      accessToken = await refreshAccessToken();
+    } catch {
+      const error = new Error('Sign in to use this Echoo feature') as Error & { code?: string; status?: number };
+      error.code = 'AUTH_REQUIRED';
+      error.status = 401;
+      throw error;
+    }
   }
 
   const headers: Record<string, string> = {
@@ -418,17 +433,25 @@ async function cachedPublicRequest(
   );
 }
 
+async function peekPublicRequest(path: string) {
+  return peekCachedJson<any>(`public:${API_URL}:${path}`);
+}
+
 async function cachedAccountRequest(
   path: string,
   maxAgeMs = CACHE.account,
   options: CacheControlOptions = {}
 ) {
-  const accessToken = await readSecureToken(TOKEN_KEYS.access);
+  let accessToken = await readSecureToken(TOKEN_KEYS.access);
   if (!accessToken) {
-    const error = new Error('Sign in to use this Echoo feature') as Error & { code?: string; status?: number };
-    error.code = 'AUTH_REQUIRED';
-    error.status = 401;
-    throw error;
+    try {
+      accessToken = await refreshAccessToken();
+    } catch {
+      const error = new Error('Sign in to use this Echoo feature') as Error & { code?: string; status?: number };
+      error.code = 'AUTH_REQUIRED';
+      error.status = 401;
+      throw error;
+    }
   }
 
   return getCachedJson(
@@ -441,6 +464,11 @@ async function cachedAccountRequest(
 async function accountCacheKey(path: string) {
   const accessToken = await readSecureToken(TOKEN_KEYS.access);
   return accessToken ? `account:${API_URL}:${accessToken}:${path}` : '';
+}
+
+async function peekAccountRequest(path: string) {
+  const key = await accountCacheKey(path);
+  return key ? peekCachedJson<any>(key) : null;
 }
 
 async function invalidateAccountCache(paths: string[]) {
@@ -526,6 +554,8 @@ export const normalizeAudio = (track: any): EchooAudio => {
     duration: Number(track?.duration) || 0,
     playCount: Number(track?.playCount) || 0,
     likeCount: Number(track?.likeCount) || 0,
+    collectionId: track?.collectionId || track?.collection?.id || track?.collection?._id || '',
+    collectionName: track?.collectionName || track?.collection?.name || '',
   };
 };
 
@@ -605,13 +635,38 @@ const normalizeUser = (user: any): EchooUser => ({
   onboardingCompleted: Boolean(user?.onboardingCompleted),
 });
 
+const normalizeLibraryStats = (payload: any): EchooLibraryStats => ({
+  savedTracks: Number(payload?.data?.savedTracks) || 0,
+  playlists: Number(payload?.data?.playlists) || 0,
+  totalSaved: Number(payload?.data?.totalSaved) || 0,
+  listeningHistory: Number(payload?.data?.listeningHistory) || 0,
+});
+
 export async function getMobileDiscovery(options: CacheControlOptions = {}) {
   const [stationsPayload, livePayload, scheduledPayload, audioPayload] = await Promise.all([
     cachedPublicRequest('/stations?page=1&limit=20', CACHE.discovery, CACHE.stale, options),
     cachedPublicRequest('/broadcasts?status=live&page=1&limit=20', CACHE.live, CACHE.liveStale, options),
     cachedPublicRequest('/broadcasts?status=scheduled&page=1&limit=20', CACHE.discovery, CACHE.stale, options),
-    cachedPublicRequest('/audio?page=1&limit=20&public=true', CACHE.discovery, CACHE.stale, options).catch(() => ({ data: [] })),
+    cachedPublicRequest('/audio?page=1&limit=60&public=true', CACHE.discovery, CACHE.stale, options).catch(() => ({ data: [] })),
   ]);
+
+  return {
+    stations: unwrapList(stationsPayload).map(normalizeStation).filter((item: EchooStation) => item.id),
+    live: unwrapList(livePayload).map(normalizeBroadcast).filter((item: EchooBroadcast) => item.id),
+    scheduled: unwrapList(scheduledPayload).map(normalizeBroadcast).filter((item: EchooBroadcast) => item.id),
+    audio: unwrapList(audioPayload).map(normalizeAudio).filter((item: EchooAudio) => item.id),
+  };
+}
+
+export async function getCachedMobileDiscoverySnapshot() {
+  const [stationsPayload, livePayload, scheduledPayload, audioPayload] = await Promise.all([
+    peekPublicRequest('/stations?page=1&limit=20'),
+    peekPublicRequest('/broadcasts?status=live&page=1&limit=20'),
+    peekPublicRequest('/broadcasts?status=scheduled&page=1&limit=20'),
+    peekPublicRequest('/audio?page=1&limit=60&public=true'),
+  ]);
+
+  if (!stationsPayload && !livePayload && !scheduledPayload && !audioPayload) return null;
 
   return {
     stations: unwrapList(stationsPayload).map(normalizeStation).filter((item: EchooStation) => item.id),
@@ -929,9 +984,14 @@ export async function registerEchoo(input: {
   return normalizeUser(payload?.data?.user);
 }
 
-export async function getCurrentUser() {
-  const payload = await apiRequest('/auth/me', { auth: 'required' });
+export async function getCurrentUser(options: CacheControlOptions = {}) {
+  const payload = await cachedAccountRequest('/auth/me', CACHE.account, options);
   return normalizeUser(payload?.data?.user);
+}
+
+export async function getCachedCurrentUserSnapshot() {
+  const payload = await peekAccountRequest('/auth/me');
+  return payload?.data?.user ? normalizeUser(payload.data.user) : null;
 }
 
 export async function logoutEchoo() {
@@ -954,6 +1014,11 @@ export async function deleteEchooAccount(password: string) {
 
 export async function getSavedAudio(options: CacheControlOptions = {}) {
   const payload = await cachedAccountRequest('/library/tracks?page=1&limit=100', CACHE.account, options);
+  return (payload?.data?.tracks || []).map(normalizeAudio).filter((item: EchooAudio) => item.id);
+}
+
+export async function getCachedSavedAudioSnapshot() {
+  const payload = await peekAccountRequest('/library/tracks?page=1&limit=100');
   return (payload?.data?.tracks || []).map(normalizeAudio).filter((item: EchooAudio) => item.id);
 }
 
@@ -1005,6 +1070,11 @@ export async function getFollowedStations(options: CacheControlOptions = {}) {
   return (payload?.data?.stations || []).map(normalizeStation).filter((item: EchooStation) => item.id);
 }
 
+export async function getCachedFollowedStationsSnapshot() {
+  const payload = await peekAccountRequest('/follows/me/stations');
+  return (payload?.data?.stations || []).map(normalizeStation).filter((item: EchooStation) => item.id);
+}
+
 export async function followStation(stationId: string) {
   const payload = await apiRequest(`/follows/stations/${stationId}`, { method: 'POST', auth: 'required' });
   await invalidateAccountCache(['/follows/me/stations']);
@@ -1019,12 +1089,12 @@ export async function unfollowStation(stationId: string) {
 
 export async function getLibraryStats(options: CacheControlOptions = {}): Promise<EchooLibraryStats> {
   const payload = await cachedAccountRequest('/library/stats', CACHE.account, options);
-  return {
-    savedTracks: Number(payload?.data?.savedTracks) || 0,
-    playlists: Number(payload?.data?.playlists) || 0,
-    totalSaved: Number(payload?.data?.totalSaved) || 0,
-    listeningHistory: Number(payload?.data?.listeningHistory) || 0,
-  };
+  return normalizeLibraryStats(payload);
+}
+
+export async function getCachedLibraryStatsSnapshot(): Promise<EchooLibraryStats | null> {
+  const payload = await peekAccountRequest('/library/stats');
+  return payload ? normalizeLibraryStats(payload) : null;
 }
 
 // Browser and mobile share the same account-authoritative listening history.
@@ -1046,6 +1116,17 @@ export async function syncListeningProgress({
 
 export async function getListeningHistory(options: CacheControlOptions = {}) {
   const payload = await cachedAccountRequest('/history?page=1&limit=50', CACHE.account, options);
+  return (payload?.data?.history || []).map((item: any): EchooHistoryItem => ({
+    id: item?.id || item?._id || '',
+    track: item?.track ? normalizeAudio(item.track) : null,
+    playedAt: item?.playedAt,
+    progress: Number(item?.progress) || 0,
+    completed: Boolean(item?.completed),
+  }));
+}
+
+export async function getCachedListeningHistorySnapshot() {
+  const payload = await peekAccountRequest('/history?page=1&limit=50');
   return (payload?.data?.history || []).map((item: any): EchooHistoryItem => ({
     id: item?.id || item?._id || '',
     track: item?.track ? normalizeAudio(item.track) : null,
@@ -1130,6 +1211,12 @@ export async function getMyPlaylists(options: CacheControlOptions = {}) {
   return rows.map(normalizePlaylist).filter((item: EchooPlaylist) => item.id);
 }
 
+export async function getCachedMyPlaylistsSnapshot() {
+  const payload = await peekAccountRequest('/playlists/mine/all');
+  const rows = Array.isArray(payload?.data) ? payload.data : [];
+  return rows.map(normalizePlaylist).filter((item: EchooPlaylist) => item.id);
+}
+
 export async function createPlaylist(input: {
   name: string;
   description?: string;
@@ -1197,11 +1284,31 @@ export async function getAudioStreamUrl(audioId: string) {
 }
 
 export async function getListenerLiveKitCredentials(broadcastId: string) {
-  const payload = await apiRequest(`/broadcasts/${broadcastId}/listener-token`, {
-    method: 'POST',
-    auth: 'required',
-  });
-  return payload?.data || null;
+  const id = encodeURIComponent(String(broadcastId || '').trim());
+  if (!id) throw new Error('Broadcast ID is missing.');
+
+  const getGuestCredentials = async () => {
+    const payload = await apiRequest(`/broadcasts/${id}/guest-token`, {
+      method: 'POST',
+      auth: 'none',
+    });
+    return payload?.data || null;
+  };
+
+  if (!(await hasEchooSession())) return getGuestCredentials();
+
+  try {
+    const payload = await apiRequest(`/broadcasts/${id}/listener-token`, {
+      method: 'POST',
+      auth: 'required',
+    });
+    return payload?.data || null;
+  } catch (error: any) {
+    if (error?.status === 401 || error?.code === 'AUTH_REQUIRED' || error?.code === 'SESSION_EXPIRED') {
+      return getGuestCredentials();
+    }
+    throw error;
+  }
 }
 
 export { API_URL, normalizeUrl };

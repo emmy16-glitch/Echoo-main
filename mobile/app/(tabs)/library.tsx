@@ -1,5 +1,5 @@
 import { useFocusEffect } from '@react-navigation/native';
-import { useRouter } from 'expo-router';
+import { useGuardedRouter } from '@/src/navigation/useGuardedRouter';
 import {
   Download,
   Heart,
@@ -38,6 +38,11 @@ import {
   EchooLibraryStats,
   EchooPlaylist,
   EchooStation,
+  getCachedFollowedStationsSnapshot,
+  getCachedLibraryStatsSnapshot,
+  getCachedListeningHistorySnapshot,
+  getCachedMyPlaylistsSnapshot,
+  getCachedSavedAudioSnapshot,
   getFollowedStations,
   getLibraryStats,
   getListeningHistory,
@@ -71,7 +76,7 @@ const libraryTabs: { key: LibraryTab; label: string }[] = [
 ];
 
 export default function LibraryScreen() {
-  const router = useRouter();
+  const { push } = useGuardedRouter();
   const scheme = useColorScheme();
   const palette = getEchooColors(scheme);
   const styles = useMemo(() => createStyles(palette), [palette]);
@@ -151,15 +156,61 @@ export default function LibraryScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      // Returning from a Channel or Collection refreshes server-backed lists,
-      // including saved audio, History, and Collections, instead of stale cache.
-      loadLibrary(hasLoadedOnce.current, hasLoadedOnce.current);
+      let active = true;
+
+      const hydrateThenRefresh = async () => {
+        let hydrated = false;
+
+        if (!hasLoadedOnce.current) {
+          const activeSession = await hasEchooSession();
+          if (!active) return;
+          setSignedIn(activeSession);
+
+          const nextDownloads = await getLocalDownloads().catch(() => []);
+          if (!active) return;
+          setDownloads(nextDownloads);
+          hydrated = nextDownloads.length > 0;
+
+          if (activeSession) {
+            const [nextStats, nextSaved, nextStations, nextHistory, nextPlaylists] = await Promise.all([
+              getCachedLibraryStatsSnapshot().catch(() => null),
+              getCachedSavedAudioSnapshot().catch(() => []),
+              getCachedFollowedStationsSnapshot().catch(() => []),
+              getCachedListeningHistorySnapshot().catch(() => []),
+              getCachedMyPlaylistsSnapshot().catch(() => []),
+            ]);
+            if (!active) return;
+            if (nextStats) setStats(nextStats);
+            setSaved(nextSaved);
+            setStations(nextStations);
+            setHistory(nextHistory);
+            setPlaylists(nextPlaylists);
+            hydrated = hydrated ||
+              Boolean(nextStats) ||
+              nextSaved.length > 0 ||
+              nextStations.length > 0 ||
+              nextHistory.length > 0 ||
+              nextPlaylists.length > 0;
+          }
+
+          if (hydrated || !activeSession) setLoading(false);
+        }
+
+        // Returning from a Channel or Collection refreshes server-backed lists,
+        // including saved audio, History, and Collections, instead of stale cache.
+        if (active) loadLibrary(hasLoadedOnce.current, hydrated || hasLoadedOnce.current);
+      };
+
+      hydrateThenRefresh();
+      return () => {
+        active = false;
+      };
     }, [loadLibrary])
   );
 
   const openAudio = (track?: EchooAudio | null, localUri?: string) => {
     if (!track) return;
-    router.push({
+    push({
       pathname: '/audio-player',
       params: {
         audioId: track.id,
@@ -175,7 +226,7 @@ export default function LibraryScreen() {
   };
 
   const openPlaylist = (playlist: EchooPlaylist) => {
-    router.push({
+    push({
       pathname: '/collection' as any,
       params: {
         collectionId: playlist.id,
@@ -244,7 +295,7 @@ export default function LibraryScreen() {
         <Text style={styles.pageTitle}>Your Library</Text>
 
         {!signedIn && !loading ? (
-          <ListenerAuthCard onPress={() => router.push('/auth')} />
+          <ListenerAuthCard onPress={() => push('/auth')} />
         ) : null}
 
         {loading ? (
@@ -351,7 +402,7 @@ export default function LibraryScreen() {
                 title="No saved audio yet"
                 subtitle="Tap the heart on any track to keep it in your library."
                 action="Find audio"
-                onAction={() => router.push('/search')}
+                onAction={() => push('/search')}
               />
             )}
               </>
@@ -464,7 +515,7 @@ export default function LibraryScreen() {
                   meta={station.isLive ? 'LIVE' : `${station.followerCount || 0} followers`}
                   image={station.coverArt}
                   fallback={<Radio color={palette.blue} size={21} />}
-                  onPress={() => router.push({ pathname: '/station', params: { stationId: station.id } })}
+                  onPress={() => push({ pathname: '/station', params: { stationId: station.id } })}
                 />
               ))
             ) : (
@@ -517,33 +568,6 @@ export default function LibraryScreen() {
         ) : null}
       </ScrollView>
     </SafeAreaView>
-  );
-}
-
-function LibraryShortcut({
-  color,
-  icon,
-  title,
-  subtitle,
-  onPress,
-  palette,
-}: {
-  color: string;
-  icon: React.ReactNode;
-  title: string;
-  subtitle: string;
-  onPress: () => void;
-  palette: EchooColors;
-}) {
-  const shortcutStyles = useMemo(() => createStyles(palette), [palette]);
-  return (
-    <Pressable style={shortcutStyles.shortcutRow} onPress={onPress}>
-      <View style={[shortcutStyles.shortcutArt, { backgroundColor: color }]}>{icon}</View>
-      <View style={shortcutStyles.shortcutCopy}>
-        <Text style={shortcutStyles.shortcutTitle}>{title}</Text>
-        <Text style={shortcutStyles.shortcutSubtitle}>{subtitle}</Text>
-      </View>
-    </Pressable>
   );
 }
 

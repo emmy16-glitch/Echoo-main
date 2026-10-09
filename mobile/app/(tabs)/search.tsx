@@ -1,4 +1,5 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
+import { useGuardedRouter } from '@/src/navigation/useGuardedRouter';
 import {
   BookOpenText,
   Headphones,
@@ -55,7 +56,7 @@ const categoryRows = Array.from(
 );
 
 export default function SearchScreen() {
-  const router = useRouter();
+  const { push } = useGuardedRouter();
   const params = useLocalSearchParams<{ q?: string }>();
   const scheme = useColorScheme();
   const palette = getEchooColors(scheme);
@@ -138,7 +139,7 @@ export default function SearchScreen() {
   }, [query]);
 
   const openAudio = (track: EchooAudio) => {
-    router.push({
+    push({
       pathname: '/audio-player',
       params: {
         audioId: track.id,
@@ -151,8 +152,20 @@ export default function SearchScreen() {
     });
   };
 
+  const openLiveRoom = (item: EchooBroadcast) => {
+    push({
+      pathname: '/live-room',
+      params: {
+        broadcastId: item.id,
+        title: item.title,
+        stationName: item.stationName || 'Echoo Station',
+        coverArt: item.coverArt || '',
+      },
+    });
+  };
+
   const openStation = (station: EchooStation) => {
-    router.push({ pathname: '/station', params: { stationId: station.id } });
+    push({ pathname: '/station', params: { stationId: station.id } });
   };
 
   const hasResults = audio.length + stations.length + live.length > 0;
@@ -231,7 +244,7 @@ export default function SearchScreen() {
 
         {live.length ? (
           <>
-            <ListenerSectionHeader title="Live now" action="View all" onAction={() => router.push('/live')} />
+            <ListenerSectionHeader title="Live now" action="View all" onAction={() => push('/live')} />
             {live.map((item: EchooBroadcast) => (
               <ListenerListRow
                 key={item.id}
@@ -240,7 +253,7 @@ export default function SearchScreen() {
                 meta={`${item.listenerCount || 0} live`}
                 image={item.coverArt}
                 fallback={<Headphones color={palette.red} size={21} />}
-                onPress={() => router.push('/live')}
+                onPress={() => openLiveRoom(item)}
               />
             ))}
           </>

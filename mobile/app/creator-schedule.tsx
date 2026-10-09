@@ -1,5 +1,5 @@
 import { useFocusEffect } from '@react-navigation/native';
-import { useRouter } from 'expo-router';
+import { useGuardedRouter } from '@/src/navigation/useGuardedRouter';
 import { CalendarClock, ChevronLeft, Mic, Plus } from 'lucide-react-native';
 import { useCallback, useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -35,7 +35,7 @@ const formatDate = (value?: string) => {
 };
 
 export default function CreatorScheduleScreen() {
-  const router = useRouter();
+  const { router, push } = useGuardedRouter();
   const scheme = useColorScheme();
   const palette = getEchooColors(scheme);
   const styles = useMemo(() => createStyles(palette), [palette]);
@@ -114,7 +114,7 @@ export default function CreatorScheduleScreen() {
   };
 
   const startScheduled = (item: EchooBroadcast) => {
-    router.push({
+    push({
       pathname: '/creator-live' as any,
       params: {
         broadcastId: item.id,

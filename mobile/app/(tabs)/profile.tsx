@@ -1,6 +1,6 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
+import { useGuardedRouter } from '@/src/navigation/useGuardedRouter';
 import {
   Bell,
   ChevronRight,
@@ -35,6 +35,8 @@ import {
 import {
   EchooLibraryStats,
   EchooUser,
+  getCachedCurrentUserSnapshot,
+  getCachedLibraryStatsSnapshot,
   getCurrentUser,
   getLibraryStats,
   hasEchooSession,
@@ -52,7 +54,7 @@ const emptyStats: EchooLibraryStats = {
 };
 
 export default function ProfileScreen() {
-  const router = useRouter();
+  const { push } = useGuardedRouter();
   const scheme = useColorScheme();
   const { preference } = useThemePreference();
   const palette = getEchooColors(scheme);
@@ -85,7 +87,7 @@ export default function ProfileScreen() {
 
     try {
       const [nextUser, nextStats] = await Promise.all([
-        getCurrentUser(),
+        getCurrentUser({ force }),
         getLibraryStats({ force }).catch(() => emptyStats),
       ]);
       setUser(nextUser);
@@ -107,7 +109,42 @@ export default function ProfileScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      loadProfile(false, hasLoadedOnce.current);
+      let active = true;
+
+      const hydrateThenRefresh = async () => {
+        let hydrated = false;
+
+        if (!hasLoadedOnce.current) {
+          const activeSession = await hasEchooSession();
+          if (!active) return;
+          setSignedIn(activeSession);
+
+          if (activeSession) {
+            const [cachedUser, cachedStats] = await Promise.all([
+              getCachedCurrentUserSnapshot().catch(() => null),
+              getCachedLibraryStatsSnapshot().catch(() => null),
+            ]);
+            if (!active) return;
+            if (cachedUser) {
+              setUser(cachedUser);
+              hydrated = true;
+            }
+            if (cachedStats) {
+              setStats(cachedStats);
+              hydrated = true;
+            }
+          }
+
+          if (hydrated || !activeSession) setLoading(false);
+        }
+
+        if (active) loadProfile(false, hydrated || hasLoadedOnce.current);
+      };
+
+      hydrateThenRefresh();
+      return () => {
+        active = false;
+      };
     }, [loadProfile])
   );
 
@@ -124,17 +161,18 @@ export default function ProfileScreen() {
   };
 
   const settingsRows = [
-    { title: 'Account', subtitle: 'Profile, username and account details', icon: UserRound },
-    { title: 'Notifications', subtitle: 'Live, creator and release alerts', icon: Bell },
+    { title: 'Account', subtitle: 'Profile, username and account details', icon: UserRound, section: 'account' },
+    { title: 'Notifications', subtitle: 'Live, creator and release alerts', icon: Bell, section: 'notifications' },
     {
       title: 'Appearance',
       subtitle: preference === 'system'
         ? `System theme: ${scheme === 'dark' ? 'Dark' : 'Light'}`
         : `App theme: ${preference === 'dark' ? 'Dark' : 'Light'}`,
       icon: MoonStar,
+      section: 'appearance',
     },
-    { title: 'Playback & downloads', subtitle: 'Audio quality, offline and player behavior', icon: Download },
-    { title: 'Privacy & security', subtitle: 'Session, privacy and account controls', icon: Shield },
+    { title: 'Playback & downloads', subtitle: 'Audio quality, offline and player behavior', icon: Download, section: 'playback' },
+    { title: 'Privacy & security', subtitle: 'Session, privacy and account controls', icon: Shield, section: 'privacy' },
   ];
 
   return (
@@ -171,7 +209,7 @@ export default function ProfileScreen() {
                 Public discovery works without an account. Sign in when you want Echoo to remember you.
               </Text>
             </View>
-            <ListenerAuthCard onPress={() => router.push('/auth')} />
+            <ListenerAuthCard onPress={() => push('/auth')} />
           </>
         ) : null}
 
@@ -213,8 +251,12 @@ export default function ProfileScreen() {
 
         <ListenerSectionHeader title="Settings" />
         <View style={styles.settingsGroup}>
-          {settingsRows.map(({ title, subtitle, icon: Icon }) => (
-            <Pressable key={title} style={styles.settingRow} onPress={() => router.push('/settings')}>
+          {settingsRows.map(({ title, subtitle, icon: Icon, section }) => (
+            <Pressable
+              key={title}
+              style={styles.settingRow}
+              onPress={() => push({ pathname: '/settings', params: { section } })}
+            >
               <View style={styles.settingIcon}>
                 <Icon color={palette.muted} size={19} strokeWidth={2} />
               </View>

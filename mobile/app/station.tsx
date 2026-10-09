@@ -1,6 +1,7 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
+import { useGuardedRouter } from '@/src/navigation/useGuardedRouter';
 import {
   Bell,
   BookOpen,
@@ -93,7 +94,7 @@ function formatDate(value?: string) {
 }
 
 export default function StationScreen() {
-  const router = useRouter();
+  const { router, push } = useGuardedRouter();
   const params = useLocalSearchParams<{ stationId?: string; tab?: StationTab }>();
   const stationId = String(params.stationId || '');
   const scheme = useColorScheme();
@@ -179,12 +180,12 @@ export default function StationScreen() {
 
   useEffect(() => {
     load(false, Boolean(stationScreenCache.get(stationId)));
-  }, [load]);
+  }, [load, stationId]);
 
   const toggleFollow = async () => {
     if (!stationId) return;
     if (!signedIn) {
-      router.push('/auth');
+      push('/auth');
       return;
     }
 
@@ -233,11 +234,7 @@ export default function StationScreen() {
 
   const openLive = () => {
     if (!live) return;
-    if (!signedIn) {
-      router.push('/auth');
-      return;
-    }
-    router.push({
+    push({
       pathname: '/live-room',
       params: {
         broadcastId: live.id,
@@ -249,7 +246,7 @@ export default function StationScreen() {
   };
 
   const openAudio = (track: EchooAudio, collection?: EchooPlaylist) => {
-    router.push({
+    push({
       pathname: '/audio-player',
       params: {
         audioId: track.id,
@@ -267,7 +264,7 @@ export default function StationScreen() {
   };
 
   const openCollection = (collection: EchooPlaylist) => {
-    router.push({
+    push({
       pathname: '/collection' as any,
       params: { collectionId: collection.id, stationId, stationName: station?.name || '' },
     });
@@ -397,7 +394,7 @@ export default function StationScreen() {
             <ChevronDown color={palette.ink} size={26} style={styles.backIcon} />
           </Pressable>
           <View style={styles.navActions}>
-            <Pressable style={styles.iconButton} onPress={() => router.push('/search')} accessibilityLabel="Search">
+            <Pressable style={styles.iconButton} onPress={() => push('/search')} accessibilityLabel="Search">
               <Search color={palette.ink} size={23} />
             </Pressable>
             <Pressable style={styles.iconButton} accessibilityLabel="More options">

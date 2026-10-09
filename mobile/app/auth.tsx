@@ -4,6 +4,7 @@ import { Eye, EyeOff, Headphones, Mail, Mic, UserRound } from 'lucide-react-nati
 import { ReactNode, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -72,10 +73,12 @@ export default function AuthScreen() {
     <SafeAreaView style={styles.safeArea} edges={['top', 'right', 'bottom', 'left']}>
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
       >
         <ScrollView
           contentContainerStyle={styles.content}
+          keyboardDismissMode="interactive"
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
@@ -200,6 +203,8 @@ export default function AuthScreen() {
           <Text style={styles.securityText}>
             {"Echoo stores mobile session credentials in your device's secure credential storage on iOS and Android."}
           </Text>
+
+          <Pressable style={styles.keyboardDismissTarget} onPress={Keyboard.dismiss} accessibilityLabel="Dismiss keyboard" />
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -235,7 +240,7 @@ function Field({
 const createStyles = (palette: EchooColors) => StyleSheet.create({
   flex: { flex: 1 },
   safeArea: { flex: 1, backgroundColor: palette.background },
-  content: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 44 },
+  content: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 140 },
   hero: { alignItems: 'center', paddingTop: 24, paddingBottom: 24 },
   heroIcon: { width: 76, height: 76, borderRadius: 25, alignItems: 'center', justifyContent: 'center', shadowColor: '#2F63F6', shadowOpacity: 0.22, shadowRadius: 22, shadowOffset: { width: 0, height: 9 }, elevation: 7 },
   heroTitle: { color: palette.ink, fontSize: 28, fontWeight: '900', letterSpacing: -0.8, textAlign: 'center', marginTop: 17 },
@@ -278,4 +283,5 @@ const createStyles = (palette: EchooColors) => StyleSheet.create({
   submitButton: { height: 50, borderRadius: 15, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center', marginTop: 3 },
   submitText: { color: '#FFFFFF', fontSize: 14, fontWeight: '900' },
   securityText: { color: palette.faint, fontSize: 10.5, lineHeight: 16, textAlign: 'center', marginTop: 15, paddingHorizontal: 10 },
+  keyboardDismissTarget: { height: 12 },
 });

@@ -8,7 +8,7 @@ import {
   Plus,
   Share2,
 } from 'lucide-react-native';
-import { useRouter } from 'expo-router';
+import { useGuardedRouter } from '@/src/navigation/useGuardedRouter';
 import { ReactNode, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -26,6 +26,7 @@ import {
   EchooPlaylist,
   addTrackToPlaylist,
   createPlaylist,
+  getCachedMyPlaylistsSnapshot,
   getMyPlaylists,
   hasEchooSession,
   saveAudio,
@@ -52,7 +53,7 @@ export function AudioRowActions({
   downloaded = false,
   onChanged,
 }: AudioRowActionsProps) {
-  const router = useRouter();
+  const { push } = useGuardedRouter();
   const palette = useListenerPalette();
   const styles = useMemo(() => createStyles(palette), [palette]);
 
@@ -65,13 +66,14 @@ export function AudioRowActions({
   const [messageTone, setMessageTone] = useState<'error' | 'info'>('error');
   const [playlists, setPlaylists] = useState<EchooPlaylist[]>([]);
   const [playlistOpen, setPlaylistOpen] = useState(false);
+  const [playlistLoading, setPlaylistLoading] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState('');
 
   const requireSession = async () => {
     const signedIn = await hasEchooSession();
     if (!signedIn) {
       setOpen(false);
-      router.push('/auth');
+      push('/auth');
       return false;
     }
     return true;
@@ -152,15 +154,27 @@ export function AudioRowActions({
 
   const openPlaylistPicker = async () => {
     if (!track.id || !(await requireSession())) return;
-    setBusy('playlist');
+    setPlaylistOpen(true);
     setMessage('');
+
+    const cachedPlaylists = await getCachedMyPlaylistsSnapshot().catch(() => []);
+    if (cachedPlaylists.length) {
+      setPlaylists(cachedPlaylists);
+      setPlaylistLoading(false);
+    } else {
+      setPlaylistLoading(true);
+      setBusy('playlist');
+    }
+
     try {
-      setPlaylists(await getMyPlaylists({ force: true }));
-      setPlaylistOpen(true);
+      setPlaylists(await getMyPlaylists());
     } catch (error: any) {
-      setMessageTone('error');
-      setMessage(friendlyErrorMessage(error, 'Could not load playlists.'));
+      if (!cachedPlaylists.length) {
+        setMessageTone('error');
+        setMessage(friendlyErrorMessage(error, 'Could not load playlists.'));
+      }
     } finally {
+      setPlaylistLoading(false);
       setBusy('');
     }
   };
@@ -217,7 +231,7 @@ export function AudioRowActions({
   const openStation = () => {
     if (!track.stationId) return;
     setOpen(false);
-    router.push({ pathname: '/station', params: { stationId: track.stationId } });
+    push({ pathname: '/station', params: { stationId: track.stationId } });
   };
 
   return (
@@ -300,7 +314,12 @@ export function AudioRowActions({
                     {busy === 'new' ? <ActivityIndicator color="#FFFFFF" size="small" /> : <Plus color="#FFFFFF" size={19} />}
                   </Pressable>
                 </View>
-                {playlists.length ? playlists.map((playlist) => (
+                {playlistLoading ? (
+                  <View style={styles.playlistLoadingRow}>
+                    <ActivityIndicator color={palette.blue} size="small" />
+                    <Text style={styles.mutedText}>Loading playlists...</Text>
+                  </View>
+                ) : playlists.length ? playlists.map((playlist) => (
                   <Pressable key={playlist.id} style={styles.playlistRow} onPress={() => addToPlaylist(playlist)}>
                     <View style={styles.playlistIcon}>
                       <ListMusic color={palette.blue} size={18} />
@@ -382,6 +401,7 @@ const createStyles = (palette: ReturnType<typeof useListenerPalette>) => StyleSh
   progressTrack: { height: 4, borderRadius: 2, backgroundColor: palette.surfaceMuted, marginTop: 7, overflow: 'hidden' },
   progressFill: { height: 4, borderRadius: 2, backgroundColor: palette.blue },
   playlistPanel: { borderTopWidth: 1, borderTopColor: palette.line, paddingTop: 12, marginTop: 4 },
+  playlistLoadingRow: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 9 },
   newPlaylistRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
   input: {
     flex: 1,

@@ -1,4 +1,5 @@
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
+import { useGuardedRouter } from '@/src/navigation/useGuardedRouter';
 import {
   Bell,
   ChevronRight,
@@ -40,14 +41,64 @@ const themeOptions: { label: string; value: ThemePreference }[] = [
   { label: 'Dark', value: 'dark' },
 ];
 
+type SettingsSection = 'all' | 'account' | 'notifications' | 'appearance' | 'playback' | 'privacy';
+
+const isSettingsSection = (value: string): value is SettingsSection =>
+  ['all', 'account', 'notifications', 'appearance', 'playback', 'privacy'].includes(value);
+
+const sectionCopy: Record<SettingsSection, { header: string; eyebrow: string; title: string; subtitle: string }> = {
+  all: {
+    header: 'Settings',
+    eyebrow: 'LISTENER SETTINGS',
+    title: 'Make Echoo feel right',
+    subtitle: 'Playback, appearance, notifications and account-level controls for your listener experience.',
+  },
+  account: {
+    header: 'Account',
+    eyebrow: 'ACCOUNT',
+    title: 'Your Echoo identity',
+    subtitle: 'Profile details and account state for the listener currently signed in on this device.',
+  },
+  notifications: {
+    header: 'Notifications',
+    eyebrow: 'ALERTS',
+    title: 'Notification controls',
+    subtitle: 'Manage device-level Echoo notifications for live rooms, creators and releases.',
+  },
+  appearance: {
+    header: 'Appearance',
+    eyebrow: 'DISPLAY',
+    title: 'Choose your look',
+    subtitle: 'Set Echoo to follow your phone or keep a fixed light or dark theme.',
+  },
+  playback: {
+    header: 'Playback',
+    eyebrow: 'LISTENING',
+    title: 'Playback & downloads',
+    subtitle: 'Control how Echoo plays audio and stores offline media on this device.',
+  },
+  privacy: {
+    header: 'Privacy',
+    eyebrow: 'SECURITY',
+    title: 'Privacy & security',
+    subtitle: 'Review session security, privacy policy and account deletion controls.',
+  },
+};
+
 export default function SettingsScreen() {
-  const router = useRouter();
+  const { push } = useGuardedRouter();
+  const params = useLocalSearchParams<{ section?: string }>();
   const scheme = useColorScheme();
   const { preference, setPreference } = useThemePreference();
   const palette = getEchooColors(scheme);
   const styles = useMemo(() => createStyles(palette), [palette]);
   const [signedIn, setSignedIn] = useState(false);
   const [user, setUser] = useState<EchooUser | null>(null);
+  const section = isSettingsSection(String(params.section || 'all'))
+    ? String(params.section || 'all') as SettingsSection
+    : 'all';
+  const copy = sectionCopy[section];
+  const showAll = section === 'all';
 
   useEffect(() => {
     let active = true;
@@ -64,22 +115,22 @@ export default function SettingsScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'right', 'bottom', 'left']}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <ListenerBackHeader title="Settings" />
+        <ListenerBackHeader title={copy.header} />
         <ListenerPageHeader
-          eyebrow="LISTENER SETTINGS"
-          title="Make Echoo feel right"
-          subtitle="Playback, appearance, notifications and account-level controls for your listener experience."
+          eyebrow={copy.eyebrow}
+          title={copy.title}
+          subtitle={copy.subtitle}
         />
 
         {!signedIn ? (
           <ListenerAuthCard
             title="Sign in for synced settings"
             subtitle="Device appearance works for everyone. Account preferences can sync after you sign in."
-            onPress={() => router.push('/auth')}
+            onPress={() => push('/auth')}
           />
         ) : null}
 
-        {signedIn && user ? (
+        {(showAll || section === 'account') && signedIn && user ? (
           <View style={styles.accountStrip}>
             <View style={styles.accountIcon}>
               <UserRound color={palette.muted} size={20} strokeWidth={2} />
@@ -91,99 +142,152 @@ export default function SettingsScreen() {
           </View>
         ) : null}
 
-        <ListenerSectionHeader title="Experience" />
-        <View style={styles.group}>
-          <SettingRow
-            icon={<MoonStar color={palette.muted} size={19} strokeWidth={2} />}
-            title="Appearance"
-            subtitle="Choose Echoo's app theme"
-            value={
-              preference === 'system'
-                ? `System ${scheme === 'dark' ? 'Dark' : 'Light'}`
-                : preference === 'dark' ? 'Dark' : 'Light'
-            }
-            palette={palette}
-          />
-          <View style={styles.themePicker}>
-            {themeOptions.map((option) => {
-              const active = preference === option.value;
-              return (
-                <Pressable
-                  key={option.value}
-                  style={[styles.themeOption, active && styles.themeOptionActive]}
-                  onPress={() => setPreference(option.value)}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: active }}
-                >
-                  <Text style={[styles.themeOptionText, active && styles.themeOptionTextActive]}>
-                    {option.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-          <SettingRow
-            icon={<Volume2 color={palette.muted} size={19} strokeWidth={2} />}
-            title="Playback"
-            subtitle="Normal speed · device volume"
-            value="Default"
-            palette={palette}
-          />
-          <SettingRow
-            icon={<Download color={palette.muted} size={19} strokeWidth={2} />}
-            title="Downloads"
-            subtitle="Offline media remains on this device"
-            value="Device"
-            palette={palette}
-          />
-          <SettingRow
-            icon={<Languages color={palette.muted} size={19} strokeWidth={2} />}
-            title="Language"
-            subtitle="Interface language"
-            value="English"
-            palette={palette}
-            last
-          />
-        </View>
+        {(showAll || section === 'account') && signedIn && user ? (
+          <>
+            <ListenerSectionHeader title="Account" />
+            <View style={styles.group}>
+              <SettingRow
+                icon={<UserRound color={palette.muted} size={19} strokeWidth={2} />}
+                title="Display name"
+                subtitle="Shown on your Echoo listener account"
+                value={user.displayName || user.username}
+                palette={palette}
+              />
+              <SettingRow
+                icon={<UserRound color={palette.muted} size={19} strokeWidth={2} />}
+                title="Username"
+                subtitle="Your unique Echoo handle"
+                value={`@${user.username}`}
+                palette={palette}
+              />
+              <SettingRow
+                icon={<UserRound color={palette.muted} size={19} strokeWidth={2} />}
+                title="Account type"
+                subtitle="Controls which mobile tools are available"
+                value={user.userType === 'creator' ? 'Creator' : 'Listener'}
+                palette={palette}
+                last
+              />
+            </View>
+          </>
+        ) : null}
 
-        <ListenerSectionHeader title="Notifications & privacy" />
-        <View style={styles.group}>
-          <SettingRow
-            icon={<Bell color={palette.muted} size={19} strokeWidth={2} />}
-            title="Notifications"
-            subtitle="Manage Echoo's device notification permission"
-            value="Device"
-            palette={palette}
-            onPress={() => Linking.openSettings()}
-          />
-          <SettingRow
-            icon={<Shield color={palette.muted} size={19} strokeWidth={2} />}
-            title="Privacy & security"
-            subtitle="Secure mobile session storage and account controls"
-            value={signedIn ? 'Protected' : 'Guest'}
-            palette={palette}
-          />
-          <SettingRow
-            icon={<FileText color={palette.muted} size={19} strokeWidth={2} />}
-            title="Privacy Policy"
-            subtitle="Read how Echoo handles account, listening and broadcast data"
-            value="Open"
-            palette={palette}
-            onPress={() => { void Linking.openURL('https://echoo.digi02.org/privacy-policy'); }}
-            last={!signedIn}
-          />
-          {signedIn ? (
-            <SettingRow
-              icon={<Trash2 color={palette.red} size={19} strokeWidth={2} />}
-              title="Delete account"
-              subtitle="Permanently delete your Echoo account"
-              value="Delete"
-              palette={palette}
-              onPress={() => router.push('/delete-account')}
-              last
-            />
-          ) : null}
-        </View>
+        {(showAll || section === 'appearance' || section === 'playback') ? (
+          <>
+            <ListenerSectionHeader title={section === 'playback' ? 'Playback' : 'Experience'} />
+            <View style={styles.group}>
+              {(showAll || section === 'appearance') ? (
+                <>
+                  <SettingRow
+                    icon={<MoonStar color={palette.muted} size={19} strokeWidth={2} />}
+                    title="Appearance"
+                    subtitle="Choose Echoo's app theme"
+                    value={
+                      preference === 'system'
+                        ? `System ${scheme === 'dark' ? 'Dark' : 'Light'}`
+                        : preference === 'dark' ? 'Dark' : 'Light'
+                    }
+                    palette={palette}
+                  />
+                  <View style={styles.themePicker}>
+                    {themeOptions.map((option) => {
+                      const active = preference === option.value;
+                      return (
+                        <Pressable
+                          key={option.value}
+                          style={[styles.themeOption, active && styles.themeOptionActive]}
+                          onPress={() => setPreference(option.value)}
+                          accessibilityRole="button"
+                          accessibilityState={{ selected: active }}
+                        >
+                          <Text style={[styles.themeOptionText, active && styles.themeOptionTextActive]}>
+                            {option.label}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </>
+              ) : null}
+              {(showAll || section === 'playback') ? (
+                <>
+                  <SettingRow
+                    icon={<Volume2 color={palette.muted} size={19} strokeWidth={2} />}
+                    title="Playback"
+                    subtitle="Normal speed · device volume"
+                    value="Default"
+                    palette={palette}
+                  />
+                  <SettingRow
+                    icon={<Download color={palette.muted} size={19} strokeWidth={2} />}
+                    title="Downloads"
+                    subtitle="Offline media remains on this device"
+                    value="Device"
+                    palette={palette}
+                  />
+                  <SettingRow
+                    icon={<Languages color={palette.muted} size={19} strokeWidth={2} />}
+                    title="Language"
+                    subtitle="Interface language"
+                    value="English"
+                    palette={palette}
+                    last
+                  />
+                </>
+              ) : null}
+            </View>
+          </>
+        ) : null}
+
+        {(showAll || section === 'notifications' || section === 'privacy') ? (
+          <>
+            <ListenerSectionHeader title={section === 'notifications' ? 'Notifications' : 'Notifications & privacy'} />
+            <View style={styles.group}>
+              {(showAll || section === 'notifications') ? (
+                <SettingRow
+                  icon={<Bell color={palette.muted} size={19} strokeWidth={2} />}
+                  title="Device notifications"
+                  subtitle="Open your phone settings for Echoo notification permission"
+                  value="Open"
+                  palette={palette}
+                  onPress={() => Linking.openSettings()}
+                  last={section === 'notifications'}
+                />
+              ) : null}
+              {(showAll || section === 'privacy') ? (
+                <>
+                  <SettingRow
+                    icon={<Shield color={palette.muted} size={19} strokeWidth={2} />}
+                    title="Privacy & security"
+                    subtitle="Secure mobile session storage and account controls"
+                    value={signedIn ? 'Protected' : 'Guest'}
+                    palette={palette}
+                  />
+                  <SettingRow
+                    icon={<FileText color={palette.muted} size={19} strokeWidth={2} />}
+                    title="Privacy Policy"
+                    subtitle="Read how Echoo handles account, listening and broadcast data"
+                    value="Open"
+                    palette={palette}
+                    onPress={() => { void Linking.openURL('https://echoo.digi02.org/privacy-policy'); }}
+                    last={!signedIn}
+                  />
+                  {signedIn ? (
+                    <SettingRow
+                      icon={<Trash2 color={palette.red} size={19} strokeWidth={2} />}
+                      title="Delete account"
+                      subtitle="Permanently delete your Echoo account"
+                      value="Delete"
+                      palette={palette}
+                      onPress={() => push('/delete-account')}
+                      last
+                    />
+                  ) : null}
+                </>
+              ) : null}
+            </View>
+          </>
+        ) : null}
 
         <View style={styles.securityCard}>
           <Headphones color={palette.muted} size={20} strokeWidth={2} />

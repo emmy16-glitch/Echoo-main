@@ -1,6 +1,7 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
+import { useGuardedRouter } from '@/src/navigation/useGuardedRouter';
 import {
   BookOpen,
   ChevronDown,
@@ -39,7 +40,7 @@ function formatDuration(seconds = 0) {
 }
 
 export default function CollectionScreen() {
-  const router = useRouter();
+  const { router, push } = useGuardedRouter();
   const params = useLocalSearchParams<{
     collectionId?: string;
     stationId?: string;
@@ -89,7 +90,7 @@ export default function CollectionScreen() {
 
   const openStation = () => {
     if (!stationId) return;
-    router.push({ pathname: '/station', params: { stationId } });
+    push({ pathname: '/station', params: { stationId } });
   };
 
   const collectionQueue = useMemo<AudioPlaybackItem[]>(() => {
@@ -113,7 +114,7 @@ export default function CollectionScreen() {
     if (!collection) return;
     const startIndex = Math.max(0, collectionQueue.findIndex((item) => item.id === track.id));
     await playback.playAudioQueue(collectionQueue, startIndex);
-    router.push({
+    push({
       pathname: '/audio-player',
       params: {
         audioId: track.id,
@@ -188,7 +189,7 @@ export default function CollectionScreen() {
             <ChevronDown color={palette.ink} size={26} style={styles.backIcon} />
           </Pressable>
           <View style={styles.navActions}>
-            <Pressable style={styles.iconButton} onPress={() => router.push('/search')} accessibilityLabel="Search">
+            <Pressable style={styles.iconButton} onPress={() => push('/search')} accessibilityLabel="Search">
               <Search color={palette.ink} size={23} />
             </Pressable>
             <Pressable style={styles.iconButton} accessibilityLabel="More options">

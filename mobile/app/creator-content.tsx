@@ -1,6 +1,7 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { Image } from 'expo-image';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
+import { useGuardedRouter } from '@/src/navigation/useGuardedRouter';
 import {
   ChevronLeft,
   Edit3,
@@ -59,7 +60,7 @@ const formatNumber = (value?: number) => {
 };
 
 export default function CreatorContentScreen() {
-  const router = useRouter();
+  const { router, push } = useGuardedRouter();
   const params = useLocalSearchParams<{ uploadedId?: string }>();
   const scheme = useColorScheme();
   const palette = getEchooColors(scheme);
@@ -93,7 +94,7 @@ export default function CreatorContentScreen() {
   );
 
   const openAudio = (track: EchooAudio) => {
-    router.push({
+    push({
       pathname: '/audio-player',
       params: {
         audioId: track.id,
@@ -185,7 +186,7 @@ export default function CreatorContentScreen() {
           <ChevronLeft color={palette.ink} size={25} />
         </Pressable>
         <Text style={styles.topTitle}>My content</Text>
-        <Pressable style={styles.iconButton} onPress={() => router.push('/creator-upload' as any)}>
+        <Pressable style={styles.iconButton} onPress={() => push('/creator-upload' as any)}>
           <Plus color={palette.ink} size={22} />
         </Pressable>
       </View>
@@ -215,7 +216,7 @@ export default function CreatorContentScreen() {
             subtitle="Upload your first audio or finish a live replay."
             icon={<Upload color={palette.blue} size={24} />}
             action="Upload audio"
-            onAction={() => router.push('/creator-upload' as any)}
+            onAction={() => push('/creator-upload' as any)}
           />
         ) : null}
 

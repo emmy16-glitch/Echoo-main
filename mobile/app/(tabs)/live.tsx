@@ -1,7 +1,7 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useGuardedRouter } from '@/src/navigation/useGuardedRouter';
 import { Clock3, Headphones, Radio, Users } from 'lucide-react-native';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import {
@@ -26,13 +26,12 @@ import {
 import {
   EchooBroadcast,
   getMobileDiscovery,
-  hasEchooSession,
 } from '@/src/services/echooApi';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { EchooColors, getEchooColors } from '@/src/theme/echooTheme';
 
 export default function LiveScreen() {
-  const router = useRouter();
+  const { push } = useGuardedRouter();
   const scheme = useColorScheme();
   const palette = getEchooColors(scheme);
   const styles = useMemo(() => createStyles(palette), [palette]);
@@ -41,7 +40,6 @@ export default function LiveScreen() {
   const [scheduled, setScheduled] = useState<EchooBroadcast[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [signedIn, setSignedIn] = useState(false);
   const [error, setError] = useState('');
   const hasLoadedOnce = useRef(false);
 
@@ -50,13 +48,9 @@ export default function LiveScreen() {
     else if (!silent) setLoading(true);
     setError('');
     try {
-      const [data, activeSession] = await Promise.all([
-        getMobileDiscovery({ force }),
-        hasEchooSession(),
-      ]);
+      const data = await getMobileDiscovery({ force });
       setLive(data.live);
       setScheduled(data.scheduled);
-      setSignedIn(activeSession);
     } catch (loadError: any) {
       setError(friendlyErrorMessage(loadError, 'Could not load live broadcasts.'));
     } finally {
@@ -73,12 +67,7 @@ export default function LiveScreen() {
   );
 
   const openLiveRoom = (item: EchooBroadcast) => {
-    if (!signedIn) {
-      router.push('/auth');
-      return;
-    }
-
-    router.push({
+    push({
       pathname: '/live-room',
       params: {
         broadcastId: item.id,
@@ -152,7 +141,7 @@ export default function LiveScreen() {
               </View>
               <View style={styles.listenButton}>
                 <Headphones color="#FFFFFF" size={18} />
-                <Text style={styles.listenButtonText}>{signedIn ? 'Open live room' : 'Sign in to listen'}</Text>
+                <Text style={styles.listenButtonText}>Open live room</Text>
               </View>
             </View>
           </Pressable>

@@ -148,6 +148,16 @@ export async function getCachedJson<T>(
   }
 }
 
+export async function peekCachedJson<T>(key: string): Promise<T | null> {
+  const memory = memoryCache.get(key) as CacheRecord<T> | undefined;
+  if (memory) return memory.value;
+
+  const disk = await readDiskRecord<T>(key);
+  if (!disk) return null;
+  memoryCache.set(key, disk);
+  return disk.value;
+}
+
 export async function deleteCachedJson(key: string) {
   memoryCache.delete(key);
   refreshes.delete(key);
