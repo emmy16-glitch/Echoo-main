@@ -8,6 +8,7 @@ test('new signup persists one Echoo session, completes profile setup and lands i
   await page.getByLabel('Email address').fill('new-listener@example.test');
   await page.getByLabel('Password', { exact: true }).fill('Password123!');
   await page.getByLabel('Confirm password').fill('Password123!');
+  await page.getByRole('checkbox', { name: /I agree to the/i }).check();
   await page.getByRole('button', { name: 'Create account' }).click();
 
   await expect(page.getByRole('heading', { name: 'Create your profile' })).toBeVisible();
@@ -58,6 +59,7 @@ test('signup explains duplicate email and duplicate username without losing ente
   await page.getByLabel('Email address').fill('existing@example.test');
   await page.getByLabel('Password', { exact: true }).fill('Password123!');
   await page.getByLabel('Confirm password').fill('Password123!');
+  await page.getByRole('checkbox', { name: /I agree to the/i }).check();
   await page.getByRole('button', { name: 'Create account' }).click();
 
   await expect(page.getByText('Email already registered', { exact: true })).toBeVisible();
@@ -65,6 +67,7 @@ test('signup explains duplicate email and duplicate username without losing ente
   await expect(page.getByLabel('Email address')).toHaveValue('existing@example.test');
 
   responseCode = 'USERNAME_TAKEN';
+  await page.getByRole('checkbox', { name: /I agree to the/i }).check();
   await page.getByRole('button', { name: 'Create account' }).click();
   await expect(page.getByText('Username already taken', { exact: true })).toBeVisible();
 });
