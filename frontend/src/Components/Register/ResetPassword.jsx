@@ -93,7 +93,10 @@ const ResetPassword = () => {
   return (
     <main className="echoo-auth-reference is-recovery">
       <section className="ear-auth-card" aria-labelledby="echoo-reset-title">
-          <img className="ear-logo-mark" src={EchooLogoImage} alt="Echoo" />
+          <div className="ear-card-brand" aria-label="Echoo">
+            <img className="ear-logo-mark" src={EchooLogoImage} alt="" />
+            <span>Echoo</span>
+          </div>
           <button type="button" className="ear-back" onClick={backToSignIn}>
             <FaArrowLeft aria-hidden="true" /> Back to sign in
           </button>

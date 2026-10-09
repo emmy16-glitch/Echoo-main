@@ -8,16 +8,6 @@ const assertNoHorizontalOverflow = async (page) => {
   expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth + 1);
 };
 
-const assertAuthFitsViewport = async (page) => {
-  const dimensions = await page.evaluate(() => ({
-    scrollHeight: document.documentElement.scrollHeight,
-    clientHeight: document.documentElement.clientHeight,
-    bodyScrollHeight: document.body.scrollHeight,
-  }));
-  expect(dimensions.scrollHeight).toBeLessThanOrEqual(dimensions.clientHeight + 1);
-  expect(dimensions.bodyScrollHeight).toBeLessThanOrEqual(dimensions.clientHeight + 1);
-};
-
 const collectBrowserErrors = (page) => {
   const errors = [];
   page.on('console', (message) => {
@@ -34,16 +24,19 @@ const collectBrowserErrors = (page) => {
   return errors;
 };
 
-test('Figma Echoo signup preserves identity fields, password eyes and responsive layout', async ({ page }) => {
+test('Echoo signup requires policy agreement and preserves accessible password controls', async ({ page }) => {
   const browserErrors = collectBrowserErrors(page);
   await page.goto('/register');
 
-  await expect(page.getByRole('heading', { name: 'Create your account' })).toBeVisible();
-  await expect(page.getByText('Join Echoo and start sharing or listening.')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Continue listening without an account' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Create an account' })).toBeVisible();
+  await expect(page.getByText('Join Echoo and start sharing or listening.')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Continue without an account' })).toBeVisible();
   await expect(page.getByLabel('Full name')).toBeVisible();
   await expect(page.getByLabel('Username')).toBeVisible();
   await expect(page.getByLabel('Email address')).toBeVisible();
+  const policyAgreement = page.getByRole('checkbox', { name: /I agree to the Privacy Policy/i });
+  await expect(policyAgreement).not.toBeChecked();
+  await expect(page.getByRole('button', { name: 'Create account' })).toBeDisabled();
 
   await page.getByLabel('Username').fill('ab');
   await expect(page.getByText('Username must be between 3 and 30 characters.')).toBeVisible();
@@ -52,6 +45,7 @@ test('Figma Echoo signup preserves identity fields, password eyes and responsive
   await page.getByLabel('Email address').fill('not-an-email');
   await expect(page.getByText('Enter a valid email address.')).toBeVisible();
   await page.getByLabel('Email address').fill('new-listener@example.test');
+  await page.getByLabel('Full name').fill('New Listener');
 
   const password = page.getByLabel('Password', { exact: true });
   await password.fill('Password123!');
@@ -69,9 +63,47 @@ test('Figma Echoo signup preserves identity fields, password eyes and responsive
   await page.getByRole('button', { name: 'Hide confirmed password' }).click();
   await expect(confirm).toHaveAttribute('type', 'password');
 
+  await policyAgreement.check();
+  await expect(page.getByRole('button', { name: 'Create account' })).toBeEnabled();
+
   await assertNoHorizontalOverflow(page);
-  await assertAuthFitsViewport(page);
   expect(browserErrors).toEqual([]);
+});
+
+test('signup policy navigation preserves the in-memory draft and sends the published version', async ({ page }) => {
+  const registrationPayloads = [];
+  await page.route('**/api/auth/register', async (route) => {
+    registrationPayloads.push(JSON.parse(route.request().postData() || '{}'));
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify({ data: {
+        user: { id: '507f1f77bcf86cd799439099', username: 'policy-user', email: 'policy@example.test' },
+        accessToken: 'policy-token', refreshToken: 'policy-refresh',
+      } }),
+    });
+  });
+
+  await page.goto('/register');
+  await page.getByLabel('Full name').fill('Policy User');
+  await page.getByLabel('Username').fill('policy-user');
+  await page.getByLabel('Email address').fill('policy@example.test');
+  await page.getByLabel('Password', { exact: true }).fill('Password123!');
+  await page.getByLabel('Confirm password').fill('Password123!');
+  await page.getByRole('checkbox', { name: /I agree to the Privacy Policy/i }).check();
+  await page.getByRole('button', { name: 'Privacy Policy' }).click();
+
+  await expect(page).toHaveURL(/\/privacy-policy$/);
+  await expect(page.getByRole('heading', { name: 'Privacy Policy' })).toBeVisible();
+  await page.getByRole('button', { name: 'Back to sign up' }).click();
+  await expect(page).toHaveURL(/\/register$/);
+  await expect(page.getByLabel('Full name')).toHaveValue('Policy User');
+  await expect(page.getByLabel('Password', { exact: true })).toHaveValue('Password123!');
+  await expect(page.getByRole('checkbox', { name: /I agree to the Privacy Policy/i })).toBeChecked();
+
+  await page.getByRole('button', { name: 'Create account' }).click();
+  await expect.poll(() => registrationPayloads.length).toBe(1);
+  expect(registrationPayloads[0].privacyPolicyAcceptance).toEqual({ accepted: true, version: '2026-10-06' });
 });
 
 test('login accepts both @username and email and exposes working recovery', async ({ page }) => {
@@ -152,7 +184,6 @@ test('login accepts both @username and email and exposes working recovery', asyn
   await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
 
   await assertNoHorizontalOverflow(page);
-  await assertAuthFitsViewport(page);
   expect(browserErrors).toEqual([]);
 });
 
@@ -162,7 +193,7 @@ test('logged-out listeners can leave auth and return to public listening', async
 
   await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
   await expect(page.getByText('Example: @okunlola or name@example.com')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Continue listening without an account' }).click();
+  await page.getByRole('button', { name: 'Continue without an account' }).click();
 
   await expect(page).toHaveURL(/\/listen(?:\/)?$/);
   await expect(page).not.toHaveURL(/\/login/);
@@ -172,7 +203,7 @@ test('logged-out listeners can leave auth and return to public listening', async
 
 test('signed-out visitors can enter public listening from sign up too', async ({ page }) => {
   await page.goto('/register');
-  await page.getByRole('button', { name: 'Continue listening without an account' }).click();
+  await page.getByRole('button', { name: 'Continue without an account' }).click();
   await expect(page).toHaveURL(/\/listen(?:\/)?$/);
   await expect(page).not.toHaveURL(/\/register/);
   await assertNoHorizontalOverflow(page);

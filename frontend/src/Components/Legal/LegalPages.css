@@ -6,6 +6,8 @@
 .echoo-legal-nav a,.echoo-legal-footer a,.echoo-legal-document a{color:#315f9f;text-underline-offset:3px}
 .echoo-legal-nav a{font-size:14px;font-weight:700;text-decoration:none}
 .echoo-legal-document{width:min(100% - 40px,780px);margin:0 auto;padding:72px 0 80px}
+.echoo-legal-back{min-height:42px;margin:0 0 24px;padding:0 16px;border:1px solid #315f9f;border-radius:10px;background:#fff;color:#244a86;font:inherit;font-size:14px;font-weight:800;cursor:pointer}
+.echoo-legal-back:hover{background:#eef4ff}.echoo-legal-back:focus-visible{outline:3px solid rgba(49,95,159,.28);outline-offset:3px}
 .echoo-legal-heading{padding-bottom:32px;border-bottom:1px solid rgba(17,24,39,.1)}
 .echoo-legal-eyebrow{margin:0 0 10px;color:#4f7ec3;font-size:12px;font-weight:800;letter-spacing:.12em}
 .echoo-legal-heading h1{margin:0;color:#0f172a;font-size:clamp(2rem,5vw,3rem);line-height:1.08;letter-spacing:-.035em}

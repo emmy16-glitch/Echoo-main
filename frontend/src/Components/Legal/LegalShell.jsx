@@ -1,8 +1,12 @@
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import EchooLogoImage from '../Assets/echoo-logo-mark.png';
 import './LegalPages.css';
 
 export default function LegalShell({ eyebrow, title, updated, children }) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const returnToSignup = location.state?.authReturnTo === '/register';
+
   return (
     <main className="echoo-legal-page">
       <header className="echoo-legal-topbar">
@@ -17,6 +21,15 @@ export default function LegalShell({ eyebrow, title, updated, children }) {
       </header>
 
       <article className="echoo-legal-document">
+        {returnToSignup && (
+          <button
+            type="button"
+            className="echoo-legal-back"
+            onClick={() => navigate('/register', { replace: true })}
+          >
+            Back to sign up
+          </button>
+        )}
         <div className="echoo-legal-heading">
           <p className="echoo-legal-eyebrow">{eyebrow}</p>
           <h1>{title}</h1>

@@ -6,24 +6,21 @@ import api from "../../services/api";
 import {
   FaArrowLeft,
   FaArrowRight,
-  FaAt,
-  FaEnvelope,
   FaExclamationCircle,
   FaEye,
   FaEyeSlash,
-  FaLock,
-  FaUser,
 } from "react-icons/fa";
 
 import EchooLogoImage from "../Assets/echoo-logo-mark.png";
-import EchooAuthBackground from "../Assets/echoo-auth-studio-reference-v2.png";
 import LoadingButton from "../UI/LoadingButton";
 import Toast from "../UI/Toast";
+
+export const PRIVACY_POLICY_VERSION = "2026-10-06";
+let signupDraft = null;
 
 const AuthField = ({
   id,
   label,
-  icon: Icon,
   error,
   action,
   hint,
@@ -34,7 +31,6 @@ const AuthField = ({
       <label htmlFor={id}>{label}</label>
     </div>
     <div className={`ear-input-shell ${error ? "has-error" : ""}`}>
-      <Icon className="ear-input-icon" aria-hidden="true" />
       {children}
     </div>
     {action && <div className="ear-field-action">{action}</div>}
@@ -76,6 +72,10 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordFocused, setPasswordFocused] = useState(false);
+  const [privacyPolicyAccepted, setPrivacyPolicyAccepted] = useState(
+    () => signupDraft?.privacyPolicyAccepted === true
+  );
   const [loginError, setLoginError] = useState("");
   const [signupError, setSignupError] = useState("");
   const [successState, setSuccessState] = useState(null);
@@ -92,14 +92,18 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
     setAction(initialAuthAction(location.pathname, location.search));
   }, [location.pathname, location.search]);
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState(() => signupDraft?.formData || ({
     fullname: "",
     username: "",
     email: "",
     identifier: "",
     password: "",
     confirmPassword: "",
-  });
+  }));
+
+  useEffect(() => {
+    if (action === "Sign Up") signupDraft = { formData, privacyPolicyAccepted };
+  }, [action, formData, privacyPolicyAccepted]);
 
   const passwordTooShort =
     action === "Sign Up" &&
@@ -163,7 +167,8 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
         !emailInvalid &&
         !passwordInvalid &&
         formData.confirmPassword !== "" &&
-        formData.password === formData.confirmPassword
+        formData.password === formData.confirmPassword &&
+        privacyPolicyAccepted
       );
     }
     if (action === "Login") {
@@ -211,6 +216,10 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
         setSignupError("Password must include uppercase and lowercase letters, a number, and a special character.");
       } else if (formData.password !== formData.confirmPassword) {
         setSignupError("Passwords do not match. Please check both password fields.");
+      } else if (!formData.fullname.trim() || !cleanUsername || !cleanEmail || !formData.password || !formData.confirmPassword) {
+        setSignupError("Please complete all required fields.");
+      } else if (!privacyPolicyAccepted) {
+        setSignupError("Please agree to the Privacy Policy before creating your account.");
       } else {
         setSignupError("Please complete all required fields.");
       }
@@ -229,7 +238,12 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
           email: cleanEmail,
           password: formData.password,
           displayName: formData.fullname.trim(),
+          privacyPolicyAcceptance: {
+            accepted: true,
+            version: PRIVACY_POLICY_VERSION,
+          },
         });
+        signupDraft = null;
         const user = saveSession(response);
         setSuccessUser(user);
         setSuccessState("signup");
@@ -317,6 +331,16 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
     setAction("Sign Up");
   };
 
+  const openPrivacyPolicy = () => {
+    signupDraft = { formData, privacyPolicyAccepted };
+    navigate("/privacy-policy", { state: { authReturnTo: "/register" } });
+  };
+
+  const continueWithoutAccount = () => {
+    signupDraft = null;
+    navigate("/listen");
+  };
+
   if (successState === "signup") {
     return (
       <AuthStatus
@@ -345,7 +369,6 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
   return (
     <main
       className={`echoo-auth-reference ${isLogin ? "is-login" : isRecovery ? "is-recovery" : "is-signup"}`}
-      style={{ "--ear-auth-background-image": `url("${EchooAuthBackground}")` }}
     >
       <Toast
         open={toast.open}
@@ -355,18 +378,7 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
         onClose={() => setToast((current) => ({ ...current, open: false }))}
       />
 
-      <div className="ear-auth-backdrop" aria-hidden="true" />
       <div className="ear-auth-shell">
-        <aside className="ear-auth-story" aria-label="About Echoo">
-          <div className="ear-auth-story-copy">
-            <div className="ear-story-brand" aria-label="Echoo">
-              <img src={EchooLogoImage} alt="" />
-              <span>Echoo</span>
-            </div>
-            <h2>Hear the moment.<br />Own the room.</h2>
-          </div>
-        </aside>
-
         <section className="ear-auth-card" aria-labelledby="ear-auth-title">
         <div className="ear-card-brand">
           <img className="ear-logo-mark" src={EchooLogoImage} alt="" />
@@ -382,7 +394,7 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
                 <p>Enter the email address attached to your Echoo account.</p>
               </header>
               <form className="ear-form" onSubmit={handleSubmit} noValidate>
-                <AuthField id="echoo-recovery-email" label="Email address" icon={FaEnvelope} error={emailInvalid}>
+                <AuthField id="echoo-recovery-email" label="Email address" error={emailInvalid}>
                   <input
                     id="echoo-recovery-email"
                     type="email"
@@ -411,9 +423,8 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
             <>
               <header className="ear-form-heading">
                 <h1 id="ear-auth-title">
-                  {isLogin ? "Sign in" : "Create your account"}
+                  {isLogin ? "Sign in" : "Create an account"}
                 </h1>
-                <p>{isLogin ? "Welcome back to Echoo." : "Join Echoo and start sharing or listening."}</p>
               </header>
 
               <form className="ear-form" onSubmit={handleSubmit} noValidate>
@@ -421,7 +432,6 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
                   <AuthField
                     id="echoo-signup-fullname"
                     label="Full name"
-                    icon={FaUser}
                     error={fullNameInvalid}
                   >
                     <input
@@ -447,7 +457,6 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
                   <AuthField
                     id="echoo-login-identifier"
                     label="Username or email"
-                    icon={FaAt}
                     error={Boolean(loginError)}
                   >
                     <input
@@ -468,7 +477,6 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
                   <AuthField
                     id="echoo-signup-username"
                     label="Username"
-                    icon={FaAt}
                     error={usernameInvalid}
                   >
                     <input
@@ -497,7 +505,6 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
                   <AuthField
                     id="echoo-signup-email"
                     label="Email address"
-                    icon={FaEnvelope}
                     error={emailInvalid}
                   >
                     <input
@@ -521,7 +528,6 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
                 <AuthField
                   id={isLogin ? "echoo-login-password" : "echoo-signup-password"}
                   label="Password"
-                  icon={FaLock}
                   error={isLogin ? Boolean(loginError) : passwordInvalid}
                   action={isLogin ? (
                     <button
@@ -543,6 +549,8 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
                     placeholder={isLogin ? "Enter your password" : "Create a strong password"}
                     value={formData.password}
                     onChange={handleChange}
+                    onFocus={() => setPasswordFocused(true)}
+                    onBlur={() => setPasswordFocused(false)}
                     onPaste={handlePasswordPaste("password")}
                     autoComplete={isLogin ? "current-password" : "new-password"}
                     autoCapitalize="none"
@@ -567,7 +575,6 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
                   <AuthField
                     id="echoo-signup-confirm"
                     label="Confirm password"
-                    icon={FaLock}
                     error={passwordsMismatch}
                   >
                     <input
@@ -597,8 +604,8 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
                   </AuthField>
                 )}
 
-                {!isLogin && !formData.password && (
-                  <p className="ear-password-hint">8+ characters · upper/lowercase · number · symbol</p>
+                {!isLogin && (passwordFocused || passwordInvalid) && (
+                  <p className="ear-password-hint">Use 8+ characters with uppercase and lowercase letters, a number, and a symbol.</p>
                 )}
                 {passwordTooShort && <p className="ear-error" role="alert">Use at least 8 characters.</p>}
                 {!passwordTooShort && passwordMissingCombination && (
@@ -612,6 +619,25 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
                   </p>
                 )}
 
+                {!isLogin && (
+                  <div className="ear-policy-agreement">
+                    <input
+                      id="echoo-privacy-policy-agreement"
+                      type="checkbox"
+                      aria-label="I agree to the Privacy Policy"
+                      checked={privacyPolicyAccepted}
+                      onChange={(event) => {
+                        setPrivacyPolicyAccepted(event.target.checked);
+                        setSignupError("");
+                      }}
+                    />
+                    <span>
+                      <label htmlFor="echoo-privacy-policy-agreement">I agree to the </label>
+                      <button type="button" onClick={openPrivacyPolicy}>Privacy Policy</button>
+                    </span>
+                  </div>
+                )}
+
                 <LoadingButton
                   type="submit"
                   loading={loading}
@@ -622,19 +648,12 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
                   {isLogin ? "Sign in" : "Create account"}
                 </LoadingButton>
 
-                {!isLogin && (
-                  <p className="ear-legal">
-                    By creating an account, you acknowledge the <button type="button" onClick={() => navigate("/privacy-policy")}>Privacy Policy</button>.
-                  </p>
-                )}
-
-                <div className="ear-auth-divider" aria-hidden="true"><span>or</span></div>
                 <button
                   type="button"
                   className="ear-guest-listen"
-                  onClick={() => navigate("/listen")}
+                  onClick={continueWithoutAccount}
                 >
-                  Continue listening without an account
+                  Continue without an account
                 </button>
 
                 <p className="ear-auth-switch">
