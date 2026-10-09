@@ -614,13 +614,11 @@
   outline-offset:2px;
 }
 
-/* LIVE is a state of the approved workstation, not a separate console. */
-.ec2-broadcast.is-live .eam-approved-live-actions {
-  display: none !important;
-}
-
+/* LIVE retains the same mixer and right-hand action panel as OFF AIR.
+   End broadcast replaces Go Live, so hiding the panel is a safety failure. */
+.ec2-broadcast.is-live .eam-approved-live-actions { display: grid; }
 .ec2-broadcast.is-live .eam-approved-lower {
-  grid-template-columns: minmax(0, 1fr) !important;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 430px);
 }
 
 .ec2-live-action-panel {
@@ -1267,4 +1265,47 @@ html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-workstation
 }
 @media (prefers-reduced-motion: reduce) {
   .ec2-broadcast .ec2-hero.is-live .ec2-status-pill i { animation: none; }
+}
+
+/* Keep the optional service flyer action in the title label row: no taller hero. */
+.ec2-broadcast .ec2-service-field-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+.ec2-broadcast .ec2-service-field-heading > label:first-child { margin: 0; }
+.ec2-broadcast .ec2-service-flyer-picker {
+  position: relative;
+  flex: 0 0 auto;
+  padding: 3px 6px;
+  border: 1px solid #5b7eb0;
+  border-radius: 5px;
+  color: #c8e0ff;
+  font-size: 11px;
+  line-height: 1.2;
+  cursor: pointer;
+}
+.ec2-broadcast .ec2-service-flyer-picker input[type=file] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  opacity: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}
+.ec2-broadcast .ec2-service-flyer-picker:focus-within { outline: 2px solid #91beff; outline-offset: 2px; }
+.ec2-broadcast .ec2-service-flyer-remove {
+  padding: 2px 4px;
+  border: 0;
+  background: transparent;
+  color: #c8e0ff;
+  font-size: 11px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+@media (max-width: 1120px) {
+  .ec2-broadcast.is-live .eam-approved-lower { grid-template-columns: 1fr; }
 }
