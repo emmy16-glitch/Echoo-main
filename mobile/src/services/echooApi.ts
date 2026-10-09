@@ -109,6 +109,7 @@ export type EchooPlaylist = {
   mode?: 'playlist' | 'series';
   coverArt?: string | null;
   stationId?: string;
+  stationName?: string;
   trackCount?: number;
   followerCount?: number;
   updatedAt?: string;
@@ -561,6 +562,7 @@ export const normalizePlaylist = (playlist: any): EchooPlaylist => {
     mode: playlist?.mode === 'series' ? 'series' : 'playlist',
     coverArt: normalizeCoverArt(playlist?.coverArt, `/playlists/${id}/cover-art`),
     stationId: playlist?.stationId || playlist?.station?.id || playlist?.station?._id || '',
+    stationName: playlist?.stationName || playlist?.station?.name || '',
     trackCount: Number.isFinite(trackCount) ? trackCount : tracks.length,
     followerCount: Number(playlist?.followerCount) || 0,
     updatedAt: playlist?.updatedAt,
@@ -1052,6 +1054,18 @@ export async function getPublicCollectionsByOwner(ownerId: string, options: Cach
     CACHE.stale,
     options
   );
+  return unwrapList(payload).map(normalizePlaylist).filter((item: EchooPlaylist) => item.id);
+}
+
+// Published Collections are public discovery; saved Collections are per-account.
+// Separate endpoints prevent a published series from being mistaken for a saved item.
+export async function getPublicCollections(options: CacheControlOptions = {}): Promise<EchooPlaylist[]> {
+  const payload = await cachedPublicRequest('/collections/public?page=1&limit=40', CACHE.publicList, CACHE.stale, options);
+  return unwrapList(payload).map(normalizePlaylist).filter((item: EchooPlaylist) => item.id);
+}
+
+export async function getSavedCollections(options: CacheControlOptions = {}): Promise<EchooPlaylist[]> {
+  const payload = await cachedAccountRequest('/collections/saved/mine', CACHE.account, options);
   return unwrapList(payload).map(normalizePlaylist).filter((item: EchooPlaylist) => item.id);
 }
 
