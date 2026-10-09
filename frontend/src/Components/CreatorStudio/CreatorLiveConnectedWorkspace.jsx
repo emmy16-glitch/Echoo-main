@@ -1323,8 +1323,20 @@ const CreatorLiveConnectedWorkspace = ({
                 <span>CATEGORY</span>
                 <strong>{liveStation?.category || 'Your Echoo Channel'}</strong>
               </div>
-              <span className="ec2-live-fact">Not live</span>
-              <p>Connect your inputs, test your mix, and go live.</p>
+              <div className="ec2-broadcast-identity ec2-broadcast-identity--hero" aria-label="This broadcast">
+                <label htmlFor="ec2-broadcast-title">Service title <span className="ec2-broadcast-identity-optional">(Broadcast title)</span></label>
+                <input
+                  id="ec2-broadcast-title"
+                  type="text"
+                  aria-label="Broadcast title"
+                  maxLength={200}
+                  value={title}
+                  onChange={(event) => setTitle(event.target.value)}
+                  placeholder="e.g. Sunday Service - 11 October"
+                  disabled={goingLive || ending}
+                />
+              </div>
+              <p>Title for this livestream only. It also appears on its recording. Your Channel name stays {liveStation?.name || 'unchanged'}.</p>
             </div>
           </>
         )}

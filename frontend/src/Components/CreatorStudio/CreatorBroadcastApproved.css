@@ -1082,3 +1082,58 @@ html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-workstation
   outline-offset: 2px;
 }
 .ec2-broadcast-identity input:disabled { opacity: .65; }
+.ec2-broadcast-identity p {
+  margin: 0;
+  color: #65758e;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* A session title belongs in the pre-live hero, not an extra full-width panel
+   that pushes Go Live below the first 1280×720 viewport. */
+.ec2-hero.is-off-air { padding-top: 10px; padding-bottom: 10px; gap: 5px; }
+.ec2-hero.is-off-air .ec2-live-details.ec2-off-air-details {
+  grid-template-columns: minmax(110px, .95fr) minmax(110px, .8fr) minmax(205px, 1.65fr);
+  column-gap: 14px;
+  row-gap: 3px;
+}
+.ec2-hero.is-off-air .ec2-broadcast-identity--hero {
+  min-width: 0;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  gap: 2px;
+}
+.ec2-hero.is-off-air .ec2-broadcast-identity--hero label {
+  color: #90bfff;
+  font-size: 10px;
+  line-height: 1.1;
+}
+.ec2-hero.is-off-air .ec2-broadcast-identity-optional {
+  color: #c1cee5;
+  font-size: 10px;
+}
+.ec2-hero.is-off-air .ec2-broadcast-identity--hero input {
+  width: 100%;
+  min-height: 29px;
+  height: 29px;
+  padding: 4px 9px;
+  border-color: #879fca;
+  font-size: 12px;
+}
+.ec2-hero.is-off-air .ec2-off-air-details > p {
+  font-size: 10.5px;
+  line-height: 1.25;
+  color: #d2dff4;
+}
+@media (max-width: 760px) {
+  .ec2-hero.is-off-air .ec2-live-details.ec2-off-air-details {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .ec2-hero.is-off-air .ec2-broadcast-identity--hero { grid-column: 1 / -1; }
+  .ec2-hero.is-off-air .ec2-off-air-details > p { white-space: normal; }
+}

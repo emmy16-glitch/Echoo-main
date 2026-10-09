@@ -183,6 +183,10 @@ test('Broadcast workstation compacts cleanly across the complete viewport matrix
 
     if (viewport.width === 1280 && viewport.height === 720) {
       expect(layout.goLive?.bottom, '1280x720 keeps Go Live in the initial viewport').toBeLessThanOrEqual(720);
+      const serviceTitle = page.getByRole('textbox', { name: 'Broadcast title' });
+      await expect(serviceTitle).toBeVisible();
+      const serviceTitleBounds = await serviceTitle.boundingBox();
+      expect(serviceTitleBounds?.y + serviceTitleBounds?.height, '1280x720 also keeps the service title visible').toBeLessThanOrEqual(720);
     }
 
     if (viewport.width === 390 || viewport.width === 1440) {

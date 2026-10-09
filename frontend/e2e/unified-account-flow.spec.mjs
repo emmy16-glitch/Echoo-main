@@ -105,7 +105,7 @@ test('Listener can start Channel setup in the same account and return without an
   await expect(page).toHaveURL(/\/creator-studio/);
   await expect(page.getByRole('heading', { name: 'Create your Channel' })).toBeVisible();
   await expect(page.getByText('Individual')).toBeVisible();
-  await expect(page.getByText('Organization')).toBeVisible();
+  await expect(page.getByText('Organization', { exact: true }).first()).toBeVisible();
 
   const identityDuringSetup = await page.evaluate(() => ({
     token: localStorage.getItem('accessToken'),
