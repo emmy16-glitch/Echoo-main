@@ -1228,6 +1228,6 @@
   .eam-approved-meter { height: 112px; }
   .eam-approved-fader::before { height: 110px; }
   .eam-approved-fader input { width: 112px; }
-  .eam-approved-monitor, .eam-approved-mute, .eam-approved-select { min-height: 40px; }
+  .eam-approved-monitor, .eam-approved-mute, .eam-approved-select { min-height: 44px; }
   .eam-approved-actions { margin-bottom: 7px; }
 }
