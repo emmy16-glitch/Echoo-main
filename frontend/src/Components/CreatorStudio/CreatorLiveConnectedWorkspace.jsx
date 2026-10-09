@@ -243,6 +243,7 @@ const CreatorLiveConnectedWorkspace = ({
         ) || null;
 
         if (activeBroadcast) {
+          setMessage('');
           setCurrentLiveBroadcast(activeBroadcast);
           setSavedBroadcast(activeBroadcast);
           setRealtimeQualityProfile(normalizeRealtimeAudioProfile(
@@ -1240,23 +1241,8 @@ const CreatorLiveConnectedWorkspace = ({
           <>
             <div className="ec2-live-banner">
               <span className="ec2-status-pill" aria-label="Live"><i /> LIVE</span>
-              <span className="ec2-sr-only">You&apos;re broadcasting now.</span>
-              <div className="ec2-live-ticker">
-                <div className="ec2-live-ticker-track" aria-hidden="true">
-                  {[0, 1].map((group) => (
-                    <div className="ec2-live-ticker-group" key={group}>
-                      {Array.from({ length: 4 }, (_, index) => (
-                        <span
-                          className={index === 0 ? 'is-primary' : 'is-repeat'}
-                          key={index}
-                        >
-                          YOU&apos;RE BROADCASTING NOW.
-                        </span>
-                      ))}
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <strong className="ec2-live-summary">{liveStation?.name || 'Your Channel'}</strong>
+              <span className="ec2-live-duration"><FiClock aria-hidden="true" /> {formatTimer(elapsed)}</span>
             </div>
             <div className="ec2-live-details" aria-label="Live broadcast status">
               <aside className="ec2-station-identity">
@@ -1264,12 +1250,11 @@ const CreatorLiveConnectedWorkspace = ({
                 <strong>{liveStation?.name || 'Your Channel'}</strong>
               </aside>
               <div className="ec2-live-identity">
-                <span>CATEGORY</span>
-                <strong>{liveStation?.category || 'Your Echoo Channel'}</strong>
+                <span>BROADCAST</span>
+                <strong>{currentLiveBroadcast?.title || title || 'Live broadcast'}</strong>
               </div>
               <div className="ec2-live-fact"><FiRadio aria-hidden="true" /><strong>{presence.listenerCount || 0}</strong><span>listening</span></div>
               <div className={`ec2-live-fact ${mixerState?.recordingTapActive ? 'is-recording' : ''}`}><strong>{mixerState?.recordingTapActive ? 'Recording' : 'Preparing recording'}</strong></div>
-              <div className="ec2-live-fact"><FiClock aria-hidden="true" /><strong>Live for {formatTimer(elapsed)}</strong></div>
               <span className={`ec2-live-connection ${connectionHealthy ? 'is-healthy' : ''}`}>
                 {connectionLabel}
               </span>
@@ -1336,7 +1321,7 @@ const CreatorLiveConnectedWorkspace = ({
                   disabled={goingLive || ending}
                 />
               </div>
-              <p>Title for this livestream only. It also appears on its recording. Your Channel name stays {liveStation?.name || 'unchanged'}.</p>
+              <p>Ready to broadcast.</p>
             </div>
           </>
         )}
@@ -1347,21 +1332,6 @@ const CreatorLiveConnectedWorkspace = ({
           <h2>Workstation</h2>
           <p>{isLive ? 'Your live mix stays exactly where you prepared it.' : 'Mix, monitor and go live.'}</p>
         </div>
-        {!isLive && heroState !== 'ending' && (
-          <div className="ec2-broadcast-identity" aria-label="This broadcast">
-            <label htmlFor="ec2-broadcast-title">Title for this broadcast</label>
-            <input
-              id="ec2-broadcast-title"
-              type="text"
-              aria-label="Broadcast title"
-              maxLength={200}
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              placeholder="e.g. Sunday Service - 11 October"
-              disabled={goingLive || ending}
-            />
-          </div>
-        )}
       </header>
 
       {bootstrapError && (

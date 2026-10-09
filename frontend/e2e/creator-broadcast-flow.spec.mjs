@@ -261,7 +261,8 @@ test('Creator broadcast moves through OFF AIR, LIVE, confirmation, ending, saved
   await page.route('**/api/broadcasts/mine/all**', (route) => fulfill(route, broadcastEnded ? [] : [liveBroadcast]));
   await page.reload();
   await expect(page.locator('.ec2-status-pill[aria-label="Live"]')).toHaveCount(1);
-  await expect(page.locator('.ec2-live-ticker-track')).toBeVisible();
+  await expect(page.locator('.ec2-live-ticker-track')).toHaveCount(0);
+  await expect(page.locator('.ec2-live-summary')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Copy live link' })).toBeVisible();
   await page.screenshot({ path: 'design-qa-evidence/broadcast-approved/live-1536x1024.png' });
 
