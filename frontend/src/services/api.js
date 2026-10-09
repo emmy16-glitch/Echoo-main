@@ -202,6 +202,7 @@ const createError = (
 
 let refreshPromise = null;
 const SESSION_REFRESH_TIMEOUT_MS = 10_000;
+const SESSION_KEEPALIVE_MS = 6 * 60 * 60 * 1000;
 
 export const isDefinitiveSessionExpiry = (error) => (
   error?.code === 'SESSION_EXPIRED' ||
@@ -263,6 +264,39 @@ export const refreshSessionAccessToken = async () => {
     });
 
   return refreshPromise;
+};
+
+// Keep an active Echoo installation signed in across normal access-token
+// expiry. This runs in both the web renderer and the persisted Electron
+// renderer storage. It deliberately does not turn refresh tokens into
+// permanent credentials: logout, account revocation and password-security
+// actions must still be able to end a session.
+export const installSessionKeepalive = () => {
+  if (typeof window === 'undefined' || !getRefreshToken()) return () => {};
+
+  let disposed = false;
+  const refreshQuietly = () => {
+    if (disposed || !getRefreshToken()) return;
+    refreshSessionAccessToken().catch(() => {
+      // Offline/temporary backend failures retain the stored session. Normal
+      // protected requests retain the authoritative invalid-token handling.
+    });
+  };
+  const onVisibility = () => {
+    if (document.visibilityState === 'visible') refreshQuietly();
+  };
+
+  refreshQuietly();
+  const interval = window.setInterval(refreshQuietly, SESSION_KEEPALIVE_MS);
+  window.addEventListener('online', refreshQuietly);
+  document.addEventListener('visibilitychange', onVisibility);
+
+  return () => {
+    disposed = true;
+    window.clearInterval(interval);
+    window.removeEventListener('online', refreshQuietly);
+    document.removeEventListener('visibilitychange', onVisibility);
+  };
 };
 
 const makeRequest = async (

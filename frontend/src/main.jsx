@@ -4,6 +4,7 @@ import App from "./App.jsx";
 import AppErrorBoundary from "./Components/System/AppErrorBoundary.jsx";
 import DesktopAppReady from "./Components/System/DesktopAppReady.jsx";
 import settingsService from "./services/settingsService.js";
+import { installSessionKeepalive } from "./services/api.js";
 import { installDesktopLifecycle } from "./services/desktopLifecycle.js";
 import { initializeEchooTheme } from "./theme/themePreference.js";
 import "./accessibility/installPlayerKeyboardAccess.js";
@@ -85,6 +86,7 @@ try {
 }
 
 if (localStorage.getItem("accessToken")) {
+  installSessionKeepalive();
   settingsService.get().catch(() => {
     // Echoo remains on its intentional product theme if account hydration is unavailable.
   });
