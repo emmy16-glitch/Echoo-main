@@ -66,6 +66,7 @@ test('new Echoo signup becomes Listener without any role-choice screen', async (
   await page.getByLabel('Email address').fill('newlistener@example.test');
   await page.getByLabel('Password', { exact: true }).fill('StrongPass1!');
   await page.getByLabel('Confirm password').fill('StrongPass1!');
+  await page.getByRole('checkbox', { name: /I agree to the/i }).check();
   await page.getByRole('button', { name: 'Create account' }).click();
 
   await expect(page.getByText('Creator / Listener')).toHaveCount(0);
