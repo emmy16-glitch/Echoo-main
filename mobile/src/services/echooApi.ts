@@ -1026,6 +1026,23 @@ export async function getLibraryStats(options: CacheControlOptions = {}): Promis
   };
 }
 
+// Browser and mobile share the same account-authoritative listening history.
+export async function syncListeningProgress({
+  trackId, positionSeconds, durationSeconds, completed = false,
+}: { trackId: string; positionSeconds: number; durationSeconds: number; completed?: boolean }) {
+  if (!trackId || !(await getAccessToken())) return;
+  const duration = Math.max(0, Number(durationSeconds) || 0);
+  if (!duration) return;
+  const progress = completed ? 100 : Math.max(0, Math.min(99.4, (Math.max(0, positionSeconds) / duration) * 100));
+  if (!completed && progress < 0.1) return;
+  await apiRequest('/player/progress', {
+    method: 'POST',
+    auth: 'required',
+    body: JSON.stringify({ trackId, progress, duration, completed }),
+  });
+  await invalidateAccountCache(['/history?page=1&limit=50', '/library/stats']);
+}
+
 export async function getListeningHistory(options: CacheControlOptions = {}) {
   const payload = await cachedAccountRequest('/history?page=1&limit=50', CACHE.account, options);
   return (payload?.data?.history || []).map((item: any): EchooHistoryItem => ({
