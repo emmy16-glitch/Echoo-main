@@ -183,6 +183,21 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
     return false;
   };
 
+  const formCanAttemptSubmit = () => {
+    if (action !== "Sign Up") return formIsComplete();
+    return (
+      formData.fullname.trim() !== "" &&
+      !fullNameInvalid &&
+      cleanUsername !== "" &&
+      !usernameInvalid &&
+      cleanEmail !== "" &&
+      !emailInvalid &&
+      !passwordInvalid &&
+      formData.confirmPassword !== "" &&
+      formData.password === formData.confirmPassword
+    );
+  };
+
   const saveSession = (response) => {
     const { user, accessToken, refreshToken } = response?.data || {};
     if (!user || !accessToken) {
@@ -423,8 +438,11 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
             <>
               <header className="ear-form-heading">
                 <h1 id="ear-auth-title">
-                  {isLogin ? "Sign in" : "Create an account"}
+                  {isLogin ? "Login" : "Create an account"}
                 </h1>
+                <p>{isLogin
+                  ? "Welcome back, please log in to your account."
+                  : "Create your Echoo account to get started."}</p>
               </header>
 
               <form className="ear-form" onSubmit={handleSubmit} noValidate>
@@ -458,7 +476,7 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
                   <AuthField
                     id="echoo-login-identifier"
                     label="Username or email"
-                    icon={FaAt}
+                    icon={FaUser}
                     error={Boolean(loginError)}
                   >
                     <input
@@ -468,6 +486,7 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
                       value={formData.identifier}
                       onChange={handleChange}
                       autoComplete="username"
+                      placeholder="Email or username"
                       autoCapitalize="none"
                       spellCheck="false"
                       aria-invalid={Boolean(loginError)}
@@ -534,24 +553,12 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
                   label="Password"
                   icon={FaLock}
                   error={isLogin ? Boolean(loginError) : passwordInvalid}
-                  action={isLogin ? (
-                    <button
-                      type="button"
-                      className="ear-forgot"
-                      onClick={() => {
-                        setLoginError("");
-                        setAction("Forgot Password");
-                      }}
-                    >
-                      Forgot password?
-                    </button>
-                  ) : null}
                 >
                   <input
                     id={isLogin ? "echoo-login-password" : "echoo-signup-password"}
                     type={showPassword ? "text" : "password"}
                     name="password"
-                    placeholder={isLogin ? "Enter your password" : "Create a strong password"}
+                    placeholder={isLogin ? "Password" : "Create a strong password"}
                     value={formData.password}
                     onChange={handleChange}
                     onPaste={handlePasswordPaste("password")}
@@ -573,6 +580,21 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
                     {showPassword ? <FaEyeSlash aria-hidden="true" /> : <FaEye aria-hidden="true" />}
                   </button>
                 </AuthField>
+
+                {isLogin && (
+                  <div className="ear-login-options">
+                    <button
+                      type="button"
+                      className="ear-forgot"
+                      onClick={() => {
+                        setLoginError("");
+                        setAction("Forgot Password");
+                      }}
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
+                )}
 
                 {!isLogin && (
                   <AuthField
@@ -631,11 +653,13 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
                         setSignupError("");
                       }}
                       aria-describedby="echoo-privacy-copy"
+                      aria-label="I have read and agree to Echoo's Privacy Policy"
                       required
                     />
                     <span id="echoo-privacy-copy">
-                      <label htmlFor="echoo-privacy-agree">I agree to the</label>{" "}
+                      <label htmlFor="echoo-privacy-agree">I have read and agree to Echoo’s</label>{" "}
                       <button type="button" className="ear-policy-link" onClick={openPrivacyPolicy}>Privacy Policy</button>
+                      <span>.</span>
                     </span>
                   </div>
                 )}
@@ -643,10 +667,10 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
                   type="submit"
                   loading={loading}
                   loadingText={isLogin ? "Signing in..." : "Creating account..."}
-                  disabled={loading || !formIsComplete()}
+                  disabled={loading || !formCanAttemptSubmit()}
                   className="ear-submit"
                 >
-                  {isLogin ? "Sign in" : "Create account"}
+                  {isLogin ? <>Login <FaArrowRight aria-hidden="true" /></> : "Create account"}
                 </LoadingButton>
 
                 <button
@@ -654,13 +678,13 @@ const Register = ({ onAccountCreated, onLoginSuccess }) => {
                   className="ear-guest-listen"
                   onClick={() => navigate("/listen")}
                 >
-                  Continue without an account
+                  Continue listening without an account
                 </button>
 
                 <p className="ear-auth-switch">
                   {isLogin ? "Don’t have an account? " : "Already have an account? "}
                   <button type="button" onClick={isLogin ? switchToSignUp : switchToLogin}>
-                    {isLogin ? "Sign up" : "Sign in"}
+                    {isLogin ? "Sign up" : "Login"}
                   </button>
                 </p>
               </form>

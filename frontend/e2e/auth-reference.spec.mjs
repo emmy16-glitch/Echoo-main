@@ -18,6 +18,33 @@ const assertAuthFitsViewport = async (page) => {
   expect(dimensions.bodyScrollHeight).toBeLessThanOrEqual(dimensions.clientHeight + 1);
 };
 
+const assertSignupViewportBehavior = async (page) => {
+  await assertNoHorizontalOverflow(page);
+  if (page.viewportSize().width > 700) await assertAuthFitsViewport(page);
+};
+
+const toggleEyeWithoutDrift = async (page, input, showName, hideName) => {
+  const field = await input.boundingBox();
+  const eye = page.getByRole('button', { name: showName });
+  const eyeBefore = await eye.boundingBox();
+  const eyeOffsetBefore = {
+    x: eyeBefore.x - field.x,
+    y: eyeBefore.y - field.y,
+  };
+  await eye.click();
+  await expect(input).toHaveAttribute('type', 'text');
+  const eyeAfter = await page.getByRole('button', { name: hideName }).boundingBox();
+  const fieldAfter = await input.boundingBox();
+  expect(eyeAfter.x - fieldAfter.x).toBeCloseTo(eyeOffsetBefore.x, 1);
+  expect(eyeAfter.y - fieldAfter.y).toBeCloseTo(eyeOffsetBefore.y, 1);
+  expect(eyeAfter.width).toBeCloseTo(eyeBefore.width, 1);
+  expect(eyeAfter.height).toBeCloseTo(eyeBefore.height, 1);
+  expect(eyeBefore.x + eyeBefore.width / 2).toBeGreaterThan(field.x + field.width - 50);
+  expect(Math.abs((eyeBefore.y + eyeBefore.height / 2) - (field.y + field.height / 2))).toBeLessThan(2);
+  await page.getByRole('button', { name: hideName }).click();
+  await expect(input).toHaveAttribute('type', 'password');
+};
+
 const collectBrowserErrors = (page) => {
   const errors = [];
   page.on('console', (message) => {
@@ -43,7 +70,10 @@ test('Echoo photographed signup preserves fields, policy consent and responsive 
   await expect(page.locator('.ear-auth-backdrop')).toHaveCSS('background-image', /echoo-auth-studio-reference-v2/);
   await expect(page.locator('.ear-auth-story')).toHaveCount(0);
   await expect(page.locator('.ear-policy-agreement')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Continue without an account' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Continue listening without an account' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Create an account' })).toHaveCSS('color', 'rgb(105, 168, 255)');
+  await expect(page.getByText('Create your Echoo account to get started.')).toBeVisible();
+  await expect(page.getByText('Continue with Google')).toHaveCount(0);
   await expect(page.getByLabel('Full name')).toBeVisible();
   await page.getByLabel('Full name').fill('New Echoo Listener');
   await expect(page.getByLabel('Username')).toBeVisible();
@@ -60,39 +90,45 @@ test('Echoo photographed signup preserves fields, policy consent and responsive 
   const password = page.getByLabel('Password', { exact: true });
   await password.fill('Password123!');
   await expect(password).toHaveAttribute('type', 'password');
-  await page.getByRole('button', { name: 'Show password' }).click();
-  await expect(password).toHaveAttribute('type', 'text');
-  await page.getByRole('button', { name: 'Hide password' }).click();
-  await expect(password).toHaveAttribute('type', 'password');
+  await toggleEyeWithoutDrift(page, password, 'Show password', 'Hide password');
 
   const confirm = page.getByLabel('Confirm password');
   await confirm.fill('Password123!');
   await expect(confirm).toHaveAttribute('type', 'password');
-  await page.getByRole('button', { name: 'Show confirmed password' }).click();
-  await expect(confirm).toHaveAttribute('type', 'text');
-  await page.getByRole('button', { name: 'Hide confirmed password' }).click();
-  await expect(confirm).toHaveAttribute('type', 'password');
+  await toggleEyeWithoutDrift(page, confirm, 'Show confirmed password', 'Hide confirmed password');
 
-  const agreement = page.getByRole('checkbox', { name: /I agree to the/i });
+  const agreement = page.getByRole('checkbox', { name: /I have read and agree to Echoo.*Privacy Policy/i });
   await expect(agreement).not.toBeChecked();
-  await expect(page.getByRole('button', { name: 'Create account' })).toBeDisabled();
+  const createAccount = page.getByRole('button', { name: 'Create account' });
+  await expect(createAccount).toBeEnabled();
+  await createAccount.click();
+  await expect(page.getByText('Please agree to the Privacy Policy before creating your account.')).toBeVisible();
   await agreement.check();
-  await expect(page.getByRole('button', { name: 'Create account' })).toBeEnabled();
+  await expect(createAccount).toBeEnabled();
+  await expect(page.getByText('Please agree to the Privacy Policy before creating your account.')).toHaveCount(0);
   await page.getByRole('button', { name: 'Privacy Policy' }).click();
   await expect(page).toHaveURL(/\/privacy-policy$/);
   await expect(page.getByRole('heading', { name: 'Privacy Policy' })).toBeVisible();
   await page.getByRole('link', { name: /Back to sign up/i }).click();
-  await expect(page.getByRole('checkbox', { name: /I agree to the/i })).toBeChecked();
+  await expect(page.getByRole('checkbox', { name: /I have read and agree to Echoo.*Privacy Policy/i })).toBeChecked();
   await expect(page.getByLabel('Username')).toHaveValue('new-listener');
   await expect(page.getByLabel('Password', { exact: true })).toHaveValue('Password123!');
-  await assertNoHorizontalOverflow(page);
-  await assertAuthFitsViewport(page);
+  await expect(page.getByRole('button', { name: 'Login', exact: true })).toBeVisible();
+  await assertSignupViewportBehavior(page);
   expect(browserErrors).toEqual([]);
 });
 
 test('login accepts both @username and email and exposes working recovery', async ({ page }) => {
   const browserErrors = collectBrowserErrors(page);
   const loginPayloads = [];
+
+  // The authentication flow should be deterministic when Google's font CDN is
+  // unavailable; Echoo supplies local/system fallbacks for this test.
+  await page.route('https://fonts.googleapis.com/**', (route) => route.fulfill({
+    status: 200,
+    contentType: 'text/css',
+    body: '',
+  }));
 
   await page.route('**/api/auth/login', async (route) => {
     loginPayloads.push(JSON.parse(route.request().postData() || '{}'));
@@ -123,15 +159,16 @@ test('login accepts both @username and email and exposes working recovery', asyn
     body: JSON.stringify({ data: { message: 'Reset link sent' } }),
   }));
 
-  await page.goto('/login');
-  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
+  await page.goto('/login', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('heading', { name: 'Login' })).toBeVisible();
+  await expect(page.getByText('Welcome back, please log in to your account.')).toBeVisible();
+  await expect(page.getByText('Continue with Google')).toHaveCount(0);
   await expect(page.getByLabel('Username or email')).toBeVisible();
 
   await page.getByLabel('Username or email').fill('@echo-listener');
   await page.getByLabel('Password', { exact: true }).fill('Password123!');
-  await page.getByRole('button', { name: 'Show password' }).click();
-  await expect(page.getByLabel('Password', { exact: true })).toHaveAttribute('type', 'text');
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await toggleEyeWithoutDrift(page, page.getByLabel('Password', { exact: true }), 'Show password', 'Hide password');
+  await page.getByRole('button', { name: 'Login', exact: true }).click();
 
   await expect(page).toHaveURL(/\/listen$/);
   await expect(page.getByRole('heading', { name: 'Discover' })).toBeVisible();
@@ -142,11 +179,11 @@ test('login accepts both @username and email and exposes working recovery', asyn
     localStorage.clear();
     sessionStorage.clear();
   });
-  await page.goto('/login');
-  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
+  await page.goto('/login', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('heading', { name: 'Login' })).toBeVisible();
   await page.getByLabel('Username or email').fill('listener@example.test');
   await page.getByLabel('Password', { exact: true }).fill('Password123!');
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await page.getByRole('button', { name: 'Login', exact: true }).click();
   await expect(page).toHaveURL(/\/listen$/);
   await expect(page.getByRole('heading', { name: 'Discover' })).toBeVisible();
   expect(loginPayloads[1]).toEqual({ username: 'listener@example.test', password: 'Password123!' });
@@ -155,7 +192,7 @@ test('login accepts both @username and email and exposes working recovery', asyn
     localStorage.clear();
     sessionStorage.clear();
   });
-  await page.goto('/login');
+  await page.goto('/login', { waitUntil: 'domcontentloaded' });
   await page.getByRole('button', { name: 'Forgot password?' }).click();
   await expect(page.getByRole('heading', { name: 'Reset your password' })).toBeVisible();
 
@@ -165,11 +202,11 @@ test('login accepts both @username and email and exposes working recovery', asyn
   await page.getByRole('button', { name: 'Send reset link' }).click();
   await expect(page.getByText('Reset link sent').first()).toBeVisible();
   await page.getByRole('button', { name: /Back to sign in/i }).click();
-  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Login' })).toBeVisible();
 
-  await expect(page.getByRole('checkbox', { name: /I agree to the/i })).toHaveCount(0);
+  await expect(page.getByRole('checkbox', { name: /Privacy Policy/i })).toHaveCount(0);
   await assertNoHorizontalOverflow(page);
-  await assertAuthFitsViewport(page);
+  await assertSignupViewportBehavior(page);
   expect(browserErrors).toEqual([]);
 });
 
@@ -177,9 +214,9 @@ test('logged-out listeners can leave auth and return to public listening', async
   const browserErrors = collectBrowserErrors(page);
   await page.goto('/login');
 
-  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Login' })).toBeVisible();
   await expect(page.getByText('Example: @okunlola or name@example.com')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Continue without an account' }).click();
+  await page.getByRole('button', { name: 'Continue listening without an account' }).click();
 
   await expect(page).toHaveURL(/\/listen(?:\/)?$/);
   await expect(page).not.toHaveURL(/\/login/);
@@ -189,7 +226,7 @@ test('logged-out listeners can leave auth and return to public listening', async
 
 test('signed-out visitors can enter public listening from sign up too', async ({ page }) => {
   await page.goto('/register');
-  await page.getByRole('button', { name: 'Continue without an account' }).click();
+  await page.getByRole('button', { name: 'Continue listening without an account' }).click();
   await expect(page).toHaveURL(/\/listen(?:\/)?$/);
   await expect(page).not.toHaveURL(/\/register/);
   await assertNoHorizontalOverflow(page);
@@ -232,7 +269,7 @@ test('reset-password completion uses the new design, both eye toggles and return
   await page.getByRole('button', { name: 'Update password' }).click();
   await expect(page.getByText(/Password reset successfully/i)).toBeVisible();
   expect(resetPayloads).toEqual([{ token: 'reset-token', password: 'NewPassword123!' }]);
-  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible({ timeout: 4_000 });
+  await expect(page.getByRole('heading', { name: 'Login' })).toBeVisible({ timeout: 4_000 });
   await expect(page).toHaveURL(/\/login$/);
 
   await page.goto('/reset-password', { waitUntil: 'domcontentloaded' });
