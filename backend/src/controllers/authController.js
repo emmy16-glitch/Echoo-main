@@ -1,4 +1,5 @@
 import User from '../models/User.js';
+import { registrationPrivacyAcknowledgement } from '../config/privacyPolicy.js';
 import crypto from 'node:crypto';
 import { verifyRefreshToken } from '../config/jwt.js';
 import { env } from '../config/env.js';
@@ -88,6 +89,12 @@ export async function register(req, res, next) {
     const { username, email, password, displayName } = req.body;
     const cleanUsername = String(username || '').trim();
     const cleanEmail = String(email || '').trim().toLowerCase();
+    const policy = registrationPrivacyAcknowledgement(req.body || {});
+    if (!policy.valid) {
+      return res.status(400).json({
+        error: { code: 'PRIVACY_AGREEMENT_REQUIRED', message: 'Please review and agree to the current Privacy Policy.' },
+      });
+    }
 
     if (!cleanUsername || !cleanEmail || !password) {
       return res.status(400).json({
@@ -148,6 +155,7 @@ export async function register(req, res, next) {
       passwordHash: hashedPassword,
       displayName: String(displayName || cleanUsername).trim() || cleanUsername,
       roles: ['listener'],
+      ...(policy.record ? { privacyPolicyAcceptance: policy.record } : {}),
       emailVerified: false,
       emailVerificationCodeHash: hashVerificationCode(verificationCode),
       emailVerificationExpiresAt: new Date(Date.now() + EMAIL_VERIFICATION_CODE_TTL_MS),
