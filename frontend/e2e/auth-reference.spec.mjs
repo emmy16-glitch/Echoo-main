@@ -45,6 +45,7 @@ test('Echoo photographed signup preserves fields, policy consent and responsive 
   await expect(page.locator('.ear-policy-agreement')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Continue without an account' })).toBeVisible();
   await expect(page.getByLabel('Full name')).toBeVisible();
+  await page.getByLabel('Full name').fill('New Echoo Listener');
   await expect(page.getByLabel('Username')).toBeVisible();
   await expect(page.getByLabel('Email address')).toBeVisible();
 
@@ -166,18 +167,7 @@ test('login accepts both @username and email and exposes working recovery', asyn
   await page.getByRole('button', { name: /Back to sign in/i }).click();
   await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
 
-  const agreement = page.getByRole('checkbox', { name: /I agree to the/i });
-  await expect(agreement).not.toBeChecked();
-  await expect(page.getByRole('button', { name: 'Create account' })).toBeDisabled();
-  await agreement.check();
-  await expect(page.getByRole('button', { name: 'Create account' })).toBeEnabled();
-  await page.getByRole('button', { name: 'Privacy Policy' }).click();
-  await expect(page).toHaveURL(/\/privacy-policy$/);
-  await expect(page.getByRole('heading', { name: 'Privacy Policy' })).toBeVisible();
-  await page.getByRole('link', { name: /Back to sign up/i }).click();
-  await expect(page.getByRole('checkbox', { name: /I agree to the/i })).toBeChecked();
-  await expect(page.getByLabel('Username')).toHaveValue('new-listener');
-  await expect(page.getByLabel('Password', { exact: true })).toHaveValue('Password123!');
+  await expect(page.getByRole('checkbox', { name: /I agree to the/i })).toHaveCount(0);
   await assertNoHorizontalOverflow(page);
   await assertAuthFitsViewport(page);
   expect(browserErrors).toEqual([]);
