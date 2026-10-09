@@ -21,7 +21,8 @@
     "test:listener-route": "node --test src/services/listenerPlaybackRoute.test.mjs",
     "test:realtime-identity": "node --test src/services/realtimeIdentity.test.mjs",
     "test:desktop-auth": "node --test --test-concurrency=1 src/services/api.authRecovery.test.mjs",
-    "test:navigation-cache": "node --test src/services/navigationDataCache.test.mjs"
+    "test:navigation-cache": "node --test src/services/navigationDataCache.test.mjs",
+    "test:download-integrity": "node --test src/services/downloadIntegrity.test.mjs"
   },
   "dependencies": {
     "@audio/encode-mp3": "^1.2.2",
