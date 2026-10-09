@@ -105,6 +105,13 @@
   font-size: 17px;
   color: #f4f8ff;
 }
+.echoo-auth-reference:is(.is-login,.is-signup,.is-recovery) .ear-input-shell .ear-password-toggle {
+  top: 0;
+  bottom: 0;
+  height: 38px;
+  margin-block: auto;
+  transform: none;
+}
 .echoo-auth-reference:is(.is-login,.is-signup,.is-recovery) .ear-input-icon {
   color: #91beff;
 }

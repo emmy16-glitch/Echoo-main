@@ -66,7 +66,7 @@ test('new Echoo signup becomes Listener without any role-choice screen', async (
   await page.getByLabel('Email address').fill('newlistener@example.test');
   await page.getByLabel('Password', { exact: true }).fill('StrongPass1!');
   await page.getByLabel('Confirm password').fill('StrongPass1!');
-  await page.getByRole('checkbox', { name: /I agree to the/i }).check();
+  await page.getByRole('checkbox', { name: /I have read and agree to Echoo.*Privacy Policy/i }).check();
   await page.getByRole('button', { name: 'Create account' }).click();
 
   await expect(page.getByText('Creator / Listener')).toHaveCount(0);
@@ -300,7 +300,7 @@ test('one Listener account can create its Channel, enter Creator Studio, switch 
   await expect(page).toHaveURL(/\/login/, { timeout: 10_000 });
   await page.getByLabel('Username or email').fill(listenerAccount.email);
   await page.getByLabel('Password', { exact: true }).fill('StrongPass1!');
-  await page.getByRole('button', { name: 'Sign in' }).click();
+  await page.getByRole('button', { name: 'Login', exact: true }).click();
 
   await expect(page).toHaveURL(/\/listen$/, { timeout: 10_000 });
   await expect.poll(() => page.evaluate(() => ({

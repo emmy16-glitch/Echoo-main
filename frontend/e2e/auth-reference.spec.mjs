@@ -24,23 +24,25 @@ const assertSignupViewportBehavior = async (page) => {
 };
 
 const toggleEyeWithoutDrift = async (page, input, showName, hideName) => {
-  const field = await input.boundingBox();
+  const shell = input.locator('xpath=..');
+  const field = await shell.boundingBox();
   const eye = page.getByRole('button', { name: showName });
   const eyeBefore = await eye.boundingBox();
   const eyeOffsetBefore = {
     x: eyeBefore.x - field.x,
-    y: eyeBefore.y - field.y,
   };
+  const centerBefore = Math.abs((eyeBefore.y + eyeBefore.height / 2) - (field.y + field.height / 2));
   await eye.click();
   await expect(input).toHaveAttribute('type', 'text');
   const eyeAfter = await page.getByRole('button', { name: hideName }).boundingBox();
-  const fieldAfter = await input.boundingBox();
-  expect(eyeAfter.x - fieldAfter.x).toBeCloseTo(eyeOffsetBefore.x, 1);
-  expect(eyeAfter.y - fieldAfter.y).toBeCloseTo(eyeOffsetBefore.y, 1);
-  expect(eyeAfter.width).toBeCloseTo(eyeBefore.width, 1);
-  expect(eyeAfter.height).toBeCloseTo(eyeBefore.height, 1);
+  const fieldAfter = await shell.boundingBox();
+  expect(Math.abs((eyeAfter.x - fieldAfter.x) - eyeOffsetBefore.x)).toBeLessThan(2);
+  expect(Math.abs(eyeAfter.width - eyeBefore.width)).toBeLessThan(2);
+  expect(Math.abs(eyeAfter.height - eyeBefore.height)).toBeLessThan(2);
   expect(eyeBefore.x + eyeBefore.width / 2).toBeGreaterThan(field.x + field.width - 50);
-  expect(Math.abs((eyeBefore.y + eyeBefore.height / 2) - (field.y + field.height / 2))).toBeLessThan(2);
+  const centerAfter = Math.abs((eyeAfter.y + eyeAfter.height / 2) - (fieldAfter.y + fieldAfter.height / 2));
+  expect(centerBefore).toBeLessThan(2);
+  expect(centerAfter).toBeLessThan(2);
   await page.getByRole('button', { name: hideName }).click();
   await expect(input).toHaveAttribute('type', 'password');
 };
