@@ -58,6 +58,10 @@ function sanitizePlaylist(playlist, viewerId = null) {
   return plain;
 }
 
+const isPublicSeriesStation = (station) => Boolean(
+  station && station.isPublic === true && station.isDeleted !== true
+);
+
 const canReadPrivatePlaylist = (playlist, userId) => {
   const user = String(userId || '');
   if (!user) return false;
@@ -83,6 +87,14 @@ export async function createPlaylist(req, res, next) {
     if (!cleanName) {
       return res.status(400).json({
         error: { code: 'VALIDATION_ERROR', message: 'Playlist name is required' },
+      });
+    }
+
+    // Series are Collections and must be created by the Collection workflow,
+    // which assigns a real Channel. Do not allow an orphaned public series.
+    if (mode === 'series') {
+      return res.status(400).json({
+        error: { code: 'COLLECTION_CHANNEL_REQUIRED', message: 'Create Collections from a Channel.' },
       });
     }
 
@@ -140,8 +152,13 @@ export async function getPlaylists(req, res, next) {
       Playlist.countDocuments(filter),
     ]);
 
+    // `mode=series` is the public Collections alias. It must never bypass
+    // Collection/Channel visibility just because it uses the playlist route.
+    const visible = req.query.mode === 'series'
+      ? playlists.filter((playlist) => isPublicSeriesStation(playlist.station))
+      : playlists;
     return res.status(200).json({
-      data: playlists.map((playlist) => sanitizePlaylist(playlist, null)),
+      data: visible.map((playlist) => sanitizePlaylist(playlist, null)),
       pagination: {
         page,
         limit,
@@ -188,7 +205,8 @@ export async function getPlaylistById(req, res, next) {
       });
     }
 
-    if (!playlist.isPublic && !canReadPrivatePlaylist(playlist, req.userId)) {
+    const canReadPrivate = canReadPrivatePlaylist(playlist, req.userId);
+    if ((!playlist.isPublic || (playlist.mode === 'series' && !isPublicSeriesStation(playlist.station))) && !canReadPrivate) {
       return res.status(403).json({
         error: { code: 'FORBIDDEN', message: 'You do not have access to this playlist' },
       });

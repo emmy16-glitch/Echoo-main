@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import Playlist from '../src/models/Playlist.js';
-import { getPublicCollections } from '../src/controllers/collectionController.js';
+import { getMyCollections, getPublicCollections } from '../src/controllers/collectionController.js';
 
 test('public Collection discovery returns only published series on public Channels', async () => {
   const originalFind = Playlist.find;
@@ -40,5 +40,29 @@ test('public Collection discovery returns only published series on public Channe
     assert.deepEqual(body.data[0].recordings, []);
   } finally {
     Playlist.find = originalFind;
+  }
+});
+
+test('creator Collection reads never rewrite a Collection station association', async () => {
+  const originalFind = Playlist.find;
+  const originalUpdateMany = Playlist.updateMany;
+  const id = (suffix) => `507f1f77bcf86cd7994391${suffix}`;
+  const station = { _id: id('21'), name: 'Layers of Truth', isPublic: true };
+  const collection = { _id: id('91'), name: 'Teaching series', owner: { _id: id('11') }, station, tracks: [], isPublic: false };
+  Playlist.updateMany = () => { throw new Error('GET must not update Collections'); };
+  Playlist.find = () => ({
+    sort() { return this; },
+    populate() { return this; },
+    then(resolve, reject) { return Promise.resolve([collection]).then(resolve, reject); },
+  });
+  let body = null;
+  const res = { status() { return this; }, json(value) { body = value; } };
+  try {
+    await getMyCollections({ userId: id('11'), user: { userType: 'creator', creatorProfile: { creatorType: 'individual', category: 'Other' } } }, res, (caught) => { throw caught; });
+    assert.equal(body.data[0].stationId, id('21'));
+    assert.equal(body.data[0].station.name, 'Layers of Truth');
+  } finally {
+    Playlist.find = originalFind;
+    Playlist.updateMany = originalUpdateMany;
   }
 });
