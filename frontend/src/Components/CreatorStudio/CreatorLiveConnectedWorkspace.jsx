@@ -141,6 +141,7 @@ const CreatorLiveConnectedWorkspace = ({
   const [title, setTitle] = useState('');
   const [serviceArtwork, setServiceArtwork] = useState('');
   const [coverUploading, setCoverUploading] = useState(false);
+  const coverUploadInFlightRef = useRef(false);
   const [coverPreviewOpen, setCoverPreviewOpen] = useState(false);
   const [description, setDescription] = useState('');
   const [realtimeQualityProfile, setRealtimeQualityProfile] = useState(getSavedRealtimeAudioProfile);
@@ -717,6 +718,7 @@ const CreatorLiveConnectedWorkspace = ({
   }, []);
 
   const onServiceArtwork = async (event) => {
+    if (coverUploadInFlightRef.current) return;
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
@@ -728,6 +730,7 @@ const CreatorLiveConnectedWorkspace = ({
       setError('Broadcast Cover must be 2 MB or smaller.');
       return;
     }
+    coverUploadInFlightRef.current = true;
     setCoverUploading(true);
     setError('');
     try {
@@ -741,6 +744,7 @@ const CreatorLiveConnectedWorkspace = ({
     } catch (uploadError) {
       setError(uploadError?.message || 'Broadcast Cover upload failed. Please try again.');
     } finally {
+      coverUploadInFlightRef.current = false;
       setCoverUploading(false);
     }
   };

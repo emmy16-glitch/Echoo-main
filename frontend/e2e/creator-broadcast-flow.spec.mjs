@@ -170,8 +170,26 @@ test('Creator must upload a compact Broadcast Cover before Go Live', async ({ pa
   await installBaseRoutes(page, []);
 
   let coverUploads = 0;
+  const coverRequestMethods = [];
   let starts = 0;
   await page.route('**/api/broadcasts/covers', async (route) => {
+    coverRequestMethods.push(route.request().method());
+    if (route.request().method() === 'OPTIONS') {
+      await route.fulfill({
+        status: 204,
+        headers: {
+          'access-control-allow-origin': '*',
+          'access-control-allow-methods': 'POST, OPTIONS',
+          'access-control-allow-headers': 'authorization, content-type',
+          'access-control-allow-credentials': 'true',
+        },
+      });
+      return;
+    }
+    if (route.request().method() !== 'POST') {
+      await route.continue();
+      return;
+    }
     coverUploads += 1;
     await fulfill(route, { coverArt: '/uploads/broadcast-covers/test-cover.png' });
   });
@@ -193,7 +211,8 @@ test('Creator must upload a compact Broadcast Cover before Go Live', async ({ pa
     buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l6sAAAAASUVORK5CYII=', 'base64'),
   });
   await page.getByRole('button', { name: 'Use this crop' }).click();
-  await expect.poll(() => coverUploads).toBe(1);
+  await expect.poll(() => coverUploads).toBeGreaterThan(0);
+  expect(coverRequestMethods.filter((method) => method === 'POST')).toHaveLength(1);
   await expect(page.getByRole('button', { name: 'Preview Broadcast Cover' })).toBeVisible();
   await expect(page.locator('.ec2-broadcast-cover-picker img')).toHaveAttribute('src', /test-cover/);
   await expect(page.getByRole('alert')).toHaveCount(0);
