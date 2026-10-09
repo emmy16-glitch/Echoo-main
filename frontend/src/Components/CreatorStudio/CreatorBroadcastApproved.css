@@ -1231,7 +1231,7 @@ html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-workstation
   color: #52658e;
 }
 .ec2-broadcast .eam-approved .eam-approved-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 325px));
 }
 .ec2-broadcast .eam-approved-strip {
   border-color: #d6e1f0;
@@ -1332,4 +1332,30 @@ html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-workstation
 @media (max-width: 599px) {
   .ec2-broadcast .eam-approved .eam-approved-grid { grid-template-columns: minmax(0, 1fr); }
   .ec2-broadcast .eam-approved-strip { width: 100%; max-width: 100%; }
+}
+
+/* At the 600–760px hand-off the Creator shell uses its compact navigation,
+   but the workstation still has room for two complete strips.  Retaining the
+   desktop four-column override here squeezed controls and made the strips
+   grow taller than their compact contract. */
+@media (min-width: 600px) and (max-width: 760px) {
+  .ec2-broadcast .eam-approved .eam-approved-grid {
+    grid-template-columns: repeat(2, minmax(0, 325px));
+    justify-content: center;
+  }
+  .ec2-broadcast .eam-approved-strip {
+    box-sizing: border-box;
+    height: 318px;
+    min-height: 318px;
+    max-height: 318px;
+  }
+}
+
+/* The persistent desktop rail leaves two full strips, not four cramped ones,
+   in the 761–1100px workspace. */
+@media (min-width: 761px) and (max-width: 1100px) {
+  .ec2-broadcast .eam-approved .eam-approved-grid {
+    grid-template-columns: repeat(2, minmax(0, 325px));
+    justify-content: center;
+  }
 }
