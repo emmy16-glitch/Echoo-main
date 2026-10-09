@@ -182,6 +182,7 @@ const CreatorLiveConnectedWorkspace = ({
     window.clearTimeout(offAirNoticeTimeoutRef.current);
     setCurrentLiveBroadcast(null);
     setSavedBroadcast(null);
+    setServiceArtwork('');
     setElapsed(0);
     setLinkCopied(false);
     setPresence({ listenerCount: 0, peakListeners: 0, creatorConnected: false });
@@ -268,6 +269,7 @@ const CreatorLiveConnectedWorkspace = ({
           setSavedBroadcast(null);
           setStationId(entityId(realStations[0]));
           setTitle('');
+          setServiceArtwork('');
           setDescription('');
           clearPreparedBroadcast();
           setMessage('Broadcast ended. Your recording is being prepared in the background.');
@@ -321,6 +323,7 @@ const CreatorLiveConnectedWorkspace = ({
             ));
             setStationId(entityId(realStations[0]));
             setTitle(prepared.title || '');
+            setServiceArtwork(prepared.eventArtwork || '');
             setDescription(prepared.description || '');
             return;
           }
@@ -331,6 +334,7 @@ const CreatorLiveConnectedWorkspace = ({
         const canonicalStation = realStations[0] || null;
         setStationId(entityId(canonicalStation));
         setTitle('');
+        setServiceArtwork('');
         setDescription('');
         bootstrapRetryRef.current = 0;
       } catch (loadError) {
