@@ -1309,3 +1309,21 @@ html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-workstation
 @media (max-width: 1120px) {
   .ec2-broadcast.is-live .eam-approved-lower { grid-template-columns: 1fr; }
 }
+
+/* Narrow Creator screens must not inherit the four-column desktop rule above.
+   Match the broadcast-scoped selector to avoid four 70px-wide mixer strips. */
+@media (max-width: 599px) {
+  .ec2-broadcast .eam-approved .eam-approved-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+  .ec2-broadcast .eam-approved .eam-approved-strip {
+    max-width: min(326px, 100%);
+    justify-self: center;
+  }
+  .ec2-broadcast .eam-approved .eam-approved-monitor,
+  .ec2-broadcast .eam-approved .eam-approved-mute,
+  .ec2-broadcast .eam-approved .eam-approved-select {
+    min-height: 45px;
+  }
+}
