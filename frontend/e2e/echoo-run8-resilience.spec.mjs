@@ -91,7 +91,6 @@ test('unified account boundaries survive deep links and reloads', async ({ page 
   // account), not back on Listener discovery.
   await expect(page).toHaveURL(/\/creator-studio\/?$/);
   await expect(page.getByRole('heading', { name: 'Create your Channel' })).toBeVisible();
-
 });
 
 test('Creator account preserves Listener Settings and redirects legacy Collections URLs', async ({ page }) => {
@@ -99,14 +98,14 @@ test('Creator account preserves Listener Settings and redirects legacy Collectio
   // A real Creator fixture must be installed before every navigation. The
   // listener init script from the previous test must not reset Creator state.
   await page.goto('/listen/settings');
-  await expect(page).toHaveURL(/\\/listen\\/settings$/);
+  await expect(page).toHaveURL(/\/listen\/settings$/);
   await page.reload();
-  await expect(page).toHaveURL(/\\/listen\\/settings$/);
+  await expect(page).toHaveURL(/\/listen\/settings$/);
 
   await page.goto('/creator-studio/collections');
-  await expect(page).toHaveURL(/\\/creator-studio\\/content\\?tab=collections$/);
+  await expect(page).toHaveURL(/\/creator-studio\/content\?tab=collections$/);
   await page.reload();
-  await expect(page).toHaveURL(/\\/creator-studio\\/content\\?tab=collections$/);
+  await expect(page).toHaveURL(/\/creator-studio\/content\?tab=collections$/);
 });
 
 test('lazy Creator Studio chunk failure shows a usable fallback and retry recovers to Broadcast', async ({ page }) => {
