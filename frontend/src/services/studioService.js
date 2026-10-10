@@ -390,6 +390,71 @@ const studioService = {
 
     return first;
   },
+
+  uploadAudioResumable: async ({ file, coverFile = null, title, description = '', genre = 'Other', tags = [], isPublic = false, onProgress, onSession, signal }) => {
+    if (!file) throw new Error('Please choose an audio file.');
+    const duration = await readAudioDuration(file);
+    const initiated = await readResponse(await apiFetch('/uploads/initiate', {
+      method: 'POST',
+      body: JSON.stringify({ filename: file.name, fileSize: file.size, mimeType: file.type || 'audio/mpeg' }),
+    }));
+    const session = initiated?.data;
+    if (!session?.uploadId) throw new Error('Echoo could not start this upload.');
+    onSession?.(session);
+    let offset = Math.max(0, Number(session.offset) || 0);
+    const chunkSize = Math.max(1024 * 1024, Number(session.chunkSize) || 5 * 1024 * 1024);
+    const pause = (ms) => new Promise((resolve, reject) => {
+      const timer = window.setTimeout(resolve, ms);
+      signal?.addEventListener('abort', () => { window.clearTimeout(timer); reject(new DOMException('Upload paused', 'AbortError')); }, { once: true });
+    });
+
+    while (offset < file.size) {
+      const chunk = file.slice(offset, Math.min(file.size, offset + chunkSize));
+      const digest = await crypto.subtle.digest('SHA-256', await chunk.arrayBuffer());
+      const checksum = [...new Uint8Array(digest)].map((value) => value.toString(16).padStart(2, '0')).join('');
+      let attempt = 0;
+      while (true) {
+        try {
+          const body = new FormData();
+          body.append('chunk', chunk, `${file.name}.part`);
+          body.append('offset', String(offset));
+          const response = await fetch(`${API_BASE_URL}/uploads/${encodeURIComponent(session.uploadId)}/chunk`, {
+            method: 'POST', signal, body,
+            headers: { Authorization: `Bearer ${getCurrentAccessToken()}`, 'Upload-Offset': String(offset), 'Upload-Checksum': `sha256 ${checksum}` },
+          });
+          if (!response.ok) {
+            const payload = await response.json().catch(() => null);
+            const error = new Error(payload?.error?.message || `Upload failed (${response.status}).`);
+            error.status = response.status; error.code = payload?.error?.code; error.expectedOffset = payload?.error?.expectedOffset;
+            throw error;
+          }
+          offset = Number(response.headers.get('Upload-Offset')) || offset + chunk.size;
+          break;
+        } catch (error) {
+          if (signal?.aborted || error?.name === 'AbortError') throw error;
+          if (error?.code === 'OFFSET_MISMATCH' && Number.isSafeInteger(error.expectedOffset)) { offset = error.expectedOffset; break; }
+          if (++attempt >= 5 || (error?.status >= 400 && error?.status < 500)) throw error;
+          await pause(Math.min(8000, 500 * (2 ** attempt)));
+        }
+      }
+      onProgress?.({ loaded: offset, total: file.size, percent: Math.round((offset / file.size) * 100) });
+    }
+
+    const coverArt = coverFile ? await new Promise((resolve, reject) => {
+      const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(coverFile);
+    }) : null;
+    const finalized = await readResponse(await apiFetch(`/uploads/${encodeURIComponent(session.uploadId)}/complete`, {
+      method: 'POST',
+      body: JSON.stringify({ title: title?.trim() || file.name, description, genre, tags, isPublic, duration, coverArt }),
+    }));
+    onProgress?.({ loaded: file.size, total: file.size, percent: 100, finalized: true });
+    return finalized;
+  },
+
+  cancelResumableUpload: async (uploadId) => {
+    if (!uploadId) return;
+    return readResponse(await apiFetch(`/uploads/${encodeURIComponent(uploadId)}`, { method: 'DELETE' }));
+  },
 };
 
 export default studioService;

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useOutletContext, useSearchParams } from 'react-router-dom';
-import { FiHeadphones, FiPlay } from 'react-icons/fi';
+import { FiChevronRight, FiHeadphones, FiPlay } from 'react-icons/fi';
 import ContinueListening from '../ListenerV2/ContinueListening';
 import batch1Service from '../../services/batch1Service';
 import audioService from '../../services/audioService';
@@ -59,11 +59,11 @@ const ListenerLibrary = () => {
   useEffect(() => { if (collectionTab) void loadCollections(); }, [collectionTab, loadCollections]);
 
   const collectionRow = (collection) => (
-    <article key={collection.id}>
+    <button type="button" key={collection.id} className="listener-v2-collection-row" onClick={() => navigate(`/listen/collections/${encodeURIComponent(collection.id)}`)}>
       <span className="listener-v2-audio-art">{collection.coverArt ? <img src={collection.coverArt} alt="" /> : <FiHeadphones />}</span>
       <div><strong>{collection.title || collection.name}</strong><span>{collection.station?.name || 'Echoo Collection'} · {collection.broadcastCount ?? collection.recordings?.length ?? 0} recordings</span></div>
-      <button type="button" aria-label={`Open ${collection.title || collection.name}`} onClick={() => navigate(`/listen/collections/${encodeURIComponent(collection.id)}`)}>View</button>
-    </article>
+      <FiChevronRight aria-hidden="true" />
+    </button>
   );
 
   const remove = async (track) => {

@@ -29,6 +29,7 @@ import {
   updateTransferEstimate,
 } from '../../services/progressTiming.js';
 import CreatorAudioDetailModal from './CreatorAudioDetailModal.jsx';
+import AudioUploadQueueDialog from './AudioUploadQueueDialog.jsx';
 import './CreatorCollectionsWorkspace.css';
 
 const getId = (track) => track?.id || track?._id || null;
@@ -149,13 +150,12 @@ export default function CreatorCollectionsWorkspace({
   const [perPage, setPerPage] = useState(10);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
-  const [uploading, setUploading] = useState(false);
+  const [uploadQueueOpen, setUploadQueueOpen] = useState(false);
   const [collectionPickerTrack, setCollectionPickerTrack] = useState(null);
   const [collectionChoices, setCollectionChoices] = useState([]);
   const [transferOperation, setTransferOperation] = useState(null);
   const audioRef = useRef(null);
   const playbackRequestRef = useRef(0);
-  const fileRef = useRef(null);
 
   useEffect(() => () => {
     playbackRequestRef.current += 1;
@@ -642,58 +642,6 @@ export default function CreatorCollectionsWorkspace({
     onNavigate?.('Collections');
   };
 
-  const uploadSelected = async (event) => {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file || uploading) return;
-    const title = String(file.name || 'New recording').replace(/\.[^/.]+$/, '');
-    try {
-      setUploading(true);
-      setError('');
-      setTransferOperation({
-        kind: 'manual-upload',
-        key: `manual:${Date.now()}`,
-        title,
-        stage: 'uploading',
-        ...updateTransferEstimate(null, { loaded: 0, total: file.size || 0 }),
-      });
-      await studioService.uploadAudioWithProgress({
-        file,
-        title,
-        description: '',
-        genre: 'Other',
-        tags: [],
-        isPublic: false,
-        onProgress: ({ loaded, total }) => {
-          setTransferOperation((current) => {
-            if (current?.kind !== 'manual-upload') return current;
-            const next = updateTransferEstimate(current, { loaded, total });
-            return {
-              ...current,
-              ...next,
-              stage: next.percent >= 100 ? 'verifying' : 'uploading',
-            };
-          });
-        },
-      });
-      setTransferOperation((current) => current?.kind === 'manual-upload'
-        ? { ...current, stage: 'done', percent: 100, completedAt: Date.now() }
-        : current);
-      window.setTimeout(() => {
-        setTransferOperation((current) => current?.kind === 'manual-upload' && current.stage === 'done' ? null : current);
-      }, 4000);
-      announce('Audio uploaded privately. You can make it public when ready.');
-      refresh();
-    } catch (uploadError) {
-      setTransferOperation((current) => current?.kind === 'manual-upload'
-        ? { ...current, stage: navigator.onLine === false ? 'waiting-network' : 'error', message: uploadError?.message || 'Could not upload this audio.' }
-        : current);
-      setError(uploadError?.message || 'Could not upload this audio.');
-    } finally {
-      setUploading(false);
-    }
-  };
-
   const tabs = [
     ['all', `All recordings (${counts.total})`],
     ['published', `Public (${counts.published})`],
@@ -783,9 +731,8 @@ export default function CreatorCollectionsWorkspace({
               </em>
             </span>
           </div>
-          <input ref={fileRef} type="file" accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.opus,.flac,.webm" hidden onChange={uploadSelected} />
-          <button type="button" className="recordings-upload" disabled={uploading} onClick={() => fileRef.current?.click()}>
-            <FiUploadCloud /> {uploading ? 'Uploading…' : 'Upload audio'}
+          <button type="button" className="recordings-upload" onClick={() => setUploadQueueOpen(true)}>
+            <FiUploadCloud /> Upload audio
           </button>
         </div>
       </header>
@@ -965,6 +912,13 @@ export default function CreatorCollectionsWorkspace({
           <label className="recordings-page-size"><span>Show</span><select value={perPage} onChange={(event) => setPerPage(Number(event.target.value))}><option value="5">5 per page</option><option value="10">10 per page</option><option value="20">20 per page</option></select></label>
         </footer>
       </section>
+
+      <AudioUploadQueueDialog
+        open={uploadQueueOpen}
+        defaultPublic={false}
+        onClose={() => setUploadQueueOpen(false)}
+        onComplete={() => { announce('Recording saved privately.'); refresh(); }}
+      />
 
       {activeTrack && typeof document !== 'undefined' && createPortal((
         <aside className="recordings-mini-player" role="region" aria-label="Recording player">

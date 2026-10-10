@@ -29,6 +29,7 @@ import {
 } from '../../services/progressTiming';
 import ListenerLiveConnected from '../ListenerLive/ListenerLiveConnected';
 import { CreatorStudioStateProvider } from './CreatorStudioState';
+import AudioUploadQueueDialog from './AudioUploadQueueDialog.jsx';
 import { isNavigationDataFresh, readNavigationData, writeNavigationData } from '../../services/navigationDataCache';
 // Lazy workspaces keep the first Creator render small.  Cache the import
 // promise as well so an idle prefetch and a quick click share one request.
@@ -864,7 +865,18 @@ const CreatorStudioBody = () => {
         <footer className="studio-footer"><span>© 2026 Echoo.</span><span>Audio-first creator platform</span></footer>
       </main>
 
-      {uploadOpen && (
+      <AudioUploadQueueDialog
+        open={uploadOpen}
+        defaultPublic
+        onClose={() => setUploadOpen(false)}
+        onComplete={() => {
+          setNotice('Recording saved to Echoo.');
+          window.dispatchEvent(new CustomEvent('echoo:creator-state-changed'));
+          setRefreshKey((value) => value + 1);
+        }}
+      />
+
+      {uploadOpen && uploadForm.__legacy === true && (
         <div className="studio-modal-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) closeUpload(); }}>
           <div className="studio-upload-modal studio-upload-modal-artwork" role="dialog" aria-modal="true" aria-label="Upload audio and artwork">
             <div className="upload-modal-header">

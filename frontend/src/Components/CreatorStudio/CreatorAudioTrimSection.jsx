@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { FaCut, FaDownload, FaPlay, FaSave, FaStop } from 'react-icons/fa';
+import WaveSurfer from 'wavesurfer.js';
+import RegionsPlugin from 'wavesurfer.js/dist/plugins/regions.esm.js';
 import {
   prepareTrimWaveform,
   trimSavedAudio,
@@ -44,8 +46,14 @@ const CreatorAudioTrimSection = ({ track, onChanged, onNotice, onOpenTrimmed }) 
   const [pcMessage, setPcMessage] = useState('');
   const [mp3Ready, setMp3Ready] = useState(true);
   const waveformAbortRef = useRef(null);
+  const waveformHostRef = useRef(null);
+  const waveSurferRef = useRef(null);
+  const regionRef = useRef(null);
   const previewAudioRef = useRef(null);
   const previewTimerRef = useRef(null);
+  const selectionEnd = end > start ? end : duration;
+  const isFullLength = duration > 0 && selectionEnd - start >= duration - 0.5 && start <= 0.5;
+  const selectedSeconds = Math.max(0, selectionEnd - start);
 
   const localMaster = peekLocalMaster(trackId);
   const localMasterMime = String(localMaster?.mimeType || localMaster?.blob?.type || '').toLowerCase();
@@ -64,11 +72,51 @@ const CreatorAudioTrimSection = ({ track, onChanged, onNotice, onOpenTrimmed }) 
     waveformAbortRef.current?.abort();
     window.clearTimeout(previewTimerRef.current);
     try { previewAudioRef.current?.pause(); } catch { /* noop */ }
+    waveSurferRef.current?.destroy();
   }, []);
+
+  useEffect(() => {
+    if (sourceState !== 'ready' || !waveformHostRef.current || !duration || !peaks.length) return undefined;
+    let cancelled = false;
+    const regions = RegionsPlugin.create();
+    const wavesurfer = WaveSurfer.create({
+      container: waveformHostRef.current,
+      height: 118,
+      waveColor: '#b8c9dc',
+      progressColor: '#2876c7',
+      cursorColor: '#123b69',
+      cursorWidth: 2,
+      normalize: true,
+      minPxPerSec: 0,
+      plugins: [regions],
+    });
+    waveSurferRef.current = wavesurfer;
+    studioService.getAudioStreamUrl(trackId).then(({ streamUrl }) => {
+      if (cancelled) return;
+      return wavesurfer.load(streamUrl, [Float32Array.from(peaks)], duration);
+    }).then(() => {
+      if (cancelled) return;
+      const region = regions.addRegion({ start, end: selectionEnd, drag: true, resize: true, color: 'rgba(33, 111, 196, .18)' });
+      regionRef.current = region;
+      region.on('update-end', () => { setStart(region.start); setEnd(region.end); setSavedTrimmed(null); });
+    }).catch((loadError) => !cancelled && setError(loadError?.message || 'Could not open the waveform preview.'));
+    wavesurfer.on('finish', () => setPreviewing(false));
+    return () => { cancelled = true; regionRef.current = null; waveSurferRef.current = null; wavesurfer.destroy(); };
+    // The WaveSurfer instance owns selection updates after initial creation.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sourceState, duration, peaks, trackId]);
+
+  useEffect(() => {
+    const region = regionRef.current;
+    if (region && (Math.abs(region.start - start) > 0.05 || Math.abs(region.end - selectionEnd) > 0.05)) {
+      region.setOptions({ start, end: selectionEnd });
+    }
+  }, [start, selectionEnd]);
 
   const stopPreview = () => {
     window.clearTimeout(previewTimerRef.current);
     try { previewAudioRef.current?.pause(); } catch { /* noop */ }
+    try { waveSurferRef.current?.pause(); } catch { /* noop */ }
     setPreviewing(false);
   };
 
@@ -118,6 +166,14 @@ const CreatorAudioTrimSection = ({ track, onChanged, onNotice, onOpenTrimmed }) 
 
     stopPreview();
     setError('');
+    const wavesurfer = waveSurferRef.current;
+    if (wavesurfer) {
+      wavesurfer.setTime(start);
+      await wavesurfer.play();
+      setPreviewing(true);
+      previewTimerRef.current = window.setTimeout(stopPreview, Math.max(500, (selectionEnd - start) * 1000));
+      return;
+    }
     const audio = previewAudioRef.current;
     if (!audio) return;
 
@@ -166,10 +222,6 @@ const CreatorAudioTrimSection = ({ track, onChanged, onNotice, onOpenTrimmed }) 
       setError(previewError?.message || 'Could not preview this selection.');
     }
   };
-
-  const selectionEnd = end > start ? end : duration;
-  const isFullLength = duration > 0 && selectionEnd - start >= duration - 0.5 && start <= 0.5;
-  const selectedSeconds = Math.max(0, selectionEnd - start);
 
   const saveTrimmed = async () => {
     const id = getId(track);
@@ -299,51 +351,49 @@ const CreatorAudioTrimSection = ({ track, onChanged, onNotice, onOpenTrimmed }) 
         )}
         {sourceState === 'ready' && (
           <>
-            <div className="creator-audio-trim-wave" role="img" aria-label="Recording waveform">
-              {peaks.map((peak, index) => {
-                const pos = peaks.length <= 1 ? 0 : index / (peaks.length - 1);
-                const time = pos * duration;
-                const selected = time >= start && time <= selectionEnd;
-                return <i key={index} style={{ height: `${Math.max(4, Math.round(peak * 100))}%` }} className={selected ? 'is-selected' : 'is-cut'} />;
-              })}
-            </div>
+            <div ref={waveformHostRef} className="creator-audio-trim-wave creator-audio-trim-wavesurfer" role="img" aria-label="Interactive recording waveform with draggable trim handles" />
 
             <div className="creator-audio-trim-range-grid">
               <label className="creator-audio-trim-slider">
                 <span>Start <b>{formatClock(start)}</b></span>
                 <input
-                  type="range"
+                  type="number"
                   min={0}
                   max={Math.max(1, Math.floor(duration))}
-                  step={1}
-                  value={Math.min(Math.floor(start), Math.floor(selectionEnd))}
+                  step={0.1}
+                  value={Number(start.toFixed(1))}
                   disabled={saving}
                   onChange={(event) => {
                     stopPreview();
                     setSavedTrimmed(null);
                     setTrimmedDownloadMessage('');
-                    setStart(Math.min(Number(event.target.value), selectionEnd));
+                    setStart(Math.max(0, Math.min(Number(event.target.value), selectionEnd - 0.1)));
                   }}
                 />
               </label>
               <label className="creator-audio-trim-slider">
                 <span>End <b>{formatClock(selectionEnd)}</b></span>
                 <input
-                  type="range"
+                  type="number"
                   min={0}
                   max={Math.max(1, Math.floor(duration))}
-                  step={1}
-                  value={Math.floor(selectionEnd)}
+                  step={0.1}
+                  value={Number(selectionEnd.toFixed(1))}
                   disabled={saving}
                   onChange={(event) => {
                     stopPreview();
                     setSavedTrimmed(null);
                     setTrimmedDownloadMessage('');
-                    setEnd(Math.max(Number(event.target.value), start));
+                    setEnd(Math.min(duration, Math.max(Number(event.target.value), start + 0.1)));
                   }}
                 />
               </label>
             </div>
+
+            <label className="creator-audio-trim-zoom">
+              <span>Waveform zoom</span>
+              <input type="range" min="0" max="120" defaultValue="0" aria-label="Waveform zoom" onChange={(event) => waveSurferRef.current?.zoom(Number(event.target.value))} />
+            </label>
 
             <div className="creator-audio-trim-row">
               <button type="button" onClick={previewSelection} disabled={saving || previewing}>

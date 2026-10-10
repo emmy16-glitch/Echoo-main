@@ -701,7 +701,7 @@ export async function updateAudio(req, res, next) {
         audio.tags = tags;
       }
     }
-    if (isPublic !== undefined) audio.isPublic = isPublic === true || isPublic === 'true';
+    if (isPublic !== undefined) audio.setPublicPublication(isPublic);
 
     if ((titleChanged || genreChanged) && audio.coverArtMode !== 'uploaded') {
       const generated = createGeneratedAudioCover({

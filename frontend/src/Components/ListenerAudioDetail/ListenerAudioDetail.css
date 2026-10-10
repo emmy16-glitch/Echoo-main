@@ -36,6 +36,10 @@
 .replay-facts > div:nth-last-child(-n + 2) { border-bottom: 0; }
 .replay-facts dt { color: var(--echoo-ds-muted); font-size: 13px; }
 .replay-facts dd { margin: 0; color: var(--echoo-ds-text); font-size: var(--echoo-ds-caption-size); font-weight: 600; }
+.replay-tags { display:grid; gap:var(--echoo-space-2); padding:var(--echoo-space-3); border:1px solid var(--echoo-ds-line); border-radius:var(--echoo-ds-radius-md); background:var(--echoo-ds-surface); }
+.replay-tags > strong { color:var(--echoo-ds-muted); font-size:13px; font-weight:600; }
+.replay-tags > div { display:flex; flex-wrap:wrap; gap:6px; }
+.replay-tags span { padding:5px 9px; border-radius:999px; background:#edf4ff; color:#315c9b; font-size:13px; line-height:1.2; }
 .replay-moments { display: grid; gap: var(--echoo-space-2); padding: var(--echoo-space-3); }
 .replay-moments--overview { width: 100%; }
 .replay-moments > div:first-child { display: flex; align-items: center; justify-content: space-between; min-height: 40px; }

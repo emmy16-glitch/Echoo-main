@@ -105,3 +105,29 @@ test('Audio play/like counter methods use atomic database updates', async () => 
     Audio.findOneAndUpdate = original;
   }
 });
+
+test('private-to-public and public-to-private transitions keep canonical fields synchronized', () => {
+  const audio = new Audio({
+    title: 'Publication transition',
+    artist: new mongoose.Types.ObjectId(),
+    filename: 'publication.mp3',
+    originalName: 'publication.mp3',
+    fileSize: 100,
+    fileUrl: '/uploads/audio/publication.mp3',
+    fileKey: `publication-${new mongoose.Types.ObjectId()}`,
+    mimeType: 'audio/mpeg',
+  });
+
+  const publishedAt = new Date('2026-01-02T03:04:05.000Z');
+  audio.setPublicPublication(true, publishedAt);
+  assert.equal(audio.isPublic, true);
+  assert.equal(audio.visibility, 'public');
+  assert.equal(audio.publicationStatus, 'published');
+  assert.equal(audio.publishedAt.toISOString(), publishedAt.toISOString());
+
+  audio.setPublicPublication(false);
+  assert.equal(audio.isPublic, false);
+  assert.equal(audio.visibility, 'private');
+  assert.equal(audio.publicationStatus, 'draft');
+  assert.equal(audio.publishedAt, null);
+});

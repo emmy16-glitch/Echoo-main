@@ -3,6 +3,7 @@ import {
   buildMediaUrl,
 } from './api.js';
 import { buildGeneratedAudioCoverUrl } from '../audioCover/audioCover.js';
+import { normalizeAudioTags } from './audioTags.js';
 
 const normalizeTrack = (item) => {
   if (!item) return null;
@@ -41,6 +42,7 @@ const normalizeTrack = (item) => {
     fileUrl: buildMediaUrl(source.fileUrl || nestedTrack?.fileUrl),
     duration: Number(source.duration || nestedTrack?.duration) || 0,
     genre: source.genre || nestedTrack?.genre || 'Other',
+    tags: normalizeAudioTags(source.tags ?? nestedTrack?.tags),
     coverArtMode: source.coverArtMode || nestedTrack?.coverArtMode || null,
     coverArtVariant: source.coverArtVariant ?? nestedTrack?.coverArtVariant,
     progress: Number(source.progress) || 0,

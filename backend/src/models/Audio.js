@@ -239,14 +239,25 @@ audioSchema.pre('countDocuments', enforceCanonicalPublicQuery);
 
 // Keep future document saves internally consistent. Followers-only/private
 // published replay assets deliberately use isPublic=false and are unaffected.
+audioSchema.methods.setPublicPublication = function setPublicPublication(isPublic, now = new Date()) {
+  const publish = isPublic === true || isPublic === 'true';
+  this.isPublic = publish;
+  this.visibility = publish ? 'public' : 'private';
+  this.publicationStatus = publish ? 'published' : 'draft';
+  this.publishedAt = publish ? (this.publishedAt || now) : null;
+  return this;
+};
+
 audioSchema.pre('save', function keepPublicationFieldsAligned() {
   if (this.isPublic === true) {
     this.visibility = 'public';
     this.publicationStatus = 'published';
     this.publishedAt = this.publishedAt || new Date();
-  } else if (this.visibility === 'public') {
-    this.visibility = 'private';
+    return;
   }
+  if (this.visibility === 'public') this.visibility = 'private';
+  if (this.publicationStatus === 'published') this.publicationStatus = 'draft';
+  this.publishedAt = null;
 });
 
 audioSchema.virtual('fileSizeMB').get(function fileSizeMB() {

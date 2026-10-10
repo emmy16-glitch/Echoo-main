@@ -18,3 +18,15 @@ test('upload controller bounds upload and chunk sizes', async () => {
   assert.match(source, /MAX_CHUNK_SIZE/);
   assert.match(source, /CHUNK_TOO_LARGE/);
 });
+
+test('resumable uploads persist ownership, validate offsets and checksums, and finalize idempotently', async () => {
+  const source = await read();
+  assert.match(source, /UploadSession/);
+  assert.match(source, /Upload-Offset/);
+  assert.match(source, /OFFSET_MISMATCH/);
+  assert.match(source, /Upload-Checksum/);
+  assert.match(source, /CHECKSUM_MISMATCH/);
+  assert.match(source, /idempotent: true/);
+  assert.match(source, /MAX_AUDIO_UPLOAD_BYTES/);
+  assert.doesNotMatch(source, /appendFileSync|appendFile\(/);
+});

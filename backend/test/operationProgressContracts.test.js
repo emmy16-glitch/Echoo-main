@@ -88,7 +88,7 @@ test('Recordings exposes timing for background saves, uploads, and downloads', a
 
   assert.match(workspace, /RECORDING_UPLOAD_EVENT/);
   assert.match(workspace, /kind: 'recording-save'/);
-  assert.match(workspace, /kind: 'manual-upload'/);
+  assert.match(workspace, /AudioUploadQueueDialog/);
   assert.match(workspace, /kind: 'download'/);
   assert.match(workspace, /transferProgressText\(transferOperation\)/);
   assert.match(workspace, /Waiting for connection/);

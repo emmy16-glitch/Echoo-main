@@ -296,6 +296,12 @@ const CreatorContentWorkspace = ({
                       <span className={track.isPublic ? 'public' : 'private'}>{track.isPublic ? <><FaGlobeAfrica /> Public</> : <><FaLock /> Private</>}</span>
                     </div>
                     <p className="eca-meta"><span><FaClock /> {track.duration || '0:00'}</span><span>•</span><span>{formatDate(track.createdAt)}</span></p>
+                    {Array.isArray(track.tags) && track.tags.length > 0 && (
+                      <div className="eca-tags" aria-label={`Tags: ${track.tags.join(', ')}`}>
+                        {track.tags.slice(0, 4).map((tag) => <span key={tag}>#{tag}</span>)}
+                        {track.tags.length > 4 && <span className="eca-tags-more">+{track.tags.length - 4}</span>}
+                      </div>
+                    )}
                     <p className="eca-performance"><span><FaPlay /> {formatNumber(plays)} plays</span><span>•</span><span><FaHeart /> {formatNumber(likes)} likes</span></p>
                   </div>
 

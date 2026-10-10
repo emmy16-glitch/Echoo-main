@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FiBookOpen } from 'react-icons/fi';
+import { FiBookOpen, FiChevronRight } from 'react-icons/fi';
 import collectionService from '../../services/collectionService';
 
 // Discovery previews published content, not an account's Saved Collections.
@@ -28,7 +28,7 @@ export default function PublishedCollectionsPreview() {
       </header>
       <div className="listener-v2-audio-list">
         {collections.map((collection) => (
-          <article key={collection.id}>
+          <button type="button" key={collection.id} className="listener-v2-collection-row" onClick={() => navigate(`/listen/collections/${encodeURIComponent(collection.id)}`)}>
             <span className="listener-v2-audio-art">
               {collection.coverArt ? <img src={collection.coverArt} alt="" /> : <FiBookOpen />}
             </span>
@@ -36,11 +36,8 @@ export default function PublishedCollectionsPreview() {
               <strong>{collection.title || collection.name}</strong>
               <span>{collection.station?.name || 'Echoo Channel'} · {collection.broadcastCount ?? 0} recordings</span>
             </div>
-            <button type="button" aria-label={`Open ${collection.title || collection.name}`}
-              onClick={() => navigate(`/listen/collections/${encodeURIComponent(collection.id)}`)}>
-              View
-            </button>
-          </article>
+            <FiChevronRight aria-hidden="true" />
+          </button>
         ))}
       </div>
     </section>

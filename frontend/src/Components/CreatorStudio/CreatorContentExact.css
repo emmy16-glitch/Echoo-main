@@ -402,6 +402,27 @@
 .eca-meta span,
 .eca-performance span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 
+.eca-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 6px;
+}
+.eca-tags > span {
+  max-width: 150px;
+  overflow: hidden;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: #edf4ff;
+  color: #315c9b;
+  font-size: 8px;
+  font-weight: 650;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.eca-tags > .eca-tags-more { background: #f1f3f6; color: #68768a; }
+
 .eca-actions {
   position: relative;
   min-width: 0;

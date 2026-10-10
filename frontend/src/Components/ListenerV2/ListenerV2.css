@@ -286,6 +286,47 @@ body:has(.listener-v2-root) .echoo-copilot, body:has(.listener-v2-root) .curated
   font-size: 13px;
   letter-spacing:.03em;
 }
+.listener-v2-recording-tags {
+  display:flex;
+  flex-wrap:wrap;
+  gap:5px;
+  margin-top:5px;
+}
+.listener-v2-recording-tags i {
+  max-width:140px;
+  overflow:hidden;
+  padding:3px 7px;
+  border-radius:999px;
+  background:#edf4ff;
+  color:#315c9b;
+  font-size:13px;
+  font-style:normal;
+  line-height:1.2;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+.listener-v2-audio-list .listener-v2-collection-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) 20px;
+  align-items: center;
+  gap: 12px;
+  padding: 9px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.listener-v2-audio-list .listener-v2-collection-row:hover,
+.listener-v2-audio-list .listener-v2-collection-row:focus-visible { background: #f0f5fb; outline: none; }
+.listener-v2-collection-row .listener-v2-audio-art { width: 52px; height: 52px; border-radius: 9px; }
+.listener-v2-collection-row > div { min-width: 0; }
+.listener-v2-collection-row > div strong,
+.listener-v2-collection-row > div span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.listener-v2-collection-row > svg { color: #7b8da3; }
 
 /* Compact player stays visible across Listener routes. Opening the full player
    never creates a second audio element, so minimizing it cannot interrupt

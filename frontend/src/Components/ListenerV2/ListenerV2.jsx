@@ -1240,6 +1240,11 @@ const DiscoverCatalog = () => {
                     {formatReleaseLabel(track)}
                     {track.duration > 0 ? ` · ${formatPlaybackTime(track.duration)}` : ''}
                   </small>
+                  {Array.isArray(track.tags) && track.tags.length > 0 && (
+                    <div className="listener-v2-recording-tags" aria-label={`Tags: ${track.tags.join(', ')}`}>
+                      {track.tags.slice(0, 3).map((tag) => <i key={tag}>#{tag}</i>)}
+                    </div>
+                  )}
                 </div>
                 <button type="button" aria-label={`Play ${track.title}`} onClick={() => playTrack(track, recordings)}><FiPlay /></button>
               </article>

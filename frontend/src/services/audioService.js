@@ -4,6 +4,7 @@ import {
   getCurrentAccessToken,
 } from './api.js';
 import { buildGeneratedAudioCoverUrl } from '../audioCover/audioCover.js';
+import { normalizeAudioTags } from './audioTags.js';
 
 const normalizeAudio = (track) => {
   if (!track) return null;
@@ -21,6 +22,7 @@ const normalizeAudio = (track) => {
   const normalized = {
     ...track,
     id: track.id || track._id || null,
+    tags: normalizeAudioTags(track.tags),
     backendFileUrl: buildMediaUrl(track.fileUrl),
     fileUrl: buildMediaUrl(track.fileUrl),
     artistName,

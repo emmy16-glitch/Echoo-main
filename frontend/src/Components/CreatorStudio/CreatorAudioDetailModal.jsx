@@ -19,6 +19,7 @@ import {
 import { buildMediaUrl } from '../../services/api.js';
 import studioService from '../../services/studioService.js';
 import recordingArtworkService from '../../services/recordingArtworkService.js';
+import { normalizeAudioTags } from '../../services/audioTags.js';
 import { CREATOR_RENAME_UNDO_WINDOW_MS } from '../../config/playerFeedback.js';
 import Toast from '../UI/Toast';
 import CreatorAudioTrimSection from './CreatorAudioTrimSection.jsx';
@@ -57,13 +58,6 @@ const formatType = (mimeType = '') => {
   return mimeType || 'Original format';
 };
 
-const normalizeTags = (value) => [...new Set(
-  String(value || '')
-    .split(',')
-    .map((tag) => tag.trim().replace(/^#/, ''))
-    .filter(Boolean)
-)].slice(0, 20);
-
 const CreatorAudioDetailModal = ({
   track,
   onClose,
@@ -89,7 +83,8 @@ const CreatorAudioDetailModal = ({
   const [savedTitle, setSavedTitle] = useState(track?.title || '');
   const [titleEditing, setTitleEditing] = useState(false);
   const [titleSaving, setTitleSaving] = useState(false);
-  const [tagsDraft, setTagsDraft] = useState((track?.tags || []).join(', '));
+  const [tagsDraft, setTagsDraft] = useState(() => normalizeAudioTags(track?.tags).join(', '));
+  const [savedTags, setSavedTags] = useState(() => normalizeAudioTags(track?.tags));
   const [tagsSaving, setTagsSaving] = useState(false);
   const [recordingArtwork, setRecordingArtwork] = useState(track?.coverArt || '');
   const [artworkPreview, setArtworkPreview] = useState('');
@@ -137,7 +132,9 @@ const CreatorAudioDetailModal = ({
     setTitleDraft(track?.title || '');
     setSavedTitle(track?.title || '');
     setTitleEditing(false);
-    setTagsDraft((track?.tags || []).join(', '));
+    const nextTags = normalizeAudioTags(track?.tags);
+    setTagsDraft(nextTags.join(', '));
+    setSavedTags(nextTags);
     setRecordingArtwork(track?.coverArt || '');
     setArtworkPreview('');
     setArtworkToast(false);
@@ -361,9 +358,10 @@ const CreatorAudioDetailModal = ({
     try {
       setTagsSaving(true);
       setError('');
-      const tags = normalizeTags(tagsDraft);
+      const tags = normalizeAudioTags(tagsDraft);
       await studioService.updateAudio(trackId, { tags });
       setTagsDraft(tags.join(', '));
+      setSavedTags(tags);
       setNotice(tags.length ? 'Recording tags saved.' : 'Recording tags cleared.');
       onChanged?.();
     } catch (saveError) {
@@ -592,6 +590,11 @@ const CreatorAudioDetailModal = ({
           </div>
           <div className="creator-audio-tag-editor">
             <label htmlFor="creator-audio-tags">Tags</label>
+            {savedTags.length > 0 && (
+              <div className="creator-audio-saved-tags" aria-label={`Saved tags: ${savedTags.join(', ')}`}>
+                {savedTags.map((tag) => <span key={tag}>#{tag}</span>)}
+              </div>
+            )}
             <div>
               <input
                 id="creator-audio-tags"
