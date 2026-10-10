@@ -5,6 +5,8 @@ import Audio from '../models/Audio.js';
 import UploadSession from '../models/UploadSession.js';
 import User from '../models/User.js';
 import { matchesUploadedFileSignature } from '../services/uploadMediaSignature.js';
+import { createGeneratedAudioCover } from '../utils/audioCover.js';
+import { notifyFollowersOfRelease } from './audioController.js';
 
 const UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'audio');
 const TEMP_DIR = path.join(process.cwd(), 'uploads', 'temp');
@@ -162,7 +164,13 @@ export async function completeUpload(req, res, next) {
     if (tempStat?.size === session.fileSize) await fs.promises.rename(tempPath, finalPath);
 
     let audio = await Audio.findOne({ fileKey: finalFilename });
+    const createdNew = !audio;
     if (!audio) {
+      const generated = !coverArt ? createGeneratedAudioCover({
+        title: String(req.body.title || session.filename).trim(),
+        artistName: req.user?.creatorProfile?.artistName || req.user?.creatorProfile?.organizationName || req.user?.displayName || req.user?.username || 'Echoo Creator',
+        genre: req.body.genre || 'Other',
+      }) : null;
       audio = new Audio({
         title: String(req.body.title || session.filename).trim(),
         description: String(req.body.description || '').trim(),
@@ -176,7 +184,9 @@ export async function completeUpload(req, res, next) {
         duration: Math.max(0, Number(req.body.duration) || 0),
         genre: req.body.genre || 'Other',
         tags: Array.isArray(req.body.tags) ? req.body.tags : [],
-        coverArt,
+        coverArt: coverArt || generated?.dataUrl || null,
+        coverArtMode: coverArt ? 'uploaded' : 'generated',
+        coverArtVariant: Number(generated?.variant) || 0,
       });
       audio.setPublicPublication(req.body.isPublic);
       await audio.save();
@@ -190,6 +200,10 @@ export async function completeUpload(req, res, next) {
     session.status = 'completed';
     session.audio = audio._id;
     await session.save();
+    if (createdNew && audio.isPublic) {
+      req.app.get('io')?.emit('catalog:changed', { entity: 'audio', action: 'published', audioId: String(audio._id) });
+      await notifyFollowersOfRelease(req.user, audio);
+    }
     await audio.populate('artist', 'username displayName avatar');
     return res.status(201).json({ data: { audio } });
   } catch (error) { return next(error); }
