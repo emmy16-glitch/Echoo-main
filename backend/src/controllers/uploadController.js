@@ -4,6 +4,7 @@ import path from 'node:path';
 import Audio from '../models/Audio.js';
 import UploadSession from '../models/UploadSession.js';
 import User from '../models/User.js';
+import { matchesUploadedFileSignature } from '../services/uploadMediaSignature.js';
 
 const UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'audio');
 const TEMP_DIR = path.join(process.cwd(), 'uploads', 'temp');
@@ -148,6 +149,16 @@ export async function completeUpload(req, res, next) {
       fs.promises.stat(finalPath).catch(() => null),
     ]);
     if (tempStat?.size !== session.fileSize && finalStat?.size !== session.fileSize) return fail(res, 409, 'UPLOAD_INCOMPLETE', 'Uploaded file is incomplete');
+    // Match the signature validation used by the normal audio upload route.
+    const sourcePath = tempStat?.size === session.fileSize ? tempPath : finalPath;
+    const source = await fs.promises.open(sourcePath, 'r');
+    const header = Buffer.alloc(16);
+    let bytesRead = 0;
+    try { ({ bytesRead } = await source.read(header, 0, header.length, 0)); }
+    finally { await source.close(); }
+    if (!matchesUploadedFileSignature({ originalname: session.filename }, header.subarray(0, bytesRead))) {
+      return fail(res, 415, 'INVALID_AUDIO_SIGNATURE', 'Audio file does not match its selected format');
+    }
     if (tempStat?.size === session.fileSize) await fs.promises.rename(tempPath, finalPath);
 
     let audio = await Audio.findOne({ fileKey: finalFilename });
