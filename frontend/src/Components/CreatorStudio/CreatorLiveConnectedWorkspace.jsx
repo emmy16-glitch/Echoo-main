@@ -1501,25 +1501,25 @@ const CreatorLiveConnectedWorkspace = ({
                 {recordingProgress.stage === 'verifying'
                   ? `Verifying saved recording · ${formatElapsedTime(recordingProgress.elapsedSeconds || 0)} elapsed`
                   : recordingProgress.stage === 'device-saving'
-                    ? 'Encoding the MP3 locally after OFF AIR. This does not use the Echoo server.'
+                    ? 'Saving device MP3…'
                     : transferProgressText(recordingProgress)}
               </small>
             </>
           ) : (
             <small>
               {recordingProgress.stage === 'waiting-network'
-                ? 'Your local master is safe. Echoo will continue when the connection is available.'
+                ? 'Waiting for connection'
                 : recordingProgress.stage === 'error'
                   ? recordingProgress.localSaved
-                    ? 'Your device copy is safe. Echoo could not finish its saved recording. Try the Echoo save again.'
-                    : 'Your recording is safe on this device. Echoo could not finish its saved recording. Try the Echoo save again.'
+                    ? 'Device copy saved. Retry Echoo save.'
+                    : 'Recording saved locally. Retry Echoo save.'
                   : recordingProgress.stage === 'finalizing'
                   ? recordingProgress.localSaved
-                    ? 'The file on this device is already safe. Echoo is finishing its separate saved copy.'
-                    : 'Your browser master is protected. Echoo is finishing its separate saved copy in the background.'
+                    ? 'Device copy saved. Finishing Echoo save…'
+                    : 'Finishing Echoo save…'
                   : recordingProgress.stage === 'preparing'
-                    ? 'Closing the local recording safely before any server recovery work starts.'
-                    : 'Your protected recovery copy stays on this device until Echoo finishes safely.'}
+                    ? 'Preparing recording…'
+                    : 'Recording ready to retry'}
             </small>
           )}
           {recordingProgress.stage === 'error' && recordingProgress.key && (

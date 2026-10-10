@@ -124,12 +124,13 @@ app.use(
   cors({
     origin: echooCorsOrigin,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Range'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Range', 'Upload-Offset', 'Upload-Checksum'],
     exposedHeaders: [
       'X-Request-Id',
       'Accept-Ranges',
       'Content-Range',
       'Content-Length',
+      'Upload-Offset',
     ],
     credentials: false,
     preflightContinue: false,

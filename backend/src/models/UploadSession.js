@@ -6,6 +6,8 @@ const uploadSessionSchema = new mongoose.Schema({
   filename: { type: String, required: true },
   fileSize: { type: Number, required: true },
   mimeType: { type: String, required: true },
+  // Bounded SHA-256 sample prevents resuming another same-name/size recording.
+  fingerprint: { type: String, default: null },
   offset: { type: Number, default: 0 },
   chunkSize: { type: Number, required: true },
   status: { type: String, enum: ['uploading', 'completed', 'cancelled'], default: 'uploading' },

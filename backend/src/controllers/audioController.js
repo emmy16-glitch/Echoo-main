@@ -271,7 +271,7 @@ const reconcileExistingReplay = async ({ sourceBroadcast, existingAudio, audioFi
   });
 };
 
-async function notifyFollowersOfRelease(creator, audio) {
+export async function notifyFollowersOfRelease(creator, audio) {
   if (!audio?.isPublic) return;
 
   try {

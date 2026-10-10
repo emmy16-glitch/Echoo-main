@@ -2,6 +2,7 @@ import express from 'express';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import { randomUUID } from 'node:crypto';
 import { authenticate } from '../middleware/auth.js';
 import {
   initiateUpload,
@@ -15,22 +16,20 @@ const router = express.Router();
 
 // Configure multer for chunk uploads
 const TEMP_DIR = path.join(process.cwd(), 'uploads', 'temp');
+fs.mkdirSync(TEMP_DIR, { recursive: true });
+const MAX_CHUNK_SIZE = Math.min(16 * 1024 * 1024, Math.max(1024 * 1024, Number(process.env.AUDIO_UPLOAD_CHUNK_BYTES) || 5 * 1024 * 1024));
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, TEMP_DIR);
   },
-  filename: (req, file, cb) => {
-    const { uploadId } = req.params;
-    const chunkIndex = req.body.chunkIndex || 0;
-    cb(null, `${uploadId}-chunk-${chunkIndex}`);
-  },
+  filename: (req, file, cb) => cb(null, `${randomUUID()}.part`),
 });
 
 const upload = multer({
   storage: storage,
   limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB per chunk
+    fileSize: MAX_CHUNK_SIZE,
   },
 });
 
@@ -42,7 +41,7 @@ const uploadChunkFile = (req, res, next) => {
       const status = error.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
       const message =
         error.code === 'LIMIT_FILE_SIZE'
-          ? 'Upload chunks must be 5 MB or smaller.'
+          ? 'Upload chunk exceeds the configured limit.'
           : error.message;
 
       return res.status(status).json({

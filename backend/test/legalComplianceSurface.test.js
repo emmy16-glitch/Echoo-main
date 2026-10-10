@@ -24,7 +24,7 @@ test('mobile Settings exposes privacy and in-app account deletion', async () => 
   const accountPage = await source('../../mobile/app/delete-account.tsx');
   const api = await source('../../mobile/src/services/echooApi.ts');
   assert.match(settings, /https:\/\/echoo\.digi02\.org\/privacy-policy/);
-  assert.match(settings, /router\.push\('\/delete-account'\)/);
+  assert.match(settings, /\bpush\('\/delete-account'\)/);
   assert.match(accountPage, /deleteEchooAccount\(password\)/);
   assert.match(api, /['"]\/settings\/account['"]/);
 });
