@@ -134,6 +134,11 @@ export async function completeUpload(req, res, next) {
     if (session.status !== 'uploading') return fail(res, 409, 'UPLOAD_NOT_ACTIVE', 'Upload session is not active');
     if (session.offset !== session.fileSize) return fail(res, 409, 'UPLOAD_INCOMPLETE', 'Every byte must be confirmed before finalization', { expectedOffset: session.fileSize, offset: session.offset });
 
+    const coverArt = req.body.coverArt || null;
+    if (coverArt && (typeof coverArt !== 'string' || coverArt.length > 7 * 1024 * 1024 || !/^data:image\/(?:png|jpeg|webp);base64,[a-z0-9+/=]+$/i.test(coverArt))) {
+      return fail(res, 400, 'INVALID_COVER', 'Cover artwork must be JPG, PNG or WebP and under 5 MB');
+    }
+
     const extension = path.extname(session.filename).slice(0, 10);
     const finalFilename = session.uploadId + extension;
     const finalPath = path.join(UPLOAD_DIR, finalFilename);
@@ -147,10 +152,6 @@ export async function completeUpload(req, res, next) {
 
     let audio = await Audio.findOne({ fileKey: finalFilename });
     if (!audio) {
-      const coverArt = req.body.coverArt || null;
-      if (coverArt && (typeof coverArt !== 'string' || coverArt.length > 7 * 1024 * 1024 || !/^data:image\/(?:png|jpeg|webp);base64,[a-z0-9+/=]+$/i.test(coverArt))) {
-        return fail(res, 400, 'INVALID_COVER', 'Cover artwork must be JPG, PNG or WebP and under 5 MB');
-      }
       audio = new Audio({
         title: String(req.body.title || session.filename).trim(),
         description: String(req.body.description || '').trim(),

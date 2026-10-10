@@ -391,7 +391,7 @@ const studioService = {
     return first;
   },
 
-  uploadAudioResumable: async ({ file, coverFile = null, title, description = '', genre = 'Other', tags = [], isPublic = false, onProgress, onSession, signal }) => {
+  uploadAudioResumable: async ({ file, coverFile = null, title, description = '', genre = 'Other', tags = [], isPublic = false, onProgress, onSession, resumeUploadId = null, signal }) => {
     if (!file) throw new Error('Please choose an audio file.');
     const duration = await readAudioDuration(file);
     if (signal?.aborted) throw new DOMException('Upload paused', 'AbortError');
@@ -408,7 +408,15 @@ const studioService = {
     const knownMimes = { mp3: 'audio/mpeg', mpeg: 'audio/mpeg', mpga: 'audio/mpeg', mp2: 'audio/mpeg', mpa: 'audio/mpeg', wav: 'audio/wav', flac: 'audio/flac', m4a: 'audio/mp4', aac: 'audio/aac', ogg: 'audio/ogg', oga: 'audio/ogg', opus: 'audio/ogg', webm: 'audio/webm', weba: 'audio/webm' };
     const mimeType = knownMimes[extension] || file.type || 'audio/mpeg';
     if (signal?.aborted) throw new DOMException('Upload paused', 'AbortError');
-    const initiated = await readResponse(await apiFetch('/uploads/initiate', {
+    let initiated = null;
+    if (resumeUploadId) {
+      try {
+        const previous = await readResponse(await apiFetch(`/uploads/${encodeURIComponent(resumeUploadId)}/status`));
+        const candidate = previous?.data;
+        if (candidate?.filename === file.name && candidate?.fileSize === file.size && candidate?.mimeType === mimeType && candidate?.fingerprint === fingerprint && ['uploading', 'completed'].includes(candidate?.status)) initiated = previous;
+      } catch (error) { if (error?.status !== 404) throw error; }
+    }
+    if (!initiated) initiated = await readResponse(await apiFetch('/uploads/initiate', {
       method: 'POST',
       body: JSON.stringify({ filename: file.name, fileSize: file.size, mimeType, fingerprint }),
     }));
@@ -459,10 +467,21 @@ const studioService = {
     const coverArt = coverFile ? await new Promise((resolve, reject) => {
       const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(coverFile);
     }) : null;
-    const finalized = await readResponse(await apiFetch(`/uploads/${encodeURIComponent(session.uploadId)}/complete`, {
+    let finalized = null;
+    const complete = () => apiFetch(`/uploads/${encodeURIComponent(session.uploadId)}/complete`, {
       method: 'POST',
       body: JSON.stringify({ title: title?.trim() || file.name, description, genre, tags, isPublic, duration, coverArt }),
-    }));
+    });
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        finalized = await readResponse(await complete());
+        break;
+      } catch (error) {
+        if (signal?.aborted || error?.name === 'AbortError') throw error;
+        if (attempt >= 2 || (error?.status >= 400 && error?.status < 500 && error?.code !== 'UPLOAD_BUSY')) throw error;
+        await pause(Math.min(5000, 700 * (2 ** attempt)));
+      }
+    }
     onProgress?.({ loaded: file.size, total: file.size, percent: 100, finalized: true });
     return finalized;
   },

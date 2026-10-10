@@ -56,7 +56,7 @@ export default function AudioUploadQueueDialog({ open, onClose, onComplete, defa
     try {
       if (!audioId) {
         const result = await studioService.uploadAudioResumable({
-          file: item.file, coverFile: item.artwork, title: item.title, description: item.description, isPublic: item.isPublic,
+          file: item.file, coverFile: item.artwork, title: item.title, description: item.description, isPublic: item.isPublic, resumeUploadId: item.uploadId,
           signal: controller.signal,
           onSession: (session) => patchItem(item.id, { uploadId: session.uploadId }),
           onProgress: ({ percent, finalized }) => patchItem(item.id, { progress: percent, status: finalized ? 'organizing' : percent >= 100 ? 'finalizing' : 'uploading' }),
@@ -86,8 +86,9 @@ export default function AudioUploadQueueDialog({ open, onClose, onComplete, defa
 
   const createCollection = async (itemId) => {
     const title = newCollectionTitle.trim();
-    const stationId = newCollectionStation || stations[0]?.id || stations[0]?._id;
-    if (!title || !stationId || collectionBusy) { setCollectionError(!stationId ? 'Create a Channel first.' : 'Enter a Collection name.'); return; }
+    const stationId = stations.length > 1 ? newCollectionStation : (stations[0]?.id || stations[0]?._id);
+    if (collectionBusy) return;
+    if (!title || !stationId) { setCollectionError(!title ? 'Enter a Collection name.' : stations.length > 1 ? 'Select a Channel.' : 'Create a Channel first.'); return; }
     try {
       setCollectionBusy(true);
       setCollectionError('');
