@@ -22,6 +22,7 @@ import {
   getListenerLiveKitCredentials,
   syncListeningProgress,
 } from '@/src/services/echooApi';
+import { getLocalDownloadForTrack } from '@/src/services/localDownloads';
 import {
   ensureLiveAudioNotificationPermission,
   startLiveAudioService,
@@ -258,9 +259,14 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
       let expiresIn = 0;
 
       if (!localUrl && item.id) {
-        const grant = await getAudioStreamUrl(item.id);
-        playbackUrl = grant.streamUrl;
-        expiresIn = grant.expiresIn;
+        const localDownload = await getLocalDownloadForTrack(item.id).catch(() => null);
+        if (localDownload?.status === 'completed' && localDownload.localUri) {
+          playbackUrl = localDownload.localUri;
+        } else {
+          const grant = await getAudioStreamUrl(item.id);
+          playbackUrl = grant.streamUrl;
+          expiresIn = grant.expiresIn;
+        }
       }
 
       if (!playbackUrl) {

@@ -1,6 +1,7 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
+import { useGuardedRouter } from '@/src/navigation/useGuardedRouter';
 import { Headphones, Radio, Users, Volume2, X } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -12,17 +13,14 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ListenerAuthCard, ListenerBackHeader, friendlyErrorMessage } from '@/src/components/ListenerV2';
-import {
-  getBroadcastPresence,
-  hasEchooSession,
-} from '@/src/services/echooApi';
+import { ListenerBackHeader, friendlyErrorMessage } from '@/src/components/ListenerV2';
+import { getBroadcastPresence } from '@/src/services/echooApi';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { LivePlaybackItem, usePlayback } from '@/src/playback/PlaybackProvider';
 import { EchooColors, getEchooColors } from '@/src/theme/echooTheme';
 
 export default function LiveRoomScreen() {
-  const router = useRouter();
+  const { router } = useGuardedRouter();
   const params = useLocalSearchParams<{
     broadcastId?: string;
     title?: string;
@@ -50,7 +48,6 @@ export default function LiveRoomScreen() {
     [broadcastId, coverArt, stationName, title]
   );
 
-  const [signedIn, setSignedIn] = useState(false);
   const [preparing, setPreparing] = useState(true);
   const [prepareError, setPrepareError] = useState('');
   const [listenerCount, setListenerCount] = useState(0);
@@ -68,11 +65,6 @@ export default function LiveRoomScreen() {
       setPrepareError('');
 
       try {
-        const activeSession = await hasEchooSession();
-        if (!active) return;
-        setSignedIn(activeSession);
-
-        if (!activeSession) return;
         if (!broadcastId) throw new Error('Broadcast ID is missing.');
 
         const presence = await getBroadcastPresence(broadcastId).catch(() => null);
@@ -96,14 +88,14 @@ export default function LiveRoomScreen() {
   }, [broadcastId, isCurrentLive, playLive, requestedLive]);
 
   useEffect(() => {
-    if (!broadcastId || !signedIn || nativeModuleUnavailable) return;
+    if (!broadcastId || nativeModuleUnavailable) return;
     const timer = setInterval(() => {
       getBroadcastPresence(broadcastId)
         .then((presence) => setListenerCount(Number(presence?.listenerCount) || 0))
         .catch(() => undefined);
     }, 10000);
     return () => clearInterval(timer);
-  }, [broadcastId, signedIn, nativeModuleUnavailable]);
+  }, [broadcastId, nativeModuleUnavailable]);
 
   const roomContent = (
     <LiveRoomContent
@@ -134,17 +126,7 @@ export default function LiveRoomScreen() {
           </View>
         ) : null}
 
-        {!loading && !signedIn ? (
-          <View style={styles.centerWrap}>
-            <ListenerAuthCard
-              title="Sign in to listen live"
-              subtitle="Echoo live rooms use authenticated, receive-only LiveKit sessions for listeners."
-              onPress={() => router.push('/auth')}
-            />
-          </View>
-        ) : null}
-
-        {!loading && signedIn && nativeModuleUnavailable ? (
+        {!loading && nativeModuleUnavailable ? (
           <View style={styles.centerState}>
             <View style={styles.errorIcon}><Headphones color={palette.blue} size={26} /></View>
             <Text style={styles.stateTitle}>Live audio needs the Echoo development build</Text>
@@ -157,7 +139,7 @@ export default function LiveRoomScreen() {
           </View>
         ) : null}
 
-        {!loading && signedIn && !nativeModuleUnavailable && error ? (
+        {!loading && !nativeModuleUnavailable && error ? (
           <View style={styles.centerState}>
             <View style={styles.errorIcon}><Radio color={palette.red} size={25} /></View>
             <Text style={styles.stateTitle}>Could not join live audio</Text>
@@ -168,7 +150,7 @@ export default function LiveRoomScreen() {
           </View>
         ) : null}
 
-        {!loading && signedIn && !nativeModuleUnavailable && isCurrentLive && !error
+        {!loading && !nativeModuleUnavailable && isCurrentLive && !error
           ? roomContent
           : null}
       </View>
@@ -253,7 +235,6 @@ function LiveRoomContent({
 const createStyles = (palette: EchooColors) => StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: palette.background },
   content: { flex: 1, paddingHorizontal: 18, paddingTop: 8, paddingBottom: 18 },
-  centerWrap: { flex: 1, justifyContent: 'center' },
   centerState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28 },
   stateTitle: { color: palette.ink, fontSize: 18, fontWeight: '900', textAlign: 'center', marginTop: 14 },
   stateText: { color: palette.muted, fontSize: 12.5, lineHeight: 19, textAlign: 'center', marginTop: 5, maxWidth: 330 },

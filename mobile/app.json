@@ -2,7 +2,7 @@
   "expo": {
     "name": "Echoo",
     "slug": "echoo",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "echoo",
@@ -15,7 +15,9 @@
           "audio"
         ]
       },
-      "bitcode": false
+      "bitcode": false,
+      "buildNumber": "3",
+      "bundleIdentifier": "com.digi02.echoo"
     },
     "android": {
       "adaptiveIcon": {
@@ -23,9 +25,10 @@
         "foregroundImage": "./assets/images/adaptive-icon.png"
       },
       "edgeToEdgeEnabled": true,
+      "softwareKeyboardLayoutMode": "resize",
       "predictiveBackGestureEnabled": false,
-      "package": "com.echoo.digi02",
-      "versionCode": 2,
+      "package": "com.digi02.echoo",
+      "versionCode": 3,
       "permissions": [
         "android.permission.ACCESS_NETWORK_STATE",
         "android.permission.CAMERA",

@@ -573,10 +573,48 @@ export async function getAudio(req, res, next) {
       .skip(skip)
       .limit(limit);
 
+    const audioIds = audio.map((track) => String(track._id));
+    const collectionByTrack = new Map();
+    if (audioIds.length) {
+      const audioIdSet = new Set(audioIds);
+      const collections = await Playlist.find({
+        mode: 'series',
+        isDeleted: false,
+        isPublic: true,
+        'tracks.trackId': { $in: audioIds },
+      })
+        .select('_id name tracks.trackId updatedAt')
+        .sort({ updatedAt: -1 })
+        .lean();
+
+      for (const collection of collections) {
+        for (const entry of collection.tracks || []) {
+          const trackId = String(entry?.trackId || '');
+          if (!audioIdSet.has(trackId) || collectionByTrack.has(trackId)) continue;
+          collectionByTrack.set(trackId, {
+            id: String(collection._id),
+            name: collection.name,
+          });
+        }
+      }
+    }
+
+    const audioWithCollection = audio.map((track) => {
+      const plain = track.toObject ? track.toObject({ getters: true }) : { ...track };
+      const collection = collectionByTrack.get(String(track._id));
+      return collection
+        ? {
+            ...plain,
+            collectionId: collection.id,
+            collectionName: collection.name,
+          }
+        : plain;
+    });
+
     const total = await Audio.countDocuments(filter);
 
     return res.status(200).json({
-      data: audio,
+      data: audioWithCollection,
       pagination: {
         page,
         limit,

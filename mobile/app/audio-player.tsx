@@ -1,6 +1,7 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
+import { useGuardedRouter } from '@/src/navigation/useGuardedRouter';
 import {
   ChevronDown,
   Check,
@@ -38,6 +39,7 @@ import {
   EchooPlaylist,
   addTrackToPlaylist,
   createPlaylist,
+  getCachedMyPlaylistsSnapshot,
   getSavedAudio,
   getMyPlaylists,
   hasEchooSession,
@@ -56,7 +58,7 @@ import {
 import { EchooColors, getEchooColors } from '@/src/theme/echooTheme';
 
 export default function AudioPlayerScreen() {
-  const router = useRouter();
+  const { router, push } = useGuardedRouter();
   const params = useLocalSearchParams<{
     audioId?: string;
     title?: string;
@@ -241,7 +243,7 @@ export default function AudioPlayerScreen() {
   const toggleSaved = async () => {
     if (!audioId) return;
     if (!signedIn) {
-      router.push('/auth');
+      push('/auth');
       return;
     }
 
@@ -272,7 +274,7 @@ export default function AudioPlayerScreen() {
   const downloadTrack = async () => {
     if (!currentTrack) return;
     if (!signedIn) {
-      router.push('/auth');
+      push('/auth');
       return;
     }
 
@@ -280,10 +282,28 @@ export default function AudioPlayerScreen() {
     setDownloadProgress(1);
     setActionError('');
     try {
-      await downloadAudioToDevice(currentTrack, setDownloadProgress);
+      const completed = await downloadAudioToDevice(currentTrack, setDownloadProgress);
       setDownloaded(true);
       setDownloadProgress(100);
       setActionError('Downloaded for offline listening.');
+      if (completed.localUri && currentAudio?.id === audioId) {
+        await playback.playAudio(
+          {
+            kind: 'audio',
+            id: audioId,
+            title,
+            subtitle,
+            coverArt,
+            fileUrl: completed.localUri,
+            genre,
+            stationId,
+            stationName,
+            collectionId,
+            collectionName,
+          },
+          { preserveQueue: true }
+        );
+      }
     } catch (downloadError: any) {
       setActionError(friendlyErrorMessage(downloadError, 'Could not download this audio.'));
     } finally {
@@ -294,17 +314,27 @@ export default function AudioPlayerScreen() {
   const openPlaylistPicker = async () => {
     if (!audioId) return;
     if (!signedIn) {
-      router.push('/auth');
+      push('/auth');
       return;
     }
 
     setPlaylistModalOpen(true);
-    setPlaylistLoading(true);
     setActionError('');
+
+    const cachedPlaylists = await getCachedMyPlaylistsSnapshot().catch(() => []);
+    if (cachedPlaylists.length) {
+      setPlaylists(cachedPlaylists);
+      setPlaylistLoading(false);
+    } else {
+      setPlaylistLoading(true);
+    }
+
     try {
       setPlaylists(await getMyPlaylists());
     } catch (playlistError: any) {
-      setActionError(friendlyErrorMessage(playlistError, 'Could not load your playlists.'));
+      if (!cachedPlaylists.length) {
+        setActionError(friendlyErrorMessage(playlistError, 'Could not load your playlists.'));
+      }
     } finally {
       setPlaylistLoading(false);
     }
@@ -350,12 +380,12 @@ export default function AudioPlayerScreen() {
 
   const openStation = () => {
     if (!stationId) return;
-    router.push({ pathname: '/station', params: { stationId } });
+    push({ pathname: '/station', params: { stationId } });
   };
 
   const openCollection = () => {
     if (!collectionId) return;
-    router.push({
+    push({
       pathname: '/collection' as any,
       params: { collectionId, stationId, stationName },
     });
@@ -414,7 +444,7 @@ export default function AudioPlayerScreen() {
 
         <View style={styles.metaRow}>
           <View style={styles.metaCopy}>
-            <Text style={styles.title} numberOfLines={1}>{title}</Text>
+            <Text style={styles.title}>{title}</Text>
             <Pressable disabled={!stationId} onPress={openStation}>
               <Text style={[styles.subtitle, stationId ? styles.linkText : null]} numberOfLines={1}>
                 {stationName}
@@ -701,7 +731,7 @@ const createStyles = (palette: EchooColors) => StyleSheet.create({
   artworkFallback: { alignItems: 'center', justifyContent: 'center' },
   metaRow: { marginTop: 24, flexDirection: 'row', alignItems: 'center', gap: 12 },
   metaCopy: { flex: 1, minWidth: 0 },
-  title: { color: palette.ink, fontSize: 23, lineHeight: 28, fontWeight: '900' },
+  title: { color: palette.ink, fontSize: 20, lineHeight: 25, fontWeight: '900' },
   subtitle: { color: palette.muted, fontSize: 13, marginTop: 5 },
   linkText: { color: palette.blue, fontWeight: '900' },
   collectionContext: { color: palette.muted, fontSize: 11.5, marginTop: 4, fontWeight: '700' },
@@ -712,21 +742,24 @@ const createStyles = (palette: EchooColors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  progressTouch: { height: 30, justifyContent: 'center', marginTop: 18 },
+  progressTouch: { height: 34, justifyContent: 'center', marginTop: 18 },
   progressTrack: {
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.22)',
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: palette.lineStrong,
+    overflow: 'visible',
   },
-  progressFill: { height: 4, borderRadius: 2, backgroundColor: palette.ink },
+  progressFill: { height: 6, borderRadius: 3, backgroundColor: palette.blue },
   progressThumb: {
     position: 'absolute',
-    top: -4,
-    width: 12,
-    height: 12,
-    marginLeft: -6,
-    borderRadius: 6,
-    backgroundColor: palette.ink,
+    top: -5,
+    width: 16,
+    height: 16,
+    marginLeft: -8,
+    borderRadius: 8,
+    backgroundColor: palette.blue,
+    borderWidth: 3,
+    borderColor: palette.surfaceRaised,
   },
   timeRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: -6 },
   timeText: { color: palette.muted, fontSize: 10.5, fontWeight: '700' },

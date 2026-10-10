@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useGuardedRouter } from '@/src/navigation/useGuardedRouter';
 import {
   Bell,
   BellRing,
@@ -43,7 +43,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { EchooColors, getEchooColors } from '@/src/theme/echooTheme';
 
 export default function NotificationsScreen() {
-  const router = useRouter();
+  const { push } = useGuardedRouter();
   const scheme = useColorScheme();
   const palette = getEchooColors(scheme);
   const styles = useMemo(() => createStyles(palette), [palette]);
@@ -123,15 +123,15 @@ export default function NotificationsScreen() {
     const audioId = getMetadataString(notification.metadata, 'audioId');
 
     if (stationId) {
-      router.push({ pathname: '/station', params: { stationId } });
+      push({ pathname: '/station', params: { stationId } });
       return;
     }
     if (broadcastId) {
-      router.push('/live');
+      push('/live');
       return;
     }
     if (audioId) {
-      router.push({ pathname: '/search', params: { q: notification.title } });
+      push({ pathname: '/search', params: { q: notification.title } });
     }
   };
 
@@ -161,7 +161,7 @@ export default function NotificationsScreen() {
           <ListenerAuthCard
             title="Sign in to see notifications"
             subtitle="Echoo notifications belong to your account and stay private to you."
-            onPress={() => router.push('/auth')}
+            onPress={() => push('/auth')}
           />
         ) : null}
 

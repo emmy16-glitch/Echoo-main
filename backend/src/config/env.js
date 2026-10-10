@@ -114,7 +114,7 @@ export const env = Object.freeze({
   jwtSecret,
   jwtRefreshSecret: requireValue('JWT_REFRESH_SECRET', jwtSecret),
   jwtAccessExpiresIn: requireValue('JWT_ACCESS_EXPIRES_IN', '15m'),
-  jwtRefreshExpiresIn: requireValue('JWT_REFRESH_EXPIRES_IN', '7d'),
+  jwtRefreshExpiresIn: requireValue('JWT_REFRESH_EXPIRES_IN', '90d'),
   logLevel: requireValue('LOG_LEVEL', 'info'),
   whisperFlowUrl: String(process.env.WHISPER_FLOW_URL || '').trim(),
   whisperFlowApiKey: String(process.env.WHISPER_FLOW_API_KEY || '').trim(),

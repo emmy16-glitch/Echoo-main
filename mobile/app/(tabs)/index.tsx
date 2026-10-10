@@ -1,10 +1,9 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useGuardedRouter } from '@/src/navigation/useGuardedRouter';
 import {
   Headphones,
   Heart,
-  Library,
   Music2,
   Play,
   Radio,
@@ -28,6 +27,10 @@ import {
   EchooBroadcast,
   EchooHistoryItem,
   EchooStation,
+  getCachedFollowedStationsSnapshot,
+  getCachedListeningHistorySnapshot,
+  getCachedMobileDiscoverySnapshot,
+  getCachedSavedAudioSnapshot,
   getFollowedStations,
   getListeningHistory,
   getMobileDiscovery,
@@ -60,8 +63,26 @@ function compactNumber(value = 0) {
   return String(value || 0);
 }
 
+function collapseCollectionReleases(tracks: EchooAudio[], limit = 8) {
+  const seenCollectionIds = new Set<string>();
+  const releases: EchooAudio[] = [];
+
+  for (const track of tracks) {
+    const collectionId = String(track.collectionId || '');
+    if (collectionId) {
+      if (seenCollectionIds.has(collectionId)) continue;
+      seenCollectionIds.add(collectionId);
+    }
+
+    releases.push(track);
+    if (releases.length >= limit) break;
+  }
+
+  return releases;
+}
+
 export default function HomeScreen() {
-  const router = useRouter();
+  const { push } = useGuardedRouter();
   const scheme = useColorScheme();
   const palette = getEchooColors(scheme);
   const styles = useMemo(() => createStyles(palette), [palette]);
@@ -114,11 +135,51 @@ export default function HomeScreen() {
   }, []);
 
   useEffect(() => {
-    loadHome(false, hasLoadedOnce.current);
+    let active = true;
+
+    const hydrateThenRefresh = async () => {
+      let hydrated = false;
+
+      if (!hasLoadedOnce.current) {
+        const [cachedDiscovery, activeSession] = await Promise.all([
+          getCachedMobileDiscoverySnapshot(),
+          hasEchooSession(),
+        ]);
+        if (!active) return;
+
+        if (cachedDiscovery) {
+          setDiscovery(cachedDiscovery);
+          hydrated = true;
+        }
+
+        setSignedIn(activeSession);
+        if (activeSession) {
+          const [followed, history, saved] = await Promise.all([
+            getCachedFollowedStationsSnapshot().catch(() => []),
+            getCachedListeningHistorySnapshot().catch(() => []),
+            getCachedSavedAudioSnapshot().catch(() => []),
+          ]);
+          if (!active) return;
+          setFollowedStations(followed);
+          setRecentHistory(history);
+          setSavedAudio(saved);
+          hydrated = hydrated || followed.length > 0 || history.length > 0 || saved.length > 0;
+        }
+
+        if (hydrated) setLoading(false);
+      }
+
+      if (active) loadHome(false, hydrated || hasLoadedOnce.current);
+    };
+
+    hydrateThenRefresh();
+    return () => {
+      active = false;
+    };
   }, [loadHome]);
 
 
-  const published = discovery.audio.slice(0, 8);
+  const published = collapseCollectionReleases(discovery.audio, 8);
   const liveNow = discovery.live.slice(0, 8);
   const followedStationIds = useMemo(
     () => new Set(followedStations.map((station) => station.id).filter(Boolean)),
@@ -149,7 +210,7 @@ export default function HomeScreen() {
     .slice(0, 6);
 
   const openAudio = (track: EchooAudio) => {
-    router.push({
+    push({
       pathname: '/audio-player',
       params: {
         audioId: track.id,
@@ -165,11 +226,7 @@ export default function HomeScreen() {
   };
 
   const openLiveRoom = (item: EchooBroadcast) => {
-    if (!signedIn) {
-      router.push('/auth');
-      return;
-    }
-    router.push({
+    push({
       pathname: '/live-room',
       params: {
         broadcastId: item.id,
@@ -202,7 +259,7 @@ export default function HomeScreen() {
           </View>
           <Pressable
             style={styles.searchButton}
-            onPress={() => router.push('/search')}
+            onPress={() => push('/search')}
             accessibilityLabel="Search Echoo"
           >
             <Search color={palette.ink} size={21} />
@@ -218,7 +275,7 @@ export default function HomeScreen() {
             <Pressable
               key={label}
               style={styles.chip}
-              onPress={() => router.push({ pathname: '/search', params: { q: label } })}
+              onPress={() => push({ pathname: '/search', params: { q: label } })}
             >
               <Text style={styles.chipText}>{label}</Text>
             </Pressable>
@@ -238,7 +295,7 @@ export default function HomeScreen() {
             <SectionHeader
               title="Continue listening"
               action="Library"
-              onPress={() => router.push('/library')}
+              onPress={() => push('/library')}
               palette={palette}
             />
             <ScrollView
@@ -264,7 +321,7 @@ export default function HomeScreen() {
             <SectionHeader
               title="Live from your stations"
               action="Live"
-              onPress={() => router.push('/live')}
+              onPress={() => push('/live')}
               palette={palette}
             />
             <View style={styles.personalStack}>
@@ -291,7 +348,7 @@ export default function HomeScreen() {
             <SectionHeader
               title="New from your stations"
               action="Library"
-              onPress={() => router.push('/library')}
+              onPress={() => push('/library')}
               palette={palette}
             />
             <ScrollView
@@ -315,7 +372,7 @@ export default function HomeScreen() {
         <SectionHeader
           title="Fresh releases"
           action="Search"
-          onPress={() => router.push('/search')}
+          onPress={() => push('/search')}
           palette={palette}
         />
         {published.length ? (
@@ -347,7 +404,7 @@ export default function HomeScreen() {
         <SectionHeader
           title="Live now"
           action="View all"
-          onPress={() => router.push('/live')}
+          onPress={() => push('/live')}
           palette={palette}
         />
         {liveNow.length ? (
@@ -389,7 +446,7 @@ export default function HomeScreen() {
         <SectionHeader
           title="Popular stations"
           action="Discover"
-          onPress={() => router.push('/search')}
+          onPress={() => push('/search')}
           palette={palette}
         />
         <View style={styles.stationList}>
@@ -398,7 +455,7 @@ export default function HomeScreen() {
               <Pressable
                 key={station.id}
                 style={styles.stationRow}
-                onPress={() => router.push({ pathname: '/station', params: { stationId: station.id } })}
+                onPress={() => push({ pathname: '/station', params: { stationId: station.id } })}
               >
                 <Text style={styles.rank}>{String(index + 1).padStart(2, '0')}</Text>
                 <Artwork uri={station.coverArt} style={styles.stationArt} palette={palette} />
@@ -429,7 +486,7 @@ export default function HomeScreen() {
             <SectionHeader
               title="Saved for later"
               action="See all"
-              onPress={() => router.push('/favorites')}
+              onPress={() => push('/favorites')}
               palette={palette}
             />
             <View style={styles.personalStack}>
@@ -448,25 +505,6 @@ export default function HomeScreen() {
             </View>
           </>
         ) : null}
-
-        <Pressable
-          style={styles.libraryPrompt}
-          onPress={() => router.push(signedIn ? '/library' : '/auth')}
-        >
-          <View style={styles.libraryIcon}>
-            <Library color="#FFFFFF" size={20} />
-          </View>
-          <View style={styles.libraryCopy}>
-            <Text style={styles.libraryTitle}>
-              {signedIn ? 'Your library is ready' : 'Keep the audio you love'}
-            </Text>
-            <Text style={styles.libraryText} numberOfLines={2}>
-              {signedIn
-                ? 'Open saved audio, followed stations and recent plays.'
-                : 'Sign in to save tracks and sync listening across devices.'}
-            </Text>
-          </View>
-        </Pressable>
       </ScrollView>
     </SafeAreaView>
   );
@@ -715,25 +753,4 @@ const createStyles = (palette: EchooColors) => StyleSheet.create({
   emptyCopy: { flex: 1 },
   emptyTitle: { color: palette.ink, fontSize: 13, fontWeight: '900' },
   emptyText: { color: palette.muted, fontSize: 11, lineHeight: 15, marginTop: 2 },
-  libraryPrompt: {
-    marginTop: 24,
-    minHeight: 68,
-    borderRadius: 8,
-    backgroundColor: palette.surfaceRaised,
-    padding: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 13,
-  },
-  libraryIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: palette.blue,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  libraryCopy: { flex: 1 },
-  libraryTitle: { color: palette.ink, fontSize: 13.5, fontWeight: '900' },
-  libraryText: { color: palette.muted, fontSize: 11, lineHeight: 15, marginTop: 2 },
 });

@@ -6,7 +6,6 @@ import {
   FileAudio,
   ImagePlus,
   Send,
-  Upload,
   X,
 } from 'lucide-react-native';
 import { useMemo, useState } from 'react';

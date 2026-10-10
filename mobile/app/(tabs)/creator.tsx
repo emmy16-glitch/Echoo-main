@@ -1,6 +1,6 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
+import { useGuardedRouter } from '@/src/navigation/useGuardedRouter';
 import {
   BarChart3,
   CalendarClock,
@@ -74,7 +74,7 @@ const shortDate = (value?: string) => {
 };
 
 export default function CreatorScreen() {
-  const router = useRouter();
+  const { push } = useGuardedRouter();
   const scheme = useColorScheme();
   const palette = getEchooColors(scheme);
   const styles = useMemo(() => createStyles(palette), [palette]);
@@ -161,7 +161,7 @@ export default function CreatorScreen() {
   const isCreator = user?.userType === 'creator';
 
   const openAudio = (track: EchooAudio) => {
-    router.push({
+    push({
       pathname: '/audio-player',
       params: {
         audioId: track.id,
@@ -209,7 +209,7 @@ export default function CreatorScreen() {
           <ListenerAuthCard
             title="Sign in as a creator"
             subtitle="Creator tools need your Echoo account so broadcasts, uploads, and stations stay connected."
-            onPress={() => router.push('/auth')}
+            onPress={() => push('/auth')}
           />
         ) : null}
 
@@ -219,7 +219,7 @@ export default function CreatorScreen() {
             subtitle="This account can listen now. Activate creator tools from Echoo web studio before using mobile broadcast controls."
             icon={<Mic color={palette.blue} size={24} />}
             action="Back to listener home"
-            onAction={() => router.push('/')}
+            onAction={() => push('/')}
           />
         ) : null}
 
@@ -232,7 +232,7 @@ export default function CreatorScreen() {
                   showNextPhase('Station setup');
                   return;
                 }
-                router.push({
+                push({
                   pathname: '/creator-live' as any,
                   params: {
                     stationId: station.id,
@@ -284,7 +284,7 @@ export default function CreatorScreen() {
               {station ? (
                 <Pressable
                   style={styles.stationButton}
-                  onPress={() => router.push('/creator-station' as any)}
+                  onPress={() => push('/creator-station' as any)}
                 >
                   <ChevronRight color={palette.ink} size={18} />
                 </Pressable>
@@ -296,21 +296,21 @@ export default function CreatorScreen() {
                 icon={<Upload color={palette.blue} size={23} />}
                 title="Upload audio"
                 subtitle="Publish from device"
-                onPress={() => router.push('/creator-upload' as any)}
+                onPress={() => push('/creator-upload' as any)}
                 palette={palette}
               />
               <CreatorAction
                 icon={<Library color={palette.blue} size={23} />}
                 title="My content"
                 subtitle={`${dashboard.totalTracks || recentContent.length} tracks`}
-                onPress={() => router.push('/creator-content' as any)}
+                onPress={() => push('/creator-content' as any)}
                 palette={palette}
               />
               <CreatorAction
                 icon={<CalendarClock color={palette.blue} size={23} />}
                 title="Schedule"
                 subtitle={shortDate(upcomingBroadcast?.startTime)}
-                onPress={() => router.push('/creator-schedule' as any)}
+                onPress={() => push('/creator-schedule' as any)}
                 palette={palette}
               />
               <CreatorAction
@@ -382,7 +382,7 @@ export default function CreatorScreen() {
                 onPress={() => {
                   const completed = broadcasts.find((item) => String(item.status || '') === 'completed');
                   if (!completed) return;
-                  router.push({
+                  push({
                     pathname: '/creator-replay' as any,
                     params: { broadcastId: completed.id, title: completed.title },
                   });
@@ -392,7 +392,7 @@ export default function CreatorScreen() {
               </Pressable>
             ) : null}
 
-            <Pressable style={styles.listenerButton} onPress={() => router.push('/')}>
+            <Pressable style={styles.listenerButton} onPress={() => push('/')}>
               <Text style={styles.listenerButtonText}>Back to listener home</Text>
             </Pressable>
           </>
