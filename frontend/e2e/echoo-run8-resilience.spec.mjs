@@ -110,9 +110,9 @@ test('unified account boundaries survive deep links and reloads', async ({ page 
   await expect(page).toHaveURL(/\/listen\/settings$/);
 
   await page.goto('/creator-studio/collections');
-  await expect(page).toHaveURL(/\/creator-studio\/collections$/);
+  await expect(page).toHaveURL(/\/creator-studio\/content\?tab=collections$/);
   await page.reload();
-  await expect(page).toHaveURL(/\/creator-studio\/collections$/);
+  await expect(page).toHaveURL(/\/creator-studio\/content\?tab=collections$/);
 });
 
 test('lazy Creator Studio chunk failure shows a usable fallback and retry recovers to Broadcast', async ({ page }) => {
