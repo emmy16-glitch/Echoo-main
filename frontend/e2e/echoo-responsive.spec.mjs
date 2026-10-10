@@ -21,8 +21,7 @@ const listenerRoutes = [
 const creatorWorkspaces = [
   'Broadcast',
   'Channel',
-  'Recordings',
-  'Collections',
+  'Content',
   'Schedule Events',
   'Analytics',
 ];
@@ -293,7 +292,8 @@ test('Creator Collections add-content success closes the modal', async ({ page }
   await authenticate(page, 'creator');
   await page.goto('/creator-studio');
   await settle(page);
-  await clickCreatorWorkspace(page, 'Collections');
+  await clickCreatorWorkspace(page, 'Content');
+  await page.getByRole('button', { name: 'Collections', exact: true }).click();
   await settle(page);
 
   const collection = page.getByRole('button', { name: /manage a deliberately long echoo title/i }).first();

@@ -223,12 +223,11 @@ test('keyboard skip navigation and reduced-motion preference remain usable', asy
 
 test('Creator Upload Audio modal can open and close repeatedly without overlay leakage', async ({ page }) => {
   await authenticate(page, 'creator');
-  // The studio upload dialog lives on the Audio workspace; Recordings uses a
-  // direct file picker instead of a modal.
-  await page.goto('/creator-studio/audio');
+  // One upload dialog is shared by the unified Creator Content workspace.
+  await page.goto('/creator-studio/content');
   await settle(page);
 
-  const opener = page.getByRole('button', { name: /upload audio/i }).first();
+  const opener = page.getByRole('button', { name: 'Upload', exact: true }).first();
   await expect(opener).toBeVisible();
 
   for (let cycle = 0; cycle < 3; cycle += 1) {

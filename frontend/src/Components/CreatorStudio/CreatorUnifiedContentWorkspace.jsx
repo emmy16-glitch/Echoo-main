@@ -35,7 +35,7 @@ export default function CreatorUnifiedContentWorkspace({
         {tab === 'collections' ? (
           <CreatorCollectionWorkspace collectionId={collectionId} studioName={studioName} onOpenCollection={onOpenCollection} onBack={onCloseCollection} embedded />
         ) : (
-          <CreatorCollectionsWorkspace tracks={tracks} studioName={studioName} onChanged={onChanged} recordingId={recordingId} onOpenRecording={onOpenRecording} onCloseRecording={onCloseRecording} uploadRequest={uploadRequest} embedded />
+          <CreatorCollectionsWorkspace tracks={tracks} studioName={studioName} onChanged={onChanged} recordingId={recordingId} onOpenRecording={onOpenRecording} onCloseRecording={onCloseRecording} onNavigate={(destination) => destination === 'Collections' && onTabChange?.('collections')} uploadRequest={uploadRequest} embedded />
         )}
       </div>
     </section>

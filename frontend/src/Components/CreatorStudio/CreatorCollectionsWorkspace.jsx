@@ -128,6 +128,7 @@ export default function CreatorCollectionsWorkspace({
   onCloseRecording,
   onOpenRecording,
   uploadRequest = 0,
+  embedded = false,
 }) {
   const [tab, setTab] = useState('all');
   const [query, setQuery] = useState('');
@@ -716,7 +717,7 @@ export default function CreatorCollectionsWorkspace({
 
   return (
     <section className={`recordings-page${activeTrack ? ' has-active-player' : ''}`}>
-      <header className="recordings-heading">
+      {!embedded && <header className="recordings-heading">
         <div className="recordings-heading-copy">
           <h1>Recordings</h1>
         </div>
@@ -738,7 +739,7 @@ export default function CreatorCollectionsWorkspace({
             <FiUploadCloud /> Upload audio
           </button>
         </div>
-      </header>
+      </header>}
 
       {(notice || error) && (
         <div className={`recordings-feedback ${error ? 'is-error' : ''}`} role={error ? 'alert' : 'status'}>
@@ -920,7 +921,7 @@ export default function CreatorCollectionsWorkspace({
         open={uploadQueueOpen}
         defaultPublic={false}
         onClose={() => setUploadQueueOpen(false)}
-        onComplete={() => { announce('Recording saved privately.'); refresh(); }}
+        onComplete={() => { refresh(); }}
       />
 
       {activeTrack && typeof document !== 'undefined' && createPortal((

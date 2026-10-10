@@ -43,6 +43,7 @@ const forbidFile = (relative) => {
   'frontend/src/Components/CreatorStudio/CreatorStationsReference.css',
   'frontend/src/Components/CreatorStudio/CreatorScheduleEventsWorkspace.jsx',
   'frontend/src/Components/CreatorStudio/CreatorContentWorkspace.jsx',
+  'frontend/src/Components/CreatorStudio/CreatorUnifiedContentWorkspace.jsx',
   'frontend/src/Components/CreatorStudio/CreatorContentExact.css',
   'frontend/src/Components/ListenerLiveExperience/ListenerRealLiveRoom.jsx',
   'frontend/src/Components/ListenerLiveExperience/LiveKitListenerPlayer.jsx',
@@ -118,8 +119,7 @@ for (const obsoleteNav of ["label: 'Home'", "label: 'Stations'", "label: 'Audio'
 for (const requiredNav of [
   "workspace: 'Broadcast', label: 'Broadcast'",
   "workspace: 'Station', label: 'Channel'",
-  "workspace: 'Recordings', label: 'Recordings'",
-  "workspace: 'Collections', label: 'Collections'",
+  "workspace: 'Content', label: 'Content'",
   "workspace: 'Schedule', label: 'Schedule Events'",
   "workspace: 'Analytics', label: 'Analytics'",
 ]) {

@@ -38,7 +38,7 @@ test('web Library distinguishes saved Collections from published series and open
 
   const exploreSection = page.getByRole('region', { name: 'Published Collections' });
   await expect(exploreSection.getByText('Thursday Bible Study')).toBeVisible();
-  await exploreSection.getByRole('button', { name: 'Open Thursday Bible Study' }).click();
+  await exploreSection.getByRole('button', { name: /Thursday Bible Study/ }).click();
   await expect(page).toHaveURL(new RegExp(`/listen/collections/${publicId}$`));
   await expect(page.getByRole('heading', { name: 'Thursday Bible Study' })).toBeVisible();
 });

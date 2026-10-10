@@ -21,7 +21,16 @@ export default function AudioUploadQueueDialog({ open, onClose, onComplete, defa
   const patchItem = useCallback((key, patch) => setItems((current) => current.map((item) => item.id === key ? { ...item, ...patch } : item)), []);
   const addFiles = useCallback((files) => {
     const accepted = [...files].filter((file) => AUDIO_TYPES.test(file.type) || /\.(mp3|m4a|aac|wav|ogg|opus|flac|webm)$/i.test(file.name));
-    setItems((current) => [...current, ...accepted.map((file) => ({ id: id(), file, title: titleFromFile(file.name), description: '', isPublic: defaultPublic, artwork: null, artworkUrl: '', collectionIds: [], status: 'draft', progress: 0, error: '' }))]);
+    setItems((current) => {
+      const known = new Set(current.map(({ file }) => `${file.name}:${file.size}:${file.type}:${file.lastModified}`));
+      const added = accepted.filter((file) => {
+        const fingerprint = `${file.name}:${file.size}:${file.type}:${file.lastModified}`;
+        if (known.has(fingerprint)) return false;
+        known.add(fingerprint);
+        return true;
+      });
+      return [...current, ...added.map((file) => ({ id: id(), file, title: titleFromFile(file.name), description: '', isPublic: defaultPublic, artwork: null, artworkUrl: '', collectionIds: [], status: 'draft', progress: 0, error: '' }))];
+    });
   }, [defaultPublic]);
 
   useEffect(() => {
@@ -56,7 +65,7 @@ export default function AudioUploadQueueDialog({ open, onClose, onComplete, defa
 
   const cancel = useCallback((item) => {
     controllers.current.get(item.id)?.abort();
-    if (item.uploadId) studioService.cancelResumableUpload(item.uploadId).catch(() => {});
+    if (item.uploadId && item.status !== 'saved' && item.status !== 'finalizing') studioService.cancelResumableUpload(item.uploadId).catch(() => {});
     setItems((current) => current.filter(({ id: key }) => key !== item.id));
   }, []);
   const startAll = () => setItems((current) => current.map((item) => item.status === 'draft' ? { ...item, status: 'queued' } : item));
@@ -72,21 +81,30 @@ export default function AudioUploadQueueDialog({ open, onClose, onComplete, defa
     return () => window.removeEventListener('echoo:upload-queue-tick', pump);
   }, [items, open, run]);
 
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape' && !itemsRef.current.some((item) => ['uploading', 'finalizing'].includes(item.status))) onClose?.();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [open, onClose]);
+
   if (!open) return null;
   const active = items.some((item) => ['uploading', 'finalizing'].includes(item.status));
   return (
     <div className="audio-queue-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && !active && onClose?.()}>
       <section className="audio-queue-dialog" role="dialog" aria-modal="true" aria-labelledby="audio-queue-title">
-        <header><div><h2 id="audio-queue-title">Upload recordings</h2><p>Two files upload at a time. Reselecting the same file resumes its confirmed session.</p></div><button type="button" aria-label="Close uploads" disabled={active} onClick={onClose}><FiX /></button></header>
+        <header><div><h2 id="audio-queue-title">Upload recordings</h2></div><button type="button" aria-label="Close uploads" disabled={active} onClick={onClose}><FiX /></button></header>
         <button className="audio-queue-drop" type="button" onClick={() => inputRef.current?.click()} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); addFiles(event.dataTransfer.files); }}>
-          <FiUploadCloud /><strong>Choose or drop audio files</strong><span>Select multiple files, including large recordings.</span>
+          <FiUploadCloud /><strong>Choose or drop audio files</strong>
         </button>
         <input ref={inputRef} hidden multiple type="file" accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.opus,.flac,.webm" onChange={(event) => { addFiles(event.target.files); event.target.value = ''; }} />
         <div className="audio-queue-list">
           {items.map((item) => <article key={item.id} className={`audio-queue-item is-${item.status}`}>
             <div className="audio-queue-item-main"><div><strong>{item.file.name}</strong><span>{size(item.file.size)} · {item.status === 'saved' ? 'Saved' : item.status}</span></div><div className="audio-queue-actions">
               {item.status === 'uploading' && <button type="button" aria-label={`Pause ${item.file.name}`} onClick={() => controllers.current.get(item.id)?.abort()}><FiPause /></button>}
-              {['uploading', 'finalizing'].includes(item.status) && <button type="button" aria-label={`Cancel ${item.file.name}`} onClick={() => cancel(item)}><FiX /></button>}
+              {item.status === 'uploading' && <button type="button" aria-label={`Cancel ${item.file.name}`} onClick={() => cancel(item)}><FiX /></button>}
               {['paused', 'error'].includes(item.status) && <button type="button" aria-label={`Resume ${item.file.name}`} onClick={() => patchItem(item.id, { status: 'queued', error: '' })}><FiRefreshCw /></button>}
               {!['uploading', 'finalizing'].includes(item.status) && <button type="button" aria-label={`Remove ${item.file.name}`} onClick={() => cancel(item)}><FiTrash2 /></button>}
             </div></div>

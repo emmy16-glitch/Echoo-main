@@ -74,11 +74,11 @@ test('Listener canonical routes stay inside one ListenerV2 shell', async ({ page
   await expect(page.getByPlaceholder('Search Channels...')).toBeVisible();
 });
 
-test('Creator shell exposes only the current six primary workspaces', async ({ page }) => {
+test('Creator shell exposes only the current five primary workspaces', async ({ page }) => {
   await authenticate(page, 'creator');
   await page.goto('/creator-studio');
 
-  for (const label of ['Broadcast', 'Channel', 'Recordings', 'Collections', 'Schedule Events', 'Analytics']) {
+  for (const label of ['Broadcast', 'Channel', 'Content', 'Schedule Events', 'Analytics']) {
     await expect(page.getByRole('button', { name: label, exact: true })).toBeVisible();
   }
 
@@ -89,8 +89,7 @@ test('Creator shell exposes only the current six primary workspaces', async ({ p
   const destinations = [
     ['Broadcast', /\/creator-studio\/?$/],
     ['Channel', /\/creator-studio\/channels$/],
-    ['Recordings', /\/creator-studio\/recordings$/],
-    ['Collections', /\/creator-studio\/collections$/],
+    ['Content', /\/creator-studio\/content$/],
     ['Schedule Events', /\/creator-studio\/schedule-events$/],
     ['Analytics', /\/creator-studio\/analytics$/],
   ];
@@ -100,6 +99,10 @@ test('Creator shell exposes only the current six primary workspaces', async ({ p
     await expect(page).toHaveURL(route);
     await assertShellIntegrity(page, `Creator ${label}`);
   }
+  await page.getByRole('button', { name: 'Content', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Recordings', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Collections', exact: true }).click();
+  await expect(page).toHaveURL(/\/creator-studio\/content\?tab=collections$/);
 });
 
 test('legacy Listener Station URLs remain compatible but current UI emits Channel URLs', async ({ page }) => {
