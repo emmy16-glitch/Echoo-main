@@ -401,8 +401,10 @@ const studioService = {
     const session = initiated?.data;
     if (!session?.uploadId) throw new Error('Echoo could not start this upload.');
     onSession?.(session);
+    if (signal?.aborted) throw new DOMException('Upload paused', 'AbortError');
     let offset = Math.max(0, Number(session.offset) || 0);
     const chunkSize = Math.max(1024 * 1024, Number(session.chunkSize) || 5 * 1024 * 1024);
+    onProgress?.({ loaded: offset, total: file.size, percent: Math.round((offset / file.size) * 100) });
     const pause = (ms) => new Promise((resolve, reject) => {
       const timer = window.setTimeout(resolve, ms);
       signal?.addEventListener('abort', () => { window.clearTimeout(timer); reject(new DOMException('Upload paused', 'AbortError')); }, { once: true });
@@ -433,7 +435,7 @@ const studioService = {
         } catch (error) {
           if (signal?.aborted || error?.name === 'AbortError') throw error;
           if (error?.code === 'OFFSET_MISMATCH' && Number.isSafeInteger(error.expectedOffset)) { offset = error.expectedOffset; break; }
-          if (++attempt >= 5 || (error?.status >= 400 && error?.status < 500)) throw error;
+          if (++attempt >= 5 || (error?.status >= 400 && error?.status < 500 && error?.code !== 'UPLOAD_BUSY')) throw error;
           await pause(Math.min(8000, 500 * (2 ** attempt)));
         }
       }
