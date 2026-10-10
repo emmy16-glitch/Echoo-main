@@ -852,7 +852,6 @@ const CreatorStudioBody = () => {
 
       <AudioUploadQueueDialog
         open={uploadOpen}
-        defaultPublic
         onClose={() => setUploadOpen(false)}
         onComplete={() => {
           setNotice('Recording saved to Echoo.');
