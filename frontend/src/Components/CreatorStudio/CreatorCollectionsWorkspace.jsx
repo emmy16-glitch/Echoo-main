@@ -127,6 +127,7 @@ export default function CreatorCollectionsWorkspace({
   recordingId = '',
   onCloseRecording,
   onOpenRecording,
+  uploadRequest = 0,
 }) {
   const [tab, setTab] = useState('all');
   const [query, setQuery] = useState('');
@@ -156,6 +157,10 @@ export default function CreatorCollectionsWorkspace({
   const [transferOperation, setTransferOperation] = useState(null);
   const audioRef = useRef(null);
   const playbackRequestRef = useRef(0);
+
+  useEffect(() => {
+    if (uploadRequest > 0) setUploadQueueOpen(true);
+  }, [uploadRequest]);
 
   useEffect(() => () => {
     playbackRequestRef.current += 1;
@@ -714,8 +719,6 @@ export default function CreatorCollectionsWorkspace({
       <header className="recordings-heading">
         <div className="recordings-heading-copy">
           <h1>Recordings</h1>
-          <p>Live broadcasts are captured automatically.</p>
-          <strong>Echoo keeps a protected recovery copy until the recording is safely finished. Public/Private controls who can listen.</strong>
         </div>
 
         <div className="recordings-heading-actions">

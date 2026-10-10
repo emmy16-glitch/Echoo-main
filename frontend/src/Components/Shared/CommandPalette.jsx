@@ -5,8 +5,7 @@ import { useNavigate } from 'react-router-dom';
 const COMMANDS = [
   { label: 'Go to Broadcast', hint: 'Creator', path: '/creator-studio', keywords: 'broadcast live studio go' },
   { label: 'Go to Channel', hint: 'Creator', path: '/creator-studio/channels', keywords: 'channel station creator' },
-  { label: 'Go to Recordings', hint: 'Creator', path: '/creator-studio/recordings', keywords: 'recordings audio tracks' },
-  { label: 'Go to Collections', hint: 'Creator', path: '/creator-studio/collections', keywords: 'collections playlists' },
+  { label: 'Go to Content', hint: 'Creator', path: '/creator-studio/content', keywords: 'content recordings audio collections playlists' },
   { label: 'Go to Schedule Events', hint: 'Creator', path: '/creator-studio/schedule-events', keywords: 'schedule events plan' },
   { label: 'Go to Analytics', hint: 'Creator', path: '/creator-studio/analytics', keywords: 'analytics stats insights' },
   { label: 'Go to Audience', hint: 'Creator', path: '/creator-studio/audience', keywords: 'audience followers fans' },

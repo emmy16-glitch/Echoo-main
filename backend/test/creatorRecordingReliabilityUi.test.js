@@ -47,7 +47,7 @@ test('Recordings UI separates save health from audience visibility', async () =>
   assert.match(workspace, /recordingSaveState/);
   assert.match(workspace, /Recording ready/);
   assert.match(workspace, /Needs attention/);
-  assert.match(workspace, /Echoo keeps a protected recovery copy until the recording is safely finished/);
+  assert.doesNotMatch(workspace, /Echoo keeps a protected recovery copy until the recording is safely finished/);
   assert.match(workspace, /recovered live broadcast recording/i);
   assert.match(css, /grid-template-columns:repeat\(3,1fr\)/);
   assert.match(css, /recordings-save-state\.is-processing/);

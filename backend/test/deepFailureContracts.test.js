@@ -198,7 +198,7 @@ test('recording recovery stays safe without cluttering unrelated Studio pages', 
 
   assert.match(banner, /is-safe-recovery/);
   assert.match(banner, /Recovered recording is safe/);
-  assert.match(banner, /startsWith\('\/creator-studio\/recordings'\)/);
+  assert.match(banner, /startsWith\('\/creator-studio\/content'\)/);
   assert.match(autosave, /batch3Service\.getProcessing\(broadcastId\)/);
   assert.match(autosave, /serverBroadcast\?\.replayAudio/);
   assert.match(banner, /Retrying Echoo save · \$\{elapsed\}s/);

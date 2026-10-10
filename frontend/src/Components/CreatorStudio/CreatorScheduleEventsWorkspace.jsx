@@ -218,7 +218,7 @@ export default function CreatorScheduleEventsWorkspace({ onNavigate }) {
     setOpenMenu('');
     const recordingId = recordingIdFor(broadcast);
     if (recordingId) {
-      assignAppRoute(`/creator-studio/recordings/${encodeURIComponent(recordingId)}`);
+      assignAppRoute(`/creator-studio/content/recordings/${encodeURIComponent(recordingId)}`);
       return;
     }
     onNavigate?.('Analytics');

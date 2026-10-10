@@ -6,7 +6,7 @@ import {
   FaImage,
   FaTimes,
 } from 'react-icons/fa';
-import { FiCalendar, FiCamera, FiFolder, FiRadio } from 'react-icons/fi';
+import { FiCalendar, FiFolder, FiRadio } from 'react-icons/fi';
 import { MdOutlinePodcasts } from 'react-icons/md';
 import { PiChartBar } from 'react-icons/pi';
 
@@ -30,6 +30,7 @@ import {
 import ListenerLiveConnected from '../ListenerLive/ListenerLiveConnected';
 import { CreatorStudioStateProvider } from './CreatorStudioState';
 import AudioUploadQueueDialog from './AudioUploadQueueDialog.jsx';
+import CreatorUnifiedContentWorkspace from './CreatorUnifiedContentWorkspace.jsx';
 import { isNavigationDataFresh, readNavigationData, writeNavigationData } from '../../services/navigationDataCache';
 // Lazy workspaces keep the first Creator render small.  Cache the import
 // promise as well so an idle prefetch and a quick click share one request.
@@ -44,7 +45,6 @@ const cachedWorkspaceImport = (loader) => {
   };
 };
 const loadCreatorDiscover = cachedWorkspaceImport(() => import('./CreatorDiscoverWorkspace'));
-const loadCreatorContent = cachedWorkspaceImport(() => import('./CreatorContentWorkspace'));
 const loadCreatorBroadcast = cachedWorkspaceImport(() => import('./CreatorLiveConnectedWorkspace'));
 const loadCreatorStations = cachedWorkspaceImport(() => import('./CreatorStationsWorkspace'));
 const loadCreatorAudience = cachedWorkspaceImport(() => import('./CreatorAudienceWorkspace'));
@@ -53,10 +53,7 @@ const loadCreatorSchedule = cachedWorkspaceImport(() => import('./CreatorSchedul
 const loadCreatorBroadcastSettings = cachedWorkspaceImport(() => import('./CreatorBroadcastSettingsWorkspace'));
 const loadCreatorSettings = cachedWorkspaceImport(() => import('./CreatorSettingsWorkspace'));
 const loadCreatorNotifications = cachedWorkspaceImport(() => import('./CreatorNotificationsWorkspace'));
-const loadCreatorRecordings = cachedWorkspaceImport(() => import('./CreatorCollectionsWorkspace'));
-const loadCreatorCollection = cachedWorkspaceImport(() => import('./CreatorCollectionWorkspace'));
 const CreatorDiscoverWorkspace = lazy(loadCreatorDiscover);
-const CreatorContentWorkspace = lazy(loadCreatorContent);
 const CreatorBroadcastWorkspace = lazy(loadCreatorBroadcast);
 const CreatorStationsWorkspace = lazy(loadCreatorStations);
 const CreatorAudienceWorkspace = lazy(loadCreatorAudience);
@@ -65,14 +62,9 @@ const CreatorScheduleEventsWorkspace = lazy(loadCreatorSchedule);
 const CreatorBroadcastSettingsWorkspace = lazy(loadCreatorBroadcastSettings);
 const CreatorSettingsWorkspace = lazy(loadCreatorSettings);
 const CreatorNotificationsWorkspace = lazy(loadCreatorNotifications);
-const CreatorRecordingsWorkspace = lazy(loadCreatorRecordings);
-const CreatorCollectionWorkspace = lazy(loadCreatorCollection);
 
 const CREATOR_IDLE_PREFETCH = [
-  loadCreatorContent,
   loadCreatorStations,
-  loadCreatorRecordings,
-  loadCreatorCollection,
   loadCreatorSchedule,
   loadCreatorAnalytics,
   loadCreatorBroadcastSettings,
@@ -116,8 +108,9 @@ const AUDIO_EXTENSIONS = new Set([
 const CREATOR_WORKSPACE_PATHS = {
   Broadcast: '/creator-studio',
   Station: '/creator-studio/channels',
-  Recordings: '/creator-studio/recordings',
-  Collections: '/creator-studio/collections',
+  Content: '/creator-studio/content',
+  Recordings: '/creator-studio/content',
+  Collections: '/creator-studio/content?tab=collections',
   Schedule: '/creator-studio/schedule-events',
   BroadcastSettings: '/creator-studio/broadcast-settings',
   Analytics: '/creator-studio/analytics',
@@ -139,8 +132,7 @@ CREATOR_ROUTE_WORKSPACES['/creator-studio/channels'] = 'Station';
 
 const creatorWorkspaceForPath = (pathname) => {
   const normalizedPath = String(pathname || '/creator-studio').replace(/\/+$/, '') || '/creator-studio';
-  if (normalizedPath.startsWith('/creator-studio/collections/')) return 'Collections';
-  if (normalizedPath.startsWith('/creator-studio/recordings/')) return 'Recordings';
+  if (normalizedPath.startsWith('/creator-studio/content') || normalizedPath.startsWith('/creator-studio/collections') || normalizedPath.startsWith('/creator-studio/recordings') || normalizedPath.startsWith('/creator-studio/audio')) return 'Content';
   return CREATOR_ROUTE_WORKSPACES[normalizedPath] || 'Broadcast';
 };
 
@@ -218,11 +210,23 @@ const CreatorStudioBody = () => {
   const navItems = [
     { workspace: 'Broadcast', label: 'Broadcast', icon: <FiRadio /> },
     { workspace: 'Station', label: 'Channel', icon: <MdOutlinePodcasts /> },
-    { workspace: 'Recordings', label: 'Recordings', icon: <FiCamera /> },
-    { workspace: 'Collections', label: 'Collections', icon: <FiFolder /> },
+    { workspace: 'Content', label: 'Content', icon: <FiFolder /> },
     { workspace: 'Schedule', label: 'Schedule Events', icon: <FiCalendar /> },
     { workspace: 'Analytics', label: 'Analytics', icon: <PiChartBar /> },
   ];
+
+  useEffect(() => {
+    const path = location.pathname;
+    if (path.startsWith('/creator-studio/recordings')) {
+      const id = path.split('/')[3];
+      routerNavigate(id ? `/creator-studio/content/recordings/${encodeURIComponent(id)}` : '/creator-studio/content', { replace: true });
+    } else if (path.startsWith('/creator-studio/collections')) {
+      const id = path.split('/')[3];
+      routerNavigate(id ? `/creator-studio/content/collections/${encodeURIComponent(id)}` : '/creator-studio/content?tab=collections', { replace: true });
+    } else if (path === '/creator-studio/audio') {
+      routerNavigate('/creator-studio/content', { replace: true });
+    }
+  }, [location.pathname, routerNavigate]);
 
   useEffect(() => {
     let active = true;
@@ -252,10 +256,10 @@ const CreatorStudioBody = () => {
   useEffect(() => {
     let active = true;
     const load = async () => {
-      if (!['Audio', 'Broadcast', 'Recordings', 'Audience'].includes(activeNav)) return;
+      if (!['Content', 'Broadcast', 'Audience'].includes(activeNav)) return;
       try {
         setError('');
-        if (activeNav === 'Audio' || activeNav === 'Broadcast' || activeNav === 'Recordings') {
+        if (activeNav === 'Content' || activeNav === 'Broadcast') {
           // An empty default list is not a successful cached API response.
           // Reuse only real account-scoped cache entries, refresh expired ones
           // in the background, and always fetch after a content mutation.
@@ -656,55 +660,36 @@ const CreatorStudioBody = () => {
   const renderWorkspace = () => {
     let node;
     switch (activeNav) {
-      case 'Audio':
+      case 'Content': {
+        const parts = location.pathname.split('/').filter(Boolean);
+        const detailType = parts[2] || '';
+        const detailId = parts[3] || '';
+        const queryTab = new URLSearchParams(location.search).get('tab');
+        const contentTab = detailType === 'collections' || queryTab === 'collections' ? 'collections' : 'recordings';
         node = (
-          <CreatorContentWorkspace
+          <CreatorUnifiedContentWorkspace
+            tab={contentTab}
             tracks={Array.isArray(content?.tracks) ? content.tracks : []}
-            loading={loading}
-            page={contentPage}
-            pagination={content?.pagination || {}}
-            deletingId={deletingId}
-            onUpload={openUpload}
-            onDelete={handleDelete}
-            onPageChange={setContentPage}
+            studioName={studioName}
+            recordingId={detailType === 'recordings' ? detailId : ''}
+            collectionId={detailType === 'collections' ? detailId : ''}
+            onTabChange={(tab) => routerNavigate(tab === 'collections' ? '/creator-studio/content?tab=collections' : '/creator-studio/content')}
             onChanged={() => setRefreshKey((value) => value + 1)}
+            onOpenRecording={(id) => routerNavigate(`/creator-studio/content/recordings/${encodeURIComponent(id)}`)}
+            onCloseRecording={() => routerNavigate('/creator-studio/content')}
+            onOpenCollection={(id) => routerNavigate(`/creator-studio/content/collections/${encodeURIComponent(id)}`)}
+            onCloseCollection={() => routerNavigate('/creator-studio/content?tab=collections')}
           />
         );
         break;
+      }
       case 'Stations':
       case 'Station':
-        node = <CreatorStationsWorkspace studioName={studioName} onNavigate={navigateStudio} onOpenRecording={(id) => routerNavigate(`/creator-studio/recordings/${encodeURIComponent(id)}`)} />;
+        node = <CreatorStationsWorkspace studioName={studioName} onNavigate={navigateStudio} onOpenRecording={(id) => routerNavigate(`/creator-studio/content/recordings/${encodeURIComponent(id)}`)} />;
         break;
       case 'Discover':
         node = <CreatorDiscoverWorkspace onNavigate={navigateStudio} />;
         break;
-      case 'Recordings': {
-        const selectedRecordingId = location.pathname.split('/')[3] || '';
-        node = (
-          <CreatorRecordingsWorkspace
-            tracks={Array.isArray(content?.tracks) ? content.tracks : []}
-            studioName={studioName}
-            onChanged={() => setRefreshKey((value) => value + 1)}
-            onNavigate={navigateStudio}
-            recordingId={selectedRecordingId}
-            onOpenRecording={(id) => routerNavigate(`/creator-studio/recordings/${encodeURIComponent(id)}`)}
-            onCloseRecording={() => routerNavigate('/creator-studio/recordings')}
-          />
-        );
-        break;
-      }
-      case 'Collections': {
-        const selectedCollectionId = location.pathname.split('/')[3] || '';
-        node = (
-          <CreatorCollectionWorkspace
-            collectionId={selectedCollectionId}
-            studioName={studioName}
-            onOpenCollection={(id) => routerNavigate(`/creator-studio/collections/${encodeURIComponent(id)}`)}
-            onBack={() => routerNavigate('/creator-studio/collections')}
-          />
-        );
-        break;
-      }
       case 'Schedule':
         node = <CreatorScheduleEventsWorkspace onNavigate={navigateStudio} />;
         break;

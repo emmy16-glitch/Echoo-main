@@ -327,7 +327,7 @@ const CreatorAudioTrimSection = ({ track, onChanged, onNotice, onOpenTrimmed }) 
             <span>
               {sourceState === 'ready' && duration
                 ? 'Adjust the start and end points.'
-                : 'Keep only the part you need.'}
+                : 'Trim'}
             </span>
           </div>
           {sourceState === 'ready' && duration > 0 && (

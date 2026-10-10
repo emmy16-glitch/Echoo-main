@@ -266,7 +266,7 @@ const RecordingSaveBanner = () => {
       state.kind === 'recovered' ||
       (state.kind === 'error' && !state.serverReady)
     ) &&
-    !String(location.pathname || '').startsWith('/creator-studio/recordings')
+    !String(location.pathname || '').startsWith('/creator-studio/content')
   ) {
     return null;
   }
@@ -277,7 +277,7 @@ const RecordingSaveBanner = () => {
       return;
     }
     hide();
-    navigate(`/creator-studio/recordings/${encodeURIComponent(state.audioId)}`);
+    navigate(`/creator-studio/content/recordings/${encodeURIComponent(state.audioId)}`);
   };
 
   const retryServer = async () => {

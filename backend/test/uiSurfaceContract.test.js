@@ -280,7 +280,7 @@ test('Creator Studio active workspaces and service calls remain backed by mounte
     source('../src/routes/index.js'),
   ]);
 
-  for (const workspace of ['Home', 'Stations', 'Broadcast', 'Audio', 'Collections', 'Audience', 'Analytics', 'Settings', 'Notifications']) {
+  for (const workspace of ['Broadcast', 'Content', 'Station', 'Audience', 'Analytics', 'Settings', 'Notifications']) {
     assert.match(studio, new RegExp(`(?:case ['\"]${workspace}['\"]|name: ['\"]${workspace}['\"])`));
   }
 
