@@ -394,9 +394,23 @@ const studioService = {
   uploadAudioResumable: async ({ file, coverFile = null, title, description = '', genre = 'Other', tags = [], isPublic = false, onProgress, onSession, signal }) => {
     if (!file) throw new Error('Please choose an audio file.');
     const duration = await readAudioDuration(file);
+    if (signal?.aborted) throw new DOMException('Upload paused', 'AbortError');
+    const sampleSize = 64 * 1024;
+    const first = new Uint8Array(await file.slice(0, sampleSize).arrayBuffer());
+    const last = new Uint8Array(await file.slice(Math.max(0, file.size - sampleSize)).arrayBuffer());
+    const sample = new Uint8Array(first.length + last.length + 8);
+    sample.set(first);
+    sample.set(last, first.length);
+    new DataView(sample.buffer).setBigUint64(first.length + last.length, BigInt(file.size));
+    const digest = await crypto.subtle.digest('SHA-256', sample);
+    const fingerprint = Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, '0')).join('');
+    const extension = file.name.split('.').pop()?.toLowerCase() || '';
+    const knownMimes = { mp3: 'audio/mpeg', mpeg: 'audio/mpeg', mpga: 'audio/mpeg', mp2: 'audio/mpeg', mpa: 'audio/mpeg', wav: 'audio/wav', flac: 'audio/flac', m4a: 'audio/mp4', aac: 'audio/aac', ogg: 'audio/ogg', oga: 'audio/ogg', opus: 'audio/ogg', webm: 'audio/webm', weba: 'audio/webm' };
+    const mimeType = knownMimes[extension] || file.type || 'audio/mpeg';
+    if (signal?.aborted) throw new DOMException('Upload paused', 'AbortError');
     const initiated = await readResponse(await apiFetch('/uploads/initiate', {
       method: 'POST',
-      body: JSON.stringify({ filename: file.name, fileSize: file.size, mimeType: file.type || 'audio/mpeg' }),
+      body: JSON.stringify({ filename: file.name, fileSize: file.size, mimeType, fingerprint }),
     }));
     const session = initiated?.data;
     if (!session?.uploadId) throw new Error('Echoo could not start this upload.');

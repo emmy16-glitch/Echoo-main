@@ -29,6 +29,7 @@ test('resumable uploads persist ownership, validate offsets and checksums, and f
   assert.match(source, /idempotent: true/);
   assert.match(source, /lockUpload/);
   assert.match(source, /CHECKSUM_REQUIRED/);
+  assert.match(source, /fingerprint/);
   assert.match(source, /fileKey: finalFilename/);
   assert.match(source, /MAX_AUDIO_UPLOAD_BYTES/);
   assert.doesNotMatch(source, /appendFileSync|appendFile\(/);

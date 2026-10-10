@@ -65,17 +65,18 @@ export async function initiateUpload(req, res, next) {
     const filename = String(req.body.filename || '').trim();
     const fileSize = Number(req.body.fileSize);
     const mimeType = String(req.body.mimeType || '').toLowerCase();
-    if (!filename || filename.length > 255 || !Number.isSafeInteger(fileSize) || fileSize <= 0 || !ALLOWED_MIMES.has(mimeType)) {
+    const fingerprint = String(req.body.fingerprint || '').toLowerCase();
+    if (!filename || filename.length > 255 || !Number.isSafeInteger(fileSize) || fileSize <= 0 || !ALLOWED_MIMES.has(mimeType) || (fingerprint && !/^[a-f0-9]{64}$/.test(fingerprint))) {
       return fail(res, 400, 'VALIDATION_ERROR', 'A supported audio filename, size, and MIME type are required');
     }
     if (fileSize > MAX_UPLOAD_SIZE) return fail(res, 413, 'FILE_TOO_LARGE', `File exceeds the configured ${MAX_UPLOAD_SIZE} byte limit`);
-    const resume = await UploadSession.findOne({ owner: req.userId, filename, fileSize, mimeType, status: 'uploading', expiresAt: { $gt: new Date() } }).sort({ updatedAt: -1 });
+    const resume = await UploadSession.findOne({ owner: req.userId, filename, fileSize, mimeType, fingerprint: fingerprint || null, status: 'uploading', expiresAt: { $gt: new Date() } }).sort({ updatedAt: -1 });
     if (resume && await fs.promises.stat(uploadPath(resume.uploadId)).catch(() => null)) {
       return res.status(200).json({ data: { ...resume.toObject(), resumed: true } });
     }
     const uploadId = randomUUID();
     await fs.promises.writeFile(uploadPath(uploadId), Buffer.alloc(0), { flag: 'wx' });
-    const session = await UploadSession.create({ uploadId, owner: req.userId, filename, fileSize, mimeType, chunkSize: MAX_CHUNK_SIZE, expiresAt: new Date(Date.now() + SESSION_TTL_MS) });
+    const session = await UploadSession.create({ uploadId, owner: req.userId, filename, fileSize, mimeType, fingerprint: fingerprint || null, chunkSize: MAX_CHUNK_SIZE, expiresAt: new Date(Date.now() + SESSION_TTL_MS) });
     return res.status(201).json({ data: session.toObject() });
   } catch (error) { return next(error); }
 }
