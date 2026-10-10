@@ -492,10 +492,10 @@ const RecordingSaveBanner = () => {
             </strong>
             <span>
               {state.localSaved
-                ? `${state.localCopy?.filename ? `Saved to this device: ${state.localCopy.filename}. ` : 'Your device copy is safe. '}Echoo is finishing its separate saved copy · ${elapsed}s`
+                ? `${state.localCopy?.filename ? `Saved to this device: ${state.localCopy.filename}. ` : 'Saved on this device. '}Saving to Echoo · ${elapsed}s`
                 : state.recoveryFormats?.length
                   ? `You can save ${state.recoveryFormats.map((format) => format.toUpperCase()).join(' or ')} now while Echoo finishes in the background · ${elapsed}s`
-                  : `Your protected local master is safe while Echoo finishes its saved copy · ${elapsed}s`}
+                  : `Finishing Echoo save · ${elapsed}s`}
             </span>
           </div>
           {!state.localSaved && (
@@ -631,10 +631,10 @@ const RecordingSaveBanner = () => {
               {state.retryingServer
                 ? `Retrying Echoo save · ${elapsed}s`
                 : state.localSaved
-                  ? 'Your device copy is safe. Echoo could not finish its saved recording yet.'
+                  ? 'Saved on this device. Retry Echoo save.'
                   : state.serverReady
-                    ? 'Your Echoo recording is safe. The optional device copy needs attention.'
-                    : 'Your recording is safe on this device. Echoo could not finish its saved recording yet.'}
+                    ? 'Saved to Echoo. Device copy needs attention.'
+                    : 'Saved on this device. Retry Echoo save.'}
             </span>
           </div>
 

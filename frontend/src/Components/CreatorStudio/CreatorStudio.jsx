@@ -824,21 +824,21 @@ const CreatorStudioBody = () => {
             )}
             <small>
               {backgroundRecordingProgress.stage === 'waiting-network'
-                ? 'Your local master is safe. Echoo will continue when the connection is available.'
+                ? 'Waiting for connection'
                 : backgroundRecordingProgress.stage === 'recovered'
-                  ? 'Echoo will keep the protected recovery copy until the recording is safely finished.'
+                  ? 'Ready to retry'
                   : backgroundRecordingProgress.stage === 'error'
                     ? backgroundRecordingProgress.message || 'Open Recordings to retry.'
                     : backgroundRecordingProgress.stage === 'verifying'
                       ? `Verifying saved recording · ${formatElapsedTime(backgroundRecordingProgress.elapsedSeconds || 0)} elapsed`
                       : backgroundRecordingProgress.stage === 'device-saving'
-                        ? 'Encoding the local MP3 after OFF AIR. The Echoo server copy is separate.'
+                        ? 'Saving device copy…'
                         : backgroundRecordingProgress.stage === 'finalizing'
                           ? backgroundRecordingProgress.localSaved
-                            ? 'The device file is safe. Echoo is finishing its separate saved copy.'
-                            : 'The local recovery master is safe while Echoo finishes its saved copy.'
+                            ? 'Finishing Echoo save…'
+                            : 'Finishing Echoo save…'
                           : backgroundRecordingProgress.stage === 'preparing'
-                            ? 'Closing the local recording safely.'
+                            ? 'Preparing recording…'
                             : backgroundRecordingProgress.stage === 'done'
                               ? backgroundRecordingProgress.title
                               : transferProgressText(backgroundRecordingProgress)}
@@ -847,7 +847,7 @@ const CreatorStudioBody = () => {
         )}
 
         <div className="studio-view eb-page-in" key={activeNav}>{renderWorkspace()}</div>
-        <footer className="studio-footer"><span>© 2026 Echoo.</span><span>Audio-first creator platform</span></footer>
+        <footer className="studio-footer"><span>© 2026 Echoo.</span></footer>
       </main>
 
       <AudioUploadQueueDialog

@@ -783,9 +783,9 @@ export default function CreatorCollectionsWorkspace({
           )}
           <small>
             {transferOperation.stage === 'waiting-network'
-              ? 'Your local/source file is safe. Retry when the connection is available.'
+              ? 'Waiting for connection'
               : transferOperation.stage === 'recovered'
-                ? 'Echoo will keep the protected recovery copy until the recording is safely finished.'
+                ? 'Ready to retry'
                 : transferOperation.stage === 'verifying'
                   ? `Finishing recording · ${formatElapsedTime(transferOperation.elapsedSeconds || 0)} elapsed`
                   : transferOperation.stage === 'error'
@@ -795,7 +795,7 @@ export default function CreatorCollectionsWorkspace({
                         ? `${transferOperation.title} · check your browser downloads`
                         : transferOperation.title
                       : transferOperation.kind === 'download'
-                        ? 'Echoo is preparing a secure direct download.'
+                        ? 'Preparing download…'
                         : transferProgressText(transferOperation)}
           </small>
         </div>
