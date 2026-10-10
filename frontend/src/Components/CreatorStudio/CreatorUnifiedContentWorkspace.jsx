@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { FiFolder, FiMic, FiUploadCloud } from 'react-icons/fi';
 import CreatorCollectionsWorkspace from './CreatorCollectionsWorkspace.jsx';
 import CreatorCollectionWorkspace from './CreatorCollectionWorkspace.jsx';
@@ -12,20 +11,17 @@ export default function CreatorUnifiedContentWorkspace({
   collectionId = '',
   onTabChange,
   onChanged,
+  onUpload,
   onOpenRecording,
   onCloseRecording,
   onOpenCollection,
   onCloseCollection,
 }) {
-  const [uploadRequest, setUploadRequest] = useState(0);
   return (
     <section className="creator-unified-content">
       <header className="creator-unified-content-head">
         <h1>Content</h1>
-        <button type="button" className="creator-unified-upload" onClick={() => {
-          if (tab !== 'recordings') onTabChange?.('recordings');
-          setUploadRequest((value) => value + 1);
-        }}><FiUploadCloud /> Upload</button>
+        <button type="button" className="creator-unified-upload" onClick={() => onUpload?.()}><FiUploadCloud /> Upload</button>
       </header>
       <nav className="creator-unified-tabs" aria-label="Content sections">
         <button type="button" className={tab === 'recordings' ? 'is-active' : ''} aria-current={tab === 'recordings' ? 'page' : undefined} onClick={() => onTabChange?.('recordings')}><FiMic /> Recordings</button>
@@ -35,7 +31,7 @@ export default function CreatorUnifiedContentWorkspace({
         {tab === 'collections' ? (
           <CreatorCollectionWorkspace collectionId={collectionId} studioName={studioName} onOpenCollection={onOpenCollection} onBack={onCloseCollection} embedded />
         ) : (
-          <CreatorCollectionsWorkspace tracks={tracks} studioName={studioName} onChanged={onChanged} recordingId={recordingId} onOpenRecording={onOpenRecording} onCloseRecording={onCloseRecording} onNavigate={(destination) => destination === 'Collections' && onTabChange?.('collections')} uploadRequest={uploadRequest} embedded />
+          <CreatorCollectionsWorkspace tracks={tracks} studioName={studioName} onChanged={onChanged} recordingId={recordingId} onOpenRecording={onOpenRecording} onCloseRecording={onCloseRecording} onNavigate={(destination) => destination === 'Collections' && onTabChange?.('collections')} embedded />
         )}
       </div>
     </section>

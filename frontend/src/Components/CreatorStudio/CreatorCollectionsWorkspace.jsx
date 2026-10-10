@@ -917,12 +917,12 @@ export default function CreatorCollectionsWorkspace({
         </footer>
       </section>
 
-      <AudioUploadQueueDialog
+      {!embedded && <AudioUploadQueueDialog
         open={uploadQueueOpen}
         defaultPublic={false}
         onClose={() => setUploadQueueOpen(false)}
         onComplete={() => { refresh(); }}
-      />
+      />}
 
       {activeTrack && typeof document !== 'undefined' && createPortal((
         <aside className="recordings-mini-player" role="region" aria-label="Recording player">

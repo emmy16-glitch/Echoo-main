@@ -675,6 +675,7 @@ const CreatorStudioBody = () => {
             collectionId={detailType === 'collections' ? detailId : ''}
             onTabChange={(tab) => routerNavigate(tab === 'collections' ? '/creator-studio/content?tab=collections' : '/creator-studio/content')}
             onChanged={() => setRefreshKey((value) => value + 1)}
+            onUpload={() => setUploadOpen(true)}
             onOpenRecording={(id) => routerNavigate(`/creator-studio/content/recordings/${encodeURIComponent(id)}`)}
             onCloseRecording={() => routerNavigate('/creator-studio/content')}
             onOpenCollection={(id) => routerNavigate(`/creator-studio/content/collections/${encodeURIComponent(id)}`)}
