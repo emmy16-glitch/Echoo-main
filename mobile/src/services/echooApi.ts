@@ -1295,7 +1295,14 @@ export async function getListenerLiveKitCredentials(broadcastId: string) {
     return payload?.data || null;
   };
 
-  if (!(await hasEchooSession())) return getGuestCredentials();
+  // Public live listening must stay fast and must not depend on account
+  // refresh. Use the public guest token first; authenticated identity is only a
+  // fallback for future non-public listener rooms.
+  try {
+    return await getGuestCredentials();
+  } catch (guestError: any) {
+    if (!(await hasEchooSession())) throw guestError;
+  }
 
   try {
     const payload = await apiRequest(`/broadcasts/${id}/listener-token`, {

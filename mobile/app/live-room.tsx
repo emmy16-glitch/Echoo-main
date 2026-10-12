@@ -54,6 +54,7 @@ export default function LiveRoomScreen() {
   const isCurrentLive = playback.current?.kind === 'live' && playback.current.id === broadcastId;
   const listening = isCurrentLive && playback.isPlaying;
   const loading = preparing || (isCurrentLive && playback.isLoading);
+  const connecting = isCurrentLive && loading;
   const error = prepareError || (isCurrentLive ? playback.error : '');
   const nativeModuleUnavailable = isCurrentLive && playback.liveNativeUnavailable;
 
@@ -67,10 +68,11 @@ export default function LiveRoomScreen() {
       try {
         if (!broadcastId) throw new Error('Broadcast ID is missing.');
 
-        const presence = await getBroadcastPresence(broadcastId).catch(() => null);
-
-        if (!active) return;
-        setListenerCount(Number(presence?.listenerCount) || 0);
+        getBroadcastPresence(broadcastId)
+          .then((presence) => {
+            if (active) setListenerCount(Number(presence?.listenerCount) || 0);
+          })
+          .catch(() => undefined);
 
         if (!isCurrentLive) await playLive(requestedLive);
       } catch (prepareError: any) {
@@ -104,6 +106,7 @@ export default function LiveRoomScreen() {
       coverArt={coverArt}
       listenerCount={listenerCount}
       listening={listening}
+      connecting={connecting}
       onToggleListening={playback.toggle}
       onClose={() => {
         playback.stop();
@@ -118,7 +121,7 @@ export default function LiveRoomScreen() {
       <View style={styles.content}>
         <ListenerBackHeader title="Live room" />
 
-        {loading ? (
+        {loading && !isCurrentLive ? (
           <View style={styles.centerState}>
             <ActivityIndicator color={palette.blue} size="large" />
             <Text style={styles.stateTitle}>Connecting to Echoo Live...</Text>
@@ -150,7 +153,7 @@ export default function LiveRoomScreen() {
           </View>
         ) : null}
 
-        {!loading && !nativeModuleUnavailable && isCurrentLive && !error
+        {isCurrentLive && !nativeModuleUnavailable && !error
           ? roomContent
           : null}
       </View>
@@ -164,6 +167,7 @@ function LiveRoomContent({
   coverArt,
   listenerCount,
   listening,
+  connecting,
   onToggleListening,
   onClose,
   palette,
@@ -173,6 +177,7 @@ function LiveRoomContent({
   coverArt: string;
   listenerCount: number;
   listening: boolean;
+  connecting: boolean;
   onToggleListening: () => void;
   onClose: () => void;
   palette: EchooColors;
@@ -209,9 +214,9 @@ function LiveRoomContent({
       </View>
 
       <View style={styles.statusCard}>
-        <Volume2 color={palette.blue} size={20} />
+        {connecting ? <ActivityIndicator color={palette.blue} size="small" /> : <Volume2 color={palette.blue} size={20} />}
         <View style={styles.statusCopy}>
-          <Text style={styles.statusTitle}>{listening ? 'Listening live' : 'Live audio paused'}</Text>
+          <Text style={styles.statusTitle}>{connecting ? 'Connecting live audio' : listening ? 'Listening live' : 'Live audio paused'}</Text>
           <Text style={styles.statusText}>
             Your listener token can subscribe to audio, but cannot publish microphone, video or data.
           </Text>
@@ -223,9 +228,9 @@ function LiveRoomContent({
           <X color={palette.ink} size={21} />
           <Text style={styles.secondaryControlText}>Leave</Text>
         </Pressable>
-        <Pressable style={styles.primaryControl} onPress={onToggleListening}>
+        <Pressable style={[styles.primaryControl, connecting && styles.primaryControlDisabled]} onPress={onToggleListening} disabled={connecting}>
           <Headphones color="#FFFFFF" size={21} />
-          <Text style={styles.primaryControlText}>{listening ? 'Pause live audio' : 'Resume listening'}</Text>
+          <Text style={styles.primaryControlText}>{connecting ? 'Connecting...' : listening ? 'Pause live audio' : 'Resume listening'}</Text>
         </Pressable>
       </View>
     </View>
@@ -261,5 +266,6 @@ const createStyles = (palette: EchooColors) => StyleSheet.create({
   secondaryControl: { minHeight: 52, borderRadius: 16, borderWidth: 1, borderColor: palette.line, backgroundColor: palette.surface, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
   secondaryControlText: { color: palette.ink, fontSize: 12.5, fontWeight: '900' },
   primaryControl: { flex: 1, minHeight: 52, borderRadius: 16, backgroundColor: palette.blue, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 12 },
+  primaryControlDisabled: { opacity: 0.72 },
   primaryControlText: { color: '#FFFFFF', fontSize: 12.5, fontWeight: '900' },
 });

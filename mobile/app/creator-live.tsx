@@ -156,6 +156,11 @@ export default function CreatorLiveScreen() {
 
       const { nativeLiveKit, liveKitClient } = await loadLiveKitForCreator();
       audioSessionRef.current = nativeLiveKit.AudioSession;
+      await nativeLiveKit.AudioSession.configureAudio({
+        android: {
+          audioTypeOptions: nativeLiveKit.AndroidAudioTypePresets.communication,
+        },
+      });
       await nativeLiveKit.AudioSession.startAudioSession();
 
       const broadcast = existingBroadcastId

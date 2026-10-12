@@ -117,6 +117,14 @@ async function loadLiveKitNativeModule() {
   return liveKit;
 }
 
+async function configureLiveKitListenerAudio(liveKit: LiveKitNativeModule) {
+  await liveKit.AudioSession.configureAudio({
+    android: {
+      audioTypeOptions: liveKit.AndroidAudioTypePresets.media,
+    },
+  });
+}
+
 export function PlaybackProvider({ children }: { children: ReactNode }) {
   const playerRef = useRef<AudioPlayer | null>(null);
   const statusSubscriptionRef = useRef<{ remove: () => void } | null>(null);
@@ -362,6 +370,12 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     setError('');
     setIsLoading(true);
     void ensureLiveAudioNotificationPermission();
+    void startLiveAudioService({
+      title: item.title || 'Live on Echoo',
+      artist: item.subtitle || '',
+      broadcastId: item.id,
+      kind: 'live',
+    });
 
     try {
       await configureBackgroundPlaybackMode();
@@ -369,6 +383,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
         loadLiveKitNativeModule(),
         getListenerLiveKitCredentials(item.id),
       ]);
+      await configureLiveKitListenerAudio(liveKitModule);
       setLiveKit(liveKitModule);
       liveCredentialsRef.current = credentials;
       setLiveCredentials(credentials);
@@ -387,6 +402,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
           ? 'Live audio requires the Echoo iOS or Android development build.'
           : liveError?.message || 'Could not join this live broadcast.'
       );
+      void stopLiveAudioService();
     } finally {
       setIsLoading(false);
     }
@@ -506,6 +522,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
             currentRef.current.id !== broadcastId
           ) return;
 
+          if (liveKit) await configureLiveKitListenerAudio(liveKit);
           liveCredentialsRef.current = credentials;
           setLiveCredentials(credentials);
           setLiveNativeUnavailable(false);
@@ -535,7 +552,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     }
 
     void reason;
-  }, []);
+  }, [liveKit]);
 
   const handleLiveError = useCallback((message: string, sourceToken: string) => {
     setError('Reconnecting live audio…');
@@ -549,15 +566,16 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   useEffect(() => () => releaseAudio(), [releaseAudio]);
 
   // Keep Echoo playback alive when the app is minimized. iOS is covered by the
-  // audio background mode; Android uses our mediaPlayback foreground service
-  // for both recorded audio and LiveKit audio.
+  // audio background mode; Android uses our mediaPlayback foreground service.
+  // For live rooms we start the service during connection setup too, because
+  // token/network setup can take long enough for Android to background the app.
   useEffect(() => {
     const shouldRun =
-      isPlaying &&
-      (
-        current?.kind === 'audio' ||
-        (current?.kind === 'live' && liveKit && liveCredentials)
-      );
+      current?.kind === 'audio'
+        ? isPlaying
+        : current?.kind === 'live'
+          ? isPlaying || isLoading
+          : false;
 
     if (!shouldRun || !current) {
       void stopLiveAudioService();
@@ -573,7 +591,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     return () => {
       void stopLiveAudioService();
     };
-  }, [current, liveKit, liveCredentials, isPlaying]);
+  }, [current, isLoading, liveKit, liveCredentials, isPlaying]);
 
   const value = useMemo<PlaybackContextValue>(() => ({
     current,
@@ -662,16 +680,25 @@ function PersistentLiveConnection({
   );
 
   useEffect(() => {
-    AudioSession.startAudioSession().catch((sessionError) => {
-      onError(
-        sessionError?.message || 'Could not start the live audio session.',
-        credentials.token
-      );
-    });
+    let active = true;
+    const start = async () => {
+      try {
+        await configureLiveKitListenerAudio(liveKit);
+        await AudioSession.startAudioSession();
+      } catch (sessionError: any) {
+        if (!active) return;
+        onError(
+          sessionError?.message || 'Could not start the live audio session.',
+          credentials.token
+        );
+      }
+    };
+    void start();
     return () => {
+      active = false;
       AudioSession.stopAudioSession();
     };
-  }, [AudioSession, credentials.token, onError]);
+  }, [AudioSession, credentials.token, liveKit, onError]);
 
   return (
     <LiveKitRoom
