@@ -569,7 +569,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   // Only live listener audio needs Echoo's native foreground service.
   // The provider sits above navigation so minimizing does not unmount the room.
   useEffect(() => {
-    if (current?.kind !== 'live' || !(isPlaying || isLoading)) return;
+    if (current?.kind !== 'live') return;
 
     void startLiveAudioService({
       title: current.title || 'Live on Echoo',
@@ -580,7 +580,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     return () => {
       void stopLiveAudioService();
     };
-  }, [current, isLoading, isPlaying]);
+  }, [current?.kind, current?.id]);
 
   const value = useMemo<PlaybackContextValue>(() => ({
     current,
