@@ -477,3 +477,154 @@ routes through the same playback path as the center play button. */
   .listener-v2-room-event-copy { padding-inline: 8px; }
   .listener-v2-room-controls { padding-inline: 8px !important; }
 }
+
+
+/* Shared guest links and the regular Listener room use one phone viewport contract.
+   Controls stay visible and chat uses the visual viewport when the keyboard opens. */
+@media (max-width: 767px) {
+  .listener-v2-live-room {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    overflow-x: clip;
+    padding-inline: clamp(8px, 3vw, 16px);
+  }
+  .listener-v2-room-toolbar,
+  .listener-v2-room-toolbar-actions,
+  .listener-v2-room-grid,
+  .listener-v2-room-stage,
+  .listener-v2-room-event-copy,
+  .listener-v2-room-controls {
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .listener-v2-room-toolbar-actions { flex: 0 1 auto; justify-content: flex-end; }
+  .listener-v2-room-toolbar-actions .listener-v2-room-follow {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 88px;
+    overflow: hidden;
+  }
+  .listener-v2-room-toolbar-actions .listener-v2-room-follow span {
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .listener-room-actions { flex: 0 0 auto; }
+  .listener-room-actions > div {
+    max-width: min(240px, calc(100vw - 24px));
+    box-sizing: border-box;
+  }
+  .listener-v2-room-stage { height: auto; min-height: min(100dvh, 600px); }
+  .listener-v2-room-artwork {
+    width: min(53vw, 230px, 29dvh) !important;
+    min-width: 0;
+    max-width: 100%;
+  }
+  .listener-v2-room-event-copy h1 {
+    display: block !important;
+    white-space: normal !important;
+    -webkit-line-clamp: unset !important;
+    overflow: visible !important;
+    overflow-wrap: anywhere;
+    text-overflow: clip !important;
+    font-size: clamp(18px, 5.5vw, 25px);
+    line-height: 1.15;
+  }
+  .listener-v2-room-event-copy :where(.listener-v2-room-station, .listener-v2-room-creator) {
+    overflow-wrap: anywhere;
+  }
+  .listener-v2-room-controls {
+    grid-template-columns: 40px minmax(0, 1fr) 56px 40px;
+    grid-template-areas: "mute volume play fullscreen" "meter meter meter meter";
+    justify-items: stretch;
+    align-items: center;
+    column-gap: clamp(5px, 1.8vw, 12px);
+    row-gap: 8px;
+    padding: 10px 10px calc(74px + env(safe-area-inset-bottom)) !important;
+  }
+  .listener-v2-room-controls > button:first-child { grid-area: mute; }
+  .listener-v2-room-volume {
+    display: flex;
+    grid-area: volume;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+  .listener-v2-room-volume input { width: 100%; min-width: 0; }
+  .listener-v2-room-control-center { grid-area: play; min-width: 0; }
+  .listener-v2-room-controls > button:last-child { grid-area: fullscreen; grid-row: auto; grid-column: auto; }
+  .listener-v2-room-live-line {
+    display: block;
+    grid-area: meter;
+    width: 100%;
+    min-width: 0;
+  }
+  .listener-v2-room-play { width: 50px !important; height: 50px !important; }
+  .listener-v2-room-tap-to-play { max-width: 100%; box-sizing: border-box; overflow-wrap: anywhere; }
+  .listener-v2-room-tap-to-play > span { min-width: 0; }
+  .listener-v2-room-chat,
+  .listener-v2-room-chat.is-guest {
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
+    min-height: 0;
+    max-height: max(0px, calc(var(--listener-chat-height, 100dvh) - 8px));
+    box-sizing: border-box;
+  }
+  .listener-v2-room-chat.is-open {
+    bottom: var(--listener-chat-keyboard, 0px);
+    height: min(70dvh, calc(var(--listener-chat-height, 100dvh) - 8px));
+    min-height: 0;
+  }
+  .listener-v2-room-chat.is-guest.is-open {
+    height: min(56dvh, calc(var(--listener-chat-height, 100dvh) - 8px));
+    min-height: 0;
+  }
+  .listener-v2-room-chat-top { flex: 0 0 auto; min-width: 0; }
+  .listener-v2-room-chat-title { min-width: 0; flex: 1 1 auto; flex-wrap: wrap; }
+  .listener-v2-room-chat-top-actions { flex: 0 0 auto; gap: 6px; }
+  .listener-v2-room-chat-signin { min-width: 0; padding-inline: 10px; }
+  .listener-v2-room-chat .lex-chat {
+    flex: 1 1 auto;
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
+  .listener-v2-room-chat .lex-chat__messages {
+    min-height: 0 !important;
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    overflow-wrap: anywhere;
+  }
+  .listener-v2-room-chat :where(.lex-chat-composer, .lex-chat-composer input) { min-width: 0; }
+  .listener-v2-room-chat :where(.lex-chat-message, .lex-chat-message p) {
+    max-width: 100%;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .listener-v2-room-chat-toggle { touch-action: manipulation; }
+}
+@media (max-width: 360px) {
+  .listener-v2-room-toolbar { gap: 4px !important; }
+  .listener-v2-room-toolbar-actions { gap: 4px; }
+  .listener-v2-room-controls { padding-inline: 7px !important; }
+  .listener-v2-room-volume { gap: 4px; }
+  .listener-v2-room-volume > svg { width: 13px; }
+  .listener-v2-room-chat-top { padding-inline: 10px; gap: 6px; }
+}
+@media (max-width: 767px) and (max-height: 560px) {
+  .listener-v2-room-artwork {
+    width: min(36vw, 136px, 27dvh) !important;
+    margin-block: 12px 8px !important;
+  }
+  .listener-v2-room-event-copy { padding-bottom: 6px; }
+  .listener-v2-room-controls { padding-top: 6px !important; }
+  .listener-v2-room-chat.is-open { height: min(82dvh, calc(var(--listener-chat-height, 100dvh) - 8px)); }
+  .listener-v2-room-chat.is-guest.is-open { height: min(70dvh, calc(var(--listener-chat-height, 100dvh) - 8px)); }
+}
