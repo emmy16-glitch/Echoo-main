@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useOutletContext, useSearchParams } from 'react-router-dom';
 import { FiChevronRight, FiHeadphones, FiPlay } from 'react-icons/fi';
 import ContinueListening from '../ListenerV2/ContinueListening';
@@ -17,9 +17,9 @@ const ListenerLibrary = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState('');
-  const [publicCollections, setPublicCollections] = useState([]);
+  const [publicCollections, setPublicCollections] = useState(() => collectionService.peekPublic({ limit: 40 }) || []);
   const [savedCollections, setSavedCollections] = useState([]);
-  const [collectionsLoading, setCollectionsLoading] = useState(false);
+  const [collectionsLoading, setCollectionsLoading] = useState(() => !collectionService.peekPublic({ limit: 40 }));
   const [collectionsError, setCollectionsError] = useState('');
 
   const load = useCallback(async () => {
@@ -43,10 +43,11 @@ const ListenerLibrary = () => {
   useEffect(() => { load(); }, [load]);
 
   const loadCollections = useCallback(async () => {
-    setCollectionsLoading(true);
+    // Cached public Collections paint immediately. Refresh in the background.
+    setCollectionsLoading(!collectionService.peekPublic({ limit: 40 }));
     setCollectionsError('');
     const results = await Promise.allSettled([
-      collectionService.getPublic({ limit: 40 }),
+      collectionService.getPublic({ limit: 40, force: true }),
       isGuest ? Promise.resolve({ data: [] }) : collectionService.getSaved(),
     ]);
     if (results[0].status === 'fulfilled') setPublicCollections(results[0].value?.data || []);
@@ -58,8 +59,16 @@ const ListenerLibrary = () => {
 
   useEffect(() => { if (collectionTab) void loadCollections(); }, [collectionTab, loadCollections]);
 
+  const savedCollectionIds = useMemo(
+    () => new Set(savedCollections.map((item) => String(item.id))),
+    [savedCollections]
+  );
+  const exploreCollections = useMemo(
+    () => publicCollections.filter((item) => !savedCollectionIds.has(String(item.id))),
+    [publicCollections, savedCollectionIds]
+  );
   const collectionRow = (collection) => (
-    <button type="button" key={collection.id} className="listener-v2-collection-row" onClick={() => navigate(`/listen/collections/${encodeURIComponent(collection.id)}`)}>
+    <button type="button" key={collection.id} className="listener-v2-collection-row" onPointerEnter={() => { void collectionService.getById(collection.id).catch(() => undefined); }} onClick={() => navigate(`/listen/collections/${encodeURIComponent(collection.id)}`)}>
       <span className="listener-v2-audio-art">{collection.coverArt ? <img src={collection.coverArt} alt="" /> : <FiHeadphones />}</span>
       <div><strong>{collection.title || collection.name}</strong><span>{collection.station?.name || 'Echoo Collection'} · {collection.broadcastCount ?? collection.recordings?.length ?? 0} recordings</span></div>
       <FiChevronRight aria-hidden="true" />
@@ -101,7 +110,7 @@ const ListenerLibrary = () => {
             </section>}
             <section className="listener-v2-panel" aria-label="Published Collections">
               <h2>Explore Collections</h2>
-              {publicCollections.length ? <div className="listener-v2-audio-list">{publicCollections.map(collectionRow)}</div> : <p>No published Collections are available yet.</p>}
+              {exploreCollections.length ? <div className="listener-v2-audio-list">{exploreCollections.map(collectionRow)}</div> : <p>{savedCollections.length ? 'All available Collections are already saved.' : 'No published Collections are available yet.'}</p>}
             </section>
           </>
         )}
