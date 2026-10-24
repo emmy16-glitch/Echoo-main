@@ -1323,3 +1323,19 @@ html.listener-v2-full-player-open body { overflow:hidden; }
   .listener-v2-header .echoo-account-toolbar__notification,
   .listener-v2-header .account-experience-trigger { flex-basis: 32px; }
 }
+
+/* The global app shell reserves 320px; guest Listener links must also support 280px. */
+@media (max-width: 319px) {
+  html:has(.listener-v2-root),
+  html:has(.listener-v2-root) body,
+  html:has(.listener-v2-root) #root {
+    width: 100%;
+    min-width: 0 !important;
+    max-width: 100%;
+    overflow-x: clip;
+  }
+  .listener-v2-root, .listener-v2-main, .listener-v2-page {
+    min-width: 0 !important;
+    max-width: 100%;
+  }
+}
