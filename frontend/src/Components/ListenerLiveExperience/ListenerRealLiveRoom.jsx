@@ -179,6 +179,8 @@ const ListenerRealLiveRoom = () => {
   const chatLoadGenerationRef = useRef(0);
   const shareMessageTimerRef = useRef(null);
   const [chatOpen, setChatOpen] = useState(false);
+  const chatToggleRef = useRef(null);
+  const chatCloseRef = useRef(null);
 
   const showShareMessage = useCallback((message, duration = 1800) => {
     if (shareMessageTimerRef.current !== null) {
@@ -208,6 +210,8 @@ const ListenerRealLiveRoom = () => {
       document.documentElement.style.setProperty('--listener-chat-keyboard', `${Math.max(0, window.innerHeight - (viewport?.height || window.innerHeight) - (viewport?.offsetTop || 0))}px`);
     };
     updateViewport();
+    const isMobileChat = window.matchMedia('(max-width: 767px)').matches;
+    if (isMobileChat) chatCloseRef.current?.focus({ preventScroll: true });
     viewport?.addEventListener('resize', updateViewport);
     viewport?.addEventListener('scroll', updateViewport);
     document.documentElement.classList.add('listener-v2-chat-open');
@@ -219,6 +223,7 @@ const ListenerRealLiveRoom = () => {
       document.documentElement.style.removeProperty('--listener-chat-keyboard');
       document.documentElement.classList.remove('listener-v2-chat-open');
       window.removeEventListener('keydown', onKeyDown);
+      if (isMobileChat) chatToggleRef.current?.focus({ preventScroll: true });
     };
   }, [chatOpen]);
 
@@ -1099,6 +1104,7 @@ const ListenerRealLiveRoom = () => {
         <button
           type="button"
           className="listener-v2-room-chat-toggle"
+          ref={chatToggleRef}
           onClick={() => setChatOpen((open) => !open)}
           aria-expanded={chatOpen}
           aria-controls="listener-live-chat"
@@ -1116,6 +1122,8 @@ const ListenerRealLiveRoom = () => {
         <aside
           id="listener-live-chat"
           className={`listener-v2-room-chat${chatOpen ? ' is-open' : ''}${isGuest ? ' is-guest' : ''}`}
+          role={chatOpen ? 'dialog' : undefined}
+          aria-modal={chatOpen ? true : undefined}
           aria-label="Live chat"
         >
           <div className="listener-v2-room-chat-top">
@@ -1136,6 +1144,7 @@ const ListenerRealLiveRoom = () => {
               <button
                 type="button"
                 className="listener-v2-room-chat-close"
+                ref={chatCloseRef}
                 aria-label="Close live chat"
                 onClick={() => setChatOpen(false)}
               >
