@@ -99,12 +99,12 @@ async function readStoredDownloads(): Promise<Record<string, LocalDownload>> {
       throw new Error('Offline downloads index is invalid.');
     }
     return parsed as Record<string, LocalDownload>;
-  } catch (error) {
+  } catch {
     // Missing index is normal on first launch. Preserve an existing but corrupt
     // index rather than silently overwriting it and losing download references.
     const info = await FileSystem.getInfoAsync?.(path).catch(() => null);
     if (!info?.exists) return {};
-    throw new Error('Could not read saved offline downloads.', { cause: error });
+    throw new Error('Could not read saved offline downloads.');
   }
 }
 
