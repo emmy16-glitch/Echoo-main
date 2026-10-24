@@ -418,3 +418,62 @@ routes through the same playback path as the center play button. */
     font-size: 13px !important;
   }
 }
+
+/* Phone viewport contract: controls stay on one row at 320 to 767 px.
+   The previous three-column grid placed five controls into implicit rows. */
+@media (max-width: 767px) {
+  .listener-v2-live-room {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    overflow-x: clip;
+    padding: clamp(8px, 2.5vw, 16px);
+  }
+  .listener-v2-room-grid { width: 100%; min-width: 0; }
+  .listener-v2-room-stage {
+    min-width: 0;
+    min-height: min(100dvh, 600px);
+    grid-template-rows: minmax(0, 1fr) auto auto;
+  }
+  .listener-v2-room-artwork {
+    width: min(53vw, 230px, 30dvh);
+    min-width: 0;
+    max-width: 100%;
+    margin: clamp(12px, 3dvh, 30px) auto 12px !important;
+  }
+  .listener-v2-room-event-copy { min-width: 0; max-width: 100%; padding: 0 12px 8px; }
+  .listener-v2-room-event-copy h1 {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    overflow-wrap: anywhere;
+    font-size: clamp(19px, 5.8vw, 27px);
+    line-height: 1.15;
+  }
+  .listener-v2-room-controls {
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr) 56px 40px;
+    grid-template-areas: "mute volume play fullscreen" "meter meter meter meter";
+    align-items: center;
+    column-gap: clamp(5px, 2vw, 12px);
+    row-gap: 9px;
+    min-height: 0;
+    padding: 10px 12px calc(70px + env(safe-area-inset-bottom)) !important;
+  }
+  .listener-v2-room-controls > button:first-child { grid-area: mute; }
+  .listener-v2-room-volume { grid-area: volume; min-width: 0; width: 100%; }
+  .listener-v2-room-volume input { min-width: 0; width: 100%; }
+  .listener-v2-room-control-center { grid-area: play; }
+  .listener-v2-room-controls > button:last-child { grid-area: fullscreen; }
+  .listener-v2-room-live-line { grid-area: meter; min-width: 0; width: 100%; }
+  .listener-v2-room-play { width: 50px !important; height: 50px !important; }
+  .listener-v2-livekit-host { max-width: min(50%, 180px); right: 8px; top: 10px; }
+  .listener-v2-room-toolbar { grid-template-columns: 40px minmax(0, 1fr) auto; gap: 6px; }
+  .listener-v2-room-toolbar-actions { gap: 4px; }
+  .listener-v2-room-toolbar-actions > button { min-width: 0; padding-inline: 7px; }
+}
+@media (max-width: 359px) {
+  .listener-v2-room-toolbar-actions > button { font-size: 11px; }
+  .listener-v2-room-event-copy { padding-inline: 8px; }
+  .listener-v2-room-controls { padding-inline: 8px !important; }
+}
