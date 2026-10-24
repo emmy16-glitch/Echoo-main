@@ -17,9 +17,13 @@ const ListenerLibrary = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState('');
-  const [publicCollections, setPublicCollections] = useState(() => collectionService.peekPublic({ limit: 40 }) || []);
+  const cachedCollections = () =>
+    collectionService.peekPublic({ limit: 40 }) ||
+    collectionService.peekPublic({ limit: 4 }) ||
+    [];
+  const [publicCollections, setPublicCollections] = useState(cachedCollections);
   const [savedCollections, setSavedCollections] = useState([]);
-  const [collectionsLoading, setCollectionsLoading] = useState(() => !collectionService.peekPublic({ limit: 40 }));
+  const [collectionsLoading, setCollectionsLoading] = useState(() => !cachedCollections().length);
   const [collectionsError, setCollectionsError] = useState('');
 
   const load = useCallback(async () => {
@@ -44,7 +48,7 @@ const ListenerLibrary = () => {
 
   const loadCollections = useCallback(async () => {
     // Cached public Collections paint immediately. Refresh in the background.
-    setCollectionsLoading(!collectionService.peekPublic({ limit: 40 }));
+    setCollectionsLoading(!cachedCollections().length);
     setCollectionsError('');
     const results = await Promise.allSettled([
       collectionService.getPublic({ limit: 40, force: true }),
