@@ -679,3 +679,8 @@ routes through the same playback path as the center play button. */
     overflow-y: auto !important;
   }
 }
+
+/* A chat sheet opened in portrait must not leave an overlay in tablet landscape. */
+@media (min-width: 768px) {
+  .listener-v2-room-chat-backdrop { display: none !important; }
+}
