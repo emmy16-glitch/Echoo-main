@@ -1159,9 +1159,21 @@ export async function getPublicCollectionsByOwner(ownerId: string, options: Cach
 // Published Collections are public discovery; saved Collections are per-account.
 // Separate endpoints prevent a published series from being mistaken for a saved item.
 export async function getPublicCollections(options: CacheControlOptions = {}): Promise<EchooPlaylist[]> {
-  const payload = await cachedPublicRequest('/playlists?mode=series&page=1&limit=50', CACHE.publicList, CACHE.stale, options);
-  // Mode filters are applied locally for compatibility with older digi02 APIs.
-  return unwrapList(payload).map(normalizePlaylist).filter((item: EchooPlaylist) => item.id && item.mode === 'series');
+  let payload;
+  try {
+    // Canonical published Collections include accurate visible recording counts.
+    payload = await cachedPublicRequest('/collections/public?page=1&limit=50', CACHE.publicList, CACHE.stale, options);
+  } catch (error: any) {
+    if (error?.status !== 404) throw error;
+    // Allow older hosted backends to continue serving their series alias.
+    payload = await cachedPublicRequest('/playlists?mode=series&page=1&limit=50', CACHE.publicList, CACHE.stale, options);
+  }
+  const ids = new Set<string>();
+  return unwrapList(payload).map(normalizePlaylist).filter((item: EchooPlaylist) => {
+    if (!item.id || item.mode !== 'series' || ids.has(item.id)) return false;
+    ids.add(item.id);
+    return true;
+  });
 }
 
 export async function getSavedCollections(options: CacheControlOptions = {}): Promise<EchooPlaylist[]> {
