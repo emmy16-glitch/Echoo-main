@@ -536,7 +536,7 @@ export default function LibraryScreen() {
                   key={download.trackId}
                   title={download.track?.title || 'Downloaded audio'}
                   subtitle={download.track?.stationName || download.track?.subtitle || download.track?.artistName || 'Offline audio'}
-                  meta="Device"
+                  meta="Offline"
                   image={download.track?.coverArt}
                   fallback={<Download color={palette.blue} size={20} />}
                   trailing={
@@ -559,7 +559,7 @@ export default function LibraryScreen() {
             ) : (
               <View style={styles.inlineEmpty}>
                 <Download color={palette.faint} size={20} />
-                <Text style={styles.inlineEmptyText}>Downloaded audio will stay playable from this device.</Text>
+                <Text style={styles.inlineEmptyText}>Audio you download will appear here and play without internet.</Text>
               </View>
             )}
               </>
