@@ -65,7 +65,10 @@ test('actual browser download listing is account-scoped and prunes missing local
 
 test('mobile offline metadata and files are scoped to the signed-in account', () => {
   assert.match(mobileDownloads, /payload\.userId \|\| payload\.sub/);
-  assert.match(mobileDownloads, /return `\$\{STORE_KEY\}:\$\{await getAccountScope\(\)\}`/);
+  assert.match(mobileDownloads, /downloads\.json/);
+  assert.match(mobileDownloads, /FileSystem\.readAsStringAsync\(path\)/);
+  assert.match(mobileDownloads, /FileSystem\.writeAsStringAsync\(path, JSON\.stringify\(downloads\)\)/);
+  assert.doesNotMatch(mobileDownloads, /SecureStore\.(getItemAsync|setItemAsync)/);
   assert.match(mobileDownloads, /echoo-downloads\/\$\{encodeURIComponent\(accountId\)\}/);
   assert.match(mobileDownloads, /getInfoAsync\?\.\(download\.localUri\)/);
 });
