@@ -199,6 +199,17 @@ const ListenerRealLiveRoom = () => {
     }
   }, []);
 
+  // The side chat is always visible on tablets/desktop. A phone chat sheet
+  // should close when the viewport grows, without affecting LiveKit playback.
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 767px)');
+    const onChange = () => {
+      if (!media.matches) setChatOpen(false);
+    };
+    media.addEventListener('change', onChange);
+    return () => media.removeEventListener('change', onChange);
+  }, []);
+
   useEffect(() => {
     if (!chatOpen) return undefined;
     const onKeyDown = (event) => {
