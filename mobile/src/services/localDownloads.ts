@@ -39,6 +39,7 @@ export type LocalDownload = EchooDownload & {
 
 const statusListeners = new Set<() => void>();
 const statusSnapshot = new Map<string, { status: LocalDownload['status']; progress: number }>();
+let indexMutationQueue: Promise<void> = Promise.resolve();
 
 function emitStatusChange() {
   statusListeners.forEach((listener) => listener());
@@ -115,6 +116,18 @@ async function writeStoredDownloads(downloads: Record<string, LocalDownload>) {
   await FileSystem.writeAsStringAsync(path, JSON.stringify(downloads));
 }
 
+// Serialize index changes so two finished downloads cannot overwrite each other.
+async function mutateStoredDownloads(change: (downloads: Record<string, LocalDownload>) => void) {
+  const update = async () => {
+    const stored = await readStoredDownloads();
+    change(stored);
+    await writeStoredDownloads(stored);
+  };
+  const pending = indexMutationQueue.then(update, update);
+  indexMutationQueue = pending.catch(() => undefined);
+  await pending;
+}
+
 function getExtension(track: EchooAudio) {
   const source = track.fileUrl || '';
   const clean = source.split('?')[0] || '';
@@ -126,17 +139,14 @@ export async function getLocalDownloads(): Promise<LocalDownload[]> {
   const stored = await readStoredDownloads();
   const FileSystem = Platform.OS === 'web' ? null : await loadFileSystem();
   const rows: LocalDownload[] = [];
-  const validStored: Record<string, LocalDownload> = {};
-  for (const [trackId, download] of Object.entries(stored)) {
+  for (const download of Object.values(stored)) {
     const info: { exists: boolean; size?: number } = download.localUri && FileSystem?.getInfoAsync
       ? await FileSystem.getInfoAsync(download.localUri).catch(() => ({ exists: false }))
       : { exists: false };
     if (download.status === 'completed' && download.localUri && info.exists && (info.size == null || Number(info.size) > 0)) {
       rows.push(download);
-      validStored[trackId] = download;
     }
   }
-  if (Object.keys(validStored).length !== Object.keys(stored).length) await writeStoredDownloads(validStored);
   statusSnapshot.clear();
   rows.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
   rows.forEach((download) => {
@@ -251,9 +261,12 @@ export async function downloadAudioToDevice(
       createdAt: serverDownload.createdAt || new Date().toISOString(),
     };
 
-    const stored = await readStoredDownloads();
-    stored[track.id] = completed;
-    await writeStoredDownloads(stored);
+    if (await getAccountScope() !== accountId) {
+      throw new Error('The signed-in account changed during this download. Please try again.');
+    }
+    await mutateStoredDownloads((stored) => {
+      stored[track.id] = completed;
+    });
     setTrackStatus(track.id, 'completed', 100);
     onProgress?.(100);
 
@@ -287,9 +300,9 @@ export async function deleteLocalDownload(download: LocalDownload) {
     await removeDownload(download.id).catch(() => undefined);
   }
 
-  const stored = await readStoredDownloads();
-  delete stored[download.trackId];
-  await writeStoredDownloads(stored);
+  await mutateStoredDownloads((stored) => {
+    delete stored[download.trackId];
+  });
   statusSnapshot.delete(download.trackId);
   emitStatusChange();
 }
