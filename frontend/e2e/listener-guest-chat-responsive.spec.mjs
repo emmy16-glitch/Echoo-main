@@ -123,7 +123,7 @@ test('guest chat reflows when a phone switches to landscape while open', async (
   const metrics = await screenHealth(page);
   expect(metrics.chat?.top).toBeGreaterThanOrEqual(-2);
   expect(metrics.chat?.bottom).toBeLessThanOrEqual(377);
-  await expect(page.getByRole('button', { name: 'Close live chat' })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Live chat' }).getByRole('button', { name: 'Close live chat' })).toBeVisible();
 });
 
 for (const width of [280, 320, 360, 390, 430, 767]) {
