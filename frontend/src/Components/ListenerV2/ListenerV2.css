@@ -1299,3 +1299,27 @@ html.listener-v2-full-player-open body { overflow:hidden; }
   .listener-v2-live-art { width: 56px; height: 56px; }
   .listener-v2-panel { padding-inline: 11px; }
 }
+
+
+/* Guest, Listener and creator-mode controls must fit narrower browsers too. */
+@media (max-width: 767px) {
+  .listener-v2-header { box-sizing: border-box; width: 100%; min-width: 0; }
+  .listener-v2-header .echoo-mode-switcher { width: clamp(110px, 37vw, 142px); flex-basis: clamp(110px, 37vw, 142px); }
+  .listener-v2-header > .echoo-account-toolbar { min-width: 0; }
+  .listener-v2-header .echoo-mode-switcher button { padding-inline: clamp(3px, 1.6vw, 8px); }
+  .listener-v2-guest-actions { min-width: 0; flex-shrink: 0; }
+  .listener-v2-page-header { min-width: 0; flex-wrap: wrap; gap: 12px; }
+  .listener-v2-search-field { min-width: 0; }
+  .listener-v2-mobile-nav { max-width: 100%; box-sizing: border-box; }
+  .listener-v2-live-card,
+  .listener-v2-station-card,
+  .listener-v2-audio-list > article { overflow-wrap: anywhere; }
+}
+@media (max-width: 320px) {
+  .listener-v2-header { gap: 4px; padding-inline: 8px; }
+  .listener-v2-brand span { display: none; }
+  .listener-v2-header .echoo-mode-switcher { width: 108px; flex-basis: 108px; }
+  .listener-v2-header > .echoo-account-toolbar { gap: 3px; }
+  .listener-v2-header .echoo-account-toolbar__notification,
+  .listener-v2-header .account-experience-trigger { flex-basis: 32px; }
+}
