@@ -148,3 +148,32 @@ for (const width of [280, 320, 360, 390, 430, 767]) {
     expect(bounds.headerWidth).toBeLessThanOrEqual(bounds.headerClient + 2);
   });
 }
+
+for (const { width, height } of [
+  { width: 768, height: 1024 },
+  { width: 820, height: 1180 },
+  { width: 912, height: 1368 },
+  { width: 1023, height: 600 },
+]) {
+  test(`guest live room stacks chat below playback at ${width}x${height}`, async ({ page }) => {
+    await page.setViewportSize({ width, height });
+    await mockGuestRoom(page);
+    await page.goto(`/listen/live/${broadcastId}`);
+    await expect(page.locator('.listener-v2-room-grid')).toBeVisible();
+    await expect(page.locator('.listener-v2-room-chat')).toBeVisible();
+    const layout = await page.evaluate(() => {
+      const bounds = (selector) => document.querySelector(selector)?.getBoundingClientRect();
+      const player = bounds('.listener-v2-room-stage');
+      const chat = bounds('.listener-v2-room-chat');
+      return {
+        pageWidth: document.documentElement.scrollWidth,
+        player: player ? { left: player.left, right: player.right, bottom: player.bottom } : null,
+        chat: chat ? { left: chat.left, right: chat.right, top: chat.top } : null,
+      };
+    });
+    expect(layout.pageWidth).toBeLessThanOrEqual(width + 2);
+    expect(layout.player?.right).toBeLessThanOrEqual(width + 2);
+    expect(layout.chat?.right).toBeLessThanOrEqual(width + 2);
+    expect(layout.chat?.top).toBeGreaterThanOrEqual(layout.player.bottom - 2);
+  });
+}
