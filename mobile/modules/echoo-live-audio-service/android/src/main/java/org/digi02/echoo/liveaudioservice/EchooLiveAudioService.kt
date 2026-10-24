@@ -27,7 +27,6 @@ class EchooLiveAudioService : Service() {
     private const val EXTRA_ARTIST = "extra_artist"
     private const val EXTRA_BROADCAST_ID = "extra_broadcast_id"
     private const val EXTRA_KIND = "extra_kind"
-    private const val ACTION_STOP = "org.digi02.echoo.liveaudioservice.STOP"
 
     fun start(context: Context, title: String, artist: String, broadcastId: String, kind: String) {
       val intent = Intent(context, EchooLiveAudioService::class.java).apply {
@@ -51,11 +50,6 @@ class EchooLiveAudioService : Service() {
   override fun onBind(intent: Intent?): IBinder? = null
 
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-    if (intent?.action == ACTION_STOP) {
-      stopSelf()
-      return START_NOT_STICKY
-    }
-
     val kind = intent?.getStringExtra(EXTRA_KIND).orEmpty().ifEmpty { "live" }
     val title = intent?.getStringExtra(EXTRA_TITLE).orEmpty().ifEmpty {
       if (kind == "audio") "Playing on Echoo" else "Live on Echoo"
@@ -86,7 +80,7 @@ class EchooLiveAudioService : Service() {
       "echoo://audio-player"
     }
     val launchIntent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
-      data = Uri.parse(deepLink)
+      if (kind != "broadcast") data = Uri.parse(deepLink)
     }
     val contentIntent = launchIntent?.let {
       PendingIntent.getActivity(
@@ -94,16 +88,10 @@ class EchooLiveAudioService : Service() {
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
       )
     }
-    val stopIntent = PendingIntent.getService(
-      this, 1,
-      Intent(this, EchooLiveAudioService::class.java).apply { action = ACTION_STOP },
-      PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-    )
-
     val contentText = if (artist.isNotEmpty()) {
-      if (kind == "live") "$artist - LIVE" else artist
+      if (kind == "broadcast") "$artist - BROADCASTING" else if (kind == "live") "$artist - LIVE" else artist
     } else {
-      if (kind == "live") "LIVE on Echoo" else "Playing on Echoo"
+      if (kind == "broadcast") "Broadcasting from Echoo" else if (kind == "live") "LIVE on Echoo" else "Playing on Echoo"
     }
 
     val builder = NotificationCompat.Builder(this, CHANNEL_ID)
@@ -111,15 +99,21 @@ class EchooLiveAudioService : Service() {
       .setContentText(contentText)
       .setSmallIcon(android.R.drawable.ic_media_play)
       .setOngoing(true)
-      .addAction(android.R.drawable.ic_media_pause, "Stop", stopIntent)
     if (contentIntent != null) builder.setContentIntent(contentIntent)
     val notification: Notification = builder.build()
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+      // A broadcaster needs microphone foreground eligibility while minimized.
+      // The service is started on a visible screen after RECORD_AUDIO approval.
+      val serviceType = if (kind == "broadcast" && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE or ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+      } else {
+        ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+      }
       startForeground(
         NOTIFICATION_ID,
         notification,
-        ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+        serviceType
       )
     } else {
       @Suppress("DEPRECATION")

@@ -4,7 +4,7 @@ export type LiveAudioServiceInfo = {
   title: string;
   artist?: string;
   broadcastId?: string;
-  kind?: 'audio' | 'live';
+  kind?: 'audio' | 'live' | 'broadcast';
 };
 
 type NativeLiveAudioService = {
@@ -42,7 +42,7 @@ export async function startLiveAudioService(
         String(info.title || (info.kind === 'audio' ? 'Playing on Echoo' : 'Live on Echoo')),
         String(info.artist || ''),
         String(info.broadcastId || ''),
-        info.kind === 'audio' ? 'audio' : 'live'
+        info.kind === 'audio' ? 'audio' : info.kind === 'broadcast' ? 'broadcast' : 'live'
       ) === true
     );
   } catch {

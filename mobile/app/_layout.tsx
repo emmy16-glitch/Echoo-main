@@ -74,7 +74,7 @@ function RootLayoutContent() {
             <Stack.Screen name="collection" />
             <Stack.Screen name="audio-player" />
             <Stack.Screen name="live-room" />
-            <Stack.Screen name="creator-live" />
+            <Stack.Screen name="creator-live" options={{ gestureEnabled: false }} />
             <Stack.Screen name="creator-upload" />
             <Stack.Screen name="creator-content" />
             <Stack.Screen name="creator-schedule" />

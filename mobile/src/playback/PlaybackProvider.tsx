@@ -565,33 +565,22 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => () => releaseAudio(), [releaseAudio]);
 
-  // Keep Echoo playback alive when the app is minimized. iOS is covered by the
-  // audio background mode; Android uses our mediaPlayback foreground service.
-  // For live rooms we start the service during connection setup too, because
-  // token/network setup can take long enough for Android to background the app.
+  // Recorded audio uses expo-audio's media session and lock-screen controls.
+  // Only live listener audio needs Echoo's native foreground service.
+  // The provider sits above navigation so minimizing does not unmount the room.
   useEffect(() => {
-    const shouldRun =
-      current?.kind === 'audio'
-        ? isPlaying
-        : current?.kind === 'live'
-          ? isPlaying || isLoading
-          : false;
-
-    if (!shouldRun || !current) {
-      void stopLiveAudioService();
-      return;
-    }
+    if (current?.kind !== 'live') return;
 
     void startLiveAudioService({
-      title: current.title || (current.kind === 'live' ? 'Live on Echoo' : 'Playing on Echoo'),
+      title: current.title || 'Live on Echoo',
       artist: current.subtitle || '',
       broadcastId: current.id,
-      kind: current.kind,
+      kind: 'live',
     });
     return () => {
       void stopLiveAudioService();
     };
-  }, [current, isLoading, liveKit, liveCredentials, isPlaying]);
+  }, [current?.kind, current?.id]);
 
   const value = useMemo<PlaybackContextValue>(() => ({
     current,

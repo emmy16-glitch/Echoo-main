@@ -17,7 +17,8 @@
     "build:android:production": "npx eas-cli build --platform android --profile production",
     "prebuild:ios:production": "npm run check:production-env",
     "build:ios:production": "npx eas-cli build --platform ios --profile production",
-    "update:production": "npx eas-cli update --environment production"
+    "update:production": "npx eas-cli update --environment production",
+    "test:background-audio": "node scripts/test-background-audio.cjs"
   },
   "dependencies": {
     "@config-plugins/react-native-webrtc": "^13.0.0",

@@ -13,6 +13,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  BackHandler,
   PermissionsAndroid,
   Platform,
   Pressable,
@@ -38,6 +39,11 @@ import {
   startCreatorBroadcast,
 } from '@/src/services/echooApi';
 import { EchooColors, getEchooColors } from '@/src/theme/echooTheme';
+import {
+  ensureLiveAudioNotificationPermission,
+  startLiveAudioService,
+  stopLiveAudioService,
+} from 'echoo-live-audio-service';
 
 type CreatorLiveState = 'idle' | 'preparing' | 'connecting' | 'live' | 'ending' | 'ended' | 'error';
 
@@ -117,6 +123,7 @@ export default function CreatorLiveScreen() {
     const audioSession = audioSessionRef.current;
     audioSessionRef.current = null;
     if (audioSession) await audioSession.stopAudioSession().catch(() => undefined);
+    await stopLiveAudioService();
   }, []);
 
   useEffect(() => () => {
@@ -153,6 +160,21 @@ export default function CreatorLiveScreen() {
     try {
       const permission = await ensureMicrophonePermission();
       if (!permission) throw new Error('Microphone permission is required to go live.');
+
+      // Android requires the microphone foreground service to be started while
+      // Echoo is visible. Starting it after minimizing is restricted on Android 14+.
+      if (Platform.OS === 'android') {
+        void ensureLiveAudioNotificationPermission();
+        const backgroundReady = await startLiveAudioService({
+          title: cleanTitle,
+          artist: stationName,
+          broadcastId: existingBroadcastId,
+          kind: 'broadcast',
+        });
+        if (!backgroundReady) {
+          throw new Error('This Android build cannot keep microphone broadcasting active when minimized. Update Echoo and try again.');
+        }
+      }
 
       const { nativeLiveKit, liveKitClient } = await loadLiveKitForCreator();
       audioSessionRef.current = nativeLiveKit.AudioSession;
@@ -216,7 +238,7 @@ export default function CreatorLiveScreen() {
       setBroadcastId(confirmed.id || broadcast.id);
       setMuted(false);
       setState('live');
-      setToast('You are live. Keep Echoo open while broadcasting.');
+      setToast('You are live. You can minimize Echoo and continue broadcasting.');
     } catch (error: any) {
       await cleanupLiveKit();
       if (startedBroadcastId) {
@@ -281,10 +303,25 @@ export default function CreatorLiveScreen() {
     );
   };
 
+  // Back navigation must never disconnect the creator without explicitly
+  // ending the broadcast on the server. Home and lock buttons still minimize
+  // the app normally, with the native audio service running.
+  // Android hardware Back is handled here; the on-screen Back follows the same rule.
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (live) confirmEnd();
+      else if (busy) setToast('Finish connecting before leaving the studio.');
+      else return false;
+      return true;
+    });
+    return () => subscription.remove();
+  }, [live, busy, confirmEnd]);
+
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom', 'left', 'right']}>
       <View style={styles.topBar}>
-        <Pressable style={styles.iconButton} onPress={() => router.back()} disabled={busy}>
+        <Pressable style={styles.iconButton} onPress={() => live ? confirmEnd() : router.back()} disabled={busy}>
           <ChevronLeft color={palette.ink} size={25} />
         </Pressable>
         <Text style={styles.topTitle}>Mobile live</Text>
